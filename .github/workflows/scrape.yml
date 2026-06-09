@@ -2,10 +2,12 @@ name: Options Scraper
 
 on:
   schedule:
-    # Every hour at :30 from 13:30–21:30 UTC, Mon-Fri.
+    # flow — every hour at :30 from 13:30–21:30 UTC, Mon-Fri.
     # EDT (UTC-4): covers 9:30 AM – 5:30 PM ET; EST (UTC-5): covers 8:30 AM – 4:30 PM ET.
-    # The in-script market hours guard (09:30–16:00 ET) rejects out-of-window fires.
     - cron: '30 13-21 * * 1-5'
+    # unusual — once at 22:00 UTC, Mon-Fri: market close (16:00 ET) + 1h buffer so data has settled.
+    # 22:00 UTC = 18:00 ET in EDT (close +2h) / 17:00 ET in EST (close +1h) — always ≥1h after close.
+    - cron: '0 22 * * 1-5'
   workflow_dispatch:
     inputs:
       mode:
@@ -23,9 +25,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -35,7 +37,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
@@ -49,7 +51,9 @@ jobs:
         run: playwright install-deps chromium
 
       - name: Run scraper
-        run: python scripts/barchart_scrape.py --mode ${{ inputs.mode || 'flow' }}
+        # Manual run: use the chosen input. Scheduled run: the 22:00 UTC cron means
+        # unusual; every other (hourly) cron means flow.
+        run: python scripts/barchart_scrape.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
