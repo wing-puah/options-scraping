@@ -1,0 +1,66 @@
+# Backtest configuration
+# Run with: python3 scripts/backtest.py --config config/backtest.yml
+#
+# The backtest is ANALYSIS-DRIVEN: it reads the LLM analysis tab and treats every
+# non-MARKET ticker row that has a play as a decision to open a position. There is
+# deliberately no signal_filter here — the analysis IS the filter. To change what
+# gets traded, change the analysis, not this file.
+
+# ── Analysis source ────────────────────────────────────────────────────────────
+analysis:
+  # Which analysis tab to backtest. Populate it first via /options analyze in
+  # range mode (which appends one analysis per date) so there is history to test.
+  #   AnalysisClaude — Claude Code analyses
+  #   AnalysisGPT    — GPT Codex analyses
+  tab: AnalysisClaude
+
+# ── Entry matching ─────────────────────────────────────────────────────────────
+# Each play is matched to the real flow contract it refers to (same symbol +
+# direction, largest premium). The actual `Trade` price of that contract is the
+# entry price — no Black-Scholes for entry.
+entry:
+  # Require the matched flow trade to be on a given side: Ask | Bid | Mid | any.
+  # "Ask" = buyer-initiated (directional conviction). "any" matches the headline
+  # trade regardless of side.
+  match_side: any
+
+# ── Trade simulation ───────────────────────────────────────────────────────────
+simulation:
+  # Number of contracts simulated per play.
+  contracts: 1
+
+  # Profit target / stop loss as a fraction of the entry premium.
+  profit_target: 0.50 # +50%
+  stop_loss: 1.00 # -100% (premium fully lost)
+
+  # Measure P&L this many calendar days after the signal date.
+  exit_days: [1, 3, 5, 10, 21, 60]
+
+  # Exit pricing — tried in this order, first available wins (per checkpoint):
+  #   barchart     — REAL per-contract daily price scraped from Barchart's
+  #                  price-history page (marked to mid of Bid/Ask). Needs
+  #                  BARCHART_EMAIL/PASSWORD; results cached under
+  #                  backtests/option_history_cache/ so re-runs don't re-scrape.
+  #   reappearance — REAL Trade price when the same contract recurs in a later
+  #                  flow scrape on/after the checkpoint (free, but sparse).
+  #   bs           — Black-Scholes model (last resort, when no real data exists).
+  # To avoid all scraping, use: [reappearance, bs]  or just  [bs].
+  exit_sources: [barchart, reappearance, bs]
+
+  # For spread structures: how far OTM to synthesise the short leg ONLY when the
+  # play doesn't name an explicit short strike. The short leg is a real contract,
+  # so its Barchart history is fetched and netted out just like the long leg;
+  # Black-Scholes is the fallback only when that contract has no history (e.g. a
+  # synthesised strike that doesn't trade).
+  spread_width_pct: 0.02
+
+  # Risk-free rate for the Black-Scholes legs / fallback.
+  risk_free_rate: 0.05
+
+# ── Output ─────────────────────────────────────────────────────────────────────
+output:
+  # Local CSV (always written unless --dry-run).
+  local_csv: backtests/results.csv
+
+  # Google Sheets tab (set to null to skip).
+  sheet_tab: BacktestResults

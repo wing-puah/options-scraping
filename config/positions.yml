@@ -1,0 +1,100 @@
+positions: []
+
+# ─────────────────────────────────────────────
+# SINGLE LEG example
+# ─────────────────────────────────────────────
+# positions:
+#   - symbol: TSLA
+#     type: Call
+#     strike: 250
+#     expiry: 2026-07-18
+#     qty: 3                  # contracts (negative = short)
+#     entry_price: 8.20       # premium paid per contract
+#     notes: "momentum play"
+
+# ─────────────────────────────────────────────
+# MULTI-LEG examples
+# Each strategy groups its legs under a shared name.
+# qty negative = short leg.
+# net_debit/net_credit = total premium paid or received for the spread.
+# ─────────────────────────────────────────────
+
+# Bull Call Spread (debit spread — bullish, defined risk)
+# positions:
+#   - strategy: Bull Call Spread
+#     symbol: SPY
+#     expiry: 2026-07-18
+#     net_debit: 3.20         # paid per spread (long premium - short premium)
+#     qty: 5                  # number of spreads
+#     notes: "breakeven at 523.20, max profit above 530"
+#     legs:
+#       - type: Call
+#         strike: 520
+#         qty: 5              # long leg
+#         entry_price: 7.40
+#       - type: Call
+#         strike: 530
+#         qty: -5             # short leg
+#         entry_price: 4.20
+
+# Bear Put Spread (debit spread — bearish, defined risk)
+# positions:
+#   - strategy: Bear Put Spread
+#     symbol: QQQ
+#     expiry: 2026-06-20
+#     net_debit: 2.80
+#     qty: 4
+#     notes: "hedging long tech exposure"
+#     legs:
+#       - type: Put
+#         strike: 450
+#         qty: 4              # long leg
+#         entry_price: 6.50
+#       - type: Put
+#         strike: 440
+#         qty: -4             # short leg
+#         entry_price: 3.70
+
+# Iron Condor (credit spread — neutral, range-bound)
+# positions:
+#   - strategy: Iron Condor
+#     symbol: SPX
+#     expiry: 2026-06-20
+#     net_credit: 8.50        # received per condor
+#     qty: 2
+#     notes: "expecting low vol, max profit between 5100-5300"
+#     legs:
+#       - type: Put
+#         strike: 5000
+#         qty: 2              # long put (lower wing)
+#         entry_price: 4.20
+#       - type: Put
+#         strike: 5100
+#         qty: -2             # short put
+#         entry_price: 7.80
+#       - type: Call
+#         strike: 5300
+#         qty: -2             # short call
+#         entry_price: 7.50
+#       - type: Call
+#         strike: 5400
+#         qty: 2              # long call (upper wing)
+#         entry_price: 3.00
+
+# Straddle (debit — long vol, expecting big move)
+# positions:
+#   - strategy: Long Straddle
+#     symbol: NVDA
+#     expiry: 2026-06-20
+#     net_debit: 18.40
+#     qty: 3
+#     notes: "earnings play, need move > 18.40 to profit"
+#     legs:
+#       - type: Call
+#         strike: 900
+#         qty: 3
+#         entry_price: 9.80
+#       - type: Put
+#         strike: 900
+#         qty: 3
+#         entry_price: 8.60
