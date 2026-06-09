@@ -183,23 +183,32 @@ class DriveClient:
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def _build_service():
+    import json
+
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
 
-    token_path = Path(os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or _DEFAULT_TOKEN)
+    token_content = os.getenv("GOOGLE_OAUTH_TOKEN_JSON_CONTENT")
     log.debug("Loading Drive credentials")
-    if not token_path.exists():
-        log.error("Drive token not found — run scripts/auth_drive.py")
-        raise RuntimeError(
-            "Drive token not found. Run: python3 scripts/auth_drive.py"
-        )
-    creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+    if token_content:
+        log.debug("Loading Drive token from env content")
+        creds = Credentials.from_authorized_user_info(json.loads(token_content), SCOPES)
+        token_path = None
+    else:
+        token_path = Path(os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or _DEFAULT_TOKEN)
+        if not token_path.exists():
+            log.error("Drive token not found — run scripts/auth_drive.py")
+            raise RuntimeError(
+                "Drive token not found. Run: python3 scripts/auth_drive.py"
+            )
+        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
     if creds.expired and creds.refresh_token:
         log.info("Drive token expired — refreshing")
         creds.refresh(Request())
-        token_path.write_text(creds.to_json())
-        log.info("Drive token refreshed and saved")
+        if token_path is not None:
+            token_path.write_text(creds.to_json())
+            log.info("Drive token refreshed and saved")
     svc = build("drive", "v3", credentials=creds, cache_discovery=False)
     log.debug("Drive service built successfully")
     return svc

@@ -6,7 +6,16 @@ on:
     # EDT (UTC-4): covers 9:30 AM – 5:30 PM ET; EST (UTC-5): covers 8:30 AM – 4:30 PM ET.
     # The in-script market hours guard (09:30–16:00 ET) rejects out-of-window fires.
     - cron: '30 13-21 * * 1-5'
-  workflow_dispatch:  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Scrape mode'
+        required: false
+        default: 'flow'
+        type: choice
+        options:
+          - flow
+          - unusual
 
 jobs:
   scrape:
@@ -19,18 +28,33 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: playwright install --with-deps chromium
 
+      - name: Install Playwright system deps (cached browser)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: playwright install-deps chromium
+
       - name: Run scraper
-        run: python scripts/barchart_scrape.py --mode flow
+        run: python scripts/barchart_scrape.py --mode ${{ inputs.mode || 'flow' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
           GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           SCRAPE_HEADLESS: 'true'
