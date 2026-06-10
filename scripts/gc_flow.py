@@ -99,6 +99,7 @@ def gc_prefix(client, prefix: str, date_str: str, dry_run: bool = False) -> dict
 
     for f in raws:
         client.trash(f["id"])
+        log.info("%s %s: trashed raw snapshot '%s'", prefix, date_str, f["name"])
     log.info("%s %s: verified — trashed %d raw snapshot(s)", prefix, date_str, len(raws))
     return {"prefix": prefix, "date": date_str, "status": "trashed", "raw": len(raws), "trashed": len(raws)}
 

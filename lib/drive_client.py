@@ -149,7 +149,7 @@ class DriveClient:
         Preferred over a hard delete for cleanup steps so a bad run is reversible;
         trashed files no longer match list queries (which filter trashed = false).
         """
-        log.info("Trashing Drive file '%s'", file_id)
+        log.debug("Trashing Drive file")
         self._svc.files().update(fileId=file_id, body={"trashed": True}).execute()
 
     def list_files(self, prefix: str) -> list[dict]:

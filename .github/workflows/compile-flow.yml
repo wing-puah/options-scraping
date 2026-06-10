@@ -30,9 +30,14 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
+          # Key the pip cache on the slim file this job actually installs.
+          cache-dependency-path: requirements-compile.txt
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        # Slim set — compile_flow.py + gc_flow.py only need Drive + pandas, not the
+        # full requirements.txt (Playwright/scipy/yfinance/openai/gspread). Far less
+        # to download and install than the scraper job.
+        run: pip install -r requirements-compile.txt
 
       - name: Compile daily flow
         # --date empty on schedule → today (ET).
