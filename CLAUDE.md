@@ -18,6 +18,16 @@ pytest tests/test_drive_client.py
 SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode flow
 SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode unusual
 
+# Compile a day's hourly flow snapshots into one deduped CSV per type (→ Drive)
+python3 scripts/compile_flow.py                      # today (ET)
+python3 scripts/compile_flow.py --date 2026-06-09
+python3 scripts/compile_flow.py --date 2026-06-09 --dry-run   # report dup counts, no upload
+
+# Garbage-collect raw snapshots once verified-present in their compiled file (→ Drive trash)
+python3 scripts/gc_flow.py                            # today (ET)
+python3 scripts/gc_flow.py --all                     # sweep every compiled date
+python3 scripts/gc_flow.py --all --dry-run           # report what would be trashed
+
 # Prepare Drive data as markdown for LLM analysis (all rows by default; --rows N caps the tail)
 python3 scripts/prepare_analysis.py
 
@@ -80,6 +90,8 @@ lib/                        ← shared modules, imported by scripts, never run d
 
 scripts/                    ← entry points, each maps to a workflow step
   barchart_scrape.py        — scrape barchart → Drive; live (--mode) or historical (--date/--start)
+  compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one deduped CSV per type (trade-identity dedup) → {prefix}-{YYYYMMDD}-compiled.csv in Drive
+  gc_flow.py                — garbage-collect raw snapshots: re-verifies every raw trade is present in the compiled file, then trashes the raws (recoverable). Separate from compile; --all sweeps all compiled dates. Daily after compile via .github/workflows/compile-flow.yml
   prepare_analysis.py       — prep: Drive → markdown stdout (flow data only, no positions)
   analysis_pipeline/        — full pipeline package (run via `python3 -m scripts.analysis_pipeline`): fetch (prepare_analysis) → headless engine call (isolated session; `--engine claude|codex`, `--model` overridable) → expand to per-ticker rows → append to the engine's tab (AnalysisClaude / AnalysisGPT). Source of truth for /options analyze; the skill just shells out here.
                               · config.py  — ALL user-tunable settings: engine registry (model/method/tab), retries, timeout, fetch defaults, sheet schema, prompt contract

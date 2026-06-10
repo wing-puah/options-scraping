@@ -1,0 +1,50 @@
+name: Compile Flow
+
+# Runs once a day, after the Options Scraper's 22:00 UTC unusual download, by
+# which time all of the day's hourly flow snapshots are in Drive. Two steps:
+#   1. compile_flow.py — dedup the day's snapshots into one compiled CSV per type.
+#   2. gc_flow.py --all — trash raw snapshots that are verified-present in their
+#      compiled file (sweeps any past date too, so a missed run self-heals).
+
+on:
+  schedule:
+    # 22:30 UTC, Mon-Fri — 30 min after the unusual scrape (22:00 UTC) so it has
+    # finished uploading. Compiles the current ET trading day.
+    - cron: '30 22 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Trading date to compile (YYYY-MM-DD). Blank = today (ET).'
+        required: false
+        type: string
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile daily flow
+        # --date empty on schedule → today (ET).
+        run: python scripts/compile_flow.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+
+      - name: Garbage-collect compiled raw snapshots
+        # Independently re-verifies each date's compile before trashing its raws.
+        # --all sweeps every compiled date, so a previously-missed cleanup heals.
+        run: python scripts/gc_flow.py --all
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}

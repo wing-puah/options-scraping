@@ -12,6 +12,7 @@ directly by injecting a googleapiclient service (useful for testing).
 import io
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -142,6 +143,15 @@ class DriveClient:
         log.info("Downloaded Drive file — %d bytes", len(content))
         return content
 
+    def trash(self, file_id: str) -> None:
+        """Move a Drive file to trash. Recoverable for ~30 days, then auto-purged.
+
+        Preferred over a hard delete for cleanup steps so a bad run is reversible;
+        trashed files no longer match list queries (which filter trashed = false).
+        """
+        log.info("Trashing Drive file '%s'", file_id)
+        self._svc.files().update(fileId=file_id, body={"trashed": True}).execute()
+
     def list_files(self, prefix: str) -> list[dict]:
         """
         List all Drive files matching {prefix}-*.csv across all folders, newest first.
@@ -165,6 +175,20 @@ class DriveClient:
         latest = files[0]
         log.info("Latest file for prefix '%s': '%s'", prefix, latest["name"])
         return latest["name"], self.download(latest["id"])
+
+    def list_files_for_date(self, prefix: str, date_str: str) -> list[dict]:
+        """All timestamped snapshot files for prefix on date_str (YYYY-MM-DD), oldest→newest.
+
+        Matches only `{prefix}-YYYYMMDD-HHMM.csv` snapshots; derived files such as
+        `{prefix}-YYYYMMDD-compiled.csv` are excluded so a compiled output is never
+        fed back in as input. Sorted chronologically by name.
+        """
+        compact = date_str.replace("-", "")
+        pattern = re.compile(rf"^{re.escape(prefix)}-{compact}-\d{{4}}\.csv$")
+        files = [f for f in self.list_files(prefix) if pattern.match(f["name"])]
+        files.sort(key=lambda f: f["name"])
+        log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
+        return files
 
     def download_for_date(self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]:
         """Download the most recent file for prefix on date_str (YYYY-MM-DD)."""
