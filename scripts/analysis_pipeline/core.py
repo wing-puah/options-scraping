@@ -166,8 +166,19 @@ def _join(value) -> str:
 
 
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str) -> list[dict]:
-    """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS)."""
-    regime = _join(analysis.get("regime")).strip()
+    """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
+
+    INVARIANT — do not regress (fixed June 2026):
+      - The MARKET row carries the top-level `regime` and `signals` (+ folded
+        sector_focus).
+      - Each play row carries its OWN `regime` and `signal` from inside the play
+        dict — NOT the market-level fields. Either may be empty.
+      - Never replace `p.get("regime")` / `p.get("signal")` with `market_regime`
+        / `market_signal` (or hardcoded "") as a "simplification" — that
+        collapses ticker-specific evidence into a duplicated market read, which
+        is the exact regression this guards against.
+    """
+    market_regime = _join(analysis.get("regime")).strip()
     signals = _join(analysis.get("signals")).strip()
     sector = _join(analysis.get("sector_focus")).strip()
 
@@ -175,13 +186,13 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
     # cell (which backtest.py does not parse) so the information survives.
     market_signal = f"{signals}\n\nSector focus: {sector}" if sector else signals
 
-    def _row(ticker, signal, play, invalidation):
+    def _row(ticker, regime, signal, play, invalidation):
         return dict(zip(ROW_COLUMNS, [
             date_str, ticker, regime, signal, play, invalidation,
             window_start, window_end,
         ]))
 
-    rows = [_row("MARKET", market_signal, "", "")]
+    rows = [_row("MARKET", market_regime, market_signal, "", "")]
     for p in analysis.get("plays", []) or []:
         ticker = str(p.get("ticker", "")).strip().upper()
         if not ticker:
@@ -195,7 +206,9 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         confidence = str(p.get("confidence", "")).strip().lower()
         if confidence:
             play_text = f"[{confidence}] {play_text}" if play_text else f"[{confidence}]"
-        rows.append(_row(ticker, "", play_text, str(
+        play_regime = _join(p.get("regime")).strip()
+        play_signal = _join(p.get("signal")).strip()
+        rows.append(_row(ticker, play_regime, play_signal, play_text, str(
             p.get("invalidation", "")).strip()))
     return rows
 

@@ -167,6 +167,45 @@ Trigger and invalidation levels are approximate when only the Barchart snapshot
 is available. They should be validated against a current price chart before a
 trade is placed.
 
+## 6b. Per-Play Regime And Signal Vs Market Regime And Signal
+
+The output schema carries **two** regime fields and **two** signal fields, with
+different roles. Treat them as independent — do not mirror the market read into
+a play's fields.
+
+Market-level (top-level fields, written to the MARKET row):
+
+- `regime` — the regime of the tape: direction + volatility + sentiment (+ macro
+  when corroborated) for the whole market.
+- `signals` — cross-asset and macro patterns (broad index hedging, vol regime,
+  sector rotation, credit divergence). Global to the run.
+
+Ticker-level (inside each play, written to that play's row):
+
+- `regime` — the volatility / level / posture state for THIS name, e.g.
+  `BULL + E-VOL — testing 59 breakout, IV30 rising into earnings`, or
+  `RANGE + L-VOL — pinned at 200, OPEX gravity`. It is the ticker's own setup,
+  not the tape's. Leave empty when there is nothing ticker-specific to add — do
+  not copy the market regime into this field.
+- `signal` — the ticker-specific evidence chain for the play, pipe-separated
+  and tagged with the framework vocabulary
+  (`[FLOW]/[PRICE]/[MACRO]/[VEGA]/[CAT]`).
+
+A per-play `signal` should cite the concrete prints that survived Section 3
+for that ticker — premium balance, Vol/OI, opening labels, sweep codes,
+strike/DTE coherence, sector confirmation, nearby price levels. Examples:
+
+- `[FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI ToOpen $64 calls | [PRICE] testing breakout at 59`
+- `[FLOW] ask-side put sweeps across SPY/QQQ/IWM, BuyToOpen labels | [VEGA] VIX call buying 35-40 | [MACRO] credit (HYG) diverging from equity highs`
+
+Rules:
+
+- Do not copy the market `regime` into a play's `regime`, and do not copy the
+  market `signals` into a play's `signal`.
+- A play's `regime` may be empty. A play's `signal` may not — if a ticker lacks
+  enough ticker-specific evidence to populate the signal, the ticker does not
+  qualify as a play.
+
 ## 7. Confidence And Language
 
 Codex uses confidence implicitly:

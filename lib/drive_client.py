@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-_DEFAULT_TOKEN = str(Path(__file__).parent.parent / "credentials" / "drive_token.json")
+_DEFAULT_TOKEN = str(Path(__file__).parent.parent /
+                     "credentials" / "drive_token.json")
 
 FILE_PREFIXES = {
     "unusual-stocks": "Unusual Options Activity — Stocks",
@@ -45,8 +46,11 @@ class StorageClient(Protocol):
     def upload(self, local_path: Path, name: str, folder_id: str) -> str: ...
     def download(self, file_id: str) -> str: ...
     def list_files(self, prefix: str) -> list[dict]: ...
-    def download_latest(self, prefix: str) -> tuple[str, str] | tuple[None, None]: ...
-    def download_for_date(self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]: ...
+
+    def download_latest(self, prefix: str) -> tuple[str,
+                                                    str] | tuple[None, None]: ...
+    def download_for_date(
+        self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]: ...
 
 
 # ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -112,9 +116,11 @@ class DriveClient:
     def upload(self, local_path: Path, name: str, folder_id: str) -> str:
         """Upload local_path to folder_id. Replaces existing file with same name."""
         log.info("Uploading '%s' from local path '%s' to Drive", name, local_path)
-        media = MediaFileUpload(str(local_path), mimetype="text/csv", resumable=True)
+        media = MediaFileUpload(
+            str(local_path), mimetype="text/csv", resumable=True)
         q = f"name = '{name}' and '{folder_id}' in parents and trashed = false"
-        existing = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        existing = self._svc.files().list(
+            q=q, fields="files(id)").execute().get("files", [])
         if existing:
             log.info("Replacing existing file '%s'", name)
             file_id = self._svc.files().update(
@@ -150,7 +156,8 @@ class DriveClient:
         trashed files no longer match list queries (which filter trashed = false).
         """
         log.debug("Trashing Drive file")
-        self._svc.files().update(fileId=file_id, body={"trashed": True}).execute()
+        self._svc.files().update(fileId=file_id, body={
+            "trashed": True}).execute()
 
     def list_files(self, prefix: str) -> list[dict]:
         """
@@ -185,9 +192,11 @@ class DriveClient:
         """
         compact = date_str.replace("-", "")
         pattern = re.compile(rf"^{re.escape(prefix)}-{compact}-\d{{4}}\.csv$")
-        files = [f for f in self.list_files(prefix) if pattern.match(f["name"])]
+        files = [f for f in self.list_files(
+            prefix) if pattern.match(f["name"])]
         files.sort(key=lambda f: f["name"])
-        log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
+        log.info("Found %d snapshot(s) for prefix '%s' on %s",
+                 len(files), prefix, date_str)
         return files
 
     def download_for_date(self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]:
@@ -195,12 +204,16 @@ class DriveClient:
         log.info("Fetching file for prefix '%s' on date '%s'", prefix, date_str)
         compact = date_str.replace("-", "")
         all_files = self.list_files(prefix)
-        files = [f for f in all_files if f["name"].startswith(f"{prefix}-{compact}-")]
+
+        files = [f for f in all_files if f["name"].startswith(
+            f"{prefix}-{compact}-")]
         if not files:
-            log.warning("No files found for prefix '%s' on date '%s'", prefix, date_str)
+            log.warning(
+                "No files found for prefix '%s' on date '%s'", prefix, date_str)
             return None, None
         selected = files[0]
-        log.info("Selected file '%s' for date '%s'", selected["name"], date_str)
+        log.info("Selected file '%s' for date '%s'",
+                 selected["name"], date_str)
         return selected["name"], self.download(selected["id"])
 
 
@@ -217,10 +230,12 @@ def _build_service():
     log.debug("Loading Drive credentials")
     if token_content:
         log.debug("Loading Drive token from env content")
-        creds = Credentials.from_authorized_user_info(json.loads(token_content), SCOPES)
+        creds = Credentials.from_authorized_user_info(
+            json.loads(token_content), SCOPES)
         token_path = None
     else:
-        token_path = Path(os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or _DEFAULT_TOKEN)
+        token_path = Path(
+            os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or _DEFAULT_TOKEN)
         if not token_path.exists():
             log.error("Drive token not found — run scripts/auth_drive.py")
             raise RuntimeError(

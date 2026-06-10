@@ -204,6 +204,47 @@ flow alone.
 - Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
   must clear it.
 
+## Per-play regime and signal vs market regime and signal
+
+The output schema has **two** regime fields and **two** signal fields, and they
+answer different questions. Treat them as independent — never mirror the market
+read into a play's fields.
+
+**Market-level (top-level fields, written to the MARKET row):**
+
+- `regime` — the regime of the tape: direction + volatility + sentiment (+ macro
+  only if cross-asset corroborated) for the whole market.
+- `signals` — cross-asset and macro patterns (broad index hedging, vol regime,
+  sector rotation, credit divergence). Global to the run.
+
+**Ticker-level (inside each play, written to that play's row):**
+
+- `regime` — the volatility / level / posture state for THIS name (e.g.
+  `BULL + E-VOL — testing 59 breakout, IV30 rising into earnings`, or
+  `RANGE + L-VOL — pinned at 200, OPEX gravity`). It is the ticker's own
+  setup, not the tape's. Leave **empty** when there is nothing ticker-specific
+  to add beyond the market read — do NOT copy the market regime here.
+- `signal` — the ticker-specific evidence chain for that play, pipe-separated
+  and tagged with the framework vocabulary
+  (`[FLOW]/[PRICE]/[MACRO]/[VEGA]/[CAT]`). The auditable "why this name, why
+  this side."
+
+A per-play `signal` should cite the concrete prints that survived the
+corroboration ladder for that ticker — premium balance, Vol/OI, opening labels,
+sweep codes, strike/DTE coherence, sector/index confirmation, nearby price
+levels. Examples:
+
+- `[FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI ToOpen $64 calls | [PRICE] testing breakout at 59`
+- `[FLOW] ask-side put sweeps across SPY/QQQ/IWM, BuyToOpen labels | [VEGA] VIX call buying 35-40 | [MACRO] credit (HYG) diverging from equity highs`
+
+Rules:
+
+- Do NOT copy the market `regime` into a play's `regime`, and do NOT copy the
+  market `signals` into a play's `signal`.
+- A play's `regime` may be empty; a play's `signal` may NOT — if a ticker lacks
+  enough ticker-specific evidence to fill the signal, it does not qualify as a
+  play.
+
 ## Triggers and invalidation
 
 Every play needs an entry that requires _confirmation after the snapshot_, and a

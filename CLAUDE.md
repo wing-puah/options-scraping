@@ -123,6 +123,10 @@ scripts/prepare_analysis.py --date …   (prep for LLM, or run /options analyze)
 | BacktestResults | `backtest.py` (optional) |
 | _meta | `sheets_client.py` (dedup hashes) |
 
+## Invariants (do not regress)
+
+- **Per-play `regime` and `signal` are ticker-specific, never copies of the market read.** The MARKET row of an analysis carries the top-level `regime` + `signals` (+ folded `sector_focus`); each play row carries its OWN `regime` and `signal` taken from inside the play dict. Either play field may be empty, but they must NEVER fall back to the market values. See the invariant comment on `analysis_to_rows()` in `scripts/analysis_pipeline/core.py` and the per-play schema in `scripts/analysis_pipeline/config.py` (`ANALYSIS_PROMPT_CONTRACT`). This regression has happened before — keep the four touch points (JSON contract, row expansion, claude.md, codex.md) in sync.
+
 ## Skill modes
 
 The `/options` skill routes as follows:

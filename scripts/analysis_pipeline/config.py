@@ -84,7 +84,7 @@ ROW_COLUMNS = [
 # expanded into one sheet row per ticker without parsing free text.
 #
 # Coupled to analysis_to_rows() in core.py: the `plays` item keys
-# (ticker/asset_class/pattern/structure/thesis/trigger/invalidation/confidence)
+# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence)
 # are read there, so keep them in sync if you edit this. Coverage minimums are
 # MIN_STOCK_PLAYS / MIN_ETF_PLAYS above — keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
@@ -97,13 +97,15 @@ Schema (all string fields unless noted):
 
 {
   "regime": "Directional + Volatility + Sentiment labels (+ Macro only if cross-asset corroborated) and a one-sentence read. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, broad index put hedging.",
-  "signals": "Tagged signals, pipe-separated. E.g. [FLOW] QQQ put sweeps | [VEGA] VIX call buying 35-40 | [PRICE] NVDA testing 180.",
+  "signals": "Market-level tagged signals, pipe-separated — cross-asset/macro patterns ONLY (e.g. index hedging, vol regime, sector rotation). Per-ticker evidence belongs in each play's `signal` field, not here. E.g. [FLOW] broad index put hedging across SPY/QQQ/IWM | [VEGA] VIX call buying 35-40 | [MACRO] dollar bid risk-off.",
   "sector_focus": "Sectors/names with concentrated flow and what it implies.",
   "plays": [
     {
       "ticker": "NVDA",
       "asset_class": "stock|etf",
       "pattern": "HP|RF|VE|SH|DC|MS",
+      "regime": "Ticker-specific regime — the volatility / level / posture state for THIS name (e.g. 'BULL + E-VOL — testing 59 breakout, IV30 rising into earnings'). Distinct from the market regime. Leave EMPTY if there is nothing ticker-specific to add beyond the market read — do NOT copy the market regime here.",
+      "signal": "Ticker-specific tagged evidence supporting THIS play, pipe-separated. E.g. [FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI unusual print | [FLOW] explicit ToOpen/BuyToOpen $64 calls | [PRICE] testing breakout at 59. Distinct from the market-level `signals` — this is the per-ticker evidence chain.",
       "structure": "e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
