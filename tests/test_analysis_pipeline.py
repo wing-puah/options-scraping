@@ -12,6 +12,7 @@ from analysis_pipeline import (
     _strip_output_section,
     analysis_to_rows,
 )
+from analysis_pipeline.core import _warn_if_below_targets
 
 
 def _ns(**kw):
@@ -56,6 +57,33 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
     assert nvda["play"] == "HP | bear put 180/170 | hedge pressure. Trigger: lose 180"
     assert nvda["invalidation"] == "close > 185"
     assert nvda["signal"] == ""  # signals live on the MARKET row only
+
+
+def test_analysis_to_rows_prefixes_confidence_when_present():
+    analysis = {
+        "regime": "BULL",
+        "plays": [
+            {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
+             "thesis": "trend", "confidence": "Low"},
+        ],
+    }
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
+    assert rows[1]["play"] == "[low] bull call 600/610 | trend"
+
+
+def test_warn_below_targets_fires_when_short(caplog):
+    analysis = {"plays": [{"ticker": "A", "asset_class": "stock"}]}
+    with caplog.at_level("WARNING"):
+        _warn_if_below_targets(analysis)
+    assert "below target" in caplog.text
+
+
+def test_warn_below_targets_silent_when_met(caplog):
+    plays = ([{"ticker": f"S{i}", "asset_class": "stock"} for i in range(5)]
+             + [{"ticker": f"E{i}", "asset_class": "etf"} for i in range(3)])
+    with caplog.at_level("WARNING"):
+        _warn_if_below_targets({"plays": plays})
+    assert "below target" not in caplog.text
 
 
 def test_analysis_to_rows_handles_missing_market_signal():

@@ -192,9 +192,28 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         trigger = str(p.get("trigger", "")).strip()
         if trigger:
             play_text = f"{play_text}. Trigger: {trigger}" if play_text else f"Trigger: {trigger}"
+        confidence = str(p.get("confidence", "")).strip().lower()
+        if confidence:
+            play_text = f"[{confidence}] {play_text}" if play_text else f"[{confidence}]"
         rows.append(_row(ticker, "", play_text, str(
             p.get("invalidation", "")).strip()))
     return rows
+
+
+def _warn_if_below_targets(analysis: dict) -> None:
+    """Log a non-fatal warning when a run returns fewer plays than the contract asks for.
+
+    Counts are by the play's `asset_class` tag; the run is never blocked — thin
+    days legitimately yield fewer setups, so this is operator visibility only.
+    """
+    plays = analysis.get("plays") or []
+    stocks = sum(1 for p in plays if str(p.get("asset_class", "")).strip().lower() == "stock")
+    etfs = sum(1 for p in plays if str(p.get("asset_class", "")).strip().lower() == "etf")
+    if stocks < config.MIN_STOCK_PLAYS or etfs < config.MIN_ETF_PLAYS:
+        log.warning(
+            "Play coverage below target: %d stock (want >=%d), %d ETF (want >=%d)",
+            stocks, config.MIN_STOCK_PLAYS, etfs, config.MIN_ETF_PLAYS,
+        )
 
 
 def _dates_to_process(args, client) -> list[str]:
@@ -231,6 +250,7 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
 
     prompt = build_prompt(framework_md, method_md, data_md, date_str)
     analysis = run_engine(engine, prompt, model)
+    _warn_if_below_targets(analysis)
 
     rows = analysis_to_rows(analysis, date_str, window_start, window_end)
     if write:

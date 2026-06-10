@@ -54,6 +54,15 @@ REQUEST_TIMEOUT_S = 600     # per-attempt timeout (seconds) for the engine CLI
 DEFAULT_TOP_N = 75          # top-N raw trades per section included alongside summaries
 DEFAULT_DAYS = 1            # persistence window (1 = no persistence section)
 
+
+# ──────────────────────── Play coverage targets ────────────────────
+# Minimum plays the contract asks each run to return, split by asset class, on
+# top of the always-present market read (regime/signals/sector_focus). The
+# pipeline logs a non-fatal warning when a run comes back short — it never blocks
+# a write, since thin days legitimately yield weaker setups.
+MIN_STOCK_PLAYS = 5
+MIN_ETF_PLAYS = 3
+
 # Shared analysis vocabulary/framework, layered under each engine's method file.
 FRAMEWORK_FILE = ROOT / "config/analysis-framework.md"
 
@@ -75,8 +84,9 @@ ROW_COLUMNS = [
 # expanded into one sheet row per ticker without parsing free text.
 #
 # Coupled to analysis_to_rows() in core.py: the `plays` item keys
-# (ticker/pattern/structure/thesis/trigger/invalidation) are read there, so keep
-# them in sync if you edit this.
+# (ticker/asset_class/pattern/structure/thesis/trigger/invalidation/confidence)
+# are read there, so keep them in sync if you edit this. Coverage minimums are
+# MIN_STOCK_PLAYS / MIN_ETF_PLAYS above — keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
 ## Output
 
@@ -92,15 +102,27 @@ Schema (all string fields unless noted):
   "plays": [
     {
       "ticker": "NVDA",
+      "asset_class": "stock|etf",
       "pattern": "HP|RF|VE|SH|DC|MS",
       "structure": "e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
-      "invalidation": "specific price level / flow reversal / macro condition"
+      "invalidation": "specific price level / flow reversal / macro condition",
+      "confidence": "high|medium|low"
     }
   ]
 }
 
-Return 2–5 plays, high/medium confidence only. If a day has no actionable
-setup, return an empty "plays" array — do not invent one.
+Coverage — every run must return BOTH a market read and a full play list:
+
+- Market read: always fill `regime`, `signals`, AND `sector_focus`. Together
+  they are the market analysis; none may be blank.
+- Plays: return AT LEAST 5 stock plays (asset_class "stock") and AT LEAST 3 ETF
+  plays (asset_class "etf") — 8+ total — ordered strongest conviction first.
+  Draw the names from the highest-scoring tickers in the fetched data; stock
+  plays from the stock flow/unusual sections, ETF plays from the ETF sections.
+  If conviction is thin, still meet the minimums but label those ideas
+  confidence "low" rather than dropping them. Never fabricate a ticker that does
+  not appear in the fetched data — if a section genuinely lacks enough distinct
+  names, return what the data supports and note the shortfall in `sector_focus`.
 """

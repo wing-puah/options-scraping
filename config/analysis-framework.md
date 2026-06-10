@@ -102,6 +102,13 @@ Names appearing in both datasets carry stronger signal weight.
 
 For each high-conviction ticker, propose a trade structure consistent with the regime and signal.
 
+Produce a full slate every run: **at least 5 stock plays and at least 3 ETF plays**
+(8+ total), ordered strongest conviction first, drawn from the highest-scoring names
+in the data — stock plays from the stock sections, ETF plays from the ETF sections.
+When conviction is thin, still meet the minimums but mark those ideas low confidence
+rather than dropping them; never invent a ticker absent from the data. This is in
+addition to the always-present market read (regime + signals + sector focus).
+
 Format each play as:
 
 > **[TICKER]** — [setup label] | [structure] | [thesis in one sentence]
@@ -138,7 +145,7 @@ Respond with a JSON object with exactly these keys (all plain strings):
   "regime": "Labels + one-sentence read. Include the macro label only when corroborated by cross-asset evidence; otherwise omit it. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, put hedging dominant across index ETFs, no sustained RISK-ON rotation.",
   "signals": "Tagged signal list. E.g. [FLOW] Heavy QQQ put sweeps | [VEGA] VIX call buying 35-40 | [PRICE] NVDA testing 180 support",
   "sector_focus": "Sectors/names with concentrated flow and what it implies. Cross-reference unusual activity + flow.",
-  "plays": "Numbered plays with setup, structure, thesis, trigger. E.g. 1. NVDA — HP | Bull call spread 185/200 | Call buying on dip + hedge pressure suggests institutional accumulation. Trigger: hold above 180.",
+  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf and a confidence, with setup, structure, thesis, trigger. E.g. 1. NVDA (stock, high) — HP | Bull call spread 185/200 | Call buying on dip + hedge pressure suggests accumulation. Trigger: hold above 180.",
   "invalidation": "Per-ticker invalidation conditions. E.g. NVDA: daily close < 178 with volume. QQQ: sustained hold above 460."
 }
 ```
