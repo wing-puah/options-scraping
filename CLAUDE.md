@@ -31,6 +31,11 @@ python3 scripts/gc_flow.py --all --dry-run           # report what would be tras
 # Prepare Drive data as markdown for LLM analysis (all rows by default; --rows N caps the tail)
 python3 scripts/prepare_analysis.py
 
+# Append daily market-baseline rows (regime baseline) to the BaselineDaily tab
+python3 scripts/build_baseline.py                     # latest Drive date
+python3 scripts/build_baseline.py --backfill          # every Drive date missing from the tab (idempotent)
+python3 scripts/build_baseline.py --backfill --dry-run
+
 # Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
 python3 -m scripts.analysis_pipeline --engine codex       # latest date, codex → AnalysisGPT
@@ -84,6 +89,7 @@ Google Sheets (service account) ──► Next.js Dashboard (web/)
 lib/                        ← shared modules, imported by scripts, never run directly
   barchart.py               — BarchartSession (Playwright login + CSV download)
   barchart_options.py       — per-contract historical option prices (price-history URL + parse, mark-to-mid)
+  baseline.py               — market-level daily baseline: per-date aggregate row schema, staleness-aware trailing window, percentile context markdown (pure functions; tab I/O lives in scripts/build_baseline.py)
   csv_utils.py              — parse_csv (strips Barchart footer)
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
   sheets_client.py          — read/write Google Sheets tabs
@@ -92,7 +98,8 @@ scripts/                    ← entry points, each maps to a workflow step
   barchart_scrape.py        — scrape barchart → Drive; live (--mode) or historical (--date/--start)
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one deduped CSV per type (trade-identity dedup) → {prefix}-{YYYYMMDD}-compiled.csv in Drive
   gc_flow.py                — garbage-collect raw snapshots: re-verifies every raw trade is present in the compiled file, then trashes the raws (recoverable). Separate from compile; --all sweeps all compiled dates. Daily after compile via .github/workflows/compile-flow.yml
-  prepare_analysis.py       — prep: Drive → markdown stdout (flow data only, no positions)
+  prepare_analysis.py       — prep: Drive → markdown stdout (flow data only, no positions). Includes a "Baseline context" section (today's market aggregates as percentiles vs the trailing BaselineDaily window; --no-baseline skips it)
+  build_baseline.py         — compute one market-level aggregate row per trading date (lib/baseline.py) → append to BaselineDaily tab. Idempotent by date; --backfill self-heals missed days. Daily after compile via .github/workflows/compile-flow.yml
   analysis_pipeline/        — full pipeline package (run via `python3 -m scripts.analysis_pipeline`): fetch (prepare_analysis) → headless engine call (isolated session; `--engine claude|codex`, `--model` overridable) → expand to per-ticker rows → append to the engine's tab (AnalysisClaude / AnalysisGPT). Source of truth for /options analyze; the skill just shells out here.
                               · config.py  — ALL user-tunable settings: engine registry (model/method/tab), retries, timeout, fetch defaults, sheet schema, prompt contract
                               · core.py    — implementation (fetch/analyze/write, engine runners, row expansion, CLI)
@@ -121,6 +128,7 @@ scripts/prepare_analysis.py --date …   (prep for LLM, or run /options analyze)
 | AnalysisClaude | `/options analyze` via Claude Code (appends one row per ticker/play per run) |
 | AnalysisGPT | `/options analyze` via GPT Codex (appends one row per ticker/play per run) |
 | BacktestResults | `backtest.py` (optional) |
+| BaselineDaily | `build_baseline.py` (one market-aggregate row per trading date; regime baseline read back by `prepare_analysis.py`) |
 | _meta | `sheets_client.py` (dedup hashes) |
 
 ## Invariants (do not regress)

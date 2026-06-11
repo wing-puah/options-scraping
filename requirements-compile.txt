@@ -1,8 +1,10 @@
-# Minimal deps for the Compile Flow workflow (scripts/compile_flow.py + scripts/gc_flow.py).
-# These scripts only touch Drive + pandas — no Playwright/scipy/yfinance/openai/gspread —
-# so the daily compile job installs this slim set instead of the full requirements.txt.
+# Minimal deps for the Compile Flow workflow (compile_flow.py + gc_flow.py +
+# build_baseline.py). These scripts touch Drive, pandas, and Sheets (gspread for
+# the baseline step) — no Playwright/scipy/yfinance/openai — so the daily compile
+# job installs this slim set instead of the full requirements.txt.
 # Keep versions in sync with requirements.txt.
 python-dotenv>=1.0
 google-api-python-client>=2.100
 google-auth>=2.29
 pandas>=2.0
+gspread>=6.0

@@ -75,6 +75,7 @@ FRAMEWORK_FILE = ROOT / "config/analysis-framework.md"
 ROW_COLUMNS = [
     "date", "ticker", "regime", "signal", "play",
     "invalidation", "data_window_start", "data_window_end",
+    "created_datetime",
 ]
 
 
@@ -84,7 +85,7 @@ ROW_COLUMNS = [
 # expanded into one sheet row per ticker without parsing free text.
 #
 # Coupled to analysis_to_rows() in core.py: the `plays` item keys
-# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence)
+# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence/alternative_interpretation)
 # are read there, so keep them in sync if you edit this. Coverage minimums are
 # MIN_STOCK_PLAYS / MIN_ETF_PLAYS above — keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
@@ -110,7 +111,8 @@ Schema (all string fields unless noted):
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
-      "confidence": "high|medium|low"
+      "confidence": "high|medium|low",
+      "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: downgrade confidence to 'low' or drop the play. One sentence."
     }
   ]
 }
@@ -127,4 +129,25 @@ Coverage — every run must return BOTH a market read and a full play list:
   confidence "low" rather than dropping them. Never fabricate a ticker that does
   not appear in the fetched data — if a section genuinely lacks enough distinct
   names, return what the data supports and note the shortfall in `sector_focus`.
+
+Discipline rules — apply to every play before promoting to medium / high confidence:
+
+- `alternative_interpretation` is REQUIRED on every play, not optional. It is
+  the auditable record that the benign-explanation check was performed. A play
+  whose `alternative_interpretation` is at least as plausible as the directional
+  thesis must be downgraded to 'low' or dropped — do not bury the conflict.
+- For bid-side calls and ask-side puts WITHOUT a `SellToOpen` / `BuyToOpen` label,
+  the play's `signal` must cite what rules out the closing / overwrite / hedge
+  reading. Without that citation, confidence is 'low' at best.
+- For structurally polluted underlyings — convertible-bond hedge names (e.g.
+  MSTR), BDCs / covered-call ETFs, structured-product underlyings, miners
+  traded as crypto proxies, levered or inverse ETFs — the play's `signal` MUST
+  cite cross-asset confirmation (BTC / IBIT / COIN / miners for MSTR; the
+  underlying index for a levered ETF; the underlying commodity or crypto for a
+  miner). Without that confirmation, mark confidence 'low' and frame the entry
+  as positioning, not a directional bet.
+- For any strike implausibly far from spot for its DTE (e.g. >50% away with
+  <60 DTE), do not let the print anchor a directional claim — `ToOpen` at an
+  impossible strike is almost always a feed artifact, not a bet. Either exclude
+  the print or use the play to flag the anomaly.
 """

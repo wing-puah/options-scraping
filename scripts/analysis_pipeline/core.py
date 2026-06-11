@@ -29,7 +29,7 @@ import logging
 import subprocess
 import sys
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -165,6 +165,20 @@ def _join(value) -> str:
     return str(value or "")
 
 
+def _multiline_signal(value) -> str:
+    """Format the pipe-separated tagged-evidence signal onto multiple lines.
+
+    The model returns signals like '[FLOW] x | [FLOW] y | [PRICE] z' — readable
+    as a stream but cramped in a Sheets cell. One tag per line is much easier to
+    scan when sheet wrap is on.
+    """
+    joined = _join(value).strip()
+    if not joined:
+        return ""
+    parts = [p.strip() for p in joined.split("|")]
+    return "\n".join(p for p in parts if p)
+
+
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str) -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
 
@@ -179,17 +193,20 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         is the exact regression this guards against.
     """
     market_regime = _join(analysis.get("regime")).strip()
-    signals = _join(analysis.get("signals")).strip()
+    market_signal = _multiline_signal(analysis.get("signals"))
     sector = _join(analysis.get("sector_focus")).strip()
 
     # sector_focus has no dedicated column; fold it into the MARKET row's signal
     # cell (which backtest.py does not parse) so the information survives.
-    market_signal = f"{signals}\n\nSector focus: {sector}" if sector else signals
+    if sector:
+        market_signal = f"{market_signal}\n\nSector focus: {sector}" if market_signal else f"Sector focus: {sector}"
+
+    created_datetime = datetime.now().isoformat(timespec="seconds")
 
     def _row(ticker, regime, signal, play, invalidation):
         return dict(zip(ROW_COLUMNS, [
             date_str, ticker, regime, signal, play, invalidation,
-            window_start, window_end,
+            window_start, window_end, created_datetime,
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "")]
@@ -197,17 +214,24 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         ticker = str(p.get("ticker", "")).strip().upper()
         if not ticker:
             continue
-        parts = [p.get("pattern"), p.get("structure"), p.get("thesis")]
-        play_text = " | ".join(str(x).strip()
-                               for x in parts if x and str(x).strip())
-        trigger = str(p.get("trigger", "")).strip()
-        if trigger:
-            play_text = f"{play_text}. Trigger: {trigger}" if play_text else f"Trigger: {trigger}"
+        # Build the play cell as labeled lines so each part is scannable in Sheets.
+        play_lines: list[str] = []
         confidence = str(p.get("confidence", "")).strip().lower()
         if confidence:
-            play_text = f"[{confidence}] {play_text}" if play_text else f"[{confidence}]"
+            play_lines.append(f"[{confidence}]")
+        headline_parts = [str(p.get(k, "")).strip() for k in ("pattern", "structure", "thesis")]
+        headline = " | ".join(x for x in headline_parts if x)
+        if headline:
+            play_lines.append(headline)
+        trigger = str(p.get("trigger", "")).strip()
+        if trigger:
+            play_lines.append(f"Trigger: {trigger}")
+        alt = str(p.get("alternative_interpretation", "")).strip()
+        if alt:
+            play_lines.append(f"Alt: {alt}")
+        play_text = "\n".join(play_lines)
         play_regime = _join(p.get("regime")).strip()
-        play_signal = _join(p.get("signal")).strip()
+        play_signal = _multiline_signal(p.get("signal"))
         rows.append(_row(ticker, play_regime, play_signal, play_text, str(
             p.get("invalidation", "")).strip()))
     return rows

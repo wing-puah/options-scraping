@@ -29,6 +29,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from lib.logger import setup_logging
+from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseline
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
 from lib.flow_summary import (
@@ -131,6 +132,7 @@ def fetch_data(
     ticker: str | None = None,
     top_n: int = 75,
     days: int = 1,
+    baseline: bool = True,
 ) -> str:
     """Fetch Drive data and format for LLM consumption.
 
@@ -172,11 +174,40 @@ def fetch_data(
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
 
+    # Baseline: today's aggregates vs the trailing BaselineDaily window, so the
+    # regime read is normalized against history instead of a lone cross-section.
+    if baseline:
+        md = _baseline_section(section_rows, date_str, client)
+        if md:
+            sections_out.append(md)
+
     # days>1: load the trailing window and append persistence tracking.
     if days > 1:
         sections_out.extend(_persistence_sections(client, date_str, days))
 
     return "\n\n".join(sections_out)
+
+
+def _baseline_section(section_rows: dict[str, list[dict]], date_str: str | None, client) -> str:
+    """The `## Baseline context` markdown section, or "" when unavailable.
+
+    Today's row is computed in-process from the already-fetched sections (the
+    sheet does not need to contain today); only the history is read from the
+    BaselineDaily tab. Sheets being unreachable degrades to omitting the
+    section — it must never block an analysis run.
+    """
+    anchor = date_str or _latest_available_date(client)
+    if not anchor:
+        return ""
+    today_row = compute_daily_baseline(
+        anchor, section_rows["stocks-flow"], section_rows["etfs-flow"])
+    try:
+        from lib.sheets_client import get_all_rows
+        history = get_all_rows(BASELINE_TAB)
+    except Exception:
+        log.warning("Baseline history unavailable — omitting baseline section", exc_info=True)
+        return ""
+    return baseline_context_md(today_row, history, anchor)
 
 
 def fetch_scored_csv(date_str: str | None = None) -> str:
@@ -238,6 +269,8 @@ def main() -> None:
     parser.add_argument("--days", type=int, default=1,
                         help="Trailing trading-day window for persistence tracking "
                              "(default: 1 = no persistence section). E.g. --days 5.")
+    parser.add_argument("--no-baseline", action="store_true",
+                        help="Skip the baseline-context section (no Sheets read).")
     parser.add_argument("--csv", metavar="PATH",
                         help="Write the scored flow rollup (stocks + ETFs) to PATH as "
                              "CSV instead of printing markdown. '-' writes to stdout.")
@@ -261,7 +294,7 @@ def main() -> None:
         args.days,
     )
     print(fetch_data(date_str=args.date, raw=args.raw, ticker=args.ticker,
-                     top_n=args.top, days=args.days))
+                     top_n=args.top, days=args.days, baseline=not args.no_baseline))
 
 
 if __name__ == "__main__":

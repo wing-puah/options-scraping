@@ -66,16 +66,21 @@ def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
     return all_rows[-n:] if len(all_rows) > n else all_rows
 
 
-def append_rows(tab: str, rows: list[dict]) -> None:
+def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
+    """Append dict rows (header written on first use). raw=True stores values
+    as-is (RAW input option) so string dates like '2026-06-10' are not
+    locale-parsed into sheet dates — required when the date is a dedup key."""
     if not rows:
         return
     log.info("Appending %d row(s) to tab '%s'", len(rows), tab)
     ss = _get_spreadsheet()
     ws = _ensure_tab(ss, tab)
-    existing = ws.get_all_values()
-    if not existing:
+    # NB: get_all_values() returns [[]] (truthy!) for a fresh tab — test the
+    # first row's cells, not the outer list, or the header is silently skipped.
+    if not ws.row_values(1):
         ws.append_row(list(rows[0].keys()))
-    ws.append_rows([list(r.values()) for r in rows], value_input_option="USER_ENTERED")
+    option = "RAW" if raw else "USER_ENTERED"
+    ws.append_rows([list(r.values()) for r in rows], value_input_option=option)
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
 
 

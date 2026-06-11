@@ -17,6 +17,21 @@ record so the next change doesn't undo a deliberate decision.
 - **Multi-day persistence** tracking (`--days N` in `scripts/prepare_analysis.py`)
   — recurring names with premium and score trajectories, recomputed from raw
   daily data (no stored state).
+- **Market-level regime baseline** (June 2026) — one aggregate row per trading
+  date in the `BaselineDaily` sheet tab (section C/P by premium / contracts /
+  count, put-dominance breadth, key-ticker premiums, prem-weighted DTE / SPY IV),
+  written daily by `scripts/build_baseline.py` via the compile workflow
+  (idempotent, self-healing `--backfill`). `prepare_analysis.py` injects a
+  "Baseline context" section — today vs a staleness-aware trailing window
+  (≤60 sessions within 120 days) as percentiles — and the method files gate
+  strong regime labels (`RISK-OFF`/`E-VOL`) on outer-quintile readings. Pure
+  logic in `lib/baseline.py`. Rationale: index put premium > call premium is
+  the unconditional norm; only the percentile says whether today is unusual.
+- **Play coherence + coverage rules in the method files** (June 2026) —
+  strikes/trigger/invalidation must agree on one spot; exactly one structure
+  per play (backtester parses the `play` field); no redundant correlated index
+  hedges; coverage floor (5 stock / 3 ETF) reconciled with confidence gating
+  (low-confidence entries fill the floor as positioning, never dressed up).
 
 ---
 
@@ -142,8 +157,9 @@ its direction.
 
 ### 6. DTE as a first-class feature (near-term, cheap)
 
-`DTE` is a column but the score and rollup don't use it; the method reads it only
-at play-selection. Bucket it in the rollup so the same side/premium is interpreted
+Section-level premium-weighted DTE (with trailing percentiles) shipped with the
+baseline layer; what remains is the per-ticker view. Bucket DTE in the rollup so
+the same side/premium is interpreted
 by maturity (per the method's DTE table): `~0–14` event/gamma, `~15–60` tactical,
 `~60–180` macro/catalyst protection, `180+` strategic / stock replacement. Cheapest
 form is a per-ticker premium-by-DTE-bucket split surfaced to the LLM; it does not
@@ -178,6 +194,48 @@ calls bought" that is really a debit vertical). Two tiers, both feasible:
   collars, straddles/strangles, then interpret the *structure* rather than each leg.
   More code and false-positive-prone; do after the code-flag tier proves out.
 
+### 9. Spot-price grounding for play levels (near-term, cheap, high value)
+
+Every trigger and invalidation level is currently reverse-engineered from
+strike clustering — the model has no actual spot. That is the root cause of
+strike/trigger incoherence (e.g. the 2026-06-10 WULF play: 16/20 call spread
+with a "holds 24, breaks 26" trigger — one set of numbers had to be wrong).
+The method file's coherence check helps, but the model is still inferring spot
+from prints. Fix: fetch the last price for the top-scored names (yfinance, one
+number per ticker) into the rollup so strikes, triggers, and invalidations all
+anchor to a verified spot. Shares the yfinance OHLC fetch with item 3 — build
+them together behind the same `--context`-style enrichment.
+
+### 10. Play validity window — staleness handling (near-term, contract-only)
+
+Analysis often runs T+1 evening: a full session has passed since the snapshot,
+so "loses 722 on a daily close" may have already triggered or invalidated
+before the row is written. The backtest sidesteps this with its own entry
+matching, but for live use each play should carry an explicit entry-validity
+window (e.g. "valid for entry through T+3") in the contract, and the method
+files should state what a trigger means when N sessions have already elapsed.
+Cheapest fix is a contract field + method-file rule; the alternative
+(same-evening runs) is an ops change, not an analysis change.
+
+### 11. Earnings / catalyst calendar (near-term, cheap)
+
+`[CAT]` tags are currently inferred from flow shape ("front-week contracts
+present implying an event") when earnings dates are a free deterministic
+lookup (yfinance). Inject next-earnings-date for top-scored names into the
+rollup so catalysts are facts, the DTE-vs-catalyst matching rule can actually
+bind, and IV richness can be read against a known event date.
+
+### 12. Cross-engine agreement as a signal (cheap, uses what we already pay for)
+
+Claude and Codex analyze the same data independently and the results are never
+compared. Agreement on a name and direction between independent engines is
+corroboration — arguably stronger than several rungs of the single-engine
+ladder — and it is currently discarded. Cheapest form: a post-run diff of the
+day's AnalysisClaude vs AnalysisGPT rows (ticker ∩ direction), printed with the
+run report and/or written as a flag column. Later, the backtest can test
+whether agreed plays actually outperform single-engine plays (see alpha
+attribution).
+
 ---
 
 ## Phased evolution of the analysis engine
@@ -204,8 +262,11 @@ before the LLM step, so the model reasons over a richer, pre-digested feature se
 instead of re-deriving everything from raw prints. The decision inputs to script,
 in rough priority:
 
-- **Put/call ratio** — per ticker and aggregate, computed by premium, by Size, and
-  by count (they diverge, and the divergence is itself signal). Cheap, no new deps.
+- **Put/call ratio** — the market-level aggregate (by premium, Size, and count,
+  with trailing-window percentiles) **shipped** with the baseline layer; what
+  remains is the **per-ticker** version — today's C/P for a name against that
+  name's own history, which needs per-ticker daily rows (a `ScoredRollupDaily`
+  archive tab fed by `fetch_scored_csv` would supply it).
 - **Gamma / dealer-gamma exposure (GEX)** — needs a Black-Scholes greeks calc
   (inputs S/K/DTE/IV all in the feed; see item 5). Per-strike and per-name gamma,
   and a market-wide GEX read for the regime layer.
@@ -248,6 +309,13 @@ money.** This is the missing infrastructure and the throughline of the whole pla
   instead of one blended number. That is the "different indication on the backtest"
   per phase — the head-to-head that says whether Phase 2 features or Phase 3 code
   beat the Phase 1 baseline, and whether either beats just buying the headline flow.
+- **Group by confidence label and pattern code too.** The high/medium/low gate
+  and the HP/RF/VE/SH/DC/MS patterns are unaudited: nothing measures whether
+  "high" actually outperforms "medium", or which pattern carries the alpha. Both
+  are already columns in the play rows, so this is a free cut of the same
+  attribution backtest — and it is the empirical check on the corroboration
+  ladder itself. If high-confidence plays don't beat medium over a quarter of
+  runs, the gating is decoration and the method file gets revised from the data.
 - **Continuously re-check that alpha is still there.** The analysis is a live
   hypothesis, not a settled method — realized P&L must feed back. Add a standing
   step (and a note in the method file) to periodically run the attribution backtest,

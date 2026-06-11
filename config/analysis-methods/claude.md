@@ -40,6 +40,24 @@ Before picking names, characterize that shape — roughly is fine:
 These tallies, even approximate, are the backbone of the regime call. A single
 ticker can never overturn the aggregate; it can only add color to it.
 
+When the prepared rollup includes a **Baseline context** section, read every
+aggregate through it. Index put premium exceeding call premium is the
+unconditional norm — books are hedged with puts every day — so raw put
+dominance carries no regime information by itself; what carries information is
+where today sits in its own trailing window.
+
+- Cite the percentile, not the raw ratio, when an aggregate motivates a regime
+  dimension or a market-level `[FLOW]` signal — "QQQ C/P 0.29, 12th percentile
+  of the window", not "puts dwarf calls".
+- Reserve strong sentiment/volatility labels (`RISK-OFF`, `RISK-ON`, `E-VOL`)
+  for readings in roughly the outer quintile of the window (≤20th / ≥80th
+  percentile), or for several related metrics leaning the same way. Mid-range
+  percentiles pull the dimension toward `RANGE` / neutral, and the regime
+  sentence should say the baseline is why.
+- When the section reports insufficient history, fall back to the single-day
+  read but say so — and never present put/call dominance as abnormal without
+  a window to measure it against.
+
 ## Establish the regime
 
 Classify all four dimensions from the framework, working top-down from the
@@ -93,6 +111,12 @@ Discount or set aside (these carry little usable signal):
   sometimes a lone institutional block.
 - Midpoint fills with no opening label.
 - Premium that is large only because the underlying is expensive.
+- **A strike implausibly far from spot for the contract's DTE** (e.g. >50% away
+  with <60 DTE). Treat as a likely feed artifact — adjusted options after a
+  split, a stale strike, or a different underlying parsed into the row — not as
+  a real bet. Flag as a data anomaly and exclude from the regime read until the
+  strike is verified against the current chain. Do not let "ToOpen at an
+  impossible strike" anchor a directional claim.
 
 Do **not** blanket-discount low delta. A 5-delta, short-dated wing is usually a
 lottery ticket — but the same contract with abnormal Volume, Volume far above OI,
@@ -132,6 +156,18 @@ is not the absence of signal:
   forecast (one hedges longs one intends to keep). This is the same hedge-pressure
   logic weighted below — puts simply get more pull there than calls get on the
   upside.
+- **Structurally polluted underlyings.** Some names have known non-directional
+  option flow embedded in their structure: convertible-bond hedging (e.g. MSTR,
+  where dealers short calls and buy puts to hedge the convert, not to express a
+  view), systematic overwriting (BDCs, covered-call ETFs), structured-product
+  underlyings, miners traded as crypto proxies, and levered or inverse ETFs.
+  For these, raw put/call balance is a poor positioning read in isolation —
+  large put flow on MSTR may be convert-hedge mechanics, not bearish conviction.
+  Require cross-asset confirmation before promoting any single-name flow on
+  these tickers to a directional play: for MSTR, agreement from BTC / IBIT /
+  COIN / miners; for a miner, the underlying commodity or crypto; for a levered
+  ETF, the underlying index. Without confirmation, the flow is positioning
+  noise, not a `[FLOW]` signal.
 
 **Read every print through its DTE — same side and premium mean different things
 by maturity.** Treat DTE as a first-class interpretive axis, not just an
@@ -183,12 +219,25 @@ tension rather than forcing a direction.
 
 ## Select names and structures
 
-Pick **two to five** plays. Quality over coverage — appearing in the data is not
-a reason to be on the list. A name normally needs at least two of: repeated or
-large-premium flow, unusual volume/OI, sector-and-index confirmation, a clear
-nearby trigger level, and a structure that fits the regime. Keep directional
-plays and portfolio hedges separate, and make sure a regime-consistent hedge is
-present whenever the read is `RISK-OFF` or hedge-pressure.
+Coverage follows the pipeline contract: **at least 5 stock plays and 3 ETF
+plays**, ordered strongest first. The floor exists so every run produces a
+testable record — quality is enforced by the confidence label, not by the
+count. A name still needs at least two of: repeated or large-premium flow,
+unusual volume/OI, sector-and-index confirmation, a clear nearby trigger level,
+and a structure that fits the regime. A name that clears fewer than two makes
+the list only as explicit low-confidence positioning, never dressed up as
+conviction. Keep directional plays and portfolio hedges separate, and make sure
+a regime-consistent hedge is present whenever the read is `RISK-OFF` or
+hedge-pressure.
+
+Do not spend play slots on copies of one trade. SPY, QQQ, and IWM bear put
+spreads under a hedge-pressure regime are the same hedge three times: pick the
+strongest expression (most skewed call/put balance, best opening-label
+evidence), make that the hedge play, and cite the sibling indexes as
+corroboration inside its `signal`. Fill the remaining ETF slots with
+differentiated exposures the data actually supports — sector (IGV/SMH/XLE),
+credit (HYG/LQD), duration (TLT), metals (GLD/SLV) — before adding a second
+index hedge expressing the same view.
 
 Default to **defined-risk** structures. The dataset gives no portfolio size, risk
 tolerance, or full volatility surface, so uncapped risk is never justified from
@@ -203,6 +252,21 @@ flow alone.
   is explicit (`C-VOL`).
 - Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
   must clear it.
+
+Before emitting any play, check that it is internally coherent — every number
+in the play must refer to the same spot:
+
+- Strikes, trigger levels, and invalidation levels must be mutually consistent
+  with the underlying's current price as read from the prints. A bull call
+  spread struck entirely below the trigger level (both legs already deep ITM at
+  entry), or a trigger naming prices the structure cannot meaningfully interact
+  with, means one of the numbers is wrong — re-derive spot from the data before
+  writing any of them.
+- Mirroring an opened structure is legitimate, but the thesis must say so, and
+  the strikes still have to make sense from today's spot.
+- Exactly **one** structure per play, with explicit strikes and a single DTE
+  range — never "X or Y". The `play` field is parsed by the backtester;
+  alternatives make the row untestable.
 
 ## Per-play regime and signal vs market regime and signal
 
@@ -274,9 +338,14 @@ Assign confidence, then let it gate the output:
   benign-explanation check.
 - **Medium** — solid evidence with a material counter-signal (which is named in
   the play text).
-- **Low** — isolated or ambiguous; stays a description, never a play.
+- **Low** — isolated or ambiguous; never a conviction bet. A low-confidence
+  idea may still fill a coverage slot, but it must be framed as positioning,
+  name the unresolved conflict in its text, and gate its trigger on the
+  missing confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement).
 
-Only high- and medium-confidence ideas become plays. Use calibrated verbs —
+High- and medium-confidence ideas are the real plays; low-confidence entries
+exist only to satisfy the coverage floor honestly rather than by inflating
+confidence. Use calibrated verbs —
 "suggests," "supports," "indicates," "consistent with" — and never "proves" or
 "shows the buyer intended."
 

@@ -49,6 +49,19 @@ Classify the four regime dimensions:
 - Sentiment: broad upside participation supports `RISK-ON`; protection across
   indexes, credit, small caps, and speculative assets supports `RISK-OFF`.
 
+When the prepared data includes a **Baseline context** section, normalize the
+market read against it. Index put premium exceeding call premium is the
+everyday norm, so raw put dominance is not evidence by itself:
+
+- Cite percentiles, not raw ratios, when an aggregate motivates a regime
+  dimension or market-level signal (e.g. "SPY C/P at the 12th percentile of
+  the trailing window").
+- Use strong labels (`RISK-OFF`, `RISK-ON`, `E-VOL`) only when readings sit in
+  roughly the outer quintile of the window or several related metrics agree;
+  mid-range percentiles favor `RANGE` / neutral.
+- If the section reports insufficient history, state that the read is
+  unnormalized and do not present put/call dominance as unusual.
+
 ## 3. Score Signal Strength
 
 Codex ranks observations qualitatively using the following evidence. Several
@@ -71,6 +84,12 @@ independent confirmations are more important than one extreme number.
 - Very low-delta, short-DTE calls or puts that resemble lottery tickets.
 - Trades at the midpoint with no opening label.
 - Large premium caused mainly by an expensive underlying.
+- A strike implausibly far from spot for the contract's DTE (for example, more
+  than 50% away with under 60 DTE). Usually a feed artifact — adjusted options
+  after a split, a stale strike, or a different underlying parsed into the row.
+  Flag as a data anomaly and exclude from the regime read until the strike is
+  verified against the current chain. A `ToOpen` label at an impossible strike
+  does not redeem the print.
 
 Keep, but read as positioning rather than a directional bet — ambiguous intent is
 not the absence of signal:
@@ -85,6 +104,17 @@ not the absence of signal:
   still real positioning — bid-side calls are call-writing pressure, ask-side puts
   are put-buying / hedging demand. Feed them into the regime and the RISK-OFF /
   hedge read, but do not promote either into a stand-alone single-name play.
+- **Structurally polluted underlyings.** Some names have non-directional option
+  flow embedded in their structure: convertible-bond hedging (e.g. MSTR, where
+  dealers short calls and buy puts to hedge the convert), systematic overwriting
+  (BDCs, covered-call ETFs), structured-product underlyings, miners traded as
+  crypto proxies, and levered or inverse ETFs. Raw put/call balance on these
+  tickers is poor evidence of direction — large MSTR put flow may be convert
+  mechanics, not bearish conviction. Require cross-asset confirmation before any
+  single-name flow on these tickers becomes a directional play: for MSTR, BTC /
+  IBIT / COIN / miners; for a miner, the underlying commodity or crypto; for a
+  levered ETF, the underlying index. Without confirmation, treat the flow as
+  positioning noise rather than a `[FLOW]` signal.
 
 Do not equate:
 

@@ -34,10 +34,12 @@ def test_analysis_to_rows_market_row_first_and_schema():
     assert list(market.keys()) == ROW_COLUMNS  # positional write contract
     assert market["ticker"] == "MARKET"
     assert market["regime"].startswith("BEAR")
-    assert "[FLOW] QQQ put sweeps | [VEGA] VIX calls" in market["signal"]
+    # Signals split onto separate lines for readability in Sheets.
+    assert "[FLOW] QQQ put sweeps\n[VEGA] VIX calls" in market["signal"]
     assert "Sector focus: Semis weak." in market["signal"]
     assert market["data_window_start"] == "2026-04-15"
     assert market["data_window_end"] == "2026-04-21"
+    assert market["created_datetime"]  # stamped at row-build time
 
 
 def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
@@ -54,7 +56,8 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
     assert len(rows) == 2  # MARKET + NVDA only
     nvda = rows[1]
     assert nvda["ticker"] == "NVDA"  # upcased
-    assert nvda["play"] == "HP | bear put 180/170 | hedge pressure. Trigger: lose 180"
+    # Play cell now uses labeled lines so Sheets readers can scan it.
+    assert nvda["play"] == "HP | bear put 180/170 | hedge pressure\nTrigger: lose 180"
     assert nvda["invalidation"] == "close > 185"
     assert nvda["signal"] == ""  # signals live on the MARKET row only
 
@@ -68,7 +71,7 @@ def test_analysis_to_rows_prefixes_confidence_when_present():
         ],
     }
     rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
-    assert rows[1]["play"] == "[low] bull call 600/610 | trend"
+    assert rows[1]["play"] == "[low]\nbull call 600/610 | trend"
 
 
 def test_warn_below_targets_fires_when_short(caplog):
