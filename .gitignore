@@ -3,6 +3,7 @@
 cookies/
 credentials/
 logs/
+references/
 __pycache__/
 *.pyc
 .pytest_cache/

@@ -54,6 +54,11 @@ where today sits in its own trailing window.
   percentile), or for several related metrics leaning the same way. Mid-range
   percentiles pull the dimension toward `RANGE` / neutral, and the regime
   sentence should say the baseline is why.
+- Scale trust in the percentiles with the window size the section reports.
+  Below ~40 prior sessions a percentile moves several points per single day,
+  so the outer-quintile gate alone is not enough: require a more extreme
+  reading (roughly ≤10th / ≥90th) or agreement from a second related metric
+  before a small-window percentile carries a strong label on its own.
 - When the section reports insufficient history, fall back to the single-day
   read but say so — and never present put/call dominance as abnormal without
   a window to measure it against.
@@ -97,7 +102,11 @@ rises with the number of _independent_ ways it is confirmed:
 - It is confirmed up the chain: the stock by its sector ETF, the sector by the
   index.
 - Volume materially exceeds open interest, and an opening label (`BuyToOpen`,
-  `SellToOpen`, `ToOpen`) is present.
+  `SellToOpen`, `ToOpen`) is present. The directional labels carry side; bare
+  `ToOpen` does **not** — it establishes only that a position is new. A market
+  maker selling a call and a fund buying one print the same label, so bare
+  `ToOpen` is supporting evidence for "new positioning," never evidence of a
+  buyer or a direction on its own.
 - The strike, delta, and DTE are coherent with the thesis being claimed.
 
 Discount or set aside (these carry little usable signal):
@@ -130,14 +139,24 @@ with a tail hedge as with a bet.
 Keep, but read as _positioning_ rather than a directional bet — ambiguous intent
 is not the absence of signal:
 
-- **Deep-ITM options** are still a directional input — a deep-ITM call bought is
-  bullish exposure (often stock replacement), a deep-ITM put bearish. What they
+- **Deep-ITM options** are a *weak* directional input. A deep-ITM call bought
+  can be stock replacement (bullish exposure) — but deep-ITM strikes are also
+  the standard leg of conversions/reversals, collars, buy-writes, and
+  financing trades, all non-directional by construction and indistinguishable
+  in a single row. Keep the direction as a low-weight prior, promoted only
+  when something else in the same name corroborates it. What they
   are not is a conviction-weighted bet on a _move_: they are ~1.0 delta and mostly
   intrinsic value, so their premium reflects stock exposure, not optionality.
   Strip intrinsic value out before letting premium drive the conviction weight,
   and size conviction by **delta-adjusted notional** (delta × Size × 100 ×
   underlying — the share-equivalent exposure), not raw premium: 100 deep-ITM calls
   and 10 are different conviction, and that is the axis that separates them.
+  The rollup **precomputes all of this**: `Ext$` is the intrinsic-stripped
+  (extrinsic) premium, `Fin%` is the share of premium from |delta| ≥ 0.85
+  stock-substitute trades, and `ΔNot$` is the signed delta-adjusted notional.
+  Read a name's real options demand off `Ext$`, its financing pollution off
+  `Fin%`, and its deep-ITM size off `ΔNot$` — do not re-derive them from raw
+  premium.
   Gamma/vega are ~0 this deep, so they differentiate nothing here — save them for
   the ATM/OTM and volatility reads. Do not discard the direction.
 - **Bid-side calls and ask-side puts.** `Side` alone establishes only that the
@@ -180,6 +199,11 @@ expiry-matching check at play-selection:
 - **180+ DTE / LEAPs** — strategic positioning or stock replacement; large
   notional here is a stance, not a near-term signal.
 
+The rollup's `Hzn` column precomputes the dominant bucket per ticker (by
+extrinsic premium, e.g. `tact 64%`), and every play declares its own `horizon`
+field from the same table. An `event`-dominated name is gamma/event flow that
+can vanish by tomorrow — it cannot anchor a multi-week directional thesis.
+
 Before promoting any signal, ask what the _benign_ explanation is and whether the
 data rules it out. Large call premium can be a covered-call sale or a spread leg;
 an index put sweep can be routine hedging of a long book; high volume-to-OI can
@@ -191,13 +215,16 @@ Never equate call with bullish, put with bearish, premium with conviction, or
 volume with a new position.
 
 The prepared rollup now carries a **conviction score** per ticker that
-pre-computes much of this ladder — premium *rank within the day*, repetition,
+pre-computes much of this ladder — **extrinsic-premium** rank within the day
+(intrinsic stripped, so financing flow cannot buy rank), repetition,
 cross-section overlap, Vol/OI, and opening-label presence — and, under `--days N`,
 a **persistence** view across prior days. Use the score to triage where attention
 goes, and treat a high score that recurs across days as stronger than a one-day
-spike. It is deliberately direction-agnostic — it never decides bull vs bear — and
-it is necessary, not sufficient: a high-scoring name still has to clear the
-benign-explanation check above before it becomes a directional claim.
+spike; the persistence section's **Persistent names (≥3 days)** callout lists
+exactly those names. It is deliberately direction-agnostic — it never decides
+bull vs bear — and it is necessary, not sufficient: a high-scoring name still
+has to clear the benign-explanation check above before it becomes a directional
+claim.
 
 ## Reconcile contradictions
 
@@ -213,9 +240,14 @@ hedges coexist every day. Resolve in this priority:
 Strong single-name upside sitting underneath broad index/credit protection is
 **hedge pressure** — a fragile rally, not a clean bull regime. A later increase
 in broad protection is a shift toward `RISK-OFF` even while selected stocks stay
-bid. The regime sentence must name both the dominant signal and the strongest
-counter-signal; when they genuinely balance, call it `RANGE` and explain the
-tension rather than forcing a direction.
+bid. The prepared markdown's **Hedge pressure** section precomputes this as a
+0–100 score (extrinsic ETF put demand vs single-stock extrinsic call demand)
+with its inputs itemized — start the hedge-pressure vs bear-regime call from
+that number and its baseline percentile context, then adjust for what the score
+cannot see (opening labels, strike placement, persistence). The regime sentence
+must name both the dominant signal and the strongest counter-signal; when they
+genuinely balance, call it `RANGE` and explain the tension rather than forcing
+a direction.
 
 ## Select names and structures
 
@@ -329,6 +361,30 @@ Invalidation — at least one of:
 
 Levels drawn from a single Barchart snapshot are approximate and must be checked
 against a live chart before any trade.
+
+## Classify every play: signal_type and horizon
+
+Each play declares what its flow IS (`signal_type`) and the maturity of its
+evidence (`horizon`) — positioning and prediction are different objects and the
+output must say which one it is emitting:
+
+- `directional` — a genuine view on price: OTM/ATM strikes, opening evidence,
+  and a horizon that can contain the thesis. The only type eligible for high
+  confidence.
+- `hedge` — protection on an existing book (index/sector puts under a bid
+  tape). Caps at medium; the thesis is framed as protection, never a price
+  forecast.
+- `positioning` — exposure management / stock replacement with a directional
+  residue. Caps at medium.
+- `volatility` — gamma/event flow (0–14 DTE clusters, both-sides demand). Caps
+  at low unless the structure itself is a vol trade.
+- `financing` — conversions / deep-ITM stock-substitute premium. Not a play:
+  use it only to flag a polluted headline number, or drop the name.
+
+`horizon` comes from the DTE table above (`event`/`tactical`/`medium`/
+`strategic`), read off the prints the signal actually cites — the rollup's
+`Hzn` column is the per-ticker default. Horizon must be able to contain the
+thesis: `event` evidence cannot carry a multi-week directional claim.
 
 ## Confidence and language
 

@@ -1,4 +1,6 @@
 """Tests for lib/flow_summary.py — aggregation correctness, not formatting polish."""
+import pytest
+
 from lib.flow_summary import (
     _classify_sentiment,
     _flow_ticker_rows,
@@ -6,6 +8,8 @@ from lib.flow_summary import (
     _voloi_by_symbol,
     cross_section_tickers,
     filter_by_ticker,
+    hedge_pressure,
+    hedge_pressure_md,
     score_flow_rollup,
     score_label,
     summarize_flow,
@@ -138,6 +142,152 @@ def test_flow_skips_blank_symbols():
     rollup = _flow_ticker_rows(rows)
     assert len(rollup) == 1
     assert rollup[0]["symbol"] == "AAPL"
+
+
+# ---------------------------------------------------------------------------
+# Extrinsic premium / delta exposure / horizon (pollution columns)
+# ---------------------------------------------------------------------------
+
+def _rich_row(symbol, opt_type, side, premium, *, spot, strike, delta,
+              size="100", dte="30", iv="50%", flag="", time="10:00 ET"):
+    """Flow row with the columns the extrinsic/delta aggregates read."""
+    return {
+        "Symbol": symbol, "Price~": spot, "Type": opt_type, "Strike": strike,
+        "DTE": dte, "Side": side, "Premium": premium, "Size": size, "IV": iv,
+        "Delta": delta, "*": flag, "Time": time,
+    }
+
+
+def test_extrinsic_strips_intrinsic_from_deep_itm():
+    # Deep-ITM put: spot 380, strike 450 → intrinsic $70/share. 100 contracts
+    # at $70.50 → premium 705,000 but only 5,000 of real time value.
+    rows = [_rich_row("GLD", "Put", "mid", "705000",
+                      spot="380", strike="450", delta="-0.95")]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["premium_total"] == 705_000
+    assert r["ext_total"] == pytest.approx(5_000)
+    assert r["ext_put"] == pytest.approx(5_000)
+    assert r["ext_call"] == 0.0
+
+
+def test_extrinsic_otm_keeps_full_premium():
+    # OTM put (spot 600, strike 550): zero intrinsic → all premium is extrinsic.
+    rows = [_rich_row("SMH", "Put", "ask", "2000000",
+                      spot="600", strike="550", delta="-0.30")]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["ext_total"] == 2_000_000
+    assert r["fin_share"] == 0.0
+
+
+def test_extrinsic_falls_back_to_premium_when_spot_missing():
+    # No Price~ column → no intrinsic computable → never discounted.
+    rows = [_flow_row("X", "Put", "mid", "705000", strike="450")]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["ext_total"] == 705_000
+
+
+def test_financing_share_counts_high_delta_premium():
+    rows = [
+        _rich_row("X", "Put", "mid", "900000", spot="380", strike="450", delta="-0.95"),
+        _rich_row("X", "Put", "ask", "100000", spot="380", strike="350", delta="-0.30"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["fin_share"] == pytest.approx(0.9)
+
+
+def test_delta_notional_is_signed_share_equivalent_dollars():
+    # -0.30 delta × 100 contracts × 100 shares × $600 spot = -$1.8M exposure.
+    rows = [_rich_row("SMH", "Put", "ask", "2000000",
+                      spot="600", strike="550", delta="-0.30")]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["delta_notional"] == pytest.approx(-1_800_000)
+
+
+def test_horizon_dominant_dte_bucket_by_extrinsic():
+    rows = [
+        _rich_row("X", "Call", "ask", "100000", spot="100", strike="120", delta="0.20", dte="7"),
+        _rich_row("X", "Call", "ask", "300000", spot="100", strike="120", delta="0.25", dte="45"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["horizon"] == "tact 75%"
+
+
+def test_score_flow_ranks_extrinsic_not_raw_premium():
+    # FINANCED: day's biggest raw premium, almost all intrinsic (deep ITM).
+    # REALBET:  smaller raw premium, all extrinsic (OTM).
+    # filler names give the rank buckets a population.
+    rows = [
+        _rich_row("FINANCED", "Put", "mid", "14100000",
+                  spot="380", strike="450", delta="-0.95", size="2000"),
+        _rich_row("REALBET", "Put", "ask", "5000000",
+                  spot="600", strike="550", delta="-0.30", size="2000"),
+        *[_rich_row(f"F{i}", "Call", "ask", "50000",
+                    spot="100", strike="110", delta="0.30") for i in range(4)],
+    ]
+    rollup = _flow_ticker_rows(rows)
+    score_flow_rollup(rollup)
+    by_sym = {r["symbol"]: r for r in rollup}
+    # 14.1M premium − 14M intrinsic (70 × 2000 × 100) = 0.1M extrinsic.
+    assert by_sym["FINANCED"]["ext_total"] == pytest.approx(100_000)
+    assert by_sym["REALBET"]["score_parts"]["flow"] > by_sym["FINANCED"]["score_parts"]["flow"]
+
+
+# ---------------------------------------------------------------------------
+# Hedge pressure
+# ---------------------------------------------------------------------------
+
+def test_hedge_pressure_pure_hedging_scores_100():
+    etf = [_rich_row("SPY", "Put", "ask", "1000000", spot="700", strike="650", delta="-0.30")]
+    hp = hedge_pressure([], etf)
+    assert hp["score"] == 100
+    assert hp["label"] == "panic"
+    assert hp["by_ticker"] == {"SPY": 1_000_000.0}
+
+
+def test_hedge_pressure_pure_stock_calls_scores_0():
+    stock = [_rich_row("NVDA", "Call", "ask", "1000000", spot="180", strike="200", delta="0.30")]
+    hp = hedge_pressure(stock, [])
+    assert hp["score"] == 0
+    assert hp["label"] == "risk-on"
+
+
+def test_hedge_pressure_balanced_is_hedge_pressure_bucket():
+    stock = [_rich_row("NVDA", "Call", "ask", "1000000", spot="180", strike="200", delta="0.30")]
+    etf = [_rich_row("QQQ", "Put", "ask", "1000000", spot="700", strike="650", delta="-0.30")]
+    hp = hedge_pressure(stock, etf)
+    assert hp["score"] == 50
+    assert hp["label"] == "hedge-pressure"
+
+
+def test_hedge_pressure_ignores_deep_itm_financing_puts():
+    # Deep-ITM SPY put is intrinsic — not hedge demand.
+    stock = [_rich_row("NVDA", "Call", "ask", "1000000", spot="180", strike="200", delta="0.30")]
+    etf = [_rich_row("SPY", "Put", "mid", "7050000",
+                     spot="650", strike="720", delta="-0.97", size="1000")]
+    hp = hedge_pressure(stock, etf)
+    # 7.05M premium − 7M intrinsic = 50K extrinsic vs 1M stock calls → ~5.
+    assert hp["score"] == 5
+    assert hp["label"] == "risk-on"
+
+
+def test_hedge_pressure_non_hedge_etf_puts_do_not_count():
+    stock = [_rich_row("NVDA", "Call", "ask", "1000000", spot="180", strike="200", delta="0.30")]
+    etf = [_rich_row("XLE", "Put", "ask", "9000000", spot="90", strike="80", delta="-0.30")]
+    hp = hedge_pressure(stock, etf)
+    assert hp["score"] == 0  # XLE is not a hedge vehicle
+
+
+def test_hedge_pressure_no_data_returns_none_and_md_degrades():
+    assert hedge_pressure([], []) is None
+    assert "_No flow data to compute._" in hedge_pressure_md([], [])
+
+
+def test_hedge_pressure_md_smoke():
+    etf = [_rich_row("SPY", "Put", "ask", "1000000", spot="700", strike="650", delta="-0.30")]
+    out = hedge_pressure_md([], etf)
+    assert "## Hedge pressure" in out
+    assert "100/100" in out
+    assert "PANIC" in out
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +449,29 @@ def test_persistence_trajectory_marks_absent_days():
     assert "—" in out               # absent middle day shown as a gap
 
 
+def test_persistence_callout_lists_names_on_three_plus_days():
+    day = lambda d, syms: {"date": d, "flow_rows": [
+        _flow_row(s, "Call", "ask", "1000000") for s in syms], "unusual_rows": []}
+    days = [
+        day("2026-06-01", ["AAA", "BBB"]),
+        day("2026-06-02", ["AAA", "BBB"]),
+        day("2026-06-03", ["AAA"]),
+    ]
+    out = summarize_persistence(days, "Stocks flow")
+    assert "Persistent names (≥3 days):" in out
+    assert "AAA 3/3" in out
+    assert "BBB" not in out.split("\n\n")[1]  # 2-day name stays out of the callout
+
+
+def test_persistence_no_callout_below_three_days():
+    days = [
+        {"date": "2026-06-01", "flow_rows": [_flow_row("AAA", "Call", "ask", "100")], "unusual_rows": []},
+        {"date": "2026-06-02", "flow_rows": [_flow_row("AAA", "Call", "ask", "100")], "unusual_rows": []},
+    ]
+    out = summarize_persistence(days, "Stocks flow")
+    assert "Persistent names" not in out
+
+
 def test_persistence_empty_window():
     assert "_No data._" in summarize_persistence([], "Stocks flow")
 
@@ -394,6 +567,15 @@ def test_summarize_flow_includes_rollup_and_top_trades():
     assert "ticker rollup" in out
     assert "top 1 trades by premium" in out
     assert "AVGO" in out
+
+
+def test_summarize_flow_includes_pollution_columns():
+    rows = [_rich_row("GLD", "Put", "mid", "705000",
+                      spot="380", strike="450", delta="-0.95")]
+    out = summarize_flow(rows, "ETFs Flow", top_n=5)
+    for col in ("Ext$", "Fin%", "ΔNot$", "Hzn"):
+        assert col in out
+    assert "100%" in out  # GLD row reads as pure financing
 
 
 def test_summarize_unusual_empty():

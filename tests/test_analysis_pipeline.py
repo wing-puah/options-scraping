@@ -74,6 +74,21 @@ def test_analysis_to_rows_prefixes_confidence_when_present():
     assert rows[1]["play"] == "[low]\nbull call 600/610 | trend"
 
 
+def test_analysis_to_rows_folds_signal_type_and_horizon_into_bracket_line():
+    analysis = {
+        "regime": "RANGE",
+        "plays": [
+            {"ticker": "SMH", "asset_class": "etf",
+             "structure": "bear put spread 560/500", "thesis": "semi hedge",
+             "confidence": "Medium", "signal_type": "Hedge", "horizon": "Tactical"},
+        ],
+    }
+    rows = analysis_to_rows(analysis, "2026-06-11", "2026-06-11", "2026-06-11")
+    # Classification folds into the bracket line — no new sheet columns.
+    assert rows[1]["play"].splitlines()[0] == "[medium | hedge | tactical]"
+    assert list(rows[1].keys()) == ROW_COLUMNS
+
+
 def test_warn_below_targets_fires_when_short(caplog):
     analysis = {"plays": [{"ticker": "A", "asset_class": "stock"}]}
     with caplog.at_level("WARNING"):

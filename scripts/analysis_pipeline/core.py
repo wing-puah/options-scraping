@@ -215,10 +215,17 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         if not ticker:
             continue
         # Build the play cell as labeled lines so each part is scannable in Sheets.
+        # First line: [confidence | signal_type | horizon] — the classification
+        # fields fold into the existing bracket line rather than new sheet
+        # columns, so the tab schema (and everything reading it) stays stable.
         play_lines: list[str] = []
-        confidence = str(p.get("confidence", "")).strip().lower()
-        if confidence:
-            play_lines.append(f"[{confidence}]")
+        labels = [
+            str(p.get(k, "")).strip().lower()
+            for k in ("confidence", "signal_type", "horizon")
+        ]
+        labels = [x for x in labels if x]
+        if labels:
+            play_lines.append(f"[{' | '.join(labels)}]")
         headline_parts = [str(p.get(k, "")).strip() for k in ("pattern", "structure", "thesis")]
         headline = " | ".join(x for x in headline_parts if x)
         if headline:

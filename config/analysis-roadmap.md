@@ -32,6 +32,33 @@ record so the next change doesn't undo a deliberate decision.
   per play (backtester parses the `play` field); no redundant correlated index
   hedges; coverage floor (5 stock / 3 ETF) reconciled with confidence gating
   (low-confidence entries fill the floor as positioning, never dressed up).
+- **Extrinsic-premium ranking + pollution columns** (June 2026, from external
+  review of the 06-11 analysis) — the score's `flow` component now ranks
+  **extrinsic premium** (premium − intrinsic, floored at 0; falls back to full
+  premium when `Price~`/`Strike` are missing) instead of raw premium, so
+  deep-ITM financing/conversion flow can no longer buy rank. The rollup also
+  carries `Ext$`, `Fin%` (share of premium from |delta| ≥ 0.85 trades),
+  `ΔNot$` (signed delta-adjusted notional — backlog item 5, now shipped), and
+  `Hzn` (dominant DTE bucket by extrinsic: event 0–14 / tact 15–60 / med
+  60–180 / strat 180+ — backlog item 6, now shipped). Gamma/vega remain
+  deferred to the vol layer (gamma is not in the feed and is ~0 deep ITM
+  anyway).
+- **Hedge-pressure score** (June 2026) — first-class 0–100 metric in the
+  prepared markdown: `100 × hedge_put_ext / (hedge_put_ext + stock_call_ext)`
+  over HEDGE_TICKERS (SPY/QQQ/IWM/DIA/RSP/HYG/LQD/SMH/SOXX), extrinsic-only so
+  financing puts don't count as hedge demand. Static buckets (risk-on /
+  neutral / hedge-pressure / risk-off / panic); the method files gate it on
+  baseline percentile context. Replaces the daily qualitative rediscovery.
+- **Play classification: `signal_type` + `horizon`** (June 2026) — every play
+  declares what its flow IS (directional / hedge / positioning / volatility /
+  financing) and the maturity of its cited evidence (event / tactical / medium
+  / strategic). Type gates confidence (only directional may be high; financing
+  is never a play); horizon must contain the thesis (1-DTE clusters can no
+  longer anchor multi-week calls). Folded into the play cell's bracket line —
+  no sheet-schema change.
+- **Persistence surfaced by default** (June 2026) — pipeline `DEFAULT_DAYS`
+  1 → 5 so every run sees the trailing week, and the persistence section leads
+  with a **Persistent names (≥3 days)** callout.
 
 ---
 
@@ -78,6 +105,14 @@ accumulator in `_flow_ticker_rows` plus a column. Could also become a score
 component (size rank within day) alongside premium rank.
 
 ### 2. Forward-looking vol layer (DEFERRED — wanted, not now)
+
+The organizing principle when this layer lands: **flow → thesis, then
+volatility → structure.** Today the structure choice (spread vs naked vs
+straddle, strike width) is derived from the same flow that produced the
+thesis, which conflates two decisions. Flow should pick the name and the
+direction; expected move, IV rank, and skew should pick the structure and the
+strikes. Until the vol data exists, the method files' defined-risk default is
+the stand-in.
 
 The genuinely forward signals for play selection, in rough priority:
 
@@ -137,33 +172,21 @@ feeding the regime read), **not** as a per-ticker score component — a per-tick
 breadth bonus inflates a whole sector uniformly and does not improve the
 intra-day ranking the score exists to provide. On-demand only.
 
-### 5. Delta-adjusted notional, and greeks for the vol read (near-term, cheap)
+### 5. Delta-adjusted notional, and greeks for the vol read — SHIPPED June 2026
 
-The method now says deep-ITM should be sized by **delta-adjusted notional**
-(`Delta × Size × 100 × underlying` = share-equivalent exposure), not raw premium,
-because premium there is mostly intrinsic and overstates the bet. The feed already
-carries `Delta`, so this is a new accumulator in `_flow_ticker_rows` alongside the
-size aggregate of item 1 — no new deps. Use it as the conviction *size* axis so a
-deep-ITM strike cannot buy rank with intrinsic-inflated premium while still keeping
-its direction.
+`ΔNot$` (signed `Delta × Size × 100 × underlying`) and `Fin%` now ship in the
+rollup, and the score's `flow` component ranks extrinsic premium so a deep-ITM
+strike cannot buy rank with intrinsic-inflated premium — see Shipped above.
+What remains deferred (with the vol layer, item 2): **greeks for the
+buy-vs-sell-vol read.** Gamma/vega are ~0 deep ITM and not in the feed; they
+are informative for ATM/OTM prints and would need a Black-Scholes calc (all
+inputs — S, K, DTE, IV — are in the feed).
 
-- **Pair with item 1:** premium rank, summed Size, and delta-adj notional are three
-  views of "how much real exposure showed up"; deep-ITM separates them (big premium,
-  big notional, modest Size).
-- **Gamma/vega are ~0 deep ITM** — do *not* apply them there. They are informative
-  for **ATM/OTM** prints and the **buy-vs-sell-vol** read, where they'd need a
-  Black-Scholes greeks calc (all inputs — S, K, DTE, IV — are in the feed). Scope
-  greeks as part of the deferred vol layer (item 2), not the deep-ITM fix.
+### 6. DTE as a first-class feature — SHIPPED June 2026
 
-### 6. DTE as a first-class feature (near-term, cheap)
-
-Section-level premium-weighted DTE (with trailing percentiles) shipped with the
-baseline layer; what remains is the per-ticker view. Bucket DTE in the rollup so
-the same side/premium is interpreted
-by maturity (per the method's DTE table): `~0–14` event/gamma, `~15–60` tactical,
-`~60–180` macro/catalyst protection, `180+` strategic / stock replacement. Cheapest
-form is a per-ticker premium-by-DTE-bucket split surfaced to the LLM; it does not
-need to enter the numeric score, only the rollup the model reads.
+Per-ticker `Hzn` column (dominant DTE bucket by extrinsic premium) ships in the
+rollup, and every play declares a `horizon` field — see Shipped above. As
+designed, the buckets do not enter the numeric score.
 
 ### 7. Next-day OI delta — open vs close confirmation (medium, high value)
 
@@ -235,6 +258,34 @@ day's AnalysisClaude vs AnalysisGPT rows (ticker ∩ direction), printed with th
 run report and/or written as a flag column. Later, the backtest can test
 whether agreed plays actually outperform single-engine plays (see alpha
 attribution).
+
+### 13. Two-axis scoring — directional vs hedging pressure (medium, builds on the conviction score)
+
+The rollup's conviction score is deliberately direction-agnostic, and the
+method files handle the hedge/directional distinction qualitatively ("QQQ
+isn't bearish, QQQ is heavily hedged"). The numeric version would split each
+ticker's flow into a **directional score** and a **hedging score**: downside
+flow on index/credit ETFs and ask-side puts on broad proxies load the hedging
+axis; single-name flow with opening labels, Vol/OI, and strike/DTE coherence
+loads the directional axis. Two numbers per ticker in the rollup table lets
+the LLM (and later the backtest) distinguish "the market is bearish" from
+"the market is hedged" mechanically instead of by prose discipline. Sits
+naturally on the existing scoring code in the rollup; no new data needed.
+
+### 14. Theme table — cross-ticker narrative aggregation (cheap, presentation-layer)
+
+Group the day's signals into themes (e.g. long AI: MSFT/AMD/NVDA; risk-off
+hedge: SPY/QQQ/IWM; duration bid: TLT) and emit a theme → supporting-tickers
+table with a **breadth** count. Makes the day's story auditable at a glance
+and gives the regime sentence its evidence trail.
+
+**Caveat that must be built in:** correlated agreement is not corroboration.
+MSFT/AMD/NVDA call flow is one AI trade expressed three times — the same desks
+and the same macro — exactly like the SPY/QQQ/IWM triple hedge the method
+files already collapse. So the output is *theme breadth* (how many names
+express it), never a multiplied "narrative confidence" score; breadth across
+genuinely independent asset classes (equity + credit + duration + metals)
+counts for more than breadth within one sector.
 
 ---
 

@@ -38,6 +38,7 @@ from lib.flow_summary import (
     cross_section_md,
     filter_by_ticker,
     flow_rollup_csv,
+    hedge_pressure_md,
     rows_to_markdown_raw,
     summarize_flow,
     summarize_persistence,
@@ -173,6 +174,11 @@ def fetch_data(
             sections_out.append(summarize_unusual(rows, title, top_n=top_n))
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
+
+    # Hedge pressure: broad ETF put protection vs single-stock bullish demand,
+    # extrinsic-only, as one precomputed 0–100 number instead of a daily
+    # qualitative rediscovery.
+    sections_out.append(hedge_pressure_md(section_rows["stocks-flow"], section_rows["etfs-flow"]))
 
     # Baseline: today's aggregates vs the trailing BaselineDaily window, so the
     # regime read is normalized against history instead of a lone cross-section.

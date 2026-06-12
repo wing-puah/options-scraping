@@ -101,6 +101,7 @@ def _fmt_ratio(num: float, den: float) -> str:
 
 # Column names as they appear in Barchart flow CSV headers.
 _FLOW_SYMBOL    = "Symbol"
+_FLOW_UPRICE    = "Price~"   # underlying price at trade time
 _FLOW_TYPE      = "Type"
 _FLOW_STRIKE    = "Strike"
 _FLOW_DTE       = "DTE"
@@ -108,9 +109,41 @@ _FLOW_SIDE      = "Side"
 _FLOW_PREMIUM   = "Premium"
 _FLOW_SIZE      = "Size"
 _FLOW_IV        = "IV"
+_FLOW_DELTA     = "Delta"
 _FLOW_OPENFLAG  = "*"
 _FLOW_CODE      = "Code"
 _FLOW_TIME      = "Time"
+
+# |delta| at or above this is treated as a stock substitute (financing /
+# conversion / replacement) — premium there is mostly intrinsic, not a bet on a
+# move. Used for the per-ticker financing share, not to discard the direction.
+_FINANCING_DELTA = 0.85
+
+# DTE maturity buckets (label, inclusive upper bound). Mirrors the method files'
+# interpretive table: event/gamma, tactical, medium-term, strategic/LEAP.
+_DTE_BUCKETS = (("event", 14), ("tact", 60), ("med", 180), ("strat", None))
+
+
+def _dte_bucket(dte: float) -> str:
+    for label, hi in _DTE_BUCKETS:
+        if hi is None or dte <= hi:
+            return label
+    return _DTE_BUCKETS[-1][0]
+
+
+def _trade_extrinsic(prem: float, opt_type: str, spot: float, strike: float, size: int) -> float:
+    """Extrinsic (time-value) share of a trade's premium, floored at 0.
+
+    Deep-ITM premium is mostly intrinsic — stock exposure, not optionality — so
+    ranking on raw premium lets financing/conversion flow pose as conviction.
+    When spot or strike is missing the trade is NOT discounted (extrinsic =
+    full premium): absence of data is never treated as evidence of financing.
+    """
+    t = (opt_type or "").strip().lower()
+    if spot <= 0 or strike <= 0 or size <= 0 or t not in ("call", "put"):
+        return prem
+    intrinsic_per_share = max(spot - strike, 0.0) if t == "call" else max(strike - spot, 0.0)
+    return max(prem - intrinsic_per_share * size * 100, 0.0)
 
 
 def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
@@ -121,6 +154,11 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "premium_total": 0.0,
         "premium_call": 0.0,
         "premium_put": 0.0,
+        "ext_total": 0.0,
+        "ext_call": 0.0,
+        "ext_put": 0.0,
+        "delta_notional": 0.0,
+        "fin_premium": 0.0,
         "size_total": 0,
         "bullish": 0,
         "bearish": 0,
@@ -130,6 +168,7 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "sell_to_open": 0,
         "_dte_premium_sum": 0.0,
         "_iv_premium_sum": 0.0,
+        "_ext_by_bucket": defaultdict(float),
         "biggest": None,  # (premium, type, strike, side, dte, time)
     })
 
@@ -143,16 +182,30 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         dte = _to_float(r.get(_FLOW_DTE))
         iv = _to_float(r.get(_FLOW_IV))  # IV is "331.14%" → 331.14
         flag = (r.get(_FLOW_OPENFLAG) or "").strip()
+        size = _to_int(r.get(_FLOW_SIZE))
+        spot = _to_float(r.get(_FLOW_UPRICE))
+        strike = _to_float(r.get(_FLOW_STRIKE))
+        delta = _to_float(r.get(_FLOW_DELTA))
+        ext = _trade_extrinsic(prem, opt_type, spot, strike, size)
 
         agg = by_sym[sym]
         agg["symbol"] = sym
         agg["trades"] += 1
         agg["premium_total"] += prem
-        agg["size_total"] += _to_int(r.get(_FLOW_SIZE))
+        agg["size_total"] += size
+        agg["ext_total"] += ext
+        # Share-equivalent dollar exposure (delta × contracts × 100 × spot),
+        # signed — the conviction-size axis for deep-ITM/stock-substitute flow.
+        agg["delta_notional"] += delta * size * 100 * spot
+        if abs(delta) >= _FINANCING_DELTA:
+            agg["fin_premium"] += prem
+        agg["_ext_by_bucket"][_dte_bucket(dte)] += ext
         if opt_type.lower() == "call":
             agg["premium_call"] += prem
+            agg["ext_call"] += ext
         elif opt_type.lower() == "put":
             agg["premium_put"] += prem
+            agg["ext_put"] += ext
 
         sent = _classify_sentiment(opt_type, side)
         agg[sent] += 1
@@ -178,12 +231,29 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         pt = a["premium_total"]
         dte_w = a["_dte_premium_sum"] / pt if pt > 0 else 0.0
         iv_w  = a["_iv_premium_sum"]  / pt if pt > 0 else 0.0
+        # Dominant DTE bucket by extrinsic premium — where the real (time-value)
+        # money sits on the maturity axis, e.g. "strat 71%".
+        buckets = a["_ext_by_bucket"]
+        ext_sum = sum(buckets.values())
+        if ext_sum > 0:
+            top_label, top_val = max(buckets.items(), key=lambda kv: kv[1])
+            horizon = f"{top_label} {top_val / ext_sum * 100:.0f}%"
+        else:
+            horizon = "—"
         out.append({
             "symbol": sym,
             "trades": a["trades"],
             "premium_total": pt,
             "premium_call": a["premium_call"],
             "premium_put": a["premium_put"],
+            "ext_total": a["ext_total"],
+            "ext_call": a["ext_call"],
+            "ext_put": a["ext_put"],
+            "delta_notional": a["delta_notional"],
+            # Share of premium from |delta| ≥ 0.85 trades — the stock-substitute
+            # (financing/conversion/replacement) fraction of the headline number.
+            "fin_share": (a["fin_premium"] / pt) if pt > 0 else 0.0,
+            "horizon": horizon,
             "size_total": a["size_total"],
             # Avg $ per contract — high = expensive/high-IV/deep-ITM options, i.e.
             # premium driven by price not by positioning size.
@@ -200,7 +270,7 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             "biggest": a["biggest"],
         })
 
-    out.sort(key=lambda r: r["premium_total"], reverse=True)
+    out.sort(key=lambda r: r["ext_total"], reverse=True)
     return out
 
 
@@ -212,21 +282,23 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
 # "is it bullish or bearish". It is built only from NORMALIZED inputs so an
 # expensive underlying cannot buy its way up the list with raw premium:
 #
-#   flow    premium rank WITHIN the day, GUARDED by contract-size rank    0–3
+#   flow    EXTRINSIC-premium rank WITHIN the day, GUARDED by size rank   0–3
 #   rep     repetition — number of trades clustering on the name         0–2
 #   cross   cross-section — also appears in the unusual-activity dataset  0 / 2
 #   voloi   strength of the name's unusual Vol/OI print, if any           0–2
 #   open    ≥1 BuyToOpen / SellToOpen / ToOpen label present              0 / 1
 #   persist extra days the name recurs across the window (multi-day)     0–3
 #
-# The `flow` component = min(premium_rank, size_rank + 1). Premium leads (it is
-# the conventional "large flow" measure), but contract size can only *cap* it,
-# never lift it: a name big on premium but thin on contracts is vol-/price-
-# inflated and gets discounted, while cheap high-volume lottery flow (big size,
-# tiny premium) is never boosted. Premium already embeds IV (price ∝ vega), so
-# IV is deliberately NOT a separate term — see config/analysis-roadmap.md. When
-# the Size column is absent the size cap never binds and `flow` falls back to
-# premium rank.
+# The `flow` component = min(ext_rank, size_rank + 1). Extrinsic premium
+# (premium minus intrinsic value) leads: deep-ITM financing/conversion/
+# stock-replacement premium is mostly intrinsic — stock exposure, not a bet on
+# a move — so ranking raw premium let it pose as conviction. Contract size can
+# only *cap* the rank, never lift it: a name big on extrinsic but thin on
+# contracts is vol-/price-inflated and gets discounted, while cheap high-volume
+# lottery flow (big size, tiny premium) is never boosted. Premium already
+# embeds IV (price ∝ vega), so IV is deliberately NOT a separate term — see
+# config/analysis-roadmap.md. When the Size column is absent the size cap never
+# binds; when Price~/Strike are absent extrinsic falls back to full premium.
 #
 # A missing opening label scores 0, never negative — Barchart frequently omits
 # the flag, and absence of the label is not evidence the trade was closing.
@@ -276,9 +348,11 @@ def score_flow_rollup(
     voloi_by_sym = voloi_by_sym or {}
     persist_days_by_sym = persist_days_by_sym or {}
 
-    premiums = [r["premium_total"] for r in rollup]
+    # Rank on extrinsic premium (falls back to raw premium for rows built
+    # without Price~/Strike, where no intrinsic discount is computable).
+    exts = [r.get("ext_total", r["premium_total"]) for r in rollup]
     sizes = [r.get("size_total", 0) for r in rollup]
-    n = len(premiums)
+    n = len(exts)
 
     def _rank_bucket(value: float, population: list[float]) -> int:
         """3/2/1/0 by where `value` ranks within the day (0 = top). Fraction of
@@ -295,14 +369,15 @@ def score_flow_rollup(
 
     for r in rollup:
         sym = r["symbol"]
-        # Premium leads but contract size can only cap it, never lift it:
-        #   flow = min(premium_rank, size_rank + 1)
+        # Extrinsic premium leads but contract size can only cap it, never lift
+        # it:
+        #   flow = min(ext_rank, size_rank + 1)
         # discounts vol-/price-inflated premium (thin size), without boosting
         # cheap high-volume lottery flow (thin premium). Absent Size → size_rank
-        # is 3 for all → cap never binds → flow falls back to premium rank.
-        prem_rank = _rank_bucket(r["premium_total"], premiums)
+        # is 3 for all → cap never binds → flow falls back to extrinsic rank.
+        ext_rank = _rank_bucket(r.get("ext_total", r["premium_total"]), exts)
         size_rank = _rank_bucket(r.get("size_total", 0), sizes)
-        flow = min(prem_rank, size_rank + 1)
+        flow = min(ext_rank, size_rank + 1)
 
         trades = r["trades"]
         rep = 2 if trades >= 8 else 1 if trades >= 3 else 0
@@ -332,10 +407,11 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
     if not rollup:
         return f"### {title} — ticker rollup\n\n_No data._\n"
     headers = [
-        "Symbol", "Score", "Trades", "Total$", "Ctts", "$/ct", "Call$", "Put$", "C/P",
+        "Symbol", "Score", "Trades", "Total$", "Ext$", "Fin%", "ΔNot$",
+        "Ctts", "$/ct", "Call$", "Put$", "C/P",
         "Bull", "Bear", "Mid",
         "BTO", "STO", "ToOpen",
-        "wDTE", "wIV%",
+        "wDTE", "Hzn", "wIV%",
         "Biggest trade",
     ]
     sep = " | ".join(["---"] * len(headers))
@@ -354,6 +430,9 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             score_str,
             str(r["trades"]),
             _fmt_money(r["premium_total"]),
+            _fmt_money(r.get("ext_total", 0.0)),
+            f"{r.get('fin_share', 0.0) * 100:.0f}%",
+            _fmt_money(r.get("delta_notional", 0.0)),
             f"{r.get('size_total', 0):,}",
             _fmt_money(r.get("prem_per_ct", 0.0)),
             _fmt_money(r["premium_call"]),
@@ -366,6 +445,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             str(r["sell_to_open"]),
             str(r["to_open"]),
             f"{r['dte_w']:.0f}",
+            r.get("horizon", "—"),
             f"{r['iv_w']:.0f}",
             big_str,
         ]))
@@ -401,7 +481,7 @@ def build_scored_flow_rollup(
     unusual_syms = {(r.get(_UN_SYMBOL) or "").strip() for r in (unusual_rows or [])}
     unusual_syms.discard("")
     score_flow_rollup(rollup, unusual_syms, _voloi_by_symbol(unusual_rows))
-    rollup.sort(key=lambda r: (r["score"], r["premium_total"]), reverse=True)
+    rollup.sort(key=lambda r: (r["score"], r.get("ext_total", r["premium_total"])), reverse=True)
     return rollup
 
 
@@ -435,7 +515,9 @@ def summarize_flow(
 FLOW_CSV_COLUMNS = [
     "Section", "Symbol", "Score", "ScoreLabel",
     "Flow", "Rep", "Cross", "VolOI", "Open", "Persist",
-    "Trades", "TotalPremium", "Contracts", "PremPerContract",
+    "Trades", "TotalPremium", "ExtPremium", "ExtCallPremium", "ExtPutPremium",
+    "DeltaNotional", "FinancingShare", "Horizon",
+    "Contracts", "PremPerContract",
     "CallPremium", "PutPremium", "CallPutRatio",
     "Bull", "Bear", "Mid", "BTO", "STO", "ToOpen",
     "wDTE", "wIV", "BiggestTrade",
@@ -475,6 +557,12 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "Persist": parts.get("persist", ""),
                 "Trades": r["trades"],
                 "TotalPremium": round(r["premium_total"]),
+                "ExtPremium": round(r.get("ext_total", 0.0)),
+                "ExtCallPremium": round(r.get("ext_call", 0.0)),
+                "ExtPutPremium": round(r.get("ext_put", 0.0)),
+                "DeltaNotional": round(r.get("delta_notional", 0.0)),
+                "FinancingShare": round(r.get("fin_share", 0.0), 3),
+                "Horizon": r.get("horizon", ""),
                 "Contracts": r.get("size_total", 0),
                 "PremPerContract": round(r.get("prem_per_ct", 0.0)),
                 "CallPremium": round(r["premium_call"]),
@@ -619,6 +707,91 @@ def cross_section_md(flow_rows: list[dict], unusual_rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Hedge pressure (market-level, first-class)
+# ---------------------------------------------------------------------------
+#
+# "Hedge pressure" — broad protection bought on indexes/credit/sector ETFs while
+# single-stock demand stays bullish — used to be rediscovered qualitatively
+# every run. This makes it a precomputed 0–100 metric:
+#
+#   score = 100 × hedge_put_ext / (hedge_put_ext + stock_call_ext)
+#
+# where hedge_put_ext is EXTRINSIC put premium on the hedge-vehicle ETFs (deep-
+# ITM financing puts are excluded by construction) and stock_call_ext is total
+# extrinsic call premium across single stocks (the bullish-demand offset).
+
+# Index / credit / core-sector vehicles institutions use to hedge books.
+HEDGE_TICKERS = frozenset({"SPY", "QQQ", "IWM", "DIA", "RSP", "HYG", "LQD", "SMH", "SOXX"})
+
+_HEDGE_PRESSURE_BUCKETS = (  # (min_score, label), highest first
+    (80, "panic"),
+    (60, "risk-off"),
+    (40, "hedge-pressure"),
+    (20, "neutral"),
+    (0, "risk-on"),
+)
+
+
+def hedge_pressure(stock_flow_rows: list[dict], etf_flow_rows: list[dict]) -> dict | None:
+    """Compute the hedge-pressure score for one day's flow. None when no data.
+
+    Returns ``{"score", "label", "hedge_put_ext", "stock_call_ext", "by_ticker"}``
+    where ``by_ticker`` is the extrinsic put premium per hedge vehicle (largest
+    first) so the read stays auditable.
+    """
+    etf_rollup = _flow_ticker_rows(etf_flow_rows or [])
+    stock_rollup = _flow_ticker_rows(stock_flow_rows or [])
+
+    by_ticker = {
+        r["symbol"]: r["ext_put"]
+        for r in etf_rollup
+        if r["symbol"] in HEDGE_TICKERS and r["ext_put"] > 0
+    }
+    hedge_put_ext = sum(by_ticker.values())
+    stock_call_ext = sum(r["ext_call"] for r in stock_rollup)
+
+    denom = hedge_put_ext + stock_call_ext
+    if denom <= 0:
+        return None
+    score = round(100 * hedge_put_ext / denom)
+    label = next(lbl for mn, lbl in _HEDGE_PRESSURE_BUCKETS if score >= mn)
+    return {
+        "score": score,
+        "label": label,
+        "hedge_put_ext": hedge_put_ext,
+        "stock_call_ext": stock_call_ext,
+        "by_ticker": dict(sorted(by_ticker.items(), key=lambda kv: kv[1], reverse=True)),
+    }
+
+
+def hedge_pressure_md(stock_flow_rows: list[dict], etf_flow_rows: list[dict]) -> str:
+    """The `## Hedge pressure` markdown section for the prepared analysis."""
+    hp = hedge_pressure(stock_flow_rows, etf_flow_rows)
+    if hp is None:
+        return "## Hedge pressure\n\n_No flow data to compute._\n"
+    breakdown = ", ".join(f"{sym} {_fmt_money(v)}" for sym, v in hp["by_ticker"].items()) or "—"
+    scale = " · ".join(
+        f"{mn}–{hi}={lbl}"
+        for (mn, lbl), hi in zip(reversed(_HEDGE_PRESSURE_BUCKETS),
+                                 (20, 40, 60, 80, 100))
+    )
+    return (
+        "## Hedge pressure\n\n"
+        f"**Score: {hp['score']}/100 — {hp['label'].upper()}** "
+        f"(scale: {scale})\n\n"
+        f"- Hedge-vehicle extrinsic put premium: {_fmt_money(hp['hedge_put_ext'])} "
+        f"({breakdown})\n"
+        f"- Single-stock extrinsic call premium (bullish offset): "
+        f"{_fmt_money(hp['stock_call_ext'])}\n\n"
+        "_Extrinsic-only by construction: deep-ITM financing/conversion puts do "
+        "not count as hedge demand. The buckets are static heuristics — read the "
+        "score through the Baseline context percentiles before letting it set "
+        "the regime, and treat hedge-pressure as protection on longs being kept, "
+        "not a directional price-down forecast._\n"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Persistence (multi-day)
 # ---------------------------------------------------------------------------
 
@@ -705,6 +878,15 @@ def summarize_persistence(days: list[dict], title: str, top_n: int = 30) -> str:
     records.sort(key=lambda r: (r["adjusted"], r["days"], r["_latest_prem"]), reverse=True)
     records = records[:top_n]
 
+    # Names recurring ≥3 days lead the section explicitly — a name showing up
+    # session after session usually outweighs any single-day print.
+    persistent = [r for r in records if r["days"] >= 3]
+    callout = (
+        "**Persistent names (≥3 days):** "
+        + " · ".join(f"{r['symbol']} {r['days']}/{len(days)} ({r['lean']})" for r in persistent)
+        + "\n\n"
+    ) if persistent else ""
+
     headers = ["Symbol", "Days", "Premium/day", "Score/day", "Persist+", "Adj", "Label", "Lean"]
     sep = " | ".join(["---"] * len(headers))
     body = "\n".join(
@@ -722,6 +904,7 @@ def summarize_persistence(days: list[dict], title: str, top_n: int = 30) -> str:
     )
     return (
         f"## {title} — persistence ({len(days)} days: {dates[0]} → {dates[-1]})\n\n"
+        f"{callout}"
         f"_Trajectories run oldest→newest ({' · '.join(dates)}). "
         f"Names on ≥2 days; 'Adj' = latest score + recurrence bonus. "
         f"'Lean' is a separate call/put tilt, not part of the score._\n\n"

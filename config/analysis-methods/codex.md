@@ -59,6 +59,11 @@ everyday norm, so raw put dominance is not evidence by itself:
 - Use strong labels (`RISK-OFF`, `RISK-ON`, `E-VOL`) only when readings sit in
   roughly the outer quintile of the window or several related metrics agree;
   mid-range percentiles favor `RANGE` / neutral.
+- Scale trust in the percentiles with the window size the section reports.
+  Below roughly 40 prior sessions a percentile moves several points per single
+  day, so require a more extreme reading (about ≤10th / ≥90th) or agreement
+  from a second related metric before a small-window percentile carries a
+  strong label on its own.
 - If the section reports insufficient history, state that the read is
   unnormalized and do not present put/call dominance as unusual.
 
@@ -74,7 +79,11 @@ independent confirmations are more important than one extreme number.
 - A stock signal is confirmed by its sector ETF.
 - A market hedge appears across several independent proxies, such as SPY, QQQ,
   IWM, and HYG.
-- The trade is marked `BuyToOpen`, `SellToOpen`, or `ToOpen`.
+- The trade is marked `BuyToOpen`, `SellToOpen`, or `ToOpen`. The directional
+  labels carry side; bare `ToOpen` does not — it establishes only that a
+  position is new (a market maker selling and a fund buying print it
+  identically), so treat bare `ToOpen` as supporting evidence for new
+  positioning, never as evidence of a buyer or a direction on its own.
 - Volume materially exceeds open interest.
 - The strike and delta are plausible for the stated thesis.
 
@@ -94,11 +103,18 @@ independent confirmations are more important than one extreme number.
 Keep, but read as positioning rather than a directional bet — ambiguous intent is
 not the absence of signal:
 
-- **Deep ITM options** remain a directional input: a deep-ITM call bought is
-  bullish exposure (often stock replacement), a deep-ITM put bearish. They are not
-  a conviction bet on a move — ~1.0 delta, mostly intrinsic — so strip intrinsic
-  value out before premium drives the conviction weight, but do not discard the
-  direction.
+- **Deep ITM options** are a weak directional input: a deep-ITM call bought can
+  be stock replacement (bullish exposure), but deep-ITM strikes are also the
+  standard leg of conversions/reversals, collars, buy-writes, and financing
+  trades — non-directional by construction and indistinguishable in a single
+  row. Keep the direction as a low-weight prior, promoted only with
+  corroboration elsewhere in the same name. They are never a conviction bet on
+  a move — ~1.0 delta, mostly intrinsic — so strip intrinsic value out before
+  premium drives the conviction weight. The rollup precomputes this: `Ext$` is
+  the intrinsic-stripped (extrinsic) premium, `Fin%` the share of premium from
+  |delta| ≥ 0.85 stock-substitute trades, `ΔNot$` the signed delta-adjusted
+  notional, and `Hzn` the dominant DTE bucket — read conviction off `Ext$`,
+  pollution off `Fin%`, deep-ITM size off `ΔNot$` rather than raw premium.
 - **Bid-side calls and ask-side puts** conflate a directional bet, income/hedging,
   and closing, so single-print intent cannot be established. In aggregate they are
   still real positioning — bid-side calls are call-writing pressure, ask-side puts
@@ -127,11 +143,13 @@ When intent is ambiguous, describe the observation as "call activity",
 "downside positioning", or "hedging pressure" rather than claiming a purchase.
 
 The prepared rollup now includes a numeric **conviction score** (0–10,
-direction-agnostic) that pre-aggregates this evidence — premium rank within the
-day, repetition, cross-section overlap, Vol/OI, and opening-label presence — and,
-under `--days N`, a **persistence** table across prior days. Rank candidates by the
-score, give extra weight to names that stay high across multiple days, and still
-apply the benign-explanation checks above before treating any of it as direction.
+direction-agnostic) that pre-aggregates this evidence — **extrinsic-premium**
+rank within the day (intrinsic stripped, so financing flow cannot buy rank),
+repetition, cross-section overlap, Vol/OI, and opening-label presence — and,
+under `--days N`, a **persistence** table across prior days with a
+**Persistent names (≥3 days)** callout. Rank candidates by the score, give
+extra weight to names that stay high across multiple days, and still apply the
+benign-explanation checks above before treating any of it as direction.
 
 ## 4. Resolve Conflicting Flow
 
@@ -146,6 +164,11 @@ Apply these rules:
    not as an uncomplicated bullish regime.
 5. Treat a later increase in broad protection as a shift toward `RISK-OFF`,
    even when selected stocks still show bullish activity.
+
+The prepared markdown's **Hedge pressure** section precomputes rule 4 as a
+0–100 score (extrinsic ETF put demand vs single-stock extrinsic call demand)
+with its inputs itemized. Start from that number and its baseline percentile
+context rather than re-deriving the hedge read from raw ratios.
 
 The regime sentence must state both the dominant signal and the important
 counter-signal.
@@ -247,6 +270,15 @@ Codex uses confidence implicitly:
 Only high- and medium-confidence ideas should become plays. Use calibrated
 language such as "suggests", "supports", and "indicates"; avoid presenting flow
 interpretation as certainty.
+
+Every play also declares `signal_type` (directional / hedge / positioning /
+volatility / financing) and `horizon` (event / tactical / medium / strategic,
+from the DTE of the cited evidence — the rollup's `Hzn` column is the
+per-ticker default). The type gates confidence: only `directional` may be
+high; `hedge` and `positioning` cap at medium and are framed as protection,
+not forecasts; `volatility` caps at low unless the structure is a vol trade;
+`financing` is never a play. `event` evidence cannot carry a multi-week
+directional thesis.
 
 ## 8. June 2-3, 2026 Example
 
