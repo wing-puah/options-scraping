@@ -2,6 +2,44 @@ from datetime import date
 
 import backtest as bt
 from lib import barchart_options as bo
+from lib.barchart import BarchartSession
+
+
+# ── price-history JSON feed scraping (BarchartSession helpers) ──────────────────
+
+def test_augment_history_url_lifts_limit_and_adds_bidask():
+    feed = ("https://www.barchart.com/proxies/core-api/v1/historical/get"
+            "?symbol=GOOGL%7C20260717%7C425.00C"
+            "&fields=tradeTime.format(m/d/Y),lastPrice,theoreticalValue"
+            "&type=eod&orderBy=tradeTime&orderDir=desc&limit=65&raw=1")
+    out = BarchartSession._augment_history_url(feed)
+    assert "limit=1000" in out and "limit=65" not in out
+    assert "%2CbidPrice%2CaskPrice&type=eod" in out
+    # fields value (commas/parens) must survive untouched — no urlencode mangling.
+    assert "tradeTime.format(m/d/Y)" in out
+
+
+def test_augment_history_url_idempotent_on_bidask():
+    feed = ("https://www.barchart.com/proxies/core-api/v1/historical/get"
+            "?fields=lastPrice,bidPrice,askPrice&type=eod&limit=65")
+    out = BarchartSession._augment_history_url(feed)
+    assert out.count("bidPrice") == 1  # not duplicated
+
+
+def test_history_rows_to_csv_matches_legacy_schema():
+    rows = [{
+        "tradeTime": "06/11/2026",
+        "raw": {"tradeTime": "2026-06-11", "openPrice": 0.98, "lastPrice": 1.09,
+                "theoreticalValue": 1.08, "bidPrice": 0.9, "askPrice": 1.26,
+                "volume": 332, "openInterest": 1588},
+    }]
+    csv_text = BarchartSession._history_rows_to_csv(rows)
+    header, row1 = csv_text.splitlines()[:2]
+    assert header.startswith("Time,Open,High,Low,Latest,")
+    assert header.endswith(",Bid,Ask")
+    # raw dict (ISO date + numeric mark fields) drives the values parse_history_series reads.
+    series = bo.parse_history_series(csv_text)
+    assert series == [(date(2026, 6, 11), (0.9 + 1.26) / 2)]
 
 
 # ── classify_play ──────────────────────────────────────────────────────────────

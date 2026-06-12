@@ -953,9 +953,11 @@ async def _fetch_option_histories(contracts: list[dict], headless: bool) -> dict
             url = barchart_options.option_history_url(c["symbol"], c["expiration"], c["strike"], c["opt_type"])
             log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
             try:
-                csv_text = await session.download_csv(url)
+                # Scrape the price-history JSON feed (row-by-row data, no metered
+                # Download button, full series in one call) — see fetch_history_csv.
+                csv_text = await session.fetch_history_csv(url)
             except Exception:
-                log.exception("Barchart history download failed for %s", c["key"])
+                log.exception("Barchart history scrape failed for %s", c["key"])
                 csv_text = None
             if not csv_text:
                 series_map[c["key"]] = []
