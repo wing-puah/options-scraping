@@ -203,13 +203,13 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
 
     created_datetime = datetime.now().isoformat(timespec="seconds")
 
-    def _row(ticker, regime, signal, play, invalidation):
+    def _row(ticker, regime, signal, play, trigger, invalidation):
         return dict(zip(ROW_COLUMNS, [
-            date_str, ticker, regime, signal, play, invalidation,
+            date_str, ticker, regime, signal, play, trigger, invalidation,
             window_start, window_end, created_datetime,
         ]))
 
-    rows = [_row("MARKET", market_regime, market_signal, "", "")]
+    rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
     for p in analysis.get("plays", []) or []:
         ticker = str(p.get("ticker", "")).strip().upper()
         if not ticker:
@@ -230,16 +230,16 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         headline = " | ".join(x for x in headline_parts if x)
         if headline:
             play_lines.append(headline)
-        trigger = str(p.get("trigger", "")).strip()
-        if trigger:
-            play_lines.append(f"Trigger: {trigger}")
+        # `trigger` now has its own sheet column (after `play`), so it is no longer
+        # folded into the play cell — only the Alt line stays inline.
         alt = str(p.get("alternative_interpretation", "")).strip()
         if alt:
             play_lines.append(f"Alt: {alt}")
         play_text = "\n".join(play_lines)
+        trigger = str(p.get("trigger", "")).strip()
         play_regime = _join(p.get("regime")).strip()
         play_signal = _multiline_signal(p.get("signal"))
-        rows.append(_row(ticker, play_regime, play_signal, play_text, str(
+        rows.append(_row(ticker, play_regime, play_signal, play_text, trigger, str(
             p.get("invalidation", "")).strip()))
     return rows
 

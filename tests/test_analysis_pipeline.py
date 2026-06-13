@@ -47,7 +47,7 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
         "regime": "BEAR",
         "signals": "",
         "plays": [
-            {"ticker": "nvda", "pattern": "HP", "structure": "bear put 180/170",
+            {"ticker": "nvda", "pattern": "RF", "structure": "bear put 180/170",
              "thesis": "hedge pressure", "trigger": "lose 180", "invalidation": "close > 185"},
             {"ticker": "", "structure": "junk"},  # dropped: no ticker
         ],
@@ -56,8 +56,9 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
     assert len(rows) == 2  # MARKET + NVDA only
     nvda = rows[1]
     assert nvda["ticker"] == "NVDA"  # upcased
-    # Play cell now uses labeled lines so Sheets readers can scan it.
-    assert nvda["play"] == "HP | bear put 180/170 | hedge pressure\nTrigger: lose 180"
+    # Play cell uses labeled lines; trigger now lives in its own column, not folded in.
+    assert nvda["play"] == "RF | bear put 180/170 | hedge pressure"
+    assert nvda["trigger"] == "lose 180"
     assert nvda["invalidation"] == "close > 185"
     assert nvda["signal"] == ""  # signals live on the MARKET row only
 

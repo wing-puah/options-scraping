@@ -275,11 +275,32 @@ Default to **defined-risk** structures. The dataset gives no portfolio size, ris
 tolerance, or full volatility surface, so uncapped risk is never justified from
 flow alone.
 
-- Bullish flow into elevated IV → bull call spread, not a naked call (you would
-  be paying rich premium).
-- Bearish flow or hedge pressure into elevated IV → bear put spread.
-- Genuine volatility expansion with no directional winner → long
-  straddle/strangle, but only when both sides carry real evidence.
+Every play runs the chain **regime → setup → trigger → structure**, and the setup
+fixes the direction the structure may take. Name the setup (framework Step 2) from
+the price/flow state first, then draw the structure from that setup's allowed list —
+never pick a structure and back-label the setup to fit it:
+
+- **BO** (breakout) / **PB** (pullback buy) — bullish only. Allowed: long call,
+  bull call spread (debit); short put, bull put spread (credit).
+- **RF** (resistance fade) / **DC** (dead-cat bounce) — bearish only. Allowed: long
+  put, bear put spread (debit); short call, bear call spread (credit).
+- **VE** / **MS** — non-directional vol: long straddle/strangle, backspread, long
+  convexity. **SH** — long-haven (GLD/TLT calls, defensive convexity).
+
+A structure whose direction contradicts its setup — `RF | bull call spread`,
+`BO | bear put spread` — is invalid output; fix the setup to match the directional
+thesis, not the other way round. HP is a market-regime qualifier, never a per-play
+setup. A portfolio hedge takes a bearish setup (RF/DC) carrying `signal_type` =
+hedge — the setup supplies direction, `signal_type` records that it is protection,
+not a price forecast.
+
+Within the setup's allowed side, **IV picks debit vs credit**: sell premium (short
+put / bull put spread when bullish; short call / bear call spread when bearish) into
+high or rich IV rather than paying up for a debit; buy premium (long option / debit
+spread) when IV is low or expected to rise. Prefer the defined-risk spread over a
+naked short on high-IV names — a short put on a 200%-IV name is not a defined-risk
+trade.
+
 - Short-volatility structures (condor, strangle, calendar) only when compression
   is explicit (`C-VOL`).
 - Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry

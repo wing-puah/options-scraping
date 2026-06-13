@@ -49,6 +49,17 @@ or "RANGE + H-VOL + RECS + RISK-OFF" only when the macro leg is corroborated.
 | RISK-ON  | Investors buying risky assets (Tech, Crypto, Small Caps), selling safe assets |
 | RISK-OFF | Investors fleeing to defensive sectors (Utilities, Staples) or Cash           |
 
+### Market-condition qualifier — optional
+
+| Label | Meaning                                                                              |
+| ----- | ------------------------------------------------------------------------------------ |
+| HP    | Hedge pressure — index/sector at/near highs while large downside hedging accumulates |
+
+HP describes the whole tape (institutions keeping longs but buying broad protection), not
+a single name's setup. Append it to the regime read — e.g. "BULL + C-VOL + RISK-OFF + HP" —
+when index/ETF put hedging dominates the day's premium. It colours every play's context
+but is never itself a per-play setup label.
+
 ---
 
 ## Step 2 — Signal Identification
@@ -67,14 +78,30 @@ Tag each observation with the signal type that generated it.
 
 ### Setup Patterns
 
-| Setup                     | Trigger                                          | Interpretation                                |
-| ------------------------- | ------------------------------------------------ | --------------------------------------------- |
-| HP (Hedge pressure)       | Market rally + downside hedging appears          | Rally may not hold; institutions still hedged |
-| RF (Resistance fade)      | Price approaches resistance + momentum weakening | Fade the move, not chase it                   |
-| VE (Volatility Expansion) | Macro uncertainty + volatility rising            | Long vol / long convexity structures favoured |
-| SH (Safe haven flow)      | Risk event + safe-haven demand (GLD, TLT)        | Risk-off positioning underway                 |
-| DC (Dead cat bounce)      | Sharp selloff + weak rebound                     | Sell the bounce, not buy the dip              |
-| MS (Macro shock)          | Sudden macro event + volatility spike            | Reactive vol — fades quickly or escalates     |
+A setup is the named situation a single ticker is in. **Each setup fixes a directional
+bias and the structures it may use.** A play's structure must be drawn from its setup's
+allowed list, and its direction must match the setup's bias — see the binding rule in
+Step 4. The entry trigger that activates a setup comes from the Trigger Conditions table
+below.
+
+Allowed structures are listed **debit (buy premium) · credit (sell premium)**. Direction
+picks the setup; **IV picks the side** — buy premium when IV is low or expected to rise,
+sell premium when IV is high or expected to fall.
+
+| Setup                     | Arises when                                                | Bias            | Allowed structures (debit · credit)                  |
+| ------------------------- | ---------------------------------------------------------- | --------------- | ---------------------------------------------------- |
+| BO (Breakout)             | BULL — price breaks resistance with follow-through         | Bullish         | long call, bull call spread · short put, bull put spread |
+| PB (Pullback buy)         | BULL — shallow dip to support inside an uptrend            | Bullish         | long call, bull call spread · short put, bull put spread |
+| RF (Resistance fade)      | RANGE/BULL — price approaches resistance, momentum fading  | Bearish         | long put, bear put spread · short call, bear call spread |
+| DC (Dead cat bounce)      | BEAR — sharp selloff then weak rebound                     | Bearish         | long put, bear put spread · short call, bear call spread |
+| VE (Volatility expansion) | E-VOL — macro/event uncertainty, IV rising                 | Non-directional | long straddle/strangle, backspread, long convexity   |
+| SH (Safe haven flow)      | RISK-OFF — risk event + safe-haven demand (GLD, TLT)       | Long-haven      | calls on GLD/TLT, defensive / long-convexity hedges  |
+| MS (Macro shock)          | Sudden macro event + volatility spike                      | Non-directional | long convexity, OTM put/call, VIX calls              |
+
+"Fade, don't chase" (RF / DC) is **always a bearish structure** — short put and bull call
+spread are bullish and must never appear under RF/DC. A bullish breakout or continuation is
+BO or PB, not RF. Naked shorts (short put / short call) carry undefined risk and assignment
+exposure — prefer the defined-risk spread on high-IV names.
 
 ### Trigger Conditions
 
@@ -100,7 +127,14 @@ Names appearing in both datasets carry stronger signal weight.
 
 ## Step 4 — Possible Play
 
-For each high-conviction ticker, propose a trade structure consistent with the regime and signal.
+For each high-conviction ticker, walk the chain explicitly: **regime → setup → trigger → play.**
+Name the setup the ticker is in (Step 2), confirm its trigger condition is met, then propose
+a structure **drawn from that setup's allowed list** with a direction matching the setup's bias.
+
+**Binding rule:** a structure that contradicts its setup's bias — e.g. `RF | bull call spread` —
+is invalid. If your directional thesis is bullish, the setup must be BO or PB; if bearish, RF or
+DC. Pick the setup that matches the thesis, then pick the structure from that setup, never the
+other way around.
 
 Produce a full slate every run: **at least 5 stock plays and at least 3 ETF plays**
 (8+ total), ordered strongest conviction first, drawn from the highest-scoring names
@@ -114,14 +148,17 @@ Format each play as:
 > **[TICKER]** — [setup label] | [structure] | [thesis in one sentence]
 > Trigger: [what must happen for entry]
 
-Structure selection guide:
+Structure selection — pick from the setup's allowed list (Step 2). Direction is already
+fixed by the setup; **IV picks debit vs credit:**
 
-- BULL + L-VOL → long calls, bull call spreads, buy ATM/OTM calls
-- BEAR + H-VOL → bear put spreads, buy puts, short calls (sell premium into high IV)
+- Bullish (BO/PB), low or rising IV → debit: long call, bull call spread
+- Bullish (BO/PB), high or falling IV → credit: short put, bull put spread
+- Bearish (RF/DC), low or rising IV → debit: long put, bear put spread
+- Bearish (RF/DC), high or falling IV → credit: bear call spread, short call
 - RANGE + H-VOL → iron condor, short strangle, sell premium
-- E-VOL (volatility expanding) → long straddle/strangle, back-spread, long convexity
+- VE / E-VOL (volatility expanding) → long straddle/strangle, back-spread, long convexity
 - C-VOL (volatility compressing) → calendar spreads, diagonal spreads, sell premium
-- Tail risk / macro shock → OTM put/call, VIX calls, long convexity hedge
+- MS / tail risk → OTM put/call, VIX calls, long convexity hedge
 
 ---
 
@@ -145,7 +182,7 @@ Respond with a JSON object with exactly these keys (all plain strings):
   "regime": "Labels + one-sentence read. Include the macro label only when corroborated by cross-asset evidence; otherwise omit it. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, put hedging dominant across index ETFs, no sustained RISK-ON rotation.",
   "signals": "Tagged signal list. E.g. [FLOW] Heavy QQQ put sweeps | [VEGA] VIX call buying 35-40 | [PRICE] NVDA testing 180 support",
   "sector_focus": "Sectors/names with concentrated flow and what it implies. Cross-reference unusual activity + flow.",
-  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf and a confidence, with setup, structure, thesis, trigger. E.g. 1. NVDA (stock, high) — HP | Bull call spread 185/200 | Call buying on dip + hedge pressure suggests accumulation. Trigger: hold above 180.",
+  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf and a confidence, with setup, structure, thesis, trigger. E.g. 1. NVDA (stock, high) — PB | Bull call spread 185/200 | Call buying into a dip to support suggests accumulation. Trigger: hold above 180.",
   "invalidation": "Per-ticker invalidation conditions. E.g. NVDA: daily close < 178 with volume. QQQ: sustained hold above 460."
 }
 ```

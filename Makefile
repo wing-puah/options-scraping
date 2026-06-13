@@ -11,8 +11,12 @@ venv:
 # ── scrape ─────────────────────────────────────────────────────────────────────
 .PHONY: scrape
 scrape:
+ifeq ($(strip $(ARGS)),)
 	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode flow
 	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode unusual
+else
+	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py $(ARGS)
+endif
 
 .PHONY: scrape-flow
 scrape-flow:
@@ -34,20 +38,20 @@ gc:
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze:
-	$(PY) -m scripts.analysis_pipeline
+	$(PY) -m scripts.analysis_pipeline $(ARGS)
 
 .PHONY: analyze-gpt
 analyze-gpt:
-	$(PY) -m scripts.analysis_pipeline --engine codex
+	$(PY) -m scripts.analysis_pipeline --engine codex $(ARGS)
 
 # ── backtest ───────────────────────────────────────────────────────────────────
 .PHONY: backtest
 backtest:
-	$(PY) scripts/backtest.py --config config/backtest.yml
+	$(PY) scripts/backtest.py --config config/backtest.yml $(ARGS)
 
 .PHONY: backtest-dry
 backtest-dry:
-	$(PY) scripts/backtest.py --config config/backtest.yml --dry-run
+	$(PY) scripts/backtest.py --config config/backtest.yml --dry-run $(ARGS)
 
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
@@ -68,7 +72,8 @@ help:
 	@echo ""
 	@echo "  make venv          create/refresh virtual env"
 	@echo ""
-	@echo "  make scrape        scrape flow + unusual activity"
+	@echo "  make scrape        scrape flow + unusual activity (live)"
+	@echo "  make scrape ARGS=\"--start 2026-02-01 --end 2026-02-28\"  historical range"
 	@echo "  make scrape-flow   scrape flow only"
 	@echo "  make scrape-unusual scrape unusual only"
 	@echo ""
@@ -77,6 +82,7 @@ help:
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"
+	@echo "  make analyze ARGS=\"--date 2026-02-14\"  (or --start/--end/--days/--dry-run/--model)"
 	@echo ""
 	@echo "  make backtest      run backtest"
 	@echo "  make backtest-dry  dry-run backtest"

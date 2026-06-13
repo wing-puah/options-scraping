@@ -75,7 +75,7 @@ FRAMEWORK_FILE = ROOT / "config/analysis-framework.md"
 # these names. Changing this means also updating the sheet header AND
 # analysis_to_rows() in core.py.
 ROW_COLUMNS = [
-    "date", "ticker", "regime", "signal", "play",
+    "date", "ticker", "regime", "signal", "play", "trigger",
     "invalidation", "data_window_start", "data_window_end",
     "created_datetime",
 ]
@@ -99,17 +99,17 @@ fences. Do not use any tools; everything you need is in this prompt.
 Schema (all string fields unless noted):
 
 {
-  "regime": "Directional + Volatility + Sentiment labels (+ Macro only if cross-asset corroborated) and a one-sentence read. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, broad index put hedging.",
+  "regime": "Directional + Volatility + Sentiment labels (+ Macro only if cross-asset corroborated, + HP qualifier when the broad tape is at/near highs while large downside hedging accumulates) and a one-sentence read. HP is a market-condition qualifier here, NOT a per-play setup. E.g. BULL + C-VOL + RISK-OFF + HP — indexes near highs but broad index put hedging dominates premium.",
   "signals": "Market-level tagged signals, pipe-separated — cross-asset/macro patterns ONLY (e.g. index hedging, vol regime, sector rotation). Per-ticker evidence belongs in each play's `signal` field, not here. E.g. [FLOW] broad index put hedging across SPY/QQQ/IWM | [VEGA] VIX call buying 35-40 | [MACRO] dollar bid risk-off.",
   "sector_focus": "Sectors/names with concentrated flow and what it implies.",
   "plays": [
     {
       "ticker": "NVDA",
       "asset_class": "stock|etf",
-      "pattern": "HP|RF|VE|SH|DC|MS",
+      "pattern": "BO|PB|RF|DC|VE|SH|MS — the setup (Step 2). BO (breakout) and PB (pullback buy) are BULLISH; RF (resistance fade) and DC (dead-cat bounce) are BEARISH; VE/MS non-directional; SH long-haven. HP is NOT a value here — it lives in the market regime. The `structure` direction MUST match this setup's bias.",
       "regime": "Ticker-specific regime — the volatility / level / posture state for THIS name (e.g. 'BULL + E-VOL — testing 59 breakout, IV30 rising into earnings'). Distinct from the market regime. Leave EMPTY if there is nothing ticker-specific to add beyond the market read — do NOT copy the market regime here.",
       "signal": "Ticker-specific tagged evidence supporting THIS play, pipe-separated. E.g. [FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI unusual print | [FLOW] explicit ToOpen/BuyToOpen $64 calls | [PRICE] testing breakout at 59. Distinct from the market-level `signals` — this is the per-ticker evidence chain.",
-      "structure": "e.g. bull call spread 185/200",
+      "structure": "Option structure drawn from the setup's allowed list (Step 2), direction matching the setup's bias. IV picks the side: debit (long call/put, debit spread) when IV is low/rising; credit (short put/call, credit spread) when IV is high/falling. e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
@@ -136,6 +136,15 @@ Coverage — every run must return BOTH a market read and a full play list:
 
 Discipline rules — apply to every play before promoting to medium / high confidence:
 
+- Setup–structure binding (validity gate, not a confidence gate): the `structure`
+  direction MUST match the `pattern` bias. BO/PB take ONLY bullish structures (long
+  call, bull call spread, short put, bull put spread); RF/DC take ONLY bearish
+  structures (long put, bear put spread, short call, bear call spread); VE/MS are
+  non-directional. A mismatched pair — e.g. `RF | bull call spread`, or `BO | bear
+  put spread` — is invalid output: pick the setup that matches the directional
+  thesis, never the reverse. Within the allowed side, IV chooses debit vs credit —
+  sell premium (credit) into high IV, buy premium (debit) into low/rising IV.
+  Prefer the defined-risk spread over a naked short on high-IV names.
 - `alternative_interpretation` is REQUIRED on every play, not optional. It is
   the auditable record that the benign-explanation check was performed. A play
   whose `alternative_interpretation` is at least as plausible as the directional
