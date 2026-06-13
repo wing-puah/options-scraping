@@ -43,7 +43,7 @@ BARCHART_PASSWORD = os.getenv("BARCHART_PASSWORD", "")
 COOKIES_PATH = Path(
     os.getenv("COOKIES_PATH", str(_ROOT / "cookies" / "barchart_session.json"))
 )
-HEADLESS = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
+HEADLESS = os.getenv("SCRAPE_HEADLESS", "false").lower() == "true"
 
 # Live URLs — current day's data, split by --mode
 _LIVE_PAGES = {

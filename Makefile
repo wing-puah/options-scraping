@@ -12,19 +12,19 @@ venv:
 .PHONY: scrape
 scrape:
 ifeq ($(strip $(ARGS)),)
-	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode flow
-	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode unusual
+	$(PY) scripts/barchart_scrape.py --mode flow
+	$(PY) scripts/barchart_scrape.py --mode unusual
 else
-	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py $(ARGS)
+	$(PY) scripts/barchart_scrape.py $(ARGS)
 endif
 
 .PHONY: scrape-flow
 scrape-flow:
-	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode flow
+	$(PY) scripts/barchart_scrape.py --mode flow $(ARGS)
 
 .PHONY: scrape-unusual
 scrape-unusual:
-	SCRAPE_HEADLESS=false $(PY) scripts/barchart_scrape.py --mode unusual
+	$(PY) scripts/barchart_scrape.py --mode unusual $(ARGS)
 
 # ── compile & gc ───────────────────────────────────────────────────────────────
 .PHONY: compile
@@ -56,7 +56,7 @@ backtest-dry:
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
 baseline:
-	$(PY) scripts/build_baseline.py
+	$(PY) scripts/build_baseline.py $(ARGS)
 
 # ── dashboard ──────────────────────────────────────────────────────────────────
 .PHONY: dashboard

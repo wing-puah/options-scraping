@@ -30,8 +30,8 @@ simulation:
   contracts: 1
 
   # Profit target / stop loss as a fraction of the entry premium.
-  profit_target: 0.50 # +50%
-  stop_loss: 1.00 # -100% (premium fully lost)
+  profit_target: 0.75 # +75%
+  stop_loss: 0.75 # -75%
 
   # Record a P&L mark for EVERY trading day from entry until the path cap, and
   # derive the realized exit (first profit_target/stop_loss/expiry), MFE and MAE
