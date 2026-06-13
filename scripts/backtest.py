@@ -558,6 +558,7 @@ def _simulate_iron_condor(
         return {}
     dte_entry = int(dte_entry)
     T_entry = dte_entry / 365
+    expiration_date = _parse_expiration(expiration_raw, signal_date + timedelta(days=dte_entry))
 
     K_lp, K_sp, K_sc, K_lc = _iron_condor_strikes(
         cls.get("strikes", []), K_sp_matched, S_entry, spread_pct
@@ -605,6 +606,14 @@ def _simulate_iron_condor(
     for d in exit_days:
         checkpoint = signal_date + timedelta(days=d)
         prefix = f"d{d}"
+
+        if expiration_date and checkpoint > expiration_date:
+            result[f"{prefix}_option_price"] = ""
+            result[f"{prefix}_pnl_pct"] = ""
+            result[f"{prefix}_pnl_abs"] = ""
+            result[f"{prefix}_status"] = "expired"
+            result[f"{prefix}_exit_source"] = ""
+            continue
 
         S_exit = price_fn(ticker, checkpoint)
         if S_exit is None:
@@ -795,6 +804,14 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
     for d in exit_days:
         checkpoint = signal_date + timedelta(days=d)
         prefix = f"d{d}"
+
+        if expiration_date and checkpoint > expiration_date:
+            result[f"{prefix}_option_price"] = ""
+            result[f"{prefix}_pnl_pct"] = ""
+            result[f"{prefix}_pnl_abs"] = ""
+            result[f"{prefix}_status"] = "expired"
+            result[f"{prefix}_exit_source"] = ""
+            continue
 
         exit_price = None
         exit_source = ""
