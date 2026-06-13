@@ -333,6 +333,16 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
 
 # ─── Flow loading (entry matching + exit reappearance) ─────────────────────────
 
+def _flow_date_range(start: date, window_end: date) -> list[date]:
+    """Weekdays from start through window_end inclusive."""
+    out, d = [], start
+    while d <= window_end:
+        if d.weekday() < 5:
+            out.append(d)
+        d += timedelta(days=1)
+    return out
+
+
 def _load_flow(start: date | None, end: date | None, lookahead_days: int):
     """
     Load flow CSVs from Drive. Returns:
@@ -340,52 +350,55 @@ def _load_flow(start: date | None, end: date | None, lookahead_days: int):
       contract_index   — { contract_key: [(date, trade_price), ...] }  (for exits)
     """
     client = get_drive_client()
-    date_re = re.compile(r"-(\d{8})-")
     window_end = (end + timedelta(days=lookahead_days)) if end else None
 
     flow_by_date: dict[str, list[dict]] = {}
     contract_index: dict[tuple, list[tuple]] = {}
 
-    for prefix in FLOW_PREFIXES:
+    def _process_file(f: dict, snap_date: date) -> None:
         try:
-            files = client.list_files(prefix)
+            content = client.download(f["id"])
         except Exception:
-            log.exception("Could not list Drive files for prefix '%s'", prefix)
-            continue
+            log.exception("Could not download '%s'", f["name"])
+            return
+        d_str = snap_date.isoformat()
+        for row in parse_csv(content):
+            flow_by_date.setdefault(d_str, []).append(row)
+            price = _opt_price(row)
+            strike = _num(row.get("Strike"))
+            if price is None or strike is None:
+                continue
+            key = _contract_key(
+                row.get("Symbol", ""), row.get("Type", ""), strike,
+                row.get("Expires", row.get("Expiration Date", "")),
+            )
+            contract_index.setdefault(key, []).append((snap_date, price))
 
-        for f in files:
-            m = date_re.search(f["name"])
-            if not m:
-                continue
-            try:
-                snap_date = datetime.strptime(m.group(1), "%Y%m%d").date()
-            except ValueError:
-                continue
-            # Need files from signal dates through the exit lookahead window.
-            if start and snap_date < start:
-                continue
-            if window_end and snap_date > window_end:
-                continue
-
-            try:
-                content = client.download(f["id"])
-            except Exception:
-                log.exception("Could not download '%s'", f["name"])
-                continue
-
+    if start is not None and window_end is not None:
+        # Go directly to each date folder — avoids a global Drive listing.
+        for snap_date in _flow_date_range(start, window_end):
             d_str = snap_date.isoformat()
-            for row in parse_csv(content):
-                flow_by_date.setdefault(d_str, []).append(row)
-
-                price = _opt_price(row)
-                strike = _num(row.get("Strike"))
-                if price is None or strike is None:
+            for prefix in FLOW_PREFIXES:
+                for f in client.list_day_files(prefix, d_str):
+                    _process_file(f, snap_date)
+    else:
+        # No date bounds — fall back to listing all files globally.
+        date_re = re.compile(r"-(\d{8})-")
+        for prefix in FLOW_PREFIXES:
+            try:
+                files = client.list_files(prefix)
+            except Exception:
+                log.exception("Could not list Drive files for prefix '%s'", prefix)
+                continue
+            for f in files:
+                m = date_re.search(f["name"])
+                if not m:
                     continue
-                key = _contract_key(
-                    row.get("Symbol", ""), row.get("Type", ""), strike,
-                    row.get("Expires", row.get("Expiration Date", "")),
-                )
-                contract_index.setdefault(key, []).append((snap_date, price))
+                try:
+                    snap_date = datetime.strptime(m.group(1), "%Y%m%d").date()
+                except ValueError:
+                    continue
+                _process_file(f, snap_date)
 
     for key in contract_index:
         contract_index[key].sort(key=lambda t: t[0])
@@ -977,6 +990,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest LLM analysis plays.")
     parser.add_argument("--config", default="config/backtest.yml")
     parser.add_argument("--tab", help="Analysis tab to backtest (overrides config)")
+    parser.add_argument("--date", help="Single analysis date YYYY-MM-DD (sets --start and --end)")
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
     parser.add_argument("--dry-run", action="store_true", help="Do not write output files")
@@ -987,8 +1001,11 @@ def main() -> None:
         cfg = yaml.safe_load(f)
 
     tab = args.tab or cfg.get("analysis", {}).get("tab", "AnalysisClaude")
-    start = date.fromisoformat(args.start) if args.start else None
-    end = date.fromisoformat(args.end) if args.end else None
+    if args.date:
+        start = end = date.fromisoformat(args.date)
+    else:
+        start = date.fromisoformat(args.start) if args.start else None
+        end = date.fromisoformat(args.end) if args.end else None
     sim_cfg = cfg["simulation"]
     entry_cfg = cfg.get("entry", {})
     match_side = entry_cfg.get("match_side", "any")

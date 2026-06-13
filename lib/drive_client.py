@@ -215,6 +215,20 @@ class DriveClient:
         log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
         return files
 
+    def list_day_files(self, prefix: str, date_str: str) -> list[dict]:
+        """Files to process for date_str: compiled file if present, all snapshots otherwise."""
+        folder_id = self._find_date_folder(date_str)
+        if folder_id is None:
+            return []
+        compact = date_str.replace("-", "")
+        q = (f"'{folder_id}' in parents and name contains '{prefix}-{compact}-' "
+             f"and trashed = false")
+        files = self._svc.files().list(
+            q=q, fields="files(id, name, createdTime)", orderBy="name"
+        ).execute().get("files", [])
+        compiled = [f for f in files if f["name"].endswith("-compiled.csv")]
+        return compiled if compiled else files
+
     def download_for_date(self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]:
         """Download the most recent file for prefix on date_str (YYYY-MM-DD)."""
         log.info("Fetching file for prefix '%s' on date '%s'", prefix, date_str)
