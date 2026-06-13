@@ -183,6 +183,15 @@ class DriveClient:
         log.info("Latest file for prefix '%s': '%s'", prefix, latest["name"])
         return latest["name"], self.download(latest["id"])
 
+    def _find_date_folder(self, date_str: str) -> str | None:
+        """Return the folder ID for date_str, or None if it doesn't exist (read-only)."""
+        q = (
+            f"name = '{date_str}' and '{self._root}' in parents "
+            f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        )
+        files = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        return files[0]["id"] if files else None
+
     def list_files_for_date(self, prefix: str, date_str: str) -> list[dict]:
         """All timestamped snapshot files for prefix on date_str (YYYY-MM-DD), oldest→newest.
 
@@ -190,30 +199,41 @@ class DriveClient:
         `{prefix}-YYYYMMDD-compiled.csv` are excluded so a compiled output is never
         fed back in as input. Sorted chronologically by name.
         """
+        log.debug("Listing files with prefix '%s' for date '%s'", prefix, date_str)
+        folder_id = self._find_date_folder(date_str)
+        if folder_id is None:
+            log.info("No date folder found for '%s' — 0 snapshots", date_str)
+            return []
         compact = date_str.replace("-", "")
         pattern = re.compile(rf"^{re.escape(prefix)}-{compact}-\d{{4}}\.csv$")
-        files = [f for f in self.list_files(
-            prefix) if pattern.match(f["name"])]
-        files.sort(key=lambda f: f["name"])
-        log.info("Found %d snapshot(s) for prefix '%s' on %s",
-                 len(files), prefix, date_str)
+        q = f"'{folder_id}' in parents and name contains '{prefix}-' and trashed = false"
+        files = self._svc.files().list(
+            q=q, fields="files(id, name, createdTime)", orderBy="name"
+        ).execute().get("files", [])
+        files = [f for f in files if pattern.match(f["name"])]
+        log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
         return files
 
     def download_for_date(self, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]:
         """Download the most recent file for prefix on date_str (YYYY-MM-DD)."""
         log.info("Fetching file for prefix '%s' on date '%s'", prefix, date_str)
+        folder_id = self._find_date_folder(date_str)
+        if folder_id is None:
+            log.warning("No date folder found for '%s'", date_str)
+            return None, None
         compact = date_str.replace("-", "")
-        all_files = self.list_files(prefix)
-
-        files = [f for f in all_files if f["name"].startswith(
-            f"{prefix}-{compact}-")]
+        q = (
+            f"'{folder_id}' in parents and name contains '{prefix}-{compact}-' "
+            f"and trashed = false"
+        )
+        files = self._svc.files().list(
+            q=q, fields="files(id, name, createdTime)", orderBy="name desc"
+        ).execute().get("files", [])
         if not files:
-            log.warning(
-                "No files found for prefix '%s' on date '%s'", prefix, date_str)
+            log.warning("No files found for prefix '%s' on date '%s'", prefix, date_str)
             return None, None
         selected = files[0]
-        log.info("Selected file '%s' for date '%s'",
-                 selected["name"], date_str)
+        log.info("Selected file '%s' for date '%s'", selected["name"], date_str)
         return selected["name"], self.download(selected["id"])
 
 
