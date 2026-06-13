@@ -33,10 +33,24 @@ simulation:
   profit_target: 0.50 # +50%
   stop_loss: 1.00 # -100% (premium fully lost)
 
-  # Measure P&L this many calendar days after the signal date.
-  exit_days: [1, 3, 5, 10, 21, 60]
+  # Record a P&L mark for EVERY trading day from entry until the path cap, and
+  # derive the realized exit (first profit_target/stop_loss/expiry), MFE and MAE
+  # from that full path. ALL P&L comes from this day-by-day path — there are no
+  # per-checkpoint d{N}_* columns. The whole series is stored as a comma-separated
+  # string in the `daily_price_csv` column (split it on read for charting).
+  #   path_cap_days — stop the path at min(DTE, this) calendar days. 120 ≈ the
+  #                   window where edge actually lives, and bounds LEAP paths.
+  #                   Also sets how far ahead flow is loaded for reappearance exits.
+  path_cap_days: 120
 
-  # Exit pricing — tried in this order, first available wins (per checkpoint):
+  # Per-contract timeout (ms) for the Barchart price-history scrape. This is the
+  # dominant cost of a run: each contract whose feed never fires (e.g. synthesised
+  # short strikes that don't trade) waits this long before falling back. Lower it
+  # to speed up runs that register many non-existent strikes. Only used when
+  # 'barchart' is in exit_sources.
+  history_timeout_ms: 15000
+
+  # Exit pricing — tried in this order, first available wins (per trading day):
   #   barchart     — REAL per-contract daily price scraped from Barchart's
   #                  price-history page (marked to mid of Bid/Ask). Needs
   #                  BARCHART_EMAIL/PASSWORD; results cached under

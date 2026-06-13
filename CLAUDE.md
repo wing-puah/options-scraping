@@ -104,7 +104,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               · config.py  — ALL user-tunable settings: engine registry (model/method/tab), retries, timeout, fetch defaults, sheet schema, prompt contract
                               · core.py    — implementation (fetch/analyze/write, engine runners, row expansion, CLI)
                               · __main__.py — entry point
-  backtest.py               — analysis-driven: reads analysis plays → real entry (flow Trade) + real exit (Barchart per-contract history → flow reappearance → Black-Scholes fallback) → P&L at exit checkpoints
+  backtest.py               — analysis-driven: reads analysis plays → real entry (flow Trade) + daily marks (Barchart per-contract history → flow reappearance → Black-Scholes fallback) over the full path to min(DTE, cap) → realized exit + MFE/MAE; per-day series stored in `daily_price_csv` (see config/backtest-reference.md)
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
@@ -152,8 +152,9 @@ weight evidence and resolve conflicting flow.
 
 - `.env` — credentials and paths (see `.env.example` for all required vars)
 - `config/positions.yml` — open options positions for position review
-- `config/backtest.yml` — backtest settings (analysis tab to test, entry match side, exit checkpoints, profit/stop, pricing fallbacks). No signal filter — the analysis is the filter.
+- `config/backtest.yml` — backtest settings (analysis tab to test, entry match side, path cap, profit/stop, pricing fallbacks). No signal filter — the analysis is the filter.
 - `config/barchart-reference.md` — column definitions for barchart CSV data
+- `config/backtest-reference.md` — column definitions for the `BacktestResults` sheet (realized exit, MFE/MAE, the `daily_price_csv` path)
 
 ## Testing
 

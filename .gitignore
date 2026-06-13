@@ -2,6 +2,7 @@
 .env
 cookies/
 credentials/
+downloads/
 logs/
 references/
 __pycache__/

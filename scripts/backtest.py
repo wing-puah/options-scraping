@@ -497,6 +497,113 @@ def _reappearance_price(contract_index, key, checkpoint: date, expiration: date 
     return None
 
 
+def _price_asof(series, key, day: date, expiration: date | None = None):
+    """Real price AS OF `day`: the most recent scrape on-or-before it (carry-forward).
+
+    This is the daily-path counterpart of `_reappearance_price` (which looks
+    forward to the next scrape). For a day-by-day mark we want the value known on
+    that day, never a future one. `series[key]` is sorted ascending.
+    """
+    snaps = series.get(key)
+    if not snaps:
+        return None
+    best = None
+    for snap_date, price in snaps:
+        if snap_date > day:
+            break
+        if expiration and snap_date > expiration:
+            break
+        best = price
+    return best
+
+
+def _weekday_grid(signal_date: date, end_inclusive: date) -> list[date]:
+    """Trading-day grid: weekdays AFTER the signal date through end_inclusive.
+
+    Holidays are not removed (the underlying close on a holiday simply carries to
+    the next session via price_fn); real per-contract marks are looked up as-of so
+    they self-align to actual sessions regardless.
+    """
+    out, d = [], signal_date + timedelta(days=1)
+    while d <= end_inclusive:
+        if d.weekday() < 5:
+            out.append(d)
+        d += timedelta(days=1)
+    return out
+
+
+def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss,
+                    contracts, cap_reached_expiry) -> dict:
+    """Turn a day-by-day price grid into the path string, realized exit, and MFE/MAE.
+
+    grid_marks: list of (date, calendar_days_elapsed, price|None, source_str) — one
+    entry per trading day, price None on days with no available mark. All P&L is
+    derived from this daily path; the full series is stored as `daily_price_csv`.
+
+    Realized exit = the FIRST day profit_target or stop_loss is crossed (frozen at
+    that day's mark — this is the correct realized P&L, not a later live mark).
+    MFE/MAE are measured over the WHOLE path (independent of the exit rule) so the
+    target/stop can be tuned in analysis. If no trigger fires, the trade is held to
+    the last priced day: 'expired' when the path ran to expiry, else 'cap_open'.
+    """
+    def pnl_of(p):
+        signed = (entry_price - p) if is_credit else (p - entry_price)
+        return signed / entry_price
+
+    out = {"daily_price_csv": ",".join(
+        "" if p is None else f"{p:.4f}" for (_, _, p, _) in grid_marks)}
+
+    priced = [(dt, d, p, src) for (dt, d, p, src) in grid_marks if p is not None]
+    if not priced:
+        out.update({"realized_pnl_pct": "", "realized_pnl_abs": "", "days_held": "",
+                    "exit_reason": "no_data", "mfe_pct": "", "mfe_day": "",
+                    "mae_pct": "", "mae_day": "", "pnl_at_cap_pct": "",
+                    "pct_real_days": ""})
+        return out
+
+    # Single forward pass: running MFE/MAE + first-trigger realized exit.
+    mfe, mae, mfe_day, mae_day = -1e18, 1e18, None, None
+    exit_reason = realized_p = None
+    days_held = last_priced_idx = None
+    for grid_idx, (dt, d, p, src) in enumerate(grid_marks, start=1):
+        if p is None:
+            continue
+        last_priced_idx = grid_idx
+        pl = pnl_of(p)
+        if pl > mfe:
+            mfe, mfe_day = pl, grid_idx
+        if pl < mae:
+            mae, mae_day = pl, grid_idx
+        if exit_reason is None:
+            if pl >= profit_target:
+                exit_reason, realized_p, days_held = "profit_target", p, grid_idx
+            elif pl <= -stop_loss:
+                exit_reason, realized_p, days_held = "stop_loss", p, grid_idx
+
+    if exit_reason is None:
+        _, _, last_p, _ = priced[-1]
+        realized_p, days_held = last_p, last_priced_idx
+        exit_reason = "expired" if cap_reached_expiry else "cap_open"
+
+    realized_pnl = pnl_of(realized_p)
+    cap_p = priced[-1][2]
+    real_days = sum(1 for (_, _, _, s) in priced if s and not s.startswith("bs"))
+
+    out.update({
+        "realized_pnl_pct": round(realized_pnl * 100, 2),
+        "realized_pnl_abs": round(realized_pnl * entry_price * 100 * contracts, 2),
+        "days_held": days_held,
+        "exit_reason": exit_reason,
+        "mfe_pct": round(mfe * 100, 2),
+        "mfe_day": mfe_day,
+        "mae_pct": round(mae * 100, 2),
+        "mae_day": mae_day,
+        "pnl_at_cap_pct": round(pnl_of(cap_p) * 100, 2),
+        "pct_real_days": round(real_days / len(priced) * 100, 1),
+    })
+    return out
+
+
 # ─── Iron condor helpers ───────────────────────────────────────────────────────
 
 def _iron_condor_strikes(
@@ -539,7 +646,7 @@ def _simulate_iron_condor(
     P&L:   (entry_credit - exit_cost) / entry_credit.
     """
     price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
-        _get_prices(tk, candidate["signal_date"], max(sim_cfg.get("exit_days", [21]))), dt
+        _get_prices(tk, candidate["signal_date"], sim_cfg.get("path_cap_days", 120)), dt
     ))
 
     ticker = candidate["ticker"]
@@ -579,7 +686,6 @@ def _simulate_iron_condor(
 
     entry_source = "bs"
 
-    exit_days = sorted(sim_cfg.get("exit_days", [1, 3, 5, 10, 21]))
     profit_target = sim_cfg.get("profit_target", 0.50)
     stop_loss = sim_cfg.get("stop_loss", 1.00)
 
@@ -598,58 +704,39 @@ def _simulate_iron_condor(
         "entry_option_price": round(entry_credit, 4),
         "entry_premium_total": round(entry_credit * 100 * contracts, 2),
         "entry_source": entry_source,
-        "market_regime": candidate.get("market_regime", ""),
+        "regime": candidate.get("regime", ""),
         "play": candidate["play"][:300],
     }
 
-    exited = False
-    for d in exit_days:
-        checkpoint = signal_date + timedelta(days=d)
-        prefix = f"d{d}"
-
-        if expiration_date and checkpoint > expiration_date:
-            result[f"{prefix}_option_price"] = ""
-            result[f"{prefix}_pnl_pct"] = ""
-            result[f"{prefix}_pnl_abs"] = ""
-            result[f"{prefix}_status"] = "expired"
-            result[f"{prefix}_exit_source"] = ""
-            continue
-
-        S_exit = price_fn(ticker, checkpoint)
+    def _cost_on(day, d):
+        """Cost-to-close the 4-leg condor on a single trading day (BS) → (cost|None, src)."""
+        S_exit = price_fn(ticker, day)
         if S_exit is None:
-            result[f"{prefix}_option_price"] = ""
-            result[f"{prefix}_pnl_pct"] = ""
-            result[f"{prefix}_pnl_abs"] = ""
-            result[f"{prefix}_status"] = "no_data"
-            result[f"{prefix}_exit_source"] = ""
-            continue
-
+            return None, ""
         T_exit = max(0.0, (dte_entry - d) / 365)
         ksp_exit = _bs_price(S_exit, K_sp, T_exit, r, iv, "Put")
         klp_exit = _bs_price(S_exit, K_lp, T_exit, r, iv, "Put")
         ksc_exit = _bs_price(S_exit, K_sc, T_exit, r, iv, "Call")
         klc_exit = _bs_price(S_exit, K_lc, T_exit, r, iv, "Call")
+        return max(0.0, (ksp_exit - klp_exit) + (ksc_exit - klc_exit)), "bs"
 
-        exit_cost = max(0.0, (ksp_exit - klp_exit) + (ksc_exit - klc_exit))
-        pnl_pct = (entry_credit - exit_cost) / entry_credit
-        pnl_abs = (entry_credit - exit_cost) * 100 * contracts
+    # Daily path: P&L = (entry_credit - cost_to_close) / entry_credit, i.e. a credit
+    # structure marked against entry_credit. Reuse the shared summarizer.
+    path_cap = sim_cfg.get("path_cap_days", 120)
+    cap_reached_expiry = dte_entry <= path_cap
+    end_date = signal_date + timedelta(days=min(dte_entry, path_cap))
+    if expiration_date:
+        end_date = min(end_date, expiration_date)
 
-        if not exited:
-            if pnl_pct >= profit_target:
-                status, exited = "profit_target", True
-            elif pnl_pct <= -stop_loss:
-                status, exited = "stop_loss", True
-            else:
-                status = "open"
-        else:
-            status = "already_exited"
+    grid_marks = []
+    for day in _weekday_grid(signal_date, end_date):
+        d = (day - signal_date).days
+        cost, source = _cost_on(day, d)
+        grid_marks.append((day, d, cost, source))
 
-        result[f"{prefix}_option_price"] = round(exit_cost, 4)
-        result[f"{prefix}_pnl_pct"] = round(pnl_pct * 100, 2)
-        result[f"{prefix}_pnl_abs"] = round(pnl_abs, 2)
-        result[f"{prefix}_status"] = status
-        result[f"{prefix}_exit_source"] = "bs"
-
+    result.update(_summarize_path(
+        grid_marks, entry_credit, True, profit_target, stop_loss, contracts,
+        cap_reached_expiry))
     return result
 
 
@@ -667,7 +754,7 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
     price_fn(ticker, date) -> float|None is injectable for testing (defaults to yfinance).
     """
     price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
-        _get_prices(tk, candidate["signal_date"], max(sim_cfg.get("exit_days", [21]))), dt))
+        _get_prices(tk, candidate["signal_date"], sim_cfg.get("path_cap_days", 120)), dt))
 
     if cls.get("structure") == "iron_condor":
         return _simulate_iron_condor(
@@ -717,7 +804,7 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
         the standard tokens 'barchart' or 'bs'; (None, None) if it cannot be priced.
         """
         if short_key is not None:
-            real = _reappearance_price(barchart_series, short_key, checkpoint, expiration_date)
+            real = _price_asof(barchart_series, short_key, checkpoint, expiration_date)
             if real is not None:
                 return real, "barchart"
         S = S_known if S_known is not None else price_fn(ticker, checkpoint)
@@ -749,7 +836,6 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
         return {}
 
     contract_key = _contract_key(ticker, opt_type, K, expiration_raw)
-    exit_days = sorted(sim_cfg.get("exit_days", [1, 3, 5, 10, 21]))
     profit_target = sim_cfg.get("profit_target", 0.50)
     stop_loss = sim_cfg.get("stop_loss", 1.00)
     exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
@@ -769,7 +855,7 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
         "entry_option_price": round(entry_price, 4),
         "entry_premium_total": round(entry_price * 100 * contracts, 2),
         "entry_source": entry_source,
-        "market_regime": candidate.get("market_regime", ""),
+        "regime": candidate.get("regime", ""),
         "play": candidate["play"][:300],
     }
 
@@ -779,7 +865,7 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
         real Barchart history (or BS fallback). Returns (net_price, short_source) or
         None when the long leg has no real price at this checkpoint.
         """
-        real = _reappearance_price(series, contract_key, checkpoint, expiration_date)
+        real = _price_asof(series, contract_key, checkpoint, expiration_date)
         if real is None:
             return None
         if K_short is None:
@@ -800,79 +886,49 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
 
     _tag = {"barchart": "barchart", "reappearance": "real", "bs": "bs"}
 
-    exited = False
-    for d in exit_days:
-        checkpoint = signal_date + timedelta(days=d)
-        prefix = f"d{d}"
-
-        if expiration_date and checkpoint > expiration_date:
-            result[f"{prefix}_option_price"] = ""
-            result[f"{prefix}_pnl_pct"] = ""
-            result[f"{prefix}_pnl_abs"] = ""
-            result[f"{prefix}_status"] = "expired"
-            result[f"{prefix}_exit_source"] = ""
-            continue
-
-        exit_price = None
-        exit_source = ""
+    def _mark_on(day, d):
+        """Net option/spread mark on a single trading day → (price|None, source)."""
         for src in exit_sources:
             priced = None
             if src == "barchart":
-                priced = _real_long_leg(barchart_series, checkpoint, d)
+                priced = _real_long_leg(barchart_series, day, d)
             elif src == "reappearance":
-                priced = _real_long_leg(contract_index, checkpoint, d)
+                priced = _real_long_leg(contract_index, day, d)
             elif src == "bs":
-                priced = _bs_exit(checkpoint, d)
+                priced = _bs_exit(day, d)
             if priced is not None and priced[0] is not None:
-                exit_price, short_src = priced
-                exit_source = _tag.get(src, src)
+                price, short_src = priced
+                source = _tag.get(src, src)
                 if K_short is not None and src != "bs":
-                    exit_source += f"+{short_src}"
-                break
+                    source += f"+{short_src}"
+                if K_short is not None:  # spread/cost-to-close floored at zero
+                    price = max(0.0, price)
+                return price, source
+        return None, ""
 
-        # Spread value (or cost-to-close for credit) cannot go below zero.
-        if exit_price is not None and K_short is not None:
-            exit_price = max(0.0, exit_price)
+    # Walk every trading day from entry to min(expiration, cap). The full daily
+    # path is the sole basis for realized exit / MFE / MAE and all reported P&L.
+    path_cap = sim_cfg.get("path_cap_days", 120)
+    cap_reached_expiry = dte_entry <= path_cap
+    end_date = signal_date + timedelta(days=min(dte_entry, path_cap))
+    if expiration_date:
+        end_date = min(end_date, expiration_date)
 
-        if exit_price is None:
-            result[f"{prefix}_option_price"] = ""
-            result[f"{prefix}_pnl_pct"] = ""
-            result[f"{prefix}_pnl_abs"] = ""
-            result[f"{prefix}_status"] = "no_data"
-            result[f"{prefix}_exit_source"] = ""
-            continue
+    grid_marks = []
+    for day in _weekday_grid(signal_date, end_date):
+        d = (day - signal_date).days
+        price, source = _mark_on(day, d)
+        grid_marks.append((day, d, price, source))
 
-        # Credit: profit when the option/spread decays (exit_price < entry_price).
-        # Debit: profit when the option/spread appreciates (exit_price > entry_price).
-        if is_credit:
-            pnl_pct = (entry_price - exit_price) / entry_price
-            pnl_abs = (entry_price - exit_price) * 100 * contracts
-        else:
-            pnl_pct = (exit_price - entry_price) / entry_price
-            pnl_abs = (exit_price - entry_price) * 100 * contracts
-
-        if not exited:
-            if pnl_pct >= profit_target:
-                status, exited = "profit_target", True
-            elif pnl_pct <= -stop_loss:
-                status, exited = "stop_loss", True
-            else:
-                status = "open"
-        else:
-            status = "already_exited"
-
-        result[f"{prefix}_option_price"] = round(exit_price, 4)
-        result[f"{prefix}_pnl_pct"] = round(pnl_pct * 100, 2)
-        result[f"{prefix}_pnl_abs"] = round(pnl_abs, 2)
-        result[f"{prefix}_status"] = status
-        result[f"{prefix}_exit_source"] = exit_source
-
+    result.update(_summarize_path(
+        grid_marks, entry_price, is_credit, profit_target, stop_loss, contracts,
+        cap_reached_expiry))
     return result
 
 
 # ─── Output ────────────────────────────────────────────────────────────────────
 
-def _write_results(results, cfg, exit_days, dry_run) -> None:
+def _write_results(results, cfg, dry_run) -> None:
     if not results:
         log.warning("No results to write")
         return
@@ -886,11 +942,14 @@ def _write_results(results, cfg, exit_days, dry_run) -> None:
         "signal_date", "ticker", "structure", "opt_type", "k_long", "k_short",
         "expiration", "dte_entry", "iv_entry_pct", "delta", "entry_underlying",
         "entry_option_price", "entry_premium_total", "entry_source",
-        "market_regime", "play",
+        "regime", "play",
+        # Path-derived summary (the real exit + excursions over the full daily path).
+        "realized_pnl_pct", "realized_pnl_abs", "days_held", "exit_reason",
+        "mfe_pct", "mfe_day", "mae_pct", "mae_day", "pnl_at_cap_pct", "pct_real_days",
+        # Full day-by-day mark series (comma-separated; split on read for charts).
+        # All P&L is computed from this path — there are no per-checkpoint columns.
+        "daily_price_csv",
     ]
-    for d in sorted(exit_days):
-        key_order += [f"d{d}_option_price", f"d{d}_pnl_pct", f"d{d}_pnl_abs",
-                      f"d{d}_status", f"d{d}_exit_source"]
 
     if not dry_run:
         with csv_path.open("w", newline="", encoding="utf-8") as f:
@@ -906,55 +965,63 @@ def _write_results(results, cfg, exit_days, dry_run) -> None:
     else:
         log.info("[dry-run] Would write %d results to '%s'", len(results), csv_path)
 
-    _print_summary(results, sorted(exit_days))
+    _print_summary(results)
 
 
-def _print_summary(results, exit_days) -> None:
+def _print_summary(results) -> None:
     print(f"\n{'='*64}")
     print(f"BACKTEST SUMMARY  ({len(results)} plays simulated)")
     print(f"{'='*64}")
 
-    for d in exit_days:
-        pnl_col, src_col = f"d{d}_pnl_pct", f"d{d}_exit_source"
-        rows = [r for r in results if isinstance(r.get(pnl_col), (int, float))]
-        if not rows:
-            continue
-        arr = np.array([r[pnl_col] for r in rows])
-        win = (arr > 0).sum()
-        # "real" = long leg priced from actual data (Barchart or reappearance), not pure BS.
-        real = [r[pnl_col] for r in rows
-                if r.get(src_col) and not r[src_col].startswith("bs")]
-        print(f"\nDay {d:>2} exit ({len(rows)} priced):")
-        print(f"  Win rate:   {win/len(rows)*100:.1f}%  ({win}/{len(rows)})")
-        print(f"  Avg P&L:    {arr.mean():+.2f}%   Median: {np.median(arr):+.2f}%")
-        print(f"  Best/Worst: {arr.max():+.2f}% / {arr.min():+.2f}%")
-        if real:
-            ra = np.array(real)
-            print(f"  ↳ real-exit subset: {(ra>0).sum()/len(ra)*100:.1f}% win, "
-                  f"{ra.mean():+.2f}% avg  ({len(ra)} trades)")
-        else:
-            print("  ↳ real-exit subset: none (all Black-Scholes modelled)")
+    # Realized exits over the full daily path (the only result — all P&L is
+    # derived from the day-by-day price path, no per-checkpoint columns).
+    rz = [r for r in results if isinstance(r.get("realized_pnl_pct"), (int, float))]
+    if not rz:
+        print("\nNo priced plays.")
+        return
 
-    first = exit_days[0]
-    col = f"d{first}_pnl_pct"
-    top = sorted([r for r in results if isinstance(r.get(col), (int, float))],
-                 key=lambda x: x[col], reverse=True)[:5]
-    if top:
-        print(f"\nTop {len(top)} plays by Day-{first} P&L:")
-        for r in top:
-            print(f"  {r['signal_date']} {r['ticker']:6} {r['structure']:16} "
-                  f"K={r['k_long']} → {r[col]:+.1f}%  [{r.get(f'd{first}_exit_source','')}]")
+    arr = np.array([r["realized_pnl_pct"] for r in rz])
+    held = [r["days_held"] for r in rz if isinstance(r.get("days_held"), (int, float))]
+    reasons = {}
+    for r in rz:
+        reasons[r.get("exit_reason", "")] = reasons.get(r.get("exit_reason", ""), 0) + 1
+    print(f"\nRealized exit ({len(arr)} priced, first profit_target/stop_loss/expiry):")
+    print(f"  Win rate:   {(arr>0).sum()/len(arr)*100:.1f}%  ({(arr>0).sum()}/{len(arr)})")
+    print(f"  Avg P&L:    {arr.mean():+.2f}%   Median: {np.median(arr):+.2f}%")
+    print(f"  Best/Worst: {arr.max():+.2f}% / {arr.min():+.2f}%")
+    if held:
+        print(f"  Avg hold:   {np.mean(held):.1f} trading days")
+    print("  Exit mix:   " + ", ".join(f"{k}={v}" for k, v in sorted(reasons.items())))
+
+    # Coverage: plays whose path was entirely real data (no Black-Scholes marks).
+    real = [r["realized_pnl_pct"] for r in rz
+            if isinstance(r.get("pct_real_days"), (int, float)) and r["pct_real_days"] > 0]
+    if real:
+        ra = np.array(real)
+        print(f"  ↳ real-data subset: {(ra>0).sum()/len(ra)*100:.1f}% win, "
+              f"{ra.mean():+.2f}% avg  ({len(ra)} trades)")
+    else:
+        print("  ↳ real-data subset: none (all Black-Scholes modelled)")
+
+    top = sorted(rz, key=lambda x: x["realized_pnl_pct"], reverse=True)[:5]
+    print(f"\nTop {len(top)} plays by realized P&L:")
+    for r in top:
+        print(f"  {r['signal_date']} {r['ticker']:6} {r['structure']:16} "
+              f"K={r['k_long']} → {r['realized_pnl_pct']:+.1f}%  [{r.get('exit_reason','')}]")
 
 
 # ─── Barchart historical option prices ─────────────────────────────────────────
 
-async def _fetch_option_histories(contracts: list[dict], headless: bool) -> dict[tuple, list]:
+async def _fetch_option_histories(contracts: list[dict], headless: bool,
+                                  timeout_ms: int = 15000) -> dict[tuple, list]:
     """
     Scrape (and cache) per-contract Barchart price history.
 
     contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
     Returns { contract_key: sorted [(date, price)] }. Cached CSVs are reused so
-    re-runs do not re-scrape.
+    re-runs do not re-scrape. `timeout_ms` bounds how long we wait per contract
+    for the price-history feed before giving up — the dominant cost on misses
+    (e.g. synthesised short strikes that never trade), so keep it modest.
     """
     HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
     email, password = os.getenv("BARCHART_EMAIL", ""), os.getenv("BARCHART_PASSWORD", "")
@@ -985,7 +1052,7 @@ async def _fetch_option_histories(contracts: list[dict], headless: bool) -> dict
             try:
                 # Scrape the price-history JSON feed (row-by-row data, no metered
                 # Download button, full series in one call) — see fetch_history_csv.
-                csv_text = await session.fetch_history_csv(url)
+                csv_text = await session.fetch_history_csv(url, timeout_ms)
             except Exception:
                 log.exception("Barchart history scrape failed for %s", c["key"])
                 csv_text = None
@@ -1026,8 +1093,8 @@ def main() -> None:
     sim_cfg = cfg["simulation"]
     entry_cfg = cfg.get("entry", {})
     match_side = entry_cfg.get("match_side", "any")
-    exit_days = sim_cfg.get("exit_days", [1, 3, 5, 10, 21])
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
+    path_cap = sim_cfg.get("path_cap_days", 120)
 
     log.info("Loading analysis plays from tab '%s'", tab)
     candidates, market_regime = _load_analysis(tab, start, end)
@@ -1036,12 +1103,14 @@ def main() -> None:
         sys.exit(0)
 
     log.info("Loading flow data from Drive for entry matching + real exits")
-    flow_by_date, contract_index = _load_flow(start, end, max(exit_days))
+    # Look ahead the full path window so reappearance exits are available for the
+    # whole daily path (not just the first few checkpoints).
+    flow_by_date, contract_index = _load_flow(start, end, path_cap)
 
     # Pass 1 — classify each play and match it to its real flow contract.
     matched, contracts, skipped = [], {}, {"unsupported": 0, "no_entry_match": 0, "unpriced": 0}
     for c in candidates:
-        c["market_regime"] = market_regime.get(c["date"], "")
+        c["regime"] = c.get("regime", "")
         cls = classify_play(c["play"])
         if cls["structure"] == "unsupported":
             skipped["unsupported"] += 1
@@ -1090,8 +1159,10 @@ def main() -> None:
     barchart_series: dict[tuple, list] = {}
     if "barchart" in sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"]) and contracts:
         headless = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
+        history_timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
-        barchart_series = asyncio.run(_fetch_option_histories(list(contracts.values()), headless))
+        barchart_series = asyncio.run(_fetch_option_histories(
+            list(contracts.values()), headless, history_timeout_ms))
 
     # Pass 3 — simulate.
     log.info("Simulating %d matched plays", len(matched))
@@ -1106,7 +1177,7 @@ def main() -> None:
     log.info("Simulated %d plays (skipped: %d unsupported, %d no flow match, %d unpriced)",
              len(results), skipped["unsupported"], skipped["no_entry_match"], skipped["unpriced"])
 
-    _write_results(results, cfg, exit_days, args.dry_run)
+    _write_results(results, cfg, args.dry_run)
 
 
 if __name__ == "__main__":

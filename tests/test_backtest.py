@@ -290,9 +290,9 @@ def test_simulate_real_entry_and_real_exit():
 
     assert res["entry_option_price"] == 8.0
     assert res["entry_source"] == "real"
-    assert res["d3_exit_source"] == "real"
-    assert res["d3_pnl_pct"] == 60.0
-    assert res["d3_status"] == "profit_target"
+    assert res["realized_pnl_pct"] == 60.0
+    assert res["exit_reason"] == "profit_target"
+    assert res["pct_real_days"] == 100.0   # reappearance, not Black-Scholes
 
 
 def test_simulate_barchart_takes_precedence_over_reappearance():
@@ -310,8 +310,9 @@ def test_simulate_barchart_takes_precedence_over_reappearance():
     res = bt._simulate(cand, cls, entry_row, contract_index, barchart_series, sim_cfg,
                        price_fn=lambda tk, dt: None)
 
-    assert res["d3_exit_source"] == "barchart"
-    assert res["d3_pnl_pct"] == 100.0
+    # Barchart's 16.0 (+100%) must win over reappearance's 12.8 (+60%).
+    assert res["realized_pnl_pct"] == 100.0
+    assert res["exit_reason"] == "profit_target"
 
 
 def test_simulate_falls_back_to_bs_when_no_reappearance():
@@ -326,8 +327,8 @@ def test_simulate_falls_back_to_bs_when_no_reappearance():
     res = bt._simulate(cand, cls, entry_row, {}, {}, sim_cfg,
                        price_fn=lambda tk, dt: 300.0)
 
-    assert res["d3_exit_source"] == "bs"
-    assert res["d3_option_price"] > 0
+    assert res["pct_real_days"] == 0.0   # all marks are Black-Scholes
+    assert res["realized_pnl_pct"] > 0
 
 
 def test_simulate_rejects_degenerate_spread():
@@ -362,10 +363,10 @@ def test_simulate_spread_prices_short_leg_from_barchart():
     # Entry long is the real flow Trade (10); short is real Barchart (4) → debit 6.
     assert res["entry_option_price"] == 6.0
     assert res["entry_source"] == "real+barchart"
-    # Exit both legs real Barchart: 16 - 6 = 10 → +66.7%.
-    assert res["d3_exit_source"] == "barchart+barchart"
-    assert res["d3_option_price"] == 10.0
-    assert res["d3_status"] == "profit_target"
+    # Exit both legs real Barchart: 16 - 6 = 10 vs debit 6 → +66.7%.
+    assert abs(res["realized_pnl_pct"] - 66.67) < 0.01
+    assert res["exit_reason"] == "profit_target"
+    assert res["pct_real_days"] == 100.0
 
 
 def test_simulate_spread_short_leg_falls_back_to_bs():
@@ -382,9 +383,76 @@ def test_simulate_spread_short_leg_falls_back_to_bs():
     res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
                        price_fn=lambda tk, dt: 305.0)
 
-    assert res["entry_source"] == "real+bs"
-    assert res["d3_exit_source"] == "barchart+bs"
+    assert res["entry_source"] == "real+bs"   # short leg modelled with BS at entry
     assert res["k_short"] == 320.0
+
+
+def test_simulate_daily_path_realized_exit_and_excursions():
+    # Long call, entry 10. Daily Barchart marks dip then rip past the target.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    cls = {"structure": "long_call", "option_type": "Call"}
+    entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
+    key = ("NVDA", "Call", 250.0, "2026-07-17")
+    barchart_series = {key: [
+        (date(2026, 6, 2), 8.0),    # -20%
+        (date(2026, 6, 3), 11.0),   # +10%
+        (date(2026, 6, 4), 16.0),   # +60% → first profit_target trigger
+        (date(2026, 6, 5), 20.0),   # +100% (the true MFE, after the exit)
+    ]}
+    sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
+               "contracts": 1, "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
+                       price_fn=lambda tk, dt: None)
+
+    assert res["realized_pnl_pct"] == 60.0          # frozen at the first +50% day
+    assert res["exit_reason"] == "profit_target"
+    assert res["days_held"] == 3                     # 06-02,06-03,06-04 → 3 trading days
+    assert res["mfe_pct"] == 100.0                   # excursion is over the WHOLE path
+    assert res["mae_pct"] == -20.0
+    assert res["mfe_day"] == 4 and res["mae_day"] == 1
+    assert res["pct_real_days"] == 100.0
+    assert res["daily_price_csv"].startswith("8.0000,11.0000,16.0000,20.0000")
+
+
+def test_simulate_path_cap_open_when_dte_exceeds_cap():
+    # Flat price, never triggers; DTE 200 > cap 120 → held open at the cap.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    cls = {"structure": "long_call", "option_type": "Call"}
+    entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
+    entry_row["DTE"] = "200"
+    entry_row["Expiration Date"] = "2026-12-18"
+    key = ("NVDA", "Call", 250.0, "2026-12-18")
+    barchart_series = {key: [(date(2026, 6, 2), 10.0)]}  # carries forward flat
+    sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
+               "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
+
+    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
+                       price_fn=lambda tk, dt: None)
+
+    assert res["exit_reason"] == "cap_open"
+    assert res["realized_pnl_pct"] == 0.0
+
+
+def test_simulate_path_expired_when_dte_within_cap():
+    # Flat price, never triggers; DTE 10 <= cap → path runs to expiry → 'expired'.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    cls = {"structure": "long_call", "option_type": "Call"}
+    entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
+    entry_row["DTE"] = "10"
+    entry_row["Expiration Date"] = "2026-06-11"
+    key = ("NVDA", "Call", 250.0, "2026-06-11")
+    barchart_series = {key: [(date(2026, 6, 2), 10.0)]}
+    sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
+               "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
+
+    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
+                       price_fn=lambda tk, dt: None)
+
+    assert res["exit_reason"] == "expired"
 
 
 def test_simulate_no_data_when_no_exit_available():
@@ -395,7 +463,7 @@ def test_simulate_no_data_when_no_exit_available():
     sim_cfg = {"exit_days": [3]}
 
     res = bt._simulate(cand, cls, entry_row, {}, {}, sim_cfg, price_fn=lambda tk, dt: None)
-    assert res["d3_status"] == "no_data"
+    assert res["exit_reason"] == "no_data"
 
 
 # ── barchart_options module ─────────────────────────────────────────────────────
@@ -457,8 +525,8 @@ def test_simulate_short_put_profit_when_option_decays():
 
     assert res["entry_option_price"] == 5.0
     assert res["entry_source"] == "real"
-    assert abs(res["d3_pnl_pct"] - 60.0) < 0.01   # (5 - 2) / 5 = 60%
-    assert res["d3_status"] == "profit_target"
+    assert abs(res["realized_pnl_pct"] - 60.0) < 0.01   # (5 - 2) / 5 = 60%
+    assert res["exit_reason"] == "profit_target"
 
 
 def test_simulate_short_put_loss_when_option_appreciates():
@@ -474,8 +542,8 @@ def test_simulate_short_put_loss_when_option_appreciates():
     res = bt._simulate(cand, cls, entry_row, contract_index, {}, sim_cfg,
                        price_fn=lambda tk, dt: None)
 
-    assert abs(res["d3_pnl_pct"] - (-140.0)) < 0.01  # (5 - 12) / 5 = -140%
-    assert res["d3_status"] == "stop_loss"
+    assert abs(res["realized_pnl_pct"] - (-140.0)) < 0.01  # (5 - 12) / 5 = -140%
+    assert res["exit_reason"] == "stop_loss"
 
 
 def test_simulate_bull_put_spread_credit():
@@ -500,9 +568,8 @@ def test_simulate_bull_put_spread_credit():
     assert res["entry_option_price"] == 2.5
     assert res["entry_source"].startswith("real")
     # Exit cost: 1.5 - 0.5 = 1.0  →  P&L = (2.5 - 1.0) / 2.5 = 60%
-    assert res["d3_option_price"] == 1.0
-    assert abs(res["d3_pnl_pct"] - 60.0) < 0.01
-    assert res["d3_status"] == "profit_target"
+    assert abs(res["realized_pnl_pct"] - 60.0) < 0.01
+    assert res["exit_reason"] == "profit_target"
 
 
 def test_simulate_iron_condor_profit_in_range():
@@ -514,7 +581,7 @@ def test_simulate_iron_condor_profit_in_range():
     entry_row = _flow_row("SPY", "Put", "490", "3.0", "300000")
     entry_row["Price~"] = "500"
 
-    sim_cfg = {"exit_days": [21], "profit_target": 0.5, "stop_loss": 1.0,
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "spread_width_pct": 0.02, "risk_free_rate": 0.05,
                "exit_sources": ["bs"]}
 
@@ -524,4 +591,4 @@ def test_simulate_iron_condor_profit_in_range():
 
     assert res["structure"] == "iron_condor"
     assert res["entry_option_price"] > 0
-    assert res["d21_pnl_pct"] > 0   # premium decays → profit
+    assert res["realized_pnl_pct"] > 0   # premium decays → profit
