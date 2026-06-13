@@ -1,0 +1,11 @@
+[flake8]
+max-line-length = 120
+# W503: line break before binary operator (modern PEP 8 preference)
+# E221/E241: intentional alignment whitespace
+# E402: dotenv/sys.path setup before imports (common project pattern)
+# E704: Protocol method stubs (def f(): ...)
+ignore = W503,E221,E241,E402,E704
+per-file-ignores =
+    # Prompt contract is a triple-quoted string; its sentences can't be broken.
+    scripts/analysis_pipeline/config.py: E501
+exclude = .venv,__pycache__,.git

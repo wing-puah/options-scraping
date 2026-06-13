@@ -450,7 +450,8 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             big_str,
         ]))
     body = "\n".join(lines)
-    return f"### {title} — ticker rollup ({len(rollup)} symbols, ranked by score)\n\n{' | '.join(headers)}\n{sep}\n{body}\n"
+    header_line = ' | '.join(headers)
+    return f"### {title} — ticker rollup ({len(rollup)} symbols, ranked by score)\n\n{header_line}\n{sep}\n{body}\n"
 
 
 def _flow_top_trades_md(rows: list[dict], top_n: int, title: str) -> str:
@@ -691,7 +692,7 @@ def summarize_unusual(rows: list[dict], title: str, top_n: int = 50) -> str:
 def cross_section_tickers(flow_rows: Iterable[dict], unusual_rows: Iterable[dict]) -> list[str]:
     """Tickers that appear in BOTH the flow and unusual sections — high signal."""
     flow_syms    = {(r.get(_FLOW_SYMBOL) or "").strip() for r in flow_rows}
-    unusual_syms = {(r.get(_UN_SYMBOL)   or "").strip() for r in unusual_rows}
+    unusual_syms = {(r.get(_UN_SYMBOL) or "").strip() for r in unusual_rows}
     return sorted(s for s in (flow_syms & unusual_syms) if s)
 
 

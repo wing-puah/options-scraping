@@ -52,9 +52,9 @@ REQUEST_TIMEOUT_S = 600     # per-attempt timeout (seconds) for the engine CLI
 
 # ──────────────────────────── Fetch defaults ───────────────────────
 DEFAULT_TOP_N = 75          # top-N raw trades per section included alongside summaries
-DEFAULT_DAYS = 5            # persistence window — a name recurring across sessions
-                            # outweighs a one-day print, so the default run sees the
-                            # trailing week (1 = today only, no persistence section)
+# persistence window — outweighs a one-day print; default run sees the trailing week
+# (1 = today only, no persistence section)
+DEFAULT_DAYS = 5
 
 
 # ──────────────────────── Play coverage targets ────────────────────

@@ -61,6 +61,7 @@ def setup_logging(level: int = logging.DEBUG) -> None:
         utc=False,
     )
     # Rename options.log.YYYY-MM-DD → options.YYYY-MM-DD.log so editors keep syntax highlighting.
+
     def _log_namer(name: str) -> str:
         p = Path(name)
         # p.name is e.g. "options.log.2026-06-04"; suffix is the date part after the last dot

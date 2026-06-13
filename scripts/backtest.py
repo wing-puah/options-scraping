@@ -871,8 +871,8 @@ def _write_results(results, cfg, exit_days, dry_run) -> None:
 
         sheet_tab = cfg["output"].get("sheet_tab")
         if sheet_tab:
-            sheets_client.write_analysis(sheet_tab, [{k: r.get(k, "") for k in key_order} for r in results])
-            log.info("Wrote results to Google Sheets tab '%s'", sheet_tab)
+            sheets_client.append_rows(sheet_tab, [{k: r.get(k, "") for k in key_order} for r in results])
+            log.info("Appended results to Google Sheets tab '%s'", sheet_tab)
     else:
         log.info("[dry-run] Would write %d results to '%s'", len(results), csv_path)
 
@@ -903,7 +903,7 @@ def _print_summary(results, exit_days) -> None:
             print(f"  ↳ real-exit subset: {(ra>0).sum()/len(ra)*100:.1f}% win, "
                   f"{ra.mean():+.2f}% avg  ({len(ra)} trades)")
         else:
-            print(f"  ↳ real-exit subset: none (all Black-Scholes modelled)")
+            print("  ↳ real-exit subset: none (all Black-Scholes modelled)")
 
     first = exit_days[0]
     col = f"d{first}_pnl_pct"

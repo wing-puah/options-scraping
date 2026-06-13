@@ -27,8 +27,9 @@ log = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-_DEFAULT_TOKEN = str(Path(__file__).parent.parent /
-                     "credentials" / "drive_token.json")
+_DEFAULT_TOKEN = str(
+    Path(__file__).parent.parent / "credentials" / "drive_token.json"
+)
 
 FILE_PREFIXES = {
     "unusual-stocks": "Unusual Options Activity — Stocks",

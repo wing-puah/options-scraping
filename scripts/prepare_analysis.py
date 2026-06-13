@@ -33,7 +33,6 @@ from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseli
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
 from lib.flow_summary import (
-    FLOW_CSV_COLUMNS,
     build_scored_flow_rollup,
     cross_section_md,
     filter_by_ticker,
@@ -94,6 +93,7 @@ def _last_n_trading_days(end_iso: str, n: int) -> list[str]:
             out.append(d.isoformat())
         d -= timedelta(days=1)
     return list(reversed(out))
+
 
 # Section kind drives which summarizer is applied.
 # (key, title, kind) — kind ∈ {"flow", "unusual"}
