@@ -272,13 +272,13 @@ language such as "suggests", "supports", and "indicates"; avoid presenting flow
 interpretation as certainty.
 
 Every play also declares `signal_type` (directional / hedge / positioning /
-volatility / financing) and `horizon` (event / tactical / medium / strategic,
-from the DTE of the cited evidence — the rollup's `Hzn` column is the
-per-ticker default). The type gates confidence: only `directional` may be
-high; `hedge` and `positioning` cap at medium and are framed as protection,
-not forecasts; `volatility` caps at low unless the structure is a vol trade;
-`financing` is never a play. `event` evidence cannot carry a multi-week
-directional thesis.
+volatility / financing) and `horizon` (one of `14|60|180|720` — the DTE
+bucket boundary of the dominant expiry in the cited evidence; the rollup's
+`Hzn` column is the per-ticker cross-check). The type gates confidence: only
+`directional` may be high; `hedge` and `positioning` cap at medium and are
+framed as protection, not forecasts; `volatility` caps at low unless the
+structure is a vol trade; `financing` is never a play. `horizon: 14` evidence
+cannot carry a multi-week directional thesis.
 
 ## 8. June 2-3, 2026 Example
 

@@ -196,13 +196,14 @@ expiry-matching check at play-selection:
   most theses resolve.
 - **~15–60 DTE** — tactical directional or hedging positioning.
 - **~60–180 DTE** — macro / catalyst protection or a medium-horizon view.
-- **180+ DTE / LEAPs** — strategic positioning or stock replacement; large
+- **720 DTE / LEAPs** — strategic positioning or stock replacement; large
   notional here is a stance, not a near-term signal.
 
 The rollup's `Hzn` column precomputes the dominant bucket per ticker (by
 extrinsic premium, e.g. `tact 64%`), and every play declares its own `horizon`
-field from the same table. An `event`-dominated name is gamma/event flow that
-can vanish by tomorrow — it cannot anchor a multi-week directional thesis.
+as the DTE bucket boundary (`14`/`60`/`180`/`720`). A name dominated by `14`
+(≤14 DTE) prints is gamma/event flow that can vanish by tomorrow — it cannot
+anchor a multi-week directional thesis.
 
 Before promoting any signal, ask what the _benign_ explanation is and whether the
 data rules it out. Large call premium can be a covered-call sale or a spread leg;
@@ -402,10 +403,11 @@ output must say which one it is emitting:
 - `financing` — conversions / deep-ITM stock-substitute premium. Not a play:
   use it only to flag a polluted headline number, or drop the name.
 
-`horizon` comes from the DTE table above (`event`/`tactical`/`medium`/
-`strategic`), read off the prints the signal actually cites — the rollup's
-`Hzn` column is the per-ticker default. Horizon must be able to contain the
-thesis: `event` evidence cannot carry a multi-week directional claim.
+`horizon` is one of `14|60|180|720` — the DTE bucket boundary of the dominant
+expiry in the cited prints (≤14 → 14, 15–60 → 60, 61–180 → 180, 181+ →
+`720`). The rollup's `Hzn` column (e.g. `tact 64%`) shows the dominant bucket
+as a cross-check. Horizon must be able to contain the thesis: `14` evidence
+cannot carry a multi-week directional claim.
 
 ## Confidence and language
 

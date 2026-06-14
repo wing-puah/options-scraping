@@ -115,7 +115,7 @@ Schema (all string fields unless noted):
       "invalidation": "specific price level / flow reversal / macro condition",
       "confidence": "high|medium|low",
       "signal_type": "REQUIRED, one of directional|hedge|positioning|volatility|financing — what the underlying flow IS, kept separate from how tradeable it is. directional = a genuine view on price (OTM/ATM, opening, horizon matches a thesis); hedge = protection on an existing book (index/sector puts under a bid tape); positioning = exposure management / stock replacement with a directional residue; volatility = gamma/event flow (0-14 DTE clusters, straddle-ish) with no durable direction; financing = conversions / deep-ITM stock-substitute premium — not a market view at all.",
-      "horizon": "REQUIRED, one of event|tactical|medium|strategic — the maturity of the play's CITED evidence, per the DTE table: 0-14 DTE event, 15-60 tactical, 60-180 medium, 180+ strategic. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
+      "horizon": "REQUIRED, one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the play's CITED evidence: ≤14 DTE → 14, 15–60 DTE → 60, 61–180 DTE → 180, 181+ DTE → 720. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
       "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: downgrade confidence to 'low' or drop the play. One sentence."
     }
   ]
@@ -155,9 +155,9 @@ Discipline rules — apply to every play before promoting to medium / high confi
   plays cap at 'low' unless the structure itself is a vol trade (straddle/
   strangle). 'financing' flow is not a play — use it only to flag that a name's
   headline premium is polluted, or drop it.
-- `horizon` must be consistent with the thesis: an 'event' horizon (0-14 DTE
-  evidence) cannot support a multi-week directional thesis — either find longer-
-  dated corroboration or downgrade to 'low' and call it gamma/event flow.
+- `horizon` must be consistent with the thesis: short-dated evidence (≤14 DTE)
+  cannot support a multi-week directional thesis — either find longer-dated
+  corroboration or downgrade to 'low' and call it gamma/event flow.
 - For bid-side calls and ask-side puts WITHOUT a `SellToOpen` / `BuyToOpen` label,
   the play's `signal` must cite what rules out the closing / overwrite / hedge
   reading. Without that citation, confidence is 'low' at best.

@@ -1,16 +1,14 @@
 """
 Analysis-driven backtesting engine for options plays.
 
-Instead of re-filtering raw flow rows, this reads the LLM analysis already
-written to Google Sheets (AnalysisClaude / AnalysisGPT) and treats every
-non-MARKET ticker row with a play as a decision to open a position. It then
-measures how that play would have performed.
+Reads LLM analysis from Google Sheets (AnalysisClaude / AnalysisGPT), identifies
+the option contract from each play's text, and prices the trade using the locally
+cached Barchart per-contract price history (backtests/option_history_cache/).
 
 Pricing philosophy (real data first, model last):
-  Entry  — the actual option `Trade` price from the matching flow CSV row.
-  Exit   — the actual `Trade` price when the same contract reappears in a later
-           scrape on/after the checkpoint (we scrape 2x/day). Falls back to
-           Black-Scholes only when the contract did not reappear.
+  Entry  — Barchart per-contract history (mid bid/ask) on/after the signal date.
+  Exit   — Barchart per-contract history on each subsequent trading day.
+           Falls back to Black-Scholes when history is absent for a day.
 Every trade is tagged with entry_source / exit_source so the win rate can be
 reported on the real-data subset separately from the modelled one.
 
@@ -45,15 +43,11 @@ from lib.logger import setup_logging
 from lib import sheets_client
 from lib import barchart_options
 from lib.barchart import BarchartSession
-from lib.csv_utils import parse_csv
-from lib.drive_client import get_drive_client
 
 log = logging.getLogger("backtest")
 
 RESULTS_PATH = Path(__file__).parent.parent / "backtests"
 HISTORY_CACHE = RESULTS_PATH / "option_history_cache"
-
-FLOW_PREFIXES = ["stocks-flow", "etfs-flow"]
 
 _EXPIRATION_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%Y%m%d")
 
@@ -331,82 +325,138 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
     return candidates, market_regime
 
 
-# ─── Flow loading (entry matching + exit reappearance) ─────────────────────────
+# ─── Contract identification from play text ────────────────────────────────────
 
-def _flow_date_range(start: date, window_end: date) -> list[date]:
-    """Weekdays from start through window_end inclusive."""
-    out, d = [], start
-    while d <= window_end:
-        if d.weekday() < 5:
-            out.append(d)
-        d += timedelta(days=1)
-    return out
-
-
-def _load_flow(start: date | None, end: date | None, lookahead_days: int):
+def _extract_horizon_dte(play_text: str) -> int | None:
     """
-    Load flow CSVs from Drive. Returns:
-      flow_by_date     — { 'YYYY-MM-DD': [rows] }            (for entry matching)
-      contract_index   — { contract_key: [(date, trade_price), ...] }  (for exits)
+    Extract a DTE estimate from play text for expiry approximation.
+
+    Priority:
+      1. Inline range: '(35-60 DTE)' or '35-60 DTE' → midpoint (47)
+      2. Inline single: '(45 DTE)' or '45 DTE' → 45
+      3. Bracket line: '[medium | hedge | 60]' → 60 (coarse bucket boundary)
     """
-    client = get_drive_client()
-    window_end = (end + timedelta(days=lookahead_days)) if end else None
-
-    flow_by_date: dict[str, list[dict]] = {}
-    contract_index: dict[tuple, list[tuple]] = {}
-
-    def _process_file(f: dict, snap_date: date) -> None:
+    # Range: (35-60 DTE) or 35-60 DTE (en-dash or hyphen)
+    m = re.search(r'\(?(\d+)\s*[-–]\s*(\d+)\s*DTE\)?', play_text, re.IGNORECASE)
+    if m:
+        return (int(m.group(1)) + int(m.group(2))) // 2
+    # Single value: (45 DTE) or 45 DTE
+    m = re.search(r'\(?(\d+)\s*DTE\)?', play_text, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    # Bracket line fallback: [confidence | signal_type | 60]
+    m = re.search(r'\[(?:[^\]]*\|){2}\s*(\d+)\s*\]', play_text)
+    if m:
         try:
-            content = client.download(f["id"])
-        except Exception:
-            log.exception("Could not download '%s'", f["name"])
-            return
-        d_str = snap_date.isoformat()
-        for row in parse_csv(content):
-            flow_by_date.setdefault(d_str, []).append(row)
-            price = _opt_price(row)
-            strike = _num(row.get("Strike"))
-            if price is None or strike is None:
-                continue
-            key = _contract_key(
-                row.get("Symbol", ""), row.get("Type", ""), strike,
-                row.get("Expires", row.get("Expiration Date", "")),
-            )
-            contract_index.setdefault(key, []).append((snap_date, price))
+            return int(m.group(1))
+        except ValueError:
+            pass
+    return None
 
-    if start is not None and window_end is not None:
-        # Go directly to each date folder — avoids a global Drive listing.
-        for snap_date in _flow_date_range(start, window_end):
-            d_str = snap_date.isoformat()
-            for prefix in FLOW_PREFIXES:
-                for f in client.list_day_files(prefix, d_str):
-                    _process_file(f, snap_date)
+
+def _nearest_cached_expiry(
+    cache_dir: Path, ticker: str, opt_type: str, K: float,
+    signal_date: date, horizon_dte: int | None,
+) -> date | None:
+    """Scan cache for contracts matching ticker/opt_type/K; pick expiry closest to signal_date + horizon_dte."""
+    cp = "C" if opt_type == "Call" else "P"
+    matches = list(cache_dir.glob(f"{ticker.upper()}_*_{K:.2f}{cp}.csv"))
+    if not matches:
+        return None
+    target = signal_date + timedelta(days=horizon_dte or 60)
+    best: date | None = None
+    best_delta: int | None = None
+    for p in matches:
+        parts = p.stem.split("_")
+        if len(parts) < 2:
+            continue
+        try:
+            exp = datetime.strptime(parts[1], "%Y%m%d").date()
+        except ValueError:
+            continue
+        if exp <= signal_date:
+            continue
+        delta = abs((exp - target).days)
+        if best_delta is None or delta < best_delta:
+            best_delta, best = delta, exp
+    return best
+
+
+def _identify_contract(
+    candidate: dict, cls: dict, cache_dir: Path, spread_pct: float,
+) -> tuple[float, date, str, float | None] | None:
+    """
+    Identify (K, expiration_date, opt_type, K_short) from the play text.
+    Returns None when the contract cannot be identified.
+
+    Expiry resolution order:
+      1. Explicit month/day in play text (_extract_expiration).
+      2. Cache scan for matching ticker/type/strike, closest to signal_date + horizon_dte.
+    """
+    structure = cls.get("structure")
+    is_ic = structure == "iron_condor"
+
+    if is_ic:
+        opt_type = "Put"  # short-put leg anchors IC pricing
+        ic_strikes = cls.get("strikes", [])
+        if not ic_strikes:
+            return None
+        K = ic_strikes[1] if len(ic_strikes) >= 4 else ic_strikes[0]
     else:
-        # No date bounds — fall back to listing all files globally.
-        date_re = re.compile(r"-(\d{8})-")
-        for prefix in FLOW_PREFIXES:
-            try:
-                files = client.list_files(prefix)
-            except Exception:
-                log.exception("Could not list Drive files for prefix '%s'", prefix)
-                continue
-            for f in files:
-                m = date_re.search(f["name"])
-                if not m:
-                    continue
-                try:
-                    snap_date = datetime.strptime(m.group(1), "%Y%m%d").date()
-                except ValueError:
-                    continue
-                _process_file(f, snap_date)
+        opt_type = cls.get("option_type")
+        if not opt_type:
+            return None
+        play_strikes = cls.get("strikes", [])
+        if not play_strikes:
+            return None
+        K = play_strikes[0]
 
-    for key in contract_index:
-        contract_index[key].sort(key=lambda t: t[0])
+    exp = _extract_expiration(candidate["play"], candidate["signal_date"])
+    if exp is None:
+        exp = _nearest_cached_expiry(
+            cache_dir, candidate["ticker"], opt_type, K,
+            candidate["signal_date"], _extract_horizon_dte(candidate["play"]),
+        )
+    if exp is None:
+        return None
 
-    log.info("Loaded flow for %d date(s); indexed %d distinct contracts",
-             len(flow_by_date), len(contract_index))
-    return flow_by_date, contract_index
+    K_short = None if is_ic else _short_strike(structure, K, cls.get("strikes", []), spread_pct)
+    return K, exp, opt_type, K_short
 
+
+# ─── Entry row from Barchart history cache ─────────────────────────────────────
+
+def _entry_row_from_history(
+    barchart_details: dict[tuple, dict],
+    contract_key: tuple,
+    signal_date: date,
+    K: float,
+    expiration_date: date,
+) -> dict | None:
+    """
+    Build a synthetic entry_row dict (same keys _simulate reads from a flow row)
+    from the Barchart per-contract history cache. Returns None when no priced row
+    exists on or after signal_date for this contract.
+    """
+    day_rows = barchart_details.get(contract_key)
+    if not day_rows:
+        return None
+    for d in sorted(day_rows):
+        if d >= signal_date:
+            row = day_rows[d]
+            return {
+                "Strike": K,
+                "DTE": max(0, (expiration_date - d).days),
+                "IV": row.get("IV"),
+                "Price~": row.get("Price~"),
+                "Trade": row.get("_mark"),
+                "Expires": expiration_date.isoformat(),
+                "Delta": row.get("Delta"),
+            }
+    return None
+
+
+# ─── Flow entry matching (kept for tests; no longer called by main) ────────────
 
 def _match_entry(candidate: dict, option_type: str, flow_rows: list[dict],
                  match_side: str, long_strike: float | None = None,
@@ -1012,46 +1062,50 @@ def _print_summary(results) -> None:
 
 # ─── Barchart historical option prices ─────────────────────────────────────────
 
-async def _fetch_option_histories(contracts: list[dict], headless: bool,
-                                  timeout_ms: int = 15000) -> dict[tuple, list]:
+async def _fetch_option_histories(
+    contracts: list[dict], headless: bool, timeout_ms: int = 15000,
+) -> tuple[dict[tuple, list], dict[tuple, dict]]:
     """
     Scrape (and cache) per-contract Barchart price history.
 
     contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
-    Returns { contract_key: sorted [(date, price)] }. Cached CSVs are reused so
-    re-runs do not re-scrape. `timeout_ms` bounds how long we wait per contract
-    for the price-history feed before giving up — the dominant cost on misses
-    (e.g. synthesised short strikes that never trade), so keep it modest.
+    Returns (series_map, details_map):
+      series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
+      details_map: {contract_key: {date: row_dict}}      — for building entry rows
+    Cached CSVs are reused so re-runs do not re-scrape.
     """
     HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
     email, password = os.getenv("BARCHART_EMAIL", ""), os.getenv("BARCHART_PASSWORD", "")
     cookies_path = Path(os.getenv("COOKIES_PATH", str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
 
     series_map: dict[tuple, list] = {}
+    details_map: dict[tuple, dict] = {}
     to_scrape: list[dict] = []
+
+    def _load_cache(c: dict, text: str) -> None:
+        series_map[c["key"]] = barchart_options.parse_history_series(text)
+        details_map[c["key"]] = barchart_options.parse_history_details(text)
 
     # Serve from cache first; only the rest need a browser session.
     for c in contracts:
         cache = barchart_options.cache_path(HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
         if cache.exists():
-            series_map[c["key"]] = barchart_options.parse_history_series(cache.read_text(encoding="utf-8"))
+            _load_cache(c, cache.read_text(encoding="utf-8"))
         else:
             to_scrape.append(c)
 
     log.info("Barchart history: %d cached, %d to scrape", len(series_map), len(to_scrape))
     if not to_scrape:
-        return series_map
+        return series_map, details_map
     if not (email and password):
         log.warning("BARCHART_EMAIL/PASSWORD not set — skipping Barchart history (BS fallback will be used)")
-        return series_map
+        return series_map, details_map
 
     async with BarchartSession(email, password, cookies_path, headless) as session:
         for i, c in enumerate(to_scrape, 1):
             url = barchart_options.option_history_url(c["symbol"], c["expiration"], c["strike"], c["opt_type"])
             log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
             try:
-                # Scrape the price-history JSON feed (row-by-row data, no metered
-                # Download button, full series in one call) — see fetch_history_csv.
                 csv_text = await session.fetch_history_csv(url, timeout_ms)
             except Exception:
                 log.exception("Barchart history scrape failed for %s", c["key"])
@@ -1061,10 +1115,10 @@ async def _fetch_option_histories(contracts: list[dict], headless: bool,
                 continue
             cache = barchart_options.cache_path(HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
             cache.write_text(csv_text, encoding="utf-8")
-            series_map[c["key"]] = barchart_options.parse_history_series(csv_text)
+            _load_cache(c, csv_text)
             await asyncio.sleep(2)
 
-    return series_map
+    return series_map, details_map
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────────
@@ -1091,10 +1145,7 @@ def main() -> None:
         start = date.fromisoformat(args.start) if args.start else None
         end = date.fromisoformat(args.end) if args.end else None
     sim_cfg = cfg["simulation"]
-    entry_cfg = cfg.get("entry", {})
-    match_side = entry_cfg.get("match_side", "any")
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
-    path_cap = sim_cfg.get("path_cap_days", 120)
 
     log.info("Loading analysis plays from tab '%s'", tab)
     candidates, market_regime = _load_analysis(tab, start, end)
@@ -1102,13 +1153,10 @@ def main() -> None:
         log.warning("No plays found in '%s' — run /options analyze (range mode) first to populate it", tab)
         sys.exit(0)
 
-    log.info("Loading flow data from Drive for entry matching + real exits")
-    # Look ahead the full path window so reappearance exits are available for the
-    # whole daily path (not just the first few checkpoints).
-    flow_by_date, contract_index = _load_flow(start, end, path_cap)
-
-    # Pass 1 — classify each play and match it to its real flow contract.
-    matched, contracts, skipped = [], {}, {"unsupported": 0, "no_entry_match": 0, "unpriced": 0}
+    # Pass 1 — classify each play and identify its contract from play text.
+    # No flow CSV download needed: strike and expiry come from the play text,
+    # with expiry falling back to a cache scan when not explicit.
+    matched, contracts, skipped = [], {}, {"unsupported": 0, "no_contract": 0, "unpriced": 0}
     for c in candidates:
         c["regime"] = c.get("regime", "")
         cls = classify_play(c["play"])
@@ -1116,66 +1164,59 @@ def main() -> None:
             skipped["unsupported"] += 1
             continue
 
-        structure = cls["structure"]
-        is_ic = (structure == "iron_condor")
-
-        # Iron condors match the short-put leg for S_entry / IV anchoring.
-        match_opt_type = "Put" if is_ic else cls["option_type"]
-        ic_strikes = cls.get("strikes", [])
-        if is_ic:
-            # Short put is strikes[1] in 4-strike notation, strikes[0] in 2-strike.
-            long_strike = ic_strikes[1] if len(ic_strikes) >= 4 else (ic_strikes[0] if ic_strikes else None)
-        else:
-            long_strike = ic_strikes[0] if ic_strikes else None
-
-        target_exp = _extract_expiration(c["play"], c["signal_date"])
-        entry_row = _match_entry(c, match_opt_type, flow_by_date.get(c["date"], []),
-                                 match_side, long_strike, target_exp)
-        if entry_row is None:
-            skipped["no_entry_match"] += 1
+        result = _identify_contract(c, cls, HISTORY_CACHE, spread_pct)
+        if result is None:
+            skipped["no_contract"] += 1
             continue
 
-        K = _num(entry_row.get("Strike"))
-        exp_raw = str(entry_row.get("Expires", entry_row.get("Expiration Date", ""))).strip()
-        exp_date = _parse_expiration(exp_raw)
-        matched.append((c, cls, entry_row))
+        K, exp_date, opt_type, K_short = result
+        exp_raw = exp_date.isoformat()
+        is_ic = cls["structure"] == "iron_condor"
+        matched.append((c, cls, K, exp_date, opt_type, K_short))
 
-        # Iron condors are fully BS-priced; no Barchart history needed for their legs.
-        if not is_ic and K and exp_date:
-            opt_type = cls["option_type"]
-            key = _contract_key(c["ticker"], opt_type, K, exp_raw)
-            contracts.setdefault(key, {"key": key, "symbol": c["ticker"],
-                                       "opt_type": opt_type, "strike": K, "expiration": exp_date})
-            # Register the contra leg so its real Barchart history is fetched/cached
-            # and netted in _simulate (BS fallback when no history).
-            K_short = _short_strike(structure, K, cls.get("strikes", []), spread_pct)
-            if K_short is not None:
-                skey = _contract_key(c["ticker"], opt_type, K_short, exp_raw)
-                contracts.setdefault(skey, {"key": skey, "symbol": c["ticker"],
-                                            "opt_type": opt_type, "strike": K_short,
-                                            "expiration": exp_date})
+        # Register contracts for Barchart scraping/cache lookup.
+        # Iron condors anchor on the short-put leg; other legs are BS-priced.
+        anchor_type = "Put" if is_ic else opt_type
+        key = _contract_key(c["ticker"], anchor_type, K, exp_raw)
+        contracts.setdefault(key, {"key": key, "symbol": c["ticker"],
+                                   "opt_type": anchor_type, "strike": K,
+                                   "expiration": exp_date})
+        if not is_ic and K_short is not None:
+            skey = _contract_key(c["ticker"], opt_type, K_short, exp_raw)
+            contracts.setdefault(skey, {"key": skey, "symbol": c["ticker"],
+                                        "opt_type": opt_type, "strike": K_short,
+                                        "expiration": exp_date})
 
-    # Pass 2 — fetch real historical option prices from Barchart (cached) when enabled.
+    # Pass 2 — fetch/cache Barchart history for all identified contracts.
     barchart_series: dict[tuple, list] = {}
-    if "barchart" in sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"]) and contracts:
+    barchart_details: dict[tuple, dict] = {}
+    if contracts:
         headless = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
         history_timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
-        barchart_series = asyncio.run(_fetch_option_histories(
+        barchart_series, barchart_details = asyncio.run(_fetch_option_histories(
             list(contracts.values()), headless, history_timeout_ms))
 
-    # Pass 3 — simulate.
-    log.info("Simulating %d matched plays", len(matched))
+    # Pass 3 — build entry row from cache then simulate.
+    log.info("Simulating %d classified plays", len(matched))
     results = []
-    for c, cls, entry_row in matched:
-        result = _simulate(c, cls, entry_row, contract_index, barchart_series, sim_cfg)
+    for c, cls, K, exp_date, opt_type, K_short in matched:
+        is_ic = cls["structure"] == "iron_condor"
+        exp_raw = exp_date.isoformat()
+        anchor_type = "Put" if is_ic else opt_type
+        anchor_key = _contract_key(c["ticker"], anchor_type, K, exp_raw)
+        entry_row = _entry_row_from_history(barchart_details, anchor_key, c["signal_date"], K, exp_date)
+        if entry_row is None:
+            skipped["unpriced"] += 1
+            continue
+        result = _simulate(c, cls, entry_row, {}, barchart_series, sim_cfg)
         if result:
             results.append(result)
         else:
             skipped["unpriced"] += 1
 
-    log.info("Simulated %d plays (skipped: %d unsupported, %d no flow match, %d unpriced)",
-             len(results), skipped["unsupported"], skipped["no_entry_match"], skipped["unpriced"])
+    log.info("Simulated %d plays (skipped: %d unsupported, %d no contract, %d unpriced)",
+             len(results), skipped["unsupported"], skipped["no_contract"], skipped["unpriced"])
 
     _write_results(results, cfg, args.dry_run)
 

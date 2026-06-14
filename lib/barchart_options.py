@@ -75,6 +75,25 @@ def parse_history_series(csv_text: str) -> list[tuple[date, float]]:
     return series
 
 
+def parse_history_details(csv_text: str) -> dict[date, dict]:
+    """Parse a Barchart history CSV into {date: row_dict} with a pre-computed '_mark' key.
+
+    Rows with no computable mark or non-date Time are excluded. The '_mark' key holds
+    mid(Bid,Ask) → Latest → Theo, the same value parse_history_series uses.
+    """
+    out: dict[date, dict] = {}
+    for row in parse_csv(csv_text):
+        t = str(row.get("Time", "")).strip()
+        try:
+            d = date.fromisoformat(t)
+        except ValueError:
+            continue
+        mark = _mark(row)
+        if mark is not None:
+            out[d] = {**row, "_mark": mark}
+    return out
+
+
 def cache_path(cache_dir: Path, symbol: str, expiration: date, strike: float, opt_type: str) -> Path:
     cp = "C" if opt_type.strip().title() == "Call" else "P"
     return cache_dir / f"{symbol.upper().strip()}_{expiration.strftime('%Y%m%d')}_{strike:.2f}{cp}.csv"

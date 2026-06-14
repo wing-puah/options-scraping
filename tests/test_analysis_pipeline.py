@@ -81,12 +81,12 @@ def test_analysis_to_rows_folds_signal_type_and_horizon_into_bracket_line():
         "plays": [
             {"ticker": "SMH", "asset_class": "etf",
              "structure": "bear put spread 560/500", "thesis": "semi hedge",
-             "confidence": "Medium", "signal_type": "Hedge", "horizon": "Tactical"},
+             "confidence": "Medium", "signal_type": "Hedge", "horizon": 60},
         ],
     }
     rows = analysis_to_rows(analysis, "2026-06-11", "2026-06-11", "2026-06-11")
     # Classification folds into the bracket line — no new sheet columns.
-    assert rows[1]["play"].splitlines()[0] == "[medium | hedge | tactical]"
+    assert rows[1]["play"].splitlines()[0] == "[medium | hedge | 60]"
     assert list(rows[1].keys()) == ROW_COLUMNS
 
 
