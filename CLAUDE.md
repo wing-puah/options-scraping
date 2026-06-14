@@ -49,8 +49,8 @@ python3 scripts/barchart_scrape.py --date 2026-04-21
 python3 scripts/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
 # Backtest
-python3 scripts/backtest.py --config config/backtest.yml
-python3 scripts/backtest.py --config config/backtest.yml --dry-run
+python3 -m scripts.backtest --config config/backtest.yml
+python3 -m scripts.backtest --config config/backtest.yml --dry-run
 
 # Dashboard
 cd web && npm run dev   # http://localhost:3000
