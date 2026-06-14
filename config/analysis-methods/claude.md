@@ -276,36 +276,29 @@ Default to **defined-risk** structures. The dataset gives no portfolio size, ris
 tolerance, or full volatility surface, so uncapped risk is never justified from
 flow alone.
 
-Every play runs the chain **regime → setup → trigger → structure**, and the setup
-fixes the direction the structure may take. Name the setup (framework Step 2) from
-the price/flow state first, then draw the structure from that setup's allowed list —
-never pick a structure and back-label the setup to fit it:
+Every play runs two layers — **playbook → structure** — working from market structure down:
 
-- **BO** (breakout) / **PB** (pullback buy) — bullish only. Allowed: long call,
-  bull call spread (debit); short put, bull put spread (credit).
-- **RF** (resistance fade) / **DC** (dead-cat bounce) — bearish only. Allowed: long
-  put, bear put spread (debit); short call, bear call spread (credit).
-- **VE** / **MS** — non-directional vol: long straddle/strangle, backspread, long
-  convexity. **SH** — long-haven (GLD/TLT calls, defensive convexity).
+**Layer 1 — Select the playbook** (framework Step 2) using: dealer positioning → crowdedness → vol richness → price action. The playbook names the edge source; the trigger condition confirms it is active. Never pick a structure first and retrofit a playbook.
 
-A structure whose direction contradicts its setup — `RF | bull call spread`,
-`BO | bear put spread` — is invalid output; fix the setup to match the directional
-thesis, not the other way round. HP is a market-regime qualifier, never a per-play
-setup. A portfolio hedge takes a bearish setup (RF/DC) carrying `signal_type` =
-hedge — the setup supplies direction, `signal_type` records that it is protection,
-not a price forecast.
+**Layer 2 — Select the structure** using the directional view implied by the playbook and the current IV environment:
 
-Within the setup's allowed side, **IV picks debit vs credit**: sell premium (short
-put / bull put spread when bullish; short call / bear call spread when bearish) into
-high or rich IV rather than paying up for a debit; buy premium (long option / debit
-spread) when IV is low or expected to rise. Prefer the defined-risk spread over a
-naked short on high-IV names — a short put on a 200%-IV name is not a defined-risk
-trade.
+- Bullish view, low/rising IV → long call or call spread
+- Bullish view, high/falling IV → short put or bull put spread
+- Bearish view, low/rising IV → long put or put spread
+- Bearish view, high/falling IV → short call or bear call spread
+- Vol expansion (no direction) → straddle (low IV) / strangle (moderate IV) / calendar (high front-month IV)
+- Vol compression → short strangle (aggressive) / iron condor (moderate) / butterfly (conservative)
+- Dealer pinning (DP) → iron condor / short strangle / butterfly around the pin strike
+- Trend continuation (TF) with time-structure edge → diagonal spread or calendar
+- Gamma Expansion (GE) in backwardation → defined-risk debit spread or backspread; in contango → long ATM weekly or debit spread
 
-- Short-volatility structures (condor, strangle, calendar) only when compression
-  is explicit (`C-VOL`).
-- Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
-  must clear it.
+A structure whose direction contradicts the playbook's bias is invalid — fix the playbook to match the thesis, not the other way round. HP is a market-regime qualifier, never a per-play playbook. A portfolio hedge uses a bearish playbook (MR or PU) carrying `signal_type` = hedge.
+
+Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory regardless of conviction.
+
+- Short-volatility structures (condor, strangle, calendar) only when compression is explicit (`C-VOL` regime or VC/DP playbook).
+- Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry must clear it.
+- Diagonal and calendar spreads are valid for TF/MR when stable IV + a known longer-horizon catalyst create a time-structure edge.
 
 Before emitting any play, check that it is internally coherent — every number
 in the play must refer to the same spot:

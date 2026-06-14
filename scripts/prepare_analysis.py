@@ -32,6 +32,7 @@ from lib.logger import setup_logging
 from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseline
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
+from lib.vol_snapshot import fetch_vol_snapshot, vol_snapshot_md
 from lib.flow_summary import (
     build_scored_flow_rollup,
     cross_section_md,
@@ -134,6 +135,7 @@ def fetch_data(
     top_n: int = 75,
     days: int = 1,
     baseline: bool = True,
+    vol: bool = True,
 ) -> str:
     """Fetch Drive data and format for LLM consumption.
 
@@ -164,7 +166,13 @@ def fetch_data(
         return "\n\n".join(sections_out)
 
     # Default: scored per-section summaries + cross-section.
-    sections_out = [_score_legend()]
+    sections_out = []
+    if vol:
+        snap = fetch_vol_snapshot(date_str)
+        md = vol_snapshot_md(snap) if snap else ""
+        if md:
+            sections_out.append(md)
+    sections_out.append(_score_legend())
     for key, title, kind in _ANALYSIS_SECTIONS:
         rows = section_rows[key]
         if kind == "flow":
@@ -277,6 +285,8 @@ def main() -> None:
                              "(default: 1 = no persistence section). E.g. --days 5.")
     parser.add_argument("--no-baseline", action="store_true",
                         help="Skip the baseline-context section (no Sheets read).")
+    parser.add_argument("--no-vol", action="store_true",
+                        help="Skip the VIX term structure snapshot (no Yahoo Finance fetch).")
     parser.add_argument("--csv", metavar="PATH",
                         help="Write the scored flow rollup (stocks + ETFs) to PATH as "
                              "CSV instead of printing markdown. '-' writes to stdout.")
@@ -300,7 +310,8 @@ def main() -> None:
         args.days,
     )
     print(fetch_data(date_str=args.date, raw=args.raw, ticker=args.ticker,
-                     top_n=args.top, days=args.days, baseline=not args.no_baseline))
+                     top_n=args.top, days=args.days, baseline=not args.no_baseline,
+                     vol=not args.no_vol))
 
 
 if __name__ == "__main__":

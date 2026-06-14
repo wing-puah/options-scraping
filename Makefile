@@ -47,11 +47,11 @@ analyze-gpt:
 # ── backtest ───────────────────────────────────────────────────────────────────
 .PHONY: backtest
 backtest:
-	$(PY) scripts/backtest.py --config config/backtest.yml $(ARGS)
+	$(PY) -m scripts.backtest --config config/backtest.yml $(ARGS)
 
 .PHONY: backtest-dry
 backtest-dry:
-	$(PY) scripts/backtest.py --config config/backtest.yml --dry-run $(ARGS)
+	$(PY) -m scripts.backtest --config config/backtest.yml --dry-run $(ARGS)
 
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline

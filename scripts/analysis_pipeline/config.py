@@ -106,10 +106,10 @@ Schema (all string fields unless noted):
     {
       "ticker": "NVDA",
       "asset_class": "stock|etf",
-      "pattern": "BO|PB|RF|DC|VE|SH|MS — the setup (Step 2). BO (breakout) and PB (pullback buy) are BULLISH; RF (resistance fade) and DC (dead-cat bounce) are BEARISH; VE/MS non-directional; SH long-haven. HP is NOT a value here — it lives in the market regime. The `structure` direction MUST match this setup's bias.",
+      "pattern": "TF|MR|GE|VC|PU|DP — the playbook (Step 2). TF (trend following) and GE (gamma expansion) bias WITH the trend/breakout direction; MR (mean reversion) bias OPPOSITE the extension; PU (positioning unwind) bias WITH the unwind direction; VC (volatility compression) and DP (dealer pinning) are non-directional. HP is NOT a value here — it lives in the market regime. The `structure` direction MUST match this playbook's bias.",
       "regime": "Ticker-specific regime — the volatility / level / posture state for THIS name (e.g. 'BULL + E-VOL — testing 59 breakout, IV30 rising into earnings'). Distinct from the market regime. Leave EMPTY if there is nothing ticker-specific to add beyond the market read — do NOT copy the market regime here.",
       "signal": "Ticker-specific tagged evidence supporting THIS play, pipe-separated. E.g. [FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI unusual print | [FLOW] explicit ToOpen/BuyToOpen $64 calls | [PRICE] testing breakout at 59. Distinct from the market-level `signals` — this is the per-ticker evidence chain.",
-      "structure": "Option structure drawn from the setup's allowed list (Step 2), direction matching the setup's bias. IV picks the side: debit (long call/put, debit spread) when IV is low/rising; credit (short put/call, credit spread) when IV is high/falling. e.g. bull call spread 185/200",
+      "structure": "Option structure from the two-layer table (Step 3): playbook fixes the bias, IV picks aggressive/moderate/conservative. Bullish: long call / call spread / short put. Bearish: long put / put spread / short call. Vol expansion: straddle / strangle / calendar. Vol compression or DP: short strangle / iron condor / butterfly. TF/MR with time-structure edge: diagonal spread or calendar. e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
@@ -136,15 +136,17 @@ Coverage — every run must return BOTH a market read and a full play list:
 
 Discipline rules — apply to every play before promoting to medium / high confidence:
 
-- Setup–structure binding (validity gate, not a confidence gate): the `structure`
-  direction MUST match the `pattern` bias. BO/PB take ONLY bullish structures (long
-  call, bull call spread, short put, bull put spread); RF/DC take ONLY bearish
-  structures (long put, bear put spread, short call, bear call spread); VE/MS are
-  non-directional. A mismatched pair — e.g. `RF | bull call spread`, or `BO | bear
-  put spread` — is invalid output: pick the setup that matches the directional
-  thesis, never the reverse. Within the allowed side, IV chooses debit vs credit —
-  sell premium (credit) into high IV, buy premium (debit) into low/rising IV.
-  Prefer the defined-risk spread over a naked short on high-IV names.
+- Playbook–structure binding (validity gate, not a confidence gate): the `structure`
+  direction MUST match the `pattern` bias. TF/GE (directional with trend) take ONLY
+  structures aligned with the breakout direction; MR takes ONLY structures opposite
+  the extension; PU takes ONLY structures aligned with the unwind direction; VC/DP
+  are non-directional (condor / strangle / butterfly). A mismatched pair — e.g.
+  `MR | bull call spread` on a name in an uptrend — is invalid output: pick the
+  playbook that matches the directional thesis, never the reverse. Within the
+  playbook's bias, IV chooses aggressive/moderate/conservative — sell premium
+  (credit) into high IV, buy premium (debit) into low/rising IV. Default to
+  defined-risk spreads; naked calls or puts require very low IV + very high
+  conviction.
 - `alternative_interpretation` is REQUIRED on every play, not optional. It is
   the auditable record that the benign-explanation check was performed. A play
   whose `alternative_interpretation` is at least as plausible as the directional

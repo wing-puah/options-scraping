@@ -139,15 +139,28 @@ def classify_play(play_text: str) -> dict:
 
 # ─── Contract identification ───────────────────────────────────────────────────
 
+def _nearest_friday(d: date) -> date:
+    """Return d if it's a Friday, else advance to the next Friday."""
+    days_ahead = (4 - d.weekday()) % 7  # Friday is weekday 4
+    return d + timedelta(days=days_ahead)
+
+
+_MAX_EXPIRY_DEVIATION_DAYS = 45  # reject cache hits more than ~1.5 monthly cycles off target
+
+
 def _nearest_cached_expiry(
     cache_dir: Path, ticker: str, opt_type: str, K: float,
     signal_date: date, horizon_dte: int | None,
 ) -> date | None:
-    """Scan cache for contracts matching ticker/opt_type/K; pick expiry closest to signal_date + horizon_dte."""
+    """Scan cache for contracts matching ticker/opt_type/K; pick expiry closest to signal_date + horizon_dte.
+
+    A cache hit is only accepted when it falls within _MAX_EXPIRY_DEVIATION_DAYS of the
+    target date so that, e.g., a Sep LEAP is not used for a play that specified 35-60 DTE.
+    When no qualifying cache entry exists the expiry is synthesised as the nearest Friday
+    on or after signal_date + horizon_dte (requires horizon_dte to be known).
+    """
     cp = "C" if opt_type == "Call" else "P"
     matches = list(cache_dir.glob(f"{ticker.upper()}_*_{K:.2f}{cp}.csv"))
-    if not matches:
-        return None
     target = signal_date + timedelta(days=horizon_dte or 60)
     best: date | None = None
     best_delta: int | None = None
@@ -164,7 +177,22 @@ def _nearest_cached_expiry(
         delta = abs((exp - target).days)
         if best_delta is None or delta < best_delta:
             best_delta, best = delta, exp
-    return best
+    if best is not None and (best_delta or 0) <= _MAX_EXPIRY_DEVIATION_DAYS:
+        return best
+    # No qualifying cache hit — synthesise from horizon_dte
+    if horizon_dte is None:
+        return None
+    synth = _nearest_friday(target)
+    if best is not None:
+        log.debug(
+            "cache hit for %s %s %.2f expiry=%s is %d days off target (limit %d); "
+            "synthesising expiry %s from horizon_dte=%d",
+            ticker, opt_type, K, best, best_delta, _MAX_EXPIRY_DEVIATION_DAYS, synth, horizon_dte,
+        )
+    else:
+        log.debug("no cache for %s %s %.2f; synthesising expiry %s from horizon_dte=%d",
+                  ticker, opt_type, K, synth, horizon_dte)
+    return synth
 
 
 def _identify_contract(
