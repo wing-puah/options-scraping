@@ -118,7 +118,7 @@ This is the most direct answer to "weigh premium against IV" and needs only a ne
 accumulator in `_flow_ticker_rows` plus a column. Could also become a score
 component (size rank within day) alongside premium rank.
 
-### 2. Forward-looking vol layer (DEFERRED — wanted, not now)
+### 2. Forward-looking vol layer (PARTIAL — VIX term structure shipped; per-name IV deferred)
 
 The organizing principle when this layer lands: **flow → thesis, then
 volatility → structure.** Today the structure choice (spread vs naked vs
@@ -132,7 +132,8 @@ The genuinely forward signals for play selection, in rough priority:
 
 - **IV rank / percentile** (per name) — where today's IV sits in its own trailing
   range. The single most useful "rich or cheap" read.
-- **VIX term structure** (VIX vs VIX3M/VIX9D) — forward market-wide vol regime;
+- ~~**VIX term structure** (VIX vs VIX3M/VIX9D)~~ — **SHIPPED June 2026**
+  (`lib/vol_snapshot.py`, see Shipped above). Forward market-wide vol regime;
   backwardation = acute near-term fear that tends to mean-revert.
 - **IV term structure** (front vs back month) and **skew** (put vs call IV) per
   name — forward measures of stress and directional/crash demand.
@@ -140,9 +141,9 @@ The genuinely forward signals for play selection, in rough priority:
 **Data caveat (the blocker):** barchart.com displays IV rank and VIX term
 structure **live only — no historical series.** Split by feasibility:
 
-- **VIX term structure history is actually free** via yfinance indices
-  (`^VIX`, `^VIX9D`, `^VIX3M`, `^VIX6M`) — long history, trivial pull. Do this
-  first when the layer is picked up.
+- ~~**VIX term structure history is actually free** via yfinance indices~~ —
+  **DONE** (`lib/vol_snapshot.py` pulls `^VIX`/`^VIX9D`/`^VIX3M`/`^VVIX` and
+  injects the snapshot into the rollup).
 - **Per-name IV rank history is the hard part** — it needs each name's historical
   IV, which Barchart shows live-only and most free sources don't keep. Two paths:
   (a) a paid surface/IV-history vendor; (b) **start logging our own daily

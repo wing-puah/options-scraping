@@ -82,7 +82,7 @@ A playbook names the **edge source** — the structural reason this situation is
 
 1. **Dealer positioning** — Are dealers long or short gamma? Positive gamma suppresses realized vol and pins price near large OI strikes. Negative gamma amplifies moves — dealers must hedge by buying into rallies and selling into declines, which accelerates trends.
 2. **Crowdedness** — Is the book one-sided? Extreme put/call flow balance, large OI clusters on one strike, and flow concentrated in one direction signal a crowded position susceptible to forced unwind.
-3. **Vol richness** — Is IV cheap or expensive relative to what is likely to happen? Use VIX term structure (contango vs backwardation), VVIX, and skew — not absolute VIX level alone. VIX 20 in contango-and-falling is a different environment from VIX 20 in backwardation-and-rising.
+3. **Vol richness** — Is IV cheap or expensive relative to what is likely to happen? Read the rollup's "Vol regime snapshot" — VIX/VIX3M term structure (contango vs backwardation), VIX9D/VIX, VVIX — not absolute VIX level alone. VIX 20 in contango-and-falling is a different environment from VIX 20 in backwardation-and-rising.
 4. **Price** — Use price action last, to confirm timing and direction.
 
 | Playbook               | Short | Edge source                                      | Arises when                                                                    | Bias                                      |
@@ -90,7 +90,7 @@ A playbook names the **edge source** — the structural reason this situation is
 | Trend Following        | TF    | Momentum + dealer hedge-chasing                  | Sustained directional move; negative gamma forces dealers to amplify           | With trend                                |
 | Mean Reversion         | MR    | Stretched positioning + overpriced IV            | Price ≈2× ATR from mean; elevated skew; crowd extended in one direction        | Opposite extension                        |
 | Gamma Expansion        | GE    | Negative gamma acceleration on breakout          | Range compression → breakout; dealers short gamma and must chase               | With breakout direction                   |
-| Volatility Compression | VC    | IV overpriced post-spike                         | VX1/VX2 restoring contango; VVIX falling; C-VOL regime                         | Non-directional                           |
+| Volatility Compression | VC    | IV overpriced post-spike                         | VIX/VIX3M restoring contango; VVIX falling; C-VOL regime                       | Non-directional                           |
 | Positioning Unwind     | PU    | Forced repositioning from crowded book           | Large one-sided OI + catalyst or sentiment shift; hedging flow reversal        | With unwind direction                     |
 | Dealer Pinning         | DP    | Dealer suppression of realized vol near large OI | High positive gamma; large OI cluster at nearby strike; realized vol declining | Non-directional (range around pin strike) |
 
@@ -98,16 +98,18 @@ A playbook names the **edge source** — the structural reason this situation is
 
 #### VIX Term Structure
 
-Absolute VIX level is an incomplete signal — the same reading can call for opposite structures. Characterize term structure before selecting structure or DTE:
+Absolute VIX level is an incomplete signal — the same reading can call for opposite structures. Characterize term structure before selecting structure or DTE. The prepared rollup carries a **"Vol regime snapshot"** section (`lib/vol_snapshot.py`) with the exact metrics below — `term_ratio` = VIX/VIX3M, `event_ratio` = VIX9D/VIX, and VVIX; read it rather than guessing the regime:
 
-| Signal                      | Reading                            | Implication                                                                          |
-| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| VX1/VX2 < 1 (contango)      | Normal carry                       | VC and DP viable; premium-selling reasonable                                         |
-| VX1/VX2 > 1 (backwardation) | Panic / crisis                     | Fade VC; prefer long convexity; backwardation can persist                            |
-| VIX9D/VIX elevated          | Near-term event risk               | Short-dated structures expensive; extend DTE past catalyst or buy event vol directly |
-| VVIX elevated (>100)        | Vol-of-vol high                    | Straddles/strangles expensive to hold; prefer defined-risk spreads                   |
-| SPX skew steep              | Crash demand elevated              | Selling puts into steep skew is dangerous; downside bid for a reason                 |
-| SPX skew flat / inverting   | Tail protection cheap or unwinding | VC or DP supported; put-spread selling rational                                      |
+| Signal                              | Reading                            | Implication                                                                          |
+| ----------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| VIX/VIX3M < 1 (contango)            | Normal carry                       | VC and DP viable; premium-selling reasonable                                         |
+| VIX/VIX3M > 1 (backwardation)       | Panic / crisis                     | Fade VC; prefer long convexity; backwardation can persist                            |
+| VIX9D/VIX > 1 (event ratio)         | Near-term event risk               | Short-dated structures expensive; extend DTE past catalyst or buy event vol directly |
+| VVIX elevated (>100)                | Vol-of-vol high                    | Straddles/strangles expensive to hold; prefer defined-risk spreads                   |
+| SPX skew steep                      | Crash demand elevated              | Selling puts into steep skew is dangerous; downside bid for a reason                 |
+| SPX skew flat / inverting           | Tail protection cheap or unwinding | VC or DP supported; put-spread selling rational                                      |
+
+(SPX skew is not in the snapshot — it needs the options chain; check it manually before VC / DP entries.)
 
 ### Trigger Conditions
 
@@ -115,8 +117,8 @@ Absolute VIX level is an incomplete signal — the same reading can call for opp
 | --------------------- | --------------------------------------------------------------- | -------------------------------------------------------- | -------- |
 | Price extension       | Intraday move ≈2× expected move or 1.5–2× ATR                   | Skew steepening; crowd extended in extension direction   | MR       |
 | Reversal signal       | Strong candle at S/R; elevated IV; momentum exhausting          | Positioning overcrowded; flow reversing direction        | MR, PU   |
-| IV spike              | VIX / underlying IV rises sharply                               | VX1/VX2 flips to backwardation; VVIX spikes              | GE, PU   |
-| IV compression        | IV drops sharply post-event                                     | VX1/VX2 restores contango; VVIX falling                  | VC, DP   |
+| IV spike              | VIX / underlying IV rises sharply                               | VIX/VIX3M flips to backwardation (>1); VVIX spikes       | GE, PU   |
+| IV compression        | IV drops sharply post-event                                     | VIX/VIX3M restores contango (<1); VVIX falling           | VC, DP   |
 | Positioning imbalance | Crowded longs/shorts; exaggerated reactions                     | Large one-sided OI; hedge ratio extreme                  | PU       |
 | Trend breakout        | Price breaks resistance/support with follow-through             | Dealers short gamma → forced to buy/sell into move       | TF, GE   |
 | Momentum continuation | Higher highs/lows; large directional candles; shallow pullbacks | Dealer delta-hedging amplifying the move                 | TF       |
@@ -174,35 +176,24 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 
 **Layer 1 — Select the playbook** using the four-question order from Step 2 (dealer → crowdedness → vol richness → price). The playbook is the edge source; the trigger condition table in Step 2 confirms the environment is active.
 
-**Layer 2 — Select the structure** using directional view and IV. The playbook fixes the bias; IV and DTE determine how aggressively to express it:
+**Layer 2 — Select the structure.** Each playbook fixes a `flow_intent` and a view; IV and DTE then determine how aggressively to express it. One table carries the whole chain — playbook → intent → view → structure — so none dangle:
 
-| View                   | Aggressive (low or rising IV) | Moderate             | Conservative (high or falling IV) |
-| ---------------------- | ----------------------------- | -------------------- | --------------------------------- |
-| Bullish                | Long call                     | Bull call spread     | Short put                         |
-| Bearish                | Long put                      | Bear put spread      | Short call spread                 |
-| Slow directional trend | Long call/put                 | Long diagonal spread | Credit spread                     |
-| Vol expansion          | Long straddle                 | Long strangle        | Long calendar spread              |
-| Vol compression        | Short strangle                | Iron condor          | Butterfly                         |
-| Pinning (DP)           | Short strangle                | Iron condor          | Butterfly                         |
+| Playbook                  | `flow_intent`            | View                                        | Aggressive (low or rising IV)         | Moderate                     | Conservative (high or falling IV)   |
+| ------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
+| **TF** Trend Following    | DIRECTIONAL              | Bullish / Bearish / Slow trend (with trend) | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
+| **MR** Mean Reversion     | DIRECTIONAL              | Bullish / Bearish (counter-extension)       | Long call / put                       | Debit spread                 | Credit spread                       |
+| **GE** Gamma Expansion    | DIRECTIONAL / VOLATILITY | Breakout direction, or Vol expansion        | Long ATM/OTM weekly, or long straddle | Debit spread / long strangle | Defined-risk debit / backspread     |
+| **PU** Positioning Unwind | DIRECTIONAL              | Bullish / Bearish (unwind direction)        | Long call / put                       | Debit spread                 | Credit spread                       |
+| **VC** Vol Compression    | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
+| **DP** Dealer Pinning     | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
 
 For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-structure edge is present (trend continuation into a catalyst window; or MR where front-month vol is elevated but the longer leg is cheap).
 
 For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long ATM/slightly-OTM weekly or debit spread; backwardation → defined-risk debit spread or backspread (cap premium paid); VVIX elevated → defined-risk only.
 
-**Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV table — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.
+**Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.
 
-**Playbook → play bridge.** Every playbook maps to a `flow_intent`, a view, and a structure — none dangle:
-
-| Playbook                  | Bias                        | `flow_intent`             | View                                | Structure (IV picks aggressive→conservative)                                                                                                                  |
-| ------------------------- | --------------------------- | ------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TF** Trend Following    | With trend                  | DIRECTIONAL               | Bullish / Bearish / Slow trend      | long call/put → debit spread / diagonal → credit spread                                                                                                       |
-| **MR** Mean Reversion     | Counter-extension           | DIRECTIONAL               | Bullish / Bearish                   | same ladder, opposite the extension                                                                                                                           |
-| **GE** Gamma Expansion    | With breakout (or agnostic) | DIRECTIONAL / VOLATILITY  | Bullish / Bearish, or Vol expansion | contango → long ATM/OTM weekly or debit spread; backwardation → defined-risk debit / backspread; VVIX high → defined-risk; direction unclear → long straddle |
-| **PU** Positioning Unwind | With unwind                 | DIRECTIONAL               | Bullish / Bearish                   | ladder in the unwind direction                                                                                                                                |
-| **VC** Vol Compression    | Non-directional             | VOLATILITY                | Vol compression                     | short strangle → iron condor → butterfly                                                                                                                      |
-| **DP** Dealer Pinning     | Non-directional (pin)       | VOLATILITY                | Pinning                             | short strangle → iron condor → butterfly                                                                                                                      |
-
-The two `flow_intent`s that sit **outside** the six alpha playbooks — their edge source is risk management / mechanics, not an alpha edge:
+The two `flow_intent`s that sit **outside** the six alpha playbooks — their edge source is risk management / mechanics, not an alpha edge — do not route through the ladder above:
 
 | Purpose                  | `flow_intent`       | Structure                                                                                            |
 | ------------------------ | ------------------- | --------------------------------------------------------------------------------------------------- |

@@ -103,6 +103,13 @@ def dte_bucket(dte: float) -> str:
 def build_ev(df: pd.DataFrame, out: Path) -> Path:
     """Expected value by strategy, with DTE as the third feature."""
     df = df.copy()
+    r = df["realized_pnl"].dropna()
+    q1, q3 = r.quantile(0.25), r.quantile(0.75)
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    n_before = df["realized_pnl"].notna().sum()
+    df = df[df["realized_pnl"].isna() | df["realized_pnl"].between(lo, hi)]
+    n_removed = n_before - df["realized_pnl"].notna().sum()
     df["dte_bucket"] = df["dte_entry"].apply(dte_bucket)
     bucket_order = [b[2] for b in DTE_BUCKETS]
 
@@ -112,8 +119,9 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
                      "bull_put_spread": "#6a1b9a", "long_call": "#00838f"}
 
     fig, axes = plt.subplots(2, 2, figsize=(15, 11))
+    excl = f"  ·  {n_removed} outlier(s) removed (IQR)" if n_removed else ""
     fig.suptitle(
-        "Expected Value by Strategy  ·  third feature: days-to-expiry (DTE)",
+        f"Expected Value by Strategy  ·  third feature: days-to-expiry (DTE){excl}",
         fontsize=16, fontweight="bold", y=0.995,
     )
 

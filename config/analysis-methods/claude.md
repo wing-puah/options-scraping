@@ -272,33 +272,20 @@ differentiated exposures the data actually supports — sector (IGV/SMH/XLE),
 credit (HYG/LQD), duration (TLT), metals (GLD/SLV) — before adding a second
 index hedge expressing the same view.
 
-Default to **defined-risk** structures. The dataset gives no portfolio size, risk
-tolerance, or full volatility surface, so uncapped risk is never justified from
-flow alone.
+Every play runs the framework's two layers — **playbook → structure** (Step 4).
+Layer 1 picks the playbook (Step 2: dealer → crowdedness → vol richness → price);
+Layer 2 picks the structure from the playbook's view + IV using the framework's
+combined table. Apply that table — do not restate it. The judgment on top of it:
 
-Every play runs two layers — **playbook → structure** — working from market structure down:
-
-**Layer 1 — Select the playbook** (framework Step 2) using: dealer positioning → crowdedness → vol richness → price action. The playbook names the edge source; the trigger condition confirms it is active. Never pick a structure first and retrofit a playbook.
-
-**Layer 2 — Select the structure** using the directional view implied by the playbook and the current IV environment:
-
-- Bullish view, low/rising IV → long call or call spread
-- Bullish view, high/falling IV → short put or bull put spread
-- Bearish view, low/rising IV → long put or put spread
-- Bearish view, high/falling IV → short call or bear call spread
-- Vol expansion (no direction) → straddle (low IV) / strangle (moderate IV) / calendar (high front-month IV)
-- Vol compression → short strangle (aggressive) / iron condor (moderate) / butterfly (conservative)
-- Dealer pinning (DP) → iron condor / short strangle / butterfly around the pin strike
-- Trend continuation (TF) with time-structure edge → diagonal spread or calendar
-- Gamma Expansion (GE) in backwardation → defined-risk debit spread or backspread; in contango → long ATM weekly or debit spread
-
-A structure whose direction contradicts the playbook's bias is invalid — fix the playbook to match the thesis, not the other way round. HP is a market-regime qualifier, never a per-play playbook. A portfolio hedge uses protective structures (puts, collars, put spreads vs. longs) carrying `flow_intent` = HEDGE — it sits outside the six alpha playbooks (its edge source is risk management, not an alpha edge).
-
-Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory regardless of conviction.
-
-- Short-volatility structures (condor, strangle, calendar) only when compression is explicit (`C-VOL` regime or VC/DP playbook).
-- Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry must clear it.
-- Diagonal and calendar spreads are valid for TF/MR when stable IV + a known longer-horizon catalyst create a time-structure edge.
+- Work market-structure-down; never pick a structure first and retrofit a
+  playbook. A structure that contradicts the playbook's bias is invalid — fix
+  the playbook, not the number.
+- Default to **defined-risk**: the dataset gives no portfolio size, risk
+  tolerance, or full volatility surface, so uncapped risk is never justified
+  from flow alone. Short-volatility structures (condor, strangle, calendar)
+  only when compression is explicit (`C-VOL` or VC/DP).
+- Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
+  must clear it.
 
 Before emitting any play, check that it is internally coherent — every number
 in the play must refer to the same spot:
@@ -379,32 +366,14 @@ against a live chart before any trade.
 
 ## Classify every play: flow_intent and horizon
 
-Each play declares what its flow IS (`flow_intent`) and the maturity of its
-evidence (`horizon`). `flow_intent` is a **classification, not a confidence cap**
-(framework Step 3) — label it honestly and let confidence float on evidence
-quality (Step 5). All four are valid plays:
-
-- `DIRECTIONAL` — a bet price moves a particular way: extrinsic premium is the
-  bulk, opening evidence, no offsetting book, and a horizon that can contain the
-  thesis. Playbook TF/MR/GE/PU; invalidated by a price level.
-- `VOLATILITY` — a bet on the size of the move / implied vol, direction-agnostic
-  (straddle, strangle, condor, calendar). Playbook VC/DP; invalidated by IV
-  collapse or decay without a move.
-- `HEDGE` — protection on an existing book (index/sector puts under a bid tape,
-  collars). The defining feature is the offsetting position being protected;
-  framed as protection, never a price forecast — and it can be high-confidence
-  when the protection is well evidenced.
-- `SYNTHETIC STOCK` — mechanical exposure via deep-ITM (~1.0 delta) options,
-  conversions, stock-replacement, boxes. Mostly intrinsic — strip it before
-  ranking; a soft positioning tell, not a bet on a move. Usually flagged rather
-  than traded; drop the name only when the flow is pure financing noise.
-
-`DIRECTIONAL` vs `VOLATILITY` follows the playbook + structure; the opening-view-vs-`HEDGE`
-line turns on whether an offsetting underlying position is being protected.
-Bid-side calls / ask-side puts without a `ToOpen` label, overwrites, and closing
-flow read as `HEDGE` or `SYNTHETIC STOCK` until evidence shows new risk opened —
-never tag protection or mechanical exposure as `DIRECTIONAL`/`VOLATILITY` to
-dodge the evidence test.
+Each play declares what its flow IS (`flow_intent` — one of the four in framework
+Step 3) and the maturity of its evidence (`horizon`). Step 3 owns the definitions
+and the detection tests (extrinsic-bulk for DIRECTIONAL/VOLATILITY, playbook +
+structure to split those two, the offsetting-book check to split an opening view
+from a HEDGE); apply them, don't restate them. The method emphasis: `flow_intent`
+is a **classification, not a confidence cap** — label it honestly, never tag
+protection or mechanical exposure as `DIRECTIONAL`/`VOLATILITY` to dodge the
+evidence test, then let confidence float on evidence quality (Step 5).
 
 `horizon` is one of `14|60|180|720` — the DTE bucket boundary of the dominant
 expiry in the cited prints (≤14 → 14, 15–60 → 60, 61–180 → 180, 181+ →
@@ -414,24 +383,20 @@ cannot carry a multi-week directional claim.
 
 ## Confidence and language
 
-Score confidence on evidence quality using the framework's Step 5 rubric — flow
-confirmation, dealer alignment, price confirmation, vol alignment, catalyst
-support, summed to 0–100 — then map to a band. The factor *weights* are set by
-`flow_intent`: `DIRECTIONAL` is Price-heavy (25/25/20/15/15), `VOLATILITY` is
-Vol-heavy (20/25/10/25/20), and `HEDGE`/`SYNTHETIC STOCK` use the `DIRECTIONAL`
-weighting. Confidence is **independent of `flow_intent`**: a HEDGE or DIRECTIONAL
-play lands wherever its evidence puts it. Apply the rubric's downward guardrails
-(benign-explanation check, short-dated evidence under a multi-week thesis,
-polluted underlyings without cross-asset confirmation).
+Score confidence with the framework's Step 5 rubric — the five factors, the
+intent-set weights, the 0–100 bands, and the downward guardrails all live there;
+apply them, don't restate them. Confidence is **independent of `flow_intent`**: a
+HEDGE or DIRECTIONAL play lands wherever its evidence puts it. The method emphasis
+on what each band looks like in this data:
 
-- **High (≥70)** — repeated, cross-confirmed, coherent, and survives the
+- **High** — repeated, cross-confirmed, coherent, and survives the
   benign-explanation check.
-- **Medium (40–69)** — solid evidence with a material counter-signal (which is
-  named in the play text).
-- **Low (<40)** — isolated or ambiguous; never a conviction bet. A low-confidence
-  idea may still fill a coverage slot, but it must be framed as positioning,
-  name the unresolved conflict in its text, and gate its trigger on the
-  missing confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement).
+- **Medium** — solid evidence with a material counter-signal, which is named in
+  the play text.
+- **Low** — isolated or ambiguous; never a conviction bet. A low-confidence idea
+  may still fill a coverage slot, but it must be framed as positioning, name the
+  unresolved conflict in its text, and gate its trigger on the missing
+  confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement).
 
 High- and medium-confidence ideas are the real plays; low-confidence entries
 exist only to satisfy the coverage floor honestly rather than by inflating
@@ -466,6 +431,7 @@ The quant layer now supplies per-ticker premium aggregation, call/put balance,
 repeated-print clustering, a direction-agnostic conviction score, and multi-day
 persistence ahead of this step. Remaining work and the rationale behind current
 choices live in `config/analysis-roadmap.md` — chiefly a size/contracts aggregate
-to make conviction IV-robust, and a deferred forward-looking vol layer (IV rank,
-VIX term structure). Note: premium already embeds IV, so IV is never multiplied
-into the score; and realized vol is for stop-sizing only, never a forward signal.
+to make conviction IV-robust, and the still-deferred per-name vol layer (IV rank,
+skew); market-wide VIX term structure already ships in the "Vol regime snapshot".
+Note: premium already embeds IV, so IV is never multiplied into the score; and
+realized vol is for stop-sizing only, never a forward signal.

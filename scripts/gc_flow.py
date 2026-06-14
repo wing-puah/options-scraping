@@ -76,14 +76,14 @@ def gc_prefix(client, prefix: str, date_str: str, dry_run: bool = False) -> dict
         log.warning("%s %s: no compiled file — keeping %d raw snapshot(s)", prefix, date_str, len(raws))
         return {"prefix": prefix, "date": date_str, "status": "no-compiled", "raw": len(raws), "trashed": 0}
 
-    compiled_rows = parse_csv(client.download(compiled_id))
+    compiled_rows = parse_csv(client.download(compiled_id, name=compiled_name(prefix, date_str)))
     if not compiled_rows:
         log.warning("%s %s: compiled file is empty — keeping %d raw snapshot(s)", prefix, date_str, len(raws))
         return {"prefix": prefix, "date": date_str, "status": "empty-compiled", "raw": len(raws), "trashed": 0}
 
     raw_rows: list[dict] = []
     for f in raws:
-        raw_rows.extend(parse_csv(client.download(f["id"])))
+        raw_rows.extend(parse_csv(client.download(f["id"], name=f["name"])))
 
     missing = _identity_keys(raw_rows) - _identity_keys(compiled_rows)
     if missing:

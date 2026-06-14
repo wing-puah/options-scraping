@@ -137,9 +137,10 @@ class DriveClient:
         log.info("Upload complete: '%s'", name)
         return file_id
 
-    def download(self, file_id: str) -> str:
+    def download(self, file_id: str, name: str | None = None) -> str:
         """Download a Drive file by ID and return its text content."""
-        log.info("Downloading Drive file")
+        label = f"'{name}'" if name else file_id
+        log.info("Downloading Drive file %s", label)
         buf = io.BytesIO()
         req = self._svc.files().get_media(fileId=file_id)
         dl = MediaIoBaseDownload(buf, req)
@@ -147,7 +148,7 @@ class DriveClient:
         while not done:
             _, done = dl.next_chunk()
         content = buf.getvalue().decode("utf-8", errors="replace")
-        log.info("Downloaded Drive file — %d bytes", len(content))
+        log.info("Downloaded Drive file %s — %d bytes", label, len(content))
         return content
 
     def trash(self, file_id: str) -> None:
@@ -182,7 +183,7 @@ class DriveClient:
             return None, None
         latest = files[0]
         log.info("Latest file for prefix '%s': '%s'", prefix, latest["name"])
-        return latest["name"], self.download(latest["id"])
+        return latest["name"], self.download(latest["id"], name=latest["name"])
 
     def _find_date_folder(self, date_str: str) -> str | None:
         """Return the folder ID for date_str, or None if it doesn't exist (read-only)."""
@@ -249,7 +250,7 @@ class DriveClient:
             return None, None
         selected = files[0]
         log.info("Selected file '%s' for date '%s'", selected["name"], date_str)
-        return selected["name"], self.download(selected["id"])
+        return selected["name"], self.download(selected["id"], name=selected["name"])
 
 
 # ── Factory ───────────────────────────────────────────────────────────────────

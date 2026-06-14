@@ -90,7 +90,7 @@ def compile_prefix(client, prefix: str, date_str: str, dry_run: bool = False) ->
 
     rows: list[dict] = []
     for f in files:
-        rows.extend(parse_csv(client.download(f["id"])))
+        rows.extend(parse_csv(client.download(f["id"], name=f["name"])))
 
     deduped, n_dups = dedup_rows(rows)
     name = compiled_name(prefix, date_str)
