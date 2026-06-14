@@ -1,3 +1,5 @@
+This file has drifted. it needs to to be regenerated.
+
 # Codex Options Analysis Method
 
 This document explains how Codex turns the four Barchart datasets into the
@@ -19,12 +21,12 @@ For each requested date:
 
 The four inputs have different roles:
 
-| Dataset | Primary Use |
-|---------|-------------|
-| Unusual stocks | Find names and contracts with elevated volume versus open interest |
-| Unusual ETFs | Measure broad-market, sector, commodity, credit, and thematic positioning |
-| Stocks flow | Find large-premium trades and repeated activity in individual names |
-| ETFs flow | Establish breadth, hedging pressure, sector confirmation, and risk appetite |
+| Dataset        | Primary Use                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| Unusual stocks | Find names and contracts with elevated volume versus open interest          |
+| Unusual ETFs   | Measure broad-market, sector, commodity, credit, and thematic positioning   |
+| Stocks flow    | Find large-premium trades and repeated activity in individual names         |
+| ETFs flow      | Establish breadth, hedging pressure, sector confirmation, and risk appetite |
 
 ## 2. Build The Market Read First
 
@@ -271,14 +273,22 @@ Only high- and medium-confidence ideas should become plays. Use calibrated
 language such as "suggests", "supports", and "indicates"; avoid presenting flow
 interpretation as certainty.
 
-Every play also declares `signal_type` (directional / hedge / positioning /
-volatility / financing) and `horizon` (one of `14|60|180|720` — the DTE
-bucket boundary of the dominant expiry in the cited evidence; the rollup's
-`Hzn` column is the per-ticker cross-check). The type gates confidence: only
-`directional` may be high; `hedge` and `positioning` cap at medium and are
-framed as protection, not forecasts; `volatility` caps at low unless the
-structure is a vol trade; `financing` is never a play. `horizon: 14` evidence
-cannot carry a multi-week directional thesis.
+Every play also declares `flow_intent` (one of `DIRECTIONAL` / `VOLATILITY` /
+`HEDGE` / `SYNTHETIC STOCK`) and `horizon` (one of `14|60|180|720` — the DTE
+bucket boundary of the dominant expiry in the cited evidence; the rollup's `Hzn`
+column is the per-ticker cross-check). `flow_intent` is a **classification, not
+a confidence cap** (framework Step 3): `DIRECTIONAL` = a bet price moves a way
+(playbook TF/MR/GE/PU); `VOLATILITY` = a bet on the size of the move / implied
+vol, direction-agnostic (playbook VC/DP); `HEDGE` = protection on an existing
+book, framed as protection not a forecast; `SYNTHETIC STOCK` = mechanical
+deep-ITM exposure, strip intrinsic and treat as a soft tell. All four are valid
+plays and each carries its own confidence — score confidence on evidence quality
+(Step 5 rubric), weighted by intent (Price-heavy for `DIRECTIONAL`, Vol-heavy for
+`VOLATILITY`), independent of `flow_intent`. `DIRECTIONAL` vs `VOLATILITY` follows
+the playbook + structure; the opening-view-vs-`HEDGE` line turns on whether an
+offsetting position is protected. Bid-side calls / ask-side puts without a `ToOpen` label
+read as `HEDGE` or `SYNTHETIC STOCK` until evidence shows new risk opened.
+`horizon: 14` evidence cannot carry a multi-week directional thesis.
 
 ## 8. June 2-3, 2026 Example
 

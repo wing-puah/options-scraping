@@ -49,16 +49,30 @@ record so the next change doesn't undo a deliberate decision.
   financing puts don't count as hedge demand. Static buckets (risk-on /
   neutral / hedge-pressure / risk-off / panic); the method files gate it on
   baseline percentile context. Replaces the daily qualitative rediscovery.
-- **Play classification: `signal_type` + `horizon`** (June 2026) — every play
-  declares what its flow IS (directional / hedge / positioning / volatility /
-  financing) and the maturity of its cited evidence (event / tactical / medium
-  / strategic). Type gates confidence (only directional may be high; financing
-  is never a play); horizon must contain the thesis (1-DTE clusters can no
-  longer anchor multi-week calls). Folded into the play cell's bracket line —
-  no sheet-schema change.
+- **Play classification: `flow_intent` + `horizon`** (June 2026, revised) —
+  every play declares what its flow IS (`DIRECTIONAL` / `VOLATILITY` / `HEDGE` /
+  `SYNTHETIC STOCK`) and the maturity of its cited evidence (event / tactical /
+  medium / strategic). `flow_intent` is a classification, **not** a confidence
+  cap — all four are valid plays and confidence is scored separately on evidence
+  quality (framework Step 5 rubric: flow/dealer/price/vol/catalyst → 0–100,
+  intent-weighted — Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY). The
+  earlier design gated confidence by type (only directional could be high) and
+  lumped all views into one `VIEW` value; that collapsed two axes and was
+  dropped. Horizon must still contain the thesis
+  (1-DTE clusters can no longer anchor multi-week calls). Folded into the play
+  cell's bracket line (`flow_intent` upper-cased) — no sheet-schema change.
 - **Persistence surfaced by default** (June 2026) — pipeline `DEFAULT_DAYS`
   1 → 5 so every run sees the trailing week, and the persistence section leads
   with a **Persistent names (≥3 days)** callout.
+- **VIX term structure snapshot** (June 2026) — `lib/vol_snapshot.py` pulls four
+  CBOE indices from yfinance (`^VIX`/`^VIX9D`/`^VIX3M`/`^VVIX`) and derives
+  `term_ratio` (VIX/VIX3M; >1 → backwardation) and `event_ratio` (VIX9D/VIX;
+  >1 → near-term event vol elevated). `prepare_analysis.py` injects a compact
+  markdown section into the rollup; soft-fail with a daily cache
+  (`.cache/vol_snapshot_YYYY-MM-DD.json`). This is the free, history-trivial
+  first slice of the forward vol layer (item 2) — per-name IV rank / term / skew
+  remain deferred on the IV-history blocker. SPX skew is omitted (needs the
+  options chain).
 
 ---
 

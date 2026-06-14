@@ -75,18 +75,19 @@ def test_analysis_to_rows_prefixes_confidence_when_present():
     assert rows[1]["play"] == "[low]\nbull call 600/610 | trend"
 
 
-def test_analysis_to_rows_folds_signal_type_and_horizon_into_bracket_line():
+def test_analysis_to_rows_folds_flow_intent_and_horizon_into_bracket_line():
     analysis = {
         "regime": "RANGE",
         "plays": [
             {"ticker": "SMH", "asset_class": "etf",
              "structure": "bear put spread 560/500", "thesis": "semi hedge",
-             "confidence": "Medium", "signal_type": "Hedge", "horizon": 60},
+             "confidence": "Medium", "flow_intent": "Hedge", "horizon": 60},
         ],
     }
     rows = analysis_to_rows(analysis, "2026-06-11", "2026-06-11", "2026-06-11")
     # Classification folds into the bracket line — no new sheet columns.
-    assert rows[1]["play"].splitlines()[0] == "[medium | hedge | 60]"
+    # flow_intent renders upper-case; confidence and horizon lower-case.
+    assert rows[1]["play"].splitlines()[0] == "[medium | HEDGE | 60]"
     assert list(rows[1].keys()) == ROW_COLUMNS
 
 

@@ -87,7 +87,7 @@ ROW_COLUMNS = [
 # expanded into one sheet row per ticker without parsing free text.
 #
 # Coupled to analysis_to_rows() in core.py: the `plays` item keys
-# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence/signal_type/horizon/alternative_interpretation)
+# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence/flow_intent/horizon/alternative_interpretation)
 # are read there, so keep them in sync if you edit this. Coverage minimums are
 # MIN_STOCK_PLAYS / MIN_ETF_PLAYS above — keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
@@ -109,12 +109,12 @@ Schema (all string fields unless noted):
       "pattern": "TF|MR|GE|VC|PU|DP — the playbook (Step 2). TF (trend following) and GE (gamma expansion) bias WITH the trend/breakout direction; MR (mean reversion) bias OPPOSITE the extension; PU (positioning unwind) bias WITH the unwind direction; VC (volatility compression) and DP (dealer pinning) are non-directional. HP is NOT a value here — it lives in the market regime. The `structure` direction MUST match this playbook's bias.",
       "regime": "Ticker-specific regime — the volatility / level / posture state for THIS name (e.g. 'BULL + E-VOL — testing 59 breakout, IV30 rising into earnings'). Distinct from the market regime. Leave EMPTY if there is nothing ticker-specific to add beyond the market read — do NOT copy the market regime here.",
       "signal": "Ticker-specific tagged evidence supporting THIS play, pipe-separated. E.g. [FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI unusual print | [FLOW] explicit ToOpen/BuyToOpen $64 calls | [PRICE] testing breakout at 59. Distinct from the market-level `signals` — this is the per-ticker evidence chain.",
-      "structure": "Option structure from the two-layer table (Step 3): playbook fixes the bias, IV picks aggressive/moderate/conservative. Bullish: long call / call spread / short put. Bearish: long put / put spread / short call. Vol expansion: straddle / strangle / calendar. Vol compression or DP: short strangle / iron condor / butterfly. TF/MR with time-structure edge: diagonal spread or calendar. e.g. bull call spread 185/200",
+      "structure": "Option structure from the two-layer table (Step 4): playbook fixes the bias, IV picks aggressive/moderate/conservative. Bullish: long call / call spread / short put. Bearish: long put / put spread / short call. Vol expansion: straddle / strangle / calendar. Vol compression or DP: short strangle / iron condor / butterfly. TF/MR with time-structure edge: diagonal spread or calendar. e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
-      "confidence": "high|medium|low",
-      "signal_type": "REQUIRED, one of directional|hedge|positioning|volatility|financing — what the underlying flow IS, kept separate from how tradeable it is. directional = a genuine view on price (OTM/ATM, opening, horizon matches a thesis); hedge = protection on an existing book (index/sector puts under a bid tape); positioning = exposure management / stock replacement with a directional residue; volatility = gamma/event flow (0-14 DTE clusters, straddle-ish) with no durable direction; financing = conversions / deep-ITM stock-substitute premium — not a market view at all.",
+      "confidence": "high|medium|low — scored on evidence quality per the framework's Step 5 rubric (flow/dealer/price/vol/catalyst summed to 0-100: high>=70, medium 40-69, low<40), with factor weights set by flow_intent (DIRECTIONAL is Price-heavy: 25/25/20/15/15; VOLATILITY is Vol-heavy: 20/25/10/25/20; HEDGE and SYNTHETIC STOCK use the DIRECTIONAL weighting). NOT capped by flow_intent. Apply the downward guardrails: cap at low if the alternative_interpretation is at least as plausible, if evidence is <=14 DTE under a multi-week thesis, or for polluted underlyings without cross-asset confirmation.",
+      "flow_intent": "REQUIRED, one of DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK — what the flow IS. A classification, not a tradeability cap; each intent carries its own confidence. DIRECTIONAL = a bet price moves a particular way (extrinsic-heavy, opening, no offsetting book; playbook TF/MR/GE/PU; invalidated by a price level). VOLATILITY = a bet on the size of the move / implied vol, direction-agnostic (straddle/strangle/condor/calendar; playbook VC/DP; invalidated by IV collapse or decay without a move). HEDGE = protection on an existing book (index/sector puts under a bid tape, collars) — the defining feature is the offsetting position protected; framed as protection, never a forecast. SYNTHETIC STOCK = mechanical deep-ITM (~1.0 delta) exposure, conversions, stock-replacement, boxes — mostly intrinsic, a soft tell; strip intrinsic before ranking. DIRECTIONAL vs VOLATILITY follows the playbook + structure; opening-view vs HEDGE turns on whether an offsetting underlying position is protected. Bid-side calls / ask-side puts without a ToOpen label read as HEDGE or SYNTHETIC STOCK until evidence shows new risk opened.",
       "horizon": "REQUIRED, one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the play's CITED evidence: ≤14 DTE → 14, 15–60 DTE → 60, 61–180 DTE → 180, 181+ DTE → 720. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
       "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: downgrade confidence to 'low' or drop the play. One sentence."
     }
@@ -151,12 +151,14 @@ Discipline rules — apply to every play before promoting to medium / high confi
   the auditable record that the benign-explanation check was performed. A play
   whose `alternative_interpretation` is at least as plausible as the directional
   thesis must be downgraded to 'low' or dropped — do not bury the conflict.
-- `signal_type` gates confidence: only 'directional' plays may carry 'high'
-  confidence. 'hedge' and 'positioning' plays cap at 'medium' and their thesis
-  must be framed as protection/positioning, not a price forecast. 'volatility'
-  plays cap at 'low' unless the structure itself is a vol trade (straddle/
-  strangle). 'financing' flow is not a play — use it only to flag that a name's
-  headline premium is polluted, or drop it.
+- `flow_intent` is a classification, NOT a confidence cap. Label it correctly
+  and let confidence float on evidence quality. HEDGE and SYNTHETIC STOCK are
+  valid plays — a HEDGE framed as protection can be high-confidence; a
+  DIRECTIONAL can be low. The discipline is label honesty: a hedge thesis is
+  framed as protection (never a price forecast), a SYNTHETIC STOCK thesis as
+  exposure (strip intrinsic, soft tell), and you must never tag protection or
+  mechanical exposure as DIRECTIONAL/VOLATILITY to dodge the evidence test. Drop
+  a name only when its flow is pure financing noise with nothing to say.
 - `horizon` must be consistent with the thesis: short-dated evidence (≤14 DTE)
   cannot support a multi-week directional thesis — either find longer-dated
   corroboration or downgrade to 'low' and call it gamma/event flow.

@@ -85,14 +85,14 @@ A playbook names the **edge source** — the structural reason this situation is
 3. **Vol richness** — Is IV cheap or expensive relative to what is likely to happen? Use VIX term structure (contango vs backwardation), VVIX, and skew — not absolute VIX level alone. VIX 20 in contango-and-falling is a different environment from VIX 20 in backwardation-and-rising.
 4. **Price** — Use price action last, to confirm timing and direction.
 
-| Playbook | Short | Edge source | Arises when | Bias |
-| -------- | ----- | ----------- | ----------- | ---- |
-| Trend Following | TF | Momentum + dealer hedge-chasing | Sustained directional move; negative gamma forces dealers to amplify | With trend |
-| Mean Reversion | MR | Stretched positioning + overpriced IV | Price ≈2× ATR from mean; elevated skew; crowd extended in one direction | Opposite extension |
-| Gamma Expansion | GE | Negative gamma acceleration on breakout | Range compression → breakout; dealers short gamma and must chase | With breakout direction |
-| Volatility Compression | VC | IV overpriced post-spike | VX1/VX2 restoring contango; VVIX falling; C-VOL regime | Non-directional |
-| Positioning Unwind | PU | Forced repositioning from crowded book | Large one-sided OI + catalyst or sentiment shift; hedging flow reversal | With unwind direction |
-| Dealer Pinning | DP | Dealer suppression of realized vol near large OI | High positive gamma; large OI cluster at nearby strike; realized vol declining | Non-directional (range around pin strike) |
+| Playbook               | Short | Edge source                                      | Arises when                                                                    | Bias                                      |
+| ---------------------- | ----- | ------------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------- |
+| Trend Following        | TF    | Momentum + dealer hedge-chasing                  | Sustained directional move; negative gamma forces dealers to amplify           | With trend                                |
+| Mean Reversion         | MR    | Stretched positioning + overpriced IV            | Price ≈2× ATR from mean; elevated skew; crowd extended in one direction        | Opposite extension                        |
+| Gamma Expansion        | GE    | Negative gamma acceleration on breakout          | Range compression → breakout; dealers short gamma and must chase               | With breakout direction                   |
+| Volatility Compression | VC    | IV overpriced post-spike                         | VX1/VX2 restoring contango; VVIX falling; C-VOL regime                         | Non-directional                           |
+| Positioning Unwind     | PU    | Forced repositioning from crowded book           | Large one-sided OI + catalyst or sentiment shift; hedging flow reversal        | With unwind direction                     |
+| Dealer Pinning         | DP    | Dealer suppression of realized vol near large OI | High positive gamma; large OI cluster at nearby strike; realized vol declining | Non-directional (range around pin strike) |
 
 **SH (safe-haven flow)** maps to PU or TF on defensive assets (GLD/TLT). **MS (macro shock)** maps to GE (sudden negative-gamma break) or VC (post-shock IV normalization).
 
@@ -100,31 +100,74 @@ A playbook names the **edge source** — the structural reason this situation is
 
 Absolute VIX level is an incomplete signal — the same reading can call for opposite structures. Characterize term structure before selecting structure or DTE:
 
-| Signal | Reading | Implication |
-| ------ | ------- | ----------- |
-| VX1/VX2 < 1 (contango) | Normal carry | VC and DP viable; premium-selling reasonable |
-| VX1/VX2 > 1 (backwardation) | Panic / crisis | Fade VC; prefer long convexity; backwardation can persist |
-| VIX9D/VIX elevated | Near-term event risk | Short-dated structures expensive; extend DTE past catalyst or buy event vol directly |
-| VVIX elevated (>100) | Vol-of-vol high | Straddles/strangles expensive to hold; prefer defined-risk spreads |
-| SPX skew steep | Crash demand elevated | Selling puts into steep skew is dangerous; downside bid for a reason |
-| SPX skew flat / inverting | Tail protection cheap or unwinding | VC or DP supported; put-spread selling rational |
+| Signal                      | Reading                            | Implication                                                                          |
+| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| VX1/VX2 < 1 (contango)      | Normal carry                       | VC and DP viable; premium-selling reasonable                                         |
+| VX1/VX2 > 1 (backwardation) | Panic / crisis                     | Fade VC; prefer long convexity; backwardation can persist                            |
+| VIX9D/VIX elevated          | Near-term event risk               | Short-dated structures expensive; extend DTE past catalyst or buy event vol directly |
+| VVIX elevated (>100)        | Vol-of-vol high                    | Straddles/strangles expensive to hold; prefer defined-risk spreads                   |
+| SPX skew steep              | Crash demand elevated              | Selling puts into steep skew is dangerous; downside bid for a reason                 |
+| SPX skew flat / inverting   | Tail protection cheap or unwinding | VC or DP supported; put-spread selling rational                                      |
 
 ### Trigger Conditions
 
-| Trigger | Conditions | Dealer / positioning catalyst | Playbook |
-| ------- | ---------- | ----------------------------- | -------- |
-| Price extension | Intraday move ≈2× expected move or 1.5–2× ATR | Skew steepening; crowd extended in extension direction | MR |
-| Reversal signal | Strong candle at S/R; elevated IV; momentum exhausting | Positioning overcrowded; flow reversing direction | MR, PU |
-| IV spike | VIX / underlying IV rises sharply | VX1/VX2 flips to backwardation; VVIX spikes | GE, PU |
-| IV compression | IV drops sharply post-event | VX1/VX2 restores contango; VVIX falling | VC, DP |
-| Positioning imbalance | Crowded longs/shorts; exaggerated reactions | Large one-sided OI; hedge ratio extreme | PU |
-| Trend breakout | Price breaks resistance/support with follow-through | Dealers short gamma → forced to buy/sell into move | TF, GE |
-| Momentum continuation | Higher highs/lows; large directional candles; shallow pullbacks | Dealer delta-hedging amplifying the move | TF |
-| Dealer pin | Price orbiting large OI strike; realized vol declining | Dealers long gamma → absorb flow, sell rallies, buy dips | DP |
+| Trigger               | Conditions                                                      | Dealer / positioning catalyst                            | Playbook |
+| --------------------- | --------------------------------------------------------------- | -------------------------------------------------------- | -------- |
+| Price extension       | Intraday move ≈2× expected move or 1.5–2× ATR                   | Skew steepening; crowd extended in extension direction   | MR       |
+| Reversal signal       | Strong candle at S/R; elevated IV; momentum exhausting          | Positioning overcrowded; flow reversing direction        | MR, PU   |
+| IV spike              | VIX / underlying IV rises sharply                               | VX1/VX2 flips to backwardation; VVIX spikes              | GE, PU   |
+| IV compression        | IV drops sharply post-event                                     | VX1/VX2 restores contango; VVIX falling                  | VC, DP   |
+| Positioning imbalance | Crowded longs/shorts; exaggerated reactions                     | Large one-sided OI; hedge ratio extreme                  | PU       |
+| Trend breakout        | Price breaks resistance/support with follow-through             | Dealers short gamma → forced to buy/sell into move       | TF, GE   |
+| Momentum continuation | Higher highs/lows; large directional candles; shallow pullbacks | Dealer delta-hedging amplifying the move                 | TF       |
+| Dealer pin            | Price orbiting large OI strike; realized vol declining          | Dealers long gamma → absorb flow, sell rallies, buy dips | DP       |
 
 ---
 
-## Step 3 — Possible Play
+## Step 3 — Flow Intent
+
+Classify what each play's premium is *doing*, as a per-play `flow_intent`. This
+is a **classification, not a filter** — all four are valid plays we produce.
+Label each correctly so protective flow is never read as a directional bet, and
+mechanical exposure never inflates conviction.
+
+**What each intent means** — the substance of the bet, not the detection test:
+
+| `flow_intent`       | The bet                                                                                                                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DIRECTIONAL**     | A bet that price moves a particular way. Profits from the move; invalidated by a price level. No offsetting book being protected.                                                                |
+| **VOLATILITY**      | A bet on the *size* of the move / on implied vol, direction-agnostic — straddles, strangles, condors, calendars. Profits from realized-vs-implied vol; invalidated by IV collapse or decay without a move. |
+| **HEDGE**           | Protection on an existing book — downside insurance, collars, put spreads held against longs. The defining feature is the *offsetting position being protected*; framed as protection, never a forecast. |
+| **SYNTHETIC STOCK** | Mechanical exposure via deep-ITM options (~1.0 delta), conversions/reversals, stock-replacement, boxes. Premium is mostly intrinsic — exposure/financing, not a bet on a move.                    |
+
+**How to detect / disambiguate** — the tests that assign the label:
+
+- **Extrinsic premium** (premium − intrinsic) must be the bulk of the flow for
+  DIRECTIONAL or VOLATILITY. Near-1.0-delta, mostly-intrinsic prints are
+  **SYNTHETIC STOCK** — strip the intrinsic before ranking (`Ext$` / `Fin%` in
+  the rollup already do this). SYNTHETIC STOCK is a soft positioning tell, not a
+  high-confidence call on a near-term move.
+- **DIRECTIONAL vs VOLATILITY** follows the playbook from Step 2 (TF/MR/GE/PU
+  directional; VC/DP volatility) and the structure confirms it — a one-sided
+  debit/credit spread is DIRECTIONAL; a straddle/strangle/condor/calendar is
+  VOLATILITY.
+- **Opening view vs HEDGE** turns on whether an *offsetting underlying position*
+  is being protected. Bid-side calls / ask-side puts without a `ToOpen` label, overwrites,
+  and closing flow read as **HEDGE** or **SYNTHETIC STOCK** until evidence (a
+  `ToOpen` label, cross-asset confirmation) shows new risk being opened. This is
+  the "don't read someone else's protection as your directional signal" rule.
+- **Opening, not closing** — the premium must open new risk; a close is not a play.
+
+`flow_intent` is **not** a confidence cap — confidence is scored separately in
+Step 5, and the rubric is *weighted by intent* (Price-heavy for DIRECTIONAL,
+Vol-heavy for VOLATILITY). Each intent carries its own confidence: a HEDGE can be
+high-confidence (strong evidence the protection is warranted), a DIRECTIONAL can
+be low. The only hard rule is correctness of the label — never tag protection or
+mechanical exposure as DIRECTIONAL/VOLATILITY to dodge the evidence test.
+
+---
+
+## Step 4 — Possible Play
 
 For each high-conviction ticker, select a playbook and then a structure using two layers.
 Prioritise names that appear in both the unusual-activity and flow datasets — cross-dataset overlap is already scored as a conviction signal in the prepared rollup.
@@ -133,19 +176,40 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 
 **Layer 2 — Select the structure** using directional view and IV. The playbook fixes the bias; IV and DTE determine how aggressively to express it:
 
-| View | Aggressive (low or rising IV) | Moderate | Conservative (high or falling IV) |
-| ---- | ----------------------------- | -------- | --------------------------------- |
-| Bullish | Long call | Call spread | Short put |
-| Bearish | Long put | Put spread | Short call |
-| Vol expansion | Straddle | Strangle | Calendar |
-| Vol compression | Short strangle | Iron condor | Butterfly |
-| Pinning (DP) | Iron condor | Short strangle | Butterfly |
+| View                   | Aggressive (low or rising IV) | Moderate             | Conservative (high or falling IV) |
+| ---------------------- | ----------------------------- | -------------------- | --------------------------------- |
+| Bullish                | Long call                     | Bull call spread     | Short put                         |
+| Bearish                | Long put                      | Bear put spread      | Short call spread                 |
+| Slow directional trend | Long call/put                 | Long diagonal spread | Credit spread                     |
+| Vol expansion          | Long straddle                 | Long strangle        | Long calendar spread              |
+| Vol compression        | Short strangle                | Iron condor          | Butterfly                         |
+| Pinning (DP)           | Short strangle                | Iron condor          | Butterfly                         |
 
 For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-structure edge is present (trend continuation into a catalyst window; or MR where front-month vol is elevated but the longer leg is cheap).
 
 For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long ATM/slightly-OTM weekly or debit spread; backwardation → defined-risk debit spread or backspread (cap premium paid); VVIX elevated → defined-risk only.
 
 **Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV table — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.
+
+**Playbook → play bridge.** Every playbook maps to a `flow_intent`, a view, and a structure — none dangle:
+
+| Playbook                  | Bias                        | `flow_intent`             | View                                | Structure (IV picks aggressive→conservative)                                                                                                                  |
+| ------------------------- | --------------------------- | ------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TF** Trend Following    | With trend                  | DIRECTIONAL               | Bullish / Bearish / Slow trend      | long call/put → debit spread / diagonal → credit spread                                                                                                       |
+| **MR** Mean Reversion     | Counter-extension           | DIRECTIONAL               | Bullish / Bearish                   | same ladder, opposite the extension                                                                                                                           |
+| **GE** Gamma Expansion    | With breakout (or agnostic) | DIRECTIONAL / VOLATILITY  | Bullish / Bearish, or Vol expansion | contango → long ATM/OTM weekly or debit spread; backwardation → defined-risk debit / backspread; VVIX high → defined-risk; direction unclear → long straddle |
+| **PU** Positioning Unwind | With unwind                 | DIRECTIONAL               | Bullish / Bearish                   | ladder in the unwind direction                                                                                                                                |
+| **VC** Vol Compression    | Non-directional             | VOLATILITY                | Vol compression                     | short strangle → iron condor → butterfly                                                                                                                      |
+| **DP** Dealer Pinning     | Non-directional (pin)       | VOLATILITY                | Pinning                             | short strangle → iron condor → butterfly                                                                                                                      |
+
+The two `flow_intent`s that sit **outside** the six alpha playbooks — their edge source is risk management / mechanics, not an alpha edge:
+
+| Purpose                  | `flow_intent`       | Structure                                                                                            |
+| ------------------------ | ------------------- | --------------------------------------------------------------------------------------------------- |
+| Regime-driven protection | **HEDGE**           | protective puts, collars, put spreads vs. longs; sized to the book, not a target                     |
+| Mechanical exposure      | **SYNTHETIC STOCK** | usually flagged not traded; if expressed, deep-ITM option for exposure — strip intrinsic from ranking |
+
+**IV note — IV sets the ladder direction.** Pick **aggressive when IV is low or rising** (buy premium — long options / debit structures), **conservative when IV is high or falling** (sell premium — credit / defined-risk), moderate in between. The same view yields opposite structures: a *Bullish* read is a long call in cheap/rising IV but a short put or credit spread in rich/falling IV. Selecting a debit structure into high IV (or a credit structure into cheap IV) is a mismatch — fix the structure, not the view.
 
 Produce a full slate every run: **at least 5 stock plays and at least 3 ETF plays**
 (8+ total), ordered strongest conviction first, drawn from the highest-scoring names
@@ -161,7 +225,40 @@ Format each play as:
 
 ---
 
-## Step 4 — Invalidation
+## Step 5 — Confidence
+
+Confidence is conviction in the play's **own thesis**, scored on evidence
+quality. It is **independent of `flow_intent`** — no intent caps it — but the
+factor *weights* depend on the intent: a directional play lives or dies on price,
+a volatility play on IV. Score each factor, sum to 0–100, map to a label:
+
+| Factor                 | Directional | Volatility | What earns it                                                                                                |
+| ---------------------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| **Flow confirmation**  | 25          | 20         | repetition / clustering, cross-dataset overlap (unusual + flow), extrinsic-premium concentration             |
+| **Dealer alignment**   | 25          | 25         | dealer gamma supports the play — short gamma behind a trend/breakout; long gamma behind a pin                |
+| **Price confirmation** | 20          | 10         | price action confirms — key level held or broken with follow-through, structure intact                       |
+| **Vol alignment**      | 15          | 25         | IV / term structure / skew fit the chosen structure (cheap-or-rising IV for debit; rich-or-falling for credit) |
+| **Catalyst support**   | 15          | 20         | a dated catalyst within the horizon corroborates the thesis (earnings, macro print, product event)           |
+
+**HEDGE** and **SYNTHETIC STOCK** use the Directional weighting, but score the
+relevant thesis: a HEDGE on whether the protection is genuine and well-placed
+(not a price forecast), a SYNTHETIC STOCK on whether real exposure is being
+built — it typically lands Low and is flagged rather than traded.
+
+Bands: **High ≥ 70 · Medium 40–69 · Low < 40.**
+
+Guardrails — these override the score *downward* only:
+
+- If the play's `alternative_interpretation` is at least as plausible as the
+  thesis → cap at Low or drop. The benign-explanation check is mandatory.
+- Short-dated-only evidence (≤14 DTE) cannot support a multi-week thesis →
+  downgrade to Low or re-tag as gamma/event flow.
+- Polluted underlyings (convertible-hedge names, levered/inverse ETFs, miners as
+  crypto proxies) without cross-asset confirmation → cap at Low.
+
+---
+
+## Step 6 — Invalidation
 
 For each play, state what would make the thesis wrong.
 Be specific — name price levels, flow reversals, or macro events that would trigger a cut or adjustment.
@@ -181,7 +278,7 @@ Respond with a JSON object with exactly these keys (all plain strings):
   "regime": "Labels + one-sentence read. Include the macro label only when corroborated by cross-asset evidence; otherwise omit it. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, put hedging dominant across index ETFs, no sustained RISK-ON rotation.",
   "signals": "Tagged signal list. E.g. [FLOW] Heavy QQQ put sweeps | [VEGA] VIX call buying 35-40 | [PRICE] NVDA testing 180 support",
   "sector_focus": "Sectors/names with concentrated flow and what it implies. Cross-reference unusual activity + flow.",
-  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf and a confidence, with playbook, structure, thesis, trigger. E.g. 1. NVDA (stock, high) — TF | Bull call spread 185/200 | Repeated call flow into momentum continuation with dealers short gamma. Trigger: hold above 180.",
+  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf, a flow_intent (DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK), and a confidence, with playbook, structure, thesis, trigger. E.g. 1. NVDA (stock, DIRECTIONAL, high) — TF | Bull call spread 185/200 | Repeated call flow into momentum continuation with dealers short gamma. Trigger: hold above 180.",
   "invalidation": "Per-ticker invalidation conditions. E.g. NVDA: daily close < 178 with volume. QQQ: sustained hold above 460."
 }
 ```
