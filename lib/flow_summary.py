@@ -917,6 +917,45 @@ def summarize_persistence(days: list[dict], title: str, top_n: int = 30) -> str:
 # Raw / ticker-filter passthrough (used by --raw and --ticker)
 # ---------------------------------------------------------------------------
 
+def persistence_callout_md(days: list[dict], title: str) -> str:
+    """One-line callout of names recurring ≥3 days across the window.
+
+    Same per-day scoring as summarize_persistence but emits only the
+    '**Persistent names (≥3 days):**' line — no trajectory table.
+    Returns an empty string when nothing qualifies.
+    """
+    if not days:
+        return ""
+
+    per_day: list[dict[str, dict]] = []
+    all_syms: set[str] = set()
+    for d in days:
+        rollup = _flow_ticker_rows(d.get("flow_rows") or [])
+        un_rows = d.get("unusual_rows") or []
+        un_syms = {(r.get(_UN_SYMBOL) or "").strip() for r in un_rows}
+        un_syms.discard("")
+        score_flow_rollup(rollup, un_syms, _voloi_by_symbol(un_rows))
+        by_sym = {r["symbol"]: r for r in rollup}
+        per_day.append(by_sym)
+        all_syms.update(by_sym)
+
+    n = len(days)
+    persistent = []
+    for sym in all_syms:
+        present = [i for i, bs in enumerate(per_day) if sym in bs]
+        if len(present) < 3:
+            continue
+        latest_row = per_day[present[-1]][sym]
+        persistent.append((sym, len(present), latest_row["score"], _persistence_lean(latest_row)))
+
+    if not persistent:
+        return ""
+
+    persistent.sort(key=lambda r: (r[2], r[1]), reverse=True)
+    names = " · ".join(f"{sym} {days_}/{n} ({lean})" for sym, days_, _, lean in persistent)
+    return f"**{title} — persistent names (≥3 days):** {names}"
+
+
 def rows_to_markdown_raw(rows: list[dict], title: str) -> str:
     """Verbatim per-row markdown — the old default behavior of prepare_analysis."""
     if not rows:

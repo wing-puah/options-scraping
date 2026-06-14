@@ -1,5 +1,5 @@
-"""Tests for the date helpers in scripts/prepare_analysis.py (no Drive needed)."""
-from prepare_analysis import _date_from_filename, _last_n_trading_days
+"""Tests for the date helpers in scripts/analysis_pipeline/fetch.py (no Drive needed)."""
+from analysis_pipeline.fetch import _date_from_filename, _last_n_trading_days
 
 
 def test_date_from_filename_parses_compact_date():

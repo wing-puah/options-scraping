@@ -1,7 +1,7 @@
 """
 Core logic for the options flow analysis pipeline.
 
-    fetch    → prepare_analysis.fetch_data            (deterministic)
+    fetch    → fetch.fetch_data                        (deterministic)
     analyze  → headless engine call (claude / codex)  (LLM, isolated context)
     write    → sheets_client.append_rows(tab)         (deterministic)
 
@@ -15,7 +15,7 @@ deterministic; the analysis step is not — there is no temperature knob over th
 headless CLIs, so expect run-to-run variation. We constrain it with a fixed
 prompt + explicit JSON contract and retry on parse failure, nothing more.
 """
-from scripts.prepare_analysis import (
+from .fetch import (
     _last_n_trading_days,
     _latest_available_date,
     fetch_data,
