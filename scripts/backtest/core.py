@@ -30,12 +30,18 @@ _KEY_ORDER = [
     "signal_date", "ticker", "structure", "legs", "entry_leg_detail", "contracts",
     "dte_entry", "iv_entry_pct", "delta", "entry_underlying",
     "entry_option_price", "entry_premium_total", "entry_source",
-    "regime", "play",
+    "market_regime", "regime", "play",
     "realized_pnl_pct", "realized_pnl_abs", "days_held", "exit_reason",
     "mfe_pct", "mfe_abs", "mfe_day", "mae_pct", "mae_abs", "mae_day", "pnl_at_cap_pct", "pct_real_days",
     "daily_price_csv",
     "created_datetime",
 ]
+
+
+def _regime_prefix(regime: str) -> str:
+    """Return the regime label up to (but not including) the first em-dash."""
+    import re
+    return re.split(r"[—–]", regime, maxsplit=1)[0].strip()
 
 
 def _anchor_idx(legs) -> int:
@@ -433,6 +439,7 @@ def main() -> None:
                            structure=m["structure"], anchor_idx=anchor_idx)
         if result:
             result["created_datetime"] = created_datetime
+            result["market_regime"] = _regime_prefix(market_regime.get(c["date"], ""))
             results.append(result)
         else:
             skipped["unpriced"] += 1

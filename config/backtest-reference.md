@@ -35,6 +35,7 @@ samples whatever holding horizons it wants from that path.
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
 | **entry_premium_total** | `abs(entry_option_price) × 100 × contracts` — dollar cost/credit of the position. |
 | **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `real` = anchor flow `Trade` price; `barchart` = real Barchart history; `bs` = Black-Scholes. E.g. `real`, `real+barchart`, `real+bs`. Uniform-BS positions (≥ `uniform_bs_min_legs` legs, e.g. iron condors) report `bs` (all legs modelled at one IV for internal consistency). |
+| **market_regime** | The market-level regime for that date (from the MARKET row), truncated at the first em-dash — e.g. `BULL TREND`. |
 | **regime** | The play's ticker-specific regime label carried from the analysis row (not the market read). |
 | **play** | The play text (truncated to 300 chars). |
 

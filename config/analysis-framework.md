@@ -178,14 +178,22 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 
 **Layer 2 — Select the structure.** Each playbook fixes a `flow_intent` and a view; IV and DTE then determine how aggressively to express it. One table carries the whole chain — playbook → intent → view → structure — so none dangle:
 
-| Playbook                  | `flow_intent`            | View                                        | Aggressive (low or rising IV)         | Moderate                     | Conservative (high or falling IV)   |
-| ------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
-| **TF** Trend Following    | DIRECTIONAL              | Bullish / Bearish / Slow trend (with trend) | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
-| **MR** Mean Reversion     | DIRECTIONAL              | Bullish / Bearish (counter-extension)       | Long call / put                       | Debit spread                 | Credit spread                       |
-| **GE** Gamma Expansion    | DIRECTIONAL / VOLATILITY | Breakout direction, or Vol expansion        | Long ATM/OTM weekly, or long straddle | Debit spread / long strangle | Defined-risk debit / backspread     |
-| **PU** Positioning Unwind | DIRECTIONAL              | Bullish / Bearish (unwind direction)        | Long call / put                       | Debit spread                 | Credit spread                       |
-| **VC** Vol Compression    | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
-| **DP** Dealer Pinning     | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
+| Playbook                   | `flow_intent`            | View                                        | Aggressive (low or rising IV)         | Moderate                     | Conservative (high or falling IV)   |
+| -------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
+| **TF** Trend Following     | DIRECTIONAL              | Bullish / Bearish — momentum / breakout     | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
+| **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Credit spread (bull put / bear call)  | Credit spread                | Credit spread                       |
+| **MR** Mean Reversion      | DIRECTIONAL              | Bullish / Bearish (counter-extension)       | Long call / put                       | Debit spread                 | Credit spread                       |
+| **GE** Gamma Expansion     | DIRECTIONAL / VOLATILITY | Breakout direction, or Vol expansion        | Long ATM/OTM weekly, or long straddle | Debit spread / long strangle | Defined-risk debit / backspread     |
+| **PU** Positioning Unwind  | DIRECTIONAL              | Bullish / Bearish (unwind direction)        | Long call / put                       | Debit spread                 | Credit spread                       |
+| **VC** Vol Compression     | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
+| **DP** Dealer Pinning      | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
+
+**TF vs TF-S — choosing between them:** The split is dealer gamma, not IV level.
+
+- **TF (momentum/breakout):** Dealer gamma is *negative* — dealers must hedge by buying into rallies and selling into declines, which amplifies the move. Use debit structures to capture that acceleration. Signs: E-VOL or rising IV, breakout from range, VIX/VIX3M rising toward or above 1, negative-gamma OI cluster being breached.
+- **TF-S (slow grinder):** Dealer gamma is *positive* — dealers absorb order flow, suppress realized vol, and the market grinds without sharp moves. A debit structure here buys premium into a low-MFE environment; the move is too slow to overcome theta. Use **credit spreads** (bull put spread for bullish, bear call spread for bearish) regardless of absolute IV level — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend.
+
+> **Gate:** The definitive TF vs TF-S signal is dealer GEX (gamma exposure by strike). Until per-name GEX is in the rollup (Phase 2 — see roadmap), use the vol snapshot as the proxy: contango + stable L-VOL + no E-VOL + no catalyst → treat as positive-gamma / TF-S and prefer credit. The vol snapshot is already injected into every rollup.
 
 For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-structure edge is present (trend continuation into a catalyst window; or MR where front-month vol is elevated but the longer leg is cheap).
 

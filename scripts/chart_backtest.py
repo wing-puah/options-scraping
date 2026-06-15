@@ -82,10 +82,24 @@ def pnl_at(path: list[float], n: int) -> float:
     return path[n - 1] if len(path) >= n else path[-1]
 
 
+def _regime_label(s: str) -> str | None:
+    """Extract BULL/BEAR/RANGE from any regime string."""
+    import re
+    if not isinstance(s, str) or not s:
+        return None
+    m = re.search(r"\b(BULL|BEAR|RANGE)\b", s.upper())
+    return m.group(1) if m else None
+
+
 def load(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df["signal_date"] = pd.to_datetime(df["signal_date"])
     df["regime_label"] = df["regime"].str.extract(r"^(BULL|BEAR|RANGE)")
+    # Structured labels extracted from the free-text regime columns for grouping.
+    df["mkt_label"] = df["market_regime"].apply(_regime_label)
+    df["play_label"] = df["regime"].apply(_regime_label)
+    df["hp_flag"] = df["market_regime"].str.contains("HP", na=False)
+    df["regime_aligned"] = df["mkt_label"] == df["play_label"]
     # The backtest writes the authoritative realized exit; all P&L is path-derived.
     df["realized_pnl"] = pd.to_numeric(df["realized_pnl_pct"], errors="coerce")
     df["realized_abs"] = pd.to_numeric(df.get("realized_pnl_abs"), errors="coerce")
@@ -923,6 +937,250 @@ def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
     return path
 
 
+def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
+    """MFE distribution analysis — box + strip plots, four groupings:
+      A · By market-level label (BULL/BEAR/RANGE)
+      B · By play (ticker) label
+      C · Aligned vs drifted
+      D · Key market × play combos (n ≥ 5), ranked by median MFE
+    """
+    df = df.copy()
+    df["mfe"] = pd.to_numeric(df["mfe_abs"], errors="coerce")
+    df_both = df[df["mkt_label"].notna() & df["play_label"].notna() & df["mfe"].notna()]
+
+    rng = np.random.default_rng(42)
+
+    def _strip_box(ax, groups, title, letter, xlabel="MFE %"):
+        """groups: list of (label, color, series). Box + jittered strip, sorted by median."""
+        groups = [(lb, c, s.dropna()) for lb, c, s in groups if not s.dropna().empty]
+        groups = sorted(groups, key=lambda g: g[2].median(), reverse=True)
+        for i, (label, color, vals) in enumerate(groups):
+            y = np.full(len(vals), i)
+            jitter = rng.uniform(-0.25, 0.25, len(vals))
+            ax.scatter(vals, y + jitter, color=color, alpha=0.45, s=22,
+                       edgecolor="white", linewidth=0.4, zorder=3)
+            q1, med, q3 = vals.quantile([0.25, 0.5, 0.75])
+            iqr = q3 - q1
+            whislo = max(vals.min(), q1 - 1.5 * iqr)
+            whishi = min(vals.max(), q3 + 1.5 * iqr)
+            ax.broken_barh([(q1, q3 - q1)], (i - 0.18, 0.36),
+                           facecolors=color, alpha=0.35, zorder=2)
+            ax.plot([med, med], [i - 0.25, i + 0.25], color=color, lw=2.5, zorder=4)
+            ax.plot([whislo, q1], [i, i], color=color, lw=1, zorder=2)
+            ax.plot([q3, whishi], [i, i], color=color, lw=1, zorder=2)
+            ax.annotate(
+                f"med ${med:+,.0f}  n={len(vals)}",
+                (whishi, i), textcoords="offset points", xytext=(5, 0),
+                va="center", fontsize=7.5, color="#333",
+            )
+        ax.axvline(0, color="#999", lw=0.8, ls="--")
+        ax.set_yticks(range(len(groups)))
+        ax.set_yticklabels([g[0] for g in groups], fontsize=8)
+        ax.set_xlabel(xlabel)
+        ax.set_title(f"{letter} · {title}", fontweight="bold")
+        ax.grid(axis="x", color=GRID)
+
+    LABEL_COLORS = {"BULL": C_BULL, "BEAR": C_RANGE, "RANGE": C_MED}
+    LABEL_ORDER = ["BULL", "BEAR", "RANGE"]
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle(
+        "MFE distribution by regime — absolute $ (full distribution, not just averages)",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    # ---- A: by market label -----------------------------------------------
+    ax = axes[0, 0]
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+
+    grp_a = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mfe"])
+             for lb in LABEL_ORDER]
+    _strip_box(ax, grp_a, "MFE by market-level regime", "A", xlabel="MFE ($)")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+
+    # ---- B: by play label -------------------------------------------------
+    ax = axes[0, 1]
+    grp_b = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mfe"])
+             for lb in LABEL_ORDER]
+    _strip_box(ax, grp_b, "MFE by play (ticker) regime label", "B", xlabel="MFE ($)")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+
+    # ---- C: aligned vs drifted --------------------------------------------
+    ax = axes[1, 0]
+    grp_c = [
+        ("Aligned\n(market == play)", C_RANGE, df_both[df_both["regime_aligned"]]["mfe"]),
+        ("Drifted\n(market ≠ play)",  C_BULL,  df_both[~df_both["regime_aligned"]]["mfe"]),
+    ]
+    _strip_box(ax, grp_c, "MFE — aligned vs counter-consensus", "C", xlabel="MFE ($)")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+
+    # ---- D: cross-tab combos with n ≥ 5, ranked by median ----------------
+    ax = axes[1, 1]
+    cross_groups = []
+    combo_colors = plt.cm.tab10(np.linspace(0, 0.9, 9))
+    ci = 0
+    for mkt in LABEL_ORDER:
+        for play in LABEL_ORDER:
+            sub = df_both[(df_both["mkt_label"] == mkt) & (df_both["play_label"] == play)]["mfe"]
+            if sub.dropna().shape[0] >= 5:
+                cross_groups.append((f"mkt={mkt}\nplay={play}", combo_colors[ci], sub))
+                ci += 1
+    _strip_box(ax, cross_groups, "MFE by market × play combo (n ≥ 5)", "D", xlabel="MFE ($)")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_mfe_dist.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def build_regime(df: pd.DataFrame, out: Path) -> Path:
+    """Regime & regime-drift analysis — four panels:
+      A · Market-regime label (BULL/BEAR/RANGE) vs mean P&L % + win rate
+      B · Play (ticker) regime label vs mean P&L % + win rate
+      C · Regime drift: aligned (market == play) vs drifted (market ≠ play)
+      D · Cross-tab heatmap: market_label × play_label — mean P&L %
+    """
+    df = df.copy()
+    df_both = df[df["mkt_label"].notna() & df["play_label"].notna() & df["realized_pnl"].notna()]
+
+    LABEL_ORDER = ["BULL", "BEAR", "RANGE"]
+    LABEL_COLORS = {"BULL": C_BULL, "BEAR": C_RANGE, "RANGE": C_MED}
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
+    fig.suptitle(
+        "Regime & regime-drift analysis — does context affect P&L?",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    def _bar_with_winrate(ax, groups, title, letter):
+        """Bar = mean P&L %, overlaid line = win rate. groups: list of (label, subset_df)."""
+        labels, means, wins, ns = [], [], [], []
+        for label, sub in groups:
+            r = sub["realized_pnl"].dropna()
+            if r.empty:
+                continue
+            labels.append(label)
+            means.append(r.mean())
+            wins.append((r > 0).mean() * 100)
+            ns.append(len(r))
+
+        x = np.arange(len(labels))
+        colors = [LABEL_COLORS.get(lb, C_BAR) for lb in labels]
+        ax2 = ax.twinx()
+        bars = ax.bar(x, means, color=colors, alpha=0.8)
+        ax2.plot(x, wins, "D--", color="#555", lw=1.5, ms=7, zorder=5, label="Win rate %")
+        ax2.axhline(50, color="#ccc", lw=0.7, ls=":")
+        ax2.set_ylim(0, 105)
+        ax2.set_ylabel("Win rate %", fontsize=8)
+        for i, (b, m, w, n) in enumerate(zip(bars, means, wins, ns)):
+            ax.annotate(f"{m:+.1f}%\nn={n}",
+                        (b.get_x() + b.get_width() / 2, m),
+                        textcoords="offset points",
+                        xytext=(0, 8 if m >= 0 else -22),
+                        ha="center", fontsize=8)
+            ax2.annotate(f"{w:.0f}%", (i, w),
+                         textcoords="offset points", xytext=(0, 7),
+                         ha="center", fontsize=7, color="#555")
+        ax.axhline(0, color="#999", lw=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.set_ylabel("Mean realized P&L %")
+        ax.yaxis.set_major_formatter(PercentFormatter(decimals=1))
+        ax.set_title(f"{letter} · {title}", fontweight="bold")
+        ax.grid(axis="y", color=GRID)
+
+    # ---- A: P&L by MARKET regime label ----------------------------------------
+    ax = axes[0, 0]
+    grp_mkt = [(lb, df[df["mkt_label"] == lb]) for lb in LABEL_ORDER]
+    _bar_with_winrate(ax, grp_mkt, "P&L by market-level regime", "A")
+
+    # ---- B: P&L by PLAY (ticker) regime label ---------------------------------
+    ax = axes[0, 1]
+    grp_play = [(lb, df[df["play_label"] == lb]) for lb in LABEL_ORDER]
+    _bar_with_winrate(ax, grp_play, "P&L by play (ticker) regime label", "B")
+
+    # ---- C: Drift — aligned vs counter-consensus ------------------------------
+    ax = axes[1, 0]
+    grp_drift = [
+        ("Aligned\n(market == play)", df_both[df_both["regime_aligned"]]),
+        ("Drifted\n(market ≠ play)",  df_both[~df_both["regime_aligned"]]),
+        ("HP in market\nregime",       df[df["hp_flag"]]),
+        ("No HP",                      df[~df["hp_flag"]]),
+    ]
+    drift_labels, drift_means, drift_wins, drift_ns = [], [], [], []
+    for label, sub in grp_drift:
+        r = sub["realized_pnl"].dropna()
+        if r.empty:
+            continue
+        drift_labels.append(label)
+        drift_means.append(r.mean())
+        drift_wins.append((r > 0).mean() * 100)
+        drift_ns.append(len(r))
+    x = np.arange(len(drift_labels))
+    drift_colors = [C_RANGE, C_BULL, "#6a1b9a", "#9e9e9e"]
+    ax2 = ax.twinx()
+    bars = ax.bar(x, drift_means, color=drift_colors[:len(drift_labels)], alpha=0.8)
+    ax2.plot(x, drift_wins, "D--", color="#555", lw=1.5, ms=7, zorder=5)
+    ax2.axhline(50, color="#ccc", lw=0.7, ls=":")
+    ax2.set_ylim(0, 105)
+    ax2.set_ylabel("Win rate %", fontsize=8)
+    for b, m, w, n in zip(bars, drift_means, drift_wins, drift_ns):
+        ax.annotate(f"{m:+.1f}%\nn={n}",
+                    (b.get_x() + b.get_width() / 2, m),
+                    textcoords="offset points",
+                    xytext=(0, 8 if m >= 0 else -22),
+                    ha="center", fontsize=8)
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(drift_labels, fontsize=8)
+    ax.set_ylabel("Mean realized P&L %")
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=1))
+    ax.set_title("C · Regime drift — aligned vs counter-consensus vs HP", fontweight="bold")
+    ax.grid(axis="y", color=GRID)
+
+    # ---- D: Cross-tab heatmap — market_label × play_label --------------------
+    ax = axes[1, 1]
+    piv = df_both.pivot_table(
+        index="mkt_label", columns="play_label",
+        values="realized_pnl", aggfunc="mean",
+    )
+    cnt = df_both.pivot_table(
+        index="mkt_label", columns="play_label",
+        values="realized_pnl", aggfunc="count",
+    )
+    piv = piv.reindex(index=LABEL_ORDER, columns=LABEL_ORDER)
+    cnt = cnt.reindex(index=LABEL_ORDER, columns=LABEL_ORDER)
+    vmax = np.nanmax(np.abs(piv.values)) if not np.all(np.isnan(piv.values)) else 1
+    im = ax.imshow(piv.values, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(len(LABEL_ORDER)))
+    ax.set_xticklabels(LABEL_ORDER)
+    ax.set_yticks(range(len(LABEL_ORDER)))
+    ax.set_yticklabels(LABEL_ORDER)
+    ax.set_xlabel("Play (ticker) regime label")
+    ax.set_ylabel("Market regime label")
+    for i, mkt in enumerate(LABEL_ORDER):
+        for j, play in enumerate(LABEL_ORDER):
+            v = piv.loc[mkt, play] if mkt in piv.index and play in piv.columns else np.nan
+            n = cnt.loc[mkt, play] if mkt in cnt.index and play in cnt.columns else np.nan
+            if not np.isnan(v):
+                ax.text(j, i, f"{v:+.1f}%\nn={int(n)}", ha="center", va="center",
+                        fontsize=9, fontweight="bold", color="black")
+            else:
+                ax.text(j, i, "—", ha="center", va="center", color="#aaa")
+    ax.set_title("D · Mean P&L % heatmap — market × play regime", fontweight="bold")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean P&L %")
+
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_regime.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="backtests/results.csv")
@@ -942,6 +1200,8 @@ def main():
         print("No daily_price_csv column found — skipping path charts "
               "(re-run the backtest with the new engine to populate it).")
     print(f"Wrote {build_time(df, Path(args.out))}")
+    print(f"Wrote {build_regime(df, Path(args.out))}")
+    print(f"Wrote {build_mfe_dist(df, Path(args.out))}")
 
 
 if __name__ == "__main__":

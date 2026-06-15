@@ -335,7 +335,13 @@ in rough priority:
   archive tab fed by `fetch_scored_csv` would supply it).
 - **Gamma / dealer-gamma exposure (GEX)** — needs a Black-Scholes greeks calc
   (inputs S/K/DTE/IV all in the feed; see item 5). Per-strike and per-name gamma,
-  and a market-wide GEX read for the regime layer.
+  and a market-wide GEX read for the regime layer. GEX is also the **second gate
+  for structure selection in TF plays** (framework Step 4): positive dealer gamma
+  → slow grinder → credit spread (TF-S); negative dealer gamma → momentum /
+  breakout → debit (TF). Until GEX ships, the vol snapshot (contango + stable
+  L-VOL + no E-VOL + no catalyst) is the proxy gate. Backtest evidence: BULL
+  market plays with debit structures show near-zero MFE and −68% realized/MFE
+  capture — the slow-grinder problem that TF-S is designed to fix.
 - **IV features** — IV rank/percentile, term structure, and skew (put vs call IV).
   This is the deferred vol layer (item 2); the **blocker is IV history**, so start
   the daily IV snapshot log early — every delayed day is lost history.
