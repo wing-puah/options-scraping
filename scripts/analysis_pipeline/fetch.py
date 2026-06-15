@@ -113,6 +113,7 @@ def fetch_data(
     days: int = 1,
     baseline: bool = True,
     vol: bool = True,
+    audit_csv_path: "Path | None" = None,
 ) -> str:
     """Fetch Drive data and format for LLM consumption.
 
@@ -166,7 +167,25 @@ def fetch_data(
     if days > 1:
         sections_out.extend(_persistence_sections(client, date_str, days))
 
+    if audit_csv_path is not None:
+        _write_audit_csv(section_rows, audit_csv_path)
+
     return "\n\n".join(sections_out)
+
+
+def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path) -> None:
+    sections = []
+    for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
+        rows = section_rows[flow_key]
+        if rows:
+            unusual = section_rows[_FLOW_UNUSUAL_PAIR[flow_key]]
+            sections.append((label, build_scored_flow_rollup(rows, unusual)))
+    if not sections:
+        return
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(flow_rollup_csv(sections))
+    log.info("Audit CSV written to %s", path)
 
 
 def _baseline_section(section_rows: dict[str, list[dict]], date_str: str | None, client) -> str:

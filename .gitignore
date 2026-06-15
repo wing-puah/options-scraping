@@ -19,4 +19,4 @@ backtests/option_history_cache/
 .cache/
 *_secret_*
 *-key.json
-claude-notes/
+audit/

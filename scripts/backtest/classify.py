@@ -28,15 +28,31 @@ def _extract_expiration(play_text: str, ref: date) -> date | None:
     return d if d >= ref else date(ref.year + 1, mon, day)
 
 
+_PC = r"[PCpc]?"  # optional put/call suffix after a strike digit
+
+
 def _extract_strikes(play_text: str) -> list[float]:
-    """Pull the strike(s) the play names: 4-strike IC, 2-strike spread, or single."""
+    """Pull the strike(s) the play names: 4-strike IC, 2-strike spread, or single.
+
+    Handles both slash-separated quads (A/B/C/D) and IC-pair format
+    (short A[P]/B[C], long C[P]/D[C]) where strikes carry optional P/C suffixes.
+    """
+    # IC-pair format: "short NNNp/NNNc, long NNNp/NNNc"
+    m4_ic = re.search(
+        rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*,\s*\w+\s+(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}",
+        play_text,
+    )
+    if m4_ic:
+        return [float(m4_ic.group(i)) for i in range(1, 5)]
+    # Slash-separated quad: A/B/C/D (with optional P/C suffix on each)
     m4 = re.search(
-        r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)",
+        rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}",
         play_text,
     )
     if m4:
         return [float(m4.group(i)) for i in range(1, 5)]
-    m = re.search(r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)", play_text)
+    # 2-strike spread (with optional P/C suffix)
+    m = re.search(rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}", play_text)
     if m:
         return [float(m.group(1)), float(m.group(2))]
     m = re.search(r"(?:calls?|puts?)\s+(\d+(?:\.\d+)?)", play_text, re.IGNORECASE)

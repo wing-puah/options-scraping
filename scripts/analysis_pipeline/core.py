@@ -288,7 +288,11 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
                  write: bool) -> dict | None:
     """Run fetch → analyze → (write) for a single date. Returns the analysis dict."""
     log.info("Fetching data for %s (days=%d)", date_str, days)
-    data_md = fetch_data(date_str=date_str, top_n=top_n, raw_n=raw_n, days=days)
+    audit_path = config.ROOT / "audit" / f"fetch-{date_str}.csv"
+    data_md = fetch_data(
+        date_str=date_str, top_n=top_n, raw_n=raw_n, days=days,
+        audit_csv_path=audit_path,
+    )
     if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
         log.info("No data for %s — skipping", date_str)
         return None

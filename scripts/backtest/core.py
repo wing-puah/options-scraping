@@ -94,7 +94,7 @@ async def _fetch_option_histories(
     email = os.getenv("BARCHART_EMAIL", "")
     password = os.getenv("BARCHART_PASSWORD", "")
     cookies_path = Path(os.getenv("COOKIES_PATH",
-        str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
+                                   str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
 
     series_map: dict[tuple, list] = {}
     details_map: dict[tuple, dict] = {}
@@ -181,15 +181,40 @@ def _print_summary(results) -> None:
         print("\nNo priced plays.")
         return
 
-    arr = np.array([r["realized_pnl_pct"] for r in rz])
+    # Keep pct and abs aligned on the same rows.
+    rz_abs = [r for r in rz if isinstance(r.get("realized_pnl_abs"), (int, float))]
+    arr     = np.array([r["realized_pnl_pct"] for r in rz])
+    arr_abs = np.array([r["realized_pnl_pct"] for r in rz_abs])
+    abs_arr = np.array([r["realized_pnl_abs"] for r in rz_abs])
     held = [r["days_held"] for r in rz if isinstance(r.get("days_held"), (int, float))]
     reasons = {}
     for r in rz:
         reasons[r.get("exit_reason", "")] = reasons.get(r.get("exit_reason", ""), 0) + 1
+
+    def _fmt(pct: float, abs_val: float | None = None) -> str:
+        s = f"{pct:+.2f}%"
+        if abs_val is not None:
+            s += f"  (${abs_val:+,.0f})"
+        return s
+
+    def _play_line(r: dict) -> str:
+        abs_val = r.get("realized_pnl_abs")
+        abs_str = f"  (${abs_val:+,.0f})" if isinstance(abs_val, (int, float)) else ""
+        return (f"  {r['signal_date']} {r['ticker']:6} {r['structure']:16} "
+                f"K={r['k_long']} → {r['realized_pnl_pct']:+.1f}%{abs_str}  [{r.get('exit_reason','')}]")
+
+    has_abs = len(abs_arr) > 0
     print(f"\nRealized exit ({len(arr)} priced, first profit_target/stop_loss/expiry):")
     print(f"  Win rate:   {(arr>0).sum()/len(arr)*100:.1f}%  ({(arr>0).sum()}/{len(arr)})")
-    print(f"  Avg P&L:    {arr.mean():+.2f}%   Median: {np.median(arr):+.2f}%")
-    print(f"  Best/Worst: {arr.max():+.2f}% / {arr.min():+.2f}%")
+    abs_mean = abs_arr.mean() if has_abs else None
+    abs_med  = float(np.median(abs_arr)) if has_abs else None
+    print(f"  Avg P&L:    {_fmt(arr.mean(), abs_mean)}   Median: {_fmt(float(np.median(arr)), abs_med)}")
+    if has_abs:
+        i_max, i_min = abs_arr.argmax(), abs_arr.argmin()
+        print(f"  Best/Worst: {_fmt(arr_abs[i_max], abs_arr[i_max])} / "
+              f"{_fmt(arr_abs[i_min], abs_arr[i_min])}")
+    else:
+        print(f"  Best/Worst: {arr.max():+.2f}% / {arr.min():+.2f}%")
     if held:
         print(f"  Avg hold:   {np.mean(held):.1f} trading days")
     print("  Exit mix:   " + ", ".join(f"{k}={v}" for k, v in sorted(reasons.items())))
@@ -203,11 +228,19 @@ def _print_summary(results) -> None:
     else:
         print("  ↳ real-data subset: none (all Black-Scholes modelled)")
 
-    top = sorted(rz, key=lambda x: x["realized_pnl_pct"], reverse=True)[:5]
-    print(f"\nTop {len(top)} plays by realized P&L:")
+    def _sort_key(r: dict):
+        v = r.get("realized_pnl_abs")
+        return v if isinstance(v, (int, float)) else r["realized_pnl_pct"]
+
+    ranked = sorted(rz, key=_sort_key, reverse=True)
+    top   = ranked[:5]
+    worst = ranked[-5:]
+    print(f"\nTop 5 plays by realized P&L ($):")
     for r in top:
-        print(f"  {r['signal_date']} {r['ticker']:6} {r['structure']:16} "
-              f"K={r['k_long']} → {r['realized_pnl_pct']:+.1f}%  [{r.get('exit_reason','')}]")
+        print(_play_line(r))
+    print(f"\nWorst 5 plays by realized P&L ($):")
+    for r in worst:
+        print(_play_line(r))
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────────
