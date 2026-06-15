@@ -144,11 +144,91 @@ The strategy is **profitable in directional/panic markets and structurally losin
 
 ---
 
+## Attempt 4 — WORSE ❌ (trailing-on-profit-target)
+
+**Config:** `profit_target=0.75` (activates trailing instead of exiting), `trailing_stop_trigger=1.00`, `trailing_stop_pct=0.50` — code change in `simulate.py`: when profit_target fires and trailing_stop_pct is set, set `trailing_active=True` instead of closing.
+
+| Metric | Value | vs Attempt 3 |
+|--------|-------|-------------|
+| Win rate | 40.0% | −5.8pp |
+| Avg PnL | −10.0% | **worse** |
+| Avg win | +65.9% | worse |
+| Avg loss | −60.6% | slightly better |
+
+**Exit reason breakdown:**
+
+| Reason | Count | Avg PnL |
+|--------|-------|---------|
+| time_exit | 41 | — |
+| trailing_stop | 28 | — |
+| stop_loss | 25 | — |
+| dollar_stop | 19 | — |
+
+**By regime:**
+
+| Regime | Before P&L | After P&L | Δ |
+|--------|-----------|-----------|---|
+| RISK-OFF | +82% | +128% | **+46%** |
+| BULL | −22% | −23% | −2% |
+| BEAR | +15% | +2% | −14% |
+| RANGE | −21% | −32% | −10% |
+| (other) | +33% | +7% | −26% |
+
+**Biggest losers (all profit_target → trailing_stop):**
+
+| Ticker | Date | Before | After | Δ | MFE |
+|--------|------|--------|-------|---|-----|
+| EEM | 2025-03-18 | +302% | +80% | −222% | +302% |
+| DAL | 2025-03-13 | +145% | −13% | −157% | +181% |
+| HYG | 2025-03-17 | +100% | −30% | −130% | +620% |
+| HYG | 2025-03-10 | +112% | −10% | −121% | +555% |
+| NVDA | 2025-03-13 | +92% | −24% | −116% | +104% |
+
+**Biggest winners (all profit_target → trailing_stop or time_exit):**
+
+| Ticker | Date | Before | After | Δ | MFE |
+|--------|------|--------|-------|---|-----|
+| GLD | 2025-01-02 | +78% | +212% | +134% | +478% |
+| NVDA | 2025-03-20 | +83% | +212% | +129% | +313% |
+| GLD | 2025-03-18 | +88% | +186% | +98% | +198% |
+
+**Why it failed:**
+
+Same gap-day problem as Attempt 2, now at a lower activation level. Profit_target at +75% triggers trailing with peak_pnl ≈ 0.75–0.80 and a floor at +25–30%. A single bad day in the March 2025 panic/correction (options routinely gap ±50–100% intraday) blows through that floor. The hard profit_target was reliably locking in +75–160% in exactly that chaotic environment.
+
+The 38 trades that previously exited cleanly at profit_target are converted to trailing. Many gave back gains — the trailing fires LOWER than the hard exit would have, turning winners into smaller wins or losses.
+
+**RISK-OFF improved** (+46%) because gold (GLD, Jan 2025 and Mar 2025) was in a sustained trend where the trailing let profits compound. **BEAR/RANGE/other worsened** because those options whipsawed violently during the correction.
+
+**Core lesson:** Trailing-on-profit-target only works in sustained trending moves. In panic/correction environments (which generate the most option premium and thus the most plays), it gives back reliable gains for speculative upside that may never materialize — the gap-day problem hits again.
+
+**Next tried:** Keep hard `profit_target=0.75`, raise `trailing_stop_trigger` from 1.0 to 2.0 — see Attempt 5.
+
+---
+
+## Attempt 5 — IDENTICAL ❌ (trailing_stop_trigger=2.00, hard exit)
+
+**Config:** `profit_target=0.75` (hard exit, code reverted), `trailing_stop_trigger=2.00`, `trailing_stop_pct=0.50`
+
+Results byte-for-byte identical to Attempt 3 — trailing fired 0 times.
+
+**Why:** With `profit_target=0.75` as a hard exit, no trade ever survives long enough to reach the trailing trigger at +200%. The trade closes at +75% and is gone. The only scenario where trailing could fire is a gap from below +75% to above +200% in a single daily mark — this never occurs in the dataset.
+
+**Core lesson: `trailing_stop_trigger` is always dead code when `profit_target` is set below it.** The profit_target exit always fires first. The trailing was only reachable in Attempts 1–2 because `profit_target` was null in those runs.
+
+**Parabolic moves (GLD +478%, HYG +620%) cannot be captured without either:**
+1. Removing profit_target and accepting the gap-day risk (Attempt 2 — worse), or
+2. Accepting the MFE gap as structural — those are recoveries from temporary extreme moves that reverse before the daily mark can be locked in.
+
+**Trailing stop experiments are closed.** No further trailing configuration can improve on Attempt 3 while profit_target is in play.
+
+---
+
 ## Rules of thumb learned so far
 
 - **Don't use trailing stops tighter than 50pts** — option spread daily vol easily exceeds 20–30%, so anything tighter fires on noise.
 - **Trailing stop has a gap-day problem** — options can move 50-100pts in a single day, bypassing the theoretical floor. Trailing alone (no profit_target) is unreliable for capping winners.
-- **Trailing stop is ADDITIVE to profit_target, not a replacement** — use profit_target as the base exit, trailing as secondary catch for parabolic moves.
+- **Trailing stop is unreachable when profit_target is set below the trigger** — profit_target always fires first. In practice, `trailing_stop_trigger` is dead code alongside `profit_target=0.75`. The only way to activate trailing on parabolic moves is to remove profit_target, which makes average results worse (Attempts 2, 4).
 - **Don't use loss-day cutoffs shorter than ~25 days** — directional option plays take weeks to develop; mid-trade losing streaks are normal.
 - **Time exit at 50% DTE is too early; 75% is better** — many of the biggest moves (GLD, HYG, SPY) happened in the final 25–30% of the DTE window.
 - **Exit rules can only help on ~55% of losers** — ~45% are straight directional failures (MFE <10%). Those require better signal quality, not better exit mechanics.

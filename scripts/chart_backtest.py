@@ -522,11 +522,162 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     else:
         ax.set_visible(False)
 
-    axes[2, 1].set_visible(False)
+    # ---- F: year-over-year mean P&L path (A-style, one line per entry year) ---
+    ax = axes[2, 1]
+    df["entry_year"] = df["signal_date"].dt.year
+    years = sorted(df["entry_year"].dropna().unique().astype(int))
+    year_colors = plt.cm.tab10(np.linspace(0, 0.9, len(years)))
+    any_year = False
+    for yr, color in zip(years, year_colors):
+        ypaths = [p for p in df.loc[df["entry_year"] == yr, "pnl_path"] if p]
+        if not ypaths:
+            continue
+        any_year = True
+        ylen = min(max(len(p) for p in ypaths), horizon)
+        ymean = [np.array([p[i] for p in ypaths if len(p) > i]).mean()
+                 for i in range(ylen)]
+        ax.plot(np.arange(1, ylen + 1), ymean, "-", color=color, lw=1.8,
+                label=f"{yr} (n={len(ypaths)})")
+    if any_year:
+        ax.axhline(0, color="#999", lw=0.8)
+        ax.set_title("F · Mean P&L path by entry year", fontweight="bold")
+        ax.set_xlabel("Trading days since entry")
+        ax.set_ylabel("Mean P&L %")
+        ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+        ax.legend(fontsize=8)
+        ax.grid(color=GRID)
+    else:
+        ax.set_visible(False)
 
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out.mkdir(parents=True, exist_ok=True)
     path = out / "backtest_paths.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def build_time(df: pd.DataFrame, out: Path) -> Path:
+    """Temporal analysis page: equity curve, annual bars, monthly heatmap."""
+    df = df.copy()
+    df = df.sort_values("signal_date")
+    df["year"] = df["signal_date"].dt.year
+    df["month"] = df["signal_date"].dt.month
+    years = sorted(df["year"].dropna().unique().astype(int))
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
+    fig.suptitle(
+        f"Temporal analysis — {len(df)} plays, "
+        f"{df.signal_date.min():%b %Y}–{df.signal_date.max():%b %Y}",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    # ---- A: cumulative realized P&L $ equity curve ----------------------
+    ax = axes[0, 0]
+    cum = df["realized_abs"].fillna(0).cumsum()
+    ax.plot(df["signal_date"], cum, "-", color=C_LINE, lw=2)
+    ax.fill_between(df["signal_date"], 0, cum,
+                    where=(cum >= 0), color=C_BULL, alpha=0.15)
+    ax.fill_between(df["signal_date"], 0, cum,
+                    where=(cum < 0), color=C_RANGE, alpha=0.15)
+    ax.axhline(0, color="#999", lw=0.8)
+    # annotate year boundaries
+    for yr in years[1:]:
+        first = df.loc[df["year"] == yr, "signal_date"].min()
+        ax.axvline(first, color="#bbb", lw=0.8, ls="--")
+        ax.text(first, ax.get_ylim()[0], str(yr), fontsize=7,
+                color="#888", ha="left", va="bottom")
+    ax.yaxis.set_major_formatter(
+        matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+    ax.set_title("A · Cumulative realized P&L $ (equity curve)", fontweight="bold")
+    ax.set_xlabel("Signal date")
+    ax.grid(color=GRID)
+
+    # ---- B: mean realized P&L % + win rate by year ----------------------
+    ax = axes[0, 1]
+    ax2 = ax.twinx()
+    yr_mean = df.groupby("year")["realized_pnl"].mean()
+    yr_win = df.groupby("year")["realized_pnl"].apply(lambda s: (s > 0).mean() * 100)
+    yr_n = df.groupby("year")["realized_pnl"].count()
+    x = np.arange(len(years))
+    bar_colors = [C_BULL if yr_mean.get(y, 0) >= 0 else C_RANGE for y in years]
+    bars = ax.bar(x, [yr_mean.get(y, np.nan) for y in years],
+                  color=bar_colors, alpha=0.8, label="Mean P&L %")
+    ax2.plot(x, [yr_win.get(y, np.nan) for y in years],
+             "D--", color=C_MED, lw=1.5, ms=7, label="Win rate %")
+    ax2.axhline(50, color="#ccc", lw=0.7, ls=":")
+    for xi, y in enumerate(years):
+        m = yr_mean.get(y, np.nan)
+        n = yr_n.get(y, 0)
+        if not np.isnan(m):
+            ax.annotate(f"{m:+.0f}%\nn={n}", (xi, m),
+                        textcoords="offset points",
+                        xytext=(0, 6 if m >= 0 else -18),
+                        ha="center", fontsize=7)
+    ax.set_xticks(x)
+    ax.set_xticklabels(years)
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_ylabel("Mean realized P&L %")
+    ax2.set_ylabel("Win rate %")
+    ax2.set_ylim(0, 110)
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.set_title("B · Annual performance — mean P&L & win rate", fontweight="bold")
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=8, loc="upper left")
+    ax.grid(axis="y", color=GRID)
+
+    # ---- C: monthly heatmap (year × month) of mean realized P&L % -------
+    ax = axes[1, 0]
+    month_names = ["Jan","Feb","Mar","Apr","May","Jun",
+                   "Jul","Aug","Sep","Oct","Nov","Dec"]
+    piv = df.pivot_table(index="year", columns="month",
+                         values="realized_pnl", aggfunc="mean")
+    cnt = df.pivot_table(index="year", columns="month",
+                         values="realized_pnl", aggfunc="count")
+    piv = piv.reindex(index=years, columns=range(1, 13))
+    cnt = cnt.reindex(index=years, columns=range(1, 13))
+    vmax = np.nanmax(np.abs(piv.values)) if not np.all(np.isnan(piv.values)) else 1
+    im = ax.imshow(piv.values, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(12))
+    ax.set_xticklabels(month_names, fontsize=8)
+    ax.set_yticks(range(len(years)))
+    ax.set_yticklabels(years)
+    for i, yr in enumerate(years):
+        for j, mo in enumerate(range(1, 13)):
+            v = piv.loc[yr, mo] if mo in piv.columns else np.nan
+            n = cnt.loc[yr, mo] if mo in cnt.columns else np.nan
+            if not np.isnan(v):
+                ax.text(j, i, f"{v:+.0f}\n({int(n)})",
+                        ha="center", va="center", fontsize=7,
+                        color="black")
+    fig.colorbar(im, ax=ax, fraction=0.03, pad=0.04, label="Mean P&L %")
+    ax.set_title("C · Monthly P&L heatmap (year × month)", fontweight="bold")
+
+    # ---- D: play count by year + quarter breakdown ----------------------
+    ax = axes[1, 1]
+    df["quarter"] = df["signal_date"].dt.quarter
+    q_colors = {1: "#4e79a7", 2: "#f28e2b", 3: "#59a14f", 4: "#e15759"}
+    bottom = np.zeros(len(years))
+    for q in range(1, 5):
+        qcounts = [df[(df["year"] == y) & (df["quarter"] == q)].shape[0]
+                   for y in years]
+        ax.bar(range(len(years)), qcounts, bottom=bottom,
+               color=q_colors[q], label=f"Q{q}", alpha=0.85)
+        bottom += np.array(qcounts)
+    for xi, y in enumerate(years):
+        total = (df["year"] == y).sum()
+        ax.text(xi, total + 0.3, str(total), ha="center", va="bottom", fontsize=8)
+    ax.set_xticks(range(len(years)))
+    ax.set_xticklabels(years)
+    ax.set_ylabel("Number of plays")
+    ax.set_title("D · Play count by year & quarter", fontweight="bold")
+    ax.legend(fontsize=8, loc="upper left")
+    ax.grid(axis="y", color=GRID)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_time.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -546,6 +697,7 @@ def main():
     else:
         print("No daily_price_csv column found — skipping path charts "
               "(re-run the backtest with the new engine to populate it).")
+    print(f"Wrote {build_time(df, Path(args.out))}")
 
 
 if __name__ == "__main__":

@@ -56,8 +56,10 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
     MFE/MAE are measured over the WHOLE path so exit params can be tuned in analysis.
 
     Exit priority:
-      1. profit_target  — fixed % gain (disabled when None)
-      2. trailing_stop  — trails from peak once trailing_stop_trigger is reached
+      1. profit_target  — activates trailing from peak (floor guarantee); exits only if
+                          no trailing_stop_trigger/pct is configured (disabled when None)
+      2. trailing_stop  — trails from peak once trailing_stop_trigger is reached OR
+                          profit_target activates it (whichever comes first)
       3. dollar_stop    — hard per-trade $ loss cap from portfolio sizing
       4. stop_loss      — hard % loss floor
       5. loss_days_exit — N consecutive trading days in loss
