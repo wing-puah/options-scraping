@@ -101,7 +101,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               · fetch.py   — Drive → markdown: scored rollups, top-N raw trades, cross-section, hedge pressure, baseline context, persistence
                               · core.py    — implementation (fetch/analyze/write, engine runners, row expansion, CLI)
                               · __main__.py — entry point
-  backtest.py               — analysis-driven: reads analysis plays → real entry (flow Trade) + daily marks (Barchart per-contract history → flow reappearance → Black-Scholes fallback) over the full path to min(DTE, cap) → realized exit + MFE/MAE; per-day series stored in `daily_price_csv` (see config/backtest-reference.md)
+  backtest.py               — analysis-driven: reads analysis plays → models each as a list of signed legs (`scripts/backtest/legs.py`: `<±qty> TKR:exp:strike:C|P` per line, serialized to the `legs` column; existing structures map onto legs and an explicit leg-string in the play is parsed directly, enabling calendar/diagonal/ratio) → per-leg pricing (Barchart per-contract history → flow reappearance → Black-Scholes; uniform-BS for ≥`uniform_bs_min_legs` legs like iron condors) netted into a signed position value → unified P&L `(V−entry_net)/abs(entry_net)` over the path to min(nearest-leg DTE, cap) → realized exit + MFE/MAE; per-day series stored in `daily_price_csv` (see config/backtest-reference.md)
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 

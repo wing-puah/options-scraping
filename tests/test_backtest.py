@@ -274,10 +274,16 @@ def test_reappearance_none_when_unknown():
 
 # ── simulate (real entry + real exit, no network via injected price_fn) ─────────
 
+def _legs(*specs):
+    """Build a leg list from ('+1', 'NVDA', '2026-07-17', 250, 'Call') tuples."""
+    return [bt.Leg(int(q), t, date.fromisoformat(e), float(k), ot)
+            for (q, t, e, k, ot) in specs]
+
+
 def test_simulate_real_entry_and_real_exit():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": "BULL + L-VOL"}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "8.0", "800000")
     key = ("NVDA", "Call", 250.0, "2026-07-17")
     # Contract reappears at +60% on day 3.
@@ -285,20 +291,23 @@ def test_simulate_real_entry_and_real_exit():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1}
 
-    res = bt._simulate(cand, cls, entry_row, contract_index, {}, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
 
     assert res["entry_option_price"] == 8.0
     assert res["entry_source"] == "real"
-    assert res["realized_pnl_pct"] == 60.0
+    assert res["legs"] == "NVDA:2026-07-17:250:C +1"
+    # Per-leg raw breakdown is line-aligned with legs and validates the net.
+    assert res["entry_leg_detail"].startswith("NVDA:2026-07-17:250:C +1  px=8")
+    assert res["realized_pnl_pct"] == 0.6
     assert res["exit_reason"] == "profit_target"
-    assert res["pct_real_days"] == 100.0   # reappearance, not Black-Scholes
+    assert res["pct_real_days"] == 1.0   # reappearance, not Black-Scholes
 
 
 def test_simulate_barchart_takes_precedence_over_reappearance():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "8.0", "800000")
     key = ("NVDA", "Call", 250.0, "2026-07-17")
     # Reappearance says 12.8 (+60%); Barchart says 16.0 (+100%) and must win.
@@ -307,38 +316,39 @@ def test_simulate_barchart_takes_precedence_over_reappearance():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "exit_sources": ["barchart", "reappearance", "bs"], "contracts": 1}
 
-    res = bt._simulate(cand, cls, entry_row, contract_index, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, contract_index, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
 
     # Barchart's 16.0 (+100%) must win over reappearance's 12.8 (+60%).
-    assert res["realized_pnl_pct"] == 100.0
+    assert res["realized_pnl_pct"] == 1.0
     assert res["exit_reason"] == "profit_target"
 
 
 def test_simulate_falls_back_to_bs_when_no_reappearance():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "8.0", "800000")
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1}
 
     # No contract index → must use BS; underlying jumps to 300 (deep ITM).
-    res = bt._simulate(cand, cls, entry_row, {}, {}, sim_cfg,
-                       price_fn=lambda tk, dt: 300.0)
+    res = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: 300.0)
 
-    assert res["pct_real_days"] == 0.0   # all marks are Black-Scholes
+    assert res["pct_real_days"] == 0.0   # all marks are Black-Scholes (0/n = 0)
     assert res["realized_pnl_pct"] > 0
 
 
 def test_simulate_rejects_degenerate_spread():
-    # Play long 300 / short 340, but matching drifted onto the 340 strike → long==short.
-    cand = {"ticker": "MRVL", "signal_date": date(2026, 6, 1), "play": "bull call spread 300/340",
+    # Two legs on the SAME contract (long 340 / short 340) → degenerate, rejected.
+    cand = {"ticker": "MRVL", "signal_date": date(2026, 6, 1), "play": "bull call spread",
             "market_regime": ""}
-    cls = {"structure": "bull_call_spread", "option_type": "Call", "strikes": [300.0, 340.0]}
-    entry_row = _flow_row("MRVL", "Call", "340", "5.0", "100000")  # matched the short strike
-    res = bt._simulate(cand, cls, entry_row, {}, {}, {"exit_days": [3]},
-                       price_fn=lambda tk, dt: None)
+    legs = _legs(("+1", "MRVL", "2026-07-17", 340, "Call"),
+                 ("-1", "MRVL", "2026-07-17", 340, "Call"))
+    entry_row = _flow_row("MRVL", "Call", "340", "5.0", "100000")
+    res = bt._simulate(cand, legs, entry_row, {}, {}, {"exit_days": [3]},
+                       structure="bull_call_spread", price_fn=lambda tk, dt: None)
     assert res == {}
 
 
@@ -347,7 +357,8 @@ def test_simulate_spread_prices_short_leg_from_barchart():
     # leg is netted from real data (not BS) at both entry and exit.
     cand = {"ticker": "MRVL", "signal_date": date(2026, 6, 1),
             "play": "bull call spread 300/320", "market_regime": ""}
-    cls = {"structure": "bull_call_spread", "option_type": "Call", "strikes": [300.0, 320.0]}
+    legs = _legs(("+1", "MRVL", "2026-07-17", 300, "Call"),
+                 ("-1", "MRVL", "2026-07-17", 320, "Call"))
     entry_row = _flow_row("MRVL", "Call", "300", "10.0", "800000")
     long_key = ("MRVL", "Call", 300.0, "2026-07-17")
     short_key = ("MRVL", "Call", 320.0, "2026-07-17")
@@ -357,16 +368,16 @@ def test_simulate_spread_prices_short_leg_from_barchart():
     }
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bull_call_spread", price_fn=lambda tk, dt: None)
 
     # Entry long is the real flow Trade (10); short is real Barchart (4) → debit 6.
     assert res["entry_option_price"] == 6.0
     assert res["entry_source"] == "real+barchart"
     # Exit both legs real Barchart: 16 - 6 = 10 vs debit 6 → +66.7%.
-    assert abs(res["realized_pnl_pct"] - 66.67) < 0.01
+    assert abs(res["realized_pnl_pct"] - 0.6667) < 0.0001
     assert res["exit_reason"] == "profit_target"
-    assert res["pct_real_days"] == 100.0
+    assert res["pct_real_days"] == 1.0
 
 
 def test_simulate_spread_short_leg_falls_back_to_bs():
@@ -374,24 +385,25 @@ def test_simulate_spread_short_leg_falls_back_to_bs():
     # short leg is modelled with Black-Scholes (tagged +bs).
     cand = {"ticker": "MRVL", "signal_date": date(2026, 6, 1),
             "play": "bull call spread 300/320", "market_regime": ""}
-    cls = {"structure": "bull_call_spread", "option_type": "Call", "strikes": [300.0, 320.0]}
+    legs = _legs(("+1", "MRVL", "2026-07-17", 300, "Call"),
+                 ("-1", "MRVL", "2026-07-17", 320, "Call"))
     entry_row = _flow_row("MRVL", "Call", "300", "10.0", "800000")
     long_key = ("MRVL", "Call", 300.0, "2026-07-17")
     barchart_series = {long_key: [(date(2026, 6, 4), 16.0)]}
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: 305.0)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bull_call_spread", price_fn=lambda tk, dt: 305.0)
 
     assert res["entry_source"] == "real+bs"   # short leg modelled with BS at entry
-    assert res["k_short"] == 320.0
+    assert "MRVL:2026-07-17:320:C -1" in res["legs"]
 
 
 def test_simulate_daily_path_realized_exit_and_excursions():
     # Long call, entry 10. Daily Barchart marks dip then rip past the target.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
     key = ("NVDA", "Call", 250.0, "2026-07-17")
     barchart_series = {key: [
@@ -403,16 +415,18 @@ def test_simulate_daily_path_realized_exit_and_excursions():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
 
-    assert res["realized_pnl_pct"] == 60.0          # frozen at the first +50% day
+    assert res["realized_pnl_pct"] == 0.6            # frozen at the first +50% day
     assert res["exit_reason"] == "profit_target"
     assert res["days_held"] == 3                     # 06-02,06-03,06-04 → 3 trading days
-    assert res["mfe_pct"] == 100.0                   # excursion is over the WHOLE path
-    assert res["mae_pct"] == -20.0
+    assert res["mfe_pct"] == 1.0                     # excursion is over the WHOLE path
+    assert res["mfe_abs"] == 1000.0                  # 1.0 × 10 × 100 × 1 contract
+    assert res["mae_pct"] == -0.2
+    assert res["mae_abs"] == -200.0                  # −0.2 × 10 × 100 × 1 contract
     assert res["mfe_day"] == 4 and res["mae_day"] == 1
-    assert res["pct_real_days"] == 100.0
+    assert res["pct_real_days"] == 1.0
     assert res["daily_price_csv"].startswith("8.0000,11.0000,16.0000,20.0000")
 
 
@@ -420,7 +434,7 @@ def test_simulate_path_cap_open_when_dte_exceeds_cap():
     # Flat price, never triggers; DTE 200 > cap 120 → held open at the cap.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-12-18", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
     entry_row["DTE"] = "200"
     entry_row["Expiration Date"] = "2026-12-18"
@@ -429,18 +443,18 @@ def test_simulate_path_cap_open_when_dte_exceeds_cap():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
 
     assert res["exit_reason"] == "cap_open"
-    assert res["realized_pnl_pct"] == 0.0
+    assert res["realized_pnl_pct"] == 0.0  # flat path, decimal 0 = 0%
 
 
 def test_simulate_path_expired_when_dte_within_cap():
     # Flat price, never triggers; DTE 10 <= cap → path runs to expiry → 'expired'.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-06-11", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
     entry_row["DTE"] = "10"
     entry_row["Expiration Date"] = "2026-06-11"
@@ -449,8 +463,8 @@ def test_simulate_path_expired_when_dte_within_cap():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
 
     assert res["exit_reason"] == "expired"
 
@@ -458,11 +472,12 @@ def test_simulate_path_expired_when_dte_within_cap():
 def test_simulate_no_data_when_no_exit_available():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
-    cls = {"structure": "long_call", "option_type": "Call"}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     entry_row = _flow_row("NVDA", "Call", "250", "8.0", "800000")
     sim_cfg = {"exit_days": [3]}
 
-    res = bt._simulate(cand, cls, entry_row, {}, {}, sim_cfg, price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
     assert res["exit_reason"] == "no_data"
 
 
@@ -513,36 +528,36 @@ def test_parse_history_series_skips_non_date_rows():
 def test_simulate_short_put_profit_when_option_decays():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "short put 220",
             "market_regime": "RANGE + L-VOL"}
-    cls = {"structure": "short_put", "option_type": "Put", "strikes": [220.0], "is_credit": True}
+    legs = _legs(("-1", "NVDA", "2026-07-17", 220, "Put"))
     entry_row = _flow_row("NVDA", "Put", "220", "5.0", "500000")
     key = ("NVDA", "Put", 220.0, "2026-07-17")
     contract_index = {key: [(date(2026, 6, 4), 2.0)]}  # option decays
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["reappearance"]}
 
-    res = bt._simulate(cand, cls, entry_row, contract_index, {}, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                       structure="short_put", price_fn=lambda tk, dt: None)
 
-    assert res["entry_option_price"] == 5.0
+    assert res["entry_option_price"] == -5.0   # signed: net credit received
     assert res["entry_source"] == "real"
-    assert abs(res["realized_pnl_pct"] - 60.0) < 0.01   # (5 - 2) / 5 = 60%
+    assert abs(res["realized_pnl_pct"] - 0.6) < 0.001   # (−2 − (−5)) / 5 = 60%
     assert res["exit_reason"] == "profit_target"
 
 
 def test_simulate_short_put_loss_when_option_appreciates():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "short put 220",
             "market_regime": ""}
-    cls = {"structure": "short_put", "option_type": "Put", "is_credit": True}
+    legs = _legs(("-1", "NVDA", "2026-07-17", 220, "Put"))
     entry_row = _flow_row("NVDA", "Put", "220", "5.0", "500000")
     key = ("NVDA", "Put", 220.0, "2026-07-17")
     contract_index = {key: [(date(2026, 6, 4), 12.0)]}  # option goes against us
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["reappearance"]}
 
-    res = bt._simulate(cand, cls, entry_row, contract_index, {}, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                       structure="short_put", price_fn=lambda tk, dt: None)
 
-    assert abs(res["realized_pnl_pct"] - (-140.0)) < 0.01  # (5 - 12) / 5 = -140%
+    assert abs(res["realized_pnl_pct"] - (-1.4)) < 0.001  # (−12 − (−5)) / 5 = -140%
     assert res["exit_reason"] == "stop_loss"
 
 
@@ -550,8 +565,9 @@ def test_simulate_bull_put_spread_credit():
     # Bull put spread: sold 490P / bought 480P.  Both legs have Barchart history.
     cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1),
             "play": "bull put spread 490/480", "market_regime": "RANGE + L-VOL"}
-    cls = {"structure": "bull_put_spread", "option_type": "Put",
-           "strikes": [490.0, 480.0], "is_credit": True}
+    # Sold 490P (anchor, short) / bought 480P (long hedge).
+    legs = _legs(("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("+1", "SPY", "2026-07-17", 480, "Put"))
     entry_row = _flow_row("SPY", "Put", "490", "4.0", "400000")
     sold_key  = ("SPY", "Put", 490.0, "2026-07-17")
     hedge_key = ("SPY", "Put", 480.0, "2026-07-17")
@@ -561,14 +577,14 @@ def test_simulate_bull_put_spread_credit():
     }
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, cls, entry_row, {}, barchart_series, sim_cfg,
-                       price_fn=lambda tk, dt: None)
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bull_put_spread", price_fn=lambda tk, dt: None)
 
-    # Entry credit: real sold (4) - real hedge from barchart (1.5) = 2.5
-    assert res["entry_option_price"] == 2.5
+    # Entry credit: −real sold (4) + real hedge from barchart (1.5) = −2.5 (signed)
+    assert res["entry_option_price"] == -2.5
     assert res["entry_source"].startswith("real")
-    # Exit cost: 1.5 - 0.5 = 1.0  →  P&L = (2.5 - 1.0) / 2.5 = 60%
-    assert abs(res["realized_pnl_pct"] - 60.0) < 0.01
+    # Exit net: −1.5 + 0.5 = −1.0  →  P&L = (−1.0 − (−2.5)) / 2.5 = 60%
+    assert abs(res["realized_pnl_pct"] - 0.6) < 0.001
     assert res["exit_reason"] == "profit_target"
 
 
@@ -576,19 +592,113 @@ def test_simulate_iron_condor_profit_in_range():
     # Underlying stays at centre; all legs decay → credit mostly kept.
     cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1),
             "play": "iron condor 480/490/510/520 Jun 20", "market_regime": "RANGE + H-VOL"}
-    cls = {"structure": "iron_condor", "option_type": None,
-           "strikes": [480.0, 490.0, 510.0, 520.0], "is_credit": True}
+    legs = bt.iron_condor_legs("SPY", date(2026, 7, 17), 480.0, 490.0, 510.0, 520.0)
     entry_row = _flow_row("SPY", "Put", "490", "3.0", "300000")
     entry_row["Price~"] = "500"
 
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "spread_width_pct": 0.02, "risk_free_rate": 0.05,
-               "exit_sources": ["bs"]}
+               "exit_sources": ["bs"], "uniform_bs_min_legs": 4}
 
     # Underlying stays at 500 — well inside the condor wings.
-    res = bt._simulate(cand, cls, entry_row, {}, {}, sim_cfg,
+    res = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
+                       structure="iron_condor", anchor_idx=1,
                        price_fn=lambda tk, dt: 500.0)
 
     assert res["structure"] == "iron_condor"
-    assert res["entry_option_price"] > 0
-    assert res["realized_pnl_pct"] > 0   # premium decays → profit
+    assert res["entry_source"] == "bs"        # all four legs modelled
+    assert res["entry_option_price"] < 0      # signed: net credit
+    assert res["realized_pnl_pct"] > 0        # premium decays → profit
+
+
+# ── leg parsing / formatting / mapping ───────────────────────────────────────────
+
+def test_parse_legs_canonical_and_legacy():
+    # Canonical (qty last) and legacy (qty first) forms both parse identically.
+    expected = [
+        bt.Leg(3, "AMD", date(2025, 10, 16), 130.0, "Call"),
+        bt.Leg(-2, "AMD", date(2025, 9, 15), 140.0, "Put"),
+    ]
+    assert bt.parse_legs("AMD:2025-10-16:130:C +3\nAMD:2025-09-15:140:P -2") == expected
+    assert bt.parse_legs("+3 AMD:2025-10-16:130:C\n-2 AMD:2025-09-15:140:P") == expected
+
+
+def test_parse_legs_ignores_prose_and_returns_none_when_absent():
+    assert bt.parse_legs("Bull call spread 185/200 Jun 18") is None
+    # A leg-string can sit alongside prose; only the leg line is parsed.
+    legs = bt.parse_legs("calendar idea:\nSPY:2026-09-18:500:C +1\nrationale: term structure")
+    assert legs == [bt.Leg(1, "SPY", date(2026, 9, 18), 500.0, "Call")]
+
+
+def test_format_legs_round_trip():
+    # format_legs emits the canonical (qty last) form, which round-trips.
+    s = "AMD:2025-10-16:130:C +3\nAMD:2025-09-15:140:P -2"
+    assert bt.format_legs(bt.parse_legs(s)) == s
+
+
+def test_legs_from_structure_debit_and_credit():
+    # Debit vertical: long anchor at K, short contra at K_short.
+    debit = bt.legs_from_structure("bull_call_spread", "Call", "NVDA",
+                                   date(2026, 7, 17), 300.0, 320.0, False)
+    assert debit == [bt.Leg(1, "NVDA", date(2026, 7, 17), 300.0, "Call"),
+                     bt.Leg(-1, "NVDA", date(2026, 7, 17), 320.0, "Call")]
+    # Credit vertical: short anchor at K, long contra at K_short.
+    credit = bt.legs_from_structure("bull_put_spread", "Put", "SPY",
+                                    date(2026, 7, 17), 490.0, 480.0, True)
+    assert credit == [bt.Leg(-1, "SPY", date(2026, 7, 17), 490.0, "Put"),
+                      bt.Leg(1, "SPY", date(2026, 7, 17), 480.0, "Put")]
+
+
+def test_classify_play_recognises_explicit_legs_over_unsupported_keyword():
+    # "calendar" alone is unsupported, but an explicit leg-string is accepted.
+    out = bt.classify_play("calendar spread\n+1 AMD:2026-10-16:130:C\n-1 AMD:2026-07-17:130:C")
+    assert out["structure"] == "explicit_legs"
+    assert len(out["legs"]) == 2
+
+
+# ── multi-leg simulation (ratio + calendar) ─────────────────────────────────────
+
+def test_simulate_ratio_spread_nets_by_quantity():
+    # 1x130 long vs 2x140 short — a ratio spread; net by signed qty.
+    cand = {"ticker": "AMD", "signal_date": date(2026, 6, 1),
+            "play": "ratio", "market_regime": ""}
+    legs = _legs(("+1", "AMD", "2026-07-17", 130, "Call"),
+                 ("-2", "AMD", "2026-07-17", 140, "Call"))
+    entry_row = _flow_row("AMD", "Call", "130", "10.0", "800000")
+    k130 = ("AMD", "Call", 130.0, "2026-07-17")
+    k140 = ("AMD", "Call", 140.0, "2026-07-17")
+    barchart_series = {
+        k130: [(date(2026, 6, 1), 10.0), (date(2026, 6, 4), 12.0)],
+        k140: [(date(2026, 6, 1), 3.0),  (date(2026, 6, 4), 2.0)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="explicit_legs", price_fn=lambda tk, dt: None)
+
+    # Entry net: +1·10 − 2·3 = 4 (debit).
+    assert res["entry_option_price"] == 4.0
+    # Exit net: +1·12 − 2·2 = 8 → P&L = (8 − 4)/4 = 100%.
+    assert abs(res["realized_pnl_pct"] - 1.0) < 0.001
+
+
+def test_simulate_calendar_path_bounded_by_near_leg():
+    # Calendar: short near leg (expires 2026-06-19), long far leg (2026-09-18).
+    cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1),
+            "play": "calendar", "market_regime": ""}
+    legs = _legs(("-1", "SPY", "2026-06-19", 500, "Call"),
+                 ("+1", "SPY", "2026-09-18", 500, "Call"))
+    entry_row = _flow_row("SPY", "Call", "500", "5.0", "500000")
+    entry_row["Price~"] = "500"
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["bs"], "risk_free_rate": 0.05}
+
+    res = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
+                       structure="explicit_legs", anchor_idx=1,
+                       price_fn=lambda tk, dt: 500.0)
+
+    # The path stops at the NEAR leg's expiry (~18 days), not the far leg's.
+    n_days = len([t for t in res["daily_price_csv"].split(",")])
+    assert n_days <= 14   # ~13 weekdays in the 18-day near-leg window
+    assert res["entry_option_price"] != 0

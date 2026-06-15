@@ -29,6 +29,17 @@ def _bs_spread_price(S, K_long, K_short, T, r, sigma, option_type) -> float:
     return _bs_price(S, K_long, T, r, sigma, option_type) - _bs_price(S, K_short, T, r, sigma, option_type)
 
 
+def _bs_delta(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
+    """Black-Scholes delta. T in years. Used only to surface a per-leg model delta
+    for validation; the trade's own anchor delta still comes from the flow row."""
+    if T <= 0 or sigma <= 0:
+        if option_type == "Call":
+            return 1.0 if S > K else 0.0
+        return -1.0 if S < K else 0.0
+    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    return norm.cdf(d1) if option_type == "Call" else norm.cdf(d1) - 1.0
+
+
 # ─── Field parsing ─────────────────────────────────────────────────────────────
 
 def _num(value, default=None):

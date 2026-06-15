@@ -3,12 +3,13 @@ import math
 from datetime import timedelta
 
 from .helpers import (
-    _bs_price, _bs_spread_price,
-    _num, _opt_price, _row_iv, _contract_key, _parse_expiration,
-    _short_strike,
-    _get_prices, _price_on_or_after, _price_asof,
+    _bs_price, _bs_delta,
+    _num, _opt_price, _row_iv, _contract_key,
+    _price_asof,
+    _get_prices, _price_on_or_after,
     _weekday_grid,
 )
+from .legs import format_legs
 
 log = logging.getLogger("backtest")
 
@@ -17,7 +18,9 @@ def _size_contracts(entry_price: float, sim_cfg: dict) -> int:
     """Fixed-fractional position sizing: size so that hitting stop_loss costs at most
     risk_per_trade_pct × portfolio_value. Minimum 1 contract; a separate dollar stop
     in _summarize_path enforces the budget cap when 1 contract already exceeds it.
-    Falls back to sim_cfg['contracts'] when portfolio_value is unset."""
+    Falls back to sim_cfg['contracts'] when portfolio_value is unset.
+
+    `entry_price` is the per-unit premium magnitude (abs of the signed net)."""
     portfolio = sim_cfg.get("portfolio_value")
     risk_pct = sim_cfg.get("risk_per_trade_pct")
     stop = sim_cfg.get("stop_loss", 1.0)
@@ -39,11 +42,15 @@ def _max_loss_abs(sim_cfg: dict) -> float | None:
 
 # ─── Path summarizer ───────────────────────────────────────────────────────────
 
-def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss,
+def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                     contracts, cap_reached_expiry, max_loss_abs=None,
                     time_exit_day=None, trailing_stop_trigger=None,
                     trailing_stop_pct=None, loss_days_exit=None) -> dict:
-    """Turn a day-by-day price grid into the path string, realized exit, and MFE/MAE.
+    """Turn a day-by-day signed-value grid into the path string, realized exit, and MFE/MAE.
+
+    Each grid mark holds the position's signed net value V = Σ qty·price. P&L is
+    the single unified formula `(V − entry_net) / abs(entry_net)`, correct for both
+    debit (entry_net > 0) and credit (entry_net < 0) positions with no flag.
 
     Realized exit = the FIRST exit condition crossed (frozen at that day's mark).
     MFE/MAE are measured over the WHOLE path so exit params can be tuned in analysis.
@@ -56,10 +63,10 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
       5. loss_days_exit — N consecutive trading days in loss
       6. time_exit_day  — calendar days from entry; graceful time-based close
     """
+    denom = abs(entry_net)
 
-    def pnl_of(p):
-        signed = (entry_price - p) if is_credit else (p - entry_price)
-        return signed / entry_price
+    def pnl_of(v):
+        return (v - entry_net) / denom
 
     out = {"daily_price_csv": ",".join(
         "" if p is None else f"{p:.4f}" for (_, _, p, _) in grid_marks)}
@@ -67,8 +74,8 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
     priced = [(dt, d, p, src) for (dt, d, p, src) in grid_marks if p is not None]
     if not priced:
         out.update({"realized_pnl_pct": "", "realized_pnl_abs": "", "days_held": "",
-                    "exit_reason": "no_data", "mfe_pct": "", "mfe_day": "",
-                    "mae_pct": "", "mae_day": "", "pnl_at_cap_pct": "",
+                    "exit_reason": "no_data", "mfe_pct": "", "mfe_abs": "", "mfe_day": "",
+                    "mae_pct": "", "mae_abs": "", "mae_day": "", "pnl_at_cap_pct": "",
                     "pct_real_days": ""})
         return out
 
@@ -99,7 +106,7 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
             elif (trailing_active and trailing_stop_pct is not None
                   and pl <= peak_pnl - trailing_stop_pct):
                 exit_reason, realized_p, days_held = "trailing_stop", p, grid_idx
-            elif max_loss_abs is not None and pl * entry_price * 100 * contracts <= -max_loss_abs:
+            elif max_loss_abs is not None and pl * denom * 100 * contracts <= -max_loss_abs:
                 exit_reason, realized_p, days_held = "dollar_stop", p, grid_idx
             elif pl <= -stop_loss:
                 exit_reason, realized_p, days_held = "stop_loss", p, grid_idx
@@ -115,24 +122,27 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
 
     realized_pnl = pnl_of(realized_p)
     cap_p = priced[-1][2]
-    real_days = sum(1 for (_, _, _, s) in priced if s and not s.startswith("bs"))
+    real_days = sum(1 for (_, _, _, s) in priced
+                    if s and any(t != "bs" for t in s.split("+")))
 
     out.update({
-        "realized_pnl_pct": round(realized_pnl * 100, 2),
-        "realized_pnl_abs": round(realized_pnl * entry_price * 100 * contracts, 2),
+        "realized_pnl_pct": round(realized_pnl, 4),
+        "realized_pnl_abs": round(realized_pnl * denom * 100 * contracts, 2),
         "days_held": days_held,
         "exit_reason": exit_reason,
-        "mfe_pct": round(mfe * 100, 2),
+        "mfe_pct": round(mfe, 4),
+        "mfe_abs": round(mfe * denom * 100 * contracts, 2),
         "mfe_day": mfe_day,
-        "mae_pct": round(mae * 100, 2),
+        "mae_pct": round(mae, 4),
+        "mae_abs": round(mae * denom * 100 * contracts, 2),
         "mae_day": mae_day,
-        "pnl_at_cap_pct": round(pnl_of(cap_p) * 100, 2),
-        "pct_real_days": round(real_days / len(priced) * 100, 1),
+        "pnl_at_cap_pct": round(pnl_of(cap_p), 4),
+        "pct_real_days": round(real_days / len(priced), 4),
     })
     return out
 
 
-# ─── Iron condor ───────────────────────────────────────────────────────────────
+# ─── Iron condor strike resolution ──────────────────────────────────────────────
 
 def _iron_condor_strikes(
     strikes: list, K_sp_anchor: float, S_entry: float, spread_pct: float
@@ -156,194 +166,149 @@ def _iron_condor_strikes(
     return K_sp * (1 - spread_pct), K_sp, K_sc, K_sc * (1 + spread_pct)
 
 
-def _simulate_iron_condor(
-    candidate, cls, entry_row, contract_index, barchart_series, sim_cfg, price_fn=None
-):
-    """Simulate a 4-leg iron condor (bear call spread + bull put spread).
+# ─── Generic leg-list simulation ─────────────────────────────────────────────────
 
-    Entry credit and exit cost both use Black-Scholes for internal consistency
-    across all four legs — mixing a real flow price on one leg with BS on the
-    others produces a spurious credit when IVs differ.
-    """
-    price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
-        _get_prices(tk, candidate["signal_date"], sim_cfg.get("path_cap_days", 120)), dt
-    ))
-
-    ticker = candidate["ticker"]
-    signal_date = candidate["signal_date"]
-    r = sim_cfg.get("risk_free_rate", 0.05)
-    spread_pct = sim_cfg.get("spread_width_pct", 0.02)
-
-    K_sp_matched = _num(entry_row.get("Strike"))
-    iv = _row_iv(entry_row)
-    S_entry = _num(entry_row.get("Price~", entry_row.get("Price")))
-    dte_entry = _num(entry_row.get("DTE"))
-    expiration_raw = str(entry_row.get("Expires", entry_row.get("Expiration Date", ""))).strip()
-
-    if not (K_sp_matched and iv and S_entry and dte_entry and dte_entry > 0):
-        return {}
-    dte_entry = int(dte_entry)
-    T_entry = dte_entry / 365
-    expiration_date = _parse_expiration(expiration_raw, signal_date + timedelta(days=dte_entry))
-
-    K_lp, K_sp, K_sc, K_lc = _iron_condor_strikes(
-        cls.get("strikes", []), K_sp_matched, S_entry, spread_pct
-    )
-
-    ksp_entry = _bs_price(S_entry, K_sp, T_entry, r, iv, "Put")
-    klp_entry = _bs_price(S_entry, K_lp, T_entry, r, iv, "Put")
-    ksc_entry = _bs_price(S_entry, K_sc, T_entry, r, iv, "Call")
-    klc_entry = _bs_price(S_entry, K_lc, T_entry, r, iv, "Call")
-
-    entry_credit = (ksp_entry - klp_entry) + (ksc_entry - klc_entry)
-    if entry_credit <= 0:
-        return {}
-
-    profit_target = sim_cfg.get("profit_target", 0.50)
-    stop_loss = sim_cfg.get("stop_loss", 1.00)
-    contracts = _size_contracts(entry_credit, sim_cfg)
-    _tex_frac = sim_cfg.get("time_exit_dte_fraction")
-    time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
-    trailing_stop_trigger = sim_cfg.get("trailing_stop_trigger")
-    trailing_stop_pct = sim_cfg.get("trailing_stop_pct")
-    loss_days_exit = sim_cfg.get("loss_days_exit")
-
-    result = {
-        "signal_date": signal_date.isoformat(),
-        "ticker": ticker,
-        "structure": "iron_condor",
-        "contracts": contracts,
-        "k_long": round(K_sp, 2),
-        "k_short": f"{K_lp:.2f}/{K_sc:.2f}/{K_lc:.2f}",
-        "expiration": expiration_raw,
-        "dte_entry": dte_entry,
-        "iv_entry_pct": round(iv * 100, 2),
-        "delta": "",
-        "entry_underlying": S_entry,
-        "entry_option_price": round(entry_credit, 4),
-        "entry_premium_total": round(entry_credit * 100 * contracts, 2),
-        "entry_source": "bs",
-        "regime": candidate.get("regime", ""),
-        "play": candidate["play"][:300],
-    }
-
-    def _cost_on(day, d):
-        S_exit = price_fn(ticker, day)
-        if S_exit is None:
-            return None, ""
-        T_exit = max(0.0, (dte_entry - d) / 365)
-        ksp_exit = _bs_price(S_exit, K_sp, T_exit, r, iv, "Put")
-        klp_exit = _bs_price(S_exit, K_lp, T_exit, r, iv, "Put")
-        ksc_exit = _bs_price(S_exit, K_sc, T_exit, r, iv, "Call")
-        klc_exit = _bs_price(S_exit, K_lc, T_exit, r, iv, "Call")
-        return max(0.0, (ksp_exit - klp_exit) + (ksc_exit - klc_exit)), "bs"
-
-    path_cap = sim_cfg.get("path_cap_days", 120)
-    cap_reached_expiry = dte_entry <= path_cap
-    end_date = signal_date + timedelta(days=min(dte_entry, path_cap))
-    if expiration_date:
-        end_date = min(end_date, expiration_date)
-
-    grid_marks = []
-    for day in _weekday_grid(signal_date, end_date):
-        d = (day - signal_date).days
-        cost, source = _cost_on(day, d)
-        grid_marks.append((day, d, cost, source))
-
-    result.update(_summarize_path(
-        grid_marks, entry_credit, True, profit_target, stop_loss, contracts,
-        cap_reached_expiry, _max_loss_abs(sim_cfg),
-        time_exit_day=time_exit_day,
-        trailing_stop_trigger=trailing_stop_trigger,
-        trailing_stop_pct=trailing_stop_pct,
-        loss_days_exit=loss_days_exit,
-    ))
-    return result
+# Mark-source tags. Reappearance and barchart are both "real" data; only
+# Black-Scholes is modelled. pct_real_days keys off any non-"bs" token.
+_MARK_TAG = {"barchart": "barchart", "reappearance": "real", "bs": "bs"}
 
 
-# ─── Single-leg and spread simulation ─────────────────────────────────────────
+def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_cfg,
+              structure="", anchor_idx=0, price_fn=None):
+    """Simulate one position expressed as a list of signed `Leg`s.
 
-def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cfg, price_fn=None):
-    """Simulate one play. Returns a result dict, or {} if it cannot be priced.
+    Each leg is priced independently and netted by signed quantity into a single
+    position value V = Σ qty·price. Returns a result dict, or {} if it cannot be
+    priced.
 
-    Exit price sources (in order from sim_cfg['exit_sources']):
+    Pricing per leg, in order from sim_cfg['exit_sources']:
       barchart     — real per-contract daily price (Barchart history cache)
       reappearance — real Trade price when the contract recurs in a later flow scrape
       bs           — Black-Scholes (last resort)
-    barchart_series maps contract_key -> sorted [(date, price)].
-    price_fn(ticker, date) -> float|None is injectable for testing (defaults to yfinance).
-    """
-    price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
-        _get_prices(tk, candidate["signal_date"], sim_cfg.get("path_cap_days", 120)), dt))
+    barchart_series / contract_index map contract_key -> sorted [(date, price)].
 
-    if cls.get("structure") == "iron_condor":
-        return _simulate_iron_condor(
-            candidate, cls, entry_row, contract_index, barchart_series, sim_cfg, price_fn
-        )
+    Positions with >= sim_cfg['uniform_bs_min_legs'] legs (default 4, i.e. iron
+    condors) are priced entirely with Black-Scholes at a single IV for internal
+    consistency — mixing a real price on one leg with BS on others produces a
+    spurious net when IVs differ across widely separated strikes.
+
+    `entry_row` is the anchor leg's entry row (real flow Trade + IV/underlying/DTE).
+    price_fn(ticker, date) -> float|None is injectable for testing.
+    """
+    if not legs:
+        return {}
 
     ticker = candidate["ticker"]
-    opt_type = cls["option_type"]
-    structure = cls["structure"]
-    is_credit = cls.get("is_credit", False)
     signal_date = candidate["signal_date"]
     r = sim_cfg.get("risk_free_rate", 0.05)
+    anchor = legs[anchor_idx]
 
-    K = _num(entry_row.get("Strike"))
-    dte_entry = _num(entry_row.get("DTE"))
+    price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
+        _get_prices(tk, signal_date, sim_cfg.get("path_cap_days", 120)), dt))
+
     iv = _row_iv(entry_row)
     S_entry = _num(entry_row.get("Price~", entry_row.get("Price")))
-    real_entry_price = _opt_price(entry_row)
-    expiration_raw = str(entry_row.get("Expires", entry_row.get("Expiration Date", ""))).strip()
-    if not (K and dte_entry and dte_entry > 0 and iv and S_entry):
+    dte_entry = _num(entry_row.get("DTE"))
+    real_anchor = _opt_price(entry_row)
+    if not (iv and S_entry and dte_entry and dte_entry > 0):
         return {}
     dte_entry = int(dte_entry)
-    T_entry = dte_entry / 365
-    expiration_date = _parse_expiration(expiration_raw, signal_date + timedelta(days=dte_entry))
 
-    spread_pct = sim_cfg.get("spread_width_pct", 0.02)
-    K_short = _short_strike(structure, K, cls.get("strikes", []), spread_pct)
-    short_key = _contract_key(ticker, opt_type, K_short, expiration_raw) if K_short is not None else None
+    uniform_bs = len(legs) >= sim_cfg.get("uniform_bs_min_legs", 4)
+    exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
 
-    # Guard against a degenerate spread where legs cross or collapse.
-    if K_short is not None:
-        if structure in ("bull_call_spread", "bear_call_spread") and K_short <= K:
+    # Reject degenerate positions (two legs on the same contract — should be merged).
+    seen = set()
+    for leg in legs:
+        ident = (leg.opt_type, round(leg.strike, 4), leg.expiration)
+        if ident in seen:
             return {}
-        if structure in ("bear_put_spread", "bull_put_spread") and K_short >= K:
-            return {}
+        seen.add(ident)
 
-    def _short_leg_price(checkpoint, d, S_known=None):
-        """Short-leg price: real Barchart history (mid) → Black-Scholes fallback."""
-        if short_key is not None:
-            real = _price_asof(barchart_series, short_key, checkpoint, expiration_date)
-            if real is not None:
-                return real, "barchart"
-        S = S_known if S_known is not None else price_fn(ticker, checkpoint)
-        if S is None:
-            return None, None
-        T = max(0, (dte_entry - d) / 365)
-        return _bs_price(S, K_short, T, r, iv, opt_type), "bs"
+    def _key(leg):
+        return _contract_key(leg.ticker, leg.opt_type, leg.strike, leg.expiration.isoformat())
 
-    if K_short is None:
-        entry_price = real_entry_price
-        entry_source = "real"
-        if entry_price is None:
+    def _T(leg, d):
+        return max(0.0, ((leg.expiration - signal_date).days - d) / 365)
+
+    # ── Entry leg pricing ──
+    def _entry_leg(leg, idx):
+        if uniform_bs:
+            return _bs_price(S_entry, leg.strike, _T(leg, 0), r, iv, leg.opt_type), "bs"
+        if idx == anchor_idx and real_anchor is not None:
+            return real_anchor, "real"
+        real = _price_asof(barchart_series, _key(leg), signal_date, leg.expiration)
+        if real is not None:
+            return real, "barchart"
+        return _bs_price(S_entry, leg.strike, _T(leg, 0), r, iv, leg.opt_type), "bs"
+
+    entry_prices, entry_tags = [], []
+    for idx, leg in enumerate(legs):
+        p, tag = _entry_leg(leg, idx)
+        if p is None:
             return {}
-    else:
-        primary_entry = real_entry_price or _bs_price(S_entry, K, T_entry, r, iv, opt_type)
-        contra_entry, contra_src = _short_leg_price(signal_date, 0, S_entry)
-        if contra_entry is None:
-            return {}
-        entry_price = primary_entry - contra_entry
-        primary_tag = "real" if real_entry_price else "bs"
-        entry_source = f"{primary_tag}+{contra_src}"
-    if entry_price <= 0:
+        entry_prices.append(p)
+        entry_tags.append(tag)
+
+    entry_net = sum(leg.qty * p for leg, p in zip(legs, entry_prices))
+    if abs(entry_net) <= 1e-9:
         return {}
+    entry_source = "bs" if uniform_bs else "+".join(entry_tags)
 
-    contract_key = _contract_key(ticker, opt_type, K, expiration_raw)
+    # Per-leg raw entry breakdown (so the netted entry_option_price, iv_entry_pct and
+    # delta can be validated leg-by-leg). The anchor leg's delta is the real flow
+    # value; the rest are BS model deltas at the entry IV. Each line leads with the
+    # contract (never a sign) so the cell is sheet-safe.
+    anchor_flow_delta = _num(entry_row.get("Delta"))
+    detail_lines, net_delta = [], 0.0
+    for idx, (leg, p, tag) in enumerate(zip(legs, entry_prices, entry_tags)):
+        if idx == anchor_idx and not uniform_bs and anchor_flow_delta is not None:
+            dlt = anchor_flow_delta
+        else:
+            dlt = _bs_delta(S_entry, leg.strike, _T(leg, 0), r, iv, leg.opt_type)
+        net_delta += leg.qty * dlt
+        cp = "C" if leg.opt_type == "Call" else "P"
+        detail_lines.append(
+            f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:{cp} {leg.qty:+d}"
+            f"  px={p:g} iv={iv * 100:g}% delta={dlt:.3f} [{tag}]")
+    entry_leg_detail = "\n".join(detail_lines)
+
+    # ── Daily leg pricing ──
+    def _mark_leg(leg, d, day):
+        if uniform_bs:
+            S = price_fn(ticker, day)
+            if S is None:
+                return None, None
+            return _bs_price(S, leg.strike, _T(leg, d), r, iv, leg.opt_type), "bs"
+        for src in exit_sources:
+            if src == "barchart":
+                p = _price_asof(barchart_series, _key(leg), day, leg.expiration)
+                if p is not None:
+                    return p, _MARK_TAG["barchart"]
+            elif src == "reappearance":
+                p = _price_asof(contract_index, _key(leg), day, leg.expiration)
+                if p is not None:
+                    return p, _MARK_TAG["reappearance"]
+            elif src == "bs":
+                S = price_fn(ticker, day)
+                if S is None:
+                    return None, None
+                return _bs_price(S, leg.strike, _T(leg, d), r, iv, leg.opt_type), _MARK_TAG["bs"]
+        return None, None
+
+    def _mark_on(day, d):
+        value, tags = 0.0, []
+        for leg in legs:
+            p, tag = _mark_leg(leg, d, day)
+            if p is None:
+                return None, ""
+            value += leg.qty * p
+            tags.append(tag)
+        return value, ("bs" if uniform_bs else "+".join(tags))
+
+    contracts = _size_contracts(abs(entry_net), sim_cfg)
     profit_target = sim_cfg.get("profit_target", 0.50)
     stop_loss = sim_cfg.get("stop_loss", 1.00)
-    contracts = _size_contracts(entry_price, sim_cfg)
-    exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
     _tex_frac = sim_cfg.get("time_exit_dte_fraction")
     time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
     trailing_stop_trigger = sim_cfg.get("trailing_stop_trigger")
@@ -354,76 +319,37 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
         "signal_date": signal_date.isoformat(),
         "ticker": ticker,
         "structure": structure,
+        "legs": format_legs(legs),
         "contracts": contracts,
-        "k_long": K,
-        "k_short": round(K_short, 2) if K_short else "",
-        "expiration": expiration_raw,
         "dte_entry": dte_entry,
-        "iv_entry_pct": round(iv * 100, 2),
-        "delta": entry_row.get("Delta", ""),
+        "iv_entry_pct": round(iv, 4),
+        # Net position delta = Σ qty·delta (anchor uses the real flow delta, other
+        # legs the BS model delta at entry IV — same values shown in entry_leg_detail).
+        "delta": round(net_delta, 4),
         "entry_underlying": S_entry,
-        "entry_option_price": round(entry_price, 4),
-        "entry_premium_total": round(entry_price * 100 * contracts, 2),
+        "entry_option_price": round(entry_net, 4),
+        "entry_premium_total": round(abs(entry_net) * 100 * contracts, 2),
         "entry_source": entry_source,
+        "entry_leg_detail": entry_leg_detail,
         "regime": candidate.get("regime", ""),
         "play": candidate["play"][:300],
     }
 
-    def _real_long_leg(series, checkpoint, d):
-        real = _price_asof(series, contract_key, checkpoint, expiration_date)
-        if real is None:
-            return None
-        if K_short is None:
-            return real, ""
-        short, short_src = _short_leg_price(checkpoint, d)
-        if short is None:
-            return None
-        return real - short, short_src
-
-    def _bs_exit(checkpoint, d):
-        S_exit = price_fn(ticker, checkpoint)
-        if S_exit is None:
-            return None
-        T_exit = max(0, (dte_entry - d) / 365)
-        if K_short is None:
-            return _bs_price(S_exit, K, T_exit, r, iv, opt_type), ""
-        return _bs_spread_price(S_exit, K, K_short, T_exit, r, iv, opt_type), "bs"
-
-    _tag = {"barchart": "barchart", "reappearance": "real", "bs": "bs"}
-
-    def _mark_on(day, d):
-        for src in exit_sources:
-            priced = None
-            if src == "barchart":
-                priced = _real_long_leg(barchart_series, day, d)
-            elif src == "reappearance":
-                priced = _real_long_leg(contract_index, day, d)
-            elif src == "bs":
-                priced = _bs_exit(day, d)
-            if priced is not None and priced[0] is not None:
-                price, short_src = priced
-                source = _tag.get(src, src)
-                if K_short is not None and src != "bs":
-                    source += f"+{short_src}"
-                if K_short is not None:  # spread cost-to-close floored at zero
-                    price = max(0.0, price)
-                return price, source
-        return None, ""
-
+    # Path runs to the NEAREST leg expiration (a calendar's short leg bounds it),
+    # capped at path_cap_days.
+    nearest_dte = min((leg.expiration - signal_date).days for leg in legs)
     path_cap = sim_cfg.get("path_cap_days", 120)
-    cap_reached_expiry = dte_entry <= path_cap
-    end_date = signal_date + timedelta(days=min(dte_entry, path_cap))
-    if expiration_date:
-        end_date = min(end_date, expiration_date)
+    cap_reached_expiry = nearest_dte <= path_cap
+    end_date = signal_date + timedelta(days=min(nearest_dte, path_cap))
 
     grid_marks = []
     for day in _weekday_grid(signal_date, end_date):
         d = (day - signal_date).days
-        price, source = _mark_on(day, d)
-        grid_marks.append((day, d, price, source))
+        value, source = _mark_on(day, d)
+        grid_marks.append((day, d, value, source))
 
     result.update(_summarize_path(
-        grid_marks, entry_price, is_credit, profit_target, stop_loss, contracts,
+        grid_marks, entry_net, profit_target, stop_loss, contracts,
         cap_reached_expiry, _max_loss_abs(sim_cfg),
         time_exit_day=time_exit_day,
         trailing_stop_trigger=trailing_stop_trigger,

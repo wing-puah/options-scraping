@@ -37,10 +37,6 @@ C_BAR = "#5b8db8"
 GRID = "#dddddd"
 
 
-_CREDIT_STRUCTURES = {"bull_put_spread", "bear_call_spread", "short_put",
-                      "short_call", "iron_condor"}
-
-
 def _parse_path(cell) -> list[float]:
     """Split a daily_price_csv cell ('8.0,11.0,,16.0') into floats, dropping
     empty (no-data) days."""
@@ -58,16 +54,24 @@ def _parse_path(cell) -> list[float]:
 
 
 def pnl_path(row: pd.Series) -> list[float]:
-    """Per-day P&L % path derived from the stored daily price marks vs entry,
-    respecting credit-structure sign. Empty when no daily series is stored."""
+    """Per-day P&L % path derived from the stored daily price marks vs entry.
+    Marks (`daily_price_csv`) and `entry_option_price` are both signed net values
+    (negative = credit), so a single formula handles debit and credit positions:
+    `(mark − entry) / abs(entry)`. Empty when no daily series is stored."""
     prices = _parse_path(row.get("daily_price_csv"))
     entry = row.get("entry_option_price")
     if not prices or not entry or entry == 0:
         return []
-    is_credit = row.get("structure") in _CREDIT_STRUCTURES
-    if is_credit:
-        return [(entry - p) / entry * 100 for p in prices]
-    return [(p - entry) / entry * 100 for p in prices]
+    return [(p - entry) / abs(entry) * 100 for p in prices]
+
+
+def dollar_pnl_path(row: pd.Series) -> list[float]:
+    """Per-day dollar P&L path: pnl_pct / 100 × entry_premium_total."""
+    pct_path = pnl_path(row)
+    premium = row.get("entry_premium_total")
+    if not pct_path or not premium or premium == 0:
+        return []
+    return [v / 100 * abs(premium) for v in pct_path]
 
 
 def pnl_at(path: list[float], n: int) -> float:
@@ -86,6 +90,7 @@ def load(csv_path: Path) -> pd.DataFrame:
     df["realized_pnl"] = pd.to_numeric(df["realized_pnl_pct"], errors="coerce")
     df["realized_abs"] = pd.to_numeric(df.get("realized_pnl_abs"), errors="coerce")
     df["pnl_path"] = df.apply(pnl_path, axis=1)
+    df["dollar_pnl_path"] = df.apply(dollar_pnl_path, axis=1)
     return df
 
 
@@ -386,7 +391,7 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     if not paths:
         return None
 
-    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
+    fig, axes = plt.subplots(3, 2, figsize=(15, 16))
     fig.suptitle("Daily-path analysis — realized exits, excursions, exit tuning",
                  fontsize=16, fontweight="bold", y=0.995)
 
@@ -441,9 +446,11 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
 
     # ---- C: MFE vs MAE scatter, colored by realized outcome ------------------
     ax = axes[1, 0]
-    if "mfe_pct" in df.columns and "mae_pct" in df.columns:
-        mfe = pd.to_numeric(df["mfe_pct"], errors="coerce")
-        mae = pd.to_numeric(df["mae_pct"], errors="coerce")
+    mfe_col = "mfe_abs" if "mfe_abs" in df.columns else ("mfe_pct" if "mfe_pct" in df.columns else None)
+    mae_col = "mae_abs" if "mae_abs" in df.columns else ("mae_pct" if "mae_pct" in df.columns else None)
+    if mfe_col and mae_col:
+        mfe = pd.to_numeric(df[mfe_col], errors="coerce")
+        mae = pd.to_numeric(df[mae_col], errors="coerce")
         win = df["realized_pnl"] > 0
         ax.scatter(mae[win], mfe[win], s=30, color=C_BULL, alpha=0.6,
                    edgecolor="white", linewidth=0.5, label="realized win")
@@ -452,8 +459,43 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
         ax.axhline(0, color="#999", lw=0.8)
         ax.axvline(0, color="#999", lw=0.8)
         ax.set_title("C · Max favorable vs max adverse excursion", fontweight="bold")
-        ax.set_xlabel("MAE % (worst the trade got)")
-        ax.set_ylabel("MFE % (best the trade got)")
+        xlabel = "MAE $ (worst the trade got)" if mfe_col == "mfe_abs" else "MAE % (worst the trade got)"
+        ylabel = "MFE $ (best the trade got)" if mfe_col == "mfe_abs" else "MFE % (best the trade got)"
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend(fontsize=8)
+        ax.grid(color=GRID)
+    else:
+        ax.set_visible(False)
+
+    # ---- E: mean live P&L $ vs trading days held (same shape as A) -----------
+    ax = axes[2, 0]
+    dpaths = [p for p in df["dollar_pnl_path"] if p]
+    if dpaths:
+        dmaxlen = max(len(p) for p in dpaths)
+        dhorizon = min(dmaxlen, horizon)
+        dmean_c, dlo_c, dhi_c = [], [], []
+        for i in range(dhorizon):
+            vals = np.array([p[i] for p in dpaths if len(p) > i])
+            dmean_c.append(vals.mean())
+            dlo_c.append(np.percentile(vals, 25))
+            dhi_c.append(np.percentile(vals, 75))
+        ddays = np.arange(1, dhorizon + 1)
+        ax.axhline(0, color="#999", lw=0.8)
+        ax.fill_between(ddays, dlo_c, dhi_c, color=C_BAR, alpha=0.25,
+                        label="IQR (25–75%)")
+        ax.plot(ddays, dmean_c, "-", color=C_LINE, lw=2, label="Mean P&L $")
+        dpeak = int(np.argmax(dmean_c))
+        ax.plot(dpeak + 1, dmean_c[dpeak], "o", color=C_MED, ms=8,
+                label=f"peak day {dpeak + 1} (${dmean_c[dpeak]:+,.0f})")
+        for x, m in zip(ddays[::10], dmean_c[::10]):
+            ax.annotate(f"${m:+,.0f}", (x, m), textcoords="offset points",
+                        xytext=(0, 8), ha="center", fontsize=8, color=C_LINE)
+        ax.set_title("E · Mean live P&L $ vs trading days held", fontweight="bold")
+        ax.set_xlabel("Trading days since entry")
+        ax.set_ylabel("P&L ($)")
+        ax.yaxis.set_major_formatter(
+            matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
         ax.legend(fontsize=8)
         ax.grid(color=GRID)
     else:
@@ -479,6 +521,8 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
         ax.grid(axis="y", color=GRID)
     else:
         ax.set_visible(False)
+
+    axes[2, 1].set_visible(False)
 
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out.mkdir(parents=True, exist_ok=True)

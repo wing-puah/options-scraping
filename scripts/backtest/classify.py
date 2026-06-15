@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .config import _UNSUPPORTED_PATTERNS
 from .helpers import _num, _opt_price, _row_iv, _parse_expiration, _short_strike
+from .legs import parse_legs
 
 log = logging.getLogger("backtest")
 
@@ -90,11 +91,21 @@ def classify_play(play_text: str) -> dict:
     Returns dict with:
       structure   — long_call | long_put | bull_call_spread | bear_put_spread
                     | bear_call_spread | bull_put_spread | short_call | short_put
-                    | iron_condor | unsupported
+                    | iron_condor | explicit_legs | unsupported
       option_type — Call | Put | None
       strikes     — parsed strikes (may be empty); 4 for iron condors
       is_credit   — True for premium-selling structures (net credit at entry)
+      legs        — present only for structure == "explicit_legs": the parsed legs
+
+    An explicit leg-string (e.g. "+3 AMD:2025-10-16:130:C") is recognised first and
+    short-circuits the freeform heuristics — and the _UNSUPPORTED_PATTERNS gate — so
+    that calendar / diagonal / ratio spreads spelled out as legs are accepted.
     """
+    explicit = parse_legs(play_text)
+    if explicit:
+        return {"structure": "explicit_legs", "option_type": None, "strikes": [],
+                "is_credit": False, "legs": explicit}
+
     text = (play_text or "").lower()
     if not text.strip():
         return {"structure": "unsupported", "option_type": None, "strikes": [], "is_credit": False}
