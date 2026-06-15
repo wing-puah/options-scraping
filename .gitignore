@@ -2,7 +2,6 @@
 .env
 cookies/
 credentials/
-downloads/
 logs/
 references/
 __pycache__/
@@ -15,6 +14,7 @@ web/node_modules/
 web/.next/
 backtests/*.csv
 backtests/*.json
+backtests/charts/
 backtests/option_history_cache/
 .cache/
 *_secret_*

@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import timedelta
 
 from .helpers import (
@@ -12,15 +13,48 @@ from .helpers import (
 log = logging.getLogger("backtest")
 
 
+def _size_contracts(entry_price: float, sim_cfg: dict) -> int:
+    """Fixed-fractional position sizing: size so that hitting stop_loss costs at most
+    risk_per_trade_pct × portfolio_value. Minimum 1 contract; a separate dollar stop
+    in _summarize_path enforces the budget cap when 1 contract already exceeds it.
+    Falls back to sim_cfg['contracts'] when portfolio_value is unset."""
+    portfolio = sim_cfg.get("portfolio_value")
+    risk_pct = sim_cfg.get("risk_per_trade_pct")
+    stop = sim_cfg.get("stop_loss", 1.0)
+    if portfolio and risk_pct and stop > 0 and entry_price > 0:
+        dollar_risk = portfolio * risk_pct
+        loss_per_contract = entry_price * 100 * stop
+        return max(1, math.floor(dollar_risk / loss_per_contract))
+    return sim_cfg.get("contracts", 1)
+
+
+def _max_loss_abs(sim_cfg: dict) -> float | None:
+    """Dollar loss cap per trade from portfolio config. None when not configured."""
+    portfolio = sim_cfg.get("portfolio_value")
+    risk_pct = sim_cfg.get("risk_per_trade_pct")
+    if portfolio and risk_pct:
+        return portfolio * risk_pct
+    return None
+
+
 # ─── Path summarizer ───────────────────────────────────────────────────────────
 
 def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss,
-                    contracts, cap_reached_expiry) -> dict:
+                    contracts, cap_reached_expiry, max_loss_abs=None,
+                    time_exit_day=None, trailing_stop_trigger=None,
+                    trailing_stop_pct=None, loss_days_exit=None) -> dict:
     """Turn a day-by-day price grid into the path string, realized exit, and MFE/MAE.
 
-    Realized exit = the FIRST day profit_target or stop_loss is crossed (frozen at
-    that day's mark). MFE/MAE are measured over the WHOLE path so the target/stop
-    can be tuned in analysis.
+    Realized exit = the FIRST exit condition crossed (frozen at that day's mark).
+    MFE/MAE are measured over the WHOLE path so exit params can be tuned in analysis.
+
+    Exit priority:
+      1. profit_target  — fixed % gain (disabled when None)
+      2. trailing_stop  — trails from peak once trailing_stop_trigger is reached
+      3. dollar_stop    — hard per-trade $ loss cap from portfolio sizing
+      4. stop_loss      — hard % loss floor
+      5. loss_days_exit — N consecutive trading days in loss
+      6. time_exit_day  — calendar days from entry; graceful time-based close
     """
 
     def pnl_of(p):
@@ -41,6 +75,9 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
     mfe, mae, mfe_day, mae_day = -1e18, 1e18, None, None
     exit_reason = realized_p = None
     days_held = last_priced_idx = None
+    peak_pnl = -1e18
+    trailing_active = False
+    loss_streak = 0
     for grid_idx, (dt, d, p, src) in enumerate(grid_marks, start=1):
         if p is None:
             continue
@@ -51,10 +88,25 @@ def _summarize_path(grid_marks, entry_price, is_credit, profit_target, stop_loss
         if pl < mae:
             mae, mae_day = pl, grid_idx
         if exit_reason is None:
-            if pl >= profit_target:
+            if pl > peak_pnl:
+                peak_pnl = pl
+            if trailing_stop_trigger is not None and peak_pnl >= trailing_stop_trigger:
+                trailing_active = True
+            loss_streak = loss_streak + 1 if pl < 0 else 0
+
+            if profit_target is not None and pl >= profit_target:
                 exit_reason, realized_p, days_held = "profit_target", p, grid_idx
+            elif (trailing_active and trailing_stop_pct is not None
+                  and pl <= peak_pnl - trailing_stop_pct):
+                exit_reason, realized_p, days_held = "trailing_stop", p, grid_idx
+            elif max_loss_abs is not None and pl * entry_price * 100 * contracts <= -max_loss_abs:
+                exit_reason, realized_p, days_held = "dollar_stop", p, grid_idx
             elif pl <= -stop_loss:
                 exit_reason, realized_p, days_held = "stop_loss", p, grid_idx
+            elif loss_days_exit is not None and loss_streak >= loss_days_exit:
+                exit_reason, realized_p, days_held = "loss_days", p, grid_idx
+            elif time_exit_day is not None and d >= time_exit_day:
+                exit_reason, realized_p, days_held = "time_exit", p, grid_idx
 
     if exit_reason is None:
         _, _, last_p, _ = priced[-1]
@@ -120,7 +172,6 @@ def _simulate_iron_condor(
     ticker = candidate["ticker"]
     signal_date = candidate["signal_date"]
     r = sim_cfg.get("risk_free_rate", 0.05)
-    contracts = sim_cfg.get("contracts", 1)
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
 
     K_sp_matched = _num(entry_row.get("Strike"))
@@ -150,12 +201,18 @@ def _simulate_iron_condor(
 
     profit_target = sim_cfg.get("profit_target", 0.50)
     stop_loss = sim_cfg.get("stop_loss", 1.00)
+    contracts = _size_contracts(entry_credit, sim_cfg)
+    _tex_frac = sim_cfg.get("time_exit_dte_fraction")
+    time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
+    trailing_stop_trigger = sim_cfg.get("trailing_stop_trigger")
+    trailing_stop_pct = sim_cfg.get("trailing_stop_pct")
+    loss_days_exit = sim_cfg.get("loss_days_exit")
 
     result = {
         "signal_date": signal_date.isoformat(),
         "ticker": ticker,
         "structure": "iron_condor",
-        "opt_type": "IC",
+        "contracts": contracts,
         "k_long": round(K_sp, 2),
         "k_short": f"{K_lp:.2f}/{K_sc:.2f}/{K_lc:.2f}",
         "expiration": expiration_raw,
@@ -195,7 +252,12 @@ def _simulate_iron_condor(
 
     result.update(_summarize_path(
         grid_marks, entry_credit, True, profit_target, stop_loss, contracts,
-        cap_reached_expiry))
+        cap_reached_expiry, _max_loss_abs(sim_cfg),
+        time_exit_day=time_exit_day,
+        trailing_stop_trigger=trailing_stop_trigger,
+        trailing_stop_pct=trailing_stop_pct,
+        loss_days_exit=loss_days_exit,
+    ))
     return result
 
 
@@ -225,7 +287,6 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
     is_credit = cls.get("is_credit", False)
     signal_date = candidate["signal_date"]
     r = sim_cfg.get("risk_free_rate", 0.05)
-    contracts = sim_cfg.get("contracts", 1)
 
     K = _num(entry_row.get("Strike"))
     dte_entry = _num(entry_row.get("DTE"))
@@ -281,13 +342,19 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
     contract_key = _contract_key(ticker, opt_type, K, expiration_raw)
     profit_target = sim_cfg.get("profit_target", 0.50)
     stop_loss = sim_cfg.get("stop_loss", 1.00)
+    contracts = _size_contracts(entry_price, sim_cfg)
     exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
+    _tex_frac = sim_cfg.get("time_exit_dte_fraction")
+    time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
+    trailing_stop_trigger = sim_cfg.get("trailing_stop_trigger")
+    trailing_stop_pct = sim_cfg.get("trailing_stop_pct")
+    loss_days_exit = sim_cfg.get("loss_days_exit")
 
     result = {
         "signal_date": signal_date.isoformat(),
         "ticker": ticker,
         "structure": structure,
-        "opt_type": opt_type,
+        "contracts": contracts,
         "k_long": K,
         "k_short": round(K_short, 2) if K_short else "",
         "expiration": expiration_raw,
@@ -357,5 +424,10 @@ def _simulate(candidate, cls, entry_row, contract_index, barchart_series, sim_cf
 
     result.update(_summarize_path(
         grid_marks, entry_price, is_credit, profit_target, stop_loss, contracts,
-        cap_reached_expiry))
+        cap_reached_expiry, _max_loss_abs(sim_cfg),
+        time_exit_day=time_exit_day,
+        trailing_stop_trigger=trailing_stop_trigger,
+        trailing_stop_pct=trailing_stop_pct,
+        loss_days_exit=loss_days_exit,
+    ))
     return result

@@ -26,7 +26,7 @@ from .simulate import _simulate
 log = logging.getLogger("backtest")
 
 _KEY_ORDER = [
-    "signal_date", "ticker", "structure", "opt_type", "k_long", "k_short",
+    "signal_date", "ticker", "structure", "contracts", "k_long", "k_short",
     "expiration", "dte_entry", "iv_entry_pct", "delta", "entry_underlying",
     "entry_option_price", "entry_premium_total", "entry_source",
     "regime", "play",
@@ -81,20 +81,24 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
 
 async def _fetch_option_histories(
     contracts: list[dict], headless: bool, timeout_ms: int = 15000,
+    needed_dates: dict[tuple, date] | None = None,
+    cache_only: bool = False,
 ) -> tuple[dict[tuple, list], dict[tuple, dict]]:
     """Scrape (and cache) per-contract Barchart price history.
 
     contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
+    needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
+      row is more than 5 days after the needed date, the cache is stale and re-scraped.
     Returns (series_map, details_map):
       series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
       details_map: {contract_key: {date: row_dict}}      — for building entry rows
-    Cached CSVs are reused so re-runs do not re-scrape.
     """
+    _STALENESS_DAYS = 5
     HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
     email = os.getenv("BARCHART_EMAIL", "")
     password = os.getenv("BARCHART_PASSWORD", "")
-    cookies_path = Path(os.getenv("COOKIES_PATH",
-                                   str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
+    cookies_path = Path(os.getenv(
+        "COOKIES_PATH", str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
 
     series_map: dict[tuple, list] = {}
     details_map: dict[tuple, dict] = {}
@@ -108,9 +112,28 @@ async def _fetch_option_histories(
         cache = barchart_options.cache_path(
             HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
         if cache.exists():
-            _load_cache(c, cache.read_text(encoding="utf-8"))
-        else:
+            text = cache.read_text(encoding="utf-8")
+            _load_cache(c, text)
+            if cache_only:
+                continue
+            # Re-scrape if cache doesn't reach back to the earliest signal date.
+            needed = needed_dates.get(c["key"]) if needed_dates else None
+            if needed is not None:
+                series = series_map.get(c["key"], [])
+                earliest = min((d for d, _ in series), default=None)
+                if earliest is None or (earliest - needed).days > _STALENESS_DAYS:
+                    log.info(
+                        "Cache for %s earliest=%s, needed=%s — refetching",
+                        c["key"], earliest, needed,
+                    )
+                    series_map.pop(c["key"], None)
+                    details_map.pop(c["key"], None)
+                    cache.unlink()
+                    to_scrape.append(c)
+        elif not cache_only:
             to_scrape.append(c)
+        else:
+            log.debug("--cache-only: no cache for %s, skipping", c["key"])
 
     log.info("Barchart history: %d cached, %d to scrape", len(series_map), len(to_scrape))
     if not to_scrape:
@@ -235,10 +258,10 @@ def _print_summary(results) -> None:
     ranked = sorted(rz, key=_sort_key, reverse=True)
     top   = ranked[:5]
     worst = ranked[-5:]
-    print(f"\nTop 5 plays by realized P&L ($):")
+    print("\nTop 5 plays by realized P&L ($):")
     for r in top:
         print(_play_line(r))
-    print(f"\nWorst 5 plays by realized P&L ($):")
+    print("\nWorst 5 plays by realized P&L ($):")
     for r in worst:
         print(_play_line(r))
 
@@ -254,6 +277,8 @@ def main() -> None:
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
     parser.add_argument("--dry-run", action="store_true", help="Do not write output files")
+    parser.add_argument("--cache-only", action="store_true",
+                        help="Use cached Barchart history only; skip retrieval even if cache is stale or missing")
     args = parser.parse_args()
 
     cfg_path = Path(__file__).resolve().parent.parent.parent / args.config
@@ -276,7 +301,7 @@ def main() -> None:
         sys.exit(0)
 
     # Pass 1 — classify each play and identify its contract from play text.
-    matched, contracts, skipped = [], {}, {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
+    matched, contracts, needed_dates, skipped = [], {}, {}, {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
     for c in candidates:
         c["regime"] = c.get("regime", "")
         cls = classify_play(c["play"])
@@ -304,11 +329,16 @@ def main() -> None:
         contracts.setdefault(key, {"key": key, "symbol": c["ticker"],
                                    "opt_type": anchor_type, "strike": K,
                                    "expiration": exp_date})
+        sig = c["signal_date"]
+        if key not in needed_dates or sig < needed_dates[key]:
+            needed_dates[key] = sig
         if not is_ic and K_short is not None:
             skey = _contract_key(c["ticker"], opt_type, K_short, exp_raw)
             contracts.setdefault(skey, {"key": skey, "symbol": c["ticker"],
                                         "opt_type": opt_type, "strike": K_short,
                                         "expiration": exp_date})
+            if skey not in needed_dates or sig < needed_dates[skey]:
+                needed_dates[skey] = sig
 
     # Pass 2 — fetch/cache Barchart history for all identified contracts.
     barchart_series: dict[tuple, list] = {}
@@ -318,7 +348,8 @@ def main() -> None:
         history_timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
         barchart_series, barchart_details = asyncio.run(_fetch_option_histories(
-            list(contracts.values()), headless, history_timeout_ms))
+            list(contracts.values()), headless, history_timeout_ms, needed_dates,
+            cache_only=args.cache_only))
 
     # Pass 3 — build entry row from cache then simulate.
     log.info("Simulating %d classified plays", len(matched))

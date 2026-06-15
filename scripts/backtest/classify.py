@@ -261,11 +261,20 @@ def _entry_row_from_history(
     expiration_date: date,
 ) -> dict | None:
     """Build a synthetic entry_row dict from the Barchart per-contract history cache."""
+    _ENTRY_STALENESS_DAYS = 5
+
     day_rows = barchart_details.get(contract_key)
     if not day_rows:
         return None
     for d in sorted(day_rows):
         if d >= signal_date:
+            if (d - signal_date).days > _ENTRY_STALENESS_DAYS:
+                log.warning(
+                    "SKIP no_history: %s — earliest data %s is %d days after signal %s; "
+                    "skipping (cannot be a true backtest without near-entry price)",
+                    contract_key, d, (d - signal_date).days, signal_date,
+                )
+                return None
             row = day_rows[d]
             return {
                 "Strike": K,

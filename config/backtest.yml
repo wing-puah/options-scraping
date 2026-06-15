@@ -36,12 +36,41 @@ entry:
 
 # ── Trade simulation ───────────────────────────────────────────────────────────
 simulation:
-  # Number of contracts simulated per play.
+  # Portfolio value used for fixed-fractional position sizing.
+  # Combined with risk_per_trade_pct, contracts are sized so that hitting
+  # the stop_loss costs exactly risk_per_trade_pct × portfolio_value.
+  # Set portfolio_value to null (or omit) to fall back to fixed contracts below.
+  portfolio_value: 50000
+  risk_per_trade_pct: 0.02
+
+  # Fallback: fixed contracts when portfolio_value is not set.
   contracts: 1
 
-  # Profit target / stop loss as a fraction of the entry premium.
-  profit_target: 0.75 # +75%
+  # Fixed profit target as a fraction of entry premium. Used alongside trailing_stop —
+  # profit_target fires reliably for normal winners; trailing_stop catches parabolic moves
+  # that gap past the trigger before profit_target can fire.
+  profit_target: 0.75
+
+  # Hard stop loss as a fraction of entry premium. Combined with the dollar_stop
+  # from portfolio sizing, this is the floor before any trailing logic.
   stop_loss: 0.75 # -75%
+
+  # Time-based exit: close when this fraction of the original DTE has elapsed.
+  # e.g. 0.75 = close when 25% DTE remains. null to disable.
+  # Set to 0.5 previously — too early, many big moves happen in the back half.
+  time_exit_dte_fraction: 0.75
+
+  # Trailing stop: once profit reaches trailing_stop_trigger, trail from peak.
+  # Trail must be wide relative to daily option noise (options swing 20-40%/day).
+  # Trigger=1.0 means "only protect after doubling" — avoids cutting developing moves.
+  # pct=0.50 means peak+150% trails to floor+100%, peak+200% trails to +150%.
+  trailing_stop_trigger: 1.00  # activate only after +100% gain
+  trailing_stop_pct: 0.50      # trail 50 pts from peak
+
+  # Extended loss exit: disabled — these plays need 3-6 weeks to develop and
+  # routinely look bad in the middle before the big move. 10-day cutoff was
+  # killing trades that went on to 100-160% MFE.
+  loss_days_exit: null
 
   # Record a P&L mark for EVERY trading day from entry until the path cap, and
   # derive the realized exit (first profit_target/stop_loss/expiry), MFE and MAE

@@ -490,8 +490,8 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--csv", default="downloads/analysis - BacktestResults.csv")
-    ap.add_argument("--out", default="downloads/charts")
+    ap.add_argument("--csv", default="backtests/results.csv")
+    ap.add_argument("--out", default="backtests/charts")
     args = ap.parse_args()
     df = load(Path(args.csv))
     print(f"Wrote {build(df, Path(args.out))}")
