@@ -21,7 +21,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/spreadsheets",
+]
 
 client_json = os.getenv("GOOGLE_OAUTH_CLIENT_JSON", "")
 token_json = str(Path(__file__).parent.parent / "credentials" / "drive_token.json")

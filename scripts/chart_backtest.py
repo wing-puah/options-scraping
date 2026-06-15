@@ -125,12 +125,12 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
         fontsize=16, fontweight="bold", y=0.995,
     )
 
-    # ---- A: EV% per strategy, decomposed into win/loss contributions ---
+    # ---- A: EV$ per strategy, decomposed into win/loss contributions ---
     ax = axes[0, 0]
     rows = []
     for s in structs:
         sub = df[df["structure"] == s]
-        r = sub["realized_pnl"].dropna()
+        r = sub["realized_abs"].dropna()
         if r.empty:
             continue
         p_win = (r > 0).mean()
@@ -149,25 +149,25 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
     ax.bar(x, loss_c, color=C_RANGE, label="p(loss)·avg loss")
     ax.plot(x, ev, "D", color="black", ms=9, label="EV (net)", zorder=5)
     for xi, r in zip(x, rows):
-        ax.annotate(f"EV {r[3]:+.0f}%\nn={r[4]} · win {r[5]:.0f}%",
+        ax.annotate(f"EV ${r[3]:+,.0f}\nn={r[4]} · win {r[5]:.0f}%",
                     (xi, r[3]), textcoords="offset points",
                     xytext=(0, 12 if r[3] >= 0 else -28),
                     ha="center", fontsize=8, fontweight="bold")
     ax.axhline(0, color="#999", lw=0.8)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=8)
-    ax.set_ylabel("Per-trade contribution to EV %")
+    ax.set_ylabel("Per-trade contribution to EV ($)")
     ax.set_title("A · EV decomposition by strategy (realized exits)",
                  fontweight="bold")
     ax.legend(fontsize=8, loc="upper right")
     ax.grid(axis="y", color=GRID)
 
-    # ---- B: EV% heatmap  strategy × DTE bucket -------------------------
+    # ---- B: EV$ heatmap  strategy × DTE bucket -------------------------
     ax = axes[0, 1]
     piv = df.pivot_table(index="structure", columns="dte_bucket",
-                         values="realized_pnl", aggfunc="mean")
+                         values="realized_abs", aggfunc="mean")
     cnt = df.pivot_table(index="structure", columns="dte_bucket",
-                         values="realized_pnl", aggfunc="count")
+                         values="realized_abs", aggfunc="count")
     piv = piv.reindex(index=structs, columns=bucket_order)
     cnt = cnt.reindex(index=structs, columns=bucket_order)
     vmax = np.nanmax(np.abs(piv.values))
@@ -184,21 +184,21 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
             if np.isnan(v):
                 ax.text(j, i, "—", ha="center", va="center", color="#999")
             else:
-                ax.text(j, i, f"{v:+.0f}%\nn={int(n)}", ha="center",
+                ax.text(j, i, f"${v:+,.0f}\nn={int(n)}", ha="center",
                         va="center", fontsize=8, fontweight="bold",
                         color="black")
-    ax.set_title("B · Mean EV % — strategy × DTE", fontweight="bold")
+    ax.set_title("B · Mean EV $ — strategy × DTE", fontweight="bold")
     ax.set_xlabel("Days to expiry at entry")
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="EV %")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="EV ($)")
 
     # ---- C: bubble — DTE vs realized P&L, colored by strategy ----------
     ax = axes[1, 0]
     for s in structs:
-        sub = df[df["structure"] == s].dropna(subset=["realized_pnl"])
+        sub = df[df["structure"] == s].dropna(subset=["realized_abs"])
         if sub.empty:
             continue
         sizes = np.clip(sub["entry_premium_total"] / 4, 15, 600)
-        ax.scatter(sub["dte_entry"], sub["realized_pnl"], s=sizes,
+        ax.scatter(sub["dte_entry"], sub["realized_abs"], s=sizes,
                    color=struct_colors.get(s, "#555"), alpha=0.6,
                    edgecolor="white", linewidth=0.5, label=s)
     ax.axhline(0, color="#999", lw=0.8)
@@ -206,7 +206,7 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
     ax.set_xticks([2, 5, 10, 21, 45, 90, 200, 500, 955])
     ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_xlabel("DTE at entry (log scale) — bubble size ∝ premium $")
-    ax.set_ylabel("Realized P&L %")
+    ax.set_ylabel("Realized P&L ($)")
     ax.set_title("C · Outcome vs DTE (bubble = position size)",
                  fontweight="bold")
     ax.legend(fontsize=8)

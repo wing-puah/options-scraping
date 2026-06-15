@@ -5,6 +5,16 @@
 # non-MARKET ticker row that has a play as a decision to open a position. There is
 # deliberately no signal_filter here — the analysis IS the filter. To change what
 # gets traded, change the analysis, not this file.
+#
+# ── Priority periods to backtest ──────────────────────────────────────────────
+# Run the analysis pipeline over these date ranges first (--start/--end), then
+# run the backtest. Ordered by how much signal diversity they add:
+#
+#   Priority 1  2024-07-15 → 2024-08-15   Sideways/chop
+#   Priority 2  2024-11-01 → 2024-12-31   Strong bull
+#   Priority 3  2025-03-13 → 2025-04-08   Panic/correction
+#   Priority 4  2024-09-01 → 2024-10-01   Macro regime
+#   Priority 5  2024-10-15 → 2024-11-15   Earnings-heavy
 
 # ── Analysis source ────────────────────────────────────────────────────────────
 analysis:

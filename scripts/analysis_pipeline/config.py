@@ -51,7 +51,8 @@ REQUEST_TIMEOUT_S = 600     # per-attempt timeout (seconds) for the engine CLI
 
 
 # ──────────────────────────── Fetch defaults ───────────────────────
-DEFAULT_TOP_N = 75          # top-N raw trades per section included alongside summaries
+DEFAULT_TOP_N = 20          # top-N tickers by score to show raw trades for
+DEFAULT_RAW_N = 20          # raw trade rows per ticker (top N by premium)
 # persistence window — outweighs a one-day print; default run sees the trailing week
 # (1 = today only, no persistence section)
 DEFAULT_DAYS = 5

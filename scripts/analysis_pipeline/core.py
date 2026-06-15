@@ -284,11 +284,11 @@ def _dates_to_process(args, client) -> list[str]:
 
 
 def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
-                 days: int, top_n: int, framework_md: str, method_md: str,
+                 days: int, top_n: int, raw_n: int, framework_md: str, method_md: str,
                  write: bool) -> dict | None:
     """Run fetch → analyze → (write) for a single date. Returns the analysis dict."""
     log.info("Fetching data for %s (days=%d)", date_str, days)
-    data_md = fetch_data(date_str=date_str, top_n=top_n, days=days)
+    data_md = fetch_data(date_str=date_str, top_n=top_n, raw_n=raw_n, days=days)
     if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
         log.info("No data for %s — skipping", date_str)
         return None
@@ -343,7 +343,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--days", type=int, default=config.DEFAULT_DAYS,
                         help=f"Persistence window passed to the fetch step (default: {config.DEFAULT_DAYS}).")
     parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N,
-                        help=f"Top-N raw trades per section (default: {config.DEFAULT_TOP_N}).")
+                        help=f"Top-N tickers in rollup per flow section (default: {config.DEFAULT_TOP_N}).")
+    parser.add_argument("--raw", type=int, default=config.DEFAULT_RAW_N,
+                        help=f"Top-N raw trades per flow section (default: {config.DEFAULT_RAW_N}).")
     parser.add_argument("--model", default=None,
                         help="Model for the engine's headless call. Default: engine default "
                              "(claude→opus, codex→its configured model).")
@@ -375,7 +377,7 @@ def main(argv: list[str] | None = None) -> None:
         try:
             analysis = analyze_date(
                 d, engine=args.engine, model=model, tab=tab,
-                days=args.days, top_n=args.top,
+                days=args.days, top_n=args.top, raw_n=args.raw,
                 framework_md=framework_md, method_md=method_md,
                 write=not args.dry_run,
             )

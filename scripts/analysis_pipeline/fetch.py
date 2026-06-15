@@ -29,7 +29,6 @@ from lib.flow_summary import (
     persistence_callout_md,
     rows_to_markdown_raw,
     summarize_flow,
-    summarize_unusual,
 )
 
 log = logging.getLogger("analysis_pipeline.fetch")
@@ -110,6 +109,7 @@ def fetch_data(
     raw: bool = False,
     ticker: str | None = None,
     top_n: int = 75,
+    raw_n: int = 20,
     days: int = 1,
     baseline: bool = True,
     vol: bool = True,
@@ -118,8 +118,9 @@ def fetch_data(
 
     raw=True → emit every row per section (heavy context).
     ticker=SYM → filter every section to that symbol and emit raw.
-    Otherwise → emit scored per-ticker rollup + top-N raw trades per section +
-    cross-section. days>1 also appends a multi-day persistence section.
+    Otherwise → scored rollup (top_n tickers) + top raw_n raw trades per flow
+    section. Unusual rows are fetched for scoring only — no separate table.
+    days>1 appends a multi-day persistence callout.
     """
     client = get_drive_client()
     section_rows: dict[str, list[dict]] = {}
@@ -148,12 +149,11 @@ def fetch_data(
             sections_out.append(md)
     sections_out.append(_score_legend())
     for key, title, kind in _ANALYSIS_SECTIONS:
+        if kind != "flow":
+            continue
         rows = section_rows[key]
-        if kind == "flow":
-            unusual = section_rows[_FLOW_UNUSUAL_PAIR[key]]
-            sections_out.append(summarize_flow(rows, title, top_n=top_n, unusual_rows=unusual))
-        else:
-            sections_out.append(summarize_unusual(rows, title, top_n=top_n))
+        unusual = section_rows[_FLOW_UNUSUAL_PAIR[key]]
+        sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n, unusual_rows=unusual))
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
     sections_out.append(hedge_pressure_md(section_rows["stocks-flow"], section_rows["etfs-flow"]))

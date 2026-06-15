@@ -1,12 +1,6 @@
 VENV := .venv
 PY   := $(VENV)/bin/python3
 
-# ── venv ───────────────────────────────────────────────────────────────────────
-.PHONY: venv
-venv:
-	python3 -m venv $(VENV)
-	$(PY) -m pip install -q -r requirements.txt
-	@echo "Virtual env ready. All make targets use it automatically."
 
 # ── scrape ─────────────────────────────────────────────────────────────────────
 .PHONY: scrape

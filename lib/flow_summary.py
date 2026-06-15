@@ -114,6 +114,13 @@ _FLOW_OPENFLAG  = "*"
 _FLOW_CODE      = "Code"
 _FLOW_TIME      = "Time"
 
+# Columns dropped from raw trade rows — low signal for LLM analysis.
+# Price~ is in the rollup context; Expiration Date duplicates DTE;
+# Bid/Ask x Size and Trade price add noise; Time is not useful at this level.
+_RAW_DROP_COLUMNS = frozenset({
+    "Price~", "Expiration Date", "Bid x Size", "Ask x Size", "Trade", "Time",
+})
+
 # |delta| at or above this is treated as a stock substitute (financing /
 # conversion / replacement) — premium there is mostly intrinsic, not a bet on a
 # move. Used for the per-ticker financing share, not to discard the direction.
@@ -454,17 +461,31 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
     return f"### {title} — ticker rollup ({len(rollup)} symbols, ranked by score)\n\n{header_line}\n{sep}\n{body}\n"
 
 
-def _flow_top_trades_md(rows: list[dict], top_n: int, title: str) -> str:
-    """Emit the top-N trades by Premium with full columns preserved."""
-    sortable = [(r, _to_float(r.get(_FLOW_PREMIUM))) for r in rows]
-    sortable.sort(key=lambda t: t[1], reverse=True)
-    top = [r for r, _ in sortable[:top_n]]
-    if not top:
-        return f"### {title} — top trades\n\n_No data._\n"
-    headers = list(top[0].keys())
-    sep = " | ".join(["---"] * len(headers))
-    body = "\n".join(" | ".join(str(r.get(h, "")) for h in headers) for r in top)
-    return f"### {title} — top {len(top)} trades by premium\n\n{' | '.join(headers)}\n{sep}\n{body}\n"
+def _flow_top_trades_md(
+    rows: list[dict], top_tickers: list[str], raw_n: int, title: str
+) -> str:
+    """For each ticker in top_tickers (score order), emit top raw_n trades by premium."""
+    by_ticker: dict[str, list[dict]] = {}
+    for r in rows:
+        sym = (r.get(_FLOW_SYMBOL) or "").strip()
+        if sym in top_tickers:
+            by_ticker.setdefault(sym, []).append(r)
+
+    sections = []
+    for sym in top_tickers:
+        ticker_rows = by_ticker.get(sym, [])
+        if not ticker_rows:
+            continue
+        ticker_rows.sort(key=lambda r: _to_float(r.get(_FLOW_PREMIUM)), reverse=True)
+        top = ticker_rows[:raw_n]
+        headers = [h for h in top[0].keys() if h not in _RAW_DROP_COLUMNS]
+        sep = " | ".join(["---"] * len(headers))
+        body = "\n".join(" | ".join(str(r.get(h, "")) for h in headers) for r in top)
+        sections.append(f"#### {sym}\n\n{' | '.join(headers)}\n{sep}\n{body}\n")
+
+    if not sections:
+        return ""
+    return f"### {title} — top {raw_n} trades per ticker (top {len(top_tickers)} by score)\n\n" + "\n".join(sections)
 
 
 def build_scored_flow_rollup(
@@ -489,25 +510,27 @@ def build_scored_flow_rollup(
 def summarize_flow(
     rows: list[dict],
     title: str,
-    top_n: int = 75,
+    top_n: int = 20,
+    raw_n: int = 5,
     unusual_rows: list[dict] | None = None,
 ) -> str:
-    """Compact flow-section summary: scored ticker rollup + top-N raw trades.
+    """Full rollup (all tickers) + top raw_n raw trades for each of the top_n tickers by score.
 
-    When ``unusual_rows`` (the matching unusual-activity section) is supplied the
-    conviction score also credits cross-section overlap and Vol/OI strength; the
-    rollup is sorted high-to-low by score so the names worth reading lead.
+    Unusual rows are used only for scoring — no separate unusual table is emitted.
+    Set raw_n=0 to omit raw trades entirely.
     """
     if not rows:
         return f"## {title}\n\n_No data available._\n"
     rollup = build_scored_flow_rollup(rows, unusual_rows)
-    return (
+    top_tickers = [r["symbol"] for r in rollup[:top_n]] if top_n > 0 else []
+    out = (
         f"## {title}\n\n"
         f"_{len(rows)} trades across {len(rollup)} symbols._\n\n"
         + _flow_rollup_md(rollup, title)
-        + "\n"
-        + _flow_top_trades_md(rows, top_n, title)
     )
+    if raw_n > 0 and top_tickers:
+        out += "\n" + _flow_top_trades_md(rows, top_tickers, raw_n, title)
+    return out
 
 
 # Machine-readable CSV column order for the scored flow rollup. Money columns are
@@ -587,102 +610,9 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
 # ---------------------------------------------------------------------------
 
 _UN_SYMBOL = "Symbol"
-_UN_TYPE   = "Type"
-_UN_STRIKE = "Strike"
-_UN_DTE    = "DTE"
-_UN_VOLUME = "Volume"
 _UN_VOLOI  = "Vol/OI"
-_UN_MONEY  = "Moneyness"
 
 
-def _unusual_ticker_rows(rows: Iterable[dict]) -> list[dict]:
-    by_sym: dict[str, dict] = defaultdict(lambda: {
-        "symbol": "",
-        "rows": 0,
-        "calls": 0,
-        "puts": 0,
-        "total_volume": 0,
-        "max_voloi": 0.0,
-        "dte_min": None,
-        "dte_max": None,
-        "biggest": None,  # (voloi, type, strike, dte, moneyness)
-    })
-
-    for r in rows:
-        sym = (r.get(_UN_SYMBOL) or "").strip()
-        if not sym:
-            continue
-        opt_type = (r.get(_UN_TYPE) or "").strip()
-        voloi = _to_float(r.get(_UN_VOLOI))
-        vol = _to_int(r.get(_UN_VOLUME))
-        dte = _to_int(r.get(_UN_DTE))
-
-        agg = by_sym[sym]
-        agg["symbol"] = sym
-        agg["rows"] += 1
-        if opt_type.lower() == "call":
-            agg["calls"] += 1
-        elif opt_type.lower() == "put":
-            agg["puts"] += 1
-        agg["total_volume"] += vol
-        agg["max_voloi"] = max(agg["max_voloi"], voloi)
-        agg["dte_min"] = dte if agg["dte_min"] is None else min(agg["dte_min"], dte)
-        agg["dte_max"] = dte if agg["dte_max"] is None else max(agg["dte_max"], dte)
-
-        big = agg["biggest"]
-        if big is None or voloi > big[0]:
-            agg["biggest"] = (voloi, opt_type, r.get(_UN_STRIKE, ""), dte, r.get(_UN_MONEY, ""))
-
-    out = list(by_sym.values())
-    out.sort(key=lambda r: r["max_voloi"], reverse=True)
-    return out
-
-
-def _unusual_rollup_md(rollup: list[dict], title: str) -> str:
-    if not rollup:
-        return f"### {title} — ticker rollup\n\n_No data._\n"
-    headers = ["Symbol", "Rows", "Calls", "Puts", "TotalVol", "MaxVol/OI", "DTE", "Biggest"]
-    sep = " | ".join(["---"] * len(headers))
-    lines = []
-    for r in rollup:
-        big = r["biggest"]
-        if big is None:
-            big_str = "—"
-        else:
-            voloi, opt_type, strike, dte, money = big
-            big_str = f"{voloi:.1f}x {opt_type} ${strike} {dte}d {money}"
-        dte_range = f"{r['dte_min']}–{r['dte_max']}"
-        lines.append(" | ".join([
-            r["symbol"], str(r["rows"]), str(r["calls"]), str(r["puts"]),
-            f"{r['total_volume']:,}", f"{r['max_voloi']:.1f}", dte_range, big_str,
-        ]))
-    body = "\n".join(lines)
-    return f"### {title} — ticker rollup ({len(rollup)} symbols)\n\n{' | '.join(headers)}\n{sep}\n{body}\n"
-
-
-def _unusual_top_rows_md(rows: list[dict], top_n: int, title: str) -> str:
-    sortable = [(r, _to_float(r.get(_UN_VOLOI))) for r in rows]
-    sortable.sort(key=lambda t: t[1], reverse=True)
-    top = [r for r, _ in sortable[:top_n]]
-    if not top:
-        return f"### {title} — top rows\n\n_No data._\n"
-    headers = list(top[0].keys())
-    sep = " | ".join(["---"] * len(headers))
-    body = "\n".join(" | ".join(str(r.get(h, "")) for h in headers) for r in top)
-    return f"### {title} — top {len(top)} rows by Vol/OI\n\n{' | '.join(headers)}\n{sep}\n{body}\n"
-
-
-def summarize_unusual(rows: list[dict], title: str, top_n: int = 50) -> str:
-    if not rows:
-        return f"## {title}\n\n_No data available._\n"
-    rollup = _unusual_ticker_rows(rows)
-    return (
-        f"## {title}\n\n"
-        f"_{len(rows)} strikes across {len(rollup)} symbols._\n\n"
-        + _unusual_rollup_md(rollup, title)
-        + "\n"
-        + _unusual_top_rows_md(rows, top_n, title)
-    )
 
 
 # ---------------------------------------------------------------------------

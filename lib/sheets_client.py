@@ -6,29 +6,41 @@ from pathlib import Path
 
 import gspread
 from dotenv import load_dotenv
-from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/spreadsheets",
+]
+
+_DEFAULT_TOKEN = Path(__file__).parent.parent / "credentials" / "drive_token.json"
 
 log = logging.getLogger(__name__)
 
 
 def _get_client() -> gspread.Client:
-    json_content = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT")
-    json_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-
-    if json_content:
-        log.debug("Authorising Sheets via service account JSON content")
-        info = json.loads(json_content)
-        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-    elif json_path:
-        log.debug("Authorising Sheets via service account file")
-        creds = Credentials.from_service_account_file(json_path, scopes=SCOPES)
+    token_content = os.getenv("GOOGLE_OAUTH_TOKEN_JSON_CONTENT")
+    if token_content:
+        log.debug("Authorising Sheets via OAuth2 token (env content)")
+        creds = Credentials.from_authorized_user_info(json.loads(token_content), SCOPES)
+        token_path = None
     else:
-        log.error("No Sheets credentials found in environment")
-        raise RuntimeError("Set GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT or GOOGLE_SERVICE_ACCOUNT_JSON")
+        token_path = Path(os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or _DEFAULT_TOKEN)
+        if not token_path.exists():
+            log.error("OAuth token not found — run scripts/auth_drive.py")
+            raise RuntimeError("OAuth token not found. Run: python3 scripts/auth_drive.py")
+        log.debug("Authorising Sheets via OAuth2 token file")
+        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+
+    if creds.expired and creds.refresh_token:
+        log.info("Sheets OAuth token expired — refreshing")
+        creds.refresh(Request())
+        if token_path is not None:
+            token_path.write_text(creds.to_json())
+            log.info("OAuth token refreshed and saved")
 
     return gspread.authorize(creds)
 
