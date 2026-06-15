@@ -224,6 +224,47 @@ Results byte-for-byte identical to Attempt 3 — trailing fired 0 times.
 
 ---
 
+## Attempt 6 — BETTER ✓ (profit_target lowered to 0.60)
+
+**Config:** `profit_target=0.60`, `stop_loss=0.75`, `time_exit_dte_fraction=0.75`, `trailing_stop_trigger=1.00`, `trailing_stop_pct=0.50`
+
+| Metric | PT=75% (Attempt 3) | PT=60% (Attempt 6) | Δ |
+|--------|-------------------|-------------------|---|
+| Win rate | 45.8% | **51.7%** | +5.9pp |
+| Avg PnL % | +0.8% | **+5.0%** | +4.2pp |
+| Avg win | +79.1% | +70.2% | −8.9pp |
+| Avg loss | −65.5% | −64.8% | +0.7pp |
+| Total $ | −$442 | **+$4,378** | +$4,820 |
+
+**Exit reason shift:**
+
+| Reason | Old n | Old total | New n | New total | Δ |
+|--------|-------|-----------|-------|-----------|---|
+| profit_target | 38 | +$44,879 | **50** | +$46,612 | +$1,733 |
+| stop_loss | 25 | −$21,324 | 23 | −$19,941 | +$1,383 |
+| dollar_stop | 19 | −$20,841 | 16 | −$17,554 | +$3,287 |
+| time_exit | 33 | −$2,042 | 27 | −$3,294 | −$1,252 |
+
+**By period:**
+
+| Period | PT=75% | PT=60% | Δ |
+|--------|--------|--------|---|
+| Jul 2024 | −$5,075 | −$1,635 | **+$3,440** |
+| Jan 2025 | −$5,312 | −$4,455 | **+$857** |
+| Mar 2025 | +$12,497 | +$11,214 | −$1,283 |
+| Feb 2026 | +$750 | +$2,556 | **+$1,806** |
+| Jun 2026 | −$3,302 | −$3,302 | $0 |
+
+**Mechanism confirmed:** 10 trades flipped from loss→profit_target (+$12,134 total). These were Type-B reversals — trades that had peaked above 60% but reversed before reaching 75%, ending at stop_loss/dollar_stop/time_exit. Catching them at 60% on the way up saved the trade. 14 trades gave up upside by exiting earlier (−$7,314), all already profit_target exits at a lower mark.
+
+**EEM 2025-03-18 (largest cost, −$3,140):** path gapped 42%→58%→66%→74%→302%. PT=60% exits day 2 at +66%; PT=75% holds to the 302% gap-day. This is the canonical gap-day risk of a lower profit target.
+
+**Jun 2026 zero delta confirmed:** 15/17 trades had MFE <10% — no exit rule helps straight-down trades. Signal-quality problem, not exit timing.
+
+Path replay had projected +$5,833; actual result was +$4,820 (close; small gap from time_exit approximation in the replay model).
+
+---
+
 ## Rules of thumb learned so far
 
 - **Don't use trailing stops tighter than 50pts** — option spread daily vol easily exceeds 20–30%, so anything tighter fires on noise.
@@ -232,8 +273,8 @@ Results byte-for-byte identical to Attempt 3 — trailing fired 0 times.
 - **Don't use loss-day cutoffs shorter than ~25 days** — directional option plays take weeks to develop; mid-trade losing streaks are normal.
 - **Time exit at 50% DTE is too early; 75% is better** — many of the biggest moves (GLD, HYG, SPY) happened in the final 25–30% of the DTE window.
 - **Exit rules can only help on ~55% of losers** — ~45% are straight directional failures (MFE <10%). Those require better signal quality, not better exit mechanics.
-- **Profit target at 75% is correct** — avg win of +98.1% at 75% target. Don't remove it.
-- **The exit config is now at its ceiling** — avg PnL −1.5%. Further exit tuning is marginal. The remaining gap is driven by entry quality.
+- **Stop loss at 75% is correct** — tighter stops (40–60%) make every combination worse; they fire on mid-trade dips before the trade develops.
+- **Profit target at 60% beats 75%** — catches Type-B reversals (peaked 60–75%, then reversed) before they flip. Cost: exits gap-day movers 15% earlier (EEM 3×-in-a-day is the canonical risk). Net real-run improvement: +$4,820 / +5.9pp win rate (Attempt 6 confirmed).
 
 ## What actually drives losses — confidence level, not regime
 

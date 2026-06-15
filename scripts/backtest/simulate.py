@@ -313,9 +313,30 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     stop_loss = sim_cfg.get("stop_loss", 1.00)
     _tex_frac = sim_cfg.get("time_exit_dte_fraction")
     time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
-    trailing_stop_trigger = sim_cfg.get("trailing_stop_trigger")
-    trailing_stop_pct = sim_cfg.get("trailing_stop_pct")
     loss_days_exit = sim_cfg.get("loss_days_exit")
+
+    # Trailing stop: both % of entry premium and % of portfolio are converted to
+    # dollars and the minimum is used — whichever fires first protects the trade.
+    _pos_value = abs(entry_net) * 100 * contracts  # total dollar value of position
+    _portfolio = sim_cfg.get("portfolio_value")
+
+    def _effective_threshold(pct_of_premium_key, pct_of_portfolio_key):
+        """Return effective threshold as % of entry premium (min of both expressions)."""
+        opts = []
+        v = sim_cfg.get(pct_of_premium_key)
+        if v is not None:
+            opts.append(v * _pos_value)
+        p = sim_cfg.get(pct_of_portfolio_key)
+        if p is not None and _portfolio:
+            opts.append(p * _portfolio)
+        if not opts or _pos_value == 0:
+            return None
+        return min(opts) / _pos_value
+
+    trailing_stop_trigger = _effective_threshold(
+        "trailing_stop_trigger", "trailing_stop_portfolio_trigger_pct")
+    trailing_stop_pct = _effective_threshold(
+        "trailing_stop_pct", "trailing_stop_portfolio_trail_pct")
 
     result = {
         "signal_date": signal_date.isoformat(),

@@ -248,8 +248,9 @@ def build_ev(df: pd.DataFrame, out: Path) -> Path:
 
 def build(df: pd.DataFrame, out: Path) -> Path:
     df = df.copy()
-    # Per-trading-day-checkpoint P&L, sampled from each play's daily path.
-    cp = {n: df["pnl_path"].apply(lambda p: pnl_at(p, n)) for n in TD_CHECKPOINTS}
+    # Per-trading-day-checkpoint P&L in dollars, sampled from each play's daily path.
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    cp = {n: df["dollar_pnl_path"].apply(lambda p: pnl_at(p, n)) for n in TD_CHECKPOINTS}
 
     fig, axes = plt.subplots(3, 2, figsize=(15, 16))
     fig.suptitle(
@@ -260,7 +261,7 @@ def build(df: pd.DataFrame, out: Path) -> Path:
         y=0.995,
     )
 
-    # ---- A: mean & median P&L vs holding horizon -----------------------
+    # ---- A: mean & median P&L $ vs holding horizon ---------------------
     ax = axes[0, 0]
     xs = TD_CHECKPOINTS
     means = [cp[n].mean() for n in xs]
@@ -269,12 +270,13 @@ def build(df: pd.DataFrame, out: Path) -> Path:
     ax.plot(xs, means, "-o", color=C_LINE, lw=2, label="Mean")
     ax.plot(xs, meds, "--s", color=C_MED, lw=2, label="Median")
     for x, m in zip(xs, means):
-        ax.annotate(f"{m:+.0f}%", (x, m), textcoords="offset points",
+        ax.annotate(f"${m:+,.0f}", (x, m), textcoords="offset points",
                     xytext=(0, 8), ha="center", fontsize=8, color=C_LINE)
-    ax.set_title("A · P&L vs holding period (all plays)", fontweight="bold")
+    ax.set_title("A · P&L $ vs holding period (all plays)", fontweight="bold")
     ax.set_xlabel("Trading days held")
-    ax.set_ylabel("P&L %")
+    ax.set_ylabel("P&L ($)")
     ax.set_xticks(xs)
+    ax.yaxis.set_major_formatter(dollar_fmt)
     ax.legend()
     ax.grid(color=GRID)
 
@@ -291,10 +293,11 @@ def build(df: pd.DataFrame, out: Path) -> Path:
     ax.set_title("B · Win rate by holding period", fontweight="bold")
     ax.set_ylabel("% of plays in profit")
     ax.set_ylim(0, max(wins) + 14)
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
     ax.grid(axis="y", color=GRID)
 
     def _cp_means(sub):
-        sp = sub["pnl_path"]
+        sp = sub["dollar_pnl_path"]
         return [sp.apply(lambda p: pnl_at(p, n)).mean() for n in TD_CHECKPOINTS]
 
     # ---- C: regime comparison ------------------------------------------
@@ -306,10 +309,11 @@ def build(df: pd.DataFrame, out: Path) -> Path:
             continue
         ax.plot(xs, _cp_means(sub), "-o", color=color, lw=2,
                 label=f"{label} (n={len(sub)})")
-    ax.set_title("C · Mean P&L by regime read", fontweight="bold")
+    ax.set_title("C · Mean P&L $ by regime read", fontweight="bold")
     ax.set_xlabel("Trading days held")
-    ax.set_ylabel("Mean P&L %")
+    ax.set_ylabel("Mean P&L ($)")
     ax.set_xticks(xs)
+    ax.yaxis.set_major_formatter(dollar_fmt)
     ax.legend()
     ax.grid(color=GRID)
 
@@ -324,46 +328,49 @@ def build(df: pd.DataFrame, out: Path) -> Path:
             continue
         ax.plot(xs, _cp_means(sub), "-o", color=color, lw=2,
                 label=f"{struct} (n={len(sub)})")
-    ax.set_title("D · Mean P&L by structure", fontweight="bold")
+    ax.set_title("D · Mean P&L $ by structure", fontweight="bold")
     ax.set_xlabel("Trading days held")
-    ax.set_ylabel("Mean P&L %")
+    ax.set_ylabel("Mean P&L ($)")
     ax.set_xticks(xs)
+    ax.yaxis.set_major_formatter(dollar_fmt)
     ax.legend(fontsize=8)
     ax.grid(color=GRID)
 
-    # ---- E: realized exit P&L distribution -----------------------------
+    # ---- E: realized exit P&L $ distribution --------------------------
     ax = axes[2, 0]
-    r = df["realized_pnl"].dropna()
-    ax.hist(r, bins=np.arange(-110, 340, 20), color=C_BAR, edgecolor="white")
+    r = df["realized_abs"].dropna()
+    # dynamic bins so all plays are visible regardless of scale
+    r_lo, r_hi = r.quantile(0.02), r.quantile(0.98)
+    bin_step = max(50, round((r_hi - r_lo) / 25 / 50) * 50)
+    bins = np.arange(np.floor(r_lo / bin_step) * bin_step,
+                     np.ceil(r_hi / bin_step) * bin_step + bin_step,
+                     bin_step)
+    ax.hist(r, bins=bins, color=C_BAR, edgecolor="white")
     ax.axvline(0, color="#999", lw=1)
     ax.axvline(r.mean(), color=C_MED, lw=2,
-               label=f"mean {r.mean():+.0f}%")
+               label=f"mean ${r.mean():+,.0f}")
     ax.axvline(r.median(), color=C_LINE, lw=2, ls="--",
-               label=f"median {r.median():+.0f}%")
+               label=f"median ${r.median():+,.0f}")
     win = (r > 0).mean() * 100
-    ax.set_title(f"E · Realized exit P&L  (win {win:.0f}%, n={len(r)})",
+    ax.set_title(f"E · Realized exit P&L $  (win {win:.0f}%, n={len(r)})",
                  fontweight="bold")
-    ax.set_xlabel("Realized P&L % (first close, else last open mark)")
+    ax.set_xlabel("Realized P&L $ (first close, else last open mark)")
     ax.set_ylabel("Plays")
+    ax.xaxis.set_major_formatter(dollar_fmt)
     ax.legend()
     ax.grid(axis="y", color=GRID)
 
-    # ---- F: per-ticker mean realized P&L -------------------------------
+    # ---- F: per-ticker mean realized P&L $ -----------------------------
     ax = axes[2, 1]
-    by_t = df.groupby("ticker")["realized_pnl"].mean().sort_values()
+    by_t = df.groupby("ticker")["realized_abs"].mean().sort_values()
     colors = [C_BULL if v >= 0 else C_RANGE for v in by_t.values]
     ax.barh(by_t.index, by_t.values, color=colors)
     ax.axvline(0, color="#999", lw=0.8)
-    ax.set_title("F · Mean realized P&L by ticker", fontweight="bold")
-    ax.set_xlabel("Mean realized P&L %")
+    ax.set_title("F · Mean realized P&L $ by ticker", fontweight="bold")
+    ax.set_xlabel("Mean realized P&L ($)")
+    ax.xaxis.set_major_formatter(dollar_fmt)
     ax.tick_params(axis="y", labelsize=7)
     ax.grid(axis="x", color=GRID)
-
-    # percent on the value axes only (not the E histogram count or F x-tickers)
-    for ax in (axes[0, 0], axes[0, 1], axes[1, 0], axes[1, 1]):
-        ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
-    axes[2, 0].xaxis.set_major_formatter(PercentFormatter(decimals=0))
-    axes[2, 1].xaxis.set_major_formatter(PercentFormatter(decimals=0))
 
     fig.tight_layout(rect=(0, 0, 1, 0.985))
     out.mkdir(parents=True, exist_ok=True)
@@ -395,14 +402,19 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     fig.suptitle("Daily-path analysis — realized exits, excursions, exit tuning",
                  fontsize=16, fontweight="bold", y=0.995)
 
-    # ---- A: mean P&L vs trading days held (continuous), with IQR band --------
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+
+    # ---- A: mean P&L $ vs trading days held (continuous), with IQR band -------
     ax = axes[0, 0]
-    maxlen = max(len(p) for p in paths)
+    dpaths_all = [p for p in df["dollar_pnl_path"] if p]
+    use_paths = dpaths_all if dpaths_all else paths  # fall back to % if no dollar paths
+    use_dollar = bool(dpaths_all)
+    maxlen = max(len(p) for p in use_paths)
     horizon = min(maxlen, 63)  # ~3 months of sessions keeps the tail readable
     days = np.arange(1, horizon + 1)
     mean_c, lo_c, hi_c, n_c = [], [], [], []
     for i in range(horizon):
-        vals = np.array([p[i] for p in paths if len(p) > i])
+        vals = np.array([p[i] for p in use_paths if len(p) > i])
         mean_c.append(vals.mean())
         lo_c.append(np.percentile(vals, 25))
         hi_c.append(np.percentile(vals, 75))
@@ -411,11 +423,16 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     ax.fill_between(days, lo_c, hi_c, color=C_BAR, alpha=0.25, label="IQR (25–75%)")
     ax.plot(days, mean_c, "-", color=C_LINE, lw=2, label="Mean P&L")
     peak = int(np.argmax(mean_c))
+    peak_label = f"${mean_c[peak]:+,.0f}" if use_dollar else f"{mean_c[peak]:+.0f}%"
     ax.plot(peak + 1, mean_c[peak], "o", color=C_MED, ms=8,
-            label=f"peak day {peak + 1} ({mean_c[peak]:+.0f}%)")
-    ax.set_title("A · Mean live P&L vs trading days held", fontweight="bold")
+            label=f"peak day {peak + 1} ({peak_label})")
+    ax.set_title("A · Mean live P&L $ vs trading days held", fontweight="bold")
     ax.set_xlabel("Trading days since entry")
-    ax.set_ylabel("P&L %")
+    ax.set_ylabel("P&L ($)" if use_dollar else "P&L %")
+    if use_dollar:
+        ax.yaxis.set_major_formatter(dollar_fmt)
+    else:
+        ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
     ax.legend(fontsize=8)
     ax.grid(color=GRID)
 
@@ -468,36 +485,30 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     else:
         ax.set_visible(False)
 
-    # ---- E: mean live P&L $ vs trading days held (same shape as A) -----------
+    # ---- E: mean realized P&L $ by exit reason ----------------------------
     ax = axes[2, 0]
-    dpaths = [p for p in df["dollar_pnl_path"] if p]
-    if dpaths:
-        dmaxlen = max(len(p) for p in dpaths)
-        dhorizon = min(dmaxlen, horizon)
-        dmean_c, dlo_c, dhi_c = [], [], []
-        for i in range(dhorizon):
-            vals = np.array([p[i] for p in dpaths if len(p) > i])
-            dmean_c.append(vals.mean())
-            dlo_c.append(np.percentile(vals, 25))
-            dhi_c.append(np.percentile(vals, 75))
-        ddays = np.arange(1, dhorizon + 1)
+    if "exit_reason" in df.columns and "realized_abs" in df.columns:
+        order = ["profit_target", "stop_loss", "expired", "cap_open", "no_data"]
+        er_colors = {"profit_target": C_BULL, "stop_loss": C_RANGE, "expired": "#888",
+                     "cap_open": "#00838f", "no_data": "#cccccc"}
+        er_mean = df.groupby("exit_reason")["realized_abs"].mean()
+        er_n = df.groupby("exit_reason")["realized_abs"].count()
+        labels_e = [r for r in order if r in er_mean.index]
+        vals_e = [er_mean[r] for r in labels_e]
+        ns_e = [er_n[r] for r in labels_e]
+        bar_e = ax.bar(labels_e, vals_e,
+                       color=[er_colors.get(r, "#888") for r in labels_e])
+        for b, v, n in zip(bar_e, vals_e, ns_e):
+            ax.text(b.get_x() + b.get_width() / 2,
+                    v + (max(vals_e) - min(vals_e)) * 0.02 * (1 if v >= 0 else -1),
+                    f"${v:+,.0f}\nn={n}", ha="center",
+                    va="bottom" if v >= 0 else "top", fontsize=8)
         ax.axhline(0, color="#999", lw=0.8)
-        ax.fill_between(ddays, dlo_c, dhi_c, color=C_BAR, alpha=0.25,
-                        label="IQR (25–75%)")
-        ax.plot(ddays, dmean_c, "-", color=C_LINE, lw=2, label="Mean P&L $")
-        dpeak = int(np.argmax(dmean_c))
-        ax.plot(dpeak + 1, dmean_c[dpeak], "o", color=C_MED, ms=8,
-                label=f"peak day {dpeak + 1} (${dmean_c[dpeak]:+,.0f})")
-        for x, m in zip(ddays[::10], dmean_c[::10]):
-            ax.annotate(f"${m:+,.0f}", (x, m), textcoords="offset points",
-                        xytext=(0, 8), ha="center", fontsize=8, color=C_LINE)
-        ax.set_title("E · Mean live P&L $ vs trading days held", fontweight="bold")
-        ax.set_xlabel("Trading days since entry")
-        ax.set_ylabel("P&L ($)")
-        ax.yaxis.set_major_formatter(
-            matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
-        ax.legend(fontsize=8)
-        ax.grid(color=GRID)
+        ax.set_title("E · Mean realized P&L $ by exit reason", fontweight="bold")
+        ax.set_ylabel("Mean realized P&L ($)")
+        ax.yaxis.set_major_formatter(dollar_fmt)
+        ax.tick_params(axis="x", labelsize=8)
+        ax.grid(axis="y", color=GRID)
     else:
         ax.set_visible(False)
 
@@ -522,14 +533,15 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     else:
         ax.set_visible(False)
 
-    # ---- F: year-over-year mean P&L path (A-style, one line per entry year) ---
+    # ---- F: year-over-year mean P&L $ path (A-style, one line per entry year) -
     ax = axes[2, 1]
     df["entry_year"] = df["signal_date"].dt.year
     years = sorted(df["entry_year"].dropna().unique().astype(int))
     year_colors = plt.cm.tab10(np.linspace(0, 0.9, len(years)))
     any_year = False
+    path_col = "dollar_pnl_path" if use_dollar else "pnl_path"
     for yr, color in zip(years, year_colors):
-        ypaths = [p for p in df.loc[df["entry_year"] == yr, "pnl_path"] if p]
+        ypaths = [p for p in df.loc[df["entry_year"] == yr, path_col] if p]
         if not ypaths:
             continue
         any_year = True
@@ -540,10 +552,13 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
                 label=f"{yr} (n={len(ypaths)})")
     if any_year:
         ax.axhline(0, color="#999", lw=0.8)
-        ax.set_title("F · Mean P&L path by entry year", fontweight="bold")
+        ax.set_title("F · Mean P&L $ path by entry year", fontweight="bold")
         ax.set_xlabel("Trading days since entry")
-        ax.set_ylabel("Mean P&L %")
-        ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+        ax.set_ylabel("Mean P&L ($)" if use_dollar else "Mean P&L %")
+        if use_dollar:
+            ax.yaxis.set_major_formatter(dollar_fmt)
+        else:
+            ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
         ax.legend(fontsize=8)
         ax.grid(color=GRID)
     else:
@@ -683,6 +698,231 @@ def build_time(df: pd.DataFrame, out: Path) -> Path:
     return path
 
 
+def build_playbook(df: pd.DataFrame, out: Path) -> Path:
+    """Validate whether the analysis is mapping the right structures to the right conditions.
+
+    Four panels:
+      A · Structure × regime count  — allocation: are bear spreads used in BEAR, etc.?
+      B · Structure × regime P&L $  — does the allocation actually win?
+      C · Structure × year P&L $    — which strategies worked in which periods?
+      D · Structure × year win rate  — consistency across years
+    """
+    df = df.copy()
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:+,.0f}")
+
+    STRUCTS = [s for s in ["bull_call_spread", "bear_put_spread",
+                            "bull_put_spread", "bear_call_spread"]
+               if (df["structure"] == s).sum() >= 2]
+    REGIMES = [r for r in ["BULL", "BEAR", "RANGE"]
+               if (df["regime_label"] == r).sum() >= 2]
+    years = sorted(df["signal_date"].dt.year.dropna().unique().astype(int))
+
+    struct_colors = {
+        "bull_call_spread": C_BULL,
+        "bear_put_spread":  C_RANGE,
+        "bull_put_spread":  "#6a1b9a",
+        "bear_call_spread": "#00838f",
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.suptitle(
+        "Playbook validation — structure × regime & year",
+        fontsize=15, fontweight="bold", y=0.995,
+    )
+
+    def _annotated_heatmap(ax, matrix, row_labels, col_labels,
+                           fmt_fn, cmap, title, vmin=None, vmax=None):
+        vmax_ = vmax if vmax is not None else np.nanmax(np.abs(matrix.values))
+        vmin_ = vmin if vmin is not None else -vmax_
+        im = ax.imshow(matrix.values, cmap=cmap,
+                       vmin=vmin_, vmax=vmax_, aspect="auto")
+        ax.set_xticks(range(len(col_labels)))
+        ax.set_xticklabels(col_labels, fontsize=8)
+        ax.set_yticks(range(len(row_labels)))
+        ax.set_yticklabels([s.replace("_", "\n") for s in row_labels], fontsize=7)
+        for i in range(len(row_labels)):
+            for j in range(len(col_labels)):
+                v = matrix.values[i, j]
+                if np.isnan(v):
+                    ax.text(j, i, "—", ha="center", va="center",
+                            color="#aaa", fontsize=8)
+                else:
+                    ax.text(j, i, fmt_fn(v), ha="center", va="center",
+                            fontsize=8, fontweight="bold", color="black")
+        ax.set_title(title, fontweight="bold")
+        return im
+
+    # ---- A: structure × regime count ------------------------------------
+    ax = axes[0, 0]
+    count_piv = df.groupby(["structure", "regime_label"]).size().unstack(fill_value=0)
+    count_piv = count_piv.reindex(index=STRUCTS, columns=REGIMES, fill_value=0)
+    im = _annotated_heatmap(ax, count_piv, STRUCTS, REGIMES,
+                             fmt_fn=lambda v: str(int(v)),
+                             cmap="Blues", title="A · Trade count — structure × regime",
+                             vmin=0, vmax=count_piv.values.max())
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="# trades")
+
+    # ---- B: structure × regime mean P&L $ ------------------------------
+    ax = axes[0, 1]
+    pnl_piv = df.groupby(["structure", "regime_label"])["realized_abs"].mean().unstack()
+    pnl_piv = pnl_piv.reindex(index=STRUCTS, columns=REGIMES)
+    im = _annotated_heatmap(ax, pnl_piv, STRUCTS, REGIMES,
+                             fmt_fn=lambda v: f"${v:+,.0f}",
+                             cmap="RdYlGn", title="B · Mean P&L $ — structure × regime")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean P&L ($)")
+
+    # ---- C: structure × year mean P&L $ (grouped bars) -----------------
+    ax = axes[1, 0]
+    x = np.arange(len(years))
+    w = 0.8 / max(len(STRUCTS), 1)
+    for k, s in enumerate(STRUCTS):
+        vals = []
+        for yr in years:
+            sub = df[(df["structure"] == s) & (df["signal_date"].dt.year == yr)]
+            vals.append(sub["realized_abs"].mean() if len(sub) else np.nan)
+        bars = ax.bar(x + k * w, np.nan_to_num(vals), width=w,
+                      color=struct_colors.get(s, "#555"), alpha=0.85,
+                      label=s.replace("_", " "))
+        for xi, (v, n_sub) in enumerate(zip(vals, [
+            len(df[(df["structure"]==s)&(df["signal_date"].dt.year==yr)]) for yr in years
+        ])):
+            if not np.isnan(v) and n_sub > 0:
+                ax.text(xi + k * w, v + (20 if v >= 0 else -20),
+                        f"n={n_sub}", ha="center", fontsize=6,
+                        va="bottom" if v >= 0 else "top", color="#555")
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_xticks(x + w * (len(STRUCTS) - 1) / 2)
+    ax.set_xticklabels(years)
+    ax.yaxis.set_major_formatter(dollar_fmt)
+    ax.set_title("C · Mean P&L $ — structure × year", fontweight="bold")
+    ax.set_xlabel("Entry year")
+    ax.set_ylabel("Mean realized P&L ($)")
+    ax.legend(fontsize=7, loc="upper left")
+    ax.grid(axis="y", color=GRID)
+
+    # ---- D: structure × year win rate (heatmap) -------------------------
+    ax = axes[1, 1]
+    wr_rows = {}
+    for s in STRUCTS:
+        row = {}
+        for yr in years:
+            sub = df[(df["structure"] == s) & (df["signal_date"].dt.year == yr)]
+            n = len(sub)
+            row[yr] = (sub["realized_abs"] > 0).mean() * 100 if n >= 2 else np.nan
+        wr_rows[s] = row
+    wr_piv = pd.DataFrame(wr_rows).T.reindex(STRUCTS)[years]
+    im = _annotated_heatmap(ax, wr_piv, STRUCTS, [str(y) for y in years],
+                             fmt_fn=lambda v: f"{v:.0f}%",
+                             cmap="RdYlGn", title="D · Win rate % — structure × year",
+                             vmin=0, vmax=100)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Win rate %")
+
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_playbook.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
+    """Spaghetti charts: individual P&L % paths, grouped four ways.
+
+    Each panel draws every trade's raw daily path as a thin transparent line,
+    then overlays the group mean as a bold line. Four groupings:
+      A · Exit reason  — most diagnostic for exit-rule tuning
+      B · Regime       — validates the panic=good / chop=bad thesis
+      C · Win vs loss  — clearest signal: do winners look different early?
+      D · Structure    — bear_put vs bull_call (only groups with ≥5 trades shown)
+    """
+    paths = df["dollar_pnl_path"].tolist()
+    if not any(paths):
+        return None
+
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:+,.0f}")
+    HORIZON = 45  # trading days shown on x-axis
+
+    def _draw(ax, groups, title, letter):
+        """groups: list of (label, color, mask_series)"""
+        ax.axhline(0, color="#999", lw=0.8)
+        for label, color, mask in groups:
+            subset_paths = [p for p, m in zip(df["dollar_pnl_path"], mask) if m and p]
+            if not subset_paths:
+                continue
+            # individual paths
+            for p in subset_paths:
+                y = p[:HORIZON]
+                ax.plot(range(1, len(y) + 1), y,
+                        color=color, lw=0.6, alpha=0.12)
+            # group mean
+            mean_len = min(HORIZON, max(len(p) for p in subset_paths))
+            mean_y = [np.nanmean([p[i] for p in subset_paths if len(p) > i])
+                      for i in range(mean_len)]
+            ax.plot(range(1, mean_len + 1), mean_y,
+                    color=color, lw=2.2, label=f"{label} (n={len(subset_paths)})")
+        ax.set_title(f"{letter} · {title}", fontweight="bold")
+        ax.set_xlabel("Trading days since entry")
+        ax.set_ylabel("P&L ($)")
+        ax.yaxis.set_major_formatter(dollar_fmt)
+        ax.set_xlim(1, HORIZON)
+        ax.legend(fontsize=8)
+        ax.grid(color=GRID)
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle(
+        f"Path spaghetti — {len(df)} trades  "
+        f"(thin = individual, bold = group mean)",
+        fontsize=15, fontweight="bold", y=0.995,
+    )
+
+    # ---- A: by exit reason -----------------------------------------------
+    exit_cfg = [
+        ("profit_target", C_BULL,  df["exit_reason"] == "profit_target"),
+        ("time_exit",     C_LINE,  df["exit_reason"] == "time_exit"),
+        ("stop_loss",     C_RANGE, df["exit_reason"] == "stop_loss"),
+        ("dollar_stop",   "#8B0000", df["exit_reason"] == "dollar_stop"),
+        ("cap_open",      C_MED,   df["exit_reason"].isin(["cap_open", "expired"])),
+    ]
+    _draw(axes[0, 0], exit_cfg, "Exit reason", "A")
+
+    # ---- B: by regime ----------------------------------------------------
+    regime_cfg = [
+        ("BULL",  C_BULL,  df["regime_label"] == "BULL"),
+        ("BEAR",  C_RANGE, df["regime_label"] == "BEAR"),
+        ("RANGE", C_MED,   df["regime_label"] == "RANGE"),
+    ]
+    _draw(axes[0, 1], regime_cfg, "Regime", "B")
+
+    # ---- C: win vs loss --------------------------------------------------
+    win_mask  = df["realized_pnl"] > 0
+    wl_cfg = [
+        ("Win",  C_BULL,  win_mask),
+        ("Loss", C_RANGE, ~win_mask),
+    ]
+    _draw(axes[1, 0], wl_cfg, "Win vs loss", "C")
+
+    # ---- D: structure (only groups with ≥5 trades) -----------------------
+    struct_colors = {
+        "bull_call_spread": C_BULL,
+        "bear_put_spread":  C_RANGE,
+        "bull_put_spread":  "#6a1b9a",
+        "bear_call_spread": "#00838f",
+    }
+    struct_cfg = [
+        (s, c, df["structure"] == s)
+        for s, c in struct_colors.items()
+        if (df["structure"] == s).sum() >= 5
+    ]
+    _draw(axes[1, 1], struct_cfg, "Structure", "D")
+
+    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_spaghetti.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="backtests/results.csv")
@@ -691,6 +931,10 @@ def main():
     df = load(Path(args.csv))
     print(f"Wrote {build(df, Path(args.out))}")
     print(f"Wrote {build_ev(df, Path(args.out))}")
+    print(f"Wrote {build_playbook(df, Path(args.out))}")
+    spaghetti_png = build_spaghetti(df, Path(args.out))
+    if spaghetti_png:
+        print(f"Wrote {spaghetti_png}")
     paths_png = build_paths(df, Path(args.out))
     if paths_png:
         print(f"Wrote {paths_png}")

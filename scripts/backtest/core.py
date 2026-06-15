@@ -197,6 +197,11 @@ def _write_results(results, cfg, dry_run) -> None:
     csv_path = Path(__file__).resolve().parent.parent.parent / local_csv
 
     if not dry_run:
+        if csv_path.exists():
+            archive = csv_path.with_name(
+                csv_path.stem + "_" + ts + csv_path.suffix)
+            csv_path.rename(archive)
+            log.info("Archived previous results to '%s'", archive.name)
         with csv_path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=_KEY_ORDER, extrasaction="ignore")
             writer.writeheader()
