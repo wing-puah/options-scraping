@@ -40,6 +40,8 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21
 python3 -m scripts.analysis_pipeline --start 2026-04-14 --end 2026-04-18 --days 5
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analyze, no write
 python3 -m scripts.analysis_pipeline --engine codex --model gpt-5  # override engine model
+python3 -m scripts.analysis_pipeline --fetch-only                  # fetch + audit CSV only, no LLM
+python3 -m scripts.analysis_pipeline --fetch-only --date 2026-06-09
 
 # Scrape historical data to Google Drive
 python3 scripts/barchart_scrape.py --date 2026-04-21

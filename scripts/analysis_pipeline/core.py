@@ -288,7 +288,7 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
                  write: bool) -> dict | None:
     """Run fetch → analyze → (write) for a single date. Returns the analysis dict."""
     log.info("Fetching data for %s (days=%d)", date_str, days)
-    audit_path = config.ROOT / "audit" / f"fetch-{date_str}.csv"
+    audit_path = config.ROOT / "audit" / f"rollup-{date_str}.csv"
     data_md = fetch_data(
         date_str=date_str, top_n=top_n, raw_n=raw_n, days=days,
         audit_csv_path=audit_path,
@@ -355,6 +355,9 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(claude→opus, codex→its configured model).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
+    parser.add_argument("--fetch-only", action="store_true",
+                        help="Fetch data and write audit CSV only — skip LLM analysis entirely. "
+                             "Prints the prepared markdown to stdout.")
     return parser
 
 
@@ -365,10 +368,10 @@ def main(argv: list[str] | None = None) -> None:
     cfg = ENGINES[args.engine]
     model = args.model or cfg.default_model
     tab = cfg.tab
-    framework_md = config.FRAMEWORK_FILE.read_text()
-    method_md = cfg.method_file.read_text()
-    log.info("Engine=%s model=%s tab=%s", args.engine,
-             model or "engine default", tab)
+    if not args.fetch_only:
+        framework_md = config.FRAMEWORK_FILE.read_text()
+        method_md = cfg.method_file.read_text()
+        log.info("Engine=%s model=%s tab=%s", args.engine, model or "engine default", tab)
 
     client = get_drive_client()
     dates = _dates_to_process(args, client)
@@ -376,27 +379,52 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
     log.info("Dates to process: %s", ", ".join(dates))
 
-    analyzed, skipped = [], []
+    done, skipped = [], []
     for d in dates:
+        audit_path = config.ROOT / "audit" / f"rollup-{d}.csv"
         try:
-            analysis = analyze_date(
-                d, engine=args.engine, model=model, tab=tab,
-                days=args.days, top_n=args.top, raw_n=args.raw,
-                framework_md=framework_md, method_md=method_md,
-                write=not args.dry_run,
+            data_md = fetch_data(
+                date_str=d, top_n=args.top, raw_n=args.raw, days=args.days,
+                audit_csv_path=audit_path,
             )
+        except Exception:
+            log.exception("Fetch failed for %s", d)
+            skipped.append(d)
+            continue
+
+        if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
+            log.info("No data for %s — skipping", d)
+            skipped.append(d)
+            continue
+
+        if args.fetch_only:
+            print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
+            print(data_md)
+            done.append(d)
+            continue
+
+        window = _last_n_trading_days(d, args.days)
+        window_start, window_end = window[0], window[-1]
+        try:
+            prompt = build_prompt(framework_md, method_md, data_md, d)
+            analysis = run_engine(args.engine, prompt, model)
         except Exception:
             log.exception("Analysis failed for %s", d)
             skipped.append(d)
             continue
-        if analysis is None:
-            skipped.append(d)
-            continue
-        analyzed.append(d)
+        _warn_if_below_targets(analysis)
+        rows = analysis_to_rows(analysis, d, window_start, window_end)
+        if not args.dry_run:
+            sheets_client.append_rows(tab, rows)
+            log.info("Wrote %d row(s) for %s to %s", len(rows), d, tab)
+        else:
+            log.info("--dry-run: %d row(s) for %s NOT written to %s", len(rows), d, tab)
+        done.append(d)
         _print_report(d, analysis, tab=tab, written=not args.dry_run)
 
-    print(f"\nAnalyzed: {', '.join(analyzed) or 'none'}")
+    label = "Fetched" if args.fetch_only else "Analyzed"
+    print(f"\n{label}: {', '.join(done) or 'none'}")
     if skipped:
         print(f"Skipped:  {', '.join(skipped)}")
-    if not analyzed:
+    if not done:
         sys.exit(1)

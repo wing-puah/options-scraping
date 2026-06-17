@@ -78,6 +78,13 @@ def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
     return all_rows[-n:] if len(all_rows) > n else all_rows
 
 
+def _sanitize(v):
+    """Replace non-JSON-compliant floats (nan/inf) with empty string."""
+    if isinstance(v, float) and (v != v or v == float("inf") or v == float("-inf")):
+        return ""
+    return v
+
+
 def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
     """Append dict rows (header written on first use). raw=True stores values
     as-is (RAW input option) so string dates like '2026-06-10' are not
@@ -92,7 +99,7 @@ def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
     if not ws.row_values(1):
         ws.append_row(list(rows[0].keys()))
     option = "RAW" if raw else "USER_ENTERED"
-    ws.append_rows([list(r.values()) for r in rows], value_input_option=option)
+    ws.append_rows([[_sanitize(v) for v in r.values()] for r in rows], value_input_option=option)
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
 
 
