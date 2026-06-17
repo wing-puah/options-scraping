@@ -4,7 +4,6 @@ import pytest
 from lib.flow_summary import (
     _classify_sentiment,
     _flow_ticker_rows,
-    _unusual_ticker_rows,
     _voloi_by_symbol,
     cross_section_tickers,
     filter_by_ticker,
@@ -14,7 +13,6 @@ from lib.flow_summary import (
     score_label,
     summarize_flow,
     summarize_persistence,
-    summarize_unusual,
 )
 
 
@@ -311,7 +309,10 @@ def test_score_maxes_out_with_full_corroboration():
     rollup = _flow_ticker_rows(rows)
     score_flow_rollup(rollup, unusual_syms={"BIG"}, voloi_by_sym={"BIG": 30.0})
     r = rollup[0]
-    assert r["score_parts"] == {"flow": 3, "rep": 2, "cross": 2, "voloi": 2, "open": 1, "persist": 0}
+    # otm is 0: _flow_row carries no Delta cell, so OTM-prob weighting never fires.
+    assert r["score_parts"] == {
+        "flow": 3, "rep": 2, "cross": 2, "voloi": 2, "otm": 0, "open": 1, "persist": 0,
+    }
     assert r["score"] == 10
     assert r["score_label"] == "high-conv"
 
@@ -486,6 +487,87 @@ def test_persistence_no_recurring_names():
 
 
 # ---------------------------------------------------------------------------
+# OTM-probability weighting + IV spread/skew (papers 03 & 04)
+# ---------------------------------------------------------------------------
+
+def _flow_row_d(symbol, opt_type, side, premium, *, delta, strike="100",
+                spot="100", iv="50%", size="100", dte="30"):
+    """Flow row carrying Delta + Price~ so OTM/IV signals can fire."""
+    return {
+        "Symbol": symbol, "Type": opt_type, "Strike": strike, "Price~": spot,
+        "DTE": dte, "Side": side, "Premium": premium, "Size": size, "IV": iv,
+        "Delta": delta, "*": "", "Time": "10:00 ET",
+    }
+
+
+def test_otm_ext_weights_by_one_minus_abs_delta():
+    # Same OTM call premium (intrinsic 0), different delta → otm_ext scales 1−|delta|.
+    near = _flow_row_d("NEAR", "Call", "ask", "100000", delta="0.20", strike="120", spot="100")
+    deep = _flow_row_d("DEEP", "Call", "ask", "100000", delta="0.80", strike="105", spot="100")
+    by_sym = {r["symbol"]: r for r in _flow_ticker_rows([near, deep])}
+    # ext is full premium for both (OTM → no intrinsic); otm_ext = ext × (1−|delta|).
+    assert by_sym["NEAR"]["otm_ext"] == pytest.approx(100_000 * 0.80)
+    assert by_sym["DEEP"]["otm_ext"] == pytest.approx(100_000 * 0.20)
+
+
+def test_otm_ext_zero_without_delta_cell():
+    # No Delta cell → otm_ext stays 0 (absent data is never credited).
+    rows = [_flow_row("X", "Call", "ask", "100000")]
+    assert _flow_ticker_rows(rows)[0]["otm_ext"] == 0.0
+
+
+def test_otm_component_rewards_otm_flow_and_zero_when_absent():
+    rows = [
+        # OTM-heavy name: low delta, sizeable extrinsic.
+        *[_flow_row_d("OTM", "Call", "ask", "1000000", delta="0.15", strike="130", spot="100") for _ in range(3)],
+        # ITM/financing name: high delta → tiny otm_ext.
+        *[_flow_row_d("ITM", "Call", "ask", "1000000", delta="0.95", strike="50", spot="100") for _ in range(3)],
+        # No-delta name → otm component must be 0, not top-bucket.
+        *[_flow_row("NODELTA", "Call", "ask", "1000000") for _ in range(3)],
+    ]
+    rollup = _flow_ticker_rows(rows)
+    score_flow_rollup(rollup)
+    parts = {r["symbol"]: r["score_parts"]["otm"] for r in rollup}
+    assert parts["OTM"] > parts["ITM"]
+    assert parts["NODELTA"] == 0
+
+
+def test_iv_spread_is_call_minus_put():
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["iv_spread"] == pytest.approx(20.0)   # 60 − 40
+    assert r["iv_call_w"] == pytest.approx(60.0)
+    assert r["iv_put_w"] == pytest.approx(40.0)
+
+
+def test_iv_spread_none_when_one_side_absent():
+    rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%")]
+    assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+
+
+def test_iv_skew_is_otm_put_minus_atm_call():
+    rows = [
+        # ATM call band (|delta| 0.40–0.60), IV 30.
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.50", iv="30%"),
+        # OTM put band (|delta| ≤ 0.40), IV 55 → steep skew.
+        _flow_row_d("X", "Put", "ask", "100000", delta="-0.20", iv="55%"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["iv_skew"] == pytest.approx(25.0)     # 55 − 30
+
+
+def test_otm_and_iv_columns_render_in_rollup_md():
+    rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%"),
+            _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%")]
+    out = summarize_flow(rows, "Stocks Flow", top_n=5, raw_n=0)
+    for col in ("OTM$", "IVspr", "IVskew"):
+        assert col in out
+
+
+# ---------------------------------------------------------------------------
 # Unusual aggregation
 # ---------------------------------------------------------------------------
 
@@ -496,38 +578,10 @@ def _un_row(symbol, opt_type, voloi, *, strike="100", dte="14", volume="1000", m
     }
 
 
-def test_unusual_rollup_max_voloi_and_call_put():
-    rows = [
-        _un_row("X", "Call", "10.5"),
-        _un_row("X", "Put",  "48.48"),
-        _un_row("X", "Call", "3.2"),
-    ]
-    r = _unusual_ticker_rows(rows)[0]
-    assert r["calls"] == 2
-    assert r["puts"]  == 1
-    assert r["max_voloi"] == 48.48
-    assert r["biggest"][1] == "Put"
-
-
-def test_unusual_rollup_sorted_by_max_voloi():
-    rows = [
-        _un_row("LOW",  "Call", "2.0"),
-        _un_row("HIGH", "Call", "99.0"),
-        _un_row("MID",  "Call", "10.0"),
-    ]
-    rollup = _unusual_ticker_rows(rows)
-    assert [r["symbol"] for r in rollup] == ["HIGH", "MID", "LOW"]
-
-
-def test_unusual_dte_range():
-    rows = [
-        _un_row("X", "Call", "5.0", dte="7"),
-        _un_row("X", "Call", "5.0", dte="45"),
-        _un_row("X", "Call", "5.0", dte="14"),
-    ]
-    r = _unusual_ticker_rows(rows)[0]
-    assert r["dte_min"] == 7
-    assert r["dte_max"] == 45
+# Unusual rows no longer get their own rollup/table — they feed scoring inline
+# (cross-section overlap + Vol/OI strength). `_un_row` is retained as a helper
+# for the scoring/voloi tests above; the removed `_unusual_ticker_rows` and
+# `summarize_unusual` functions and their tests have been dropped accordingly.
 
 
 # ---------------------------------------------------------------------------
@@ -565,7 +619,7 @@ def test_summarize_flow_includes_rollup_and_top_trades():
     rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
     out = summarize_flow(rows, "Stocks Flow", top_n=5)
     assert "ticker rollup" in out
-    assert "top 1 trades by premium" in out
+    assert "trades per ticker" in out
     assert "AVGO" in out
 
 
@@ -576,15 +630,3 @@ def test_summarize_flow_includes_pollution_columns():
     for col in ("Ext$", "Fin%", "ΔNot$", "Hzn"):
         assert col in out
     assert "100%" in out  # GLD row reads as pure financing
-
-
-def test_summarize_unusual_empty():
-    assert "_No data available._" in summarize_unusual([], "Unusual")
-
-
-def test_summarize_unusual_includes_rollup_and_top_rows():
-    rows = [_un_row("AVGO", "Call", "12.5")]
-    out = summarize_unusual(rows, "Unusual Stocks", top_n=5)
-    assert "ticker rollup" in out
-    assert "top 1 rows by Vol/OI" in out
-    assert "AVGO" in out

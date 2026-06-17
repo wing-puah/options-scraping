@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Subagent model selection
+
+When spawning subagents via the Agent tool, pick the model based on task weight:
+- `haiku` — lookups, searches, file reads, grep (e.g. Explore agents)
+- `sonnet` — moderate tasks: code edits, summaries, single-file analysis
+- `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow analysis, plan-mode design tasks
+
 ## Commands
 
 ```bash
@@ -32,6 +39,13 @@ python3 scripts/gc_flow.py --all --dry-run           # report what would be tras
 python3 scripts/build_baseline.py                     # latest Drive date
 python3 scripts/build_baseline.py --backfill          # every Drive date missing from the tab (idempotent)
 python3 scripts/build_baseline.py --backfill --dry-run
+
+# Enrich a compiled flow file with next-day OI change + EOD greeks (scrapes per-contract price-history)
+python3 scripts/enrich_oi.py                          # latest enrichable date (newest date skipped until D+1 exists)
+python3 scripts/enrich_oi.py --date 2026-06-09
+python3 scripts/enrich_oi.py --backfill               # every enrichable date (idempotent; skips already-enriched)
+python3 scripts/enrich_oi.py --backfill --dry-run     # report, no upload
+python3 scripts/enrich_oi.py --date 2026-06-09 --cache-only   # use cached histories only, no scrape
 
 # Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
@@ -98,6 +112,7 @@ scripts/                    ← entry points, each maps to a workflow step
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one deduped CSV per type (trade-identity dedup) → {prefix}-{YYYYMMDD}-compiled.csv in Drive
   gc_flow.py                — garbage-collect raw snapshots: re-verifies every raw trade is present in the compiled file, then trashes the raws (recoverable). Separate from compile; --all sweeps all compiled dates. Daily after compile via .github/workflows/compile-flow.yml
   build_baseline.py         — compute one market-level aggregate row per trading date (lib/baseline.py) → append to BaselineDaily tab. Idempotent by date; --backfill self-heals missed days. Daily after compile via .github/workflows/compile-flow.yml
+  enrich_oi.py              — for every distinct contract in a day's compiled flow file (trade date D from the filename), scrape the Barchart per-contract price-history (via BarchartSession.fetch_history_csv, NOT the metered download) and APPEND columns to each flow row: `oi_d`, `oi_next` (D+1, next trading day in the series), `oi_change` (= oi_next − oi_d, the reference-03 open-confirmation signal), `vol_d`, and EOD-settlement greeks `eod_iv`/`eod_delta`/`eod_gamma`/`eod_vega` (prefixed to distinguish from the intraday snapshot greeks already in the row). All new columns are lowercase + underscore. Enriched CSV re-uploaded in place. Shares the backtest's option_history_cache. Idempotent (skips already-enriched files); --backfill enriches every date but the latest (needs D+1). Daily after compile via .github/workflows/enrich-oi.yml. NOTE: a later compile_flow re-run regenerates the compiled file and drops these columns; the next --backfill re-enriches.
   analysis_pipeline/        — full pipeline package (run via `python3 -m scripts.analysis_pipeline`): fetch → headless engine call (isolated session; `--engine claude|codex`, `--model` overridable) → expand to per-ticker rows → append to the engine's tab (AnalysisClaude / AnalysisGPT). Source of truth for /options analyze; the skill just shells out here.
                               · config.py  — ALL user-tunable settings: engine registry (model/method/tab), retries, timeout, fetch defaults, sheet schema, prompt contract
                               · fetch.py   — Drive → markdown: scored rollups, top-N raw trades, cross-section, hedge pressure, baseline context, persistence
@@ -137,7 +152,7 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 ## Skill modes
 
 The `/options` skill routes as follows:
-- `analyze` — shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze in-context). Runs fetch → headless engine call → write; the LLM step is an isolated session so the framework/method/raw data never enter the calling agent's context. The pipeline is model-agnostic via `--engine`: `claude` (default) uses `claude -p` + `claude.md` → AnalysisClaude; `codex` uses `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable settings (engines, retries, timeout, fetch defaults, sheet schema, output contract) live in `scripts/analysis_pipeline/config.py`; the model is overridable via `--model` (default: claude→`opus`, codex→its configured model). The prepared rollup carries a direction-agnostic conviction `Score` (0–10) per ticker, ranked on **extrinsic premium** (intrinsic stripped so deep-ITM financing flow can't buy rank), plus pollution/exposure columns (`Ext$`/`Fin%`/`ΔNot$`/`Hzn`) and a market-level **Hedge pressure** score (0–100) — see `config/conviction-score.md`. Each play also declares `flow_intent` (DIRECTIONAL/VOLATILITY/HEDGE/SYNTHETIC STOCK — a classification of what the flow IS, **not** a confidence cap; confidence is scored separately on evidence quality via the framework's Step 5 rubric, which is intent-weighted: Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY) and `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the cited evidence), folded into the play cell's bracket line (flow_intent upper-cased). `--days N` (default 5) appends a multi-day persistence section tracking recurring names
+- `analyze` — shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze in-context). Runs fetch → headless engine call → write; the LLM step is an isolated session so the framework/method/raw data never enter the calling agent's context. The pipeline is model-agnostic via `--engine`: `claude` (default) uses `claude -p` + `claude.md` → AnalysisClaude; `codex` uses `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable settings (engines, retries, timeout, fetch defaults, sheet schema, output contract) live in `scripts/analysis_pipeline/config.py`; the model is overridable via `--model` (default: claude→`opus`, codex→its configured model). The prepared rollup carries a direction-agnostic conviction `Score` (0–12) per ticker, ranked on **extrinsic premium** (intrinsic stripped so deep-ITM financing flow can't buy rank) with an `otm` component crediting OTM-probability-weighted extrinsic flow, plus pollution/exposure columns (`Ext$`/`Fin%`/`ΔNot$`/`Hzn`/`OTM$`), direction-bearing vol columns (`IVspr`/`IVskew`, not scored), and a market-level **Hedge pressure** score (0–100) — see `config/conviction-score.md`. Each play also declares `flow_intent` (DIRECTIONAL/VOLATILITY/HEDGE/SYNTHETIC STOCK — a classification of what the flow IS, **not** a confidence cap; confidence is scored separately on evidence quality via the framework's Step 5 rubric, which is intent-weighted: Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY) and `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the cited evidence), folded into the play cell's bracket line (flow_intent upper-cased). `--days N` (default 5) appends a multi-day persistence section tracking recurring names
 - `modes/summary.md` — reads latest rows from AnalysisClaude + AnalysisGPT, formats for display
 - `modes/positions.md` — fetches live positions from IBKR MCP and cross-references against latest flow data
 

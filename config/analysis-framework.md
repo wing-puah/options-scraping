@@ -244,6 +244,24 @@ relevant thesis: a HEDGE on whether the protection is genuine and well-placed
 (not a price forecast), a SYNTHETIC STOCK on whether real exposure is being
 built — it typically lands Low and is flagged rather than traded.
 
+**Per-name directional vol read (`IVspr` / `IVskew`).** The rollup carries two
+direction-bearing vol columns (Lin, Lu & Driessen 2013) — use them to confirm
+*Flow confirmation* and *Vol alignment*, never as standalone triggers:
+
+- **`IVspr`** = call IV − put IV. **Positive → bullish** information (a positive
+  predictor of equity returns); strongly negative corroborates a bearish thesis.
+- **`IVskew`** = OTM-put IV − ATM-call IV. **Steeper/more positive → downside
+  demand**, negatively associated with future returns — it warns against selling
+  puts and supports a bearish/hedge read.
+- Both effects **roughly double around earnings/analyst events** — weight them up
+  when a dated `[CAT]` sits inside the play's horizon, and ignore a side shown as
+  `—` (too little premium to be meaningful).
+
+The `otm` conviction component (`OTM$` column) separately rewards
+economically-sized **OTM** flow — the leveraged informed bet — but it is
+direction-agnostic; read direction from `IVspr`/`IVskew` and the sentiment
+columns, never from `OTM$`.
+
 Bands: **High ≥ 70 · Medium 40–69 · Low < 40.**
 
 Guardrails — these override the score *downward* only:

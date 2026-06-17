@@ -95,6 +95,13 @@ def _fmt_ratio(num: float, den: float) -> str:
     return f"{num / den:.2f}"
 
 
+def _fmt_iv_pts(x: float | None) -> str:
+    """Signed IV points for the IVspr / IVskew columns: 12.3 → '+12', None → '—'."""
+    if x is None:
+        return "—"
+    return f"{x:+.0f}"
+
+
 # ---------------------------------------------------------------------------
 # Flow aggregation
 # ---------------------------------------------------------------------------
@@ -164,8 +171,24 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "ext_total": 0.0,
         "ext_call": 0.0,
         "ext_put": 0.0,
+        # OTM-probability-weighted extrinsic premium: Σ extrinsic × (1−|delta|).
+        # Operationalizes the informed-trading measure of Hilliard et al. (2025)
+        # — monetary size of the bet × risk-neutral probability of expiring OTM
+        # — using |delta| as the P(ITM) proxy so P(OTM) ≈ 1−|delta|. Only trades
+        # carrying a Delta cell contribute (absence of data is never credited).
+        "otm_ext": 0.0,
         "delta_notional": 0.0,
         "fin_premium": 0.0,
+        # Premium-weighted IV split by side, plus skew bands (Lin/Lu/Driessen
+        # 2013): IV spread = call−put IV (positive → bullish), IV skew =
+        # OTM-put − ATM-call IV (steeper → bearish). Directional context only —
+        # never fed into the direction-agnostic conviction score.
+        "_iv_call_prem_sum": 0.0,
+        "_iv_put_prem_sum": 0.0,
+        "_iv_otmput_sum": 0.0,
+        "_iv_otmput_w": 0.0,
+        "_iv_atmcall_sum": 0.0,
+        "_iv_atmcall_w": 0.0,
         "size_total": 0,
         "bullish": 0,
         "bearish": 0,
@@ -192,8 +215,11 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         size = _to_int(r.get(_FLOW_SIZE))
         spot = _to_float(r.get(_FLOW_UPRICE))
         strike = _to_float(r.get(_FLOW_STRIKE))
-        delta = _to_float(r.get(_FLOW_DELTA))
+        delta_cell = r.get(_FLOW_DELTA)
+        has_delta = delta_cell not in (None, "")
+        delta = _to_float(delta_cell)
         ext = _trade_extrinsic(prem, opt_type, spot, strike, size)
+        t_lower = opt_type.lower()
 
         agg = by_sym[sym]
         agg["symbol"] = sym
@@ -206,13 +232,30 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         agg["delta_notional"] += delta * size * 100 * spot
         if abs(delta) >= _FINANCING_DELTA:
             agg["fin_premium"] += prem
+        # OTM-probability weight: only when a Delta cell is present, so a missing
+        # delta is never read as "deep OTM" and credited. P(OTM) ≈ 1−|delta|,
+        # clamped to [0, 1]. Weights the *extrinsic* (already-financing-stripped)
+        # premium toward economically-sized, low-delta (OTM) informed flow.
+        if has_delta:
+            p_otm = min(max(1.0 - abs(delta), 0.0), 1.0)
+            agg["otm_ext"] += ext * p_otm
         agg["_ext_by_bucket"][_dte_bucket(dte)] += ext
-        if opt_type.lower() == "call":
+        if t_lower == "call":
             agg["premium_call"] += prem
             agg["ext_call"] += ext
-        elif opt_type.lower() == "put":
+            agg["_iv_call_prem_sum"] += iv * prem
+            # ATM call band for skew: 0.40 ≤ |delta| ≤ 0.60.
+            if has_delta and 0.40 <= abs(delta) <= 0.60:
+                agg["_iv_atmcall_sum"] += iv * prem
+                agg["_iv_atmcall_w"] += prem
+        elif t_lower == "put":
             agg["premium_put"] += prem
             agg["ext_put"] += ext
+            agg["_iv_put_prem_sum"] += iv * prem
+            # OTM put band for skew: |delta| ≤ 0.40.
+            if has_delta and abs(delta) <= 0.40:
+                agg["_iv_otmput_sum"] += iv * prem
+                agg["_iv_otmput_w"] += prem
 
         sent = _classify_sentiment(opt_type, side)
         agg[sent] += 1
@@ -247,6 +290,15 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             horizon = f"{top_label} {top_val / ext_sum * 100:.0f}%"
         else:
             horizon = "—"
+        # Premium-weighted IV by side and the two directional vol reads. Each is
+        # None when the requisite side / delta-band has no premium, so the table
+        # shows "—" rather than a misleading 0.
+        iv_call_w = (a["_iv_call_prem_sum"] / a["premium_call"]) if a["premium_call"] > 0 else None
+        iv_put_w = (a["_iv_put_prem_sum"] / a["premium_put"]) if a["premium_put"] > 0 else None
+        iv_spread = (iv_call_w - iv_put_w) if (iv_call_w is not None and iv_put_w is not None) else None
+        otmput_iv = (a["_iv_otmput_sum"] / a["_iv_otmput_w"]) if a["_iv_otmput_w"] > 0 else None
+        atmcall_iv = (a["_iv_atmcall_sum"] / a["_iv_atmcall_w"]) if a["_iv_atmcall_w"] > 0 else None
+        iv_skew = (otmput_iv - atmcall_iv) if (otmput_iv is not None and atmcall_iv is not None) else None
         out.append({
             "symbol": sym,
             "trades": a["trades"],
@@ -256,6 +308,11 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             "ext_total": a["ext_total"],
             "ext_call": a["ext_call"],
             "ext_put": a["ext_put"],
+            "otm_ext": a["otm_ext"],
+            "iv_call_w": iv_call_w,
+            "iv_put_w": iv_put_w,
+            "iv_spread": iv_spread,
+            "iv_skew": iv_skew,
             "delta_notional": a["delta_notional"],
             # Share of premium from |delta| ≥ 0.85 trades — the stock-substitute
             # (financing/conversion/replacement) fraction of the headline number.
@@ -293,6 +350,7 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
 #   rep     repetition — number of trades clustering on the name         0–2
 #   cross   cross-section — also appears in the unusual-activity dataset  0 / 2
 #   voloi   strength of the name's unusual Vol/OI print, if any           0–2
+#   otm     OTM-prob-weighted extrinsic rank — informed OTM tell          0–2
 #   open    ≥1 BuyToOpen / SellToOpen / ToOpen label present              0 / 1
 #   persist extra days the name recurs across the window (multi-day)     0–3
 #
@@ -307,10 +365,18 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
 # config/analysis-roadmap.md. When the Size column is absent the size cap never
 # binds; when Price~/Strike are absent extrinsic falls back to full premium.
 #
+# The `otm` component ranks otm_ext = Σ extrinsic × (1−|delta|) within the day,
+# capped at 2. It rewards economically-sized flow concentrated in OTM contracts
+# — the informed-trading tell of Hilliard et al. (2025) — and is 0 for any name
+# whose trades carry no Delta cell (absence of data is never credited). It is
+# moneyness/probability, not IV, so it does not violate the "no separate IV
+# term" rule above. IV-augmentation (×IV, the paper's OIFCA variant) is left off
+# deliberately to keep IV out of the score.
+#
 # A missing opening label scores 0, never negative — Barchart frequently omits
 # the flag, and absence of the label is not evidence the trade was closing.
 # Direction (bull/bear) lives in the separate sentiment columns; it never feeds
-# this number. Single-day ceiling is 10; persistence can push it to 13.
+# this number. Single-day ceiling is 12; persistence can push it to 15.
 
 _SCORE_BUCKETS = (  # (min_score, label), highest first
     (9, "high-conv"),
@@ -359,6 +425,7 @@ def score_flow_rollup(
     # without Price~/Strike, where no intrinsic discount is computable).
     exts = [r.get("ext_total", r["premium_total"]) for r in rollup]
     sizes = [r.get("size_total", 0) for r in rollup]
+    otm_exts = [r.get("otm_ext", 0.0) for r in rollup]
     n = len(exts)
 
     def _rank_bucket(value: float, population: list[float]) -> int:
@@ -394,13 +461,19 @@ def score_flow_rollup(
         voloi = voloi_by_sym.get(sym, 0.0)
         voloi_pts = 2 if voloi >= 25 else 1 if voloi >= 10 else 0
 
+        # OTM-prob-weighted extrinsic rank, capped at 2. A name with no
+        # delta-bearing trades (otm_ext == 0) scores 0 outright — _rank_bucket
+        # would otherwise hand everyone the top bucket when the whole column is
+        # zero, which would credit absent data.
+        otm = 0 if r.get("otm_ext", 0.0) <= 0 else min(_rank_bucket(r["otm_ext"], otm_exts), 2)
+
         opening = 1 if (r["buy_to_open"] + r["sell_to_open"] + r["to_open"]) > 0 else 0
 
         persist = min(max(persist_days_by_sym.get(sym, 0), 0), 3)
 
         parts = {
             "flow": flow, "rep": rep, "cross": cross,
-            "voloi": voloi_pts, "open": opening, "persist": persist,
+            "voloi": voloi_pts, "otm": otm, "open": opening, "persist": persist,
         }
         total = sum(parts.values())
         r["score"] = total
@@ -414,11 +487,11 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
     if not rollup:
         return f"### {title} — ticker rollup\n\n_No data._\n"
     headers = [
-        "Symbol", "Score", "Trades", "Total$", "Ext$", "Fin%", "ΔNot$",
+        "Symbol", "Score", "Trades", "Total$", "Ext$", "OTM$", "Fin%", "ΔNot$",
         "Ctts", "$/ct", "Call$", "Put$", "C/P",
         "Bull", "Bear", "Mid",
         "BTO", "STO", "ToOpen",
-        "wDTE", "Hzn", "wIV%",
+        "wDTE", "Hzn", "wIV%", "IVspr", "IVskew",
         "Biggest trade",
     ]
     sep = " | ".join(["---"] * len(headers))
@@ -438,6 +511,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             str(r["trades"]),
             _fmt_money(r["premium_total"]),
             _fmt_money(r.get("ext_total", 0.0)),
+            _fmt_money(r.get("otm_ext", 0.0)),
             f"{r.get('fin_share', 0.0) * 100:.0f}%",
             _fmt_money(r.get("delta_notional", 0.0)),
             f"{r.get('size_total', 0):,}",
@@ -454,6 +528,8 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             f"{r['dte_w']:.0f}",
             r.get("horizon", "—"),
             f"{r['iv_w']:.0f}",
+            _fmt_iv_pts(r.get("iv_spread")),
+            _fmt_iv_pts(r.get("iv_skew")),
             big_str,
         ]))
     body = "\n".join(lines)
@@ -538,13 +614,13 @@ def summarize_flow(
 # spreadsheet; the score breakdown is split into its component columns.
 FLOW_CSV_COLUMNS = [
     "Section", "Symbol", "Score", "ScoreLabel",
-    "Flow", "Rep", "Cross", "VolOI", "Open", "Persist",
+    "Flow", "Rep", "Cross", "VolOI", "Otm", "Open", "Persist",
     "Trades", "TotalPremium", "ExtPremium", "ExtCallPremium", "ExtPutPremium",
-    "DeltaNotional", "FinancingShare", "Horizon",
+    "OTMExtPremium", "DeltaNotional", "FinancingShare", "Horizon",
     "Contracts", "PremPerContract",
     "CallPremium", "PutPremium", "CallPutRatio",
     "Bull", "Bear", "Mid", "BTO", "STO", "ToOpen",
-    "wDTE", "wIV", "BiggestTrade",
+    "wDTE", "wIV", "IVSpread", "IVSkew", "BiggestTrade",
 ]
 
 
@@ -577,6 +653,7 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "Rep": parts.get("rep", ""),
                 "Cross": parts.get("cross", ""),
                 "VolOI": parts.get("voloi", ""),
+                "Otm": parts.get("otm", ""),
                 "Open": parts.get("open", ""),
                 "Persist": parts.get("persist", ""),
                 "Trades": r["trades"],
@@ -584,6 +661,7 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "ExtPremium": round(r.get("ext_total", 0.0)),
                 "ExtCallPremium": round(r.get("ext_call", 0.0)),
                 "ExtPutPremium": round(r.get("ext_put", 0.0)),
+                "OTMExtPremium": round(r.get("otm_ext", 0.0)),
                 "DeltaNotional": round(r.get("delta_notional", 0.0)),
                 "FinancingShare": round(r.get("fin_share", 0.0), 3),
                 "Horizon": r.get("horizon", ""),
@@ -600,6 +678,8 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "ToOpen": r["to_open"],
                 "wDTE": round(r["dte_w"]),
                 "wIV": round(r["iv_w"]),
+                "IVSpread": round(r["iv_spread"], 1) if r.get("iv_spread") is not None else "",
+                "IVSkew": round(r["iv_skew"], 1) if r.get("iv_skew") is not None else "",
                 "BiggestTrade": _biggest_trade_str(r["biggest"]),
             })
     return buf.getvalue()
