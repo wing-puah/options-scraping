@@ -39,6 +39,9 @@ class BarchartSession:
         self._browser = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
+        # Cached (augmented_feed_url, headers) from the last successful price-history
+        # navigation, so further contracts can re-issue the feed without a page load.
+        self._history_feed: tuple[str, dict] | None = None
 
     async def __aenter__(self) -> "BarchartSession":
         self._playwright = await async_playwright().start()
@@ -135,6 +138,9 @@ class BarchartSession:
         headers = await req.all_headers()
         api_url = self._augment_history_url(req.url)
         pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+        # Remember this authenticated feed so fetch_history_fast can re-issue it for
+        # other contracts without navigating to each one's page.
+        self._history_feed = (api_url, pass_headers)
 
         try:
             resp = await self._page.request.get(api_url, headers=pass_headers, timeout=timeout_ms)
@@ -154,6 +160,60 @@ class BarchartSession:
         csv_text = self._history_rows_to_csv(rows)
         log.info("Scraped %d price-history rows from '%s'", len(rows), url)
         return csv_text
+
+    async def fetch_history_fast(self, page_url: str, timeout_ms: int = 30000) -> str | None:
+        """Like fetch_history_csv but WITHOUT a per-contract page load.
+
+        The price-history feed is authenticated by the session cookie + x-xsrf-token,
+        not by the specific page, so once one navigation has captured the feed request
+        (`_history_feed`) we can re-issue it for any other contract by swapping the
+        `symbol=` param and pointing the Referer at that contract's page. This turns a
+        full browser navigation per contract into a single JSON request — the big win
+        when enriching ~1000 contracts.
+
+        Falls back to fetch_history_csv (full navigation) when no feed is cached yet or
+        the direct re-issue fails, so data is never silently lost — at worst it is as
+        slow as before for that contract, and the navigation refreshes the cached feed.
+        """
+        if self._history_feed is None:
+            return await self.fetch_history_csv(page_url, timeout_ms)
+
+        api_url, headers = self._history_feed
+        reissue_url = self._reissue_history_url(api_url, page_url)
+        # Keep the captured x-xsrf-token; point Referer at this contract's own page so
+        # the request looks identical to what that page would have fired.
+        headers = {**headers, "referer": page_url}
+        try:
+            resp = await self._page.request.get(reissue_url, headers=headers, timeout=timeout_ms)
+            if resp.ok:
+                payload = await resp.json()
+                rows = payload.get("data") or []
+                if rows:
+                    log.info("Re-issued price-history feed for '%s' — %d rows", page_url, len(rows))
+                    return self._history_rows_to_csv(rows)
+                log.warning("Re-issued feed returned no rows for '%s' — re-navigating", page_url)
+            else:
+                log.warning("Re-issued feed HTTP %d for '%s' — re-navigating", resp.status, page_url)
+        except Exception:
+            log.exception("Re-issued feed failed for '%s' — re-navigating", page_url)
+
+        return await self.fetch_history_csv(page_url, timeout_ms)
+
+    @staticmethod
+    def _reissue_history_url(api_url: str, page_url: str) -> str:
+        """Swap the feed's `symbol=` to the contract encoded in page_url.
+
+        The page URL ends `/quotes/{ENCODED_SYMBOL}/price-history/historical`, and the
+        feed already carries that same encoded symbol in `symbol=`, so substitution is
+        a straight textual swap (no re-encoding).
+        """
+        m = re.search(r"/quotes/([^/]+)/price-history", page_url)
+        if not m:
+            return api_url
+        symbol = m.group(1)
+        if "symbol=" in api_url:
+            return re.sub(r"symbol=[^&]*", f"symbol={symbol}", api_url, count=1)
+        return api_url + ("&" if "?" in api_url else "?") + f"symbol={symbol}"
 
     @staticmethod
     def _augment_history_url(feed_url: str) -> str:

@@ -26,7 +26,11 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 log = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+# Full Drive scope (not drive.file): drive.file only exposes files THIS OAuth client
+# created, so folders/files added via the web UI or copy-paste are invisible to it.
+# Full scope lets the pipeline read + re-upload such folders (e.g. hand-copied date
+# folders). Requires re-running scripts/auth_drive.py to re-consent.
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 _DEFAULT_TOKEN = str(
     Path(__file__).parent.parent / "credentials" / "drive_token.json"
 )
@@ -47,6 +51,8 @@ class StorageClient(Protocol):
     def upload(self, local_path: Path, name: str, folder_id: str) -> str: ...
     def download(self, file_id: str) -> str: ...
     def list_files(self, prefix: str) -> list[dict]: ...
+    def find_date_folder(self, date_str: str) -> str | None: ...
+    def list_date_folders(self) -> dict[str, str]: ...
 
     def download_latest(self, prefix: str) -> tuple[str,
                                                     str] | tuple[None, None]: ...
@@ -185,7 +191,7 @@ class DriveClient:
         log.info("Latest file for prefix '%s': '%s'", prefix, latest["name"])
         return latest["name"], self.download(latest["id"], name=latest["name"])
 
-    def _find_date_folder(self, date_str: str) -> str | None:
+    def find_date_folder(self, date_str: str) -> str | None:
         """Return the folder ID for date_str, or None if it doesn't exist (read-only)."""
         q = (
             f"name = '{date_str}' and '{self._root}' in parents "
@@ -193,6 +199,37 @@ class DriveClient:
         )
         files = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
         return files[0]["id"] if files else None
+
+    # Backwards-compatible private alias for existing internal callers.
+    _find_date_folder = find_date_folder
+
+    _DATE_FOLDER_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+    def list_date_folders(self) -> dict[str, str]:
+        """{YYYY-MM-DD: folder_id} for every trading-day folder directly under the root.
+
+        One paginated query against the root's direct children — cheaper and more
+        reliable than a global `name contains` file search, which has no parent
+        constraint and silently truncates at the first results page. Callers then look
+        inside a specific date folder for the exact file they want.
+        """
+        q = (f"'{self._root}' in parents "
+             f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+        folders: dict[str, str] = {}
+        page_token = None
+        while True:
+            resp = self._svc.files().list(
+                q=q, fields="nextPageToken, files(id, name)", pageSize=1000,
+                pageToken=page_token,
+            ).execute()
+            for f in resp.get("files", []):
+                if self._DATE_FOLDER_RE.match(f["name"]):
+                    folders[f["name"]] = f["id"]
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+        log.info("Found %d date folder(s) under Drive root", len(folders))
+        return folders
 
     def list_files_for_date(self, prefix: str, date_str: str) -> list[dict]:
         """All timestamped snapshot files for prefix on date_str (YYYY-MM-DD), oldest→newest.

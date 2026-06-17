@@ -21,8 +21,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# Full Drive scope (not drive.file): drive.file can only see files this OAuth client
+# created, so hand-copied / web-UI date folders are invisible. Full scope lets the
+# pipeline read and re-upload those folders too. Must match lib/drive_client.py SCOPES.
 SCOPES = [
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 

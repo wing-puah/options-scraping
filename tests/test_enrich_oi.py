@@ -6,14 +6,18 @@ import pytest
 
 import enrich_oi
 from enrich_oi import (
+    ALL_COLUMNS,
     ENRICH_COLUMNS,
-    _already_enriched,
-    _apply_enrichment,
+    MARKER_COLUMN,
+    _clear_columns,
     _compiled_dates,
     _compute_enrichment,
     _distinct_contracts,
+    _done_keys,
+    _ensure_columns,
     _enrichable_dates,
     _row_contract,
+    _scrape_and_fill,
     enrich_prefix,
 )
 
@@ -47,6 +51,8 @@ def test_compute_enrichment_basic():
     assert e["eod_delta"] == "0.3"
     assert e["eod_gamma"] == "0.02"
     assert e["eod_vega"] == "0.1"
+    # _compute_enrichment returns only the data columns; the marker is added later.
+    assert MARKER_COLUMN not in e
 
 
 def test_oi_next_uses_next_trading_day_not_calendar():
@@ -116,51 +122,58 @@ def test_distinct_contracts_dedups_and_counts_unparseable():
     assert unparseable == 1
 
 
-# ── _apply_enrichment ─────────────────────────────────────────────────────────
+# ── column state + resume marker ──────────────────────────────────────────────
 
-def test_apply_enrichment_preserves_and_appends_columns():
-    r1 = _flow_row("GSK", "Put", "50.00")
-    r1["Premium"] = "1000"
-    r2 = _flow_row("GSK", "Put", "50.00")  # same contract, different trade
-    r2["Premium"] = "2000"
-    key = _row_contract(r1)["key"]
-    enrichment = {key: {c: str(i) for i, c in enumerate(ENRICH_COLUMNS)}}
-
-    out = _apply_enrichment([r1, r2], enrichment)
-    # original columns preserved
-    assert out[0]["Premium"] == "1000" and out[1]["Premium"] == "2000"
-    # both rows of the same contract get identical enrichment
-    for c in ENRICH_COLUMNS:
-        assert out[0][c] == out[1][c] == enrichment[key][c]
-    # column order: originals first, ENRICH_COLUMNS appended in order
-    assert list(out[0].keys())[-len(ENRICH_COLUMNS):] == ENRICH_COLUMNS
+def test_ensure_columns_adds_blanks_and_preserves_values():
+    r = _flow_row()
+    r["oi_d"] = "500"  # already filled by a prior partial run
+    _ensure_columns([r])
+    assert all(c in r for c in ALL_COLUMNS)
+    assert r["oi_d"] == "500"          # preserved
+    assert r["oi_change"] == ""        # newly added blank
+    assert r[MARKER_COLUMN] == ""
 
 
-def test_apply_enrichment_blanks_unmatched_contract():
-    out = _apply_enrichment([_flow_row()], {})
-    assert all(out[0][c] == "" for c in ENRICH_COLUMNS)
+def test_clear_columns_resets_all():
+    r = {**_flow_row(), **{c: "x" for c in ALL_COLUMNS}}
+    _clear_columns([r])
+    assert all(r[c] == "" for c in ALL_COLUMNS)
+    assert r["Symbol"] == "GSK"  # original untouched
 
 
-# ── _already_enriched ─────────────────────────────────────────────────────────
-
-def test_already_enriched_detects_columns():
-    enriched = {**_flow_row(), **{c: "" for c in ENRICH_COLUMNS}}
-    assert _already_enriched([enriched]) is True
-    assert _already_enriched([_flow_row()]) is False
-    assert _already_enriched([]) is False
+def test_done_keys_uses_marker_not_data():
+    done = {**_flow_row("GSK"), MARKER_COLUMN: "2026-06-17"}      # attempted
+    empty_marked = {**_flow_row("AAPL", "Call", "200.00"),       # attempted, no data
+                    MARKER_COLUMN: "2026-06-17"}
+    pending = {**_flow_row("TSLA", "Call", "300.00"), MARKER_COLUMN: ""}
+    keys = _done_keys([done, empty_marked, pending])
+    assert _row_contract(done)["key"] in keys
+    assert _row_contract(empty_marked)["key"] in keys     # marked => done despite no data
+    assert _row_contract(pending)["key"] not in keys
 
 
 # ── date enumeration ──────────────────────────────────────────────────────────
 
 def _client_with_compiled(dates_by_prefix):
-    """MagicMock client whose list_files(prefix) returns compiled files."""
+    """MagicMock client whose date folders + file_exists reflect the compiled files.
+
+    Mirrors the real folder-targeted lookup: list_date_folders() returns one folder per
+    date that has any compiled file, and file_exists(name, folder) hits only for a
+    compiled file that actually exists for that prefix/date.
+    """
     client = MagicMock()
+    all_dates = sorted({d for ds in dates_by_prefix.values() for d in ds})
+    client.list_date_folders.return_value = {d: f"folder-{d}" for d in all_dates}
 
-    def list_files(prefix):
-        return [{"id": d, "name": f"{prefix}-{d.replace('-', '')}-compiled.csv"}
-                for d in dates_by_prefix.get(prefix, [])]
+    def file_exists(name, folder_id):
+        for prefix, ds in dates_by_prefix.items():
+            for d in ds:
+                if (name == f"{prefix}-{d.replace('-', '')}-compiled.csv"
+                        and folder_id == f"folder-{d}"):
+                    return f"{prefix}-{d}"
+        return None
 
-    client.list_files.side_effect = list_files
+    client.file_exists.side_effect = file_exists
     return client
 
 
@@ -180,6 +193,89 @@ def test_enrichable_dates_excludes_latest():
     assert _enrichable_dates(client) == ["2026-06-09", "2026-06-10"]
 
 
+# ── _scrape_and_fill (incremental fill, checkpoint, marker) ────────────────────
+
+# A Barchart price-history CSV the real parse_history_details can read (needs a
+# mark via Bid/Ask or Latest, and an ISO Time).
+def _history_csv(rows):
+    header = ("Time,Open,High,Low,Latest,Change,%Change,Volume,Open Int,IV,"
+              "Delta,Gamma,Theta,Vega,Rho,Theo,Price~,Bid,Ask")
+    lines = [header]
+    for d, oi, vol in rows:
+        lines.append(f"{d},1,1,1,1.50,0,0,{vol},{oi},44.1,-0.40,0.02,-0.01,0.10,0,1.5,1.5,1.45,1.55")
+    return "\n".join(lines) + "\n"
+
+
+class _FakeSession:
+    """Stands in for an entered BarchartSession; returns fixture CSV per symbol."""
+
+    def __init__(self, csv_by_symbol):
+        self._csv = csv_by_symbol
+        self.calls = []
+
+    async def fetch_history_fast(self, url, timeout_ms=15000):
+        self.calls.append(url)
+        for sym, csv in self._csv.items():
+            if f"/{sym}%7C" in url:
+                return csv
+        return None
+
+
+def test_scrape_and_fill_fills_marks_and_checkpoints():
+    client = MagicMock()
+    client.get_or_create_date_folder.return_value = "folder"
+    rows = [_flow_row("GSK"), _flow_row("AAPL", "Call", "200.00"), _flow_row("TSLA", "Call", "300.00")]
+    _ensure_columns(rows)
+    contracts, _ = _distinct_contracts(rows)
+    pending = list(contracts.values())
+
+    session = _FakeSession({
+        "GSK":  _history_csv([("2026-06-09", "500", "100"), ("2026-06-10", "650", "5")]),
+        "AAPL": _history_csv([("2026-06-09", "800", "20"), ("2026-06-10", "600", "3")]),
+        # TSLA absent → Barchart returns None → empty, but still marked.
+    })
+
+    stats = asyncio.run(_scrape_and_fill(
+        client, "etfs-flow", "2026-06-09", rows, pending, D, "2026-06-17",
+        headless=True, checkpoint_every=2, sleep_s=0, session=session))
+
+    assert stats["processed"] == 3
+    assert stats["with_next"] == 2                      # GSK + AAPL have a next day
+    # every contract attempted → every row marked, even TSLA (no data)
+    assert all(r[MARKER_COLUMN] == "2026-06-17" for r in rows)
+    by_sym = {r["Symbol"]: r for r in rows}
+    assert by_sym["GSK"]["oi_change"] == "150"
+    assert by_sym["AAPL"]["oi_change"] == "-200"
+    assert by_sym["TSLA"]["oi_d"] == "" and by_sym["TSLA"]["oi_change"] == ""
+    # checkpoint at 2 contracts + finally flush = 2 uploads
+    assert client.upload.call_count == 2
+
+
+def test_scrape_and_fill_flushes_despite_scrape_failure():
+    """A per-contract scrape failure is swallowed; the finally still persists work."""
+    client = MagicMock()
+    client.get_or_create_date_folder.return_value = "folder"
+    rows = [_flow_row("GSK"), _flow_row("AAPL", "Call", "200.00")]
+    _ensure_columns(rows)
+    contracts, _ = _distinct_contracts(rows)
+    pending = list(contracts.values())
+
+    class _BoomSession(_FakeSession):
+        async def fetch_history_fast(self, url, timeout_ms=15000):
+            if "AAPL" in url:
+                raise RuntimeError("boom")
+            return await super().fetch_history_fast(url, timeout_ms)
+
+    session = _BoomSession({"GSK": _history_csv([("2026-06-09", "500", "100"),
+                                                 ("2026-06-10", "650", "5")])})
+    stats = asyncio.run(_scrape_and_fill(
+        client, "etfs-flow", "2026-06-09", rows, pending, D, "2026-06-17",
+        headless=True, checkpoint_every=99, sleep_s=0, session=session))
+    assert stats["processed"] == 2
+    assert client.upload.call_count == 1  # finally flush only (checkpoint_every not hit)
+    assert all(r[MARKER_COLUMN] == "2026-06-17" for r in rows)
+
+
 # ── enrich_prefix (Drive integration, mocked) ─────────────────────────────────
 
 _FLOW_CSV = (
@@ -191,9 +287,8 @@ _FLOW_CSV = (
 
 def _drive_client(csv_text, compiled_present=True):
     client = MagicMock()
-    client.list_files.return_value = (
-        [{"id": "fid", "name": "etfs-flow-20260609-compiled.csv"}] if compiled_present else []
-    )
+    client.find_date_folder.return_value = "folder"
+    client.file_exists.return_value = "fid" if compiled_present else None
     client.download.return_value = csv_text
     client.get_or_create_date_folder.return_value = "folder"
     return client
@@ -202,20 +297,24 @@ def _drive_client(csv_text, compiled_present=True):
 def test_enrich_prefix_skips_when_no_compiled():
     client = _drive_client("", compiled_present=False)
     res = enrich_prefix(client, "etfs-flow", "2026-06-09",
-                        headless=True, dry_run=False, cache_only=False, force=False)
+                        headless=True, dry_run=False, force=False)
     assert res["status"] == "no-compiled"
     client.upload.assert_not_called()
 
 
-def test_enrich_prefix_uploads_augmented_csv(monkeypatch, tmp_path):
+def test_enrich_prefix_uploads_augmented_csv(monkeypatch):
     client = _drive_client(_FLOW_CSV)
 
-    async def fake_fetch(contracts, trade_date, headless, cache_only=False, timeout_ms=15000):
-        return {c["key"]: {date(2026, 6, 9): _hist_row("500"),
-                           date(2026, 6, 10): _hist_row("650")}
-                for c in contracts}
+    async def fake_scrape(cl, prefix, date_str, rows, pending, trade_date, run_date,
+                          **kwargs):
+        for row in rows:
+            row.update({**_compute_enrichment(
+                {trade_date: _hist_row("500"), date(2026, 6, 10): _hist_row("650")},
+                trade_date), enrich_oi.MARKER_COLUMN: run_date})
+        enrich_oi._upload_rows(cl, prefix, date_str, rows)
+        return {"with_next": 1, "processed": len(pending)}
 
-    monkeypatch.setattr(enrich_oi, "_fetch_histories", fake_fetch)
+    monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)
 
     uploaded = {}
 
@@ -226,47 +325,75 @@ def test_enrich_prefix_uploads_augmented_csv(monkeypatch, tmp_path):
     client.upload.side_effect = capture_upload
 
     res = enrich_prefix(client, "etfs-flow", "2026-06-09",
-                        headless=True, dry_run=False, cache_only=False, force=False)
+                        headless=True, dry_run=False, force=False)
     assert res["status"] == "enriched"
     assert res["contracts"] == 1 and res["with_next"] == 1
-    client.upload.assert_called_once()
     rows = uploaded["rows"]
     assert len(rows) == 2
     for r in rows:
         assert r["oi_change"] == "150"
         assert r["Premium"] in ("1000", "2000")  # originals preserved
+        assert r[enrich_oi.MARKER_COLUMN]        # marked
+    # column order: originals first, ALL_COLUMNS appended in order
+    assert list(rows[0].keys())[-len(ALL_COLUMNS):] == ALL_COLUMNS
 
 
-def test_enrich_prefix_dry_run_does_not_upload(monkeypatch):
+def test_enrich_prefix_dry_run_previews_without_scraping(monkeypatch):
     client = _drive_client(_FLOW_CSV)
+    called = {"scrape": False}
 
-    async def fake_fetch(contracts, trade_date, headless, cache_only=False, timeout_ms=15000):
-        return {c["key"]: {} for c in contracts}
+    async def fake_scrape(*a, **k):
+        called["scrape"] = True
+        return {"with_next": 0, "processed": 0}
 
-    monkeypatch.setattr(enrich_oi, "_fetch_histories", fake_fetch)
+    monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)
 
     res = enrich_prefix(client, "etfs-flow", "2026-06-09",
-                        headless=True, dry_run=True, cache_only=False, force=False)
+                        headless=True, dry_run=True, force=False)
     assert res["status"] == "enriched"
+    assert res["pending"] == 1 and res["processed"] == 0
+    assert called["scrape"] is False   # dry-run hits no network
     client.upload.assert_not_called()
 
 
 def test_enrich_prefix_skips_already_enriched(monkeypatch):
+    # Every contract row already carries the marker → nothing pending.
     enriched_csv = (
-        "Symbol,Type,Strike,Expires,Premium," + ",".join(ENRICH_COLUMNS) + "\n"
-        "GSK,Put,50.00,2026-08-21T16:30:00-05:00,1000," + ",".join([""] * len(ENRICH_COLUMNS)) + "\n"
+        "Symbol,Type,Strike,Expires,Premium," + ",".join(ALL_COLUMNS) + "\n"
+        "GSK,Put,50.00,2026-08-21T16:30:00-05:00,1000,500,650,150,100,44.1,-0.4,0.02,0.1,2026-06-16\n"
     )
     client = _drive_client(enriched_csv)
-    called = {"fetch": False}
+    called = {"scrape": False}
 
-    async def fake_fetch(*a, **k):
-        called["fetch"] = True
-        return {}
+    async def fake_scrape(*a, **k):
+        called["scrape"] = True
+        return {"with_next": 0, "processed": 0}
 
-    monkeypatch.setattr(enrich_oi, "_fetch_histories", fake_fetch)
+    monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)
 
     res = enrich_prefix(client, "etfs-flow", "2026-06-09",
-                        headless=True, dry_run=False, cache_only=False, force=False)
-    assert res["status"] == "already-enriched"
-    assert called["fetch"] is False
+                        headless=True, dry_run=False, force=False)
+    assert res["status"] == "complete"
+    assert called["scrape"] is False
     client.upload.assert_not_called()
+
+
+def test_enrich_prefix_force_rescrapes_marked(monkeypatch):
+    # Already marked, but --force clears and re-scrapes.
+    enriched_csv = (
+        "Symbol,Type,Strike,Expires,Premium," + ",".join(ALL_COLUMNS) + "\n"
+        "GSK,Put,50.00,2026-08-21T16:30:00-05:00,1000,500,650,150,100,44.1,-0.4,0.02,0.1,2026-06-16\n"
+    )
+    client = _drive_client(enriched_csv)
+    seen_pending = {}
+
+    async def fake_scrape(cl, prefix, date_str, rows, pending, *a, **k):
+        seen_pending["n"] = len(pending)
+        return {"with_next": 0, "processed": len(pending)}
+
+    monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)
+
+    res = enrich_prefix(client, "etfs-flow", "2026-06-09",
+                        headless=True, dry_run=False, force=True)
+    assert res["status"] == "enriched"
+    assert seen_pending["n"] == 1  # the marked contract is pending again under --force

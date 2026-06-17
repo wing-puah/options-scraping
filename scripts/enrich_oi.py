@@ -17,36 +17,43 @@ every row of that contract:
     oi_change  oi_next - oi_d               (the next-day OI change)
     vol_d      traded volume on D
     eod_iv / eod_delta / eod_gamma / eod_vega   end-of-D settlement greeks
+    oi_enriched_on   the date this row was scraped (provenance + resume marker)
 
 The EOD greeks are deliberately prefixed to distinguish them from the intraday
-snapshot IV/Delta already carried in the flow row. The enriched CSV is uploaded
-in place, replacing the compiled file.
+snapshot IV/Delta already carried in the flow row.
 
-Scraping uses BarchartSession.fetch_history_csv (the background API), NOT the
-metered Download button, so tracking every contract is fine. Price histories are
-cached in the same dir the backtest uses, so a contract pulled by either tool is
-free for the other.
+Persistence & resume — the compiled file on Drive IS the only store. There is NO
+per-contract local cache: a contract's price history is scraped, the handful of
+fields above are extracted into its rows, and the raw history is discarded. The
+enriched compiled file is re-uploaded to Drive as we go:
 
-Idempotent: a compiled file that already has the columns is skipped (use --force
-to override). Enriching D needs D+1 to exist, so the latest/today's date is never
-targeted until the next day lands; --backfill self-heals any missed days. Note
-that re-running compile_flow.py for a date regenerates the compiled file from raw
-snapshots and DROPS these columns — the next --backfill re-enriches it.
+  * after every CHECKPOINT_EVERY contracts, and
+  * once more on exit (including KeyboardInterrupt / error),
+
+so an interrupted run never loses the contracts it already scraped. On the next
+run, any contract whose rows already carry `oi_enriched_on` is skipped — including
+contracts Barchart returned nothing for (they're marked attempted, so they aren't
+re-fetched forever). Use --force to clear the columns and re-scrape everything.
+
+Enriching D needs D+1 to exist, so the latest/today's date is never targeted until
+the next day lands; --backfill self-heals any missed days. Note that re-running
+compile_flow.py for a date regenerates the compiled file from raw snapshots and
+DROPS these columns — the next --backfill re-enriches it from scratch.
 
 Usage:
   python3 scripts/enrich_oi.py                         # latest enrichable date
   python3 scripts/enrich_oi.py --date 2026-06-09
   python3 scripts/enrich_oi.py --start 2026-06-01 --end 2026-06-10
   python3 scripts/enrich_oi.py --backfill              # every enrichable date
-  python3 scripts/enrich_oi.py --backfill --dry-run    # report, no upload
-  python3 scripts/enrich_oi.py --date 2026-06-09 --cache-only
+  python3 scripts/enrich_oi.py --backfill --dry-run    # report, no scrape/upload
+  python3 scripts/enrich_oi.py --date 2026-06-09 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
 import logging
 import os
-import re
 import sys
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -62,49 +69,71 @@ from lib.barchart import BarchartSession
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib.logger import setup_logging
-from backtest.config import HISTORY_CACHE
 from backtest.helpers import _contract_key, _num, _parse_expiration
 from compile_flow import FLOW_PREFIXES, compiled_name
 
 log = logging.getLogger("enrich_oi")
 
-# Columns appended to every flow row, in this order. Lowercase + underscores so the
-# header is robust to whitespace/case quirks when the CSV is read back.
+# Data columns appended to every flow row, in this order. Lowercase + underscores
+# so the header is robust to whitespace/case quirks when the CSV is read back.
 ENRICH_COLUMNS = ["oi_d", "oi_next", "oi_change", "vol_d",
                   "eod_iv", "eod_delta", "eod_gamma", "eod_vega"]
+# Provenance + resume marker: set to the run date for every contract we ATTEMPT
+# (even when Barchart returns nothing), so resume can tell "scraped, empty" from
+# "not yet scraped" and never re-fetches an empty contract.
+MARKER_COLUMN = "oi_enriched_on"
+ALL_COLUMNS = ENRICH_COLUMNS + [MARKER_COLUMN]
+
+# Re-upload the compiled file to Drive every this-many contracts, bounding how
+# much scraping an interruption can cost.
+CHECKPOINT_EVERY = 50
+
+_DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
 
 
 # ─── Drive helpers ──────────────────────────────────────────────────────────────
 
 def _compiled_id(client, prefix: str, date_str: str) -> str | None:
-    """Drive file ID of the compiled file for prefix/date, or None if absent."""
-    name = compiled_name(prefix, date_str)
-    for f in client.list_files(prefix):
-        if f["name"] == name:
-            return f["id"]
-    return None
+    """Drive file ID of the compiled file for prefix/date, or None if absent.
+
+    Looks DIRECTLY inside that date's folder rather than running a global, unpaginated
+    `name contains` search across every folder (which truncates at the first results
+    page and silently drops older compiled files).
+    """
+    folder_id = client.find_date_folder(date_str)
+    if folder_id is None:
+        return None
+    return client.file_exists(compiled_name(prefix, date_str), folder_id)
 
 
-def _compiled_dates(client) -> list[str]:
-    """Every trading date (YYYY-MM-DD) with a compiled file in Drive, oldest → newest."""
-    dates: set[str] = set()
-    for prefix in FLOW_PREFIXES:
-        pat = re.compile(rf"^{re.escape(prefix)}-(\d{{8}})-compiled\.csv$")
-        for f in client.list_files(prefix):
-            m = pat.match(f["name"])
-            if m:
-                c = m.group(1)
-                dates.add(f"{c[:4]}-{c[4:6]}-{c[6:8]}")
-    return sorted(dates)
+def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
+    """Every trading date with a compiled flow file, oldest → newest.
+
+    Enumerates the date folders under the root (one query) and checks each folder
+    directly for a compiled file — no global cross-folder file search.
+    """
+    folders = folders if folders is not None else client.list_date_folders()
+    out: list[str] = []
+    for d in sorted(folders):
+        if any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES):
+            out.append(d)
+    return out
 
 
 def _enrichable_dates(client) -> list[str]:
-    """Compiled dates that have a strictly-later compiled date (so D+1 data exists).
+    """Compiled dates that have a strictly-later trading-day FOLDER in Drive.
 
-    Equivalently every compiled date except the most recent one — which is skipped
-    until its own next day lands.
+    Enrichability is keyed off the date folders, not the compiled files: as soon as the
+    next trading day's folder exists (e.g. today's folder, created by the day's first
+    snapshot), the prior day becomes enrichable — its D+1 EOD/OI is available to scrape.
+    The most recent folder's date is never targeted (its own next day hasn't landed).
     """
-    return _compiled_dates(client)[:-1]
+    folders = client.list_date_folders()
+    dates = sorted(folders)
+    if len(dates) < 2:
+        return []
+    latest_folder = dates[-1]
+    return [d for d in _compiled_dates(client, folders) if d < latest_folder]
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -123,7 +152,7 @@ def _row_contract(row: dict) -> dict | None:
     """Parse a flow row into a contract dict, or None if strike/expiry won't parse.
 
     Returns {key, symbol, opt_type, strike(float), expiration(date)} where `key`
-    matches the backtest's _contract_key so cached histories are shared.
+    matches the backtest's _contract_key.
     """
     symbol = str(row.get("Symbol", "")).strip()
     opt_type = str(row.get("Type", "")).strip()
@@ -164,7 +193,7 @@ def _fmt_int(v) -> str:
 
 
 def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
-    """Build the eight enrichment columns for one contract.
+    """Build the eight data columns for one contract.
 
     `details` is {date: row_dict} from parse_history_details. oi_d / vol_d / greeks
     require an exact row on the trade date (no carry-forward — these are EOD-of-D
@@ -196,98 +225,136 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
     }
 
 
-def _already_enriched(rows: list[dict]) -> bool:
-    """True if the compiled file already carries every enrichment column."""
-    return bool(rows) and all(c in rows[0] for c in ENRICH_COLUMNS)
+# ─── Row state (columns, resume marker) ──────────────────────────────────────────
+
+def _ensure_columns(rows: list[dict]) -> None:
+    """Add any missing enrichment/marker columns (blank) in place, preserving values.
+
+    Makes partial state representable so a checkpoint upload has a consistent header.
+    """
+    for row in rows:
+        for col in ALL_COLUMNS:
+            row.setdefault(col, "")
 
 
-def _apply_enrichment(rows: list[dict], enrichment: dict[tuple, dict]) -> list[dict]:
-    """Append the enrichment columns to each row, joined on its contract key."""
-    blank = {c: "" for c in ENRICH_COLUMNS}
-    out = []
+def _clear_columns(rows: list[dict]) -> None:
+    """Reset every enrichment/marker column to blank (used by --force)."""
+    for row in rows:
+        for col in ALL_COLUMNS:
+            row[col] = ""
+
+
+def _done_keys(rows: list[dict]) -> set[tuple]:
+    """Contract keys already attempted — their rows carry a non-blank marker."""
+    done: set[tuple] = set()
+    for row in rows:
+        if str(row.get(MARKER_COLUMN, "")).strip():
+            c = _row_contract(row)
+            if c:
+                done.add(c["key"])
+    return done
+
+
+# ─── Barchart history fetch + incremental fill ───────────────────────────────────
+
+def _upload_rows(client, prefix: str, date_str: str, rows: list[dict]) -> None:
+    """Write rows to the compiled file in Drive (in-place overwrite).
+
+    Column order is stable: originals first (dict insertion order), then ALL_COLUMNS
+    appended by _ensure_columns, so checkpoints and the final write match.
+    """
+    name = compiled_name(prefix, date_str)
+    folder_id = client.get_or_create_date_folder(date_str)
+    tmp = Path(f"/tmp/{name}")
+    pd.DataFrame(rows).to_csv(tmp, index=False)
+    client.upload(tmp, name, folder_id)
+    tmp.unlink(missing_ok=True)
+
+
+async def _fetch_details(session, contract: dict, timeout_ms: int) -> dict[date, dict]:
+    """Scrape one contract's price history → {date: row}. Empty dict on failure.
+
+    Uses fetch_history_fast: the first contract does a full navigation to capture the
+    feed, every later one re-issues that feed directly (no per-contract page load).
+    """
+    url = barchart_options.option_history_url(
+        contract["symbol"], contract["expiration"], contract["strike"], contract["opt_type"])
+    try:
+        csv_text = await session.fetch_history_fast(url, timeout_ms)
+    except Exception:
+        log.exception("Barchart history scrape failed for %s", contract["key"])
+        return {}
+    return barchart_options.parse_history_details(csv_text) if csv_text else {}
+
+
+async def _scrape_and_fill(
+    client, prefix: str, date_str: str, rows: list[dict], pending: list[dict],
+    trade_date: date, run_date: str, *, headless: bool,
+    checkpoint_every: int = CHECKPOINT_EVERY, timeout_ms: int = 15000,
+    sleep_s: float = 0.4, session=None,
+) -> dict:
+    """Scrape each pending contract one at a time, fill its rows, and persist.
+
+    The compiled file is re-uploaded every `checkpoint_every` contracts and once
+    more in a finally block (so an interrupt/error still saves scraped work). Every
+    attempted contract gets MARKER_COLUMN set so resume skips it next time. Returns
+    {"with_next", "processed"}. A `session` may be injected for tests; otherwise a
+    BarchartSession is opened here (needs BARCHART_EMAIL/PASSWORD).
+    """
+    rows_by_key: dict[tuple, list[dict]] = defaultdict(list)
     for row in rows:
         c = _row_contract(row)
-        cols = enrichment.get(c["key"], blank) if c else blank
-        out.append({**row, **cols})
-    return out
+        if c:
+            rows_by_key[c["key"]].append(row)
 
+    stats = {"with_next": 0, "processed": 0}
 
-# ─── Barchart history fetch (forward-staleness variant) ─────────────────────────
+    async def run(sess) -> None:
+        for i, c in enumerate(pending, 1):
+            details = await _fetch_details(sess, c, timeout_ms)
+            enrichment = _compute_enrichment(details, trade_date)
+            enrichment[MARKER_COLUMN] = run_date
+            if enrichment["oi_next"]:
+                stats["with_next"] += 1
+            for row in rows_by_key.get(c["key"], []):
+                row.update(enrichment)
+            stats["processed"] += 1
+            log.info("[%d/%d] %s %s: %s", i, len(pending), prefix, date_str, c["key"])
+            if stats["processed"] % checkpoint_every == 0:
+                _upload_rows(client, prefix, date_str, rows)
+                log.info("%s %s checkpoint: %d/%d contracts persisted to Drive",
+                         prefix, date_str, stats["processed"], len(pending))
+            if sleep_s:
+                await asyncio.sleep(sleep_s)
 
-async def _fetch_histories(
-    contracts: list[dict], trade_date: date, headless: bool,
-    cache_only: bool = False, timeout_ms: int = 15000,
-) -> dict[tuple, dict]:
-    """Scrape (and cache) each contract's price history, return {key: {date: row}}.
-
-    A cached file is re-scraped when its latest row is on-or-before the trade date
-    — i.e. it does not yet reach forward to D+1, the next-day OI we need. Mirrors
-    backtest.core._fetch_option_histories but with the staleness check inverted.
-    """
-    HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
-    email = os.getenv("BARCHART_EMAIL", "")
-    password = os.getenv("BARCHART_PASSWORD", "")
-    cookies_path = Path(os.getenv(
-        "COOKIES_PATH", str(HISTORY_CACHE.parent / "cookies" / "barchart_session.json")))
-
-    details_map: dict[tuple, dict] = {}
-    to_scrape: list[dict] = []
-
-    for c in contracts:
-        cache = barchart_options.cache_path(
-            HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-        if cache.exists():
-            details = barchart_options.parse_history_details(cache.read_text(encoding="utf-8"))
-            details_map[c["key"]] = details
-            if cache_only:
-                continue
-            latest = max(details, default=None)
-            if latest is None or latest <= trade_date:
-                log.info("Cache for %s latest=%s, need >%s — refetching",
-                         c["key"], latest, trade_date)
-                details_map.pop(c["key"], None)
-                cache.unlink()
-                to_scrape.append(c)
-        elif not cache_only:
-            to_scrape.append(c)
+    try:
+        if session is not None:
+            await run(session)
         else:
-            log.debug("--cache-only: no cache for %s, skipping", c["key"])
+            email = os.getenv("BARCHART_EMAIL", "")
+            password = os.getenv("BARCHART_PASSWORD", "")
+            if not (email and password):
+                log.warning("BARCHART_EMAIL/PASSWORD not set — cannot scrape; "
+                            "%d contract(s) deferred to a later run", len(pending))
+                return stats
+            cookies_path = Path(os.getenv("COOKIES_PATH", _DEFAULT_COOKIES))
+            async with BarchartSession(email, password, cookies_path, headless) as sess:
+                await run(sess)
+    finally:
+        # Persist whatever we scraped — including on KeyboardInterrupt / error.
+        if stats["processed"]:
+            _upload_rows(client, prefix, date_str, rows)
+            log.info("%s %s flush: %d contract(s) persisted to Drive",
+                     prefix, date_str, stats["processed"])
 
-    log.info("Barchart history: %d cached, %d to scrape", len(details_map), len(to_scrape))
-    if not to_scrape:
-        return details_map
-    if not (email and password):
-        log.warning("BARCHART_EMAIL/PASSWORD not set — scraping skipped; "
-                    "%d contract(s) left blank", len(to_scrape))
-        return details_map
-
-    async with BarchartSession(email, password, cookies_path, headless) as session:
-        for i, c in enumerate(to_scrape, 1):
-            url = barchart_options.option_history_url(
-                c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
-            try:
-                csv_text = await session.fetch_history_csv(url, timeout_ms)
-            except Exception:
-                log.exception("Barchart history scrape failed for %s", c["key"])
-                csv_text = None
-            if not csv_text:
-                details_map.setdefault(c["key"], {})
-                continue
-            cache = barchart_options.cache_path(
-                HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            cache.write_text(csv_text, encoding="utf-8")
-            details_map[c["key"]] = barchart_options.parse_history_details(csv_text)
-            await asyncio.sleep(2)
-
-    return details_map
+    return stats
 
 
 # ─── Per-date driver ────────────────────────────────────────────────────────────
 
 def enrich_prefix(
     client, prefix: str, date_str: str, *,
-    headless: bool, dry_run: bool, cache_only: bool, force: bool,
+    headless: bool, dry_run: bool, force: bool,
 ) -> dict:
     """Enrich one flow type for one date. Returns a stats dict with a `status`."""
     base = {"prefix": prefix, "date": date_str}
@@ -301,34 +368,41 @@ def enrich_prefix(
         log.warning("%s %s: compiled file is empty — skipping", prefix, date_str)
         return {**base, "status": "empty"}
 
-    if _already_enriched(rows) and not force:
-        log.info("%s %s: already enriched — skipping (use --force to redo)", prefix, date_str)
-        return {**base, "status": "already-enriched", "rows": len(rows)}
-
+    _ensure_columns(rows)
     contracts, unparseable = _distinct_contracts(rows)
-    trade_date = date.fromisoformat(date_str)
-    details_map = asyncio.run(_fetch_histories(
-        list(contracts.values()), trade_date, headless, cache_only=cache_only))
 
-    enrichment = {key: _compute_enrichment(details_map.get(key, {}), trade_date)
-                  for key in contracts}
-    with_next = sum(1 for e in enrichment.values() if e["oi_next"] != "")
-    new_rows = _apply_enrichment(rows, enrichment)
+    if force:
+        _clear_columns(rows)
+        done: set[tuple] = set()
+    else:
+        done = _done_keys(rows)
 
-    if not dry_run:
-        name = compiled_name(prefix, date_str)
-        folder_id = client.get_or_create_date_folder(date_str)
-        tmp = Path(f"/tmp/{name}")
-        # Stable column order: original columns first, ENRICH_COLUMNS appended.
-        pd.DataFrame(new_rows).to_csv(tmp, index=False)
-        client.upload(tmp, name, folder_id)
-        tmp.unlink(missing_ok=True)
+    pending = [c for key, c in contracts.items() if key not in done]
+    if not pending:
+        log.info("%s %s: all %d contract(s) already enriched — skipping (use --force to redo)",
+                 prefix, date_str, len(contracts))
+        return {**base, "status": "complete", "rows": len(rows),
+                "contracts": len(contracts), "unparseable": unparseable}
 
-    log.info("%s %s: %d row(s), %d contract(s), %d with next-day OI%s",
-             prefix, date_str, len(rows), len(contracts), with_next,
-             " (dry-run)" if dry_run else "")
+    if dry_run:
+        # Preview only — report scope without scraping (no network, no upload).
+        log.info("%s %s: (dry-run) would scrape %d pending contract(s) of %d",
+                 prefix, date_str, len(pending), len(contracts))
+        return {**base, "status": "enriched", "rows": len(rows),
+                "contracts": len(contracts), "pending": len(pending),
+                "processed": 0, "with_next": 0, "unparseable": unparseable}
+
+    run_date = date.today().isoformat()
+    stats = asyncio.run(_scrape_and_fill(
+        client, prefix, date_str, rows, pending, date.fromisoformat(date_str),
+        run_date, headless=headless))
+
+    log.info("%s %s: %d row(s), %d contract(s), %d pending, %d processed, %d with next-day OI%s",
+             prefix, date_str, len(rows), len(contracts), len(pending),
+             stats["processed"], stats["with_next"], " (dry-run)" if dry_run else "")
     return {**base, "status": "enriched", "rows": len(rows),
-            "contracts": len(contracts), "with_next": with_next,
+            "contracts": len(contracts), "pending": len(pending),
+            "processed": stats["processed"], "with_next": stats["with_next"],
             "unparseable": unparseable}
 
 
@@ -343,10 +417,8 @@ def main() -> None:
                         help="Target every enrichable date in Drive (all but the latest).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Compute and report; do not upload.")
-    parser.add_argument("--cache-only", action="store_true",
-                        help="Use cached histories only; never scrape Barchart.")
     parser.add_argument("--force", action="store_true",
-                        help="Re-enrich even if the columns are already present.")
+                        help="Clear the columns and re-scrape every contract from scratch.")
     parser.add_argument("--no-headless", action="store_true",
                         help="Run the scraper with a visible browser.")
     args = parser.parse_args()
@@ -365,14 +437,13 @@ def main() -> None:
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        enrichable = _enrichable_dates(client)
-        targets = enrichable[-1:]  # latest enrichable
+        targets = _enrichable_dates(client)[-1:]  # latest enrichable
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
     log.info("Enrich OI%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
 
     results = [enrich_prefix(client, prefix, d, headless=headless, dry_run=args.dry_run,
-                             cache_only=args.cache_only, force=args.force)
+                             force=args.force)
                for d in targets for prefix in FLOW_PREFIXES]
 
     enriched = [r for r in results if r["status"] == "enriched"]
@@ -382,11 +453,19 @@ def main() -> None:
     for r in results:
         if r["status"] == "enriched":
             print(f"  {r['date']}  {r['prefix']:<12} "
-                  f"contracts={r['contracts']:>4}  with_next={r['with_next']:>4}  "
+                  f"contracts={r['contracts']:>4}  pending={r['pending']:>4}  "
+                  f"processed={r['processed']:>4}  with_next={r['with_next']:>4}  "
                   f"unparseable={r['unparseable']:>3}"
                   + ("  (dry-run)" if args.dry_run else ""))
-        elif r["status"] not in ("no-compiled",):
+        else:
+            # Always surface skips (incl. no-compiled) so a no-op is never silent.
             print(f"  {r['date']}  {r['prefix']:<12} {r['status']}")
+
+    if not enriched:
+        avail = _enrichable_dates(client)
+        print(f"\n  Nothing enriched. Enrichable dates in Drive: "
+              f"{', '.join(avail) if avail else '(none)'}")
+        print("  (the latest compiled date is held back until its next trading day lands)")
 
 
 if __name__ == "__main__":

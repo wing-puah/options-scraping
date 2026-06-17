@@ -19,6 +19,23 @@ def test_augment_history_url_lifts_limit_and_adds_bidask():
     assert "tradeTime.format(m/d/Y)" in out
 
 
+def test_reissue_history_url_swaps_symbol_to_page_contract():
+    api = ("https://www.barchart.com/proxies/core-api/v1/historical/get"
+           "?symbol=GOOGL%7C20260717%7C425.00C"
+           "&fields=tradeTime.format(m/d/Y),lastPrice&type=eod&limit=1000&raw=1")
+    page = "https://www.barchart.com/stocks/quotes/GSK%7C20260821%7C50.00P/price-history/historical"
+    out = BarchartSession._reissue_history_url(api, page)
+    assert "symbol=GSK%7C20260821%7C50.00P" in out
+    assert "GOOGL" not in out
+    # everything else (fields/limit/order) survives untouched
+    assert "limit=1000" in out and "type=eod" in out
+
+
+def test_reissue_history_url_unparseable_page_returns_api_unchanged():
+    api = "https://www.barchart.com/proxies/core-api/v1/historical/get?symbol=X%7C1%7C1C"
+    assert BarchartSession._reissue_history_url(api, "https://example.com/no-match") == api
+
+
 def test_augment_history_url_idempotent_on_bidask():
     feed = ("https://www.barchart.com/proxies/core-api/v1/historical/get"
             "?fields=lastPrice,bidPrice,askPrice&type=eod&limit=65")

@@ -29,6 +29,15 @@ compile:
 gc:
 	$(PY) scripts/gc_flow.py
 
+# ── enrich ─────────────────────────────────────────────────────────────────────
+.PHONY: enrich
+enrich:
+	$(PY) scripts/enrich_oi.py $(ARGS)
+
+.PHONY: enrich-backfill
+enrich-backfill:
+	$(PY) scripts/enrich_oi.py --backfill $(ARGS)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze:
@@ -73,6 +82,10 @@ help:
 	@echo ""
 	@echo "  make compile       compile today's snapshots → Drive"
 	@echo "  make gc            garbage-collect raw snapshots"
+	@echo ""
+	@echo "  make enrich        enrich today's compiled flow with OI change + EOD greeks"
+	@echo "  make enrich-backfill  enrich all enrichable dates (idempotent)"
+	@echo "  make enrich ARGS=\"--date 2026-06-09\"  (or --dry-run, --force)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"

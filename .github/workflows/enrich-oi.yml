@@ -2,9 +2,11 @@ name: Enrich OI
 
 # Adds next-day OI change + EOD greeks to each compiled flow file. Enriching trade
 # date D needs D+1's data, so this runs AFTER Compile Flow (which produces today's
-# compiled file) and enriches the PRIOR day(s) via --backfill. Idempotent: dates
-# already carrying the columns are skipped, so a backfill only scrapes the newly
-# enrichable day in steady state and self-heals any it couldn't finish in time.
+# compiled file) and enriches the PRIOR day(s) via --backfill. Resume is per-contract
+# via the oi_enriched_on marker written into the compiled file itself: a backfill
+# scrapes only contracts not yet attempted, so it self-heals any run that was cut
+# short (the enriched CSV is checkpointed back to Drive as it goes — there is no
+# separate history cache to restore between runs).
 #
 # Needs the full requirements (Playwright) + Barchart creds to scrape per-contract
 # price history; writes the enriched CSVs back to Drive (no Sheets access needed).
@@ -55,16 +57,6 @@ jobs:
       - name: Install Playwright system deps (cached browser)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: playwright install-deps chromium
-
-      - name: Restore per-contract price-history cache
-        # Reuse scraped histories across runs so a backfill doesn't re-scrape the
-        # same contracts. The rotating key always saves a fresh, accumulated cache.
-        uses: actions/cache@v5
-        with:
-          path: backtests/option_history_cache
-          key: oi-history-${{ github.run_id }}
-          restore-keys: |
-            oi-history-
 
       - name: Enrich compiled flow with next-day OI + EOD greeks
         # Manual run with a date → that date; otherwise --backfill (every enrichable
