@@ -27,6 +27,7 @@ Google Sheets (service account) ──► Next.js Dashboard (web/, localhost:300
 ```
 
 **Two separate Google auth systems:**
+
 - **Google Drive** — OAuth2 personal account; token at `credentials/drive_token.json`,
   configured via `GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`. Holds all raw,
   compiled, and enriched CSV data.
@@ -83,11 +84,11 @@ Push this folder to a (private) GitHub repo and add the secrets used by the work
 `BARCHART_EMAIL`, `BARCHART_PASSWORD`, `GOOGLE_OAUTH_TOKEN_JSON_CONTENT`,
 `GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SPREADSHEET_ID`.
 
-| Workflow | Schedule (UTC) | Does |
-|----------|----------------|------|
-| `scrape.yml` | `:30` hourly 13:30–21:30, Mon–Fri | flow snapshots; `0 22` daily → unusual |
-| `compile-flow.yml` | `30 22` Mon–Fri | compile day's snapshots, GC raws, build baseline |
-| `enrich-oi.yml` | after compile | append next-day OI change + EOD greeks |
+| Workflow           | Schedule (UTC)                    | Does                                             |
+| ------------------ | --------------------------------- | ------------------------------------------------ |
+| `scrape.yml`       | `:30` hourly 13:30–21:30, Mon–Fri | flow snapshots; `0 22` daily → unusual           |
+| `compile-flow.yml` | `30 22` Mon–Fri                   | compile day's snapshots, GC raws, build baseline |
+| `enrich-oi.yml`    | after compile                     | append next-day OI change + EOD greeks           |
 
 The cron expressions target EDT (UTC-4). During EST (UTC-5) jobs fire one hour early;
 the in-script market-hours guard exits cleanly if run before the open.
@@ -180,8 +181,7 @@ python3 scripts/barchart_scrape.py --date 2026-04-21
 python3 scripts/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 ```
 
-Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`. Barchart historical flow goes back
-to 2024-01-02.
+Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`.
 
 ### 2. Configure and run
 
@@ -197,13 +197,13 @@ are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` s
 
 ## Google Sheets tabs
 
-| Tab | Written by |
-|-----|-----------|
-| AnalysisClaude | `/options analyze` via Claude Code (one row per ticker/play per run) |
-| AnalysisGPT | `/options analyze --engine codex` via GPT Codex |
-| BaselineDaily | `build_baseline.py` (one market-aggregate row per trading date) |
-| BacktestResults | `backtest.py` (optional) |
-| _meta | `sheets_client.py` (dedup hashes) |
+| Tab             | Written by                                                           |
+| --------------- | -------------------------------------------------------------------- |
+| AnalysisClaude  | `/options analyze` via Claude Code (one row per ticker/play per run) |
+| AnalysisGPT     | `/options analyze --engine codex` via GPT Codex                      |
+| BaselineDaily   | `build_baseline.py` (one market-aggregate row per trading date)      |
+| BacktestResults | `backtest.py` (optional)                                             |
+| \_meta          | `sheets_client.py` (dedup hashes)                                    |
 
 ## Notes
 
@@ -216,5 +216,5 @@ are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` s
   backtest depends on the stored history.
 - A later `compile_flow` re-run regenerates the compiled file and drops the enrichment
   columns; the next `enrich_oi --backfill` re-adds them.
-</content>
-</invoke>
+  </content>
+  </invoke>

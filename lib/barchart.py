@@ -16,6 +16,18 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 log = logging.getLogger(__name__)
 
 
+def _safe_err(exc: BaseException) -> str:
+    """Return exception string with the Playwright 'Call log:' section stripped.
+
+    Playwright appends the full HTTP call log (headers, cookies, tokens) to error
+    messages when a request context is disposed on interrupt. Strip it so credentials
+    never appear in logs.
+    """
+    s = str(exc)
+    cut = s.find("\nCall log:")
+    return s[:cut] if cut != -1 else s
+
+
 class BarchartSession:
     _BASE = "https://www.barchart.com"
     _USER_AGENT = (
@@ -194,8 +206,8 @@ class BarchartSession:
                 log.warning("Re-issued feed returned no rows for '%s' — re-navigating", page_url)
             else:
                 log.warning("Re-issued feed HTTP %d for '%s' — re-navigating", resp.status, page_url)
-        except Exception:
-            log.exception("Re-issued feed failed for '%s' — re-navigating", page_url)
+        except Exception as e:
+            log.error("Re-issued feed failed for '%s' — re-navigating: %s", page_url, _safe_err(e))
 
         return await self.fetch_history_csv(page_url, timeout_ms)
 

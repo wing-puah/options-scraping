@@ -65,7 +65,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 from lib import barchart_options
-from lib.barchart import BarchartSession
+from lib.barchart import BarchartSession, _safe_err
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib.logger import setup_logging
@@ -281,8 +281,8 @@ async def _fetch_details(session, contract: dict, timeout_ms: int) -> dict[date,
         contract["symbol"], contract["expiration"], contract["strike"], contract["opt_type"])
     try:
         csv_text = await session.fetch_history_fast(url, timeout_ms)
-    except Exception:
-        log.exception("Barchart history scrape failed for %s", contract["key"])
+    except Exception as e:
+        log.error("Barchart history scrape failed for %s: %s", contract["key"], _safe_err(e))
         return {}
     return barchart_options.parse_history_details(csv_text) if csv_text else {}
 
