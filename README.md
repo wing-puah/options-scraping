@@ -1,23 +1,38 @@
 # Options Trading Toolkit
 
-Automated options flow intelligence: scrapes barchart.com twice daily, stores data in Google Sheets, and runs dual LLM analysis (Claude + GPT-4o) on demand.
+Automated options-flow intelligence: scrapes barchart.com on a schedule, stores raw
+data in Google Drive, compiles and enriches it, then runs dual LLM analysis
+(Claude + GPT Codex) and surfaces the results in Google Sheets and a Next.js dashboard.
 
 ## Architecture
 
 ```
 Barchart.com
-    │ (Playwright, 2×/day via GitHub Actions)
+    │ (barchart_scrape.py — Playwright, hourly flow + daily unusual via GitHub Actions)
     ▼
-Google Sheets  ──────────────────────────────►  Next.js Dashboard
-    │                                            (localhost:3000)
-    │ (fetch_for_analysis.py)
+Google Drive (OAuth2 personal account)
+    {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD}/{prefix}-{YYYYMMDD}-{HHMM}.csv
+    │
+    │ compile_flow.py   → one deduped {prefix}-{YYYYMMDD}-compiled.csv per day
+    │ enrich_oi.py      → appends next-day OI change + EOD greeks per contract
+    │ build_baseline.py → one market-aggregate row per date (regime baseline)
+    │
+    │ scripts/analysis_pipeline/fetch.py → markdown to the engine
     ▼
-Claude (in-context via /options analyze)
-GPT-4o (OpenAI API via analyze_gpt.py)
+Claude Code  (/options analyze)              ──► AnalysisClaude tab
+GPT Codex    (/options analyze --engine codex) ──► AnalysisGPT tab
     │
     ▼
-Google Sheets (AnalysisClaude, AnalysisGPT tabs)
+Google Sheets (service account) ──► Next.js Dashboard (web/, localhost:3000)
 ```
+
+**Two separate Google auth systems:**
+- **Google Drive** — OAuth2 personal account; token at `credentials/drive_token.json`,
+  configured via `GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`. Holds all raw,
+  compiled, and enriched CSV data.
+- **Google Sheets** — service account JSON; configured via `GOOGLE_SERVICE_ACCOUNT_JSON`
+  or `GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT`. Holds analysis results and the baseline,
+  and feeds the dashboard.
 
 ## Quick Start
 
@@ -33,42 +48,49 @@ playwright install chromium
 
 ### 2. Credentials
 
-Copy `.env.example` → `.env` and fill in:
+Copy `.env.example` → `.env` and fill in (see `.env.example` for the full list):
 
 ```
 BARCHART_EMAIL=your@email.com
 BARCHART_PASSWORD=yourpassword
-GOOGLE_SERVICE_ACCOUNT_JSON=/path/to/service-account.json
+
+# Google OAuth2 (Drive) — run scripts/auth_drive.py once to mint the token
+GOOGLE_OAUTH_CLIENT_JSON=/path/to/oauth_client.json
+GOOGLE_OAUTH_TOKEN_JSON=/path/to/drive_token.json
+GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id
+
+# Google Sheets (analysis results + dashboard)
 GOOGLE_SPREADSHEET_ID=your_sheet_id
-OPENAI_API_KEY=sk-...
 ```
 
-**Google service account setup:**
-1. Go to Google Cloud Console → IAM & Admin → Service Accounts
-2. Create a service account, download the JSON key
-3. Open your Google Sheet, click Share, and share it with the service account email (Editor)
-4. The sheet needs these tabs created automatically on first run:
-   `UnusualStocks`, `UnusualETFs`, `OptionsFlow`, `AnalysisClaude`, `AnalysisGPT`, `_meta`
+Then authenticate Drive once:
+
+```bash
+python3 scripts/auth_drive.py
+```
 
 ### 3. Test scraper locally
 
 ```bash
-# Watch browser (headless=false for debugging)
-SCRAPE_HEADLESS=false python3 scripts/scraper.py
+# Watch the browser (headless=false for debugging)
+SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode unusual
 ```
 
 ### 4. GitHub Actions (free cloud hosting)
 
-1. Push this folder to a GitHub repo (private recommended)
-2. Add GitHub Secrets (Settings → Secrets → Actions):
-   - `BARCHART_EMAIL`
-   - `BARCHART_PASSWORD`
-   - `GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT` — paste the entire service account JSON as one line
-   - `GOOGLE_SPREADSHEET_ID`
-3. The workflow `.github/workflows/scrape.yml` runs automatically:
-   - **10:30 AM ET** — 1 hour after market open
-   - **4:30 PM ET** — after market close
-4. Test manually: Actions tab → Options Scraper → Run workflow
+Push this folder to a (private) GitHub repo and add the secrets used by the workflows:
+`BARCHART_EMAIL`, `BARCHART_PASSWORD`, `GOOGLE_OAUTH_TOKEN_JSON_CONTENT`,
+`GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SPREADSHEET_ID`.
+
+| Workflow | Schedule (UTC) | Does |
+|----------|----------------|------|
+| `scrape.yml` | `:30` hourly 13:30–21:30, Mon–Fri | flow snapshots; `0 22` daily → unusual |
+| `compile-flow.yml` | `30 22` Mon–Fri | compile day's snapshots, GC raws, build baseline |
+| `enrich-oi.yml` | after compile | append next-day OI change + EOD greeks |
+
+The cron expressions target EDT (UTC-4). During EST (UTC-5) jobs fire one hour early;
+the in-script market-hours guard exits cleanly if run before the open.
 
 ### 5. Dashboard
 
@@ -76,26 +98,35 @@ SCRAPE_HEADLESS=false python3 scripts/scraper.py
 cd web
 cp .env.local.example .env.local
 # Fill in GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT and GOOGLE_SPREADSHEET_ID
-npm run dev
-# Open http://localhost:3000
+npm run dev   # http://localhost:3000
 ```
+
+> Before editing any Next.js code, read `web/AGENTS.md` — this version may have
+> breaking API changes from training data.
 
 ## Skill commands
 
 ```bash
-# Run Claude + GPT-4o analysis (uses Claude subscription + OpenAI API)
+# Run analysis (fetch → headless engine → write Sheets). Claude by default.
 /options analyze
+
+# Same pipeline via GPT Codex → AnalysisGPT tab
+/options analyze codex
 
 # Display latest stored analysis (no token cost)
 /options summary
 
-# Cross-reference open positions against latest flow
+# Cross-reference live IBKR positions against latest flow
 /options positions
 ```
 
-### Scheduled analysis via /schedule
+`/options analyze` shells out to `python3 -m scripts.analysis_pipeline`; the LLM step
+runs in an isolated headless session so the framework/raw data never enter the calling
+agent's context. The engine is model-agnostic via `--engine` (`claude` → `claude -p`,
+`codex` → `codex exec`); `--model` overrides the default. All operator-tunable settings
+live in `scripts/analysis_pipeline/config.py`.
 
-After setup, run these in Claude Code to create automatic analysis routines:
+### Scheduled analysis
 
 ```
 /schedule options-analyze-morning: run /options analyze every weekday at 11:00 AM ET
@@ -104,89 +135,86 @@ After setup, run these in Claude Code to create automatic analysis routines:
 
 These use your Claude Code subscription (no Anthropic API billing).
 
-## Positions tracking
-
-Edit `config/positions.yml` manually:
-
-```yaml
-positions:
-  - symbol: TSLA
-    type: Call
-    strike: 250
-    expiry: 2026-07-18
-    qty: 5
-    entry_price: 8.20
-```
-
-Or import from a broker CSV:
+## Data pipeline (manual / backfill)
 
 ```bash
-python3 scripts/import_positions.py /path/to/broker_export.csv
+# Compile a day's hourly flow snapshots into one deduped CSV per type (→ Drive)
+python3 scripts/compile_flow.py                       # today (ET)
+python3 scripts/compile_flow.py --date 2026-06-09
+
+# GC raw snapshots once verified present in the compiled file (→ Drive trash)
+python3 scripts/gc_flow.py --all --dry-run
+
+# Append daily market-baseline rows to the BaselineDaily tab
+python3 scripts/build_baseline.py --backfill
+
+# Enrich a compiled file with next-day OI change + EOD greeks
+python3 scripts/enrich_oi.py                          # latest enrichable date
+python3 scripts/enrich_oi.py --backfill               # idempotent; skips enriched
+python3 scripts/enrich_oi.py --date 2026-06-09 --force
+
+# Full analysis pipeline directly (without the skill)
+python3 -m scripts.analysis_pipeline --date 2026-04-21
+python3 -m scripts.analysis_pipeline --engine codex
+python3 -m scripts.analysis_pipeline --fetch-only --dry-run
 ```
+
+## Positions tracking
+
+`/options positions` pulls live positions from the IBKR MCP and cross-references them
+against the latest flow. `config/positions.yml` holds a manual fallback / example
+positions (single-leg and multi-leg structures); see the comments in that file.
 
 ## Backtesting
 
-### 1. Collect historical data (requires Barchart Premier)
+The backtest is **analysis-driven**: it reads the plays written to the analysis tab,
+models each as signed legs, prices each leg (Barchart per-contract history → flow
+reappearance → Black-Scholes), and computes unified P&L over the path to expiry/cap with
+realized exit + MFE/MAE. There is no separate signal filter — the stored analysis is the
+filter.
+
+### 1. Collect historical data
 
 ```bash
-# Single date
 python3 scripts/barchart_scrape.py --date 2026-04-21
-
-# Date range
 python3 scripts/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 ```
 
-Data is stored in `HistUnusualStocks`, `HistUnusualETFs`, `HistOptionsFlow` tabs in Google Sheets.
-Barchart historical flow goes back to 2024-01-02.
+Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`. Barchart historical flow goes back
+to 2024-01-02.
 
-### 2. Configure signal filter
-
-Edit `config/backtest.yml` to define what counts as a tradeable signal:
-- `min_premium`: minimum trade size ($100K default)
-- `side`: Ask (buyer-initiated), Bid, Mid, or any
-- `special_label`: BuyToOpen, SellToOpen, ToOpen, or any
-- `trade_code_group`: sweep (ISOI), block, regular, cross, or any
-- `delta_min/max`, `dte_min/max`: option characteristics
-
-### 3. Run backtest
+### 2. Configure and run
 
 ```bash
-# Default config
-python3 scripts/backtest.py --config config/backtest.yml
-
-# Override source and date range
-python3 scripts/backtest.py --source flow --start 2026-01-01 --end 2026-04-30
-
-# Dry run (no output files written)
-python3 scripts/backtest.py --dry-run
+python3 -m scripts.backtest --config config/backtest.yml
+python3 -m scripts.backtest --config config/backtest.yml --dry-run
 ```
 
-Results written to `backtests/results.csv` and optionally the `BacktestResults` Google Sheets tab.
+Settings live in `config/backtest.yml` (analysis tab to test, entry match side, path cap,
+profit/stop, pricing fallbacks). Column definitions for the output are in
+`config/backtest-reference.md`; tuning history is in `config/backtest-tuning.md`. Results
+are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` series.
 
-The engine:
-- Applies your signal filter to the historical data
-- Simulates the configured structure (long_call, bull_call_spread, etc.)
-- Uses Black-Scholes with the signal's IV to price entry and exit
-- Fetches historical underlying prices via yfinance
-- Measures P&L at day 1, 3, 5, 10, 21 (configurable)
-- Prints win rate, avg P&L, best/worst trade at each exit checkpoint
+## Google Sheets tabs
 
----
-
-## Data flow
-
-| Tab | Updated by | When |
-|-----|------------|------|
-| UnusualStocks | `scraper.py` | 2×/day via GitHub Actions |
-| UnusualETFs | `scraper.py` | 2×/day via GitHub Actions |
-| OptionsFlow | `scraper.py` | 2×/day via GitHub Actions |
-| AnalysisClaude | `python3 -m scripts.analysis_pipeline` (`--engine claude`) | On `/options analyze` (Claude Code) |
-| AnalysisGPT | `python3 -m scripts.analysis_pipeline --engine codex` | On `/options analyze codex` (GPT Codex) |
-| _meta | `sheets_client.py` | After each scrape (dedup hashes) |
+| Tab | Written by |
+|-----|-----------|
+| AnalysisClaude | `/options analyze` via Claude Code (one row per ticker/play per run) |
+| AnalysisGPT | `/options analyze --engine codex` via GPT Codex |
+| BaselineDaily | `build_baseline.py` (one market-aggregate row per trading date) |
+| BacktestResults | `backtest.py` (optional) |
+| _meta | `sheets_client.py` (dedup hashes) |
 
 ## Notes
 
-- The scraper logs into barchart and saves cookies to `cookies/barchart_session.json` locally. On GitHub Actions, cookies don't persist between runs (acceptable for 2 logins/day).
-- The market hours guard in `scraper.py` uses `America/New_York` timezone regardless of system timezone. GitHub Actions runs in UTC.
-- The `AnalysisClaude` and `AnalysisGPT` tabs are **append-only** across `/options analyze` runs — each run adds one MARKET row plus one row per ticker/play for the date analyzed. Never clear the tabs without explicit confirmation; doing so destroys the historical analysis the backtest depends on.
-- EDT vs EST: the GitHub Actions cron uses UTC. The cron expressions target EDT times (UTC-4). During EST (UTC-5), the scraper fires 1 hour early — the in-script guard exits cleanly if run before market open.
+- The scraper logs into barchart via Playwright and reuses session cookies. On GitHub
+  Actions cookies don't persist between runs (acceptable for the scheduled cadence).
+- The market-hours guard uses `America/New_York` regardless of system timezone; GitHub
+  Actions runs in UTC.
+- The `AnalysisClaude` / `AnalysisGPT` tabs are **append-only** — each run adds one MARKET
+  row plus one row per ticker/play. Never clear them without explicit confirmation; the
+  backtest depends on the stored history.
+- A later `compile_flow` re-run regenerates the compiled file and drops the enrichment
+  columns; the next `enrich_oi --backfill` re-adds them.
+</content>
+</invoke>
