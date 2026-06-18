@@ -1,14 +1,19 @@
 """Tests for lib/flow_summary.py — aggregation correctness, not formatting polish."""
+import csv
+import io
+
 import pytest
 
 from lib.flow_summary import (
     _classify_sentiment,
     _flow_ticker_rows,
     _voloi_by_symbol,
+    build_scored_flow_rollup,
     cross_section_tickers,
     filter_by_ticker,
     hedge_pressure,
     hedge_pressure_md,
+    oi_breakdown_csv,
     score_flow_rollup,
     score_label,
     summarize_flow,
@@ -630,3 +635,112 @@ def test_summarize_flow_includes_pollution_columns():
     for col in ("Ext$", "Fin%", "ΔNot$", "Hzn"):
         assert col in out
     assert "100%" in out  # GLD row reads as pure financing
+
+
+# ---------------------------------------------------------------------------
+# OI factor measures (ref 03: OIFC/OIFP/CPIR) + breakdown audit CSV
+# ---------------------------------------------------------------------------
+
+def _oi_row(symbol, opt_type, side, premium, *, spot, strike, dte, oi_change,
+            delta="0.5", size="100", iv="50%", exp=""):
+    r = _rich_row(symbol, opt_type, side, premium,
+                  spot=spot, strike=strike, delta=delta, dte=dte, size=size, iv=iv)
+    r["oi_change"] = oi_change
+    r["Expiration Date"] = exp
+    return r
+
+
+def test_oi_factors_none_without_enrichment():
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]  # no oi_change column
+    row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
+    assert row["oifc"] is None
+    assert row["oifp"] is None
+    assert row["cpir"] is None
+    assert row["cpira"] is None
+
+
+def test_oifc_weights_by_price_and_p_otm():
+    # One call contract: ΔOI=500, price = premium/(size·100) = 250000/(100·100)
+    # = $25/share, P(OTM) = 1−|delta| = 1−0.5 = 0.5.
+    # OIFC = 500 × 25 × 0.5 = 6250.
+    rows = [_oi_row("AVGO", "Call", "ask", "250000",
+                    spot="100", strike="110", dte="10", oi_change="500", delta="0.5")]
+    row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
+    assert row["oifc"] == pytest.approx(6250.0)
+    assert row["oifp"] == pytest.approx(0.0)
+    assert row["cpir"] == 1.0  # all-call OI factor → fully call-skewed
+
+
+def test_cpir_is_oifc_over_oifc_plus_oifp():
+    rows = [
+        _oi_row("AVGO", "Call", "ask", "250000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5"),
+        _oi_row("AVGO", "Put",  "bid", "250000", spot="100", strike="90",
+                dte="100", oi_change="500", delta="-0.5"),
+    ]
+    row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
+    # Symmetric inputs → OIFC == OIFP → CPIR = 0.5.
+    assert row["oifc"] == pytest.approx(row["oifp"])
+    assert row["cpir"] == 0.5
+
+
+def test_oi_change_deduped_per_contract():
+    # Three trade rows on the SAME contract (same strike+exp), each carrying the
+    # identical oi_change enrich_oi writes onto every row. ΔOI must be counted
+    # ONCE, not 3×. price = Σpremium/(Σsize·100) = 300000/(300·100) = $10,
+    # P(OTM)=0.5 → OIFC = 500 × 10 × 0.5 = 2500.
+    rows = [
+        _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5", size="100", exp="2026-07-17"),
+        _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5", size="100", exp="2026-07-17"),
+        _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5", size="100", exp="2026-07-17"),
+    ]
+    row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
+    assert row["oifc"] == pytest.approx(2500.0)
+
+
+def test_oi_confirm_pct_counts_contracts_not_rows():
+    # Two contracts: one opening (ΔOI>0), one closing (ΔOI<0). Three rows on the
+    # opening contract must not inflate the confirm rate → 1/2 = 50%.
+    rows = [
+        _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
+                dte="10", oi_change="500", exp="2026-07-17"),
+        _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
+                dte="10", oi_change="500", exp="2026-07-17"),
+        _oi_row("AVGO", "Put",  "bid", "100000", spot="100", strike="90",
+                dte="10", oi_change="-300", exp="2026-07-17"),
+    ]
+    row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
+    assert row["oi_confirm_pct"] == 50
+
+
+def test_oi_breakdown_csv_empty_without_enrichment():
+    rollup = build_scored_flow_rollup([_flow_row("AVGO", "Call", "ask", "1000000")])
+    assert oi_breakdown_csv([("stocks", rollup)]) == ""
+
+
+def test_oi_breakdown_csv_reconciles_to_oifc_oifp():
+    rows = [
+        _oi_row("AVGO", "Call", "ask", "250000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5"),
+        _oi_row("AVGO", "Put",  "bid", "250000", spot="100", strike="90",
+                dte="100", oi_change="400", delta="-0.5"),
+    ]
+    rollup = build_scored_flow_rollup(rows)
+    text = oi_breakdown_csv([("stocks", rollup)])
+    parsed = list(csv.DictReader(io.StringIO(text)))
+    # Two non-empty (dte, moneyness) cells → two rows, DTE-bucket ordered
+    # (≤14 → 14, then 61–180 → 180), using the prompt's horizon convention.
+    assert [r["DTEBucket"] for r in parsed] == ["14", "180"]
+    assert all(r["Moneyness"] == "OTM" for r in parsed)
+    # Per-cell call/put OIF contributions reconcile to the per-ticker OIFC/OIFP.
+    call_total = sum(float(r["CallOIF"]) for r in parsed)
+    put_total = sum(float(r["PutOIF"]) for r in parsed)
+    assert call_total == pytest.approx(float(parsed[0]["OIFC"]))
+    assert put_total == pytest.approx(float(parsed[0]["OIFP"]))
+    # CPIR repeats and equals OIFC/(OIFC+OIFP).
+    cpir = float(parsed[0]["CPIR"])
+    assert cpir == pytest.approx(call_total / (call_total + put_total), abs=0.01)
+    assert all(r["Section"] == "stocks" and r["Symbol"] == "AVGO" for r in parsed)

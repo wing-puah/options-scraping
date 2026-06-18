@@ -230,12 +230,12 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "_iv_premium_sum": 0.0,
         "_ext_by_bucket": defaultdict(float),
         "biggest": None,  # (premium, type, strike, side, dte, time)
-        # OI enrichment accumulators (populated when oi_change is present)
-        "_oi_by_bucket": defaultdict(int),   # (dte_label, moneyness_band) → net oi_change
-        "_oi_confirm_n": 0,
-        "_oi_total_n": 0,
-        "_oi_call_sum": 0,
-        "_oi_put_sum": 0,
+        # OI enrichment: deduped per CONTRACT. enrich_oi writes oi_change onto
+        # EVERY trade row of a contract, so summing across rows would multiply
+        # each contract's ΔOI by its trade count. Keyed by
+        # (opt_type, strike, expiration); finalized into the ref-03 OIFC/OIFP
+        # factor measures below.
+        "_oi_contracts": {},
     })
 
     for r in rows:
@@ -309,22 +309,42 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         agg["_iv_premium_sum"]  += iv * prem
 
         oi_chg_raw = r.get("oi_change", "")
-        if oi_chg_raw not in (None, ""):
-            try:
-                oi_chg = int(float(oi_chg_raw))
-            except (ValueError, TypeError):
-                oi_chg = None
-            if oi_chg is not None:
-                dte_label = _dte_bucket(dte) if dte else "?"
-                m_band = _moneyness_band(_otm_pct(strike, spot, opt_type))
-                agg["_oi_by_bucket"][(dte_label, m_band)] += oi_chg
-                agg["_oi_total_n"] += 1
-                if oi_chg > 0:
-                    agg["_oi_confirm_n"] += 1
-                if t_lower == "call":
-                    agg["_oi_call_sum"] += oi_chg
-                elif t_lower == "put":
-                    agg["_oi_put_sum"] += oi_chg
+        if oi_chg_raw not in (None, "") and t_lower in ("call", "put"):
+            # Dedup to one entry per contract; oi_change is identical on every
+            # row of a contract. Accumulate the inputs the ref-03 factor needs:
+            # ΔOI (once), a volume-weighted traded price (monetary size), and a
+            # representative delta/IV (prefer EOD settlement greeks).
+            ckey = (t_lower, str(r.get(_FLOW_STRIKE, "")), str(r.get("Expiration Date", "")))
+            c = agg["_oi_contracts"].get(ckey)
+            if c is None:
+                c = {
+                    "opt_type": t_lower, "oi_change": None,
+                    "prem_sum": 0.0, "size_sum": 0,
+                    "eod_delta": None, "eod_iv": None,
+                    "_idelta_w": 0.0, "_idelta_n": 0,
+                    "_iiv_w": 0.0, "_iiv_n": 0,
+                    "dte": dte, "strike": strike, "spot": spot,
+                }
+                agg["_oi_contracts"][ckey] = c
+            if c["oi_change"] is None:
+                try:
+                    c["oi_change"] = int(float(oi_chg_raw))
+                except (ValueError, TypeError):
+                    c["oi_change"] = None
+            c["prem_sum"] += prem
+            c["size_sum"] += size
+            ed = r.get("eod_delta")
+            if ed not in (None, "") and c["eod_delta"] is None:
+                c["eod_delta"] = _to_float(ed)
+            ei = r.get("eod_iv")
+            if ei not in (None, "") and c["eod_iv"] is None:
+                c["eod_iv"] = _to_float(ei)
+            if has_delta:
+                c["_idelta_w"] += abs(delta) * size
+                c["_idelta_n"] += size
+            if iv:
+                c["_iiv_w"] += iv * size
+                c["_iiv_n"] += size
 
         big = agg["biggest"]
         if big is None or prem > big[0]:
@@ -353,6 +373,57 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         otmput_iv = (a["_iv_otmput_sum"] / a["_iv_otmput_w"]) if a["_iv_otmput_w"] > 0 else None
         atmcall_iv = (a["_iv_atmcall_sum"] / a["_iv_atmcall_w"]) if a["_iv_atmcall_w"] > 0 else None
         iv_skew = (otmput_iv - atmcall_iv) if (otmput_iv is not None and atmcall_iv is not None) else None
+
+        # --- OI factor measures (Hilliard, Hilliard & Wu 2025, ref 03) --------
+        # Per contract the factor contribution is
+        #     max(ΔOI, 0) × price × P(OTM)
+        # where price is the contract's volume-weighted traded price (the
+        # monetary-size term the paper requires — raw ΔOI "does not capture
+        # money"), and P(OTM) ≈ 1−|delta| is the risk-neutral expiry-OTM proxy
+        # (same proxy as otm_ext). OIFC/OIFP sum these over calls/puts and
+        # CPIR = OIFC/(OIFC+OIFP). The IV-augmented OIFCA/OIFPA (→ CPIRA)
+        # multiply each term by the contract's IV (as a fraction).
+        # Only OPENING flow (ΔOI>0) on a priced, delta-bearing contract feeds the
+        # factors; OIConf% still counts every enriched contract (open vs close).
+        oifc = oifp = oifca = oifpa = 0.0
+        oi_total_n = oi_confirm_n = 0
+        oi_by_bucket: dict[tuple[str, str], dict[str, float]] = defaultdict(
+            lambda: {"call": 0.0, "put": 0.0, "doi": 0})
+        for c in a["_oi_contracts"].values():
+            doi = c["oi_change"]
+            if doi is None:
+                continue
+            oi_total_n += 1
+            if doi > 0:
+                oi_confirm_n += 1
+            dte_label = _dte_bucket(c["dte"]) if c["dte"] else "?"
+            m_band = _moneyness_band(_otm_pct(c["strike"], c["spot"], c["opt_type"]))
+            cell = oi_by_bucket[(dte_label, m_band)]
+            cell["doi"] += doi  # signed net ΔOI — the raw positioning view
+            oi_open = max(doi, 0)
+            if oi_open == 0:
+                continue
+            price = c["prem_sum"] / (c["size_sum"] * 100) if c["size_sum"] > 0 else 0.0
+            delta = c["eod_delta"]
+            if delta is None and c["_idelta_n"] > 0:
+                delta = c["_idelta_w"] / c["_idelta_n"]
+            if delta is None or price <= 0:
+                continue
+            p_otm = min(max(1.0 - abs(delta), 0.0), 1.0)
+            base = oi_open * price * p_otm
+            iv_src = c["eod_iv"]
+            if iv_src is None and c["_iiv_n"] > 0:
+                iv_src = c["_iiv_w"] / c["_iiv_n"]
+            iv_frac = (iv_src / 100.0) if iv_src else 1.0  # IV is in pct points
+            aug = base * iv_frac
+            if c["opt_type"] == "call":
+                oifc += base; oifca += aug; cell["call"] += base
+            else:
+                oifp += base; oifpa += aug; cell["put"] += base
+        cpir = round(oifc / (oifc + oifp), 2) if (oifc + oifp) > 0 else None
+        cpira = round(oifca / (oifca + oifpa), 2) if (oifca + oifpa) > 0 else None
+        oi_confirm_pct = round(oi_confirm_n / oi_total_n * 100) if oi_total_n > 0 else None
+
         out.append({
             "symbol": sym,
             "trades": a["trades"],
@@ -386,12 +457,17 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             "dte_w": dte_w,
             "iv_w": iv_w,
             "biggest": a["biggest"],
-            # OI enrichment fields (None when no enriched data for this ticker)
-            "oi_confirm_pct": round(a["_oi_confirm_n"] / a["_oi_total_n"] * 100)
-                              if a["_oi_total_n"] > 0 else None,
-            "cpir": round(a["_oi_call_sum"] / (a["_oi_call_sum"] + a["_oi_put_sum"]), 2)
-                    if (a["_oi_call_sum"] + a["_oi_put_sum"]) != 0 else None,
-            "oi_by_bucket": dict(a["_oi_by_bucket"]),
+            # OI factor measures (ref 03; None when no enriched data) ---------
+            "oi_confirm_pct": oi_confirm_pct,
+            "oifc": oifc if oi_total_n > 0 else None,
+            "oifp": oifp if oi_total_n > 0 else None,
+            "cpir": cpir,
+            "oifca": oifca if oi_total_n > 0 else None,
+            "oifpa": oifpa if oi_total_n > 0 else None,
+            "cpira": cpira,
+            # (dte, moneyness) → {call OIFC contribution, put OIFP contribution,
+            # signed net ΔOI}. The call/put contributions sum to OIFC/OIFP.
+            "oi_by_bucket": {k: dict(v) for k, v in oi_by_bucket.items()},
         })
 
     out.sort(key=lambda r: r["ext_total"], reverse=True)
@@ -552,7 +628,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
         "Bull", "Bear", "Mid",
         "BTO", "STO", "ToOpen",
         "wDTE", "Hzn", "wIV%", "IVspr", "IVskew",
-        "OIConf%", "CPIR",
+        "OIConf%", "CPIR", "CPIRA",
         "Biggest trade",
     ]
     sep = " | ".join(["---"] * len(headers))
@@ -593,6 +669,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             _fmt_iv_pts(r.get("iv_skew")),
             f"{r['oi_confirm_pct']}%" if r.get("oi_confirm_pct") is not None else "—",
             f"{r['cpir']:.2f}"        if r.get("cpir")            is not None else "—",
+            f"{r['cpira']:.2f}"       if r.get("cpira")           is not None else "—",
             big_str,
         ]))
     body = "\n".join(lines)
@@ -643,11 +720,14 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
         sym = r["symbol"]
         conf = r.get("oi_confirm_pct")
         cpir = r.get("cpir")
+        cpira = r.get("cpira")
         meta = []
         if conf is not None:
             meta.append(f"Conf: {conf}%")
         if cpir is not None:
             meta.append(f"CPIR: {cpir:.2f}")
+        if cpira is not None:
+            meta.append(f"CPIRA: {cpira:.2f}")
         meta_str = f"  ({' | '.join(meta)})" if meta else ""
 
         # Collect which moneyness bands actually appear for this ticker.
@@ -661,11 +741,11 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
         sep = "|-----|" + "|".join(["-----"] * len(present_bands)) + "|"
         rows_md = []
         for dte_label in _DTE_ORDER:
-            cells = [bucket.get((dte_label, m), None) for m in present_bands]
-            if all(v is None or v == 0 for v in cells):
+            cells = [bucket.get((dte_label, m), {}).get("doi", 0) for m in present_bands]
+            if all(v == 0 for v in cells):
                 continue
             def _fmt_cell(v):
-                if v is None or v == 0:
+                if not v:
                     return "—"
                 return f"+{v:,}" if v > 0 else f"{v:,}"
             row = f"| {dte_label} | " + " | ".join(_fmt_cell(v) for v in cells) + " |"
@@ -759,7 +839,7 @@ FLOW_CSV_COLUMNS = [
     "CallPremium", "PutPremium", "CallPutRatio",
     "Bull", "Bear", "Mid", "BTO", "STO", "ToOpen",
     "wDTE", "wIV", "IVSpread", "IVSkew", "BiggestTrade",
-    "OIConfirmPct", "CPIR",
+    "OIConfirmPct", "OIFC", "OIFP", "CPIR", "CPIRA",
 ]
 
 
@@ -821,9 +901,80 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "IVSkew": round(r["iv_skew"], 1) if r.get("iv_skew") is not None else "",
                 "BiggestTrade": _biggest_trade_str(r["biggest"]),
                 "OIConfirmPct": r.get("oi_confirm_pct", ""),
+                "OIFC": round(r["oifc"], 2) if r.get("oifc") is not None else "",
+                "OIFP": round(r["oifp"], 2) if r.get("oifp") is not None else "",
                 "CPIR": r.get("cpir", ""),
+                "CPIRA": r.get("cpira", ""),
             })
     return buf.getvalue()
+
+
+# Long-format OI audit: one row per (Section, Symbol, DTE bucket, Moneyness band)
+# non-empty cell. Each cell carries the ref-03 factor contributions for that
+# DTE × moneyness slice — CallOIF (→ OIFC) and PutOIF (→ OIFP) — plus the raw
+# signed net ΔOI for context. The per-ticker OIFC/OIFP/CPIR/CPIRA/OIConf% scalars
+# repeat on each of a ticker's rows, so CPIR reconciles directly against the
+# grid: Σ CallOIF over a ticker = OIFC, Σ PutOIF = OIFP, CPIR = OIFC/(OIFC+OIFP).
+OI_BREAKDOWN_CSV_COLUMNS = [
+    "Section", "Symbol", "DTEBucket", "Moneyness",
+    "CallOIF", "PutOIF", "NetOIChange",
+    "OIFC", "OIFP", "CPIR", "CPIRA", "OIConfirmPct",
+]
+
+# The DTEBucket column uses the prompt's `horizon` boundary convention
+# (one of 14|60|180|720 — see config.py ANALYSIS_PROMPT_CONTRACT) rather than the
+# internal event/tact/med/strat labels, so a play's `horizon` reconciles directly
+# against the breakdown rows. Mirrors the _DTE_BUCKETS boundaries (strat → 720).
+_DTE_BUCKET_HORIZON = {"event": 14, "tact": 60, "med": 180, "strat": 720}
+
+
+def oi_breakdown_csv(sections: list[tuple[str, list[dict]]]) -> str:
+    """Render the per-ticker OI-change breakdown (DTE × moneyness) as long CSV.
+
+    ``sections`` is ``[(section_label, scored_rollup), ...]`` (same shape as
+    :func:`flow_rollup_csv`). Emits one row per non-empty ``(dte, moneyness)``
+    cell, ordered by :data:`_DTE_BUCKETS` then :data:`_MONEYNESS_BANDS`, carrying
+    that cell's ``CallOIF``/``PutOIF`` factor contributions + signed net ΔOI, with
+    the ticker's ``oifc``/``oifp``/``cpir``/``cpira``/``oi_confirm_pct`` repeated
+    on each row. Returns ``""`` when no ticker in any section carries enriched OI
+    data, so the caller can skip writing an empty file.
+    """
+    dte_order = [b[0] for b in _DTE_BUCKETS]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=OI_BREAKDOWN_CSV_COLUMNS)
+    writer.writeheader()
+    wrote_row = False
+    for section_label, rollup in sections:
+        for r in rollup:
+            bucket = r.get("oi_by_bucket", {})
+            if not bucket:
+                continue
+            for dte_label in dte_order:
+                for m_band in _MONEYNESS_BANDS:
+                    cell = bucket.get((dte_label, m_band))
+                    if not cell:
+                        continue
+                    call_oif = cell.get("call", 0.0)
+                    put_oif = cell.get("put", 0.0)
+                    net_doi = cell.get("doi", 0)
+                    if not call_oif and not put_oif and not net_doi:
+                        continue
+                    writer.writerow({
+                        "Section": section_label,
+                        "Symbol": r["symbol"],
+                        "DTEBucket": _DTE_BUCKET_HORIZON.get(dte_label, dte_label),
+                        "Moneyness": m_band,
+                        "CallOIF": round(call_oif, 2),
+                        "PutOIF": round(put_oif, 2),
+                        "NetOIChange": net_doi,
+                        "OIFC": round(r["oifc"], 2) if r.get("oifc") is not None else "",
+                        "OIFP": round(r["oifp"], 2) if r.get("oifp") is not None else "",
+                        "CPIR": r.get("cpir", ""),
+                        "CPIRA": r.get("cpira", ""),
+                        "OIConfirmPct": r.get("oi_confirm_pct", ""),
+                    })
+                    wrote_row = True
+    return buf.getvalue() if wrote_row else ""
 
 
 # ---------------------------------------------------------------------------

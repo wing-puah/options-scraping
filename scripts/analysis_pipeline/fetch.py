@@ -26,6 +26,7 @@ from lib.flow_summary import (
     filter_by_ticker,
     flow_rollup_csv,
     hedge_pressure_md,
+    oi_breakdown_csv,
     persistence_callout_md,
     rows_to_markdown_raw,
     summarize_flow,
@@ -198,6 +199,14 @@ def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(flow_rollup_csv(sections))
     log.info("Audit CSV written to %s", path)
+
+    # Companion long-format OI / put-call breakdown (DTE × moneyness + raw
+    # call/put OI sums). Skipped when no ticker has enriched OI data.
+    oi_csv = oi_breakdown_csv(sections)
+    if oi_csv:
+        oi_path = path.with_name(path.name.replace("-rollup.csv", "-oi-breakdown.csv"))
+        oi_path.write_text(oi_csv)
+        log.info("OI breakdown CSV written to %s", oi_path)
 
 
 def _baseline_section(section_rows: dict[str, list[dict]], date_str: str | None, client) -> str:

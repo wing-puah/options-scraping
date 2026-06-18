@@ -90,19 +90,31 @@ conviction score** but available to the LLM for Step 5 vol-alignment.
 ## OI enrichment columns *(populated D+1 after enrich_oi.py)*
 
 These columns are only non-blank when the compiled file has been enriched.
-The per-ticker values are aggregated from `oi_change` (D-day OI change per contract).
+The per-ticker values are aggregated from `oi_change` (D-day OI change per
+contract). **Aggregation is per *contract*, not per trade row** — `enrich_oi`
+writes the same `oi_change` onto every trade row of a contract, so the rollup
+dedups to one ΔOI per contract before aggregating.
 
 ### Rollup summary (one value per ticker)
+
+The factor measures follow Hilliard, Hilliard & Wu (2025) (ref 03): each
+contract's contribution is `max(ΔOI, 0) × price × P(OTM)`, where `price` is the
+contract's volume-weighted traded price (the monetary-size term — raw ΔOI alone
+"does not capture money") and `P(OTM) ≈ 1−|delta|` is the risk-neutral
+expiry-OTM proxy. Only *opening* flow (ΔOI > 0) on a priced, delta-bearing
+contract feeds the factors.
 
 | Column | Computation | Notes |
 |--------|------------|-------|
 | `OIConf%` | `count(oi_change > 0) / count(enriched contracts) × 100` | % of this ticker's contracts where OI *increased* on trade day — the open-confirmation rate. 100% = all flow confirmed as opening; 0% = all closing/rolling. |
-| `CPIR` | `oi_change_calls / (oi_change_calls + oi_change_puts)` | Call-put OI information ratio (Hu et al. 2023, ref 03). > 0.5 = call-skewed OI opening = bullish informed flow. `—` when net OI change is 0 across both sides. |
+| `OIFC` / `OIFP` | `Σ max(ΔOI,0) × price × P(OTM)` over call / put contracts | Open Interest Factor for calls / puts (ref 03). The monetary-size × OTM-probability-weighted open-interest factor that CPIR is built from. |
+| `CPIR` | `OIFC / (OIFC + OIFP)` | Call-Put Information Ratio (ref 03). > 0.5 = call-skewed informed opening = bullish; < 0.5 = put-skewed. In `[0, 1]` by construction. `—` when no opening flow on either side. |
+| `CPIRA` | `OIFCA / (OIFCA + OIFPA)`, factors × IV | IV-augmented CPIR (ref 03 OIFCA/OIFPA variant) — each contribution additionally weighted by the contract's implied volatility. |
 
 ### OI breakdown section (per-ticker DTE × moneyness table)
 
-Appended after raw trades. Shows `oi_change` summed by **DTE bucket × moneyness band**
-so the LLM can see *where* the OI is opening or closing:
+Appended after raw trades. Shows net `oi_change` summed by **DTE bucket ×
+moneyness band** so the LLM can see *where* the OI is opening or closing:
 
 **DTE buckets:** `event` (≤14), `tact` (≤60), `med` (≤180), `strat` (>180)
 

@@ -301,7 +301,7 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
     those names (callers route the write to config.TICKER_SPECIFIC_TAB via `tab`).
     """
     log.info("Fetching data for %s (days=%d)", date_str, days)
-    audit_path = config.ROOT / "audit" / f"rollup-{date_str}.csv"
+    audit_path = config.ROOT / "audit" / f"{date_str}-rollup.csv"
     data_md = fetch_data(
         date_str=date_str, top_n=top_n, raw_n=raw_n, days=days,
         focus_tickers=focus_tickers, audit_csv_path=audit_path,
@@ -404,7 +404,7 @@ def main(argv: list[str] | None = None) -> None:
 
     done, skipped = [], []
     for d in dates:
-        audit_path = config.ROOT / "audit" / f"rollup-{d}.csv"
+        audit_path = config.ROOT / "audit" / f"{d}-rollup.csv"
         try:
             data_md = fetch_data(
                 date_str=d, top_n=args.top, raw_n=args.raw, days=args.days,
