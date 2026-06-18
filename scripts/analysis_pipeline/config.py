@@ -93,7 +93,8 @@ ROW_COLUMNS = [
 # expanded into one sheet row per ticker without parsing free text.
 #
 # Coupled to analysis_to_rows() in core.py: the `plays` item keys
-# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/confidence/flow_intent/horizon/alternative_interpretation)
+# (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/
+# confidence/flow_intent/horizon/alternative_interpretation)
 # are read there, so keep them in sync if you edit this. Coverage minimums are
 # MIN_STOCK_PLAYS / MIN_ETF_PLAYS above — keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
