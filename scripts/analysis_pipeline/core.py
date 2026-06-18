@@ -49,8 +49,17 @@ def _strip_output_section(framework_md: str) -> str:
     return framework_md.split("## Output Format", 1)[0].rstrip()
 
 
-def build_prompt(framework_md: str, method_md: str, data_md: str, date_str: str) -> str:
-    """Assemble the full self-contained analysis prompt for the headless engine."""
+def build_prompt(framework_md: str, method_md: str, data_md: str, date_str: str,
+                 focus_tickers: list[str] | None = None) -> str:
+    """Assemble the full self-contained analysis prompt for the headless engine.
+
+    When ``focus_tickers`` is set, the coverage section of the contract is
+    overridden so the model returns plays only for those tickers.
+    """
+    contract = config.ANALYSIS_PROMPT_CONTRACT
+    if focus_tickers:
+        contract += "\n" + config.ANALYSIS_FOCUS_OVERRIDE.format(
+            tickers=", ".join(t.upper() for t in focus_tickers))
     return "\n\n".join([
         "# Options flow analysis",
         "You are analyzing options flow data. Apply the method to the "
@@ -59,7 +68,7 @@ def build_prompt(framework_md: str, method_md: str, data_md: str, date_str: str)
         f"Date being analyzed: {date_str}",
         "## Method (judgment)\n\n" + method_md,
         "## Framework (vocabulary)\n\n" + _strip_output_section(framework_md),
-        config.ANALYSIS_PROMPT_CONTRACT,
+        contract,
         "## Fetched data\n\n" + data_md,
     ])
 
@@ -285,13 +294,17 @@ def _dates_to_process(args, client) -> list[str]:
 
 def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
                  days: int, top_n: int, raw_n: int, framework_md: str, method_md: str,
-                 write: bool) -> dict | None:
-    """Run fetch → analyze → (write) for a single date. Returns the analysis dict."""
+                 write: bool, focus_tickers: list[str] | None = None) -> dict | None:
+    """Run fetch → analyze → (write) for a single date. Returns the analysis dict.
+
+    ``focus_tickers`` narrows the per-ticker flow tables and the play coverage to
+    those names (callers route the write to config.TICKER_SPECIFIC_TAB via `tab`).
+    """
     log.info("Fetching data for %s (days=%d)", date_str, days)
     audit_path = config.ROOT / "audit" / f"rollup-{date_str}.csv"
     data_md = fetch_data(
         date_str=date_str, top_n=top_n, raw_n=raw_n, days=days,
-        audit_csv_path=audit_path,
+        focus_tickers=focus_tickers, audit_csv_path=audit_path,
     )
     if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
         log.info("No data for %s — skipping", date_str)
@@ -300,7 +313,7 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
     window = _last_n_trading_days(date_str, days)
     window_start, window_end = window[0], window[-1]
 
-    prompt = build_prompt(framework_md, method_md, data_md, date_str)
+    prompt = build_prompt(framework_md, method_md, data_md, date_str, focus_tickers)
     analysis = run_engine(engine, prompt, model)
     _warn_if_below_targets(analysis)
 
@@ -340,6 +353,11 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Analysis engine: claude (→ AnalysisClaude) or codex (→ AnalysisGPT). "
                              f"Default: {config.DEFAULT_ENGINE}.")
     parser.add_argument("--date", help="Single trading date YYYY-MM-DD.")
+    parser.add_argument("--tickers",
+                        help="Comma-separated symbols (e.g. NVDA,AMD,SPY) for a ticker-focused "
+                             "run: narrows the per-ticker flow tables and returns plays only for "
+                             f"these names. Writes to the {config.TICKER_SPECIFIC_TAB} tab "
+                             "instead of the engine's daily tab. Full market context is retained.")
     parser.add_argument(
         "--start", help="Range start YYYY-MM-DD (use with --end).")
     parser.add_argument(
@@ -367,11 +385,16 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg = ENGINES[args.engine]
     model = args.model or cfg.default_model
-    tab = cfg.tab
+    focus_tickers = [t.strip() for t in args.tickers.split(",") if t.strip()] if args.tickers else None
+    # Ticker-focused runs route to a dedicated tab so they don't mix with the
+    # full-market daily runs that backtest.py / `/options summary` read.
+    tab = config.TICKER_SPECIFIC_TAB if focus_tickers else cfg.tab
     if not args.fetch_only:
         framework_md = config.FRAMEWORK_FILE.read_text()
         method_md = cfg.method_file.read_text()
         log.info("Engine=%s model=%s tab=%s", args.engine, model or "engine default", tab)
+        if focus_tickers:
+            log.info("Ticker-focused run: %s → %s", ", ".join(focus_tickers), tab)
 
     client = get_drive_client()
     dates = _dates_to_process(args, client)
@@ -385,7 +408,7 @@ def main(argv: list[str] | None = None) -> None:
         try:
             data_md = fetch_data(
                 date_str=d, top_n=args.top, raw_n=args.raw, days=args.days,
-                audit_csv_path=audit_path,
+                focus_tickers=focus_tickers, audit_csv_path=audit_path,
             )
         except Exception:
             log.exception("Fetch failed for %s", d)
@@ -406,13 +429,14 @@ def main(argv: list[str] | None = None) -> None:
         window = _last_n_trading_days(d, args.days)
         window_start, window_end = window[0], window[-1]
         try:
-            prompt = build_prompt(framework_md, method_md, data_md, d)
+            prompt = build_prompt(framework_md, method_md, data_md, d, focus_tickers)
             analysis = run_engine(args.engine, prompt, model)
         except Exception:
             log.exception("Analysis failed for %s", d)
             skipped.append(d)
             continue
-        _warn_if_below_targets(analysis)
+        if not focus_tickers:  # coverage minimums don't apply to focused runs
+            _warn_if_below_targets(analysis)
         rows = analysis_to_rows(analysis, d, window_start, window_end)
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)

@@ -126,6 +126,10 @@ _FLOW_TIME      = "Time"
 # Bid/Ask x Size and Trade price add noise; Time is not useful at this level.
 _RAW_DROP_COLUMNS = frozenset({
     "Price~", "Expiration Date", "Bid x Size", "Ask x Size", "Trade", "Time",
+    # Enriched columns: hide from raw trade tables; OI signal is shown as
+    # normalized per-ticker aggregates in the breakdown section instead.
+    "oi_d", "oi_prev", "oi_change", "vol_d",
+    "eod_iv", "eod_delta", "eod_gamma", "eod_vega", "oi_enriched_on",
 })
 
 # |delta| at or above this is treated as a stock substitute (financing /
@@ -143,6 +147,32 @@ def _dte_bucket(dte: float) -> str:
         if hi is None or dte <= hi:
             return label
     return _DTE_BUCKETS[-1][0]
+
+
+_MONEYNESS_BANDS = ("deep-OTM", "OTM", "ATM", "ITM", "deep-ITM")
+
+
+def _otm_pct(strike: float, spot: float, opt_type: str) -> float | None:
+    """Signed % from at-the-money: positive = OTM, negative = ITM."""
+    if not (strike and spot):
+        return None
+    if opt_type.lower() == "call":
+        return (strike - spot) / spot * 100
+    return (spot - strike) / spot * 100
+
+
+def _moneyness_band(otm_pct: float | None) -> str:
+    if otm_pct is None:
+        return "?"
+    if otm_pct > 10:
+        return "deep-OTM"
+    if otm_pct > 2:
+        return "OTM"
+    if otm_pct > -2:
+        return "ATM"
+    if otm_pct > -10:
+        return "ITM"
+    return "deep-ITM"
 
 
 def _trade_extrinsic(prem: float, opt_type: str, spot: float, strike: float, size: int) -> float:
@@ -200,6 +230,12 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "_iv_premium_sum": 0.0,
         "_ext_by_bucket": defaultdict(float),
         "biggest": None,  # (premium, type, strike, side, dte, time)
+        # OI enrichment accumulators (populated when oi_change is present)
+        "_oi_by_bucket": defaultdict(int),   # (dte_label, moneyness_band) → net oi_change
+        "_oi_confirm_n": 0,
+        "_oi_total_n": 0,
+        "_oi_call_sum": 0,
+        "_oi_put_sum": 0,
     })
 
     for r in rows:
@@ -272,6 +308,24 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         agg["_dte_premium_sum"] += dte * prem
         agg["_iv_premium_sum"]  += iv * prem
 
+        oi_chg_raw = r.get("oi_change", "")
+        if oi_chg_raw not in (None, ""):
+            try:
+                oi_chg = int(float(oi_chg_raw))
+            except (ValueError, TypeError):
+                oi_chg = None
+            if oi_chg is not None:
+                dte_label = _dte_bucket(dte) if dte else "?"
+                m_band = _moneyness_band(_otm_pct(strike, spot, opt_type))
+                agg["_oi_by_bucket"][(dte_label, m_band)] += oi_chg
+                agg["_oi_total_n"] += 1
+                if oi_chg > 0:
+                    agg["_oi_confirm_n"] += 1
+                if t_lower == "call":
+                    agg["_oi_call_sum"] += oi_chg
+                elif t_lower == "put":
+                    agg["_oi_put_sum"] += oi_chg
+
         big = agg["biggest"]
         if big is None or prem > big[0]:
             agg["biggest"] = (prem, opt_type, r.get(_FLOW_STRIKE, ""), side, dte, r.get(_FLOW_TIME, ""))
@@ -332,6 +386,12 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             "dte_w": dte_w,
             "iv_w": iv_w,
             "biggest": a["biggest"],
+            # OI enrichment fields (None when no enriched data for this ticker)
+            "oi_confirm_pct": round(a["_oi_confirm_n"] / a["_oi_total_n"] * 100)
+                              if a["_oi_total_n"] > 0 else None,
+            "cpir": round(a["_oi_call_sum"] / (a["_oi_call_sum"] + a["_oi_put_sum"]), 2)
+                    if (a["_oi_call_sum"] + a["_oi_put_sum"]) != 0 else None,
+            "oi_by_bucket": dict(a["_oi_by_bucket"]),
         })
 
     out.sort(key=lambda r: r["ext_total"], reverse=True)
@@ -492,6 +552,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
         "Bull", "Bear", "Mid",
         "BTO", "STO", "ToOpen",
         "wDTE", "Hzn", "wIV%", "IVspr", "IVskew",
+        "OIConf%", "CPIR",
         "Biggest trade",
     ]
     sep = " | ".join(["---"] * len(headers))
@@ -530,6 +591,8 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             f"{r['iv_w']:.0f}",
             _fmt_iv_pts(r.get("iv_spread")),
             _fmt_iv_pts(r.get("iv_skew")),
+            f"{r['oi_confirm_pct']}%" if r.get("oi_confirm_pct") is not None else "—",
+            f"{r['cpir']:.2f}"        if r.get("cpir")            is not None else "—",
             big_str,
         ]))
     body = "\n".join(lines)
@@ -564,6 +627,63 @@ def _flow_top_trades_md(
     return f"### {title} — top {raw_n} trades per ticker (top {len(top_tickers)} by score)\n\n" + "\n".join(sections)
 
 
+def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
+    """Per-ticker OI change breakdown by DTE bucket × moneyness band.
+
+    Only emitted when at least one ticker in the rollup has enriched OI data.
+    Tickers with no enrichment are silently skipped.
+    """
+    _DTE_ORDER = [b[0] for b in _DTE_BUCKETS]
+
+    sections = []
+    for r in rollup[:top_n]:
+        bucket = r.get("oi_by_bucket", {})
+        if not bucket:
+            continue
+        sym = r["symbol"]
+        conf = r.get("oi_confirm_pct")
+        cpir = r.get("cpir")
+        meta = []
+        if conf is not None:
+            meta.append(f"Conf: {conf}%")
+        if cpir is not None:
+            meta.append(f"CPIR: {cpir:.2f}")
+        meta_str = f"  ({' | '.join(meta)})" if meta else ""
+
+        # Collect which moneyness bands actually appear for this ticker.
+        present_bands = [b for b in _MONEYNESS_BANDS if any(
+            b == m for (_, m) in bucket
+        )]
+        if not present_bands:
+            continue
+
+        header = "| DTE | " + " | ".join(present_bands) + " |"
+        sep = "|-----|" + "|".join(["-----"] * len(present_bands)) + "|"
+        rows_md = []
+        for dte_label in _DTE_ORDER:
+            cells = [bucket.get((dte_label, m), None) for m in present_bands]
+            if all(v is None or v == 0 for v in cells):
+                continue
+            def _fmt_cell(v):
+                if v is None or v == 0:
+                    return "—"
+                return f"+{v:,}" if v > 0 else f"{v:,}"
+            row = f"| {dte_label} | " + " | ".join(_fmt_cell(v) for v in cells) + " |"
+            rows_md.append(row)
+
+        if not rows_md:
+            continue
+        sections.append(f"#### {sym}{meta_str}\n\n{header}\n{sep}\n" + "\n".join(rows_md))
+
+    if not sections:
+        return ""
+    return (
+        f"### {title} — OI change by DTE × Moneyness\n\n"
+        + "\n\n".join(sections)
+        + "\n"
+    )
+
+
 def build_scored_flow_rollup(
     rows: list[dict],
     unusual_rows: list[dict] | None = None,
@@ -589,23 +709,41 @@ def summarize_flow(
     top_n: int = 20,
     raw_n: int = 5,
     unusual_rows: list[dict] | None = None,
+    focus: set[str] | None = None,
 ) -> str:
     """Full rollup (all tickers) + top raw_n raw trades for each of the top_n tickers by score.
 
     Unusual rows are used only for scoring — no separate unusual table is emitted.
     Set raw_n=0 to omit raw trades entirely.
+
+    ``focus`` (a set of upper-cased symbols) narrows the DISPLAYED rollup, raw
+    trades, and OI breakdown to those tickers — scoring still runs over the full
+    population so percentile ranks stay meaningful. The trade/symbol count line
+    keeps the full-population figures as market context.
     """
     if not rows:
         return f"## {title}\n\n_No data available._\n"
     rollup = build_scored_flow_rollup(rows, unusual_rows)
-    top_tickers = [r["symbol"] for r in rollup[:top_n]] if top_n > 0 else []
+    count_line = f"_{len(rows)} trades across {len(rollup)} symbols._"
+    display = rollup
+    if focus is not None:
+        display = [r for r in rollup if r["symbol"].upper() in focus]
+        if not display:
+            return (
+                f"## {title}\n\n{count_line}\n\n"
+                f"_None of the focus tickers had flow in {title}._\n"
+            )
+    top_tickers = [r["symbol"] for r in display[:top_n]] if top_n > 0 else []
     out = (
         f"## {title}\n\n"
-        f"_{len(rows)} trades across {len(rollup)} symbols._\n\n"
-        + _flow_rollup_md(rollup, title)
+        f"{count_line}\n\n"
+        + _flow_rollup_md(display, title)
     )
     if raw_n > 0 and top_tickers:
         out += "\n" + _flow_top_trades_md(rows, top_tickers, raw_n, title)
+    oi_section = _oi_breakdown_section(display, top_n, title)
+    if oi_section:
+        out += "\n" + oi_section
     return out
 
 
@@ -621,6 +759,7 @@ FLOW_CSV_COLUMNS = [
     "CallPremium", "PutPremium", "CallPutRatio",
     "Bull", "Bear", "Mid", "BTO", "STO", "ToOpen",
     "wDTE", "wIV", "IVSpread", "IVSkew", "BiggestTrade",
+    "OIConfirmPct", "CPIR",
 ]
 
 
@@ -681,6 +820,8 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "IVSpread": round(r["iv_spread"], 1) if r.get("iv_spread") is not None else "",
                 "IVSkew": round(r["iv_skew"], 1) if r.get("iv_skew") is not None else "",
                 "BiggestTrade": _biggest_trade_str(r["biggest"]),
+                "OIConfirmPct": r.get("oi_confirm_pct", ""),
+                "CPIR": r.get("cpir", ""),
             })
     return buf.getvalue()
 

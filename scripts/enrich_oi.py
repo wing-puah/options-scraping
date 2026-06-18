@@ -198,6 +198,10 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
     day = details.get(trade_date)
     oi_d = _num(day.get("Open Int")) if day else None
     vol_d = _num(day.get("Volume")) if day else None
+    iv_raw = _num(day.get("IV")) if day else None
+    delta = _num(day.get("Delta")) if day else None
+    gamma = _num(day.get("Gamma")) if day else None
+    vega = _num(day.get("Vega")) if day else None
 
     earlier = sorted(d for d in details if d < trade_date)
     oi_prev = _num(details[earlier[-1]].get("Open Int")) if earlier else None
@@ -209,10 +213,10 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
         "oi_prev": _fmt_int(oi_prev),
         "oi_change": _fmt_int(oi_change),
         "vol_d": _fmt_int(vol_d),
-        "eod_iv": _fmt(_num(day.get("IV")) if day else None),
-        "eod_delta": _fmt(_num(day.get("Delta")) if day else None),
-        "eod_gamma": _fmt(_num(day.get("Gamma")) if day else None),
-        "eod_vega": _fmt(_num(day.get("Vega")) if day else None),
+        "eod_iv": _fmt(round(iv_raw / 100, 6) if iv_raw is not None else None),
+        "eod_delta": _fmt(delta),
+        "eod_gamma": _fmt(gamma),
+        "eod_vega": _fmt(vega),
     }
 
 

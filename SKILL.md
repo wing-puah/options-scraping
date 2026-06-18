@@ -41,12 +41,16 @@ The pipeline is model-agnostic via `--engine`:
    - `claude` | `codex` — engine token (default `claude`); map to `--engine`
    - `--date YYYY-MM-DD` — single date (omit for latest available)
    - `--start YYYY-MM-DD` / `--end YYYY-MM-DD` — range (weekdays only)
+   - `--tickers NVDA,AMD,SPY` — ticker-focused run: narrows the per-ticker flow
+     tables and returns plays only for these names (full market read retained).
+     Writes to the **AnalysisTickerSpecific** tab, NOT the engine's daily tab.
    - `--days N` — persistence window
    - `--model NAME` — override the engine's model (default: claude→`opus`, codex→its configured model)
    - `--dry-run` — fetch + analyze but do not write to Sheets
    - `--yes` — skip the confirmation in step 2
 2. Unless `--yes` or `--dry-run`, confirm intent with the user (this writes to
-   the engine's tab — AnalysisClaude for claude, AnalysisGPT for codex).
+   the engine's tab — AnalysisClaude for claude, AnalysisGPT for codex; or
+   AnalysisTickerSpecific when `--tickers` is given).
 3. Run the pipeline and stream its report back:
 
    ```bash

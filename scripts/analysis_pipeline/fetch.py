@@ -108,6 +108,7 @@ def fetch_data(
     *,
     raw: bool = False,
     ticker: str | None = None,
+    focus_tickers: list[str] | None = None,
     top_n: int = 75,
     raw_n: int = 20,
     days: int = 1,
@@ -119,6 +120,9 @@ def fetch_data(
 
     raw=True → emit every row per section (heavy context).
     ticker=SYM → filter every section to that symbol and emit raw.
+    focus_tickers=[...] → keep the full scored pipeline (scoring + market
+        context sections), but narrow the per-ticker flow rollup + raw trades to
+        those symbols. Distinct from `ticker`, which strips everything to raw.
     Otherwise → scored rollup (top_n tickers) + top raw_n raw trades per flow
     section. Unusual rows are fetched for scoring only — no separate table.
     days>1 appends a multi-day persistence callout.
@@ -142,7 +146,15 @@ def fetch_data(
             sections_out.append(rows_to_markdown_raw(section_rows[key], title))
         return "\n\n".join(sections_out)
 
+    focus = {t.strip().upper() for t in focus_tickers if t.strip()} if focus_tickers else None
+
     sections_out = []
+    if focus:
+        sections_out.append(
+            "**Focus tickers:** " + ", ".join(sorted(focus)) +
+            " — per-ticker flow tables below are narrowed to these names; "
+            "market-level sections (regime, hedge pressure, baseline) remain full-market."
+        )
     if vol:
         snap = fetch_vol_snapshot(date_str)
         md = vol_snapshot_md(snap) if snap else ""
@@ -154,7 +166,7 @@ def fetch_data(
             continue
         rows = section_rows[key]
         unusual = section_rows[_FLOW_UNUSUAL_PAIR[key]]
-        sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n, unusual_rows=unusual))
+        sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n, unusual_rows=unusual, focus=focus))
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
     sections_out.append(hedge_pressure_md(section_rows["stocks-flow"], section_rows["etfs-flow"]))

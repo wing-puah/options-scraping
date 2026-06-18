@@ -51,6 +51,7 @@ python3 scripts/enrich_oi.py --date 2026-06-09 --force        # clear columns an
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
 python3 -m scripts.analysis_pipeline --engine codex       # latest date, codex → AnalysisGPT
 python3 -m scripts.analysis_pipeline --date 2026-04-21
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  # ticker-focused → AnalysisTickerSpecific tab
 python3 -m scripts.analysis_pipeline --start 2026-04-14 --end 2026-04-18 --days 5
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analyze, no write
 python3 -m scripts.analysis_pipeline --engine codex --model gpt-5  # override engine model
@@ -141,6 +142,7 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 |-----|-----------|
 | AnalysisClaude | `/options analyze` via Claude Code (appends one row per ticker/play per run) |
 | AnalysisGPT | `/options analyze` via GPT Codex (appends one row per ticker/play per run) |
+| AnalysisTickerSpecific | `analysis_pipeline --tickers …` (ticker-focused runs; same row schema, kept separate from the daily full-market tabs) |
 | BacktestResults | `backtest.py` (optional) |
 | BaselineDaily | `build_baseline.py` (one market-aggregate row per trading date; regime baseline read back by `analysis_pipeline/fetch.py`) |
 | _meta | `sheets_client.py` (dedup hashes) |

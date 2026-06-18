@@ -44,6 +44,11 @@ ENGINES: dict[str, EngineConfig] = {
 
 DEFAULT_ENGINE = "claude"
 
+# Ticker-focused runs (--tickers) write here instead of the engine's daily tab,
+# so focused one-off analyses never mix with the full-market daily runs that
+# backtest.py / `/options summary` read. Auto-created by sheets_client.append_rows.
+TICKER_SPECIFIC_TAB = "AnalysisTickerSpecific"
+
 
 # ──────────────────────────── Run behaviour ────────────────────────
 MAX_ATTEMPTS = 3            # retries for the headless analysis call on failure / bad JSON
@@ -177,4 +182,27 @@ Discipline rules — apply to every play before promoting to medium / high confi
   <60 DTE), do not let the print anchor a directional claim — `ToOpen` at an
   impossible strike is almost always a feed artifact, not a bet. Either exclude
   the print or use the play to flag the anomaly.
+"""
+
+
+# Appended after ANALYSIS_PROMPT_CONTRACT when a run is ticker-focused
+# (--tickers). It OVERRIDES the coverage section above: instead of the
+# 5-stock/3-ETF minimum drawn from the highest-scoring names, the model returns
+# plays ONLY for the requested tickers. `{tickers}` is filled with the list.
+ANALYSIS_FOCUS_OVERRIDE = """
+## Focus override (ticker-specific run)
+
+This is a TICKER-FOCUSED run. The following overrides the Coverage section above:
+
+- Return plays ONLY for these tickers: {tickers}.
+- Return ONE play per requested ticker that has supporting flow in the fetched
+  data. If a requested ticker has no usable flow, SKIP it (do not fabricate a
+  play, and do not substitute a different name). The 5-stock / 3-ETF coverage
+  minimums DO NOT apply here.
+- Still return the full market read — `regime`, `signals`, AND `sector_focus` —
+  computed from the full-market context sections (these were NOT narrowed to the
+  focus tickers).
+- Every play must still obey ALL discipline rules above (playbook–structure
+  binding, required `alternative_interpretation`, honest `flow_intent`, horizon
+  consistency, pollution checks).
 """

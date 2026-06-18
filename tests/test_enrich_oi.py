@@ -48,7 +48,7 @@ def test_compute_enrichment_basic():
     assert e["oi_prev"] == "450"
     assert e["oi_change"] == "50"   # oi_d - oi_prev = 500 - 450
     assert e["vol_d"] == "100"
-    assert e["eod_iv"] == "45.2"
+    assert e["eod_iv"] == "0.452"   # 45.2 scraped ÷ 100 → decimal for Sheets % formatting
     assert e["eod_delta"] == "0.3"
     assert e["eod_gamma"] == "0.02"
     assert e["eod_vega"] == "0.1"
