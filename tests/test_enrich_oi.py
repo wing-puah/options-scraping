@@ -41,11 +41,12 @@ def _hist_row(oi, vol="100", iv="45.2", delta="0.30", gamma="0.02", vega="0.10")
 
 
 def test_compute_enrichment_basic():
-    details = {D: _hist_row("500"), date(2026, 6, 10): _hist_row("650")}
+    # D-1 = June 8, D = June 9
+    details = {date(2026, 6, 8): _hist_row("450"), D: _hist_row("500")}
     e = _compute_enrichment(details, D)
     assert e["oi_d"] == "500"
-    assert e["oi_next"] == "650"
-    assert e["oi_change"] == "150"
+    assert e["oi_prev"] == "450"
+    assert e["oi_change"] == "50"   # oi_d - oi_prev = 500 - 450
     assert e["vol_d"] == "100"
     assert e["eod_iv"] == "45.2"
     assert e["eod_delta"] == "0.3"
@@ -55,34 +56,37 @@ def test_compute_enrichment_basic():
     assert MARKER_COLUMN not in e
 
 
-def test_oi_next_uses_next_trading_day_not_calendar():
-    # Friday D, then Monday — Sat/Sun absent from the series.
-    details = {D: _hist_row("500"), date(2026, 6, 12): _hist_row("700")}
-    e = _compute_enrichment(details, D)
-    assert e["oi_next"] == "700"
-    assert e["oi_change"] == "200"
+def test_oi_prev_uses_prior_trading_day_not_calendar():
+    # Monday D — Friday is the prior trading day; Sat/Sun absent from the series.
+    monday = date(2026, 6, 8)   # Monday
+    friday = date(2026, 6, 5)   # Friday before
+    details = {friday: _hist_row("700"), monday: _hist_row("500")}
+    e = _compute_enrichment(details, monday)
+    assert e["oi_prev"] == "700"
+    assert e["oi_change"] == "-200"   # oi_d - oi_prev = 500 - 700
 
 
 def test_negative_oi_change():
-    details = {D: _hist_row("800"), date(2026, 6, 10): _hist_row("600")}
+    # OI fell on trade day: oi_d < oi_prev → negative oi_change
+    details = {date(2026, 6, 8): _hist_row("1000"), D: _hist_row("800")}
     assert _compute_enrichment(details, D)["oi_change"] == "-200"
 
 
 def test_missing_d_row_blanks_d_columns():
-    # Only the next day is present — no exact row on D.
-    details = {date(2026, 6, 10): _hist_row("650")}
+    # Only the prior day is present — no exact row on D.
+    details = {date(2026, 6, 8): _hist_row("650")}
     e = _compute_enrichment(details, D)
     assert e["oi_d"] == "" and e["vol_d"] == ""
     assert e["eod_iv"] == "" and e["eod_delta"] == ""
-    assert e["oi_next"] == "650"
+    assert e["oi_prev"] == "650"
     assert e["oi_change"] == ""  # needs both ends
 
 
-def test_no_next_day_blanks_change():
-    details = {D: _hist_row("500")}  # D is the latest row (e.g. expired)
+def test_no_prev_day_blanks_change():
+    details = {D: _hist_row("500")}  # D is the only/earliest row in series
     e = _compute_enrichment(details, D)
     assert e["oi_d"] == "500"
-    assert e["oi_next"] == "" and e["oi_change"] == ""
+    assert e["oi_prev"] == "" and e["oi_change"] == ""
 
 
 def test_contract_absent_from_history_all_blank():

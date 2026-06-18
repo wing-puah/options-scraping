@@ -1,11 +1,10 @@
 """
-Enrich a day's compiled flow file with next-day open-interest change and EOD greeks.
+Enrich a day's compiled flow file with prev-day open-interest change and EOD greeks.
 
-When unusual flow prints on trade date D, the trade alone can't say whether it
-OPENED a new position or CLOSED an existing one. Open interest settles overnight,
-so the OI change visible on D+1 is the confirmation: a rise of ~the trade size
-means the flow genuinely opened conviction. This is the signal in
-references/references_key_insight item 03 (Short-Lived Options).
+When unusual flow prints on trade date D, comparing OI on D to OI on D-1 (the
+prior trading day) reveals whether new positions were opened: a rise of ~the trade
+size on D versus D-1 means the flow genuinely opened conviction. This is the signal
+in references/references_key_insight item 03 (Short-Lived Options).
 
 For every distinct option contract in a compiled flow file ({prefix}-YYYYMMDD-
 compiled.csv, where the filename date is the trade date D), this script scrapes
@@ -13,8 +12,8 @@ the Barchart per-contract price-history daily series and APPENDS these columns t
 every row of that contract:
 
     oi_d       open interest on D            (exact price-history row on D)
-    oi_next    open interest on D+1          (next trading day present in series)
-    oi_change  oi_next - oi_d               (the next-day OI change)
+    oi_prev    open interest on D-1          (last trading day before D in the series)
+    oi_change  oi_d - oi_prev               (the OI change on trade day D)
     vol_d      traded volume on D
     eod_iv / eod_delta / eod_gamma / eod_vega   end-of-D settlement greeks
     oi_enriched_on   the date this row was scraped (provenance + resume marker)
@@ -35,8 +34,8 @@ run, any contract whose rows already carry `oi_enriched_on` is skipped — inclu
 contracts Barchart returned nothing for (they're marked attempted, so they aren't
 re-fetched forever). Use --force to clear the columns and re-scrape everything.
 
-Enriching D needs D+1 to exist, so the latest/today's date is never targeted until
-the next day lands; --backfill self-heals any missed days. Note that re-running
+All compiled dates are enrichable (D-1 is always in the series for any non-first
+trading day); --backfill self-heals any missed days. Note that re-running
 compile_flow.py for a date regenerates the compiled file from raw snapshots and
 DROPS these columns — the next --backfill re-enriches it from scratch.
 
@@ -76,7 +75,7 @@ log = logging.getLogger("enrich_oi")
 
 # Data columns appended to every flow row, in this order. Lowercase + underscores
 # so the header is robust to whitespace/case quirks when the CSV is read back.
-ENRICH_COLUMNS = ["oi_d", "oi_next", "oi_change", "vol_d",
+ENRICH_COLUMNS = ["oi_d", "oi_prev", "oi_change", "vol_d",
                   "eod_iv", "eod_delta", "eod_gamma", "eod_vega"]
 # Provenance + resume marker: set to the run date for every contract we ATTEMPT
 # (even when Barchart returns nothing), so resume can tell "scraped, empty" from
@@ -121,19 +120,10 @@ def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
 
 
 def _enrichable_dates(client) -> list[str]:
-    """Compiled dates that have a strictly-later trading-day FOLDER in Drive.
-
-    Enrichability is keyed off the date folders, not the compiled files: as soon as the
-    next trading day's folder exists (e.g. today's folder, created by the day's first
-    snapshot), the prior day becomes enrichable — its D+1 EOD/OI is available to scrape.
-    The most recent folder's date is never targeted (its own next day hasn't landed).
-    """
+    """All compiled dates. D-1 is always present in the price-history series for any
+    non-first trading day, so every compiled date is immediately enrichable."""
     folders = client.list_date_folders()
-    dates = sorted(folders)
-    if len(dates) < 2:
-        return []
-    latest_folder = dates[-1]
-    return [d for d in _compiled_dates(client, folders) if d < latest_folder]
+    return _compiled_dates(client, folders)
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -197,8 +187,9 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
 
     `details` is {date: row_dict} from parse_history_details. oi_d / vol_d / greeks
     require an exact row on the trade date (no carry-forward — these are EOD-of-D
-    settlement values). oi_next is the first series date strictly after D (the next
-    trading day, so weekends/holidays are skipped). oi_change needs both ends.
+    settlement values). oi_prev is the most recent series date strictly before D
+    (weekends/holidays are absent, so it's the prior trading day). oi_change needs
+    both ends.
     """
     blank = {c: "" for c in ENRICH_COLUMNS}
     if not details:
@@ -208,14 +199,14 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
     oi_d = _num(day.get("Open Int")) if day else None
     vol_d = _num(day.get("Volume")) if day else None
 
-    later = sorted(d for d in details if d > trade_date)
-    oi_next = _num(details[later[0]].get("Open Int")) if later else None
+    earlier = sorted(d for d in details if d < trade_date)
+    oi_prev = _num(details[earlier[-1]].get("Open Int")) if earlier else None
 
-    oi_change = oi_next - oi_d if (oi_next is not None and oi_d is not None) else None
+    oi_change = oi_d - oi_prev if (oi_d is not None and oi_prev is not None) else None
 
     return {
         "oi_d": _fmt_int(oi_d),
-        "oi_next": _fmt_int(oi_next),
+        "oi_prev": _fmt_int(oi_prev),
         "oi_change": _fmt_int(oi_change),
         "vol_d": _fmt_int(vol_d),
         "eod_iv": _fmt(_num(day.get("IV")) if day else None),
@@ -314,7 +305,7 @@ async def _scrape_and_fill(
             details = await _fetch_details(sess, c, timeout_ms)
             enrichment = _compute_enrichment(details, trade_date)
             enrichment[MARKER_COLUMN] = run_date
-            if enrichment["oi_next"]:
+            if enrichment["oi_prev"]:
                 stats["with_next"] += 1
             for row in rows_by_key.get(c["key"], []):
                 row.update(enrichment)
