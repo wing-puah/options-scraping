@@ -1,6 +1,6 @@
 # Flow rollup reference
 
-Per-ticker aggregation produced by `_flow_ticker_rows()` in `lib/flow_summary.py`.
+Per-ticker aggregation produced by `_flow_ticker_rows()` in `lib/flow_summary/core.py`.
 The rollup table is what the LLM reads (markdown) and what the audit CSV stores.
 For the conviction score that ranks tickers, see `config/conviction-score.md`.
 

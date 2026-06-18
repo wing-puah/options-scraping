@@ -29,19 +29,19 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 
-client_json = os.getenv("GOOGLE_OAUTH_CLIENT_JSON", "")
-token_json = str(Path(__file__).parent.parent / "credentials" / "drive_token.json")
+CLIENT_JSON = os.getenv("GOOGLE_OAUTH_CLIENT_JSON", "")
+TOKEN_JSON = str(Path(__file__).parent.parent / "credentials" / "drive_token.json")
 
-if not client_json or not Path(client_json).exists():
+if not CLIENT_JSON or not Path(CLIENT_JSON).exists():
     print("Set GOOGLE_OAUTH_CLIENT_JSON in .env to the path of your OAuth2 client credentials.")
     print("Download it from: GCP Console → APIs & Services → Credentials → OAuth 2.0 Client IDs")
     sys.exit(1)
 
-flow = InstalledAppFlow.from_client_secrets_file(client_json, SCOPES)
+flow = InstalledAppFlow.from_client_secrets_file(CLIENT_JSON, SCOPES)
 creds = flow.run_local_server(port=0, open_browser=True)
 
-token_path = Path(token_json)
+token_path = Path(TOKEN_JSON)
 token_path.parent.mkdir(parents=True, exist_ok=True)
-token_path.write_text(creds.to_json())
+token_path.write_text(creds.to_json(), encoding="utf-8")
 print(f"Token saved to {token_path}")
 print("Drive uploads will now use your personal Google account.")

@@ -1,0 +1,53 @@
+[MASTER]
+# Ignore generated/external directories
+ignore=.venv,web,node_modules,.git
+
+[MESSAGES CONTROL]
+disable=
+    # Docstrings — not enforced in this codebase
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    # Import ordering — many scripts use sys.path.insert before local imports
+    wrong-import-position,
+    wrong-import-order,
+    # Lazy/optional imports are intentional (playwright, yfinance, etc.)
+    import-outside-toplevel,
+    # CLI boilerplate duplication across pipeline scripts
+    duplicate-code,
+    # Large data-pipeline modules deliberately stay in one file
+    too-many-lines,
+    # Broad except is intentional in network/scraper code — all callers log + continue
+    broad-exception-caught,
+    # Single global flag in logger.py
+    global-statement,
+    # Intentional internal access to BarchartSession._page
+    protected-access,
+    # Redundant with too-many-arguments
+    too-many-positional-arguments,
+    # BarchartSession has 9 attrs; acceptable for a session object
+    too-many-instance-attributes
+
+[DESIGN]
+# Data-pipeline and plotting functions legitimately need more locals/args/statements
+max-args=12
+max-locals=65
+max-statements=150
+max-branches=25
+max-returns=16
+max-attributes=12
+
+[FORMAT]
+max-line-length=120
+
+[BASIC]
+# Allow domain-specific names: finance (K=strike, S=spot, T=time), pandas (df, ax), etc.
+# and short math/loop variables
+good-names=i,j,k,n,v,e,s,m,x,y,w,p,r,_
+# Naming patterns — allow snake_case, ALL_CAPS (module constants + in-function lookup
+# tables), private ALL_CAPS (_ENTRY_STALENESS_DAYS etc.), and finance notation
+# (K, S, T, K_sp, S_entry, K_sp_anchor, a_K, _T …)
+variable-rgx=(_?[a-z][a-z0-9_]*|_?[A-Z][A-Z0-9_]*|[A-Za-z][A-Za-z0-9_]*)$
+argument-rgx=(_?[a-z][a-z0-9_]*|[A-Z][A-Z0-9_]*|[A-Za-z][A-Za-z0-9_]*)$
+# Allow nested helpers with single-letter+suffix names (_T, _key, etc.) used in finance code
+function-rgx=(_?[a-z][a-z0-9_]*|_?[A-Z][A-Z0-9_]*)$

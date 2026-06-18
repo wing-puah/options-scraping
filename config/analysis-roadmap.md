@@ -12,7 +12,7 @@ record so the next change doesn't undo a deliberate decision.
 - **Macro made optional** in the regime call — assigned only with cross-asset
   corroboration, never inferred from options flow alone.
 - **Direction-agnostic conviction score** (0–10) in the quant layer
-  (`lib/flow_summary.py`), computed from normalized inputs and surfaced as the
+  (`lib/flow_summary/`), computed from normalized inputs and surfaced as the
   `Score` column.
 - **Multi-day persistence** tracking (`--days N` in `scripts/prepare_analysis.py`)
   — recurring names with premium and score trajectories, recomputed from raw
@@ -349,7 +349,7 @@ in rough priority:
   delta-adjusted notional (items 1, 5), DTE bucketing (item 6), next-day OI delta
   (item 7), spread-leg flags (item 8).
 
-This is "a lot more features to go through" — they accrete into `lib/flow_summary.py`
+This is "a lot more features to go through" — they accrete into `lib/flow_summary/`
 and the rollup, and most also become candidate score components. Phase 2 still ends
 in the LLM `plays` JSON; what changes is the quality of what the model sees.
 

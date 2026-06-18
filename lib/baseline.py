@@ -79,7 +79,7 @@ BASELINE_COLUMNS = [
 # Daily row computation
 # ---------------------------------------------------------------------------
 
-# Flow CSV column names (same header constants as lib/flow_summary.py).
+# Flow CSV column names (same header constants as lib/flow_summary/_helpers.py).
 _COL_TYPE = "Type"
 _COL_PREMIUM = "Premium"
 _COL_SIZE = "Size"

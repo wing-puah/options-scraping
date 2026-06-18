@@ -87,7 +87,7 @@ def format_legs(legs: list[Leg]) -> str:
     return "\n".join(out)
 
 
-def legs_from_structure(structure: str, opt_type: str, ticker: str, exp: date,
+def legs_from_structure(_structure: str, opt_type: str, ticker: str, exp: date,
                         K: float, K_short: float | None, is_credit: bool) -> list[Leg]:
     """Map a classified single-leg / vertical structure onto signed legs.
 

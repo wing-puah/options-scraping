@@ -264,7 +264,7 @@ def build(df: pd.DataFrame, out: Path) -> Path:
     df = df.copy()
     # Per-trading-day-checkpoint P&L in dollars, sampled from each play's daily path.
     dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
-    cp = {n: df["dollar_pnl_path"].apply(lambda p: pnl_at(p, n)) for n in TD_CHECKPOINTS}
+    cp = {n: df["dollar_pnl_path"].apply(lambda p, _n=n: pnl_at(p, _n)) for n in TD_CHECKPOINTS}
 
     fig, axes = plt.subplots(3, 2, figsize=(15, 16))
     fig.suptitle(
@@ -312,7 +312,7 @@ def build(df: pd.DataFrame, out: Path) -> Path:
 
     def _cp_means(sub):
         sp = sub["dollar_pnl_path"]
-        return [sp.apply(lambda p: pnl_at(p, n)).mean() for n in TD_CHECKPOINTS]
+        return [sp.apply(lambda p, _n=n: pnl_at(p, _n)).mean() for n in TD_CHECKPOINTS]
 
     # ---- C: regime comparison ------------------------------------------
     ax = axes[1, 0]
@@ -469,8 +469,8 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
                     fontweight="bold" if (i, j) == best else "normal", color="black")
     ax.add_patch(plt.Rectangle((best[1] - 0.5, best[0] - 0.5), 1, 1, fill=False,
                                edgecolor="black", lw=2.5))
-    ax.set_title(f"B · EV % by exit rule (best: +{targets[best[1]]}% / "
-                 f"-{stops[best[0]]}%)", fontweight="bold")
+    ax.set_title(f"B · EV % by exit rule (best: +{targets[int(best[1])]}% / "
+                 f"-{stops[int(best[0])]}%)", fontweight="bold")
     ax.set_xlabel("Profit target")
     ax.set_ylabel("Stop loss")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean EV %")
@@ -551,7 +551,7 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     ax = axes[2, 1]
     df["entry_year"] = df["signal_date"].dt.year
     years = sorted(df["entry_year"].dropna().unique().astype(int))
-    year_colors = plt.cm.tab10(np.linspace(0, 0.9, len(years)))
+    year_colors = plt.cm.tab10(np.linspace(0, 0.9, len(years)))  # pylint: disable=no-member
     any_year = False
     path_col = "dollar_pnl_path" if use_dollar else "pnl_path"
     for yr, color in zip(years, year_colors):
@@ -630,8 +630,8 @@ def build_time(df: pd.DataFrame, out: Path) -> Path:
     yr_n = df.groupby("year")["realized_pnl"].count()
     x = np.arange(len(years))
     bar_colors = [C_BULL if yr_mean.get(y, 0) >= 0 else C_RANGE for y in years]
-    bars = ax.bar(x, [yr_mean.get(y, np.nan) for y in years],
-                  color=bar_colors, alpha=0.8, label="Mean P&L %")
+    ax.bar(x, [yr_mean.get(y, np.nan) for y in years],
+           color=bar_colors, alpha=0.8, label="Mean P&L %")
     ax2.plot(x, [yr_win.get(y, np.nan) for y in years],
              "D--", color=C_MED, lw=1.5, ms=7, label="Win rate %")
     ax2.axhline(50, color="#ccc", lw=0.7, ls=":")
@@ -794,9 +794,9 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
         for yr in years:
             sub = df[(df["structure"] == s) & (df["signal_date"].dt.year == yr)]
             vals.append(sub["realized_abs"].mean() if len(sub) else np.nan)
-        bars = ax.bar(x + k * w, np.nan_to_num(vals), width=w,
-                      color=struct_colors.get(s, "#555"), alpha=0.85,
-                      label=s.replace("_", " "))
+        ax.bar(x + k * w, np.nan_to_num(vals), width=w,
+               color=struct_colors.get(s, "#555"), alpha=0.85,
+               label=s.replace("_", " "))
         for xi, (v, n_sub) in enumerate(zip(vals, [
             len(df[(df["structure"]==s)&(df["signal_date"].dt.year==yr)]) for yr in years
         ])):
@@ -954,7 +954,7 @@ def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
         """groups: list of (label, color, series). Box + jittered strip, sorted by median."""
         groups = [(lb, c, s.dropna()) for lb, c, s in groups if not s.dropna().empty]
         groups = sorted(groups, key=lambda g: g[2].median(), reverse=True)
-        for i, (label, color, vals) in enumerate(groups):
+        for i, (_, color, vals) in enumerate(groups):
             y = np.full(len(vals), i)
             jitter = rng.uniform(-0.25, 0.25, len(vals))
             ax.scatter(vals, y + jitter, color=color, alpha=0.45, s=22,
@@ -1017,7 +1017,7 @@ def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
     # ---- D: cross-tab combos with n ≥ 5, ranked by median ----------------
     ax = axes[1, 1]
     cross_groups = []
-    combo_colors = plt.cm.tab10(np.linspace(0, 0.9, 9))
+    combo_colors = plt.cm.tab10(np.linspace(0, 0.9, 9))  # pylint: disable=no-member
     ci = 0
     for mkt in LABEL_ORDER:
         for play in LABEL_ORDER:
@@ -1127,7 +1127,7 @@ def build_regime(df: pd.DataFrame, out: Path) -> Path:
     ax2.axhline(50, color="#ccc", lw=0.7, ls=":")
     ax2.set_ylim(0, 105)
     ax2.set_ylabel("Win rate %", fontsize=8)
-    for b, m, w, n in zip(bars, drift_means, drift_wins, drift_ns):
+    for b, m, _, n in zip(bars, drift_means, drift_wins, drift_ns):
         ax.annotate(f"{m:+.1f}%\nn={n}",
                     (b.get_x() + b.get_width() / 2, m),
                     textcoords="offset points",

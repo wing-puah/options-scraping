@@ -6,16 +6,16 @@ Two CSV shapes are supported:
 - **Flow** (`options-flow-*.csv`, `etf-flow-*.csv`): one row per executed trade.
   Has Premium, Side, *, Code columns. Aggregated by ticker into a rollup
   table (total / call / put premium, sentiment counts, opening-flag counts,
-  weighted-avg DTE & IV, biggest single trade) plus the top-N largest single
-  trades raw.
+  weighted-avg DTE & IV, biggest single trade, OI factor measures) plus the
+  top-N largest single trades raw.
 
 - **Unusual** (`unusual-stock-*.csv`, `unusual-etf-*.csv`): one row per
-  strike-day with elevated Vol/OI. No Premium / Side / Code. Aggregated by
-  ticker (trade count, total volume, max Vol/OI, calls/puts, DTE range,
-  biggest single Vol/OI) plus the top-N rows by Vol/OI raw.
+  strike-day with elevated Vol/OI. No Premium / Side / Code. Used only to
+  corroborate the flow scoring (cross-section overlap + Vol/OI strength).
 
 The functions return strings of markdown so they drop straight into the
-existing `prepare_analysis.py` stdout-to-LLM pipeline.
+analysis-pipeline fetch step. Small parse/format/bucket helpers live in
+`_helpers.py`; this module is the aggregation logic.
 """
 from __future__ import annotations
 
@@ -24,170 +24,125 @@ import io
 from collections import defaultdict
 from typing import Iterable
 
-
-# ---------------------------------------------------------------------------
-# Parsing helpers
-# ---------------------------------------------------------------------------
-
-def _to_float(x: str | float | int | None) -> float:
-    """Parse a Barchart numeric cell to float. Returns 0.0 on failure.
-
-    Handles bare numbers, percent strings ('331.14%'), and comma-separated
-    thousands ('1,234.56'). Empty / 'unch' / None → 0.0.
-    """
-    if x is None or x == "":
-        return 0.0
-    if isinstance(x, (int, float)):
-        return float(x)
-    s = str(x).strip().replace(",", "").rstrip("%")
-    if not s or s.lower() in {"unch", "n/a", "na"}:
-        return 0.0
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
-
-
-def _to_int(x: str | float | int | None) -> int:
-    return int(_to_float(x))
-
-
-def _classify_sentiment(opt_type: str, side: str) -> str:
-    """Apply Barchart's bullish/bearish rules (see config/barchart-reference.md).
-
-    - Call on ask  → bullish
-    - Put  on bid  → bullish
-    - Call on bid  → bearish
-    - Put  on ask  → bearish
-    - anything on mid → neutral
-    """
-    t = (opt_type or "").strip().lower()
-    s = (side or "").strip().lower()
-    if t == "call" and s == "ask":
-        return "bullish"
-    if t == "put" and s == "bid":
-        return "bullish"
-    if t == "call" and s == "bid":
-        return "bearish"
-    if t == "put" and s == "ask":
-        return "bearish"
-    return "neutral"
-
-
-def _fmt_money(x: float) -> str:
-    """Compact dollar formatter: 10300100 → '$10.3M', 850000 → '$850K'."""
-    if x is None:
-        return "$0"
-    ax = abs(x)
-    sign = "-" if x < 0 else ""
-    if ax >= 1_000_000_000:
-        return f"{sign}${ax / 1_000_000_000:.2f}B"
-    if ax >= 1_000_000:
-        return f"{sign}${ax / 1_000_000:.2f}M"
-    if ax >= 1_000:
-        return f"{sign}${ax / 1_000:.0f}K"
-    return f"{sign}${ax:.0f}"
-
-
-def _fmt_ratio(num: float, den: float) -> str:
-    if den <= 0:
-        return "∞" if num > 0 else "—"
-    return f"{num / den:.2f}"
-
-
-def _fmt_iv_pts(x: float | None) -> str:
-    """Signed IV points for the IVspr / IVskew columns: 12.3 → '+12', None → '—'."""
-    if x is None:
-        return "—"
-    return f"{x:+.0f}"
+from lib.flow_summary._helpers import (
+    _FINANCING_DELTA,
+    _FLOW_DELTA,
+    _FLOW_DTE,
+    _FLOW_IV,
+    _FLOW_OPENFLAG,
+    _FLOW_PREMIUM,
+    _FLOW_SIDE,
+    _FLOW_SIZE,
+    _FLOW_STRIKE,
+    _FLOW_SYMBOL,
+    _FLOW_TIME,
+    _FLOW_TYPE,
+    _FLOW_UPRICE,
+    _DTE_BUCKETS,
+    _MONEYNESS_BANDS,
+    _RAW_DROP_COLUMNS,
+    _biggest_trade_str,
+    _classify_sentiment,
+    _dte_bucket,
+    _fmt_iv_pts,
+    _fmt_money,
+    _fmt_ratio,
+    _moneyness_band,
+    _otm_pct,
+    _to_float,
+    _to_int,
+    _trade_extrinsic,
+    _wmean,
+)
 
 
 # ---------------------------------------------------------------------------
 # Flow aggregation
 # ---------------------------------------------------------------------------
 
-# Column names as they appear in Barchart flow CSV headers.
-_FLOW_SYMBOL    = "Symbol"
-_FLOW_UPRICE    = "Price~"   # underlying price at trade time
-_FLOW_TYPE      = "Type"
-_FLOW_STRIKE    = "Strike"
-_FLOW_DTE       = "DTE"
-_FLOW_SIDE      = "Side"
-_FLOW_PREMIUM   = "Premium"
-_FLOW_SIZE      = "Size"
-_FLOW_IV        = "IV"
-_FLOW_DELTA     = "Delta"
-_FLOW_OPENFLAG  = "*"
-_FLOW_CODE      = "Code"
-_FLOW_TIME      = "Time"
+def _finalize_oi_factors(contracts: dict) -> dict:
+    """Collapse a ticker's per-contract OI store into the ref-03 factor measures.
 
-# Columns dropped from raw trade rows — low signal for LLM analysis.
-# Price~ is in the rollup context; Expiration Date duplicates DTE;
-# Bid/Ask x Size and Trade price add noise; Time is not useful at this level.
-_RAW_DROP_COLUMNS = frozenset({
-    "Price~", "Expiration Date", "Bid x Size", "Ask x Size", "Trade", "Time",
-    # Enriched columns: hide from raw trade tables; OI signal is shown as
-    # normalized per-ticker aggregates in the breakdown section instead.
-    "oi_d", "oi_prev", "oi_change", "vol_d",
-    "eod_iv", "eod_delta", "eod_gamma", "eod_vega", "oi_enriched_on",
-})
+    ``contracts`` is already deduped to one entry per (type, strike, expiry) —
+    enrich_oi writes the same ``oi_change`` onto every trade row of a contract,
+    so summing across rows would multiply each ΔOI by its trade count.
 
-# |delta| at or above this is treated as a stock substitute (financing /
-# conversion / replacement) — premium there is mostly intrinsic, not a bet on a
-# move. Used for the per-ticker financing share, not to discard the direction.
-_FINANCING_DELTA = 0.85
+    For each OPENING contract (ΔOI > 0) the factor contribution is
 
-# DTE maturity buckets (label, inclusive upper bound). Mirrors the method files'
-# interpretive table: event/gamma, tactical, medium-term, strategic/LEAP.
-_DTE_BUCKETS = (("event", 14), ("tact", 60), ("med", 180), ("strat", None))
+        max(ΔOI, 0) × price × P(OTM)
 
+    where ``price`` is the contract's volume-weighted traded price (the
+    monetary-size term the paper requires — raw ΔOI "does not capture money")
+    and ``P(OTM) ≈ 1−|delta|`` is the risk-neutral expiry-OTM proxy. OIFC/OIFP
+    sum these over calls / puts and CPIR = OIFC/(OIFC+OIFP). The IV-augmented
+    OIFCA/OIFPA (→ CPIRA) multiply each term by the contract's IV (as a
+    fraction). OIConf% counts every enriched contract (open vs close), not just
+    the opening ones. Delta/IV prefer the EOD settlement greeks, falling back to
+    the size-weighted intraday snapshot.
 
-def _dte_bucket(dte: float) -> str:
-    for label, hi in _DTE_BUCKETS:
-        if hi is None or dte <= hi:
-            return label
-    return _DTE_BUCKETS[-1][0]
+    Returns the per-ticker scalars (None when no contract carried enriched OI
+    data) plus ``oi_by_bucket``: (dte_label, moneyness_band) → {call OIFC
+    contribution, put OIFP contribution, signed net ΔOI}.
 
-
-_MONEYNESS_BANDS = ("deep-OTM", "OTM", "ATM", "ITM", "deep-ITM")
-
-
-def _otm_pct(strike: float, spot: float, opt_type: str) -> float | None:
-    """Signed % from at-the-money: positive = OTM, negative = ITM."""
-    if not (strike and spot):
-        return None
-    if opt_type.lower() == "call":
-        return (strike - spot) / spot * 100
-    return (spot - strike) / spot * 100
-
-
-def _moneyness_band(otm_pct: float | None) -> str:
-    if otm_pct is None:
-        return "?"
-    if otm_pct > 10:
-        return "deep-OTM"
-    if otm_pct > 2:
-        return "OTM"
-    if otm_pct > -2:
-        return "ATM"
-    if otm_pct > -10:
-        return "ITM"
-    return "deep-ITM"
-
-
-def _trade_extrinsic(prem: float, opt_type: str, spot: float, strike: float, size: int) -> float:
-    """Extrinsic (time-value) share of a trade's premium, floored at 0.
-
-    Deep-ITM premium is mostly intrinsic — stock exposure, not optionality — so
-    ranking on raw premium lets financing/conversion flow pose as conviction.
-    When spot or strike is missing the trade is NOT discounted (extrinsic =
-    full premium): absence of data is never treated as evidence of financing.
+    Source: Hilliard, Hilliard & Wu (2025) — see references/references_key_insight
+    (ref 03) and config/rollup-reference.md.
     """
-    t = (opt_type or "").strip().lower()
-    if spot <= 0 or strike <= 0 or size <= 0 or t not in ("call", "put"):
-        return prem
-    intrinsic_per_share = max(spot - strike, 0.0) if t == "call" else max(strike - spot, 0.0)
-    return max(prem - intrinsic_per_share * size * 100, 0.0)
+    oifc = oifp = oifca = oifpa = 0.0
+    oi_total_n = oi_confirm_n = 0
+    by_bucket: dict[tuple[str, str], dict[str, float]] = defaultdict(
+        lambda: {"call": 0.0, "put": 0.0, "doi": 0})
+
+    for c in contracts.values():
+        doi = c["oi_change"]
+        if doi is None:
+            continue
+        oi_total_n += 1
+        if doi > 0:
+            oi_confirm_n += 1
+        dte_label = _dte_bucket(c["dte"]) if c["dte"] else "?"
+        band = _moneyness_band(_otm_pct(c["strike"], c["spot"], c["opt_type"]))
+        cell = by_bucket[(dte_label, band)]
+        cell["doi"] += doi  # signed net ΔOI — the raw positioning view
+
+        oi_open = max(doi, 0)
+        if oi_open == 0:  # closing/rolling flow: counted above, but no factor
+            continue
+        price = c["prem_sum"] / (c["size_sum"] * 100) if c["size_sum"] > 0 else 0.0
+        delta = c["eod_delta"]
+        if delta is None:
+            delta = _wmean(c["idelta_wsum"], c["idelta_wt"])
+        if delta is None or price <= 0:
+            continue
+        p_otm = min(max(1.0 - abs(delta), 0.0), 1.0)
+        base = oi_open * price * p_otm
+
+        iv = c["eod_iv"]
+        if iv is None:
+            iv = _wmean(c["iiv_wsum"], c["iiv_wt"])
+        iv_frac = (iv / 100.0) if iv else 1.0  # IV is in pct points
+        aug = base * iv_frac
+
+        if c["opt_type"] == "call":
+            oifc += base
+            oifca += aug
+            cell["call"] += base
+        else:
+            oifp += base
+            oifpa += aug
+            cell["put"] += base
+
+    has_oi = oi_total_n > 0
+    return {
+        "oi_confirm_pct": round(oi_confirm_n / oi_total_n * 100) if has_oi else None,
+        "oifc": oifc if has_oi else None,
+        "oifp": oifp if has_oi else None,
+        "oifca": oifca if has_oi else None,
+        "oifpa": oifpa if has_oi else None,
+        "cpir": round(oifc / (oifc + oifp), 2) if (oifc + oifp) > 0 else None,
+        "cpira": round(oifca / (oifca + oifpa), 2) if (oifca + oifpa) > 0 else None,
+        # The call/put contributions sum to OIFC/OIFP per ticker.
+        "oi_by_bucket": {k: dict(v) for k, v in by_bucket.items()},
+    }
 
 
 def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
@@ -230,11 +185,10 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "_iv_premium_sum": 0.0,
         "_ext_by_bucket": defaultdict(float),
         "biggest": None,  # (premium, type, strike, side, dte, time)
-        # OI enrichment: deduped per CONTRACT. enrich_oi writes oi_change onto
-        # EVERY trade row of a contract, so summing across rows would multiply
-        # each contract's ΔOI by its trade count. Keyed by
-        # (opt_type, strike, expiration); finalized into the ref-03 OIFC/OIFP
-        # factor measures below.
+        # OI enrichment: deduped per CONTRACT and finalized by
+        # _finalize_oi_factors. Keyed by (opt_type, strike, expiration); each
+        # entry captures ΔOI once plus the price / delta / IV inputs the ref-03
+        # factor measure needs.
         "_oi_contracts": {},
     })
 
@@ -308,43 +262,8 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         agg["_dte_premium_sum"] += dte * prem
         agg["_iv_premium_sum"]  += iv * prem
 
-        oi_chg_raw = r.get("oi_change", "")
-        if oi_chg_raw not in (None, "") and t_lower in ("call", "put"):
-            # Dedup to one entry per contract; oi_change is identical on every
-            # row of a contract. Accumulate the inputs the ref-03 factor needs:
-            # ΔOI (once), a volume-weighted traded price (monetary size), and a
-            # representative delta/IV (prefer EOD settlement greeks).
-            ckey = (t_lower, str(r.get(_FLOW_STRIKE, "")), str(r.get("Expiration Date", "")))
-            c = agg["_oi_contracts"].get(ckey)
-            if c is None:
-                c = {
-                    "opt_type": t_lower, "oi_change": None,
-                    "prem_sum": 0.0, "size_sum": 0,
-                    "eod_delta": None, "eod_iv": None,
-                    "_idelta_w": 0.0, "_idelta_n": 0,
-                    "_iiv_w": 0.0, "_iiv_n": 0,
-                    "dte": dte, "strike": strike, "spot": spot,
-                }
-                agg["_oi_contracts"][ckey] = c
-            if c["oi_change"] is None:
-                try:
-                    c["oi_change"] = int(float(oi_chg_raw))
-                except (ValueError, TypeError):
-                    c["oi_change"] = None
-            c["prem_sum"] += prem
-            c["size_sum"] += size
-            ed = r.get("eod_delta")
-            if ed not in (None, "") and c["eod_delta"] is None:
-                c["eod_delta"] = _to_float(ed)
-            ei = r.get("eod_iv")
-            if ei not in (None, "") and c["eod_iv"] is None:
-                c["eod_iv"] = _to_float(ei)
-            if has_delta:
-                c["_idelta_w"] += abs(delta) * size
-                c["_idelta_n"] += size
-            if iv:
-                c["_iiv_w"] += iv * size
-                c["_iiv_n"] += size
+        _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
+                                delta, has_delta, iv)
 
         big = agg["biggest"]
         if big is None or prem > big[0]:
@@ -373,56 +292,6 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         otmput_iv = (a["_iv_otmput_sum"] / a["_iv_otmput_w"]) if a["_iv_otmput_w"] > 0 else None
         atmcall_iv = (a["_iv_atmcall_sum"] / a["_iv_atmcall_w"]) if a["_iv_atmcall_w"] > 0 else None
         iv_skew = (otmput_iv - atmcall_iv) if (otmput_iv is not None and atmcall_iv is not None) else None
-
-        # --- OI factor measures (Hilliard, Hilliard & Wu 2025, ref 03) --------
-        # Per contract the factor contribution is
-        #     max(ΔOI, 0) × price × P(OTM)
-        # where price is the contract's volume-weighted traded price (the
-        # monetary-size term the paper requires — raw ΔOI "does not capture
-        # money"), and P(OTM) ≈ 1−|delta| is the risk-neutral expiry-OTM proxy
-        # (same proxy as otm_ext). OIFC/OIFP sum these over calls/puts and
-        # CPIR = OIFC/(OIFC+OIFP). The IV-augmented OIFCA/OIFPA (→ CPIRA)
-        # multiply each term by the contract's IV (as a fraction).
-        # Only OPENING flow (ΔOI>0) on a priced, delta-bearing contract feeds the
-        # factors; OIConf% still counts every enriched contract (open vs close).
-        oifc = oifp = oifca = oifpa = 0.0
-        oi_total_n = oi_confirm_n = 0
-        oi_by_bucket: dict[tuple[str, str], dict[str, float]] = defaultdict(
-            lambda: {"call": 0.0, "put": 0.0, "doi": 0})
-        for c in a["_oi_contracts"].values():
-            doi = c["oi_change"]
-            if doi is None:
-                continue
-            oi_total_n += 1
-            if doi > 0:
-                oi_confirm_n += 1
-            dte_label = _dte_bucket(c["dte"]) if c["dte"] else "?"
-            m_band = _moneyness_band(_otm_pct(c["strike"], c["spot"], c["opt_type"]))
-            cell = oi_by_bucket[(dte_label, m_band)]
-            cell["doi"] += doi  # signed net ΔOI — the raw positioning view
-            oi_open = max(doi, 0)
-            if oi_open == 0:
-                continue
-            price = c["prem_sum"] / (c["size_sum"] * 100) if c["size_sum"] > 0 else 0.0
-            delta = c["eod_delta"]
-            if delta is None and c["_idelta_n"] > 0:
-                delta = c["_idelta_w"] / c["_idelta_n"]
-            if delta is None or price <= 0:
-                continue
-            p_otm = min(max(1.0 - abs(delta), 0.0), 1.0)
-            base = oi_open * price * p_otm
-            iv_src = c["eod_iv"]
-            if iv_src is None and c["_iiv_n"] > 0:
-                iv_src = c["_iiv_w"] / c["_iiv_n"]
-            iv_frac = (iv_src / 100.0) if iv_src else 1.0  # IV is in pct points
-            aug = base * iv_frac
-            if c["opt_type"] == "call":
-                oifc += base; oifca += aug; cell["call"] += base
-            else:
-                oifp += base; oifpa += aug; cell["put"] += base
-        cpir = round(oifc / (oifc + oifp), 2) if (oifc + oifp) > 0 else None
-        cpira = round(oifca / (oifca + oifpa), 2) if (oifca + oifpa) > 0 else None
-        oi_confirm_pct = round(oi_confirm_n / oi_total_n * 100) if oi_total_n > 0 else None
 
         out.append({
             "symbol": sym,
@@ -457,21 +326,55 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             "dte_w": dte_w,
             "iv_w": iv_w,
             "biggest": a["biggest"],
-            # OI factor measures (ref 03; None when no enriched data) ---------
-            "oi_confirm_pct": oi_confirm_pct,
-            "oifc": oifc if oi_total_n > 0 else None,
-            "oifp": oifp if oi_total_n > 0 else None,
-            "cpir": cpir,
-            "oifca": oifca if oi_total_n > 0 else None,
-            "oifpa": oifpa if oi_total_n > 0 else None,
-            "cpira": cpira,
-            # (dte, moneyness) → {call OIFC contribution, put OIFP contribution,
-            # signed net ΔOI}. The call/put contributions sum to OIFC/OIFP.
-            "oi_by_bucket": {k: dict(v) for k, v in oi_by_bucket.items()},
+            # OI factor measures (ref 03; keys all None when no enriched data).
+            **_finalize_oi_factors(a["_oi_contracts"]),
         })
 
     out.sort(key=lambda r: r["ext_total"], reverse=True)
     return out
+
+
+def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
+                            delta, has_delta, iv) -> None:
+    """Fold one trade row into its contract's OI accumulator (deduped per
+    contract). ``oi_change`` is identical on every row of a contract, so it is
+    captured once; price/delta/IV inputs accumulate across the contract's rows
+    for _finalize_oi_factors. No-op on rows without an ``oi_change`` cell.
+    """
+    oi_chg_raw = r.get("oi_change", "")
+    if oi_chg_raw in (None, "") or t_lower not in ("call", "put"):
+        return
+    ckey = (t_lower, str(r.get(_FLOW_STRIKE, "")), str(r.get("Expiration Date", "")))
+    c = agg["_oi_contracts"].get(ckey)
+    if c is None:
+        c = {
+            "opt_type": t_lower, "oi_change": None,
+            "prem_sum": 0.0, "size_sum": 0,
+            "eod_delta": None, "eod_iv": None,
+            "idelta_wsum": 0.0, "idelta_wt": 0,  # size-weighted intraday |delta|
+            "iiv_wsum": 0.0, "iiv_wt": 0,        # size-weighted intraday IV
+            "dte": dte, "strike": strike, "spot": spot,
+        }
+        agg["_oi_contracts"][ckey] = c
+    if c["oi_change"] is None:
+        try:
+            c["oi_change"] = int(float(oi_chg_raw))
+        except (ValueError, TypeError):
+            c["oi_change"] = None
+    c["prem_sum"] += prem
+    c["size_sum"] += size
+    ed = r.get("eod_delta")
+    if ed not in (None, "") and c["eod_delta"] is None:
+        c["eod_delta"] = _to_float(ed)
+    ei = r.get("eod_iv")
+    if ei not in (None, "") and c["eod_iv"] is None:
+        c["eod_iv"] = _to_float(ei)
+    if has_delta:
+        c["idelta_wsum"] += abs(delta) * size
+        c["idelta_wt"] += size
+    if iv:
+        c["iiv_wsum"] += iv * size
+        c["iiv_wt"] += size
 
 
 # ---------------------------------------------------------------------------
@@ -634,12 +537,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
     sep = " | ".join(["---"] * len(headers))
     lines = []
     for r in rollup:
-        big = r["biggest"]
-        if big is None:
-            big_str = "—"
-        else:
-            prem, opt_type, strike, side, dte, _ = big
-            big_str = f"{_fmt_money(prem)} {opt_type} ${strike} {side} {int(dte)}d"
+        big_str = _biggest_trade_str(r["biggest"]) or "—"
         score = r.get("score")
         score_str = f"{score} {r.get('score_label', '')}".strip() if score is not None else "—"
         lines.append(" | ".join([
@@ -712,6 +610,11 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
     """
     _DTE_ORDER = [b[0] for b in _DTE_BUCKETS]
 
+    def _fmt_cell(v):
+        if not v:
+            return "—"
+        return f"+{v:,}" if v > 0 else f"{v:,}"
+
     sections = []
     for r in rollup[:top_n]:
         bucket = r.get("oi_by_bucket", {})
@@ -744,10 +647,6 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
             cells = [bucket.get((dte_label, m), {}).get("doi", 0) for m in present_bands]
             if all(v == 0 for v in cells):
                 continue
-            def _fmt_cell(v):
-                if not v:
-                    return "—"
-                return f"+{v:,}" if v > 0 else f"{v:,}"
             row = f"| {dte_label} | " + " | ".join(_fmt_cell(v) for v in cells) + " |"
             rows_md.append(row)
 
@@ -841,13 +740,6 @@ FLOW_CSV_COLUMNS = [
     "wDTE", "wIV", "IVSpread", "IVSkew", "BiggestTrade",
     "OIConfirmPct", "OIFC", "OIFP", "CPIR", "CPIRA",
 ]
-
-
-def _biggest_trade_str(big) -> str:
-    if not big:
-        return ""
-    prem, opt_type, strike, side, dte, _ = big
-    return f"{_fmt_money(prem)} {opt_type} ${strike} {side} {int(dte)}d"
 
 
 def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
@@ -983,8 +875,6 @@ def oi_breakdown_csv(sections: list[tuple[str, list[dict]]]) -> str:
 
 _UN_SYMBOL = "Symbol"
 _UN_VOLOI  = "Vol/OI"
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -1215,10 +1105,6 @@ def summarize_persistence(days: list[dict], title: str, top_n: int = 30) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Raw / ticker-filter passthrough (used by --raw and --ticker)
-# ---------------------------------------------------------------------------
-
 def persistence_callout_md(days: list[dict], title: str) -> str:
     """One-line callout of names recurring ≥3 days across the window.
 
@@ -1257,6 +1143,10 @@ def persistence_callout_md(days: list[dict], title: str) -> str:
     names = " · ".join(f"{sym} {days_}/{n} ({lean})" for sym, days_, _, lean in persistent)
     return f"**{title} — persistent names (≥3 days):** {names}"
 
+
+# ---------------------------------------------------------------------------
+# Raw / ticker-filter passthrough (used by --raw and --ticker)
+# ---------------------------------------------------------------------------
 
 def rows_to_markdown_raw(rows: list[dict], title: str) -> str:
     """Verbatim per-row markdown — the old default behavior of prepare_analysis."""

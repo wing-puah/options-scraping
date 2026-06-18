@@ -97,8 +97,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
         if pl < mae:
             mae, mae_day = pl, grid_idx
         if exit_reason is None:
-            if pl > peak_pnl:
-                peak_pnl = pl
+            peak_pnl = max(peak_pnl, pl)
             if trailing_stop_trigger is not None and peak_pnl >= trailing_stop_trigger:
                 trailing_active = True
             loss_streak = loss_streak + 1 if pl < 0 else 0
@@ -203,7 +202,6 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     ticker = candidate["ticker"]
     signal_date = candidate["signal_date"]
     r = sim_cfg.get("risk_free_rate", 0.05)
-    anchor = legs[anchor_idx]
 
     price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
         _get_prices(tk, signal_date, sim_cfg.get("path_cap_days", 120)), dt))

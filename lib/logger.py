@@ -11,7 +11,7 @@ from pathlib import Path
 _LOG_DIR = Path(__file__).parent.parent / "logs"
 _FMT = "%(asctime)s  %(levelname)-8s  [%(name)s.%(funcName)s]  %(message)s"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S"
-_configured = False
+_CONFIGURED = False
 
 # Third-party loggers that are too noisy at DEBUG/INFO.
 _MUTE_AT_WARNING = [
@@ -43,8 +43,8 @@ def setup_logging(level: int = logging.DEBUG) -> None:
 
     Idempotent — only the first call takes effect.
     """
-    global _configured
-    if _configured:
+    global _CONFIGURED
+    if _CONFIGURED:
         return
     _LOG_DIR.mkdir(exist_ok=True)
     fmt = logging.Formatter(_FMT, datefmt=_DATE_FMT)
@@ -83,4 +83,4 @@ def setup_logging(level: int = logging.DEBUG) -> None:
     for name in _OWN_LOGGERS:
         logging.getLogger(name).setLevel(level)
 
-    _configured = True
+    _CONFIGURED = True

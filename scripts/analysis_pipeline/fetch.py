@@ -19,6 +19,7 @@ load_dotenv(Path(__file__).parent.parent.parent / ".env")
 from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseline
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
+from lib.sheets_client import get_all_rows
 from lib.vol_snapshot import fetch_vol_snapshot, vol_snapshot_md
 from lib.flow_summary import (
     build_scored_flow_rollup,
@@ -197,7 +198,7 @@ def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path) -> None:
         return
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(flow_rollup_csv(sections))
+    path.write_text(flow_rollup_csv(sections), encoding="utf-8")
     log.info("Audit CSV written to %s", path)
 
     # Companion long-format OI / put-call breakdown (DTE × moneyness + raw
@@ -205,7 +206,7 @@ def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path) -> None:
     oi_csv = oi_breakdown_csv(sections)
     if oi_csv:
         oi_path = path.with_name(path.name.replace("-rollup.csv", "-oi-breakdown.csv"))
-        oi_path.write_text(oi_csv)
+        oi_path.write_text(oi_csv, encoding="utf-8")
         log.info("OI breakdown CSV written to %s", oi_path)
 
 
@@ -216,7 +217,6 @@ def _baseline_section(section_rows: dict[str, list[dict]], date_str: str | None,
     today_row = compute_daily_baseline(
         anchor, section_rows["stocks-flow"], section_rows["etfs-flow"])
     try:
-        from lib.sheets_client import get_all_rows
         history = get_all_rows(BASELINE_TAB)
     except Exception:
         log.warning("Baseline history unavailable — omitting baseline section", exc_info=True)

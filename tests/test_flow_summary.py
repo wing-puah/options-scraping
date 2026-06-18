@@ -1,4 +1,4 @@
-"""Tests for lib/flow_summary.py — aggregation correctness, not formatting polish."""
+"""Tests for lib/flow_summary/ — aggregation correctness, not formatting polish."""
 import csv
 import io
 

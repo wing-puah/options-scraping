@@ -10,6 +10,7 @@ Use get_drive_client() to build from environment, or construct DriveClient
 directly by injecting a googleapiclient service (useful for testing).
 """
 import io
+import json
 import logging
 import os
 import re
@@ -19,6 +20,9 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -30,7 +34,8 @@ ET = ZoneInfo("America/New_York")
 # created, so folders/files added via the web UI or copy-paste are invisible to it.
 # Full scope lets the pipeline read + re-upload such folders (e.g. hand-copied date
 # folders). Requires re-running scripts/auth_drive.py to re-consent.
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+SCOPES = ["https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/spreadsheets",]
 _DEFAULT_TOKEN = str(
     Path(__file__).parent.parent / "credentials" / "drive_token.json"
 )
@@ -293,12 +298,6 @@ class DriveClient:
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def _build_service():
-    import json
-
-    from google.oauth2.credentials import Credentials
-    from google.auth.transport.requests import Request
-    from googleapiclient.discovery import build
-
     token_content = os.getenv("GOOGLE_OAUTH_TOKEN_JSON_CONTENT")
     log.debug("Loading Drive credentials")
     if token_content:
@@ -319,7 +318,7 @@ def _build_service():
         log.info("Drive token expired — refreshing")
         creds.refresh(Request())
         if token_path is not None:
-            token_path.write_text(creds.to_json())
+            token_path.write_text(creds.to_json(), encoding="utf-8")
             log.info("Drive token refreshed and saved")
     svc = build("drive", "v3", credentials=creds, cache_discovery=False)
     log.debug("Drive service built successfully")

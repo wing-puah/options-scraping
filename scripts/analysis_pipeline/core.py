@@ -99,7 +99,7 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     proc = subprocess.run(
         ["claude", "-p", "--output-format", "json", "--model", model or "opus"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
-        timeout=config.REQUEST_TIMEOUT_S,
+        timeout=config.REQUEST_TIMEOUT_S, check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(
@@ -126,7 +126,7 @@ def _invoke_codex(prompt: str, model: str | None, cwd: str) -> dict:
         cmd += ["-m", model]
     cmd += ["-"]  # read the prompt from stdin
     proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd,
-                          timeout=config.REQUEST_TIMEOUT_S)
+                          timeout=config.REQUEST_TIMEOUT_S, check=False)
     # Codex prints a banner first and the real error (e.g. usage limit) last, and
     # can exit 0 while still failing to produce output — so report the tail and
     # treat a missing file as failure regardless of exit code.
@@ -231,11 +231,11 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         # STOCK) so it stands out from the lower-cased confidence and horizon.
         play_lines: list[str] = []
 
-        def _label(k: str) -> str:
-            v = str(p.get(k, "")).strip()
+        def _label(k: str, row: dict) -> str:
+            v = str(row.get(k, "")).strip()
             return v.upper() if k == "flow_intent" else v.lower()
 
-        labels = [_label(k) for k in ("confidence", "flow_intent", "horizon")]
+        labels = [_label(k, p) for k in ("confidence", "flow_intent", "horizon")]
         labels = [x for x in labels if x]
         if labels:
             play_lines.append(f"[{' | '.join(labels)}]")
@@ -389,6 +389,8 @@ def main(argv: list[str] | None = None) -> None:
     # Ticker-focused runs route to a dedicated tab so they don't mix with the
     # full-market daily runs that backtest.py / `/options summary` read.
     tab = config.TICKER_SPECIFIC_TAB if focus_tickers else cfg.tab
+    framework_md = ""
+    method_md = ""
     if not args.fetch_only:
         framework_md = config.FRAMEWORK_FILE.read_text()
         method_md = cfg.method_file.read_text()

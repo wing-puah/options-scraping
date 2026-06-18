@@ -337,7 +337,8 @@ def main() -> None:
 
     # Pass 1 — classify each play, build its leg list, and register the contracts
     # whose Barchart history must be fetched.
-    matched, contracts, needed_dates, skipped = [], {}, {}, {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
+    matched, contracts, needed_dates = [], {}, {}
+    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
     for c in candidates:
         c["regime"] = c.get("regime", "")
         cls = classify_play(c["play"])

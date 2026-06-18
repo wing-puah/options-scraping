@@ -1,7 +1,9 @@
 import hashlib
 import json
 import logging
+import math
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import gspread
@@ -39,7 +41,7 @@ def _get_client() -> gspread.Client:
         log.info("Sheets OAuth token expired — refreshing")
         creds.refresh(Request())
         if token_path is not None:
-            token_path.write_text(creds.to_json())
+            token_path.write_text(creds.to_json(), encoding="utf-8")
             log.info("OAuth token refreshed and saved")
 
     return gspread.authorize(creds)
@@ -80,7 +82,7 @@ def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
 
 def _sanitize(v):
     """Replace non-JSON-compliant floats (nan/inf) with empty string."""
-    if isinstance(v, float) and (v != v or v == float("inf") or v == float("-inf")):
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return ""
     return v
 
@@ -129,7 +131,6 @@ def set_meta(tab: str, fingerprint: str = "", last_row_time: str = "") -> None:
     ss = _get_spreadsheet()
     ws = _ensure_tab(ss, "_meta")
 
-    from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
     existing = ws.get_all_values()
