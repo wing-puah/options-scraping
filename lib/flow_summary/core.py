@@ -392,6 +392,7 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 #   otm     OTM-prob-weighted extrinsic rank — informed OTM tell          0–2
 #   open    ≥1 BuyToOpen / SellToOpen / ToOpen label present              0 / 1
 #   persist extra days the name recurs across the window (multi-day)     0–3
+#   fin_penalty  financing-dominance demotion (direction-agnostic)    −4 / −3 / −2 / 0
 #
 # The `flow` component = min(ext_rank, size_rank + 1). Extrinsic premium
 # (premium minus intrinsic value) leads: deep-ITM financing/conversion/
@@ -414,8 +415,20 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 #
 # A missing opening label scores 0, never negative — Barchart frequently omits
 # the flag, and absence of the label is not evidence the trade was closing.
+#
+# The `fin_penalty` term is the ONLY negative component. The flow/otm ranks
+# already strip intrinsic, but a name can rank high on absolute extrinsic while
+# its premium is DOMINATED by |delta|≥0.85 financing/conversion legs (Fin% high)
+# — stock-substitute positioning, not a directional bet. This turns the
+# advisory Fin% column into an actual demotion: −2 above 0.60, −3 above 0.75,
+# −4 above 0.90. The 0.60 floor was set from the Mar-2025 backtest, where
+# fin_share>0.6 names won 33% (avg −28%) vs 86% (avg +57%) below it, while
+# borderline real bets (GLD 0.53) stayed in. It is direction-agnostic (a quality
+# discount, not a bull/bear call). Total is clamped to ≥0.
+#
 # Direction (bull/bear) lives in the separate sentiment columns; it never feeds
-# this number. Single-day ceiling is 12; persistence can push it to 15.
+# this number. Single-day raw ceiling is 12 (before any fin_penalty);
+# persistence can push it to 15.
 
 _SCORE_BUCKETS = (  # (min_score, label), highest first
     (9, "high-conv"),
@@ -510,11 +523,32 @@ def score_flow_rollup(
 
         persist = min(max(persist_days_by_sym.get(sym, 0), 0), 3)
 
+        # Financing penalty — direction-agnostic demotion of stock-substitute flow.
+        # The `flow`/`otm` components already RANK on extrinsic (intrinsic stripped),
+        # but a name can still rank high on absolute extrinsic while its premium is
+        # DOMINATED by |delta|≥0.85 financing/conversion legs — positioning, not a
+        # bet on a move. The Fin% column flagged this advisorily; this turns it into
+        # an actual demotion. Backtest (Mar 2025 panic, 20 trades): fin_share>0.6
+        # names won 33% (avg −28%) vs 86% (avg +57%) below it. The 0.6 floor spares
+        # borderline real bets (GLD 0.53 won) while demoting the clear financing
+        # names (AMD/QQQ/TSLA/COIN). Scales with dominance; total clamped ≥0.
+        # See config/conviction-score.md and config/backtest-tuning.md §Financing.
+        fin_share = r.get("fin_share", 0.0)
+        if fin_share > 0.90:
+            fin_penalty = -4
+        elif fin_share > 0.75:
+            fin_penalty = -3
+        elif fin_share > 0.60:
+            fin_penalty = -2
+        else:
+            fin_penalty = 0
+
         parts = {
             "flow": flow, "rep": rep, "cross": cross,
             "voloi": voloi_pts, "otm": otm, "open": opening, "persist": persist,
+            "fin_penalty": fin_penalty,
         }
-        total = sum(parts.values())
+        total = max(0, sum(parts.values()))
         r["score"] = total
         r["score_parts"] = parts
         r["score_label"] = score_label(total)
@@ -731,7 +765,7 @@ def summarize_flow(
 # spreadsheet; the score breakdown is split into its component columns.
 FLOW_CSV_COLUMNS = [
     "Section", "Symbol", "Score", "ScoreLabel",
-    "Flow", "Rep", "Cross", "VolOI", "Otm", "Open", "Persist",
+    "Flow", "Rep", "Cross", "VolOI", "Otm", "Open", "Persist", "FinPenalty",
     "Trades", "TotalPremium", "ExtPremium", "ExtCallPremium", "ExtPutPremium",
     "OTMExtPremium", "DeltaNotional", "FinancingShare", "Horizon",
     "Contracts", "PremPerContract",
@@ -767,6 +801,7 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "Otm": parts.get("otm", ""),
                 "Open": parts.get("open", ""),
                 "Persist": parts.get("persist", ""),
+                "FinPenalty": parts.get("fin_penalty", ""),
                 "Trades": r["trades"],
                 "TotalPremium": round(r["premium_total"]),
                 "ExtPremium": round(r.get("ext_total", 0.0)),

@@ -315,11 +315,44 @@ def test_score_maxes_out_with_full_corroboration():
     score_flow_rollup(rollup, unusual_syms={"BIG"}, voloi_by_sym={"BIG": 30.0})
     r = rollup[0]
     # otm is 0: _flow_row carries no Delta cell, so OTM-prob weighting never fires.
+    # fin_penalty is 0: these rows carry no Delta, so fin_share is 0 (no financing).
     assert r["score_parts"] == {
         "flow": 3, "rep": 2, "cross": 2, "voloi": 2, "otm": 0, "open": 1, "persist": 0,
+        "fin_penalty": 0,
     }
     assert r["score"] == 10
     assert r["score_label"] == "high-conv"
+
+
+def _fin_penalty_for(deep_prem, otm_prem):
+    """Score a single name whose premium splits between a deep-ITM (|delta| 0.95)
+    financing leg and an OTM (|delta| 0.30) leg, and return its fin_penalty."""
+    rows = [
+        _rich_row("X", "Put", "mid", str(deep_prem), spot="380", strike="450", delta="-0.95"),
+        _rich_row("X", "Put", "ask", str(otm_prem), spot="380", strike="350", delta="-0.30"),
+    ]
+    rollup = _flow_ticker_rows(rows)
+    score_flow_rollup(rollup)
+    return rollup[0]["score_parts"]["fin_penalty"]
+
+
+def test_financing_penalty_scales_with_dominance():
+    # Direction-agnostic demotion: penalty deepens as the |delta|≥0.85 financing
+    # share rises past 0.60 / 0.75 / 0.90. Below 0.60 a real bet is untouched.
+    assert _fin_penalty_for(500_000, 500_000) == 0    # fin_share 0.50 — spared
+    assert _fin_penalty_for(650_000, 350_000) == -2   # 0.65
+    assert _fin_penalty_for(800_000, 200_000) == -3   # 0.80
+    assert _fin_penalty_for(950_000, 50_000) == -4    # 0.95
+
+
+def test_financing_penalty_clamps_total_at_zero():
+    # A pure deep-ITM financing name (fin_share 1.0) takes the full −4; total
+    # score is clamped to ≥0, never negative.
+    rows = [_rich_row("X", "Put", "mid", "900000", spot="380", strike="450", delta="-0.95")]
+    rollup = _flow_ticker_rows(rows)
+    score_flow_rollup(rollup)
+    assert rollup[0]["score_parts"]["fin_penalty"] == -4
+    assert rollup[0]["score"] >= 0
 
 
 def test_flow_rollup_sums_size_and_premium_per_contract():

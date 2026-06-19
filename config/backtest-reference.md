@@ -82,3 +82,32 @@ rule triggers — frozen at that day's mark (never a later live mark).
 - All settings that shape these columns (`profit_target`, `stop_loss`,
   `path_cap_days`, `exit_sources`, `spread_width_pct`, `contracts`, `risk_free_rate`)
   live in [`config/backtest.yml`](backtest.yml).
+
+## Quality-gate replay (post-hoc, deterministic)
+
+[`scripts/backtest/audit_gate_replay.py`](../scripts/backtest/audit_gate_replay.py)
+joins each results row back to its conviction-score audit rollup
+(`audit/<date>-rollup.csv` — `FinancingShare`, `IVSpread`, `Score`) and reports
+the portfolio P&L when signal-quality gates are applied. This is the
+**reproducible** way to measure a filter's lift without re-running the
+(non-deterministic) LLM pipeline:
+
+```bash
+python3 -m scripts.backtest.audit_gate_replay \
+    --results backtests/results.csv --audit-dir audit \
+    --fin-max 0.6 --bear-ivspr-min -25
+```
+
+Two gates, both validated on the Mar-2025 panic window (see
+[`config/backtest-tuning.md`](backtest-tuning.md) §Financing & IVSpread gates):
+
+- **Financing gate** (`--fin-max`) — drop a play whose `FinancingShare` exceeds
+  the threshold (stock-substitute positioning, not a directional bet). Mirrors
+  the `FinPenalty` now baked into the conviction score
+  ([`config/conviction-score.md`](conviction-score.md)).
+- **IVSpread directional gate** (`--bear-ivspr-min`) — drop a BEAR play whose
+  `IVSpread` is below the floor (overpriced panic-hedge puts). Direction-bearing,
+  so it lives here / in Step 5, not in the agnostic score.
+
+To audit-export the rollups for a date, run the pipeline with `--fetch-only`
+(writes `audit/<date>-rollup.csv` + `-oi-breakdown.csv`).

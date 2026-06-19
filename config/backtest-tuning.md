@@ -305,3 +305,70 @@ The analysis framework already grades plays as high/medium/low. Use this:
 - 0 baseline sessions → cap position size or skip entirely
 
 This is principle-driven (signal quality → position size), not curve-fitting. It would have avoided most of the losing trades in Jul 2024 and Jan 2025 without touching the exit logic.
+
+---
+
+## Financing & IVSpread gates — signal-quality filters (2026-06-19)
+
+Analysis of the Mar-2025 panic re-run (`backtests/results.csv`, 20 trades, Mar
+10–13 2025) joined to the conviction-score audit rollups (`audit/*-rollup.csv`).
+This confirmed that **two signals the framework already computes but did not act
+on** — `FinancingShare` (Fin%) and `IVSpread` (IVspr) — are the strongest
+discriminators within the window, validating references 03/05 (financing
+pollution) and 04 (IV spread predicts returns).
+
+**Signal correlations with realized P&L (n=20):**
+
+| Signal | Corr | Read |
+|--------|------|------|
+| `FinancingShare` | **−0.48** | High deep-ITM financing share → directional read fails |
+| `IVSpread` | **+0.47** | Extreme-negative spread (panic put-IV inflation) → bear puts lose |
+| `OIConfirmPct` | +0.40 | OI-change confirmation (ref 03) works |
+| `Otm` | +0.36 | OTM-extrinsic component earns its keep |
+| `Score` (raw) | +0.31 | Weak — 18/20 trades scored ≥9, no discrimination |
+
+**Financing is an independent killer (holds inside DIRECTIONAL too):**
+
+| FinancingShare | n | win% | avg PnL |
+|----------------|---|------|---------|
+| ≤ 0.5 | 14 | 85.7% | +56.9% |
+| > 0.5 | 6 | 33.3% | −27.6% |
+
+**Lift from the two gates** (deterministic replay,
+`scripts/backtest/audit_gate_replay.py`; this is a filter over the *existing*
+backtested trades, NOT a fresh LLM run — the reproducible way to isolate the
+gate effect):
+
+| Book | n | win% | avg PnL | total $ |
+|------|---|------|---------|---------|
+| Baseline (trade all) | 20 | 70.0% | +31.5% | +$7,168 |
+| Financing gate (Fin% ≤ 0.6) | 16 | 81.2% | +51.5% | +$8,621 |
+| Combined (Fin% ≤ 0.6 **and** not bear-with-IVspr<−25) | 15 | **86.7%** | **+57.3%** | **+$9,025** |
+
+The two gates are **complementary**: the financing gate drops AMD/QQQ/TSLA/COIN
+(3 losers + COIN's tiny +$205); the IVSpread gate additionally catches TSLA
+(2025-03-12) whose Fin% (0.50) was just under threshold but whose IVspr (−39)
+exposed the same put-IV inflation. Net: drop 5 trades (−$1,857 of losers, give
+up +$205), book quality jumps from 70% → 87% win.
+
+**What shipped:**
+1. **Financing penalty baked into the conviction score** (`score_flow_rollup`
+   in `lib/flow_summary/core.py`, `FinPenalty` column): −2 above Fin% 0.60, −3
+   above 0.75, −4 above 0.90; direction-agnostic; total clamped ≥0. The 0.60
+   floor spares borderline real bets (GLD 0.53 won). Documented in
+   `config/conviction-score.md`. This demotes financing-dominated names out of
+   `high-conv` so the LLM down-weights them at the source.
+2. **IVSpread directional gate documented** as a Step-5 / backtest veto (NOT in
+   the agnostic score — it is direction-bearing): a BEAR play with IVspr < ~−25
+   is buying panic-inflated puts. Measured via the replay tool; recommend wiring
+   into the analysis framework's Step-5 vol alignment.
+
+**Caveats:** n=20, single regime (panic). The financing finding is the robust
+one (large effect, mechanistic, matches refs 03/05, holds within intent). The
+IVspr threshold is confounded with financing in this window (the extreme-IVspr
+names are mostly also high-Fin%) — treat −25 as a starting point to re-validate
+on chop/bull windows, not a tuned constant. **Next:** re-run the
+pipeline+backtest on Jul-2024 / Jan-2025 with the financing penalty live to
+confirm it self-corrects the chop/bull losses (where the tuning log showed
+confidence, not regime, drove losses) — and combine with the confidence-based
+sizing above.
