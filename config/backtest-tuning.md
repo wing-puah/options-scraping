@@ -334,10 +334,10 @@ pollution) and 04 (IV spread predicts returns).
 | ≤ 0.5 | 14 | 85.7% | +56.9% |
 | > 0.5 | 6 | 33.3% | −27.6% |
 
-**Lift from the two gates** (deterministic replay,
-`scripts/backtest/audit_gate_replay.py`; this is a filter over the *existing*
-backtested trades, NOT a fresh LLM run — the reproducible way to isolate the
-gate effect):
+**Lift from the two gates** (one-off post-hoc analysis: the `FinancingShare` /
+`IVSpread` from the audit rollups joined to the *existing* backtested trades and
+filtered — isolates the gate effect from LLM noise. To carry the gate through to
+real P&L, re-run the pipeline with the financing penalty live, then the backtest):
 
 | Book | n | win% | avg PnL | total $ |
 |------|---|------|---------|---------|
@@ -360,8 +360,8 @@ up +$205), book quality jumps from 70% → 87% win.
    `high-conv` so the LLM down-weights them at the source.
 2. **IVSpread directional gate documented** as a Step-5 / backtest veto (NOT in
    the agnostic score — it is direction-bearing): a BEAR play with IVspr < ~−25
-   is buying panic-inflated puts. Measured via the replay tool; recommend wiring
-   into the analysis framework's Step-5 vol alignment.
+   is buying panic-inflated puts. Recommend wiring into the analysis framework's
+   Step-5 vol alignment (the `IVspr` column is already surfaced in the rollup).
 
 **Caveats:** n=20, single regime (panic). The financing finding is the robust
 one (large effect, mechanistic, matches refs 03/05, holds within intent). The

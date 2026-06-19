@@ -157,7 +157,7 @@ python3 scripts/enrich_oi.py --date 2026-06-09 --force
 # Full analysis pipeline directly (without the skill)
 python3 -m scripts.analysis_pipeline --date 2026-04-21
 python3 -m scripts.analysis_pipeline --engine codex
-python3 -m scripts.analysis_pipeline --fetch-only --dry-run
+python3 -m scripts.analysis_pipeline --skip-llm --dry-run
 ```
 
 ## Positions tracking

@@ -373,7 +373,7 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(claude→opus, codex→its configured model).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
-    parser.add_argument("--fetch-only", action="store_true",
+    parser.add_argument("--skip-llm", action="store_true",
                         help="Fetch data and write audit CSV only — skip LLM analysis entirely. "
                              "Prints the prepared markdown to stdout.")
     return parser

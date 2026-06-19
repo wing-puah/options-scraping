@@ -88,8 +88,7 @@ inflated by panic hedging (overpriced crash insurance that mean-reverts): those
 bear puts lost (TSLA −39/−45, COIN −78, QQQ −20) while mildly-negative ones won
 (SPY −4/−9, NVDA −11). This is *direction-bearing*, so it deliberately stays out
 of the agnostic score — treat it as a veto on the play, not a deduction on the
-name. The `scripts/backtest/audit_gate_replay.py` tool measures both gates over
-a results CSV.
+name.
 
 ## Buckets
 
