@@ -15,6 +15,7 @@ samples whatever holding horizons it wants from that path.
 
 ## Entry & contract identity
 
+<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). Entry is at this day's flow print. |
@@ -30,6 +31,7 @@ samples whatever holding horizons it wants from that path.
 
 ## Entry pricing
 
+<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
@@ -44,6 +46,7 @@ samples whatever holding horizons it wants from that path.
 These summarise the **full daily path**. The realized exit is the **first** day a
 rule triggers — frozen at that day's mark (never a later live mark).
 
+<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **realized_pnl_pct** | Realized P&L % at the exit, from the single signed formula `(V_exit − entry_net) / abs(entry_net)` where `V` is the position's signed net mark. Profit is positive for both debit and credit positions (a credit has `entry_net < 0` and profits as `V` rises toward 0). |
@@ -59,6 +62,7 @@ rule triggers — frozen at that day's mark (never a later live mark).
 
 ## The daily path
 
+<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **daily_price_csv** | Comma-separated **signed net position mark (`Σ qty·price`), one value per trading day** from the day after entry to `min(nearest-leg DTE, path_cap_days)`. Same signed units as `entry_option_price`. An **empty token** (`,,`) is a day no source could price (any unpriceable leg blanks the whole day). Reconstruct the P&L path by splitting on `,`, dropping empties, and applying `(mark − entry_option_price) / abs(entry_option_price)` (see `pnl_path()` in [`scripts/chart_backtest.py`](../scripts/chart_backtest.py)). |

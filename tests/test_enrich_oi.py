@@ -194,7 +194,7 @@ def test_enrichable_dates_excludes_latest():
         "etfs-flow": ["2026-06-09", "2026-06-10", "2026-06-11"],
         "stocks-flow": [],
     })
-    assert _enrichable_dates(client) == ["2026-06-09", "2026-06-10"]
+    assert _enrichable_dates(client) == ["2026-06-09", "2026-06-10", "2026-06-11"]
 
 
 # ── _scrape_and_fill (incremental fill, checkpoint, marker) ────────────────────
@@ -234,8 +234,8 @@ def test_scrape_and_fill_fills_marks_and_checkpoints():
     pending = list(contracts.values())
 
     session = _FakeSession({
-        "GSK":  _history_csv([("2026-06-09", "500", "100"), ("2026-06-10", "650", "5")]),
-        "AAPL": _history_csv([("2026-06-09", "800", "20"), ("2026-06-10", "600", "3")]),
+        "GSK":  _history_csv([("2026-06-08", "500", "100"), ("2026-06-09", "650", "5")]),
+        "AAPL": _history_csv([("2026-06-08", "800", "20"), ("2026-06-09", "600", "3")]),
         # TSLA absent → Barchart returns None → empty, but still marked.
     })
 
@@ -244,7 +244,7 @@ def test_scrape_and_fill_fills_marks_and_checkpoints():
         headless=True, checkpoint_every=2, sleep_s=0, session=session))
 
     assert stats["processed"] == 3
-    assert stats["with_next"] == 2                      # GSK + AAPL have a next day
+    assert stats["with_next"] == 2                      # GSK + AAPL have a prior day
     # every contract attempted → every row marked, even TSLA (no data)
     assert all(r[MARKER_COLUMN] == "2026-06-17" for r in rows)
     by_sym = {r["Symbol"]: r for r in rows}
@@ -313,7 +313,7 @@ def test_enrich_prefix_uploads_augmented_csv(monkeypatch):
                           **kwargs):
         for row in rows:
             row.update({**_compute_enrichment(
-                {trade_date: _hist_row("500"), date(2026, 6, 10): _hist_row("650")},
+                {date(2026, 6, 8): _hist_row("500"), trade_date: _hist_row("650")},
                 trade_date), enrich_oi.MARKER_COLUMN: run_date})
         enrich_oi._upload_rows(cl, prefix, date_str, rows)
         return {"with_next": 1, "processed": len(pending)}

@@ -36,7 +36,7 @@ def _client(*, raws, listing, content):
     c = MagicMock()
     c.list_files_for_date.return_value = raws
     c.list_files.return_value = listing
-    c.download.side_effect = lambda fid: content[fid]
+    c.download.side_effect = lambda fid, **kwargs: content[fid]
     return c
 
 

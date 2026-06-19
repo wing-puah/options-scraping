@@ -151,7 +151,7 @@ def test_download_for_date_finds_matching_file():
         name, content = client.download_for_date("unusual-stocks", "2026-06-02")
 
     assert name == "unusual-stocks-20260602-1600.csv"
-    mock_dl.assert_called_once_with("1")
+    mock_dl.assert_called_once_with("1", name="unusual-stocks-20260602-1600.csv")
 
 
 def test_download_for_date_returns_none_when_not_found():

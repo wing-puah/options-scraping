@@ -254,7 +254,10 @@ class DriveClient:
         files = self._svc.files().list(
             q=q, fields="files(id, name, createdTime)", orderBy="name"
         ).execute().get("files", [])
-        files = [f for f in files if pattern.match(f["name"])]
+        files = sorted(
+            [f for f in files if pattern.match(f["name"])],
+            key=lambda f: f["name"],
+        )
         log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
         return files
 
