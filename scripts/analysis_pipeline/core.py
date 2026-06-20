@@ -391,7 +391,7 @@ def main(argv: list[str] | None = None) -> None:
     tab = config.TICKER_SPECIFIC_TAB if focus_tickers else cfg.tab
     framework_md = ""
     method_md = ""
-    if not args.fetch_only:
+    if not args.skip_llm:
         framework_md = config.FRAMEWORK_FILE.read_text()
         method_md = cfg.method_file.read_text()
         log.info("Engine=%s model=%s tab=%s", args.engine, model or "engine default", tab)
@@ -422,7 +422,13 @@ def main(argv: list[str] | None = None) -> None:
             skipped.append(d)
             continue
 
-        if args.fetch_only:
+        if args.skip_llm:
+            print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
+            print(data_md)
+            done.append(d)
+            continue
+
+        if args.skip_llm:
             print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
             print(data_md)
             done.append(d)
@@ -448,7 +454,7 @@ def main(argv: list[str] | None = None) -> None:
         done.append(d)
         _print_report(d, analysis, tab=tab, written=not args.dry_run)
 
-    label = "Fetched" if args.fetch_only else "Analyzed"
+    label = "Fetched" if args.skip_llm else "Analyzed"
     print(f"\n{label}: {', '.join(done) or 'none'}")
     if skipped:
         print(f"Skipped:  {', '.join(skipped)}")

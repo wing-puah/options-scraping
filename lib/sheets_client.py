@@ -111,9 +111,10 @@ def write_analysis(tab_name: str, rows: list[dict]) -> None:
     log.info("Writing %d row(s) to tab '%s' (clearing first)", len(rows), tab_name)
     ss = _get_spreadsheet()
     ws = _ensure_tab(ss, tab_name)
+    keys = list(rows[0].keys())
     ws.clear()
-    ws.append_row(list(rows[0].keys()))
-    ws.append_rows([list(r.values()) for r in rows], value_input_option="USER_ENTERED")
+    ws.append_row(keys)
+    ws.append_rows([[r.get(k, "") for k in keys] for r in rows], value_input_option="USER_ENTERED")
     log.info("Write complete for tab '%s'", tab_name)
 
 
