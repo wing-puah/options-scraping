@@ -255,6 +255,16 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
     entry_source = "bs" if uniform_bs else "+".join(entry_tags)
 
+    # Theoretical value bounds for 2-leg verticals: independent per-leg pricing
+    # from different scrape times can produce net values outside [0, width] for a
+    # debit spread (or [-width, 0] for credit), which is arbitrage-impossible.
+    # Clamp daily marks to prevent phantom losses exceeding the max defined risk.
+    _v_clamp: tuple[float, float] | None = None
+    if len(legs) == 2 and not uniform_bs:
+        _spread_width = abs(legs[0].strike - legs[1].strike)
+        if _spread_width > 0:
+            _v_clamp = (0.0, _spread_width) if entry_net > 0 else (-_spread_width, 0.0)
+
     # Per-leg raw entry breakdown (so the netted entry_option_price, iv_entry_pct and
     # delta can be validated leg-by-leg). The anchor leg's delta is the real flow
     # value; the rest are BS model deltas at the entry IV. Each line leads with the
@@ -304,6 +314,8 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 return None, ""
             value += leg.qty * p
             tags.append(tag)
+        if _v_clamp is not None:
+            value = max(_v_clamp[0], min(_v_clamp[1], value))
         return value, ("bs" if uniform_bs else "+".join(tags))
 
     contracts = _size_contracts(abs(entry_net), sim_cfg)

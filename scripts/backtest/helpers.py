@@ -25,10 +25,6 @@ def _bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type:
     return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 
-def _bs_spread_price(S, K_long, K_short, T, r, sigma, option_type) -> float:
-    return _bs_price(S, K_long, T, r, sigma, option_type) - _bs_price(S, K_short, T, r, sigma, option_type)
-
-
 def _bs_delta(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
     """Black-Scholes delta. T in years. Used only to surface a per-leg model delta
     for validation; the trade's own anchor delta still comes from the flow row."""
