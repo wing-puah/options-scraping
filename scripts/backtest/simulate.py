@@ -8,8 +8,9 @@ from .helpers import (
     _price_asof,
     _get_prices, _price_on_or_after,
     _weekday_grid,
+    _defined_risk_bounds,
 )
-from .legs import format_legs
+from .legs import format_legs, merge_legs
 
 log = logging.getLogger("backtest")
 
@@ -175,12 +176,13 @@ _MARK_TAG = {"barchart": "barchart", "reappearance": "real", "bs": "bs"}
 
 
 def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_cfg,
-              structure="", anchor_idx=0, price_fn=None):
+              structure="", anchor_idx=0, price_fn=None, uniform_bs=None):
     """Simulate one position expressed as a list of signed `Leg`s.
 
     Each leg is priced independently and netted by signed quantity into a single
     position value V = Σ qty·price. Returns a result dict, or {} if it cannot be
-    priced.
+    priced. Works for any leg count (single, vertical, ratio, butterfly, condor,
+    box, calendar, …).
 
     Pricing per leg, in order from sim_cfg['exit_sources']:
       barchart     — real per-contract daily price (Barchart history cache)
@@ -188,16 +190,23 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
       bs           — Black-Scholes (last resort)
     barchart_series / contract_index map contract_key -> sorted [(date, price)].
 
-    Positions with >= sim_cfg['uniform_bs_min_legs'] legs (default 4, i.e. iron
-    condors) are priced entirely with Black-Scholes at a single IV for internal
-    consistency — mixing a real price on one leg with BS on others produces a
-    spurious net when IVs differ across widely separated strikes.
+    `uniform_bs` prices every leg with Black-Scholes at a single entry IV for
+    internal consistency (mixing a real leg with BS legs at different IVs produces
+    a spurious net across widely separated strikes). It defaults — when None — to
+    True only for synthesized iron condors, whose wings sit at non-listed strikes
+    with no real history. Explicit user-specified legs are priced real-first at any
+    leg count.
 
     `entry_row` is the anchor leg's entry row (real flow Trade + IV/underlying/DTE).
     price_fn(ticker, date) -> float|None is injectable for testing.
     """
+    # Combine any legs that name the same contract (e.g. +2 / -1 → +1); drop the
+    # net-zero ones. A position that nets to nothing is not simulable.
+    legs = merge_legs(legs)
     if not legs:
         return {}
+    if uniform_bs is None:
+        uniform_bs = (structure == "iron_condor")
 
     ticker = candidate["ticker"]
     signal_date = candidate["signal_date"]
@@ -214,16 +223,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
     dte_entry = int(dte_entry)
 
-    uniform_bs = len(legs) >= sim_cfg.get("uniform_bs_min_legs", 4)
     exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
-
-    # Reject degenerate positions (two legs on the same contract — should be merged).
-    seen = set()
-    for leg in legs:
-        ident = (leg.opt_type, round(leg.strike, 4), leg.expiration)
-        if ident in seen:
-            return {}
-        seen.add(ident)
 
     def _key(leg):
         return _contract_key(leg.ticker, leg.opt_type, leg.strike, leg.expiration.isoformat())
@@ -255,15 +255,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
     entry_source = "bs" if uniform_bs else "+".join(entry_tags)
 
-    # Theoretical value bounds for 2-leg verticals: independent per-leg pricing
-    # from different scrape times can produce net values outside [0, width] for a
-    # debit spread (or [-width, 0] for credit), which is arbitrage-impossible.
-    # Clamp daily marks to prevent phantom losses exceeding the max defined risk.
-    _v_clamp: tuple[float, float] | None = None
-    if len(legs) == 2 and not uniform_bs:
-        _spread_width = abs(legs[0].strike - legs[1].strike)
-        if _spread_width > 0:
-            _v_clamp = (0.0, _spread_width) if entry_net > 0 else (-_spread_width, 0.0)
+    _v_clamp = _defined_risk_bounds(legs) if not uniform_bs else None
 
     # Per-leg raw entry breakdown (so the netted entry_option_price, iv_entry_pct and
     # delta can be validated leg-by-leg). The anchor leg's delta is the real flow
@@ -366,6 +358,11 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         "entry_leg_detail": entry_leg_detail,
         "regime": candidate.get("regime", ""),
         "play": candidate["play"][:300],
+        # Per-ticker flow-rollup context joined onto the candidate upstream
+        # (_attach_rollup_metrics); blank when no rollup row for that date/ticker.
+        "oi_confirm_pct": candidate.get("oi_confirm_pct", ""),
+        "cpir": candidate.get("cpir", ""),
+        "iv_spread": candidate.get("iv_spread", ""),
     }
 
     # Path runs to the NEAREST leg expiration (a calendar's short leg bounds it),

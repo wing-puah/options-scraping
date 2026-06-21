@@ -21,7 +21,7 @@ from lib.barchart import BarchartSession
 from .config import RESULTS_PATH, HISTORY_CACHE
 from .helpers import _parse_analysis_date, _contract_key, _num
 from .classify import classify_play, _identify_contract, _entry_row_from_history
-from .legs import legs_from_structure, iron_condor_legs
+from .legs import legs_from_structure, iron_condor_legs, merge_legs
 from .simulate import _simulate, _iron_condor_strikes
 
 log = logging.getLogger("backtest")
@@ -35,7 +35,67 @@ _KEY_ORDER = [
     "mfe_pct", "mfe_abs", "mfe_day", "mae_pct", "mae_abs", "mae_day", "pnl_at_cap_pct", "pct_real_days",
     "daily_price_csv",
     "created_datetime",
+    # Per-ticker flow-rollup context joined from audit/<date>-rollup.csv (the same
+    # date's scored rollup the analysis ran on). Appended at the END so existing
+    # sheet rows stay column-aligned. See _attach_rollup_metrics / _ROLLUP_METRIC_COLS.
+    "oi_confirm_pct", "cpir", "iv_spread",
 ]
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+AUDIT_DIR = ROOT / "audit"
+
+# backtest result key -> rollup CSV column (lib/flow_summary FLOW_CSV_COLUMNS).
+_ROLLUP_METRIC_COLS = {
+    "oi_confirm_pct": "OIConfirmPct",
+    "cpir": "CPIR",
+    "iv_spread": "IVSpread",
+}
+
+
+def _load_rollup_metrics(date_str: str) -> dict[str, dict]:
+    """Read ``audit/<date>-rollup.csv`` → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+
+    Returns ``{}`` when the rollup file is missing (older backtested dates may have
+    no audit file). The rollup carries one row per ticker per section (stocks/etfs);
+    we key by upper-cased ``Symbol`` (last write wins on the rare cross-section
+    overlap)."""
+    path = AUDIT_DIR / f"{date_str}-rollup.csv"
+    if not path.exists():
+        return {}
+    out: dict[str, dict] = {}
+    with path.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            sym = (row.get("Symbol") or "").strip().upper()
+            if not sym:
+                continue
+            out[sym] = {k: (row.get(col) or "").strip()
+                        for k, col in _ROLLUP_METRIC_COLS.items()}
+    return out
+
+
+def _attach_rollup_metrics(candidates: list[dict]) -> None:
+    """Backfill per-ticker rollup metrics (OIConfirmPct/CPIR/IVSpread) for candidates
+    whose analysis row predates these columns.
+
+    Newer analysis rows already carry the metrics (joined at analysis time — see
+    analysis_pipeline.core.analysis_to_rows); those are authoritative and left as-is.
+    Only candidates with all three blank are filled from that date's
+    ``audit/<date>-rollup.csv``. Rollups are read once per date."""
+    cache: dict[str, dict] = {}
+    backfilled = 0
+    for c in candidates:
+        if any(c.get(k) for k in _ROLLUP_METRIC_COLS):
+            continue  # already on the analysis row — authoritative
+        d = c["date"]
+        if d not in cache:
+            cache[d] = _load_rollup_metrics(d)
+        metrics = cache[d].get(c["ticker"].upper(), {})
+        if metrics:
+            backfilled += 1
+        for k in _ROLLUP_METRIC_COLS:
+            c[k] = metrics.get(k, "")
+    log.info("Backfilled rollup metrics from audit CSV for %d/%d candidates "
+             "(rest carried on the analysis row)", backfilled, len(candidates))
 
 
 def _regime_prefix(regime: str) -> str:
@@ -50,6 +110,25 @@ def _anchor_idx(legs) -> int:
         if leg.qty > 0:
             return i
     return 0
+
+
+def _choose_anchor(legs, barchart_details, signal_date):
+    """Pick the anchor leg for an explicit structure and build its entry row.
+
+    The anchor seeds the position's entry IV / underlying / DTE from its Barchart
+    history. Legs are tried in priority order — long legs first, then by descending
+    |qty| — and the first whose history yields a valid entry row wins, so a play is
+    no longer dropped just because one (e.g. illiquid) wing has no data. Returns
+    (anchor_idx, entry_row) or (None, None) when no leg has usable history.
+    """
+    order = sorted(range(len(legs)), key=lambda i: (legs[i].qty <= 0, -abs(legs[i].qty)))
+    for i in order:
+        leg = legs[i]
+        key = _contract_key(leg.ticker, leg.opt_type, leg.strike, leg.expiration.isoformat())
+        row = _entry_row_from_history(barchart_details, key, signal_date, leg.strike, leg.expiration)
+        if row is not None:
+            return i, row
+    return None, None
 
 
 def _register(contracts: dict, needed_dates: dict, ticker: str, opt_type: str,
@@ -96,6 +175,12 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
             "signal": str(row.get("signal", "")).strip(),
             "play": str(row.get("play", "")).strip(),
             "invalidation": str(row.get("invalidation", "")).strip(),
+            # Per-ticker rollup context now stored on the analysis row itself (blank
+            # on rows written before this column existed; _attach_rollup_metrics
+            # backfills those from the audit rollup CSV).
+            "oi_confirm_pct": str(row.get("oi_confirm_pct", "")).strip(),
+            "cpir": str(row.get("cpir", "")).strip(),
+            "iv_spread": str(row.get("iv_spread", "")).strip(),
         })
 
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
@@ -335,6 +420,9 @@ def main() -> None:
         log.warning("No plays found in '%s' — run /options analyze first to populate it", tab)
         sys.exit(0)
 
+    # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread) onto each play.
+    _attach_rollup_metrics(candidates)
+
     # Pass 1 — classify each play, build its leg list, and register the contracts
     # whose Barchart history must be fetched.
     matched, contracts, needed_dates = [], {}, {}
@@ -353,16 +441,16 @@ def main() -> None:
 
         if structure == "explicit_legs":
             # Strikes/expirations are fully specified — every leg is a real contract.
-            legs = cls["legs"]
-            anchor_idx = _anchor_idx(legs)
-            anchor = legs[anchor_idx]
+            # The anchor is chosen in pass 3 from whichever leg has usable history.
+            legs = merge_legs(cls["legs"])
+            if not legs:
+                skipped["unpriced"] += 1
+                continue
             for leg in legs:
                 _register(contracts, needed_dates, leg.ticker, leg.opt_type,
                           leg.strike, leg.expiration, sig)
             matched.append({"c": c, "structure": structure, "legs": legs,
-                            "is_ic": False, "anchor_idx": anchor_idx,
-                            "anchor": (anchor.ticker, anchor.opt_type, anchor.strike,
-                                       anchor.expiration), "cls": cls})
+                            "is_ic": False, "explicit": True, "cls": cls})
             continue
 
         result, reason_info = _identify_contract(c, cls, HISTORY_CACHE, spread_pct)
@@ -381,12 +469,12 @@ def main() -> None:
             # only the short-put anchor needs Barchart history.
             _register(contracts, needed_dates, c["ticker"], "Put", K, exp_date, sig)
             matched.append({"c": c, "structure": structure, "legs": None,
-                            "is_ic": True, "anchor_idx": 1,
+                            "is_ic": True, "explicit": False, "anchor_idx": 1,
                             "anchor": (c["ticker"], "Put", K, exp_date), "cls": cls})
             continue
 
-        legs = legs_from_structure(structure, opt_type, c["ticker"], exp_date, K,
-                                   K_short, cls.get("is_credit", False))
+        legs = merge_legs(legs_from_structure(structure, opt_type, c["ticker"], exp_date, K,
+                                              K_short, cls.get("is_credit", False)))
         # legs_from_structure puts the flow-matched leg (strike K) first; it is the
         # anchor regardless of its long/short sign (so credit spreads anchor on the
         # sold leg, the one Barchart history is keyed to).
@@ -395,7 +483,7 @@ def main() -> None:
             _register(contracts, needed_dates, leg.ticker, leg.opt_type,
                       leg.strike, leg.expiration, sig)
         matched.append({"c": c, "structure": structure, "legs": legs,
-                        "is_ic": False, "anchor_idx": 0,
+                        "is_ic": False, "explicit": False, "anchor_idx": 0,
                         "anchor": (anchor.ticker, anchor.opt_type, anchor.strike,
                                    anchor.expiration), "cls": cls})
 
@@ -416,6 +504,26 @@ def main() -> None:
     results = []
     for m in matched:
         c = m["c"]
+        if m.get("explicit"):
+            # Choose the anchor from whichever leg actually has Barchart history.
+            legs = m["legs"]
+            anchor_idx, entry_row = _choose_anchor(legs, barchart_details, c["signal_date"])
+            if entry_row is None:
+                skipped["unpriced"] += 1
+                log.warning("SKIP unpriced     %s %s | no history on/after signal date for any leg",
+                            c["signal_date"], c["ticker"])
+                continue
+            result = _simulate(c, legs, entry_row, {}, barchart_series, sim_cfg,
+                               structure=m["structure"], anchor_idx=anchor_idx)
+            if result:
+                result["created_datetime"] = created_datetime
+                result["market_regime"] = _regime_prefix(market_regime.get(c["date"], ""))
+                results.append(result)
+            else:
+                skipped["unpriced"] += 1
+                log.warning("SKIP simulate={}  %s %s | explicit legs", c["signal_date"], c["ticker"])
+            continue
+
         a_ticker, a_type, a_K, a_exp = m["anchor"]
         anchor_key = _contract_key(a_ticker, a_type, a_K, a_exp.isoformat())
         entry_row = _entry_row_from_history(barchart_details, anchor_key, c["signal_date"], a_K, a_exp)

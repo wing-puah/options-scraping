@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 import backtest as bt
 from lib import barchart_options as bo
 from lib.barchart import BarchartSession
@@ -264,7 +265,8 @@ def test_match_entry_prefers_named_expiry_on_equal_strike():
 
 def test_match_entry_skips_zero_iv_junk():
     cand = {"ticker": "NVDA"}
-    junk = _flow_row("NVDA", "Call", "0.5", "215", "136000000"); junk["IV"] = "0.00%"
+    junk = _flow_row("NVDA", "Call", "0.5", "215", "136000000")
+    junk["IV"] = "0.00%"
     real = _flow_row("NVDA", "Call", "225", "8.0", "500000")
     best = bt._match_entry(cand, "Call", [junk, real], "any")
     assert best["Strike"] == "225"
@@ -358,7 +360,8 @@ def test_simulate_falls_back_to_bs_when_no_reappearance():
 
 
 def test_simulate_rejects_degenerate_spread():
-    # Two legs on the SAME contract (long 340 / short 340) → degenerate, rejected.
+    # Two legs on the SAME contract (long 340 / short 340) net to zero → empty
+    # position after merge → not simulable, returns {}.
     cand = {"ticker": "MRVL", "signal_date": date(2026, 6, 1), "play": "bull call spread",
             "market_regime": ""}
     legs = _legs(("+1", "MRVL", "2026-07-17", 340, "Call"),
@@ -673,6 +676,147 @@ def test_classify_play_recognises_explicit_legs_over_unsupported_keyword():
     assert len(out["legs"]) == 2
 
 
+# ── defined-risk value bounds ──────────────────────────────────────────────────
+
+def test_defined_risk_bounds_debit_spread():
+    legs = _legs(("+1", "HYG", "2026-09-20", 77, "Put"),
+                 ("-1", "HYG", "2026-09-20", 74, "Put"))
+    assert bt._defined_risk_bounds(legs) == (0.0, 3.0)
+
+
+def test_defined_risk_bounds_credit_spread():
+    legs = _legs(("-1", "SPY", "2026-09-20", 520, "Call"),
+                 ("+1", "SPY", "2026-09-20", 530, "Call"))
+    assert bt._defined_risk_bounds(legs) == (-10.0, 0.0)
+
+
+def test_defined_risk_bounds_none_for_ratio_spread():
+    # +1 / -2 has a net call qty of -1 — unbounded as S→∞.
+    legs = _legs(("+1", "AMD", "2026-07-17", 130, "Call"),
+                 ("-2", "AMD", "2026-07-17", 140, "Call"))
+    assert bt._defined_risk_bounds(legs) is None
+
+
+def test_defined_risk_bounds_none_for_single_leg():
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    assert bt._defined_risk_bounds(legs) is None
+
+
+def test_defined_risk_bounds_long_call_butterfly():
+    # +1/-2/+1 call fly: value bounded in [0, wing width = 10].
+    legs = _legs(("+1", "AMD", "2026-07-17", 120, "Call"),
+                 ("-2", "AMD", "2026-07-17", 130, "Call"),
+                 ("+1", "AMD", "2026-07-17", 140, "Call"))
+    assert bt._defined_risk_bounds(legs) == (0.0, 10.0)
+
+
+def test_defined_risk_bounds_iron_condor():
+    # Explicit IC: long put wing / short put / short call / long call wing.
+    legs = _legs(("+1", "SPY", "2026-07-17", 480, "Put"),
+                 ("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("-1", "SPY", "2026-07-17", 510, "Call"),
+                 ("+1", "SPY", "2026-07-17", 520, "Call"))
+    # Worst case at either wing = -(10 width); best (between shorts) = 0.
+    assert bt._defined_risk_bounds(legs) == (-10.0, 0.0)
+
+
+def test_defined_risk_bounds_none_for_calendar():
+    # Different expirations → not a single-expiration intrinsic payoff.
+    legs = _legs(("-1", "SPY", "2026-06-19", 500, "Call"),
+                 ("+1", "SPY", "2026-09-18", 500, "Call"))
+    assert bt._defined_risk_bounds(legs) is None
+
+
+def test_defined_risk_bounds_none_for_extra_naked_call():
+    # Net call qty +1 (long fly plus an extra long call) → unbounded above.
+    legs = _legs(("+1", "AMD", "2026-07-17", 120, "Call"),
+                 ("-2", "AMD", "2026-07-17", 130, "Call"),
+                 ("+2", "AMD", "2026-07-17", 140, "Call"))
+    assert bt._defined_risk_bounds(legs) is None
+
+
+def test_simulate_debit_spread_impossible_mark_clamped_to_max_loss():
+    # Reproduces the HYG 2024-08-13 case: short leg priced higher than long on
+    # the first daily mark, producing an impossible negative net. Must clamp to 0
+    # so realized P&L cannot exceed 100% loss (the debit paid).
+    cand = {"ticker": "HYG", "signal_date": date(2026, 6, 1),
+            "play": "bear put spread 77/74", "market_regime": ""}
+    legs = _legs(("+1", "HYG", "2026-09-20", 77, "Put"),
+                 ("-1", "HYG", "2026-09-20", 74, "Put"))
+    entry_row = {**_flow_row("HYG", "Put", "77", "0.245", "1000"),
+                 "DTE": "38", "IV": "8.87%", "Price~": "78.38"}
+    long_key  = ("HYG", "Put", 77.0, "2026-09-20")
+    short_key = ("HYG", "Put", 74.0, "2026-09-20")
+    # Day 1: long drops to 0.05, short jumps to 0.31 (stale scrape) → raw net −0.26.
+    barchart_series = {
+        long_key:  [(date(2026, 6, 1), 0.245), (date(2026, 6, 2), 0.05)],
+        short_key: [(date(2026, 6, 1), 0.19),  (date(2026, 6, 2), 0.31)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 1.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bear_put_spread", price_fn=lambda tk, dt: None)
+
+    assert res["entry_option_price"] == pytest.approx(0.055, abs=1e-9)
+    assert res["realized_pnl_pct"] == pytest.approx(-1.0)   # clamped: max loss = debit
+    assert res["mae_pct"] == pytest.approx(-1.0)             # never exceeds 100% loss
+
+
+def test_simulate_credit_spread_impossible_mark_clamped_to_max_gain():
+    # Bear call spread (credit). If per-leg prices produce net > 0 (impossible for a
+    # credit spread), the mark is clamped to 0 — max gain is the premium received.
+    cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1),
+            "play": "bear call spread 520/530", "market_regime": ""}
+    legs = _legs(("-1", "SPY", "2026-09-20", 520, "Call"),
+                 ("+1", "SPY", "2026-09-20", 530, "Call"))
+    # Sold 520C at 2.0, bought 530C at 1.5 → net credit −0.5.
+    entry_row = {**_flow_row("SPY", "Call", "520", "2.0", "1000"),
+                 "DTE": "100", "IV": "20%", "Price~": "510"}
+    sold_key  = ("SPY", "Call", 520.0, "2026-09-20")
+    hedge_key = ("SPY", "Call", 530.0, "2026-09-20")
+    # Day 1: sold leg collapses but hedge stays high → raw net +0.40 (impossible).
+    barchart_series = {
+        sold_key:  [(date(2026, 6, 1), 2.0), (date(2026, 6, 2), 0.10)],
+        hedge_key: [(date(2026, 6, 1), 1.5), (date(2026, 6, 2), 0.50)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bear_call_spread", price_fn=lambda tk, dt: None)
+
+    assert res["entry_option_price"] == pytest.approx(-0.5, abs=1e-9)
+    # Clamped to 0 → P&L = (0 − (−0.5)) / 0.5 = 100% (max gain, not phantom beyond).
+    assert res["mfe_pct"] == pytest.approx(1.0)
+
+
+def test_simulate_ratio_spread_not_clamped():
+    # +1/−2 is NOT a 1:1 vertical: no clamping, so a mark outside [0, spread_width]
+    # is recorded as-is. Here the short leg rips → net goes deeply negative.
+    cand = {"ticker": "AMD", "signal_date": date(2026, 6, 1),
+            "play": "ratio spread", "market_regime": ""}
+    legs = _legs(("+1", "AMD", "2026-07-17", 130, "Call"),
+                 ("-2", "AMD", "2026-07-17", 140, "Call"))
+    entry_row = _flow_row("AMD", "Call", "130", "10.0", "800000")
+    k130 = ("AMD", "Call", 130.0, "2026-07-17")
+    k140 = ("AMD", "Call", 140.0, "2026-07-17")
+    # Entry net: +1×10 − 2×3 = 4. Day 1: +1×8 − 2×9 = −10 (outside [0,10]).
+    barchart_series = {
+        k130: [(date(2026, 6, 1), 10.0), (date(2026, 6, 2), 8.0)],
+        k140: [(date(2026, 6, 1), 3.0),  (date(2026, 6, 2), 9.0)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="explicit_legs", price_fn=lambda tk, dt: None)
+
+    # mae reflects the real (unclamped) net: (−10 − 4) / 4 = −3.5 (−350%).
+    assert res["entry_option_price"] == pytest.approx(4.0)
+    assert res["mae_pct"] == pytest.approx(-3.5)
+
+
 # ── multi-leg simulation (ratio + calendar) ─────────────────────────────────────
 
 def test_simulate_ratio_spread_nets_by_quantity():
@@ -719,3 +863,149 @@ def test_simulate_calendar_path_bounded_by_near_leg():
     n_days = len([t for t in res["daily_price_csv"].split(",")])
     assert n_days <= 14   # ~13 weekdays in the 18-day near-leg window
     assert res["entry_option_price"] != 0
+
+
+# ── same-contract merge ─────────────────────────────────────────────────────────
+
+def test_merge_legs_combines_same_contract():
+    legs = _legs(("+2", "AMD", "2026-07-17", 130, "Call"),
+                 ("-1", "AMD", "2026-07-17", 130, "Call"),
+                 ("+1", "AMD", "2026-07-17", 140, "Call"))
+    merged = bt.merge_legs(legs)
+    # +2 and -1 on 130C net to +1; 140C untouched; first-seen order preserved.
+    assert [(l.qty, l.strike) for l in merged] == [(1, 130.0), (1, 140.0)]
+
+
+def test_merge_legs_drops_net_zero():
+    legs = _legs(("+1", "AMD", "2026-07-17", 130, "Call"),
+                 ("-1", "AMD", "2026-07-17", 130, "Call"))
+    assert bt.merge_legs(legs) == []
+
+
+def test_simulate_merges_same_contract_into_single_leg():
+    # +2 / -1 on the same contract should net to a +1 single leg, not be rejected.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "x",
+            "market_regime": ""}
+    legs = _legs(("+2", "NVDA", "2026-07-17", 250, "Call"),
+                 ("-1", "NVDA", "2026-07-17", 250, "Call"))
+    entry_row = _flow_row("NVDA", "Call", "250", "8.0", "800000")
+    key = ("NVDA", "Call", 250.0, "2026-07-17")
+    barchart_series = {key: [(date(2026, 6, 1), 8.0), (date(2026, 6, 4), 12.0)]}
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="explicit_legs", price_fn=lambda tk, dt: None)
+
+    assert res["legs"] == "NVDA:2026-07-17:250:C +1"
+    assert res["entry_option_price"] == 8.0  # single +1 leg, not +2−1 double-counted
+
+
+# ── arbitrary N-leg real per-leg pricing ────────────────────────────────────────
+
+def test_simulate_explicit_four_leg_prices_per_leg_not_uniform_bs():
+    # An explicit 4-leg iron condor must price each leg from real Barchart history
+    # (real-first), NOT force uniform Black-Scholes the way a *synthesized* IC does.
+    cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1), "play": "ic",
+            "market_regime": ""}
+    legs = _legs(("+1", "SPY", "2026-07-17", 480, "Put"),
+                 ("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("-1", "SPY", "2026-07-17", 510, "Call"),
+                 ("+1", "SPY", "2026-07-17", 520, "Call"))
+    entry_row = {**_flow_row("SPY", "Put", "490", "3.0", "1000"),
+                 "DTE": "46", "IV": "20%", "Price~": "500"}
+    series = {
+        ("SPY", "Put", 480.0, "2026-07-17"):  [(date(2026, 6, 1), 1.0)],
+        ("SPY", "Put", 490.0, "2026-07-17"):  [(date(2026, 6, 1), 3.0)],
+        ("SPY", "Call", 510.0, "2026-07-17"): [(date(2026, 6, 1), 2.0)],
+        ("SPY", "Call", 520.0, "2026-07-17"): [(date(2026, 6, 1), 0.8)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
+                       structure="explicit_legs", anchor_idx=1,
+                       price_fn=lambda tk, dt: None)
+
+    # Real per-leg: the anchor is its flow Trade, the rest are Barchart — never all-bs.
+    assert "bs" not in res["entry_source"]
+    assert "barchart" in res["entry_source"]
+    # Net credit: +1·1.0 −1·3.0 −1·2.0 +1·0.8 = −3.2.
+    assert res["entry_option_price"] == pytest.approx(-3.2, abs=1e-9)
+
+
+def test_simulate_explicit_five_leg_nets_by_quantity():
+    # A 5-leg call ladder — proves netting has no hidden 2/4-leg assumption.
+    cand = {"ticker": "AMD", "signal_date": date(2026, 6, 1), "play": "ladder",
+            "market_regime": ""}
+    legs = _legs(("+1", "AMD", "2026-07-17", 100, "Call"),
+                 ("+1", "AMD", "2026-07-17", 105, "Call"),
+                 ("+1", "AMD", "2026-07-17", 110, "Call"),
+                 ("+1", "AMD", "2026-07-17", 115, "Call"),
+                 ("+1", "AMD", "2026-07-17", 120, "Call"))
+    entry_row = {**_flow_row("AMD", "Call", "100", "5.0", "1000"),
+                 "DTE": "46", "IV": "30%", "Price~": "110"}
+    series = {
+        ("AMD", "Call", 100.0, "2026-07-17"): [(date(2026, 6, 1), 5.0)],
+        ("AMD", "Call", 105.0, "2026-07-17"): [(date(2026, 6, 1), 4.0)],
+        ("AMD", "Call", 110.0, "2026-07-17"): [(date(2026, 6, 1), 3.0)],
+        ("AMD", "Call", 115.0, "2026-07-17"): [(date(2026, 6, 1), 2.0)],
+        ("AMD", "Call", 120.0, "2026-07-17"): [(date(2026, 6, 1), 1.0)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
+                       structure="explicit_legs", price_fn=lambda tk, dt: None)
+
+    assert res["entry_option_price"] == pytest.approx(15.0)  # 5+4+3+2+1
+
+
+def test_simulate_butterfly_impossible_mark_clamped_to_wing_width():
+    # Long call fly +1/−2/+1 (120/130/140): value clamped to [0, 10]. An impossible
+    # daily mark above the wing width must clamp so MFE cannot exceed the defined max.
+    cand = {"ticker": "AMD", "signal_date": date(2026, 6, 1), "play": "fly",
+            "market_regime": ""}
+    legs = _legs(("+1", "AMD", "2026-07-17", 120, "Call"),
+                 ("-2", "AMD", "2026-07-17", 130, "Call"),
+                 ("+1", "AMD", "2026-07-17", 140, "Call"))
+    entry_row = {**_flow_row("AMD", "Call", "120", "12.0", "1000"),
+                 "DTE": "46", "IV": "30%", "Price~": "130"}
+    k120 = ("AMD", "Call", 120.0, "2026-07-17")
+    k130 = ("AMD", "Call", 130.0, "2026-07-17")
+    k140 = ("AMD", "Call", 140.0, "2026-07-17")
+    # Entry net: +1·12 −2·4 +1·1 = 5 (inside [0,10]).
+    # Day 2 raw: +1·20 −2·1 +1·0 = 18 (impossible) → clamp to 10.
+    series = {
+        k120: [(date(2026, 6, 1), 12.0), (date(2026, 6, 4), 20.0)],
+        k130: [(date(2026, 6, 1), 4.0),  (date(2026, 6, 4), 1.0)],
+        k140: [(date(2026, 6, 1), 1.0),  (date(2026, 6, 4), 0.0)],
+    }
+    sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
+                       structure="explicit_legs", price_fn=lambda tk, dt: None)
+
+    assert res["entry_option_price"] == pytest.approx(5.0)
+    # Clamped to 10 → MFE = (10 − 5)/5 = 100%, not the phantom (18 − 5)/5 = 260%.
+    assert res["mfe_pct"] == pytest.approx(1.0)
+
+
+# ── anchor selection for explicit legs ──────────────────────────────────────────
+
+def test_choose_anchor_skips_leg_without_history():
+    # First-long leg (illiquid 600C wing) has no Barchart history; the anchor must
+    # fall back to a leg that does, so the play is not dropped as unpriced.
+    from backtest.core import _choose_anchor
+
+    legs = _legs(("+1", "SPY", "2026-07-17", 600, "Call"),   # no history
+                 ("-1", "SPY", "2026-07-17", 500, "Put"))     # has history
+    signal = date(2026, 6, 1)
+    short_key = ("SPY", "Put", 500.0, "2026-07-17")
+    details = {short_key: {date(2026, 6, 2): {
+        "Price~": "500", "IV": "20%", "_mark": 5.0, "Delta": "-0.3"}}}
+
+    idx, row = _choose_anchor(legs, details, signal)
+    assert idx == 1            # the short put, not the historyless long wing
+    assert row is not None

@@ -36,6 +36,7 @@ from lib.flow_summary.core import (
     score_label,
     summarize_flow,
     summarize_persistence,
+    ticker_metrics,
 )
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     "score_label",
     "summarize_flow",
     "summarize_persistence",
+    "ticker_metrics",
     # Re-exported helpers used by lib.baseline / tests.
     "_classify_sentiment",
     "_finalize_oi_factors",

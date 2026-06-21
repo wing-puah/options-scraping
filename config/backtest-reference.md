@@ -21,7 +21,7 @@ samples whatever holding horizons it wants from that path.
 | **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). Entry is at this day's flow print. |
 | **ticker** | Underlying symbol. |
 | **structure** | Resolved trade structure label: `long_call`, `long_put`, `bull_call_spread`, `bear_put_spread`, `bull_put_spread`, `bear_call_spread`, `short_put`, `short_call`, `iron_condor`, or `explicit_legs` (the play named its legs directly). Kept as a grouping label; the authoritative position is `legs`. |
-| **legs** | The full position as one or more signed legs, one per line, in the form `<TICKER>:<YYYY-MM-DD>:<STRIKE>:<C\|P> <signed_qty>` — e.g. `NVDA:2026-07-17:250:C +1` / `NVDA:2026-07-17:270:C -1`. The signed quantity is **last** so the cell never starts with `+`/`-` (Google Sheets would coerce a leading sign into a formula); parsing also accepts the legacy quantity-first form. `qty` is the per-unit ratio (sign = long/short); a separate `contracts` column holds the risk-sized number of units. Each leg carries **its own expiration**, so calendar / diagonal / ratio spreads are representable. Replaces the old `k_long` / `k_short` / `expiration` / `opt_type` columns. |
+| **legs** | The full position as one or more signed legs, one per line, in the form `<TICKER>:<YYYY-MM-DD>:<STRIKE>:<C\|P> <signed_qty>` — e.g. `NVDA:2026-07-17:250:C +1` / `NVDA:2026-07-17:270:C -1`. The signed quantity is **last** so the cell never starts with `+`/`-` (Google Sheets would coerce a leading sign into a formula); parsing also accepts the legacy quantity-first form. `qty` is the per-unit ratio (sign = long/short); a separate `contracts` column holds the risk-sized number of units. Each leg carries **its own expiration**, so calendar / diagonal / ratio spreads are representable. The position is fully generic in leg count — any structure (single leg, vertical, ratio, butterfly, condor, box, iron condor, …) is just a list of signed legs. To backtest a hand-authored structure, write its legs (one per line) in the play cell; it is recognised as `explicit_legs`, bypasses the freeform classifier, and same-contract legs are merged (e.g. `+2` / `-1` → `+1`). Replaces the old `k_long` / `k_short` / `expiration` / `opt_type` columns. |
 | **entry_leg_detail** | Per-leg raw entry breakdown (sits beside `legs`) so the netted `entry_option_price`, `iv_entry_pct` and `delta` can be validated leg-by-leg. One line per leg, aligned with `legs`: `<TICKER>:<EXP>:<STRIKE>:<C\|P> <±qty>  px=<raw price> iv=<entry IV %> delta=<delta> [<source>]`. `entry_option_price` = `Σ qty·px` and `delta` = `Σ qty·delta`. The anchor leg's `delta` is the real flow value; all other legs' deltas are Black-Scholes model deltas at the entry IV. Each line leads with the contract (never a sign) so the cell stays sheet-safe. |
 | **contracts** | Risk-sized number of units of the `legs` structure (fixed-fractional sizing on `abs(entry_option_price)`). |
 | **dte_entry** | Days to expiration at entry (anchor leg). |
@@ -36,10 +36,29 @@ samples whatever holding horizons it wants from that path.
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
 | **entry_premium_total** | `abs(entry_option_price) × 100 × contracts` — dollar cost/credit of the position. |
-| **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `real` = anchor flow `Trade` price; `barchart` = real Barchart history; `bs` = Black-Scholes. E.g. `real`, `real+barchart`, `real+bs`. Uniform-BS positions (≥ `uniform_bs_min_legs` legs, e.g. iron condors) report `bs` (all legs modelled at one IV for internal consistency). |
+| **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `real` = anchor flow `Trade` price; `barchart` = real Barchart history; `bs` = Black-Scholes. E.g. `real`, `real+barchart`, `real+bs`. Every structure — including explicit multi-leg of any leg count — is priced real-first per leg; only *synthesized* iron condors (wings at non-listed strikes) are priced uniform-BS and report `bs` (all legs modelled at one IV for internal consistency). |
 | **market_regime** | The market-level regime for that date (from the MARKET row), truncated at the first em-dash — e.g. `BULL TREND`. |
 | **regime** | The play's ticker-specific regime label carried from the analysis row (not the market read). |
 | **play** | The play text (truncated to 300 chars). |
+
+## Flow-rollup context (joined)
+
+Per-ticker signal context from that signal date's scored rollup, kept separate from
+the model's `signal` evidence. As of the analysis-pipeline change these are written
+onto the analysis row itself at analysis time (the `oi_confirm_pct` / `cpir` /
+`iv_spread` columns on AnalysisClaude / AnalysisGPT), so the backtest reads them
+straight off the row. For rows written before those columns existed, the backtest
+backfills from `audit/<date>-rollup.csv` by `(signal_date, ticker)`
+(`_attach_rollup_metrics` in [`scripts/backtest/core.py`](../scripts/backtest/core.py));
+blank when neither the row nor an audit file has the value. See
+[`config/rollup-reference.md`](rollup-reference.md) for the full definitions.
+
+<!-- prettier-ignore -->
+| Column | Definition |
+|--------|-----------|
+| **oi_confirm_pct** | `OIConfirmPct` — share of the ticker's flow trades whose next-day OI change confirmed an opening position (ref-03 open-confirmation). Decimal fraction (0.45 = 45%). |
+| **cpir** | `CPIR` — Call-Put Information Ratio `OIFC / (OIFC + OIFP)`, in `[0,1]`. > 0.5 = call-skewed informed opening (bullish); < 0.5 = put-skewed. |
+| **iv_spread** | `IVSpread` — premium-weighted call IV − put IV. Positive → bullish IV skew (a positive predictor of returns); a BEAR play below ≈ −25 is buying overpriced panic-hedge puts. |
 
 ## Realized exit & excursions (path-derived)
 

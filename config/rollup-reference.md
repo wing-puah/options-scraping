@@ -106,7 +106,7 @@ contract feeds the factors.
 
 | Column | Computation | Notes |
 |--------|------------|-------|
-| `OIConf%` | `count(oi_change > 0) / count(enriched contracts) × 100` | % of this ticker's contracts where OI *increased* on trade day — the open-confirmation rate. 100% = all flow confirmed as opening; 0% = all closing/rolling. |
+| `OIConf%` | `count(oi_change > 0) / count(enriched contracts)` | Share of this ticker's contracts where OI *increased* on trade day — the open-confirmation rate. Stored as a **decimal fraction** (0.45 = 45%; 1.0 = all flow confirmed as opening, 0.0 = all closing/rolling) so a Sheets cell can be percentage-formatted directly. Rendered ×100 in the prepared markdown. |
 | `OIFC` / `OIFP` | `Σ max(ΔOI,0) × price × P(OTM)` over call / put contracts | Open Interest Factor for calls / puts (ref 03). The monetary-size × OTM-probability-weighted open-interest factor that CPIR is built from. |
 | `CPIR` | `OIFC / (OIFC + OIFP)` | Call-Put Information Ratio (ref 03). > 0.5 = call-skewed informed opening = bullish; < 0.5 = put-skewed. In `[0, 1]` by construction. `—` when no opening flow on either side. |
 | `CPIRA` | `OIFCA / (OIFCA + OIFPA)`, factors × IV | IV-augmented CPIR (ref 03 OIFCA/OIFPA variant) — each contribution additionally weighted by the contract's implied volatility. |

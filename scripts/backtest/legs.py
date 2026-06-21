@@ -77,6 +77,32 @@ def parse_legs(text: str) -> list[Leg] | None:
     return legs or None
 
 
+def merge_legs(legs: list[Leg]) -> list[Leg]:
+    """Combine legs that name the same contract, summing their signed quantities.
+
+    Legs sharing (ticker, expiration, strike, opt_type) are folded into one with the
+    summed quantity; legs that net to zero are dropped. First-seen order is preserved.
+    This lets a structure repeat a contract (e.g. +2 / -1 → +1) instead of being
+    rejected as degenerate.
+    """
+    order: list[tuple] = []
+    totals: dict[tuple, int] = {}
+    by_key: dict[tuple, Leg] = {}
+    for leg in legs:
+        key = (leg.ticker, leg.expiration, round(leg.strike, 4), leg.opt_type)
+        if key not in totals:
+            order.append(key)
+            by_key[key] = leg
+        totals[key] = totals.get(key, 0) + leg.qty
+    merged = []
+    for key in order:
+        q = totals[key]
+        if q == 0:
+            continue
+        merged.append(by_key[key]._replace(qty=q))
+    return merged
+
+
 def format_legs(legs: list[Leg]) -> str:
     """Serialise legs to the multi-line column string (quantity last, sheet-safe)."""
     out = []

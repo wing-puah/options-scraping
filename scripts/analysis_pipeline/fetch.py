@@ -31,6 +31,7 @@ from lib.flow_summary import (
     persistence_callout_md,
     rows_to_markdown_raw,
     summarize_flow,
+    ticker_metrics,
 )
 
 log = logging.getLogger("analysis_pipeline.fetch")
@@ -235,6 +236,22 @@ def fetch_scored_csv(date_str: str | None = None) -> str:
         unusual = _load_rows(client, _FLOW_UNUSUAL_PAIR[flow_key], date_str)
         sections.append((label, build_scored_flow_rollup(flow_rows, unusual)))
     return flow_rollup_csv(sections)
+
+
+def fetch_ticker_metrics(date_str: str | None = None) -> dict[str, dict]:
+    """Drive flow (stocks + ETFs) for a date → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+
+    The single recompute call the rollup backfill needs: Drive I/O lives here, the
+    pure computation in :func:`lib.flow_summary.ticker_metrics`. The three metrics
+    don't depend on the unusual-activity rows, so only the flow sections are loaded.
+    ETF symbols are merged after stocks (the two symbol sets are disjoint)."""
+    client = get_drive_client()
+    out: dict[str, dict] = {}
+    for flow_key in ("stocks-flow", "etfs-flow"):
+        rows = _load_rows(client, flow_key, date_str)
+        if rows:
+            out.update(ticker_metrics(rows))
+    return out
 
 
 def _persistence_sections(client, date_str: str | None, days: int) -> list[str]:

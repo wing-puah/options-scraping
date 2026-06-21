@@ -84,7 +84,22 @@ ROW_COLUMNS = [
     "date", "ticker", "regime", "signal", "play", "trigger",
     "invalidation", "data_window_start", "data_window_end",
     "created_datetime",
+    # Per-ticker flow-rollup context joined from that date's audit/<date>-rollup.csv
+    # at row-expansion time (NOT produced by the LLM — deterministic, kept separate
+    # from the model's `signal` evidence). Grouped together at the END so existing
+    # tab rows stay column-aligned. See ROLLUP_METRIC_COLS / analysis_to_rows().
+    "oi_confirm_pct", "cpir", "iv_spread",
 ]
+
+# Analysis-row key -> scored-rollup CSV column (lib/flow_summary FLOW_CSV_COLUMNS).
+# These are joined onto each play row by ticker so the entry-day flow evidence is
+# stored alongside the play (and read back by the backtest) rather than living only
+# in the transient audit file. See config/rollup-reference.md for definitions.
+ROLLUP_METRIC_COLS = {
+    "oi_confirm_pct": "OIConfirmPct",
+    "cpir": "CPIR",
+    "iv_spread": "IVSpread",
+}
 
 
 # ──────────────────────── Model output contract ────────────────────

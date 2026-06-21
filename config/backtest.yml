@@ -124,11 +124,11 @@ simulation:
   # synthesised strike that doesn't trade).
   spread_width_pct: 0.02
 
-  # Positions with at least this many legs are priced ENTIRELY with Black-Scholes
-  # at a single IV, instead of mixing real (Barchart) prices on some legs with BS
-  # on others. Mixing across widely separated strikes (e.g. an iron condor's wings)
-  # produces a spurious net when per-leg IVs differ. Default 4 = iron condors go
-  # uniform-BS while ≤2-leg verticals still net real per-leg prices.
+  # DEPRECATED / no longer consulted. Uniform Black-Scholes pricing (all legs at one
+  # IV) is now applied ONLY to *synthesized* iron condors, whose wings sit at
+  # non-listed strikes with no real history. Every other structure — including
+  # explicit user-specified multi-leg positions of any leg count — is priced
+  # real-first per leg (Barchart → reappearance → BS). Kept for back-compat; unused.
   uniform_bs_min_legs: 4
 
   # Risk-free rate for the Black-Scholes legs / fallback.

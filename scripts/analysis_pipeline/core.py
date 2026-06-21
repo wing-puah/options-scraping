@@ -24,6 +24,7 @@ from lib.drive_client import get_drive_client
 from lib import sheets_client
 from lib.logger import setup_logging
 import argparse
+import csv
 import json
 import logging
 import subprocess
@@ -188,7 +189,28 @@ def _multiline_signal(value) -> str:
     return "\n".join(p for p in parts if p)
 
 
-def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str) -> list[dict]:
+def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
+    """Read a date's scored-rollup CSV → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+
+    The rollup is written by the fetch step at ``audit/<date>-rollup.csv`` before
+    this runs, so the metrics are available to join onto the play rows. Returns
+    ``{}`` when the file is missing (e.g. a fetch that wrote no audit). One row per
+    ticker per section (stocks/etfs); keyed by upper-cased ``Symbol``."""
+    if not audit_path.exists():
+        return {}
+    out: dict[str, dict] = {}
+    with audit_path.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            sym = (row.get("Symbol") or "").strip().upper()
+            if not sym:
+                continue
+            out[sym] = {k: (row.get(col) or "").strip()
+                        for k, col in config.ROLLUP_METRIC_COLS.items()}
+    return out
+
+
+def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str,
+                     rollup_metrics: dict[str, dict] | None = None) -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
 
     INVARIANT — do not regress (fixed June 2026):
@@ -211,11 +233,16 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         market_signal = f"{market_signal}\n\nSector focus: {sector}" if market_signal else f"Sector focus: {sector}"
 
     created_datetime = datetime.now().isoformat(timespec="seconds")
+    rollup_metrics = rollup_metrics or {}
 
-    def _row(ticker, regime, signal, play, trigger, invalidation):
+    def _row(ticker, regime, signal, play, trigger, invalidation, metrics=None):
+        m = metrics or {}
         return dict(zip(ROW_COLUMNS, [
             date_str, ticker, regime, signal, play, trigger, invalidation,
             window_start, window_end, created_datetime,
+            # Deterministic per-ticker rollup context (blank on the MARKET row —
+            # these are per-name flow metrics, not a market-level read).
+            m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -253,7 +280,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         play_regime = _join(p.get("regime")).strip()
         play_signal = _multiline_signal(p.get("signal"))
         rows.append(_row(ticker, play_regime, play_signal, play_text, trigger, str(
-            p.get("invalidation", "")).strip()))
+            p.get("invalidation", "")).strip(), metrics=rollup_metrics.get(ticker, {})))
     return rows
 
 
@@ -317,7 +344,8 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
     analysis = run_engine(engine, prompt, model)
     _warn_if_below_targets(analysis)
 
-    rows = analysis_to_rows(analysis, date_str, window_start, window_end)
+    rows = analysis_to_rows(analysis, date_str, window_start, window_end,
+                            rollup_metrics=_load_rollup_metrics(audit_path))
     if write:
         sheets_client.append_rows(tab, rows)
         log.info("Wrote %d row(s) for %s to %s", len(rows), date_str, tab)
@@ -445,7 +473,8 @@ def main(argv: list[str] | None = None) -> None:
             continue
         if not focus_tickers:  # coverage minimums don't apply to focused runs
             _warn_if_below_targets(analysis)
-        rows = analysis_to_rows(analysis, d, window_start, window_end)
+        rows = analysis_to_rows(analysis, d, window_start, window_end,
+                                rollup_metrics=_load_rollup_metrics(audit_path))
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)
             log.info("Wrote %d row(s) for %s to %s", len(rows), d, tab)

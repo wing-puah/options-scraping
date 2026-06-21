@@ -76,8 +76,9 @@ def _finalize_oi_factors(contracts: dict) -> dict:
     and ``P(OTM) ≈ 1−|delta|`` is the risk-neutral expiry-OTM proxy. OIFC/OIFP
     sum these over calls / puts and CPIR = OIFC/(OIFC+OIFP). The IV-augmented
     OIFCA/OIFPA (→ CPIRA) multiply each term by the contract's IV (as a
-    fraction). OIConf% counts every enriched contract (open vs close), not just
-    the opening ones. Delta/IV prefer the EOD settlement greeks, falling back to
+    fraction). OIConf% (``oi_confirm_pct``) counts every enriched contract (open
+    vs close), not just the opening ones, and is returned as a decimal fraction
+    (0.45 = 45%). Delta/IV prefer the EOD settlement greeks, falling back to
     the size-weighted intraday snapshot.
 
     Returns the per-ticker scalars (None when no contract carried enriched OI
@@ -133,7 +134,10 @@ def _finalize_oi_factors(contracts: dict) -> dict:
 
     has_oi = oi_total_n > 0
     return {
-        "oi_confirm_pct": round(oi_confirm_n / oi_total_n * 100) if has_oi else None,
+        # Stored as a DECIMAL FRACTION (0.45 = 45%), not 0–100 — every percentage
+        # field in this codebase is decimal so a Google-Sheets cell can be set to
+        # percentage format directly. Markdown renders it ×100 for display.
+        "oi_confirm_pct": round(oi_confirm_n / oi_total_n, 4) if has_oi else None,
         "oifc": oifc if has_oi else None,
         "oifp": oifp if has_oi else None,
         "oifca": oifca if has_oi else None,
@@ -599,7 +603,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             f"{r['iv_w']:.0f}",
             _fmt_iv_pts(r.get("iv_spread")),
             _fmt_iv_pts(r.get("iv_skew")),
-            f"{r['oi_confirm_pct']}%" if r.get("oi_confirm_pct") is not None else "—",
+            f"{r['oi_confirm_pct'] * 100:.0f}%" if r.get("oi_confirm_pct") is not None else "—",
             f"{r['cpir']:.2f}"        if r.get("cpir")            is not None else "—",
             f"{r['cpira']:.2f}"       if r.get("cpira")           is not None else "—",
             big_str,
@@ -660,7 +664,7 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
         cpira = r.get("cpira")
         meta = []
         if conf is not None:
-            meta.append(f"Conf: {conf}%")
+            meta.append(f"Conf: {conf * 100:.0f}%")
         if cpir is not None:
             meta.append(f"CPIR: {cpir:.2f}")
         if cpira is not None:
@@ -776,6 +780,35 @@ FLOW_CSV_COLUMNS = [
 ]
 
 
+def _rollup_metric_cells(r: dict) -> dict:
+    """The three deterministic rollup-context cells, formatted as in FLOW_CSV_COLUMNS.
+
+    Single source of truth shared by :func:`flow_rollup_csv` (the audit CSV) and
+    :func:`ticker_metrics` (the analysis-row / backfill join) so both emit
+    byte-identical strings: ``oi_confirm_pct`` / ``cpir`` straight through (blank
+    when None), ``iv_spread`` rounded to 1 decimal.
+    """
+    return {
+        "oi_confirm_pct": r["oi_confirm_pct"] if r.get("oi_confirm_pct") is not None else "",
+        "cpir": r["cpir"] if r.get("cpir") is not None else "",
+        "iv_spread": round(r["iv_spread"], 1) if r.get("iv_spread") is not None else "",
+    }
+
+
+def ticker_metrics(flow_rows: list[dict]) -> dict[str, dict]:
+    """``{UPPER_SYMBOL: {oi_confirm_pct, cpir, iv_spread}}`` for a flow section.
+
+    The three deterministic per-ticker rollup-context metrics, recomputed straight
+    from parsed flow rows. Reuses :func:`_flow_ticker_rows` (the pure aggregation);
+    these values do NOT depend on conviction scoring or the unusual-activity rows,
+    so no scoring/CSV serialization is run. Formatting mirrors ``FLOW_CSV_COLUMNS``
+    via :func:`_rollup_metric_cells`, so the values equal what the audit CSV and the
+    analysis-row join carry.
+    """
+    return {r["symbol"].upper(): _rollup_metric_cells(r)
+            for r in _flow_ticker_rows(flow_rows)}
+
+
 def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
     """Render one or more scored flow rollups as a single CSV string.
 
@@ -789,6 +822,7 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
     for section_label, rollup in sections:
         for r in rollup:
             parts = r.get("score_parts", {})
+            cells = _rollup_metric_cells(r)  # IVSpread / OIConfirmPct / CPIR
             writer.writerow({
                 "Section": section_label,
                 "Symbol": r["symbol"],
@@ -824,13 +858,13 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "ToOpen": r["to_open"],
                 "wDTE": round(r["dte_w"]),
                 "wIV": round(r["iv_w"]),
-                "IVSpread": round(r["iv_spread"], 1) if r.get("iv_spread") is not None else "",
+                "IVSpread": cells["iv_spread"],
                 "IVSkew": round(r["iv_skew"], 1) if r.get("iv_skew") is not None else "",
                 "BiggestTrade": _biggest_trade_str(r["biggest"]),
-                "OIConfirmPct": r.get("oi_confirm_pct", ""),
+                "OIConfirmPct": cells["oi_confirm_pct"],
                 "OIFC": round(r["oifc"], 2) if r.get("oifc") is not None else "",
                 "OIFP": round(r["oifp"], 2) if r.get("oifp") is not None else "",
-                "CPIR": r.get("cpir", ""),
+                "CPIR": cells["cpir"],
                 "CPIRA": r.get("cpira", ""),
             })
     return buf.getvalue()

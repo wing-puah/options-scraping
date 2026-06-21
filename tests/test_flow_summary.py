@@ -5,12 +5,14 @@ import io
 import pytest
 
 from lib.flow_summary import (
+    FLOW_CSV_COLUMNS,
     _classify_sentiment,
     _flow_ticker_rows,
     _voloi_by_symbol,
     build_scored_flow_rollup,
     cross_section_tickers,
     filter_by_ticker,
+    flow_rollup_csv,
     hedge_pressure,
     hedge_pressure_md,
     oi_breakdown_csv,
@@ -18,6 +20,7 @@ from lib.flow_summary import (
     score_label,
     summarize_flow,
     summarize_persistence,
+    ticker_metrics,
 )
 
 
@@ -736,7 +739,8 @@ def test_oi_change_deduped_per_contract():
 
 def test_oi_confirm_pct_counts_contracts_not_rows():
     # Two contracts: one opening (ΔOI>0), one closing (ΔOI<0). Three rows on the
-    # opening contract must not inflate the confirm rate → 1/2 = 50%.
+    # opening contract must not inflate the confirm rate → 1/2 = 50% (stored as
+    # the decimal fraction 0.5, not 50).
     rows = [
         _oi_row("AVGO", "Call", "ask", "100000", spot="100", strike="110",
                 dte="10", oi_change="500", exp="2026-07-17"),
@@ -746,7 +750,7 @@ def test_oi_confirm_pct_counts_contracts_not_rows():
                 dte="10", oi_change="-300", exp="2026-07-17"),
     ]
     row = {r["symbol"]: r for r in _flow_ticker_rows(rows)}["AVGO"]
-    assert row["oi_confirm_pct"] == 50
+    assert row["oi_confirm_pct"] == 0.5
 
 
 def test_oi_breakdown_csv_empty_without_enrichment():
@@ -777,3 +781,36 @@ def test_oi_breakdown_csv_reconciles_to_oifc_oifp():
     cpir = float(parsed[0]["CPIR"])
     assert cpir == pytest.approx(call_total / (call_total + put_total), abs=0.01)
     assert all(r["Section"] == "stocks" and r["Symbol"] == "AVGO" for r in parsed)
+
+
+# ---------------------------------------------------------------------------
+# ticker_metrics() — the recompute seam used by the rollup backfill. Must agree
+# cell-for-cell with the OIConfirmPct / CPIR / IVSpread columns of the audit CSV.
+# ---------------------------------------------------------------------------
+
+def test_ticker_metrics_matches_flow_rollup_csv():
+    rows = [
+        _oi_row("AVGO", "Call", "ask", "250000", spot="100", strike="110",
+                dte="10", oi_change="500", delta="0.5", iv="60%"),
+        _oi_row("AVGO", "Put",  "bid", "250000", spot="100", strike="90",
+                dte="100", oi_change="400", delta="-0.5", iv="40%"),
+        _oi_row("NVDA", "Call", "ask", "300000", spot="120", strike="130",
+                dte="20", oi_change="-200", delta="0.4", iv="55%"),
+    ]
+    metrics = ticker_metrics(rows)
+    # Same source rows through the audit-CSV path → identical formatted strings.
+    csv_text = flow_rollup_csv([("stocks", build_scored_flow_rollup(rows))])
+    parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
+
+    assert set(metrics) == set(parsed)
+    col = {"oi_confirm_pct": "OIConfirmPct", "cpir": "CPIR", "iv_spread": "IVSpread"}
+    for sym, m in metrics.items():
+        for key, csv_col in col.items():
+            assert str(m[key]) == parsed[sym][csv_col], (sym, key)
+
+
+def test_ticker_metrics_blank_when_no_enrichment():
+    # No oi_change column → OI factors None → blank cells (not "None"/0).
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
+    m = ticker_metrics(rows)["AVGO"]
+    assert m["oi_confirm_pct"] == "" and m["cpir"] == ""

@@ -119,7 +119,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               · fetch.py   — Drive → markdown: scored rollups, top-N raw trades, cross-section, hedge pressure, baseline context, persistence
                               · core.py    — implementation (fetch/analyze/write, engine runners, row expansion, CLI)
                               · __main__.py — entry point
-  backtest.py               — analysis-driven: reads analysis plays → models each as a list of signed legs (`scripts/backtest/legs.py`: `<±qty> TKR:exp:strike:C|P` per line, serialized to the `legs` column; existing structures map onto legs and an explicit leg-string in the play is parsed directly, enabling calendar/diagonal/ratio) → per-leg pricing (Barchart per-contract history → flow reappearance → Black-Scholes; uniform-BS for ≥`uniform_bs_min_legs` legs like iron condors) netted into a signed position value → unified P&L `(V−entry_net)/abs(entry_net)` over the path to min(nearest-leg DTE, cap) → realized exit + MFE/MAE; per-day series stored in `daily_price_csv` (see config/backtest-reference.md)
+  backtest.py               — analysis-driven: reads analysis plays → models each as a list of signed legs (`scripts/backtest/legs.py`: `TKR:exp:strike:C|P <±qty>` per line — qty last, sheet-safe — serialized to the `legs` column; a play's leg-string is parsed directly and is fully generic in leg count, so single/vertical/ratio/butterfly/condor/box/iron-condor/calendar/diagonal all map onto legs; same-contract legs are merged) → per-leg pricing (Barchart per-contract history → flow reappearance → Black-Scholes), real-first for every structure at any leg count — uniform-BS applies ONLY to *synthesized* iron condors (wings at non-listed strikes) — netted into a signed position value → unified P&L `(V−entry_net)/abs(entry_net)` over the path to min(nearest-leg DTE, cap); daily marks clamped to the arbitrage-free range for any single-expiration defined-risk structure (`_defined_risk_bounds`, generalizing the old 1:1-vertical clamp) → realized exit + MFE/MAE; per-day series stored in `daily_price_csv` (see config/backtest-reference.md)
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
@@ -142,6 +142,7 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 |-----|-----------|
 | AnalysisClaude | `/options analyze` via Claude Code (appends one row per ticker/play per run) |
 | AnalysisGPT | `/options analyze` via GPT Codex (appends one row per ticker/play per run) |
+| _(both above)_ | each play row also carries deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`), joined from that date's `audit/<date>-rollup.csv` at row-expansion time (NOT model-produced) — appended at the end of `ROW_COLUMNS`, kept separate from the model's `signal`. The backtest reads these straight off the row (audit CSV is a fallback for older rows). |
 | AnalysisTickerSpecific | `analysis_pipeline --tickers …` (ticker-focused runs; same row schema, kept separate from the daily full-market tabs) |
 | BacktestResults | `backtest.py` (optional) |
 | BaselineDaily | `build_baseline.py` (one market-aggregate row per trading date; regime baseline read back by `analysis_pipeline/fetch.py`) |

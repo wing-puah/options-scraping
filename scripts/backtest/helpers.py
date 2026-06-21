@@ -69,6 +69,47 @@ def _contract_key(symbol: str, opt_type: str, strike: float, expiration: str) ->
     return (symbol.upper().strip(), opt_type.strip().title(), round(strike, 4), str(expiration).strip())
 
 
+def _defined_risk_bounds(legs: list) -> tuple[float, float] | None:
+    """Arbitrage-free value clamp for a single-expiration defined-risk structure.
+
+    Independent per-leg pricing from different scrape timestamps can produce a net
+    position value outside the structure's possible range — e.g. a debit vertical
+    marked below zero, or a butterfly worth more than its wing width. Returns
+    (v_min, v_max) to clamp daily marks, or None when the position has no finite
+    bound (ratios, naked extra legs) or its payoff is not a single-expiration
+    intrinsic function (calendars / diagonals).
+
+    The structure is bounded iff the net call quantity is zero (otherwise the
+    value runs to ±∞ as S→∞); the put side is always finite at S→0. When bounded,
+    the position value over its whole life stays within the min/max of its
+    expiration payoff P(S) = Σ qty·intrinsic(S, K, type), a piecewise-linear
+    function whose extrema sit at the strikes (and S=0). Generalises the old
+    1:1-vertical [0, width] / [-width, 0] clamp to butterflies, condors, boxes,
+    and explicit iron condors.
+    """
+    if len(legs) < 2:
+        return None
+    if len({leg.expiration for leg in legs}) != 1:
+        return None  # calendar / diagonal: payoff not a single-expiration function
+    if sum(leg.qty for leg in legs if leg.opt_type == "Call") != 0:
+        return None  # unbounded as S→∞ (ratio, extra naked call)
+
+    def payoff(S: float) -> float:
+        total = 0.0
+        for leg in legs:
+            intrinsic = max(0.0, S - leg.strike) if leg.opt_type == "Call" \
+                else max(0.0, leg.strike - S)
+            total += leg.qty * intrinsic
+        return total
+
+    breakpoints = [0.0] + [leg.strike for leg in legs]
+    values = [payoff(S) for S in breakpoints]
+    v_min, v_max = min(values), max(values)
+    if v_min == v_max:
+        return None  # degenerate (e.g. box collapses to a constant — no clamp needed)
+    return (v_min, v_max)
+
+
 def _short_strike(structure: str, K_long: float, play_strikes: list, spread_pct: float):
     """
     The contra-leg strike for a spread. Returns None for non-spread / iron condor.
