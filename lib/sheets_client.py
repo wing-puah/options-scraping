@@ -14,7 +14,7 @@ from google.oauth2.credentials import Credentials
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 
@@ -105,16 +105,34 @@ def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
 
 
-def write_analysis(tab_name: str, rows: list[dict]) -> None:
+def _col_letter(n: int) -> str:
+    """Convert 1-based column number to A1-notation letter (e.g. 8 → 'H')."""
+    result = ""
+    while n:
+        n, rem = divmod(n - 1, 26)
+        result = chr(65 + rem) + result
+    return result
+
+
+def write_analysis(tab_name: str, rows: list[dict], preserve_extra_cols: bool = False) -> None:
+    """Write rows to a sheet tab, clearing it first.
+
+    preserve_extra_cols=True clears only the managed columns (A:<last key>),
+    leaving any columns to the right (e.g. user-added formulas) untouched.
+    """
     if not rows:
         return
     log.info("Writing %d row(s) to tab '%s' (clearing first)", len(rows), tab_name)
     ss = _get_spreadsheet()
     ws = _ensure_tab(ss, tab_name)
     keys = list(rows[0].keys())
-    ws.clear()
-    ws.append_row(keys)
-    ws.append_rows([[r.get(k, "") for k in keys] for r in rows], value_input_option="USER_ENTERED")
+    data = [keys] + [[r.get(k, "") for k in keys] for r in rows]
+    if preserve_extra_cols:
+        end_col = _col_letter(len(keys))
+        ws.batch_clear([f"A:{end_col}"])
+    else:
+        ws.clear()
+    ws.update("A1", data, value_input_option="USER_ENTERED")
     log.info("Write complete for tab '%s'", tab_name)
 
 

@@ -92,17 +92,28 @@ _DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_sess
 
 # ─── Drive helpers ──────────────────────────────────────────────────────────────
 
-def _compiled_id(client, prefix: str, date_str: str) -> str | None:
-    """Drive file ID of the compiled file for prefix/date, or None if absent.
+def _source_file(client, prefix: str, date_str: str) -> tuple[str, str] | tuple[None, None]:
+    """Return (file_id, file_name) for the enrichment source for this prefix/date.
 
-    Looks DIRECTLY inside that date's folder rather than running a global, unpaginated
-    `name contains` search across every folder (which truncates at the first results
-    page and silently drops older compiled files).
+    Prefers a compiled file. Falls back to a single raw snapshot when no compiled
+    file exists and the date folder holds exactly one timestamped snapshot for this
+    prefix — i.e. only one scrape has run so far and compile_flow hasn't been called
+    yet. Returns (None, None) when nothing suitable is found.
     """
     folder_id = client.find_date_folder(date_str)
     if folder_id is None:
-        return None
-    return client.file_exists(compiled_name(prefix, date_str), folder_id)
+        return None, None
+    name = compiled_name(prefix, date_str)
+    file_id = client.file_exists(name, folder_id)
+    if file_id:
+        return file_id, name
+    raws = client.list_files_for_date(prefix, date_str)
+    if len(raws) == 1:
+        f = raws[0]
+        log.info("%s %s: no compiled file — using single raw snapshot '%s'",
+                 prefix, date_str, f["name"])
+        return f["id"], f["name"]
+    return None, None
 
 
 def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
@@ -120,10 +131,22 @@ def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
 
 
 def _enrichable_dates(client) -> list[str]:
-    """All compiled dates. D-1 is always present in the price-history series for any
-    non-first trading day, so every compiled date is immediately enrichable."""
+    """All dates with a compiled flow file OR exactly one raw snapshot per prefix.
+
+    Compiled dates are checked first (one file_exists call per prefix per date);
+    for dates with no compiled file, falls back to checking for single-snapshot days
+    so a date that has been scraped only once can be enriched without waiting for
+    compile_flow to run.
+    """
     folders = client.list_date_folders()
-    return _compiled_dates(client, folders)
+    out: list[str] = []
+    for d in sorted(folders):
+        folder_id = folders[d]
+        if any(client.file_exists(compiled_name(p, d), folder_id) for p in FLOW_PREFIXES):
+            out.append(d)
+        elif all(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES):
+            out.append(d)
+    return out
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -252,13 +275,12 @@ def _done_keys(rows: list[dict]) -> set[tuple]:
 
 # ─── Barchart history fetch + incremental fill ───────────────────────────────────
 
-def _upload_rows(client, prefix: str, date_str: str, rows: list[dict]) -> None:
-    """Write rows to the compiled file in Drive (in-place overwrite).
+def _upload_rows(client, date_str: str, rows: list[dict], name: str) -> None:
+    """Write rows back to the source file in Drive (in-place overwrite).
 
     Column order is stable: originals first (dict insertion order), then ALL_COLUMNS
     appended by _ensure_columns, so checkpoints and the final write match.
     """
-    name = compiled_name(prefix, date_str)
     folder_id = client.get_or_create_date_folder(date_str)
     tmp = Path(f"/tmp/{name}")
     pd.DataFrame(rows).to_csv(tmp, index=False)
@@ -284,13 +306,13 @@ async def _fetch_details(session, contract: dict, timeout_ms: int) -> dict[date,
 
 async def _scrape_and_fill(
     client, prefix: str, date_str: str, rows: list[dict], pending: list[dict],
-    trade_date: date, run_date: str, *, headless: bool,
+    trade_date: date, run_date: str, *, headless: bool, file_name: str,
     checkpoint_every: int = CHECKPOINT_EVERY, timeout_ms: int = 15000,
     sleep_s: float = 0.4, session=None,
 ) -> dict:
     """Scrape each pending contract one at a time, fill its rows, and persist.
 
-    The compiled file is re-uploaded every `checkpoint_every` contracts and once
+    The source file is re-uploaded every `checkpoint_every` contracts and once
     more in a finally block (so an interrupt/error still saves scraped work). Every
     attempted contract gets MARKER_COLUMN set so resume skips it next time. Returns
     {"with_next", "processed"}. A `session` may be injected for tests; otherwise a
@@ -316,7 +338,7 @@ async def _scrape_and_fill(
             stats["processed"] += 1
             log.info("[%d/%d] %s %s: %s", i, len(pending), prefix, date_str, c["key"])
             if stats["processed"] % checkpoint_every == 0:
-                _upload_rows(client, prefix, date_str, rows)
+                _upload_rows(client, date_str, rows, file_name)
                 log.info("%s %s checkpoint: %d/%d contracts persisted to Drive",
                          prefix, date_str, stats["processed"], len(pending))
             if sleep_s:
@@ -338,7 +360,7 @@ async def _scrape_and_fill(
     finally:
         # Persist whatever we scraped — including on KeyboardInterrupt / error.
         if stats["processed"]:
-            _upload_rows(client, prefix, date_str, rows)
+            _upload_rows(client, date_str, rows, file_name)
             log.info("%s %s flush: %d contract(s) persisted to Drive",
                      prefix, date_str, stats["processed"])
 
@@ -353,14 +375,14 @@ def enrich_prefix(
 ) -> dict:
     """Enrich one flow type for one date. Returns a stats dict with a `status`."""
     base = {"prefix": prefix, "date": date_str}
-    file_id = _compiled_id(client, prefix, date_str)
+    file_id, file_name = _source_file(client, prefix, date_str)
     if not file_id:
-        log.info("%s %s: no compiled file — skipping", prefix, date_str)
+        log.info("%s %s: no compiled file and no single raw snapshot — skipping", prefix, date_str)
         return {**base, "status": "no-compiled"}
 
-    rows = parse_csv(client.download(file_id, name=compiled_name(prefix, date_str)))
+    rows = parse_csv(client.download(file_id, name=file_name))
     if not rows:
-        log.warning("%s %s: compiled file is empty — skipping", prefix, date_str)
+        log.warning("%s %s: source file is empty — skipping", prefix, date_str)
         return {**base, "status": "empty"}
 
     _ensure_columns(rows)
@@ -390,7 +412,7 @@ def enrich_prefix(
     run_date = date.today().isoformat()
     stats = asyncio.run(_scrape_and_fill(
         client, prefix, date_str, rows, pending, date.fromisoformat(date_str),
-        run_date, headless=headless))
+        run_date, headless=headless, file_name=file_name))
 
     log.info("%s %s: %d row(s), %d contract(s), %d pending, %d processed, %d with next-day OI%s",
              prefix, date_str, len(rows), len(contracts), len(pending),

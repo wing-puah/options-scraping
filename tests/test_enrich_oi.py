@@ -241,7 +241,8 @@ def test_scrape_and_fill_fills_marks_and_checkpoints():
 
     stats = asyncio.run(_scrape_and_fill(
         client, "etfs-flow", "2026-06-09", rows, pending, D, "2026-06-17",
-        headless=True, checkpoint_every=2, sleep_s=0, session=session))
+        headless=True, file_name="etfs-flow-20260609-compiled.csv",
+        checkpoint_every=2, sleep_s=0, session=session))
 
     assert stats["processed"] == 3
     assert stats["with_next"] == 2                      # GSK + AAPL have a prior day
@@ -274,7 +275,8 @@ def test_scrape_and_fill_flushes_despite_scrape_failure():
                                                  ("2026-06-10", "650", "5")])})
     stats = asyncio.run(_scrape_and_fill(
         client, "etfs-flow", "2026-06-09", rows, pending, D, "2026-06-17",
-        headless=True, checkpoint_every=99, sleep_s=0, session=session))
+        headless=True, file_name="etfs-flow-20260609-compiled.csv",
+        checkpoint_every=99, sleep_s=0, session=session))
     assert stats["processed"] == 2
     assert client.upload.call_count == 1  # finally flush only (checkpoint_every not hit)
     assert all(r[MARKER_COLUMN] == "2026-06-17" for r in rows)
@@ -298,12 +300,33 @@ def _drive_client(csv_text, compiled_present=True):
     return client
 
 
-def test_enrich_prefix_skips_when_no_compiled():
+def test_enrich_prefix_skips_when_no_compiled_and_no_single_raw():
     client = _drive_client("", compiled_present=False)
+    client.list_files_for_date.return_value = []  # no raw snapshots either
     res = enrich_prefix(client, "etfs-flow", "2026-06-09",
                         headless=True, dry_run=False, force=False)
     assert res["status"] == "no-compiled"
     client.upload.assert_not_called()
+
+
+def test_enrich_prefix_uses_single_raw_when_no_compiled(monkeypatch):
+    client = _drive_client(_FLOW_CSV, compiled_present=False)
+    client.list_files_for_date.return_value = [
+        {"id": "rawid", "name": "etfs-flow-20260609-0930.csv"}
+    ]
+    seen = {}
+
+    async def fake_scrape(cl, prefix, date_str, rows, pending, trade_date, run_date, **kwargs):
+        seen["file_name"] = kwargs["file_name"]
+        return {"with_next": 0, "processed": len(pending)}
+
+    monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)
+
+    res = enrich_prefix(client, "etfs-flow", "2026-06-09",
+                        headless=True, dry_run=False, force=False)
+    assert res["status"] == "enriched"
+    assert seen["file_name"] == "etfs-flow-20260609-0930.csv"
+    client.download.assert_called_once_with("rawid", name="etfs-flow-20260609-0930.csv")
 
 
 def test_enrich_prefix_uploads_augmented_csv(monkeypatch):
@@ -315,7 +338,7 @@ def test_enrich_prefix_uploads_augmented_csv(monkeypatch):
             row.update({**_compute_enrichment(
                 {date(2026, 6, 8): _hist_row("500"), trade_date: _hist_row("650")},
                 trade_date), enrich_oi.MARKER_COLUMN: run_date})
-        enrich_oi._upload_rows(cl, prefix, date_str, rows)
+        enrich_oi._upload_rows(cl, date_str, rows, kwargs["file_name"])
         return {"with_next": 1, "processed": len(pending)}
 
     monkeypatch.setattr(enrich_oi, "_scrape_and_fill", fake_scrape)

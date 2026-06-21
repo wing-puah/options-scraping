@@ -29,8 +29,8 @@ from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib import sheets_client
 from lib.logger import setup_logging
-from compile_flow import FLOW_PREFIXES, compiled_name
-from enrich_oi import _compiled_id, _distinct_contracts, _done_keys, _ensure_columns
+from compile_flow import FLOW_PREFIXES
+from enrich_oi import _source_file, _distinct_contracts, _done_keys, _ensure_columns
 
 log = logging.getLogger("update_enrich_logs")
 
@@ -47,12 +47,12 @@ def _check(client, prefix: str, date_str: str) -> dict:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     base = {"date": date_str, "prefix": prefix, "last_updated": now}
 
-    file_id = _compiled_id(client, prefix, date_str)
+    file_id, file_name = _source_file(client, prefix, date_str)
     if not file_id:
         return {**base, "status": "no-compiled", "total_contracts": 0,
                 "enriched_contracts": 0, "enrichment_pct": "", "last_enriched_on": ""}
 
-    rows = parse_csv(client.download(file_id, name=compiled_name(prefix, date_str)))
+    rows = parse_csv(client.download(file_id, name=file_name))
     if not rows:
         return {**base, "status": "empty", "total_contracts": 0,
                 "enriched_contracts": 0, "enrichment_pct": "", "last_enriched_on": ""}
@@ -145,7 +145,7 @@ def main() -> None:
         return
 
     if rows_out:
-        sheets_client.write_analysis(TAB, rows_out)
+        sheets_client.write_analysis(TAB, rows_out, preserve_extra_cols=True)
         print(f"\nEnrichLog updated — {summary_line}")
         print(f"  Tab: {TAB}")
     else:
