@@ -13,8 +13,7 @@ CSV columns (as of 2026):
   Gamma, Theta, Vega, Rho, Theo, Price~, Bid, Ask
 
 Marking: we use the mid of Bid/Ask as the tradeable price, because `Latest` is a
-last-trade price that goes stale on zero-volume days. Falls back to Latest, then
-the theoretical (Theo) value.
+last-trade price that goes stale on zero-volume days. Falls back to Latest.
 """
 import logging
 from datetime import date
@@ -48,15 +47,12 @@ def option_history_url(symbol: str, expiration: date, strike: float, opt_type: s
 
 
 def _mark(row: dict):
-    """Best tradeable price for a row: mid(Bid,Ask) → Latest → Theo."""
+    """Best tradeable price for a row: mid(Bid,Ask) → Latest."""
     bid, ask = _to_float(row.get("Bid")), _to_float(row.get("Ask"))
     if bid and ask and bid > 0 and ask > 0:
         return (bid + ask) / 2
     latest = _to_float(row.get("Latest"))
-    if latest and latest > 0:
-        return latest
-    theo = _to_float(row.get("Theo"))
-    return theo if theo and theo > 0 else None
+    return latest if latest and latest > 0 else None
 
 
 def parse_history_series(csv_text: str) -> list[tuple[date, float]]:
@@ -79,7 +75,7 @@ def parse_history_details(csv_text: str) -> dict[date, dict]:
     """Parse a Barchart history CSV into {date: row_dict} with a pre-computed '_mark' key.
 
     Rows with no computable mark or non-date Time are excluded. The '_mark' key holds
-    mid(Bid,Ask) → Latest → Theo, the same value parse_history_series uses.
+    mid(Bid,Ask) → Latest, the same value parse_history_series uses.
     """
     out: dict[date, dict] = {}
     for row in parse_csv(csv_text):

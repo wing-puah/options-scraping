@@ -465,9 +465,17 @@ def main() -> None:
         is_ic = structure == "iron_condor"
 
         if is_ic:
-            # Iron-condor wings depend on the entry underlying (resolved in pass 3);
-            # only the short-put anchor needs Barchart history.
+            # Always register the short-put anchor. When all 4 strikes are explicit
+            # in the play text, also register the wings so Barchart history is fetched
+            # for them. Synthesized wings (computed from spread_pct in pass 3) may not
+            # correspond to listed contracts and will fall back to BS at price time.
             _register(contracts, needed_dates, c["ticker"], "Put", K, exp_date, sig)
+            ic_strikes = cls.get("strikes", [])
+            if len(ic_strikes) >= 4:
+                K_lp, K_sp, K_sc, K_lc = sorted(ic_strikes)[:4]
+                _register(contracts, needed_dates, c["ticker"], "Put", K_lp, exp_date, sig)
+                _register(contracts, needed_dates, c["ticker"], "Call", K_sc, exp_date, sig)
+                _register(contracts, needed_dates, c["ticker"], "Call", K_lc, exp_date, sig)
             matched.append({"c": c, "structure": structure, "legs": None,
                             "is_ic": True, "explicit": False, "anchor_idx": 1,
                             "anchor": (c["ticker"], "Put", K, exp_date), "cls": cls})
