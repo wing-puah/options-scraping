@@ -131,6 +131,50 @@ def legs_from_structure(_structure: str, opt_type: str, ticker: str, exp: date,
     return legs
 
 
+def straddle_legs(ticker: str, exp: date, K: float, anchor_type: str,
+                  is_credit: bool) -> list[Leg]:
+    """Straddle: call + put at the same strike. anchor_type leg sits at index 0."""
+    other_type = "Put" if anchor_type == "Call" else "Call"
+    qty = -1 if is_credit else 1
+    return [Leg(qty, ticker, exp, round(K, 4), anchor_type),
+            Leg(qty, ticker, exp, round(K, 4), other_type)]
+
+
+def strangle_legs(ticker: str, exp: date, K_anchor: float, K_other: float,
+                  anchor_type: str, is_credit: bool) -> list[Leg]:
+    """Strangle: call + put at different strikes. anchor_type leg sits at index 0."""
+    other_type = "Put" if anchor_type == "Call" else "Call"
+    qty = -1 if is_credit else 1
+    return [Leg(qty, ticker, exp, round(K_anchor, 4), anchor_type),
+            Leg(qty, ticker, exp, round(K_other, 4), other_type)]
+
+
+def butterfly_legs(ticker: str, exp: date, K_lo: float, K_mid: float, K_hi: float,
+                   opt_type: str, is_credit: bool) -> list[Leg]:
+    """Butterfly: buy wings / sell body (long/debit) or sell wings / buy body (short/credit)."""
+    if is_credit:
+        return [Leg(-1, ticker, exp, round(K_lo, 4), opt_type),
+                Leg(+2, ticker, exp, round(K_mid, 4), opt_type),
+                Leg(-1, ticker, exp, round(K_hi, 4), opt_type)]
+    return [Leg(+1, ticker, exp, round(K_lo, 4), opt_type),
+            Leg(-2, ticker, exp, round(K_mid, 4), opt_type),
+            Leg(+1, ticker, exp, round(K_hi, 4), opt_type)]
+
+
+def condor_legs(ticker: str, exp: date, K1: float, K2: float, K3: float, K4: float,
+                opt_type: str, is_credit: bool) -> list[Leg]:
+    """Same-type condor: buy outer / sell inner (long/debit) or sell outer / buy inner (short/credit)."""
+    if is_credit:
+        return [Leg(-1, ticker, exp, round(K1, 4), opt_type),
+                Leg(+1, ticker, exp, round(K2, 4), opt_type),
+                Leg(+1, ticker, exp, round(K3, 4), opt_type),
+                Leg(-1, ticker, exp, round(K4, 4), opt_type)]
+    return [Leg(+1, ticker, exp, round(K1, 4), opt_type),
+            Leg(-1, ticker, exp, round(K2, 4), opt_type),
+            Leg(-1, ticker, exp, round(K3, 4), opt_type),
+            Leg(+1, ticker, exp, round(K4, 4), opt_type)]
+
+
 def iron_condor_legs(ticker: str, exp: date, K_lp: float, K_sp: float,
                      K_sc: float, K_lc: float) -> list[Leg]:
     """Four iron-condor legs (long-put wing, short put, short call, long-call wing).

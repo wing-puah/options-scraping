@@ -52,11 +52,19 @@ def _extract_strikes(play_text: str) -> list[float]:
     )
     if m4:
         return [float(m4.group(i)) for i in range(1, 5)]
+    # Triple-strike: A/B/C (butterfly)
+    m3 = re.search(
+        rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}",
+        play_text,
+    )
+    if m3:
+        return [float(m3.group(i)) for i in range(1, 4)]
     # 2-strike spread (with optional P/C suffix)
     m = re.search(rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}", play_text)
     if m:
         return [float(m.group(1)), float(m.group(2))]
-    m = re.search(r"(?:calls?|puts?)\s+(\d+(?:\.\d+)?)", play_text, re.IGNORECASE)
+    m = re.search(r"(?:calls?|puts?|straddle|strangle|butterfly|condor|at|@)\s+(\d+(?:\.\d+)?)",
+                  play_text, re.IGNORECASE)
     if m:
         return [float(m.group(1))]
     return []
@@ -91,9 +99,10 @@ def classify_play(play_text: str) -> dict:
     Returns dict with:
       structure   — long_call | long_put | bull_call_spread | bear_put_spread
                     | bear_call_spread | bull_put_spread | short_call | short_put
-                    | iron_condor | explicit_legs | unsupported
-      option_type — Call | Put | None
-      strikes     — parsed strikes (may be empty); 4 for iron condors
+                    | iron_condor | straddle | strangle | butterfly | condor
+                    | explicit_legs | unsupported
+      option_type — Call | Put | None (None for iron_condor only)
+      strikes     — parsed strikes (may be empty); sorted ascending for multi-leg
       is_credit   — True for premium-selling structures (net credit at entry)
       legs        — present only for structure == "explicit_legs": the parsed legs
 
@@ -116,6 +125,29 @@ def classify_play(play_text: str) -> dict:
     if "iron condor" in text:
         return {"structure": "iron_condor", "option_type": None, "strikes": strikes, "is_credit": True}
 
+    _credit_words = frozenset(("credit", "sell", "short", "write", "sold"))
+    has_credit = bool(_credit_words & set(text.split()))
+
+    if "straddle" in text:
+        opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
+        return {"structure": "straddle", "option_type": opt_type,
+                "strikes": strikes[:1], "is_credit": has_credit}
+
+    if "strangle" in text:
+        opt_type = "Put" if ("call" not in text) else "Call"
+        return {"structure": "strangle", "option_type": opt_type,
+                "strikes": sorted(strikes[:2]), "is_credit": has_credit}
+
+    if "butterfly" in text:
+        opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
+        return {"structure": "butterfly", "option_type": opt_type,
+                "strikes": sorted(strikes[:3]), "is_credit": has_credit}
+
+    if "condor" in text:
+        opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
+        return {"structure": "condor", "option_type": opt_type,
+                "strikes": sorted(strikes[:4]), "is_credit": has_credit}
+
     for pat in _UNSUPPORTED_PATTERNS:
         if pat in text:
             return {"structure": "unsupported", "option_type": None, "strikes": [], "is_credit": False}
@@ -133,15 +165,12 @@ def classify_play(play_text: str) -> dict:
         return {"structure": "bear_put_spread", "option_type": "Put", "strikes": strikes, "is_credit": False}
 
     # Generic "call spread" / "put spread": infer debit vs credit from context.
-    _credit_words = frozenset(("credit", "sell", "short", "write", "sold"))
     if "call spread" in text:
-        is_credit = bool(_credit_words & set(text.split()))
-        structure = "bear_call_spread" if is_credit else "bull_call_spread"
-        return {"structure": structure, "option_type": "Call", "strikes": strikes, "is_credit": is_credit}
+        structure = "bear_call_spread" if has_credit else "bull_call_spread"
+        return {"structure": structure, "option_type": "Call", "strikes": strikes, "is_credit": has_credit}
     if "put spread" in text:
-        is_credit = bool(_credit_words & set(text.split()))
-        structure = "bull_put_spread" if is_credit else "bear_put_spread"
-        return {"structure": structure, "option_type": "Put", "strikes": strikes, "is_credit": is_credit}
+        structure = "bull_put_spread" if has_credit else "bear_put_spread"
+        return {"structure": structure, "option_type": "Put", "strikes": strikes, "is_credit": has_credit}
 
     # Short single-leg options.
     _short_words = frozenset(("sell", "short", "write", "sold"))

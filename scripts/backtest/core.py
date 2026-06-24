@@ -21,7 +21,8 @@ from lib.barchart import BarchartSession
 from .config import RESULTS_PATH, HISTORY_CACHE
 from .helpers import _parse_analysis_date, _contract_key, _num
 from .classify import classify_play, _identify_contract, _entry_row_from_history
-from .legs import legs_from_structure, iron_condor_legs, merge_legs
+from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
+                   straddle_legs, strangle_legs, butterfly_legs, condor_legs)
 from .simulate import _simulate, _iron_condor_strikes
 
 log = logging.getLogger("backtest")
@@ -481,11 +482,42 @@ def main() -> None:
                             "anchor": (c["ticker"], "Put", K, exp_date), "cls": cls})
             continue
 
-        legs = merge_legs(legs_from_structure(structure, opt_type, c["ticker"], exp_date, K,
-                                              K_short, cls.get("is_credit", False)))
-        # legs_from_structure puts the flow-matched leg (strike K) first; it is the
-        # anchor regardless of its long/short sign (so credit spreads anchor on the
-        # sold leg, the one Barchart history is keyed to).
+        is_credit = cls.get("is_credit", False)
+        ticker = c["ticker"]
+        play_strikes = cls.get("strikes", [])
+
+        if structure == "straddle":
+            legs = straddle_legs(ticker, exp_date, K, opt_type, is_credit)
+        elif structure == "strangle":
+            if len(play_strikes) >= 2:
+                K_lo, K_hi = sorted(play_strikes[:2])
+                K_anchor = K_lo if opt_type == "Put" else K_hi
+                K_other  = K_hi if opt_type == "Put" else K_lo
+            else:
+                K_anchor = K
+                K_other  = K * (1 + spread_pct) if opt_type == "Put" else K * (1 - spread_pct)
+            legs = strangle_legs(ticker, exp_date, K_anchor, K_other, opt_type, is_credit)
+        elif structure == "butterfly":
+            if len(play_strikes) >= 3:
+                K_lo, K_mid, K_hi = sorted(play_strikes[:3])
+            else:
+                K_lo = K
+                K_mid = K * (1 + spread_pct)
+                K_hi  = K * (1 + 2 * spread_pct)
+            legs = butterfly_legs(ticker, exp_date, K_lo, K_mid, K_hi, opt_type, is_credit)
+        elif structure == "condor":
+            if len(play_strikes) >= 4:
+                K1, K2, K3, K4 = sorted(play_strikes[:4])
+            else:
+                K1 = K
+                K2 = K * (1 + spread_pct)
+                K3 = K * (1 + 2 * spread_pct)
+                K4 = K * (1 + 3 * spread_pct)
+            legs = condor_legs(ticker, exp_date, K1, K2, K3, K4, opt_type, is_credit)
+        else:
+            legs = merge_legs(legs_from_structure(structure, opt_type, ticker, exp_date, K,
+                                                  K_short, is_credit))
+
         anchor = legs[0]
         for leg in legs:
             _register(contracts, needed_dates, leg.ticker, leg.opt_type,

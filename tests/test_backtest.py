@@ -81,9 +81,40 @@ def test_classify_bear_put_spread():
 
 
 def test_classify_unsupported_premium_selling():
-    assert bt.classify_play("X — | short strangle | x")["structure"] == "unsupported"
     assert bt.classify_play("X — | covered call | x")["structure"] == "unsupported"
-    assert bt.classify_play("X — | butterfly spread | x")["structure"] == "unsupported"
+    assert bt.classify_play("X — | calendar spread | x")["structure"] == "unsupported"
+    assert bt.classify_play("X — | diagonal spread | x")["structure"] == "unsupported"
+
+
+def test_classify_straddle():
+    out = bt.classify_play("SPY — RANGE | sell straddle 500 Jun 20 | sell vol")
+    assert out["structure"] == "straddle"
+    assert out["option_type"] == "Call"
+    assert out["is_credit"] is True
+    assert out["strikes"] == [500.0]
+
+
+def test_classify_strangle():
+    out = bt.classify_play("SPY — RANGE | sell strangle 490/510 Jun 20 | sell vol")
+    assert out["structure"] == "strangle"
+    assert out["is_credit"] is True
+    assert out["strikes"] == [490.0, 510.0]
+
+
+def test_classify_butterfly():
+    out = bt.classify_play("NVDA — BULL | buy call butterfly 480/500/520 Jun 20")
+    assert out["structure"] == "butterfly"
+    assert out["option_type"] == "Call"
+    assert out["is_credit"] is False
+    assert out["strikes"] == [480.0, 500.0, 520.0]
+
+
+def test_classify_condor():
+    out = bt.classify_play("SPY — RANGE | buy call condor 480/490/510/520 Jun 20")
+    assert out["structure"] == "condor"
+    assert out["option_type"] == "Call"
+    assert out["is_credit"] is False
+    assert out["strikes"] == [480.0, 490.0, 510.0, 520.0]
 
 
 def test_classify_iron_condor():
@@ -134,9 +165,9 @@ def test_classify_existing_debit_carries_is_credit_false():
     assert bt.classify_play("SPY — buy puts 500")["is_credit"] is False
 
 
-def test_classify_unsupported_ambiguous():
-    # Mentions both call and put with no spread keyword → not safely simulatable.
-    assert bt.classify_play("X — straddle: call and put")["structure"] == "unsupported"
+def test_classify_straddle_call_and_put():
+    # "call and put" in straddle text — straddle is now supported.
+    assert bt.classify_play("X — straddle: call and put")["structure"] == "straddle"
 
 
 def test_classify_empty():
@@ -615,10 +646,11 @@ def test_simulate_iron_condor_profit_in_range():
     legs = bt.iron_condor_legs("SPY", date(2026, 7, 17), 480.0, 490.0, 510.0, 520.0)
     entry_row = _flow_row("SPY", "Put", "490", "3.0", "300000")
     entry_row["Price~"] = "500"
+    entry_row["Trade"] = ""   # no real anchor — all 4 legs priced by BS consistently
 
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "spread_width_pct": 0.02, "risk_free_rate": 0.05,
-               "exit_sources": ["bs"], "uniform_bs_min_legs": 4}
+               "exit_sources": ["bs"]}
 
     # Underlying stays at 500 — well inside the condor wings.
     res = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
@@ -626,9 +658,9 @@ def test_simulate_iron_condor_profit_in_range():
                        price_fn=lambda tk, dt: 500.0)
 
     assert res["structure"] == "iron_condor"
-    assert res["entry_source"] == "bs"        # all four legs modelled
-    assert res["entry_option_price"] < 0      # signed: net credit
-    assert res["realized_pnl_pct"] > 0        # premium decays → profit
+    assert res["entry_source"] == "bs+bs+bs+bs"   # all four legs modelled
+    assert res["entry_option_price"] < 0           # signed: net credit
+    assert res["realized_pnl_pct"] > 0             # premium decays → profit
 
 
 # ── leg parsing / formatting / mapping ───────────────────────────────────────────
@@ -873,7 +905,7 @@ def test_merge_legs_combines_same_contract():
                  ("+1", "AMD", "2026-07-17", 140, "Call"))
     merged = bt.merge_legs(legs)
     # +2 and -1 on 130C net to +1; 140C untouched; first-seen order preserved.
-    assert [(l.qty, l.strike) for l in merged] == [(1, 130.0), (1, 140.0)]
+    assert [(leg.qty, leg.strike) for leg in merged] == [(1, 130.0), (1, 140.0)]
 
 
 def test_merge_legs_drops_net_zero():
