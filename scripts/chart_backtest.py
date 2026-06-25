@@ -937,23 +937,36 @@ def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
     return path
 
 
-def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
-    """MFE distribution analysis — box + strip plots, four groupings:
-      A · By market-level label (BULL/BEAR/RANGE)
-      B · By play (ticker) label
-      C · Aligned vs drifted
-      D · Key market × play combos (n ≥ 5), ranked by median MFE
+def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
+    """MFE (left column) and MAE (right column) side by side — 4×2 layout.
+      Row 0 · By market-level label (BULL/BEAR/RANGE)
+      Row 1 · By play (ticker) label
+      Row 2 · Aligned vs drifted
+      Row 3 · Key market × play combos (n ≥ 5)
     """
     df = df.copy()
     df["mfe"] = pd.to_numeric(df["mfe_abs"], errors="coerce")
-    df_both = df[df["mkt_label"].notna() & df["play_label"].notna() & df["mfe"].notna()]
+    df["mae"] = pd.to_numeric(df["mae_abs"], errors="coerce")
+    df_mfe = df[df["mkt_label"].notna() & df["play_label"].notna() & df["mfe"].notna()]
+    df_mae = df[df["mkt_label"].notna() & df["play_label"].notna() & df["mae"].notna()]
 
     rng = np.random.default_rng(42)
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    LABEL_COLORS = {"BULL": C_BULL, "BEAR": C_RANGE, "RANGE": C_MED}
+    LABEL_ORDER = ["BULL", "BEAR", "RANGE"]
 
-    def _strip_box(ax, groups, title, letter, xlabel="MFE %"):
-        """groups: list of (label, color, series). Box + jittered strip, sorted by median."""
+    def _order(groups):
+        """Label list sorted by MFE median desc — used as the shared y-axis order."""
+        cleaned = [(lb, s.dropna()) for lb, _, s in groups if not s.dropna().empty]
+        return [lb for lb, _ in sorted(cleaned, key=lambda x: x[1].median(), reverse=True)]
+
+    def _strip_box(ax, groups, title, letter, xlabel, sort_desc=True, label_order=None):
         groups = [(lb, c, s.dropna()) for lb, c, s in groups if not s.dropna().empty]
-        groups = sorted(groups, key=lambda g: g[2].median(), reverse=True)
+        if label_order is not None:
+            lut = {lb: (c, s) for lb, c, s in groups}
+            groups = [(lb, lut[lb][0], lut[lb][1]) for lb in label_order if lb in lut]
+        else:
+            groups = sorted(groups, key=lambda g: g[2].median(), reverse=sort_desc)
         for i, (_, color, vals) in enumerate(groups):
             y = np.full(len(vals), i)
             jitter = rng.uniform(-0.25, 0.25, len(vals))
@@ -968,11 +981,14 @@ def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
             ax.plot([med, med], [i - 0.25, i + 0.25], color=color, lw=2.5, zorder=4)
             ax.plot([whislo, q1], [i, i], color=color, lw=1, zorder=2)
             ax.plot([q3, whishi], [i, i], color=color, lw=1, zorder=2)
-            ax.annotate(
-                f"med ${med:+,.0f}  n={len(vals)}",
-                (whishi, i), textcoords="offset points", xytext=(5, 0),
-                va="center", fontsize=7.5, color="#333",
-            )
+            if sort_desc:
+                ax.annotate(f"med ${med:+,.0f}  n={len(vals)}",
+                            (whishi, i), textcoords="offset points", xytext=(5, 0),
+                            va="center", fontsize=7.5, color="#333")
+            else:
+                ax.annotate(f"med ${med:+,.0f}  n={len(vals)}",
+                            (whislo, i), textcoords="offset points", xytext=(-5, 0),
+                            va="center", ha="right", fontsize=7.5, color="#333")
         ax.axvline(0, color="#999", lw=0.8, ls="--")
         ax.set_yticks(range(len(groups)))
         ax.set_yticklabels([g[0] for g in groups], fontsize=8)
@@ -980,57 +996,63 @@ def build_mfe_dist(df: pd.DataFrame, out: Path) -> Path:
         ax.set_title(f"{letter} · {title}", fontweight="bold")
         ax.grid(axis="x", color=GRID)
 
-    LABEL_COLORS = {"BULL": C_BULL, "BEAR": C_RANGE, "RANGE": C_MED}
-    LABEL_ORDER = ["BULL", "BEAR", "RANGE"]
-
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig, axes = plt.subplots(4, 2, figsize=(18, 26))
     fig.suptitle(
-        "MFE distribution by regime — absolute $ (full distribution, not just averages)",
+        "MFE / MAE distribution by regime — absolute $  (left = MFE, right = MAE)",
         fontsize=16, fontweight="bold", y=0.995,
     )
 
-    # ---- A: by market label -----------------------------------------------
-    ax = axes[0, 0]
-    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    # ---- Row 0: by market label -------------------------------------------
+    grp = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
+    _strip_box(axes[0, 0], grp, "MFE by market-level regime", "A", "MFE ($)", sort_desc=True)
+    axes[0, 0].xaxis.set_major_formatter(dollar_fmt)
+    grp = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mae"]) for lb in LABEL_ORDER]
+    _strip_box(axes[0, 1], grp, "MAE by market-level regime", "B", "MAE ($)", sort_desc=False)
+    axes[0, 1].xaxis.set_major_formatter(dollar_fmt)
 
-    grp_a = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mfe"])
-             for lb in LABEL_ORDER]
-    _strip_box(ax, grp_a, "MFE by market-level regime", "A", xlabel="MFE ($)")
-    ax.xaxis.set_major_formatter(dollar_fmt)
+    # ---- Row 1: by play label ---------------------------------------------
+    grp = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
+    _strip_box(axes[1, 0], grp, "MFE by play (ticker) regime label", "C", "MFE ($)", sort_desc=True)
+    axes[1, 0].xaxis.set_major_formatter(dollar_fmt)
+    grp = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mae"]) for lb in LABEL_ORDER]
+    _strip_box(axes[1, 1], grp, "MAE by play (ticker) regime label", "D", "MAE ($)", sort_desc=False)
+    axes[1, 1].xaxis.set_major_formatter(dollar_fmt)
 
-    # ---- B: by play label -------------------------------------------------
-    ax = axes[0, 1]
-    grp_b = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mfe"])
-             for lb in LABEL_ORDER]
-    _strip_box(ax, grp_b, "MFE by play (ticker) regime label", "B", xlabel="MFE ($)")
-    ax.xaxis.set_major_formatter(dollar_fmt)
-
-    # ---- C: aligned vs drifted --------------------------------------------
-    ax = axes[1, 0]
-    grp_c = [
-        ("Aligned\n(market == play)", C_RANGE, df_both[df_both["regime_aligned"]]["mfe"]),
-        ("Drifted\n(market ≠ play)",  C_BULL,  df_both[~df_both["regime_aligned"]]["mfe"]),
+    # ---- Row 2: aligned vs drifted ----------------------------------------
+    grp = [
+        ("Aligned\n(market == play)", C_RANGE, df_mfe[df_mfe["regime_aligned"]]["mfe"]),
+        ("Drifted\n(market ≠ play)",  C_BULL,  df_mfe[~df_mfe["regime_aligned"]]["mfe"]),
     ]
-    _strip_box(ax, grp_c, "MFE — aligned vs counter-consensus", "C", xlabel="MFE ($)")
-    ax.xaxis.set_major_formatter(dollar_fmt)
+    _strip_box(axes[2, 0], grp, "MFE — aligned vs counter-consensus", "E", "MFE ($)", sort_desc=True)
+    axes[2, 0].xaxis.set_major_formatter(dollar_fmt)
+    grp = [
+        ("Aligned\n(market == play)", C_RANGE, df_mae[df_mae["regime_aligned"]]["mae"]),
+        ("Drifted\n(market ≠ play)",  C_BULL,  df_mae[~df_mae["regime_aligned"]]["mae"]),
+    ]
+    _strip_box(axes[2, 1], grp, "MAE — aligned vs counter-consensus", "F", "MAE ($)", sort_desc=False)
+    axes[2, 1].xaxis.set_major_formatter(dollar_fmt)
 
-    # ---- D: cross-tab combos with n ≥ 5, ranked by median ----------------
-    ax = axes[1, 1]
-    cross_groups = []
+    # ---- Row 3: cross-tab combos ------------------------------------------
     combo_colors = plt.cm.tab10(np.linspace(0, 0.9, 9))  # pylint: disable=no-member
-    ci = 0
-    for mkt in LABEL_ORDER:
-        for play in LABEL_ORDER:
-            sub = df_both[(df_both["mkt_label"] == mkt) & (df_both["play_label"] == play)]["mfe"]
-            if sub.dropna().shape[0] >= 5:
-                cross_groups.append((f"mkt={mkt}\nplay={play}", combo_colors[ci], sub))
-                ci += 1
-    _strip_box(ax, cross_groups, "MFE by market × play combo (n ≥ 5)", "D", xlabel="MFE ($)")
-    ax.xaxis.set_major_formatter(dollar_fmt)
+    cross_mfe, cross_mae = [], []
+    for ci, (mkt, play) in enumerate(
+        (m, p) for m in LABEL_ORDER for p in LABEL_ORDER
+    ):
+        sub_mfe = df_mfe[(df_mfe["mkt_label"] == mkt) & (df_mfe["play_label"] == play)]["mfe"]
+        sub_mae = df_mae[(df_mae["mkt_label"] == mkt) & (df_mae["play_label"] == play)]["mae"]
+        label = f"mkt={mkt}\nplay={play}"
+        if sub_mfe.dropna().shape[0] >= 5:
+            cross_mfe.append((label, combo_colors[ci], sub_mfe))
+        if sub_mae.dropna().shape[0] >= 5:
+            cross_mae.append((label, combo_colors[ci], sub_mae))
+    _strip_box(axes[3, 0], cross_mfe, "MFE by market × play combo (n ≥ 5)", "G", "MFE ($)", sort_desc=True)
+    axes[3, 0].xaxis.set_major_formatter(dollar_fmt)
+    _strip_box(axes[3, 1], cross_mae, "MAE by market × play combo (n ≥ 5)", "H", "MAE ($)", sort_desc=False)
+    axes[3, 1].xaxis.set_major_formatter(dollar_fmt)
 
     fig.tight_layout(rect=(0, 0, 1, 0.985))
     out.mkdir(parents=True, exist_ok=True)
-    path = out / "backtest_mfe_dist.png"
+    path = out / "backtest_mfe_mae_dist.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -1201,7 +1223,7 @@ def main():
               "(re-run the backtest with the new engine to populate it).")
     print(f"Wrote {build_time(df, Path(args.out))}")
     print(f"Wrote {build_regime(df, Path(args.out))}")
-    print(f"Wrote {build_mfe_dist(df, Path(args.out))}")
+    print(f"Wrote {build_mfe_mae_dist(df, Path(args.out))}")
 
 
 if __name__ == "__main__":
