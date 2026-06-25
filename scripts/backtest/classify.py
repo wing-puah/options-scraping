@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .config import _UNSUPPORTED_PATTERNS
-from .helpers import _num, _opt_price, _row_iv, _parse_expiration, _short_strike
+from .helpers import _num, _opt_price, _row_iv, _parse_expiration
 from .legs import parse_legs
 
 log = logging.getLogger("backtest")
@@ -290,44 +290,26 @@ def _nearest_cached_expiry(
     return synth
 
 
-def _identify_contract(
-    candidate: dict, cls: dict, cache_dir: Path, spread_pct: float,
-) -> tuple[tuple, tuple | None]:
+def _resolve_expiry(
+    candidate: dict, opt_type: str, K: float, cache_dir: Path,
+) -> tuple[date | None, tuple | None]:
+    """Resolve the contract expiration: explicit month/day in play text first, then a
+    cache scan for the nearest listed expiry.
+
+    ``opt_type`` is used only to scan the cache for matching contracts. Returns
+    ``(date, None)`` on success or ``(None, ("no_expiry", message))`` on failure.
+    Shared by the generic identifier and by ``IronCondorPlay`` (which resolves its own
+    short-put anchor).
     """
-    Identify (K, expiration_date, opt_type, K_short) from the play text.
-    Returns (result_tuple, None) on success, (None, (category, reason)) on failure.
-
-    Expiry resolution: explicit month/day in play text first, then cache scan.
-    """
-    structure = cls.get("structure")
-    is_ic = structure == "iron_condor"
-
-    if is_ic:
-        opt_type = "Put"
-        ic_strikes = cls.get("strikes", [])
-        if not ic_strikes:
-            return None, ("no_strike", "iron condor: no strikes in play text")
-        K = ic_strikes[1] if len(ic_strikes) >= 4 else ic_strikes[0]
-    else:
-        opt_type = cls.get("option_type")
-        if not opt_type:
-            return None, ("no_strike", "no option_type resolved")
-        play_strikes = cls.get("strikes", [])
-        if not play_strikes:
-            return None, ("no_strike", "no strikes in play text")
-        K = play_strikes[0]
-
     exp = _extract_expiration(candidate["play"], candidate["signal_date"])
     if exp is None:
         exp = _nearest_cached_expiry(
             cache_dir, candidate["ticker"], opt_type, K,
             candidate["signal_date"], _extract_horizon_dte(candidate["play"]),
         )
-        if exp is None:
-            return None, ("no_expiry", f"no expiry found for {candidate['ticker']} {opt_type} {K}")
-
-    K_short = None if is_ic else _short_strike(structure, K, cls.get("strikes", []), spread_pct)
-    return (K, exp, opt_type, K_short), None
+    if exp is None:
+        return None, ("no_expiry", f"no expiry found for {candidate['ticker']} {opt_type} {K}")
+    return exp, None
 
 
 # ─── Entry row from Barchart history cache ─────────────────────────────────────

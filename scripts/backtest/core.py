@@ -19,12 +19,9 @@ from lib import barchart_options
 from lib.barchart import BarchartSession
 
 from .config import RESULTS_PATH, HISTORY_CACHE
-from .helpers import _parse_analysis_date, _contract_key, _num
-from .classify import classify_play, _identify_contract, _entry_row_from_history, _extract_all_expirations
-from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
-                   straddle_legs, strangle_legs, butterfly_legs, condor_legs,
-                   calendar_legs, diagonal_legs)
-from .simulate import _simulate, _iron_condor_strikes
+from .helpers import _parse_analysis_date
+from .plays import build_matched_plays
+from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 
 log = logging.getLogger("backtest")
 
@@ -104,44 +101,6 @@ def _regime_prefix(regime: str) -> str:
     """Return the regime label up to (but not including) the first em-dash."""
     import re
     return re.split(r"[—–]", regime, maxsplit=1)[0].strip()
-
-
-def _anchor_idx(legs) -> int:
-    """The leg whose real flow Trade seeds entry pricing: first long, else first."""
-    for i, leg in enumerate(legs):
-        if leg.qty > 0:
-            return i
-    return 0
-
-
-def _choose_anchor(legs, barchart_details, signal_date):
-    """Pick the anchor leg for an explicit structure and build its entry row.
-
-    The anchor seeds the position's entry IV / underlying / DTE from its Barchart
-    history. Legs are tried in priority order — long legs first, then by descending
-    |qty| — and the first whose history yields a valid entry row wins, so a play is
-    no longer dropped just because one (e.g. illiquid) wing has no data. Returns
-    (anchor_idx, entry_row) or (None, None) when no leg has usable history.
-    """
-    order = sorted(range(len(legs)), key=lambda i: (legs[i].qty <= 0, -abs(legs[i].qty)))
-    for i in order:
-        leg = legs[i]
-        key = _contract_key(leg.ticker, leg.opt_type, leg.strike, leg.expiration.isoformat())
-        row = _entry_row_from_history(barchart_details, key, signal_date, leg.strike, leg.expiration)
-        if row is not None:
-            return i, row
-    return None, None
-
-
-def _register(contracts: dict, needed_dates: dict, ticker: str, opt_type: str,
-              strike: float, exp_date, sig) -> None:
-    """Record a distinct contract to fetch Barchart history for, tracking the
-    earliest signal date that needs it."""
-    key = _contract_key(ticker, opt_type, strike, exp_date.isoformat())
-    contracts.setdefault(key, {"key": key, "symbol": ticker, "opt_type": opt_type,
-                               "strike": strike, "expiration": exp_date})
-    if key not in needed_dates or sig < needed_dates[key]:
-        needed_dates[key] = sig
 
 
 # ─── Analysis loading ──────────────────────────────────────────────────────────
@@ -388,6 +347,30 @@ def _print_summary(results) -> None:
         print(_play_line(r))
 
 
+# ─── Pass 3: simulate ────────────────────────────────────────────────────────────
+
+def _run_simulations(plays, barchart_series, barchart_details,
+                     market_regime, sim_cfg, spread_pct, skipped) -> list[dict]:
+    """Pass 3 — resolve each play's entry and simulate it.
+
+    Structure-agnostic: every per-structure difference (anchor choice, iron-condor
+    wing resolution) now lives in ``Play.simulate``. This loop only decorates the
+    result with the run timestamp + market regime and tallies unpriced skips.
+    """
+    log.info("Simulating %d classified plays", len(plays))
+    created_datetime = datetime.now().isoformat(timespec="seconds")
+    results = []
+    for play in plays:
+        result = play.simulate(barchart_series, barchart_details, sim_cfg, spread_pct)
+        if result is None:
+            skipped["unpriced"] += 1
+            continue
+        result["created_datetime"] = created_datetime
+        result["market_regime"] = _regime_prefix(market_regime.get(play.c["date"], ""))
+        results.append(result)
+    return results
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -425,147 +408,9 @@ def main() -> None:
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread) onto each play.
     _attach_rollup_metrics(candidates)
 
-    # Pass 1 — classify each play, build its leg list, and register the contracts
-    # whose Barchart history must be fetched.
-    matched, contracts, needed_dates = [], {}, {}
-    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
-    for c in candidates:
-        c["regime"] = c.get("regime", "")
-        cls = classify_play(c["play"])
-        structure = cls["structure"]
-        if structure == "unsupported":
-            skipped["unsupported"] += 1
-            log.warning("SKIP unsupported  %s %s | structure=%s | play=%s",
-                        c["date"], c["ticker"], structure, c["play"][:80])
-            continue
-
-        sig = c["signal_date"]
-
-        if structure == "explicit_legs":
-            # Strikes/expirations are fully specified — every leg is a real contract.
-            # The anchor is chosen in pass 3 from whichever leg has usable history.
-            legs = merge_legs(cls["legs"])
-            if not legs:
-                skipped["unpriced"] += 1
-                continue
-            for leg in legs:
-                _register(contracts, needed_dates, leg.ticker, leg.opt_type,
-                          leg.strike, leg.expiration, sig)
-            matched.append({"c": c, "structure": structure, "legs": legs,
-                            "is_ic": False, "explicit": True, "cls": cls})
-            continue
-
-        if structure in ("calendar", "diagonal"):
-            exps = _extract_all_expirations(c["play"], sig)
-            if len(exps) < 2:
-                skipped["no_expiry"] += 1
-                log.warning("SKIP no_expiry  %s %s | %s requires 2 explicit expirations | play=%s",
-                            c["date"], c["ticker"], structure, c["play"][:80])
-                continue
-            exp_near, exp_far = exps[0], exps[1]
-            play_strikes = cls.get("strikes", [])
-            if not play_strikes:
-                skipped["no_strike"] += 1
-                log.warning("SKIP no_strike  %s %s | %s: no strike in play text | play=%s",
-                            c["date"], c["ticker"], structure, c["play"][:80])
-                continue
-            opt_type = cls.get("option_type") or "Call"
-            is_credit = cls.get("is_credit", False)
-            ticker = c["ticker"]
-            if structure == "calendar":
-                K = play_strikes[0]
-                legs = calendar_legs(ticker, exp_near, exp_far, K, opt_type, is_credit)
-            else:  # diagonal
-                if len(play_strikes) >= 2:
-                    K_lo, K_hi = sorted(play_strikes[:2])
-                    # Long diagonal: far leg takes the more-favorable strike
-                    K_far  = K_lo if opt_type == "Call" else K_hi
-                    K_near = K_hi if opt_type == "Call" else K_lo
-                else:
-                    K_far = K_near = play_strikes[0]
-                legs = diagonal_legs(ticker, exp_near, exp_far, K_far, K_near, opt_type, is_credit)
-            anchor = legs[0]  # far (long) leg
-            for leg in legs:
-                _register(contracts, needed_dates, leg.ticker, leg.opt_type,
-                          leg.strike, leg.expiration, sig)
-            matched.append({"c": c, "structure": structure, "legs": legs,
-                            "is_ic": False, "explicit": False, "anchor_idx": 0,
-                            "anchor": (anchor.ticker, anchor.opt_type, anchor.strike,
-                                       anchor.expiration), "cls": cls})
-            continue
-
-        result, reason_info = _identify_contract(c, cls, HISTORY_CACHE, spread_pct)
-        if result is None:
-            skip_cat, reason_msg = reason_info
-            skipped[skip_cat] += 1
-            log.warning("SKIP %-12s %s %s | %s | play=%s",
-                        skip_cat, c["date"], c["ticker"], reason_msg, c["play"][:80])
-            continue
-
-        K, exp_date, opt_type, K_short = result
-        is_ic = structure == "iron_condor"
-
-        if is_ic:
-            # Always register the short-put anchor. When all 4 strikes are explicit
-            # in the play text, also register the wings so Barchart history is fetched
-            # for them. Synthesized wings (computed from spread_pct in pass 3) may not
-            # correspond to listed contracts and will fall back to BS at price time.
-            _register(contracts, needed_dates, c["ticker"], "Put", K, exp_date, sig)
-            ic_strikes = cls.get("strikes", [])
-            if len(ic_strikes) >= 4:
-                K_lp, K_sp, K_sc, K_lc = sorted(ic_strikes)[:4]
-                _register(contracts, needed_dates, c["ticker"], "Put", K_lp, exp_date, sig)
-                _register(contracts, needed_dates, c["ticker"], "Call", K_sc, exp_date, sig)
-                _register(contracts, needed_dates, c["ticker"], "Call", K_lc, exp_date, sig)
-            matched.append({"c": c, "structure": structure, "legs": None,
-                            "is_ic": True, "explicit": False, "anchor_idx": 1,
-                            "anchor": (c["ticker"], "Put", K, exp_date), "cls": cls})
-            continue
-
-        is_credit = cls.get("is_credit", False)
-        ticker = c["ticker"]
-        play_strikes = cls.get("strikes", [])
-
-        if structure == "straddle":
-            legs = straddle_legs(ticker, exp_date, K, opt_type, is_credit)
-        elif structure == "strangle":
-            if len(play_strikes) >= 2:
-                K_lo, K_hi = sorted(play_strikes[:2])
-                K_anchor = K_lo if opt_type == "Put" else K_hi
-                K_other  = K_hi if opt_type == "Put" else K_lo
-            else:
-                K_anchor = K
-                K_other  = K * (1 + spread_pct) if opt_type == "Put" else K * (1 - spread_pct)
-            legs = strangle_legs(ticker, exp_date, K_anchor, K_other, opt_type, is_credit)
-        elif structure == "butterfly":
-            if len(play_strikes) >= 3:
-                K_lo, K_mid, K_hi = sorted(play_strikes[:3])
-            else:
-                K_lo = K
-                K_mid = K * (1 + spread_pct)
-                K_hi  = K * (1 + 2 * spread_pct)
-            legs = butterfly_legs(ticker, exp_date, K_lo, K_mid, K_hi, opt_type, is_credit)
-        elif structure == "condor":
-            if len(play_strikes) >= 4:
-                K1, K2, K3, K4 = sorted(play_strikes[:4])
-            else:
-                K1 = K
-                K2 = K * (1 + spread_pct)
-                K3 = K * (1 + 2 * spread_pct)
-                K4 = K * (1 + 3 * spread_pct)
-            legs = condor_legs(ticker, exp_date, K1, K2, K3, K4, opt_type, is_credit)
-        else:
-            legs = merge_legs(legs_from_structure(structure, opt_type, ticker, exp_date, K,
-                                                  K_short, is_credit))
-
-        anchor = legs[0]
-        for leg in legs:
-            _register(contracts, needed_dates, leg.ticker, leg.opt_type,
-                      leg.strike, leg.expiration, sig)
-        matched.append({"c": c, "structure": structure, "legs": legs,
-                        "is_ic": False, "explicit": False, "anchor_idx": 0,
-                        "anchor": (anchor.ticker, anchor.opt_type, anchor.strike,
-                                   anchor.expiration), "cls": cls})
+    # Pass 1 — classify each play into a Play, build its legs, and register the
+    # contracts whose Barchart history must be fetched.
+    plays, contracts, needed_dates, skipped = build_matched_plays(candidates, spread_pct)
 
     # Pass 2 — fetch/cache Barchart history for all identified contracts.
     barchart_series: dict[tuple, list] = {}
@@ -578,62 +423,9 @@ def main() -> None:
             list(contracts.values()), headless, history_timeout_ms, needed_dates,
             cache_only=args.cache_only))
 
-    # Pass 3 — build entry row from cache, finalize legs, then simulate.
-    log.info("Simulating %d classified plays", len(matched))
-    created_datetime = datetime.now().isoformat(timespec="seconds")
-    results = []
-    for m in matched:
-        c = m["c"]
-        if m.get("explicit"):
-            # Choose the anchor from whichever leg actually has Barchart history.
-            legs = m["legs"]
-            anchor_idx, entry_row = _choose_anchor(legs, barchart_details, c["signal_date"])
-            if entry_row is None:
-                skipped["unpriced"] += 1
-                log.warning("SKIP unpriced     %s %s | no history on/after signal date for any leg",
-                            c["signal_date"], c["ticker"])
-                continue
-            result = _simulate(c, legs, entry_row, {}, barchart_series, sim_cfg,
-                               structure=m["structure"], anchor_idx=anchor_idx)
-            if result:
-                result["created_datetime"] = created_datetime
-                result["market_regime"] = _regime_prefix(market_regime.get(c["date"], ""))
-                results.append(result)
-            else:
-                skipped["unpriced"] += 1
-                log.warning("SKIP simulate={}  %s %s | explicit legs", c["signal_date"], c["ticker"])
-            continue
-
-        a_ticker, a_type, a_K, a_exp = m["anchor"]
-        anchor_key = _contract_key(a_ticker, a_type, a_K, a_exp.isoformat())
-        entry_row = _entry_row_from_history(barchart_details, anchor_key, c["signal_date"], a_K, a_exp)
-        if entry_row is None:
-            skipped["unpriced"] += 1
-            log.warning("SKIP unpriced     %s %s | no history on/after signal date for %s",
-                        c["signal_date"], c["ticker"], anchor_key)
-            continue
-
-        legs, anchor_idx = m["legs"], m["anchor_idx"]
-        if m["is_ic"]:
-            # Resolve the four IC strikes now that the entry underlying is known.
-            S_entry = _num(entry_row.get("Price~", entry_row.get("Price")))
-            if not S_entry:
-                skipped["unpriced"] += 1
-                continue
-            K_lp, K_sp, K_sc, K_lc = _iron_condor_strikes(
-                m["cls"].get("strikes", []), a_K, S_entry, spread_pct)
-            legs = iron_condor_legs(c["ticker"], a_exp, K_lp, K_sp, K_sc, K_lc)
-
-        result = _simulate(c, legs, entry_row, {}, barchart_series, sim_cfg,
-                           structure=m["structure"], anchor_idx=anchor_idx)
-        if result:
-            result["created_datetime"] = created_datetime
-            result["market_regime"] = _regime_prefix(market_regime.get(c["date"], ""))
-            results.append(result)
-        else:
-            skipped["unpriced"] += 1
-            log.warning("SKIP simulate={}  %s %s | anchor=%s",
-                        c["signal_date"], c["ticker"], anchor_key)
+    # Pass 3 — resolve entry + simulate each Play polymorphically.
+    results = _run_simulations(plays, barchart_series, barchart_details,
+                               market_regime, sim_cfg, spread_pct, skipped)
 
     log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, %d unpriced)",
              len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
