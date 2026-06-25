@@ -82,8 +82,27 @@ def test_classify_bear_put_spread():
 
 def test_classify_unsupported_premium_selling():
     assert bt.classify_play("X — | covered call | x")["structure"] == "unsupported"
-    assert bt.classify_play("X — | calendar spread | x")["structure"] == "unsupported"
-    assert bt.classify_play("X — | diagonal spread | x")["structure"] == "unsupported"
+
+
+def test_classify_calendar():
+    out = bt.classify_play("buy Jun 20 / Sep 19 500 call calendar")
+    assert out["structure"] == "calendar"
+    assert out["option_type"] == "Call"
+    assert out["strikes"] == [500.0]
+    assert out["is_credit"] is False
+
+    out_put = bt.classify_play("sell Jun 20 / Sep 19 490 put calendar")
+    assert out_put["structure"] == "calendar"
+    assert out_put["option_type"] == "Put"
+    assert out_put["is_credit"] is True
+
+
+def test_classify_diagonal():
+    out = bt.classify_play("buy Jun 20 / Sep 19 480/500 call diagonal")
+    assert out["structure"] == "diagonal"
+    assert out["option_type"] == "Call"
+    assert sorted(out["strikes"]) == [480.0, 500.0]
+    assert out["is_credit"] is False
 
 
 def test_classify_straddle():
@@ -701,8 +720,8 @@ def test_legs_from_structure_debit_and_credit():
                       bt.Leg(1, "SPY", date(2026, 7, 17), 480.0, "Put")]
 
 
-def test_classify_play_recognises_explicit_legs_over_unsupported_keyword():
-    # "calendar" alone is unsupported, but an explicit leg-string is accepted.
+def test_classify_play_recognises_explicit_legs_over_keyword():
+    # Explicit leg-string short-circuits freeform classification.
     out = bt.classify_play("calendar spread\n+1 AMD:2026-10-16:130:C\n-1 AMD:2026-07-17:130:C")
     assert out["structure"] == "explicit_legs"
     assert len(out["legs"]) == 2

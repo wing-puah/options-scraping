@@ -19,6 +19,48 @@ AAPL: play = "300/325 Dec-18", analysis says Jan-27, traded = Jan-2028 expiry.
 Add a reconciliation check that fails loudly when executed strike/expiry ≠ play.
 
 
+# Claude backtest analysis (2026-06-25)
+
+## Backtest Findings & Proposed Changes
+
+275 plays from `results.csv` (2024-06-17 → 2025-12-11), primary metric `realized_pnl_abs`.
+
+### Bucketed Results
+
+| Bucket | Key Finding |
+|--------|-------------|
+| Structure | Bear put spreads drive nearly all profit (+$28,893, 59% win) vs bull call spreads essentially flat (+$505 total) |
+| Direction | Bears +$296 mean / 60% win vs bulls +$1 mean / 54% win |
+| DTE | Sweet spot 46–90d (64% win, +$333 mean); sub-45d loses money (29–46% win) |
+| Regime | RANGE regimes outperform across all vol levels; BULL+L-VOL is the biggest money loser (−$9,854 total) |
+| Regime × Direction | RANGE+L-VOL+HP · bear: 94% win, +$14,713 total (18 plays) — strongest bucket |
+| Alignment | Counter-regime trades (61% win) outperform regime-aligned (48%) — flow signal better at dislocations than trend-following |
+| Ticker | HYG (+$17,921), GLD (+$8,669), META (+$5,745) best; NVDA (−$7,001), TSLA (−$5,977), COIN (−$4,258) worst |
+| Quarter | Q3 2024 and Q1 2025 drove all gains; Q2 2025 worst (22% win, −$9,415) |
+
+### MFE / Exit Analysis
+
+| Exit | Diagnosis |
+|------|-----------|
+| profit_target | Exiting too early — target fires avg day 14, MFE peaks avg day 34, only 57.7% of MFE captured |
+| stop_loss / dollar_stop (64%) | Bad entry — position never moved in favour; stop working correctly |
+| stop_loss / dollar_stop (36%) | Genuine round-trips — reached +$916 MFE avg then reversed to −$989; $1,905 given back |
+| time_exit | Slow drift back from MFE — not round-trips; need earlier profit exit when ahead |
+
+### Exit Rule Tuning (Attempt 7)
+
+Tested three variants to fix early profit-target exits (see `config/backtest-tuning.md §Attempt 7`):
+
+| Variant | Config | vs Baseline |
+|---------|--------|-------------|
+| Opt A | pt=1.50, trail=0.25 | −$892 |
+| Opt B | pt=1.50, trail=0.35 | −$6,730 |
+| **Opt C** | **pt=0.90, trail=0.25** | **+$2,726 ✓** |
+
+**Opt C adopted** — raises profit target from 0.60 → 0.90 as a floor for clean winners; trailing stop (trigger=0.50, trail=0.25) handles big movers that exceed 90%. Config updated in `config/backtest.yml`.
+
+---
+
 # CHATGPT backtest analysis (2026-06-24)
 ## Backtest Findings & Proposed Changes
 

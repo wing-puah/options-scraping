@@ -197,6 +197,8 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 
 For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-structure edge is present (trend continuation into a catalyst window; or MR where front-month vol is elevated but the longer leg is cheap).
 
+> **Calendar / Diagonal format** — include BOTH expirations explicitly in the play text, near expiry first, separated by ` / `: e.g. `buy Jun 20 / Sep 19 500 call calendar` (same strike, two expirations) or `buy Jun 20 / Sep 19 480/500 call diagonal` (two strikes together, two expirations). The near-month leg is always short (sold), the far-month leg is always long (bought). Without two explicit expiration dates, the backtest classifier cannot build the two-leg position.
+
 For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long ATM/slightly-OTM weekly or debit spread; backwardation → defined-risk debit spread or backspread (cap premium paid); VVIX elevated → defined-risk only.
 
 **Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.

@@ -175,6 +175,31 @@ def condor_legs(ticker: str, exp: date, K1: float, K2: float, K3: float, K4: flo
             Leg(+1, ticker, exp, round(K4, 4), opt_type)]
 
 
+def calendar_legs(ticker: str, exp_near: date, exp_far: date, K: float,
+                  opt_type: str, is_credit: bool) -> list[Leg]:
+    """Long calendar: buy far-dated, sell near-dated (same strike and type).
+    is_credit=True inverts to a short calendar (sell far, buy near)."""
+    qty = -1 if is_credit else 1
+    return [
+        Leg(qty,  ticker, exp_far,  round(K, 4), opt_type),
+        Leg(-qty, ticker, exp_near, round(K, 4), opt_type),
+    ]
+
+
+def diagonal_legs(ticker: str, exp_near: date, exp_far: date,
+                  K_far: float, K_near: float,
+                  opt_type: str, is_credit: bool) -> list[Leg]:
+    """Long diagonal: buy far-dated K_far, sell near-dated K_near.
+    Calls: K_far < K_near (buy lower far, sell higher near).
+    Puts:  K_far > K_near (buy higher far, sell lower near).
+    is_credit=True inverts to a short diagonal."""
+    qty = -1 if is_credit else 1
+    return [
+        Leg(qty,  ticker, exp_far,  round(K_far,  4), opt_type),
+        Leg(-qty, ticker, exp_near, round(K_near, 4), opt_type),
+    ]
+
+
 def iron_condor_legs(ticker: str, exp: date, K_lp: float, K_sp: float,
                      K_sc: float, K_lc: float) -> list[Leg]:
     """Four iron-condor legs (long-put wing, short put, short call, long-call wing).

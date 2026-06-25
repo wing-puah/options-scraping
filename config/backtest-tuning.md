@@ -372,3 +372,68 @@ pipeline+backtest on Jul-2024 / Jan-2025 with the financing penalty live to
 confirm it self-corrects the chop/bull losses (where the tuning log showed
 confidence, not regime, drove losses) — and combine with the confidence-based
 sizing above.
+
+---
+
+## Attempt 7 — BETTER ✓ (profit_target=0.90 + trailing_stop active)
+
+**Motivation:** MFE analysis on 275-play dataset showed profit_target=0.60 was
+firing at avg day 14 while path MFE peaked at avg day 34. Median capture of MFE
+was only 57.7%. Of 135 profit_target exits, 17 captured <30% of MFE (avg MFE
+$4,182, realized $928). Hypothesis: raise the target to let winners run further,
+pair with a trailing stop to protect against reversals.
+
+**Variants tested** (265 common plays with results, inner-joined across all runs):
+
+| Config | Win% | Mean $ | Median $ | Total $ | vs Baseline |
+|--------|------|--------|----------|---------|-------------|
+| Baseline (pt=0.60, tr=dead) | 57.4% | $135 | $445 | $35,706 | — |
+| Opt A (pt=1.50, tr=0.25) | 55.8% | $131 | $195 | $34,814 | −$892 |
+| Opt B (pt=1.50, tr=0.35) | 52.5% | $109 | $75 | $28,976 | −$6,730 |
+| **Opt C (pt=0.90, tr=0.25)** | **57.7%** | **$145** | **$205** | **$38,431** | **+$2,726** |
+
+**Config (Opt C — current):** `profit_target=0.90`, `stop_loss=0.75`,
+`trailing_stop_trigger=0.50`, `trailing_stop_pct=0.25`
+
+**Exit reason breakdown (Opt C, 265 plays):**
+
+| Reason | N | Mean $ | Total $ | Win% |
+|--------|---|--------|---------|------|
+| profit_target | 69 | +$1,501 | +$103,586 | 100% |
+| trailing_stop | 71 | +$292 | +$20,734 | 87% |
+| time_exit | 29 | +$96 | +$2,790 | 66% |
+| stop_loss | 50 | −$820 | −$41,005 | 0% |
+| dollar_stop | 41 | −$1,160 | −$47,567 | 0% |
+
+**Why Opt C works, Opt A/B don't:**
+
+- **Opt A/B (pt=1.50):** trail fires too early on normal oscillation. 96 trades
+  converted from clean profit_target exits to trailing_stop exits at −$413/trade
+  average (−$39,675 total). The wider trail in Opt B (0.35) made this worse: 90
+  trades at −$544/trade (−$48,965 total). The floor is so low relative to peak
+  that reversal catches the position before a hard cap would have.
+
+- **Opt C (pt=0.90):** the floor at 90% acts as a clean hard exit for trades that
+  peak in the 60–90% zone and don't run further (previously the 60% target was
+  killing these early; now they reach 90% and exit cleanly). For trades that
+  exceed 90%, the trail activates at +50% and trails 25pts — parabolic movers
+  get to run. Net: 69 hard exits at $1,501 mean + 71 trail exits at $292 mean,
+  both profitable populations.
+
+**Key losers (pt → trailing_stop flips, −$1,600 worst):** XLE 2024-07-18
+(pt $1,628 → trail $16, −$1,612), SPY 2025-03-27 (pt $1,448 → trail $289,
+−$1,160). These are fast-reversal trades in the 60–100% range that would have
+been captured by the old 60% target but now overshoot 90% and reverse before
+the trail locks in enough. Accepted cost.
+
+**Key gainers vs baseline:** XLE 2024-06-17 (dollar_stop −$1,294 → pt +$3,539,
++$4,833), IWM 2024-06-17 (stop_loss −$937 → pt +$2,667, +$3,604), PDD
+2024-08-19 (pt $917 → pt $2,772, +$1,855 from longer hold).
+
+**Rules of thumb updated:**
+- `profit_target=0.90` is the new floor — catches clean winners without
+  cutting the early part of the move.
+- `trailing_stop_trigger=0.50` + `trailing_stop_pct=0.25` is now live and
+  meaningful (trail activates before profit_target fires on big movers).
+- Widening the trail beyond 0.25 is counterproductive — gives back more than
+  it saves (Opt B confirmed).

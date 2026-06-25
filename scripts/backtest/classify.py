@@ -29,6 +29,31 @@ def _extract_expiration(play_text: str, ref: date) -> date | None:
     return d if d >= ref else date(ref.year + 1, mon, day)
 
 
+def _extract_all_expirations(play_text: str, ref: date) -> list[date]:
+    """Return all expiration dates mentioned in play text, sorted ascending (duplicates removed).
+
+    Used by the calendar/diagonal classifier which needs near + far expirations.
+    """
+    seen: set[date] = set()
+    results: list[date] = []
+    for m in re.finditer(
+        r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})",
+        play_text, re.IGNORECASE,
+    ):
+        mon = _MONTHS[m.group(1)[:3].lower()]
+        day = int(m.group(2))
+        try:
+            d = date(ref.year, mon, day)
+        except ValueError:
+            continue
+        if d < ref:
+            d = date(ref.year + 1, mon, day)
+        if d not in seen:
+            seen.add(d)
+            results.append(d)
+    return sorted(results)
+
+
 _PC = r"[PCpc]?"  # optional put/call suffix after a strike digit
 
 
@@ -65,6 +90,10 @@ def _extract_strikes(play_text: str) -> list[float]:
         return [float(m.group(1)), float(m.group(2))]
     m = re.search(r"(?:calls?|puts?|straddle|strangle|butterfly|condor|at|@)\s+(\d+(?:\.\d+)?)",
                   play_text, re.IGNORECASE)
+    if m:
+        return [float(m.group(1))]
+    # Number immediately before call/put keyword (e.g. "500 call calendar")
+    m = re.search(r"(\d+(?:\.\d+)?)\s+(?:calls?|puts?)", play_text, re.IGNORECASE)
     if m:
         return [float(m.group(1))]
     return []
@@ -147,6 +176,16 @@ def classify_play(play_text: str) -> dict:
         opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
         return {"structure": "condor", "option_type": opt_type,
                 "strikes": sorted(strikes[:4]), "is_credit": has_credit}
+
+    if "calendar" in text:
+        opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
+        return {"structure": "calendar", "option_type": opt_type,
+                "strikes": strikes[:1], "is_credit": has_credit}
+
+    if "diagonal" in text:
+        opt_type = "Put" if ("put" in text and "call" not in text) else "Call"
+        return {"structure": "diagonal", "option_type": opt_type,
+                "strikes": sorted(strikes[:2]), "is_credit": has_credit}
 
     for pat in _UNSUPPORTED_PATTERNS:
         if pat in text:

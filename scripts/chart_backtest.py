@@ -658,8 +658,8 @@ def build_time(df: pd.DataFrame, out: Path) -> Path:
 
     # ---- C: monthly heatmap (year × month) of mean realized P&L % -------
     ax = axes[1, 0]
-    month_names = ["Jan","Feb","Mar","Apr","May","Jun",
-                   "Jul","Aug","Sep","Oct","Nov","Dec"]
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     piv = df.pivot_table(index="year", columns="month",
                          values="realized_pnl", aggfunc="mean")
     cnt = df.pivot_table(index="year", columns="month",
@@ -724,9 +724,11 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
     df = df.copy()
     dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:+,.0f}")
 
-    STRUCTS = [s for s in ["bull_call_spread", "bear_put_spread",
-                            "bull_put_spread", "bear_call_spread"]
-               if (df["structure"] == s).sum() >= 2]
+    STRUCTS = [
+        s for s in ["bull_call_spread", "bear_put_spread",
+                    "bull_put_spread", "bear_call_spread"]
+        if (df["structure"] == s).sum() >= 2
+    ]
     REGIMES = [r for r in ["BULL", "BEAR", "RANGE"]
                if (df["regime_label"] == r).sum() >= 2]
     years = sorted(df["signal_date"].dt.year.dropna().unique().astype(int))
@@ -770,19 +772,21 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
     ax = axes[0, 0]
     count_piv = df.groupby(["structure", "regime_label"]).size().unstack(fill_value=0)
     count_piv = count_piv.reindex(index=STRUCTS, columns=REGIMES, fill_value=0)
-    im = _annotated_heatmap(ax, count_piv, STRUCTS, REGIMES,
-                             fmt_fn=lambda v: str(int(v)),
-                             cmap="Blues", title="A · Trade count — structure × regime",
-                             vmin=0, vmax=count_piv.values.max())
+    im = _annotated_heatmap(
+        ax, count_piv, STRUCTS, REGIMES,
+        fmt_fn=lambda v: str(int(v)),
+        cmap="Blues", title="A · Trade count — structure × regime",
+        vmin=0, vmax=count_piv.values.max())
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="# trades")
 
     # ---- B: structure × regime mean P&L $ ------------------------------
     ax = axes[0, 1]
     pnl_piv = df.groupby(["structure", "regime_label"])["realized_abs"].mean().unstack()
     pnl_piv = pnl_piv.reindex(index=STRUCTS, columns=REGIMES)
-    im = _annotated_heatmap(ax, pnl_piv, STRUCTS, REGIMES,
-                             fmt_fn=lambda v: f"${v:+,.0f}",
-                             cmap="RdYlGn", title="B · Mean P&L $ — structure × regime")
+    im = _annotated_heatmap(
+        ax, pnl_piv, STRUCTS, REGIMES,
+        fmt_fn=lambda v: f"${v:+,.0f}",
+        cmap="RdYlGn", title="B · Mean P&L $ — structure × regime")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean P&L ($)")
 
     # ---- C: structure × year mean P&L $ (grouped bars) -----------------
@@ -798,7 +802,7 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
                color=struct_colors.get(s, "#555"), alpha=0.85,
                label=s.replace("_", " "))
         for xi, (v, n_sub) in enumerate(zip(vals, [
-            len(df[(df["structure"]==s)&(df["signal_date"].dt.year==yr)]) for yr in years
+            len(df[(df["structure"] == s) & (df["signal_date"].dt.year == yr)]) for yr in years
         ])):
             if not np.isnan(v) and n_sub > 0:
                 ax.text(xi + k * w, v + (20 if v >= 0 else -20),
@@ -825,10 +829,11 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
             row[yr] = (sub["realized_abs"] > 0).mean() * 100 if n >= 2 else np.nan
         wr_rows[s] = row
     wr_piv = pd.DataFrame(wr_rows).T.reindex(STRUCTS)[years]
-    im = _annotated_heatmap(ax, wr_piv, STRUCTS, [str(y) for y in years],
-                             fmt_fn=lambda v: f"{v:.0f}%",
-                             cmap="RdYlGn", title="D · Win rate % — structure × year",
-                             vmin=0, vmax=100)
+    im = _annotated_heatmap(
+        ax, wr_piv, STRUCTS, [str(y) for y in years],
+        fmt_fn=lambda v: f"{v:.0f}%",
+        cmap="RdYlGn", title="D · Win rate % — structure × year",
+        vmin=0, vmax=100)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Win rate %")
 
     fig.tight_layout(rect=(0, 0, 1, 0.985))
@@ -1003,33 +1008,42 @@ def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
     )
 
     # ---- Row 0: by market label -------------------------------------------
-    grp = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
-    _strip_box(axes[0, 0], grp, "MFE by market-level regime", "A", "MFE ($)", sort_desc=True)
+    grp_mfe = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
+    grp_mae = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mae"]) for lb in LABEL_ORDER]
+    shared_order = _order(grp_mfe)
+    _strip_box(axes[0, 0], grp_mfe, "MFE by market-level regime", "A", "MFE ($)",
+               sort_desc=True, label_order=shared_order)
     axes[0, 0].xaxis.set_major_formatter(dollar_fmt)
-    grp = [(lb, LABEL_COLORS[lb], df[df["mkt_label"] == lb]["mae"]) for lb in LABEL_ORDER]
-    _strip_box(axes[0, 1], grp, "MAE by market-level regime", "B", "MAE ($)", sort_desc=False)
+    _strip_box(axes[0, 1], grp_mae, "MAE by market-level regime", "B", "MAE ($)",
+               sort_desc=False, label_order=shared_order)
     axes[0, 1].xaxis.set_major_formatter(dollar_fmt)
 
     # ---- Row 1: by play label ---------------------------------------------
-    grp = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
-    _strip_box(axes[1, 0], grp, "MFE by play (ticker) regime label", "C", "MFE ($)", sort_desc=True)
+    grp_mfe = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mfe"]) for lb in LABEL_ORDER]
+    grp_mae = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mae"]) for lb in LABEL_ORDER]
+    shared_order = _order(grp_mfe)
+    _strip_box(axes[1, 0], grp_mfe, "MFE by play (ticker) regime label", "C", "MFE ($)",
+               sort_desc=True, label_order=shared_order)
     axes[1, 0].xaxis.set_major_formatter(dollar_fmt)
-    grp = [(lb, LABEL_COLORS[lb], df[df["play_label"] == lb]["mae"]) for lb in LABEL_ORDER]
-    _strip_box(axes[1, 1], grp, "MAE by play (ticker) regime label", "D", "MAE ($)", sort_desc=False)
+    _strip_box(axes[1, 1], grp_mae, "MAE by play (ticker) regime label", "D", "MAE ($)",
+               sort_desc=False, label_order=shared_order)
     axes[1, 1].xaxis.set_major_formatter(dollar_fmt)
 
     # ---- Row 2: aligned vs drifted ----------------------------------------
-    grp = [
+    grp_mfe = [
         ("Aligned\n(market == play)", C_RANGE, df_mfe[df_mfe["regime_aligned"]]["mfe"]),
         ("Drifted\n(market ≠ play)",  C_BULL,  df_mfe[~df_mfe["regime_aligned"]]["mfe"]),
     ]
-    _strip_box(axes[2, 0], grp, "MFE — aligned vs counter-consensus", "E", "MFE ($)", sort_desc=True)
-    axes[2, 0].xaxis.set_major_formatter(dollar_fmt)
-    grp = [
+    grp_mae = [
         ("Aligned\n(market == play)", C_RANGE, df_mae[df_mae["regime_aligned"]]["mae"]),
         ("Drifted\n(market ≠ play)",  C_BULL,  df_mae[~df_mae["regime_aligned"]]["mae"]),
     ]
-    _strip_box(axes[2, 1], grp, "MAE — aligned vs counter-consensus", "F", "MAE ($)", sort_desc=False)
+    shared_order = _order(grp_mfe)
+    _strip_box(axes[2, 0], grp_mfe, "MFE — aligned vs counter-consensus", "E", "MFE ($)",
+               sort_desc=True, label_order=shared_order)
+    axes[2, 0].xaxis.set_major_formatter(dollar_fmt)
+    _strip_box(axes[2, 1], grp_mae, "MAE — aligned vs counter-consensus", "F", "MAE ($)",
+               sort_desc=False, label_order=shared_order)
     axes[2, 1].xaxis.set_major_formatter(dollar_fmt)
 
     # ---- Row 3: cross-tab combos ------------------------------------------
@@ -1045,9 +1059,12 @@ def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
             cross_mfe.append((label, combo_colors[ci], sub_mfe))
         if sub_mae.dropna().shape[0] >= 5:
             cross_mae.append((label, combo_colors[ci], sub_mae))
-    _strip_box(axes[3, 0], cross_mfe, "MFE by market × play combo (n ≥ 5)", "G", "MFE ($)", sort_desc=True)
+    shared_order = _order(cross_mfe)
+    _strip_box(axes[3, 0], cross_mfe, "MFE by market × play combo (n ≥ 5)", "G", "MFE ($)",
+               sort_desc=True, label_order=shared_order)
     axes[3, 0].xaxis.set_major_formatter(dollar_fmt)
-    _strip_box(axes[3, 1], cross_mae, "MAE by market × play combo (n ≥ 5)", "H", "MAE ($)", sort_desc=False)
+    _strip_box(axes[3, 1], cross_mae, "MAE by market × play combo (n ≥ 5)", "H", "MAE ($)",
+               sort_desc=False, label_order=shared_order)
     axes[3, 1].xaxis.set_major_formatter(dollar_fmt)
 
     fig.tight_layout(rect=(0, 0, 1, 0.985))

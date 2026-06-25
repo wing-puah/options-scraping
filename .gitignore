@@ -12,10 +12,7 @@ venv/
 web/.env.local
 web/node_modules/
 web/.next/
-backtests/*.csv
-backtests/*.json
-backtests/charts/
-backtests/option_history_cache/
+backtests/*
 .cache/
 *_secret_*
 *-key.json

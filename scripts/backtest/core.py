@@ -20,9 +20,10 @@ from lib.barchart import BarchartSession
 
 from .config import RESULTS_PATH, HISTORY_CACHE
 from .helpers import _parse_analysis_date, _contract_key, _num
-from .classify import classify_play, _identify_contract, _entry_row_from_history
+from .classify import classify_play, _identify_contract, _entry_row_from_history, _extract_all_expirations
 from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
-                   straddle_legs, strangle_legs, butterfly_legs, condor_legs)
+                   straddle_legs, strangle_legs, butterfly_legs, condor_legs,
+                   calendar_legs, diagonal_legs)
 from .simulate import _simulate, _iron_condor_strikes
 
 log = logging.getLogger("backtest")
@@ -452,6 +453,45 @@ def main() -> None:
                           leg.strike, leg.expiration, sig)
             matched.append({"c": c, "structure": structure, "legs": legs,
                             "is_ic": False, "explicit": True, "cls": cls})
+            continue
+
+        if structure in ("calendar", "diagonal"):
+            exps = _extract_all_expirations(c["play"], sig)
+            if len(exps) < 2:
+                skipped["no_expiry"] += 1
+                log.warning("SKIP no_expiry  %s %s | %s requires 2 explicit expirations | play=%s",
+                            c["date"], c["ticker"], structure, c["play"][:80])
+                continue
+            exp_near, exp_far = exps[0], exps[1]
+            play_strikes = cls.get("strikes", [])
+            if not play_strikes:
+                skipped["no_strike"] += 1
+                log.warning("SKIP no_strike  %s %s | %s: no strike in play text | play=%s",
+                            c["date"], c["ticker"], structure, c["play"][:80])
+                continue
+            opt_type = cls.get("option_type") or "Call"
+            is_credit = cls.get("is_credit", False)
+            ticker = c["ticker"]
+            if structure == "calendar":
+                K = play_strikes[0]
+                legs = calendar_legs(ticker, exp_near, exp_far, K, opt_type, is_credit)
+            else:  # diagonal
+                if len(play_strikes) >= 2:
+                    K_lo, K_hi = sorted(play_strikes[:2])
+                    # Long diagonal: far leg takes the more-favorable strike
+                    K_far  = K_lo if opt_type == "Call" else K_hi
+                    K_near = K_hi if opt_type == "Call" else K_lo
+                else:
+                    K_far = K_near = play_strikes[0]
+                legs = diagonal_legs(ticker, exp_near, exp_far, K_far, K_near, opt_type, is_credit)
+            anchor = legs[0]  # far (long) leg
+            for leg in legs:
+                _register(contracts, needed_dates, leg.ticker, leg.opt_type,
+                          leg.strike, leg.expiration, sig)
+            matched.append({"c": c, "structure": structure, "legs": legs,
+                            "is_ic": False, "explicit": False, "anchor_idx": 0,
+                            "anchor": (anchor.ticker, anchor.opt_type, anchor.strike,
+                                       anchor.expiration), "cls": cls})
             continue
 
         result, reason_info = _identify_contract(c, cls, HISTORY_CACHE, spread_pct)

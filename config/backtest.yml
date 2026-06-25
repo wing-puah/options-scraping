@@ -52,7 +52,13 @@ simulation:
   # Attempt 6: lowered from 0.75 to 0.60 — path replay showed +$5,833 improvement by
   # catching Type-B reversals (peaked 60-75% then reversed to losses) before they flip.
   # Cost: exits slowly-rising winners ~15% earlier. See backtest-tuning.md §Attempt 6.
-  profit_target: 0.60
+  # Attempt 7 (Option C, winner): raised to 0.90 from 0.60. MFE analysis showed
+  # profit_target was firing at day 14 while MFE peaked at day 34 (57.7% capture).
+  # Paired with trailing_stop_trigger=0.50 so trail activates once up 50%, giving
+  # the floor for big movers while 0.90 catches clean winners before the trail reverses.
+  # Variants tested: A (pt=1.50, tr=0.25): -$892 vs base; B (pt=1.50, tr=0.35): -$6,730;
+  # C (pt=0.90, tr=0.25): +$2,726 ← current. See backtest-tuning.md §Attempt 7.
+  profit_target: 0.90
 
   # Hard stop loss as a fraction of entry premium. Combined with the dollar_stop
   # from portfolio sizing, this is the floor before any trailing logic.
@@ -75,12 +81,11 @@ simulation:
   #   portfolio_trail=0.01   means trail 1% of portfolio ($500) from the dollar peak
   # Effective threshold = min(premium_dollars, portfolio_dollars) → back to % of entry.
   #
-  # NOTE: trailing_stop is currently dead code. With profit_target=0.75 set, the hard
-  # exit always fires at 75% — before the trailing trigger (100%) can activate. The
-  # portfolio params also have no effect in practice (see backtest-tuning.md §Attempt 5).
-  # Keeping the mechanism wired for future experiments where profit_target is relaxed.
-  trailing_stop_trigger: 1.00                   # activate after +100% gain on premium
-  trailing_stop_pct: 0.50                        # trail 50pts from peak on premium basis
+  # Attempt 7: trailing stop now active alongside profit_target=0.90.
+  # Trigger=0.50 activates trail once up 50%; trail=0.25 gives 25pt floor below peak.
+  # For trades that run past 90%, the trail handles the exit instead of a hard cap.
+  trailing_stop_trigger: 0.50                   # activate after +50% gain on premium
+  trailing_stop_pct: 0.25                        # trail 25pts from peak (peak+80% → floor+55%)
   trailing_stop_portfolio_trigger_pct: null      # null = disabled; 0.02 = 2% of portfolio
   trailing_stop_portfolio_trail_pct: null        # null = disabled; 0.01 = 1% of portfolio
 
