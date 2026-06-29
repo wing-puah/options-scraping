@@ -96,7 +96,7 @@ def _parse_and_validate(text: str) -> dict:
 
 
 def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
-    """One `claude -p` call. Prompt on stdin; result is a JSON wrapper on stdout."""
+    """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events."""
     proc = subprocess.run(
         ["claude", "-p", "--output-format", "json", "--model", model or "opus"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
@@ -105,7 +105,13 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     if proc.returncode != 0:
         raise RuntimeError(
             f"claude exited {proc.returncode}: {proc.stderr[:500]}")
-    wrapper = json.loads(proc.stdout)
+    parsed = json.loads(proc.stdout)
+    # New Claude CLI emits a JSON array of events; find the result entry.
+    if isinstance(parsed, list):
+        result_events = [e for e in parsed if isinstance(e, dict) and e.get("type") == "result"]
+        wrapper = result_events[-1] if result_events else {}
+    else:
+        wrapper = parsed
     if wrapper.get("is_error"):
         raise RuntimeError(f"claude reported error: {wrapper.get('result')}")
     return _parse_and_validate(wrapper.get("result", ""))
@@ -448,12 +454,6 @@ def main(argv: list[str] | None = None) -> None:
         if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
             log.info("No data for %s — skipping", d)
             skipped.append(d)
-            continue
-
-        if args.skip_llm:
-            print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
-            print(data_md)
-            done.append(d)
             continue
 
         if args.skip_llm:

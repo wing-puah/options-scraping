@@ -239,8 +239,8 @@ class MultiLegPlay(Play):
     """Same-expiration multi-leg structures: straddle / strangle / butterfly / condor.
 
     These resolve their own anchor (no K_short, unlike a vertical), so they share only
-    ``_resolve_expiry`` rather than the directional ``_identify_contract``. Note the two
-    flavours of ``opt_type``:
+    ``_resolve_expiry``; resolving a contra strike is left to ``SingleOrVerticalPlay``.
+    Note the two flavours of ``opt_type``:
       • straddle / strangle are *both-sided* (call + put) — ``opt_type`` names the ANCHOR
         leg (index 0); the other leg is the opposite type.
       • butterfly / condor are *same-type* — ``opt_type`` is the uniform leg type.
