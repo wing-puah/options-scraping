@@ -79,11 +79,29 @@ Any non-zero BTO/STO/ToOpen feeds the `open` (+1) conviction score component.
 | Column | Computation | Notes |
 |--------|------------|-------|
 | `wIV%` | Premium-weighted average IV (all trades) | |
-| `IVspr` | Premium-weighted call IV − put IV | Positive → bullish IV skew. Lin, Lu & Driessen (2013): positive predictor of returns. `—` when either side has no premium. |
-| `IVskew` | OTM-put IV − ATM-call IV | OTM-put band: \|delta\| ≤ 0.40. ATM-call band: 0.40–0.60. Steeper positive → downside demand; negative predictor of returns. `—` when either band is empty. |
+| `IVspr` | OI-weighted mean of (IV_call − IV_put) across **matched pairs** (same strike + expiry), 10–60 DTE, on **settlement IV** | Cremers/Weinbaum (2010) put-call-parity deviation. Positive → bullish; positive predictor of returns (Lin, Lu & Driessen 2013). Weight → volume when OI missing. `—` when no matched pair exists. |
+| `IVskew` | `IV(OTM put) − IV(ATM call)`, closest-moneyness contract each, 10–60 DTE, on **settlement IV** | Xing/Zhang/Zhao (2010). OTM-put band `K/S ∈ [0.80, 0.95]` (closest to 0.95); ATM-call band `K/S ∈ [0.95, 1.05]` (closest to 1.0). Steeper positive → downside demand; negative predictor of returns. `—` when either band is empty. |
 
 `IVspr` and `IVskew` are directional reads — kept **out of the direction-agnostic
 conviction score** but available to the LLM for Step 5 vol-alignment.
+
+Both are built on the **settlement IV** (`eod_iv`) of each contract, not the
+intraday snapshot, so a traded leg and a backfilled counterpart leg compare
+like-with-like. `K/S = Strike / Price~`; `Expires` (the ISO-datetime expiration)
+and `Open Int` are the real flow-feed column names (a mismatched constant
+previously collapsed all expiries to one key — fixed 2026-07-01).
+
+> **Flow subset vs full chain — and the backfill mitigation:** the paper computes
+> both across the full daily option chain; the flow feed (largest ~100
+> trades/symbol) rarely carries BOTH legs of a matched pair, so on flow alone
+> `IVspr` is ~98% empty. To recover the paper's construction, the missing
+> counterpart legs are **backfilled** from Barchart per-contract price-history
+> (settlement IV as of the trade date D) by `scripts/backfill_iv.py`, stored in a
+> per-date sidecar and read back here via `lib/iv_backfill.build_iv_lookup`. The
+> backfill lifts matched-pair coverage substantially; where a sidecar is absent
+> the metric falls back to flow-only (frequently blank). Predictive power on this
+> reconstructed signal should still be backtested before it is trusted
+> directionally. See `references/references_key_insight` and `lib/iv_backfill.py`.
 
 ---
 

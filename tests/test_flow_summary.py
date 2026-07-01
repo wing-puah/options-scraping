@@ -533,12 +533,14 @@ def test_persistence_no_recurring_names():
 # ---------------------------------------------------------------------------
 
 def _flow_row_d(symbol, opt_type, side, premium, *, delta, strike="100",
-                spot="100", iv="50%", size="100", dte="30"):
+                spot="100", iv="50%", size="100", dte="30",
+                expiry="2026-08-21", oi="0"):
     """Flow row carrying Delta + Price~ so OTM/IV signals can fire."""
     return {
         "Symbol": symbol, "Type": opt_type, "Strike": strike, "Price~": spot,
-        "DTE": dte, "Side": side, "Premium": premium, "Size": size, "IV": iv,
-        "Delta": delta, "*": "", "Time": "10:00 ET",
+        "Expires": expiry, "DTE": dte, "Side": side, "Premium": premium,
+        "Size": size, "IV": iv, "Delta": delta, "Open Int": oi,
+        "*": "", "Time": "10:00 ET",
     }
 
 
@@ -574,10 +576,13 @@ def test_otm_component_rewards_otm_flow_and_zero_when_absent():
     assert parts["NODELTA"] == 0
 
 
-def test_iv_spread_is_call_minus_put():
+def test_iv_spread_is_matched_pair_call_minus_put():
+    # Matched pair: same strike + expiry → OI-weighted (IV_call − IV_put).
     rows = [
-        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%"),
-        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%"),
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                    strike="100", expiry="2026-08-21", oi="500"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                    strike="100", expiry="2026-08-21", oi="500"),
     ]
     r = _flow_ticker_rows(rows)[0]
     assert r["iv_spread"] == pytest.approx(20.0)   # 60 − 40
@@ -585,20 +590,132 @@ def test_iv_spread_is_call_minus_put():
     assert r["iv_put_w"] == pytest.approx(40.0)
 
 
+def test_iv_spread_oi_weights_across_matched_pairs():
+    # Two matched pairs, different OI → OI-weighted average of the per-pair diffs.
+    rows = [
+        # Pair A: diff +10, OI 900.
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                    strike="100", expiry="2026-08-21", oi="900"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="50%",
+                    strike="100", expiry="2026-08-21", oi="900"),
+        # Pair B: diff −10, OI 100.
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="40%",
+                    strike="110", expiry="2026-08-21", oi="100"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="50%",
+                    strike="110", expiry="2026-08-21", oi="100"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    # (10·900 + (−10)·100) / (900 + 100) = 8000/1000 = 8.0
+    assert r["iv_spread"] == pytest.approx(8.0)
+
+
+def test_iv_spread_none_when_no_matched_pair():
+    # Call and put at DIFFERENT strikes → no matched pair → None.
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%", strike="100"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%", strike="90"),
+    ]
+    assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+
+
 def test_iv_spread_none_when_one_side_absent():
     rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%")]
     assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
 
 
+def test_iv_spread_excludes_out_of_window_dte():
+    # Matched strike/expiry but DTE outside 10–60 → excluded → None.
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%", dte="5"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%", dte="5"),
+    ]
+    assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+
+
 def test_iv_skew_is_otm_put_minus_atm_call():
     rows = [
-        # ATM call band (|delta| 0.40–0.60), IV 30.
-        _flow_row_d("X", "Call", "ask", "100000", delta="0.50", iv="30%"),
-        # OTM put band (|delta| ≤ 0.40), IV 55 → steep skew.
-        _flow_row_d("X", "Put", "ask", "100000", delta="-0.20", iv="55%"),
+        # ATM call: K/S = 100/100 = 1.0 (band [0.95, 1.05]), IV 30.
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.50", iv="30%",
+                    strike="100", spot="100"),
+        # OTM put: K/S = 90/100 = 0.90 (band [0.80, 0.95]), IV 55 → steep skew.
+        _flow_row_d("X", "Put", "ask", "100000", delta="-0.20", iv="55%",
+                    strike="90", spot="100"),
     ]
     r = _flow_ticker_rows(rows)[0]
     assert r["iv_skew"] == pytest.approx(25.0)     # 55 − 30
+
+
+def test_iv_skew_picks_closest_moneyness_contract():
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.50", iv="30%",
+                    strike="100", spot="100"),
+        # Two in-band OTM puts: K/S 0.94 (closest to 0.95) IV 55 vs K/S 0.82 IV 70.
+        _flow_row_d("X", "Put", "ask", "100000", delta="-0.20", iv="55%",
+                    strike="94", spot="100"),
+        _flow_row_d("X", "Put", "ask", "100000", delta="-0.10", iv="70%",
+                    strike="82", spot="100"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["iv_skew"] == pytest.approx(25.0)     # uses K/S 0.94 put (55), not 0.82 (70)
+
+
+def test_iv_skew_none_when_put_band_empty():
+    # Only an ATM put (K/S 1.0) — outside the OTM-put band → no skew.
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.50", iv="30%",
+                    strike="100", spot="100"),
+        _flow_row_d("X", "Put", "ask", "100000", delta="-0.50", iv="55%",
+                    strike="100", spot="100"),
+    ]
+    assert _flow_ticker_rows(rows)[0]["iv_skew"] is None
+
+
+def test_iv_backfill_completes_single_sided_pair():
+    # Only a call traded at 100/2026-08-21 → no matched pair on flow alone.
+    rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                        strike="100", expiry="2026-08-21", oi="500")]
+    assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+    # Backfilled put counterpart (settlement IV 40) completes the pair → 60 − 40.
+    backfill = {"X": [{"opt_type": "put", "strike": 100.0, "expiry": "2026-08-21",
+                       "iv": 40.0, "oi": 500.0, "vol": None}]}
+    r = _flow_ticker_rows(rows, backfill)[0]
+    assert r["iv_spread"] == pytest.approx(20.0)
+
+
+def test_iv_backfill_does_not_override_traded_leg():
+    # Both legs traded (real spread 20). A stray backfill for the put leg must not
+    # replace the real settlement IV — first-seen (the traded leg) wins.
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                    strike="100", expiry="2026-08-21", oi="500"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                    strike="100", expiry="2026-08-21", oi="500"),
+    ]
+    backfill = {"X": [{"opt_type": "put", "strike": 100.0, "expiry": "2026-08-21",
+                       "iv": 10.0, "oi": 999.0, "vol": None}]}
+    assert _flow_ticker_rows(rows, backfill)[0]["iv_spread"] == pytest.approx(20.0)
+
+
+def test_iv_backfill_fills_skew_band():
+    # ATM call only (no OTM put in band) → no skew on flow alone.
+    rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="30%",
+                        strike="100", spot="100")]
+    assert _flow_ticker_rows(rows)[0]["iv_skew"] is None
+    # Backfilled OTM put (K/S 0.90, IV 55) fills the put band → 55 − 30.
+    backfill = {"X": [{"opt_type": "put", "strike": 90.0, "expiry": "2026-08-21",
+                       "iv": 55.0, "oi": 100.0, "vol": None}]}
+    assert _flow_ticker_rows(rows, backfill)[0]["iv_skew"] == pytest.approx(25.0)
+
+
+def test_matched_pair_uses_eod_settlement_iv_when_present():
+    # eod_iv (a fraction) is the settlement IV and overrides the intraday snapshot:
+    # 0.70/0.30 → 70/30 points → spread 40, not the intraday 60 − 40 = 20.
+    call = _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                       strike="100", expiry="2026-08-21", oi="500")
+    put = _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                      strike="100", expiry="2026-08-21", oi="500")
+    call["eod_iv"], put["eod_iv"] = "0.70", "0.30"
+    assert _flow_ticker_rows([call, put])[0]["iv_spread"] == pytest.approx(40.0)
 
 
 def test_otm_and_iv_columns_render_in_rollup_md():
@@ -683,7 +800,7 @@ def _oi_row(symbol, opt_type, side, premium, *, spot, strike, dte, oi_change,
     r = _rich_row(symbol, opt_type, side, premium,
                   spot=spot, strike=strike, delta=delta, dte=dte, size=size, iv=iv)
     r["oi_change"] = oi_change
-    r["Expiration Date"] = exp
+    r["Expires"] = exp
     return r
 
 

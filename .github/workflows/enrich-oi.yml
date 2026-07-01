@@ -68,3 +68,19 @@ jobs:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           SCRAPE_HEADLESS: 'true'
+
+      - name: Backfill matched-pair counterpart IV (latest date only)
+        # Fetch the missing call/put leg's settlement IV for single-sided in-window
+        # pairs, so the analysis rollup's IVspr/IVskew are populated (~96% vs ~2% on
+        # flow alone). Latest date ONLY — no --backfill: unlike enrich, IV is as-of
+        # trade date D (available same evening, no D+1 wait), and a full sweep would
+        # re-scan every historical date and risk the job timeout. Idempotent per
+        # contract via the sidecar's fetched_on marker. Manual date input respected.
+        if: ${{ always() }}
+        run: python scripts/backfill_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'

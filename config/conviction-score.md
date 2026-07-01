@@ -102,20 +102,38 @@ These carry a directional read and stay **out** of the direction-agnostic score
 (like `Bull`/`Bear`/`C/P`). They feed the framework's Step 5 *Vol alignment* and
 the directional thesis, per Lin, Lu & Driessen (2013):
 
+Both are built faithfully to the paper's appendix (A.1/A.2), after
+Cremers & Weinbaum (2010) and Xing, Zhang & Zhao (2010), restricted to the
+**10–60 DTE** window:
+
 | Column   | What it measures |
 | -------- | ---------------- |
-| `IVspr`  | Premium-weighted **call IV − put IV** (IV spread). Positive → bullish information; a *positive* predictor of equity returns. `—` when one side has no premium. |
-| `IVskew` | Premium-weighted **OTM-put IV − ATM-call IV** (\|delta\| ≤ 0.40 puts vs 0.40–0.60 calls). Steeper (more positive) → downside demand; *negatively* associated with future returns. `—` when either band is empty. |
+| `IVspr`  | **IV spread** — the open-interest-weighted mean of (`IV_call − IV_put`) across **matched pairs** (same strike **and** expiration), on each contract's **settlement IV**. A put-call-parity deviation; positive → bullish, a *positive* predictor of equity returns. `—` when no matched call/put pair exists. Weight falls back to traded volume when OI is missing. |
+| `IVskew` | **IV skew** — `IV(OTM put) − IV(ATM call)`, one contract each, on **settlement IV**: the OTM put with moneyness `K/S ∈ [0.80, 0.95]` closest to 0.95, and the ATM call with `K/S ∈ [0.95, 1.05]` closest to 1.0. Steeper (more positive) → downside demand; *negatively* associated with future returns. `—` when either band is empty. |
+
+**Validity concern — flow subset vs. full chain (backfilled).** Lin/Lu/Driessen
+compute both measures across the *entire daily option chain*. The traded flow
+(Barchart's ~100 largest trades/symbol) rarely carries both legs of a matched
+pair, so on flow alone `IVspr` is ~98% empty. The missing counterpart legs are
+therefore **backfilled** from Barchart per-contract price-history — the
+settlement IV as of the trade date D (`scripts/backfill_iv.py` → per-date sidecar
+→ `lib/iv_backfill.build_iv_lookup` → the rollup), which lifts matched-pair
+coverage materially. It remains a *reconstruction* of the paper's chain-level
+statistic, not the validated statistic itself, and where no sidecar exists it
+falls back to flow-only. **Predictive power on the reconstructed signal is
+unverified** — backtest before trusting either directionally.
 
 **Directional gate (Step-5 use, not auto-applied to the score):** in the
 Mar-2025 backtest, `IVspr` was the single best directional confirmation —
 positive/mildly-negative spreads won; **extreme** negative spreads lost. A BEAR
-play whose `IVspr` is **below ≈ −25** is buying puts whose IV is massively
-inflated by panic hedging (overpriced crash insurance that mean-reverts): those
-bear puts lost (TSLA −39/−45, COIN −78, QQQ −20) while mildly-negative ones won
-(SPY −4/−9, NVDA −11). This is *direction-bearing*, so it deliberately stays out
-of the agnostic score — treat it as a veto on the play, not a deduction on the
-name.
+play whose `IVspr` is deeply negative is buying puts whose IV is massively
+inflated by panic hedging (overpriced crash insurance that mean-reverts).
+⚠️ **STALE:** the specific **≈ −25** threshold (and the example plays) were
+derived from the *old* unmatched, premium-weighted, all-DTE spread definition.
+The matched-pair OI-weighted spread above has a different distribution — the
+threshold must be **re-derived** from a fresh backtest before use. This is
+*direction-bearing*, so it deliberately stays out of the agnostic score — treat
+it as a veto on the play, not a deduction on the name.
 
 ## Buckets
 

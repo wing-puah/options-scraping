@@ -28,7 +28,9 @@ from lib.flow_summary._helpers import (
     _FINANCING_DELTA,
     _FLOW_DELTA,
     _FLOW_DTE,
+    _FLOW_EXPIRY,
     _FLOW_IV,
+    _FLOW_OI,
     _FLOW_OPENFLAG,
     _FLOW_PREMIUM,
     _FLOW_SIDE,
@@ -44,9 +46,11 @@ from lib.flow_summary._helpers import (
     _biggest_trade_str,
     _classify_sentiment,
     _dte_bucket,
+    _expiry_key,
     _fmt_iv_pts,
     _fmt_money,
     _fmt_ratio,
+    _moneyness,
     _moneyness_band,
     _otm_pct,
     _to_float,
@@ -161,8 +165,104 @@ def _finalize_oi_factors(contracts: dict) -> dict:
     }
 
 
-def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
-    """Group flow rows by symbol and compute per-ticker aggregates."""
+# IV spread / skew construction bands (Lin/Lu/Driessen 2013, appendix). Both
+# measures use the same 10–60 DTE maturity window. Skew moneyness (K/S) bands:
+# OTM put in [0.80, 0.95] closest to 0.95; ATM call in [0.95, 1.05] closest to 1.0.
+_SKEW_DTE_LO, _SKEW_DTE_HI = 10, 60
+_OTMPUT_LO, _OTMPUT_HI, _OTMPUT_TARGET = 0.80, 0.95, 0.95
+_ATMCALL_LO, _ATMCALL_HI, _ATMCALL_TARGET = 0.95, 1.05, 1.0
+
+
+def _settlement_iv(row: dict) -> float | None:
+    """Settlement IV (points) for a flow row: EOD ``eod_iv`` if enriched, else the
+    intraday snapshot ``IV``.
+
+    Matched pairs / skew compare a traded leg against a backfilled counterpart leg,
+    and the counterpart only exists as an end-of-day price-history value — so both
+    sides use the settlement IV where available for a like-with-like comparison.
+    ``eod_iv`` is stored as a fraction (0.60); the flow feed's intraday IV and this
+    module's IV columns are in points (60), so the EOD value is scaled ×100.
+    """
+    eod = _to_float(row.get("eod_iv"))
+    if eod is not None and eod > 0:
+        return eod * 100.0
+    return _to_float(row.get(_FLOW_IV))
+
+
+def _new_pair_leg() -> dict:
+    return {"call_iv": None, "call_oi": 0.0, "call_vol": 0.0,
+            "put_iv": None, "put_oi": 0.0, "put_vol": 0.0}
+
+
+def _update_pair(agg: dict, opt: str, strike_r: float, expiry: str,
+                 iv: float, oi: float | None, vol: float | None) -> None:
+    """Fold one leg's settlement IV / OI / volume into its (strike, expiry) pair.
+
+    ``iv`` is a single settlement value per contract (first-seen wins — every trade
+    row of a contract carries the same EOD IV); ``oi`` takes the max seen; ``vol``
+    sums. A backfilled counterpart never overrides a leg that already traded.
+    """
+    pair = agg["_pair_contracts"].setdefault((strike_r, expiry), _new_pair_leg())
+    if pair[f"{opt}_iv"] is None:
+        pair[f"{opt}_iv"] = iv
+    if oi is not None:
+        pair[f"{opt}_oi"] = max(pair[f"{opt}_oi"], oi)
+    if vol is not None:
+        pair[f"{opt}_vol"] += vol
+
+
+def _update_skew(agg: dict, opt: str, m: float, iv: float) -> None:
+    """Track the closest-moneyness OTM put (→0.95) and ATM call (→1.0) settlement IV."""
+    if opt == "put" and _OTMPUT_LO <= m <= _OTMPUT_HI:
+        gap = abs(m - _OTMPUT_TARGET)
+        if agg["_skew_put_gap"] is None or gap < agg["_skew_put_gap"]:
+            agg["_skew_put_gap"] = gap
+            agg["_skew_put_iv"] = iv
+    elif opt == "call" and _ATMCALL_LO <= m <= _ATMCALL_HI:
+        gap = abs(m - _ATMCALL_TARGET)
+        if agg["_skew_call_gap"] is None or gap < agg["_skew_call_gap"]:
+            agg["_skew_call_gap"] = gap
+            agg["_skew_call_iv"] = iv
+
+
+def _matched_pair_spread(pair_contracts: dict) -> float | None:
+    """OI-weighted mean of (IV_call − IV_put) across matched pairs.
+
+    Cremers/Weinbaum (2010) IV spread as used by Lin/Lu/Driessen (2013, A.1): for
+    each (strike, expiry) that has BOTH a call and a put settlement IV — traded or
+    backfilled — take the leg IV difference, weighted by the pair's average open
+    interest (½(OI_call + OI_put)). Falls back to average traded volume when open
+    interest is missing (the paper notes vol-weighting is qualitatively similar).
+    Returns None when no matched pair exists.
+    """
+    num = den = 0.0
+    for p in pair_contracts.values():
+        if p["call_iv"] is None or p["put_iv"] is None:
+            continue  # not a matched pair — one leg absent
+        d = p["call_iv"] - p["put_iv"]
+        w = (p["call_oi"] + p["put_oi"]) / 2.0
+        if w <= 0:
+            w = (p["call_vol"] + p["put_vol"]) / 2.0
+        if w <= 0:
+            continue
+        num += w * d
+        den += w
+    return (num / den) if den > 0 else None
+
+
+def _flow_ticker_rows(rows: Iterable[dict],
+                      iv_backfill: dict[str, list[dict]] | None = None) -> list[dict]:
+    """Group flow rows by symbol and compute per-ticker aggregates.
+
+    ``iv_backfill`` (optional) is ``{UPPER_SYMBOL: [contract, ...]}`` from
+    :func:`lib.iv_backfill.build_iv_lookup` — the settlement IV of counterpart legs
+    that did NOT trade, fetched from Barchart price-history (see
+    ``scripts/backfill_iv.py``). It is folded into the matched-pair and skew
+    accumulators so ``iv_spread`` / ``iv_skew`` reflect the fuller chain, not only
+    the traded subset. Absent → the metrics fall back to flow-only (frequently
+    blank). Pure over its inputs: the caller loads the per-date sidecar and passes
+    it, so backtest (historical D) and live (latest D) share one path.
+    """
     by_sym: dict[str, dict] = defaultdict(lambda: {
         "symbol": "",
         "trades": 0,
@@ -180,16 +280,36 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         "otm_ext": 0.0,
         "delta_notional": 0.0,
         "fin_premium": 0.0,
-        # Premium-weighted IV split by side, plus skew bands (Lin/Lu/Driessen
-        # 2013): IV spread = call−put IV (positive → bullish), IV skew =
-        # OTM-put − ATM-call IV (steeper → bearish). Directional context only —
-        # never fed into the direction-agnostic conviction score.
+        # Premium-weighted IV split by side (for the iv_call_w / iv_put_w display
+        # columns only).
         "_iv_call_prem_sum": 0.0,
         "_iv_put_prem_sum": 0.0,
-        "_iv_otmput_sum": 0.0,
-        "_iv_otmput_w": 0.0,
-        "_iv_atmcall_sum": 0.0,
-        "_iv_atmcall_w": 0.0,
+        # Directional vol reads, constructed faithfully to Lin/Lu/Driessen (2013,
+        # appendix A.1/A.2) — after Cremers/Weinbaum (2010) and Xing/Zhang/Zhao
+        # (2010). Both restricted to 10 ≤ DTE ≤ 60 and built on SETTLEMENT IV
+        # (eod_iv) so a traded leg and a backfilled counterpart compare like-with-
+        # like. Directional context only — never fed into the conviction score.
+        #
+        #   IV spread = OI-weighted mean of (IV_call − IV_put) across MATCHED
+        #   pairs (same strike + expiry) — a put-call-parity deviation, positive
+        #   → bullish. Accumulated per contract in `_pair_contracts` keyed by
+        #   (strike, expiry); pairs formed at finalization.
+        #
+        #   IV skew = IV(OTM put closest to K/S 0.95) − IV(ATM call closest to
+        #   K/S 1.0), single contract each — steeper → bearish. Tracked as the
+        #   closest-moneyness put/call IV as rows stream in.
+        #
+        # The paper computes both across the FULL daily option chain; the traded
+        # flow rarely carries both legs of a pair, so the missing counterpart legs
+        # are BACKFILLED from Barchart price-history (iv_backfill) — see
+        # lib/iv_backfill.py and config/rollup-reference.md. Still None when even
+        # the anchor leg is absent.
+        "_pair_contracts": {},          # (strike, expiry) -> per-side settlement IV/OI/vol
+        "_spot": None,                  # representative underlying (for backfill moneyness)
+        "_skew_put_iv": None,
+        "_skew_put_gap": None,          # |K/S − 0.95| of the tracked OTM put
+        "_skew_call_iv": None,
+        "_skew_call_gap": None,         # |K/S − 1.0| of the tracked ATM call
         "size_total": 0,
         "bullish": 0,
         "bearish": 0,
@@ -250,18 +370,26 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
             agg["premium_call"] += prem
             agg["ext_call"] += ext
             agg["_iv_call_prem_sum"] += iv * prem
-            # ATM call band for skew: 0.40 ≤ |delta| ≤ 0.60.
-            if has_delta and 0.40 <= abs(delta) <= 0.60:
-                agg["_iv_atmcall_sum"] += iv * prem
-                agg["_iv_atmcall_w"] += prem
         elif t_lower == "put":
             agg["premium_put"] += prem
             agg["ext_put"] += ext
             agg["_iv_put_prem_sum"] += iv * prem
-            # OTM put band for skew: |delta| ≤ 0.40.
-            if has_delta and abs(delta) <= 0.40:
-                agg["_iv_otmput_sum"] += iv * prem
-                agg["_iv_otmput_w"] += prem
+
+        if agg["_spot"] is None and spot:
+            agg["_spot"] = spot
+
+        # Paper-faithful IV spread / skew (Lin/Lu/Driessen 2013): restrict to the
+        # 10–60 DTE window, require strike + spot for moneyness, and use the
+        # SETTLEMENT IV so a traded leg and its backfilled counterpart are
+        # comparable. Counterpart legs (the missing side of a pair) are folded in
+        # from iv_backfill after this loop.
+        siv = _settlement_iv(r)
+        m = _moneyness(strike, spot)
+        if _SKEW_DTE_LO <= dte <= _SKEW_DTE_HI and m is not None \
+                and siv is not None and siv > 0 and t_lower in ("call", "put"):
+            _update_skew(agg, t_lower, m, siv)
+            _update_pair(agg, t_lower, round(strike, 4), _expiry_key(r),
+                         siv, _to_float(r.get(_FLOW_OI)), float(size))
 
         sent = _classify_sentiment(opt_type, side)
         agg[sent] += 1
@@ -287,6 +415,16 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
 
     out = []
     for sym, a in by_sym.items():
+        # Fold in backfilled counterpart legs (settlement IV of contracts that did
+        # not trade) so single-sided pairs become matched. Selected in-window at
+        # fetch time; skew moneyness needs the symbol's spot (skip when absent).
+        for cp in (iv_backfill or {}).get(sym.upper(), []):
+            m = _moneyness(cp["strike"], a["_spot"]) if a["_spot"] else None
+            if m is not None:
+                _update_skew(a, cp["opt_type"], m, cp["iv"])
+            _update_pair(a, cp["opt_type"], round(cp["strike"], 4), cp["expiry"],
+                         cp["iv"], cp["oi"], cp["vol"])
+
         pt = a["premium_total"]
         dte_w = a["_dte_premium_sum"] / pt if pt > 0 else 0.0
         iv_w  = a["_iv_premium_sum"]  / pt if pt > 0 else 0.0
@@ -304,10 +442,11 @@ def _flow_ticker_rows(rows: Iterable[dict]) -> list[dict]:
         # shows "—" rather than a misleading 0.
         iv_call_w = (a["_iv_call_prem_sum"] / a["premium_call"]) if a["premium_call"] > 0 else None
         iv_put_w = (a["_iv_put_prem_sum"] / a["premium_put"]) if a["premium_put"] > 0 else None
-        iv_spread = (iv_call_w - iv_put_w) if (iv_call_w is not None and iv_put_w is not None) else None
-        otmput_iv = (a["_iv_otmput_sum"] / a["_iv_otmput_w"]) if a["_iv_otmput_w"] > 0 else None
-        atmcall_iv = (a["_iv_atmcall_sum"] / a["_iv_atmcall_w"]) if a["_iv_atmcall_w"] > 0 else None
-        iv_skew = (otmput_iv - atmcall_iv) if (otmput_iv is not None and atmcall_iv is not None) else None
+        # IV spread — OI-weighted matched-pair (Cremers/Weinbaum); IV skew —
+        # closest-moneyness OTM-put minus ATM-call (Xing/Zhang/Zhao).
+        iv_spread = _matched_pair_spread(a["_pair_contracts"])
+        iv_skew = (a["_skew_put_iv"] - a["_skew_call_iv"]) \
+            if (a["_skew_put_iv"] is not None and a["_skew_call_iv"] is not None) else None
 
         out.append({
             "symbol": sym,
@@ -360,7 +499,7 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
     oi_chg_raw = r.get("oi_change", "")
     if oi_chg_raw in (None, "") or t_lower not in ("call", "put"):
         return
-    ckey = (t_lower, str(r.get(_FLOW_STRIKE, "")), str(r.get("Expiration Date", "")))
+    ckey = (t_lower, str(r.get(_FLOW_STRIKE, "")), _expiry_key(r))
     c = agg["_oi_contracts"].get(ckey)
     if c is None:
         c = {
@@ -759,15 +898,17 @@ def _oi_breakdown_section(rollup: list[dict], top_n: int, title: str) -> str:
 def build_scored_flow_rollup(
     rows: list[dict],
     unusual_rows: list[dict] | None = None,
+    iv_backfill: dict[str, list[dict]] | None = None,
 ) -> list[dict]:
     """Per-ticker flow rollup with conviction scores attached, sorted best-first.
 
     When ``unusual_rows`` (the matching unusual-activity section) is supplied the
     conviction score also credits cross-section overlap and Vol/OI strength.
-    Shared by the markdown summary and the CSV export so both see identical
-    scoring and ordering.
+    ``iv_backfill`` (optional) supplies backfilled counterpart-leg settlement IV for
+    the matched-pair / skew reads (see :func:`_flow_ticker_rows`). Shared by the
+    markdown summary and the CSV export so both see identical scoring and ordering.
     """
-    rollup = _flow_ticker_rows(rows)
+    rollup = _flow_ticker_rows(rows, iv_backfill)
     unusual_syms = {(r.get(_UN_SYMBOL) or "").strip() for r in (unusual_rows or [])}
     unusual_syms.discard("")
     score_flow_rollup(rollup, unusual_syms, _voloi_by_symbol(unusual_rows))
@@ -782,6 +923,7 @@ def summarize_flow(
     raw_n: int = 5,
     unusual_rows: list[dict] | None = None,
     focus: set[str] | None = None,
+    iv_backfill: dict[str, list[dict]] | None = None,
 ) -> str:
     """Full rollup (all tickers) + top raw_n raw trades for each of the top_n tickers by score.
 
@@ -795,7 +937,7 @@ def summarize_flow(
     """
     if not rows:
         return f"## {title}\n\n_No data available._\n"
-    rollup = build_scored_flow_rollup(rows, unusual_rows)
+    rollup = build_scored_flow_rollup(rows, unusual_rows, iv_backfill)
     count_line = f"_{len(rows)} trades across {len(rollup)} symbols._"
     display = rollup
     if focus is not None:
@@ -850,18 +992,19 @@ def _rollup_metric_cells(r: dict) -> dict:
     }
 
 
-def ticker_metrics(flow_rows: list[dict]) -> dict[str, dict]:
+def ticker_metrics(flow_rows: list[dict],
+                   iv_backfill: dict[str, list[dict]] | None = None) -> dict[str, dict]:
     """``{UPPER_SYMBOL: {oi_confirm_pct, cpir, iv_spread}}`` for a flow section.
 
     The three deterministic per-ticker rollup-context metrics, recomputed straight
     from parsed flow rows. Reuses :func:`_flow_ticker_rows` (the pure aggregation);
     these values do NOT depend on conviction scoring or the unusual-activity rows,
-    so no scoring/CSV serialization is run. Formatting mirrors ``FLOW_CSV_COLUMNS``
-    via :func:`_rollup_metric_cells`, so the values equal what the audit CSV and the
-    analysis-row join carry.
+    so no scoring/CSV serialization is run. ``iv_backfill`` is threaded through so
+    the ``iv_spread`` written onto the analysis row matches the rollup markdown.
+    Formatting mirrors ``FLOW_CSV_COLUMNS`` via :func:`_rollup_metric_cells`.
     """
     return {r["symbol"].upper(): _rollup_metric_cells(r)
-            for r in _flow_ticker_rows(flow_rows)}
+            for r in _flow_ticker_rows(flow_rows, iv_backfill)}
 
 
 def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:

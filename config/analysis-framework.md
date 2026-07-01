@@ -250,14 +250,17 @@ built — it typically lands Low and is flagged rather than traded.
 direction-bearing vol columns (Lin, Lu & Driessen 2013) — use them to confirm
 *Flow confirmation* and *Vol alignment*, never as standalone triggers:
 
-- **`IVspr`** = call IV − put IV. **Positive → bullish** information (a positive
-  predictor of equity returns); strongly negative corroborates a bearish thesis.
-- **`IVskew`** = OTM-put IV − ATM-call IV. **Steeper/more positive → downside
-  demand**, negatively associated with future returns — it warns against selling
-  puts and supports a bearish/hedge read.
+- **`IVspr`** = OI-weighted (call IV − put IV) across matched strike/expiry pairs
+  (10–60 DTE). **Positive → bullish** information (a positive predictor of equity
+  returns); strongly negative corroborates a bearish thesis.
+- **`IVskew`** = OTM-put IV − ATM-call IV (closest-moneyness contract each,
+  10–60 DTE). **Steeper/more positive → downside demand**, negatively associated
+  with future returns — it warns against selling puts and supports a bearish/hedge
+  read.
 - Both effects **roughly double around earnings/analyst events** — weight them up
   when a dated `[CAT]` sits inside the play's horizon, and ignore a side shown as
-  `—` (too little premium to be meaningful).
+  `—` (no matched pair / empty band — computed on the traded-flow subset, so this
+  is common and a proxy for the paper's chain-level measure, not proof of absence).
 
 The `otm` conviction component (`OTM$` column) separately rewards
 economically-sized **OTM** flow — the leveraged informed bet — but it is

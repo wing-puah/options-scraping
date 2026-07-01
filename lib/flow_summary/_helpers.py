@@ -109,21 +109,23 @@ _FLOW_SYMBOL    = "Symbol"
 _FLOW_UPRICE    = "Price~"   # underlying price at trade time
 _FLOW_TYPE      = "Type"
 _FLOW_STRIKE    = "Strike"
+_FLOW_EXPIRY    = "Expires"   # ISO datetime, e.g. "2026-12-18T16:30:00-06:00"
 _FLOW_DTE       = "DTE"
 _FLOW_SIDE      = "Side"
 _FLOW_PREMIUM   = "Premium"
 _FLOW_SIZE      = "Size"
 _FLOW_IV        = "IV"
 _FLOW_DELTA     = "Delta"
+_FLOW_OI        = "Open Int"
 _FLOW_OPENFLAG  = "*"
 _FLOW_CODE      = "Code"
 _FLOW_TIME      = "Time"
 
 # Columns dropped from raw trade rows — low signal for LLM analysis.
-# Price~ is in the rollup context; Expiration Date duplicates DTE;
+# Price~ is in the rollup context; Expires duplicates DTE;
 # Bid/Ask x Size and Trade price add noise; Time is not useful at this level.
 _RAW_DROP_COLUMNS = frozenset({
-    "Price~", "Expiration Date", "Bid x Size", "Ask x Size", "Trade", "Time",
+    "Price~", "Expires", "Bid x Size", "Ask x Size", "Trade", "Time",
     # Enriched columns: hide from raw trade tables; OI signal is shown as
     # normalized per-ticker aggregates in the breakdown section instead.
     "oi_d", "oi_prev", "oi_change", "vol_d",
@@ -162,6 +164,29 @@ def _otm_pct(strike: float, spot: float, opt_type: str) -> float | None:
     if opt_type.lower() == "call":
         return (strike - spot) / spot * 100
     return (spot - strike) / spot * 100
+
+
+def _expiry_key(row: dict) -> str:
+    """Normalized expiration-date string for a flow row (contract identity key).
+
+    The flow feed's ``Expires`` column is a full ISO datetime
+    (``2026-12-18T16:30:00-06:00``); the leading 10 chars are the ISO date, which
+    is the stable per-contract key. Used to group matched pairs and dedup the OI
+    per-contract accumulator — both key on (…, expiration date).
+    """
+    return str(row.get(_FLOW_EXPIRY, "")).strip()[:10]
+
+
+def _moneyness(strike: float, spot: float) -> float | None:
+    """Strike-to-spot ratio K/S, or None when either input is missing.
+
+    The paper (Lin/Lu/Driessen 2013, appendix A.2, after Xing/Zhang/Zhao 2010)
+    defines the IV-skew bands on this ratio: OTM put K/S ∈ [0.80, 0.95], ATM
+    call K/S ∈ [0.95, 1.05].
+    """
+    if not (strike and spot):
+        return None
+    return strike / spot
 
 
 def _moneyness_band(otm_pct: float | None) -> str:

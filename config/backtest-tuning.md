@@ -310,6 +310,30 @@ This is principle-driven (signal quality → position size), not curve-fitting. 
 
 ## Financing & IVSpread gates — signal-quality filters (2026-06-19)
 
+> ⚠️ **STALE (2026-07-01):** the `IVSpread`/`IVspr` findings below were computed
+> on the **old** IV-spread definition (premium-weighted `mean(call IV) −
+> mean(put IV)` over *unmatched* strikes/maturities, all DTE). The formula was
+> re-aligned to Lin/Lu/Driessen (2013) — **OI-weighted matched-pair** (same
+> strike+expiry) diff, 10–60 DTE, on settlement IV — which has a different
+> distribution. The `+0.47` correlation and the **≈ −25 BEAR veto threshold must
+> be re-derived** from a fresh backtest before use. The `FinancingShare` findings
+> are unaffected. See `config/conviction-score.md`.
+>
+> **Two follow-on corrections (2026-07-01), both of which change `IVSpread`'s
+> value on every row and so must precede any re-derivation:**
+> 1. **Column-name bug fixed.** The matched-pair key read non-existent columns
+>    (`"Expiration Date"`/`"Open Interest"`; the flow feed uses `Expires`/`Open
+>    Int`), collapsing all expiries at a strike into one key — inventing false
+>    cross-expiry pairs (and mis-deduping the OI factor measures, ~19% of
+>    contracts). With the fix, the sign of the mean flipped to the paper-expected
+>    **negative** (−0.86 vs the buggy +0.68 on 2026-06-26).
+> 2. **Counterpart backfill added.** Missing pair legs are now filled from
+>    Barchart price-history (`scripts/backfill_iv.py` → per-date sidecar), so
+>    `IVSpread` coverage is materially higher than the flow-only ~2%. Re-derive
+>    the veto **after** running `backfill_iv --backfill` across the test window
+>    and re-running the analysis pipeline so the enriched `IVSpread` reaches the
+>    rows.
+
 Analysis of the Mar-2025 panic re-run (`backtests/results.csv`, 20 trades, Mar
 10–13 2025) joined to the conviction-score audit rollups (`audit/*-rollup.csv`).
 This confirmed that **two signals the framework already computes but did not act

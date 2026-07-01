@@ -19,6 +19,7 @@ load_dotenv(Path(__file__).parent.parent.parent / ".env")
 from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseline
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
+from lib.iv_backfill import build_iv_lookup, sidecar_name
 from lib.sheets_client import get_all_rows
 from lib.vol_snapshot import fetch_vol_snapshot, vol_snapshot_md
 from lib.flow_summary import (
@@ -106,6 +107,34 @@ def _load_rows(client, prefix: str, date_str: str | None) -> list[dict]:
         return []
 
 
+def _load_iv_backfill(client, date_str: str | None) -> dict[str, list[dict]]:
+    """Load the per-date IV-backfill sidecar → ``build_iv_lookup`` dict ({} on miss).
+
+    The sidecar (``scripts/backfill_iv.py``) holds settlement IV for counterpart legs
+    that didn't trade, so the matched-pair ``iv_spread`` / skew reads see the fuller
+    chain. Keyed to the resolved date (latest folder when ``date_str`` is None), so
+    live and backtest read the same file. Any failure degrades gracefully to
+    flow-only metrics.
+    """
+    try:
+        d = date_str
+        if d is None:
+            folders = client.list_date_folders()
+            if not folders:
+                return {}
+            d = max(folders)
+        folder = client.find_date_folder(d)
+        if folder is None:
+            return {}
+        fid = client.file_exists(sidecar_name(d), folder)
+        if not fid:
+            return {}
+        return build_iv_lookup(parse_csv(client.download(fid, name=sidecar_name(d))))
+    except Exception:
+        log.exception("Could not load IV backfill for %s", date_str)
+        return {}
+
+
 def fetch_data(
     date_str: str | None = None,
     *,
@@ -135,6 +164,8 @@ def fetch_data(
 
     for key, _title, _kind in _ANALYSIS_SECTIONS:
         section_rows[key] = _load_rows(client, key, date_str)
+
+    iv_backfill = _load_iv_backfill(client, date_str)
 
     if ticker:
         sections_out = []
@@ -169,7 +200,9 @@ def fetch_data(
             continue
         rows = section_rows[key]
         unusual = section_rows[_FLOW_UNUSUAL_PAIR[key]]
-        sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n, unusual_rows=unusual, focus=focus))
+        sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n,
+                                            unusual_rows=unusual, focus=focus,
+                                            iv_backfill=iv_backfill))
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
     sections_out.append(hedge_pressure_md(section_rows["stocks-flow"], section_rows["etfs-flow"]))
@@ -183,18 +216,19 @@ def fetch_data(
         sections_out.extend(_persistence_sections(client, date_str, days))
 
     if audit_csv_path is not None:
-        _write_audit_csv(section_rows, audit_csv_path)
+        _write_audit_csv(section_rows, audit_csv_path, iv_backfill)
 
     return "\n\n".join(sections_out)
 
 
-def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path) -> None:
+def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path,
+                     iv_backfill: dict[str, list[dict]] | None = None) -> None:
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
         rows = section_rows[flow_key]
         if rows:
             unusual = section_rows[_FLOW_UNUSUAL_PAIR[flow_key]]
-            sections.append((label, build_scored_flow_rollup(rows, unusual)))
+            sections.append((label, build_scored_flow_rollup(rows, unusual, iv_backfill)))
     if not sections:
         return
     path = Path(path)
@@ -228,13 +262,14 @@ def _baseline_section(section_rows: dict[str, list[dict]], date_str: str | None,
 def fetch_scored_csv(date_str: str | None = None) -> str:
     """Build the scored flow rollup (stocks + ETFs) for a date as a CSV string."""
     client = get_drive_client()
+    iv_backfill = _load_iv_backfill(client, date_str)
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
         flow_rows = _load_rows(client, flow_key, date_str)
         if not flow_rows:
             continue
         unusual = _load_rows(client, _FLOW_UNUSUAL_PAIR[flow_key], date_str)
-        sections.append((label, build_scored_flow_rollup(flow_rows, unusual)))
+        sections.append((label, build_scored_flow_rollup(flow_rows, unusual, iv_backfill)))
     return flow_rollup_csv(sections)
 
 
@@ -246,11 +281,12 @@ def fetch_ticker_metrics(date_str: str | None = None) -> dict[str, dict]:
     don't depend on the unusual-activity rows, so only the flow sections are loaded.
     ETF symbols are merged after stocks (the two symbol sets are disjoint)."""
     client = get_drive_client()
+    iv_backfill = _load_iv_backfill(client, date_str)
     out: dict[str, dict] = {}
     for flow_key in ("stocks-flow", "etfs-flow"):
         rows = _load_rows(client, flow_key, date_str)
         if rows:
-            out.update(ticker_metrics(rows))
+            out.update(ticker_metrics(rows, iv_backfill))
     return out
 
 
