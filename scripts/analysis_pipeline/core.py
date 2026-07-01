@@ -196,7 +196,7 @@ def _multiline_signal(value) -> str:
 
 
 def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
-    """Read a date's scored-rollup CSV → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+    """Read a date's scored-rollup CSV → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew}}``.
 
     The rollup is written by the fetch step at ``audit/<date>-rollup.csv`` before
     this runs, so the metrics are available to join onto the play rows. Returns
@@ -248,7 +248,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             window_start, window_end, created_datetime,
             # Deterministic per-ticker rollup context (blank on the MARKET row —
             # these are per-name flow metrics, not a market-level read).
-            m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""),
+            m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""), m.get("iv_skew", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]

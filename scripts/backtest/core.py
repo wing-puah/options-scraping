@@ -37,7 +37,7 @@ _KEY_ORDER = [
     # Per-ticker flow-rollup context joined from audit/<date>-rollup.csv (the same
     # date's scored rollup the analysis ran on). Appended at the END so existing
     # sheet rows stay column-aligned. See _attach_rollup_metrics / _ROLLUP_METRIC_COLS.
-    "oi_confirm_pct", "cpir", "iv_spread",
+    "oi_confirm_pct", "cpir", "iv_spread", "iv_skew",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -48,11 +48,12 @@ _ROLLUP_METRIC_COLS = {
     "oi_confirm_pct": "OIConfirmPct",
     "cpir": "CPIR",
     "iv_spread": "IVSpread",
+    "iv_skew": "IVSkew",
 }
 
 
 def _load_rollup_metrics(date_str: str) -> dict[str, dict]:
-    """Read ``audit/<date>-rollup.csv`` → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+    """Read ``audit/<date>-rollup.csv`` → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew}}``.
 
     Returns ``{}`` when the rollup file is missing (older backtested dates may have
     no audit file). The rollup carries one row per ticker per section (stocks/etfs);
@@ -73,12 +74,12 @@ def _load_rollup_metrics(date_str: str) -> dict[str, dict]:
 
 
 def _attach_rollup_metrics(candidates: list[dict]) -> None:
-    """Backfill per-ticker rollup metrics (OIConfirmPct/CPIR/IVSpread) for candidates
+    """Backfill per-ticker rollup metrics (OIConfirmPct/CPIR/IVSpread/IVSkew) for candidates
     whose analysis row predates these columns.
 
     Newer analysis rows already carry the metrics (joined at analysis time — see
     analysis_pipeline.core.analysis_to_rows); those are authoritative and left as-is.
-    Only candidates with all three blank are filled from that date's
+    Only candidates with all metrics blank are filled from that date's
     ``audit/<date>-rollup.csv``. Rollups are read once per date."""
     cache: dict[str, dict] = {}
     backfilled = 0
@@ -142,6 +143,7 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
             "oi_confirm_pct": str(row.get("oi_confirm_pct", "")).strip(),
             "cpir": str(row.get("cpir", "")).strip(),
             "iv_spread": str(row.get("iv_spread", "")).strip(),
+            "iv_skew": str(row.get("iv_skew", "")).strip(),
         })
 
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",

@@ -88,7 +88,7 @@ ROW_COLUMNS = [
     # at row-expansion time (NOT produced by the LLM — deterministic, kept separate
     # from the model's `signal` evidence). Grouped together at the END so existing
     # tab rows stay column-aligned. See ROLLUP_METRIC_COLS / analysis_to_rows().
-    "oi_confirm_pct", "cpir", "iv_spread",
+    "oi_confirm_pct", "cpir", "iv_spread", "iv_skew",
 ]
 
 # Analysis-row key -> scored-rollup CSV column (lib/flow_summary FLOW_CSV_COLUMNS).
@@ -99,6 +99,7 @@ ROLLUP_METRIC_COLS = {
     "oi_confirm_pct": "OIConfirmPct",
     "cpir": "CPIR",
     "iv_spread": "IVSpread",
+    "iv_skew": "IVSkew",
 }
 
 
