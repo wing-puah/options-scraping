@@ -84,7 +84,12 @@ def _fmt_int(v) -> str:
 # ─── Drive helpers ──────────────────────────────────────────────────────────────
 
 def _compiled_flow_rows(client, date_str: str) -> list[dict]:
-    """All compiled flow rows for a date, across every flow prefix. [] when none."""
+    """All compiled flow rows for a date, across every flow prefix.
+
+    Falls back to a single raw snapshot per prefix when no compiled file exists
+    (historical dates that were scraped once and never merged).
+    Returns [] when nothing is found.
+    """
     folder = client.find_date_folder(date_str)
     if folder is None:
         return []
@@ -94,6 +99,13 @@ def _compiled_flow_rows(client, date_str: str) -> list[dict]:
         fid = client.file_exists(name, folder)
         if fid:
             rows += parse_csv(client.download(fid, name=name))
+        else:
+            snapshots = client.list_files_for_date(prefix, date_str)
+            if len(snapshots) == 1:
+                f = snapshots[0]
+                log.info("%s: no compiled file for %s — using single snapshot %s",
+                         date_str, prefix, f["name"])
+                rows += parse_csv(client.download(f["id"], name=f["name"]))
     return rows
 
 
@@ -101,7 +113,9 @@ def _compiled_dates(client) -> list[str]:
     folders = client.list_date_folders()
     out = []
     for d in sorted(folders):
-        if any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES):
+        has_compiled = any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES)
+        has_single = any(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES)
+        if has_compiled or has_single:
             out.append(d)
     return out
 

@@ -38,6 +38,15 @@ enrich:
 enrich-backfill:
 	$(PY) scripts/enrich_oi.py --backfill $(ARGS)
 
+# ── iv backfill ────────────────────────────────────────────────────────────────
+.PHONY: backfill-iv
+backfill-iv:
+	$(PY) scripts/backfill_iv.py $(ARGS)
+
+.PHONY: backfill-iv-all
+backfill-iv-all:
+	$(PY) scripts/backfill_iv.py --backfill $(ARGS)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze:
@@ -86,6 +95,10 @@ help:
 	@echo "  make enrich        enrich today's compiled flow with OI change + EOD greeks"
 	@echo "  make enrich-backfill  enrich all enrichable dates (idempotent)"
 	@echo "  make enrich ARGS=\"--date 2026-06-09\"  (or --dry-run, --force)"
+	@echo ""
+	@echo "  make backfill-iv   backfill counterpart IV legs for today's date"
+	@echo "  make backfill-iv-all  backfill counterpart IV legs for all compiled dates"
+	@echo "  make backfill-iv ARGS=\"--date 2026-06-26\"  (or --dry-run, --force)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"

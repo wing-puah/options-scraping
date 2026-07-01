@@ -32,7 +32,7 @@ _KEY_ORDER = [
     "market_regime", "regime", "play",
     "realized_pnl_pct", "realized_pnl_abs", "days_held", "exit_reason",
     "mfe_pct", "mfe_abs", "mfe_day", "mae_pct", "mae_abs", "mae_day", "pnl_at_cap_pct", "pct_real_days",
-    "daily_price_csv",
+    "daily_price_csv", "daily_source_csv",
     "created_datetime",
     # Per-ticker flow-rollup context joined from audit/<date>-rollup.csv (the same
     # date's scored rollup the analysis ran on). Appended at the END so existing

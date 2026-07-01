@@ -26,8 +26,9 @@ analysis:
 
 # ── Entry matching ─────────────────────────────────────────────────────────────
 # Each play is matched to the real flow contract it refers to (same symbol +
-# direction, largest premium). The actual `Trade` price of that contract is the
-# entry price — no Black-Scholes for entry.
+# direction, largest premium). Entry prices for all legs are sourced from
+# Barchart EOD history (entry_sources below) so every leg is on the same
+# pricing basis. Plays with any leg missing Barchart history are skipped.
 entry:
   # Require the matched flow trade to be on a given side: Ask | Bid | Mid | any.
   # "Ask" = buyer-initiated (directional conviction). "any" matches the headline
@@ -110,6 +111,12 @@ simulation:
   # to speed up runs that register many non-existent strikes. Only used when
   # 'barchart' is in exit_sources.
   history_timeout_ms: 15000
+
+  # Entry pricing — all legs use the same source on signal_date. Barchart EOD is
+  # the only accepted source: intraday flow prices and Black-Scholes are excluded
+  # because they can be taken at different execution times, making spread entry
+  # costs unreliable. A play is skipped if any leg has no Barchart history.
+  entry_sources: [barchart]
 
   # Exit pricing — tried in this order, first available wins (per trading day):
   #   barchart     — REAL per-contract daily price scraped from Barchart's

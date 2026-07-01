@@ -71,8 +71,14 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
     def pnl_of(v):
         return (v - entry_net) / denom
 
-    out = {"daily_price_csv": ",".join(
-        "" if p is None else f"{p:.4f}" for (_, _, p, _) in grid_marks)}
+    prices, sources = [], []
+    for (_, _, p, src) in grid_marks:
+        prices.append("" if p is None else f"{p:.4f}")
+        sources.append("" if p is None else src)
+    out = {
+        "daily_price_csv": ",".join(prices),
+        "daily_source_csv": ",".join(sources),
+    }
 
     priced = [(dt, d, p, src) for (dt, d, p, src) in grid_marks if p is not None]
     if not priced:
@@ -203,6 +209,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     signal_date = candidate["signal_date"]
     r = sim_cfg.get("risk_free_rate", 0.05)
     exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
+    entry_sources = sim_cfg.get("entry_sources", ["barchart"])
 
     price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
         _get_prices(tk, signal_date, sim_cfg.get("path_cap_days", 120)), dt))
@@ -213,12 +220,11 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     def _T(leg, d):
         return max(0.0, ((leg.expiration - signal_date).days - d) / 365)
 
-    def _price_leg(leg, day, d, override=None):
-        """Price one leg. override is the real flow trade price (anchor at entry only)."""
-        if override is not None:
-            return override, "real"
+    def _price_leg(leg, day, d, sources=None):
+        if sources is None:
+            sources = exit_sources
         key = _key(leg)
-        for src in exit_sources:
+        for src in sources:
             if src == "barchart":
                 p = _price_asof(barchart_series, key, day, leg.expiration)
                 if p is not None:
@@ -234,12 +240,10 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 return _bs_price(S, leg.strike, _T(leg, d), r, iv, leg.opt_type), "bs"
         return None, None
 
-    # Step 1 — entry price for each leg.
-    real_anchor = _opt_price(entry_row)
+    # Step 1 — entry price for each leg (barchart only, all legs consistent EOD basis).
     entry_prices, entry_tags = [], []
-    for i, leg in enumerate(legs):
-        override = real_anchor if (i == anchor_idx and real_anchor is not None) else None
-        p, tag = _price_leg(leg, signal_date, 0, override=override)
+    for leg in legs:
+        p, tag = _price_leg(leg, signal_date, 0, sources=entry_sources)
         if p is None:
             return {}
         entry_prices.append(p)
