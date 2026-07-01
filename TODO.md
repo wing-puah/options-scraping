@@ -68,7 +68,7 @@ Tested three variants to fix early profit-target exits (see `config/backtest-tun
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | P1 | DTE mismatch | 15-30 DTE: -35% avg return. 120+ DTE: +13% avg return. Many trades achieve MFE after exit. | Raise minimum DTE for directional trades to 90+ days. Prefer 90-180 DTE for TF/PU setups. | High | High |
 | P2 | TF-S structure mismatch | BULL + L-VOL + RISK-ON environments underperform despite being favorable market conditions. Framework recommends credit spreads in positive gamma regimes. | Force TF-S setups to use bull put spreads (or bear call spreads) instead of debit spreads. | High | High |
-| P3 | Weak OI-confirmation trades are low quality | OIConfirm <40% bucket significantly underperforms. | Convert OIConfirm <40% from confidence penalty into hard rejection filter. | High | High |
+| P3 | Weak OI-confirmation trades are low quality | OIConfirm <40% bucket significantly underperforms. | **PARTLY DONE (Jul 2026):** `OIConfirm` now feeds the conviction score as a ±component (+2/+1 confirmed, −1/−2 weak; neutral when absent/thin `oi_n<3`) and flat ΔOI is excluded from the confirm-pct denominator — see `config/conviction-score.md`. **Remaining:** backtest whether the softer score-penalty is enough or the stricter *hard rejection filter* (drop `OIConfirm<40%` entirely) does better — Test B below. | High | High |
 | P4 | Some trades are stopped before thesis matures | 57% of trades reached MFE after exit. | Test wider stops and/or longer holding horizons. Analyze days_to_MFE_after_exit before changing stop rules. | Medium | Medium |
 | P5 | Hedge vs directional classification may still leak | Earlier evidence suggested bearish hedge flow may be misread as directional flow, but regime breakdown weakened this thesis. | Revisit only after DTE and TF-S tests are complete. | Medium | Medium |
 | P6 | Profit-taking problem | Very few genuine round-trip trades found after controlling for MFE occurring after exit. | No action currently. | High | Low |
@@ -83,7 +83,7 @@ Tested three variants to fix early profit-target exits (see `config/backtest-tun
 | DTE effect | 15-30 DTE: -35%, 31-60 DTE: -1.6%, 120+ DTE: +13% | Longer-duration positioning works materially better |
 | MFE analysis | Average MFE +21.8% vs realized -2.2% | Signals have edge, but implementation may not capture full move |
 | Post-exit MFE | 57% of trades hit MFE after exit | Many trades may be exiting before thesis fully develops |
-| OI confirmation | OIConfirm <40% heavily underperforms | Strong candidate for hard filter |
+| OI confirmation | OIConfirm <40% heavily underperforms | Now a ±component of the conviction score (Jul 2026); hard-filter variant still worth testing (Test B) |
 | Bear put spreads | Perform well in BEAR + HP and RISK-OFF environments | Bearish structures are not the primary problem |
 | Bull call spreads | Large contributor to poor performance in low-vol bullish regimes | Structure selection likely incorrect |
 | Profit-taking | Only a handful of true round-trip cases | Not a major source of performance drag |
@@ -95,7 +95,7 @@ Tested three variants to fix early profit-target exits (see `config/backtest-tun
 | Test | Rule | Purpose |
 |--------|--------|--------|
 | A | DTE >= 90 only | Measure impact of removing short-duration trades |
-| B | DTE >= 90 AND OIConfirm >= 40% | Test combined quality filter |
+| B | DTE >= 90 AND OIConfirm >= 40% | Test combined quality filter — and compare the new `OIConfirm` score-penalty (shipped Jul 2026) vs a hard `OIConfirm<40%` rejection filter (P3) |
 | C | Force TF-S -> bull put spread | Validate structure selection hypothesis |
 | D | Measure days_to_MFE_after_exit | Determine whether stops are too tight or thesis horizon is too long |
 | E | Compare market_regime × structure × DTE | Identify strongest regime-specific structures |

@@ -11,9 +11,11 @@ record so the next change doesn't undo a deliberate decision.
 
 - **Macro made optional** in the regime call — assigned only with cross-asset
   corroboration, never inferred from options flow alone.
-- **Direction-agnostic conviction score** (0–10) in the quant layer
-  (`lib/flow_summary/`), computed from normalized inputs and surfaced as the
-  `Score` column.
+- **Direction-agnostic conviction score** (0–14 raw, less a financing penalty) in
+  the quant layer (`lib/flow_summary/`), computed from normalized inputs and
+  surfaced as the `Score` column. Components: `flow`/`rep`/`cross`/`voloi`/`otm`/
+  `open`/`persist`, the forward-confirmed `OIConfirm` (±, item 7), and the negative
+  `fin_penalty` — see `config/conviction-score.md`.
 - **Multi-day persistence** tracking (`--days N` in `scripts/prepare_analysis.py`)
   — recurring names with premium and score trajectories, recomputed from raw
   daily data (no stored state).
@@ -203,18 +205,27 @@ Per-ticker `Hzn` column (dominant DTE bucket by extrinsic premium) ships in the
 rollup, and every play declares a `horizon` field — see Shipped above. As
 designed, the buckets do not enter the numeric score.
 
-### 7. Next-day OI delta — open vs close confirmation (medium, high value)
+### 7. Next-day OI delta — open vs close confirmation — SHIPPED & CONSUMED (July 2026)
 
 The `*` opening label (`To Open` / `BuyToOpen` / `SellToOpen`, from
 `size > OI + vol − size`) is a same-day *estimate* of opening activity. The
 **actual** confirmation is the strike's **open-interest change the next session**:
-OI up ≈ genuinely opening; OI flat/down ≈ closing or rolling. We already store
-daily snapshots and recompute persistence from raw data (`--days N`), so this joins
-naturally onto that machinery — match each prior-day print to the same
-symbol/strike/expiry the next day and diff OI. This is the single strongest
-open-vs-close discriminator available to us and is currently unused. Highest-value
-item after the cheap ones. Cost: a cross-day strike-level join keyed on
-symbol+strike+expiry; only meaningful in `--days N` / persistence runs.
+OI up ≈ genuinely opening; OI flat/down ≈ closing or rolling.
+
+`scripts/enrich_oi.py` computes per-contract `oi_change` (D+1 OI − D OI), and
+`_finalize_oi_factors` (`lib/flow_summary/core.py`) rolls it up per ticker into
+`oi_confirm_pct = opens / (opens + closes)` (flat ΔOI excluded from the
+denominator — a no-change day is ambiguous, not a failed confirmation) with an
+`oi_n` sample count. **As of July 2026 this feeds the conviction score**: the
+`OIConfirm` component adds +2/+1 for high open-confirmation and −1/−2 for low
+(the TODO-P3 `OIConfirm<40%` underperformance), neutral when absent or when
+`oi_n < 3`. Because enrichment lags one session, the *latest* live date scores
+0 here — the signal is fully present only on backfilled / backtested dates.
+Bands are tunable; retune from the attribution backtest. See
+`config/conviction-score.md`.
+
+Remaining (optional): a per-strike (rather than per-ticker) confirmation view in
+the `--days N` persistence output.
 
 ### 8. Spread-leg detection — cut the biggest false-positive source (medium)
 
@@ -346,8 +357,9 @@ in rough priority:
   This is the deferred vol layer (item 2); the **blocker is IV history**, so start
   the daily IV snapshot log early — every delayed day is lost history.
 - The already-scoped quant features that belong in this layer: summed Size +
-  delta-adjusted notional (items 1, 5), DTE bucketing (item 6), next-day OI delta
-  (item 7), spread-leg flags (item 8).
+  delta-adjusted notional (items 1, 5), DTE bucketing (item 6), spread-leg flags
+  (item 8). Next-day OI delta (item 7) is **already in this layer** — it feeds the
+  conviction score as the `OIConfirm` component (July 2026).
 
 This is "a lot more features to go through" — they accrete into `lib/flow_summary/`
 and the rollup, and most also become candidate score components. Phase 2 still ends

@@ -1,4 +1,4 @@
-# Conviction score (0–12 raw, less a financing penalty; direction-agnostic)
+# Conviction score (0–14 raw, less a financing penalty; direction-agnostic)
 
 A quant pre-score of how much attention a name warrants, built from normalized
 inputs only — so an expensive underlying cannot buy its way up the list with raw
@@ -16,7 +16,8 @@ premium. It is **not** a direction call; bull/bear tilt stays in the
 | `otm`     | 0–2   | **OTM-probability-weighted extrinsic** rank within the day (`OTM$` column) — informed-OTM tell |
 | `open`    | 0/1   | ≥1 BuyToOpen / SellToOpen / ToOpen label present |
 | `persist` | 0–3   | Extra days the name recurs across the window (multi-day, `--days N` only) |
-| `FinPenalty` | −4/−3/−2/0 | **Financing-dominance demotion** — the only negative term (see below) |
+| `OIConfirm` | −2/−1/+1/+2 | **Next-day OI open-confirmation** share (ref-03) — forward-confirmed; 0 when absent/under-sampled (see below) |
+| `FinPenalty` | −4/−3/−2/0 | **Financing-dominance demotion** — negative term (see below) |
 
 ## Financing penalty (the `FinPenalty` column)
 
@@ -54,6 +55,32 @@ rewards economically-sized flow concentrated in **out-of-the-money** contracts
 any name whose trades carry no `Delta` cell** (absent data is never credited).
 This is moneyness/probability, not IV, so it keeps IV out of the score; the
 paper's IV-augmented variant (×IV) is deliberately not enabled.
+
+## OI open-confirmation (the `OIConfirm` column)
+
+Every other component reads only the trade's own day. `OIConfirm` is the one
+**forward-confirmed** term: it reads the strike's **next-session open-interest
+change** (ref-03 open-confirmation, produced by `enrich_oi.py`). `OIConfirmPct`
+is the share of the ticker's **moving** contracts that opened —
+`opens / (opens + closes)` — with flat contracts (ΔOI == 0) **excluded** from the
+denominator, since an unchanged-OI day is ambiguous, not a failed confirmation.
+`OIN` is the moving-contract sample behind that percentage.
+
+| `OIConfirmPct` | Points |
+| -------------- | ------ |
+| ≥ 0.60 | +2 |
+| ≥ 0.40 | +1 |
+| ≥ 0.25 | −1 |
+| < 0.25 | −2 |
+
+**Neutral (0) when the data is absent or thin.** The enrichment lags one
+session, so the *latest* date a live `analyze` run scores has no next-day OI yet
+and every name reads 0 here — absence is never a penalty. Names with fewer than
+`_OI_CONFIRM_MIN_N` (3) moving contracts also score 0, so a single opening print
+can't earn a full bonus. Backfilled / backtested dates carry it in full. The
+−1/−2 penalty encodes the backtest finding that `OIConfirm < 40%` names
+underperform (their premium was closing/rolling flow, not new positioning). The
+bands are tunable — retune from the attribution backtest.
 
 ## Pollution / exposure columns
 
@@ -99,11 +126,12 @@ name.
 | 6–8   | candidate   |
 | 9+    | high-conv   |
 
-Single-day **raw** ceiling is 12 (before `FinPenalty`); with `--days N` a
-recurrence bonus (+1 per repeat day, capped +3) can push the persistence-adjusted
-score to 15. The `FinPenalty` then subtracts up to −4, and the total is clamped
-to ≥ 0 — so a heavily financing-dominated name drops out of `high-conv` even
-when its raw flow looks strong.
+Single-day **raw** ceiling is 14 (before `FinPenalty`, including a full +2
+`OIConfirm`); with `--days N` a recurrence bonus (+1 per repeat day, capped +3)
+can push the persistence-adjusted score to 17. `OIConfirm` (−2) and `FinPenalty`
+(−4) are the two negative terms, and the total is clamped to ≥ 0 — so a heavily
+financing-dominated or closing-flow name drops out of `high-conv` even when its
+raw flow looks strong.
 
 A separate **Hedge pressure** section (0–100) precomputes the market-level
 hedge read: extrinsic put premium on index/credit/sector hedge ETFs vs total
