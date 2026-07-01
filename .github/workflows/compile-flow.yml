@@ -40,8 +40,9 @@ jobs:
         run: pip install -r requirements-compile.txt
 
       - name: Compile daily flow
-        # --date empty on schedule → today (ET).
-        run: python scripts/compile_flow.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        # Always pass an explicit date: manual input if given, otherwise today UTC
+        # (= yesterday SGT, the user's timezone, since the job runs at 22:30 UTC).
+        run: python scripts/compile_flow.py --date "${{ inputs.date || '$(date -u +%Y-%m-%d)' }}"
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
