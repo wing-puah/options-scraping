@@ -534,8 +534,12 @@ def test_persistence_no_recurring_names():
 
 def _flow_row_d(symbol, opt_type, side, premium, *, delta, strike="100",
                 spot="100", iv="50%", size="100", dte="30",
-                expiry="2026-08-21", oi="0"):
-    """Flow row carrying Delta + Price~ so OTM/IV signals can fire."""
+                expiry="2026-08-21", oi="500"):
+    """Flow row carrying Delta + Price~ so OTM/IV signals can fire.
+
+    Defaults pass the Lin/Lu/Driessen data filters (positive OI, in-bounds IV,
+    spot ≥ $5, in-window DTE) so pair/skew tests fire unless a test opts out.
+    """
     return {
         "Symbol": symbol, "Type": opt_type, "Strike": strike, "Price~": spot,
         "Expires": expiry, "DTE": dte, "Side": side, "Premium": premium,
@@ -705,6 +709,65 @@ def test_counterpart_iv_fills_skew_band():
     backfill = {"X": [{"opt_type": "put", "strike": 90.0, "expiry": "2026-08-21",
                        "iv": 55.0, "oi": 100.0, "vol": None}]}
     assert _flow_ticker_rows(rows, backfill)[0]["iv_skew"] == pytest.approx(25.0)
+
+
+def test_iv_spread_excludes_out_of_bounds_iv():
+    # Paper filter (iii): settlement IV outside [3, 200] points drops the leg,
+    # so neither an extreme-IV pair nor a sub-minimum one forms.
+    for bad_iv in ("331%", "2.5%"):
+        rows = [
+            _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv=bad_iv,
+                        strike="100", expiry="2026-08-21"),
+            _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                        strike="100", expiry="2026-08-21"),
+        ]
+        assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+
+
+def test_iv_spread_excludes_zero_oi_leg():
+    # Paper filter (v): a leg with no open interest never enters a pair.
+    rows = [
+        _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                    strike="100", expiry="2026-08-21", oi="0"),
+        _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                    strike="100", expiry="2026-08-21", oi="500"),
+    ]
+    assert _flow_ticker_rows(rows)[0]["iv_spread"] is None
+
+
+def test_iv_spread_excludes_sub_5_dollar_underlying():
+    # Paper filter (ii): sub-$5 names are dropped from both measures.
+    rows = [
+        _flow_row_d("PENNY", "Call", "ask", "100000", delta="0.5", iv="60%",
+                    strike="4", spot="4"),
+        _flow_row_d("PENNY", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                    strike="4", spot="4"),
+    ]
+    r = _flow_ticker_rows(rows)[0]
+    assert r["iv_spread"] is None
+    assert r["iv_skew"] is None
+
+
+def test_iv_spread_excludes_sub_minimum_trade_price():
+    # Paper filter (iv): a leg whose trade print is below $0.125 is dropped;
+    # a missing/unparseable Trade cell is never a reason to drop.
+    call = _flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
+                       strike="100", expiry="2026-08-21")
+    put = _flow_row_d("X", "Put", "bid", "100000", delta="-0.5", iv="40%",
+                      strike="100", expiry="2026-08-21")
+    call["Trade"] = "0.10"
+    assert _flow_ticker_rows([call, put])[0]["iv_spread"] is None
+    call["Trade"] = "0.13"
+    assert _flow_ticker_rows([call, put])[0]["iv_spread"] == pytest.approx(20.0)
+
+
+def test_counterpart_iv_skipped_for_sub_5_dollar_underlying():
+    # Backfilled legs on a known sub-$5 name are dropped wholesale.
+    rows = [_flow_row_d("PENNY", "Call", "ask", "100000", delta="0.5", iv="60%",
+                        strike="4", spot="4", expiry="2026-08-21")]
+    backfill = {"PENNY": [{"opt_type": "put", "strike": 4.0, "expiry": "2026-08-21",
+                           "iv": 40.0, "oi": 500.0, "vol": None}]}
+    assert _flow_ticker_rows(rows, backfill)[0]["iv_spread"] is None
 
 
 def test_matched_pair_uses_eod_settlement_iv_when_present():

@@ -27,13 +27,15 @@ class EngineConfig:
     method_file: Path           # model-specific judgment doc, layered on the framework
     tab: str                    # Google Sheets tab this engine appends to
     default_model: str | None   # used when --model is omitted; None = let the CLI decide
+    fallback_model: str | None = None  # used on retry attempts 2+ when default_model set
 
 
 ENGINES: dict[str, EngineConfig] = {
     "claude": EngineConfig(
         method_file=ROOT / "config/analysis-methods/claude.md",
         tab="AnalysisClaude",
-        default_model="opus",
+        default_model="fable",
+        fallback_model="claude-opus-4-8",
     ),
     "codex": EngineConfig(
         method_file=ROOT / "config/analysis-methods/codex.md",

@@ -107,6 +107,7 @@ def _biggest_trade_str(big) -> str:
 
 _FLOW_SYMBOL    = "Symbol"
 _FLOW_UPRICE    = "Price~"   # underlying price at trade time
+_FLOW_TRADE     = "Trade"    # option trade price (per contract)
 _FLOW_TYPE      = "Type"
 _FLOW_STRIKE    = "Strike"
 _FLOW_EXPIRY    = "Expires"   # ISO datetime, e.g. "2026-12-18T16:30:00-06:00"
@@ -136,6 +137,20 @@ _RAW_DROP_COLUMNS = frozenset({
 # conversion / replacement) — premium there is mostly intrinsic, not a bet on a
 # move. Used for the per-ticker financing share, not to discard the direction.
 _FINANCING_DELTA = 0.85
+
+# Lin/Lu/Driessen (2013, appendix) data filters for the IV spread / IV skew,
+# after Xing/Zhang/Zhao (2010). Applied to EVERY leg entering either measure —
+# traded (lib/flow_summary/core) or backfilled counterpart
+# (lib/counterpart_iv.build_iv_lookup). Defined here, the common leaf module of
+# producer and consumer, to avoid an import cycle between them (counterpart_iv
+# imports this module; importing counterpart_iv from core would re-enter the
+# package __init__). The paper's filters (i) stock volume positive and
+# (vi) option volume not missing are not observable / vacuous in this data
+# source and are intentionally absent.
+DTE_LO, DTE_HI = 10, 60              # (vii) time to maturity within 10–60 days
+IV_MIN_PTS, IV_MAX_PTS = 3.0, 200.0  # (iii) option IV in [0.03, 2] — points here
+MIN_UNDERLYING = 5.0                 # (ii) underlying stock price above $5
+MIN_OPTION_PRICE = 0.125             # (iv) option price at least $0.125
 
 
 # ---------------------------------------------------------------------------

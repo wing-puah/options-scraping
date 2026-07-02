@@ -98,7 +98,7 @@ def _parse_and_validate(text: str) -> dict:
 def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events."""
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--model", model or "fable"],
+        ["claude", "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "fable"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
         timeout=config.REQUEST_TIMEOUT_S, check=False,
     )
@@ -158,13 +158,18 @@ def run_engine(engine: str, prompt: str, model: str | None) -> dict:
     output.
     """
     invoke = _RUNNERS[engine]
+    cfg = config.ENGINES.get(engine)
     last_err: Exception | None = None
     with tempfile.TemporaryDirectory() as neutral_cwd:
         for attempt in range(1, config.MAX_ATTEMPTS + 1):
+            # On retries, drop to fallback_model if the caller didn't pin a model.
+            effective_model = model
+            if effective_model is None and attempt > 1 and cfg and cfg.fallback_model:
+                effective_model = cfg.fallback_model
             log.info("%s analyze attempt %d/%d (model=%s)",
-                     engine, attempt, config.MAX_ATTEMPTS, model or "engine default")
+                     engine, attempt, config.MAX_ATTEMPTS, effective_model or "engine default")
             try:
-                return invoke(prompt, model, neutral_cwd)
+                return invoke(prompt, effective_model, neutral_cwd)
             except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError,
                     RuntimeError, OSError) as e:
                 last_err = e

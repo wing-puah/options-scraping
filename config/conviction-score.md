@@ -103,12 +103,16 @@ These carry a directional read and stay **out** of the direction-agnostic score
 the directional thesis, per Lin, Lu & Driessen (2013):
 
 Both are built faithfully to the paper's appendix (A.1/A.2), after
-Cremers & Weinbaum (2010) and Xing, Zhang & Zhao (2010), restricted to the
-**10–60 DTE** window:
+Cremers & Weinbaum (2010) and Xing, Zhang & Zhao (2010), including the
+appendix data filters on every leg (traded or backfilled): the **10–60 DTE**
+window, IV within **[3, 200] points**, **positive open interest**, underlying
+**≥ $5**, and option price **≥ $0.125** (trade print / counterpart mark as the
+quote-mid proxy; unknown price never drops a leg). The paper's stock-volume /
+option-volume-not-missing filters are not observable in this data source:
 
 | Column   | What it measures |
 | -------- | ---------------- |
-| `IVspr`  | **IV spread** — the open-interest-weighted mean of (`IV_call − IV_put`) across **matched pairs** (same strike **and** expiration), on each contract's **settlement IV**. A put-call-parity deviation; positive → bullish, a *positive* predictor of equity returns. `—` when no matched call/put pair exists. Weight falls back to traded volume when OI is missing. |
+| `IVspr`  | **IV spread** — the open-interest-weighted mean of (`IV_call − IV_put`) across **matched pairs** (same strike **and** expiration), on each contract's **settlement IV**. A put-call-parity deviation; positive → bullish, a *positive* predictor of equity returns. `—` when no matched call/put pair exists. |
 | `IVskew` | **IV skew** — `IV(OTM put) − IV(ATM call)`, one contract each, on **settlement IV**: the OTM put with moneyness `K/S ∈ [0.80, 0.95]` closest to 0.95, and the ATM call with `K/S ∈ [0.95, 1.05]` closest to 1.0. Steeper (more positive) → downside demand; *negatively* associated with future returns. `—` when either band is empty. |
 
 **Validity concern — flow subset vs. full chain (backfilled).** Lin/Lu/Driessen
@@ -130,8 +134,10 @@ play whose `IVspr` is deeply negative is buying puts whose IV is massively
 inflated by panic hedging (overpriced crash insurance that mean-reverts).
 ⚠️ **STALE:** the specific **≈ −25** threshold (and the example plays) were
 derived from the *old* unmatched, premium-weighted, all-DTE spread definition.
-The matched-pair OI-weighted spread above has a different distribution — the
-threshold must be **re-derived** from a fresh backtest before use. This is
+The matched-pair OI-weighted spread above has a different distribution — and
+the paper data filters added 2026-07-02 (IV bounds, positive OI, $5 underlying,
+min price) shift it again — so the threshold must be **re-derived** from a
+fresh backtest before use. This is
 *direction-bearing*, so it deliberately stays out of the agnostic score — treat
 it as a veto on the play, not a deduction on the name.
 

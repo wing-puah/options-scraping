@@ -79,15 +79,25 @@ Any non-zero BTO/STO/ToOpen feeds the `open` (+1) conviction score component.
 | Column | Computation | Notes |
 |--------|------------|-------|
 | `wIV%` | Premium-weighted average IV (all trades) | |
-| `IVspr` | OI-weighted mean of (IV_call − IV_put) across **matched pairs** (same strike + expiry), 10–60 DTE, on **settlement IV** | Cremers/Weinbaum (2010) put-call-parity deviation. Positive → bullish; positive predictor of returns (Lin, Lu & Driessen 2013). Weight → volume when OI missing. `—` when no matched pair exists. |
+| `IVspr` | OI-weighted mean of (IV_call − IV_put) across **matched pairs** (same strike + expiry), 10–60 DTE, on **settlement IV** | Cremers/Weinbaum (2010) put-call-parity deviation. Positive → bullish; positive predictor of returns (Lin, Lu & Driessen 2013). `—` when no matched pair exists. |
 | `IVskew` | `IV(OTM put) − IV(ATM call)`, closest-moneyness contract each, 10–60 DTE, on **settlement IV** | Xing/Zhang/Zhao (2010). OTM-put band `K/S ∈ [0.80, 0.95]` (closest to 0.95); ATM-call band `K/S ∈ [0.95, 1.05]` (closest to 1.0). Steeper positive → downside demand; negative predictor of returns. `—` when either band is empty. |
 
 `IVspr` and `IVskew` are directional reads — kept **out of the direction-agnostic
 conviction score** but available to the LLM for Step 5 vol-alignment.
 
+Both apply the paper's appendix data filters to every leg, traded or backfilled
+(constants in `lib/flow_summary/_helpers.py`): (ii) underlying ≥ $5; (iii) IV
+within [3, 200] points; (iv) option price ≥ $0.125 (the flow trade print / the
+counterpart's day-D mark stand in for the paper's quote mid; an unknown price is
+never a reason to drop); (v) positive open interest; (vii) 10–60 DTE. Filters
+(i) stock volume positive and (vi) option volume not missing are not observable
+/ vacuous in this data source.
+
 Both are built on the **settlement IV** (`eod_iv`) of each contract, not the
 intraday snapshot, so a traded leg and a backfilled counterpart leg compare
-like-with-like. `K/S = Strike / Price~`; `Expires` (the ISO-datetime expiration)
+like-with-like. (Unit note: `eod_iv` stores a fraction, the counterpart
+sidecar's `iv` stores points — `_settlement_iv` normalises to points.)
+`K/S = Strike / Price~`; `Expires` (the ISO-datetime expiration)
 and `Open Int` are the real flow-feed column names (a mismatched constant
 previously collapsed all expiries to one key — fixed 2026-07-01).
 

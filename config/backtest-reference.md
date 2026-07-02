@@ -58,7 +58,7 @@ blank when neither the row nor an audit file has the value. See
 |--------|-----------|
 | **oi_confirm_pct** | `OIConfirmPct` — share of the ticker's flow trades whose next-day OI change confirmed an opening position (ref-03 open-confirmation). Decimal fraction (0.45 = 45%). |
 | **cpir** | `CPIR` — Call-Put Information Ratio `OIFC / (OIFC + OIFP)`, in `[0,1]`. > 0.5 = call-skewed informed opening (bullish); < 0.5 = put-skewed. |
-| **iv_spread** | `IVSpread` — OI-weighted (call IV − put IV) across matched strike/expiry pairs, 10–60 DTE, on settlement IV (Cremers/Weinbaum). Positive → bullish (a positive predictor of returns). Missing counterpart legs are backfilled from Barchart price-history (`scripts/fetch_counterpart_iv.py`), so coverage depends on whether that date's `iv-backfill-*.csv` sidecar has been built. ⚠️ The old ≈ −25 BEAR veto was tuned on the prior premium-weighted/unmatched definition — **re-derive** before applying. `—`/empty when no matched pair. |
+| **iv_spread** | `IVSpread` — OI-weighted (call IV − put IV) across matched strike/expiry pairs, 10–60 DTE, on settlement IV (Cremers/Weinbaum). Positive → bullish (a positive predictor of returns). Missing counterpart legs are backfilled from Barchart price-history (`scripts/fetch_counterpart_iv.py`), so coverage depends on whether that date's `counterpart-iv-*.csv` sidecar has been built. ⚠️ The old ≈ −25 BEAR veto was tuned on the prior premium-weighted/unmatched definition — **re-derive** before applying. `—`/empty when no matched pair. |
 
 ## Realized exit & excursions (path-derived)
 

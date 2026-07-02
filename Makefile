@@ -80,10 +80,6 @@ backtest-dry:
 baseline:
 	$(PY) scripts/build_baseline.py $(ARGS)
 
-# ── dashboard ──────────────────────────────────────────────────────────────────
-.PHONY: dashboard
-dashboard:
-	cd web && npm run dev
 
 # ── daily workflow shortcut ────────────────────────────────────────────────────
 .PHONY: daily

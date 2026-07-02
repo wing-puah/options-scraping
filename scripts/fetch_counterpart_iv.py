@@ -9,10 +9,10 @@ listed contract, traded or not, so for each single-sided in-window (10–60 DTE)
 (strike, expiration) that DID trade we fetch the missing opposite leg's settlement
 IV *as of the trade date D* (from the compiled filename) and complete the pair.
 
-The results are stored in a per-date sidecar on Drive, `iv-backfill-{YYYYMMDD}.csv`
+The results are stored in a per-date sidecar on Drive, `counterpart-iv-{YYYYMMDD}.csv`
 (schema `lib.counterpart_iv.COUNTERPART_COLUMNS`), one row per fetched counterpart:
 
-    Symbol, Type, Strike, Expires, trade_date, iv, oi, vol, delta, fetched_on
+    Symbol, Type, Strike, Expires, trade_date, iv, oi, vol, delta, price, fetched_on
 
 `fetched_on` (the run date) is the resume marker: any contract already present is
 skipped — including ones Barchart returned nothing for (blank iv, marked attempted
@@ -36,6 +36,7 @@ import asyncio
 import logging
 import os
 import sys
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -132,10 +133,10 @@ def _load_sidecar(client, date_str: str) -> list[dict]:
 def _upload_sidecar(client, date_str: str, rows: list[dict]) -> None:
     folder = client.get_or_create_date_folder(date_str)
     name = sidecar_name(date_str)
-    tmp = Path(f"/tmp/{name}")
-    pd.DataFrame(rows, columns=COUNTERPART_COLUMNS).to_csv(tmp, index=False)
-    client.upload(tmp, name, folder)
-    tmp.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td) / name
+        pd.DataFrame(rows, columns=COUNTERPART_COLUMNS).to_csv(tmp, index=False)
+        client.upload(tmp, name, folder)
 
 
 def _done_keys(sidecar_rows: list[dict]) -> set[tuple]:
@@ -157,8 +158,10 @@ def _done_keys(sidecar_rows: list[dict]) -> set[tuple]:
 async def _fetch_iv(session, contract: dict, trade_date: date, timeout_ms: int) -> dict:
     """Scrape one contract's price-history and extract its as-of-D settlement fields.
 
-    Returns {iv, oi, vol, delta} as formatted strings (blank when Barchart returns
-    nothing or has no row on D).
+    Returns {iv, oi, vol, delta, price} as formatted strings (blank when Barchart
+    returns nothing or has no row on D). `price` is the day's mark (mid(Bid,Ask) →
+    Latest) — the paper's minimum-price filter input; a row with IV but no
+    computable mark still yields its other fields (require_mark=False).
     """
     url = barchart_options.option_history_url(
         contract["symbol"], contract["expiration"], contract["strike"], contract["opt_type"])
@@ -167,15 +170,16 @@ async def _fetch_iv(session, contract: dict, trade_date: date, timeout_ms: int) 
     except Exception as e:
         log.error("Barchart scrape failed for %s: %s", contract["key"], _safe_err(e))
         csv_text = None
-    details = barchart_options.parse_history_details(csv_text) if csv_text else {}
+    details = barchart_options.parse_history_details(csv_text, require_mark=False) if csv_text else {}
     day = details.get(trade_date)
     if not day:
-        return {"iv": "", "oi": "", "vol": "", "delta": ""}
+        return {"iv": "", "oi": "", "vol": "", "delta": "", "price": ""}
     return {
         "iv": _fmt(_num(day.get("IV"))),
         "oi": _fmt_int(_num(day.get("Open Int"))),
         "vol": _fmt_int(_num(day.get("Volume"))),
         "delta": _fmt(_num(day.get("Delta"))),
+        "price": _fmt(day.get("_mark")),
     }
 
 
@@ -204,6 +208,13 @@ async def _scrape_and_store(
     may be injected for tests; otherwise a BarchartSession is opened here.
     """
     stats = {"processed": 0, "with_iv": 0}
+    persisted = 0  # processed count at the last upload — skips a redundant final flush
+
+    def checkpoint(label: str) -> None:
+        nonlocal persisted
+        _upload_sidecar(client, date_str, sidecar)
+        persisted = stats["processed"]
+        log.info("%s %s: %d/%d persisted", date_str, label, stats["processed"], len(pending))
 
     async def run(sess) -> None:
         for i, c in enumerate(pending, 1):
@@ -214,8 +225,7 @@ async def _scrape_and_store(
                 stats["with_iv"] += 1
             log.info("[%d/%d] %s %s", i, len(pending), date_str, c["key"])
             if stats["processed"] % checkpoint_every == 0:
-                _upload_sidecar(client, date_str, sidecar)
-                log.info("%s checkpoint: %d/%d persisted", date_str, stats["processed"], len(pending))
+                checkpoint("checkpoint")
             if sleep_s:
                 await asyncio.sleep(sleep_s)
 
@@ -231,9 +241,8 @@ async def _scrape_and_store(
             async with BarchartSession(email, password, cookies_path, headless) as sess:
                 await run(sess)
     finally:
-        if stats["processed"]:
-            _upload_sidecar(client, date_str, sidecar)
-            log.info("%s flush: %d contract(s) persisted", date_str, stats["processed"])
+        if stats["processed"] > persisted:
+            checkpoint("flush")
     return stats
 
 

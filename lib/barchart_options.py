@@ -71,11 +71,14 @@ def parse_history_series(csv_text: str) -> list[tuple[date, float]]:
     return series
 
 
-def parse_history_details(csv_text: str) -> dict[date, dict]:
+def parse_history_details(csv_text: str, require_mark: bool = True) -> dict[date, dict]:
     """Parse a Barchart history CSV into {date: row_dict} with a pre-computed '_mark' key.
 
-    Rows with no computable mark or non-date Time are excluded. The '_mark' key holds
-    mid(Bid,Ask) → Latest, the same value parse_history_series uses.
+    Rows with a non-date Time are excluded. The '_mark' key holds mid(Bid,Ask) →
+    Latest, the same value parse_history_series uses. Rows with no computable mark
+    are excluded by default (pricing callers need a mark); pass require_mark=False
+    to keep them with '_mark' set to None (callers that only need IV/OI/greeks,
+    e.g. the counterpart-IV fetch).
     """
     out: dict[date, dict] = {}
     for row in parse_csv(csv_text):
@@ -85,7 +88,7 @@ def parse_history_details(csv_text: str) -> dict[date, dict]:
         except ValueError:
             continue
         mark = _mark(row)
-        if mark is not None:
+        if mark is not None or not require_mark:
             out[d] = {**row, "_mark": mark}
     return out
 

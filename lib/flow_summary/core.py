@@ -25,6 +25,12 @@ from collections import defaultdict
 from typing import Iterable
 
 from lib.flow_summary._helpers import (
+    DTE_HI,
+    DTE_LO,
+    IV_MAX_PTS,
+    IV_MIN_PTS,
+    MIN_OPTION_PRICE,
+    MIN_UNDERLYING,
     _FINANCING_DELTA,
     _FLOW_DELTA,
     _FLOW_DTE,
@@ -38,6 +44,7 @@ from lib.flow_summary._helpers import (
     _FLOW_STRIKE,
     _FLOW_SYMBOL,
     _FLOW_TIME,
+    _FLOW_TRADE,
     _FLOW_TYPE,
     _FLOW_UPRICE,
     _DTE_BUCKETS,
@@ -166,9 +173,10 @@ def _finalize_oi_factors(contracts: dict) -> dict:
 
 
 # IV spread / skew construction bands (Lin/Lu/Driessen 2013, appendix). Both
-# measures use the same 10–60 DTE maturity window. Skew moneyness (K/S) bands:
+# measures share the paper's data filters imported from _helpers: the 10–60 DTE
+# maturity window (DTE_LO/DTE_HI) plus the IV-bounds / positive-OI / minimum
+# underlying- and option-price gates. Skew moneyness (K/S) bands:
 # OTM put in [0.80, 0.95] closest to 0.95; ATM call in [0.95, 1.05] closest to 1.0.
-_SKEW_DTE_LO, _SKEW_DTE_HI = 10, 60
 _OTMPUT_LO, _OTMPUT_HI, _OTMPUT_TARGET = 0.80, 0.95, 0.95
 _ATMCALL_LO, _ATMCALL_HI, _ATMCALL_TARGET = 0.95, 1.05, 1.0
 
@@ -190,25 +198,23 @@ def _settlement_iv(row: dict) -> float | None:
 
 
 def _new_pair_leg() -> dict:
-    return {"call_iv": None, "call_oi": 0.0, "call_vol": 0.0,
-            "put_iv": None, "put_oi": 0.0, "put_vol": 0.0}
+    return {"call_iv": None, "call_oi": 0.0,
+            "put_iv": None, "put_oi": 0.0}
 
 
 def _update_pair(agg: dict, opt: str, strike_r: float, expiry: str,
-                 iv: float, oi: float | None, vol: float | None) -> None:
-    """Fold one leg's settlement IV / OI / volume into its (strike, expiry) pair.
+                 iv: float, oi: float) -> None:
+    """Fold one leg's settlement IV / OI into its (strike, expiry) pair.
 
     ``iv`` is a single settlement value per contract (first-seen wins — every trade
-    row of a contract carries the same EOD IV); ``oi`` takes the max seen; ``vol``
-    sums. A backfilled counterpart never overrides a leg that already traded.
+    row of a contract carries the same EOD IV); ``oi`` takes the max seen. Callers
+    gate on positive OI (paper filter v), so every leg arrives weighted. A
+    backfilled counterpart never overrides a leg that already traded.
     """
     pair = agg["_pair_contracts"].setdefault((strike_r, expiry), _new_pair_leg())
     if pair[f"{opt}_iv"] is None:
         pair[f"{opt}_iv"] = iv
-    if oi is not None:
-        pair[f"{opt}_oi"] = max(pair[f"{opt}_oi"], oi)
-    if vol is not None:
-        pair[f"{opt}_vol"] += vol
+    pair[f"{opt}_oi"] = max(pair[f"{opt}_oi"], oi)
 
 
 def _update_skew(agg: dict, opt: str, m: float, iv: float) -> None:
@@ -231,21 +237,16 @@ def _matched_pair_spread(pair_contracts: dict) -> float | None:
     Cremers/Weinbaum (2010) IV spread as used by Lin/Lu/Driessen (2013, A.1): for
     each (strike, expiry) that has BOTH a call and a put settlement IV — traded or
     backfilled — take the leg IV difference, weighted by the pair's average open
-    interest (½(OI_call + OI_put)). Falls back to average traded volume when open
-    interest is missing (the paper notes vol-weighting is qualitatively similar).
+    interest (½(OI_call + OI_put)). Every entering leg has positive OI (paper
+    filter v, enforced by the callers), so the weight is always positive.
     Returns None when no matched pair exists.
     """
     num = den = 0.0
     for p in pair_contracts.values():
         if p["call_iv"] is None or p["put_iv"] is None:
             continue  # not a matched pair — one leg absent
-        d = p["call_iv"] - p["put_iv"]
         w = (p["call_oi"] + p["put_oi"]) / 2.0
-        if w <= 0:
-            w = (p["call_vol"] + p["put_vol"]) / 2.0
-        if w <= 0:
-            continue
-        num += w * d
+        num += w * (p["call_iv"] - p["put_iv"])
         den += w
     return (num / den) if den > 0 else None
 
@@ -286,9 +287,12 @@ def _flow_ticker_rows(rows: Iterable[dict],
         "_iv_put_prem_sum": 0.0,
         # Directional vol reads, constructed faithfully to Lin/Lu/Driessen (2013,
         # appendix A.1/A.2) — after Cremers/Weinbaum (2010) and Xing/Zhang/Zhao
-        # (2010). Both restricted to 10 ≤ DTE ≤ 60 and built on SETTLEMENT IV
-        # (eod_iv) so a traded leg and a backfilled counterpart compare like-with-
-        # like. Directional context only — never fed into the conviction score.
+        # (2010). Both apply the paper's data filters (10 ≤ DTE ≤ 60, IV within
+        # [IV_MIN_PTS, IV_MAX_PTS], positive OI, underlying ≥ MIN_UNDERLYING,
+        # option price ≥ MIN_OPTION_PRICE when known) and are built on SETTLEMENT
+        # IV (eod_iv) so a traded leg and a backfilled counterpart compare
+        # like-with-like. Directional context only — never fed into the
+        # conviction score.
         #
         #   IV spread = OI-weighted mean of (IV_call − IV_put) across MATCHED
         #   pairs (same strike + expiry) — a put-call-parity deviation, positive
@@ -304,7 +308,7 @@ def _flow_ticker_rows(rows: Iterable[dict],
         # are BACKFILLED from Barchart price-history (counterpart_iv) — see
         # lib/counterpart_iv.py and config/rollup-reference.md. Still None when even
         # the anchor leg is absent.
-        "_pair_contracts": {},          # (strike, expiry) -> per-side settlement IV/OI/vol
+        "_pair_contracts": {},          # (strike, expiry) -> per-side settlement IV/OI
         "_spot": None,                  # representative underlying (for backfill moneyness)
         "_skew_put_iv": None,
         "_skew_put_gap": None,          # |K/S − 0.95| of the tracked OTM put
@@ -378,18 +382,27 @@ def _flow_ticker_rows(rows: Iterable[dict],
         if agg["_spot"] is None and spot:
             agg["_spot"] = spot
 
-        # Paper-faithful IV spread / skew (Lin/Lu/Driessen 2013): restrict to the
-        # 10–60 DTE window, require strike + spot for moneyness, and use the
-        # SETTLEMENT IV so a traded leg and its backfilled counterpart are
-        # comparable. Counterpart legs (the missing side of a pair) are folded in
-        # from counterpart_iv after this loop.
+        # Paper-faithful IV spread / skew (Lin/Lu/Driessen 2013): apply the
+        # appendix filters — 10–60 DTE window, settlement IV within bounds,
+        # positive OI, underlying ≥ $5, option price ≥ $0.125 (the trade print
+        # stands in for the paper's quote mid; unparseable → not dropped) — and
+        # require strike + spot for moneyness. SETTLEMENT IV keeps a traded leg
+        # and its backfilled counterpart comparable. Counterpart legs (the
+        # missing side of a pair) are folded in from counterpart_iv after this
+        # loop; build_iv_lookup applies the same filters to them.
         siv = _settlement_iv(r)
         m = _moneyness(strike, spot)
-        if _SKEW_DTE_LO <= dte <= _SKEW_DTE_HI and m is not None \
-                and siv is not None and siv > 0 and t_lower in ("call", "put"):
+        oi_row = _to_float(r.get(_FLOW_OI))
+        trade_px = _to_float(r.get(_FLOW_TRADE))
+        if DTE_LO <= dte <= DTE_HI and m is not None \
+                and siv is not None and IV_MIN_PTS <= siv <= IV_MAX_PTS \
+                and t_lower in ("call", "put") \
+                and oi_row > 0 \
+                and spot >= MIN_UNDERLYING \
+                and not (0 < trade_px < MIN_OPTION_PRICE):
             _update_skew(agg, t_lower, m, siv)
             _update_pair(agg, t_lower, round(strike, 4), _expiry_key(r),
-                         siv, _to_float(r.get(_FLOW_OI)), float(size))
+                         siv, oi_row)
 
         sent = _classify_sentiment(opt_type, side)
         agg[sent] += 1
@@ -417,13 +430,17 @@ def _flow_ticker_rows(rows: Iterable[dict],
     for sym, a in by_sym.items():
         # Fold in backfilled counterpart legs (settlement IV of contracts that did
         # not trade) so single-sided pairs become matched. Selected in-window at
-        # fetch time; skew moneyness needs the symbol's spot (skip when absent).
-        for cp in (counterpart_iv or {}).get(sym.upper(), []):
-            m = _moneyness(cp["strike"], a["_spot"]) if a["_spot"] else None
-            if m is not None:
-                _update_skew(a, cp["opt_type"], m, cp["iv"])
-            _update_pair(a, cp["opt_type"], round(cp["strike"], 4), cp["expiry"],
-                         cp["iv"], cp["oi"], cp["vol"])
+        # fetch time; IV bounds / positive OI / min price already enforced by
+        # build_iv_lookup. The underlying-price filter is symbol-level: a known
+        # sub-$5 spot drops the name (skew moneyness needs the spot anyway —
+        # skipped per leg when absent).
+        if not (a["_spot"] and a["_spot"] < MIN_UNDERLYING):
+            for cp in (counterpart_iv or {}).get(sym.upper(), []):
+                m = _moneyness(cp["strike"], a["_spot"]) if a["_spot"] else None
+                if m is not None:
+                    _update_skew(a, cp["opt_type"], m, cp["iv"])
+                _update_pair(a, cp["opt_type"], round(cp["strike"], 4), cp["expiry"],
+                             cp["iv"], cp["oi"])
 
         pt = a["premium_total"]
         dte_w = a["_dte_premium_sum"] / pt if pt > 0 else 0.0

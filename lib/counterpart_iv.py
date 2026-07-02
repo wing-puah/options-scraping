@@ -23,28 +23,41 @@ from __future__ import annotations
 
 from datetime import date
 
-from lib.flow_summary._helpers import (
+# The paper-filter constants (DTE window, IV bounds, minimum underlying /
+# option price — Lin/Lu/Driessen 2013 appendix, after Xing/Zhang/Zhao 2010)
+# live in lib/flow_summary/_helpers (the common leaf module of this producer
+# and the core.py consumer) and are re-exported here as this module's public
+# names. Only in-window contracts can form a scored pair, so only their
+# counterparts are worth fetching; legs failing the other filters are dropped
+# at consumption (`build_iv_lookup` here, the traded-leg gate in core.py).
+from lib.flow_summary._helpers import (  # noqa: F401 — DTE/filters re-exported
+    DTE_HI,
+    DTE_LO,
+    IV_MAX_PTS,
+    IV_MIN_PTS,
+    MIN_OPTION_PRICE,
+    MIN_UNDERLYING,
     _FLOW_DTE,
     _FLOW_EXPIRY,
     _FLOW_STRIKE,
     _FLOW_SYMBOL,
     _FLOW_TYPE,
+    _FLOW_UPRICE,
     _to_float,
 )
 
-# The IV-spread / IV-skew maturity window (Lin/Lu/Driessen 2013). Kept in sync
-# with lib/flow_summary/core._SKEW_DTE_LO/_HI — only contracts in this window can
-# form a scored pair, so only their counterparts are worth fetching.
-DTE_LO, DTE_HI = 10, 60
-
 # Sidecar CSV schema. One row per fetched counterpart contract; `iv` is settlement
 # IV in POINTS (e.g. 107.86), matching the flow feed's intraday IV units, so the
-# rollup can mix traded and counterpart legs without a unit conversion. `fetched_on`
+# rollup can mix traded and counterpart legs without a unit conversion (NB:
+# enrich_oi's `eod_iv` column stores the same Barchart field as a FRACTION —
+# `_settlement_iv` in core.py rescales it). `price` is the day-D mark
+# (mid(Bid,Ask) → Latest) used for the paper's $0.125 minimum-price filter; blank
+# in sidecars written before the column existed (treated as pass). `fetched_on`
 # is the run date (provenance + resume marker: a contract with a non-blank
 # `fetched_on` is never re-fetched, even when Barchart returned nothing for it).
 COUNTERPART_COLUMNS = [
     "Symbol", "Type", "Strike", "Expires", "trade_date",
-    "iv", "oi", "vol", "delta", "fetched_on",
+    "iv", "oi", "vol", "delta", "price", "fetched_on",
 ]
 
 
@@ -88,6 +101,8 @@ def needed_counterparts(flow_rows: list[dict]) -> list[dict]:
     ``expiration`` is a ``date`` and ``key`` is :func:`contract_key`. A strike that
     already traded both sides needs nothing; a strike that traded neither is not a
     candidate (there is no flow anchor and no way to enumerate the chain here).
+    Rows on a sub-$5 underlying are skipped — the paper's filter (ii) drops the
+    whole name at consumption, so its counterparts aren't worth scraping.
     """
     sides: dict[tuple, set[str]] = {}
     anchor: dict[tuple, dict] = {}
@@ -95,6 +110,9 @@ def needed_counterparts(flow_rows: list[dict]) -> list[dict]:
         sym = (r.get(_FLOW_SYMBOL) or "").strip()
         opt = (r.get(_FLOW_TYPE) or "").strip().lower()
         if not sym or opt not in ("call", "put"):
+            continue
+        spot = _to_float(r.get(_FLOW_UPRICE))
+        if 0 < spot < MIN_UNDERLYING:  # unknown spot (0.0) passes
             continue
         dte = _to_float(r.get(_FLOW_DTE))
         if dte is None or not (DTE_LO <= dte <= DTE_HI):
@@ -131,12 +149,21 @@ def build_iv_lookup(backfill_rows: list[dict]) -> dict[str, list[dict]]:
     Each contract is ``{opt_type, strike, expiry, iv, oi, vol}`` with ``iv`` in
     points, ``expiry`` an ISO date string, and ``oi``/``vol`` floats or None. Rows
     with no usable ``iv`` (Barchart returned nothing — kept only as resume markers)
-    are dropped, so the consumer only sees legs it can actually price.
+    are dropped, as are legs failing the paper's filters: IV outside
+    [IV_MIN_PTS, IV_MAX_PTS], non-positive open interest, or a known ``price``
+    below MIN_OPTION_PRICE (a blank price — older sidecars — passes). The
+    consumer only sees legs it can actually pair per the paper.
     """
     out: dict[str, list[dict]] = {}
     for r in backfill_rows:
         iv = _to_float(r.get("iv"))
-        if iv is None or iv <= 0:
+        if not (IV_MIN_PTS <= iv <= IV_MAX_PTS):
+            continue
+        oi = _to_float(r.get("oi"))
+        if oi <= 0:
+            continue
+        price = _to_float(r.get("price"))
+        if 0 < price < MIN_OPTION_PRICE:  # unknown price (0.0 / old sidecars) passes
             continue
         sym = (r.get("Symbol") or "").strip().upper()
         opt = (r.get("Type") or "").strip().lower()
@@ -149,7 +176,7 @@ def build_iv_lookup(backfill_rows: list[dict]) -> dict[str, list[dict]]:
             "strike": round(strike, 4),
             "expiry": exp.isoformat(),
             "iv": iv,
-            "oi": _to_float(r.get("oi")),
+            "oi": oi,
             "vol": _to_float(r.get("vol")),
         })
     return out

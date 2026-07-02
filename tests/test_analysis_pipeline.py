@@ -143,7 +143,7 @@ def test_engine_registry_covers_both_engines():
     assert set(_RUNNERS) == set(ENGINES)  # every engine has a runner
     assert ENGINES["claude"].tab == "AnalysisClaude"
     assert ENGINES["codex"].tab == "AnalysisGPT"
-    assert ENGINES["claude"].default_model == "opus"
+    assert ENGINES["claude"].default_model == "fable"
     assert ENGINES["codex"].default_model is None  # falls back to codex's config
 
 
