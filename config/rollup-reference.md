@@ -96,12 +96,12 @@ previously collapsed all expiries to one key — fixed 2026-07-01).
 > trades/symbol) rarely carries BOTH legs of a matched pair, so on flow alone
 > `IVspr` is ~98% empty. To recover the paper's construction, the missing
 > counterpart legs are **backfilled** from Barchart per-contract price-history
-> (settlement IV as of the trade date D) by `scripts/backfill_iv.py`, stored in a
-> per-date sidecar and read back here via `lib/iv_backfill.build_iv_lookup`. The
+> (settlement IV as of the trade date D) by `scripts/fetch_counterpart_iv.py`, stored in a
+> per-date sidecar and read back here via `lib/counterpart_iv.build_iv_lookup`. The
 > backfill lifts matched-pair coverage substantially; where a sidecar is absent
 > the metric falls back to flow-only (frequently blank). Predictive power on this
 > reconstructed signal should still be backtested before it is trusted
-> directionally. See `references/references_key_insight` and `lib/iv_backfill.py`.
+> directionally. See `references/references_key_insight` and `lib/counterpart_iv.py`.
 
 ---
 

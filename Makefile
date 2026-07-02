@@ -38,14 +38,24 @@ enrich:
 enrich-backfill:
 	$(PY) scripts/enrich_oi.py --backfill $(ARGS)
 
-# ── iv backfill ────────────────────────────────────────────────────────────────
-.PHONY: backfill-iv
-backfill-iv:
-	$(PY) scripts/backfill_iv.py $(ARGS)
+# ── counterpart iv ───────────────────────────────────────────────────────────────
+.PHONY: fetch-counterpart-iv
+fetch-counterpart-iv:
+	$(PY) scripts/fetch_counterpart_iv.py $(ARGS)
 
-.PHONY: backfill-iv-all
-backfill-iv-all:
-	$(PY) scripts/backfill_iv.py --backfill $(ARGS)
+.PHONY: fetch-counterpart-iv-all
+fetch-counterpart-iv-all:
+	$(PY) scripts/fetch_counterpart_iv.py --backfill $(ARGS)
+
+# ── iv percentile ────────────────────────────────────────────────────────────────
+.PHONY: fetch-iv-percentile
+fetch-iv-percentile:
+	$(PY) scripts/fetch_iv_percentile.py $(ARGS)
+
+# One-shot: enrich every compiled date's flow file with per-ticker IV percentile.
+.PHONY: fetch-iv-percentile-all
+fetch-iv-percentile-all:
+	$(PY) scripts/fetch_iv_percentile.py --backfill $(ARGS)
 
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
@@ -96,9 +106,13 @@ help:
 	@echo "  make enrich-backfill  enrich all enrichable dates (idempotent)"
 	@echo "  make enrich ARGS=\"--date 2026-06-09\"  (or --dry-run, --force)"
 	@echo ""
-	@echo "  make backfill-iv   backfill counterpart IV legs for today's date"
-	@echo "  make backfill-iv-all  backfill counterpart IV legs for all compiled dates"
-	@echo "  make backfill-iv ARGS=\"--date 2026-06-26\"  (or --dry-run, --force)"
+	@echo "  make fetch-counterpart-iv   fetch counterpart IV legs for today's date"
+	@echo "  make fetch-counterpart-iv-all  fetch counterpart IV legs for all compiled dates"
+	@echo "  make fetch-counterpart-iv ARGS=\"--date 2026-06-26\"  (or --dry-run, --force)"
+	@echo ""
+	@echo "  make fetch-iv-percentile      enrich today's compiled flow with per-ticker IV percentile"
+	@echo "  make fetch-iv-percentile-all  enrich all compiled dates (one-shot backfill)"
+	@echo "  make fetch-iv-percentile ARGS=\"--date 2026-06-10\"  (or --dry-run, --force)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"

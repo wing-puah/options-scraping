@@ -1,5 +1,5 @@
 """
-IV backfill: settlement-IV for the option legs that DIDN'T trade.
+Counterpart IV: settlement-IV for the option legs that DIDN'T trade.
 
 The paper-faithful IV spread (Cremers/Weinbaum, via Lin/Lu/Driessen 2013) needs
 BOTH a call and a put at the SAME (strike, expiration) to form a matched pair.
@@ -10,8 +10,8 @@ Barchart's per-contract price-history endpoint exposes a full daily series
 INCLUDING settlement IV / OI / volume for any listed contract, whether or not it
 traded in the flow. So for each single-sided (strike, expiration) that DID trade,
 we can fetch the missing opposite leg's settlement IV *as of the trade date D* and
-complete the pair. `scripts/backfill_iv.py` scrapes those legs and stores them in
-a per-date sidecar on Drive; this module holds the pure logic both the producer
+complete the pair. `scripts/fetch_counterpart_iv.py` scrapes those legs and stores
+them in a per-date sidecar on Drive; this module holds the pure logic both the producer
 (the script) and the consumer (`lib/flow_summary/core._flow_ticker_rows`) share so
 the contract keys and units always agree.
 
@@ -39,24 +39,24 @@ DTE_LO, DTE_HI = 10, 60
 
 # Sidecar CSV schema. One row per fetched counterpart contract; `iv` is settlement
 # IV in POINTS (e.g. 107.86), matching the flow feed's intraday IV units, so the
-# rollup can mix traded and backfilled legs without a unit conversion. `fetched_on`
+# rollup can mix traded and counterpart legs without a unit conversion. `fetched_on`
 # is the run date (provenance + resume marker: a contract with a non-blank
 # `fetched_on` is never re-fetched, even when Barchart returned nothing for it).
-BACKFILL_COLUMNS = [
+COUNTERPART_COLUMNS = [
     "Symbol", "Type", "Strike", "Expires", "trade_date",
     "iv", "oi", "vol", "delta", "fetched_on",
 ]
 
 
 def sidecar_name(date_str: str) -> str:
-    """Per-date IV-backfill sidecar file name (one file spans all flow prefixes).
+    """Per-date counterpart-IV sidecar file name (one file spans all flow prefixes).
 
     Stored in the date folder on Drive; read back by the analysis fetch step and,
     transitively, the backtest (which reads the IVSpread already written onto the
     analysis row). Date-keyed so backtest (historical D) and live (latest D) share
     one path.
     """
-    return f"iv-backfill-{date_str.replace('-', '')}.csv"
+    return f"counterpart-iv-{date_str.replace('-', '')}.csv"
 
 
 def _expiry_date(value) -> date | None:

@@ -98,7 +98,7 @@ def _parse_and_validate(text: str) -> dict:
 def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events."""
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--model", model or "opus"],
+        ["claude", "-p", "--output-format", "json", "--model", model or "fable"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
         timeout=config.REQUEST_TIMEOUT_S, check=False,
     )
@@ -196,7 +196,7 @@ def _multiline_signal(value) -> str:
 
 
 def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
-    """Read a date's scored-rollup CSV → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew}}``.
+    """Read a date's scored-rollup CSV → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew, iv_pct}}``.
 
     The rollup is written by the fetch step at ``audit/<date>-rollup.csv`` before
     this runs, so the metrics are available to join onto the play rows. Returns
@@ -249,6 +249,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # Deterministic per-ticker rollup context (blank on the MARKET row —
             # these are per-name flow metrics, not a market-level read).
             m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""), m.get("iv_skew", ""),
+            m.get("iv_pct", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -404,7 +405,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help=f"Top-N raw trades per flow section (default: {config.DEFAULT_RAW_N}).")
     parser.add_argument("--model", default=None,
                         help="Model for the engine's headless call. Default: engine default "
-                             "(claude→opus, codex→its configured model).")
+                             "(claude→fable, codex→its configured model).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
     parser.add_argument("--skip-llm", action="store_true",

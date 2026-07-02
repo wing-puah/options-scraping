@@ -77,7 +77,24 @@ jobs:
         # re-scan every historical date and risk the job timeout. Idempotent per
         # contract via the sidecar's fetched_on marker. Manual date input respected.
         if: ${{ always() }}
-        run: python scripts/backfill_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Enrich compiled flow with per-ticker IV percentile (latest date only)
+        # Append each ticker's Barchart options-overview IV / IV rank / IV percentile
+        # (as of trade date D) as columns on the compiled flow file — the per-name
+        # rich/cheap read framework Step 4 uses to pick debit (TF) vs credit (TF-S).
+        # Latest date ONLY (no --backfill): IV is as-of D (available same evening, no
+        # D+1 wait), and a full sweep would re-scrape every historical date and risk
+        # the timeout. Resume is per-ticker via the iv_pct_enriched_on marker written
+        # into the compiled file. Manual date input respected.
+        if: ${{ always() }}
+        run: python scripts/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

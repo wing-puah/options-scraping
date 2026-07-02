@@ -1,5 +1,5 @@
 """
-Backfill the settlement IV of option legs that DIDN'T trade, for the IV spread.
+Fetch the settlement IV of the counterpart option legs that DIDN'T trade, for the IV spread.
 
 The paper-faithful IV spread (Cremers/Weinbaum, via Lin/Lu/Driessen 2013) needs a
 matched call+put at the SAME (strike, expiration). The traded-flow subset almost
@@ -10,7 +10,7 @@ listed contract, traded or not, so for each single-sided in-window (10–60 DTE)
 IV *as of the trade date D* (from the compiled filename) and complete the pair.
 
 The results are stored in a per-date sidecar on Drive, `iv-backfill-{YYYYMMDD}.csv`
-(schema `lib.iv_backfill.BACKFILL_COLUMNS`), one row per fetched counterpart:
+(schema `lib.counterpart_iv.COUNTERPART_COLUMNS`), one row per fetched counterpart:
 
     Symbol, Type, Strike, Expires, trade_date, iv, oi, vol, delta, fetched_on
 
@@ -24,12 +24,12 @@ serves the backtest (historical D) and a live run (latest D). The rollup
 `scripts/analysis_pipeline/fetch.py` loads it at analysis time.
 
 Usage:
-  python3 scripts/backfill_iv.py                        # latest compiled date
-  python3 scripts/backfill_iv.py --date 2026-06-26
-  python3 scripts/backfill_iv.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/backfill_iv.py --backfill             # every compiled date
-  python3 scripts/backfill_iv.py --backfill --dry-run   # report scope, no scrape
-  python3 scripts/backfill_iv.py --date 2026-06-26 --force   # re-fetch from scratch
+  python3 scripts/fetch_counterpart_iv.py                        # latest compiled date
+  python3 scripts/fetch_counterpart_iv.py --date 2026-06-26
+  python3 scripts/fetch_counterpart_iv.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/fetch_counterpart_iv.py --backfill             # every compiled date
+  python3 scripts/fetch_counterpart_iv.py --backfill --dry-run   # report scope, no scrape
+  python3 scripts/fetch_counterpart_iv.py --date 2026-06-26 --force   # re-fetch from scratch
 """
 import argparse
 import asyncio
@@ -50,8 +50,8 @@ from lib import barchart_options
 from lib.barchart import BarchartSession, _safe_err
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
-from lib.iv_backfill import (
-    BACKFILL_COLUMNS,
+from lib.counterpart_iv import (
+    COUNTERPART_COLUMNS,
     contract_key,
     needed_counterparts,
     sidecar_name,
@@ -59,7 +59,7 @@ from lib.iv_backfill import (
 from lib.logger import setup_logging
 from compile_flow import FLOW_PREFIXES, compiled_name
 
-log = logging.getLogger("backfill_iv")
+log = logging.getLogger("fetch_counterpart_iv")
 
 CHECKPOINT_EVERY = 50
 _DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
@@ -133,7 +133,7 @@ def _upload_sidecar(client, date_str: str, rows: list[dict]) -> None:
     folder = client.get_or_create_date_folder(date_str)
     name = sidecar_name(date_str)
     tmp = Path(f"/tmp/{name}")
-    pd.DataFrame(rows, columns=BACKFILL_COLUMNS).to_csv(tmp, index=False)
+    pd.DataFrame(rows, columns=COUNTERPART_COLUMNS).to_csv(tmp, index=False)
     client.upload(tmp, name, folder)
     tmp.unlink(missing_ok=True)
 
@@ -239,7 +239,7 @@ async def _scrape_and_store(
 
 # ─── Per-date driver ────────────────────────────────────────────────────────────
 
-def backfill_date(client, date_str: str, *, headless: bool, dry_run: bool, force: bool) -> dict:
+def fetch_counterpart_date(client, date_str: str, *, headless: bool, dry_run: bool, force: bool) -> dict:
     base = {"date": date_str}
     flow_rows = _compiled_flow_rows(client, date_str)
     if not flow_rows:
@@ -310,12 +310,12 @@ def main() -> None:
         targets = _compiled_dates(client)[-1:]
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
-    log.info("Backfill IV%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
+    log.info("Fetch counterpart IV%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
 
-    results = [backfill_date(client, d, headless=headless, dry_run=args.dry_run, force=args.force)
+    results = [fetch_counterpart_date(client, d, headless=headless, dry_run=args.dry_run, force=args.force)
                for d in targets]
     done = [r for r in results if r["status"] == "backfilled"]
-    print(f"\nBackfill IV {'dry-run' if args.dry_run else 'run'} summary")
+    print(f"\nFetch counterpart IV {'dry-run' if args.dry_run else 'run'} summary")
     print(f"  dates targeted: {len(targets)}   dates done: {len(done)}")
     for r in results:
         if r["status"] == "backfilled":

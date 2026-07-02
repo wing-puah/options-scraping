@@ -286,6 +286,15 @@ combined table. Apply that table — do not restate it. The judgment on top of i
   only when compression is explicit (`C-VOL` or VC/DP).
 - Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
   must clear it.
+- Let the per-ticker **`IVpct`** column pick debit vs credit once direction is
+  set — it is the "rich vs cheap" read that normalises across names (40% IV is
+  rich on KO, cheap on NVDA), which the market VIX cannot. A trend name in a
+  slow, positive-gamma grind with **high `IVpct` (≥70%)** is the **TF-S** case:
+  sell a credit spread (bull put / bear call), because a debit into rich IV pays
+  for premium the slow move can't overcome. **Low `IVpct` (≤30%)** → IV cheap →
+  debit / long premium (TF). `IVpct` is Barchart's IV percentile (share of the
+  prior-1yr days with IV below today's); blank when the name has no scraped row —
+  then fall back to the vol snapshot proxy.
 
 Before emitting any play, check that it is internally coherent — every number
 in the play must refer to the same spot:
@@ -431,7 +440,8 @@ The quant layer now supplies per-ticker premium aggregation, call/put balance,
 repeated-print clustering, a direction-agnostic conviction score, and multi-day
 persistence ahead of this step. Remaining work and the rationale behind current
 choices live in `config/analysis-roadmap.md` — chiefly a size/contracts aggregate
-to make conviction IV-robust, and the still-deferred per-name vol layer (IV rank,
-skew); market-wide VIX term structure already ships in the "Vol regime snapshot".
+to make conviction IV-robust. Per-name **IV percentile now ships** as the `IVpct`
+column (scraped from Barchart's options-overview history), alongside the directional
+IV skew; market-wide VIX term structure ships in the "Vol regime snapshot".
 Note: premium already embeds IV, so IV is never multiplied into the score; and
 realized vol is for stop-sizing only, never a forward signal.

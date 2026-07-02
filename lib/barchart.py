@@ -211,6 +211,92 @@ class BarchartSession:
 
         return await self.fetch_history_csv(page_url, timeout_ms)
 
+    async def fetch_options_overview_history(self, symbol: str, start: str | None = None,
+                                             end: str | None = None,
+                                             timeout_ms: int = 30000) -> list[dict] | None:
+        """Scrape a symbol's daily options-overview IV history (IV / IV rank / IV
+        percentile) via the page's core-api feed. Returns the feed's JSON ``data`` rows
+        (list of dicts) or None.
+
+        ``start``/``end`` (``YYYY-MM-DD``) restrict the feed to a date window — the few
+        days around a trade date the enricher needs — so the payload is a handful of
+        rows, not the full ~2-year series. When omitted, the whole series is pulled.
+
+        Same interception approach as :meth:`fetch_history_csv`: navigate to the
+        options-history page, capture the authenticated core-api request it fires, then
+        re-issue it (windowed, or with the row cap lifted). Parsing the rows into a
+        {date: iv/iv_rank/iv_pct} series lives in :mod:`lib.barchart_iv_history` (pure),
+        so this only does the fetch.
+
+        The feed is the core-api ``options-historical/get`` endpoint (verified from a
+        live capture). NB it contains ``historical/get`` as a substring, so the match
+        keys on the fuller ``options-historical/get`` to avoid colliding with the
+        price-history feed (``…/v1/historical/get``).
+        """
+        from lib.barchart_iv_history import options_history_url
+
+        url = options_history_url(symbol)
+        log.info("Navigating to options-history '%s'", url)
+
+        def _is_iv_feed(r) -> bool:
+            return "core-api" in r.url and "options-historical/get" in r.url
+
+        try:
+            async with self._page.expect_request(_is_iv_feed, timeout=timeout_ms) as req_info:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            req = await req_info.value
+        except Exception:
+            log.exception("Did not observe the options-history feed request on '%s'", url)
+            return None
+
+        headers = await req.all_headers()
+        api_url = self._augment_iv_history_url(req.url, start, end)
+        pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+
+        try:
+            resp = await self._page.request.get(api_url, headers=pass_headers, timeout=timeout_ms)
+            if not resp.ok:
+                log.warning("Options-history feed HTTP %d for '%s'", resp.status, symbol)
+                return None
+            payload = await resp.json()
+        except Exception:
+            log.exception("Options-history feed fetch/parse failed for '%s'", symbol)
+            return None
+
+        rows = payload.get("data") or []
+        log.info("Scraped %d options-history rows for '%s'", len(rows), symbol)
+        return rows
+
+    @staticmethod
+    def _augment_iv_history_url(feed_url: str, start: str | None = None,
+                               end: str | None = None) -> str:
+        """Restrict the feed to a ``start``..``end`` window when given, else lift the row
+        cap so the full ~2-year daily series returns in one response.
+
+        Barchart's grids paginate via ``limit`` (and sometimes ``maxRecords``); ~1000
+        daily bars covers two trading years. Edited textually to avoid re-encoding the
+        comma/paren-bearing ``fields`` param (same reasoning as _augment_history_url).
+
+        NOTE: the ``startDate``/``endDate`` param names and ``YYYY-MM-DD`` format are
+        Barchart core-api's convention — a best guess to VERIFY against a live feed
+        capture. If a windowed fetch ever returns nothing, the feed likely wants a
+        different param name/format; the limit is kept generous so an ignored window
+        still returns recent rows (which covers a live/latest-date run).
+        """
+        url = feed_url
+        if start and end:
+            for key, val in (("startDate", start), ("endDate", end)):
+                if f"{key}=" in url:
+                    url = re.sub(rf"{key}=[^&]*", f"{key}={val}", url)
+                else:
+                    url += ("&" if "?" in url else "?") + f"{key}={val}"
+        if "limit=" in url:
+            url = re.sub(r"limit=\d+", "limit=1000", url)
+        else:
+            url += ("&" if "?" in url else "?") + "limit=1000"
+        url = re.sub(r"maxRecords=\d+", "maxRecords=1000", url)
+        return url
+
     @staticmethod
     def _reissue_history_url(api_url: str, page_url: str) -> str:
         """Swap the feed's `symbol=` to the contract encoded in page_url.

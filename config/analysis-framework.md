@@ -178,7 +178,7 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 
 **Layer 2 — Select the structure.** Each playbook fixes a `flow_intent` and a view; IV and DTE then determine how aggressively to express it. One table carries the whole chain — playbook → intent → view → structure — so none dangle:
 
-| Playbook                   | `flow_intent`            | View                                        | Aggressive (low or rising IV)         | Moderate                     | Conservative (high or falling IV)   |
+| Playbook                   | `flow_intent`            | View                                        | Aggressive (low IVpct / rising IV)   | Moderate                     | Conservative (high IVpct / falling IV) |
 | -------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
 | **TF** Trend Following     | DIRECTIONAL              | Bullish / Bearish — momentum / breakout     | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
 | **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Credit spread (bull put / bear call)  | Credit spread                | Credit spread                       |
@@ -188,12 +188,18 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 | **VC** Vol Compression     | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
 | **DP** Dealer Pinning      | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
 
-**TF vs TF-S — choosing between them:** The split is dealer gamma, not IV level.
+**TF vs TF-S — choosing between them.** Weigh these factors in order; TF-S (credit) needs the *cluster*, not any one flag:
 
-- **TF (momentum/breakout):** Dealer gamma is *negative* — dealers must hedge by buying into rallies and selling into declines, which amplifies the move. Use debit structures to capture that acceleration. Signs: E-VOL or rising IV, breakout from range, VIX/VIX3M rising toward or above 1, negative-gamma OI cluster being breached.
-- **TF-S (slow grinder):** Dealer gamma is *positive* — dealers absorb order flow, suppress realized vol, and the market grinds without sharp moves. A debit structure here buys premium into a low-MFE environment; the move is too slow to overcome theta. Use **credit spreads** (bull put spread for bullish, bear call spread for bearish) regardless of absolute IV level — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend.
+1. **Per-ticker IV percentile (primary rich/cheap read).** The rollup's `IVpct` column is Barchart's options-overview IV percentile — the share of the prior-1-year days whose IV closed below today's, scraped per date (see `lib/iv_history.py`) and shown as a percentage (stored as a decimal fraction, so 70% = 0.70). It normalises across names (a 40% IV is rich on KO, cheap on NVDA), which absolute IV and VIX cannot. **High IVpct (≥70%) → IV is rich → a debit spread buys expensive premium a slow move can't overcome → prefer TF-S / credit. Low IVpct (≤30%) → IV is cheap → debit / long premium (TF).** Backtest: debit spreads in the top IV tercile had a *negative* median return vs +21% in the bottom tercile — buying rich IV is the losing regime.
+2. **Dealer gamma / GEX.** Positive gamma (spot above the flip) → dealers absorb flow, suppress realized vol → slow grind → TF-S. Negative gamma → dealers amplify → momentum → TF. This is the definitive gate; until per-name GEX is in the rollup (Phase 2 — see roadmap), the vol snapshot is the proxy.
+3. **Realized vs implied vol.** A slow grinder has realized vol well below implied → theta edge favours the credit seller.
+4. **Trend character.** Slow grind (shallow slope, price hugging a moving average, no gaps) → TF-S; range-break / gap / expanding candles → TF.
+5. **VIX contango + no catalyst.** Deep contango (VIX/VIX3M < 0.85), no E-VOL, no HP, no near-term event → grind → TF-S.
 
-> **Gate:** The definitive TF vs TF-S signal is dealer GEX (gamma exposure by strike). Until per-name GEX is in the rollup (Phase 2 — see roadmap), use the vol snapshot as the proxy: contango + stable L-VOL + no E-VOL + no catalyst → treat as positive-gamma / TF-S and prefer credit. The vol snapshot is already injected into every rollup.
+- **TF (momentum/breakout):** debit structures capture the acceleration. Signs: LOW IVpct or rising IV, E-VOL, breakout from range, VIX/VIX3M rising toward or above 1, negative-gamma OI cluster being breached.
+- **TF-S (slow grinder):** **credit spreads** (bull put spread for bullish, bear call spread for bearish) — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: HIGH IVpct, BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend.
+
+> **Preferred read — IV percentile, with a fallback.** `IVpct` (Barchart's per-ticker IV percentile) is the preferred rich/cheap input and should drive the TF-vs-TF-S call whenever it is present. It is **blank when the name wasn't enriched** (`fetch_iv_percentile` hasn't scraped it onto the compiled flow file, or Barchart returned no in-window row). When `IVpct` is blank, fall back to the proxy: dealer-gamma/GEX read → else the vol snapshot (contango + stable L-VOL + no E-VOL + no catalyst → treat as positive-gamma / TF-S and prefer credit) → else absolute IV level. The vol snapshot is already injected into every rollup.
 
 For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-structure edge is present (trend continuation into a catalyst window; or MR where front-month vol is elevated but the longer leg is cheap).
 

@@ -1,7 +1,7 @@
-"""Tests for lib.iv_backfill — counterpart-leg selection and sidecar lookup."""
+"""Tests for lib.counterpart_iv — counterpart-leg selection and sidecar lookup."""
 from datetime import date
 
-from lib.iv_backfill import build_iv_lookup, contract_key, needed_counterparts
+from lib.counterpart_iv import build_iv_lookup, contract_key, needed_counterparts
 
 
 def _row(symbol, opt_type, strike, expires, dte):

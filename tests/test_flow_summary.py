@@ -670,7 +670,7 @@ def test_iv_skew_none_when_put_band_empty():
     assert _flow_ticker_rows(rows)[0]["iv_skew"] is None
 
 
-def test_iv_backfill_completes_single_sided_pair():
+def test_counterpart_iv_completes_single_sided_pair():
     # Only a call traded at 100/2026-08-21 → no matched pair on flow alone.
     rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="60%",
                         strike="100", expiry="2026-08-21", oi="500")]
@@ -682,7 +682,7 @@ def test_iv_backfill_completes_single_sided_pair():
     assert r["iv_spread"] == pytest.approx(20.0)
 
 
-def test_iv_backfill_does_not_override_traded_leg():
+def test_counterpart_iv_does_not_override_traded_leg():
     # Both legs traded (real spread 20). A stray backfill for the put leg must not
     # replace the real settlement IV — first-seen (the traded leg) wins.
     rows = [
@@ -696,7 +696,7 @@ def test_iv_backfill_does_not_override_traded_leg():
     assert _flow_ticker_rows(rows, backfill)[0]["iv_spread"] == pytest.approx(20.0)
 
 
-def test_iv_backfill_fills_skew_band():
+def test_counterpart_iv_fills_skew_band():
     # ATM call only (no OTM put in band) → no skew on flow alone.
     rows = [_flow_row_d("X", "Call", "ask", "100000", delta="0.5", iv="30%",
                         strike="100", spot="100")]

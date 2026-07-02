@@ -200,6 +200,13 @@ the user's portfolio size, risk tolerance, or complete volatility surface.
 - Clear volatility expansion without directional agreement: consider a
   long-volatility structure only when both sides have meaningful evidence.
 - Use short-volatility structures only when compression evidence is explicit.
+- Let the per-ticker `IVpct` column (Barchart's IV percentile — share of the
+  prior-1yr days with IV below today's, 0–100) pick debit vs credit once direction
+  is set — it normalises across names where the market VIX cannot. **High `IVpct`
+  (≥70%)** on a trend name in a slow, positive-gamma grind is the **TF-S** case:
+  sell a credit spread (bull put / bear call) rather than buy a debit into rich IV.
+  **Low `IVpct` (≤30%)** → debit / long premium (TF). Blank (no scraped row) → fall
+  back to the vol-snapshot proxy.
 
 ### Trigger Rules
 
@@ -329,6 +336,8 @@ Per-ticker aggregation, call/put balance, repeated-print clustering, a
 direction-agnostic conviction score, and multi-day persistence are now computed
 before this step. Remaining work and the rationale behind current choices live in
 `config/analysis-roadmap.md` — chiefly a size/contracts aggregate to make
-conviction IV-robust, and a deferred forward-looking vol layer (IV rank, VIX term
-structure). Note: premium already embeds IV, so IV is never multiplied into the
-score; and realized vol is for stop-sizing only, never a forward signal.
+conviction IV-robust. Per-name **IV percentile now ships** as the `IVpct` column
+(scraped from Barchart's options-overview history); market-wide VIX term structure
+ships in the Vol regime snapshot. Note: premium already embeds IV, so IV is never
+multiplied into the score; and realized vol is for stop-sizing only, never a
+forward signal.

@@ -335,6 +335,8 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         "oi_confirm_pct": candidate.get("oi_confirm_pct", ""),
         "cpir": candidate.get("cpir", ""),
         "iv_spread": candidate.get("iv_spread", ""),
+        "iv_skew": candidate.get("iv_skew", ""),
+        "iv_pct": candidate.get("iv_pct", ""),
     }
 
     result.update(_summarize_path(

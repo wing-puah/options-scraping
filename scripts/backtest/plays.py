@@ -337,9 +337,70 @@ _REGISTRY = {s: C for C in (ExplicitPlay, CalendarDiagonalPlay, IronCondorPlay,
                             MultiLegPlay, SingleOrVerticalPlay) for s in C.structures}
 
 
+# ─── TF-S structure override (config-gated experiment) ───────────────────────────
+
+# Bullish / bearish DEBIT verticals → their SAME-DIRECTION credit counterpart.
+# {debit_structure: (credit_structure, credit_leg_option_type)}. The framework's
+# TF-S rule (config/analysis-framework.md Step 4): a trend name in a rich-IV,
+# positive-gamma slow grind should be expressed with a CREDIT spread, because a
+# debit buys premium the slow move can't overcome. This transform lets the backtest
+# A/B that rule on EXISTING debit plays without re-running the LLM.
+#
+# APPROXIMATE: the play's cited strikes are reused, so the resulting credit spread
+# sits at the original strike zone rather than a freshly-chosen OTM band. It is a
+# mechanical hypothesis test, not a faithful re-selection — the faithful path is the
+# framework/prompt change that makes the model emit TF-S credit plays directly
+# (validate that on a fresh run). Default OFF (see config/backtest.yml).
+_TF_S_DEBIT_TO_CREDIT = {
+    "bull_call_spread": ("bull_put_spread", "Put"),
+    "bear_put_spread":  ("bear_call_spread", "Call"),
+}
+
+
+def _is_positive_gamma_grind(c) -> bool:
+    """Proxy for the positive-gamma / contango slow-grind regime (framework Step 4,
+    until per-name GEX ships): the market/ticker regime reads BULL and is NOT flagged
+    as an expanding-vol environment (E-VOL / H-VOL)."""
+    reg = f"{c.get('market_regime', '')} {c.get('regime', '')}".upper()
+    if "BULL" not in reg:
+        return False
+    return not any(v in reg for v in ("E-VOL", "H-VOL"))
+
+
+def apply_tf_s_override(cls: dict, c: dict, cfg: dict | None) -> dict:
+    """Rewrite a TF debit vertical → its credit counterpart when IV is rich and the
+    regime is a positive-gamma grind (the TF-S case). Config-gated; a no-op unless
+    ``cfg['enabled']`` is set. Returns the (possibly rewritten) classifier dict.
+
+    Gates: structure is one of :data:`_TF_S_DEBIT_TO_CREDIT`, the play's ``iv_pct``
+    (a decimal fraction) is ``>= cfg['iv_pct_threshold']`` (default 0.70), and the
+    regime clears :func:`_is_positive_gamma_grind`. A blank/absent ``iv_pct`` never
+    overrides — the play is left as the analysis wrote it.
+    """
+    if not cfg or not cfg.get("enabled"):
+        return cls
+    mapping = _TF_S_DEBIT_TO_CREDIT.get(cls.get("structure"))
+    if mapping is None:
+        return cls
+    try:
+        iv_pct = float(c.get("iv_pct"))  # stored as a decimal fraction (0.70 = 70th pct)
+    except (TypeError, ValueError):
+        return cls  # blank IVpct → no override
+    if iv_pct < cfg.get("iv_pct_threshold", 0.70) or not _is_positive_gamma_grind(c):
+        return cls
+    structure, opt_type = mapping
+    log.info("TF-S override     %s %s | %s → %s (IVpct %.0f%%)",
+             c.get("date"), c.get("ticker"), cls.get("structure"), structure, iv_pct * 100)
+    out = dict(cls)
+    out["structure"] = structure
+    out["option_type"] = opt_type
+    out["is_credit"] = True
+    return out
+
+
 # ─── Pass 1 driver ──────────────────────────────────────────────────────────────
 
-def build_matched_plays(candidates, spread_pct):
+def build_matched_plays(candidates, spread_pct, tf_s_override=None):
     """Pass 1 — classify each candidate into a :class:`Play` and register its contracts.
 
     Returns ``(plays, contracts, needed_dates, skipped)``:
@@ -353,6 +414,7 @@ def build_matched_plays(candidates, spread_pct):
     for c in candidates:
         c["regime"] = c.get("regime", "")
         cls = classify_play(c["play"])
+        cls = apply_tf_s_override(cls, c, tf_s_override)
         structure = cls["structure"]
         play_type = _REGISTRY.get(structure)
         if play_type is None:

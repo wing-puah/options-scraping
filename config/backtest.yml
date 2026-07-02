@@ -146,6 +146,25 @@ simulation:
   # Risk-free rate for the Black-Scholes legs / fallback.
   risk_free_rate: 0.05
 
+# ── Structure override (TF-S hypothesis test) ───────────────────────────────────
+# EXPERIMENT, default OFF. When enabled, rewrites a TF *debit* vertical
+# (bull_call_spread / bear_put_spread) into its same-direction *credit* counterpart
+# (bull_put_spread / bear_call_spread) at entry when BOTH hold:
+#   • the play's per-ticker IVpct >= iv_pct_threshold (IV is rich in the name's
+#     own range — a debit buys premium a slow move can't overcome), AND
+#   • the market regime is a positive-gamma slow grind (reads BULL, not E-VOL/H-VOL).
+# This is the framework's TF-vs-TF-S rule applied mechanically to EXISTING debit
+# plays so it can be A/B-tested without re-running the LLM. It is APPROXIMATE — the
+# play's cited strikes are reused for the credit spread. The faithful path is the
+# framework/prompt change that makes the analysis emit TF-S credit plays directly;
+# validate that on a fresh analysis run, then compare this off vs on.
+# Needs IVpct populated on the rows (rerun the analysis so the IVPct column is
+# joined), which is why it stays off until there is IVpct history to gate on.
+# iv_pct_threshold is a DECIMAL FRACTION (0.70 = 70th percentile).
+structure_override:
+  enabled: false
+  iv_pct_threshold: 0.70
+
 # ── Output ─────────────────────────────────────────────────────────────────────
 output:
   # Local CSV (always written unless --dry-run).

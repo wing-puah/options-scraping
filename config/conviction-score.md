@@ -116,8 +116,8 @@ compute both measures across the *entire daily option chain*. The traded flow
 (Barchart's ~100 largest trades/symbol) rarely carries both legs of a matched
 pair, so on flow alone `IVspr` is ~98% empty. The missing counterpart legs are
 therefore **backfilled** from Barchart per-contract price-history — the
-settlement IV as of the trade date D (`scripts/backfill_iv.py` → per-date sidecar
-→ `lib/iv_backfill.build_iv_lookup` → the rollup), which lifts matched-pair
+settlement IV as of the trade date D (`scripts/fetch_counterpart_iv.py` → per-date sidecar
+→ `lib/counterpart_iv.build_iv_lookup` → the rollup), which lifts matched-pair
 coverage materially. It remains a *reconstruction* of the paper's chain-level
 statistic, not the validated statistic itself, and where no sidecar exists it
 falls back to flow-only. **Predictive power on the reconstructed signal is
@@ -134,6 +134,23 @@ The matched-pair OI-weighted spread above has a different distribution — the
 threshold must be **re-derived** from a fresh backtest before use. This is
 *direction-bearing*, so it deliberately stays out of the agnostic score — treat
 it as a veto on the play, not a deduction on the name.
+
+## IV percentile (structure selection, not scored, not directional)
+
+`IVpct` is **Barchart's options-overview IV percentile** for the name — the share
+of the prior-1-year days whose IV closed below that day's IV. It is scraped per
+historical date from Barchart (`scripts/fetch_iv_percentile.py` →
+`lib/barchart_iv_history.py` → appended as `iv`/`iv_rank`/`iv_pct` columns onto the
+compiled flow file, enrich-in-place like OI) and read back as-of the trade date off
+those rows, so no percentile is computed on our side. Stored as a decimal fraction
+(0.70) per the percentages-as-decimals convention; shown as a % in the rollup. It is neither a conviction
+component nor a directional read — it is the per-ticker **rich/cheap** input that
+picks the *structure* once direction is set (framework Step 4). HIGH IVpct (≥70%) →
+IV rich → prefer credit / TF-S; LOW IVpct (≤30%) → IV cheap → debit / long premium
+(TF). It normalises across names where absolute IV and the market VIX cannot (40%
+IV is rich on KO, cheap on NVDA). `—` when the tab has no scraped row for the name
+(not yet cached, or the ticker fell outside the scraped universe) — then fall back
+to the dealer-gamma / vol-snapshot proxy.
 
 ## Buckets
 

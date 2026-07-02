@@ -132,8 +132,13 @@ the stand-in.
 
 The genuinely forward signals for play selection, in rough priority:
 
-- **IV rank / percentile** (per name) — where today's IV sits in its own trailing
-  range. The single most useful "rich or cheap" read.
+- ~~**IV rank / percentile** (per name) — where today's IV sits in its own trailing
+  range. The single most useful "rich or cheap" read.~~ — **SHIPPED July 2026** as
+  the `IVpct` column (`lib/barchart_iv_history.py` + `scripts/fetch_iv_percentile.py` →
+  enriched onto the compiled flow file). Source: Barchart's **options-overview history** page carries
+  a per-date IV percentile series up to ~2 years, so the "no historical series"
+  blocker below turned out not to apply — no self-logging needed. Drives the TF-vs-TF-S
+  structure choice (framework Step 4).
 - ~~**VIX term structure** (VIX vs VIX3M/VIX9D)~~ — **SHIPPED June 2026**
   (`lib/vol_snapshot.py`, see Shipped above). Forward market-wide vol regime;
   backwardation = acute near-term fear that tends to mean-revert.
@@ -146,13 +151,14 @@ structure **live only — no historical series.** Split by feasibility:
 - ~~**VIX term structure history is actually free** via yfinance indices~~ —
   **DONE** (`lib/vol_snapshot.py` pulls `^VIX`/`^VIX9D`/`^VIX3M`/`^VVIX` and
   injects the snapshot into the rollup).
-- **Per-name IV rank history is the hard part** — it needs each name's historical
-  IV, which Barchart shows live-only and most free sources don't keep. Two paths:
-  (a) a paid surface/IV-history vendor; (b) **start logging our own daily
-  snapshots** of IV rank into Drive. The scraper already runs ~2×/day, so a
-  historical series accrues from whenever we start — *every delayed day is lost
-  history*, so if this layer is wanted "eventually," starting the snapshot log
-  early is nearly free and strictly better than waiting.
+- ~~**Per-name IV rank history is the hard part**~~ — **RESOLVED July 2026.** It
+  turned out Barchart's **options-overview history** page (`…/options-history`, a
+  Premier feature) exposes a per-date IV / IV-rank / IV-percentile series up to ~2
+  years — a full historical series, not live-only. `scripts/fetch_iv_percentile.py`
+  scrapes it per ticker (windowed to the trade date) and enriches the as-of-date
+  values onto the compiled flow file, so neither a paid vendor nor self-logging was
+  needed. (The IV *term structure* / skew per name is
+  still not built.)
 
 Per-name IV rank/term/skew needs the option chain/surface (yfinance option chain
 or a vendor), which is heavier than the flow CSVs we read today.
@@ -353,9 +359,10 @@ in rough priority:
   L-VOL + no E-VOL + no catalyst) is the proxy gate. Backtest evidence: BULL
   market plays with debit structures show near-zero MFE and −68% realized/MFE
   capture — the slow-grinder problem that TF-S is designed to fix.
-- **IV features** — IV rank/percentile, term structure, and skew (put vs call IV).
-  This is the deferred vol layer (item 2); the **blocker is IV history**, so start
-  the daily IV snapshot log early — every delayed day is lost history.
+- **IV features** — IV rank/percentile **SHIPPED** as `IVpct` (scraped from
+  Barchart's options-overview history, July 2026 — see item 2 above; the "IV
+  history" blocker didn't apply). Term structure and skew (put vs call IV) per name
+  remain deferred.
 - The already-scoped quant features that belong in this layer: summed Size +
   delta-adjusted notional (items 1, 5), DTE bucketing (item 6), spread-leg flags
   (item 8). Next-day OI delta (item 7) is **already in this layer** — it feeds the

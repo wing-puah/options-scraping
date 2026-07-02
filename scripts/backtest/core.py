@@ -37,7 +37,7 @@ _KEY_ORDER = [
     # Per-ticker flow-rollup context joined from audit/<date>-rollup.csv (the same
     # date's scored rollup the analysis ran on). Appended at the END so existing
     # sheet rows stay column-aligned. See _attach_rollup_metrics / _ROLLUP_METRIC_COLS.
-    "oi_confirm_pct", "cpir", "iv_spread", "iv_skew",
+    "oi_confirm_pct", "cpir", "iv_spread", "iv_skew", "iv_pct",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -49,11 +49,12 @@ _ROLLUP_METRIC_COLS = {
     "cpir": "CPIR",
     "iv_spread": "IVSpread",
     "iv_skew": "IVSkew",
+    "iv_pct": "IVPct",
 }
 
 
 def _load_rollup_metrics(date_str: str) -> dict[str, dict]:
-    """Read ``audit/<date>-rollup.csv`` → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew}}``.
+    """Read ``audit/<date>-rollup.csv`` → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_skew, iv_pct}}``.
 
     Returns ``{}`` when the rollup file is missing (older backtested dates may have
     no audit file). The rollup carries one row per ticker per section (stocks/etfs);
@@ -74,8 +75,8 @@ def _load_rollup_metrics(date_str: str) -> dict[str, dict]:
 
 
 def _attach_rollup_metrics(candidates: list[dict]) -> None:
-    """Backfill per-ticker rollup metrics (OIConfirmPct/CPIR/IVSpread/IVSkew) for candidates
-    whose analysis row predates these columns.
+    """Backfill per-ticker rollup metrics (OIConfirmPct/CPIR/IVSpread/IVSkew/IVPct) for
+    candidates whose analysis row predates these columns.
 
     Newer analysis rows already carry the metrics (joined at analysis time — see
     analysis_pipeline.core.analysis_to_rows); those are authoritative and left as-is.
@@ -144,6 +145,7 @@ def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list
             "cpir": str(row.get("cpir", "")).strip(),
             "iv_spread": str(row.get("iv_spread", "")).strip(),
             "iv_skew": str(row.get("iv_skew", "")).strip(),
+            "iv_pct": str(row.get("iv_pct", "")).strip(),
         })
 
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
@@ -407,12 +409,19 @@ def main() -> None:
         log.warning("No plays found in '%s' — run /options analyze first to populate it", tab)
         sys.exit(0)
 
-    # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread) onto each play.
+    # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.
     _attach_rollup_metrics(candidates)
+    # The TF-S structure override gates on the market regime (positive-gamma grind),
+    # so make that day's market read visible on the candidate before Pass 1.
+    for c in candidates:
+        c["market_regime"] = market_regime.get(c["date"], "")
 
     # Pass 1 — classify each play into a Play, build its legs, and register the
-    # contracts whose Barchart history must be fetched.
-    plays, contracts, needed_dates, skipped = build_matched_plays(candidates, spread_pct)
+    # contracts whose Barchart history must be fetched. tf_s_override (config-gated,
+    # default off) rewrites rich-IV TF debit verticals into TF-S credit spreads.
+    tf_s_override = cfg.get("structure_override")
+    plays, contracts, needed_dates, skipped = build_matched_plays(
+        candidates, spread_pct, tf_s_override)
 
     # Pass 2 — fetch/cache Barchart history for all identified contracts.
     barchart_series: dict[tuple, list] = {}
