@@ -2,10 +2,20 @@
 Scan Google Drive compiled flow files and record enrichment status per date/prefix.
 
 Writes (or refreshes) the EnrichLog tab in Google Sheets with one row per
-(date, prefix) pair showing how many contracts have been enriched.
+(date, prefix) pair showing how many contracts/tickers have been enriched by
+each of the three enrichers: OI+greeks (enrich_oi.py), IV percentile
+(fetch_iv_percentile.py), and the counterpart-IV sidecar (fetch_counterpart_iv.py,
+per-date rather than per-prefix, so its columns are duplicated across both
+prefix rows for that date).
 
-Rows already marked 'complete' are not re-downloaded; only non-complete and
-new rows are checked. Use --full to force a re-check of everything.
+Rows already marked 'complete' on ALL THREE (status/iv_status/cp_status) are
+not re-downloaded; only non-complete and new rows are checked. Use --full to
+force a re-check of everything.
+
+Columns manually added to the EnrichLog sheet (last_analysis, backtest_ready,
+last_backtest) are carried forward by name from the existing sheet on every
+run — they are NOT computed here, just threaded through so a full-table
+rewrite never blanks them.
 
 Usage:
   python3 scripts/update_enrich_logs.py            # scan all, skip complete
@@ -27,36 +37,49 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
+from lib.counterpart_iv import needed_counterparts
 from lib import sheets_client
 from lib.logger import setup_logging
 from compile_flow import FLOW_PREFIXES
 from enrich_oi import _source_file, _distinct_contracts, _done_keys, _ensure_columns
+from fetch_iv_percentile import (
+    _distinct_tickers,
+    _done_tickers as _done_iv_tickers,
+    _ensure_columns as _ensure_iv_columns,
+)
+from fetch_counterpart_iv import (
+    _compiled_flow_rows,
+    _done_keys as _done_cp_keys,
+    _load_sidecar,
+)
 
 log = logging.getLogger("update_enrich_logs")
 
 TAB = "EnrichLog"
+
+# Columns this script computes, in write order. Anything in MANUAL_COLUMNS is
+# NOT computed here — it's read back from the existing sheet and threaded
+# through unchanged (see with_manual_cols in main()) so a human-added column
+# never gets clobbered by the full-table rewrite in write_analysis().
 COLUMNS = [
     "date", "prefix", "status",
     "total_contracts", "enriched_contracts", "enrichment_pct",
-    "last_enriched_on", "last_updated",
+    "last_enriched_on",
+    "iv_status", "iv_total_tickers", "iv_enriched_tickers", "iv_enrichment_pct",
+    "iv_last_enriched_on",
+    "cp_status", "cp_wanted", "cp_fetched", "cp_enrichment_pct", "cp_last_fetched_on",
+    "last_updated",
 ]
 
+# Manually maintained in the live sheet — preserved by name, never computed here.
+MANUAL_COLUMNS = ["last_analysis", "backtest_ready ", "last_backtest"]
 
-def _check(client, prefix: str, date_str: str) -> dict:
-    """Download one compiled file and return its enrichment status row."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    base = {"date": date_str, "prefix": prefix, "last_updated": now}
+ALL_COLUMNS = COLUMNS + MANUAL_COLUMNS
+STATUS_FIELDS = ("status", "iv_status", "cp_status")
 
-    file_id, file_name = _source_file(client, prefix, date_str)
-    if not file_id:
-        return {**base, "status": "no-compiled", "total_contracts": 0,
-                "enriched_contracts": 0, "enrichment_pct": "", "last_enriched_on": ""}
 
-    rows = parse_csv(client.download(file_id, name=file_name))
-    if not rows:
-        return {**base, "status": "empty", "total_contracts": 0,
-                "enriched_contracts": 0, "enrichment_pct": "", "last_enriched_on": ""}
-
+def _oi_fields(rows: list[dict]) -> dict:
+    """OI+greeks enrichment status (enrich_oi.py) for an already-downloaded compiled file."""
     _ensure_columns(rows)
     contracts, _ = _distinct_contracts(rows)
     done = _done_keys(rows)
@@ -79,12 +102,103 @@ def _check(client, prefix: str, date_str: str) -> dict:
         status = "none"
 
     return {
-        **base,
         "status": status,
         "total_contracts": total,
         "enriched_contracts": enriched,
         "enrichment_pct": pct,
         "last_enriched_on": last_enriched_on,
+    }
+
+
+def _iv_fields(rows: list[dict]) -> dict:
+    """IV-percentile enrichment status (fetch_iv_percentile.py) for the same rows."""
+    _ensure_iv_columns(rows)
+    tickers = _distinct_tickers(rows)
+    done = _done_iv_tickers(rows)
+
+    last_enriched_on = max(
+        (r["iv_pct_enriched_on"] for r in rows if r.get("iv_pct_enriched_on", "").strip()),
+        default="",
+    )
+
+    total = len(tickers)
+    enriched = len(done)
+    pct = f"{enriched / total * 100:.0f}%" if total else ""
+    if total == 0:
+        status = "no-tickers"
+    elif enriched >= total:
+        status = "complete"
+    elif enriched:
+        status = "partial"
+    else:
+        status = "none"
+
+    return {
+        "iv_status": status,
+        "iv_total_tickers": total,
+        "iv_enriched_tickers": enriched,
+        "iv_enrichment_pct": pct,
+        "iv_last_enriched_on": last_enriched_on,
+    }
+
+
+def _check(client, prefix: str, date_str: str) -> dict:
+    """Download one compiled file once and return its OI + IV enrichment status.
+
+    (cp_* fields are per-date, not per-prefix — the caller merges those in separately.)
+    """
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    base = {"date": date_str, "prefix": prefix, "last_updated": now}
+    empty_oi = {"status": "no-compiled", "total_contracts": 0, "enriched_contracts": 0,
+                "enrichment_pct": "", "last_enriched_on": ""}
+    empty_iv = {"iv_status": "no-compiled", "iv_total_tickers": 0, "iv_enriched_tickers": 0,
+                "iv_enrichment_pct": "", "iv_last_enriched_on": ""}
+
+    file_id, file_name = _source_file(client, prefix, date_str)
+    if not file_id:
+        return {**base, **empty_oi, **empty_iv}
+
+    rows = parse_csv(client.download(file_id, name=file_name))
+    if not rows:
+        return {**base, **{**empty_oi, "status": "empty"}, **{**empty_iv, "iv_status": "empty"}}
+
+    return {**base, **_oi_fields(rows), **_iv_fields(rows)}
+
+
+def _check_cp(client, date_str: str) -> dict:
+    """Counterpart-IV sidecar status (fetch_counterpart_iv.py) — one per date, all prefixes."""
+    flow_rows = _compiled_flow_rows(client, date_str)
+    if not flow_rows:
+        return {"cp_status": "no-compiled", "cp_wanted": 0, "cp_fetched": 0,
+                "cp_enrichment_pct": "", "cp_last_fetched_on": ""}
+
+    wanted = needed_counterparts(flow_rows)
+    sidecar = _load_sidecar(client, date_str)
+    done = _done_cp_keys(sidecar)
+
+    last_fetched_on = max(
+        (r.get("fetched_on", "") for r in sidecar if str(r.get("fetched_on", "")).strip()),
+        default="",
+    )
+
+    total = len(wanted)
+    fetched = sum(1 for c in wanted if c["key"] in done)
+    pct = f"{fetched / total * 100:.0f}%" if total else ""
+    if total == 0:
+        status = "no-counterparts"
+    elif fetched >= total:
+        status = "complete"
+    elif fetched:
+        status = "partial"
+    else:
+        status = "none"
+
+    return {
+        "cp_status": status,
+        "cp_wanted": total,
+        "cp_fetched": fetched,
+        "cp_enrichment_pct": pct,
+        "cp_last_fetched_on": last_fetched_on,
     }
 
 
@@ -101,28 +215,48 @@ def main() -> None:
     client = get_drive_client()
     all_dates = sorted(client.list_date_folders())
 
+    # Always read the existing sheet — not just when not --full — so manually
+    # added columns (MANUAL_COLUMNS) can be carried forward even on a --full run.
     existing: dict[tuple, dict] = {}
-    if not args.full:
-        try:
-            for row in sheets_client.get_all_rows(TAB):
-                key = (str(row.get("date", "")), str(row.get("prefix", "")))
-                existing[key] = row
-        except Exception as e:
-            log.warning("Could not read existing EnrichLog tab: %s", e)
+    try:
+        for row in sheets_client.get_all_rows(TAB):
+            key = (str(row.get("date", "")), str(row.get("prefix", "")))
+            existing[key] = row
+    except Exception as e:
+        log.warning("Could not read existing EnrichLog tab: %s", e)
+
+    def with_manual_cols(row: dict, key: tuple) -> dict:
+        ex = existing.get(key)
+        return {**row, **{c: (ex.get(c, "") if ex else "") for c in MANUAL_COLUMNS}}
 
     rows_out: list[dict] = []
     skipped = 0
     for date_str in all_dates:
+        keys = [(date_str, prefix) for prefix in FLOW_PREFIXES]
+        exs = {k: existing.get(k) for k in keys}
+        all_complete = all(
+            not args.full and ex and all(str(ex.get(f, "")) == "complete" for f in STATUS_FIELDS)
+            for ex in exs.values()
+        )
+
+        if all_complete:
+            for key in keys:
+                rows_out.append(with_manual_cols(
+                    {c: exs[key].get(c, "") for c in COLUMNS}, key))
+                skipped += 1
+            continue
+
+        cp_result = _check_cp(client, date_str)
         for prefix in FLOW_PREFIXES:
             key = (date_str, prefix)
-            ex = existing.get(key)
-            if not args.full and ex and str(ex.get("status", "")) == "complete":
-                rows_out.append({c: ex.get(c, "") for c in COLUMNS})
-                skipped += 1
-                continue
             log.info("%s  %s: checking...", date_str, prefix)
-            rows_out.append(_check(client, prefix, date_str))
+            row = {**_check(client, prefix, date_str), **cp_result}
+            rows_out.append(with_manual_cols(row, key))
 
+    # Normalize every row to ALL_COLUMNS order — write_analysis derives the sheet's
+    # column order from rows_out[0].keys(), and dict insertion order otherwise
+    # differs between the skip-branch and compute-branch rows built above.
+    rows_out = [{c: r.get(c, "") for c in ALL_COLUMNS} for r in rows_out]
     rows_out.sort(key=lambda r: (r["date"], r["prefix"]))
 
     checked = len(rows_out) - skipped
@@ -132,9 +266,9 @@ def main() -> None:
     )
 
     if args.dry_run:
-        w = [12, 14, 14, 17, 20, 15, 15]
-        hdr = ["date", "prefix", "status", "total_contracts",
-               "enriched_contracts", "enrichment_pct", "last_enriched_on"]
+        w = [12, 14, 10, 8, 10, 8, 8]
+        hdr = ["date", "prefix", "status", "iv_status", "cp_status",
+               "enrichment_pct", "iv_enrichment_pct"]
         print("\nEnrichLog (dry-run)")
         print("  " + "  ".join(h.ljust(w[i]) for i, h in enumerate(hdr)))
         print("  " + "  ".join("-" * ww for ww in w))

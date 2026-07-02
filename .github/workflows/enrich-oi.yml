@@ -2,11 +2,11 @@ name: Enrich OI
 
 # Adds next-day OI change + EOD greeks to each compiled flow file. Enriching trade
 # date D needs D+1's data, so this runs AFTER Compile Flow (which produces today's
-# compiled file) and enriches the PRIOR day(s) via --backfill. Resume is per-contract
-# via the oi_enriched_on marker written into the compiled file itself: a backfill
-# scrapes only contracts not yet attempted, so it self-heals any run that was cut
-# short (the enriched CSV is checkpointed back to Drive as it goes — there is no
-# separate history cache to restore between runs).
+# compiled file) and enriches the latest enrichable date only (no --backfill: a full
+# historical sweep risks the job timeout). Resume is per-contract via the
+# oi_enriched_on marker written into the compiled file itself, so a run that was cut
+# short self-heals next time (the enriched CSV is checkpointed back to Drive as it
+# goes — there is no separate history cache to restore between runs).
 #
 # Needs the full requirements (Playwright) + Barchart creds to scrape per-contract
 # price history; writes the enriched CSVs back to Drive (no Sheets access needed).
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: 'Single trading date to enrich (YYYY-MM-DD). Blank = --backfill.'
+        description: 'Single trading date to enrich (YYYY-MM-DD). Blank = latest enrichable date.'
         required: false
         type: string
 
@@ -59,9 +59,10 @@ jobs:
         run: playwright install-deps chromium
 
       - name: Enrich compiled flow with next-day OI + EOD greeks
-        # Manual run with a date → that date; otherwise --backfill (every enrichable
-        # date not yet enriched). Headless scrape via BarchartSession.
-        run: python scripts/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '--backfill' }}
+        # Manual run with a date → that date; otherwise the latest enrichable date
+        # only (no --backfill: a full historical sweep risks the job timeout).
+        # Headless scrape via BarchartSession.
+        run: python scripts/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
