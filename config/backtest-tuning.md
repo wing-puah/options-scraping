@@ -461,3 +461,170 @@ the trail locks in enough. Accepted cost.
   meaningful (trail activates before profit_target fires on big movers).
 - Widening the trail beyond 0.25 is counterproductive — gives back more than
   it saves (Opt B confirmed).
+
+---
+
+## Attempt 8 — Credit/debit split (2026-07-04)
+
+**Motivation:** two compounding bugs shared one root cause — the backtest was
+treating every position as if it were a debit. (1) **Oversizing:** contracts
+were sized on `abs(entry_option_price)` — the credit *received* — not the
+structure's max loss. A $0.50 credit on a $5-wide spread sized to ~26 contracts
+against a $1,000 (2%) risk budget; true worst case ≈ $11,700. (2) **Wrong exit
+profile for credits:** `trailing_stop_trigger=0.50` fires at 50% of the credit
+captured and the 25pt trail whipsaws on noise-level mark moves; `stop_loss=0.75`
+of a small credit is a rounding error relative to true max loss; and
+`time_exit_dte_fraction=0.75` closes credit positions right before the
+final-25%-of-DTE theta capture that is the whole point of selling premium.
+
+**Change:**
+- `_max_loss_per_unit(legs, entry_net)` (new, `scripts/backtest/helpers.py`):
+  debit → premium paid (unchanged convention); credit → credit received minus
+  the structure's worst expiration payoff (`_payoff_floor`); `None` when
+  unbounded (net short calls, multi-expiration credit).
+- `_size_contracts` (`scripts/backtest/simulate.py`) now sizes credit positions
+  on `_max_loss_per_unit`, not `abs(entry_option_price)`. Unbounded/uncomputable
+  → falls back to 1 contract + `log.warning`. Debit formula unchanged (verbatim).
+- `_effective_sim_cfg` presence-merges a new `simulation.credit:` block
+  (`config/backtest.yml`) over the base config when `entry_option_price < 0`:
+  `profit_target=0.65`, `stop_loss=1.00` (mark doubles), no trailing stop, no
+  time exit — a "theta harvest" profile that lets credits run toward expiry
+  instead of exiting on premium-sized noise. Explicit `null` in the block
+  disables that rule for credits specifically; debit config and all existing
+  credit tests (`test_simulate_short_put_*`, `test_simulate_bull_put_spread_credit`,
+  iron condor tests) are unaffected since none set a `credit:` block.
+- Two new `BacktestResults` columns (physical end of the schema, after
+  `daily_pnl_csv`, for sheet append-alignment): `max_loss_per_contract` (dollars,
+  blank when unbounded) and `pnl_on_risk_pct` (decimal fraction of
+  `max_loss_per_contract`, not of premium — puts credit and debit P&L on one
+  risk-adjusted scale). See `config/backtest-reference.md`.
+
+**Results (2025-03-13 → 03-14, `--cache-only`, vs the pre-change
+`backtests/results.csv` over the same window — only 2 credit rows exist in it,
+so this validates mechanics, not edge):**
+
+| Credit row | Before | After |
+|---|---|---|
+| KWEB short straddle (unbounded risk) | 3 contracts, `time_exit` day 21, +20.0% ($255) | 1 contract + unbounded-sizing warning, `expired` day 30, +29.6% ($126); `max_loss_per_contract`/`pnl_on_risk_pct` blank as designed |
+| TSLA bear_call_spread 270/300 | 1 contract, `trailing_stop` day 28, +27.8% ($245) | 1 contract, rode through and gapped to `dollar_stop` day 40, −132% of credit (−$1,165 ≈ the $1,000 budget + gap-through); `max_loss_per_contract`=2120, `pnl_on_risk_pct`=−0.55 |
+
+All 8 debit rows byte-identical (excluding the two new trailing columns).
+
+The TSLA row is the honest cost of the profile: the trailing stop *had* banked
++27.8% there, and without it the spread rode into the March-2025 TSLA rally and
+took the full stop. The KWEB row is the intended win: theta ran to expiry
+instead of being cut at 75% DTE, and the naked-straddle sizing dropped 3→1.
+Two rows decide nothing — needs a credit-heavy window (run the analysis
+pipeline over more dates, ideally with `structure_override` on) before tuning
+`profit_target`/`stop_loss` inside the credit block. Note the credit
+`stop_loss=1.00` only fires if a *daily mark* crosses −100% of credit; a gap
+lands on `dollar_stop` first (exit priority 3 vs 4), which is what capped TSLA.
+
+### Attempt 8 — full-window evaluation (2026-07-04)
+
+Full comparison over 2024-06-17 → 2025-03-18: `backtests/v2_BacktestResults_nocreditdiff.csv`
+(66 rows, pre-change) vs `backtests/results.csv` (69 rows, credit split live).
+
+**Headline (dollar totals):** all trades −$13,126 → −$10,346 (+$2,780); credit
+subset (11 trades both runs) −$6,858 → −$4,375 (+$2,483); debit subset
+essentially unchanged (55/55 matched rows byte-identical except the KWEB
+straddle, which the credit profile now owns). Worst credit loss −$1,372 →
+−$1,165; median credit loss −$1,010 → −$305.
+
+**But the improvement is 100% sizing, 0% exits.** Per-contract (sizing-neutral)
+the 9 matched credit trades went −$962 → −$3,637 (−$2,675). Decomposition:
+
+- **Sizing (the win):** structural-max-loss sizing collapsed contracts on the
+  July losers (GLD 26→2, XOM 9→2, AMD 4→1, SMH 4→1). Same per-contract loss,
+  far fewer contracts — this is where the whole +$2.5k came from, and it's the
+  part that generalizes (it mechanically caps tail risk).
+- **Exit profile (net negative on this window):** profit target 0.65 beat the
+  old trailing stop on XOM (+$41/ct) and PLTR (+$140/ct), but the two
+  near-identical March TSLA 270/300 bear call spreads flipped from
+  trailing-stop winners (+$250/ct each) to dollar-stop losers (−$1,160/ct
+  each): MFE peaked at 0.59× credit — 6pts short of the 0.65 target — then
+  TSLA rallied through both stops. That single (double-counted, correlated)
+  event is −$2,820/ct, i.e. the entire per-contract deterioration.
+- Credit win rate 4/11 → 2/11; exit mix dollar_stop 6/trailing 4/stop 1 →
+  stop_loss(1×credit) 7/profit_target 2/dollar_stop 2. The 1×credit stop fires
+  fast on the July losers at the same per-contract cost as the old dollar stop
+  — behaving as designed, no edge either way.
+
+**Verdict: keep the sizing change (clear, mechanical risk reduction); the
+credit exit profile is NOT validated.** n=11 with the decisive swing being one
+TSLA event counted twice — no statistical significance in either direction.
+Possible knobs if the pattern repeats on a credit-heavy window: pt 0.50–0.55
+(both TSLA trades would have banked), or re-introduce a wide trail for credits
+only after ≥0.5× credit captured. Do not tune off this window alone.
+
+---
+
+## Attempt 9 — underlying-price exit study for credits (2026-07-04) — NOT validated ❌
+
+**Motivation:** the operator trades credit spreads off the UNDERLYING price
+(exit when it breaches a level such as the short strike), not off % of the
+credit lost. Attempt 8 showed the mark-based credit exits (pt 0.65 /
+stop 1×credit) rode the March TSLA pair to dollar stops. Question: would an
+underlying-breach stop have exited better?
+
+**Method:** `backtests/underlying_exit_study.py` — path replay of the 12
+credit rows in `backtests/results.csv` (2024-06→2025-03) using the STORED
+daily marks; underlying daily price taken from the short leg's cached Barchart
+history `Price~` column (same scrapes that produced the marks — exact date
+alignment, no yfinance). Close-basis rules only (no intraday underlying data,
+so no touch variants; exits price at that day's stored close mark).
+**Calibration gate passed 12/12:** replaying the exact production credit rules
+reproduced every row's exit_reason/days_held/realized_pnl_pct.
+
+**Rules tested** (× profit target 0.65 / 0.50 / none): close beyond short
+strike; beyond strike ±1% / ±2% buffer; beyond breakeven (strike ± credit);
+each both as a full REPLACEMENT for the mark stops and as an ADDITIONAL rule
+ahead of them (the way it would ship).
+
+| Variant (pt=0.65) | total $/ct (12 trades) | Δ vs actual −$4,293 | TSLA-Mar pair |
+|---|---|---|---|
+| actual new run (mark stops) | −$4,293 | — | −$2,322 |
+| strike±1% replacing mark stops | −$3,222 | +$1,071 | −$868 |
+| strike±1% + mark stops kept | **−$3,030** | **+$1,262** | −$868 |
+| pt 0.50 + mark stops (no underlying rule) | −$948 | +$3,345 | +$1,044 |
+
+**What the underlying stop actually did, per trade:**
+
+- **March TSLA pair (the driver):** underlying closed above the 270 short
+  strike on day 6/8 (S=278.39) → exit −0.48/−0.50× credit (−$430/−$438 per
+  contract) instead of riding to the dollar stop (−$1,157/−$1,165). This is
+  the mechanism working exactly as intended — but it's the SAME correlated
+  event counted twice, and TSLA then round-tripped to 227 (MFE day) before
+  the real breakout, so a plain strike stop was also 20 days early.
+- **July-2024 whipsaws (TSLA ×3, AMD): NOT rescued.** The underlying breached
+  the short put strike within a day of the mark stop firing, at the same
+  −0.9…−1.6× credit — both mechanisms exit these equally badly. (All four
+  later recovered to full profit; only "no stop at all" kept them, which is
+  window luck, not a rule.)
+- **GLD (the qualitative win for underlying-basis):** the 1×credit mark stop
+  fired on day 3 on pure mark noise on a thin $0.50 credit — the underlying
+  NEVER came within 2% of the 215 short strike, and the spread expired at
+  full profit. An underlying-basis rule correctly holds it (−$52 → +$50/ct).
+- **XOM:** plain strike stop clipped it on a marginal touch (109.72 vs 110
+  strike, day 41, −$63) that the ±1% buffer correctly ignored (→ held to the
+  +$95 profit target). Buffer matters.
+- **SMH:** mark stop was BETTER (−$305 day 4) than waiting for the strike
+  breach (−$455 day 6) — in a fast selloff the mark moves before the spot
+  level does.
+- **KWEB short straddle:** strike-basis is nonsense for straddles (short
+  strike ≈ ATM → fires day 1). Breakeven basis fired day 16 at −$240 on a
+  move that mean-reverted to +$126 by expiry. Any underlying stop must use
+  breakeven levels (not strikes) for straddles/strangles — or skip them.
+
+**Verdict: NOT validated — do not ship.** The best variant's +$1,262/ct is
+more than 100% explained by the TSLA pair (+$1,454); the rest of the book is
+net −$192/ct. Same failure of significance as Attempt 8: one correlated event,
+counted twice, decides the sign. The profit-target lever (0.50 vs 0.65,
++$3,345 on this window) is ALSO entirely the TSLA pair (both peaked at 0.59×).
+What survives as genuine, transferable observations: (1) an underlying stop
+needs a ≥1% buffer or it clips marginal touches (XOM); (2) it must be
+breakeven-based for straddles; (3) it does not save gap/whipsaw losers — it
+exits them at the same place the mark stop does; (4) its real edge over mark
+stops is ignoring mark noise on thin credits (GLD). Revisit with a
+credit-heavy window (the config `simulation.credit` block gains an
+`underlying_stop` knob only if it survives one).

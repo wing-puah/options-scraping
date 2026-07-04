@@ -95,6 +95,35 @@ simulation:
   # killing trades that went on to 100-160% MFE.
   loss_days_exit: null
 
+  # ── Credit override ("theta harvest") ─────────────────────────────────────────
+  # Attempt 8: the settings above are tuned for DEBIT structures (premium paid,
+  # profit from the move continuing). A credit structure (net premium RECEIVED —
+  # detected at simulate time as entry_option_price < 0, i.e. entry_net < 0)
+  # profits from time decay / the move NOT continuing, so it needs its own
+  # thresholds: the debit profile's trailing_stop and time_exit fire on ordinary
+  # mark noise long before a credit's max profit (worthless expiry) is realized,
+  # and stop_loss=0.75 of a small credit is a rounding error relative to the
+  # structure's true max loss.
+  #
+  # Merge is PRESENCE-BASED (see _effective_sim_cfg in scripts/backtest/simulate.py):
+  # a key named here REPLACES the debit value for credit positions; a key NOT
+  # named here still falls back to the debit value above. An explicit `null` here
+  # is not "inherit from debit" — it OVERRIDES to None, i.e. disables that rule
+  # for credits specifically (that's how trailing_stop_trigger/time_exit below
+  # turn off without touching the debit settings they're copied from).
+  #
+  # Credit SIZING is not configured here — it's automatic. Credit positions size
+  # on structural max loss (credit received − worst expiration payoff), not the
+  # credit itself, so a thin credit on a wide/naked structure can't be oversized
+  # against the risk budget the way pure premium-based sizing was. See
+  # _size_contracts / _max_loss_per_unit in scripts/backtest/simulate.py.
+  credit:
+    profit_target: 0.65           # take profit at 65% of the credit captured
+    stop_loss: 1.00               # stop when loss reaches 1× the credit (mark ~doubles)
+    trailing_stop_trigger: null   # no trailing stop on credits
+    trailing_stop_pct: null
+    time_exit_dte_fraction: null  # ride toward expiry within path_cap_days
+
   # Record a P&L mark for EVERY trading day from entry until the path cap, and
   # derive the realized exit (first profit_target/stop_loss/expiry), MFE and MAE
   # from that full path. ALL P&L comes from this day-by-day path — there are no

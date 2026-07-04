@@ -8,26 +8,63 @@ from .helpers import (
     _price_asof,
     _get_prices, _price_on_or_after,
     _weekday_grid,
-    _defined_risk_bounds,
+    _defined_risk_bounds, _max_loss_per_unit,
 )
 from .legs import format_legs, merge_legs
 
 log = logging.getLogger("backtest")
 
 
-def _size_contracts(entry_price: float, sim_cfg: dict) -> int:
-    """Fixed-fractional position sizing: size so that hitting stop_loss costs at most
-    risk_per_trade_pct × portfolio_value. Minimum 1 contract; a separate dollar stop
-    in _summarize_path enforces the budget cap when 1 contract already exceeds it.
-    Falls back to sim_cfg['contracts'] when portfolio_value is unset.
+def _effective_sim_cfg(sim_cfg: dict, entry_net: float) -> dict:
+    """Debit (entry_net >= 0) simulates on the base `sim_cfg` unchanged. Credit
+    (entry_net < 0) merges `sim_cfg['credit']` over the base — presence-based, so
+    a key the credit block doesn't mention keeps its debit value, while an
+    explicit YAML `null` in the credit block overrides to None and disables that
+    rule (e.g. `time_exit_dte_fraction: null` turns off the time exit for credits
+    without touching the debit config). No-op when `credit` isn't a dict (absent
+    or misconfigured) — credit positions then just run the debit profile."""
+    if entry_net >= 0:
+        return sim_cfg
+    credit = sim_cfg.get("credit")
+    if not isinstance(credit, dict):
+        return sim_cfg
+    return {**sim_cfg, **credit}
 
-    `entry_price` is the per-unit premium magnitude (abs of the signed net)."""
+
+def _size_contracts(entry_net: float, legs: list, sim_cfg: dict) -> int:
+    """Fixed-fractional position sizing: size so that hitting the worst case costs
+    at most risk_per_trade_pct × portfolio_value. Minimum 1 contract; a separate
+    dollar stop in _summarize_path enforces the budget cap when 1 contract already
+    exceeds it. Falls back to sim_cfg['contracts'] when portfolio_value is unset.
+
+    Debit (entry_net > 0): sized on premium paid, per the existing formula.
+    Credit (entry_net < 0): sized on STRUCTURAL max loss (_max_loss_per_unit), not
+    the credit received — a small credit on a wide/naked structure understates the
+    true worst case (the original oversizing bug). When the max loss can't be
+    bounded (naked short call, multi-expiration credit), falls back to 1 contract
+    and logs a warning; the position still appears in results with contracts=1,
+    the portfolio dollar_stop still caps the realized loss, and the blank
+    `max_loss_per_contract` on the result flags it as unsized."""
     portfolio = sim_cfg.get("portfolio_value")
     risk_pct = sim_cfg.get("risk_per_trade_pct")
+
+    if entry_net < 0:
+        if portfolio and risk_pct:
+            mlpu = _max_loss_per_unit(legs, entry_net)
+            if mlpu is not None and mlpu > 0:
+                dollar_risk = portfolio * risk_pct
+                return max(1, math.floor(dollar_risk / (mlpu * 100)))
+            log.warning(
+                "Credit position has unbounded/uncomputable max loss — sizing to "
+                "1 contract:\n%s", format_legs(legs))
+            return 1
+        return sim_cfg.get("contracts", 1)
+
+    # Debit: existing premium × stop formula, verbatim.
     stop = sim_cfg.get("stop_loss", 1.0)
-    if portfolio and risk_pct and stop > 0 and entry_price > 0:
+    if portfolio and risk_pct and stop > 0 and entry_net > 0:
         dollar_risk = portfolio * risk_pct
-        loss_per_contract = entry_price * 100 * stop
+        loss_per_contract = entry_net * 100 * stop
         return max(1, math.floor(dollar_risk / loss_per_contract))
     return sim_cfg.get("contracts", 1)
 
@@ -258,6 +295,10 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     if abs(entry_net) <= 1e-9:
         return {}
 
+    # Credit structures get their own sizing (structural max loss, not premium
+    # received) and exit profile (config/backtest.yml simulation.credit block).
+    eff_cfg = _effective_sim_cfg(sim_cfg, entry_net)
+
     # Per-leg entry breakdown for diagnostics and delta.
     anchor_flow_delta = _to_float(entry_row.get("Delta"))
     detail_lines, net_delta = [], 0.0
@@ -294,22 +335,22 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         grid_marks.append((day, d, value, "+".join(tags) if value is not None else ""))
 
     # Step 5 — daily_price_csv + realized exit + MFE/MAE.
-    contracts = _size_contracts(abs(entry_net), sim_cfg)
-    profit_target = sim_cfg.get("profit_target", 0.50)
-    stop_loss = sim_cfg.get("stop_loss", 1.00)
-    _tex_frac = sim_cfg.get("time_exit_dte_fraction")
+    contracts = _size_contracts(entry_net, legs, eff_cfg)
+    profit_target = eff_cfg.get("profit_target", 0.50)
+    stop_loss = eff_cfg.get("stop_loss", 1.00)
+    _tex_frac = eff_cfg.get("time_exit_dte_fraction")
     time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
-    loss_days_exit = sim_cfg.get("loss_days_exit")
+    loss_days_exit = eff_cfg.get("loss_days_exit")
 
     _pos_value = abs(entry_net) * 100 * contracts
-    _portfolio = sim_cfg.get("portfolio_value")
+    _portfolio = eff_cfg.get("portfolio_value")
 
     def _effective_threshold(pct_of_premium_key, pct_of_portfolio_key):
         opts = []
-        v = sim_cfg.get(pct_of_premium_key)
+        v = eff_cfg.get(pct_of_premium_key)
         if v is not None:
             opts.append(v * _pos_value)
-        p = sim_cfg.get(pct_of_portfolio_key)
+        p = eff_cfg.get(pct_of_portfolio_key)
         if p is not None and _portfolio:
             opts.append(p * _portfolio)
         if not opts or _pos_value == 0:
@@ -346,10 +387,25 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     result.update(_summarize_path(
         grid_marks, entry_net, profit_target, stop_loss, contracts,
-        cap_reached_expiry, _max_loss_abs(sim_cfg),
+        cap_reached_expiry, _max_loss_abs(eff_cfg),
         time_exit_day=time_exit_day,
         trailing_stop_trigger=trailing_stop_trigger,
         trailing_stop_pct=trailing_stop_pct,
         loss_days_exit=loss_days_exit,
     ))
+
+    # Structural risk columns — independent of the daily path, so computed once
+    # here rather than threaded through _summarize_path. Blank when the max loss
+    # can't be bounded (mirrors the sizing fallback above).
+    mlpu = _max_loss_per_unit(legs, entry_net)
+    max_loss_per_contract = round(mlpu * 100, 2) if mlpu is not None else ""
+    realized_pnl_abs = result.get("realized_pnl_abs")
+    pnl_on_risk_pct = (
+        round(realized_pnl_abs / (max_loss_per_contract * contracts), 4)
+        if max_loss_per_contract not in ("", 0)
+        and isinstance(realized_pnl_abs, (int, float))
+        else ""
+    )
+    result["max_loss_per_contract"] = max_loss_per_contract
+    result["pnl_on_risk_pct"] = pnl_on_risk_pct
     return result

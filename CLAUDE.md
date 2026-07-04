@@ -4,11 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Subagent model selection
 
-When spawning subagents via the Agent tool, pick the model based on task weight:
+When spawning subagents via the Agent tool, ALWAYS pass an explicit `model`
+parameter — never omit it. An omitted model makes the subagent inherit the main
+session's model (the most expensive one). This applies especially in plan mode:
+Explore agents MUST be spawned with `model: haiku`, and Plan agents with
+`model: sonnet` (use `opus` only for genuinely heavy design work).
 
 - `haiku` — lookups, searches, file reads, grep (e.g. Explore agents)
-- `sonnet` — moderate tasks: code edits, summaries, single-file analysis
-- `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow analysis, plan-mode design tasks
+- `sonnet` — moderate tasks: code edits, summaries, single-file analysis, plan-mode planning
+- `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow analysis
 
 ## Commands
 

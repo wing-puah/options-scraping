@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 import pytest
@@ -1091,3 +1092,193 @@ def test_choose_anchor_skips_leg_without_history():
     idx, row = _choose_anchor(legs, details, signal)
     assert idx == 1            # the short put, not the historyless long wing
     assert row is not None
+
+
+# ── credit/debit sizing & exit split (Attempt 8) ────────────────────────────────
+
+def test_payoff_floor_put_credit_spread():
+    legs = _legs(("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("+1", "SPY", "2026-07-17", 480, "Put"))
+    assert bt._payoff_floor(legs) == -10.0
+
+
+def test_payoff_floor_naked_short_put():
+    legs = _legs(("-1", "NVDA", "2026-07-17", 220, "Put"))
+    assert bt._payoff_floor(legs) == -220.0  # floors at S=0 = -strike
+
+
+def test_payoff_floor_none_for_naked_short_call():
+    # Net call qty < 0 → payoff → -inf as S→∞, no floor.
+    legs = _legs(("-1", "NVDA", "2026-07-17", 300, "Call"))
+    assert bt._payoff_floor(legs) is None
+
+
+def test_payoff_floor_none_for_multi_expiration():
+    legs = _legs(("-1", "SPY", "2026-06-19", 500, "Call"),
+                 ("+1", "SPY", "2026-09-18", 500, "Call"))
+    assert bt._payoff_floor(legs) is None
+
+
+def test_max_loss_per_unit_debit_is_premium():
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    assert bt._max_loss_per_unit(legs, 8.0) == 8.0
+
+
+def test_max_loss_per_unit_credit_vertical():
+    legs = _legs(("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("+1", "SPY", "2026-07-17", 480, "Put"))
+    assert bt._max_loss_per_unit(legs, -2.5) == 7.5  # -2.5 - (-10)
+
+
+def test_max_loss_per_unit_none_for_naked_short_call():
+    legs = _legs(("-1", "NVDA", "2026-07-17", 300, "Call"))
+    assert bt._max_loss_per_unit(legs, -5.0) is None
+
+
+def test_size_contracts_credit_vertical_sizes_on_structural_risk():
+    # 5-wide bull put spread, credit 0.5. Pre-fix (premium-based) sizing would
+    # give floor(1000 / (0.5*100*1.0)) = 20 contracts against a 2% ($1,000) risk
+    # budget on a $50k book — true structural worst case is $450/contract, not $50.
+    legs = _legs(("-1", "SPY", "2026-07-17", 100, "Put"),
+                 ("+1", "SPY", "2026-07-17", 95, "Put"))
+    sim_cfg = {"portfolio_value": 50000, "risk_per_trade_pct": 0.02}
+    assert bt._size_contracts(-0.5, legs, sim_cfg) == 2
+
+
+def test_size_contracts_naked_short_put_floors_at_one_contract():
+    # Structural max loss ($21,500/contract) dwarfs the $1,000 risk budget —
+    # floor(dollar_risk / loss_per_contract) is 0, clamped up to 1. Single leg
+    # must not crash _payoff_floor / _max_loss_per_unit.
+    legs = _legs(("-1", "NVDA", "2026-07-17", 220, "Put"))
+    sim_cfg = {"portfolio_value": 50000, "risk_per_trade_pct": 0.02}
+    assert bt._size_contracts(-5.0, legs, sim_cfg) == 1
+    assert bt._max_loss_per_unit(legs, -5.0) == 215.0  # populated, not blank
+
+
+def test_size_contracts_debit_ignores_credit_block():
+    # A present `credit:` block must not leak into the debit branch — stop_loss
+    # is read straight off the top-level sim_cfg (0.75), never the nested block's
+    # 1.00 (which would give floor(1000/400)=2, not 3).
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    sim_cfg = {"portfolio_value": 50000, "risk_per_trade_pct": 0.02, "stop_loss": 0.75,
+               "credit": {"stop_loss": 1.00}}
+    assert bt._size_contracts(4.0, legs, sim_cfg) == 3
+
+
+def test_effective_sim_cfg_credit_explicit_none_overrides():
+    sim_cfg = {"profit_target": 0.90, "trailing_stop_trigger": 0.50,
+               "credit": {"profit_target": 0.65, "trailing_stop_trigger": None}}
+    eff = bt._effective_sim_cfg(sim_cfg, -2.5)
+    assert eff["profit_target"] == 0.65
+    assert eff["trailing_stop_trigger"] is None   # explicit null disables, not inherited
+
+
+def test_effective_sim_cfg_debit_returns_base_unchanged():
+    sim_cfg = {"profit_target": 0.90, "credit": {"profit_target": 0.65}}
+    assert bt._effective_sim_cfg(sim_cfg, 3.0) is sim_cfg  # untouched for entry_net >= 0
+
+
+def test_simulate_unbounded_credit_falls_back_to_one_contract(caplog):
+    # Naked short call: credit but _max_loss_per_unit is None (unbounded upside
+    # risk) → sizing falls back to 1 contract + warning; both new risk columns
+    # stay blank since the max loss can't be bounded.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "short call 300",
+            "market_regime": ""}
+    legs = _legs(("-1", "NVDA", "2026-07-17", 300, "Call"))
+    entry_row = _flow_row("NVDA", "Call", "300", "5.0", "500000")
+    key = ("NVDA", "Call", 300.0, "2026-07-17")
+    contract_index = {key: [(date(2026, 6, 1), 5.0), (date(2026, 6, 4), 2.0)]}
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0,
+               "entry_sources": ["reappearance"], "exit_sources": ["reappearance"],
+               "portfolio_value": 50000, "risk_per_trade_pct": 0.02}
+
+    with caplog.at_level(logging.WARNING, logger="backtest"):
+        res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                           structure="short_call", price_fn=lambda tk, dt: None)
+
+    assert res["contracts"] == 1
+    assert res["max_loss_per_contract"] == ""
+    assert res["pnl_on_risk_pct"] == ""
+    assert any("unbounded" in r.message.lower() for r in caplog.records)
+
+
+def test_simulate_credit_exit_uses_credit_profile_not_debit():
+    # Debit defaults (pt=0.90, trailing/time-exit active) would NOT exit this
+    # path at day 3 (+66% of the credit); the credit override (pt=0.65, no
+    # trailing, no time exit) does. Regression guard: existing credit tests that
+    # set no `credit:` block (test_simulate_short_put_*, etc.) still run the
+    # debit profile unchanged.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "short put 220",
+            "market_regime": "RANGE + L-VOL"}
+    legs = _legs(("-1", "NVDA", "2026-07-17", 220, "Put"))
+    entry_row = _flow_row("NVDA", "Put", "220", "5.0", "500000")
+    key = ("NVDA", "Put", 220.0, "2026-07-17")
+    contract_index = {key: [
+        (date(2026, 6, 1), 5.0),   # entry
+        (date(2026, 6, 2), 3.0),   # +40%
+        (date(2026, 6, 3), 2.5),   # +50%
+        (date(2026, 6, 4), 1.7),   # +66% → credit profit_target (0.65) fires here
+        (date(2026, 6, 5), 1.0),   # +80% — never reached, exit already frozen
+    ]}
+    sim_cfg = {
+        "profit_target": 0.90, "stop_loss": 0.75,
+        "trailing_stop_trigger": 0.50, "trailing_stop_pct": 0.25,
+        "time_exit_dte_fraction": 0.75,
+        "contracts": 1, "entry_sources": ["reappearance"], "exit_sources": ["reappearance"],
+        "credit": {
+            "profit_target": 0.65, "stop_loss": 1.00,
+            "trailing_stop_trigger": None, "trailing_stop_pct": None,
+            "time_exit_dte_fraction": None,
+        },
+    }
+
+    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                       structure="short_put", price_fn=lambda tk, dt: None)
+
+    assert res["exit_reason"] == "profit_target"
+    assert res["days_held"] == 3
+    assert 0.65 <= res["realized_pnl_pct"] <= 0.70
+
+
+def test_pnl_on_risk_pct_debit_matches_realized_pnl_pct():
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    entry_row = _flow_row("NVDA", "Call", "250", "10.0", "800000")
+    key = ("NVDA", "Call", 250.0, "2026-07-17")
+    barchart_series = {key: [(date(2026, 6, 1), 10.0), (date(2026, 6, 2), 16.0)]}
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
+               "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None)
+
+    assert res["max_loss_per_contract"] == 1000.0   # entry premium (10) × 100
+    # Debit: same premium is both the P&L denominator and the risk denominator.
+    assert res["pnl_on_risk_pct"] == res["realized_pnl_pct"]
+
+
+def test_pnl_on_risk_pct_credit_spread_scales_by_structural_risk():
+    # Same setup as test_simulate_bull_put_spread_credit (60% of the 2.5 credit).
+    cand = {"ticker": "SPY", "signal_date": date(2026, 6, 1),
+            "play": "bull put spread 490/480", "market_regime": "RANGE + L-VOL"}
+    legs = _legs(("-1", "SPY", "2026-07-17", 490, "Put"),
+                 ("+1", "SPY", "2026-07-17", 480, "Put"))
+    entry_row = _flow_row("SPY", "Put", "490", "4.0", "400000")
+    sold_key  = ("SPY", "Put", 490.0, "2026-07-17")
+    hedge_key = ("SPY", "Put", 480.0, "2026-07-17")
+    barchart_series = {
+        sold_key:  [(date(2026, 6, 1), 4.0), (date(2026, 6, 4), 1.5)],
+        hedge_key: [(date(2026, 6, 1), 1.5), (date(2026, 6, 4), 0.5)],
+    }
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
+
+    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                       structure="bull_put_spread", price_fn=lambda tk, dt: None)
+
+    # entry credit -2.5, floor -10 → max_loss_per_contract = 7.5 × 100 = 750.
+    assert res["max_loss_per_contract"] == 750.0
+    assert abs(res["realized_pnl_pct"] - 0.6) < 0.001
+    # pnl_on_risk_pct re-expresses the 60%-of-credit gain against the $750
+    # structural risk instead of the $250 credit: (0.6*2.5*100)/750 = 0.2.
+    assert abs(res["pnl_on_risk_pct"] - 0.2) < 0.001

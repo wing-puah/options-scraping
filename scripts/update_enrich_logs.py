@@ -80,6 +80,16 @@ MANUAL_COLUMNS = ["last_analysis", "backtest_ready ", "last_backtest"]
 ALL_COLUMNS = COLUMNS + MANUAL_COLUMNS
 STATUS_FIELDS = ("status", "iv_status", "cp_status")
 
+# Function names that spill a single formula down a column (Google Sheets:
+# only the anchor cell holds the formula, every cell below is an unowned
+# computed spill). Used to detect a MANUAL_COLUMNS formula like this one.
+_SPILL_FUNCS = ("MAP(", "ARRAYFORMULA(", "BYROW(", "BYCOL(", "SCAN(", "REDUCE(")
+
+
+def _is_spill_formula(value) -> bool:
+    v = str(value).strip().upper()
+    return v.startswith("=") and any(f in v for f in _SPILL_FUNCS)
+
 
 def _oi_fields(rows: list[dict]) -> dict:
     """OI+greeks enrichment status (enrich_oi.py) for an already-downloaded compiled file."""
@@ -237,6 +247,18 @@ def main() -> None:
     except Exception as e:
         log.warning("Could not read existing EnrichLog tab: %s", e)
 
+    # A MANUAL_COLUMNS formula anchored on the sheet's first data row (e.g.
+    # backtest_ready's MAP()) only owns that one cell — every row below it is
+    # an unowned spill. Carrying forward each row's *evaluated* spill value
+    # (as with_manual_cols does below) writes real content into those cells,
+    # so the next time the formula recalculates Sheets refuses to spill
+    # ("Array result was not expanded because it would overwrite data") and
+    # the column goes dead until someone manually deletes the stray content.
+    # Fix: for a detected spill column, keep the formula text ONLY on the
+    # physical first output row and force every other row blank.
+    anchor_row = next(iter(existing_raw.values()), {})
+    spill_cols = {c for c in MANUAL_COLUMNS if _is_spill_formula(anchor_row.get(c, ""))}
+
     def with_manual_cols(row: dict, key: tuple) -> dict:
         ex = existing_raw.get(key) or existing.get(key)
         return {**row, **{c: (ex.get(c, "") if ex else "") for c in MANUAL_COLUMNS}}
@@ -270,6 +292,12 @@ def main() -> None:
     # differs between the skip-branch and compute-branch rows built above.
     rows_out = [{c: r.get(c, "") for c in ALL_COLUMNS} for r in rows_out]
     rows_out.sort(key=lambda r: (r["date"], r["prefix"]))
+
+    # Re-anchor spill formulas: only the physical first row keeps the formula
+    # text, every other row is forced blank so the formula can spill freely.
+    for c in spill_cols:
+        for i, r in enumerate(rows_out):
+            r[c] = anchor_row.get(c, "") if i == 0 else ""
 
     checked = len(rows_out) - skipped
     summary_line = (

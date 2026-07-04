@@ -99,6 +99,51 @@ def _defined_risk_bounds(legs: list) -> tuple[float, float] | None:
     return (v_min, v_max)
 
 
+def _payoff_floor(legs: list) -> float | None:
+    """Minimum expiration payoff min_S Σ qty·intrinsic(S, K, type) of a single-
+    expiration position, or None when the downside is unbounded (net short calls
+    → payoff → −∞ as S→∞) or the payoff is not a single-expiration intrinsic
+    function (calendars / diagonals).
+
+    Deliberately looser than _defined_risk_bounds, which gates the daily-mark
+    CLAMP and needs both bounds finite (len≥2, net call qty == 0). Sizing only
+    needs the floor, which is finite iff the net call quantity is >= 0 (the
+    payoff's final slope is non-negative, so the min sits at S=0 or a strike).
+    Single-leg positions are allowed — a naked short put floors at S=0.
+    """
+    if len({leg.expiration for leg in legs}) != 1:
+        return None
+    if sum(leg.qty for leg in legs if leg.opt_type == "Call") < 0:
+        return None
+
+    def payoff(S: float) -> float:
+        return sum(
+            leg.qty * (max(0.0, S - leg.strike) if leg.opt_type == "Call"
+                       else max(0.0, leg.strike - S))
+            for leg in legs)
+
+    return min(payoff(S) for S in [0.0] + [leg.strike for leg in legs])
+
+
+def _max_loss_per_unit(legs: list, entry_net: float) -> float | None:
+    """Structural worst-case loss per unit in option points (positive), or None
+    when it cannot be bounded.
+
+      debit  (entry_net > 0): max loss = premium paid = entry_net. (A net-debit
+             ratio with naked short legs understates true risk — same convention
+             as the existing premium×stop debit sizing.)
+      credit (entry_net < 0): max loss = credit received − worst expiration
+             payoff = entry_net − _payoff_floor. None when the floor is None
+             (net short calls, multi-expiration credit).
+    """
+    if entry_net > 0:
+        return entry_net
+    floor = _payoff_floor(legs)
+    if floor is None:
+        return None
+    return entry_net - floor
+
+
 def _short_strike(structure: str, K_long: float, play_strikes: list, spread_pct: float):
     """
     The contra-leg strike for a spread. Returns None for non-spread / iron condor.

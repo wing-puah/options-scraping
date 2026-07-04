@@ -39,8 +39,14 @@ _KEY_ORDER = [
     # sheet rows stay column-aligned. See _attach_rollup_metrics / _ROLLUP_METRIC_COLS.
     "oi_confirm_pct", "cpir", "iv_spread", "iv_skew", "iv_pct",
     # Per-single-contract dollar P&L per trading day, same grid as daily_price_csv.
-    # Kept LAST for sheet append-alignment (see _summarize_path / backtest-reference.md).
+    # Kept before the structural-risk columns below (not last anymore) for sheet
+    # append-alignment (see _summarize_path / backtest-reference.md).
     "daily_pnl_csv",
+    # Credit/debit structural risk (scripts/backtest/simulate.py _simulate). Appended
+    # at the VERY END, after daily_pnl_csv — Sheets append is positional and
+    # append_rows only writes a header on an empty tab, so inserting mid-schema
+    # would misalign every existing row. See config/backtest-reference.md.
+    "max_loss_per_contract", "pnl_on_risk_pct",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent
