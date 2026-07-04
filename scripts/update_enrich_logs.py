@@ -15,7 +15,10 @@ force a re-check of everything.
 Columns manually added to the EnrichLog sheet (last_analysis, backtest_ready,
 last_backtest) are carried forward by name from the existing sheet on every
 run — they are NOT computed here, just threaded through so a full-table
-rewrite never blanks them.
+rewrite never blanks them. Carry-forward reads these columns with
+get_all_rows_preserving_formulas so a manually anchored array formula (e.g.
+a MAP() spilling down the column) round-trips as formula text instead of
+being flattened into its evaluated value on every rewrite.
 
 Usage:
   python3 scripts/update_enrich_logs.py            # scan all, skip complete
@@ -218,15 +221,24 @@ def main() -> None:
     # Always read the existing sheet — not just when not --full — so manually
     # added columns (MANUAL_COLUMNS) can be carried forward even on a --full run.
     existing: dict[tuple, dict] = {}
+    # Formula-preserving read of the same tab, used ONLY for MANUAL_COLUMNS: a
+    # manually anchored array formula (e.g. MAP() in backtest_ready) must be
+    # carried forward as formula text, not its evaluated value, or the
+    # full-table rewrite below flattens it into a static string and the
+    # formula is gone for good.
+    existing_raw: dict[tuple, dict] = {}
     try:
         for row in sheets_client.get_all_rows(TAB):
             key = (str(row.get("date", "")), str(row.get("prefix", "")))
             existing[key] = row
+        for row in sheets_client.get_all_rows_preserving_formulas(TAB):
+            key = (str(row.get("date", "")), str(row.get("prefix", "")))
+            existing_raw[key] = row
     except Exception as e:
         log.warning("Could not read existing EnrichLog tab: %s", e)
 
     def with_manual_cols(row: dict, key: tuple) -> dict:
-        ex = existing.get(key)
+        ex = existing_raw.get(key) or existing.get(key)
         return {**row, **{c: (ex.get(c, "") if ex else "") for c in MANUAL_COLUMNS}}
 
     rows_out: list[dict] = []

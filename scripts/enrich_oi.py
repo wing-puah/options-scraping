@@ -68,7 +68,7 @@ from lib.barchart import BarchartSession, _safe_err
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib.logger import setup_logging
-from backtest.helpers import _contract_key, _num, _parse_expiration
+from backtest.helpers import _contract_key, _to_float, _parse_expiration
 from compile_flow import FLOW_PREFIXES, compiled_name
 
 log = logging.getLogger("enrich_oi")
@@ -130,6 +130,18 @@ def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
     return out
 
 
+def _latest_compiled_date(client, folders: dict[str, str] | None = None) -> str | None:
+    """Newest date with a compiled flow file, walking newest-first and stopping at
+    the first match — see _latest_enrichable_date for why this beats
+    _compiled_dates(client)[-1:] when only the last element is needed.
+    """
+    folders = folders if folders is not None else client.list_date_folders()
+    for d in sorted(folders, reverse=True):
+        if any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES):
+            return d
+    return None
+
+
 def _enrichable_dates(client) -> list[str]:
     """All dates with a compiled flow file OR exactly one raw snapshot per prefix.
 
@@ -147,6 +159,25 @@ def _enrichable_dates(client) -> list[str]:
         elif all(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES):
             out.append(d)
     return out
+
+
+def _latest_enrichable_date(client) -> str | None:
+    """Newest enrichable date, without checking every older date first.
+
+    _enrichable_dates() walks every date folder oldest-first to build the full list
+    (needed for --backfill); when a caller only wants the last element, that's one
+    file_exists (+ possibly list_files_for_date) API round trip per prefix per date
+    all the way from the oldest folder — hundreds of calls just to find the newest.
+    This walks newest-first and returns on the first match instead.
+    """
+    folders = client.list_date_folders()
+    for d in sorted(folders, reverse=True):
+        folder_id = folders[d]
+        if any(client.file_exists(compiled_name(p, d), folder_id) for p in FLOW_PREFIXES):
+            return d
+        if all(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES):
+            return d
+    return None
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -169,7 +200,7 @@ def _row_contract(row: dict) -> dict | None:
     """
     symbol = str(row.get("Symbol", "")).strip()
     opt_type = str(row.get("Type", "")).strip()
-    strike = _num(row.get("Strike"))
+    strike = _to_float(row.get("Strike"))
     expiration = _parse_expiration(row.get("Expires", ""))
     if not symbol or not opt_type or strike is None or expiration is None:
         return None
@@ -219,15 +250,15 @@ def _compute_enrichment(details: dict[date, dict], trade_date: date) -> dict:
         return blank
 
     day = details.get(trade_date)
-    oi_d = _num(day.get("Open Int")) if day else None
-    vol_d = _num(day.get("Volume")) if day else None
-    iv_raw = _num(day.get("IV")) if day else None
-    delta = _num(day.get("Delta")) if day else None
-    gamma = _num(day.get("Gamma")) if day else None
-    vega = _num(day.get("Vega")) if day else None
+    oi_d = _to_float(day.get("Open Int")) if day else None
+    vol_d = _to_float(day.get("Volume")) if day else None
+    iv_raw = _to_float(day.get("IV")) if day else None
+    delta = _to_float(day.get("Delta")) if day else None
+    gamma = _to_float(day.get("Gamma")) if day else None
+    vega = _to_float(day.get("Vega")) if day else None
 
     earlier = sorted(d for d in details if d < trade_date)
-    oi_prev = _num(details[earlier[-1]].get("Open Int")) if earlier else None
+    oi_prev = _to_float(details[earlier[-1]].get("Open Int")) if earlier else None
 
     oi_change = oi_d - oi_prev if (oi_d is not None and oi_prev is not None) else None
 
@@ -454,7 +485,8 @@ def main() -> None:
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        targets = _enrichable_dates(client)[-1:]  # latest enrichable
+        latest = _latest_enrichable_date(client)
+        targets = [latest] if latest else []
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
     log.info("Enrich OI%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))

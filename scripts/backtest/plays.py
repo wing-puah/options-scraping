@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from .classify import (classify_play, _extract_all_expirations,
                        _entry_row_from_history, _resolve_expiry)
 from .config import HISTORY_CACHE
-from .helpers import _contract_key, _num, _short_strike
+from .helpers import _contract_key, _to_float, _short_strike
 from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
                    straddle_legs, strangle_legs, butterfly_legs, condor_legs,
                    calendar_legs, diagonal_legs)
@@ -224,7 +224,7 @@ class IronCondorPlay(Play):
                         c["signal_date"], c["ticker"], anchor_key)
             return None
         # Resolve the four IC strikes now that the entry underlying is known.
-        S_entry = _num(entry_row.get("Price~", entry_row.get("Price")))
+        S_entry = _to_float(entry_row.get("Price~", entry_row.get("Price")))
         if not S_entry:
             log.warning("SKIP unpriced     %s %s | no entry underlying for iron condor",
                         c["signal_date"], c["ticker"])

@@ -51,12 +51,12 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
       - name: Install Playwright browser
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        # Unconditional (not gated on cache-hit): the cache key only tracks
+        # requirements.txt, but playwright>=1.44 is unpinned, so a newer resolved
+        # pip version can need a browser revision the cache doesn't have (same
+        # issue hit in scrape.yml — see its history). `playwright install` is a
+        # no-op when the required revision is already cached, so this stays cheap.
         run: playwright install --with-deps chromium
-
-      - name: Install Playwright system deps (cached browser)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: playwright install-deps chromium
 
       - name: Enrich compiled flow with next-day OI + EOD greeks
         # Manual run with a date → that date; otherwise the latest enrichable date

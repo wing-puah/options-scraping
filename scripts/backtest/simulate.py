@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from .helpers import (
     _bs_price, _bs_delta,
-    _num, _opt_price, _row_iv, _contract_key,
+    _to_float, _opt_price, _row_iv, _contract_key,
     _price_asof,
     _get_prices, _price_on_or_after,
     _weekday_grid,
@@ -71,13 +71,18 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
     def pnl_of(v):
         return (v - entry_net) / denom
 
-    prices, sources = [], []
+    prices, sources, pnl_dollars = [], [], []
     for (_, _, p, src) in grid_marks:
         prices.append("" if p is None else f"{p:.4f}")
         sources.append("" if p is None else src)
+        # Per-SINGLE-CONTRACT dollar P&L: (V − entry_net)·100, deliberately NOT
+        # scaled by `contracts` (unlike realized_pnl_abs). Same day grid + blank
+        # tokens as daily_price_csv.
+        pnl_dollars.append("" if p is None else f"{(p - entry_net) * 100:.2f}")
     out = {
         "daily_price_csv": ",".join(prices),
         "daily_source_csv": ",".join(sources),
+        "daily_pnl_csv": ",".join(pnl_dollars),
     }
 
     priced = [(dt, d, p, src) for (dt, d, p, src) in grid_marks if p is not None]
@@ -199,8 +204,8 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
 
     iv = _row_iv(entry_row)
-    S_entry = _num(entry_row.get("Price~", entry_row.get("Price")))
-    dte_entry = _num(entry_row.get("DTE"))
+    S_entry = _to_float(entry_row.get("Price~", entry_row.get("Price")))
+    dte_entry = _to_float(entry_row.get("DTE"))
     if not (iv and S_entry and dte_entry and dte_entry > 0):
         return {}
     dte_entry = int(dte_entry)
@@ -254,7 +259,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
 
     # Per-leg entry breakdown for diagnostics and delta.
-    anchor_flow_delta = _num(entry_row.get("Delta"))
+    anchor_flow_delta = _to_float(entry_row.get("Delta"))
     detail_lines, net_delta = [], 0.0
     for i, (leg, p, tag) in enumerate(zip(legs, entry_prices, entry_tags)):
         dlt = anchor_flow_delta if (i == anchor_idx and anchor_flow_delta is not None) \

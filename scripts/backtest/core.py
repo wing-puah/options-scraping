@@ -38,6 +38,9 @@ _KEY_ORDER = [
     # date's scored rollup the analysis ran on). Appended at the END so existing
     # sheet rows stay column-aligned. See _attach_rollup_metrics / _ROLLUP_METRIC_COLS.
     "oi_confirm_pct", "cpir", "iv_spread", "iv_skew", "iv_pct",
+    # Per-single-contract dollar P&L per trading day, same grid as daily_price_csv.
+    # Kept LAST for sheet append-alignment (see _summarize_path / backtest-reference.md).
+    "daily_pnl_csv",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent

@@ -34,8 +34,7 @@ ENGINES: dict[str, EngineConfig] = {
     "claude": EngineConfig(
         method_file=ROOT / "config/analysis-methods/claude.md",
         tab="AnalysisClaude",
-        default_model="fable",
-        fallback_model="claude-opus-4-8",
+        default_model="claude-opus-4-8",
     ),
     "codex": EngineConfig(
         method_file=ROOT / "config/analysis-methods/codex.md",

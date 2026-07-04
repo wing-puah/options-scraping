@@ -16,6 +16,8 @@ from enrich_oi import (
     _done_keys,
     _ensure_columns,
     _enrichable_dates,
+    _latest_compiled_date,
+    _latest_enrichable_date,
     _row_contract,
     _scrape_and_fill,
     enrich_prefix,
@@ -195,6 +197,43 @@ def test_enrichable_dates_excludes_latest():
         "stocks-flow": [],
     })
     assert _enrichable_dates(client) == ["2026-06-09", "2026-06-10", "2026-06-11"]
+
+
+def test_latest_compiled_date_matches_last_of_full_list():
+    client = _client_with_compiled({
+        "etfs-flow": ["2026-06-10", "2026-06-09"],
+        "stocks-flow": ["2026-06-09", "2026-06-11"],
+    })
+    assert _latest_compiled_date(client) == "2026-06-11"
+
+
+def test_latest_compiled_date_stops_at_first_match_newest_first():
+    """Regression: the old `_compiled_dates(client)[-1:]` pattern walked every date
+    oldest-first, costing a file_exists call per prefix per date just to find the
+    last one. The fast path must not touch dates older than the match it returns."""
+    client = _client_with_compiled({
+        "etfs-flow": ["2026-06-09", "2026-06-10", "2026-06-11"],
+        "stocks-flow": [],
+    })
+    assert _latest_compiled_date(client) == "2026-06-11"
+    checked_dates = {c.kwargs.get("folder_id", c.args[1] if len(c.args) > 1 else None)
+                     for c in client.file_exists.call_args_list}
+    assert checked_dates == {"folder-2026-06-11"}
+
+
+def test_latest_enrichable_date_matches_last_of_full_list():
+    client = _client_with_compiled({
+        "etfs-flow": ["2026-06-09", "2026-06-10", "2026-06-11"],
+        "stocks-flow": [],
+    })
+    client.list_files_for_date.return_value = []  # no single-snapshot fallback needed
+    assert _latest_enrichable_date(client) == "2026-06-11"
+
+
+def test_latest_enrichable_date_none_when_nothing_enrichable():
+    client = _client_with_compiled({"etfs-flow": [], "stocks-flow": []})
+    client.list_date_folders.return_value = {}
+    assert _latest_enrichable_date(client) is None
 
 
 # ── _scrape_and_fill (incremental fill, checkpoint, marker) ────────────────────

@@ -85,6 +85,7 @@ rule triggers — frozen at that day's mark (never a later live mark).
 | Column | Definition |
 |--------|-----------|
 | **daily_price_csv** | Comma-separated **signed net position mark (`Σ qty·price`), one value per trading day** from the day after entry to `min(nearest-leg DTE, path_cap_days)`. Same signed units as `entry_option_price`. An **empty token** (`,,`) is a day no source could price (any unpriceable leg blanks the whole day). Reconstruct the P&L path by splitting on `,`, dropping empties, and applying `(mark − entry_option_price) / abs(entry_option_price)` (see `pnl_path()` in [`scripts/chart_backtest.py`](../scripts/chart_backtest.py)). |
+| **daily_pnl_csv** | Comma-separated **absolute dollar P&L per SINGLE contract, one value per trading day**, on the exact same day grid + blank-token convention as `daily_price_csv`: `(mark − entry_option_price) · 100`. Per-contract — **NOT** scaled by `contracts` (that scaling lives in `realized_pnl_abs`/`mfe_abs`). Placed **last** in the sheet schema (`_KEY_ORDER`) for append-alignment, not adjacent to `daily_price_csv`. |
 
 ---
 

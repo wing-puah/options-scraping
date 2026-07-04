@@ -6,6 +6,8 @@ import pandas as pd
 import yfinance as yf
 from scipy.stats import norm
 
+from lib.barchart_options import _to_float
+
 from .config import _EXPIRATION_FORMATS
 
 log = logging.getLogger("backtest")
@@ -38,30 +40,17 @@ def _bs_delta(S: float, K: float, T: float, r: float, sigma: float, option_type:
 
 # ─── Field parsing ─────────────────────────────────────────────────────────────
 
-def _num(value, default=None):
-    """Parse a possibly-formatted number ('$1,234', '71.8%') to float."""
-    if value is None:
-        return default
-    s = str(value).strip().replace(",", "").replace("$", "").replace("%", "")
-    if s == "" or s in ("-", "N/A", "n/a"):
-        return default
-    try:
-        return float(s)
-    except ValueError:
-        return default
-
-
 def _opt_price(row: dict):
     """Actual option trade price from a flow row (the `Trade` column)."""
     for key in ("Trade", "Trade Price", "Last"):
-        v = _num(row.get(key))
+        v = _to_float(row.get(key))
         if v and v > 0:
             return v
     return None
 
 
 def _row_iv(row: dict):
-    iv = _num(row.get("IV", row.get("Imp Vol")))
+    iv = _to_float(row.get("IV", row.get("Imp Vol")))
     return iv / 100 if iv is not None else None
 
 

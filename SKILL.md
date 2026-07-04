@@ -45,7 +45,7 @@ The pipeline is model-agnostic via `--engine`:
      tables and returns plays only for these names (full market read retained).
      Writes to the **AnalysisTickerSpecific** tab, NOT the engine's daily tab.
    - `--days N` — persistence window
-   - `--model NAME` — override the engine's model (default: claude→`fable`, codex→its configured model)
+   - `--model NAME` — override the engine's model (default: claude→`opus`, codex→its configured model)
    - `--dry-run` — fetch + analyze but do not write to Sheets
    - `--yes` — skip the confirmation in step 2
 2. Unless `--yes` or `--dry-run`, confirm intent with the user (this writes to

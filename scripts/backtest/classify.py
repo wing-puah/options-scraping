@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .config import _UNSUPPORTED_PATTERNS
-from .helpers import _num, _opt_price, _row_iv, _parse_expiration
+from .helpers import _to_float, _opt_price, _row_iv, _parse_expiration
 from .legs import parse_legs
 
 log = logging.getLogger("backtest")
@@ -367,7 +367,7 @@ def _match_entry(candidate: dict, option_type: str, flow_rows: list[dict],
             continue
         if match_side != "any" and row.get("Side", "").strip().lower() != match_side.lower():
             continue
-        strike = _num(row.get("Strike"))
+        strike = _to_float(row.get("Strike"))
         iv = _row_iv(row)
         if _opt_price(row) is None or strike is None or not iv or iv <= 0:
             continue
@@ -376,7 +376,7 @@ def _match_entry(candidate: dict, option_type: str, flow_rows: list[dict],
     if not candidates:
         return None
     if long_strike is None and target_exp is None:
-        return max(candidates, key=lambda rs: _num(rs[0].get("Premium"), 0) or 0)[0]
+        return max(candidates, key=lambda rs: _to_float(rs[0].get("Premium"), 0) or 0)[0]
 
     def score(rs):
         row, strike = rs

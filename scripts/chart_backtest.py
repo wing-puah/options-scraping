@@ -28,6 +28,16 @@ from matplotlib.ticker import PercentFormatter
 # full per-day path in `daily_price_csv`).
 TD_CHECKPOINTS = [1, 3, 5, 10, 21, 42]
 
+# Profit-capture threshold (%) for the first-passage chart. Mirrors the
+# backtest's default profit_target (config/backtest.yml: 0.90 = +90%).
+TARGET_PCT = 90
+
+# Dollar profit-capture threshold for the occupancy chart's "target" line — the
+# fixed-fractional dollar risk unit (config/backtest.yml: portfolio_value ×
+# risk_per_trade_pct = 50000 × 0.02 = $1,000), which lines up with what
+# profit_target=0.90 realizes on a typical entry premium.
+TARGET_DOLLAR = 1000
+
 # muted, print-friendly palette
 C_BULL = "#2e7d32"
 C_RANGE = "#c62828"
@@ -91,6 +101,18 @@ def _regime_label(s: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _parse_pct_col(series: pd.Series) -> pd.Series:
+    """Percent columns arrive either as a Sheets-exported display string
+    ('27.57%') or a raw decimal fraction (0.2757, from a native pipeline CSV /
+    Sheets API read) — same value, two encodings. Normalize both to
+    percentage points (27.57) since every chart below plots/annotates this
+    column at that scale (PercentFormatter's default xmax=100, `+.0f%`)."""
+    s = series.astype(str).str.strip()
+    is_str_pct = s.str.endswith("%")
+    numeric = pd.to_numeric(s.str.rstrip("%"), errors="coerce")
+    return numeric.where(is_str_pct, numeric * 100)
+
+
 def load(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df["signal_date"] = pd.to_datetime(df["signal_date"])
@@ -101,7 +123,7 @@ def load(csv_path: Path) -> pd.DataFrame:
     df["hp_flag"] = df["market_regime"].str.contains("HP", na=False)
     df["regime_aligned"] = df["mkt_label"] == df["play_label"]
     # The backtest writes the authoritative realized exit; all P&L is path-derived.
-    df["realized_pnl"] = pd.to_numeric(df["realized_pnl_pct"], errors="coerce")
+    df["realized_pnl"] = _parse_pct_col(df["realized_pnl_pct"])
     df["realized_abs"] = pd.to_numeric(df.get("realized_pnl_abs"), errors="coerce")
     df["pnl_path"] = df.apply(pnl_path, axis=1)
     df["dollar_pnl_path"] = df.apply(dollar_pnl_path, axis=1)
@@ -581,6 +603,228 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out.mkdir(parents=True, exist_ok=True)
     path = out / "backtest_paths.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _draw_occupancy_panels(axes, df: pd.DataFrame,
+                           letters=("A", "B", "C", "D", "E", "F")) -> int | None:
+    """Draws the 6 hold-timing panels onto the 6 supplied Axes, in A–F order.
+    `axes` may be any array-like of 6 Axes (a 2×3 grid flattens row-major, or a
+    hand-picked list for a custom layout — e.g. pairing with MAE panels).
+
+      A · Profit occupancy curve — share of LIVE trades above P&L thresholds by
+          trading day held (+ live-trade count on a twin axis).
+      B · MFE $ distribution — histogram of each trade's best mark, split by
+          eventual win/loss outcome.
+      C · Aggregate give-back curve — every trade aligned at its peak day (day 0),
+          mean P&L in the sessions after the peak → decay after the top.
+      D · MAE-day histogram — which trading day the worst drawdown lands on.
+      E · MFE-day histogram — which trading day peak profit lands on.
+      F · Days in profit vs loss — per trade, share of held sessions spent
+          above $0, split by eventual win/loss outcome.
+
+    Returns the trade count (for the caller's title), or None if there's no
+    daily-path data to draw.
+    """
+    paths = [p for p in df.get("pnl_path", pd.Series([], dtype=object)) if p]
+    if not paths:
+        return None
+
+    maxlen = max(len(p) for p in paths)
+    horizon = min(maxlen, 63)  # ~3 months of sessions, matches build_paths
+    days = np.arange(1, horizon + 1)
+    n_total = len(paths)
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    win_all = df["realized_pnl"] > 0
+    ax_A, ax_B, ax_C, ax_D, ax_E, ax_F = np.asarray(axes, dtype=object).ravel()[:6]
+
+    # ---- A: profit occupancy curve (dollar thresholds) ---------------------
+    ax = ax_A
+    dpaths = [p for p in df.get("dollar_pnl_path", pd.Series([], dtype=object)) if p]
+    apaths = dpaths if dpaths else paths  # fall back to % if no dollar paths
+    use_dollar = bool(dpaths)
+    thresholds = ([(0, ">$0 (in profit)", C_LINE),
+                   (250, "≥$250", C_BAR),
+                   (500, "≥$500", C_MED),
+                   (TARGET_DOLLAR, f"≥${TARGET_DOLLAR:,} (target)", C_BULL)]
+                  if use_dollar else
+                  [(0, ">0% (in profit)", C_LINE),
+                   (25, "≥+25%", C_BAR),
+                   (50, "≥+50%", C_MED),
+                   (TARGET_PCT, f"≥+{TARGET_PCT}% (target)", C_BULL)])
+    a_horizon = min(max(len(p) for p in apaths), 63)
+    a_days = np.arange(1, a_horizon + 1)
+    live = np.array([sum(1 for p in apaths if len(p) > i) for i in range(a_horizon)])
+    min_sample = 3  # below this the share is 1–2 trades of noise → don't draw it
+    for thr, label, color in thresholds:
+        share = []
+        for i in range(a_horizon):
+            alive = [p[i] for p in apaths if len(p) > i]
+            share.append(100 * sum(1 for v in alive if v > thr) / len(alive)
+                         if len(alive) >= min_sample else np.nan)
+        ax.plot(a_days, share, "-", color=color, lw=1.8, label=label)
+    ax.axhline(50, color="#ccc", lw=0.7, ls=":")
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{letters[0]} · Profit occupancy — share of live trades above P&L level",
+                 fontweight="bold")
+    ax.set_xlabel("Trading days since entry")
+    ax.set_ylabel("Share of live trades")
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax2 = ax.twinx()
+    ax2.fill_between(a_days, 0, live, color="#bbb", alpha=0.18, zorder=0)
+    ax2.set_ylabel("# live trades", color="#888")
+    ax2.tick_params(axis="y", labelcolor="#888")
+    ax2.set_ylim(0, len(apaths) * 1.05)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(color=GRID)
+
+    # ---- B: MFE $ distribution, split by eventual outcome ------------------
+    ax = ax_B
+    mfe = pd.to_numeric(df.get("mfe_abs"), errors="coerce")
+    mfe_valid = mfe.dropna()
+    if len(mfe_valid):
+        bins = np.linspace(min(mfe_valid.min(), 0), mfe_valid.max(), 25)
+        ax.hist(mfe[win_all].dropna(), bins=bins, color=C_BULL, alpha=0.6,
+                edgecolor="white", label=f"eventual win (n={int(win_all.sum())})")
+        ax.hist(mfe[~win_all].dropna(), bins=bins, color=C_RANGE, alpha=0.6,
+                edgecolor="white", label=f"eventual loss (n={int((~win_all).sum())})")
+        med = mfe_valid.median()
+        ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median ${med:,.0f}")
+        ax.axvline(0, color="#999", lw=0.8)
+        ax.legend(fontsize=8)
+    ax.set_title(f"{letters[1]} · MFE $ distribution (best mark per trade)", fontweight="bold")
+    ax.set_xlabel("MFE ($)")
+    ax.set_ylabel("Trades")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+    ax.grid(axis="y", color=GRID)
+
+    # ---- C: aggregate give-back curve (aligned at peak day, dollar) --------
+    ax = ax_C
+    gb_dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    K = min(horizon, 21)  # sessions after the peak to trace
+    aligned = []
+    for p in apaths:
+        peak_idx = int(np.argmax(p))  # 0-based day of this trade's MFE
+        tail = p[peak_idx:peak_idx + K + 1]
+        aligned.append(tail)
+    rel_days = np.arange(0, K + 1)
+    mean_gb, lo_gb, hi_gb, n_gb = [], [], [], []
+    for k in range(K + 1):
+        vals = np.array([t[k] for t in aligned if len(t) > k])
+        if len(vals):
+            mean_gb.append(vals.mean())
+            lo_gb.append(np.percentile(vals, 25))
+            hi_gb.append(np.percentile(vals, 75))
+            n_gb.append(len(vals))
+        else:
+            mean_gb.append(np.nan); lo_gb.append(np.nan)
+            hi_gb.append(np.nan); n_gb.append(0)
+    ax.fill_between(rel_days, lo_gb, hi_gb, color=C_BAR, alpha=0.2, label="IQR (25–75%)")
+    ax.plot(rel_days, mean_gb, "-", color=C_LINE, lw=2, label="Mean P&L")
+    peak_label = f"${mean_gb[0]:+,.0f}" if use_dollar else f"{mean_gb[0]:+.0f}%"
+    ax.plot(0, mean_gb[0], "o", color=C_MED, ms=8, label=f"peak (mean {peak_label})")
+    if len(mean_gb) > 1 and not np.isnan(mean_gb[-1]):
+        giveback = mean_gb[0] - mean_gb[-1]
+        gb_label = f"gives back ${giveback:,.0f}" if use_dollar else f"gives back {giveback:.0f} pts"
+        ax.annotate(f"{gb_label} over {K} sessions",
+                    (rel_days[-1], mean_gb[-1]), textcoords="offset points",
+                    xytext=(-5, 8), ha="right", fontsize=8, color="#333")
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_title(f"{letters[2]} · Give-back after the peak (trades aligned at their MFE day)",
+                 fontweight="bold")
+    ax.set_xlabel("Trading days after peak")
+    ax.set_ylabel("Mean P&L ($)" if use_dollar else "Mean P&L %")
+    if use_dollar:
+        ax.yaxis.set_major_formatter(gb_dollar_fmt)
+    else:
+        ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(color=GRID)
+
+    # ---- D: MAE-day histogram ----------------------------------------------
+    ax = ax_D
+    if "mae_day" in df.columns:
+        mae_day = pd.to_numeric(df["mae_day"], errors="coerce").dropna()
+    else:
+        mae_day = pd.Series([int(np.argmin(p)) + 1 for p in paths], dtype=float)
+    mae_day = mae_day[mae_day <= horizon]
+    if len(mae_day):
+        bins = np.arange(1, min(int(mae_day.max()), horizon) + 2)
+        ax.hist(mae_day, bins=bins, color=C_RANGE, edgecolor="white", align="left")
+        m = mae_day.median()
+        ax.axvline(m, color=C_LINE, lw=1.5, ls="--", label=f"median day {m:.0f}")
+        ax.legend(fontsize=8)
+    ax.set_title(f"{letters[3]} · When the worst drawdown lands (MAE day distribution)",
+                 fontweight="bold")
+    ax.set_xlabel("Trading day of worst drawdown (MAE)")
+    ax.set_ylabel("Trades")
+    ax.grid(axis="y", color=GRID)
+
+    # ---- E: MFE-day histogram ------------------------------------------------
+    ax = ax_E
+    if "mfe_day" in df.columns:
+        mfe_day = pd.to_numeric(df["mfe_day"], errors="coerce").dropna()
+    else:
+        mfe_day = pd.Series([int(np.argmax(p)) + 1 for p in paths], dtype=float)
+    mfe_day = mfe_day[mfe_day <= horizon]
+    if len(mfe_day):
+        bins = np.arange(1, min(int(mfe_day.max()), horizon) + 2)
+        ax.hist(mfe_day, bins=bins, color=C_BAR, edgecolor="white", align="left")
+        m = mfe_day.median()
+        ax.axvline(m, color=C_RANGE, lw=1.5, ls="--", label=f"median day {m:.0f}")
+        ax.legend(fontsize=8)
+    ax.set_title(f"{letters[4]} · When peak profit lands (MFE day distribution)", fontweight="bold")
+    ax.set_xlabel("Trading day of peak profit (MFE)")
+    ax.set_ylabel("Trades")
+    ax.grid(axis="y", color=GRID)
+
+    # ---- F: days in profit vs loss, per trade -------------------------------
+    ax = ax_F
+    path_col = "dollar_pnl_path" if use_dollar else "pnl_path"
+    has_path = df[path_col].apply(lambda p: isinstance(p, list) and len(p) > 0)
+    sub = df.loc[has_path]
+    frac_profit = pd.Series(
+        [100 * sum(1 for v in p if v > 0) / len(p) for p in sub[path_col]], dtype=float)
+    win_sub = (sub["realized_pnl"] > 0).reset_index(drop=True)
+    bins = np.linspace(0, 100, 21)
+    ax.hist(frac_profit[win_sub], bins=bins, color=C_BULL, alpha=0.6,
+            edgecolor="white", label=f"eventual win (n={int(win_sub.sum())})")
+    ax.hist(frac_profit[~win_sub], bins=bins, color=C_RANGE, alpha=0.6,
+            edgecolor="white", label=f"eventual loss (n={int((~win_sub).sum())})")
+    med = frac_profit.median()
+    ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median {med:.0f}%")
+    ax.axvline(50, color="#999", lw=0.8, ls=":")
+    ax.set_xlim(0, 100)
+    ax.xaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.set_title(f"{letters[5]} · Share of held days spent in profit (per trade)",
+                 fontweight="bold")
+    ax.set_xlabel("% of trading days held above $0")
+    ax.set_ylabel("Trades")
+    ax.legend(fontsize=8)
+    ax.grid(axis="y", color=GRID)
+
+    return n_total
+
+
+def build_occupancy(df: pd.DataFrame, out: Path) -> Path | None:
+    """Hold-timing page: when trades are in profit, when the move is captured,
+    and how fast profit is given back after the peak. See _draw_occupancy_panels
+    for the individual panel descriptions."""
+    fig, axes = plt.subplots(2, 3, figsize=(21, 11))
+    n_total = _draw_occupancy_panels(axes, df)
+    if n_total is None:
+        plt.close(fig)
+        return None
+    fig.suptitle(
+        f"Hold-timing analysis — {n_total} trades with a daily path",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_occupancy.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -1075,6 +1319,195 @@ def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
     return path
 
 
+def _draw_mae_recovery_panels(axes, df: pd.DataFrame, letters=("A", "B", "C", "D")) -> int | None:
+    """Draws the 4 MAE panels onto the 4 supplied Axes, in A–D order. `axes` may
+    be any array-like of 4 Axes (a 2×2 grid flattens row-major, or a hand-picked
+    list for a custom layout — e.g. pairing with the MFE panels).
+
+      A · MAE $ distribution — histogram of each trade's worst mark, split by
+          eventual win/loss outcome.
+      B · Recovery path — trades aligned at their MAE (trough) day; mean $ P&L
+          in the sessions after the trough → does the trade climb back.
+      C · Cumulative recovery-to-breakeven — share of trades back above $0 by
+          day t after their trough.
+      D · Win rate by MAE severity quartile (worst → mildest) — does a deeper
+          hole mean a lower chance of coming back a winner.
+
+    Returns the trade count (for the caller's title), or None if there's no
+    daily-path data to draw.
+    """
+    paths = df.get("dollar_pnl_path", pd.Series([], dtype=object)).tolist()
+    mae = pd.to_numeric(df.get("mae_abs"), errors="coerce")
+    win = df["realized_pnl"] > 0
+    valid = [i for i, p in enumerate(paths) if p]
+    if not valid:
+        return None
+
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    ax_A, ax_B, ax_C, ax_D = np.asarray(axes, dtype=object).ravel()[:4]
+
+    # ---- A: MAE $ distribution, split by eventual outcome ------------------
+    ax = ax_A
+    mae_valid = mae.dropna()
+    if len(mae_valid):
+        bins = np.linspace(mae_valid.min(), max(mae_valid.max(), 0), 25)
+        ax.hist(mae[win].dropna(), bins=bins, color=C_BULL, alpha=0.6,
+                edgecolor="white", label=f"eventual win (n={int(win.sum())})")
+        ax.hist(mae[~win].dropna(), bins=bins, color=C_RANGE, alpha=0.6,
+                edgecolor="white", label=f"eventual loss (n={int((~win).sum())})")
+        med = mae_valid.median()
+        ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median ${med:,.0f}")
+        ax.axvline(0, color="#999", lw=0.8)
+        ax.legend(fontsize=8)
+    ax.set_title(f"{letters[0]} · MAE $ distribution (worst mark per trade)", fontweight="bold")
+    ax.set_xlabel("MAE ($)")
+    ax.set_ylabel("Trades")
+    ax.xaxis.set_major_formatter(dollar_fmt)
+    ax.grid(axis="y", color=GRID)
+
+    # ---- B: recovery path — trades aligned at their trough day -------------
+    ax = ax_B
+    K = 21  # sessions traced after the trough
+    aligned = []
+    for i in valid:
+        p = paths[i]
+        trough_idx = int(np.argmin(p))  # 0-based day of this trade's MAE
+        aligned.append(p[trough_idx:trough_idx + K + 1])
+    rel_days = np.arange(0, K + 1)
+    mean_r, lo_r, hi_r = [], [], []
+    for k in range(K + 1):
+        vals = np.array([t[k] for t in aligned if len(t) > k])
+        if len(vals):
+            mean_r.append(vals.mean())
+            lo_r.append(np.percentile(vals, 25))
+            hi_r.append(np.percentile(vals, 75))
+        else:
+            mean_r.append(np.nan); lo_r.append(np.nan); hi_r.append(np.nan)
+    ax.fill_between(rel_days, lo_r, hi_r, color=C_BAR, alpha=0.2, label="IQR (25–75%)")
+    ax.plot(rel_days, mean_r, "-", color=C_LINE, lw=2, label="Mean P&L")
+    ax.plot(0, mean_r[0], "o", color=C_RANGE, ms=8, label=f"trough (mean ${mean_r[0]:+,.0f})")
+    if len(mean_r) > 1 and not np.isnan(mean_r[-1]):
+        recovered = mean_r[-1] - mean_r[0]
+        ax.annotate(f"recovers ${recovered:+,.0f} over {K} sessions",
+                    (rel_days[-1], mean_r[-1]), textcoords="offset points",
+                    xytext=(-5, 8), ha="right", fontsize=8, color="#333")
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_title(f"{letters[1]} · Recovery after the trough (trades aligned at their MAE day)",
+                 fontweight="bold")
+    ax.set_xlabel("Trading days after trough")
+    ax.set_ylabel("Mean P&L ($)")
+    ax.yaxis.set_major_formatter(dollar_fmt)
+    ax.legend(fontsize=8, loc="lower right")
+    ax.grid(color=GRID)
+
+    # ---- C: cumulative share back above breakeven after the trough --------
+    ax = ax_C
+    recovery_days = []
+    for i in valid:
+        p = paths[i]
+        trough_idx = int(np.argmin(p))
+        hit = None
+        for j in range(trough_idx, len(p)):
+            if p[j] > 0:
+                hit = j - trough_idx
+                break
+        recovery_days.append(hit)
+    cum_days = np.arange(0, K + 1)
+    cum = [100 * sum(1 for d in recovery_days if d is not None and d <= t) / len(valid)
+           for t in cum_days]
+    ax.plot(cum_days, cum, "-", color=C_BULL, lw=2)
+    ax.fill_between(cum_days, 0, cum, color=C_BULL, alpha=0.12)
+    ever = sum(1 for d in recovery_days if d is not None)
+    ax.axhline(100 * ever / len(valid), color=C_MED, lw=1, ls="--",
+               label=f"ever recovers to $0+: {100 * ever / len(valid):.0f}%")
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{letters[2]} · Cumulative recovery to breakeven after the trough", fontweight="bold")
+    ax.set_xlabel("Trading days after trough")
+    ax.set_ylabel("Share of trades back above $0")
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.legend(fontsize=8, loc="lower right")
+    ax.grid(color=GRID)
+
+    # ---- D: win rate by MAE severity quartile -------------------------------
+    ax = ax_D
+    df_q = pd.DataFrame({"mae": mae, "win": win}).dropna(subset=["mae"])
+    order = ["worst", "q2", "q3", "mildest"]
+    try:
+        df_q["bucket"] = pd.qcut(df_q["mae"], 4, labels=order, duplicates="drop")
+    except ValueError:
+        df_q["bucket"] = pd.cut(df_q["mae"], 4, labels=order)
+    rates, ns = [], []
+    for b in order:
+        sub = df_q[df_q["bucket"] == b]
+        rates.append(100 * sub["win"].mean() if len(sub) else np.nan)
+        ns.append(len(sub))
+    bars = ax.bar(order, rates, color=[C_RANGE, "#e08a1e", "#e0c01e", C_BULL])
+    for b, r, n in zip(bars, rates, ns):
+        if not np.isnan(r):
+            ax.text(b.get_x() + b.get_width() / 2, r, f"{r:.0f}%\nn={n}",
+                    ha="center", va="bottom", fontsize=8)
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{letters[3]} · Win rate by MAE severity quartile (worst → mildest)", fontweight="bold")
+    ax.set_xlabel("MAE severity quartile")
+    ax.set_ylabel("Share of trades that ended a win")
+    ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.grid(axis="y", color=GRID)
+
+    return len(valid)
+
+
+def build_mae_recovery(df: pd.DataFrame, out: Path) -> Path | None:
+    """MAE-focused page: how bad the worst point gets, and what happens after
+    it. See _draw_mae_recovery_panels for the individual panel descriptions."""
+    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
+    n = _draw_mae_recovery_panels(axes, df)
+    if n is None:
+        plt.close(fig)
+        return None
+    fig.suptitle(
+        f"MAE analysis — distribution and recovery after the worst point ({n} trades)",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_mae_recovery.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def build_occupancy_mae(df: pd.DataFrame, out: Path) -> Path | None:
+    """Combined page: hold-timing occupancy + MAE distribution/recovery, laid
+    out as a 5×2 grid with each MFE panel directly beside its MAE counterpart
+    for easy side-by-side comparison:
+      row 0 · profit occupancy          | share of days in profit
+      row 1 · MFE $ distribution        | MAE $ distribution
+      row 2 · MFE-day distribution      | MAE-day distribution
+      row 3 · give-back after the peak  | recovery after the trough
+      row 4 · cumulative recovery to breakeven | win rate by MAE severity quartile
+    """
+    fig, axes = plt.subplots(5, 2, figsize=(15, 27))
+    occ_axes = [axes[0, 0], axes[1, 0], axes[3, 0], axes[2, 1], axes[2, 0], axes[0, 1]]
+    mae_axes = [axes[1, 1], axes[3, 1], axes[4, 0], axes[4, 1]]
+    n_total = _draw_occupancy_panels(occ_axes, df)
+    n_mae = _draw_mae_recovery_panels(mae_axes, df, letters=("G", "H", "I", "J"))
+    if n_total is None and n_mae is None:
+        plt.close(fig)
+        return None
+    fig.suptitle(
+        f"Occupancy + MAE — hold-timing and worst-point recovery ({n_total or n_mae} trades)",
+        fontsize=16, fontweight="bold", y=0.995,
+    )
+
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_occupancy_mae.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def build_regime(df: pd.DataFrame, out: Path) -> Path:
     """Regime & regime-drift analysis — four panels:
       A · Market-regime label (BULL/BEAR/RANGE) vs mean P&L % + win rate
@@ -1238,6 +1671,9 @@ def main():
     else:
         print("No daily_price_csv column found — skipping path charts "
               "(re-run the backtest with the new engine to populate it).")
+    occ_mae_png = build_occupancy_mae(df, Path(args.out))
+    if occ_mae_png:
+        print(f"Wrote {occ_mae_png}")
     print(f"Wrote {build_time(df, Path(args.out))}")
     print(f"Wrote {build_regime(df, Path(args.out))}")
     print(f"Wrote {build_mfe_mae_dist(df, Path(args.out))}")

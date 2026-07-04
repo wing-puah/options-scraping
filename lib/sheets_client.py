@@ -75,6 +75,37 @@ def get_all_rows(tab: str) -> list[dict]:
     return rows
 
 
+def get_all_rows_preserving_formulas(tab: str) -> list[dict]:
+    """Like get_all_rows, but a cell holding a formula (e.g. a manually
+    anchored array formula such as MAP()) keeps its formula text instead of
+    the evaluated value.
+
+    Without this, reading a formula's computed value and writing it straight
+    back out (as write_analysis's full-table rewrite does) silently flattens
+    the formula into a static string on the very next run.
+    """
+    log.info("Reading all rows (formula-preserving) from tab '%s'", tab)
+    ss = _get_spreadsheet()
+    ws = _ensure_tab(ss, tab)
+    values = ws.get_all_values()
+    if not values or len(values) < 2:
+        return []
+    header, body = values[0], values[1:]
+    end_col = _col_letter(len(header))
+    formulas = ws.get(f"A2:{end_col}{len(body) + 1}", value_render_option="FORMULA")
+    rows = []
+    for i, vrow in enumerate(body):
+        frow = formulas[i] if i < len(formulas) else []
+        row = {}
+        for j, col in enumerate(header):
+            fval = frow[j] if j < len(frow) else ""
+            vval = vrow[j] if j < len(vrow) else ""
+            row[col] = fval if isinstance(fval, str) and fval.startswith("=") else vval
+        rows.append(row)
+    log.info("Read %d row(s) (formula-preserving) from tab '%s'", len(rows), tab)
+    return rows
+
+
 def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
     all_rows = get_all_rows(tab)
     return all_rows[-n:] if len(all_rows) > n else all_rows
@@ -134,6 +165,33 @@ def write_analysis(tab_name: str, rows: list[dict], preserve_extra_cols: bool = 
         ws.clear()
     ws.update("A1", data, value_input_option="USER_ENTERED")
     log.info("Write complete for tab '%s'", tab_name)
+
+
+def add_or_update_column(tab: str, header_name: str, values: list) -> None:
+    """Non-destructively write a single column keyed by header name.
+
+    If `header_name` already exists in row 1 it is overwritten in place;
+    otherwise it is appended as a new column immediately right of the current
+    header. Only that one column (header + data cells) is touched — no reorder
+    and no clobber of other columns or user formulas. `values` is one entry per
+    data row, in sheet order.
+    """
+    log.info("Writing column '%s' (%d value(s)) to tab '%s'", header_name, len(values), tab)
+    ss = _get_spreadsheet()
+    ws = _ensure_tab(ss, tab)
+    header = ws.row_values(1)
+    if header_name in header:
+        col_idx = header.index(header_name) + 1  # 1-based
+    else:
+        col_idx = len(header) + 1
+    if col_idx > ws.col_count:  # grow the grid so the new column fits
+        ws.add_cols(col_idx - ws.col_count)
+    col = _col_letter(col_idx)
+    ws.update(f"{col}1", [[header_name]], value_input_option="USER_ENTERED")
+    if values:
+        cells = [[_sanitize(v)] for v in values]
+        ws.update(f"{col}2:{col}{len(values) + 1}", cells, value_input_option="USER_ENTERED")
+    log.info("Column '%s' written to tab '%s' (col %s)", header_name, tab, col)
 
 
 def get_meta(tab: str) -> dict:

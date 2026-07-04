@@ -26,16 +26,16 @@ log = logging.getLogger(__name__)
 _BASE = "https://www.barchart.com/stocks/quotes"
 
 
-def _to_float(value):
+def _to_float(value, default=None):
     if value is None:
-        return None
+        return default
     s = str(value).strip().replace(",", "").replace("$", "").replace("%", "")
     if s == "" or s in ("-", "N/A", "n/a"):
-        return None
+        return default
     try:
         return float(s)
     except ValueError:
-        return None
+        return default
 
 
 def option_history_url(symbol: str, expiration: date, strike: float, opt_type: str) -> str:

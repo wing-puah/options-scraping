@@ -98,7 +98,7 @@ def _parse_and_validate(text: str) -> dict:
 def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events."""
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "fable"],
+        ["claude", "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "opus"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
         timeout=config.REQUEST_TIMEOUT_S, check=False,
     )
@@ -410,7 +410,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help=f"Top-N raw trades per flow section (default: {config.DEFAULT_RAW_N}).")
     parser.add_argument("--model", default=None,
                         help="Model for the engine's headless call. Default: engine default "
-                             "(claude→fable, codex→its configured model).")
+                             "(claude→opus, codex→its configured model).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
     parser.add_argument("--skip-llm", action="store_true",

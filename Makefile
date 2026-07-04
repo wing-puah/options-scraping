@@ -34,28 +34,20 @@ gc:
 enrich:
 	$(PY) scripts/enrich_oi.py $(ARGS)
 
-.PHONY: enrich-backfill
-enrich-backfill:
-	$(PY) scripts/enrich_oi.py --backfill $(ARGS)
-
 # ── counterpart iv ───────────────────────────────────────────────────────────────
-.PHONY: fetch-counterpart-iv
-fetch-counterpart-iv:
+.PHONY: counterpart-iv
+counterpart-iv:
 	$(PY) scripts/fetch_counterpart_iv.py $(ARGS)
 
-.PHONY: fetch-counterpart-iv-all
-fetch-counterpart-iv-all:
-	$(PY) scripts/fetch_counterpart_iv.py --backfill $(ARGS)
 
 # ── iv percentile ────────────────────────────────────────────────────────────────
-.PHONY: fetch-iv-percentile
-fetch-iv-percentile:
+.PHONY: iv-percentile
+iv-percentile:
 	$(PY) scripts/fetch_iv_percentile.py $(ARGS)
 
-# One-shot: enrich every compiled date's flow file with per-ticker IV percentile.
-.PHONY: fetch-iv-percentile-all
-fetch-iv-percentile-all:
-	$(PY) scripts/fetch_iv_percentile.py --backfill $(ARGS)
+# ── both iv enrichments, one after another ──────────────────────────────────────
+.PHONY: iv-all
+iv-all: counterpart-iv iv-percentile
 
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
@@ -71,19 +63,11 @@ analyze-gpt:
 backtest:
 	$(PY) -m scripts.backtest --config config/backtest.yml $(ARGS)
 
-.PHONY: backtest-dry
-backtest-dry:
-	$(PY) -m scripts.backtest --config config/backtest.yml --dry-run $(ARGS)
 
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
 baseline:
 	$(PY) scripts/build_baseline.py $(ARGS)
-
-
-# ── daily workflow shortcut ────────────────────────────────────────────────────
-.PHONY: daily
-daily: scrape compile analyze
 
 .PHONY: help
 help:
@@ -99,16 +83,16 @@ help:
 	@echo "  make gc            garbage-collect raw snapshots"
 	@echo ""
 	@echo "  make enrich        enrich today's compiled flow with OI change + EOD greeks"
-	@echo "  make enrich-backfill  enrich all enrichable dates (idempotent)"
-	@echo "  make enrich ARGS=\"--date 2026-06-09\"  (or --dry-run, --force)"
+	@echo "  make enrich ARGS=\"--date 2026-06-09\"  (or --backfill, --dry-run, --force)"
 	@echo ""
-	@echo "  make fetch-counterpart-iv   fetch counterpart IV legs for today's date"
-	@echo "  make fetch-counterpart-iv-all  fetch counterpart IV legs for all compiled dates"
-	@echo "  make fetch-counterpart-iv ARGS=\"--date 2026-06-26\"  (or --dry-run, --force)"
+	@echo "  make counterpart-iv   fetch counterpart IV legs for today's date"
+	@echo "  make counterpart-iv ARGS=\"--date 2026-06-26\"  (or --backfill, --dry-run, --force)"
 	@echo ""
-	@echo "  make fetch-iv-percentile      enrich today's compiled flow with per-ticker IV percentile"
-	@echo "  make fetch-iv-percentile-all  enrich all compiled dates (one-shot backfill)"
-	@echo "  make fetch-iv-percentile ARGS=\"--date 2026-06-10\"  (or --dry-run, --force)"
+	@echo "  make iv-percentile   enrich today's compiled flow with per-ticker IV percentile"
+	@echo "  make iv-percentile ARGS=\"--date 2026-06-10\"  (or --backfill, --dry-run, --force)"
+	@echo ""
+	@echo "  make iv-all        counterpart-iv + iv-percentile, one after another"
+	@echo "  make iv-all ARGS=\"--date 2026-06-10\"  (same ARGS passed to both)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"

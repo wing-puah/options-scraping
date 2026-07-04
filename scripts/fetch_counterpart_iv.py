@@ -48,6 +48,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 from lib import barchart_options
+from lib.barchart_options import _to_float
 from lib.barchart import BarchartSession, _safe_err
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
@@ -64,14 +65,6 @@ log = logging.getLogger("fetch_counterpart_iv")
 
 CHECKPOINT_EVERY = 50
 _DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
-
-
-def _num(v):
-    try:
-        s = str(v).strip().replace(",", "").replace("%", "").replace("$", "")
-        return float(s) if s not in ("", "-", "N/A", "n/a") else None
-    except (ValueError, TypeError):
-        return None
 
 
 def _fmt(v) -> str:
@@ -121,6 +114,23 @@ def _compiled_dates(client) -> list[str]:
     return out
 
 
+def _latest_compiled_date(client) -> str | None:
+    """Newest compiled (or single-snapshot) date, walking newest-first.
+
+    _compiled_dates() walks every date oldest-first to build the full --backfill
+    list; when a caller only wants the last element, that means a file_exists (+
+    list_files_for_date) round trip per prefix per date all the way from the
+    oldest folder. This stops at the first match instead.
+    """
+    folders = client.list_date_folders()
+    for d in sorted(folders, reverse=True):
+        has_compiled = any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES)
+        has_single = any(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES)
+        if has_compiled or has_single:
+            return d
+    return None
+
+
 def _load_sidecar(client, date_str: str) -> list[dict]:
     folder = client.find_date_folder(date_str)
     if folder is None:
@@ -145,7 +155,7 @@ def _done_keys(sidecar_rows: list[dict]) -> set[tuple]:
     for r in sidecar_rows:
         if not str(r.get("fetched_on", "")).strip():
             continue
-        strike = _num(r.get("Strike"))
+        strike = _to_float(r.get("Strike"))
         if strike is None:
             continue
         done.add(contract_key(r.get("Symbol", ""), r.get("Type", ""),
@@ -175,10 +185,10 @@ async def _fetch_iv(session, contract: dict, trade_date: date, timeout_ms: int) 
     if not day:
         return {"iv": "", "oi": "", "vol": "", "delta": "", "price": ""}
     return {
-        "iv": _fmt(_num(day.get("IV"))),
-        "oi": _fmt_int(_num(day.get("Open Int"))),
-        "vol": _fmt_int(_num(day.get("Volume"))),
-        "delta": _fmt(_num(day.get("Delta"))),
+        "iv": _fmt(_to_float(day.get("IV"))),
+        "oi": _fmt_int(_to_float(day.get("Open Int"))),
+        "vol": _fmt_int(_to_float(day.get("Volume"))),
+        "delta": _fmt(_to_float(day.get("Delta"))),
         "price": _fmt(day.get("_mark")),
     }
 
@@ -260,6 +270,8 @@ def fetch_counterpart_date(client, date_str: str, *, headless: bool, dry_run: bo
     done = _done_keys(sidecar)
     pending = [c for c in wanted if c["key"] not in done]
 
+    already_done = len(wanted) - len(pending)
+
     if not pending:
         log.info("%s: all %d counterpart(s) already backfilled — skipping (use --force)",
                  date_str, len(wanted))
@@ -267,17 +279,18 @@ def fetch_counterpart_date(client, date_str: str, *, headless: bool, dry_run: bo
 
     if dry_run:
         log.info("%s: (dry-run) would fetch %d counterpart(s) of %d", date_str, len(pending), len(wanted))
-        return {**base, "status": "backfilled", "wanted": len(wanted),
-                "pending": len(pending), "processed": 0, "with_iv": 0}
+        return {**base, "status": "backfilled", "wanted": len(wanted), "already_done": already_done,
+                "fetched": 0, "with_iv": 0, "remaining": len(pending)}
 
     run_date = date.today().isoformat()
     stats = asyncio.run(_scrape_and_store(
         client, date_str, pending, sidecar, date.fromisoformat(date_str),
         run_date, headless=headless))
-    log.info("%s: %d wanted, %d pending, %d processed, %d with IV",
-             date_str, len(wanted), len(pending), stats["processed"], stats["with_iv"])
-    return {**base, "status": "backfilled", "wanted": len(wanted), "pending": len(pending),
-            "processed": stats["processed"], "with_iv": stats["with_iv"]}
+    remaining = len(pending) - stats["processed"]
+    log.info("%s: %d wanted, %d already done, %d fetched, %d with IV, %d remaining",
+             date_str, len(wanted), already_done, stats["processed"], stats["with_iv"], remaining)
+    return {**base, "status": "backfilled", "wanted": len(wanted), "already_done": already_done,
+            "fetched": stats["processed"], "with_iv": stats["with_iv"], "remaining": remaining}
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -316,7 +329,8 @@ def main() -> None:
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        targets = _compiled_dates(client)[-1:]
+        latest = _latest_compiled_date(client)
+        targets = [latest] if latest else []
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
     log.info("Fetch counterpart IV%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
@@ -328,8 +342,8 @@ def main() -> None:
     print(f"  dates targeted: {len(targets)}   dates done: {len(done)}")
     for r in results:
         if r["status"] == "backfilled":
-            print(f"  {r['date']}  wanted={r['wanted']:>4}  pending={r['pending']:>4}  "
-                  f"processed={r['processed']:>4}  with_iv={r['with_iv']:>4}"
+            print(f"  {r['date']}  wanted={r['wanted']:>4}  already_done={r['already_done']:>4}  "
+                  f"fetched={r['fetched']:>4}  with_iv={r['with_iv']:>4}  remaining={r['remaining']:>4}"
                   + ("  (dry-run)" if args.dry_run else ""))
         else:
             print(f"  {r['date']}  {r['status']}")

@@ -59,7 +59,7 @@ from lib.drive_client import get_drive_client
 from lib.iv_history import IV_ALL_COLUMNS, IV_MARKER_COLUMN, as_of_iv_cells
 from lib.logger import setup_logging
 from compile_flow import FLOW_PREFIXES
-from enrich_oi import _compiled_dates, _source_file, _upload_rows, _weekday_range
+from enrich_oi import _compiled_dates, _latest_compiled_date, _source_file, _upload_rows, _weekday_range
 
 log = logging.getLogger("fetch_iv_percentile")
 
@@ -268,7 +268,8 @@ def main() -> None:
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        targets = _compiled_dates(client)[-1:]  # latest compiled (no next-day hold-back)
+        latest = _latest_compiled_date(client)  # latest compiled (no next-day hold-back)
+        targets = [latest] if latest else []
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
     log.info("Fetch IV percentile%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
