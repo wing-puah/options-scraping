@@ -628,3 +628,97 @@ exits them at the same place the mark stop does; (4) its real edge over mark
 stops is ignoring mark noise on thin credits (GLD). Revisit with a
 credit-heavy window (the config `simulation.credit` block gains an
 `underlying_stop` knob only if it survives one).
+
+---
+
+## Attempt 10 — BETTER ✓ (debit trailing stop removed; 2026-07-04)
+
+**Motivation:** the trades in `backtests/results.csv` (83 rows, 2024-06-17 →
+2025-04-22, credit/debit split live) were still net negative (debit −$4,481,
+credit −$3,478) with a suspect exit mix. Post-exit path diagnostics (replay of
+the stored `daily_price_csv` marks) split the exit rules cleanly:
+
+- **Loss-side rules are fine.** After `stop_loss`/`dollar_stop`/`time_exit`
+  fire, the path keeps falling (post-exit path-end avg below realized on all
+  three). No change.
+- **The trailing stop was systematically selling continuations.** All 21 of 21
+  debit `trailing_stop` exits later recovered past +30%; realized +19.8% avg vs
+  +117.8% post-exit max avg (mfe_day ≈ 40 vs exit day ≈ 22). Spread across 13
+  tickers / 5 months — not one correlated event.
+
+**Method:** `backtests/exit_mechanism_study.py` (new, reusable; pattern of
+Attempt 9's path replay). Replay engine mirrors `_summarize_path` exit priority
+exactly, incl. `time_exit_day = int(dte_entry × tef)`. **Calibration gate
+65/65** debit rows (exit_reason + days_held + realized_pnl_pct). Variants
+selected on results.csv ONLY; `backtests/v1_20260625_results.csv` (278 debit
+rows, 2024-06 → 2026-02) replayed as a comparison column, never a selection
+criterion. Δ-LOO = improvement minus its single biggest contributing trade.
+
+| Variant (debit) | total $ | win | Δ vs prod | Δ-LOO | v1 cmp total |
+|---|---|---|---|---|---|
+| PROD pt.90 trig.50 trail.25 | −$4,481 | 31/65 | — | — | +$53,240 |
+| **no trail (pt .90)** | **+$7,088** | **33/65** | **+$11,570** | **+$9,362** | **+$58,729** |
+| pt .75 no trail | +$7,368 | 36/65 | +$11,849 | +$10,325 | +$58,356 |
+| trail .50 trig .75 (loosest trail tried) | +$2,304 | 32/65 | +$6,785 | +$5,582 | +$48,799 |
+| BE ratchet @.75, no trail | +$1,946 | 29/65 | +$6,426 | +$5,224 | +$51,506 |
+| no trail, tef null | +$4,876 | 31/65 | +$9,357 | +$7,149 | +$66,129 |
+
+**Decision: remove the trailing stop, change nothing else**
+(`trailing_stop_trigger/pct → null` in `config/backtest.yml`; debit block only —
+credits never had a trail).
+
+- Every trail width/trigger tried (.25/.40/.50 × .50/.75) was worse than no
+  trail at all; the breakeven ratchet (stop→0 once peaked) is a milder version
+  of the same mistake — it also sells the mid-path dip.
+- pt was NOT moved: the pt sweep .70–1.00 (no trail) is a plateau (+$10.8k to
+  +$13.5k Δ) with non-monotonic wiggle (0.80 peaks, 0.85 dips) — no supported
+  gradient, and pt .75 vs .90 differ by $280 on 65 trades. Keeping 0.90 is the
+  minimal, diagnosed-mechanism change. Same for tef: 0.75 beat null/0.85.
+- Robustness: Δ-LOO +$9,362; Δ minus the biggest ticker-structure cluster (the
+  two March-2025 HYG bear put spreads, +$4,089) still +$7,480; only one
+  negative month (2024-08, −$2,350: TLT/COIN reversals the trail had banked —
+  the honest cost, those flips now ride to stop_loss).
+
+**Verification:** full `--cache-only` re-run with the new config reproduced the
+study exactly — all 65 debit rows match the predicted
+exit_reason/days_held/realized_pnl_pct; all 18 credit rows unchanged. Book
+total −$8,085 → **+$3,611** (win 40/83, exit mix profit_target=34 stop_loss=27
+dollar_stop=11 time_exit=6 cap_open=4 expired=1).
+
+**Rules of thumb updated:**
+- Attempt 7's "trailing stop is live and meaningful" is REVERSED on the current
+  window: with pt=0.90 doing the exit work, the trail only ever converted
+  future winners into +20% scratches. Attempt 7 never tested pt=0.90 *without*
+  the trail — its Opt C win was vs the pt=0.60 baseline.
+- The correct comparison for any new exit rule is post-exit path behavior
+  (does the path keep going against the exited position?), not just totals.
+
+---
+
+## Attempt 11 — credit re-check on 18 rows (2026-07-04) — nothing ships ❌
+
+**Motivation:** re-run the Attempt 8/9 credit knobs on the enlarged credit set
+(18 rows incl. the KWEB short straddle, vs 12 in Attempt 9) via
+`backtests/exit_mechanism_study.py --side credit`. **Calibration gate 18/18.**
+
+| Variant (credit) | total $ | Δ vs prod | Δ excl. Mar-TSLA pair |
+|---|---|---|---|
+| PROD pt.65 sl 1×credit | −$3,478 | — | — |
+| pt .50 | −$378 | +$3,099 | **−$268** |
+| pt .55 | −$143 | +$3,335 | **−$32** |
+| trail .50 trig .50 | −$1,212 | +$2,266 | **−$179** |
+| sl none (dollar stop only) | −$5,992 | −$2,514 | — |
+| sl 1.5× | −$4,396 | −$919 | — |
+| und ±1% + mark stops | −$3,491 | −$14 | — |
+| und ±2% + mark stops | −$3,784 | −$306 | — |
+
+**Verdict: unchanged from Attempts 8/9 — no credit exit change is supported.**
+Every apparent winner (pt .50/.55, the wide trail) is 100% the same correlated
+March-2025 TSLA 270/300 bear-call pair (+$1,683 ×2, both peaked at 0.59×
+credit); excluding those two rows, every variant is flat-to-negative. New
+counter-evidence against the underlying-breach stop: it clips the LLY
+2025-04-21 bear call spread on a marginal day-3 breach (−$393) that pt .65
+banked at +$830 — the ±1% buffer wasn't enough, ±2% was worse elsewhere. The
+credit profile (pt 0.65, sl 1×credit, no trail, no time exit, structural
+sizing) stays as-is until a credit-heavy window exists; the study script is
+ready to re-run against it.

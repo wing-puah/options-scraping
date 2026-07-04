@@ -82,11 +82,17 @@ simulation:
   #   portfolio_trail=0.01   means trail 1% of portfolio ($500) from the dollar peak
   # Effective threshold = min(premium_dollars, portfolio_dollars) → back to % of entry.
   #
-  # Attempt 7: trailing stop now active alongside profit_target=0.90.
-  # Trigger=0.50 activates trail once up 50%; trail=0.25 gives 25pt floor below peak.
-  # For trades that run past 90%, the trail handles the exit instead of a hard cap.
-  trailing_stop_trigger: 0.50                   # activate after +50% gain on premium
-  trailing_stop_pct: 0.25                        # trail 25pts from peak (peak+80% → floor+55%)
+  # Attempt 7: trailing stop active alongside profit_target=0.90 (trigger=0.50, trail=0.25).
+  # Attempt 10 (2026-07-04): trailing stop REMOVED for debits — path replay of the
+  # 65-debit-row window showed all 21 trailing_stop exits later recovered past +30%
+  # (realized +19.8% avg vs +117.8% post-exit max avg; 13 tickers / 5 months, not one
+  # event). Removing the trail: +$11,570 on the tuning window, survives leave-one-out
+  # (+$9,362) and biggest-cluster removal (+$7,480); v1 comparison set agrees (+$5.5k).
+  # Wider trails / higher triggers / breakeven ratchets all tested worse than no trail.
+  # profit_target=0.90 kept: the pt sweep 0.70–1.00 without a trail is a plateau with
+  # no supported gradient. See backtest-tuning.md §Attempt 10.
+  trailing_stop_trigger: null                    # Attempt 10: no trailing stop on debits
+  trailing_stop_pct: null
   trailing_stop_portfolio_trigger_pct: null      # null = disabled; 0.02 = 2% of portfolio
   trailing_stop_portfolio_trail_pct: null        # null = disabled; 0.01 = 1% of portfolio
 

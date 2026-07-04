@@ -8,11 +8,24 @@ When spawning subagents via the Agent tool, ALWAYS pass an explicit `model`
 parameter — never omit it. An omitted model makes the subagent inherit the main
 session's model (the most expensive one). This applies especially in plan mode:
 Explore agents MUST be spawned with `model: haiku`, and Plan agents with
-`model: sonnet` (use `opus` only for genuinely heavy design work).
+`model: sonnet` by default.
+
+Rationale: a Plan subagent mostly reads files and drafts an ordered step list;
+the hard judgment on the returned plan happens in the main session (already the
+most capable model), so Opus inside the subagent is usually redundant spend.
+
+Use `model: opus` for a Plan agent only when the planning itself is the hard
+part — the design space is genuinely open and a shallow plan can't be cheaply
+caught after the fact. In this repo that means tasks touching:
+
+- backtest pricing/exit modeling (`scripts/backtest.py`, leg pricing, clamps)
+- the analysis-pipeline refactor (`scripts/analysis_pipeline/core.py` monolith)
+- cross-cutting schema changes (compiled-flow columns, Sheets tab headers,
+  rollup/audit CSV contract — anything with multiple touch points to keep in sync)
 
 - `haiku` — lookups, searches, file reads, grep (e.g. Explore agents)
 - `sonnet` — moderate tasks: code edits, summaries, single-file analysis, plan-mode planning
-- `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow analysis
+- `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow analysis, open-ended design planning (cases above)
 
 ## Commands
 

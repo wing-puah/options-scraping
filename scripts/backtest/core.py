@@ -297,18 +297,20 @@ def _print_summary(results) -> None:
     # Keep pct and abs aligned on the same rows.
     rz_abs = [r for r in rz if isinstance(r.get("realized_pnl_abs"), (int, float))]
     arr     = np.array([r["realized_pnl_pct"] for r in rz])
-    arr_abs = np.array([r["realized_pnl_pct"] for r in rz_abs])
     abs_arr = np.array([r["realized_pnl_abs"] for r in rz_abs])
     held = [r["days_held"] for r in rz if isinstance(r.get("days_held"), (int, float))]
     reasons = {}
     for r in rz:
         reasons[r.get("exit_reason", "")] = reasons.get(r.get("exit_reason", ""), 0) + 1
 
-    def _fmt(pct: float, abs_val: float | None = None) -> str:
-        s = f"{pct*100:+.2f}%"
-        if abs_val is not None:
-            s += f"  (${abs_val:+,.0f})"
-        return s
+    def _capital_at_risk(r: dict) -> float | None:
+        # Structural max loss (works for both debit and credit sizing) is the
+        # true capital-at-risk denominator; entry premium is a debit-only fallback.
+        mlpc, contracts = r.get("max_loss_per_contract"), r.get("contracts")
+        if isinstance(mlpc, (int, float)) and mlpc > 0 and isinstance(contracts, (int, float)):
+            return mlpc * contracts
+        prem = r.get("entry_premium_total")
+        return prem if isinstance(prem, (int, float)) and prem > 0 else None
 
     def _play_line(r: dict) -> str:
         abs_val = r.get("realized_pnl_abs")
@@ -323,25 +325,35 @@ def _print_summary(results) -> None:
     has_abs = len(abs_arr) > 0
     print(f"\nRealized exit ({len(arr)} priced, first profit_target/stop_loss/expiry):")
     print(f"  Win rate:   {(arr>0).sum()/len(arr)*100:.1f}%  ({(arr>0).sum()}/{len(arr)})")
-    abs_mean = abs_arr.mean() if has_abs else None
-    abs_med  = float(np.median(abs_arr)) if has_abs else None
-    print(f"  Avg P&L:    {_fmt(arr.mean(), abs_mean)}   Median: {_fmt(float(np.median(arr)), abs_med)}")
+
+    # Trade-level % (realized_pnl_pct) is only meaningful per-trade — averaging it
+    # across trades with different capital at risk conflates "small % on big money"
+    # with "big % on small money". Report $ totals plus one portfolio-level
+    # dollar-weighted return (sum $pnl / sum capital at risk) instead.
     if has_abs:
+        caps = [_capital_at_risk(r) for r in rz_abs]
+        total_pnl = abs_arr.sum()
+        total_cap = sum(c for c in caps if c is not None)
+        cap_str = f"  on ${total_cap:,.0f} risked  (dollar-wtd return: {total_pnl/total_cap*100:+.1f}%)" if total_cap else ""
+        print(f"  Total P&L:  ${total_pnl:+,.0f}{cap_str}")
+        print(f"  Avg/Median $: ${abs_arr.mean():+,.0f} / ${float(np.median(abs_arr)):+,.0f}")
         i_max, i_min = abs_arr.argmax(), abs_arr.argmin()
-        print(f"  Best/Worst: {_fmt(arr_abs[i_max], abs_arr[i_max])} / "
-              f"{_fmt(arr_abs[i_min], abs_arr[i_min])}")
+        print(f"  Best/Worst: ${abs_arr[i_max]:+,.0f} / ${abs_arr[i_min]:+,.0f}")
     else:
         print(f"  Best/Worst: {arr.max()*100:+.2f}% / {arr.min()*100:+.2f}%")
     if held:
         print(f"  Avg hold:   {np.mean(held):.1f} trading days")
     print("  Exit mix:   " + ", ".join(f"{k}={v}" for k, v in sorted(reasons.items())))
 
-    real = [r["realized_pnl_pct"] for r in rz
-            if isinstance(r.get("pct_real_days"), (int, float)) and r["pct_real_days"] > 0]
-    if real:
-        ra = np.array(real)
-        print(f"  ↳ real-data subset: {(ra>0).sum()/len(ra)*100:.1f}% win, "
-              f"{ra.mean()*100:+.2f}% avg  ({len(ra)} trades)")
+    real_rows = [r for r in rz_abs
+                 if isinstance(r.get("pct_real_days"), (int, float)) and r["pct_real_days"] > 0]
+    if real_rows:
+        ra = np.array([r["realized_pnl_abs"] for r in real_rows])
+        win = (ra > 0).sum() / len(ra) * 100
+        real_caps = [_capital_at_risk(r) for r in real_rows]
+        real_cap_total = sum(c for c in real_caps if c is not None)
+        wtd = f", dollar-wtd return: {ra.sum()/real_cap_total*100:+.1f}%" if real_cap_total else ""
+        print(f"  ↳ real-data subset: {win:.1f}% win, ${ra.mean():+,.0f} avg{wtd}  ({len(ra)} trades)")
     else:
         print("  ↳ real-data subset: none (all Black-Scholes modelled)")
 
