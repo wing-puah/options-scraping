@@ -136,6 +136,24 @@ def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
 
 
+def delete_rows_where(tab: str, match_fn) -> int:
+    """Delete every data row of ``tab`` for which ``match_fn(row_dict)`` is true.
+
+    Rows are deleted bottom-up so sheet indices stay valid mid-loop. Returns the
+    number of rows deleted. The header row is never touched.
+    """
+    ss = _get_spreadsheet()
+    ws = _ensure_tab(ss, tab)
+    rows = ws.get_all_records()
+    # get_all_records row i (0-based) lives at sheet row i + 2 (1-based, after header)
+    doomed = [i + 2 for i, r in enumerate(rows) if match_fn(r)]
+    for idx in reversed(doomed):
+        ws.delete_rows(idx)
+    if doomed:
+        log.info("Deleted %d row(s) from tab '%s'", len(doomed), tab)
+    return len(doomed)
+
+
 def _col_letter(n: int) -> str:
     """Convert 1-based column number to A1-notation letter (e.g. 8 → 'H')."""
     result = ""

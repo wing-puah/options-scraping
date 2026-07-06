@@ -42,7 +42,7 @@ def _register(contracts: dict, needed_dates: dict, ticker: str, opt_type: str,
         needed_dates[key] = sig
 
 
-def _choose_anchor(legs, barchart_details, signal_date):
+def _choose_anchor(legs, barchart_details, signal_date, timing="signal_eod"):
     """Pick the anchor leg for an explicit structure and build its entry row.
 
     The anchor seeds the position's entry IV / underlying / DTE from its Barchart
@@ -55,7 +55,8 @@ def _choose_anchor(legs, barchart_details, signal_date):
     for i in order:
         leg = legs[i]
         key = _contract_key(leg.ticker, leg.opt_type, leg.strike, leg.expiration.isoformat())
-        row = _entry_row_from_history(barchart_details, key, signal_date, leg.strike, leg.expiration)
+        row = _entry_row_from_history(barchart_details, key, signal_date, leg.strike,
+                                      leg.expiration, timing=timing)
         if row is not None:
             return i, row
     return None, None
@@ -106,18 +107,21 @@ class Play(ABC):
         a_ticker, a_type, a_K, a_exp = self.anchor
         anchor_key = _contract_key(a_ticker, a_type, a_K, a_exp.isoformat())
         entry_row = _entry_row_from_history(
-            barchart_details, anchor_key, c["signal_date"], a_K, a_exp)
+            barchart_details, anchor_key, c["signal_date"], a_K, a_exp,
+            timing=sim_cfg.get("entry_timing", "next_open"))
         if entry_row is None:
             log.warning("SKIP unpriced     %s %s | no history on/after signal date for %s",
                         c["signal_date"], c["ticker"], anchor_key)
             return None
         return self._simulate(c, self.legs, entry_row, barchart_series, sim_cfg,
-                              self.anchor_idx)
+                              self.anchor_idx, barchart_details)
 
-    def _simulate(self, c, legs, entry_row, barchart_series, sim_cfg, anchor_idx):
+    def _simulate(self, c, legs, entry_row, barchart_series, sim_cfg, anchor_idx,
+                  barchart_details=None):
         """Run :func:`_simulate`, logging a uniform skip when it can't price."""
         result = _simulate(c, legs, entry_row, {}, barchart_series, sim_cfg,
-                           structure=self.structure, anchor_idx=anchor_idx)
+                           structure=self.structure, anchor_idx=anchor_idx,
+                           barchart_details=barchart_details)
         if not result:
             log.warning("SKIP simulate={}  %s %s | %s",
                         c["signal_date"], c["ticker"], self.structure)
@@ -141,12 +145,15 @@ class ExplicitPlay(Play):
 
     def simulate(self, barchart_series, barchart_details, sim_cfg, spread_pct):
         c = self.c
-        anchor_idx, entry_row = _choose_anchor(self.legs, barchart_details, c["signal_date"])
+        anchor_idx, entry_row = _choose_anchor(
+            self.legs, barchart_details, c["signal_date"],
+            timing=sim_cfg.get("entry_timing", "next_open"))
         if entry_row is None:
             log.warning("SKIP unpriced     %s %s | no history on/after signal date for any leg",
                         c["signal_date"], c["ticker"])
             return None
-        return self._simulate(c, self.legs, entry_row, barchart_series, sim_cfg, anchor_idx)
+        return self._simulate(c, self.legs, entry_row, barchart_series, sim_cfg, anchor_idx,
+                              barchart_details)
 
 
 class CalendarDiagonalPlay(Play):
@@ -218,7 +225,8 @@ class IronCondorPlay(Play):
         a_ticker, a_type, a_K, a_exp = self.anchor
         anchor_key = _contract_key(a_ticker, a_type, a_K, a_exp.isoformat())
         entry_row = _entry_row_from_history(
-            barchart_details, anchor_key, c["signal_date"], a_K, a_exp)
+            barchart_details, anchor_key, c["signal_date"], a_K, a_exp,
+            timing=sim_cfg.get("entry_timing", "next_open"))
         if entry_row is None:
             log.warning("SKIP unpriced     %s %s | no history on/after signal date for %s",
                         c["signal_date"], c["ticker"], anchor_key)
@@ -232,7 +240,8 @@ class IronCondorPlay(Play):
         K_lp, K_sp, K_sc, K_lc = _iron_condor_strikes(
             self.cls.get("strikes", []), a_K, S_entry, spread_pct)
         legs = iron_condor_legs(c["ticker"], a_exp, K_lp, K_sp, K_sc, K_lc)
-        return self._simulate(c, legs, entry_row, barchart_series, sim_cfg, self.anchor_idx)
+        return self._simulate(c, legs, entry_row, barchart_series, sim_cfg, self.anchor_idx,
+                              barchart_details)
 
 
 class MultiLegPlay(Play):
@@ -400,6 +409,25 @@ def apply_tf_s_override(cls: dict, c: dict, cfg: dict | None) -> dict:
 
 # ─── Pass 1 driver ──────────────────────────────────────────────────────────────
 
+def classify_and_build(c, spread_pct, tf_s_override=None):
+    """Classify + build ONE candidate. Returns (play|None, reason|None),
+    reason = (category, message) with the existing categories
+    unsupported/no_strike/no_expiry/unpriced.
+
+    Factored out of :func:`build_matched_plays` so a single candidate can be
+    classified+built in isolation (re-exported from ``scripts/backtest/shared``
+    for reuse outside this Pass-1 driver's tally/logging loop).
+    """
+    c["regime"] = c.get("regime", "")
+    cls = classify_play(c["play"])
+    cls = apply_tf_s_override(cls, c, tf_s_override)
+    structure = cls["structure"]
+    play_type = _REGISTRY.get(structure)
+    if play_type is None:
+        return None, ("unsupported", f"structure={structure}")
+    return play_type.build(c, cls, spread_pct)
+
+
 def build_matched_plays(candidates, spread_pct, tf_s_override=None):
     """Pass 1 — classify each candidate into a :class:`Play` and register its contracts.
 
@@ -412,17 +440,7 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None):
     plays, contracts, needed_dates = [], {}, {}
     skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
     for c in candidates:
-        c["regime"] = c.get("regime", "")
-        cls = classify_play(c["play"])
-        cls = apply_tf_s_override(cls, c, tf_s_override)
-        structure = cls["structure"]
-        play_type = _REGISTRY.get(structure)
-        if play_type is None:
-            skipped["unsupported"] += 1
-            log.warning("SKIP unsupported  %s %s | structure=%s | play=%s",
-                        c["date"], c["ticker"], structure, c["play"][:80])
-            continue
-        play, skip = play_type.build(c, cls, spread_pct)
+        play, skip = classify_and_build(c, spread_pct, tf_s_override)
         if skip:
             category, message = skip
             skipped[category] += 1

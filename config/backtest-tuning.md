@@ -722,3 +722,75 @@ banked at +$830 — the ±1% buffer wasn't enough, ±2% was worse elsewhere. The
 credit profile (pt 0.65, sl 1×credit, no trail, no time exit, structural
 sizing) stays as-is until a credit-heavy window exists; the study script is
 ready to re-run against it.
+
+## Proxy backtest for untested plays — new coverage tool (2026-07-06)
+
+Not an exit experiment — new instrumentation. `python3 -m scripts.backtest.proxy`
+diffs the analysis tab against BacktestResults, persists WHY each uncovered play
+was skipped (`unsupported`/`no_strike`/`no_expiry`/`no_history`/`unpriced`), and
+proxy-evaluates it via a fallback chain (nearest-listed-contract tweak → BS off a
+donor contract's Price~/IV history → direction-only trend) using the SAME
+`simulation:`/`credit:` exit rules → `BacktestProxy` tab +
+`backtests/proxy_results.csv` (see backtest-reference.md §BacktestProxy).
+
+First cache-only sweep (all dates, dry-run): **161 untested plays** vs 273
+analysis rows — 66 bs_options_hist, 10 strike_expiry_tweak, 1 underlying_trend,
+84 unevaluable (cache-only; Barchart probing should convert most), win rate of
+the 76 priced = 50.0%. Caveat for any future tuning use: proxy rows are
+model-priced (donor-IV BS) — treat their P&L as coverage/selection evidence,
+not as exits to tune against.
+
+### 2026-07-06 — proxy classification fixes invalidate 6 pre-fix rows
+
+Not a tuning change — a correctness fix in the shared classifier + proxy snap.
+Three defects fixed (`scripts/backtest/classify.py`, `scripts/backtest/proxy.py`):
+
+1. The `Alt:` line fed classification: "covered" in the alternative-interpretation
+   text hit the `_UNSUPPORTED_PATTERNS` gate and killed plainly-named spreads.
+   Affected rows (all falsely `unsupported`/`unevaluable`): SLV 2024-06-17,
+   IWM 2024-07-18, GLD 2024-07-17, GLD 2024-07-15, VLO 2024-07-15.
+2. An explicit month-day in the play text was trusted as the expiry even when it
+   contradicted the declared horizon bucket — MU 2024-06-17 (hzn 180) was priced
+   at the June 26 *earnings* date (9 DTE). Now an explicit date outside
+   [H/4, 4·H] loses to the horizon-derived expiry.
+3. Method-1 snapped each leg independently, so MU's vertical landed on two
+   different expiries (an accidental diagonal). Same-expiration legs now pin to
+   one snapped expiration or the method fails over to BS.
+
+Any pre-fix BacktestProxy numbers for those 6 rows are invalid — they were
+re-evaluated with `--redo` (new flag: deletes the frozen rows in the bounded date
+window and re-appends). Do not mix pre-fix and post-fix proxy P&L for these rows.
+
+## Entry basis changed: signal-day EOD → next-day OPEN (2026-07-06)
+
+Not an exit-knob attempt — a fill-realism fix to the entry price itself. The
+backtest had been filling every play at the SIGNAL day's EOD mark (mid bid/ask
+on-or-before D via `_price_asof`), a price you cannot actually get: the analysis
+is produced after the close, so the realistic fill is the NEXT trading day's
+open. New `simulation.entry_timing` knob (`config/backtest.yml`):
+
+- `next_open` (default) — entry day = first history day strictly after D
+  (5-day staleness window unchanged); per-leg fill = that day's real `Open`
+  from the Barchart history cache (`entry_source: barchart_open`), falling
+  back to that day's EOD mark when Open is blank (zero-volume), or to the
+  signal-day EOD mark when no later day exists in the window (play kept, not
+  dropped). All legs fill on ONE shared entry day (the anchor's).
+- `signal_eod` — the legacy basis, kept for reproducing old runs.
+
+Cache-only A/B over the full AnalysisClaude tab (96 plays, 2026-07-06):
+
+| | signal_eod (old) | next_open (new) |
+|---|---|---|
+| rows priced | 95 | 96 (+1: 2025-03-13 TLT — history starts D+1, now fillable) |
+| entry price moved | — | 95/95 shared rows; median ±9.7%, max ±109% |
+| dte_entry | — | −1 typical (−2/−3 across weekends) |
+| total realized P&L | +$2,860 | **+$240** |
+
+Read: ~$2.6k of the old book's edge was **overnight gap**, not capturable
+edge — plays whose signal leaked into the next open (e.g. AVGO 1800C
+2024-06-17: EOD mark 156.1 → next open 157.8; TSLA/SPY Mar-2025 puts gapped
+hard). All prior tuning attempts (7–11) were measured on the signal_eod basis;
+future exit tuning should re-baseline on next_open since entry level shifts
+every profit-target/stop distance. Proxy method-1 inherits the new basis
+automatically; method-2 (BS off donor) stays entry@signal_eod — the donor
+series is EOD closes, there is no open to price (noted in its detail string).

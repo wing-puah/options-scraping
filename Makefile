@@ -63,6 +63,19 @@ analyze-gpt:
 backtest:
 	$(PY) -m scripts.backtest --config config/backtest.yml $(ARGS)
 
+.PHONY: backtest-proxy
+backtest-proxy:
+	$(PY) -m scripts.backtest.proxy --config config/backtest.yml $(ARGS)
+
+# ── full backtest: real + proxy, then combined chart ────────────────────────────
+.PHONY: backtest-all
+backtest-all: backtest backtest-proxy
+	$(PY) scripts/chart_backtest.py --csv backtests/results.csv --csv backtests/proxy_results.csv
+
+# ── chart ──────────────────────────────────────────────────────────────────────
+.PHONY: chart
+chart:
+	$(PY) scripts/chart_backtest.py $(ARGS)
 
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
@@ -100,6 +113,15 @@ help:
 	@echo ""
 	@echo "  make backtest      run backtest"
 	@echo "  make backtest-dry  dry-run backtest"
+	@echo ""
+	@echo "  make backtest-proxy   proxy-backtest untested plays → BacktestProxy tab"
+	@echo "  make backtest-proxy ARGS=\"--date 2026-04-21\"  (or --dry-run, --cache-only)"
+	@echo ""
+	@echo "  make backtest-all  backtest + backtest-proxy, then chart the combined results"
+	@echo "  make backtest-all ARGS=\"--date 2026-04-21\"  (ARGS passed to both backtest steps)"
+	@echo ""
+	@echo "  make chart         render backtest charts → backtests/charts/"
+	@echo "  make chart ARGS=\"--csv backtests/results.csv --csv backtests/proxy_results.csv\"  combine multiple CSVs"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"

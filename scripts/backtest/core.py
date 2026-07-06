@@ -4,7 +4,7 @@ import csv
 import logging
 import os
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -14,14 +14,12 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 from lib.logger import setup_logging
-from lib import sheets_client
-from lib import barchart_options
-from lib.barchart import BarchartSession
 
-from .config import RESULTS_PATH, HISTORY_CACHE
-from .helpers import _parse_analysis_date
 from .plays import build_matched_plays
 from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
+from .shared.analysis_io import load_analysis as _load_analysis
+from .shared.history import fetch_option_histories
+from .shared.results_io import write_results
 
 log = logging.getLogger("backtest")
 
@@ -114,174 +112,25 @@ def _regime_prefix(regime: str) -> str:
     return re.split(r"[—–]", regime, maxsplit=1)[0].strip()
 
 
-# ─── Analysis loading ──────────────────────────────────────────────────────────
-
-def _load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[dict], dict]:
-    """Read the analysis tab. Returns (candidate trades, market_regime_by_date)."""
-    rows = sheets_client.get_all_rows(tab)
-    market_regime: dict[str, str] = {}
-    candidates: list[dict] = []
-
-    for row in rows:
-        d_date = _parse_analysis_date(row.get("date", ""))
-        if d_date is None:
-            continue
-        if start and d_date < start:
-            continue
-        if end and d_date > end:
-            continue
-        d = d_date.isoformat()
-
-        ticker = str(row.get("ticker", "")).strip()
-        if ticker.upper() == "MARKET":
-            market_regime[d] = str(row.get("regime", "")).strip()
-            continue
-        if not str(row.get("play", "")).strip():
-            continue
-
-        candidates.append({
-            "date": d,
-            "signal_date": d_date,
-            "ticker": ticker,
-            "regime": str(row.get("regime", "")).strip(),
-            "signal": str(row.get("signal", "")).strip(),
-            "play": str(row.get("play", "")).strip(),
-            "invalidation": str(row.get("invalidation", "")).strip(),
-            # Per-ticker rollup context now stored on the analysis row itself (blank
-            # on rows written before this column existed; _attach_rollup_metrics
-            # backfills those from the audit rollup CSV).
-            "oi_confirm_pct": str(row.get("oi_confirm_pct", "")).strip(),
-            "cpir": str(row.get("cpir", "")).strip(),
-            "iv_spread": str(row.get("iv_spread", "")).strip(),
-            "iv_skew": str(row.get("iv_skew", "")).strip(),
-            "iv_pct": str(row.get("iv_pct", "")).strip(),
-        })
-
-    log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
-             len(candidates), tab, len(market_regime))
-    return candidates, market_regime
-
-
-# ─── Barchart historical option prices ─────────────────────────────────────────
-
-async def _fetch_option_histories(
-    contracts: list[dict], headless: bool, timeout_ms: int = 15000,
-    needed_dates: dict[tuple, date] | None = None,
-    cache_only: bool = False,
-) -> tuple[dict[tuple, list], dict[tuple, dict]]:
-    """Scrape (and cache) per-contract Barchart price history.
-
-    contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
-    needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
-      row is more than 5 days after the needed date, the cache is stale and re-scraped.
-    Returns (series_map, details_map):
-      series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
-      details_map: {contract_key: {date: row_dict}}      — for building entry rows
-    """
-    _STALENESS_DAYS = 5
-    HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
-    email = os.getenv("BARCHART_EMAIL", "")
-    password = os.getenv("BARCHART_PASSWORD", "")
-    cookies_path = Path(os.getenv(
-        "COOKIES_PATH", str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
-
-    series_map: dict[tuple, list] = {}
-    details_map: dict[tuple, dict] = {}
-    to_scrape: list[dict] = []
-
-    def _load_cache(c: dict, text: str) -> None:
-        series_map[c["key"]] = barchart_options.parse_history_series(text)
-        details_map[c["key"]] = barchart_options.parse_history_details(text)
-
-    for c in contracts:
-        cache = barchart_options.cache_path(
-            HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-        if cache.exists():
-            text = cache.read_text(encoding="utf-8")
-            _load_cache(c, text)
-            if cache_only:
-                continue
-            # Re-scrape if cache doesn't reach back to the earliest signal date.
-            needed = needed_dates.get(c["key"]) if needed_dates else None
-            if needed is not None:
-                series = series_map.get(c["key"], [])
-                earliest = min((d for d, _ in series), default=None)
-                if earliest is None or (earliest - needed).days > _STALENESS_DAYS:
-                    log.info(
-                        "Cache for %s earliest=%s, needed=%s — refetching",
-                        c["key"], earliest, needed,
-                    )
-                    series_map.pop(c["key"], None)
-                    details_map.pop(c["key"], None)
-                    cache.unlink()
-                    to_scrape.append(c)
-        elif not cache_only:
-            to_scrape.append(c)
-        else:
-            log.debug("--cache-only: no cache for %s, skipping", c["key"])
-
-    log.info("Barchart history: %d cached, %d to scrape", len(series_map), len(to_scrape))
-    if not to_scrape:
-        return series_map, details_map
-    if not (email and password):
-        log.warning("BARCHART_EMAIL/PASSWORD not set — skipping Barchart history (BS fallback will be used)")
-        return series_map, details_map
-
-    async with BarchartSession(email, password, cookies_path, headless) as session:
-        for i, c in enumerate(to_scrape, 1):
-            url = barchart_options.option_history_url(
-                c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
-            try:
-                csv_text = await session.fetch_history_csv(url, timeout_ms)
-            except Exception:
-                log.exception("Barchart history scrape failed for %s", c["key"])
-                csv_text = None
-            if not csv_text:
-                series_map[c["key"]] = []
-                continue
-            cache = barchart_options.cache_path(
-                HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            cache.write_text(csv_text, encoding="utf-8")
-            _load_cache(c, csv_text)
-            await asyncio.sleep(2)
-
-    return series_map, details_map
+# ─── Analysis loading, Barchart history fetch ──────────────────────────────────
+# Moved to scripts/backtest/shared/{analysis_io,history}.py so a sibling module
+# (e.g. a future proxy.py) can reuse them without importing this core module.
+# ``_load_analysis`` and ``fetch_option_histories`` are imported above.
 
 
 # ─── Output ────────────────────────────────────────────────────────────────────
 
 def _write_results(results, cfg, dry_run) -> None:
-    if not results:
-        log.warning("No results to write")
-        return
-
-    RESULTS_PATH.mkdir(exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    local_csv = cfg["output"].get("local_csv", f"backtests/results_{ts}.csv")
-    csv_path = Path(__file__).resolve().parent.parent.parent / local_csv
-
-    if not dry_run:
-        if csv_path.exists():
-            archive = csv_path.with_name(
-                csv_path.stem + "_" + ts + csv_path.suffix)
-            csv_path.rename(archive)
-            log.info("Archived previous results to '%s'", archive.name)
-        with csv_path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=_KEY_ORDER, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(results)
-        log.info("Wrote %d results to '%s'", len(results), csv_path)
-
-        sheet_tab = cfg["output"].get("sheet_tab")
-        if sheet_tab:
-            sheets_client.append_rows(
-                sheet_tab, [{k: r.get(k, "") for k in _KEY_ORDER} for r in results])
-            log.info("Appended results to Google Sheets tab '%s'", sheet_tab)
-    else:
-        log.info("[dry-run] Would write %d results to '%s'", len(results), csv_path)
-
-    _print_summary(results)
+    """Thin wrapper over :func:`scripts.backtest.shared.results_io.write_results`,
+    supplying this CLI's fixed schema/output config (unchanged behavior)."""
+    write_results(
+        results,
+        key_order=_KEY_ORDER,
+        local_csv=cfg["output"].get("local_csv"),
+        sheet_tab=cfg["output"].get("sheet_tab"),
+        dry_run=dry_run,
+        summary_fn=_print_summary,
+    )
 
 
 def _print_summary(results) -> None:
@@ -451,7 +300,7 @@ def main() -> None:
         headless = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
         history_timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
-        barchart_series, barchart_details = asyncio.run(_fetch_option_histories(
+        barchart_series, barchart_details = asyncio.run(fetch_option_histories(
             list(contracts.values()), headless, history_timeout_ms, needed_dates,
             cache_only=args.cache_only))
 

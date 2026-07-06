@@ -10,7 +10,11 @@ Reads the BacktestResults CSV (one row per play) and writes:
                              present; the script falls back gracefully otherwise.
 
 Usage:
-    python3 scripts/chart_backtest.py [--csv PATH] [--out DIR]
+    python3 scripts/chart_backtest.py [--csv PATH [--csv PATH ...]] [--out DIR]
+
+    Repeat --csv to combine multiple BacktestResults-shaped CSVs (e.g. the
+    real backtest plus the proxy backtest) into one dataset; each row is
+    tagged with a `source` column (the CSV's stem).
 """
 import argparse
 from pathlib import Path
@@ -128,6 +132,19 @@ def load(csv_path: Path) -> pd.DataFrame:
     df["pnl_path"] = df.apply(pnl_path, axis=1)
     df["dollar_pnl_path"] = df.apply(dollar_pnl_path, axis=1)
     return df
+
+
+def load_many(csv_paths: list[Path]) -> pd.DataFrame:
+    """Load and concatenate multiple BacktestResults-shaped CSVs (e.g. the real
+    backtest plus the proxy backtest) into one frame. Each row is tagged with a
+    `source` column (the CSV's stem) so charts can still split real vs proxy
+    where that distinction matters."""
+    frames = []
+    for p in csv_paths:
+        df = load(p)
+        df["source"] = p.stem
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 
 
 DTE_BUCKETS = [(0, 21, "≤21d"), (21, 45, "22–45d"),
@@ -622,7 +639,7 @@ def _draw_occupancy_panels(axes, df: pd.DataFrame,
           mean P&L in the sessions after the peak → decay after the top.
       D · MAE-day histogram — which trading day the worst drawdown lands on.
       E · MFE-day histogram — which trading day peak profit lands on.
-      F · Days in profit vs loss — per trade, share of held sessions spent
+      F · Days in profit vs loss — per trade, # of held sessions spent
           above $0, split by eventual win/loss outcome.
 
     Returns the trade count (for the caller's title), or None if there's no
@@ -785,22 +802,20 @@ def _draw_occupancy_panels(axes, df: pd.DataFrame,
     path_col = "dollar_pnl_path" if use_dollar else "pnl_path"
     has_path = df[path_col].apply(lambda p: isinstance(p, list) and len(p) > 0)
     sub = df.loc[has_path]
-    frac_profit = pd.Series(
-        [100 * sum(1 for v in p if v > 0) / len(p) for p in sub[path_col]], dtype=float)
+    days_profit = pd.Series(
+        [sum(1 for v in p if v > 0) for p in sub[path_col]], dtype=float)
     win_sub = (sub["realized_pnl"] > 0).reset_index(drop=True)
-    bins = np.linspace(0, 100, 21)
-    ax.hist(frac_profit[win_sub], bins=bins, color=C_BULL, alpha=0.6,
+    bins = np.arange(0, days_profit.max() + 2) - 0.5
+    ax.hist(days_profit[win_sub], bins=bins, color=C_BULL, alpha=0.6,
             edgecolor="white", label=f"eventual win (n={int(win_sub.sum())})")
-    ax.hist(frac_profit[~win_sub], bins=bins, color=C_RANGE, alpha=0.6,
+    ax.hist(days_profit[~win_sub], bins=bins, color=C_RANGE, alpha=0.6,
             edgecolor="white", label=f"eventual loss (n={int((~win_sub).sum())})")
-    med = frac_profit.median()
-    ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median {med:.0f}%")
-    ax.axvline(50, color="#999", lw=0.8, ls=":")
-    ax.set_xlim(0, 100)
-    ax.xaxis.set_major_formatter(PercentFormatter(decimals=0))
-    ax.set_title(f"{letters[5]} · Share of held days spent in profit (per trade)",
+    med = days_profit.median()
+    ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median {med:.0f}d")
+    ax.set_xlim(left=-0.5)
+    ax.set_title(f"{letters[5]} · Days held in profit (per trade)",
                  fontweight="bold")
-    ax.set_xlabel("% of trading days held above $0")
+    ax.set_xlabel("# of trading days held above $0")
     ax.set_ylabel("Trades")
     ax.legend(fontsize=8)
     ax.grid(axis="y", color=GRID)
@@ -1655,10 +1670,15 @@ def build_regime(df: pd.DataFrame, out: Path) -> Path:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--csv", default="backtests/results.csv")
+    ap.add_argument("--csv", action="append",
+                    help="BacktestResults-shaped CSV; repeat to combine "
+                         "multiple (e.g. --csv backtests/results.csv --csv "
+                         "backtests/proxy_results.csv). Default: "
+                         "backtests/results.csv")
     ap.add_argument("--out", default="backtests/charts")
     args = ap.parse_args()
-    df = load(Path(args.csv))
+    csv_paths = [Path(p) for p in (args.csv or ["backtests/results.csv"])]
+    df = load_many(csv_paths)
     print(f"Wrote {build(df, Path(args.out))}")
     print(f"Wrote {build_ev(df, Path(args.out))}")
     print(f"Wrote {build_playbook(df, Path(args.out))}")

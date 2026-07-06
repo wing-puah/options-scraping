@@ -194,6 +194,36 @@ def test_classify_empty():
     assert bt.classify_play("")["structure"] == "unsupported"
 
 
+# ── Alt: line must not feed classification ──────────────────────────────────────
+
+def test_classify_ignores_covered_mention_in_alt_line():
+    # Real regression: 'covered' in the Alt (alternative-interpretation) line hit
+    # the _UNSUPPORTED_PATTERNS gate and killed a plainly-named bull call spread.
+    play = ("[low | DIRECTIONAL | 720]\n"
+            "TF | bull call spread 32/36 | Large long-dated OTM call demand is a "
+            "leveraged, defined-risk strategic bet on a silver breakout.\n"
+            "Alt: The far-OTM 47 call is sold on the bid (financing a spread / "
+            "covered-call structure), which muddies the read")
+    out = bt.classify_play(play)
+    assert out["structure"] == "bull_call_spread"
+    assert out["strikes"] == [32.0, 36.0]
+
+
+def test_classify_ignores_structure_keywords_in_alt_line():
+    # 'straddle' in the Alt line must not out-rank the primary line's named spread.
+    play = ("[medium | DIRECTIONAL | 180]\n"
+            "TF | bull put spread: sell 215/205 put spread, 60-95 DTE | selling "
+            "downside premium beneath support\n"
+            "Alt: some of this could be covered-call overwriting or one leg of a straddle")
+    out = bt.classify_play(play)
+    assert out["structure"] == "bull_put_spread"
+    assert out["is_credit"] is True
+
+
+def test_classify_covered_call_in_primary_line_still_unsupported():
+    assert bt.classify_play("XOM — covered call 100 | income")["structure"] == "unsupported"
+
+
 # ── strike extraction ───────────────────────────────────────────────────────────
 
 def test_extract_strikes_spread():
@@ -301,6 +331,49 @@ def test_extract_expiration_month_day():
 def test_extract_expiration_rolls_to_next_year():
     # 'Jan 15' referenced from June → next January.
     assert bt._extract_expiration("calls Jan 15", date(2026, 6, 2)) == date(2027, 1, 15)
+
+
+def test_extract_expiration_ignores_dates_in_alt_line():
+    play = "bull call spread 300/340\nAlt: hedged around the Jun 18 print"
+    assert bt._extract_expiration(play, date(2026, 6, 3)) is None
+
+
+# ── _resolve_expiry: explicit date vs declared horizon ──────────────────────────
+
+def test_resolve_expiry_rejects_context_date_contradicting_horizon(tmp_path):
+    # Real regression (MU 2024-06-17): 'June 26' is the EARNINGS date the flow is
+    # dated past, not the expiry — a 9-DTE read on a 180-bucket play. The explicit
+    # date must lose to the horizon (→ nearest Friday to signal+180 on empty cache).
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "MU", "signal_date": date(2024, 6, 17),
+         "play": ("[medium | DIRECTIONAL | 180]\n"
+                  "TF | bull call spread 140/160 | Fully-extrinsic OTM call demand "
+                  "dated past the June 26 earnings print supports a memory-cycle bet.")}
+    exp, skip = _resolve_expiry(c, "Call", 140.0, tmp_path)
+    assert skip is None
+    assert exp == date(2024, 12, 20)
+
+
+def test_resolve_expiry_keeps_explicit_date_consistent_with_horizon(tmp_path):
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "SPY", "signal_date": date(2026, 6, 3),
+         "play": "[high | DIRECTIONAL | 14]\nTF | bull call spread 300/340 Jun 18 | x"}
+    exp, skip = _resolve_expiry(c, "Call", 300.0, tmp_path)
+    assert skip is None
+    assert exp == date(2026, 6, 18)
+
+
+def test_resolve_expiry_inline_dte_range_overrides_bracket_bucket(tmp_path):
+    # TSM-style: bracket bucket 180 but the play names '(30-60 DTE)' inline — the
+    # inline range (midpoint 45) drives the synthesized expiry, and no month-day
+    # date exists to validate. Must keep resolving ~45 DTE, not ~180.
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "TSM", "signal_date": date(2024, 7, 17),
+         "play": ("[medium | DIRECTIONAL | 180]\n"
+                  "TF | bear call spread 200/210 (30-60 DTE) | selling upside")}
+    exp, skip = _resolve_expiry(c, "Call", 200.0, tmp_path)
+    assert skip is None
+    assert exp == date(2024, 9, 6)
 
 
 def test_match_entry_prefers_named_expiry_on_equal_strike():
@@ -412,6 +485,142 @@ def test_simulate_falls_back_to_bs_when_no_reappearance():
 
     assert res["pct_real_days"] == 0.0   # all marks are Black-Scholes (0/n = 0)
     assert res["realized_pnl_pct"] > 0
+
+
+# ── next-open entry timing ───────────────────────────────────────────────────────
+
+_NO_KEY = ("NVDA", "Call", 250.0, "2026-07-17")
+_NO_EXP = date(2026, 7, 17)
+
+
+def _history_details(**day_rows):
+    """{key: {date: row}} details map from day='2026-06-02' → {...} kwargs."""
+    return {_NO_KEY: {date.fromisoformat(d.replace("_", "-")): r
+                      for d, r in day_rows.items()}}
+
+
+def test_entry_row_next_open_picks_first_day_after_signal():
+    details = _history_details(
+        **{"2026_05_29": {"IV": "40", "Price~": "248", "_mark": 7.0, "Delta": "0.48"},
+           "2026_06_01": {"IV": "45", "Price~": "250", "_mark": 8.0, "Delta": "0.50"},
+           "2026_06_02": {"IV": "46", "Price~": "252", "_mark": 9.0, "Delta": "0.55"}})
+    row = bt._entry_row_from_history(details, _NO_KEY, date(2026, 6, 1), 250.0, _NO_EXP,
+                                     timing="next_open")
+    assert row["_entry_date"] == date(2026, 6, 2)
+    assert row["DTE"] == (_NO_EXP - date(2026, 6, 2)).days
+    assert row["Trade"] == 9.0
+    # Legacy timing stays on the signal day itself.
+    row_eod = bt._entry_row_from_history(details, _NO_KEY, date(2026, 6, 1), 250.0, _NO_EXP)
+    assert row_eod["_entry_date"] == date(2026, 6, 1)
+    assert row_eod["Trade"] == 8.0
+
+
+def test_entry_row_next_open_falls_back_to_signal_day_when_no_later_data():
+    # Data ends on the signal day → the play still prices, at the signal-day row.
+    details = _history_details(
+        **{"2026_06_01": {"IV": "45", "Price~": "250", "_mark": 8.0, "Delta": "0.50"}})
+    row = bt._entry_row_from_history(details, _NO_KEY, date(2026, 6, 1), 250.0, _NO_EXP,
+                                     timing="next_open")
+    assert row["_entry_date"] == date(2026, 6, 1)
+
+
+def test_entry_row_next_open_respects_staleness_window():
+    # Earliest data 9 days after the signal → rejected under either timing.
+    details = _history_details(
+        **{"2026_06_10": {"IV": "45", "Price~": "250", "_mark": 8.0, "Delta": "0.50"}})
+    for timing in ("next_open", "signal_eod"):
+        assert bt._entry_row_from_history(details, _NO_KEY, date(2026, 6, 1), 250.0,
+                                          _NO_EXP, timing=timing) is None
+
+
+def _next_open_entry_row(entry_date=date(2026, 6, 2)):
+    return {"Strike": 250.0, "DTE": (_NO_EXP - entry_date).days, "IV": "45",
+            "Price~": "250", "Trade": 8.4, "Expires": _NO_EXP.isoformat(),
+            "Delta": "0.50", "_entry_date": entry_date}
+
+
+def test_simulate_next_open_entry_prefers_open_price():
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4),
+                                 (date(2026, 6, 4), 12.9)]}
+    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}}}
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
+               "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, _next_open_entry_row(), {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None,
+                       barchart_details=barchart_details)
+
+    assert res["entry_option_price"] == pytest.approx(8.6)
+    assert res["entry_source"] == "barchart_open"
+    # (12.9 − 8.6) / 8.6 = +50% on 6/4 → profit target.
+    assert res["exit_reason"] == "profit_target"
+    assert res["realized_pnl_pct"] == pytest.approx(0.5)
+
+
+def test_simulate_next_open_blank_open_falls_back_to_entry_day_mark():
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4)]}
+    # Zero-volume entry day: Open blank → that day's EOD mark, NOT the signal day's.
+    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "", "_mark": 8.4}}}
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
+               "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, _next_open_entry_row(), {}, barchart_series, sim_cfg,
+                       structure="long_call", price_fn=lambda tk, dt: None,
+                       barchart_details=barchart_details)
+
+    assert res["entry_option_price"] == pytest.approx(8.4)
+    assert res["entry_source"] == "barchart"
+
+
+def test_simulate_next_open_signal_eod_timing_ignores_open():
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
+            "market_regime": ""}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4)]}
+    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}}}
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
+               "entry_sources": ["barchart"], "exit_sources": ["barchart"],
+               "entry_timing": "signal_eod"}
+
+    res = bt._simulate(cand, legs, _next_open_entry_row(date(2026, 6, 1)), {},
+                       barchart_series, sim_cfg, structure="long_call",
+                       price_fn=lambda tk, dt: None, barchart_details=barchart_details)
+
+    assert res["entry_option_price"] == pytest.approx(8.0)
+    assert res["entry_source"] == "barchart"
+
+
+def test_simulate_next_open_spread_legs_share_entry_day():
+    # Long 250C fills at the entry day's Open; the 270C short has no Open that day
+    # (blank → its EOD mark). Both legs are on the SAME day; tags stay per-leg.
+    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1),
+            "play": "bull call spread", "market_regime": ""}
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"),
+                 ("-1", "NVDA", "2026-07-17", 270, "Call"))
+    key_short = ("NVDA", "Call", 270.0, "2026-07-17")
+    barchart_series = {
+        _NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4)],
+        key_short: [(date(2026, 6, 1), 2.8), (date(2026, 6, 2), 3.0)],
+    }
+    barchart_details = {
+        _NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}},
+        key_short: {date(2026, 6, 2): {"Open": "", "_mark": 3.0}},
+    }
+    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
+               "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+
+    res = bt._simulate(cand, legs, _next_open_entry_row(), {}, barchart_series, sim_cfg,
+                       structure="bull_call_spread", price_fn=lambda tk, dt: None,
+                       barchart_details=barchart_details)
+
+    assert res["entry_option_price"] == pytest.approx(8.6 - 3.0)
+    assert res["entry_source"] == "barchart_open+barchart"
 
 
 def test_simulate_rejects_degenerate_spread():

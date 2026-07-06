@@ -15,10 +15,20 @@ _MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
 
 # ─── Play text extraction ──────────────────────────────────────────────────────
 
+def _primary_text(play_text: str) -> str:
+    """The play text with the 'Alt:' alternative-interpretation section stripped.
+
+    The Alt line describes what the flow might OTHERWISE be (e.g. 'covered-call
+    financing'), so its structure keywords, strikes, and dates must never feed
+    classification or contract resolution.
+    """
+    return re.split(r"\n\s*Alt:", play_text or "", maxsplit=1)[0]
+
+
 def _extract_expiration(play_text: str, ref: date) -> date | None:
     """Pull the expiration the play names, e.g. 'Jun 18'. Year inferred from signal date."""
     m = re.search(r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})",
-                  play_text, re.IGNORECASE)
+                  _primary_text(play_text), re.IGNORECASE)
     if not m:
         return None
     mon, day = _MONTHS[m.group(1)[:3].lower()], int(m.group(2))
@@ -38,7 +48,7 @@ def _extract_all_expirations(play_text: str, ref: date) -> list[date]:
     results: list[date] = []
     for m in re.finditer(
         r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})",
-        play_text, re.IGNORECASE,
+        _primary_text(play_text), re.IGNORECASE,
     ):
         mon = _MONTHS[m.group(1)[:3].lower()]
         day = int(m.group(2))
@@ -63,6 +73,7 @@ def _extract_strikes(play_text: str) -> list[float]:
     Handles both slash-separated quads (A/B/C/D) and IC-pair format
     (short A[P]/B[C], long C[P]/D[C]) where strikes carry optional P/C suffixes.
     """
+    play_text = _primary_text(play_text)
     # IC-pair format: "short NNNp/NNNc, long NNNp/NNNc"
     m4_ic = re.search(
         rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*,\s*\w+\s+(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}",
@@ -104,6 +115,7 @@ def _extract_horizon_dte(play_text: str) -> int | None:
     Extract a DTE estimate for expiry approximation when no explicit date is in text.
     Priority: inline range → inline single → bracket bucket boundary.
     """
+    play_text = _primary_text(play_text)
     m = re.search(r'\(?(\d+)\s*[-–]\s*(\d+)\s*DTE\)?', play_text, re.IGNORECASE)
     if m:
         return (int(m.group(1)) + int(m.group(2))) // 2
@@ -144,7 +156,9 @@ def classify_play(play_text: str) -> dict:
         return {"structure": "explicit_legs", "option_type": None, "strikes": [],
                 "is_credit": False, "legs": explicit}
 
-    text = (play_text or "").lower()
+    # Keyword matching sees only the primary play line — the Alt: section's
+    # alternative reads ('covered-call', 'straddle', …) must not classify.
+    text = _primary_text(play_text).lower()
     if not text.strip():
         return {"structure": "unsupported", "option_type": None, "strikes": [], "is_credit": False}
 
@@ -300,12 +314,27 @@ def _resolve_expiry(
     ``(date, None)`` on success or ``(None, ("no_expiry", message))`` on failure.
     Shared by the generic identifier and by ``IronCondorPlay`` (which resolves its own
     short-put anchor).
+
+    An explicit month/day is cross-checked against the play's declared horizon: a
+    date whose DTE falls outside [H/4, 4·H] is a context date (e.g. an earnings
+    print the flow is 'dated past'), not the intended expiry, and is discarded in
+    favor of the horizon-derived expiry.
     """
+    horizon_dte = _extract_horizon_dte(candidate["play"])
     exp = _extract_expiration(candidate["play"], candidate["signal_date"])
+    if exp is not None and horizon_dte:
+        dte = (exp - candidate["signal_date"]).days
+        if not (horizon_dte / 4 <= dte <= horizon_dte * 4):
+            log.debug(
+                "explicit expiry %s (%dd) for %s contradicts horizon %dd; "
+                "resolving from horizon instead",
+                exp, dte, candidate["ticker"], horizon_dte,
+            )
+            exp = None
     if exp is None:
         exp = _nearest_cached_expiry(
             cache_dir, candidate["ticker"], opt_type, K,
-            candidate["signal_date"], _extract_horizon_dte(candidate["play"]),
+            candidate["signal_date"], horizon_dte,
         )
     if exp is None:
         return None, ("no_expiry", f"no expiry found for {candidate['ticker']} {opt_type} {K}")
@@ -320,33 +349,53 @@ def _entry_row_from_history(
     signal_date: date,
     K: float,
     expiration_date: date,
+    timing: str = "signal_eod",
 ) -> dict | None:
-    """Build a synthetic entry_row dict from the Barchart per-contract history cache."""
+    """Build a synthetic entry_row dict from the Barchart per-contract history cache.
+
+    timing picks the entry day (stamped on the row as ``_entry_date``):
+      • ``signal_eod`` — first history day on-or-after the signal date (legacy).
+      • ``next_open``  — first history day strictly AFTER the signal date (the fill
+        happens at the next open); falls back to the signal day itself when no later
+        day exists within the staleness window, so the play is still priced (at the
+        signal day's EOD mark) rather than dropped.
+    Either way the day must be within the staleness window of the signal date.
+    """
     _ENTRY_STALENESS_DAYS = 5
 
     day_rows = barchart_details.get(contract_key)
     if not day_rows:
         return None
-    for d in sorted(day_rows):
-        if d >= signal_date:
-            if (d - signal_date).days > _ENTRY_STALENESS_DAYS:
-                log.warning(
-                    "SKIP no_history: %s — earliest data %s is %d days after signal %s; "
-                    "skipping (cannot be a true backtest without near-entry price)",
-                    contract_key, d, (d - signal_date).days, signal_date,
-                )
-                return None
-            row = day_rows[d]
-            return {
-                "Strike": K,
-                "DTE": max(0, (expiration_date - d).days),
-                "IV": row.get("IV"),
-                "Price~": row.get("Price~"),
-                "Trade": row.get("_mark"),
-                "Expires": expiration_date.isoformat(),
-                "Delta": row.get("Delta"),
-            }
-    return None
+    days = sorted(day_rows)
+    entry_day = None
+    if timing == "next_open":
+        d_after = next((d for d in days if d > signal_date), None)
+        if d_after is not None and (d_after - signal_date).days <= _ENTRY_STALENESS_DAYS:
+            entry_day = d_after
+        elif signal_date in day_rows:
+            entry_day = signal_date
+    if entry_day is None:
+        entry_day = next((d for d in days if d >= signal_date), None)
+        if entry_day is None:
+            return None
+        if (entry_day - signal_date).days > _ENTRY_STALENESS_DAYS:
+            log.warning(
+                "SKIP no_history: %s — earliest data %s is %d days after signal %s; "
+                "skipping (cannot be a true backtest without near-entry price)",
+                contract_key, entry_day, (entry_day - signal_date).days, signal_date,
+            )
+            return None
+    row = day_rows[entry_day]
+    return {
+        "Strike": K,
+        "DTE": max(0, (expiration_date - entry_day).days),
+        "IV": row.get("IV"),
+        "Price~": row.get("Price~"),
+        "Trade": row.get("_mark"),
+        "Expires": expiration_date.isoformat(),
+        "Delta": row.get("Delta"),
+        "_entry_date": entry_day,
+    }
 
 
 # ─── Flow entry matching (kept for tests; not called by main) ──────────────────

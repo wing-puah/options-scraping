@@ -219,7 +219,8 @@ def _iron_condor_strikes(
 # ─── Generic leg-list simulation ─────────────────────────────────────────────────
 
 def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_cfg,
-              structure="", anchor_idx=0, price_fn=None):
+              structure="", anchor_idx=0, price_fn=None, iv_fn=None,
+              barchart_details=None):
     """Simulate one position expressed as a list of signed Legs.
 
     For each leg, pricing follows the source priority from sim_cfg['exit_sources']:
@@ -234,7 +235,16 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     Returns a result dict, or {} if the position cannot be priced.
     barchart_series / contract_index map contract_key -> sorted [(date, price)].
+    barchart_details maps contract_key -> {date: full_row} (incl. 'Open'); when
+    provided and sim_cfg['entry_timing'] is "next_open", entry legs are priced at
+    the entry_row's '_entry_date' (the first trading day after the signal) using
+    that day's Open, falling back to that day's EOD mark. When absent, entry is
+    the legacy signal-day EOD mark.
     price_fn(ticker, date) -> float|None is injectable for testing (BS underlying).
+    iv_fn(day) -> float|None is injectable to override the BS-fallback sigma per
+    day (e.g. a term-structure-aware IV curve); falls back to the fixed entry IV
+    when absent or when it returns None for a given day. Default None keeps the
+    fixed-`iv` behavior unchanged.
     """
     legs = merge_legs(legs)
     if not legs:
@@ -279,13 +289,39 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 S = price_fn(ticker, day)
                 if S is None:
                     return None, None
-                return _bs_price(S, leg.strike, _T(leg, d), r, iv, leg.opt_type), "bs"
+                sigma = iv_fn(day) if iv_fn is not None else iv
+                if sigma is None:
+                    sigma = iv
+                return _bs_price(S, leg.strike, _T(leg, d), r, sigma, leg.opt_type), "bs"
         return None, None
 
-    # Step 1 — entry price for each leg (barchart only, all legs consistent EOD basis).
+    # Step 1 — entry price for each leg, every leg on the SAME entry day (the
+    # anchor's _entry_date: the next trading day under entry_timing "next_open",
+    # else the signal day). Under next_open a leg is filled at that day's Open,
+    # falling back to that day's EOD mark when Open is blank (zero-volume day);
+    # without barchart_details (or for a leg with no row on the entry day) pricing
+    # carries forward the most recent EOD mark on-or-before the entry day.
+    entry_timing = sim_cfg.get("entry_timing", "next_open")
+    entry_date = (entry_row.get("_entry_date") or signal_date) if barchart_details \
+        else signal_date
+    entry_d = (entry_date - signal_date).days
+    use_open = entry_timing == "next_open" and entry_date > signal_date
+
+    def _entry_price_leg(leg):
+        if use_open and "barchart" in entry_sources:
+            row = (barchart_details.get(_key(leg)) or {}).get(entry_date)
+            if row is not None:
+                op = _to_float(row.get("Open"))
+                if op and op > 0:
+                    return op, "barchart_open"
+                mk = row.get("_mark")
+                if mk and mk > 0:
+                    return mk, "barchart"
+        return _price_leg(leg, entry_date, entry_d, sources=entry_sources)
+
     entry_prices, entry_tags = [], []
     for leg in legs:
-        p, tag = _price_leg(leg, signal_date, 0, sources=entry_sources)
+        p, tag = _entry_price_leg(leg)
         if p is None:
             return {}
         entry_prices.append(p)
@@ -304,7 +340,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     detail_lines, net_delta = [], 0.0
     for i, (leg, p, tag) in enumerate(zip(legs, entry_prices, entry_tags)):
         dlt = anchor_flow_delta if (i == anchor_idx and anchor_flow_delta is not None) \
-              else _bs_delta(S_entry, leg.strike, _T(leg, 0), r, iv, leg.opt_type)
+              else _bs_delta(S_entry, leg.strike, _T(leg, entry_d), r, iv, leg.opt_type)
         net_delta += leg.qty * dlt
         cp = "C" if leg.opt_type == "Call" else "P"
         detail_lines.append(

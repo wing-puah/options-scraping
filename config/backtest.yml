@@ -27,8 +27,10 @@ analysis:
 # ── Entry matching ─────────────────────────────────────────────────────────────
 # Each play is matched to the real flow contract it refers to (same symbol +
 # direction, largest premium). Entry prices for all legs are sourced from
-# Barchart EOD history (entry_sources below) so every leg is on the same
-# pricing basis. Plays with any leg missing Barchart history are skipped.
+# Barchart history (entry_sources below) on ONE shared entry day — the next
+# trading day's Open under entry_timing: next_open (default), else the signal
+# day's EOD mark — so every leg is on the same pricing basis. Plays with any
+# leg missing Barchart history are skipped.
 entry:
   # Require the matched flow trade to be on a given side: Ask | Bid | Mid | any.
   # "Ask" = buyer-initiated (directional conviction). "any" matches the headline
@@ -147,11 +149,23 @@ simulation:
   # 'barchart' is in exit_sources.
   history_timeout_ms: 15000
 
-  # Entry pricing — all legs use the same source on signal_date. Barchart EOD is
-  # the only accepted source: intraday flow prices and Black-Scholes are excluded
-  # because they can be taken at different execution times, making spread entry
-  # costs unreliable. A play is skipped if any leg has no Barchart history.
+  # Entry pricing — all legs use the same source on one shared entry day.
+  # Barchart is the only accepted source: intraday flow prices and Black-Scholes
+  # are excluded because they can be taken at different execution times, making
+  # spread entry costs unreliable. A play is skipped if any leg has no Barchart
+  # history.
   entry_sources: [barchart]
+
+  # Entry TIMING — which day/quote the fill is taken at:
+  #   next_open  — the NEXT trading day's Open (the analysis is produced after the
+  #                close, so the realistic fill is the next open). A leg whose Open
+  #                is blank that day (zero-volume contract) falls back to that
+  #                day's EOD mark; a play whose contract has no data after the
+  #                signal date within the staleness window falls back to the
+  #                signal day's EOD mark instead of being dropped. entry_source
+  #                tags the basis per leg (barchart_open vs barchart).
+  #   signal_eod — the signal day's end-of-day mark (legacy; reproduces old runs).
+  entry_timing: next_open
 
   # Exit pricing — tried in this order, first available wins (per trading day):
   #   barchart     — REAL per-contract daily price scraped from Barchart's
@@ -207,3 +221,18 @@ output:
 
   # Google Sheets tab (set to null to skip).
   sheet_tab: BacktestResults
+
+# ── Proxy backtest (python3 -m scripts.backtest.proxy) ───────────────────────────
+# Diffs the analysis tab against BacktestResults to find plays that never produced
+# a result row, records WHY (skip_reason), and proxy-evaluates each via a fallback
+# chain (strike/expiry tweak → Black-Scholes off options history → underlying-trend
+# verdict) using the SAME simulation:/credit: exit rules above, so the numbers are
+# comparable. One row per untested play → the BacktestProxy tab (+ local CSV).
+proxy:
+  sheet_tab: BacktestProxy               # destination tab (auto-created; idempotent by identity)
+  local_csv: backtests/proxy_results.csv # local mirror (archived on each write)
+  results_source_tab: BacktestResults    # the "already tested" set to diff against
+  max_strike_steps: 6                    # Method-1 snap bound (listed strike increments)
+  max_expiry_deviation_days: 14          # Method-1 snap bound (days off the leg's expiry)
+  probe_barchart: true                   # scrape Barchart for nearby contracts missing from
+                                         # cache (default on; --cache-only disables)

@@ -18,13 +18,13 @@ samples whatever holding horizons it wants from that path.
 <!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
-| **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). Entry is at this day's flow print. |
+| **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). The entry fill is taken on the FIRST trading day AFTER this date under `simulation.entry_timing: next_open` (the default — the analysis is produced after the close), or on this date's EOD mark under `signal_eod`. |
 | **ticker** | Underlying symbol. |
 | **structure** | Resolved trade structure label: `long_call`, `long_put`, `bull_call_spread`, `bear_put_spread`, `bull_put_spread`, `bear_call_spread`, `short_put`, `short_call`, `iron_condor`, or `explicit_legs` (the play named its legs directly). Kept as a grouping label; the authoritative position is `legs`. |
 | **legs** | The full position as one or more signed legs, one per line, in the form `<TICKER>:<YYYY-MM-DD>:<STRIKE>:<C\|P> <signed_qty>` — e.g. `NVDA:2026-07-17:250:C +1` / `NVDA:2026-07-17:270:C -1`. The signed quantity is **last** so the cell never starts with `+`/`-` (Google Sheets would coerce a leading sign into a formula); parsing also accepts the legacy quantity-first form. `qty` is the per-unit ratio (sign = long/short); a separate `contracts` column holds the risk-sized number of units. Each leg carries **its own expiration**, so calendar / diagonal / ratio spreads are representable. The position is fully generic in leg count — any structure (single leg, vertical, ratio, butterfly, condor, box, iron condor, …) is just a list of signed legs. To backtest a hand-authored structure, write its legs (one per line) in the play cell; it is recognised as `explicit_legs`, bypasses the freeform classifier, and same-contract legs are merged (e.g. `+2` / `-1` → `+1`). Replaces the old `k_long` / `k_short` / `expiration` / `opt_type` columns. |
 | **entry_leg_detail** | Per-leg raw entry breakdown (sits beside `legs`) so the netted `entry_option_price`, `iv_entry_pct` and `delta` can be validated leg-by-leg. One line per leg, aligned with `legs`: `<TICKER>:<EXP>:<STRIKE>:<C\|P> <±qty>  px=<raw price> iv=<entry IV %> delta=<delta> [<source>]`. `entry_option_price` = `Σ qty·px` and `delta` = `Σ qty·delta`. The anchor leg's `delta` is the real flow value; all other legs' deltas are Black-Scholes model deltas at the entry IV. Each line leads with the contract (never a sign) so the cell stays sheet-safe. |
 | **contracts** | Risk-sized number of units of the `legs` structure. Debit (`entry_option_price > 0`): fixed-fractional sizing on the premium paid (`abs(entry_option_price) × stop_loss`). Credit (`entry_option_price < 0`): sized on the structure's STRUCTURAL max loss (`max_loss_per_contract`, below), not the credit received — a thin credit on a wide/naked structure would otherwise be wildly oversized against the risk budget. When a credit's max loss can't be bounded (naked short call, multi-expiration credit), falls back to `1` and logs a warning. See `_size_contracts` in [`scripts/backtest/simulate.py`](../scripts/backtest/simulate.py). |
-| **dte_entry** | Days to expiration at entry (anchor leg). |
+| **dte_entry** | Days to expiration at entry (anchor leg), measured from the entry day — one less than the signal-date DTE when the entry is the next day's open. |
 | **iv_entry_pct** | Implied vol of the anchor contract at entry (%). |
 | **delta** | **Net position delta** at entry = `Σ qty·delta` over the legs (the anchor leg uses the real flow delta, other legs the Black-Scholes model delta at entry IV; the same per-leg deltas appear in `entry_leg_detail`). |
 | **entry_underlying** | Underlying price (`Price~`) at entry. |
@@ -36,7 +36,7 @@ samples whatever holding horizons it wants from that path.
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
 | **entry_premium_total** | `abs(entry_option_price) × 100 × contracts` — dollar cost/credit of the position. |
-| **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `real` = anchor flow `Trade` price; `barchart` = real Barchart history; `bs` = Black-Scholes. E.g. `real`, `real+barchart`, `real+bs`. Every structure — including explicit multi-leg of any leg count — is priced real-first per leg; only *synthesized* iron condors (wings at non-listed strikes) are priced uniform-BS and report `bs` (all legs modelled at one IV for internal consistency). |
+| **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `barchart_open` = the entry day's real Open (the `next_open` fill); `barchart` = real Barchart EOD mark (the entry day had a blank Open — zero-volume — or the fill fell back to the signal day's EOD because no later day existed in the staleness window); `real` = anchor flow `Trade` price; `bs` = Black-Scholes. E.g. `barchart_open`, `barchart_open+barchart`, `real+bs`. All legs are priced on ONE shared entry day. Every structure — including explicit multi-leg of any leg count — is priced real-first per leg; only *synthesized* iron condors (wings at non-listed strikes) are priced uniform-BS and report `bs` (all legs modelled at one IV for internal consistency). |
 | **market_regime** | The market-level regime for that date (from the MARKET row), truncated at the first em-dash — e.g. `BULL TREND`. |
 | **regime** | The play's ticker-specific regime label carried from the analysis row (not the market read). |
 | **play** | The play text (truncated to 300 chars). |
@@ -120,6 +120,64 @@ on an empty tab, so inserting a column mid-schema would misalign every existing 
 - All settings that shape these columns (`profit_target`, `stop_loss`,
   `path_cap_days`, `exit_sources`, `spread_width_pct`, `contracts`, `risk_free_rate`)
   live in [`config/backtest.yml`](backtest.yml).
+
+## BacktestProxy — untested plays, proxy-evaluated
+
+Written by [`scripts/backtest/proxy.py`](../scripts/backtest/proxy.py)
+(`python3 -m scripts.backtest.proxy`) to the `BacktestProxy` tab (mirror
+`backtests/proxy_results.csv`). Each row is **one analysis play that never made it
+into `BacktestResults`** — usually because its exact contract has no Barchart data —
+with the reason it was skipped and a best-effort proxy verdict.
+
+**Identity / join key**: `(signal_date, ticker, play-text prefix)` — normalized
+(date-parsed, ticker upper-cased, play whitespace-collapsed + lower-cased, first
+60 chars) on both sides so Sheets locale reparse can't break the join, and multiple
+plays on one ticker/date stay distinct. Re-runs are idempotent: candidates whose
+key already exists in `BacktestProxy` are dropped before writing. `--redo`
+(requires `--date` or `--start`/`--end`) overrides the freeze for the bounded
+window: matching rows are deleted from the tab and the plays re-evaluated — use it
+after a classifier/pricing fix to refresh rows produced by the old code.
+
+```bash
+python3 -m scripts.backtest.proxy --config config/backtest.yml                  # all dates
+python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
+python3 -m scripts.backtest.proxy --config config/backtest.yml --start … --end …
+python3 -m scripts.backtest.proxy --config config/backtest.yml --dry-run        # no sheet/CSV write
+python3 -m scripts.backtest.proxy --config config/backtest.yml --cache-only    # no Barchart scraping
+python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21 --redo  # re-evaluate + replace
+```
+
+<!-- prettier-ignore -->
+| Column | Definition |
+|--------|-----------|
+| **skip_reason** | Why the real backtest produced no row: `unsupported` (structure has no handler), `no_strike` / `no_expiry` (play text unparseable), `no_history` (contract's Barchart history missing or not covering the entry window), `unpriced` (history covers the window but the sim still couldn't price entry). |
+| **proxy_method** | Which rung of the fallback chain produced the verdict: `strike_expiry_tweak` → `bs_options_hist` → `underlying_trend` → `unevaluable`. |
+| **proxy_detail** | Method-specific evidence. Tweaks are recorded as `orig → used` per leg; BS rows note the donor contract + entry sigma; trend rows carry `direction_correct=True/False` and the underlying move. |
+| **legs / legs_original** | `legs` = the position actually priced (tweaked legs for method 1, the play's own legs otherwise); `legs_original` = the play's own legs. Same sheet-safe leg format as `BacktestResults`. |
+| _(result columns)_ | Same names and definitions as `BacktestResults` (`entry_*`, `realized_pnl_pct`, `exit_reason`, `mfe_*`/`mae_*`, `daily_price_csv`, …) so the two tabs union downstream. Blank for `underlying_trend` (P&L not computable — `exit_reason` = `direction_only`) and `unevaluable` rows. |
+
+**Fallback chain semantics** (one verdict per play, most-realistic first):
+
+1. `strike_expiry_tweak` — every leg snaps to the nearest listed contract WITH
+   history (bounded by `proxy.max_strike_steps` strike steps and
+   `proxy.max_expiry_deviation_days` days); priced through the normal real-first
+   path, so `entry_source`/`pct_real_days` read as usual. Legs that share an
+   original expiration are pinned to ONE snapped expiration (a vertical can't
+   silently become a diagonal); if the pin can't be satisfied the method fails
+   over to 2 instead of pricing a mangled structure.
+2. `bs_options_hist` — the play's **actual** legs are Black-Scholes-priced per
+   day using a nearby donor contract's history: `Price~` as the underlying series
+   and `IV/100` as a per-day sigma. No yfinance anywhere.
+3. `underlying_trend` — direction-only verdict from the donor's `Price~` path vs
+   the structure's bullish/bearish bias; neutral structures skip to 4.
+4. `unevaluable` — no usable options history at all, or the play never built.
+
+Exit rules, sizing and the risk-free rate come from the **same `simulation:` /
+`credit:` blocks** the real backtest uses, so P&L columns are directly comparable.
+Contract discovery is cache-first (`backtests/option_history_cache/`); with
+`proxy.probe_barchart: true` (default) missing neighbors are scraped from Barchart
+and land in the cache. `--cache-only` disables scraping. All `proxy:` keys live in
+[`config/backtest.yml`](backtest.yml).
 
 ## Inspecting signal-quality gates (`--skip-llm`)
 
