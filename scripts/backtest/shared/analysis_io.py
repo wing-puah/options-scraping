@@ -41,6 +41,9 @@ def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[
             "signal": str(row.get("signal", "")).strip(),
             "play": str(row.get("play", "")).strip(),
             "invalidation": str(row.get("invalidation", "")).strip(),
+            # Dedicated horizon column (blank on legacy rows — classify falls back
+            # to regex-scraping the play bracket for those). See _resolve_expiry.
+            "horizon": str(row.get("horizon", "")).strip(),
             # Per-ticker rollup context now stored on the analysis row itself (blank
             # on rows written before this column existed; _attach_rollup_metrics
             # backfills those from the audit rollup CSV).
@@ -49,6 +52,15 @@ def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[
             "iv_spread": str(row.get("iv_spread", "")).strip(),
             "iv_skew": str(row.get("iv_skew", "")).strip(),
             "iv_pct": str(row.get("iv_pct", "")).strip(),
+            # Model evidence-quality score, component breakdown + summed total
+            # (blank on legacy rows). Carried through to the results tab so each
+            # factor can be measured against realized P&L.
+            "score_total": str(row.get("score_total", "")).strip(),
+            "score_flow": str(row.get("score_flow", "")).strip(),
+            "score_dealer": str(row.get("score_dealer", "")).strip(),
+            "score_price": str(row.get("score_price", "")).strip(),
+            "score_vol": str(row.get("score_vol", "")).strip(),
+            "score_catalyst": str(row.get("score_catalyst", "")).strip(),
         })
 
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",

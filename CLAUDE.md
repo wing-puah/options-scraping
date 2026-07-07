@@ -382,10 +382,15 @@ The `/options` skill routes as follows:
   not directional), and a market-level **Hedge pressure** score (0–100) — see
   `config/conviction-score.md`. Each play also declares `flow_intent`
   (DIRECTIONAL/VOLATILITY/HEDGE/SYNTHETIC STOCK — a classification of what the flow IS, **not** a
-  confidence cap; confidence is scored separately on evidence quality via the framework's Step 5
-  rubric, which is intent-weighted: Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY) and
-  `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the cited
-  evidence), folded into the play cell's bracket line (flow_intent upper-cased). `--days N`
+  confidence cap — folded into the play cell's bracket line, upper-cased, e.g. `[DIRECTIONAL]`)
+  and emits `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in
+  the cited evidence) as its own column beside `play`. Confidence is no longer a single label:
+  each play emits a `score` object of five Step-5 rubric component points
+  (`score_flow`/`score_dealer`/`score_price`/`score_vol`/`score_catalyst`, intent-weighted:
+  Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY), appended to the row alongside a summed
+  `score_total` (0–100; ≥70 strong, 40–69 moderate, <40 weak). The analysis also emits a
+  market-level `themes` array (`{theme, tickers, breadth, read}`) grouping the day's flow into
+  narrative clusters — presentation-only, never a multiplier on any play's score. `--days N`
   (default 5) appends a multi-day persistence section tracking recurring names
 - `modes/summary.md` — reads latest rows from AnalysisClaude + AnalysisGPT, formats for display
 - `modes/positions.md` — fetches live positions from IBKR MCP and cross-references against latest

@@ -220,6 +220,53 @@ def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
     return out
 
 
+def _score_cells(score: object) -> dict:
+    """Turn a play's ``score`` object ({flow,dealer,price,vol,catalyst} points)
+    into the sheet cells score_flow…score_catalyst + score_total (summed here,
+    never trusted to the model). Missing/non-numeric components → blank; the total
+    is the sum of whichever components are present (blank if none)."""
+    obj = score if isinstance(score, dict) else {}
+
+    def _int(v):
+        try:
+            return int(round(float(v)))
+        except (TypeError, ValueError):
+            return None
+
+    comps = {col: _int(obj.get(key)) for col, key in config.SCORE_COMPONENT_COLS.items()}
+    present = [v for v in comps.values() if v is not None]
+    cells = {"score_total": sum(present) if present else ""}
+    cells.update({col: (v if v is not None else "") for col, v in comps.items()})
+    return cells
+
+
+def _format_themes(themes: object) -> str:
+    """Render the market-level ``themes`` array into a labeled block for the
+    MARKET row's signal cell. Returns "" when there is nothing to show. Breadth is
+    shown as a plain count — it is deliberately NOT a score multiplier."""
+    if not isinstance(themes, list):
+        return ""
+    lines: list[str] = []
+    for t in themes:
+        if not isinstance(t, dict):
+            continue
+        name = str(t.get("theme", "")).strip()
+        if not name:
+            continue
+        tickers = t.get("tickers") or []
+        if isinstance(tickers, str):
+            tickers = [tickers]
+        tickers_str = ", ".join(str(x).strip() for x in tickers if str(x).strip())
+        breadth = str(t.get("breadth", "")).strip()
+        read = str(t.get("read", "")).strip()
+        head = f"{name} (breadth {breadth})" if breadth else name
+        line = f"{head}: {tickers_str}" if tickers_str else head
+        if read:
+            line += f" — {read}"
+        lines.append(f"  {line}")
+    return "Themes:\n" + "\n".join(lines) if lines else ""
+
+
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str,
                      rollup_metrics: dict[str, dict] | None = None) -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
@@ -243,18 +290,31 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
     if sector:
         market_signal = f"{market_signal}\n\nSector focus: {sector}" if market_signal else f"Sector focus: {sector}"
 
+    # themes has no dedicated column either; fold the market-level thematic
+    # breakdown into the MARKET row's signal cell the same way. Presentation only
+    # — breadth is a count of independent names, never a score multiplier.
+    themes_text = _format_themes(analysis.get("themes"))
+    if themes_text:
+        market_signal = f"{market_signal}\n\n{themes_text}" if market_signal else themes_text
+
     created_datetime = datetime.now().isoformat(timespec="seconds")
     rollup_metrics = rollup_metrics or {}
 
-    def _row(ticker, regime, signal, play, trigger, invalidation, metrics=None):
+    def _row(ticker, regime, signal, play, trigger, invalidation,
+             horizon="", metrics=None, scores=None):
         m = metrics or {}
+        s = scores or {}
         return dict(zip(ROW_COLUMNS, [
-            date_str, ticker, regime, signal, play, trigger, invalidation,
+            date_str, ticker, regime, signal, play, horizon, trigger, invalidation,
             window_start, window_end, created_datetime,
             # Deterministic per-ticker rollup context (blank on the MARKET row —
             # these are per-name flow metrics, not a market-level read).
             m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""), m.get("iv_skew", ""),
             m.get("iv_pct", ""),
+            # Model evidence-quality score, component breakdown + summed total
+            # (blank on the MARKET row and whenever the play omits `score`).
+            s.get("score_total", ""), s.get("score_flow", ""), s.get("score_dealer", ""),
+            s.get("score_price", ""), s.get("score_vol", ""), s.get("score_catalyst", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -263,21 +323,14 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         if not ticker:
             continue
         # Build the play cell as labeled lines so each part is scannable in Sheets.
-        # First line: [confidence | flow_intent | horizon] — the classification
-        # fields fold into the existing bracket line rather than new sheet
-        # columns, so the tab schema (and everything reading it) stays stable.
-        # flow_intent renders upper-case (DIRECTIONAL/VOLATILITY/HEDGE/SYNTHETIC
-        # STOCK) so it stands out from the lower-cased confidence and horizon.
+        # First line: [flow_intent] — the intent classification, upper-cased. The
+        # numeric score (component breakdown) and horizon now have their OWN sheet
+        # columns, so they no longer clutter the bracket (and the backtest reads
+        # horizon off its column instead of regex-scraping this line).
         play_lines: list[str] = []
-
-        def _label(k: str, row: dict) -> str:
-            v = str(row.get(k, "")).strip()
-            return v.upper() if k == "flow_intent" else v.lower()
-
-        labels = [_label(k, p) for k in ("confidence", "flow_intent", "horizon")]
-        labels = [x for x in labels if x]
-        if labels:
-            play_lines.append(f"[{' | '.join(labels)}]")
+        flow_intent = str(p.get("flow_intent", "")).strip().upper()
+        if flow_intent:
+            play_lines.append(f"[{flow_intent}]")
         headline_parts = [str(p.get(k, "")).strip() for k in ("pattern", "structure", "thesis")]
         headline = " | ".join(x for x in headline_parts if x)
         if headline:
@@ -289,10 +342,13 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             play_lines.append(f"Alt: {alt}")
         play_text = "\n".join(play_lines)
         trigger = str(p.get("trigger", "")).strip()
+        horizon = str(p.get("horizon", "")).strip()
+        scores = _score_cells(p.get("score"))
         play_regime = _join(p.get("regime")).strip()
         play_signal = _multiline_signal(p.get("signal"))
-        rows.append(_row(ticker, play_regime, play_signal, play_text, trigger, str(
-            p.get("invalidation", "")).strip(), metrics=rollup_metrics.get(ticker, {})))
+        rows.append(_row(ticker, play_regime, play_signal, play_text, trigger,
+                         str(p.get("invalidation", "")).strip(), horizon=horizon,
+                         metrics=rollup_metrics.get(ticker, {}), scores=scores))
     return rows
 
 

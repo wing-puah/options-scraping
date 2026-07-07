@@ -414,11 +414,18 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         "entry_leg_detail": "\n".join(detail_lines),
         "regime": candidate.get("regime", ""),
         "play": candidate["play"][:300],
+        "horizon": candidate.get("horizon", ""),
         "oi_confirm_pct": candidate.get("oi_confirm_pct", ""),
         "cpir": candidate.get("cpir", ""),
         "iv_spread": candidate.get("iv_spread", ""),
         "iv_skew": candidate.get("iv_skew", ""),
         "iv_pct": candidate.get("iv_pct", ""),
+        "score_total": candidate.get("score_total", ""),
+        "score_flow": candidate.get("score_flow", ""),
+        "score_dealer": candidate.get("score_dealer", ""),
+        "score_price": candidate.get("score_price", ""),
+        "score_vol": candidate.get("score_vol", ""),
+        "score_catalyst": candidate.get("score_catalyst", ""),
     }
 
     result.update(_summarize_path(

@@ -221,8 +221,8 @@ The two `flow_intent`s that sit **outside** the six alpha playbooks — their ed
 Produce a full slate every run: **at least 5 stock plays and at least 3 ETF plays**
 (8+ total), ordered strongest conviction first, drawn from the highest-scoring names
 in the data — stock plays from the stock sections, ETF plays from the ETF sections.
-When conviction is thin, still meet the minimums but mark those ideas low confidence
-rather than dropping them; never invent a ticker absent from the data. This is in
+When conviction is thin, still meet the minimums but let those ideas score weak
+(Step 5) rather than dropping them; never invent a ticker absent from the data. This is in
 addition to the always-present market read (regime + signals + sector focus).
 
 Format each play as:
@@ -237,7 +237,10 @@ Format each play as:
 Confidence is conviction in the play's **own thesis**, scored on evidence
 quality. It is **independent of `flow_intent`** — no intent caps it — but the
 factor *weights* depend on the intent: a directional play lives or dies on price,
-a volatility play on IV. Score each factor, sum to 0–100, map to a label:
+a volatility play on IV. The output is the five component scores themselves — a
+`score` object of `{ flow, dealer, price, vol, catalyst }` integer points, one
+per factor below. The model emits the components, not a total; the pipeline sums
+them into `score_total` (0–100) downstream.
 
 | Factor                 | Directional | Volatility | What earns it                                                                                                |
 | ---------------------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
@@ -250,7 +253,7 @@ a volatility play on IV. Score each factor, sum to 0–100, map to a label:
 **HEDGE** and **SYNTHETIC STOCK** use the Directional weighting, but score the
 relevant thesis: a HEDGE on whether the protection is genuine and well-placed
 (not a price forecast), a SYNTHETIC STOCK on whether real exposure is being
-built — it typically lands Low and is flagged rather than traded.
+built — it typically totals Weak and is flagged rather than traded.
 
 **Per-name directional vol read (`IVspr` / `IVskew`).** The rollup carries two
 direction-bearing vol columns (Lin, Lu & Driessen 2013) — use them to confirm
@@ -273,16 +276,43 @@ economically-sized **OTM** flow — the leveraged informed bet — but it is
 direction-agnostic; read direction from `IVspr`/`IVskew` and the sentiment
 columns, never from `OTM$`.
 
-Bands: **High ≥ 70 · Medium 40–69 · Low < 40.**
+Bands are read off the summed total, never emitted directly: **Strong (was
+"High") ≥ 70 · Moderate ("Medium") 40–69 · Weak ("Low") < 40.**
 
-Guardrails — these override the score *downward* only:
+Guardrails — these override the component scores *downward* only, by
+withholding points rather than by writing a label:
 
 - If the play's `alternative_interpretation` is at least as plausible as the
-  thesis → cap at Low or drop. The benign-explanation check is mandatory.
+  thesis → hold the total under 40 (zero the `price` and `catalyst` components,
+  or drop the play). The benign-explanation check is mandatory.
 - Short-dated-only evidence (≤14 DTE) cannot support a multi-week thesis →
-  downgrade to Low or re-tag as gamma/event flow.
+  hold the total under 40, or re-tag as gamma/event flow.
 - Polluted underlyings (convertible-hedge names, levered/inverse ETFs, miners as
-  crypto proxies) without cross-asset confirmation → cap at Low.
+  crypto proxies) without cross-asset confirmation → hold the total under 40.
+
+`horizon` (`14|60|180|720`, Step 3/4) is emitted as its own column beside
+`play`, not folded into the play cell's bracket line — the bracket now carries
+only `flow_intent`.
+
+---
+
+## Step 5b — Themes
+
+Group the day's plays into narrative themes and emit a `themes` array:
+`[{ theme, tickers, breadth, read }]`. This is roadmap item 14 (Theme table),
+now a live output rather than a backlog idea.
+
+- **`breadth`** = the count of **independent** names expressing the theme —
+  not a raw ticker count.
+- **Correlated agreement is breadth, not corroboration.** Three AI-semis names
+  (e.g. NVDA/AMD/SMH) calling the same trade is one trade expressed thrice, the
+  same desks and the same macro — collapse them into one theme with
+  `breadth: 3`, never read the repetition as three independent confirmations.
+  Breadth across genuinely independent asset classes (equity + credit +
+  duration + metals) counts for more than breadth piled up inside one sector.
+- `themes` is **presentation-only**: it makes the day's story auditable at a
+  glance and gives the regime sentence its evidence trail, but it never
+  multiplies or otherwise changes any play's `score`.
 
 ---
 

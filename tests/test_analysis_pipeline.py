@@ -63,32 +63,58 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
     assert nvda["signal"] == ""  # signals live on the MARKET row only
 
 
-def test_analysis_to_rows_prefixes_confidence_when_present():
+def test_analysis_to_rows_score_components_and_total():
     analysis = {
         "regime": "BULL",
         "plays": [
             {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
-             "thesis": "trend", "confidence": "Low"},
+             "thesis": "trend",
+             "score": {"flow": 22, "dealer": 20, "price": 15, "vol": 10, "catalyst": 8}},
         ],
     }
     rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
-    assert rows[1]["play"] == "[low]\nbull call 600/610 | trend"
+    spy = rows[1]
+    # No confidence band in the bracket anymore — the score lives in its own columns.
+    assert spy["play"] == "bull call 600/610 | trend"
+    assert spy["score_flow"] == 22 and spy["score_catalyst"] == 8
+    assert spy["score_total"] == 75  # summed in code, not model-produced
 
 
-def test_analysis_to_rows_folds_flow_intent_and_horizon_into_bracket_line():
+def test_analysis_to_rows_partial_score_and_bracket_is_flow_intent_only():
     analysis = {
         "regime": "RANGE",
         "plays": [
             {"ticker": "SMH", "asset_class": "etf",
              "structure": "bear put spread 560/500", "thesis": "semi hedge",
-             "confidence": "Medium", "flow_intent": "Hedge", "horizon": 60},
+             "flow_intent": "Hedge", "horizon": 60, "score": {"flow": 12}},
         ],
     }
     rows = analysis_to_rows(analysis, "2026-06-11", "2026-06-11", "2026-06-11")
-    # Classification folds into the bracket line — no new sheet columns.
-    # flow_intent renders upper-case; confidence and horizon lower-case.
-    assert rows[1]["play"].splitlines()[0] == "[medium | HEDGE | 60]"
-    assert list(rows[1].keys()) == ROW_COLUMNS
+    smh = rows[1]
+    # Bracket line carries only the upper-cased flow_intent now.
+    assert smh["play"].splitlines()[0] == "[HEDGE]"
+    # horizon is its own dedicated column, not folded into the bracket.
+    assert smh["horizon"] == "60"
+    # Partial score: present component + its total, missing components blank.
+    assert smh["score_flow"] == 12 and smh["score_total"] == 12
+    assert smh["score_dealer"] == "" and smh["score_vol"] == ""
+    assert list(smh.keys()) == ROW_COLUMNS
+
+
+def test_analysis_to_rows_folds_themes_into_market_row():
+    analysis = {
+        "regime": "BULL",
+        "signals": "[FLOW] semis bid",
+        "themes": [
+            {"theme": "AI semis", "tickers": ["NVDA", "AMD", "SMH"], "breadth": 3,
+             "read": "call flow across the complex"},
+        ],
+        "plays": [],
+    }
+    rows = analysis_to_rows(analysis, "2026-07-06", "2026-07-06", "2026-07-06")
+    market = rows[0]
+    assert "Themes:" in market["signal"]
+    assert "AI semis (breadth 3): NVDA, AMD, SMH — call flow across the complex" in market["signal"]
 
 
 def test_warn_below_targets_fires_when_short(caplog):

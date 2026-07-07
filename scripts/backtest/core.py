@@ -28,6 +28,8 @@ _KEY_ORDER = [
     "dte_entry", "iv_entry_pct", "delta", "entry_underlying",
     "entry_option_price", "entry_premium_total", "entry_source",
     "market_regime", "regime", "play",
+    # `horizon` mirrors the analysis row's dedicated column, kept beside `play`.
+    "horizon",
     "realized_pnl_pct", "realized_pnl_abs", "days_held", "exit_reason",
     "mfe_pct", "mfe_abs", "mfe_day", "mae_pct", "mae_abs", "mae_day", "pnl_at_cap_pct", "pct_real_days",
     "daily_price_csv", "daily_source_csv",
@@ -45,6 +47,11 @@ _KEY_ORDER = [
     # append_rows only writes a header on an empty tab, so inserting mid-schema
     # would misalign every existing row. See config/backtest-reference.md.
     "max_loss_per_contract", "pnl_on_risk_pct",
+    # Model evidence-quality score, component breakdown + summed total, carried
+    # straight off the analysis row. Appended at the VERY END (positional append)
+    # so each factor can be measured against realized P&L and pruned later.
+    "score_total", "score_flow", "score_dealer", "score_price", "score_vol",
+    "score_catalyst",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent

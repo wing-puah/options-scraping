@@ -110,11 +110,19 @@ def _extract_strikes(play_text: str) -> list[float]:
     return []
 
 
-def _extract_horizon_dte(play_text: str) -> int | None:
+def _extract_horizon_dte(play_text: str, explicit: object = None) -> int | None:
     """
     Extract a DTE estimate for expiry approximation when no explicit date is in text.
-    Priority: inline range → inline single → bracket bucket boundary.
+    Priority: dedicated `horizon` column (``explicit``) → inline range → inline
+    single → bracket bucket boundary (legacy rows whose horizon still lives in the
+    play bracket).
     """
+    explicit = str(explicit or "").strip()
+    if explicit:
+        try:
+            return int(float(explicit))
+        except ValueError:
+            pass
     play_text = _primary_text(play_text)
     m = re.search(r'\(?(\d+)\s*[-–]\s*(\d+)\s*DTE\)?', play_text, re.IGNORECASE)
     if m:
@@ -320,7 +328,7 @@ def _resolve_expiry(
     print the flow is 'dated past'), not the intended expiry, and is discarded in
     favor of the horizon-derived expiry.
     """
-    horizon_dte = _extract_horizon_dte(candidate["play"])
+    horizon_dte = _extract_horizon_dte(candidate["play"], candidate.get("horizon"))
     exp = _extract_expiration(candidate["play"], candidate["signal_date"])
     if exp is not None and horizon_dte:
         dte = (exp - candidate["signal_date"]).days

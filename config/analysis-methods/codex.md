@@ -270,32 +270,42 @@ Rules:
 
 ## 7. Confidence And Language
 
-Codex uses confidence implicitly:
+Confidence is emitted numerically, not as a label: a `score` object of five
+integer component points, `{ flow, dealer, price, vol, catalyst }` (Step 5
+rubric). Emit the components only — never a total; the pipeline sums them into
+`score_total` (0–100). Bands are interpretation of that total, not an output:
 
-- High: repeated, cross-confirmed, and directionally coherent evidence.
-- Medium: good evidence with a material counter-signal.
-- Low: isolated or ambiguous flow.
+- Strong (≥70): repeated, cross-confirmed, and directionally coherent evidence.
+- Moderate (40–69): good evidence with a material counter-signal.
+- Weak (<40): isolated or ambiguous flow.
 
-Only high- and medium-confidence ideas should become plays. Use calibrated
+Only strong- and moderate-scoring ideas should become plays. Use calibrated
 language such as "suggests", "supports", and "indicates"; avoid presenting flow
 interpretation as certainty.
 
 Every play also declares `flow_intent` (one of `DIRECTIONAL` / `VOLATILITY` /
 `HEDGE` / `SYNTHETIC STOCK`) and `horizon` (one of `14|60|180|720` — the DTE
 bucket boundary of the dominant expiry in the cited evidence; the rollup's `Hzn`
-column is the per-ticker cross-check). `flow_intent` is a **classification, not
-a confidence cap** (framework Step 3): `DIRECTIONAL` = a bet price moves a way
-(playbook TF/MR/GE/PU); `VOLATILITY` = a bet on the size of the move / implied
-vol, direction-agnostic (playbook VC/DP); `HEDGE` = protection on an existing
-book, framed as protection not a forecast; `SYNTHETIC STOCK` = mechanical
-deep-ITM exposure, strip intrinsic and treat as a soft tell. All four are valid
-plays and each carries its own confidence — score confidence on evidence quality
-(Step 5 rubric), weighted by intent (Price-heavy for `DIRECTIONAL`, Vol-heavy for
-`VOLATILITY`), independent of `flow_intent`. `DIRECTIONAL` vs `VOLATILITY` follows
-the playbook + structure; the opening-view-vs-`HEDGE` line turns on whether an
+column is the per-ticker cross-check), each emitted as its own column beside
+`play` — `horizon` is no longer folded into the bracket line, which now carries
+only `flow_intent`. `flow_intent` is a **classification, not a confidence cap**
+(framework Step 3): `DIRECTIONAL` = a bet price moves a way (playbook
+TF/MR/GE/PU); `VOLATILITY` = a bet on the size of the move / implied vol,
+direction-agnostic (playbook VC/DP); `HEDGE` = protection on an existing book,
+framed as protection not a forecast; `SYNTHETIC STOCK` = mechanical deep-ITM
+exposure, strip intrinsic and treat as a soft tell. All four are valid plays
+and each carries its own score — score on evidence quality (Step 5 rubric),
+weighted by intent (Price-heavy for `DIRECTIONAL`, Vol-heavy for `VOLATILITY`),
+independent of `flow_intent`. `DIRECTIONAL` vs `VOLATILITY` follows the
+playbook + structure; the opening-view-vs-`HEDGE` line turns on whether an
 offsetting position is protected. Bid-side calls / ask-side puts without a `ToOpen` label
 read as `HEDGE` or `SYNTHETIC STOCK` until evidence shows new risk opened.
 `horizon: 14` evidence cannot carry a multi-week directional thesis.
+
+Also emit market-level `themes`: `[{ theme, tickers, breadth, read }]`. `breadth`
+counts **independent** names — correlated agreement (e.g. NVDA/AMD/SMH all
+expressing one AI-semis trade) is breadth, never corroboration, and never a
+multiplier on any play's `score`.
 
 ## 8. June 2-3, 2026 Example
 

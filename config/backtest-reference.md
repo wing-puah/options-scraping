@@ -101,6 +101,20 @@ on an empty tab, so inserting a column mid-schema would misalign every existing 
 | **max_loss_per_contract** | Structural worst-case loss per contract, in dollars: `_max_loss_per_unit(legs, entry_option_price) × 100`. Debit = the premium paid (`entry_option_price × 100`) — same convention as the existing sizing, so a net-debit ratio with naked short legs understates true risk here too. Credit = `(entry_option_price − worst expiration payoff) × 100`, i.e. the credit received minus the structure's floor. **Blank (`""`)** when the max loss can't be bounded (net short calls, multi-expiration credit/calendar/diagonal) — `_size_contracts` falls back to 1 contract with a warning in that case. |
 | **pnl_on_risk_pct** | `realized_pnl_abs / (max_loss_per_contract × contracts)`, a **decimal fraction** (0.20 = 20%) of the position's own structural risk budget, rounded to 4dp. For debit trades this is mathematically identical to `realized_pnl_pct` (the denominator is the same premium paid). For credit trades it re-expresses the premium-relative `realized_pnl_pct` against the structure's true max loss instead — the number that matters for comparing risk-adjusted return across credit and debit plays on one scale. **Blank (`""`)** when `max_loss_per_contract` is blank, or when `realized_pnl_abs` isn't numeric (`exit_reason == "no_data"`). |
 
+## Model score & horizon (joined off the analysis row)
+
+Carried straight off the analysis row (not produced by simulation), so each
+component can be measured against realized P&L and pruned. `horizon` sits beside
+`play`; the `score_*` block is appended at the end. Blank on rows written before
+these columns existed. These replaced the old high/medium/low `confidence` label.
+
+<!-- prettier-ignore -->
+| Column | Definition |
+|--------|-----------|
+| **horizon** | The play's DTE bucket boundary (`14`\|`60`\|`180`\|`720`) — the dominant expiry of the cited evidence. Read off its own analysis-row column (legacy rows: regex-scraped from the play bracket). Drives expiry synthesis when no explicit month/day is named (`_resolve_expiry`). |
+| **score_total** | Sum of the five component points below (0–100), computed at row-expansion time — never model-produced. Interpretation only: ≥70 strong · 40–69 moderate · <40 weak. |
+| **score_flow** / **score_dealer** / **score_price** / **score_vol** / **score_catalyst** | The five framework Step-5 evidence-quality factors, each an integer point award. Per-factor maxima are intent-weighted (DIRECTIONAL/HEDGE/SYNTHETIC STOCK: 25/25/20/15/15; VOLATILITY: 20/25/10/25/20). |
+
 ---
 
 ## Notes

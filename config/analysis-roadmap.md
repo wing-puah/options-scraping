@@ -304,12 +304,17 @@ the LLM (and later the backtest) distinguish "the market is bearish" from
 "the market is hedged" mechanically instead of by prose discipline. Sits
 naturally on the existing scoring code in the rollup; no new data needed.
 
-### 14. Theme table — cross-ticker narrative aggregation (cheap, presentation-layer)
+### 14. Theme table — cross-ticker narrative aggregation — SHIPPED July 2026
 
 Group the day's signals into themes (e.g. long AI: MSFT/AMD/NVDA; risk-off
 hedge: SPY/QQQ/IWM; duration bid: TLT) and emit a theme → supporting-tickers
 table with a **breadth** count. Makes the day's story auditable at a glance
 and gives the regime sentence its evidence trail.
+
+Now a live output: the model emits a market-level `themes` array —
+`[{ theme, tickers, breadth, read }]` — per framework Step 5b
+(`config/analysis-framework.md`) and both method files. Presentation-only, as
+designed: it never multiplies or otherwise changes a play's `score`.
 
 **Caveat that must be built in:** correlated agreement is not corroboration.
 MSFT/AMD/NVDA call flow is one AI trade expressed three times — the same desks

@@ -68,7 +68,8 @@ log = logging.getLogger("backtest")
 # ``TKR:YYYY-MM-DD:STRIKE:C|P ±qty`` form from scripts/backtest/legs.py).
 _IDENTITY_COLS = [
     "signal_date", "ticker", "structure", "legs", "legs_original",
-    "play", "regime", "market_regime",
+    # `horizon` mirrors the analysis row's dedicated column, kept beside `play`.
+    "play", "horizon", "regime", "market_regime",
 ]
 _REASON_COLS = ["skip_reason", "proxy_method", "proxy_detail"]
 _RESULT_COLS = [
@@ -81,7 +82,14 @@ _RESULT_COLS = [
     "max_loss_per_contract", "pnl_on_risk_pct",
     "created_datetime",
 ]
-_PROXY_KEY_ORDER = _IDENTITY_COLS + _REASON_COLS + _RESULT_COLS
+# Model evidence-quality score, carried straight off the analysis row (like
+# regime/play — NOT produced by simulation). Trailing group so the column order
+# mirrors BacktestResults' end-appended score block.
+_SCORE_COLS = [
+    "score_total", "score_flow", "score_dealer", "score_price", "score_vol",
+    "score_catalyst",
+]
+_PROXY_KEY_ORDER = _IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS
 
 _ENTRY_STALENESS_DAYS = 5  # same near-entry rule the real backtest applies
 
@@ -527,8 +535,12 @@ def _identity_cols(c: dict, play) -> dict:
         "legs": "",
         "legs_original": format_legs(play.legs) if (play is not None and play.legs) else "",
         "play": str(c.get("play", ""))[:300],
+        "horizon": c.get("horizon", ""),
         "regime": c.get("regime", ""),
         "market_regime": c.get("market_regime", ""),
+        # Analysis-row score context — carried onto every proxy row (incl.
+        # unevaluable), sourced from the candidate like regime/play.
+        **{k: c.get(k, "") for k in _SCORE_COLS},
     }
 
 

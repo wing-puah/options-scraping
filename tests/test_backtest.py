@@ -376,6 +376,28 @@ def test_resolve_expiry_inline_dte_range_overrides_bracket_bucket(tmp_path):
     assert exp == date(2024, 9, 6)
 
 
+def test_resolve_expiry_prefers_horizon_column_over_bracket(tmp_path):
+    # New schema: horizon lives in its own column (the play bracket is just
+    # [FLOW_INTENT]). The column drives expiry synthesis on an empty cache.
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "MU", "signal_date": date(2024, 6, 17), "horizon": "180",
+         "play": "[DIRECTIONAL]\nTF | bull call spread 140/160 | memory-cycle bet"}
+    exp, skip = _resolve_expiry(c, "Call", 140.0, tmp_path)
+    assert skip is None
+    assert exp == date(2024, 12, 20)  # nearest Friday to signal + 180
+
+
+def test_resolve_expiry_horizon_column_rejects_contradicting_context_date(tmp_path):
+    # Column horizon 180 must still overrule an explicit context date (Jun 26).
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "MU", "signal_date": date(2024, 6, 17), "horizon": "180",
+         "play": ("[DIRECTIONAL]\nTF | bull call spread 140/160 | demand dated "
+                  "past the June 26 earnings print")}
+    exp, skip = _resolve_expiry(c, "Call", 140.0, tmp_path)
+    assert skip is None
+    assert exp == date(2024, 12, 20)
+
+
 def test_match_entry_prefers_named_expiry_on_equal_strike():
     cand = {"ticker": "MRVL"}
     near = _flow_row("MRVL", "Call", "300", "9.0", "100000")

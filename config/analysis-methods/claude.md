@@ -254,11 +254,11 @@ a direction.
 
 Coverage follows the pipeline contract: **at least 5 stock plays and 3 ETF
 plays**, ordered strongest first. The floor exists so every run produces a
-testable record — quality is enforced by the confidence label, not by the
+testable record — quality is enforced by the score, not by the
 count. A name still needs at least two of: repeated or large-premium flow,
 unusual volume/OI, sector-and-index confirmation, a clear nearby trigger level,
 and a structure that fits the regime. A name that clears fewer than two makes
-the list only as explicit low-confidence positioning, never dressed up as
+the list only as explicit weak-scoring positioning, never dressed up as
 conviction. Keep directional plays and portfolio hedges separate, and make sure
 a regime-consistent hedge is present whenever the read is `RISK-OFF` or
 hedge-pressure.
@@ -388,30 +388,42 @@ evidence test, then let confidence float on evidence quality (Step 5).
 expiry in the cited prints (≤14 → 14, 15–60 → 60, 61–180 → 180, 181+ →
 `720`). The rollup's `Hzn` column (e.g. `tact 64%`) shows the dominant bucket
 as a cross-check. Horizon must be able to contain the thesis: `14` evidence
-cannot carry a multi-week directional claim.
+cannot carry a multi-week directional claim. `horizon` is emitted as its own
+column beside `play` — it is no longer folded into the play cell's bracket
+line, which now carries only `flow_intent`.
 
 ## Confidence and language
 
-Score confidence with the framework's Step 5 rubric — the five factors, the
-intent-set weights, the 0–100 bands, and the downward guardrails all live there;
-apply them, don't restate them. Confidence is **independent of `flow_intent`**: a
-HEDGE or DIRECTIONAL play lands wherever its evidence puts it. The method emphasis
-on what each band looks like in this data:
+Confidence is no longer a single label — the output is the framework's Step 5
+rubric emitted as a `score` object: five integer component points,
+`{ flow, dealer, price, vol, catalyst }`, one per factor, sized by the
+intent-set weights. Emit the components; do not compute or emit a total — the
+pipeline sums them into `score_total` (0–100) downstream. Confidence is
+**independent of `flow_intent`**: a HEDGE or DIRECTIONAL play scores wherever
+its evidence puts it. The method emphasis on what each band of the *summed
+total* looks like in this data (interpretation only — never emitted directly):
 
-- **High** — repeated, cross-confirmed, coherent, and survives the
+- **Strong (≥70)** — repeated, cross-confirmed, coherent, and survives the
   benign-explanation check.
-- **Medium** — solid evidence with a material counter-signal, which is named in
-  the play text.
-- **Low** — isolated or ambiguous; never a conviction bet. A low-confidence idea
+- **Moderate (40–69)** — solid evidence with a material counter-signal, which
+  is named in the play text.
+- **Weak (<40)** — isolated or ambiguous; never a conviction bet. A weak idea
   may still fill a coverage slot, but it must be framed as positioning, name the
   unresolved conflict in its text, and gate its trigger on the missing
-  confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement).
+  confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement). Guardrails
+  hold the total here by withholding points (typically zeroing `price` and
+  `catalyst`), not by writing a label.
 
-High- and medium-confidence ideas are the real plays; low-confidence entries
-exist only to satisfy the coverage floor honestly rather than by inflating
-confidence. Use calibrated verbs —
-"suggests," "supports," "indicates," "consistent with" — and never "proves" or
-"shows the buyer intended."
+Strong and moderate ideas are the real plays; weak entries exist only to
+satisfy the coverage floor honestly rather than by inflating the score. Use
+calibrated verbs — "suggests," "supports," "indicates," "consistent with" —
+and never "proves" or "shows the buyer intended."
+
+Also emit market-level `themes`: `[{ theme, tickers, breadth, read }]`,
+grouping the day's plays into narrative clusters. `breadth` counts
+**independent** names, not raw tickers — correlated agreement (e.g.
+NVDA/AMD/SMH all expressing one AI-semis trade) is breadth, never
+corroboration, and `themes` never changes a play's `score`.
 
 ## Data scope
 
