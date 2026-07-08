@@ -19,10 +19,12 @@ from .fetch import (
     _last_n_trading_days,
     _latest_available_date,
     fetch_data,
+    load_flow_rows_for_scoring,
 )
 from lib.drive_client import get_drive_client
 from lib import sheets_client
 from lib.logger import setup_logging
+from lib.price_catalyst import compute_play_scores, price_catalyst_from_flow_rows
 import argparse
 import csv
 import json
@@ -220,12 +222,15 @@ def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
     return out
 
 
-def _score_cells(score: object) -> dict:
-    """Turn a play's ``score`` object ({flow,dealer,price,vol,catalyst} points)
-    into the sheet cells score_flow…score_catalyst + score_total (summed here,
-    never trusted to the model). Missing/non-numeric components → blank; the total
-    is the sum of whichever components are present (blank if none)."""
+def _score_cells(score: object, computed: dict | None = None) -> dict:
+    """Turn a play's ``score`` object ({flow,dealer,vol} points, model-emitted)
+    plus ``computed`` ({score_price,score_catalyst}, pipeline-computed from
+    lib.price_catalyst.compute_play_scores) into the sheet cells
+    score_flow…score_catalyst + score_total (summed here, never trusted to the
+    model). Missing/non-numeric components → blank; the total is the sum of
+    whichever of the 5 final components are present (blank if none)."""
     obj = score if isinstance(score, dict) else {}
+    computed = computed or {}
 
     def _int(v):
         try:
@@ -234,6 +239,8 @@ def _score_cells(score: object) -> dict:
             return None
 
     comps = {col: _int(obj.get(key)) for col, key in config.SCORE_COMPONENT_COLS.items()}
+    comps["score_price"] = _int(computed.get("score_price"))
+    comps["score_catalyst"] = _int(computed.get("score_catalyst"))
     present = [v for v in comps.values() if v is not None]
     cells = {"score_total": sum(present) if present else ""}
     cells.update({col: (v if v is not None else "") for col, v in comps.items()})
@@ -268,7 +275,8 @@ def _format_themes(themes: object) -> str:
 
 
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str,
-                     rollup_metrics: dict[str, dict] | None = None) -> list[dict]:
+                     rollup_metrics: dict[str, dict] | None = None,
+                     play_scores: dict[str, dict] | None = None) -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
 
     INVARIANT — do not regress (fixed June 2026):
@@ -315,6 +323,9 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # (blank on the MARKET row and whenever the play omits `score`).
             s.get("score_total", ""), s.get("score_flow", ""), s.get("score_dealer", ""),
             s.get("score_price", ""), s.get("score_vol", ""), s.get("score_catalyst", ""),
+            # Deterministic conviction Score/ScoreLabel (lib/flow_summary/core.py),
+            # joined by ticker just like the rollup-context block above.
+            m.get("conviction_score", ""), m.get("conviction_score_label", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -343,7 +354,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
         play_text = "\n".join(play_lines)
         trigger = str(p.get("trigger", "")).strip()
         horizon = str(p.get("horizon", "")).strip()
-        scores = _score_cells(p.get("score"))
+        scores = _score_cells(p.get("score"), play_scores.get(ticker) if play_scores else None)
         play_regime = _join(p.get("regime")).strip()
         play_signal = _multiline_signal(p.get("signal"))
         rows.append(_row(ticker, play_regime, play_signal, play_text, trigger,
@@ -387,6 +398,30 @@ def _dates_to_process(args, client) -> list[str]:
     return [latest]
 
 
+def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
+    """Per-ticker ``{"score_price": int, "score_catalyst": int}`` from fetched
+    price-history/earnings data (lib.price_catalyst), keyed by upper-cased ticker.
+
+    Re-downloads the compiled flow rows (scripts/fetch_price_catalyst.py's
+    enrichment columns) independently of the earlier fetch step, same as the
+    rollup-metrics / IV-percentile reads. Degrades to ``{}`` on any failure —
+    e.g. a date not yet enriched — so a play's score_price/score_catalyst cells
+    fall back to blank rather than crashing the run."""
+    try:
+        flow_rows = load_flow_rows_for_scoring(date_str)
+        cells_by_ticker = price_catalyst_from_flow_rows(flow_rows)
+        trade_date = date.fromisoformat(date_str)
+        play_scores: dict[str, dict] = {}
+        for p in analysis.get("plays", []) or []:
+            ticker = str(p.get("ticker", "")).strip().upper()
+            if ticker:
+                play_scores[ticker] = compute_play_scores(cells_by_ticker.get(ticker, {}), p, trade_date)
+        return play_scores
+    except Exception:
+        log.exception("Could not compute price/catalyst scores for %s", date_str)
+        return {}
+
+
 def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
                  days: int, top_n: int, raw_n: int, framework_md: str, method_md: str,
                  write: bool, focus_tickers: list[str] | None = None) -> dict | None:
@@ -411,9 +446,11 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
     prompt = build_prompt(framework_md, method_md, data_md, date_str, focus_tickers)
     analysis = run_engine(engine, prompt, model)
     _warn_if_below_targets(analysis)
+    play_scores = _compute_play_scores(analysis, date_str)
 
     rows = analysis_to_rows(analysis, date_str, window_start, window_end,
-                            rollup_metrics=_load_rollup_metrics(audit_path))
+                            rollup_metrics=_load_rollup_metrics(audit_path),
+                            play_scores=play_scores)
     if write:
         sheets_client.append_rows(tab, rows)
         log.info("Wrote %d row(s) for %s to %s", len(rows), date_str, tab)
@@ -535,8 +572,10 @@ def main(argv: list[str] | None = None) -> None:
             continue
         if not focus_tickers:  # coverage minimums don't apply to focused runs
             _warn_if_below_targets(analysis)
+        play_scores = _compute_play_scores(analysis, d)
         rows = analysis_to_rows(analysis, d, window_start, window_end,
-                                rollup_metrics=_load_rollup_metrics(audit_path))
+                                rollup_metrics=_load_rollup_metrics(audit_path),
+                                play_scores=play_scores)
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)
             log.info("Wrote %d row(s) for %s to %s", len(rows), d, tab)

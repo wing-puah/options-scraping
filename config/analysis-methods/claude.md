@@ -395,13 +395,20 @@ line, which now carries only `flow_intent`.
 ## Confidence and language
 
 Confidence is no longer a single label — the output is the framework's Step 5
-rubric emitted as a `score` object: five integer component points,
-`{ flow, dealer, price, vol, catalyst }`, one per factor, sized by the
-intent-set weights. Emit the components; do not compute or emit a total — the
-pipeline sums them into `score_total` (0–100) downstream. Confidence is
-**independent of `flow_intent`**: a HEDGE or DIRECTIONAL play scores wherever
-its evidence puts it. The method emphasis on what each band of the *summed
-total* looks like in this data (interpretation only — never emitted directly):
+rubric, but the model now emits only three of its five components: a `score`
+object of `{ flow, dealer, vol }` integer points, sized by the intent-set
+weights, plus two REQUIRED sibling fields — `key_level` (the specific price
+threshold the play's own `structure`/`invalidation`/`trigger` already implies)
+and `direction` (`bullish|bearish|neutral`). The other two Step-5 factors,
+`price` and `catalyst`, are no longer model judgment — the pipeline computes
+them from fetched price-history and earnings-date data, grounded by
+`key_level`/`direction` instead of the model's own recall
+(`lib/price_catalyst.py`). Emit the three components plus `key_level`/
+`direction`; do not compute or emit a total — the pipeline sums all five into
+`score_total` (0–100) downstream. Confidence is **independent of
+`flow_intent`**: a HEDGE or DIRECTIONAL play scores wherever its evidence puts
+it. The method emphasis on what each band of the *summed total* looks like in
+this data (interpretation only — never emitted directly):
 
 - **Strong (≥70)** — repeated, cross-confirmed, coherent, and survives the
   benign-explanation check.

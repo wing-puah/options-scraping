@@ -267,6 +267,51 @@ class BarchartSession:
         log.info("Scraped %d options-history rows for '%s'", len(rows), symbol)
         return rows
 
+    async def fetch_corporate_actions(self, symbol: str, timeout_ms: int = 30000) -> list[dict] | None:
+        """Scrape a symbol's corporate actions (earnings/dividend dates) via the page's
+        core-api feed. Returns the feed's JSON ``data`` rows (list of dicts) or None.
+
+        Same interception approach as :meth:`fetch_options_overview_history`: navigate
+        to the corporate-actions page, capture the authenticated core-api request it
+        fires, then re-issue it. Unlike the IV-history feed, NO URL augmentation is
+        needed — the page's default request already returns the full history in one
+        response (confirmed live: 126 rows back to 2021+ for MU, no pagination/limit).
+        Parsing the rows into ``[{date, event_type, value}]`` lives in
+        :mod:`lib.corporate_actions` (pure), so this only does the fetch.
+        """
+        from lib.corporate_actions import corporate_actions_url
+
+        url = corporate_actions_url(symbol)
+        log.info("Navigating to corporate-actions '%s'", url)
+
+        def _is_corp_actions_feed(r) -> bool:
+            return "core-api" in r.url and "corporateActions" in r.url
+
+        try:
+            async with self._page.expect_request(_is_corp_actions_feed, timeout=timeout_ms) as req_info:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            req = await req_info.value
+        except Exception:
+            log.exception("Did not observe the corporate-actions feed request on '%s'", url)
+            return None
+
+        headers = await req.all_headers()
+        pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+
+        try:
+            resp = await self._page.request.get(req.url, headers=pass_headers, timeout=timeout_ms)
+            if not resp.ok:
+                log.warning("Corporate-actions feed HTTP %d for '%s'", resp.status, symbol)
+                return None
+            payload = await resp.json()
+        except Exception:
+            log.exception("Corporate-actions feed fetch/parse failed for '%s'", symbol)
+            return None
+
+        rows = payload.get("data") or []
+        log.info("Scraped %d corporate-actions rows for '%s'", len(rows), symbol)
+        return rows
+
     @staticmethod
     def _augment_iv_history_url(feed_url: str, start: str | None = None,
                                end: str | None = None) -> str:

@@ -237,10 +237,15 @@ Format each play as:
 Confidence is conviction in the play's **own thesis**, scored on evidence
 quality. It is **independent of `flow_intent`** — no intent caps it — but the
 factor *weights* depend on the intent: a directional play lives or dies on price,
-a volatility play on IV. The output is the five component scores themselves — a
-`score` object of `{ flow, dealer, price, vol, catalyst }` integer points, one
-per factor below. The model emits the components, not a total; the pipeline sums
-them into `score_total` (0–100) downstream.
+a volatility play on IV. The model emits only three of the five component
+scores — a `score` object of `{ flow, dealer, vol }` integer points — plus two
+REQUIRED sibling fields, `key_level` (the specific price threshold the play's
+own `structure`/`invalidation`/`trigger` already implies) and `direction`
+(`bullish|bearish|neutral`). The remaining two factors, `price` and `catalyst`,
+are no longer model judgment: the pipeline computes them from fetched
+price-history and earnings-date data, grounded by `key_level`/`direction`
+rather than the model's own recall (`lib/price_catalyst.py`). The pipeline
+sums all five into `score_total` (0–100) downstream.
 
 | Factor                 | Directional | Volatility | What earns it                                                                                                |
 | ---------------------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
@@ -249,6 +254,12 @@ them into `score_total` (0–100) downstream.
 | **Price confirmation** | 20          | 10         | price action confirms — key level held or broken with follow-through, structure intact                       |
 | **Vol alignment**      | 15          | 25         | IV / term structure / skew fit the chosen structure (cheap-or-rising IV for debit; rich-or-falling for credit) |
 | **Catalyst support**   | 15          | 20         | a dated catalyst within the horizon corroborates the thesis (earnings, macro print, product event)           |
+
+**Flow confirmation**, **Dealer alignment**, and **Vol alignment** are the
+model-scored rows above; **Price confirmation** and **Catalyst support** are
+code-computed from fetched data and need the play's `key_level`/`direction` to
+work — see `lib/price_catalyst.py` for the exact rule rather than restating it
+here.
 
 **HEDGE** and **SYNTHETIC STOCK** use the Directional weighting, but score the
 relevant thesis: a HEDGE on whether the protection is genuine and well-placed

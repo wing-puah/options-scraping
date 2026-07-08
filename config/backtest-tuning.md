@@ -794,3 +794,162 @@ future exit tuning should re-baseline on next_open since entry level shifts
 every profit-target/stop distance. Proxy method-1 inherits the new basis
 automatically; method-2 (BS off donor) stays entry@signal_eod — the donor
 series is EOD closes, there is no open to price (noted in its detail string).
+
+---
+
+## Attempt 12 — next_open re-baseline + combined real/proxy grouped exit study (2026-07-07)
+
+**Motivation:** every exit knob in `config/backtest.yml` (debit pt 0.90 / sl 0.75 /
+no trail / tef 0.75; credit pt 0.65 / sl 1×credit / no trail / no tef) was tuned
+in Attempts 1–11 on the **signal-day-EOD** entry basis. `results.csv` has since
+been regenerated on **next-day-OPEN** entry (the fill-realism fix above), which
+shifts every profit-target/stop distance — so all prior tuning is off-basis and
+had to be re-derived. This is also the first study to (a) fold in the
+proxy-backtested plays and (b) break the book down by group (structure family /
+regime trend / vol regime / play intent) instead of one pooled total.
+
+Run with `.venv/bin/python3 backtests/combined_exit_study.py --side debit` and
+`--side credit` (harness built on Attempt 10's `exit_mechanism_study.py` replay
+engine; replays the stored `daily_price_csv` marks, mirrors `_summarize_path`
+exit priority incl. `time_exit_day = int(dte_entry × tef)`).
+
+### Method — combined tuning set + proxy segmentation
+
+- **Tuning set = real rows + proxy `strike_expiry_tweak` rows** (both priced from
+  real Barchart marks), deduped against the real rows on
+  signal_date+ticker+play-prefix. 18 proxy rows duplicated a real row and were
+  dropped (real wins): **14 debit + 4 credit**. Result: debit 94 real + 35 tweak
+  = **129**; credit 22 real + 4 tweak = **26**.
+- **Proxy `bs_options_hist` rows are a CONSISTENCY COLUMN ONLY** — fully
+  model-priced (donor-IV Black-Scholes) and still on the old signal-EOD basis, so
+  their Δ is printed beside each variant but **never decides a winner** (26 debit /
+  14 credit eligible). `unevaluable` proxy rows are excluded (no marks).
+- Because only some tweak rows are next-open basis (`tweak(open)`) and the rest are
+  old close basis (`tweak(close)`), every Δ is split
+  `real / tweak(open) / tweak(close)` so old-basis rows can't silently swing a
+  verdict.
+- **Winner discipline per group:** N ≥ 15, Δ-LOO > 0 (Δ minus its single biggest
+  contributing trade), per-month Δ not >80% concentrated in one month, and the
+  improvement survives excluding the `tweak(close)` rows.
+
+**Calibration gates (production rules replayed vs stored actuals):** debit real
+93/94 (one benign CSV round-trip rounding tie, pnl off ≤0.0001, same
+exit_reason/days — kept), credit real 22/22, tweak 35/35 + 4/4; bs 23/26 + 13/14
+(the 3+1 rounding mismatches excluded from all tables). SANITY prod-replay totals
+reproduced the stored `realized_pnl_abs` exactly on both sides (debit
++$15,736.50, credit −$5,008.50).
+
+**Process fix (grid correctness).** The harness's `DEBIT_PROD` constant still
+carried the Attempt-10-removed trailing stop; after syncing it to the real
+production config (no trail), three single-knob trail variants became silent
+no-ops (a lone `trail` override inherited `trig=None` and never armed). The grid
+was corrected so every trail variant sets **both** `trig` and `trail` explicitly.
+All trail numbers below are post-fix.
+
+### Debit re-baseline (94 real rows, next_open) — no global winner
+
+| Variant | total $ | win | Δ vs prod | Δ-LOO |
+|---|---|---|---|---|
+| **PROD** pt.90 sl.75 no-trail tef.75 | **+15,736** | 48/94 | — | — |
+| trail .50 trig .50 | +6,548 | 45/94 | −9,189 | −10,480 |
+| trail .50 trig .75 | +14,206 | 49/94 | −1,530 | −2,821 |
+| pt 1.10 no trail | +15,860 | 45/94 | +124 | −1,099 |
+| pt .75 no trail | +17,862 | 52/94 | +2,126 | −34 |
+| no trail, tef null | +15,746 | 49/94 | +9 | −1,198 |
+
+Every trig-.50 trail is a big loser (real Δ −$9.2k to −$12.2k; −$16k to −$20k on
+the combined 129-row set — the trail sells continuations exactly as Attempt 10
+found). On the **combined** set the best variant is `no trail, tef null` at
+Δ-LOO **+$624** (total +$22,923, Δ +$2,394) — but that is below any reasonable
+bar, and on **real rows alone** the same variant is Δ-LOO **−$1,198** (it clears
+prod only because the tweak rows are folded in). **Verdict: keep PROD; no global
+debit change is supported.**
+
+### Debit group findings — exits are regime-conditional, not global
+
+| Group | N | WINNER | Δ-LOO | months | Δ ex-tweak(close) |
+|---|---|---|---|---|---|
+| BEAR | 16 | **trail .50 trig .50** | +2,521 | ok (2 mo) | +2,521 |
+| H-VOL | 24 | **trail .50 trig .50** | +2,214 | ok | +3,226 |
+| L-VOL | 77 | **no trail, tef null** | +1,635 | ok | +3,405 |
+| DIRECTIONAL | 89 | **no trail, tef null** | +2,084 | ok | +3,854 |
+| RANGE | 61 | none (best +1,179, pt 1.10) | — | — | — |
+| BULL | 48 | none (best −155) | — | — | — |
+| E-VOL | 22 | none (best +18) | — | — | — |
+| HEDGE | 37 | none (best +0) | — | — | — |
+| by side / structure | 129/126 | none (best +624/+638) | — | — | — |
+
+The two surviving tweaks pull in **opposite** global directions — add a trail in
+stressed tape, drop the time exit in calm tape — which is why neither can be a
+global rule and why the pooled book shows no winner. HEDGE (N=37) is flat at the
+prod setting (best Δ-LOO $0), so the market-hedge book needs no change.
+
+**Root cause — why a trail helps in BEAR/H-VOL:** in stressed tape debit spreads
+spike then round-trip hard, so the trail banks the spike and, more importantly,
+rescues would-be stop-outs. In the March–April selloff:
+`2025-03-13 NVDA bear_put_spread` goes `stop_loss(−$897, d72) → trailing_stop(+$115, d19)`;
+`2024-07-18 HYG bear_put_spread` `dollar_stop(−$1,029, d21) → trailing_stop(+$262, d14)`;
+`2025-04-22 HYG` `dollar_stop(−$1,020, d5) → trailing_stop(−$150, d3)`. Within the
+BEAR/H-VOL names these rescues outweigh the winners the trail cuts short (e.g.
+`2025-03-20 HYG` `profit_target(+$2,754) → trailing_stop(+$81)`), netting
+Δ-LOO ≈ +$2.2–2.5k — the reverse sign of the same trail's global −$9k.
+
+**Root cause — why dropping tef helps in L-VOL/DIRECTIONAL:** the 75%-DTE time
+exit sells grinding winners that are still compounding. Flips from `tef null`:
+`2024-06-20 META bull_call_spread` `time_exit(+$271, d48) → profit_target(+$1,478, d65)`;
+`2024-07-15 KRE bull_call_spread` `time_exit(+$882, d35) → profit_target(+$1,676, d48)`;
+`2024-06-20 TLT bull_call_spread` `time_exit(+$371, d30) → profit_target(+$1,169, d31)`.
+The cost is a few losers that ride longer (`2025-03-19 TSLA`
+`time_exit(−$68) → dollar_stop(−$1,017)`), but the grind-winners dominate in calm
+tape.
+
+**Month-span caveat — treat BEAR/H-VOL as a hypothesis, not a rule.** The whole
+dataset spans only ~6 distinct months (2024-06/07/08, 2025-03/04, 2025-12), and
+BEAR ≈ H-VOL ≈ the single **March–April 2025 selloff** episode. BEAR's "months
+ok" is really two adjacent months of one episode (per-month Δ 2025-03 +$2,688 /
+2025-04 +$870, no other months present); H-VOL is marginally better distributed
+(adds 2024-08 +$704) but still selloff-dominated. Another stressed episode is
+needed before the trail finding can be trusted.
+
+### Credit (22 real + 4 tweak) — no robust winner (same single-cluster trap)
+
+| Variant | total $ (real) | Δ vs prod (real) | Δ-LOO (combined) | bs Δ |
+|---|---|---|---|---|
+| **PROD** pt.65 sl 1×credit | **−5,008** | — | — | — |
+| **pt .50** | −1,924 | **+3,084** | +1,232 | −457 |
+| pt .55 | −3,114 | +1,894 | +185 | −236 |
+| pt .50 sl none | −3,164 | +1,844 | −8 | −1,064 |
+| trail .50 trig .50, pt none | −3,310 | +1,698 | +250 | −966 |
+| sl none (dollar stop only) | −6,765 | −1,756 | −2,900 | −606 |
+
+`pt .50` posts the biggest real Δ (+$3,084) but fails the discipline test on two
+counts: **>80% single-month concentration** (real per-month 2025-03 +$2,955 vs a
++$3,084 total — the same March-2025 TSLA bear-call cluster that decided Attempts
+8/9/11), and its **bs consistency Δ is negative** (−$457). Every apparent credit
+winner is the same correlated cluster; excluding it, all variants are
+flat-to-negative. Trend/vol/intent subgroups are all N<15 or single-intent
+(DIRECTIONAL = the whole set). **Verdict: keep PROD; credit pt .50 remains
+unvalidated pending a genuinely credit-heavy, multi-cluster window.**
+
+### Verdict / Recommendation
+
+**No `config/backtest.yml` change was applied.** Production exits are kept
+unchanged globally on both sides — the re-baseline on the next_open basis
+confirms the current debit and credit profiles as the best-supported pooled
+settings, and no global variant clears the robustness bar.
+
+Two candidate follow-ups, both explicitly **not shipped**:
+
+1. **Regime-conditional debit exits** — add `trail .50 trig .50` when
+   `market_regime` is BEAR or H-VOL, and drop/loosen the time exit (`tef null`) in
+   L-VOL — the only tweaks that survived per-group discipline, and they point in
+   opposite global directions (hence no single rule). Gated on another stressed
+   (bear/high-vol) episode or more calendar months, since BEAR/H-VOL collapse to
+   the one March–April 2025 selloff today. Implementation would need the sim to
+   read the play's regime/vol label at exit time (not currently a knob).
+2. **Credit `pt .50`** — still unvalidated; every edge is the recurring
+   single-cluster March-2025 TSLA trap. Hold until a credit-heavy window with
+   independent clusters exists.
+
+The study harness (`backtests/combined_exit_study.py`) is idempotent and ready to
+re-run against any new window.

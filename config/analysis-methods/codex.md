@@ -270,10 +270,17 @@ Rules:
 
 ## 7. Confidence And Language
 
-Confidence is emitted numerically, not as a label: a `score` object of five
-integer component points, `{ flow, dealer, price, vol, catalyst }` (Step 5
-rubric). Emit the components only — never a total; the pipeline sums them into
-`score_total` (0–100). Bands are interpretation of that total, not an output:
+Confidence is emitted numerically, not as a label: a `score` object of three
+integer component points, `{ flow, dealer, vol }` (Step 5 rubric), plus two
+REQUIRED sibling fields — `key_level` (the specific price threshold the
+play's own `structure`/`invalidation`/`trigger` already implies) and
+`direction` (`bullish|bearish|neutral`). The other two Step-5 factors, `price`
+and `catalyst`, are no longer model-emitted — the pipeline computes them from
+fetched price-history and earnings-date data, grounded by `key_level`/
+`direction` instead of model recall (`lib/price_catalyst.py`). Emit the three
+components plus `key_level`/`direction` only — never a total; the pipeline
+sums all five into `score_total` (0–100). Bands are interpretation of that
+total, not an output:
 
 - Strong (≥70): repeated, cross-confirmed, and directionally coherent evidence.
 - Moderate (40–69): good evidence with a material counter-signal.

@@ -64,20 +64,42 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
 
 
 def test_analysis_to_rows_score_components_and_total():
+    # score_price/score_catalyst are no longer model-emitted (Part B4) — they come
+    # from the pipeline-computed `play_scores` dict (lib.price_catalyst), keyed by
+    # upper-cased ticker, merged in by analysis_to_rows/_score_cells.
     analysis = {
         "regime": "BULL",
         "plays": [
             {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
-             "thesis": "trend",
-             "score": {"flow": 22, "dealer": 20, "price": 15, "vol": 10, "catalyst": 8}},
+             "thesis": "trend", "key_level": 600, "direction": "bullish",
+             "score": {"flow": 22, "dealer": 20, "vol": 10}},
         ],
     }
-    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
+    play_scores = {"SPY": {"score_price": 15, "score_catalyst": 8}}
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21",
+                            play_scores=play_scores)
     spy = rows[1]
     # No confidence band in the bracket anymore — the score lives in its own columns.
     assert spy["play"] == "bull call 600/610 | trend"
     assert spy["score_flow"] == 22 and spy["score_catalyst"] == 8
-    assert spy["score_total"] == 75  # summed in code, not model-produced
+    assert spy["score_price"] == 15
+    assert spy["score_total"] == 75  # model {flow,dealer,vol} + computed {price,catalyst} summed
+
+
+def test_analysis_to_rows_score_defaults_blank_without_play_scores():
+    # If play_scores is omitted/absent for a ticker (e.g. enrichment not yet run
+    # for that date), score_price/score_catalyst degrade to blank, never crash.
+    analysis = {
+        "regime": "BULL",
+        "plays": [
+            {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
+             "thesis": "trend", "score": {"flow": 22, "dealer": 20, "vol": 10}},
+        ],
+    }
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
+    spy = rows[1]
+    assert spy["score_price"] == "" and spy["score_catalyst"] == ""
+    assert spy["score_total"] == 52  # only flow+dealer+vol present
 
 
 def test_analysis_to_rows_partial_score_and_bracket_is_flow_intent_only():

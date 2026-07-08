@@ -153,6 +153,21 @@ def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
         return {}
 
 
+def load_flow_rows_for_scoring(date_str: str | None) -> list[dict]:
+    """Re-download the compiled stocks-flow + etfs-flow rows for `date_str` (or the
+    latest date when None), already carrying scripts/fetch_price_catalyst.py's
+    price/earnings enrichment columns. A small independent Drive read — mirrors
+    how _load_counterpart_iv/_load_iv_pct re-derive their own inputs rather than
+    threading a bigger object through fetch_data's return value."""
+    try:
+        client = get_drive_client()
+        return (_load_rows(client, "stocks-flow", date_str)
+                + _load_rows(client, "etfs-flow", date_str))
+    except Exception:
+        log.exception("Could not load flow rows for scoring (%s)", date_str)
+        return []
+
+
 def fetch_data(
     date_str: str | None = None,
     *,

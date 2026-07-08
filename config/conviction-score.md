@@ -167,6 +167,12 @@ to the dealer-gamma / vol-snapshot proxy.
 | 6–8   | candidate   |
 | 9+    | high-conv   |
 
+`Score`/`ScoreLabel` also land on the `AnalysisClaude`/`AnalysisGPT`/
+`AnalysisTickerSpecific` sheet rows, as `ConvictionScore`/`ConvictionScoreLabel`
+columns (previously only in the audit CSV) — joined onto each play row by
+ticker at row-expansion time, the same mechanism already used for
+`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_pct`.
+
 Single-day **raw** ceiling is 14 (before `FinPenalty`, including a full +2
 `OIConfirm`); with `--days N` a recurrence bonus (+1 per repeat day, capped +3)
 can push the persistence-adjusted score to 17. `OIConfirm` (−2) and `FinPenalty`
