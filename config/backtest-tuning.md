@@ -953,3 +953,61 @@ Two candidate follow-ups, both explicitly **not shipped**:
 
 The study harness (`backtests/combined_exit_study.py`) is idempotent and ready to
 re-run against any new window.
+
+---
+
+## 2026-07-08 — Framework evaluation: signal-quality study on MFE/MAE basis (not an exit experiment)
+
+Audit of the analysis framework against `backtests/v1_20260625_results.csv`
+(292 rows, signal_eod basis, pre-scoring-redesign labels) and
+`backtests/results.csv` (116 rows, next_open basis). Because the exit rules are
+still under tuning, the primary basis here is **exit-independent**: "worked" =
+path MFE ≥ +30% of premium, "never moved" = MFE < +10%. These baselines don't
+move when exit knobs do, so they're reusable for future exit studies.
+
+**DTE gradient — replicates on both datasets, exit-independently.** Short-dated
+plays are worse *signals*, not an exit artifact:
+
+| DTE band | v1 n | v1 never<10% | v1 med MFE | v1 med MAE | cur n | cur never<10% | cur med MAE |
+|---|---|---|---|---|---|---|---|
+| 0–21 | 23 | 39% | +0.33 | −1.00 | 5 | 40% | −1.00 |
+| 22–45 | 89 | 26% | +0.46 | −1.00 | 23 | 22% | −1.00 |
+| 46–90 | 101 | 14% | +1.03 | −0.97 | 48 | 21% | −1.00 |
+| 91–180 | 45 | 7% | +1.24 | −0.82 | 21 | 10% | −0.97 |
+| 180+ | 34 | 6% | +0.75 | −0.49 | 19 | 5% | −0.58 |
+
+Shipped as framework Step-4 "DTE discipline" (default ≥45 DTE; shorter only
+with a named dated catalyst) + a prompt-contract discipline rule + a method-file
+bullet in both engines.
+
+**Retired high/medium/low labels did not discriminate** (v1, all rows predate
+the numeric-score redesign): worked-rate high 68% / medium 72% / low 77%;
+realized win 57% / 56% / 62%; mean realized $554 / $205 / $145 (the $ ordering
+is exit-path-driven, not signal-driven). This is the baseline `score_total`
+must beat. The `score_total`/`score_*` columns in results.csv are **entirely
+empty** — no backtested row carries the new score yet — so score validation is
+the standing follow-up (recipe in `config/analysis-roadmap.md`, alpha
+attribution).
+
+**Intent: HEDGE ≈ DIRECTIONAL on signal quality** (worked-rate ~75% vs ~73%;
+v1 n=59 vs 200), but HEDGE's realized-dollar lead ($664 vs $181 mean) rode
+median MAE ≈ −100% paths before recovering — entangled with the exit profile,
+so documented in the framework as "first-class plays" with that caveat, not
+promoted as a superior signal.
+
+**Playbook distribution is degenerate:** TF = 73% of v1 plays; VC/DP ≈ zero on
+both sets (expected — the per-name GEX gate that selects them isn't an input
+yet; flagged UNEXERCISED in the framework). Current-window small-n reads:
+GE weak (n=8, median MFE +0.07, 50% never moved), PU strong (n=11, median MFE
++1.85), MR strong on v1 (n=5, 100% worked). All small-n — log only.
+
+**Path fact relevant to stops:** median MAE is ≈ −0.9 to −1.0 in nearly every
+slice — a near-total drawdown is a *normal* excursion for these plays, which is
+the zone `stop_loss=0.75` fires into. Consistent with Attempt 3's theta-decay
+finding; worth remembering when tuning stop levels.
+
+**Weak-signal correlations on the current 116-row set** (realized pnl_pct
+basis, so exit-contaminated — retune flags, not conclusions): `oi_confirm_pct`
+r ≈ −0.03 (vs +0.40 on the Mar-2025 n=20 that set the ±2/±1 bands — flagged in
+`config/conviction-score.md`), `cpir` r ≈ −0.20, `iv_pct` r ≈ −0.16,
+`iv_spread` r ≈ +0.09, `dte_entry` r ≈ +0.21.

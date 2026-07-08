@@ -286,6 +286,10 @@ combined table. Apply that table — do not restate it. The judgment on top of i
   only when compression is explicit (`C-VOL` or VC/DP).
 - Match DTE to the catalyst: if the thesis rests on a `[CAT]` event, the expiry
   must clear it.
+- Default the structure's expiry to **≥45 DTE** (framework Step 4 DTE
+  discipline — backtested short-dated structures were worse signals, not just
+  worse exits). Go shorter only for an explicit dated catalyst inside the
+  window, named in the play.
 - Let the per-ticker **`IVpct`** column pick debit vs credit once direction is
   set — it is the "rich vs cheap" read that normalises across names (40% IV is
   rich on KO, cheap on NVDA), which the market VIX cannot. A trend name in a

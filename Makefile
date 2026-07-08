@@ -49,6 +49,11 @@ iv-percentile:
 .PHONY: iv-all
 iv-all: counterpart-iv iv-percentile
 
+# ── price catalyst ────────────────────────────────────────────────────────────────
+.PHONY: price-catalyst
+price-catalyst:
+	$(PY) scripts/fetch_price_catalyst.py $(ARGS)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze:
@@ -106,6 +111,9 @@ help:
 	@echo ""
 	@echo "  make iv-all        counterpart-iv + iv-percentile, one after another"
 	@echo "  make iv-all ARGS=\"--date 2026-06-10\"  (same ARGS passed to both)"
+	@echo ""
+	@echo "  make price-catalyst   enrich today's compiled flow with price/earnings catalyst data"
+	@echo "  make price-catalyst ARGS=\"--date 2026-06-10\"  (or --backfill, --dry-run, --force)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"

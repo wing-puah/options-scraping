@@ -188,6 +188,12 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 | **VC** Vol Compression     | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
 | **DP** Dealer Pinning      | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
 
+> ⚠️ **UNEXERCISED (VC / DP / the VOLATILITY branch):** ~zero VC/DP plays exist
+> across 292 backtested rows. That is expected — the per-name dealer-gamma/GEX
+> gate that selects these playbooks (Phase 2, see roadmap) is not yet an input —
+> but it means the VOLATILITY structure rows above are untested guidance until
+> the branch actually fires.
+
 **TF vs TF-S — choosing between them.** Weigh these factors in order; TF-S (credit) needs the *cluster*, not any one flag:
 
 1. **Per-ticker IV percentile (primary rich/cheap read).** The rollup's `IVpct` column is Barchart's options-overview IV percentile — the share of the prior-1-year days whose IV closed below today's, scraped per date (see `lib/iv_history.py`) and shown as a percentage (stored as a decimal fraction, so 70% = 0.70). It normalises across names (a 40% IV is rich on KO, cheap on NVDA), which absolute IV and VIX cannot. **High IVpct (≥70%) → IV is rich → a debit spread buys expensive premium a slow move can't overcome → prefer TF-S / credit. Low IVpct (≤30%) → IV is cheap → debit / long premium (TF).** Backtest: debit spreads in the top IV tercile had a *negative* median return vs +21% in the bottom tercile — buying rich IV is the losing regime.
@@ -216,7 +222,23 @@ The two `flow_intent`s that sit **outside** the six alpha playbooks — their ed
 | Regime-driven protection | **HEDGE**           | protective puts, collars, put spreads vs. longs; sized to the book, not a target                     |
 | Mechanical exposure      | **SYNTHETIC STOCK** | usually flagged not traded; if expressed, deep-ITM option for exposure — strip intrinsic from ranking |
 
+Backtest note on HEDGE: hedge plays matched DIRECTIONAL on signal quality
+(MFE basis, ~75% vs ~73% reaching +30% MFE) and led the realized book — treat
+them as first-class plays, not filler. Caveat: their realized-dollar edge rode
+paths with median MAE ≈ −100% before recovering, so it is entangled with the
+exit profile (still under tuning) rather than proof of a superior signal.
+
 **IV note — IV sets the ladder direction.** Pick **aggressive when IV is low or rising** (buy premium — long options / debit structures), **conservative when IV is high or falling** (sell premium — credit / defined-risk), moderate in between. The same view yields opposite structures: a *Bullish* read is a long call in cheap/rising IV but a short put or credit spread in rich/falling IV. Selecting a debit structure into high IV (or a credit structure into cheap IV) is a mismatch — fix the structure, not the view.
+
+**DTE discipline — prefer ≥45 DTE structures.** Backtests on both result sets
+(the 275-play v1 set and the current next-open-basis set) show short-dated
+structures are worse *signals*, not just worse exits: measured exit-independently,
+the share of plays whose path never reached +10% MFE falls monotonically with
+entry DTE (~40% at 0–21 DTE vs ~5–6% at 180+), median MFE roughly triples from
+the 0–21d band to the 46–180d bands, and median MAE improves from −100% toward
+−50% at the long end. Default to expiries **≥45 DTE**. A <45-DTE structure
+requires an explicit dated catalyst inside the window, named in the play;
+≤14-DTE evidence stays governed by the Step-5 gamma/event guardrail.
 
 Produce a full slate every run: **at least 5 stock plays and at least 3 ETF plays**
 (8+ total), ordered strongest conviction first, drawn from the highest-scoring names
@@ -290,6 +312,15 @@ columns, never from `OTM$`.
 Bands are read off the summed total, never emitted directly: **Strong (was
 "High") ≥ 70 · Moderate ("Medium") 40–69 · Weak ("Low") < 40.**
 
+> ⚠️ **CALIBRATION — `score_total` is unvalidated.** No backtested row carries
+> the numeric score yet (every backtested play predates the scoring redesign),
+> and the retired high/medium/low labels this rubric replaced showed **no
+> discrimination** on those rows (share reaching +30% MFE: high 68% / medium
+> 72% / low 77%). Validating `score_total` against outcomes is the load-bearing
+> follow-up (roadmap: alpha attribution), not a formality. Note also that
+> `score_dealer` is currently judged off the vol-snapshot proxy, not real
+> per-name GEX.
+
 Guardrails — these override the component scores *downward* only, by
 withholding points rather than by writing a label:
 
@@ -340,16 +371,21 @@ Format:
 
 ## Output Format
 
-Respond with a JSON object with exactly these keys (all plain strings):
+The operative schema is **`ANALYSIS_PROMPT_CONTRACT`** in
+`scripts/analysis_pipeline/config.py` — the pipeline strips this section from
+the prompt and appends that contract, so config.py is the single source of
+truth. What follows is a human-facing summary only; when it and the contract
+disagree, the contract wins.
 
-```json
-{
-  "regime": "Labels + one-sentence read. Include the macro label only when corroborated by cross-asset evidence; otherwise omit it. E.g. BEAR + H-VOL + RISK-OFF — elevated VIX, put hedging dominant across index ETFs, no sustained RISK-ON rotation.",
-  "signals": "Tagged signal list. E.g. [FLOW] Heavy QQQ put sweeps | [VEGA] VIX call buying 35-40 | [PRICE] NVDA testing 180 support",
-  "sector_focus": "Sectors/names with concentrated flow and what it implies. Cross-reference unusual activity + flow.",
-  "plays": "At least 5 stock + 3 ETF plays (8+), each tagged asset_class stock|etf, a flow_intent (DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK), and a confidence, with playbook, structure, thesis, trigger. E.g. 1. NVDA (stock, DIRECTIONAL, high) — TF | Bull call spread 185/200 | Repeated call flow into momentum continuation with dealers short gamma. Trigger: hold above 180.",
-  "invalidation": "Per-ticker invalidation conditions. E.g. NVDA: daily close < 178 with volume. QQQ: sustained hold above 460."
-}
-```
-
-Respond with JSON only — no markdown fences, no extra text.
+The engine returns one JSON object: market-level `regime`, `signals`,
+`sector_focus`, and `themes` (Step 5b), plus a `plays` array. Each play
+carries `ticker`, `asset_class` (stock|etf), `pattern` (the Step-2 playbook),
+its own per-play `regime`/`signal` (never copies of the market read),
+`structure`, `thesis`, `trigger`, `invalidation`, `flow_intent` (Step 3),
+`horizon` (14|60|180|720), a required `alternative_interpretation` (the
+benign-explanation record), a `score` object of the three model-scored
+Step-5 components (`{flow, dealer, vol}` — no total), and the required
+`key_level` + `direction` fields that ground the two pipeline-computed
+components (`price`, `catalyst` — `lib/price_catalyst.py`). Confidence
+labels/bands are never emitted; the pipeline sums all five components into
+`score_total` downstream.

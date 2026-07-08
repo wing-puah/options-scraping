@@ -16,14 +16,16 @@ record so the next change doesn't undo a deliberate decision.
   surfaced as the `Score` column. Components: `flow`/`rep`/`cross`/`voloi`/`otm`/
   `open`/`persist`, the forward-confirmed `OIConfirm` (±, item 7), and the negative
   `fin_penalty` — see `config/conviction-score.md`.
-- **Multi-day persistence** tracking (`--days N` in `scripts/prepare_analysis.py`)
+- **Multi-day persistence** tracking (`--days N` in the analysis pipeline,
+  `scripts/analysis_pipeline/`)
   — recurring names with premium and score trajectories, recomputed from raw
   daily data (no stored state).
 - **Market-level regime baseline** (June 2026) — one aggregate row per trading
   date in the `BaselineDaily` sheet tab (section C/P by premium / contracts /
   count, put-dominance breadth, key-ticker premiums, prem-weighted DTE / SPY IV),
   written daily by `scripts/build_baseline.py` via the compile workflow
-  (idempotent, self-healing `--backfill`). `prepare_analysis.py` injects a
+  (idempotent, self-healing `--backfill`). The pipeline fetch
+  (`scripts/analysis_pipeline/fetch.py`) injects a
   "Baseline context" section — today vs a staleness-aware trailing window
   (≤60 sessions within 120 days) as percentiles — and the method files gate
   strong regime labels (`RISK-OFF`/`E-VOL`) on outer-quintile readings. Pure
@@ -69,7 +71,7 @@ record so the next change doesn't undo a deliberate decision.
 - **VIX term structure snapshot** (June 2026) — `lib/vol_snapshot.py` pulls four
   CBOE indices from yfinance (`^VIX`/`^VIX9D`/`^VIX3M`/`^VVIX`) and derives
   `term_ratio` (VIX/VIX3M; >1 → backwardation) and `event_ratio` (VIX9D/VIX;
-  >1 → near-term event vol elevated). `prepare_analysis.py` injects a compact
+  >1 → near-term event vol elevated). The pipeline fetch injects a compact
   markdown section into the rollup; soft-fail with a daily cache
   (`.cache/vol_snapshot_YYYY-MM-DD.json`). This is the free, history-trivial
   first slice of the forward vol layer (item 2) — per-name IV rank / term / skew
@@ -405,13 +407,20 @@ money.** This is the missing infrastructure and the throughline of the whole pla
   instead of one blended number. That is the "different indication on the backtest"
   per phase — the head-to-head that says whether Phase 2 features or Phase 3 code
   beat the Phase 1 baseline, and whether either beats just buying the headline flow.
-- **Group by confidence label and pattern code too.** The high/medium/low gate
-  and the HP/RF/VE/SH/DC/MS patterns are unaudited: nothing measures whether
-  "high" actually outperforms "medium", or which pattern carries the alpha. Both
-  are already columns in the play rows, so this is a free cut of the same
-  attribution backtest — and it is the empirical check on the corroboration
-  ladder itself. If high-confidence plays don't beat medium over a quarter of
-  runs, the gating is decoration and the method file gets revised from the data.
+- **Group by score band and pattern code too.** PARTIALLY ANSWERED 2026-07-08:
+  the retired high/medium/low labels were audited across the 292-row v1 backtest
+  set and **did not discriminate** — share of plays reaching +30% MFE: high 68% /
+  medium 72% / low 77% (realized win rate 57/56/62%). That is the baseline the
+  numeric `score_total` redesign must beat, and the reason its validation is
+  load-bearing: every backtested row predates the scoring redesign, so the
+  `score_total`/`score_*` columns in `backtests/results.csv` are still entirely
+  empty. **Validation recipe (no new infrastructure):** the score columns are
+  already joined onto analysis rows at row-expansion and flow through to
+  BacktestResults — once enough post-redesign dates are backtested, group
+  realized P&L and MFE-basis worked-rate by `score_total` band (<40 / 40–69 /
+  ≥70) straight off the results CSV. Pattern-code attribution remains open
+  (2026-07-08 distribution note: TF = 73% of all plays; VC/DP ≈ zero pending the
+  GEX input; GE weak on MFE in the current window at n=8).
 - **Continuously re-check that alpha is still there.** The analysis is a live
   hypothesis, not a settled method — realized P&L must feed back. Add a standing
   step (and a note in the method file) to periodically run the attribution backtest,

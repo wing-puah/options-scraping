@@ -80,7 +80,11 @@ and every name reads 0 here — absence is never a penalty. Names with fewer tha
 can't earn a full bonus. Backfilled / backtested dates carry it in full. The
 −1/−2 penalty encodes the backtest finding that `OIConfirm < 40%` names
 underperform (their premium was closing/rolling flow, not new positioning). The
-bands are tunable — retune from the attribution backtest.
+bands are tunable — retune from the attribution backtest. ⚠️ A 2026-07-08
+check on the 116-row next-open-basis `backtests/results.csv` window found
+`OIConfirmPct` ≈ **uncorrelated** with realized P&L (r ≈ −0.03, vs the +0.40 on
+the original Mar-2025 n=20 that set these bands) — retune before trusting the
+±2/±1 points as anything more than a placeholder.
 
 ## Pollution / exposure columns
 

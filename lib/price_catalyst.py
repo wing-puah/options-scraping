@@ -7,10 +7,12 @@ ticker's chart/calendar. NO-LOOK-AHEAD INVARIANT: `as_of_price_cells` only ever
 uses bars on/before `trade_date` — the score must reflect what was knowable
 when the play was proposed, not future price action.
 
-The 5-bar/20-bar windows and the neutral pin-band width below are tunable pending
-a backtest pass, same treatment as the `OIConfirmPct` bands in
+The 5-bar/20-bar/50-bar windows and the neutral pin-band width below are tunable
+pending a backtest pass, same treatment as the `OIConfirmPct` bands in
 `config/conviction-score.md` — not load-bearing choices, just reasonable
-defaults to start from.
+defaults to start from. The 50-bar window (`price_50d_high`/`price_50d_low`/
+`price_sma50`) is enrichment-only, same as the 20-bar one — neither is wired
+into `_score_price` yet.
 
 Shape mirrors `lib/iv_history.py`: enrichment column constants, an
 `as_of_*_cells` picker, and a `*_from_flow_rows` read-back reader. The
@@ -26,13 +28,15 @@ from datetime import date, datetime, timedelta
 
 PRICE_CATALYST_ENRICH_COLUMNS = [
     "price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20",
+    "price_50d_high", "price_50d_low", "price_sma50",
     "next_earnings", "last_earnings",
 ]
 PRICE_CATALYST_MARKER_COLUMN = "price_catalyst_enriched_on"
 
-# Tunable: how many trailing bars "5 sessions ago" / the high-low-SMA window look back.
+# Tunable: how many trailing bars "5 sessions ago" / the high-low-SMA windows look back.
 _LOOKBACK_BARS = 5
 _TRAILING_WINDOW = 20
+_TRAILING_WINDOW_50 = 50
 
 # Tunable: how close price_d must sit to key_level (as a fraction of key_level) for a
 # `neutral` play's "structure intact" check to earn full credit.
@@ -70,10 +74,11 @@ def as_of_price_cells(series: list[tuple[date, float]], trade_date: date) -> dic
 
     `series` is a sorted `[(date, mark)]` list (the shape
     `lib.barchart_options.parse_history_series` returns). Returns
-    `{price_d, price_5d_ago, price_20d_high, price_20d_low, price_sma20}`, each
-    `float | None`.
+    `{price_d, price_5d_ago, price_20d_high, price_20d_low, price_sma20,
+    price_50d_high, price_50d_low, price_sma50}`, each `float | None`.
     """
-    keys = ("price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20")
+    keys = ("price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20",
+            "price_50d_high", "price_50d_low", "price_sma50")
     trailing = sorted((d, v) for d, v in (series or []) if d <= trade_date)
     if not trailing:
         return {k: None for k in keys}
@@ -81,6 +86,7 @@ def as_of_price_cells(series: list[tuple[date, float]], trade_date: date) -> dic
     price_d = trailing[-1][1]
     price_5d_ago = trailing[-(_LOOKBACK_BARS + 1)][1] if len(trailing) >= _LOOKBACK_BARS + 1 else None
     window = [v for _, v in trailing[-_TRAILING_WINDOW:]]
+    window50 = [v for _, v in trailing[-_TRAILING_WINDOW_50:]]
 
     return {
         "price_d": price_d,
@@ -88,6 +94,9 @@ def as_of_price_cells(series: list[tuple[date, float]], trade_date: date) -> dic
         "price_20d_high": max(window),
         "price_20d_low": min(window),
         "price_sma20": sum(window) / len(window),
+        "price_50d_high": max(window50),
+        "price_50d_low": min(window50),
+        "price_sma50": sum(window50) / len(window50),
     }
 
 
@@ -126,6 +135,9 @@ def price_catalyst_from_flow_rows(flow_rows: list[dict]) -> dict[str, dict]:
             "price_20d_high": _to_float(r.get("price_20d_high")),
             "price_20d_low": _to_float(r.get("price_20d_low")),
             "price_sma20": _to_float(r.get("price_sma20")),
+            "price_50d_high": _to_float(r.get("price_50d_high")),
+            "price_50d_low": _to_float(r.get("price_50d_low")),
+            "price_sma50": _to_float(r.get("price_sma50")),
             "next_earnings": _parse_iso_date(r.get("next_earnings")),
             "last_earnings": _parse_iso_date(r.get("last_earnings")),
         }

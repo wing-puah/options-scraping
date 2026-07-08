@@ -248,6 +248,11 @@ Discipline rules — apply to every play before awarding it a strong score:
 - `horizon` must be consistent with the thesis: short-dated evidence (≤14 DTE)
   cannot support a multi-week directional thesis — either find longer-dated
   corroboration or score it low and call it gamma/event flow.
+- DTE discipline: default the `structure`'s expiry to ≥45 DTE — backtested
+  short-dated structures were worse signals, not just worse exits (the share of
+  plays that never reached +10% MFE falls monotonically with entry DTE). A
+  <45-DTE structure is allowed ONLY when an explicit dated catalyst inside the
+  window justifies it, and the play's `signal`/`thesis` must name that catalyst.
 - For bid-side calls and ask-side puts WITHOUT a `SellToOpen` / `BuyToOpen` label,
   the play's `signal` must cite what rules out the closing / overwrite / hedge
   reading. Without that citation, the score is low at best.

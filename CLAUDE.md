@@ -80,6 +80,13 @@ python3 scripts/fetch_counterpart_iv.py --backfill            # every compiled d
 python3 scripts/fetch_counterpart_iv.py --backfill --dry-run  # report scope, no scrape/upload
 python3 scripts/fetch_counterpart_iv.py --date 2026-06-26 --force      # clear sidecar and re-fetch
 
+# Enrich a compiled flow file with price/earnings-catalyst data (grounds score_price/score_catalyst)
+python3 scripts/fetch_price_catalyst.py                       # latest compiled date (make price-catalyst)
+python3 scripts/fetch_price_catalyst.py --date 2026-06-10
+python3 scripts/fetch_price_catalyst.py --backfill            # every compiled date (idempotent)
+python3 scripts/fetch_price_catalyst.py --backfill --dry-run
+python3 scripts/fetch_price_catalyst.py --date 2026-06-10 --force   # clear columns and re-scrape
+
 # Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
 python3 -m scripts.analysis_pipeline --engine codex       # latest date, codex → AnalysisGPT
@@ -174,6 +181,15 @@ lib/                        ← shared modules, imported by scripts, never run d
                               by scripts/fetch_counterpart_iv.py (producer) and
                               lib/flow_summary/core.py (consumer) so contract keys + IV units
                               always agree
+  price_catalyst.py         — pure logic for the price/earnings-catalyst enrichment that grounds
+                              the two pipeline-computed Step-5 score components: enrichment
+                              column constants (`price_d`/`price_5d_ago`/20d+50d high-low-SMA/
+                              `next_earnings`/`last_earnings` + marker), `as_of_price_cells` /
+                              `as_of_earnings_cells` pickers (NO LOOK-AHEAD: only bars/events
+                              on/before trade date D), read-back reader, and the
+                              `score_price`/`score_catalyst` scorers keyed off each play's
+                              `key_level`/`direction`. Shape mirrors lib/iv_history.py; scrape/
+                              Drive I/O live in scripts/fetch_price_catalyst.py
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
   sheets_client.py          — read/write Google Sheets tabs
 
@@ -260,6 +276,16 @@ scripts/                    ← entry points, each maps to a workflow step
                               `_flow_ticker_rows`' matched-pair + skew accumulators. Date-keyed
                               so backtest (historical D) and live (latest D) share one path. Run
                               daily after enrich_oi.
+  fetch_price_catalyst.py   — for every distinct TICKER in a compiled flow file (trade date D
+                              from the filename), scrape the underlying's Barchart price history
+                              + corporate-actions/earnings feed, pick the as-of-D cells
+                              (lib/price_catalyst pickers — no look-ahead; yfinance forward-
+                              earnings fallback only for near-live dates), and APPEND the
+                              price/earnings columns to every row of that ticker. Same
+                              enrich-in-place/checkpoint/resume/--force pattern as
+                              fetch_iv_percentile (marker: `price_catalyst_enriched_on`).
+                              Feeds the pipeline's code-computed `score_price`/`score_catalyst`.
+                              `make price-catalyst` wraps it
   analysis_pipeline/        — full pipeline package (run via `python3 -m
                               scripts.analysis_pipeline`): fetch → headless engine call
                               (isolated session; `--engine claude|codex`, `--model` overridable)
@@ -385,10 +411,14 @@ The `/options` skill routes as follows:
   confidence cap — folded into the play cell's bracket line, upper-cased, e.g. `[DIRECTIONAL]`)
   and emits `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in
   the cited evidence) as its own column beside `play`. Confidence is no longer a single label:
-  each play emits a `score` object of five Step-5 rubric component points
-  (`score_flow`/`score_dealer`/`score_price`/`score_vol`/`score_catalyst`, intent-weighted:
-  Price-heavy for DIRECTIONAL, Vol-heavy for VOLATILITY), appended to the row alongside a summed
-  `score_total` (0–100; ≥70 strong, 40–69 moderate, <40 weak). The analysis also emits a
+  each play emits a `score` object of THREE model-scored Step-5 rubric components
+  (`{flow, dealer, vol}` integer points, intent-weighted: Price-heavy for DIRECTIONAL, Vol-heavy
+  for VOLATILITY) plus required `key_level` + `direction` fields; the other two components,
+  `price` and `catalyst`, are pipeline-computed from fetched price-history and earnings-date
+  data grounded by `key_level`/`direction` (`lib/price_catalyst.py`, enriched onto the compiled
+  flow file by `scripts/fetch_price_catalyst.py`). All five land on the row as
+  `score_flow`/`score_dealer`/`score_price`/`score_vol`/`score_catalyst` alongside the summed
+  `score_total` (0–100; ≥70 strong, 40–69 moderate, <40 weak — bands read, never emitted). The analysis also emits a
   market-level `themes` array (`{theme, tickers, breadth, read}`) grouping the day's flow into
   narrative clusters — presentation-only, never a multiplier on any play's score. `--days N`
   (default 5) appends a multi-day persistence section tracking recurring names
@@ -422,9 +452,3 @@ weight evidence and resolve conflicting flow.
 Tests live in `tests/`. `conftest.py` adds the project root (for `lib.*`) and `scripts/` to
 `sys.path`. Tests use mock Drive services injected via `DriveClient(service, root_folder_id)` — no
 real credentials needed.
-
-## Web dashboard
-
-`web/` is a Next.js app. Before writing any Next.js code, read `web/AGENTS.md` — it notes that
-this version may have breaking API changes from training data. Use `npm run dev` to start; reads
-from Google Sheets via service account credentials in `web/.env.local`.

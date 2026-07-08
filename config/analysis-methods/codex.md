@@ -207,6 +207,10 @@ the user's portfolio size, risk tolerance, or complete volatility surface.
   sell a credit spread (bull put / bear call) rather than buy a debit into rich IV.
   **Low `IVpct` (≤30%)** → debit / long premium (TF). Blank (no scraped row) → fall
   back to the vol-snapshot proxy.
+- Default the structure's expiry to **≥45 DTE** (framework Step 4 DTE
+  discipline — backtested short-dated structures were worse signals, not just
+  worse exits). Go shorter only for an explicit dated catalyst inside the
+  window, named in the play.
 
 ### Trigger Rules
 

@@ -20,6 +20,7 @@ from lib.price_catalyst import (
 def test_enrich_column_contract():
     assert PRICE_CATALYST_ENRICH_COLUMNS == [
         "price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20",
+        "price_50d_high", "price_50d_low", "price_sma50",
         "next_earnings", "last_earnings",
     ]
     assert PRICE_CATALYST_MARKER_COLUMN == "price_catalyst_enriched_on"
@@ -43,6 +44,10 @@ def test_as_of_price_cells_basic():
     assert cells["price_20d_high"] == 109.0
     assert cells["price_20d_low"] == 100.0
     assert cells["price_sma20"] == sum(100.0 + i for i in range(10)) / 10
+    # Only 10 bars available; the 50d window falls back to all of them, same as 20d.
+    assert cells["price_50d_high"] == 109.0
+    assert cells["price_50d_low"] == 100.0
+    assert cells["price_sma50"] == sum(100.0 + i for i in range(10)) / 10
 
 
 def test_as_of_price_cells_no_look_ahead():
@@ -73,11 +78,33 @@ def test_as_of_price_cells_fewer_than_twenty_bars_uses_available():
     assert cells["price_20d_low"] == 100.0
 
 
+def test_as_of_price_cells_fifty_day_window_wider_than_twenty_day():
+    # 60 ascending bars: the 20d window only sees the last 20 (140..159), the
+    # 50d window sees the last 50 (110..159) — distinct high/low/SMA.
+    series = [(date(2026, 1, 1) + timedelta(days=i), 100.0 + i) for i in range(60)]
+    trade_date = date(2026, 1, 1) + timedelta(days=59)
+    cells = as_of_price_cells(series, trade_date)
+    assert cells["price_20d_high"] == 159.0
+    assert cells["price_20d_low"] == 140.0
+    assert cells["price_50d_high"] == 159.0
+    assert cells["price_50d_low"] == 110.0
+    assert cells["price_sma50"] == sum(range(110, 160)) / 50
+
+
+def test_as_of_price_cells_fewer_than_fifty_bars_uses_available():
+    series = _bars(1, 10)
+    cells = as_of_price_cells(series, date(2026, 6, 10))
+    # Only 10 bars available; the 50d window falls back to all of them.
+    assert cells["price_50d_high"] == 109.0
+    assert cells["price_50d_low"] == 100.0
+
+
 def test_as_of_price_cells_empty_series_all_none():
     cells = as_of_price_cells([], date(2026, 6, 10))
     assert cells == {
         "price_d": None, "price_5d_ago": None,
         "price_20d_high": None, "price_20d_low": None, "price_sma20": None,
+        "price_50d_high": None, "price_50d_low": None, "price_sma50": None,
     }
 
 
@@ -121,12 +148,16 @@ def test_price_catalyst_from_flow_rows_reads_back_first_occurrence():
         {
             "Symbol": "mu", "price_d": "109.0", "price_5d_ago": "104.0",
             "price_20d_high": "109.0", "price_20d_low": "100.0", "price_sma20": "104.5",
+            "price_50d_high": "115.0", "price_50d_low": "95.0", "price_sma50": "103.2",
             "next_earnings": "2026-06-24", "last_earnings": "2026-03-18",
         },
         {"Symbol": "MU", "price_d": "999"},  # duplicate ticker row — ignored
     ]
     out = price_catalyst_from_flow_rows(rows)
     assert out["MU"]["price_d"] == 109.0
+    assert out["MU"]["price_50d_high"] == 115.0
+    assert out["MU"]["price_50d_low"] == 95.0
+    assert out["MU"]["price_sma50"] == 103.2
     assert out["MU"]["next_earnings"] == date(2026, 6, 24)
     assert out["MU"]["last_earnings"] == date(2026, 3, 18)
 

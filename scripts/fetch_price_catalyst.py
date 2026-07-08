@@ -15,9 +15,23 @@ whose filename date is the trade date D), this scrapes:
 
 picks the as-of-D cells (lib.price_catalyst.as_of_price_cells /
 as_of_earnings_cells — NO LOOK-AHEAD: only bars/events on or before D are ever
-used), and APPENDS these columns to every row of that ticker:
+used).
+
+Barchart's corporate-actions feed lags on announcing the NEXT earnings date for
+recent/live tickers — it's often only visible on the ticker's
+barchart.com/stocks/quotes/<ticker>/overview page, not the corporateActions API
+feed this scrapes. When `as_of_earnings_cells` comes back with no `next_earnings`
+AND the trade date is near-live (within _YFINANCE_FALLBACK_WINDOW_DAYS of today —
+see _is_near_live), this falls back to yfinance's forward earnings calendar
+(Ticker.calendar). The fallback is intentionally NOT applied to older/backfilled
+trade dates: yfinance's calendar only reflects TODAY's forward-looking view, so
+using it for a historical trade_date would leak a future earnings date onto a
+past row and violate the no-look-ahead invariant above.
+
+APPENDS these columns to every row of that ticker:
 
     price_d / price_5d_ago / price_20d_high / price_20d_low / price_sma20
+    price_50d_high / price_50d_low / price_sma50
     next_earnings / last_earnings
     price_catalyst_enriched_on   the run date (provenance + resume marker)
 
@@ -47,7 +61,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -133,7 +147,8 @@ def _format_cells(price_cells: dict, earnings_cells: dict) -> dict:
     place that formatting contract is honored.
     """
     out = {k: _fmt_price(price_cells.get(k)) for k in
-           ("price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20")}
+           ("price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20",
+            "price_50d_high", "price_50d_low", "price_sma50")}
     out["next_earnings"] = _fmt_date(earnings_cells.get("next_earnings"))
     out["last_earnings"] = _fmt_date(earnings_cells.get("last_earnings"))
     return out
@@ -168,6 +183,39 @@ async def _fetch_corporate_actions(session, ticker: str, timeout_ms: int) -> lis
     return parse_corporate_actions(rows) if rows else []
 
 
+# ─── yfinance next-earnings fallback (near-live dates only) ──────────────────────
+
+# Tunable: how close trade_date must be to today for the yfinance fallback to
+# apply. yfinance's calendar only reflects TODAY's forward view, so this bounds
+# the fallback to enrichment runs where "today's forward calendar" and "what was
+# knowable on trade_date" are close enough to be the same thing.
+_YFINANCE_FALLBACK_WINDOW_DAYS = 3
+
+
+def _is_near_live(trade_date: date, today: date | None = None) -> bool:
+    """True when trade_date is within _YFINANCE_FALLBACK_WINDOW_DAYS of today."""
+    return (today or date.today()) - trade_date <= timedelta(days=_YFINANCE_FALLBACK_WINDOW_DAYS)
+
+
+def _fetch_next_earnings_yfinance(ticker: str) -> date | None:
+    """Best-effort next earnings date from yfinance's forward calendar.
+
+    Returns None on any failure (missing key, network error, delisted ticker,
+    etc.) — never raises, never blocks the ticker's other cells. Only meaningful
+    for near-live trade dates (see _is_near_live) since this reflects TODAY's
+    forward view, not an as-of-trade_date one.
+    """
+    try:
+        import yfinance as yf
+
+        calendar = yf.Ticker(ticker).calendar or {}
+        dates = calendar.get("Earnings Date") or []
+        return min(dates) if dates else None
+    except Exception as e:
+        log.error("yfinance next-earnings lookup failed for %s: %s", ticker, _safe_err(e))
+        return None
+
+
 # ─── Barchart fetch + incremental fill ───────────────────────────────────────────
 
 async def _scrape_and_fill(
@@ -192,7 +240,8 @@ async def _scrape_and_fill(
             rows_by_sym.setdefault(sym, []).append(row)
 
     trade_date = date.fromisoformat(date_str)
-    stats = {"with_price": 0, "with_earnings": 0, "processed": 0}
+    near_live = _is_near_live(trade_date)
+    stats = {"with_price": 0, "with_earnings": 0, "with_earnings_yfinance": 0, "processed": 0}
 
     async def run(sess) -> None:
         for i, sym in enumerate(pending, 1):
@@ -200,6 +249,11 @@ async def _scrape_and_fill(
             actions = await _fetch_corporate_actions(sess, sym, timeout_ms)
             price_cells = as_of_price_cells(series, trade_date)
             earnings_cells = as_of_earnings_cells(actions, trade_date)
+            if earnings_cells.get("next_earnings") is None and near_live:
+                fallback = _fetch_next_earnings_yfinance(sym)
+                if fallback is not None:
+                    earnings_cells = {**earnings_cells, "next_earnings": fallback}
+                    stats["with_earnings_yfinance"] += 1
             cells = _format_cells(price_cells, earnings_cells)
             cells[PRICE_CATALYST_MARKER_COLUMN] = run_date
             if price_cells.get("price_d") is not None:
@@ -277,19 +331,23 @@ def enrich_prefix(
         log.info("%s %s: (dry-run) would scrape %d pending ticker(s) of %d",
                  prefix, date_str, len(pending), len(tickers))
         return {**base, "status": "enriched", "rows": len(rows), "tickers": len(tickers),
-                "pending": len(pending), "processed": 0, "with_price": 0, "with_earnings": 0}
+                "pending": len(pending), "processed": 0, "with_price": 0, "with_earnings": 0,
+                "with_earnings_yfinance": 0}
 
     run_date = date.today().isoformat()
     stats = asyncio.run(_scrape_and_fill(
         client, prefix, date_str, rows, pending, run_date,
         headless=headless, file_name=file_name))
 
-    log.info("%s %s: %d row(s), %d ticker(s), %d pending, %d processed, %d with price, %d with earnings",
+    log.info("%s %s: %d row(s), %d ticker(s), %d pending, %d processed, %d with price, "
+             "%d with earnings (%d via yfinance fallback)",
              prefix, date_str, len(rows), len(tickers), len(pending),
-             stats["processed"], stats["with_price"], stats["with_earnings"])
+             stats["processed"], stats["with_price"], stats["with_earnings"],
+             stats["with_earnings_yfinance"])
     return {**base, "status": "enriched", "rows": len(rows), "tickers": len(tickers),
             "pending": len(pending), "processed": stats["processed"],
-            "with_price": stats["with_price"], "with_earnings": stats["with_earnings"]}
+            "with_price": stats["with_price"], "with_earnings": stats["with_earnings"],
+            "with_earnings_yfinance": stats["with_earnings_yfinance"]}
 
 
 def main() -> None:
@@ -340,7 +398,8 @@ def main() -> None:
             print(f"  {r['date']}  {r['prefix']:<12} "
                   f"tickers={r['tickers']:>4}  pending={r['pending']:>4}  "
                   f"processed={r['processed']:>4}  with_price={r['with_price']:>4}  "
-                  f"with_earnings={r['with_earnings']:>4}"
+                  f"with_earnings={r['with_earnings']:>4}  "
+                  f"yfinance_fallback={r['with_earnings_yfinance']:>4}"
                   + ("  (dry-run)" if args.dry_run else ""))
         else:
             print(f"  {r['date']}  {r['prefix']:<12} {r['status']}")
