@@ -11,7 +11,7 @@ read the value as of the trade date.
 
 This module holds the pure pieces: the page URL and the feed-row parser. The
 authenticated fetch (Playwright feed interception) lives on
-``BarchartSession.fetch_options_overview_history``; ``scripts/fetch_iv_percentile.py``
+``BarchartSession.fetch_options_overview_history``; ``scripts/collector/fetch_iv_percentile.py``
 picks the as-of-trade-date values from the parsed series (:mod:`lib.iv_history`) and
 appends ``iv``/``iv_rank``/``iv_pct`` as columns onto the compiled flow file, which
 ``scripts/analysis_pipeline/fetch.py`` reads back per ticker.
@@ -35,6 +35,8 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from lib.parsing import to_float
+
 _BASE = "https://www.barchart.com/stocks/quotes"
 
 # Candidate feed keys, exact name first (checked against both the row's typed
@@ -49,18 +51,6 @@ _IVPCT_KEYS = ("impliedVolatilityPercentile1y", "ivPercentile",
 def options_history_url(symbol: str) -> str:
     """The options-overview history page URL for a symbol."""
     return f"{_BASE}/{symbol.upper().strip()}/options-history"
-
-
-def _to_float(value):
-    if value is None:
-        return None
-    s = str(value).strip().replace(",", "").replace("%", "").replace("$", "")
-    if s in ("", "-", "N/A", "n/a", "NA", "null", "None"):
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
 
 
 def _pick(d: dict, keys) -> object:
@@ -109,9 +99,9 @@ def parse_iv_history(rows: list[dict]) -> dict[str, dict]:
         d = _parse_date(_field(row, _DATE_KEYS))
         if d is None:
             continue
-        iv = _to_float(_field(row, _IV_KEYS))
-        iv_rank = _to_float(_field(row, _IVRANK_KEYS))
-        iv_pct = _to_float(_field(row, _IVPCT_KEYS))
+        iv = to_float(_field(row, _IV_KEYS))
+        iv_rank = to_float(_field(row, _IVRANK_KEYS))
+        iv_pct = to_float(_field(row, _IVPCT_KEYS))
         if iv is None and iv_rank is None and iv_pct is None:
             continue
         out[d.isoformat()] = {"iv": iv, "iv_rank": iv_rank, "iv_pct": iv_pct}

@@ -41,8 +41,8 @@ pytest
 pytest tests/test_drive_client.py
 
 # Scrape live data (run during/after market hours)
-SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode unusual
+SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode unusual
 
 # Compile a day's hourly flow snapshots into one deduped CSV per type (→ Drive)
 python3 scripts/compile_flow.py                      # today (ET)
@@ -60,32 +60,32 @@ python3 scripts/build_baseline.py --backfill          # every Drive date missing
 python3 scripts/build_baseline.py --backfill --dry-run
 
 # Enrich a compiled flow file with each ticker's Barchart IV percentile (IVpct source: iv/iv_rank/iv_pct columns)
-python3 scripts/fetch_iv_percentile.py                   # latest compiled date
-python3 scripts/fetch_iv_percentile.py --date 2026-06-10
-python3 scripts/fetch_iv_percentile.py --backfill        # every compiled date (idempotent; one-shot: make fetch-iv-percentile-all)
-python3 scripts/fetch_iv_percentile.py --backfill --dry-run
-python3 scripts/fetch_iv_percentile.py --date 2026-06-10 --force   # clear columns and re-scrape
+python3 scripts/collector/fetch_iv_percentile.py                   # latest compiled date
+python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10
+python3 scripts/collector/fetch_iv_percentile.py --backfill        # every compiled date (idempotent; one-shot: make fetch-iv-percentile-all)
+python3 scripts/collector/fetch_iv_percentile.py --backfill --dry-run
+python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10 --force   # clear columns and re-scrape
 
 # Enrich a compiled flow file with next-day OI change + EOD greeks (scrapes per-contract price-history)
-python3 scripts/enrich_oi.py                          # latest enrichable date (newest date skipped until D+1 exists)
-python3 scripts/enrich_oi.py --date 2026-06-09
-python3 scripts/enrich_oi.py --backfill               # every enrichable date (idempotent; skips already-enriched)
-python3 scripts/enrich_oi.py --backfill --dry-run     # report, no scrape/upload
-python3 scripts/enrich_oi.py --date 2026-06-09 --force        # clear columns and re-scrape from scratch
+python3 scripts/collector/enrich_oi.py                          # latest enrichable date (newest date skipped until D+1 exists)
+python3 scripts/collector/enrich_oi.py --date 2026-06-09
+python3 scripts/collector/enrich_oi.py --backfill               # every enrichable date (idempotent; skips already-enriched)
+python3 scripts/collector/enrich_oi.py --backfill --dry-run     # report, no scrape/upload
+python3 scripts/collector/enrich_oi.py --date 2026-06-09 --force        # clear columns and re-scrape from scratch
 
 # Backfill missing matched-pair legs' settlement IV for the IV spread/skew (→ per-date Drive sidecar)
-python3 scripts/fetch_counterpart_iv.py                       # latest compiled date
-python3 scripts/fetch_counterpart_iv.py --date 2026-06-26
-python3 scripts/fetch_counterpart_iv.py --backfill            # every compiled date (idempotent)
-python3 scripts/fetch_counterpart_iv.py --backfill --dry-run  # report scope, no scrape/upload
-python3 scripts/fetch_counterpart_iv.py --date 2026-06-26 --force      # clear sidecar and re-fetch
+python3 scripts/collector/fetch_counterpart_iv.py                       # latest compiled date
+python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26
+python3 scripts/collector/fetch_counterpart_iv.py --backfill            # every compiled date (idempotent)
+python3 scripts/collector/fetch_counterpart_iv.py --backfill --dry-run  # report scope, no scrape/upload
+python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26 --force      # clear sidecar and re-fetch
 
 # Enrich a compiled flow file with price/earnings-catalyst data (grounds score_price/score_catalyst)
-python3 scripts/fetch_price_catalyst.py                       # latest compiled date (make price-catalyst)
-python3 scripts/fetch_price_catalyst.py --date 2026-06-10
-python3 scripts/fetch_price_catalyst.py --backfill            # every compiled date (idempotent)
-python3 scripts/fetch_price_catalyst.py --backfill --dry-run
-python3 scripts/fetch_price_catalyst.py --date 2026-06-10 --force   # clear columns and re-scrape
+python3 scripts/collector/fetch_price_catalyst.py                       # latest compiled date (make price-catalyst)
+python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10
+python3 scripts/collector/fetch_price_catalyst.py --backfill            # every compiled date (idempotent)
+python3 scripts/collector/fetch_price_catalyst.py --backfill --dry-run
+python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10 --force   # clear columns and re-scrape
 
 # Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
@@ -99,8 +99,8 @@ python3 -m scripts.analysis_pipeline --fetch-only                  # fetch + aud
 python3 -m scripts.analysis_pipeline --fetch-only --date 2026-06-09
 
 # Scrape historical data to Google Drive
-python3 scripts/barchart_scrape.py --date 2026-04-21
-python3 scripts/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/barchart_scrape.py --date 2026-04-21
+python3 scripts/collector/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml
@@ -151,18 +151,27 @@ Google Sheets (service account) ──► Next.js Dashboard (web/)
 
 ```
 lib/                        ← shared modules, imported by scripts, never run directly
-  barchart.py               — BarchartSession (Playwright login + CSV download)
-  barchart_options.py       — per-contract historical option prices (price-history URL + parse,
+  barchart/                 ← Barchart scrapers + feed parsers ONLY (scrape/parse, no logic).
+                              `from lib.barchart import BarchartSession` re-exported from __init__
+    session.py              — BarchartSession (Playwright login + CSV download)
+    options.py              — per-contract historical option prices (price-history URL + parse,
                               mark-to-mid)
-  baseline.py               — market-level daily baseline: per-date aggregate row schema,
-                              staleness-aware trailing window, percentile context markdown (pure
-                              functions; tab I/O lives in scripts/build_baseline.py)
-  barchart_iv_history.py    — pure URL builder + feed-row parser for Barchart's options-overview
+    iv_history.py           — pure URL builder + feed-row parser for Barchart's options-overview
                               IV history (daily IV / IV rank / IV percentile series, up to
                               ~2yr). Field mapping is a best guess to VERIFY against a live feed
                               capture. Fetch (feed interception) lives on
                               BarchartSession.fetch_options_overview_history
-  iv_history.py             — per-ticker IV-percentile enrichment helpers:
+    underlying.py           — underlying-stock price-history URL builder (reuses the option
+                              price-history feed + options.parse_history_series)
+    corporate_actions.py    — Barchart corporate-actions (earnings/dividend) feed URL + JSON parser
+  parsing.py                — `to_float`: the single Barchart numeric-cell parser (strips , $ %
+                              and sentinels). Replaces the old per-module `_to_float` copies;
+                              imported across the barchart package, flow_summary, and backtest
+  baseline.py               — market-level daily baseline: per-date aggregate row schema,
+                              staleness-aware trailing window, percentile context markdown (pure
+                              functions; tab I/O lives in scripts/build_baseline.py)
+  iv_history.py             — per-ticker IV-percentile enrichment (pure logic; consumes
+                              lib/barchart/iv_history.py — kept OUT of the barchart package):
                               `IV_ENRICH_COLUMNS`/`IV_MARKER_COLUMN` (the iv/iv_rank/iv_pct +
                               `iv_pct_enriched_on` columns appended to the compiled flow file),
                               `as_of_iv_cells` (pick a ticker's iv/iv_rank/iv_pct AS OF trade
@@ -172,13 +181,13 @@ lib/                        ← shared modules, imported by scripts, never run d
                               the enriched rows — how the analysis consumes it). The per-name
                               "rich vs cheap" read (Barchart IV percentile) the framework's
                               Step-4 TF-vs-TF-S structure choice needs. Pure functions;
-                              scrape/Drive I/O live in scripts/fetch_iv_percentile.py. NO
+                              scrape/Drive I/O live in scripts/collector/fetch_iv_percentile.py. NO
                               separate cache tab — enriched in place like enrich_oi
   csv_utils.py              — parse_csv (strips Barchart footer)
   counterpart_iv.py         — pure logic for the IV-spread counterpart fetch: which missing legs
                               to fetch (`needed_counterparts`), the per-date sidecar
                               schema/name, and the `build_iv_lookup` the rollup folds in. Shared
-                              by scripts/fetch_counterpart_iv.py (producer) and
+                              by scripts/collector/fetch_counterpart_iv.py (producer) and
                               lib/flow_summary/core.py (consumer) so contract keys + IV units
                               always agree
   price_catalyst.py         — pure logic for the price/earnings-catalyst enrichment that grounds
@@ -189,12 +198,16 @@ lib/                        ← shared modules, imported by scripts, never run d
                               on/before trade date D), read-back reader, and the
                               `score_price`/`score_catalyst` scorers keyed off each play's
                               `key_level`/`direction`. Shape mirrors lib/iv_history.py; scrape/
-                              Drive I/O live in scripts/fetch_price_catalyst.py
+                              Drive I/O live in scripts/collector/fetch_price_catalyst.py
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
   sheets_client.py          — read/write Google Sheets tabs
 
 scripts/                    ← entry points, each maps to a workflow step
-  barchart_scrape.py        — scrape barchart → Drive; live (--mode) or historical (--date/--start)
+  collector/                ← data collectors (path-invoked; group the scrape/enrich/fetch step).
+                              barchart_scrape.py, enrich_oi.py, fetch_iv_percentile.py,
+                              fetch_counterpart_iv.py, fetch_price_catalyst.py live here — run as
+                              `python scripts/collector/<name>.py`
+  collector/barchart_scrape.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one
                               deduped CSV per type (trade-identity dedup) →
                               {prefix}-{YYYYMMDD}-compiled.csv in Drive
@@ -211,7 +224,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               history for a small window around D
                               (BarchartSession.fetch_options_overview_history with
                               startDate/endDate — a handful of rows, not the full ~2yr series →
-                              lib/barchart_iv_history.parse_iv_history), pick the values AS OF D
+                              lib/barchart/iv_history.parse_iv_history), pick the values AS OF D
                               (lib/iv_history.as_of_iv_cells; exact date else most-recent within
                               a staleness window), and APPEND columns to every row of that
                               ticker: `iv` (points), `iv_rank`/`iv_pct` (decimals),
@@ -342,12 +355,12 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ```
 # Live (runs 2×/day via GitHub Actions, then skill on demand)
-scripts/barchart_scrape.py --mode flow
-scripts/barchart_scrape.py --mode unusual
+scripts/collector/barchart_scrape.py --mode flow
+scripts/collector/barchart_scrape.py --mode unusual
 → /options analyze  (Claude Code or GPT Codex)
 
 # Historical
-scripts/barchart_scrape.py --start … --end …
+scripts/collector/barchart_scrape.py --start … --end …
 python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 ```
 
@@ -416,7 +429,7 @@ The `/options` skill routes as follows:
   for VOLATILITY) plus required `key_level` + `direction` fields; the other two components,
   `price` and `catalyst`, are pipeline-computed from fetched price-history and earnings-date
   data grounded by `key_level`/`direction` (`lib/price_catalyst.py`, enriched onto the compiled
-  flow file by `scripts/fetch_price_catalyst.py`). All five land on the row as
+  flow file by `scripts/collector/fetch_price_catalyst.py`). All five land on the row as
   `score_flow`/`score_dealer`/`score_price`/`score_vol`/`score_catalyst` alongside the summed
   `score_total` (0–100; ≥70 strong, 40–69 moderate, <40 weak — bands read, never emitted). The analysis also emits a
   market-level `themes` array (`{theme, tickers, breadth, read}`) grouping the day's flow into

@@ -24,12 +24,12 @@ serves the backtest (historical D) and a live run (latest D). The rollup
 `scripts/analysis_pipeline/fetch.py` loads it at analysis time.
 
 Usage:
-  python3 scripts/fetch_counterpart_iv.py                        # latest compiled date
-  python3 scripts/fetch_counterpart_iv.py --date 2026-06-26
-  python3 scripts/fetch_counterpart_iv.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/fetch_counterpart_iv.py --backfill             # every compiled date
-  python3 scripts/fetch_counterpart_iv.py --backfill --dry-run   # report scope, no scrape
-  python3 scripts/fetch_counterpart_iv.py --date 2026-06-26 --force   # re-fetch from scratch
+  python3 scripts/collector/fetch_counterpart_iv.py                        # latest compiled date
+  python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26
+  python3 scripts/collector/fetch_counterpart_iv.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/fetch_counterpart_iv.py --backfill             # every compiled date
+  python3 scripts/collector/fetch_counterpart_iv.py --backfill --dry-run   # report scope, no scrape
+  python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26 --force   # re-fetch from scratch
 """
 import argparse
 import asyncio
@@ -43,13 +43,13 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parents[2] / ".env")
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
-from lib import barchart_options
-from lib.barchart_options import _to_float
-from lib.barchart import BarchartSession, _safe_err
+sys.path.insert(0, str(Path(__file__).parents[2]))
+sys.path.insert(0, str(Path(__file__).parents[1]))
+from lib.barchart import options as barchart_options
+from lib.barchart import BarchartSession
+from lib.parsing import to_float
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib.counterpart_iv import (
@@ -58,13 +58,13 @@ from lib.counterpart_iv import (
     needed_counterparts,
     sidecar_name,
 )
-from lib.logger import setup_logging
+from lib.logger import safe_err, setup_logging
 from compile_flow import FLOW_PREFIXES, compiled_name
 
 log = logging.getLogger("fetch_counterpart_iv")
 
 CHECKPOINT_EVERY = 50
-_DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
 
 
 def _fmt(v) -> str:
@@ -155,7 +155,7 @@ def _done_keys(sidecar_rows: list[dict]) -> set[tuple]:
     for r in sidecar_rows:
         if not str(r.get("fetched_on", "")).strip():
             continue
-        strike = _to_float(r.get("Strike"))
+        strike = to_float(r.get("Strike"))
         if strike is None:
             continue
         done.add(contract_key(r.get("Symbol", ""), r.get("Type", ""),
@@ -178,17 +178,17 @@ async def _fetch_iv(session, contract: dict, trade_date: date, timeout_ms: int) 
     try:
         csv_text = await session.fetch_history_fast(url, timeout_ms)
     except Exception as e:
-        log.error("Barchart scrape failed for %s: %s", contract["key"], _safe_err(e))
+        log.error("Barchart scrape failed for %s: %s", contract["key"], safe_err(e))
         csv_text = None
     details = barchart_options.parse_history_details(csv_text, require_mark=False) if csv_text else {}
     day = details.get(trade_date)
     if not day:
         return {"iv": "", "oi": "", "vol": "", "delta": "", "price": ""}
     return {
-        "iv": _fmt(_to_float(day.get("IV"))),
-        "oi": _fmt_int(_to_float(day.get("Open Int"))),
-        "vol": _fmt_int(_to_float(day.get("Volume"))),
-        "delta": _fmt(_to_float(day.get("Delta"))),
+        "iv": _fmt(to_float(day.get("IV"))),
+        "oi": _fmt_int(to_float(day.get("Open Int"))),
+        "vol": _fmt_int(to_float(day.get("Volume"))),
+        "delta": _fmt(to_float(day.get("Delta"))),
         "price": _fmt(day.get("_mark")),
     }
 

@@ -258,7 +258,7 @@ def _flow_ticker_rows(rows: Iterable[dict],
     ``counterpart_iv`` (optional) is ``{UPPER_SYMBOL: [contract, ...]}`` from
     :func:`lib.counterpart_iv.build_iv_lookup` — the settlement IV of counterpart legs
     that did NOT trade, fetched from Barchart price-history (see
-    ``scripts/fetch_counterpart_iv.py``). It is folded into the matched-pair and skew
+    ``scripts/collector/fetch_counterpart_iv.py``). It is folded into the matched-pair and skew
     accumulators so ``iv_spread`` / ``iv_skew`` reflect the fuller chain, not only
     the traded subset. Absent → the metrics fall back to flow-only (frequently
     blank). Pure over its inputs: the caller loads the per-date sidecar and passes
@@ -919,7 +919,7 @@ def _attach_iv_pct(rollup: list[dict], iv_pct: dict[str, int | None] | None) -> 
 
     Injected rather than computed here because the value is scraped (Barchart
     options-overview history) and enriched onto the compiled flow file by
-    ``scripts/fetch_iv_percentile.py`` — the caller reads it back off those rows and
+    ``scripts/collector/fetch_iv_percentile.py`` — the caller reads it back off those rows and
     passes ``{UPPER_SYMBOL: rank}``, same pattern as ``counterpart_iv``. ``None``
     (missing or too-little-history) leaves the field ``None`` so displays show "—" and
     the framework falls back to the VIX proxy.

@@ -328,7 +328,7 @@ This is principle-driven (signal quality → position size), not curve-fitting. 
 >    contracts). With the fix, the sign of the mean flipped to the paper-expected
 >    **negative** (−0.86 vs the buggy +0.68 on 2026-06-26).
 > 2. **Counterpart backfill added.** Missing pair legs are now filled from
->    Barchart price-history (`scripts/fetch_counterpart_iv.py` → per-date sidecar), so
+>    Barchart price-history (`scripts/collector/fetch_counterpart_iv.py` → per-date sidecar), so
 >    `IVSpread` coverage is materially higher than the flow-only ~2%. Re-derive
 >    the veto **after** running `fetch_counterpart_iv --backfill` across the test window
 >    and re-running the analysis pipeline so the enriched `IVSpread` reaches the

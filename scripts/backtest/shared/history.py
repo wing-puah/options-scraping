@@ -4,7 +4,7 @@ import os
 from datetime import date
 from pathlib import Path
 
-from lib import barchart_options
+from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
 
 from ..config import RESULTS_PATH, HISTORY_CACHE

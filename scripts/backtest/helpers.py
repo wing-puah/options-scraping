@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 from scipy.stats import norm
 
-from lib.barchart_options import _to_float
+from lib.parsing import to_float as _to_float
 
 from .config import _EXPIRATION_FORMATS
 

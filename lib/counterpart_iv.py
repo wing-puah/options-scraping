@@ -10,7 +10,7 @@ Barchart's per-contract price-history endpoint exposes a full daily series
 INCLUDING settlement IV / OI / volume for any listed contract, whether or not it
 traded in the flow. So for each single-sided (strike, expiration) that DID trade,
 we can fetch the missing opposite leg's settlement IV *as of the trade date D* and
-complete the pair. `scripts/fetch_counterpart_iv.py` scrapes those legs and stores
+complete the pair. `scripts/collector/fetch_counterpart_iv.py` scrapes those legs and stores
 them in a per-date sidecar on Drive; this module holds the pure logic both the producer
 (the script) and the consumer (`lib/flow_summary/core._flow_ticker_rows`) share so
 the contract keys and units always agree.

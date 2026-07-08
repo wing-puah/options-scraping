@@ -8,6 +8,20 @@ import logging
 import logging.handlers
 from pathlib import Path
 
+
+def safe_err(exc: BaseException) -> str:
+    """Return an exception string with the Playwright 'Call log:' section stripped.
+
+    Playwright appends the full HTTP call log (headers, cookies, tokens) to error
+    messages when a request context is disposed on interrupt. Strip it so credentials
+    never appear in logs. Provider-agnostic — lives here rather than in the barchart
+    package because every scraper logs errors through it.
+    """
+    s = str(exc)
+    cut = s.find("\nCall log:")
+    return s[:cut] if cut != -1 else s
+
+
 _LOG_DIR = Path(__file__).parent.parent / "logs"
 _FMT = "%(asctime)s  %(levelname)-8s  [%(name)s.%(funcName)s]  %(message)s"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S"

@@ -17,7 +17,7 @@ into `_score_price` yet.
 Shape mirrors `lib/iv_history.py`: enrichment column constants, an
 `as_of_*_cells` picker, and a `*_from_flow_rows` read-back reader. The
 enrichment columns are appended to the compiled flow file by a (separate,
-not-yet-written) `scripts/fetch_price_catalyst.py`, which must write
+not-yet-written) `scripts/collector/fetch_price_catalyst.py`, which must write
 `next_earnings`/`last_earnings` as ISO `YYYY-MM-DD` strings and the price
 columns as plain decimal strings for `price_catalyst_from_flow_rows` to read
 back.
@@ -25,6 +25,8 @@ back.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+
+from lib.parsing import to_float
 
 PRICE_CATALYST_ENRICH_COLUMNS = [
     "price_d", "price_5d_ago", "price_20d_high", "price_20d_low", "price_sma20",
@@ -45,18 +47,6 @@ _NEUTRAL_PIN_BAND_PCT = 0.03
 _VOLATILITY = "VOLATILITY"
 
 
-def _to_float(value) -> float | None:
-    if value is None:
-        return None
-    s = str(value).strip()
-    if s == "":
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
 def _parse_iso_date(value) -> date | None:
     if value is None:
         return None
@@ -73,7 +63,7 @@ def as_of_price_cells(series: list[tuple[date, float]], trade_date: date) -> dic
     """Price cells derived ONLY from bars on/before `trade_date` (no look-ahead).
 
     `series` is a sorted `[(date, mark)]` list (the shape
-    `lib.barchart_options.parse_history_series` returns). Returns
+    `lib.barchart.options.parse_history_series` returns). Returns
     `{price_d, price_5d_ago, price_20d_high, price_20d_low, price_sma20,
     price_50d_high, price_50d_low, price_sma50}`, each `float | None`.
     """
@@ -102,7 +92,7 @@ def as_of_price_cells(series: list[tuple[date, float]], trade_date: date) -> dic
 
 def as_of_earnings_cells(actions: list[dict], trade_date: date) -> dict:
     """`{next_earnings, last_earnings}` (each `date | None`) from
-    `lib.corporate_actions.parse_corporate_actions` output, filtered to
+    `lib.barchart.corporate_actions.parse_corporate_actions` output, filtered to
     `event_type == "Earnings"`. `next_earnings` is the earliest Earnings date
     strictly after `trade_date`; `last_earnings` is the latest on or before it.
     """
@@ -130,14 +120,14 @@ def price_catalyst_from_flow_rows(flow_rows: list[dict]) -> dict[str, dict]:
         if not sym or sym in out:
             continue
         out[sym] = {
-            "price_d": _to_float(r.get("price_d")),
-            "price_5d_ago": _to_float(r.get("price_5d_ago")),
-            "price_20d_high": _to_float(r.get("price_20d_high")),
-            "price_20d_low": _to_float(r.get("price_20d_low")),
-            "price_sma20": _to_float(r.get("price_sma20")),
-            "price_50d_high": _to_float(r.get("price_50d_high")),
-            "price_50d_low": _to_float(r.get("price_50d_low")),
-            "price_sma50": _to_float(r.get("price_sma50")),
+            "price_d": to_float(r.get("price_d")),
+            "price_5d_ago": to_float(r.get("price_5d_ago")),
+            "price_20d_high": to_float(r.get("price_20d_high")),
+            "price_20d_low": to_float(r.get("price_20d_low")),
+            "price_sma20": to_float(r.get("price_sma20")),
+            "price_50d_high": to_float(r.get("price_50d_high")),
+            "price_50d_low": to_float(r.get("price_50d_low")),
+            "price_sma50": to_float(r.get("price_sma50")),
             "next_earnings": _parse_iso_date(r.get("next_earnings")),
             "last_earnings": _parse_iso_date(r.get("last_earnings")),
         }
@@ -164,7 +154,7 @@ def _score_catalyst(cells: dict, flow_intent: str, trade_date: date, horizon_day
 def _score_price(cells: dict, play: dict, flow_intent: str) -> int:
     max_price = 10 if flow_intent == _VOLATILITY else 20
 
-    key_level = _to_float(play.get("key_level"))
+    key_level = to_float(play.get("key_level"))
     if key_level is None:
         return 0
 

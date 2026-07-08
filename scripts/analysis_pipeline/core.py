@@ -402,7 +402,7 @@ def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
     """Per-ticker ``{"score_price": int, "score_catalyst": int}`` from fetched
     price-history/earnings data (lib.price_catalyst), keyed by upper-cased ticker.
 
-    Re-downloads the compiled flow rows (scripts/fetch_price_catalyst.py's
+    Re-downloads the compiled flow rows (scripts/collector/fetch_price_catalyst.py's
     enrichment columns) independently of the earlier fetch step, same as the
     rollup-metrics / IV-percentile reads. Degrades to ``{}`` on any failure —
     e.g. a date not yet enriched — so a play's score_price/score_catalyst cells

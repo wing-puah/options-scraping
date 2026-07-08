@@ -5,7 +5,7 @@ The framework's Step-4 structure ladder needs a per-NAME "rich vs cheap" read to
 a debit spread (TF, cheap IV) vs a credit spread (TF-S, rich IV). Barchart's
 options-overview history carries, per historical date, that name's **IV**, **IV rank**
 and **IV percentile** (percentile = share of the prior-1yr days with IV below today's;
-already computed — nothing to compute here, see lib/barchart_iv_history.py).
+already computed — nothing to compute here, see lib/barchart/iv_history.py).
 
 For every distinct TICKER in a compiled flow file ({prefix}-YYYYMMDD-compiled.csv,
 whose filename date is the trade date D), this scrapes that name's options-overview
@@ -31,12 +31,12 @@ later compile_flow re-run regenerates the compiled file and DROPS these columns;
 next --backfill re-enriches. Needs BARCHART_EMAIL/PASSWORD.
 
 Usage:
-  python3 scripts/fetch_iv_percentile.py                       # latest compiled date
-  python3 scripts/fetch_iv_percentile.py --date 2026-06-10
-  python3 scripts/fetch_iv_percentile.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/fetch_iv_percentile.py --backfill            # every compiled date
-  python3 scripts/fetch_iv_percentile.py --backfill --dry-run  # report, no scrape/upload
-  python3 scripts/fetch_iv_percentile.py --date 2026-06-10 --force   # re-scrape from scratch
+  python3 scripts/collector/fetch_iv_percentile.py                       # latest compiled date
+  python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10
+  python3 scripts/collector/fetch_iv_percentile.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/fetch_iv_percentile.py --backfill            # every compiled date
+  python3 scripts/collector/fetch_iv_percentile.py --backfill --dry-run  # report, no scrape/upload
+  python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -48,16 +48,16 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parents[2] / ".env")
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
-from lib.barchart import BarchartSession, _safe_err
-from lib.barchart_iv_history import parse_iv_history
+sys.path.insert(0, str(Path(__file__).parents[2]))
+sys.path.insert(0, str(Path(__file__).parents[1]))
+from lib.barchart import BarchartSession
+from lib.barchart.iv_history import parse_iv_history
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
 from lib.iv_history import IV_ALL_COLUMNS, IV_MARKER_COLUMN, as_of_iv_cells
-from lib.logger import setup_logging
+from lib.logger import safe_err, setup_logging
 from compile_flow import FLOW_PREFIXES
 from enrich_oi import _compiled_dates, _latest_compiled_date, _source_file, _upload_rows, _weekday_range
 
@@ -72,7 +72,7 @@ CHECKPOINT_EVERY = 50
 # candidate; the feed still returns only a handful of rows.
 WINDOW_DAYS = 12
 
-_DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
 
 
 # ─── Ticker identification + row state ───────────────────────────────────────────
@@ -118,7 +118,7 @@ async def _fetch_series(session, ticker: str, start: str, end: str,
     try:
         feed = await session.fetch_options_overview_history(ticker, start, end, timeout_ms)
     except Exception as e:
-        log.error("Barchart options-history scrape failed for %s: %s", ticker, _safe_err(e))
+        log.error("Barchart options-history scrape failed for %s: %s", ticker, safe_err(e))
         return {}
     return parse_iv_history(feed) if feed else {}
 

@@ -44,7 +44,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
-from lib import barchart_options, sheets_client
+from lib import sheets_client
+from lib.barchart import options as barchart_options
 from lib.logger import setup_logging
 
 from .classify import _entry_row_from_history, _nearest_friday

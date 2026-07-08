@@ -6,28 +6,20 @@ low-churn building blocks — `core.py` is where the aggregation logic lives.
 """
 from __future__ import annotations
 
+from lib.parsing import to_float
+
 
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
 
 def _to_float(x: str | float | int | None) -> float:
-    """Parse a Barchart numeric cell to float. Returns 0.0 on failure.
+    """Parse a Barchart numeric cell to float, 0.0 on failure.
 
-    Handles bare numbers, percent strings ('331.14%'), and comma-separated
-    thousands ('1,234.56'). Empty / 'unch' / None → 0.0.
+    Thin wrapper over :func:`lib.parsing.to_float` that keeps this package's
+    0.0-default contract (many call sites rely on a numeric, not None).
     """
-    if x is None or x == "":
-        return 0.0
-    if isinstance(x, (int, float)):
-        return float(x)
-    s = str(x).strip().replace(",", "").rstrip("%")
-    if not s or s.lower() in {"unch", "n/a", "na"}:
-        return 0.0
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
+    return to_float(x, 0.0)
 
 
 def _to_int(x: str | float | int | None) -> int:

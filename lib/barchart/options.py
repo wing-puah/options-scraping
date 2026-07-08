@@ -20,22 +20,11 @@ from datetime import date
 from pathlib import Path
 
 from lib.csv_utils import parse_csv
+from lib.parsing import to_float
 
 log = logging.getLogger(__name__)
 
 _BASE = "https://www.barchart.com/stocks/quotes"
-
-
-def _to_float(value, default=None):
-    if value is None:
-        return default
-    s = str(value).strip().replace(",", "").replace("$", "").replace("%", "")
-    if s == "" or s in ("-", "N/A", "n/a"):
-        return default
-    try:
-        return float(s)
-    except ValueError:
-        return default
 
 
 def option_history_url(symbol: str, expiration: date, strike: float, opt_type: str) -> str:
@@ -48,10 +37,10 @@ def option_history_url(symbol: str, expiration: date, strike: float, opt_type: s
 
 def _mark(row: dict):
     """Best tradeable price for a row: mid(Bid,Ask) → Latest."""
-    bid, ask = _to_float(row.get("Bid")), _to_float(row.get("Ask"))
+    bid, ask = to_float(row.get("Bid")), to_float(row.get("Ask"))
     if bid and ask and bid > 0 and ask > 0:
         return (bid + ask) / 2
-    latest = _to_float(row.get("Latest"))
+    latest = to_float(row.get("Latest"))
     return latest if latest and latest > 0 else None
 
 

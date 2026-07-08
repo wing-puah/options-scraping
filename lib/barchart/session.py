@@ -13,19 +13,9 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright, Page, BrowserContext
 
+from lib.logger import safe_err
+
 log = logging.getLogger(__name__)
-
-
-def _safe_err(exc: BaseException) -> str:
-    """Return exception string with the Playwright 'Call log:' section stripped.
-
-    Playwright appends the full HTTP call log (headers, cookies, tokens) to error
-    messages when a request context is disposed on interrupt. Strip it so credentials
-    never appear in logs.
-    """
-    s = str(exc)
-    cut = s.find("\nCall log:")
-    return s[:cut] if cut != -1 else s
 
 
 class BarchartSession:
@@ -114,7 +104,7 @@ class BarchartSession:
         return True
 
     # Columns of the legacy "Download" CSV, kept identical so cached files and
-    # lib.barchart_options.parse_history_series keep working unchanged.
+    # lib.barchart.options.parse_history_series keep working unchanged.
     _HISTORY_COLUMNS = (
         ("Time", "tradeTime"), ("Open", "openPrice"), ("High", "highPrice"),
         ("Low", "lowPrice"), ("Latest", "lastPrice"), ("Change", "priceChange"),
@@ -207,7 +197,7 @@ class BarchartSession:
             else:
                 log.warning("Re-issued feed HTTP %d for '%s' — re-navigating", resp.status, page_url)
         except Exception as e:
-            log.error("Re-issued feed failed for '%s' — re-navigating: %s", page_url, _safe_err(e))
+            log.error("Re-issued feed failed for '%s' — re-navigating: %s", page_url, safe_err(e))
 
         return await self.fetch_history_csv(page_url, timeout_ms)
 
@@ -225,7 +215,7 @@ class BarchartSession:
         Same interception approach as :meth:`fetch_history_csv`: navigate to the
         options-history page, capture the authenticated core-api request it fires, then
         re-issue it (windowed, or with the row cap lifted). Parsing the rows into a
-        {date: iv/iv_rank/iv_pct} series lives in :mod:`lib.barchart_iv_history` (pure),
+        {date: iv/iv_rank/iv_pct} series lives in :mod:`lib.barchart.iv_history` (pure),
         so this only does the fetch.
 
         The feed is the core-api ``options-historical/get`` endpoint (verified from a
@@ -233,7 +223,7 @@ class BarchartSession:
         keys on the fuller ``options-historical/get`` to avoid colliding with the
         price-history feed (``…/v1/historical/get``).
         """
-        from lib.barchart_iv_history import options_history_url
+        from lib.barchart.iv_history import options_history_url
 
         url = options_history_url(symbol)
         log.info("Navigating to options-history '%s'", url)
@@ -277,9 +267,9 @@ class BarchartSession:
         needed — the page's default request already returns the full history in one
         response (confirmed live: 126 rows back to 2021+ for MU, no pagination/limit).
         Parsing the rows into ``[{date, event_type, value}]`` lives in
-        :mod:`lib.corporate_actions` (pure), so this only does the fetch.
+        :mod:`lib.barchart.corporate_actions` (pure), so this only does the fetch.
         """
-        from lib.corporate_actions import corporate_actions_url
+        from lib.barchart.corporate_actions import corporate_actions_url
 
         url = corporate_actions_url(symbol)
         log.info("Navigating to corporate-actions '%s'", url)

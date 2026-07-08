@@ -111,7 +111,7 @@ def _load_rows(client, prefix: str, date_str: str | None) -> list[dict]:
 def _load_counterpart_iv(client, date_str: str | None) -> dict[str, list[dict]]:
     """Load the per-date counterpart-IV sidecar → ``build_iv_lookup`` dict ({} on miss).
 
-    The sidecar (``scripts/fetch_counterpart_iv.py``) holds settlement IV for counterpart legs
+    The sidecar (``scripts/collector/fetch_counterpart_iv.py``) holds settlement IV for counterpart legs
     that didn't trade, so the matched-pair ``iv_spread`` / skew reads see the fuller
     chain. Keyed to the resolved date (latest folder when ``date_str`` is None), so
     live and backtest read the same file. Any failure degrades gracefully to
@@ -139,7 +139,7 @@ def _load_counterpart_iv(client, date_str: str | None) -> dict[str, list[dict]]:
 def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
     """``{UPPER_SYMBOL: iv_pct}`` read off the enriched flow rows' ``iv_pct`` column.
 
-    The column is written by ``scripts/fetch_iv_percentile.py`` (scrapes Barchart's
+    The column is written by ``scripts/collector/fetch_iv_percentile.py`` (scrapes Barchart's
     options-overview history per ticker, appends iv/iv_rank/iv_pct to the compiled flow
     file), so fetch does no scraping or tab lookup — it just reads the as-of-date value
     already on the row. Degrades to ``{}`` on any failure or when a name wasn't
@@ -155,7 +155,7 @@ def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
 
 def load_flow_rows_for_scoring(date_str: str | None) -> list[dict]:
     """Re-download the compiled stocks-flow + etfs-flow rows for `date_str` (or the
-    latest date when None), already carrying scripts/fetch_price_catalyst.py's
+    latest date when None), already carrying scripts/collector/fetch_price_catalyst.py's
     price/earnings enrichment columns. A small independent Drive read — mirrors
     how _load_counterpart_iv/_load_iv_pct re-derive their own inputs rather than
     threading a bigger object through fetch_data's return value."""

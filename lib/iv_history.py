@@ -9,17 +9,17 @@ model defaulted every trend play to a debit spread (TF). Rich IV is exactly wher
 debit spread underperforms and where TF-S / credit should take over.
 
 The source is Barchart's **options-overview history** (scraped by
-`scripts/fetch_iv_percentile.py` via `BarchartSession.fetch_options_overview_history` →
-parsed by `lib/barchart_iv_history.py`): a daily series that already carries Barchart's
+`scripts/collector/fetch_iv_percentile.py` via `BarchartSession.fetch_options_overview_history` →
+parsed by `lib/barchart/iv_history.py`): a daily series that already carries Barchart's
 **IV rank** and **IV percentile** per historical date. So there is NO percentile to
 compute here — we read the value AS OF the trade date and APPEND it, along with the IV
 level and IV rank, as columns onto every row of that ticker in the compiled flow file
-(the same enrich-in-place pattern as `scripts/enrich_oi.py`; NOT a separate cache tab).
+(the same enrich-in-place pattern as `scripts/collector/enrich_oi.py`; NOT a separate cache tab).
 `scripts/analysis_pipeline/fetch.py` then reads `iv_pct` straight back off those rows.
 
 This module is pure: the enrichment column names, the as-of-date series pick (with a
 staleness fallback), and the flow-row → `{SYMBOL: iv_pct}` reader for the consumer.
-Scrape + Drive I/O live in `scripts/fetch_iv_percentile.py` (producer) and
+Scrape + Drive I/O live in `scripts/collector/fetch_iv_percentile.py` (producer) and
 `scripts/analysis_pipeline/fetch.py` (consumer).
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from lib.barchart_iv_history import _to_float
+from lib.parsing import to_float
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def as_of_iv_cells(series: dict[str, dict], anchor_iso: str,
     """Formatted ``{iv, iv_rank, iv_pct}`` cells for a ticker as of ``anchor_iso``.
 
     ``series`` is ``{YYYY-MM-DD: {"iv", "iv_rank", "iv_pct"}}`` (rank/percentile on a
-    0–100 scale) from :func:`lib.barchart_iv_history.parse_iv_history`. Uses the exact
+    0–100 scale) from :func:`lib.barchart.iv_history.parse_iv_history`. Uses the exact
     anchor-date row; if absent, the most recent row within ``staleness_days`` on/before
     the anchor (so a live run before the EOD row is published still gets yesterday's
     values). Returns blanks when nothing is in range. ``iv_rank``/``iv_pct`` come out as
@@ -114,7 +114,7 @@ def iv_pct_from_flow_rows(rows) -> dict[str, float]:
         sym = str(r.get("Symbol") or "").strip().upper()
         if not sym or sym in out:
             continue
-        pct = _to_float(r.get("iv_pct"))
+        pct = to_float(r.get("iv_pct"))
         if pct is not None:
             out[sym] = pct
     return out

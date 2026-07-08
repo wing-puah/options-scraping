@@ -7,11 +7,11 @@ For every distinct TICKER in a compiled flow file ({prefix}-YYYYMMDD-compiled.cs
 whose filename date is the trade date D), this scrapes:
 
   - the ticker's Barchart underlying price history
-    (lib.barchart_underlying.stock_history_url + BarchartSession.fetch_history_fast,
-    parsed via lib.barchart_options.parse_history_series)
+    (lib.barchart.underlying.stock_history_url + BarchartSession.fetch_history_fast,
+    parsed via lib.barchart.options.parse_history_series)
   - the ticker's Barchart corporate actions / earnings calendar
     (BarchartSession.fetch_corporate_actions, parsed via
-    lib.corporate_actions.parse_corporate_actions)
+    lib.barchart.corporate_actions.parse_corporate_actions)
 
 picks the as-of-D cells (lib.price_catalyst.as_of_price_cells /
 as_of_earnings_cells — NO LOOK-AHEAD: only bars/events on or before D are ever
@@ -49,12 +49,12 @@ re-run regenerates the compiled file and DROPS these columns; the next
 --backfill re-enriches. Needs BARCHART_EMAIL/PASSWORD.
 
 Usage:
-  python3 scripts/fetch_price_catalyst.py                       # latest compiled date
-  python3 scripts/fetch_price_catalyst.py --date 2026-06-10
-  python3 scripts/fetch_price_catalyst.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/fetch_price_catalyst.py --backfill            # every compiled date
-  python3 scripts/fetch_price_catalyst.py --backfill --dry-run  # report, no scrape/upload
-  python3 scripts/fetch_price_catalyst.py --date 2026-06-10 --force   # re-scrape from scratch
+  python3 scripts/collector/fetch_price_catalyst.py                       # latest compiled date
+  python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10
+  python3 scripts/collector/fetch_price_catalyst.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/fetch_price_catalyst.py --backfill            # every compiled date
+  python3 scripts/collector/fetch_price_catalyst.py --backfill --dry-run  # report, no scrape/upload
+  python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -66,16 +66,16 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parents[2] / ".env")
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
-from lib import barchart_options, barchart_underlying
-from lib.barchart import BarchartSession, _safe_err
-from lib.corporate_actions import parse_corporate_actions
+sys.path.insert(0, str(Path(__file__).parents[2]))
+sys.path.insert(0, str(Path(__file__).parents[1]))
+from lib.barchart import options as barchart_options, underlying as barchart_underlying
+from lib.barchart import BarchartSession
+from lib.barchart.corporate_actions import parse_corporate_actions
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
-from lib.logger import setup_logging
+from lib.logger import safe_err, setup_logging
 from lib.price_catalyst import (
     PRICE_CATALYST_ENRICH_COLUMNS,
     PRICE_CATALYST_MARKER_COLUMN,
@@ -94,7 +94,7 @@ ALL_COLUMNS = PRICE_CATALYST_ENRICH_COLUMNS + [PRICE_CATALYST_MARKER_COLUMN]
 # scraping an interruption can cost.
 CHECKPOINT_EVERY = 50
 
-_DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
 
 
 # ─── Ticker identification + row state ───────────────────────────────────────────
@@ -165,7 +165,7 @@ async def _fetch_price_series(session, ticker: str, timeout_ms: int) -> list[tup
         csv_text = await session.fetch_history_fast(
             barchart_underlying.stock_history_url(ticker), timeout_ms)
     except Exception as e:
-        log.error("Barchart price-history scrape failed for %s: %s", ticker, _safe_err(e))
+        log.error("Barchart price-history scrape failed for %s: %s", ticker, safe_err(e))
         return []
     return barchart_options.parse_history_series(csv_text) if csv_text else []
 
@@ -178,7 +178,7 @@ async def _fetch_corporate_actions(session, ticker: str, timeout_ms: int) -> lis
     try:
         rows = await session.fetch_corporate_actions(ticker, timeout_ms)
     except Exception as e:
-        log.error("Barchart corporate-actions scrape failed for %s: %s", ticker, _safe_err(e))
+        log.error("Barchart corporate-actions scrape failed for %s: %s", ticker, safe_err(e))
         return []
     return parse_corporate_actions(rows) if rows else []
 
@@ -212,7 +212,7 @@ def _fetch_next_earnings_yfinance(ticker: str) -> date | None:
         dates = calendar.get("Earnings Date") or []
         return min(dates) if dates else None
     except Exception as e:
-        log.error("yfinance next-earnings lookup failed for %s: %s", ticker, _safe_err(e))
+        log.error("yfinance next-earnings lookup failed for %s: %s", ticker, safe_err(e))
         return None
 
 

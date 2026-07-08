@@ -62,7 +62,7 @@ jobs:
         # Manual run with a date → that date; otherwise the latest enrichable date
         # only (no --backfill: a full historical sweep risks the job timeout).
         # Headless scrape via BarchartSession.
-        run: python scripts/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
@@ -78,7 +78,7 @@ jobs:
         # re-scan every historical date and risk the job timeout. Idempotent per
         # contract via the sidecar's fetched_on marker. Manual date input respected.
         if: ${{ always() }}
-        run: python scripts/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
@@ -95,7 +95,7 @@ jobs:
         # the timeout. Resume is per-ticker via the iv_pct_enriched_on marker written
         # into the compiled file. Manual date input respected.
         if: ${{ always() }}
-        run: python scripts/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

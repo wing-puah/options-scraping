@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 import backtest as bt
-from lib import barchart_options as bo
+from lib.barchart import options as bo
 from lib.barchart import BarchartSession
 
 
@@ -811,7 +811,7 @@ def test_simulate_no_data_when_no_exit_available():
     assert res["exit_reason"] == "no_data"
 
 
-# ── barchart_options module ─────────────────────────────────────────────────────
+# ── lib.barchart.options module ─────────────────────────────────────────────────
 
 def test_parse_analysis_date_iso_and_locale():
     assert bt._parse_analysis_date("2026-06-02") == date(2026, 6, 2)

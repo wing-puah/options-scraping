@@ -74,8 +74,8 @@ python3 scripts/auth_drive.py
 
 ```bash
 # Watch the browser (headless=false for debugging)
-SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/barchart_scrape.py --mode unusual
+SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode unusual
 ```
 
 ### 4. GitHub Actions (free cloud hosting)
@@ -150,9 +150,9 @@ python3 scripts/gc_flow.py --all --dry-run
 python3 scripts/build_baseline.py --backfill
 
 # Enrich a compiled file with next-day OI change + EOD greeks
-python3 scripts/enrich_oi.py                          # latest enrichable date
-python3 scripts/enrich_oi.py --backfill               # idempotent; skips enriched
-python3 scripts/enrich_oi.py --date 2026-06-09 --force
+python3 scripts/collector/enrich_oi.py                          # latest enrichable date
+python3 scripts/collector/enrich_oi.py --backfill               # idempotent; skips enriched
+python3 scripts/collector/enrich_oi.py --date 2026-06-09 --force
 
 # Full analysis pipeline directly (without the skill)
 python3 -m scripts.analysis_pipeline --date 2026-04-21
@@ -177,8 +177,8 @@ filter.
 ### 1. Collect historical data
 
 ```bash
-python3 scripts/barchart_scrape.py --date 2026-04-21
-python3 scripts/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/barchart_scrape.py --date 2026-04-21
+python3 scripts/collector/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 ```
 
 Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`.

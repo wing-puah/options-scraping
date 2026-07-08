@@ -6,19 +6,19 @@ PY   := $(VENV)/bin/python3
 .PHONY: scrape
 scrape:
 ifeq ($(strip $(ARGS)),)
-	$(PY) scripts/barchart_scrape.py --mode flow
-	$(PY) scripts/barchart_scrape.py --mode unusual
+	$(PY) scripts/collector/barchart_scrape.py --mode flow
+	$(PY) scripts/collector/barchart_scrape.py --mode unusual
 else
-	$(PY) scripts/barchart_scrape.py $(ARGS)
+	$(PY) scripts/collector/barchart_scrape.py $(ARGS)
 endif
 
 .PHONY: scrape-flow
 scrape-flow:
-	$(PY) scripts/barchart_scrape.py --mode flow $(ARGS)
+	$(PY) scripts/collector/barchart_scrape.py --mode flow $(ARGS)
 
 .PHONY: scrape-unusual
 scrape-unusual:
-	$(PY) scripts/barchart_scrape.py --mode unusual $(ARGS)
+	$(PY) scripts/collector/barchart_scrape.py --mode unusual $(ARGS)
 
 # ── compile & gc ───────────────────────────────────────────────────────────────
 .PHONY: compile
@@ -32,18 +32,18 @@ gc:
 # ── enrich ─────────────────────────────────────────────────────────────────────
 .PHONY: enrich
 enrich:
-	$(PY) scripts/enrich_oi.py $(ARGS)
+	$(PY) scripts/collector/enrich_oi.py $(ARGS)
 
 # ── counterpart iv ───────────────────────────────────────────────────────────────
 .PHONY: counterpart-iv
 counterpart-iv:
-	$(PY) scripts/fetch_counterpart_iv.py $(ARGS)
+	$(PY) scripts/collector/fetch_counterpart_iv.py $(ARGS)
 
 
 # ── iv percentile ────────────────────────────────────────────────────────────────
 .PHONY: iv-percentile
 iv-percentile:
-	$(PY) scripts/fetch_iv_percentile.py $(ARGS)
+	$(PY) scripts/collector/fetch_iv_percentile.py $(ARGS)
 
 # ── both iv enrichments, one after another ──────────────────────────────────────
 .PHONY: iv-all
@@ -52,7 +52,7 @@ iv-all: counterpart-iv iv-percentile
 # ── price catalyst ────────────────────────────────────────────────────────────────
 .PHONY: price-catalyst
 price-catalyst:
-	$(PY) scripts/fetch_price_catalyst.py $(ARGS)
+	$(PY) scripts/collector/fetch_price_catalyst.py $(ARGS)
 
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze

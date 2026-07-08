@@ -1,8 +1,8 @@
 """Tests for the per-ticker IV-percentile layer:
-- lib/barchart_iv_history.parse_iv_history (feed-row parsing, fuzzy field mapping)
+- lib/barchart/iv_history.parse_iv_history (feed-row parsing, fuzzy field mapping)
 - lib/iv_history: enrichment columns, as-of-date cell pick, flow-row iv_pct reader.
 Pure functions, no network."""
-from lib.barchart_iv_history import parse_iv_history
+from lib.barchart.iv_history import parse_iv_history
 from lib.iv_history import (
     IV_ALL_COLUMNS,
     IV_ENRICH_COLUMNS,

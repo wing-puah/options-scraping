@@ -1,8 +1,8 @@
-"""Tests for lib/corporate_actions.py (feed URL builder + row parser). Pure
+"""Tests for lib/barchart/corporate_actions.py (feed URL builder + row parser). Pure
 functions, no network."""
 from datetime import date
 
-from lib.corporate_actions import corporate_actions_url, parse_corporate_actions
+from lib.barchart.corporate_actions import corporate_actions_url, parse_corporate_actions
 
 
 def test_corporate_actions_url():

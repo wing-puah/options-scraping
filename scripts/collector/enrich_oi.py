@@ -40,12 +40,12 @@ compile_flow.py for a date regenerates the compiled file from raw snapshots and
 DROPS these columns — the next --backfill re-enriches it from scratch.
 
 Usage:
-  python3 scripts/enrich_oi.py                         # latest enrichable date
-  python3 scripts/enrich_oi.py --date 2026-06-09
-  python3 scripts/enrich_oi.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/enrich_oi.py --backfill              # every enrichable date
-  python3 scripts/enrich_oi.py --backfill --dry-run    # report, no scrape/upload
-  python3 scripts/enrich_oi.py --date 2026-06-09 --force   # re-scrape from scratch
+  python3 scripts/collector/enrich_oi.py                         # latest enrichable date
+  python3 scripts/collector/enrich_oi.py --date 2026-06-09
+  python3 scripts/collector/enrich_oi.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/enrich_oi.py --backfill              # every enrichable date
+  python3 scripts/collector/enrich_oi.py --backfill --dry-run    # report, no scrape/upload
+  python3 scripts/collector/enrich_oi.py --date 2026-06-09 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -59,15 +59,15 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parents[2] / ".env")
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
-from lib import barchart_options
-from lib.barchart import BarchartSession, _safe_err
+sys.path.insert(0, str(Path(__file__).parents[2]))
+sys.path.insert(0, str(Path(__file__).parents[1]))
+from lib.barchart import options as barchart_options
+from lib.barchart import BarchartSession
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
-from lib.logger import setup_logging
+from lib.logger import safe_err, setup_logging
 from backtest.helpers import _contract_key, _to_float, _parse_expiration
 from compile_flow import FLOW_PREFIXES, compiled_name
 
@@ -87,7 +87,7 @@ ALL_COLUMNS = ENRICH_COLUMNS + [MARKER_COLUMN]
 # much scraping an interruption can cost.
 CHECKPOINT_EVERY = 50
 
-_DEFAULT_COOKIES = str(Path(__file__).parent.parent / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
 
 
 # ─── Drive helpers ──────────────────────────────────────────────────────────────
@@ -330,7 +330,7 @@ async def _fetch_details(session, contract: dict, timeout_ms: int) -> dict[date,
     try:
         csv_text = await session.fetch_history_fast(url, timeout_ms)
     except Exception as e:
-        log.error("Barchart history scrape failed for %s: %s", contract["key"], _safe_err(e))
+        log.error("Barchart history scrape failed for %s: %s", contract["key"], safe_err(e))
         return {}
     return barchart_options.parse_history_details(csv_text) if csv_text else {}
 

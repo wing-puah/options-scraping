@@ -4,7 +4,7 @@ Barchart underlying-stock price-history URL builder.
 Reuses the exact same ``core-api/v1/historical/get`` feed the option-history
 scraper uses (``BarchartSession.fetch_history_csv``/``fetch_history_fast``) —
 just a plain symbol instead of an encoded contract string. Parsing is shared
-too: ``lib.barchart_options.parse_history_series``/``parse_history_details``
+too: ``lib.barchart.options.parse_history_series``/``parse_history_details``
 (the CSV schema is identical; bid/ask just come back blank for a stock, which
 ``_mark()`` already falls back on via ``Latest``).
 """

@@ -7,7 +7,7 @@ import backtest.plays as plays_mod
 import backtest.proxy as proxy
 from backtest.classify import _entry_row_from_history
 from backtest.helpers import _contract_key
-from lib import barchart_options as bo
+from lib.barchart import options as bo
 
 SIGNAL = date(2026, 6, 1)
 EXP = date(2026, 6, 20)
@@ -31,7 +31,7 @@ def cache_dir(tmp_path, monkeypatch):
     return d
 
 
-# ── Barchart history CSV fixture writer (schema per lib/barchart_options.py) ────
+# ── Barchart history CSV fixture writer (schema per lib/barchart/options.py) ────
 
 _HEADER = ('Time,Open,High,Low,Latest,Change,%Change,Volume,"Open Int",IV,Delta,Gamma,'
            "Theta,Vega,Rho,Theo,Price~,Bid,Ask\n")

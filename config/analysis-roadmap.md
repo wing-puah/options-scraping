@@ -136,7 +136,7 @@ The genuinely forward signals for play selection, in rough priority:
 
 - ~~**IV rank / percentile** (per name) — where today's IV sits in its own trailing
   range. The single most useful "rich or cheap" read.~~ — **SHIPPED July 2026** as
-  the `IVpct` column (`lib/barchart_iv_history.py` + `scripts/fetch_iv_percentile.py` →
+  the `IVpct` column (`lib/barchart/iv_history.py` + `scripts/collector/fetch_iv_percentile.py` →
   enriched onto the compiled flow file). Source: Barchart's **options-overview history** page carries
   a per-date IV percentile series up to ~2 years, so the "no historical series"
   blocker below turned out not to apply — no self-logging needed. Drives the TF-vs-TF-S
@@ -156,7 +156,7 @@ structure **live only — no historical series.** Split by feasibility:
 - ~~**Per-name IV rank history is the hard part**~~ — **RESOLVED July 2026.** It
   turned out Barchart's **options-overview history** page (`…/options-history`, a
   Premier feature) exposes a per-date IV / IV-rank / IV-percentile series up to ~2
-  years — a full historical series, not live-only. `scripts/fetch_iv_percentile.py`
+  years — a full historical series, not live-only. `scripts/collector/fetch_iv_percentile.py`
   scrapes it per ticker (windowed to the trade date) and enriches the as-of-date
   values onto the compiled flow file, so neither a paid vendor nor self-logging was
   needed. (The IV *term structure* / skew per name is
@@ -220,7 +220,7 @@ The `*` opening label (`To Open` / `BuyToOpen` / `SellToOpen`, from
 **actual** confirmation is the strike's **open-interest change the next session**:
 OI up ≈ genuinely opening; OI flat/down ≈ closing or rolling.
 
-`scripts/enrich_oi.py` computes per-contract `oi_change` (D+1 OI − D OI), and
+`scripts/collector/enrich_oi.py` computes per-contract `oi_change` (D+1 OI − D OI), and
 `_finalize_oi_factors` (`lib/flow_summary/core.py`) rolls it up per ticker into
 `oi_confirm_pct = opens / (opens + closes)` (flat ΔOI excluded from the
 denominator — a no-change day is ambiguous, not a failed confirmation) with an
