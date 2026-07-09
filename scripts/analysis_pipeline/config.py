@@ -109,6 +109,12 @@ ROW_COLUMNS = [
     # joined onto the analysis row. Appended at the END (append-at-end convention)
     # so this needs only a header extension, no row-shift migration.
     "conviction_score", "conviction_score_label",
+    # Deterministic per-ticker price read (lib/price_catalyst.py), computed at rollup
+    # time and joined off audit/<date>-rollup.csv like the metrics above: `price_vector`
+    # is the signed price-trend vector (-1..+1; the SAME signal reused by score_price),
+    # `days_to_earnings` is days to next earnings (grounds score_catalyst). Appended at
+    # the END (append-at-end convention) → header extension only, no row-shift migration.
+    "price_vector", "days_to_earnings",
 ]
 
 # Analysis-row key -> `score` sub-field (framework Step-5 factor). The model emits
@@ -134,6 +140,8 @@ ROLLUP_METRIC_COLS = {
     "iv_pct": "IVPct",
     "conviction_score": "Score",
     "conviction_score_label": "ScoreLabel",
+    "price_vector": "PriceVector",
+    "days_to_earnings": "DaysToEarn",
 }
 
 
@@ -190,7 +198,7 @@ Schema (all string fields unless noted):
         "vol": "integer — vol-alignment points (IV/term structure/skew fit the structure). Max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for VOLATILITY. Do NOT return a total — these three plus two pipeline-computed factors (price, catalyst) are summed downstream to a 0-100 score."
       },
       "key_level": "REQUIRED, number — the specific price threshold already implied by this play's `structure`/`invalidation`/`trigger` (e.g. the breakout/breakdown level, the short strike, the pin level for VC/DP). Restate the SAME level your thesis already commits to — do not derive a second, independent judgment call here. Used downstream to mechanically score price-confirmation (score_price) against fetched price history, so it must match what `invalidation`/`trigger` already say.",
-      "direction": "REQUIRED, one of bullish|bearish|neutral — this play's directional stance. Follows the `pattern`/`structure` bias (bullish for a bull call spread / long call / TF-S bull put credit; bearish for the bear equivalents). Non-directional plays (VC, DP, straddles/strangles/condors) use neutral.",
+      "direction": "REQUIRED, one of bullish|bearish|neutral — this play's directional stance. Follows the `pattern`/`structure` bias (bullish for a bull call spread / long call / TF-S bull put credit; bearish for the bear equivalents). Non-directional plays (VC, DP, straddles/strangles/condors) use neutral. Cross-check against the rollup's per-ticker **PxVec** (signed price-trend vector, −1..+1; + bullish, − bearish, ≈0 range-bound): a trend-following (TF/GE) play's direction should match the sign of PxVec; a mean-reversion (MR) play deliberately opposes it, so say so in the `signal`. PxVec is also the deterministic price signal that downstream grounds score_price.",
       "flow_intent": "REQUIRED, one of DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK — what the flow IS. A classification, not a tradeability cap; each intent carries its own score. DIRECTIONAL = a bet price moves a particular way (extrinsic-heavy, opening, no offsetting book; playbook TF/MR/GE/PU; invalidated by a price level). VOLATILITY = a bet on the size of the move / implied vol, direction-agnostic (straddle/strangle/condor/calendar; playbook VC/DP; invalidated by IV collapse or decay without a move). HEDGE = protection on an existing book (index/sector puts under a bid tape, collars) — the defining feature is the offsetting position protected; framed as protection, never a forecast. SYNTHETIC STOCK = mechanical deep-ITM (~1.0 delta) exposure, conversions, stock-replacement, boxes — mostly intrinsic, a soft tell; strip intrinsic before ranking. DIRECTIONAL vs VOLATILITY follows the playbook + structure; opening-view vs HEDGE turns on whether an offsetting underlying position is protected. Bid-side calls / ask-side puts without a ToOpen label read as HEDGE or SYNTHETIC STOCK until evidence shows new risk opened.",
       "horizon": "REQUIRED, one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the play's CITED evidence: ≤14 DTE → 14, 15–60 DTE → 60, 61–180 DTE → 180, 181+ DTE → 720. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
       "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: score it low (zero price+catalyst, total under 40) or drop the play. One sentence."
@@ -253,6 +261,9 @@ Discipline rules — apply to every play before awarding it a strong score:
   plays that never reached +10% MFE falls monotonically with entry DTE). A
   <45-DTE structure is allowed ONLY when an explicit dated catalyst inside the
   window justifies it, and the play's `signal`/`thesis` must name that catalyst.
+  The rollup's per-ticker **Earn** column (days to next earnings) is the primary
+  dated catalyst — when the `horizon` window spans it, that earnings event
+  downstream grounds score_catalyst, so cite it when it drives the DTE choice.
 - For bid-side calls and ask-side puts WITHOUT a `SellToOpen` / `BuyToOpen` label,
   the play's `signal` must cite what rules out the closing / overwrite / hedge
   reading. Without that citation, the score is low at best.

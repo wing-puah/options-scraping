@@ -326,6 +326,9 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # Deterministic conviction Score/ScoreLabel (lib/flow_summary/core.py),
             # joined by ticker just like the rollup-context block above.
             m.get("conviction_score", ""), m.get("conviction_score_label", ""),
+            # Deterministic per-ticker price read (lib/price_catalyst.py), joined by
+            # ticker like the block above: signed price-trend vector + days-to-earnings.
+            m.get("price_vector", ""), m.get("days_to_earnings", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]

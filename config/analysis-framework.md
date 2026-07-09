@@ -281,7 +281,11 @@ sums all five into `score_total` (0–100) downstream.
 model-scored rows above; **Price confirmation** and **Catalyst support** are
 code-computed from fetched data and need the play's `key_level`/`direction` to
 work — see `lib/price_catalyst.py` for the exact rule rather than restating it
-here.
+here. Both are now grounded in rollup-visible reads: **Price confirmation**
+reuses the per-ticker `PxVec` (signed price-trend vector, the SAME blend the
+score weights) and adds the play's `key_level` check, so set `direction` to
+agree with the sign of `PxVec` for a trend play (an MR play deliberately opposes
+it); **Catalyst support** keys off the `Earn` column (days to next earnings).
 
 **HEDGE** and **SYNTHETIC STOCK** use the Directional weighting, but score the
 relevant thesis: a HEDGE on whether the protection is genuine and well-placed

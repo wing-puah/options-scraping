@@ -1062,3 +1062,31 @@ def test_ticker_metrics_blank_when_no_enrichment():
     rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
     m = ticker_metrics(rows)["AVGO"]
     assert m["oi_confirm_pct"] == "" and m["cpir"] == ""
+
+
+# ---------------------------------------------------------------------------
+# price read (PriceVector / DaysToEarn) — injected onto the rollup like iv_pct
+# ---------------------------------------------------------------------------
+
+def test_price_read_surfaced_in_rollup_csv_and_ticker_metrics():
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
+    pr = {"AVGO": {"price_vector": 0.4237, "days_to_earnings": 12}}
+    rollup = build_scored_flow_rollup(rows, price_read=pr)
+    assert rollup[0]["price_vector"] == 0.4237 and rollup[0]["days_to_earnings"] == 12
+
+    # Audit CSV: vector rounded to 2 dp, days-to-earnings straight through.
+    csv_text = flow_rollup_csv([("stocks", rollup)])
+    parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
+    assert parsed["AVGO"]["PriceVector"] == "0.42"
+    assert parsed["AVGO"]["DaysToEarn"] == "12"
+
+    # ticker_metrics (the backfill seam) agrees cell-for-cell.
+    m = ticker_metrics(rows, price_read=pr)["AVGO"]
+    assert m["price_vector"] == 0.42 and m["days_to_earnings"] == 12
+
+
+def test_price_read_blank_when_absent():
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
+    csv_text = flow_rollup_csv([("stocks", build_scored_flow_rollup(rows))])
+    parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
+    assert parsed["AVGO"]["PriceVector"] == "" and parsed["AVGO"]["DaysToEarn"] == ""

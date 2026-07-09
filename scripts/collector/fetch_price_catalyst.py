@@ -11,7 +11,8 @@ whose filename date is the trade date D), this scrapes:
     parsed via lib.barchart.options.parse_history_series)
   - the ticker's Barchart corporate actions / earnings calendar
     (BarchartSession.fetch_corporate_actions, parsed via
-    lib.barchart.corporate_actions.parse_corporate_actions)
+    lib.barchart.corporate_actions.parse_corporate_actions) — SKIPPED for the
+    etfs-flow file, since ETFs don't report earnings
 
 picks the as-of-D cells (lib.price_catalyst.as_of_price_cells /
 as_of_earnings_cells — NO LOOK-AHEAD: only bars/events on or before D are ever
@@ -241,19 +242,25 @@ async def _scrape_and_fill(
 
     trade_date = date.fromisoformat(date_str)
     near_live = _is_near_live(trade_date)
+    is_etf = prefix == "etfs-flow"
     stats = {"with_price": 0, "with_earnings": 0, "with_earnings_yfinance": 0, "processed": 0}
 
     async def run(sess) -> None:
         for i, sym in enumerate(pending, 1):
             series = await _fetch_price_series(sess, sym, timeout_ms)
-            actions = await _fetch_corporate_actions(sess, sym, timeout_ms)
             price_cells = as_of_price_cells(series, trade_date)
-            earnings_cells = as_of_earnings_cells(actions, trade_date)
-            if earnings_cells.get("next_earnings") is None and near_live:
-                fallback = _fetch_next_earnings_yfinance(sym)
-                if fallback is not None:
-                    earnings_cells = {**earnings_cells, "next_earnings": fallback}
-                    stats["with_earnings_yfinance"] += 1
+            if is_etf:
+                # ETFs don't report earnings — skip the corporate-actions scrape
+                # and the yfinance fallback entirely.
+                earnings_cells = {"next_earnings": None, "last_earnings": None}
+            else:
+                actions = await _fetch_corporate_actions(sess, sym, timeout_ms)
+                earnings_cells = as_of_earnings_cells(actions, trade_date)
+                if earnings_cells.get("next_earnings") is None and near_live:
+                    fallback = _fetch_next_earnings_yfinance(sym)
+                    if fallback is not None:
+                        earnings_cells = {**earnings_cells, "next_earnings": fallback}
+                        stats["with_earnings_yfinance"] += 1
             cells = _format_cells(price_cells, earnings_cells)
             cells[PRICE_CATALYST_MARKER_COLUMN] = run_date
             if price_cells.get("price_d") is not None:

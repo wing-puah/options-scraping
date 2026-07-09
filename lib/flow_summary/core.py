@@ -780,6 +780,7 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
         "Bull", "Bear", "Mid",
         "BTO", "STO", "ToOpen",
         "wDTE", "Hzn", "wIV%", "IVpct", "IVspr", "IVskew",
+        "PxVec", "Earn",
         "OIConf%", "CPIR", "CPIRA",
         "Biggest trade",
     ]
@@ -815,6 +816,8 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
             f"{r['iv_pct'] * 100:.0f}%" if r.get("iv_pct") is not None else "—",
             _fmt_iv_pts(r.get("iv_spread")),
             _fmt_iv_pts(r.get("iv_skew")),
+            f"{r['price_vector']:+.2f}" if r.get("price_vector") is not None else "—",
+            str(r["days_to_earnings"]) if r.get("days_to_earnings") is not None else "—",
             f"{r['oi_confirm_pct'] * 100:.0f}%" if r.get("oi_confirm_pct") is not None else "—",
             f"{r['cpir']:.2f}"        if r.get("cpir")            is not None else "—",
             f"{r['cpira']:.2f}"       if r.get("cpira")           is not None else "—",
@@ -930,11 +933,34 @@ def _attach_iv_pct(rollup: list[dict], iv_pct: dict[str, int | None] | None) -> 
     return rollup
 
 
+def _attach_price_read(rollup: list[dict], price_read: dict[str, dict] | None) -> list[dict]:
+    """Attach the deterministic per-ticker price read onto rollup rows: the signed
+    price-trend vector ``price_vector`` (∈ [-1, +1], see
+    :func:`lib.price_catalyst.price_read`) and ``days_to_earnings`` (days to next
+    earnings, see :func:`lib.price_catalyst.catalyst_read`).
+
+    Injected rather than computed here because the inputs are scraped (Barchart
+    underlying price history + corporate actions) and enriched onto the compiled
+    flow file by ``scripts/collector/fetch_price_catalyst.py`` — the caller reads
+    them back off those rows and passes
+    ``{UPPER_SYMBOL: {price_vector, days_to_earnings}}``, same pattern as ``iv_pct``
+    / ``counterpart_iv``. Missing values stay ``None`` so displays show "—" and the
+    price score falls back to blank.
+    """
+    lut = price_read or {}
+    for r in rollup:
+        pr = lut.get(r["symbol"].upper()) or {}
+        r["price_vector"] = pr.get("price_vector")
+        r["days_to_earnings"] = pr.get("days_to_earnings")
+    return rollup
+
+
 def build_scored_flow_rollup(
     rows: list[dict],
     unusual_rows: list[dict] | None = None,
     counterpart_iv: dict[str, list[dict]] | None = None,
     iv_pct: dict[str, int | None] | None = None,
+    price_read: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Per-ticker flow rollup with conviction scores attached, sorted best-first.
 
@@ -942,14 +968,17 @@ def build_scored_flow_rollup(
     conviction score also credits cross-section overlap and Vol/OI strength.
     ``counterpart_iv`` (optional) supplies backfilled counterpart-leg settlement IV for
     the matched-pair / skew reads (see :func:`_flow_ticker_rows`). ``iv_pct``
-    (optional) supplies the per-ticker IV percentile joined onto each row. Shared by
-    the markdown summary and the CSV export so both see identical scoring and ordering.
+    (optional) supplies the per-ticker IV percentile joined onto each row.
+    ``price_read`` (optional) supplies the per-ticker signed price vector +
+    days-to-earnings joined onto each row. Shared by the markdown summary and the
+    CSV export so both see identical scoring and ordering.
     """
     rollup = _flow_ticker_rows(rows, counterpart_iv)
     unusual_syms = {(r.get(_UN_SYMBOL) or "").strip() for r in (unusual_rows or [])}
     unusual_syms.discard("")
     score_flow_rollup(rollup, unusual_syms, _voloi_by_symbol(unusual_rows))
     _attach_iv_pct(rollup, iv_pct)
+    _attach_price_read(rollup, price_read)
     rollup.sort(key=lambda r: (r["score"], r.get("ext_total", r["premium_total"])), reverse=True)
     return rollup
 
@@ -963,6 +992,7 @@ def summarize_flow(
     focus: set[str] | None = None,
     counterpart_iv: dict[str, list[dict]] | None = None,
     iv_pct: dict[str, int | None] | None = None,
+    price_read: dict[str, dict] | None = None,
 ) -> str:
     """Full rollup (all tickers) + top raw_n raw trades for each of the top_n tickers by score.
 
@@ -976,7 +1006,7 @@ def summarize_flow(
     """
     if not rows:
         return f"## {title}\n\n_No data available._\n"
-    rollup = build_scored_flow_rollup(rows, unusual_rows, counterpart_iv, iv_pct)
+    rollup = build_scored_flow_rollup(rows, unusual_rows, counterpart_iv, iv_pct, price_read)
     count_line = f"_{len(rows)} trades across {len(rollup)} symbols._"
     display = rollup
     if focus is not None:
@@ -1011,7 +1041,7 @@ FLOW_CSV_COLUMNS = [
     "Contracts", "PremPerContract",
     "CallPremium", "PutPremium", "CallPutRatio",
     "Bull", "Bear", "Mid", "BTO", "STO", "ToOpen",
-    "wDTE", "wIV", "IVPct", "IVSpread", "IVSkew", "BiggestTrade",
+    "wDTE", "wIV", "IVPct", "IVSpread", "IVSkew", "PriceVector", "DaysToEarn", "BiggestTrade",
     "OIConfirmPct", "OIN", "OIFC", "OIFP", "CPIR", "CPIRA",
 ]
 
@@ -1021,31 +1051,38 @@ def _rollup_metric_cells(r: dict) -> dict:
 
     Single source of truth shared by :func:`flow_rollup_csv` (the audit CSV) and
     :func:`ticker_metrics` (the analysis-row / backfill join) so both emit
-    byte-identical strings: ``oi_confirm_pct`` / ``cpir`` / ``iv_pct`` straight
-    through (blank when None), ``iv_spread`` rounded to 1 decimal.
+    byte-identical strings: ``oi_confirm_pct`` / ``cpir`` / ``iv_pct`` /
+    ``days_to_earnings`` straight through (blank when None), ``iv_spread`` rounded
+    to 1 decimal, ``price_vector`` (signed, ∈ [-1, +1]) rounded to 2.
     """
     return {
         "oi_confirm_pct": r["oi_confirm_pct"] if r.get("oi_confirm_pct") is not None else "",
         "cpir": r["cpir"] if r.get("cpir") is not None else "",
         "iv_spread": round(r["iv_spread"], 1) if r.get("iv_spread") is not None else "",
         "iv_pct": r["iv_pct"] if r.get("iv_pct") is not None else "",
+        "price_vector": round(r["price_vector"], 2) if r.get("price_vector") is not None else "",
+        "days_to_earnings": r["days_to_earnings"] if r.get("days_to_earnings") is not None else "",
     }
 
 
 def ticker_metrics(flow_rows: list[dict],
                    counterpart_iv: dict[str, list[dict]] | None = None,
-                   iv_pct: dict[str, int | None] | None = None) -> dict[str, dict]:
-    """``{UPPER_SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_pct}}`` for a flow section.
+                   iv_pct: dict[str, int | None] | None = None,
+                   price_read: dict[str, dict] | None = None) -> dict[str, dict]:
+    """``{UPPER_SYMBOL: {oi_confirm_pct, cpir, iv_spread, iv_pct, price_vector, days_to_earnings}}``.
 
     The deterministic per-ticker rollup-context metrics, recomputed straight from
     parsed flow rows. Reuses :func:`_flow_ticker_rows` (the pure aggregation); these
     values do NOT depend on conviction scoring or the unusual-activity rows, so no
     scoring/CSV serialization is run. ``counterpart_iv`` is threaded through so the
     ``iv_spread`` matches the rollup markdown; ``iv_pct`` (``{UPPER_SYMBOL: rank}``)
-    is joined onto each row. Formatting mirrors ``FLOW_CSV_COLUMNS`` via
+    and ``price_read`` (``{UPPER_SYMBOL: {price_vector, days_to_earnings}}``) are
+    joined onto each row. Formatting mirrors ``FLOW_CSV_COLUMNS`` via
     :func:`_rollup_metric_cells`.
     """
-    rollup = _attach_iv_pct(_flow_ticker_rows(flow_rows, counterpart_iv), iv_pct)
+    rollup = _flow_ticker_rows(flow_rows, counterpart_iv)
+    _attach_iv_pct(rollup, iv_pct)
+    _attach_price_read(rollup, price_read)
     return {r["symbol"].upper(): _rollup_metric_cells(r) for r in rollup}
 
 
@@ -1102,6 +1139,8 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "IVPct": cells["iv_pct"],
                 "IVSpread": cells["iv_spread"],
                 "IVSkew": round(r["iv_skew"], 1) if r.get("iv_skew") is not None else "",
+                "PriceVector": cells["price_vector"],
+                "DaysToEarn": cells["days_to_earnings"],
                 "BiggestTrade": _biggest_trade_str(r["biggest"]),
                 "OIConfirmPct": cells["oi_confirm_pct"],
                 "OIN": r.get("oi_n", ""),

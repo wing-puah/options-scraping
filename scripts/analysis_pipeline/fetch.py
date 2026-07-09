@@ -21,6 +21,7 @@ from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
 from lib.counterpart_iv import build_iv_lookup, sidecar_name
 from lib.iv_history import iv_pct_from_flow_rows
+from lib.price_catalyst import catalyst_read, price_catalyst_from_flow_rows, price_read
 from lib.sheets_client import get_all_rows
 from lib.vol_snapshot import fetch_vol_snapshot, vol_snapshot_md
 from lib.flow_summary import (
@@ -153,6 +154,33 @@ def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
         return {}
 
 
+def _load_price_read(flow_rows: list[dict], date_str: str | None) -> dict[str, dict]:
+    """``{UPPER_SYMBOL: {price_vector, days_to_earnings}}`` — the deterministic
+    per-ticker price read derived from the enriched price/earnings columns on the
+    flow rows.
+
+    ``price_vector`` (:func:`lib.price_catalyst.price_read`) is the signed trend
+    vector (∈ [-1, +1], + bullish / − bearish / ≈0 range-bound, ``|value|`` =
+    strength); ``days_to_earnings`` (:func:`lib.price_catalyst.catalyst_read`) is
+    days to the next earnings as of the trade date. Columns are written by
+    ``scripts/collector/fetch_price_catalyst.py`` — same read-off-the-row pattern
+    as :func:`_load_iv_pct`, no scraping. ``days_to_earnings`` needs the trade date,
+    so it stays ``None`` when ``date_str`` is unknown; the vector never does.
+    Degrades to ``{}`` on any failure or unenriched rows.
+    """
+    try:
+        cells_by_ticker = price_catalyst_from_flow_rows(flow_rows)
+        trade_date = date.fromisoformat(date_str) if date_str else None
+        out: dict[str, dict] = {}
+        for sym, cells in cells_by_ticker.items():
+            days_to_earnings = catalyst_read(cells, trade_date)["days_to_next_earnings"] if trade_date else None
+            out[sym] = {"price_vector": price_read(cells), "days_to_earnings": days_to_earnings}
+        return out
+    except Exception:
+        log.exception("Could not read price/catalyst from flow rows")
+        return {}
+
+
 def load_flow_rows_for_scoring(date_str: str | None) -> list[dict]:
     """Re-download the compiled stocks-flow + etfs-flow rows for `date_str` (or the
     latest date when None), already carrying scripts/collector/fetch_price_catalyst.py's
@@ -200,6 +228,7 @@ def fetch_data(
 
     counterpart_iv = _load_counterpart_iv(client, date_str)
     iv_pct = _load_iv_pct(section_rows["stocks-flow"] + section_rows["etfs-flow"])
+    price_read_map = _load_price_read(section_rows["stocks-flow"] + section_rows["etfs-flow"], date_str)
 
     if ticker:
         sections_out = []
@@ -236,7 +265,8 @@ def fetch_data(
         unusual = section_rows[_FLOW_UNUSUAL_PAIR[key]]
         sections_out.append(summarize_flow(rows, title, top_n=top_n, raw_n=raw_n,
                                             unusual_rows=unusual, focus=focus,
-                                            counterpart_iv=counterpart_iv, iv_pct=iv_pct))
+                                            counterpart_iv=counterpart_iv, iv_pct=iv_pct,
+                                            price_read=price_read_map))
 
     sections_out.append(cross_section_md(section_rows["stocks-flow"], section_rows["unusual-stocks"]))
     sections_out.append(hedge_pressure_md(section_rows["stocks-flow"], section_rows["etfs-flow"]))
@@ -250,20 +280,21 @@ def fetch_data(
         sections_out.extend(_persistence_sections(client, date_str, days))
 
     if audit_csv_path is not None:
-        _write_audit_csv(section_rows, audit_csv_path, counterpart_iv, iv_pct)
+        _write_audit_csv(section_rows, audit_csv_path, counterpart_iv, iv_pct, price_read_map)
 
     return "\n\n".join(sections_out)
 
 
 def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path,
                      counterpart_iv: dict[str, list[dict]] | None = None,
-                     iv_pct: dict[str, float] | None = None) -> None:
+                     iv_pct: dict[str, float] | None = None,
+                     price_read: dict[str, dict] | None = None) -> None:
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
         rows = section_rows[flow_key]
         if rows:
             unusual = section_rows[_FLOW_UNUSUAL_PAIR[flow_key]]
-            sections.append((label, build_scored_flow_rollup(rows, unusual, counterpart_iv, iv_pct)))
+            sections.append((label, build_scored_flow_rollup(rows, unusual, counterpart_iv, iv_pct, price_read)))
     if not sections:
         return
     path = Path(path)
@@ -300,32 +331,35 @@ def fetch_scored_csv(date_str: str | None = None) -> str:
     counterpart_iv = _load_counterpart_iv(client, date_str)
     flow_by_key = {k: _load_rows(client, k, date_str) for k in ("stocks-flow", "etfs-flow")}
     iv_pct = _load_iv_pct(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
+    price_read_map = _load_price_read(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"], date_str)
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
         flow_rows = flow_by_key[flow_key]
         if not flow_rows:
             continue
         unusual = _load_rows(client, _FLOW_UNUSUAL_PAIR[flow_key], date_str)
-        sections.append((label, build_scored_flow_rollup(flow_rows, unusual, counterpart_iv, iv_pct)))
+        sections.append((label, build_scored_flow_rollup(flow_rows, unusual, counterpart_iv, iv_pct, price_read_map)))
     return flow_rollup_csv(sections)
 
 
 def fetch_ticker_metrics(date_str: str | None = None) -> dict[str, dict]:
-    """Drive flow (stocks + ETFs) for a date → ``{SYMBOL: {oi_confirm_pct, cpir, iv_spread}}``.
+    """Drive flow (stocks + ETFs) for a date → ``{SYMBOL: {oi_confirm_pct, cpir,
+    iv_spread, iv_pct, price_vector, days_to_earnings}}``.
 
     The single recompute call the rollup backfill needs: Drive I/O lives here, the
-    pure computation in :func:`lib.flow_summary.ticker_metrics`. The three metrics
+    pure computation in :func:`lib.flow_summary.ticker_metrics`. These metrics
     don't depend on the unusual-activity rows, so only the flow sections are loaded.
     ETF symbols are merged after stocks (the two symbol sets are disjoint)."""
     client = get_drive_client()
     counterpart_iv = _load_counterpart_iv(client, date_str)
     flow_by_key = {k: _load_rows(client, k, date_str) for k in ("stocks-flow", "etfs-flow")}
     iv_pct = _load_iv_pct(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
+    price_read_map = _load_price_read(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"], date_str)
     out: dict[str, dict] = {}
     for flow_key in ("stocks-flow", "etfs-flow"):
         rows = flow_by_key[flow_key]
         if rows:
-            out.update(ticker_metrics(rows, counterpart_iv, iv_pct))
+            out.update(ticker_metrics(rows, counterpart_iv, iv_pct, price_read_map))
     return out
 
 

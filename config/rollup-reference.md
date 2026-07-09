@@ -101,6 +101,19 @@ sidecar's `iv` stores points — `_settlement_iv` normalises to points.)
 and `Open Int` are the real flow-feed column names (a mismatched constant
 previously collapsed all expiries to one key — fixed 2026-07-01).
 
+### Price read (from price history + earnings, not flow)
+
+| Column | Computation | Notes |
+|--------|------------|-------|
+| `PriceVector` (`PxVec`) | `2·bull_fraction − 1 ∈ [-1, +1]`, where `bull_fraction` is the weight-renormalised blend of the four non-key directional price sub-signals (nearness to the 50d high/low with 20d fallback, price-vs-SMA20, SMA20-vs-SMA50, 5d follow-through) in the bullish frame | Signed price-trend vector: sign = direction (**+** bullish / **−** bearish / **≈0** range-bound), `\|value\|` = strength. `lib/price_catalyst.price_read`, off the enriched price columns (`price_d`/SMAs/highs-lows) written by `fetch_price_catalyst.py`, as-of the trade date (no look-ahead). The SAME blend `score_price` weights, so the rollup read and the price score agree by construction. `—` when the name has no enriched price history. |
+| `DaysToEarn` (`Earn`) | `(next_earnings − trade_date).days` | Days to next earnings, from the Barchart corporate-actions feed (`lib/price_catalyst.catalyst_read`), as-of the trade date. Grounds `score_catalyst` when the play's horizon window spans it. `—` when no upcoming earnings date is known. |
+
+Neither is scored. `PxVec` is the deterministic price signal a trend play's
+`direction` should agree with (a mean-reversion play deliberately opposes it);
+`Earn` is the primary dated catalyst. Both also land on the analysis sheet rows
+as the snake_case `price_vector`/`days_to_earnings` columns, joined by ticker at
+row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
+
 > **Flow subset vs full chain — and the backfill mitigation:** the paper computes
 > both across the full daily option chain; the flow feed (largest ~100
 > trades/symbol) rarely carries BOTH legs of a matched pair, so on flow alone

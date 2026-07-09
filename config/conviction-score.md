@@ -162,6 +162,28 @@ IV is rich on KO, cheap on NVDA). `—` when the tab has no scraped row for the 
 (not yet cached, or the ticker fell outside the scraped universe) — then fall back
 to the dealer-gamma / vol-snapshot proxy.
 
+## Price read (grounds score_price / score_catalyst, not a conviction component)
+
+Two deterministic per-ticker columns precompute what the framework's Step-5
+price and catalyst factors need, so the model's `direction`/`key_level` are
+anchored in the actual chart/calendar rather than its own recall:
+
+| Column   | What it measures |
+| -------- | ---------------- |
+| `PxVec`  | **Signed price-trend vector**, −1..+1: sign is direction (**+** bullish / **−** bearish / **≈0** range-bound) and `|value|` is trend strength. A single collapse of the four non-key price sub-signals `score_price` weights (nearness to the 50d high/low, price-vs-SMA20, SMA20-vs-SMA50, 5d follow-through), renormalised over whichever are present. The **same** value is reused by `score_price` — the rollup read and the score never disagree. `—` when the name has no enriched price history. |
+| `Earn`   | **Days to next earnings** as of the trade date (from the Barchart corporate-actions feed, no look-ahead). When the play's `horizon` window spans it, that earnings event grounds `score_catalyst`. `—` when no upcoming earnings date is known. |
+
+Both come from `scripts/collector/fetch_price_catalyst.py` (Barchart underlying
+price history + corporate actions → `lib/price_catalyst.py` pickers → columns on
+the compiled flow file), read back as-of the trade date — same enrich-in-place /
+read-off-the-row pattern as `IVpct`. Neither is a conviction-score component nor
+part of the market read: `PxVec` is the deterministic price signal a trend
+play's direction should agree with (a mean-reversion play deliberately opposes
+it), and `Earn` is the primary dated catalyst. Both also land on the
+`AnalysisClaude`/`AnalysisGPT`/`AnalysisTickerSpecific` rows as the snake_case
+`price_vector`/`days_to_earnings` columns, joined onto each play row by ticker at
+row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
+
 ## Buckets
 
 | Score | Label       |
