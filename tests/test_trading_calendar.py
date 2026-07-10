@@ -1,6 +1,6 @@
 from datetime import date
 
-from barchart_scrape import trading_days
+from scrape_flow import trading_days
 
 
 def test_full_week_returns_five_days():

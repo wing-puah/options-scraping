@@ -828,6 +828,21 @@ def _flow_rollup_md(rollup: list[dict], title: str) -> str:
     return f"### {title} — ticker rollup ({len(rollup)} symbols, ranked by score)\n\n{header_line}\n{sep}\n{body}\n"
 
 
+def _fmt_raw_cell(header: str, value) -> str:
+    """Render a raw-trade table cell; rounds the Delta column to 2dp when numeric.
+
+    Barchart's Delta cell carries ~14 decimal places (e.g. "0.47446568256511"),
+    which is pure token noise at this precision — 2dp is plenty for the model's
+    read. Non-numeric cells (``N/A``, blank) pass through unchanged.
+    """
+    if header == _FLOW_DELTA:
+        try:
+            return f"{float(value):.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
 def _flow_top_trades_md(
     rows: list[dict], top_tickers: list[str], raw_n: int, title: str
 ) -> str:
@@ -847,7 +862,9 @@ def _flow_top_trades_md(
         top = ticker_rows[:raw_n]
         headers = [h for h in top[0].keys() if h not in _RAW_DROP_COLUMNS]
         sep = " | ".join(["---"] * len(headers))
-        body = "\n".join(" | ".join(str(r.get(h, "")) for h in headers) for r in top)
+        body = "\n".join(
+            " | ".join(_fmt_raw_cell(h, r.get(h, "")) for h in headers) for r in top
+        )
         sections.append(f"#### {sym}\n\n{' | '.join(headers)}\n{sep}\n{body}\n")
 
     if not sections:

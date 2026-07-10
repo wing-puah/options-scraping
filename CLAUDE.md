@@ -41,8 +41,8 @@ pytest
 pytest tests/test_drive_client.py
 
 # Scrape live data (run during/after market hours)
-SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode unusual
+SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
 
 # Compile a day's hourly flow snapshots into one deduped CSV per type (→ Drive)
 python3 scripts/compile_flow.py                      # today (ET)
@@ -99,8 +99,8 @@ python3 -m scripts.analysis_pipeline --fetch-only                  # fetch + aud
 python3 -m scripts.analysis_pipeline --fetch-only --date 2026-06-09
 
 # Scrape historical data to Google Drive
-python3 scripts/collector/barchart_scrape.py --date 2026-04-21
-python3 scripts/collector/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/scrape_flow.py --date 2026-04-21
+python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml
@@ -124,7 +124,7 @@ python3 scripts/auth_drive.py
 
 ```
 Barchart.com
-    │ (barchart_scrape.py — 2×/day via GitHub Actions)
+    │ (scrape_flow.py — 2×/day via GitHub Actions)
     ▼
 Google Drive (OAuth2 personal account)
     {GOOGLE_DRIVE_FOLDER_ID}/
@@ -204,10 +204,10 @@ lib/                        ← shared modules, imported by scripts, never run d
 
 scripts/                    ← entry points, each maps to a workflow step
   collector/                ← data collectors (path-invoked; group the scrape/enrich/fetch step).
-                              barchart_scrape.py, enrich_oi.py, fetch_iv_percentile.py,
+                              scrape_flow.py, enrich_oi.py, fetch_iv_percentile.py,
                               fetch_counterpart_iv.py, fetch_price_catalyst.py live here — run as
                               `python scripts/collector/<name>.py`
-  collector/barchart_scrape.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
+  collector/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one
                               deduped CSV per type (trade-identity dedup) →
                               {prefix}-{YYYYMMDD}-compiled.csv in Drive
@@ -355,12 +355,12 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ```
 # Live (runs 2×/day via GitHub Actions, then skill on demand)
-scripts/collector/barchart_scrape.py --mode flow
-scripts/collector/barchart_scrape.py --mode unusual
+scripts/collector/scrape_flow.py --mode flow
+scripts/collector/scrape_flow.py --mode unusual
 → /options analyze  (Claude Code or GPT Codex)
 
 # Historical
-scripts/collector/barchart_scrape.py --start … --end …
+scripts/collector/scrape_flow.py --start … --end …
 python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 ```
 
@@ -389,7 +389,7 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 ## Invariants (do not regress)
 
 - **Per-play `regime` and `signal` are ticker-specific, never copies of the market read.** The
-  MARKET row of an analysis carries the top-level `regime` + `signals` (+ folded `sector_focus`);
+  MARKET row of an analysis carries the top-level `regime` + `signals` (+ folded `themes`);
   each play row carries its OWN `regime` and `signal` taken from inside the play dict. Either play
   field may be empty, but they must NEVER fall back to the market values. See the invariant
   comment on `analysis_to_rows()` in `scripts/analysis_pipeline/core.py` and the per-play schema
@@ -443,7 +443,7 @@ The analysis framework (`config/analysis-framework.md`) defines the 5-step proce
 classification (BULL/BEAR/RANGE + volatility + sentiment labels, with macro **optional** — only
 assigned when corroborated by cross-asset evidence), signal tagging
 ([FLOW]/[PRICE]/[MACRO]/[VEGA]/[CAT]), sector narrowing, play proposals, and invalidation
-conditions. Output is a JSON object with keys: `regime`, `signals`, `sector_focus`, `plays`,
+conditions. Output is a JSON object with keys: `regime`, `signals`, `themes`, `plays`,
 `invalidation`.
 
 Model-specific analysis judgment is documented in `config/analysis-methods/`.

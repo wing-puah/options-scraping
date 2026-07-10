@@ -6,12 +6,12 @@ Historical mode (--date / --start + --end): scrapes all four data types for past
 
 Usage:
   # Live — run during/after market hours
-  python3 scripts/collector/barchart_scrape.py --mode flow
-  python3 scripts/collector/barchart_scrape.py --mode unusual
+  python3 scripts/collector/scrape_flow.py --mode flow
+  python3 scripts/collector/scrape_flow.py --mode unusual
 
   # Historical — backfill a date or date range
-  python3 scripts/collector/barchart_scrape.py --date 2026-04-21
-  python3 scripts/collector/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+  python3 scripts/collector/scrape_flow.py --date 2026-04-21
+  python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 """
 import argparse
 import asyncio
@@ -34,7 +34,7 @@ from lib.barchart import BarchartSession
 from lib.csv_utils import parse_csv
 from lib.drive_client import StorageClient, file_name, get_drive_client, trading_day
 
-log = logging.getLogger("barchart_scrape")
+log = logging.getLogger("scrape_flow")
 
 ET = ZoneInfo("America/New_York")
 

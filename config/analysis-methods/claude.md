@@ -294,7 +294,7 @@ combined table. Apply that table — do not restate it. The judgment on top of i
   set — it is the "rich vs cheap" read that normalises across names (40% IV is
   rich on KO, cheap on NVDA), which the market VIX cannot. A trend name in a
   slow, positive-gamma grind with **high `IVpct` (≥70%)** is the **TF-S** case:
-  sell a credit spread (bull put / bear call), because a debit into rich IV pays
+  sell a bull put spread (bullish) or bear call spread (bearish), because a debit into rich IV pays
   for premium the slow move can't overcome. **Low `IVpct` (≤30%)** → IV cheap →
   debit / long premium (TF). `IVpct` is Barchart's IV percentile (share of the
   prior-1yr days with IV below today's); blank when the name has no scraped row —

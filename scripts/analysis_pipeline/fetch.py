@@ -39,14 +39,14 @@ from lib.flow_summary import (
 
 log = logging.getLogger("analysis_pipeline.fetch")
 
-_SCORE_LEGEND_DOC = Path(__file__).parent.parent.parent / "config" / "conviction-score.md"
+_SCORE_LEGEND_DOC = Path(__file__).parent.parent.parent / "config" / "conviction-score-legend.md"
 
 
 def _score_legend() -> str:
     try:
         body = _SCORE_LEGEND_DOC.read_text().strip()
     except OSError:
-        return "> Conviction score: see config/conviction-score.md"
+        return "> Conviction score: see config/conviction-score-legend.md"
     return "\n".join("> " + line if line else ">" for line in body.splitlines())
 
 

@@ -1,0 +1,75 @@
+name: Fetch Counterpart IV
+
+# Backfills the missing call/put leg's settlement IV for single-sided in-window
+# matched pairs, so the analysis rollup's IVspr/IVskew are populated (~96% vs ~2%
+# on flow alone). Unlike Enrich OI, this doesn't touch the compiled flow file —
+# it writes a separate per-date sidecar (counterpart-iv-{YYYYMMDD}.csv) to Drive,
+# so it's its own workflow rather than a step in Enrich OI. IV is as-of trade
+# date D (available same evening, no D+1 wait), so this chains directly off
+# Compile Flow and enriches the latest date only (no --backfill: a full
+# historical sweep risks the job timeout). Idempotent per contract via the
+# sidecar's fetched_on marker.
+#
+# Needs the full requirements (Playwright) + Barchart creds to scrape per-contract
+# price history; writes the sidecar CSV back to Drive (no Sheets access needed).
+
+on:
+  # Chain off Compile Flow so the day's compiled file exists before we fetch.
+  workflow_run:
+    workflows: ["Compile Flow"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Single trading date to enrich (YYYY-MM-DD). Blank = latest compiled date.'
+        required: false
+        type: string
+
+jobs:
+  fetch-counterpart-iv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # On the workflow_run trigger, only proceed if Compile Flow succeeded. Manual
+    # runs (workflow_dispatch) always proceed.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        # Full set — the scraper needs Playwright/etc., not just the slim compile deps.
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browser
+        # Unconditional (not gated on cache-hit): the cache key only tracks
+        # requirements.txt, but playwright>=1.44 is unpinned, so a newer resolved
+        # pip version can need a browser revision the cache doesn't have (same
+        # issue hit in scrape.yml — see its history). `playwright install` is a
+        # no-op when the required revision is already cached, so this stays cheap.
+        run: playwright install --with-deps chromium
+
+      - name: Backfill matched-pair counterpart IV (latest date only)
+        # Fetch the missing call/put leg's settlement IV for single-sided in-window
+        # pairs, so the analysis rollup's IVspr/IVskew are populated (~96% vs ~2% on
+        # flow alone). Latest date ONLY — no --backfill: a full sweep would re-scan
+        # every historical date and risk the job timeout. Idempotent per contract
+        # via the sidecar's fetched_on marker. Manual date input respected.
+        run: python scripts/collector/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'

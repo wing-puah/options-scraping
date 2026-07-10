@@ -43,7 +43,7 @@ _MUTE_AT_WARNING = [
 ]
 
 # Our own logger namespaces — set to the requested level.
-_OWN_LOGGERS = ["lib", "barchart_scrape", "analysis_pipeline", "backtest"]
+_OWN_LOGGERS = ["lib", "scrape_flow", "analysis_pipeline", "backtest"]
 
 
 def setup_logging(level: int = logging.DEBUG) -> None:

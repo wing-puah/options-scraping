@@ -48,7 +48,7 @@ jobs:
       - name: Run scraper
         # Manual run: use the chosen input. Scheduled run: the 22:00 UTC cron means
         # unusual; every other (hourly) cron means flow.
-        run: python scripts/collector/barchart_scrape.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
+        run: python scripts/collector/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

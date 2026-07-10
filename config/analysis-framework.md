@@ -181,7 +181,7 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 | Playbook                   | `flow_intent`            | View                                        | Aggressive (low IVpct / rising IV)   | Moderate                     | Conservative (high IVpct / falling IV) |
 | -------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
 | **TF** Trend Following     | DIRECTIONAL              | Bullish / Bearish — momentum / breakout     | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
-| **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Credit spread (bull put / bear call)  | Credit spread                | Credit spread                       |
+| **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Bull put spread / bear call spread    | Bull put spread / bear call spread | Bull put spread / bear call spread |
 | **MR** Mean Reversion      | DIRECTIONAL              | Bullish / Bearish (counter-extension)       | Long call / put                       | Debit spread                 | Credit spread                       |
 | **GE** Gamma Expansion     | DIRECTIONAL / VOLATILITY | Breakout direction, or Vol expansion        | Long ATM/OTM weekly, or long straddle | Debit spread / long strangle | Defined-risk debit / backspread     |
 | **PU** Positioning Unwind  | DIRECTIONAL              | Bullish / Bearish (unwind direction)        | Long call / put                       | Debit spread                 | Credit spread                       |
@@ -245,7 +245,7 @@ Produce a full slate every run: **at least 5 stock plays and at least 3 ETF play
 in the data — stock plays from the stock sections, ETF plays from the ETF sections.
 When conviction is thin, still meet the minimums but let those ideas score weak
 (Step 5) rather than dropping them; never invent a ticker absent from the data. This is in
-addition to the always-present market read (regime + signals + sector focus).
+addition to the always-present market read (regime + signals + themes).
 
 Format each play as:
 
@@ -382,7 +382,7 @@ truth. What follows is a human-facing summary only; when it and the contract
 disagree, the contract wins.
 
 The engine returns one JSON object: market-level `regime`, `signals`,
-`sector_focus`, and `themes` (Step 5b), plus a `plays` array. Each play
+and `themes` (Step 5b), plus a `plays` array. Each play
 carries `ticker`, `asset_class` (stock|etf), `pattern` (the Step-2 playbook),
 its own per-play `regime`/`signal` (never copies of the market read),
 `structure`, `thesis`, `trigger`, `invalidation`, `flow_intent` (Step 3),

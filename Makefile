@@ -6,19 +6,19 @@ PY   := $(VENV)/bin/python3
 .PHONY: scrape
 scrape:
 ifeq ($(strip $(ARGS)),)
-	$(PY) scripts/collector/barchart_scrape.py --mode flow
-	$(PY) scripts/collector/barchart_scrape.py --mode unusual
+	$(PY) scripts/collector/scrape_flow.py --mode flow
+	$(PY) scripts/collector/scrape_flow.py --mode unusual
 else
-	$(PY) scripts/collector/barchart_scrape.py $(ARGS)
+	$(PY) scripts/collector/scrape_flow.py $(ARGS)
 endif
 
 .PHONY: scrape-flow
 scrape-flow:
-	$(PY) scripts/collector/barchart_scrape.py --mode flow $(ARGS)
+	$(PY) scripts/collector/scrape_flow.py --mode flow $(ARGS)
 
 .PHONY: scrape-unusual
 scrape-unusual:
-	$(PY) scripts/collector/barchart_scrape.py --mode unusual $(ARGS)
+	$(PY) scripts/collector/scrape_flow.py --mode unusual $(ARGS)
 
 # ── compile & gc ───────────────────────────────────────────────────────────────
 .PHONY: compile

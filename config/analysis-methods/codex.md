@@ -204,7 +204,7 @@ the user's portfolio size, risk tolerance, or complete volatility surface.
   prior-1yr days with IV below today's, 0–100) pick debit vs credit once direction
   is set — it normalises across names where the market VIX cannot. **High `IVpct`
   (≥70%)** on a trend name in a slow, positive-gamma grind is the **TF-S** case:
-  sell a credit spread (bull put / bear call) rather than buy a debit into rich IV.
+  sell a bull put spread (bullish) or bear call spread (bearish) rather than buy a debit into rich IV.
   **Low `IVpct` (≤30%)** → debit / long premium (TF). Blank (no scraped row) → fall
   back to the vol-snapshot proxy.
 - Default the structure's expiry to **≥45 DTE** (framework Step 4 DTE

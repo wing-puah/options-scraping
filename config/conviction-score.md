@@ -1,5 +1,9 @@
 # Conviction score (0–14 raw, less a financing penalty; direction-agnostic)
 
+> The analysis prompt quotes `config/conviction-score-legend.md` (a condensed,
+> model-facing version of this file) — semantic changes to scoring (component
+> ranges, point tables, thresholds, definitions) must update BOTH files.
+
 A quant pre-score of how much attention a name warrants, built from normalized
 inputs only — so an expensive underlying cannot buy its way up the list with raw
 premium. It is **not** a direction call; bull/bear tilt stays in the

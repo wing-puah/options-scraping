@@ -281,7 +281,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
 
     INVARIANT — do not regress (fixed June 2026):
       - The MARKET row carries the top-level `regime` and `signals` (+ folded
-        sector_focus).
+        themes).
       - Each play row carries its OWN `regime` and `signal` from inside the play
         dict — NOT the market-level fields. Either may be empty.
       - Never replace `p.get("regime")` / `p.get("signal")` with `market_regime`
@@ -291,16 +291,11 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
     """
     market_regime = _join(analysis.get("regime")).strip()
     market_signal = _multiline_signal(analysis.get("signals"))
-    sector = _join(analysis.get("sector_focus")).strip()
 
-    # sector_focus has no dedicated column; fold it into the MARKET row's signal
-    # cell (which backtest.py does not parse) so the information survives.
-    if sector:
-        market_signal = f"{market_signal}\n\nSector focus: {sector}" if market_signal else f"Sector focus: {sector}"
-
-    # themes has no dedicated column either; fold the market-level thematic
-    # breakdown into the MARKET row's signal cell the same way. Presentation only
-    # — breadth is a count of independent names, never a score multiplier.
+    # themes has no dedicated column; fold the market-level thematic
+    # breakdown into the MARKET row's signal cell (which backtest.py does not
+    # parse) so the information survives. Presentation only — breadth is a
+    # count of independent names, never a score multiplier.
     themes_text = _format_themes(analysis.get("themes"))
     if themes_text:
         market_signal = f"{market_signal}\n\n{themes_text}" if market_signal else themes_text

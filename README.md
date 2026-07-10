@@ -8,7 +8,7 @@ data in Google Drive, compiles and enriches it, then runs dual LLM analysis
 
 ```
 Barchart.com
-    │ (barchart_scrape.py — Playwright, hourly flow + daily unusual via GitHub Actions)
+    │ (scrape_flow.py — Playwright, hourly flow + daily unusual via GitHub Actions)
     ▼
 Google Drive (OAuth2 personal account)
     {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD}/{prefix}-{YYYYMMDD}-{HHMM}.csv
@@ -74,8 +74,8 @@ python3 scripts/auth_drive.py
 
 ```bash
 # Watch the browser (headless=false for debugging)
-SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/collector/barchart_scrape.py --mode unusual
+SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
 ```
 
 ### 4. GitHub Actions (free cloud hosting)
@@ -177,8 +177,8 @@ filter.
 ### 1. Collect historical data
 
 ```bash
-python3 scripts/collector/barchart_scrape.py --date 2026-04-21
-python3 scripts/collector/barchart_scrape.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/scrape_flow.py --date 2026-04-21
+python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 ```
 
 Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`.

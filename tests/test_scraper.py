@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from barchart_scrape import is_market_hours, _download_and_upload, _already_collected
+from scrape_flow import is_market_hours, _download_and_upload, _already_collected
 
 ET = ZoneInfo("America/New_York")
 
@@ -106,7 +106,7 @@ def test_download_uploads_and_returns_row_count(tmp_path):
     client = make_client(file_exists_id=None, upload_id="uploaded-id")
     run_dt = datetime(2026, 6, 2, 10, 30, tzinfo=ET)
 
-    with patch("barchart_scrape.Path") as mock_path:
+    with patch("scrape_flow.Path") as mock_path:
         real_path = MagicMock()
         real_path.__truediv__ = lambda self, x: tmp_path / x
         mock_path.return_value = real_path

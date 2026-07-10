@@ -6,7 +6,9 @@ low-churn building blocks — `core.py` is where the aggregation logic lives.
 """
 from __future__ import annotations
 
+from lib.iv_history import IV_ALL_COLUMNS
 from lib.parsing import to_float
+from lib.price_catalyst import PRICE_CATALYST_ENRICH_COLUMNS, PRICE_CATALYST_MARKER_COLUMN
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +125,12 @@ _RAW_DROP_COLUMNS = frozenset({
     # normalized per-ticker aggregates in the breakdown section instead.
     "oi_d", "oi_prev", "oi_change", "vol_d",
     "eod_iv", "eod_delta", "eod_gamma", "eod_vega", "oi_enriched_on",
-})
+} | set(IV_ALL_COLUMNS) | set(PRICE_CATALYST_ENRICH_COLUMNS) | {PRICE_CATALYST_MARKER_COLUMN})
+# IV-percentile (iv/iv_rank/iv_pct/iv_pct_enriched_on) and price-catalyst
+# (price_d/price_5d_ago/…/next_earnings/last_earnings/price_catalyst_enriched_on)
+# enrichment columns are per-ticker constants, already surfaced once per ticker
+# in the rollup as IVpct/PxVec/Earn — repeating them on every raw trade row is
+# pure token waste.
 
 # |delta| at or above this is treated as a stock substitute (financing /
 # conversion / replacement) — premium there is mostly intrinsic, not a bet on a

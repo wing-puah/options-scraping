@@ -66,7 +66,7 @@ DEFAULT_DAYS = 5
 
 # ──────────────────────── Play coverage targets ────────────────────
 # Minimum plays the contract asks each run to return, split by asset class, on
-# top of the always-present market read (regime/signals/sector_focus). The
+# top of the always-present market read (regime/signals/themes). The
 # pipeline logs a non-fatal warning when a run comes back short — it never blocks
 # a write, since thin days legitimately yield weaker setups.
 MIN_STOCK_PLAYS = 5
@@ -171,8 +171,7 @@ Schema (all string fields unless noted):
 
 {
   "regime": "Directional + Volatility + Sentiment labels (+ Macro only if cross-asset corroborated, + HP qualifier when the broad tape is at/near highs while large downside hedging accumulates) and a one-sentence read. HP is a market-condition qualifier here, NOT a per-play setup. E.g. BULL + C-VOL + RISK-OFF + HP — indexes near highs but broad index put hedging dominates premium.",
-  "signals": "Market-level tagged signals, pipe-separated — cross-asset/macro patterns ONLY (e.g. index hedging, vol regime, sector rotation). Per-ticker evidence belongs in each play's `signal` field, not here. E.g. [FLOW] broad index put hedging across SPY/QQQ/IWM | [VEGA] VIX call buying 35-40 | [MACRO] dollar bid risk-off.",
-  "sector_focus": "Sectors/names with concentrated flow and what it implies.",
+  "signals": "Market-level tagged signals, pipe-separated — cross-asset/macro patterns ONLY (e.g. index hedging, vol regime, sector rotation). Per-ticker evidence belongs in each play's `signal` field, not here. Dedupe against `themes`: a cluster of names with concentrated flow belongs in `themes`, never restated here — `signals` carries cross-asset/macro reads that are NOT already expressed as a theme. If a section genuinely lacks enough distinct names to meet the play-coverage minimums below, note that shortfall here. E.g. [FLOW] broad index put hedging across SPY/QQQ/IWM | [VEGA] VIX call buying 35-40 | [MACRO] dollar bid risk-off.",
   "themes": [
     {
       "theme": "short thematic label, e.g. 'AI semis' or 'downside index hedging'",
@@ -188,7 +187,7 @@ Schema (all string fields unless noted):
       "pattern": "TF|MR|GE|VC|PU|DP — the playbook (Step 2). TF (trend following) and GE (gamma expansion) bias WITH the trend/breakout direction; MR (mean reversion) bias OPPOSITE the extension; PU (positioning unwind) bias WITH the unwind direction; VC (volatility compression) and DP (dealer pinning) are non-directional. HP is NOT a value here — it lives in the market regime. The `structure` direction MUST match this playbook's bias.",
       "regime": "Ticker-specific regime — the volatility / level / posture state for THIS name (e.g. 'BULL + E-VOL — testing 59 breakout, IV30 rising into earnings'). Distinct from the market regime. Leave EMPTY if there is nothing ticker-specific to add beyond the market read — do NOT copy the market regime here.",
       "signal": "Ticker-specific tagged evidence supporting THIS play, pipe-separated. E.g. [FLOW] $10.3M calls vs $0.9M puts | [FLOW] 53x Vol/OI unusual print | [FLOW] explicit ToOpen/BuyToOpen $64 calls | [PRICE] testing breakout at 59. Distinct from the market-level `signals` — this is the per-ticker evidence chain.",
-      "structure": "Option structure from the two-layer table (Step 4): playbook fixes the bias, IV picks aggressive/moderate/conservative. Bullish: long call / call spread / short put. Bearish: long put / put spread / short call. Vol expansion: straddle / strangle / calendar. Vol compression or DP: short strangle / iron condor / butterfly. TF/MR with time-structure edge: diagonal spread or calendar. TF-S (trend following, SLOW grind: high IVpct + positive-gamma/contango, no catalyst) takes a CREDIT spread (bull put if bullish, bear call if bearish) NOT a debit. e.g. bull call spread 185/200",
+      "structure": "Option structure from the two-layer table (Step 4): playbook fixes the bias, IV picks aggressive/moderate/conservative. Bullish: long call / call spread / short put. Bearish: long put / put spread / short call. Vol expansion: straddle / strangle / calendar. Vol compression or DP: short strangle / iron condor / butterfly. TF/MR with time-structure edge: diagonal spread or calendar. TF-S (trend following, SLOW grind: high IVpct + positive-gamma/contango, no catalyst) takes a bull put spread if bullish or a bear call spread if bearish, NOT a debit. e.g. bull call spread 185/200",
       "thesis": "one sentence",
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
@@ -198,7 +197,7 @@ Schema (all string fields unless noted):
         "vol": "integer — vol-alignment points (IV/term structure/skew fit the structure). Max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for VOLATILITY. Do NOT return a total — these three plus two pipeline-computed factors (price, catalyst) are summed downstream to a 0-100 score."
       },
       "key_level": "REQUIRED, number — the specific price threshold already implied by this play's `structure`/`invalidation`/`trigger` (e.g. the breakout/breakdown level, the short strike, the pin level for VC/DP). Restate the SAME level your thesis already commits to — do not derive a second, independent judgment call here. Used downstream to mechanically score price-confirmation (score_price) against fetched price history, so it must match what `invalidation`/`trigger` already say.",
-      "direction": "REQUIRED, one of bullish|bearish|neutral — this play's directional stance. Follows the `pattern`/`structure` bias (bullish for a bull call spread / long call / TF-S bull put credit; bearish for the bear equivalents). Non-directional plays (VC, DP, straddles/strangles/condors) use neutral. Cross-check against the rollup's per-ticker **PxVec** (signed price-trend vector, −1..+1; + bullish, − bearish, ≈0 range-bound): a trend-following (TF/GE) play's direction should match the sign of PxVec; a mean-reversion (MR) play deliberately opposes it, so say so in the `signal`. PxVec is also the deterministic price signal that downstream grounds score_price.",
+      "direction": "REQUIRED, one of bullish|bearish|neutral — this play's directional stance. Follows the `pattern`/`structure` bias (bullish for a bull call spread / long call / TF-S bull put spread; bearish for the bear equivalents). Non-directional plays (VC, DP, straddles/strangles/condors) use neutral. Cross-check against the rollup's per-ticker **PxVec** (signed price-trend vector, −1..+1; + bullish, − bearish, ≈0 range-bound): a trend-following (TF/GE) play's direction should match the sign of PxVec; a mean-reversion (MR) play deliberately opposes it, so say so in the `signal`. PxVec is also the deterministic price signal that downstream grounds score_price.",
       "flow_intent": "REQUIRED, one of DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK — what the flow IS. A classification, not a tradeability cap; each intent carries its own score. DIRECTIONAL = a bet price moves a particular way (extrinsic-heavy, opening, no offsetting book; playbook TF/MR/GE/PU; invalidated by a price level). VOLATILITY = a bet on the size of the move / implied vol, direction-agnostic (straddle/strangle/condor/calendar; playbook VC/DP; invalidated by IV collapse or decay without a move). HEDGE = protection on an existing book (index/sector puts under a bid tape, collars) — the defining feature is the offsetting position protected; framed as protection, never a forecast. SYNTHETIC STOCK = mechanical deep-ITM (~1.0 delta) exposure, conversions, stock-replacement, boxes — mostly intrinsic, a soft tell; strip intrinsic before ranking. DIRECTIONAL vs VOLATILITY follows the playbook + structure; opening-view vs HEDGE turns on whether an offsetting underlying position is protected. Bid-side calls / ask-side puts without a ToOpen label read as HEDGE or SYNTHETIC STOCK until evidence shows new risk opened.",
       "horizon": "REQUIRED, one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the play's CITED evidence: ≤14 DTE → 14, 15–60 DTE → 60, 61–180 DTE → 180, 181+ DTE → 720. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
       "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: score it low (zero price+catalyst, total under 40) or drop the play. One sentence."
@@ -208,8 +207,8 @@ Schema (all string fields unless noted):
 
 Coverage — every run must return BOTH a market read and a full play list:
 
-- Market read: always fill `regime`, `signals`, AND `sector_focus`. Together
-  they are the market analysis; none may be blank.
+- Market read: always fill `regime`, `signals`, AND `themes`. Together they are
+  the market analysis; none may be blank.
 - Plays: return AT LEAST 5 stock plays (asset_class "stock") and AT LEAST 3 ETF
   plays (asset_class "etf") — 8+ total — ordered strongest conviction first.
   Draw the names from the highest-scoring tickers in the fetched data; stock
@@ -219,7 +218,7 @@ Coverage — every run must return BOTH a market read and a full play list:
   inflate a thin idea's score to look tradeable. Never fabricate a ticker that
   does not appear in the fetched data — if a section genuinely lacks enough
   distinct names, return what the data supports and note the shortfall in
-  `sector_focus`.
+  `signals`.
 
 Discipline rules — apply to every play before awarding it a strong score:
 
@@ -236,7 +235,7 @@ Discipline rules — apply to every play before awarding it a strong score:
   trailing range — the "rich vs cheap" read that normalises across names; blank
   when history is thin, then fall back to the market VIX proxy). HIGH IVpct
   (>=70) on a trend name in a slow, positive-gamma grind is the TF-S case → use a
-  CREDIT spread (bull put / bear call), not a debit — a debit into rich IV buys
+  bull put spread / bear call spread, not a debit — a debit into rich IV buys
   premium a slow move can't overcome. LOW IVpct (<=30) → IV is cheap → debit /
   long premium (TF). Default to defined-risk spreads; naked calls or puts require
   very low IV + a very high score.
@@ -295,7 +294,7 @@ This is a TICKER-FOCUSED run. The following overrides the Coverage section above
   data. If a requested ticker has no usable flow, SKIP it (do not fabricate a
   play, and do not substitute a different name). The 5-stock / 3-ETF coverage
   minimums DO NOT apply here.
-- Still return the full market read — `regime`, `signals`, AND `sector_focus` —
+- Still return the full market read — `regime`, `signals`, AND `themes` —
   computed from the full-market context sections (these were NOT narrowed to the
   focus tickers).
 - Every play must still obey ALL discipline rules above (playbook–structure

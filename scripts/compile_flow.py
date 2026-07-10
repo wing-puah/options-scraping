@@ -1,7 +1,7 @@
 """
 Compile a trading day's hourly flow snapshots into one deduped CSV per type.
 
-The scraper (barchart_scrape.py, run ~hourly by GitHub Actions) drops a separate
+The scraper (scrape_flow.py, run ~hourly by GitHub Actions) drops a separate
 `{prefix}-YYYYMMDD-HHMM.csv` into the date folder on every run. Each export is
 capped at 500 rows and consecutive snapshots overlap heavily, so the same trade
 appears many times across the day. This script gathers all snapshots for a date,

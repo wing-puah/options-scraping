@@ -25,7 +25,6 @@ def test_analysis_to_rows_market_row_first_and_schema():
     analysis = {
         "regime": "BEAR + H-VOL + RISK-OFF — broad hedging.",
         "signals": ["[FLOW] QQQ put sweeps", "[VEGA] VIX calls"],
-        "sector_focus": "Semis weak.",
         "plays": [],
     }
     rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-15", "2026-04-21")
@@ -36,7 +35,7 @@ def test_analysis_to_rows_market_row_first_and_schema():
     assert market["regime"].startswith("BEAR")
     # Signals split onto separate lines for readability in Sheets.
     assert "[FLOW] QQQ put sweeps\n[VEGA] VIX calls" in market["signal"]
-    assert "Sector focus: Semis weak." in market["signal"]
+    assert "Sector focus:" not in market["signal"]  # sector_focus dropped; themes owns clusters
     assert market["data_window_start"] == "2026-04-15"
     assert market["data_window_end"] == "2026-04-21"
     assert market["created_datetime"]  # stamped at row-build time
@@ -156,7 +155,7 @@ def test_warn_below_targets_silent_when_met(caplog):
 
 def test_analysis_to_rows_handles_missing_market_signal():
     rows = analysis_to_rows({"regime": "RANGE", "plays": []}, "2026-04-21", "2026-04-21", "2026-04-21")
-    assert rows[0]["signal"] == ""  # no signals, no sector_focus → empty, no "Sector focus:" suffix
+    assert rows[0]["signal"] == ""  # no signals, no themes → empty, no "Themes:" block
 
 
 def test_extract_json_tolerates_fences_and_prose():
