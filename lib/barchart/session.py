@@ -103,6 +103,29 @@ class BarchartSession:
         log.info("Login successful — session saved")
         return True
 
+    async def _get_with_retry(self, url: str, headers: dict, timeout_ms: int,
+                              max_retries: int = 3, base_delay: float = 10.0):
+        """GET via the page's authenticated request context, retrying on HTTP 429.
+
+        Barchart rate-limits when a run hits its core-api feed rapidly (e.g. enriching
+        many contracts back-to-back). A 429 is transient, so back off exponentially
+        (base_delay * 2**attempt seconds) and retry up to max_retries times, returning
+        whatever the last attempt got (including a still-429'd response) so callers
+        keep their existing resp.ok / resp.status handling unchanged.
+        """
+        resp = await self._page.request.get(url, headers=headers, timeout=timeout_ms)
+        attempt = 0
+        while resp.status == 429 and attempt < max_retries:
+            delay = base_delay * (2 ** attempt)
+            log.warning(
+                "HTTP 429 from '%s' — backing off %.0fs before retry %d/%d",
+                url, delay, attempt + 1, max_retries,
+            )
+            await asyncio.sleep(delay)
+            resp = await self._page.request.get(url, headers=headers, timeout=timeout_ms)
+            attempt += 1
+        return resp
+
     # Columns of the legacy "Download" CSV, kept identical so cached files and
     # lib.barchart.options.parse_history_series keep working unchanged.
     _HISTORY_COLUMNS = (
@@ -145,7 +168,7 @@ class BarchartSession:
         self._history_feed = (api_url, pass_headers)
 
         try:
-            resp = await self._page.request.get(api_url, headers=pass_headers, timeout=timeout_ms)
+            resp = await self._get_with_retry(api_url, pass_headers, timeout_ms)
             if not resp.ok:
                 log.warning("History feed returned HTTP %d for '%s'", resp.status, url)
                 return None
@@ -186,7 +209,7 @@ class BarchartSession:
         # the request looks identical to what that page would have fired.
         headers = {**headers, "referer": page_url}
         try:
-            resp = await self._page.request.get(reissue_url, headers=headers, timeout=timeout_ms)
+            resp = await self._get_with_retry(reissue_url, headers, timeout_ms)
             if resp.ok:
                 payload = await resp.json()
                 rows = payload.get("data") or []
@@ -244,7 +267,7 @@ class BarchartSession:
         pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
 
         try:
-            resp = await self._page.request.get(api_url, headers=pass_headers, timeout=timeout_ms)
+            resp = await self._get_with_retry(api_url, pass_headers, timeout_ms)
             if not resp.ok:
                 log.warning("Options-history feed HTTP %d for '%s'", resp.status, symbol)
                 return None
@@ -289,7 +312,7 @@ class BarchartSession:
         pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
 
         try:
-            resp = await self._page.request.get(req.url, headers=pass_headers, timeout=timeout_ms)
+            resp = await self._get_with_retry(req.url, pass_headers, timeout_ms)
             if not resp.ok:
                 log.warning("Corporate-actions feed HTTP %d for '%s'", resp.status, symbol)
                 return None

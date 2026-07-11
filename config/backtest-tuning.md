@@ -1011,3 +1011,128 @@ basis, so exit-contaminated — retune flags, not conclusions): `oi_confirm_pct`
 r ≈ −0.03 (vs +0.40 on the Mar-2025 n=20 that set the ±2/±1 bands — flagged in
 `config/conviction-score.md`), `cpir` r ≈ −0.20, `iv_pct` r ≈ −0.16,
 `iv_spread` r ≈ +0.09, `dte_entry` r ≈ +0.21.
+
+---
+
+## 2026-07-10 — Three-run evaluation of `backtests/to_evaluate/` (v1 / v2 / v3-latest)
+
+Cross-run study of the three BacktestResults exports staged in
+`backtests/to_evaluate/`: **v1** (`v1_BacktestResults_20260625`, 122 evaluated,
+2024-06→2025-12), **v2** (`v2_BacktestResults`, 115 evaluated, same span), and
+**v3** (`BacktestResults`, the in-progress latest run — 53 evaluated, only
+2024-06-17→2024-07-18 so far). Realized-pnl basis, so exit-contaminated;
+signal-quality claims below lean on the MFE/MAE path columns where possible.
+
+### Headline: the MFE→PnL leak, quantified
+
+| run | n | win% | mean pnl% | mean MFE% | capture (Σrealized/ΣMFE, MFE>0) |
+|---|---|---|---|---|---|
+| v1 | 122 | 60.7% | +0.21 | +1.15 | **0.25** |
+| v2 | 115 | 48.7% | +0.03 | +0.90 | **0.12** |
+| v3 | 53 | 43.4% | −0.21 | +0.77 | **−0.15** |
+
+88–90% of trades are green at some point, but only 12–25% of peak gain is
+banked (v3 negative). Mechanism, pooled n=290:
+
+- **58% of trades put in their MAE trough AFTER the MFE peak** — the classic
+  round-trip. Those trades: mean MFE +0.71, mean realized **−0.09**, win 39%.
+  Trades whose trough came first: mean realized **+0.27**, win 72%.
+- **Stopped trades had been positive first 69–78% of the time** (mean MFE of
+  stopped trades +0.26 v1 / +0.42 v2 / +0.52 v3) — stops overwhelmingly fire
+  on given-back gains, not on immediate failures.
+- **Not** an argument for holding longer: `pnl_at_cap` counterfactual says
+  hold-to-cap mean is −0.06 vs +0.06 realized — the exit stack adds value in
+  aggregate; the leak is specifically the peak→stop round-trip. This is the
+  same tension Attempt 10/12 hit (trail sold continuations globally but
+  BEAR/H-VOL wanted .50/.50); this dataset independently re-confirms the
+  per-regime exit switch as the highest-value follow-up.
+- Winners peak late (mean mfe_day 35.7) and are held longer (24.7d); losers
+  peak early (17.5) — `mfe_day` is the single strongest path correlate of
+  realized pnl (ρ +0.28). An early peak that stalls is a de-risk signal.
+- 8–14 trades per run reached MFE ≥ +90% (the debit pt) yet did NOT exit at
+  profit_target (mean realized −0.27 v1 / −0.65 v2 / −1.17 v3). In v2/v3 the
+  bulk are **bull_put_spread stop_losses** — the credit pt basis (fraction of
+  credit) never triggers even as the pnl-on-premium path shows +90%; the rest
+  are time_exit/dollar_stop races. Worth checking the credit pt is on the
+  intended basis.
+
+### Structure: credit spreads are the standout drag
+
+Pooled: debit n=252 mean **+0.17** (56% win) vs credit n=38 mean **−0.65**
+(32% win). Exit profile explains it: credit stop_losses average −1.27 per
+trade (25 of 38 credit trades stopped) vs −0.78 for debit stops. bear_call is
+worst (v2 −0.95 @ 11% win; v3 −1.37); bull_put loses in both runs that have
+it (−0.23 v2, −0.74 v3). Confirms the standing "credit knobs unvalidated"
+flag — and now with adverse evidence, not just absence of evidence.
+bear_put_spread is the most consistent earner (+0.28 / +0.35 / +0.17 across
+runs).
+
+### Structure × regime interaction (pooled, n≥5)
+
+| structure | trend | n | mean | win% |
+|---|---|---|---|---|
+| bear_put | RANGE | 54 | **+0.43** | 67% |
+| bear_put | BEAR | 37 | +0.35 | 57% |
+| bull_call | RANGE | 49 | +0.27 | 67% |
+| bull_call | BEAR | 21 | +0.19 | 67% |
+| bear_put | BULL | 19 | −0.09 | 42% |
+| bull_call | BULL | 64 | **−0.13** | 42% |
+| bull_put | BULL | 11 | −0.57 | 36% |
+| bull_put | RANGE | 12 | −0.81 | 25% |
+| bear_call | RANGE | 5 | −1.26 | 0% |
+
+The surprise: **with-trend bull_call in BULL regimes loses** (n=64!) while the
+same structure in RANGE/BEAR wins ~67%. Directional debit spreads here are
+effectively reversion/repricing trades — they pay when entered against or
+orthogonal to a settled trend, and bleed when chasing an extended one.
+
+### Regime: BULL + L-VOL is the toxic bucket
+
+Pooled trend×vol: every BEAR bucket positive (+0.24 to +0.26); RANGE+E-VOL
+best (+0.37, 68% win, n=40); RANGE+C-VOL +0.20. The two losers:
+**BULL+L-VOL n=89 mean −0.18, 40% win** (the single largest bucket) and
+RANGE+H-VOL (−0.15, n=22). v3's negative aggregate is mostly composition:
+70% of its 53 trades are BULL+L-VOL (its window is summer-2024 melt-up) and
+30% are credit structures — both known-bad cells. Judge v3 again once it
+covers mixed regimes. This aligns with Attempt 12's group-level read
+(L-VOL/DIRECTIONAL wanted tef null — i.e. current exits mis-fit that regime).
+
+### Metric correlations (pooled realized-pnl basis, Spearman)
+
+`iv_pct` **−0.22** (n=137; top tercile mean −0.33, 38% win — high-IV-percentile
+entries lose; second dataset to flag this after 2026-07-08's r≈−0.16),
+`mfe_day` +0.28, `dte_entry` +0.09, `oi_confirm_pct` +0.06, `iv_spread` +0.05,
+`cpir` −0.08 (both rollup signals still ~flat on realized basis).
+
+**score_total first validation read (v3 only, n=53): NEGATIVE — ρ −0.32**;
+the ≥70 "strong" band wins 29% (mean −0.52) vs 53% for the 40–54 band.
+Component-level: `score_price` ρ **−0.41** is the driver, `score_vol` −0.21,
+`score_catalyst` −0.15, flow/dealer ~0. Heavy caveat: all 53 rows sit in the
+one BULL+L-VOL month, where score_price rewards exactly the trend-chasing
+entries the structure×regime table shows losing. Not yet grounds to change
+the scorer — but it is the alpha-attribution follow-up's first data point,
+and it points the same direction as the bull_call-in-BULL finding: the
+framework currently pays for momentum alignment that this strategy fades.
+
+### Horizon/DTE (exit-contaminated, cf. 2026-07-08 exit-independent gradient)
+
+`horizon=60` bucket is the loser (n=93, −0.27, 36% win); `horizon=180` the
+winner (n=60, +0.31, 65%). By actual dte_entry: ≤14 bad (−0.45), 15–30
+surprisingly strong (+0.39, 78% win, n=18 — small), 31–60 flat, >60 modestly
+positive. The 46+ DTE discipline stands; the flat 31–60 band on realized
+basis vs its decent MFE profile is another expression of the capture leak
+(medium-dated trades peak and round-trip within the hold window).
+
+### Actionable queue (in value order)
+
+1. **Per-regime exit switch** (already gated follow-up) — this dataset adds:
+   BULL+L-VOL is where exits mis-fit worst; BEAR/RANGE+E-VOL are fine as-is.
+2. **Credit-structure gate or fix** — either validate credit knobs on a
+   credit-heavy window (still blocked on data) or stop emitting
+   bull_put/bear_call in RANGE regimes where they're 0-for-5 / 25%.
+3. **Verify credit profit-target basis** — bull_put stops with pnl-path MFE
+   ≥ +90% suggest the pt may be checked on a basis that can't trigger.
+4. **iv_pct veto** — two independent reads now say high-iv_pct entries lose;
+   candidate cheap filter (top-tercile iv_pct ≈ >0.6) worth a replay study.
+5. **score_price re-examination** once v3 covers mixed regimes — if ρ stays
+   negative outside BULL+L-VOL, the price component needs a regime term.

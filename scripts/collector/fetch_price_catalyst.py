@@ -40,9 +40,15 @@ This is the same enrich-in-place pattern as fetch_iv_percentile/enrich_oi (the
 compiled file on Drive is the only store — no separate cache tab): the enriched
 file is re-uploaded every CHECKPOINT_EVERY tickers and once more on exit (incl.
 KeyboardInterrupt / error), so an interrupted run never loses scraped work.
-Resume is per-ticker — any ticker whose rows carry price_catalyst_enriched_on is
-skipped (incl. ones Barchart returned nothing for, marked attempted so they
-aren't re-fetched forever); --force clears the columns and re-scrapes.
+Resume is per-ticker — a ticker is skipped only once its rows carry BOTH the
+marker AND a filled price_d (lib.collector.fetch_price_catalyst._done_tickers).
+A scrape failure still stamps the marker (so the run can move on) but leaves
+price_d blank; such tickers are NOT considered done and are retried on the next
+run — every flow ticker traded options on trade_date so it has an underlying to
+price, meaning a durably blank price_d is a failure, not legitimate "no data"
+(unlike next_earnings/last_earnings, which is legitimately blank when nothing is
+scheduled and never gates completeness). --force clears the columns and
+re-scrapes everything from scratch.
 
 Unlike enrich_oi, this needs NO next-day data, so the LATEST compiled date is
 enriched too. --backfill enriches every compiled date. Note a later compile_flow
@@ -125,9 +131,29 @@ def _clear_columns(rows: list[dict]) -> None:
 
 
 def _done_tickers(rows: list[dict]) -> set[str]:
-    """Tickers already attempted — their rows carry a non-blank marker."""
-    return {str(row.get("Symbol", "")).strip().upper()
-            for row in rows if str(row.get(PRICE_CATALYST_MARKER_COLUMN, "")).strip()} - {""}
+    """Tickers actually enriched — marker set AND price_d actually filled.
+
+    The marker alone isn't proof of success: a Barchart scrape failure (session
+    hiccup, rate limit, transient error) still stamps the marker so the run can
+    move on, but leaves price_d blank (see _fetch_price_series/_scrape_and_fill).
+    A flow ticker traded options on trade_date, so it has an underlying to price
+    on Barchart — a durably blank price_d is a failure, not a legitimate "no
+    data" case, so it must NOT be treated as done or the ticker is silently
+    starved of price data forever (found on 2026-07-10: 50/130 stock tickers,
+    incl. AVGO/CRWD/DELL/FDX, marked done with blank price_d). next_earnings/
+    last_earnings blank IS legitimate (no scheduled earnings) so earnings alone
+    never gates completeness.
+    """
+    by_symbol: dict[str, list[dict]] = {}
+    for row in rows:
+        sym = str(row.get("Symbol", "")).strip().upper()
+        if sym:
+            by_symbol.setdefault(sym, []).append(row)
+    return {
+        sym for sym, sym_rows in by_symbol.items()
+        if any(str(r.get(PRICE_CATALYST_MARKER_COLUMN, "")).strip() for r in sym_rows)
+        and any(str(r.get("price_d", "")).strip() for r in sym_rows)
+    }
 
 
 # ─── Cell formatting (as_of_* dicts → CSV-safe strings) ──────────────────────────
