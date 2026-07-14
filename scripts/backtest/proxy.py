@@ -704,10 +704,11 @@ def main() -> None:
                  len(untested), proxy_tab)
 
     created = datetime.now().isoformat(timespec="seconds")
+    structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
     # NB: pass the proxy: sub-config — the snap bounds (max_strike_steps /
     # max_expiry_deviation_days) are read off this dict, not the full cfg.
-    rows = [_evaluate(*classify_and_build(c, spread_pct, None), c, proxy_cfg, sim_cfg,
-                      spread_pct, created, allow_probe)
+    rows = [_evaluate(*classify_and_build(c, spread_pct, None, structure_veto), c, proxy_cfg,
+                      sim_cfg, spread_pct, created, allow_probe)
             for c in untested]
 
     if redo_keys and not args.dry_run:

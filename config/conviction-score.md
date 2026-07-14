@@ -166,6 +166,14 @@ IV is rich on KO, cheap on NVDA). `—` when the tab has no scraped row for the 
 (not yet cached, or the ticker fell outside the scraped universe) — then fall back
 to the dealer-gamma / vol-snapshot proxy.
 
+**Not a filter (2026-07-13).** Realized-basis `iv_pct` has read negative three
+datasets running (v3 ρ −0.24 p=0.005; v2 −0.20), but a hard **>0.6 veto was
+tested on dollars and REJECTED in both runs** — the dropped set totals
++$5.8–5.9k (≈49% win, mean ≈ 0) because big winners live in the high-iv bucket
+too. Treat high `iv_pct` as a **sizing haircut / monitoring flag** on a play,
+never a gate that drops it. (See backtest-tuning.md §2026-07-12 factor 4 /
+queue item 5.)
+
 ## Price read (grounds score_price / score_catalyst, not a conviction component)
 
 Two deterministic per-ticker columns precompute what the framework's Step-5

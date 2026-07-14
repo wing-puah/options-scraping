@@ -158,7 +158,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                 exit_reason, realized_p, days_held = "trailing_stop", p, grid_idx
             elif max_loss_abs is not None and pl * denom * 100 * contracts <= -max_loss_abs:
                 exit_reason, realized_p, days_held = "dollar_stop", p, grid_idx
-            elif pl <= -stop_loss:
+            elif stop_loss is not None and pl <= -stop_loss:
                 exit_reason, realized_p, days_held = "stop_loss", p, grid_idx
             elif loss_days_exit is not None and loss_streak >= loss_days_exit:
                 exit_reason, realized_p, days_held = "loss_days", p, grid_idx

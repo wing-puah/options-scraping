@@ -409,10 +409,11 @@ def apply_tf_s_override(cls: dict, c: dict, cfg: dict | None) -> dict:
 
 # ─── Pass 1 driver ──────────────────────────────────────────────────────────────
 
-def classify_and_build(c, spread_pct, tf_s_override=None):
+def classify_and_build(c, spread_pct, tf_s_override=None, structure_veto=()):
     """Classify + build ONE candidate. Returns (play|None, reason|None),
     reason = (category, message) with the existing categories
-    unsupported/no_strike/no_expiry/unpriced.
+    unsupported/no_strike/no_expiry/unpriced, plus ``vetoed`` for structures
+    named in config ``entry.structure_veto``.
 
     Factored out of :func:`build_matched_plays` so a single candidate can be
     classified+built in isolation (re-exported from ``scripts/backtest/shared``
@@ -422,13 +423,15 @@ def classify_and_build(c, spread_pct, tf_s_override=None):
     cls = classify_play(c["play"])
     cls = apply_tf_s_override(cls, c, tf_s_override)
     structure = cls["structure"]
+    if structure in (structure_veto or ()):
+        return None, ("vetoed", f"structure={structure}")
     play_type = _REGISTRY.get(structure)
     if play_type is None:
         return None, ("unsupported", f"structure={structure}")
     return play_type.build(c, cls, spread_pct)
 
 
-def build_matched_plays(candidates, spread_pct, tf_s_override=None):
+def build_matched_plays(candidates, spread_pct, tf_s_override=None, structure_veto=()):
     """Pass 1 — classify each candidate into a :class:`Play` and register its contracts.
 
     Returns ``(plays, contracts, needed_dates, skipped)``:
@@ -438,9 +441,9 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None):
       • ``skipped``      — per-category skip tally
     """
     plays, contracts, needed_dates = [], {}, {}
-    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0}
+    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0, "vetoed": 0}
     for c in candidates:
-        play, skip = classify_and_build(c, spread_pct, tf_s_override)
+        play, skip = classify_and_build(c, spread_pct, tf_s_override, structure_veto)
         if skip:
             category, message = skip
             skipped[category] += 1

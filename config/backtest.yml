@@ -37,6 +37,18 @@ entry:
   # trade regardless of side.
   match_side: any
 
+  # Structures never taken, regardless of what the analysis emits. The ONLY
+  # exception to the "no signal_filter" philosophy above, reserved for
+  # structures proven toxic across pipeline versions. bear_call_spread
+  # (Attempt 13, 2026-07-13): −$8.6k on v3 real (17% win, n=18), −$11.2k on
+  # real+tweak (n=37), −$4.4k on v2 (11% win, n=9) — and NO exit-rule variant
+  # in the credit study makes it better than −$4.9k. Version-independent,
+  # month-spread (2024-07/08 + 2025-03/04). Vetoed plays are skipped at intake
+  # (skip category "vetoed"); the proxy records them as unevaluable/vetoed
+  # rather than pricing them. Remove from this list only if a future credit
+  # study on a fresh window clears the structure.
+  structure_veto: [bear_call_spread]
+
 # ── Trade simulation ───────────────────────────────────────────────────────────
 simulation:
   # Portfolio value used for fixed-fractional position sizing.
@@ -125,9 +137,23 @@ simulation:
   # credit itself, so a thin credit on a wide/naked structure can't be oversized
   # against the risk budget the way pure premium-based sizing was. See
   # _size_contracts / _max_loss_per_unit in scripts/backtest/simulate.py.
+  # Attempt 13 (2026-07-13, first credit-heavy window — 52 real credit rows over
+  # 4+ months): the 1×credit stop_loss REMOVED. On the post-veto credit book
+  # (bull_puts; bear_call_spread is structure-vetoed at intake above), replaying
+  # v3: 10/10 credit stop_loss exits with MFE ≥ +0.90 recovered to ~full credit
+  # by expiry (the July-2024 whipsaw cluster) — the stop converts recoverable
+  # drawdowns into realized losses. "sl none" (dollar_stop + defined-risk max
+  # loss remain the backstop): bull_put real book +$1,836 → +$5,482, win 21/34 →
+  # 31/34, survives leave-two-out (+$1,840); combined real+tweak n=56 agrees
+  # (+$2,814 → +$6,573). CAVEAT: ~80% of the dollar gain is the correlated
+  # July-2024 cluster; non-July months still net positive (+$651 real /
+  # +$764 combined) with only −$46 against. Do NOT pair with pt 0.50 — that
+  # helped only bear_calls (now vetoed) and hurts bull_puts (−$1,704).
+  # See backtest-tuning.md §Attempt 13.
   credit:
     profit_target: 0.65           # take profit at 65% of the credit captured
-    stop_loss: 1.00               # stop when loss reaches 1× the credit (mark ~doubles)
+    stop_loss: null               # Attempt 13: no premium-based stop on credits —
+                                  # dollar_stop (risk sizing) + structural max loss backstop
     trailing_stop_trigger: null   # no trailing stop on credits
     trailing_stop_pct: null
     time_exit_dte_fraction: null  # ride toward expiry within path_cap_days

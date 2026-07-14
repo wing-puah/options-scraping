@@ -99,6 +99,18 @@ def test_classify_and_build_unsupported_skip_reason():
     assert reason[0] == "unsupported"
 
 
+def test_classify_and_build_structure_veto():
+    c = {"ticker": "TSLA", "play": "bear call spread 250/260 exp 2026-08-21",
+         "signal_date": SIGNAL}
+    play, reason = bt.classify_and_build(
+        dict(c), _SPREAD_PCT, structure_veto=("bear_call_spread",))
+    assert play is None
+    assert reason == ("vetoed", "structure=bear_call_spread")
+    # same play builds normally when the veto list doesn't name it
+    play, reason = bt.classify_and_build(dict(c), _SPREAD_PCT)
+    assert reason is None or reason[0] != "vetoed"
+
+
 def test_classify_and_build_no_strike_skip_reason():
     play, reason = bt.classify_and_build(
         {"ticker": "NVDA", "play": "long call", "signal_date": SIGNAL}, _SPREAD_PCT)

@@ -1014,125 +1014,269 @@ r ≈ −0.03 (vs +0.40 on the Mar-2025 n=20 that set the ±2/±1 bands — flag
 
 ---
 
-## 2026-07-10 — Three-run evaluation of `backtests/to_evaluate/` (v1 / v2 / v3-latest)
+## 2026-07-12 — Three-run evaluation of `backtests/to_evaluate/` (v1 / v2 / v3) — replaces the 2026-07-10 evaluation
 
-Cross-run study of the three BacktestResults exports staged in
-`backtests/to_evaluate/`: **v1** (`v1_BacktestResults_20260625`, 122 evaluated,
-2024-06→2025-12), **v2** (`v2_BacktestResults`, 115 evaluated, same span), and
-**v3** (`BacktestResults`, the in-progress latest run — 53 evaluated, only
-2024-06-17→2024-07-18 so far). Realized-pnl basis, so exit-contaminated;
-signal-quality claims below lean on the MFE/MAE path columns where possible.
+Same backtest set as the 2026-07-10 study, which was written when v3 had only
+53 evaluated trades in a single BULL+L-VOL month. v3 is now complete over the
+shared window — **154 evaluated real trades (2024-06 → 2025-12)** plus a full
+proxy sweep (235 rows / 211 evaluated) — so this section supersedes the old
+one entirely. Two of its loudest reads are REVISED below (score_total
+"inversion" → credit-composition confound; credit-pt-basis suspicion →
+resolved, not a bug).
 
-### Headline: the MFE→PnL leak, quantified
+Runs: **v1** (`v1_BacktestResults_20260625`, 122 evaluated — signal_eod entry
+basis, pre-credit-split analysis: 1 credit row in 122, and its months only
+partially overlap (has 2025-02, lacks 2024-06/07) → reference only, NOT
+decision-grade for the rollback question), **v2** (115 evaluated, next_open),
+**v3** (`BacktestResults`, current pipeline, 154 evaluated, next_open).
 
-| run | n | win% | mean pnl% | mean MFE% | capture (Σrealized/ΣMFE, MFE>0) |
-|---|---|---|---|---|---|
-| v1 | 122 | 60.7% | +0.21 | +1.15 | **0.25** |
-| v2 | 115 | 48.7% | +0.03 | +0.90 | **0.12** |
-| v3 | 53 | 43.4% | −0.21 | +0.77 | **−0.15** |
+### Headline (real backtest rows)
 
-88–90% of trades are green at some point, but only 12–25% of peak gain is
-banked (v3 negative). Mechanism, pooled n=290:
+| run | n | win% | mean pnl% | median | total $ | mean MFE | capture* |
+|---|---|---|---|---|---|---|---|
+| v1 | 122 | 60.7% | +0.20 | +0.61 | +24,027 | +1.15 | 0.14 |
+| v2 | 115 | 48.7% | +0.03 | −0.08 | +12,336 | +0.90 | 0.11 |
+| v3 | 154 | 48.1% | −0.02 | −0.24 | +4,394 | +0.86 | 0.04 |
 
-- **58% of trades put in their MAE trough AFTER the MFE peak** — the classic
-  round-trip. Those trades: mean MFE +0.71, mean realized **−0.09**, win 39%.
-  Trades whose trough came first: mean realized **+0.27**, win 72%.
-- **Stopped trades had been positive first 69–78% of the time** (mean MFE of
-  stopped trades +0.26 v1 / +0.42 v2 / +0.52 v3) — stops overwhelmingly fire
-  on given-back gains, not on immediate failures.
-- **Not** an argument for holding longer: `pnl_at_cap` counterfactual says
-  hold-to-cap mean is −0.06 vs +0.06 realized — the exit stack adds value in
-  aggregate; the leak is specifically the peak→stop round-trip. This is the
-  same tension Attempt 10/12 hit (trail sold continuations globally but
-  BEAR/H-VOL wanted .50/.50); this dataset independently re-confirms the
-  per-regime exit switch as the highest-value follow-up.
-- Winners peak late (mean mfe_day 35.7) and are held longer (24.7d); losers
-  peak early (17.5) — `mfe_day` is the single strongest path correlate of
-  realized pnl (ρ +0.28). An early peak that stalls is a de-risk signal.
-- 8–14 trades per run reached MFE ≥ +90% (the debit pt) yet did NOT exit at
-  profit_target (mean realized −0.27 v1 / −0.65 v2 / −1.17 v3). In v2/v3 the
-  bulk are **bull_put_spread stop_losses** — the credit pt basis (fraction of
-  credit) never triggers even as the pnl-on-premium path shows +90%; the rest
-  are time_exit/dollar_stop races. Worth checking the credit pt is on the
-  intended basis.
+*capture = Σrealized$ / ΣMFE$ over MFE>0 rows.
 
-### Structure: credit spreads are the standout drag
+### Rollback verdict: CANNOT BE DETERMINED — do not roll back on this evidence
 
-Pooled: debit n=252 mean **+0.17** (56% win) vs credit n=38 mean **−0.65**
-(32% win). Exit profile explains it: credit stop_losses average −1.27 per
-trade (25 of 38 credit trades stopped) vs −0.78 for debit stops. bear_call is
-worst (v2 −0.95 @ 11% win; v3 −1.37); bull_put loses in both runs that have
-it (−0.23 v2, −0.74 v3). Confirms the standing "credit knobs unvalidated"
-flag — and now with adverse evidence, not just absence of evidence.
-bear_put_spread is the most consistent earner (+0.28 / +0.35 / +0.17 across
-runs).
+No v2-vs-v3 P&L comparison clears significance, and the sign of the comparison
+depends on which book you look at:
 
-### Structure × regime interaction (pooled, n≥5)
+- **Pooled real book:** Mann-Whitney p = 0.365. **Debit-only p = 0.583**
+  (mean +0.17 v2 vs +0.13 v3 — statistically identical). **Credit-only
+  p = 0.249.** Version-unique picks p = 0.112.
+- **Combined real + proxy `strike_expiry_tweak` book** (both real-priced) the
+  sign FLIPS: v3 +$51,772 (n=282, mean +0.13) vs v2 +$14,654 (n=168, mean
+  +0.05), p = 0.494. The v3 edge is concentrated in its 128 tweak rows
+  (+$47,378, half in 2025-03) — coverage/selection evidence per the proxy
+  caveat, not exit-grade P&L, but it blocks any "v3 is worse" conclusion.
+- **The ONLY statistically significant v2→v3 difference is behavioral, not
+  quality: credit-structure emission share 19% → 34%** (chi² p = 0.012;
+  combined books 18% → 33%). Credit trades lose in BOTH runs under the
+  still-unvalidated credit exit profile (v2 −0.52 mean / 36% win, n=22;
+  v3 −0.30 / 46%, n=52). v3's aggregate drag vs v2 is structure MIX feeding a
+  known-broken exit profile, not worse per-trade signal quality.
 
-| structure | trend | n | mean | win% |
-|---|---|---|---|---|
-| bear_put | RANGE | 54 | **+0.43** | 67% |
-| bear_put | BEAR | 37 | +0.35 | 57% |
-| bull_call | RANGE | 49 | +0.27 | 67% |
-| bull_call | BEAR | 21 | +0.19 | 67% |
-| bear_put | BULL | 19 | −0.09 | 42% |
-| bull_call | BULL | 64 | **−0.13** | 42% |
-| bull_put | BULL | 11 | −0.57 | 36% |
-| bull_put | RANGE | 12 | −0.81 | 25% |
-| bear_call | RANGE | 5 | −1.26 | 0% |
+Practical read: rolling back to v2 would mostly be rolling back the credit
+emission rate. The cheaper, better-targeted moves are the credit-side items in
+the queue below — and v3's book finally provides the credit-heavy,
+multi-cluster window (52 real credit rows across 2024-07/08 + 2025-03/04) that
+Attempts 8/9/11 were blocked on.
 
-The surprise: **with-trend bull_call in BULL regimes loses** (n=64!) while the
-same structure in RANGE/BEAR wins ~67%. Directional debit spreads here are
-effectively reversion/repricing trades — they pay when entered against or
-orthogonal to a settled trend, and bleed when chasing an extended one.
+### Factors that predict outcome (analysis-tab columns only)
 
-### Regime: BULL + L-VOL is the toxic bucket
+1. **Structure (from the play text) is the dominant factor.**
+   `bear_call_spread` is toxic in BOTH versions — v2: −0.95 mean, 11% win,
+   −$4,363 (n=9); v3: −0.82, 17% win, −$8,632 (n=18). Dropping bear_call alone
+   turns v3's book +$4,394 → +$13,026 and v2's +$12,336 → +$16,699.
+   Version-independent → a structure gate, not a rollback, addresses it.
+   Debit vs credit overall: v3 debit +0.13 / credit −0.30.
+2. **score_total pooled ρ −0.27 (p=0.001, n=154) — but it is a
+   credit-composition confound, NOT a per-trade inversion.** REVISES 07-10:
+   the scorer rates credit plays higher (mean 66.8 vs 55.8 debit), and credit
+   loses. Within-side ρ: debit **−0.01** (p=0.95), credit −0.13 (n.s.). The
+   ≥70 band still fails overall (n=38, 34% win, −0.40 mean; its worst cell is
+   score≥70 ∧ credit: n=22, 32% win, −$6,768). Bottom line: score_total has no
+   positive predictive value anywhere yet (flat within side, anti-selects via
+   structure channel). The fix target is the score→structure-choice channel,
+   not the rubric weights per se.
+3. **score_vol is the only component negative WITHIN side** (debit-only
+   ρ −0.20, p=0.047; pooled −0.31). 07-10's `score_price ρ −0.41` driver
+   softens to +0.02 within debit — it was regime/composition, as suspected.
+4. **iv_pct: third consecutive negative read (ρ −0.24, p=0.005; v2 −0.20,
+   p=0.054) — but the hard >0.6 veto FAILS on dollars** and is rejected as a
+   gate: the dropped set totals +$5.8–5.9k in BOTH runs (mean ≈ 0, 49% win —
+   big winners live in the high-iv bucket too). Keep iv_pct as a sizing/flag
+   input, not a filter.
+5. **horizon** weakly positive (v2 ρ +0.20 p=0.034; v3 +0.10 n.s.) —
+   consistent with the standing ≥45-DTE discipline, nothing new to ship.
+6. **oi_confirm_pct, cpir, iv_spread, iv_skew: still ~flat** on realized basis
+   (|ρ| ≤ 0.15, all n.s., both runs) — third dataset where the rollup signals
+   don't discriminate realized P&L.
+7. **Regime (market_regime label): BULL+L-VOL again the worst big bucket**
+   (v3 n=40, −0.21) vs RANGE+E-VOL +0.49 (n=27) and BEAR+E-VOL +0.48 (n=9).
+   New wrinkles vs the pooled 07-10 table: BEAR+H-VOL flips negative on v3
+   (−0.53, n=15) and RANGE+L-VOL is bad (−0.34, n=17) — the "every BEAR bucket
+   positive" pooled read does not survive on v3 alone.
+8. **(Observation, not an analysis-tab column:) consensus names lose.** Picks
+   appearing in BOTH v2 and v3 (same signal_date+ticker, 48 rows each, 79%
+   same structure): ~34% win, −0.30/−0.34 mean in both runs. Version-unique
+   picks: 55–58% win, +0.13/+0.27. The obvious/crowded flow names are the bad
+   trades regardless of which pipeline version reads them.
 
-Pooled trend×vol: every BEAR bucket positive (+0.24 to +0.26); RANGE+E-VOL
-best (+0.37, 68% win, n=40); RANGE+C-VOL +0.20. The two losers:
-**BULL+L-VOL n=89 mean −0.18, 40% win** (the single largest bucket) and
-RANGE+H-VOL (−0.15, n=22). v3's negative aggregate is mostly composition:
-70% of its 53 trades are BULL+L-VOL (its window is summer-2024 melt-up) and
-30% are credit structures — both known-bad cells. Judge v3 again once it
-covers mixed regimes. This aligns with Attempt 12's group-level read
-(L-VOL/DIRECTIONAL wanted tef null — i.e. current exits mis-fit that regime).
+### 07-10 queue item resolved: credit profit-target basis is NOT broken
 
-### Metric correlations (pooled realized-pnl basis, Spearman)
-
-`iv_pct` **−0.22** (n=137; top tercile mean −0.33, 38% win — high-IV-percentile
-entries lose; second dataset to flag this after 2026-07-08's r≈−0.16),
-`mfe_day` +0.28, `dte_entry` +0.09, `oi_confirm_pct` +0.06, `iv_spread` +0.05,
-`cpir` −0.08 (both rollup signals still ~flat on realized basis).
-
-**score_total first validation read (v3 only, n=53): NEGATIVE — ρ −0.32**;
-the ≥70 "strong" band wins 29% (mean −0.52) vs 53% for the 40–54 band.
-Component-level: `score_price` ρ **−0.41** is the driver, `score_vol` −0.21,
-`score_catalyst` −0.15, flow/dealer ~0. Heavy caveat: all 53 rows sit in the
-one BULL+L-VOL month, where score_price rewards exactly the trend-chasing
-entries the structure×regime table shows losing. Not yet grounds to change
-the scorer — but it is the alpha-attribution follow-up's first data point,
-and it points the same direction as the bull_call-in-BULL finding: the
-framework currently pays for momentum alignment that this strategy fades.
-
-### Horizon/DTE (exit-contaminated, cf. 2026-07-08 exit-independent gradient)
-
-`horizon=60` bucket is the loser (n=93, −0.27, 36% win); `horizon=180` the
-winner (n=60, +0.31, 65%). By actual dte_entry: ≤14 bad (−0.45), 15–30
-surprisingly strong (+0.39, 78% win, n=18 — small), 31–60 flat, >60 modestly
-positive. The 46+ DTE discipline stands; the flat 31–60 band on realized
-basis vs its decent MFE profile is another expression of the capture leak
-(medium-dated trades peak and round-trip within the hold window).
+All 10 v3 credit rows with path MFE ≥ +0.90 that exited `stop_loss` have
+**mfe_day > days_held (10 of 10)** — the peak came AFTER the exit; MFE/MAE are
+full-path-to-cap metrics, so no pt-basis bug. The real pattern: the 1×credit
+stop fired (mean realized −1.32), then every one of these positions recovered
+to ~full credit by expiry (9 of 10 are July-2024 bull_puts — the same whipsaw
+cluster Attempt 9 flagged). This is now the single biggest quantified credit
+pain point (10 trades × ~2.3 swing), but "no stop" was still worse in
+aggregate in Attempt 11 — it goes to the credit exit study, not straight to a
+config change.
 
 ### Actionable queue (in value order)
 
-1. **Per-regime exit switch** (already gated follow-up) — this dataset adds:
-   BULL+L-VOL is where exits mis-fit worst; BEAR/RANGE+E-VOL are fine as-is.
-2. **Credit-structure gate or fix** — either validate credit knobs on a
-   credit-heavy window (still blocked on data) or stop emitting
-   bull_put/bear_call in RANGE regimes where they're 0-for-5 / 25%.
-3. **Verify credit profit-target basis** — bull_put stops with pnl-path MFE
-   ≥ +90% suggest the pt may be checked on a basis that can't trigger.
-4. **iv_pct veto** — two independent reads now say high-iv_pct entries lose;
-   candidate cheap filter (top-tercile iv_pct ≈ >0.6) worth a replay study.
-5. **score_price re-examination** once v3 covers mixed regimes — if ρ stays
-   negative outside BULL+L-VOL, the price component needs a regime term.
+1. ~~**Re-run the credit exit study on v3's credit book**~~ — **DONE
+   2026-07-13, see §Attempt 13.** Structure split resolved it: credit
+   `stop_loss` removed (1× → null; pt 0.65 kept), the 10 whipsaws priced at
+   +$3,646 on the bull_put book.
+2. ~~**bear_call gate**~~ — **DONE 2026-07-13, see §Attempt 13.** Shipped as
+   `entry.structure_veto: [bear_call_spread]` in config/backtest.yml (intake
+   veto, honored by backtest + proxy); the credit study confirmed no exit rule
+   redeems it (best variant still −$4.9k on n=37 combined).
+3. ~~**Score→structure channel**~~ — **DONE 2026-07-13, see §Attempt 13c.**
+   Root cause was the reverse arrow (structure→score via the self-fulfilling
+   Vol-alignment rubric row); rubric + prompt contract rewritten, Step-4
+   decoupling rule added. Within-side ρ re-test pends post-change emissions.
+4. ~~**Per-regime exit switch** (standing, gated)~~ — **RE-CHECKED 2026-07-13,
+   see §Attempt 13b: stays gated.** BEAR/H-VOL trail survives only weakly (no
+   longer either group's winner), L-VOL tef-null fails LOO; new lead candidate
+   for the eventual switch is `pt 1.10+` in E-VOL/RANGE (2025-03-concentrated,
+   needs out-of-window validation).
+5. ~~**iv_pct veto: rejected as a hard gate**~~ — **DONE 2026-07-13.**
+   Downgrade recorded where operators read the column:
+   config/conviction-score.md §IV percentile now states the veto was
+   dollar-tested and rejected (dropped set +$5.8–5.9k both runs) and that high
+   `iv_pct` is a sizing haircut / monitoring flag only. No veto was ever
+   implemented in config/code, so nothing to remove. (Distinct from the stale
+   IVspread ≈ −25 BEAR veto note in backtest-reference.md — that one still
+   awaits re-derivation on the matched-pair definition.)
+
+Roll-back re-check trigger: revisit only if the credit-side fixes (1–3) fail
+to close the gap on a fresh window, or if a debit-only regression vs v2 ever
+reaches significance (today p = 0.583, wrong direction to worry).
+
+## Attempt 13 — credit exit study on v3's credit book: bear_call vetoed + credit stop removed (2026-07-13) ✓
+
+**Motivation:** queue items 1+2 from the 2026-07-12 evaluation. v3's 52 real
+credit rows (2024-06→2025-12, 6 months incl. the 2024-07/08 and 2025-03/04
+clusters) finally break the March-TSLA single-cluster trap that froze Attempts
+8/9/11. Inputs rebuilt from the v3 sheet exports (`backtests/to_evaluate/` →
+`backtests/results.csv` + `results_proxy.csv`); study scripts' imports updated
+for the `lib.barchart` refactor. **Calibration gates: real 52/52, tweak 42/42;
+4 bs rows excluded as the documented ±0.0001 precision ties.**
+
+**The decisive cut Attempts 8–12 never made: split the credit book by
+STRUCTURE before tuning.** The global variant table is two opposite books
+averaged together:
+
+| Variant | bull_put real (n=34) | bull_put real+tweak (n=56) | bear_call real (n=18) | bear_call real+tweak (n=37) |
+|---|---|---|---|---|
+| PROD pt.65 sl 1× | +$1,836 (21/34) | +$2,814 (37/56) | −$8,632 (3/18) | −$11,221 (12/37) |
+| **sl none (dollar stop only)** | **+$5,482 (31/34)** | **+$6,573 (48/56)** | −$14,574 | −$17,656 |
+| pt .50 | +$132 (Δ −$1,704) | +$2,108 (Δ −$706) | −$4,608 (best) | −$4,912 (best) |
+| sl 1.5× | +$3,356 (Δ-LOO2 −$286) | +$3,978 (LOO2 −$641) | −$11,193 | −$14,903 |
+| trail .50/.50 | +$1,224 (Δ −$612) | +$2,863 (Δ +$50) | −$6,209 | −$7,990 |
+
+**Shipped 1 — `entry.structure_veto: [bear_call_spread]` (config/backtest.yml,
+new intake veto honored by both backtest.py and proxy.py; skip category
+`vetoed`, proxy records vetoed plays as unevaluable instead of pricing them).**
+bear_call is unredeemable by exit rules: PROD −$8.6k real / −$11.2k combined at
+12–17% win, and the BEST variant on the combined set still loses $4.9k. Add
+v2's −$4.4k (11% win, n=9) → version-independent, month-spread. The 2026-07-12
+"pt .50 Δ-LOO +$452" tease was 100% bear_call rows (the same March-2025 TSLA
+pair again, +$1,684/+$1,868); within bull_puts pt .50 is *negative*. Every
+global credit-variant verdict in Attempts 8–12 was distorted by this mix.
+
+**Shipped 2 — `simulation.credit.stop_loss: 1.00 → null`** (premium-based stop
+removed; dollar_stop from risk sizing + defined-risk structural max loss remain
+the backstop). This directly prices the 07-12 finding that 10/10 credit
+stop_loss exits with path-MFE ≥ +0.90 recovered to ~full credit after the stop
+fired. On the post-veto book (bull_puts): real +$1,836 → +$5,482 (win 21/34 →
+31/34, Δ +$3,646, Δ-LOO +$2,652, Δ-LOO2 +$1,840); combined real+tweak n=56
+agrees (+$2,814 → +$6,573, LOO2 +$1,954). Worst movers are bounded: TSLA rides
+to dollar_stop −$1,166, KWEB expires −$892. `sl 1.5×` (halfway house) does NOT
+survive LOO2 — the recovery is to ~full credit, so only full removal captures
+it. pt stays 0.65 (`pt .50 sl none` is worse than `sl none` alone within
+bull_puts, LOO2 −$26).
+
+**Honesty caveat (selection discipline):** ~80% of the sl-none dollar gain
+(+$2,995 of +$3,646 real) is the correlated July-2024 whipsaw week (9 same-week
+bull_puts stopped in the drawdown, all recovered by expiry). Per-trade LOO
+can't see that correlation. What keeps it shippable: the behavioral read is
+10/10 (not a P&L accident), the non-July months are still net +$651 real /
++$764 combined with only −$46 against, the combined set agrees in sign and
+magnitude, and the downside of being wrong is bounded by dollar_stop +
+defined-risk sizing. **Rollback trigger:** if the next credit-heavy window
+(≥15 fresh bull_put rows) shows sl-none losing to sl-1× there, restore the 1×
+stop and log it here.
+
+Not shipped: pt .50 (bear_call artifact, hurts bull_puts), underlying-breach
+stops (still negative on bull_puts: und ±1% Δ −$2,032 combined — Attempt 9/11's
+conclusion stands), trail variants (flat-to-negative within bull_puts).
+
+### Attempt 13b — per-regime exit switch re-check on v3 (queue item 4): stays GATED ❌
+
+`combined_exit_study.py --side debit` re-run on the v3 book (real 102 —
+calibration 102/102 after fixing a 1-ulp float tie in the replay boundary
+check (XLF 2024-06-21 sat exactly on sl=0.75; replay now rounds pnl to 10
+decimals) — plus 86 tweak). The Attempt-12 group hypotheses, re-checked:
+
+- **BEAR trail .50/.50** — still positive (Δ +$1,359, Δ-LOO +$493, n=34) but
+  no longer the group winner: `pt 1.25 no trail` dominates BEAR (Δ-LOO
+  +$2,282). Weakened.
+- **H-VOL trail .50/.50** — still positive (Δ +$2,296, Δ-LOO +$1,135, n=45);
+  group winner shifted to `BE ratchet @.50 + trail .50/.75` (Δ-LOO +$2,356).
+  Direction (some giveback protection in H-VOL) persists; the specific variant
+  doesn't.
+- **L-VOL tef null** — Δ +$1,249 collapses to Δ-LOO +$42: "no robust winner".
+  NOT confirmed on v3.
+- **DIRECTIONAL tef null** — not checkable: v3 play cells don't parse into the
+  `[…|intent|…]` bracket the study's intent tag expects (all rows land in
+  `[?]`); fix the intent regex before the next re-check.
+
+New wrinkle worth watching, NOT shipped: **raising the debit profit target
+(pt 1.10–1.25, no other change) is the loudest global signal on v3**
+(combined Δ-LOO +$5,650/+$6,791; real-only Δ +$7,585/+$5,570) — but on the
+real book ~88% of it is 2025-03 (panic month, V-shaped recoveries blowing
+through +90%), and it's actively bad in L-VOL (Δ-LOO −$1,772/−$4,343) and BULL.
+Same story as every exit read since Attempt 12: the knob is regime-conditional
+(E-VOL/RANGE/BEAR want to let winners run; L-VOL/BULL don't), which is exactly
+the per-regime switch — and a switch fitted on the same window that motivated
+it still needs out-of-window validation before it ships. Gate unchanged;
+`pt 1.10 in E-VOL` is now the lead candidate cell when that validation window
+exists.
+
+### Attempt 13c — score→structure channel decoupled (queue item 3) ✓ (validation pending)
+
+The 07-12 framing had the arrow backwards. It is not that high scores select
+into credit structures — it is that **choosing a credit structure mechanically
+raised the score**, via Step 5's Vol-alignment row, whose rubric was "IV/term
+structure/skew fit the chosen structure (cheap-or-rising for debit,
+rich-or-falling for credit)". Step 4's ladder already forces the structure to
+match IV, so every ladder-consistent play banked those points automatically:
+the component was consistency-with-your-own-rules dressed as evidence.
+Measured on v3: score_vol mean 11.3 credit vs 9.6 debit; iv_pct mean 0.89
+credit vs 0.61 debit; within credits score_vol tracks iv_pct (ρ +0.36) — i.e.
+the vol row paid MORE for RICHER IV credits, exactly the losing bucket (iv_pct
+ρ −0.24 on P&L). And score_vol is now negative within BOTH sides on v3
+(ρ −0.20 debit p≈0.05, −0.21 credit), confirming 07-12 factor #3.
+
+Shipped (all four analysis touch points kept in sync):
+- **`config/analysis-framework.md` Step 5** — Vol-alignment rubric rewritten:
+  score whether vol conditions support the *thesis* (realized-vs-implied gap,
+  term structure, skew/IVspr/IVskew, expected IV path), never whether the
+  structure matches the IV level (that consistency is Step 4's job; a mismatch
+  invalidates the play instead of scoring low). Rationale note added beside
+  the rubric so the old wording doesn't creep back.
+- **`config/analysis-framework.md` Step 4** — explicit decoupling rule:
+  conviction level never picks the structure in either direction (no
+  de-risking high conviction into credits, no leverage-reaching on weak
+  ideas); structure comes only from playbook + IV ladder. Plus the Attempt-13
+  bear_call suspension callout (TF-S bearish now expresses as bear put debit
+  or passes; table + bullets updated).
+- **`scripts/analysis_pipeline/config.py`** (`ANALYSIS_PROMPT_CONTRACT`) —
+  `score.vol` and `structure` field descriptions synced to the above (bear
+  call spread: NEVER emit).
+
+**Validation (open):** re-test within-side ρ (score_total and score_vol vs
+realized) on rows emitted AFTER 2026-07-13 once a decent post-change sample
+exists; also check the credit-emission share drops back toward v2's ~19% now
+that bear_call is suspended and the vol row no longer subsidizes rich-IV
+credits. Rubric *weights* deliberately untouched — per the 07-12 read, fix
+the channel first, then re-measure.

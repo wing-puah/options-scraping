@@ -181,7 +181,7 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 | Playbook                   | `flow_intent`            | View                                        | Aggressive (low IVpct / rising IV)   | Moderate                     | Conservative (high IVpct / falling IV) |
 | -------------------------- | ------------------------ | ------------------------------------------- | ------------------------------------- | ---------------------------- | ----------------------------------- |
 | **TF** Trend Following     | DIRECTIONAL              | Bullish / Bearish — momentum / breakout     | Long call / put                       | Debit spread / diagonal      | Credit spread                       |
-| **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Bull put spread / bear call spread    | Bull put spread / bear call spread | Bull put spread / bear call spread |
+| **TF-S** Trend Following — Slow | DIRECTIONAL         | Bullish / Bearish — slow grind, no catalyst | Bull put spread / bear put spread*    | Bull put spread / bear put spread* | Bull put spread / bear put spread* |
 | **MR** Mean Reversion      | DIRECTIONAL              | Bullish / Bearish (counter-extension)       | Long call / put                       | Debit spread                 | Credit spread                       |
 | **GE** Gamma Expansion     | DIRECTIONAL / VOLATILITY | Breakout direction, or Vol expansion        | Long ATM/OTM weekly, or long straddle | Debit spread / long strangle | Defined-risk debit / backspread     |
 | **PU** Positioning Unwind  | DIRECTIONAL              | Bullish / Bearish (unwind direction)        | Long call / put                       | Debit spread                 | Credit spread                       |
@@ -203,7 +203,7 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 5. **VIX contango + no catalyst.** Deep contango (VIX/VIX3M < 0.85), no E-VOL, no HP, no near-term event → grind → TF-S.
 
 - **TF (momentum/breakout):** debit structures capture the acceleration. Signs: LOW IVpct or rising IV, E-VOL, breakout from range, VIX/VIX3M rising toward or above 1, negative-gamma OI cluster being breached.
-- **TF-S (slow grinder):** **credit spreads** (bull put spread for bullish, bear call spread for bearish) — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: HIGH IVpct, BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend.
+- **TF-S (slow grinder):** **bull put spread** for bullish — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: HIGH IVpct, BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend. *Bearish TF-S: the credit expression (bear call spread) is **suspended** — see the Attempt-13 callout below; use a bear put debit spread or pass.
 
 > **Preferred read — IV percentile, with a fallback.** `IVpct` (Barchart's per-ticker IV percentile) is the preferred rich/cheap input and should drive the TF-vs-TF-S call whenever it is present. It is **blank when the name wasn't enriched** (`fetch_iv_percentile` hasn't scraped it onto the compiled flow file, or Barchart returned no in-window row). When `IVpct` is blank, fall back to the proxy: dealer-gamma/GEX read → else the vol snapshot (contango + stable L-VOL + no E-VOL + no catalyst → treat as positive-gamma / TF-S and prefer credit) → else absolute IV level. The vol snapshot is already injected into every rollup.
 
@@ -214,6 +214,16 @@ For **TF / MR**, diagonal spreads and calendars are valid when stable IV + time-
 For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long ATM/slightly-OTM weekly or debit spread; backwardation → defined-risk debit spread or backspread (cap premium paid); VVIX elevated → defined-risk only.
 
 **Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.
+
+**Decoupling rule (2026-07-13):** conviction level must never influence the structure choice, in either direction — do not "de-risk" a high-conviction thesis into a credit spread, and do not reach for extra leverage on a weak one. Structure comes ONLY from the playbook + IV ladder above; conviction is expressed later, in Step 5's score (and, downstream, sizing). Backtest evidence (v2+v3): credit structures were systematically assigned to the highest-scoring theses (mean score_total 66.8 vs 55.8 debit; bear_call the highest at 69.9) and those credits lost — the score→structure drift, not the theses, drove the drag.
+
+> ⚠️ **bear_call_spread suspended (Attempt 13, 2026-07-13).** The backtest
+> intake vetoes `bear_call_spread` (`entry.structure_veto`, config/backtest.yml):
+> −$8.6k on v3 real (17% win, n=18), −$11.2k real+tweak, −$4.4k on v2, and no
+> exit rule redeems it. Until a future credit study clears the structure, express
+> a bearish TF-S / conservative-ladder read as a **bear put debit spread**
+> (accepting the IV-mismatch note below) or pass on the play — do not emit
+> bear call spreads.
 
 The two `flow_intent`s that sit **outside** the six alpha playbooks — their edge source is risk management / mechanics, not an alpha edge — do not route through the ladder above:
 
@@ -274,7 +284,7 @@ sums all five into `score_total` (0–100) downstream.
 | **Flow confirmation**  | 25          | 20         | repetition / clustering, cross-dataset overlap (unusual + flow), extrinsic-premium concentration             |
 | **Dealer alignment**   | 25          | 25         | dealer gamma supports the play — short gamma behind a trend/breakout; long gamma behind a pin                |
 | **Price confirmation** | 20          | 10         | price action confirms — key level held or broken with follow-through, structure intact                       |
-| **Vol alignment**      | 15          | 25         | IV / term structure / skew fit the chosen structure (cheap-or-rising IV for debit; rich-or-falling for credit) |
+| **Vol alignment**      | 15          | 25         | vol conditions support the *thesis*, independent of the structure chosen: realized-vs-implied gap, term structure, skew, and the expected IV path agree with what the play needs to happen |
 | **Catalyst support**   | 15          | 20         | a dated catalyst within the horizon corroborates the thesis (earnings, macro print, product event)           |
 
 **Flow confirmation**, **Dealer alignment**, and **Vol alignment** are the
@@ -286,6 +296,19 @@ reuses the per-ticker `PxVec` (signed price-trend vector, the SAME blend the
 score weights) and adds the play's `key_level` check, so set `direction` to
 agree with the sign of `PxVec` for a trend play (an MR play deliberately opposes
 it); **Catalyst support** keys off the `Earn` column (days to next earnings).
+
+**Vol alignment scores the thesis, not the structure (2026-07-13).** The old
+rubric awarded vol points for the structure matching the IV level
+("cheap-or-rising for debit; rich-or-falling for credit"). That is
+self-fulfilling: Step 4 already forces the structure to match IV, so every
+ladder-consistent play banked the points automatically and the component
+carried no information — measured on v3 it was *negative* within both sides
+(ρ −0.20 debit / −0.21 credit vs realized P&L) and it tracked `iv_pct`
+(+0.36 within credits), channeling score toward rich-IV credit plays that
+lost. Structure/IV consistency is Step 4's job — a mismatch invalidates the
+play; it never earns or costs points here. Score instead whether the vol
+backdrop makes the thesis more likely to pay: realized-vs-implied gap, term
+structure, skew (`IVspr`/`IVskew` below), expected IV path.
 
 **HEDGE** and **SYNTHETIC STOCK** use the Directional weighting, but score the
 relevant thesis: a HEDGE on whether the protection is genuine and well-placed

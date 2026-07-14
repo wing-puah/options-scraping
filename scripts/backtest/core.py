@@ -297,8 +297,9 @@ def main() -> None:
     # contracts whose Barchart history must be fetched. tf_s_override (config-gated,
     # default off) rewrites rich-IV TF debit verticals into TF-S credit spreads.
     tf_s_override = cfg.get("structure_override")
+    structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
     plays, contracts, needed_dates, skipped = build_matched_plays(
-        candidates, spread_pct, tf_s_override)
+        candidates, spread_pct, tf_s_override, structure_veto)
 
     # Pass 2 — fetch/cache Barchart history for all identified contracts.
     barchart_series: dict[tuple, list] = {}
@@ -315,8 +316,9 @@ def main() -> None:
     results = _run_simulations(plays, barchart_series, barchart_details,
                                market_regime, sim_cfg, spread_pct, skipped)
 
-    log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, %d unpriced)",
+    log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, "
+             "%d unpriced, %d vetoed)",
              len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
-             skipped["unpriced"])
+             skipped["unpriced"], skipped["vetoed"])
 
     _write_results(results, cfg, args.dry_run)
