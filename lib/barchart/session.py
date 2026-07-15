@@ -409,12 +409,32 @@ class BarchartSession:
             writer.writerow(out)
         return buf.getvalue()
 
+    async def _dismiss_modal(self) -> None:
+        """Close Barchart's newsletter/ad modal if present.
+
+        Its `.reveal-modal-bg` backdrop sits over the whole page and intercepts pointer
+        events, so a plain `.click()` on the download button retries for 30s and never
+        lands. Clicking the backdrop (its own `ng-click="close($event)"`) or Escape
+        dismisses it.
+        """
+        try:
+            backdrop = await self._page.query_selector(".reveal-modal-bg")
+            if backdrop and await backdrop.is_visible():
+                await backdrop.click(timeout=2000)
+                await self._page.wait_for_selector(".reveal-modal-bg", state="hidden", timeout=5000)
+        except Exception:
+            try:
+                await self._page.keyboard.press("Escape")
+            except Exception:
+                pass
+
     async def download_csv(self, url: str) -> str | None:
         """Navigate to url, click the first visible download button, return CSV text."""
         log.info("Navigating to '%s'", url)
         await self._page.goto(url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(3)
         await self._page.wait_for_load_state("networkidle", timeout=20000)
+        await self._dismiss_modal()
 
         download_btn = None
         for el in await self._page.query_selector_all("a.download, a[class*='download']"):
@@ -430,6 +450,7 @@ class BarchartSession:
             return None
 
         try:
+            await self._dismiss_modal()
             async with self._page.expect_download(timeout=20000) as dl_info:
                 await download_btn.click()
             dl = await dl_info.value
