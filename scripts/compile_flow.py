@@ -30,6 +30,7 @@ Usage:
 import argparse
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -39,7 +40,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from lib.logger import setup_logging
-from lib.csv_utils import parse_csv
+from lib.csv_utils import normalize_flow_rows, parse_csv
 from lib.drive_client import get_drive_client, trading_day
 
 log = logging.getLogger("compile_flow")
@@ -92,6 +93,7 @@ def compile_prefix(client, prefix: str, date_str: str, dry_run: bool = False) ->
     for f in files:
         rows.extend(parse_csv(client.download(f["id"], name=f["name"])))
 
+    rows = normalize_flow_rows(rows, date.fromisoformat(date_str))
     deduped, n_dups = dedup_rows(rows)
     name = compiled_name(prefix, date_str)
 

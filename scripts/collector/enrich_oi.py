@@ -65,7 +65,7 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
-from lib.csv_utils import parse_csv
+from lib.csv_utils import normalize_flow_rows, parse_csv
 from lib.drive_client import get_drive_client
 from lib.logger import safe_err, setup_logging
 from backtest.helpers import _contract_key, _to_float, _parse_expiration
@@ -416,6 +416,7 @@ def enrich_prefix(
         log.warning("%s %s: source file is empty — skipping", prefix, date_str)
         return {**base, "status": "empty"}
 
+    rows = normalize_flow_rows(rows, date.fromisoformat(date_str))
     _ensure_columns(rows)
     contracts, unparseable = _distinct_contracts(rows)
 

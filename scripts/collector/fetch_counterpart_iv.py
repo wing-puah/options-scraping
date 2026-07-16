@@ -50,7 +50,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
 from lib.parsing import to_float
-from lib.csv_utils import parse_csv
+from lib.csv_utils import normalize_flow_rows, parse_csv
 from lib.drive_client import get_drive_client
 from lib.counterpart_iv import (
     COUNTERPART_COLUMNS,
@@ -100,7 +100,7 @@ def _compiled_flow_rows(client, date_str: str) -> list[dict]:
                 log.info("%s: no compiled file for %s — using single snapshot %s",
                          date_str, prefix, f["name"])
                 rows += parse_csv(client.download(f["id"], name=f["name"]))
-    return rows
+    return normalize_flow_rows(rows, date.fromisoformat(date_str))
 
 
 def _compiled_dates(client) -> list[str]:
