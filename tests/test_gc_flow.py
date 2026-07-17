@@ -73,6 +73,32 @@ def test_gc_keeps_raw_when_compiled_incomplete():
     client.trash.assert_not_called()
 
 
+def test_gc_trashes_when_raw_uses_new_exp_date_column():
+    """Barchart's post-2026-07-14 export uses Exp Date instead of Expires/DTE.
+
+    compile_flow.py normalizes this (Exp Date -> Expires) before dedup/upload, so
+    the compiled file's identity keys carry Expires. Raw snapshots must be
+    normalized the same way before comparison, or every trade with a blank
+    Expires + populated Exp Date looks "missing" and gc_flow never trashes.
+    """
+    raw = (
+        "Symbol,Type,Strike,Exp Date,Trade,Size,Side,Premium,Time,Volume\n"
+        "AAA,Call,100,2026-07-17,2.50,10,ask,1000,10:00:00 ET,100\n"
+    )
+    compiled = (
+        "Symbol,Type,Strike,Expires,Trade,Size,Side,Premium,Time,Volume\n"
+        "AAA,Call,100,2026-07-17,2.50,10,ask,1000,10:00:00 ET,100\n"
+    )
+    raws = [{"id": "r1", "name": "etfs-flow-20260717-1050.csv"}]
+    listing = raws + [{"id": "c", "name": "etfs-flow-20260717-compiled.csv"}]
+    content = {"r1": raw, "c": compiled}
+    client = _client(raws=raws, listing=listing, content=content)
+
+    stats = gc_prefix(client, "etfs-flow", "2026-07-17")
+    assert stats["status"] == "trashed"
+    assert stats["trashed"] == 1
+
+
 def test_gc_dry_run_verifies_but_does_not_trash():
     listing = _RAWS + [{"id": "c", "name": "etfs-flow-20260609-compiled.csv"}]
     content = {"r1": _RAW_1050, "r2": _RAW_1218, "c": _COMPILED_GOOD}

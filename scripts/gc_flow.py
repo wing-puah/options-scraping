@@ -27,6 +27,7 @@ import argparse
 import logging
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -35,7 +36,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from lib.logger import setup_logging
-from lib.csv_utils import parse_csv
+from lib.csv_utils import normalize_flow_rows, parse_csv
 from lib.drive_client import get_drive_client, trading_day
 from compile_flow import DEDUP_KEY, FLOW_PREFIXES, compiled_name
 
@@ -84,6 +85,7 @@ def gc_prefix(client, prefix: str, date_str: str, dry_run: bool = False) -> dict
     raw_rows: list[dict] = []
     for f in raws:
         raw_rows.extend(parse_csv(client.download(f["id"], name=f["name"])))
+    raw_rows = normalize_flow_rows(raw_rows, date.fromisoformat(date_str))
 
     missing = _identity_keys(raw_rows) - _identity_keys(compiled_rows)
     if missing:
