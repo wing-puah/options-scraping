@@ -68,11 +68,7 @@ class BarchartSession:
         if cookies_fresh:
             log.debug("Loading cached Barchart cookies")
             await self._context.add_cookies(json.loads(self._cookies_path.read_text()))
-            await self._page.goto(
-                f"{self._BASE}/options/unusual-activity/stocks",
-                wait_until="domcontentloaded",
-                timeout=30000,
-            )
+            await self._goto_with_retry(f"{self._BASE}/options/unusual-activity/stocks")
             if await self._page.query_selector(
                 "[data-ng-controller='AccountDropdownCtrl'], .user-account, [class*='account']"
             ):
@@ -81,7 +77,7 @@ class BarchartSession:
             log.info("Cached session expired — re-logging in")
 
         log.info("Logging in to Barchart")
-        await self._page.goto(f"{self._BASE}/login", wait_until="domcontentloaded", timeout=30000)
+        await self._goto_with_retry(f"{self._BASE}/login")
         await self._page.fill("input[name='email']", self._email)
         await self._page.fill("input[name='password']", self._password)
         await self._page.click("button[type='submit']")
@@ -102,6 +98,24 @@ class BarchartSession:
         self._cookies_path.write_text(json.dumps(await self._context.cookies()))
         log.info("Login successful — session saved")
         return True
+
+    async def _goto_with_retry(self, url: str, timeout_ms: int = 30000,
+                                max_retries: int = 2, base_delay: float = 5.0) -> None:
+        """Navigate with retry, backing off on transient timeouts (auth's own page loads
+        aren't covered by _get_with_retry, which only retries authenticated feed GETs).
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+                return
+            except Exception:
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    log.warning("Navigation to '%s' failed — retrying in %.0fs (%d/%d)",
+                                url, delay, attempt + 1, max_retries)
+                    await asyncio.sleep(delay)
+                else:
+                    raise
 
     async def _get_with_retry(self, url: str, headers: dict, timeout_ms: int,
                               max_retries: int = 3, base_delay: float = 10.0):
@@ -428,38 +442,56 @@ class BarchartSession:
             except Exception:
                 pass
 
-    async def download_csv(self, url: str) -> str | None:
-        """Navigate to url, click the first visible download button, return CSV text."""
+    async def download_csv(self, url: str, max_retries: int = 3, base_delay: float = 5.0) -> str | None:
+        """Navigate to url, click the first visible download button, return CSV text.
+
+        The click→`expect_download` handshake occasionally times out with no HTTP
+        error involved (modal reappearing after dismissal, slow render, a network
+        blip before the download fires) — same transient-failure shape as the 429s
+        `_get_with_retry` backs off on. Retry the click in place (re-dismissing the
+        modal and re-locating the button each attempt, since a reload could have
+        reset the DOM) rather than re-navigating, which would cost another full
+        page load per attempt.
+        """
         log.info("Navigating to '%s'", url)
         await self._page.goto(url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(3)
         await self._page.wait_for_load_state("networkidle", timeout=20000)
         await self._dismiss_modal()
 
-        download_btn = None
-        for el in await self._page.query_selector_all("a.download, a[class*='download']"):
+        for attempt in range(max_retries + 1):
+            download_btn = None
+            for el in await self._page.query_selector_all("a.download, a[class*='download']"):
+                try:
+                    if await el.is_visible():
+                        download_btn = el
+                        break
+                except Exception:
+                    pass
+
+            if not download_btn:
+                log.warning("No visible download button on '%s'", url)
+                return None
+
             try:
-                if await el.is_visible():
-                    download_btn = el
-                    break
+                await self._dismiss_modal()
+                async with self._page.expect_download(timeout=20000) as dl_info:
+                    await download_btn.click()
+                dl = await dl_info.value
+                tmp = Path(f"/tmp/barchart_{id(dl)}.csv")
+                await dl.save_as(str(tmp))
+                content = tmp.read_text(encoding="utf-8", errors="replace")
+                tmp.unlink(missing_ok=True)
+                log.info("Downloaded CSV from '%s' — %d bytes", url, len(content))
+                return content
             except Exception:
-                pass
-
-        if not download_btn:
-            log.warning("No visible download button on '%s'", url)
-            return None
-
-        try:
-            await self._dismiss_modal()
-            async with self._page.expect_download(timeout=20000) as dl_info:
-                await download_btn.click()
-            dl = await dl_info.value
-            tmp = Path(f"/tmp/barchart_{id(dl)}.csv")
-            await dl.save_as(str(tmp))
-            content = tmp.read_text(encoding="utf-8", errors="replace")
-            tmp.unlink(missing_ok=True)
-            log.info("Downloaded CSV from '%s' — %d bytes", url, len(content))
-            return content
-        except Exception:
-            log.exception("CSV download failed on '%s'", url)
-            return None
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    log.warning(
+                        "CSV download attempt %d/%d failed on '%s' — retrying in %.0fs",
+                        attempt + 1, max_retries + 1, url, delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    log.exception("CSV download failed on '%s' after %d attempts", url, max_retries + 1)
+                    return None

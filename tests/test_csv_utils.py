@@ -40,3 +40,11 @@ def test_multiple_rows_before_footer():
     rows = parse_csv(raw)
     assert len(rows) == 3
     assert rows[2]["Symbol"] == "NVDA"
+
+
+def test_blank_line_is_skipped_not_crashed_on():
+    raw = "Symbol,Volume\nAAPL,100\n\nMSFT,200\n"
+    rows = parse_csv(raw)
+    assert len(rows) == 2
+    assert rows[0]["Symbol"] == "AAPL"
+    assert rows[1]["Symbol"] == "MSFT"

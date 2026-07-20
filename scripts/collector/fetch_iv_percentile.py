@@ -274,9 +274,16 @@ def main() -> None:
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
     log.info("Fetch IV percentile%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(targets))
 
-    results = [enrich_prefix(client, prefix, d, headless=headless, dry_run=args.dry_run,
-                             force=args.force)
-               for d in targets for prefix in FLOW_PREFIXES]
+    results = []
+    for d in targets:
+        for prefix in FLOW_PREFIXES:
+            try:
+                results.append(enrich_prefix(client, prefix, d, headless=headless,
+                                             dry_run=args.dry_run, force=args.force))
+            except Exception:
+                log.exception("%s %s: enrichment failed — skipping (already-scraped tickers "
+                               "for this date remain checkpointed; re-run to retry)", prefix, d)
+                results.append({"prefix": prefix, "date": d, "status": "error"})
 
     enriched = [r for r in results if r["status"] == "enriched"]
     print(f"\nFetch IV percentile {'dry-run' if args.dry_run else 'run'} summary")

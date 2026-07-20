@@ -25,12 +25,13 @@ see scripts/gc_flow.py.
 Usage:
   python3 scripts/compile_flow.py                 # today's trading day (ET)
   python3 scripts/compile_flow.py --date 2026-06-09
+  python3 scripts/compile_flow.py --start 2026-06-09 --end 2026-06-13   # weekdays in range
   python3 scripts/compile_flow.py --date 2026-06-09 --dry-run     # report, no upload
 """
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -56,6 +57,16 @@ DEDUP_KEY = ["Symbol", "Type", "Strike", "Expires", "Trade", "Size", "Side", "Pr
 COMPILED_SUFFIX = "compiled"
 
 
+def trading_days(start: date, end: date) -> list[date]:
+    """Return all weekdays (Mon–Fri) between start and end, inclusive."""
+    days, current = [], start
+    while current <= end:
+        if current.weekday() < 5:
+            days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
 def compiled_name(prefix: str, date_str: str) -> str:
     """Output filename for a compiled day, e.g. 'etfs-flow-20260609-compiled.csv'."""
     return f"{prefix}-{date_str.replace('-', '')}-{COMPILED_SUFFIX}.csv"
@@ -78,12 +89,21 @@ def dedup_rows(rows: list[dict]) -> tuple[pd.DataFrame, int]:
     return deduped, before - len(deduped)
 
 
-def compile_prefix(client, prefix: str, date_str: str, dry_run: bool = False) -> dict | None:
+def compile_prefix(client, prefix: str, date_str: str, dry_run: bool = False,
+                   skip_existing: bool = False) -> dict | None:
     """Gather, dedup, and (unless dry_run) upload one flow type's snapshots.
 
-    Returns a stats dict, or None when no snapshots exist for the date. The raw
-    snapshots are left in place — reclaiming them is gc_flow.py's job.
+    Returns a stats dict, or None when no snapshots exist for the date (or the
+    compiled file already exists under skip_existing — recompiling would drop
+    enrichment columns). The raw snapshots are left in place — reclaiming them
+    is gc_flow.py's job.
     """
+    if skip_existing:
+        folder_id = client.find_date_folder(date_str)
+        if folder_id and client.file_exists(compiled_name(prefix, date_str), folder_id):
+            log.info("%s: %s already compiled — skipped (--skip-existing)", prefix, date_str)
+            return None
+
     files = client.list_files_for_date(prefix, date_str)  # oldest→newest
     if not files:
         log.warning("%s: no snapshots for %s — nothing to compile", prefix, date_str)
@@ -120,26 +140,18 @@ def compile_prefix(client, prefix: str, date_str: str, dry_run: bool = False) ->
     return stats
 
 
-def main() -> None:
-    setup_logging()
-    parser = argparse.ArgumentParser(
-        description="Compile a day's hourly flow snapshots into one deduped CSV per type.",
-    )
-    parser.add_argument("--date", help="Trading date to compile (YYYY-MM-DD). Default: today (ET).")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Report dedup counts without uploading the compiled files.")
-    args = parser.parse_args()
-
-    date_str = args.date or trading_day()
-    log.info("Compiling flow for %s%s", date_str, " (dry-run)" if args.dry_run else "")
-
-    client = get_drive_client()
-    results = [compile_prefix(client, prefix, date_str, dry_run=args.dry_run)
+def compile_date(client, date_str: str, dry_run: bool = False,
+                 skip_existing: bool = False) -> None:
+    """Compile every flow type for one trading date and print the summary."""
+    log.info("Compiling flow for %s%s", date_str, " (dry-run)" if dry_run else "")
+    results = [compile_prefix(client, prefix, date_str, dry_run=dry_run,
+                              skip_existing=skip_existing)
                for prefix in FLOW_PREFIXES]
 
     compiled = [r for r in results if r]
     if not compiled:
-        log.warning("No flow snapshots found for %s — nothing compiled", date_str)
+        if not skip_existing:
+            log.warning("No flow snapshots found for %s — nothing compiled", date_str)
         return
 
     total_dups = sum(r["duplicates"] for r in compiled)
@@ -152,8 +164,44 @@ def main() -> None:
             f"{r['prefix']:<12} {r['snapshots']:>3} snapshot(s)  "
             f"{r['rows_in']:>5} → {r['rows_out']:>5} rows  "
             f"{r['duplicates']:>5} duplicate(s) removed"
-            + ("" if args.dry_run else f"  → {r['name']}")
+            + ("" if dry_run else f"  → {r['name']}")
         )
+
+
+def main() -> None:
+    setup_logging()
+    parser = argparse.ArgumentParser(
+        description="Compile a day's hourly flow snapshots into one deduped CSV per type.",
+    )
+    parser.add_argument("--date", help="Trading date to compile (YYYY-MM-DD). Default: today (ET).")
+    parser.add_argument("--start", help="Compile a date range: start date (YYYY-MM-DD). Weekends skipped.")
+    parser.add_argument("--end", help="Range end date (YYYY-MM-DD), inclusive. Default: today.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Report dedup counts without uploading the compiled files.")
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="Skip dates whose compiled file already exists on Drive "
+                             "(recompiling drops enrichment columns).")
+    args = parser.parse_args()
+
+    if args.date and (args.start or args.end):
+        parser.error("--date cannot be combined with --start/--end")
+    if args.end and not args.start:
+        parser.error("--end requires --start")
+
+    if args.start:
+        start = date.fromisoformat(args.start)
+        end = date.fromisoformat(args.end) if args.end else date.today()
+        dates = [d.isoformat() for d in trading_days(start, end)]
+        if not dates:
+            log.warning("No weekdays between %s and %s — nothing to compile", args.start, args.end)
+            return
+    else:
+        dates = [args.date or trading_day()]
+
+    client = get_drive_client()
+    for date_str in dates:
+        compile_date(client, date_str, dry_run=args.dry_run,
+                     skip_existing=args.skip_existing)
 
 
 if __name__ == "__main__":

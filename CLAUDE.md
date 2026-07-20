@@ -47,6 +47,7 @@ SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
 # Compile a day's hourly flow snapshots into one deduped CSV per type (→ Drive)
 python3 scripts/compile_flow.py                      # today (ET)
 python3 scripts/compile_flow.py --date 2026-06-09
+python3 scripts/compile_flow.py --start 2026-06-09 --end 2026-06-13   # weekdays in range
 python3 scripts/compile_flow.py --date 2026-06-09 --dry-run   # report dup counts, no upload
 
 # Garbage-collect raw snapshots once verified-present in their compiled file (→ Drive trash)

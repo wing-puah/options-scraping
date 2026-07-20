@@ -8,9 +8,11 @@ def parse_csv(raw: str) -> list[dict]:
     rows = []
     reader = csv.DictReader(io.StringIO(raw))
     for row in reader:
-        first_val = next(iter(row.values()), "") if row else ""
+        first_val = (next(iter(row.values()), "") if row else "") or ""
         if first_val.startswith("Downloaded from"):
             break
+        if not any(row.values()):
+            continue
         rows.append(dict(row))
     return rows
 

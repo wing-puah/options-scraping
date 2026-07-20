@@ -23,7 +23,7 @@ scrape-unusual:
 # ── compile & gc ───────────────────────────────────────────────────────────────
 .PHONY: compile
 compile:
-	$(PY) scripts/compile_flow.py
+	$(PY) scripts/compile_flow.py $(ARGS)
 
 .PHONY: gc
 gc:
@@ -54,6 +54,10 @@ iv-all: counterpart-iv iv-percentile
 price-catalyst:
 	$(PY) scripts/collector/fetch_price_catalyst.py $(ARGS)
 
+# ── all enrichments: oi + counterpart-iv + iv-percentile + price-catalyst ────────
+.PHONY: enrich-all
+enrich-all: enrich counterpart-iv iv-percentile price-catalyst
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze:
@@ -62,6 +66,10 @@ analyze:
 .PHONY: analyze-gpt
 analyze-gpt:
 	$(PY) -m scripts.analysis_pipeline --engine codex $(ARGS)
+
+# ── analyze then full backtest ───────────────────────────────────────────────────
+.PHONY: analyze-bt
+analyze-bt: analyze backtest-all
 
 # ── backtest ───────────────────────────────────────────────────────────────────
 .PHONY: backtest
@@ -98,6 +106,7 @@ help:
 	@echo "  make scrape-unusual scrape unusual only"
 	@echo ""
 	@echo "  make compile       compile today's snapshots → Drive"
+	@echo "  make compile ARGS=\"--date 2026-06-09\"  (or --start/--end for a range, --dry-run)"
 	@echo "  make gc            garbage-collect raw snapshots"
 	@echo ""
 	@echo "  make enrich        enrich today's compiled flow with OI change + EOD greeks"
@@ -115,9 +124,15 @@ help:
 	@echo "  make price-catalyst   enrich today's compiled flow with price/earnings catalyst data"
 	@echo "  make price-catalyst ARGS=\"--date 2026-06-10\"  (or --backfill, --dry-run, --force)"
 	@echo ""
+	@echo "  make enrich-all    enrich + counterpart-iv + iv-percentile + price-catalyst"
+	@echo "  make enrich-all ARGS=\"--date 2026-06-10\"  (same ARGS passed to all four)"
+	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
 	@echo "  make analyze-gpt   run analysis pipeline (GPT)"
 	@echo "  make analyze ARGS=\"--date 2026-02-14\"  (or --start/--end/--days/--dry-run/--model)"
+	@echo ""
+	@echo "  make analyze-bt    analyze, then backtest-all (real + proxy + chart)"
+	@echo "  make analyze-bt ARGS=\"--date 2026-04-21\"  (ARGS passed to analyze and both backtest steps)"
 	@echo ""
 	@echo "  make backtest      run backtest"
 	@echo "  make backtest-dry  dry-run backtest"
