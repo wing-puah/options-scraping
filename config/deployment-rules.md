@@ -1,7 +1,9 @@
 # Deployment rules — which analysis plays get real capital
 
-Derived 2026-07-19 from the 607-row pooled book (see
-`config/backtest-tuning.md` §"2026-07-19 — Deployment ladder"). The analysis
+Derived 2026-07-19 from the 607-row pooled book; **re-validated 2026-07-21
+at the ≥800 gate** (762 pooled priced rows — tier ordering monotone in every
+cut incl. post-13c-only; see `config/backtest-tuning.md` §"2026-07-21 —
+≥800-gate evaluation"). The analysis
 emits a median 10 plays/day; live capital supports 1–3 positions. This is the
 operator checklist for choosing which plays to actually deploy. Every rule
 below is a ≥2-snapshot-confirmed backtest finding — nothing here is a fresh
@@ -31,39 +33,53 @@ most reliable part of this ladder.
 ## Step 2 — Tier the survivors
 
 - **Tier A — deploy first**: `bull_call_spread` when the regime is RANGE or
-  E-VOL, or its `score_total` ≥ 70.
-  (pooled n=132, 61% win, mean +0.51; real-priced +0.60)
+  E-VOL. (pooled n=147, 67% win, mean +0.64; real-priced +0.77)
 - **Tier B — deploy if capital remains**:
   - other `bull_call_spread`;
-  - `bull_put_spread` with short-leg **|delta| ≥ 0.12 AND DTE ≤ 59**
-    (PROVISIONAL median-split cuts — direction 3×-confirmed, exact numbers
-    pending the ≥800-row derivation; the joint cell wins 88% at n=26, vs 59%
-    win / −0.15 mean when both are violated). Check delta/DTE at order entry
-    in IBKR, they are not on the analysis row;
-  - any other debit structure with `score_total` ≥ 70.
-  (pooled n=117, 63% win, mean +0.27)
+  - `bull_put_spread` with short-leg **0.08 ≤ |delta| ≤ 0.20 AND DTE ≤ 59,
+    prefer 45–59 DTE** (derived at the ≥800 gate, n=118 real-priced: the
+    qualifying |d|≥0.08/DTE≤59 cell is 80% win / +0.25 mean vs 60% / −0.08
+    violated, and holds post-13c at +0.15/80%. Delta is a BAND: >0.20 runs
+    −0.39 and <0.08 runs −0.28; DTE 45–59 carries the whole edge (+0.47,
+    87% win) while ≤22 produced the post-13c dollar_stop losers. The ≤0.20
+    cap and 45-DTE preference are thin-n — PROVISIONAL). Check delta/DTE at
+    order entry in IBKR, they are not on the analysis row.
+  (pooled n=168, 60% win, mean +0.28)
 - **Tier C — skip when capital-constrained**: `bear_put_spread` with
   `iv_spread` > 0 (3×-confirmed MAE penalty), low-delta/long-DTE bull_puts,
   everything else. (pooled n=262, 51% win, mean +0.09 — dead money, not
   poison; fine to paper-track.)
-- Tie-break **within** a tier: higher `score_total` (post-13c bands are
-  monotone: 70+ → 70% win, 40–69 → 57%, <40 → 54%).
+- Tie-break **within** a tier: higher `score_total` — a deterministic
+  ordering only, it carries no signal (replay ≈ random tie-break).
 
-## Validation (2026-07-19 book)
+> **Note (2026-07-21):** two former `score_total` ≥ 70 membership clauses
+> (bull_call → A; any other debit → B) were removed after marginal-value
+> tests — the first promoted rows that perform like Tier B, the second was
+> a bear_put leak. Tier membership is now structure × regime ×
+> entry-geometry only. Details: backtest-tuning.md §2026-07-21 addendum.
 
-- Tier means monotone pooled AND real-priced AND in both time halves
-  (H1 ≤ 2025-03-17 < H2): A > B > C > VETO ordering never inverts.
-- Capped-selection replay (score-free tie-break): top-1/day mean +0.82,
-  top-2 +0.51, top-3 +0.45 vs +0.14 take-everything. **Top-3/day = 28% of
-  positions, 83% of book P&L (+$88k of +$106k).**
-- Post-13c-only dates, score tie-break: top-1/day 82% win (n=17, small).
+## Validation (2026-07-21, 762 pooled priced rows — the ≥800-gate run)
+
+Numbers below are for the score-free ladder (post-clause-removal).
+
+- Tier means monotone pooled (+0.64/+0.28/−0.02/−0.39), real-priced
+  (+0.77/+0.31/−0.01/−0.45), pre-13c, post-13c, and both time halves:
+  A > B > C > VETO never inverts.
+- Post-13c-only: A vs C MWU p=.0001, B vs C p<.0001 (A vs B ordered but
+  not separated: +0.50 vs +0.40, p=.98 — watch item stays open).
+- Post-13c capped replay: top-1/day 76% win / +0.35 mean; top-3/day 69%
+  win, $30.3k from 97 rows — better than the with-score-clauses ladder
+  ($19.1k, 61% win) on the same dates.
+- 2026-07-19 book (607 rows, derivation sample): top-1/day +0.82, top-3
+  +0.45 vs +0.14 take-everything; top-3/day = 28% of positions, 83% of
+  book P&L.
 
 ## Caveats + revision triggers
 
 - Tier A partly encodes the RANGE/E-VOL cell that drove the book's profit —
-  in-sample circularity is mitigated by the time-split, not eliminated.
-- The bull_put 0.12/59 cuts are provisional; re-derive at ≥800 pooled rows.
-- Post-13c sample shows B ≥ A (n=23 vs 58) — small-n; if A < B persists at
-  ≥800, re-order or merge the tiers.
-- Re-validate the whole ladder at the ≥800-row run before treating it as
-  more than a triage heuristic.
+  in-sample circularity is mitigated by the time-split + post-13c holdout,
+  not eliminated.
+- The bull_put delta ≤0.20 cap and 45–59-DTE preference are thin-n
+  (PROVISIONAL); re-read after the 25 regime-gap dates land.
+- The ladder is validated as a triage rule on backtest data; it has never
+  been walked forward live.
