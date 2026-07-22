@@ -69,11 +69,11 @@ mech-regime:
 
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
-analyze: mech-regime
+analyze: 
 	$(PY) -m scripts.analysis_pipeline $(ARGS)
 
 .PHONY: analyze-gpt
-analyze-gpt: mech-regime
+analyze-gpt: 
 	$(PY) -m scripts.analysis_pipeline --engine codex $(ARGS)
 
 # ── analyze then full backtest ───────────────────────────────────────────────────
@@ -82,11 +82,11 @@ analyze-bt: analyze backtest-all
 
 # ── backtest ───────────────────────────────────────────────────────────────────
 .PHONY: backtest
-backtest: mech-regime
+backtest: 
 	$(PY) -m scripts.backtest --config config/backtest.yml $(ARGS)
 
 .PHONY: backtest-proxy
-backtest-proxy: mech-regime
+backtest-proxy: 
 	$(PY) -m scripts.backtest.proxy --config config/backtest.yml $(ARGS)
 
 # ── full backtest: real + proxy, then combined chart ────────────────────────────
