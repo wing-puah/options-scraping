@@ -52,6 +52,13 @@ _KEY_ORDER = [
     # so each factor can be measured against realized P&L and pruned later.
     "score_total", "score_flow", "score_dealer", "score_price", "score_vol",
     "score_catalyst",
+    # Exit profile this row was simulated on: PROD / CREDIT / a mech-regime cell
+    # (BEAR_HE). EMPTY = written before 2026-07-22, i.e. PROD-basis by definition.
+    # Appended at the VERY END for the positional-append reason above. Read this
+    # when pooling rows across runs — the tab is append-only with no dedup, so a
+    # full re-run leaves both bases on the sheet. See scripts/backtest/simulate.py
+    # _exit_basis and config/backtest-tuning/current.md addendum 7.
+    "exit_basis",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent

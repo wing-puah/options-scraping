@@ -90,6 +90,12 @@ class DriveClient:
         self._svc = service
         self._root = root_folder_id
 
+    @property
+    def root(self) -> str:
+        """Root folder ID — for the few files that are NOT date-partitioned
+        (e.g. the SPY/VIX mech-regime table, which is one continuous series)."""
+        return self._root
+
     def get_or_create_date_folder(self, date_str: str) -> str:
         """Find or create a subfolder named date_str inside the root. Returns folder ID."""
         log.debug("Looking for date folder '%s' in Drive root", date_str)

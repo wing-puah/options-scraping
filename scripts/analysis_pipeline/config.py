@@ -115,7 +115,21 @@ ROW_COLUMNS = [
     # `days_to_earnings` is days to next earnings (grounds score_catalyst). Appended at
     # the END (append-at-end convention) → header extension only, no row-shift migration.
     "price_vector", "days_to_earnings",
+    # Mechanical market-regime cell for THIS date (lib/mech_regime.py): BEAR_HE /
+    # LVOL / RB_EVOL, NONE when the regime maps to no cell, NO_DATA when the
+    # SPY/VIX table couldn't answer. Market-level, so it is the SAME on every row
+    # of a run including MARKET — stored (not just recomputable) so the value is
+    # in front of you at deploy time, where the BEAR_HE trailing-stop rule in
+    # config/deployment-rules.md §"Exit management" applies. NOT read by the
+    # backtest, which recomputes it from signal_date at simulate time. Appended at
+    # the END (append-at-end convention) → header extension only, no row shift.
+    "mech_cell",
 ]
+
+# Production SPY/VIX table backing `mech_cell`. Untracked + local-only (gitignored
+# under backtests/*, fetched by hand from yfinance), so a run on a machine without
+# it writes NO_DATA rather than guessing — see lib.mech_regime.cell_for_date.
+MECH_REGIME_CSV = "backtests/mech_regime/spy_vix_daily_full.csv"
 
 # Analysis-row key -> `score` sub-field (framework Step-5 factor). The model emits
 # these three component points (flow/dealer/vol); score_price/score_catalyst are

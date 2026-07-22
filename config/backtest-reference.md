@@ -115,6 +115,13 @@ these columns existed. These replaced the old high/medium/low `confidence` label
 | **score_total** | Sum of the five component points below (0–100), computed at row-expansion time — never model-produced. Interpretation only: ≥70 strong · 40–69 moderate · <40 weak. |
 | **score_flow** / **score_dealer** / **score_price** / **score_vol** / **score_catalyst** | The five framework Step-5 evidence-quality factors, each an integer point award. Per-factor maxima are intent-weighted (DIRECTIONAL/HEDGE/SYNTHETIC STOCK: 25/25/20/15/15; VOLATILITY: 20/25/10/25/20). |
 
+## Exit basis
+
+<!-- prettier-ignore -->
+| Column | Definition |
+|--------|-----------|
+| **exit_basis** | Which exit profile governed the simulation of this row. `PROD` = the base `simulation:` block. `CREDIT` = the `simulation.credit:` override (any row with `entry_option_price < 0`; credits are never regime-switched). `BEAR_HE` = the mechanical-regime exit override fired (`simulation.regime_exit.cells`, shipped 2026-07-22 — see `config/deployment-rules.md` §Exit management). `NONE` = BacktestProxy `underlying_trend` tier only, where no exit rules run at all. **Blank (`""`) = the row was written before this column existed, i.e. PROD-basis by definition.** <br><br>Both tabs are **append-only with no dedup**, so a full re-run leaves old and new rows side by side. When pooling rows across runs, filter on this column (plus `created_datetime`) rather than assuming one basis — a bare `python3 -m scripts.backtest` re-simulates the ENTIRE analysis tab, not just new dates. |
+
 ---
 
 ## Notes

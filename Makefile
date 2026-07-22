@@ -58,13 +58,22 @@ price-catalyst:
 .PHONY: enrich-all
 enrich-all: enrich counterpart-iv iv-percentile price-catalyst
 
+# ── mech regime table ──────────────────────────────────────────────────────────
+# SPY/VIX closes behind the BEAR_HE exit override. Refreshed nightly by the
+# Compile Flow workflow (yfinance -> Drive); this pulls the current copy down.
+# backtest/analyze depend on it so the table can never be silently stale — the
+# Python stays offline and pure, the freshness step lives here in make.
+.PHONY: mech-regime
+mech-regime:
+	$(PY) scripts/collector/fetch_mech_regime.py --download
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
-analyze:
+analyze: mech-regime
 	$(PY) -m scripts.analysis_pipeline $(ARGS)
 
 .PHONY: analyze-gpt
-analyze-gpt:
+analyze-gpt: mech-regime
 	$(PY) -m scripts.analysis_pipeline --engine codex $(ARGS)
 
 # ── analyze then full backtest ───────────────────────────────────────────────────
@@ -73,11 +82,11 @@ analyze-bt: analyze backtest-all
 
 # ── backtest ───────────────────────────────────────────────────────────────────
 .PHONY: backtest
-backtest:
+backtest: mech-regime
 	$(PY) -m scripts.backtest --config config/backtest.yml $(ARGS)
 
 .PHONY: backtest-proxy
-backtest-proxy:
+backtest-proxy: mech-regime
 	$(PY) -m scripts.backtest.proxy --config config/backtest.yml $(ARGS)
 
 # ── full backtest: real + proxy, then combined chart ────────────────────────────
@@ -134,7 +143,9 @@ help:
 	@echo "  make analyze-bt    analyze, then backtest-all (real + proxy + chart)"
 	@echo "  make analyze-bt ARGS=\"--date 2026-04-21\"  (ARGS passed to analyze and both backtest steps)"
 	@echo ""
-	@echo "  make backtest      run backtest"
+	@echo "  make mech-regime   pull the SPY/VIX regime table from Drive"
+	@echo ""
+	@echo "  make backtest      run backtest (pulls the regime table first)"
 	@echo "  make backtest-dry  dry-run backtest"
 	@echo ""
 	@echo "  make backtest-proxy   proxy-backtest untested plays → BacktestProxy tab"

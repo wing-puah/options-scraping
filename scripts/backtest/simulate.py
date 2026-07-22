@@ -15,16 +15,94 @@ from .legs import format_legs, merge_legs
 log = logging.getLogger("backtest")
 
 
-def _effective_sim_cfg(sim_cfg: dict, entry_net: float) -> dict:
+_MECH_LABELERS: dict[str, object] = {}
+_MECH_STALE_WARNED: set[str] = set()
+
+
+def _mech_labeler(csv_path: str):
+    """Cached MechLabeler per CSV path. Returns None if the file is missing —
+    a missing SPY/VIX table disables the regime override rather than failing
+    the run, since every pre-override result stays reproducible without it."""
+    if csv_path not in _MECH_LABELERS:
+        from pathlib import Path
+        p = Path(csv_path)
+        if not p.is_absolute():
+            p = Path(__file__).resolve().parents[2] / p
+        if not p.exists():
+            log.warning("regime_exit: SPY/VIX table not found at %s — "
+                        "regime exit overrides DISABLED for this run", p)
+            _MECH_LABELERS[csv_path] = None
+        else:
+            from lib.mech_regime import MechLabeler
+            _MECH_LABELERS[csv_path] = MechLabeler.from_csv(p)
+    return _MECH_LABELERS[csv_path]
+
+
+def _regime_override(sim_cfg: dict, signal_date) -> tuple[str, dict] | None:
+    """`(cell_name, exit-rule overrides)` for the mechanical regime cell of
+    `signal_date`, or None when no override applies.
+
+    The cell name is returned alongside the overrides so the result row can
+    record WHICH basis it was simulated on (see `_exit_basis`) — a row that
+    only carries numbers is indistinguishable from a PROD-basis row.
+
+    DEBIT ONLY, by the addendum-4 spec: credit PROD has no time exit and was
+    not part of the study, so credits are never regime-switched here.
+    """
+    cfg = sim_cfg.get("regime_exit")
+    if not isinstance(cfg, dict) or not cfg.get("enabled") or not signal_date:
+        return None
+    cells = cfg.get("cells")
+    if not isinstance(cells, dict) or not cells:
+        return None
+    labeler = _mech_labeler(cfg.get("spy_vix_csv", ""))
+    if labeler is None:
+        return None
+
+    d = str(signal_date)[:10]
+    last = labeler.last_date
+    if last and d > last and d not in _MECH_STALE_WARNED:
+        _MECH_STALE_WARNED.add(d)
+        log.warning("regime_exit: signal date %s is past the SPY/VIX table end "
+                    "(%s) — labelling as-of %s. Refresh with "
+                    "backtests/mech_regime/fetch_spy_vix.py", d, last, last)
+    cell = labeler.cell(d)
+    if cell is None:
+        return None
+    override = cells.get(cell)
+    return (cell, override) if isinstance(override, dict) else None
+
+
+def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None) -> str:
+    """Which exit profile governed this simulation — written to every result row.
+
+    An EMPTY value in the sheet means the row predates this column, i.e. it was
+    simulated before the mech-regime override shipped (2026-07-22) and is
+    PROD-basis by definition. Every row a current run writes carries a value, so
+    a full re-run produces a complete single-basis book that can be read on its
+    own and any older rows ignored.
+    """
+    if entry_net < 0:
+        return "CREDIT"
+    hit = _regime_override(sim_cfg, signal_date)
+    return hit[0] if hit else "PROD"
+
+
+def _effective_sim_cfg(sim_cfg: dict, entry_net: float, signal_date=None) -> dict:
     """Debit (entry_net >= 0) simulates on the base `sim_cfg` unchanged. Credit
     (entry_net < 0) merges `sim_cfg['credit']` over the base — presence-based, so
     a key the credit block doesn't mention keeps its debit value, while an
     explicit YAML `null` in the credit block overrides to None and disables that
     rule (e.g. `time_exit_dte_fraction: null` turns off the time exit for credits
     without touching the debit config). No-op when `credit` isn't a dict (absent
-    or misconfigured) — credit positions then just run the debit profile."""
+    or misconfigured) — credit positions then just run the debit profile.
+
+    Debits additionally take a mechanical-regime exit override keyed on
+    `signal_date` (simulation.regime_exit), merged with the same presence-based
+    semantics. Credits are never regime-switched."""
     if entry_net >= 0:
-        return sim_cfg
+        hit = _regime_override(sim_cfg, signal_date)
+        return {**sim_cfg, **hit[1]} if hit else sim_cfg
     credit = sim_cfg.get("credit")
     if not isinstance(credit, dict):
         return sim_cfg
@@ -333,7 +411,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     # Credit structures get their own sizing (structural max loss, not premium
     # received) and exit profile (config/backtest.yml simulation.credit block).
-    eff_cfg = _effective_sim_cfg(sim_cfg, entry_net)
+    eff_cfg = _effective_sim_cfg(sim_cfg, entry_net, signal_date)
 
     # Per-leg entry breakdown for diagnostics and delta.
     anchor_flow_delta = _to_float(entry_row.get("Delta"))
@@ -436,6 +514,10 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         trailing_stop_pct=trailing_stop_pct,
         loss_days_exit=loss_days_exit,
     ))
+
+    # Which exit profile this row was simulated on. Empty on rows written before
+    # 2026-07-22 = PROD-basis; see _exit_basis.
+    result["exit_basis"] = _exit_basis(sim_cfg, entry_net, signal_date)
 
     # Structural risk columns — independent of the daily path, so computed once
     # here rather than threaded through _summarize_path. Blank when the max loss

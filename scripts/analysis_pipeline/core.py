@@ -24,6 +24,7 @@ from .fetch import (
 from lib.drive_client import get_drive_client
 from lib import sheets_client
 from lib.logger import setup_logging
+from lib.mech_regime import cell_for_date
 from lib.price_catalyst import compute_play_scores, price_catalyst_from_flow_rows
 import argparse
 import csv
@@ -274,9 +275,25 @@ def _format_themes(themes: object) -> str:
     return "Themes:\n" + "\n".join(lines) if lines else ""
 
 
+def _mech_cell(date_str: str) -> str:
+    """Mechanical regime cell for `date_str`, logged loudly when unavailable.
+
+    The value lands on every row of the run and is read by a person at deploy
+    time (deployment-rules.md §"Exit management"), so a missing/stale SPY/VIX
+    table must be noisy — a silently wrong exit profile is the failure this
+    column exists to prevent. Never raises: the analysis is still worth writing
+    without the label.
+    """
+    value, warning = cell_for_date(config.MECH_REGIME_CSV, date_str)
+    if warning:
+        log.warning("mech_cell unavailable for %s: %s", date_str, warning)
+    return value
+
+
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str,
                      rollup_metrics: dict[str, dict] | None = None,
-                     play_scores: dict[str, dict] | None = None) -> list[dict]:
+                     play_scores: dict[str, dict] | None = None,
+                     mech_cell: str = "") -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
 
     INVARIANT — do not regress (fixed June 2026):
@@ -324,6 +341,11 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # Deterministic per-ticker price read (lib/price_catalyst.py), joined by
             # ticker like the block above: signed price-trend vector + days-to-earnings.
             m.get("price_vector", ""), m.get("days_to_earnings", ""),
+            # Mechanical regime cell for the date — market-level, so the same
+            # value on every row including MARKET (unlike the per-ticker blocks
+            # above, which are blank there). Passed in by the caller, not read
+            # here, so tests stay independent of the local SPY/VIX table.
+            mech_cell,
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -448,7 +470,8 @@ def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
 
     rows = analysis_to_rows(analysis, date_str, window_start, window_end,
                             rollup_metrics=_load_rollup_metrics(audit_path),
-                            play_scores=play_scores)
+                            play_scores=play_scores,
+                            mech_cell=_mech_cell(date_str))
     if write:
         sheets_client.append_rows(tab, rows)
         log.info("Wrote %d row(s) for %s to %s", len(rows), date_str, tab)
@@ -573,7 +596,8 @@ def main(argv: list[str] | None = None) -> None:
         play_scores = _compute_play_scores(analysis, d)
         rows = analysis_to_rows(analysis, d, window_start, window_end,
                                 rollup_metrics=_load_rollup_metrics(audit_path),
-                                play_scores=play_scores)
+                                play_scores=play_scores,
+                                mech_cell=_mech_cell(d))
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)
             log.info("Wrote %d row(s) for %s to %s", len(rows), d, tab)

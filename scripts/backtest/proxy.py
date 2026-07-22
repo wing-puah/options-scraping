@@ -90,7 +90,11 @@ _SCORE_COLS = [
     "score_total", "score_flow", "score_dealer", "score_price", "score_vol",
     "score_catalyst",
 ]
-_PROXY_KEY_ORDER = _IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS
+# Exit profile each proxy row was simulated on — same values and same
+# empty-means-pre-2026-07-22 convention as BacktestResults. Proxy rows run the
+# SAME simulation:/credit:/regime_exit: rules, so the two tabs stay comparable.
+_BASIS_COLS = ["exit_basis"]
+_PROXY_KEY_ORDER = _IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS + _BASIS_COLS
 
 _ENTRY_STALENESS_DAYS = 5  # same near-entry rule the real backtest applies
 
@@ -515,6 +519,10 @@ def _method3(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
         "entry_underlying": round(entry_px, 4),
         "exit_reason": "direction_only",
         "created_datetime": "",  # set by caller
+        # No exit rules run on this tier at all (direction verdict only), so it
+        # is neither PROD- nor regime-basis. Named explicitly rather than left
+        # blank — blank is reserved for pre-2026-07-22 rows.
+        "exit_basis": "NONE",
     }
     detail = (f"{'bullish' if bullish else 'bearish'} bias; underlying "
               f"{entry_px:g} → {exit_px:g} ({move:+.1%}); "

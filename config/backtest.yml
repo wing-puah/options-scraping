@@ -115,6 +115,53 @@ simulation:
   # killing trades that went on to 100-160% MFE.
   loss_days_exit: null
 
+  # ── Mechanical-regime exit override (DEBIT only) ──────────────────────────────
+  # SHIPPED 2026-07-22 as a PRE-GATE EXCEPTION. Read this block before touching it.
+  #
+  # Keys debit exits on the mechanical regime of the SIGNAL DATE — direction/vol
+  # computed causally from SPY/^VIX closes (frozen spec in lib/mech_regime.py).
+  # Merge is presence-based, same semantics as the credit block below: a key named
+  # in a cell REPLACES the debit value; an explicit null DISABLES that rule.
+  # Credits are never regime-switched (credit PROD has no time exit and was not
+  # part of the study). Cells with no entry here run PROD unchanged.
+  #
+  # Evidence (backtest-tuning/current.md §2026-07-22 addendum 4): mech-keyed
+  # switching beat both PROD and model-keyed overall (post-13c +10.2 → +20.3
+  # pnl_pct, $8.8k → $22.6k); the BEAR+H/E trail .50/.50 cell is +$4.4k and
+  # right-signed. Model labels stay the basis for SELECTION gates; mech labels win
+  # for EXIT conditioning — opposite jobs, both robust.
+  #
+  # WHY THIS SHIPPED WHILE STILL "GATED": 5/6 pre-registered criteria passed; the
+  # 6th (LOO median > 0) fails BY CONSTRUCTION on a zero-inflated delta — most
+  # paths hit PT identically either way, so the median can never trip. The
+  # corrected gate (median among AFFECTED dates, ≥25 affected dates) needs NEW
+  # data, but this cell's value only accrues on BEAR/H-VOL dates — i.e. the gate
+  # could only clear DURING the regime it protects against. A 2026-07-22 coverage
+  # probe closed the historical escape route: Barchart options-flow silently
+  # serves a fallback payload before ~2024-02, so the Aug–Oct 2023 correction (the
+  # one unfitted high-vol window) is unfetchable (addendum 6). Shipping the one
+  # urgent cell was chosen over waiting; the asymmetry is a modest exit-timing
+  # cost if wrong vs. degraded capture through a whole bear leg if right.
+  #
+  # SHIPPED: BEAR_HE only. The LVOL tef-null cell (+$9.9k, also right-signed) is
+  # deliberately NOT shipped — no urgency, so it stays behind the corrected gate.
+  # The RB_EVOL pt-1.10 clause is DEAD (net −$0.8k, LOO rejected it).
+  #
+  # ROLLBACK TRIGGER (pre-registered, evaluate at ≥25 affected BEAR+H/E dates of
+  # NEW data): revert to PROD if the BEAR_HE cell's total gain vs PROD is ≤ 0, OR
+  # if the affected-date median gain is < 0. Passing instead promotes it from
+  # exception to gated-and-cleared. Same pattern as the Attempt-13 credit stop
+  # removal, which was later tested on a fresh 51-row window and held.
+  regime_exit:
+    enabled: true
+    spy_vix_csv: backtests/mech_regime/spy_vix_daily_full.csv
+    cells:
+      BEAR_HE:                      # mech BEAR + (H-VOL or E-VOL)
+        trailing_stop_trigger: 0.50 # activate the trail once up 50% of premium
+        trailing_stop_pct: 0.50     # then trail 50pts from peak
+      # LVOL:  { time_exit_dte_fraction: null }   # NOT shipped — still gated
+      # RB_EVOL: dead, do not re-add
+
   # ── Credit override ("theta harvest") ─────────────────────────────────────────
   # Attempt 8: the settings above are tuned for DEBIT structures (premium paid,
   # profit from the move continuing). A credit structure (net premium RECEIVED —

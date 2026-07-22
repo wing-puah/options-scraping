@@ -43,7 +43,14 @@ _MUTE_AT_WARNING = [
 ]
 
 # Our own logger namespaces — set to the requested level.
-_OWN_LOGGERS = ["lib", "scrape_flow", "analysis_pipeline", "backtest"]
+#
+# NOTE: a script logger NOT listed here inherits the root level (WARNING), so
+# its log.info() calls are silently dropped — the script runs fine and prints
+# nothing. The collector scripts other than scrape_flow (enrich_oi,
+# fetch_counterpart_iv, fetch_iv_percentile, fetch_price_catalyst) are in that
+# state; add them here if their progress output is wanted.
+_OWN_LOGGERS = ["lib", "scrape_flow", "analysis_pipeline", "backtest",
+                "fetch_mech_regime"]
 
 
 def setup_logging(level: int = logging.DEBUG) -> None:

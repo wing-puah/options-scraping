@@ -83,3 +83,50 @@ Numbers below are for the score-free ladder (post-clause-removal).
   (PROVISIONAL); re-read after the 25 regime-gap dates land.
 - The ladder is validated as a triage rule on backtest data; it has never
   been walked forward live.
+
+## Exit management — mechanical-regime override (SHIPPED 2026-07-22)
+
+The ladder above decides WHAT to deploy. This decides HOW to exit it, and it
+is keyed on the **mechanical** market regime of the signal date — not the
+model's regime label. (Model labels win for selection, mech labels win for
+exit conditioning; opposite jobs, both evidenced. See backtest-tuning
+§2026-07-22 addendum 4.)
+
+**Mechanical label, computed from SPY/^VIX closes as of the signal date:**
+
+- direction = **BEAR** if SPY < its 50-day SMA **and** the 20-day return < 0
+- vol = **E-VOL** if VIX ≥ 30 or the 5-day VIX change ≥ +25%; **H-VOL** if
+  VIX ≥ 20; else L-VOL
+
+**Rule — DEBIT positions only, when the signal date is BEAR + (H-VOL or E-VOL):**
+
+| | Normal (all other regimes) | BEAR + H/E-VOL |
+|---|---|---|
+| Profit target | 90% of premium paid | 90% of premium paid |
+| Trailing stop | none | **activate at +50%, then trail 50pts from peak** |
+| Stop loss | 75% | 75% |
+| Time exit | 75% of DTE elapsed | 75% of DTE elapsed |
+
+Only the trailing stop changes. Everything else is unchanged, and **credit
+positions are never regime-switched** — bull_puts keep the Attempt-13 profile
+(pt 0.65, no premium stop) in every regime.
+
+Rationale: in bear/high-vol tape, debit winners reach a high MFE and give it
+back before the 0.90 target fires. The trail converts that unrealized peak
+into a realized exit. Worth +$4.4k in the study; the effect is confined to
+this cell, which is why no other cell is switched.
+
+**Status: PRE-GATE EXCEPTION, not a cleared rule.** 5 of 6 pre-registered
+criteria passed; the 6th is mis-specified for a zero-inflated delta and can
+only be re-tested on new BEAR/H-VOL data. Historical escape routes are closed
+(Barchart options-flow doesn't reach back past ~2024-02 — addendum 6), so this
+ships ahead of its gate deliberately.
+
+**Rollback trigger** — re-evaluate at ≥25 affected BEAR+H/E dates of NEW data.
+Revert to no-trail if the cell's total gain vs PROD is ≤ 0, or if the
+affected-date median gain is < 0. Passing promotes it to a cleared rule.
+
+Implementation: `simulation.regime_exit` in `config/backtest.yml`; labels from
+`lib/mech_regime.py`. Refresh the SPY/VIX table before any live read or
+backtest run that includes recent dates:
+`python3 backtests/mech_regime/fetch_spy_vix.py --full`

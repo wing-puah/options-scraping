@@ -55,6 +55,17 @@ jobs:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
 
+      - name: Refresh SPY/VIX mech-regime table
+        # Production input to the BEAR_HE exit override (config/backtest.yml
+        # §simulation.regime_exit) and to `mech_cell` on the analysis row. Runs
+        # here because 22:30 UTC is after the US close, so today's closes exist.
+        # Replaces the single Drive-root file wholesale; `make mech-regime`
+        # pulls it back down before any local backtest/analyze.
+        run: python scripts/collector/fetch_mech_regime.py
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+
       - name: Append daily baseline row
         # Market-level aggregates → BaselineDaily tab (regime baseline for
         # /options analyze). --backfill is idempotent and computes only dates
