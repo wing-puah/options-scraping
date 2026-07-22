@@ -746,7 +746,8 @@ def score_flow_rollup(
         # names won 33% (avg −28%) vs 86% (avg +57%) below it. The 0.6 floor spares
         # borderline real bets (GLD 0.53 won) while demoting the clear financing
         # names (AMD/QQQ/TSLA/COIN). Scales with dominance; total clamped ≥0.
-        # See config/conviction-score.md and config/backtest-tuning.md §Financing.
+        # See config/conviction-score.md and backtest-tuning/archive/
+        # 01-exit-rules-attempts-1-7.md §Financing.
         fin_share = r.get("fin_share", 0.0)
         if fin_share > 0.90:
             fin_penalty = -4

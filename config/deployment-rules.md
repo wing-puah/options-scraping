@@ -2,7 +2,7 @@
 
 Derived 2026-07-19 from the 607-row pooled book; **re-validated 2026-07-21
 at the ≥800 gate** (762 pooled priced rows — tier ordering monotone in every
-cut incl. post-13c-only; see `config/backtest-tuning.md` §"2026-07-21 —
+cut incl. post-13c-only; see `config/backtest-tuning/current.md` §"2026-07-21 —
 ≥800-gate evaluation"). The analysis
 emits a median 10 plays/day; live capital supports 1–3 positions. This is the
 operator checklist for choosing which plays to actually deploy. Every rule
@@ -56,7 +56,7 @@ most reliable part of this ladder.
 > (bull_call → A; any other debit → B) were removed after marginal-value
 > tests — the first promoted rows that perform like Tier B, the second was
 > a bear_put leak. Tier membership is now structure × regime ×
-> entry-geometry only. Details: backtest-tuning.md §2026-07-21 addendum.
+> entry-geometry only. Details: backtest-tuning/current.md §2026-07-21 addendum.
 
 ## Validation (2026-07-21, 762 pooled priced rows — the ≥800-gate run)
 

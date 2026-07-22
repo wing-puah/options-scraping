@@ -171,7 +171,7 @@ datasets running (v3 ρ −0.24 p=0.005; v2 −0.20), but a hard **>0.6 veto was
 tested on dollars and REJECTED in both runs** — the dropped set totals
 +$5.8–5.9k (≈49% win, mean ≈ 0) because big winners live in the high-iv bucket
 too. Treat high `iv_pct` as a **sizing haircut / monitoring flag** on a play,
-never a gate that drops it. (See backtest-tuning.md §2026-07-12 factor 4 /
+never a gate that drops it. (See backtest-tuning/archive/03-evaluations-attempt-13.md §2026-07-12 factor 4 /
 queue item 5.)
 
 ## Price read (grounds score_price / score_catalyst, not a conviction component)

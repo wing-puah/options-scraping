@@ -66,13 +66,13 @@ simulation:
   # that gap past the trigger before profit_target can fire.
   # Attempt 6: lowered from 0.75 to 0.60 — path replay showed +$5,833 improvement by
   # catching Type-B reversals (peaked 60-75% then reversed to losses) before they flip.
-  # Cost: exits slowly-rising winners ~15% earlier. See backtest-tuning.md §Attempt 6.
+  # Cost: exits slowly-rising winners ~15% earlier. See backtest-tuning/archive/01-exit-rules-attempts-1-7.md §Attempt 6.
   # Attempt 7 (Option C, winner): raised to 0.90 from 0.60. MFE analysis showed
   # profit_target was firing at day 14 while MFE peaked at day 34 (57.7% capture).
   # Paired with trailing_stop_trigger=0.50 so trail activates once up 50%, giving
   # the floor for big movers while 0.90 catches clean winners before the trail reverses.
   # Variants tested: A (pt=1.50, tr=0.25): -$892 vs base; B (pt=1.50, tr=0.35): -$6,730;
-  # C (pt=0.90, tr=0.25): +$2,726 ← current. See backtest-tuning.md §Attempt 7.
+  # C (pt=0.90, tr=0.25): +$2,726 ← current. See backtest-tuning/archive/01-exit-rules-attempts-1-7.md §Attempt 7.
   profit_target: 0.90
 
   # Hard stop loss as a fraction of entry premium. Combined with the dollar_stop
@@ -104,7 +104,7 @@ simulation:
   # (+$9,362) and biggest-cluster removal (+$7,480); v1 comparison set agrees (+$5.5k).
   # Wider trails / higher triggers / breakeven ratchets all tested worse than no trail.
   # profit_target=0.90 kept: the pt sweep 0.70–1.00 without a trail is a plateau with
-  # no supported gradient. See backtest-tuning.md §Attempt 10.
+  # no supported gradient. See backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md §Attempt 10.
   trailing_stop_trigger: null                    # Attempt 10: no trailing stop on debits
   trailing_stop_pct: null
   trailing_stop_portfolio_trigger_pct: null      # null = disabled; 0.02 = 2% of portfolio
@@ -149,7 +149,7 @@ simulation:
   # July-2024 cluster; non-July months still net positive (+$651 real /
   # +$764 combined) with only −$46 against. Do NOT pair with pt 0.50 — that
   # helped only bear_calls (now vetoed) and hurts bull_puts (−$1,704).
-  # See backtest-tuning.md §Attempt 13.
+  # See backtest-tuning/archive/03-evaluations-attempt-13.md §Attempt 13.
   credit:
     profit_target: 0.65           # take profit at 65% of the credit captured
     stop_loss: null               # Attempt 13: no premium-based stop on credits —

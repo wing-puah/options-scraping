@@ -208,7 +208,7 @@ This regenerates `audit/<date>-rollup.csv` + `-oi-breakdown.csv` with the curren
 scoring — including the `FinPenalty` column and the penalized `Score` — so you
 can confirm financing-dominated names (high `FinancingShare`) have dropped out of
 `high-conv`. The two signal-quality gates validated on the Mar-2025 window (see
-[`config/backtest-tuning.md`](backtest-tuning.md) §Financing & IVSpread gates):
+[`config/backtest-tuning/`](backtest-tuning/archive/01-exit-rules-attempts-1-7.md) §Financing & IVSpread gates):
 
 - **Financing penalty** — `FinancingShare` > 0.60 demotes the name; stock-substitute
   positioning, not a directional bet. Baked into the score

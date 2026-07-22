@@ -192,7 +192,7 @@ python3 -m scripts.backtest --config config/backtest.yml --dry-run
 
 Settings live in `config/backtest.yml` (analysis tab to test, entry match side, path cap,
 profit/stop, pricing fallbacks). Column definitions for the output are in
-`config/backtest-reference.md`; tuning history is in `config/backtest-tuning.md`. Results
+`config/backtest-reference.md`; tuning history is in `config/backtest-tuning/`. Results
 are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` series.
 
 ## Google Sheets tabs

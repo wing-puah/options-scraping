@@ -49,7 +49,7 @@ Add a reconciliation check that fails loudly when executed strike/expiry ≠ pla
 
 ### Exit Rule Tuning (Attempt 7)
 
-Tested three variants to fix early profit-target exits (see `config/backtest-tuning.md §Attempt 7`):
+Tested three variants to fix early profit-target exits (see `config/backtest-tuning/archive/01-exit-rules-attempts-1-7.md §Attempt 7`):
 
 | Variant | Config | vs Baseline |
 |---------|--------|-------------|
