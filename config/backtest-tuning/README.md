@@ -40,6 +40,11 @@ row to the index below.
 | 2026-07-18 — Early pooled power check at 523 rows | [archive/04](archive/04-pooled-evals-and-ladder.md) |
 | 2026-07-19 — Deployment ladder (`config/deployment-rules.md`) | [archive/04](archive/04-pooled-evals-and-ladder.md) |
 | 2026-07-20 — Next-25 backtest dates: regime-gap selection | [archive/04](archive/04-pooled-evals-and-ladder.md) |
-| 2026-07-21 — ≥800-GATE EVALUATION at 762 pooled priced rows | [current.md](current.md) |
-| 2026-07-21 — Edge status: honest assessment + priority queue | [current.md](current.md) |
-| 2026-07-21 — Regime-label validation: 86 MARKET rows | [current.md](current.md) |
+| 2026-07-21 — ≥800-GATE EVALUATION at 762 pooled priced rows | [archive/05](archive/05-pooled-evals-762-and-regime-labels.md) |
+| 2026-07-21 — Edge status: honest assessment + priority queue | [archive/05](archive/05-pooled-evals-762-and-regime-labels.md) |
+| 2026-07-21 — Regime-label validation: 86 MARKET rows | [archive/05](archive/05-pooled-evals-762-and-regime-labels.md) |
+| 2026-07-22 — Regime-gap backfill: the 13 remaining dates | [archive/05](archive/05-pooled-evals-762-and-regime-labels.md) |
+| 2026-07-22 — 25-date gate CLOSED at 913 pooled priced | [archive/06](archive/06-mech-regime-and-shipped-exits.md) |
+| 2026-07-22 addenda 1–10 — mech_regime overlay, shipped BEAR_HE trail, `exit_basis`, `mech_cell`, SPY/VIX in Drive | [archive/06](archive/06-mech-regime-and-shipped-exits.md) |
+| 2026-07-22 addenda 11–14 — bear_put: cancellation, structure-keyed trail, pre-registration, DEMOTE verdict | [current.md](current.md) |
+| 2026-07-22 — Feb–Apr 2026 bear holdout: coverage + backfill status | [current.md](current.md) |
