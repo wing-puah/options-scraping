@@ -17,3 +17,5 @@ backtests/*
 *_secret_*
 *-key.json
 audit/
+portfolio/input/
+portfolio/output/

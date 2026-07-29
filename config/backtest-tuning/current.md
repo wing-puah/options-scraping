@@ -3,13 +3,143 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
-**State of play (2026-07-22).** Shipped config is the source of truth —
+**State of play (2026-07-27).** Shipped config is the source of truth —
 `config/backtest.yml` (exits, `regime_exit.cells: BEAR_HE` only) and
 `config/deployment-rules.md` (VETO / A / B / C ladder, top-3 per day,
 bull_put band `0.08 ≤ |delta| ≤ 0.20` + `DTE ≤ 59`). The 25-date regime-gap
-gate is CLOSED (archive/06). The one open question is **bear_put**: the
+gate is CLOSED (archive/06). Open questions: (1) **bear_put** — the
 pre-registered study returned DEMOTE, the verdict is deliberately *not*
-implemented, and it now waits on the Feb–Apr 2026 holdout below.
+implemented, and it now waits on the Feb–Apr 2026 holdout below; (2) **the
+long-dated blind spot** — the ladder is in practice a ≤60-DTE ladder because
+h≥180 plays cannot be priced (2026-07-27 below); (3) **live substitution** —
+the operator sometimes trades naked where the engine emitted a spread, which
+breaks the live walk-forward's attribution.
+
+---
+
+## 2026-07-27 — the pre-engine discretionary book, and the long-dated blind spot
+
+Source: `portfolio/` (IBKR flex exports, 468 closed trades, 2025-02-03 →
+2026-07-24, +$10,634). **This is pre-engine and mostly pre-June-2026** — it is
+a portrait of how the operator trades by hand, NOT a test of the engine and not
+a holdout. Treat every comparison below as directional, not evidential: n per
+structure is 7–26, unconditioned by regime, and discretionary in sizing/timing.
+
+### 1. What the discretionary book independently confirms
+
+- **Cadence.** P&L per trade by same-day trade count is monotone decreasing:
+  1/day +$119 (n=67) · 2–3/day +$25 (n=160) · 4–6/day +$9 (n=109) · 7+/day
+  **−$18** (n=132). Win rate is flat (51–59%) across all four, so this is
+  dilution, not worse reads on busy days. The ladder's 1–3 positions/day cap
+  came from capital constraints, not this data, and it lands on the knee.
+- **Concentration.** Top-3 trades = the entire book: ex-top-3 the book is
+  **−$5,004** over 465 trades; ex-top-10 it is −$20,478. Compare the ladder's
+  derivation finding (top-3/day = 28% of positions, 83% of book P&L).
+- **DTE.** 0DTE −$541 · 1–14d −$1,857 · 15–45d +$5,940 · 45d+ +$7,093.
+- **The bull_put DTE band reproduces out-of-sample.** His 26 bull put spreads,
+  never seen by the engine: DTE ≤22 → n=14, **−$1,805**; 45–59 → n=4, **+$443**.
+  That is the PROVISIONAL 45–59 preference in `deployment-rules.md` landing on
+  independent, real-fill, human-executed data. Weak n, right sign.
+
+### 2. What it contradicts (noted, NOT actioned)
+
+The four engine verticals total **−$1,952** over 58 trades in his book; all
++$10,072 of profit came from naked/single-leg and calendars, which the engine
+does not emit. Tier ordering also inverts: bull_call (Tier A) 36% win /
+−$1,652 (n=14, one TSM trade = −$2,101 of it); bear_call (hard VETO) 86% win /
++$479 (n=7). **Not evidence against the ladder** — no regime conditioning, no
+delta/DTE gating, tiny n, and discretionary entry timing. Recorded so it is not
+rediscovered as novel later.
+
+### 3. The long-dated blind spot (the real finding)
+
+`deployment-rules.md` is **in practice a ≤60-DTE ladder, and not by design.**
+
+Pooled across all `backtests/results*.csv` + `proxy_results*.csv` (203 unique
+plays), 36% of what the engine emits is horizon ≥180:
+
+| horizon | 14 | 60 | 180 | 720 |
+|---|---|---|---|---|
+| real-priced | 4 | 42 | 8 | 1 |
+| proxy (skipped by real backtest) | 2 | 73 | 54 | 19 |
+
+53 of 54 h=180 rows and **19 of 19** h=720 rows were skipped with
+`skip_reason = no_history`. Barchart's options history does not carry those
+contracts, so they never got real prices and never entered the ladder's
+evidence base. Nothing in `ANALYSIS_PROMPT_CONTRACT` blocks long-dated —
+`structure` already lists "long call", `horizon` already has 180/720 buckets,
+and the DTE-discipline rule already says default ≥45 DTE. The pipeline has been
+dropping the rows, not the prompt.
+
+**The BS proxy cannot substitute here** (user challenge, correct — my first
+suggestion, "fix `path_cap_days` and 73 rows become readable", was wrong):
+
+- All 45 long-dated `bs_options_hist` rows have **`pct_real_days = 0.0`**. Not
+  partially modeled — zero days of those paths came from a real quote.
+- `_method2` (`scripts/backtest/proxy.py:450-478`) prices the target leg off a
+  **donor contract at a different expiry**. For a 500-DTE leg the donor is
+  necessarily far shorter-dated — that is why the real leg had no history. Term
+  structure is unmodeled at the horizon where vega dominates. Worst possible
+  place for flat-vol BS.
+
+So the real evidence base is 21 rows, not 73:
+
+| | n | mean | win | MFE | MAE |
+|---|---|---|---|---|---|
+| `strike_expiry_tweak` (real-priced), h≥180 | 21 | −0.46 | 24% | +0.41 | −0.96 |
+| of which h=180 / h=720 | 20 / **1** | | | | |
+
+**At h=720 there is no evidence either way (n=1).** The 21-row negative also
+does not settle it: those are spreads (MAE −0.96 = defined-risk structures
+going to near-total loss), and all are still scored under `path_cap_days: 120`
+and `time_exit_dte_fraction: 0.75` — 23/49 h=180 and 14/17 h=720 rows exit
+`cap_open`, i.e. marked at an arbitrary date rather than a real exit.
+
+**Shape note.** The operator's three book-carrying trades were long-dated
+*instruments* on **short holds**, not hold-to-expiry: TSM 276 DTE held 69d
+(25% of DTE), GLD 246 DTE held 82d (33%), GOOG 205 DTE held 121d (59%). Buying
+convexity with theta off, then leaving on the move. The current exit config
+would hold that TSM call 207 days. Any future long-dated test must model this
+shape, not hold-to-expiry.
+
+**Status: BLOCKED, not queued.** The blocker is real long-dated option price
+history, and no re-read of existing rows fixes it. Only lead is IBKR
+(`get_price_history` / `get_option_data` over the connected MCP) — unprobed,
+user deferred 2026-07-27. If IBKR has no depth on 180+ DTE contracts, the only
+route is paper-forwarding long-dated plays live. Do NOT ship a long-dated tier
+off BS rows.
+
+### 4. Live substitution — the operator sometimes trades naked where the engine said spread
+
+Reported by the user 2026-07-27. When the analysis emits e.g. a bull call
+spread, he sometimes buys the naked long call instead.
+
+**Why it matters:** it silently breaks the live walk-forward's attribution. A
+naked long call and its debit spread share direction and entry but not payoff,
+max loss, vega, or exit behaviour — the spread caps upside where the naked leg
+carries the convexity that produced 100% of this book's profit. Any live-vs-tier
+comparison that assumes the deployed position matches the emitted `structure`
+will mis-attribute both wins and losses, in the direction of making the ladder
+look wrong when the substitution was the variable.
+
+**Action:** the live walk-forward eval must record the **structure actually
+traded** alongside the emitted one and split on divergence, before any live
+result is read against tier means.
+
+`backtests/live_loop/stage1_map_fills.py` already derives both sides —
+`classify_structure()` from the IBKR fill and `play_structure()` from the play
+text — but its match confidence is only `EXACT` / `STRUCTURE` / `NONE`, with no
+substitution category. A naked long call filled against a `bull_call_spread`
+play therefore falls to **`NONE`, indistinguishable from "no play that day"**:
+substitutions are silently dropped from the eval rather than labelled. Adding a
+`SUBSTITUTED` confidence (same ticker, same direction, different structure) is a
+precondition for the eval, not a nice-to-have — otherwise the deployed book
+being read is exactly the subset where he followed instructions, which biases
+the live-vs-tier comparison in an unknown direction.
+This is also the one channel through which the long-dated question could get
+answered by accident: if he substitutes naked long-dated calls for h≥180
+spreads, those fills are real prices on exactly the contracts the backtest
+cannot reach.
 
 ---
 
@@ -319,8 +449,8 @@ droppable"), so these are gaps to fill, not decisions to honour.
 |---|------|----------|----------|-----------|--------|-------|-------|-----------|
 | 1  | 2026-02-05 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ iv-pct + ✅ p/cat + ✅ counterpart → ✅ analyze |
 | 2  | 2026-02-12 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
-| 3  | 2026-02-13 | yes | — | 0% | 0% | 0% | 0 | 🚧 full chain → analyze |
-| 4  | 2026-02-17 | yes | — | 0% | 0% | 0% | 0 | 🚧 full chain → analyze |
+| 3  | 2026-02-13 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
+| 4  | 2026-02-17 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 5  | 2026-02-19 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 6  | 2026-02-23 | yes | ✅ | **0%** | 100% | 100% | 260 | ⚠ in book WITHOUT eod_iv — see flaw note |
 | 7  | 2026-03-02 | yes | ✅ | **0%** | **0%** | **0%** | **0** | ⚠ in book with NO enrichment at all |
