@@ -451,11 +451,11 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 2  | 2026-02-12 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 3  | 2026-02-13 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 4  | 2026-02-17 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
-| 5  | 2026-02-19 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 5  | 2026-02-19 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 6  | 2026-02-23 | yes | ✅ | **0%** | 100% | 100% | 260 | ⚠ in book WITHOUT eod_iv — see flaw note |
 | 7  | 2026-03-02 | yes | ✅ | **0%** | **0%** | **0%** | **0** | ⚠ in book with NO enrichment at all |
-| 8  | 2026-03-03 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
-| 9  | 2026-03-04 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 8  | 2026-03-03 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
+| 9  | 2026-03-04 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 10 | 2026-03-05 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 11 | 2026-03-06 | yes | ✅ | 100% | 100% | 100% | 278 | in book, complete |
 | 12 | 2026-03-09 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
@@ -536,3 +536,64 @@ caveat in addendum 14 is answered by a second independent drawdown. If it
 disagrees, bear_put stays at Tier C and the 2024-06 → 2026-03 result is
 recorded as window-bound. Either way the decision is made once, on the
 holdout, and not by re-cutting the 663-row book again.
+
+### 2026-07-29 — PRELIMINARY holdout read (backfill incomplete — NOT the decision run)
+
+Backfill in progress; read taken from the Sheets tab exports
+(`backtests/analysis - BacktestResults.csv` / `- BacktestProxy.csv`, pulled
+07-29), holdout window rows only. Coverage: **12 dates priced** (02-05 → 03-27;
+02-24/02-25 now analyzed beyond the status table above), 115 priced rows, 5
+unpriced (3 no_history / 2 unsupported). Scratch script only — the decision run
+stays `bear_position_study.py` unmodified once the window is fully backfilled.
+
+**bear_put_spread, n=67 priced — all three pre-registered criteria fire on the
+partial sample:**
+
+    mean E −0.242   date-clustered bootstrap 95% CI [−0.370, −0.077]  (12 dates)
+    halves: early −0.205 (n=28) · late −0.268 (n=39)
+    ex-flawed-dates (02-23/03-02/03-20 excluded): mean E −0.214 (n=51), still negative
+
+R (PROD) −0.073 — the exit rule is again rescuing ~0.17 of mean E, same
+signature as addendum 14. Path shape repeats too: MFE +0.609 / MAE −0.621,
+run-then-round-trip. And this window IS a bear drawdown — the most favourable
+conditions bear_put will ever see — so the addendum-14 "maybe the sample was a
+bull market" caveat is, preliminarily, not holding up. Comparator bull_call:
+mean E +0.150 (n=18, but ex-flawed only n=6 at −0.138 — too thin to read).
+
+**One discordant cut to watch: the pure-real tier is POSITIVE** — real n=16
+mean E +0.177 (win 62.5%) vs strike_expiry_tweak n=34 mean −0.471 and bs n=17
+mean −0.177. Real+tweak pooled is still −0.26, and tweak rows are real-priced
+(only bs is model-priced), but if the final run still shows real-tier-positive /
+tweak-tier-negative, the tweak fallback itself (strike/expiry substitution on
+bear_puts in a fast tape) needs a look before the verdict is read as clean.
+
+**MFE/MAE cut (standing rule — realized alone is not a read):**
+
+    structure   n   MFE     MAE     |MAE|/MFE  MFE-first  give-back  R-capture
+    bear_put    67  +0.609  −0.621    1.02       59.7%      0.851      −0.12
+    bull_call   18  +1.108  −0.574    0.52       55.6%      0.958      +0.40
+    bull_put    27  +0.559  −1.347    2.41       44.4%      0.738      −0.41
+
+- bear_put's excursions are **perfectly mirrored** (ratio 1.02) — by the
+  asymmetry rule that is path-vol, not harvestable edge; 58% of rows reaching
+  +0.30 still end E<0 (old book: 43%). bull_call keeps upside asymmetry (0.52)
+  *inside the drawdown*, and its exit capture is +0.40 of MFE vs bear_put's
+  −0.12 — same discriminator as addendum 14: exit harvesting works on
+  bull_call, nothing on bear_put rescues a negative-E selection.
+- The addendum-14 bear_put signature (MFE-first 72%, give-back 1.105) lives in
+  the **tweak tier** here (70.6% / 1.095, MAE med −0.926); the real tier looks
+  different in kind: MFE +0.885 / MAE −0.546 (ratio 0.62), mfe_day 12.4, 44%
+  reach the +0.90 PT, E +0.177. Reinforces the real-vs-tweak discordance above —
+  on the final run, check whether tweak's strike/expiry substitution is
+  manufacturing the round-trip shape before reading the pooled number.
+- bull_put side note (thin): ratio 2.41 with 59% reaching +0.30 and only 6% of
+  those ending E<0 — deep-MAE-then-recover, the Attempt-13 whipsaw shape; its
+  real-tier R (−0.304) undershoots E (+0.009) via dollar_stop exits. Watch, not
+  actionable.
+
+Loose ends for the backfill: **2026-02-17 is analyzed but absent from BOTH
+backtest tabs** (0 rows in Results and Proxy — backtest apparently never run on
+it); late dates are the most negative (03-20 −0.53, 03-27 −0.52), and the
+still-missing late-March/April dates sit closest to the episode bottom, so
+completing coverage is more likely to strengthen than soften this read.
+No config changed. No decision taken — waits on the full window.

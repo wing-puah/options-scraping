@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 import matplotlib
 
 matplotlib.use("Agg")
@@ -41,6 +42,39 @@ TARGET_PCT = 90
 # risk_per_trade_pct = 50000 × 0.02 = $1,000), which lines up with what
 # profit_target=0.90 realizes on a typical entry premium.
 TARGET_DOLLAR = 1000
+
+def load_exit_config(config_path: str) -> dict:
+    """Read config/backtest.yml's debit/credit exit profiles so exit-rule charts
+    mark the CURRENT config point rather than a hardcoded guess — see the
+    `simulation:` / `simulation.credit:` split (merge is presence-based; a key
+    absent from the credit block falls back to the debit value, an explicit
+    `null` disables that rule for credits specifically).
+    """
+    p = Path(config_path)
+    debit = {"profit_target": 0.90, "stop_loss": 0.75}
+    credit = {"profit_target": 0.65, "stop_loss": None}
+    if not p.exists():
+        return {"debit": debit, "credit": credit}
+    with open(p) as f:
+        cfg = yaml.safe_load(f) or {}
+    sim = cfg.get("simulation", {}) or {}
+    debit = {
+        "profit_target": sim.get("profit_target", debit["profit_target"]),
+        "stop_loss": sim.get("stop_loss", debit["stop_loss"]),
+    }
+    credit_cfg = sim.get("credit", {}) or {}
+    # presence-based merge, same semantics as _effective_sim_cfg in
+    # scripts/backtest/simulate.py: a key present in credit_cfg REPLACES the
+    # debit value (even if explicitly null = disabled); a key absent falls
+    # back to the debit value.
+    credit = {
+        "profit_target": credit_cfg["profit_target"] if "profit_target" in credit_cfg
+                          else debit["profit_target"],
+        "stop_loss": credit_cfg["stop_loss"] if "stop_loss" in credit_cfg
+                     else debit["stop_loss"],
+    }
+    return {"debit": debit, "credit": credit}
+
 
 # muted, print-friendly palette
 C_BULL = "#2e7d32"
@@ -131,6 +165,11 @@ def load(csv_path: Path) -> pd.DataFrame:
     df["realized_abs"] = pd.to_numeric(df.get("realized_pnl_abs"), errors="coerce")
     df["pnl_path"] = df.apply(pnl_path, axis=1)
     df["dollar_pnl_path"] = df.apply(dollar_pnl_path, axis=1)
+    # config/backtest.yml simulates debit and credit positions on entirely
+    # different exit profiles (simulation: vs simulation.credit:); entry_net < 0
+    # is the same credit test _exit_basis/_effective_sim_cfg use in
+    # scripts/backtest/simulate.py.
+    df["is_credit"] = pd.to_numeric(df.get("entry_option_price"), errors="coerce") < 0
     return df
 
 
@@ -433,32 +472,220 @@ def build(df: pd.DataFrame, out: Path) -> Path:
     return path
 
 
-def _replay(path: list[float], pt: float, sl: float) -> float:
+def _replay(path: list[float], pt: float, sl: float | None) -> float:
     """Replay one daily P&L path against a (profit_target, stop_loss) rule, both
-    in %. First crossing wins; otherwise the last day's mark."""
+    in %. First crossing wins; otherwise the last day's mark. `sl=None` disables
+    the stop check — mirrors config/backtest.yml's credit profile, where
+    stop_loss: null means no premium-based stop fires (Attempt 13)."""
     for v in path:
         if v >= pt:
             return v
-        if v <= -sl:
+        if sl is not None and v <= -sl:
             return v
     return path[-1] if path else np.nan
 
 
-def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
-    """Charts that only the day-by-day path unlocks: a continuous hold curve, a
-    profit-target × stop-loss EV sweep, MFE-vs-MAE, and the exit-reason mix."""
+def _snap_index(vals, target) -> int | None:
+    """Index of the grid entry matching `target`. A `None` target (config's
+    stop disabled) matches the sentinel "no stop" entry in `vals` if present;
+    a numeric target snaps to the closest numeric entry."""
+    if target is None:
+        return vals.index(None) if None in vals else None
+    numeric = [(i, v) for i, v in enumerate(vals) if v is not None]
+    if not numeric:
+        return None
+    idxs, arr = zip(*numeric)
+    return idxs[int(np.argmin(np.abs(np.array(arr) - target)))]
+
+
+def _build_grid(base: list[int], cfg_val_pct: float | None) -> list[int]:
+    """Sweep grid, with the current config's value folded in so the config
+    point lands on an exact cell instead of the nearest neighbour."""
+    vals = set(base)
+    if cfg_val_pct is not None:
+        vals.add(int(round(cfg_val_pct)))
+    return sorted(vals)
+
+
+def _build_stop_grid(base: list[int], cfg_val_pct: float | None) -> list:
+    """Stop-loss sweep grid with a trailing `None` ("no stop") row always
+    appended, so debit and credit panels share the same heatmap shape — and
+    credit's disabled stop (config/backtest.yml: stop_loss: null) lands on a
+    real cell instead of needing a separate chart type."""
+    return [*_build_grid(base, cfg_val_pct), None]
+
+
+def _draw_ev_heatmap(ax, fig, paths, targets, stops, letter, segment, cfg_pt=None, cfg_sl=None):
+    """2-D profit-target × stop-loss EV sweep (path replay). Marks the
+    empirical best cell (gold dashed) and the cell matching the CURRENT
+    config/backtest.yml exit rule for this segment (black solid) — they
+    coincide when config already sits at the empirical optimum."""
+    ev = np.array([[np.nanmean([_replay(p, pt, sl) for p in paths])
+                    for pt in targets] for sl in stops])
+    vmax = np.nanmax(np.abs(ev))
+    im = ax.imshow(ev, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(len(targets)))
+    ax.set_xticklabels([f"+{t}%" for t in targets], fontsize=7)
+    ax.set_yticks(range(len(stops)))
+    ax.set_yticklabels([f"-{s}%" if s is not None else "no stop" for s in stops],
+                       fontsize=7)
+    best = np.unravel_index(np.nanargmax(ev), ev.shape)
+    for i in range(len(stops)):
+        for j in range(len(targets)):
+            ax.text(j, i, f"{ev[i, j]:+.0f}", ha="center", va="center", fontsize=7,
+                    fontweight="bold" if (i, j) == best else "normal", color="black")
+    ax.add_patch(plt.Rectangle((best[1] - 0.5, best[0] - 0.5), 1, 1, fill=False,
+                               edgecolor="#c9a400", lw=2.2, ls="--"))
+    cfg_i, cfg_j = _snap_index(stops, cfg_sl), _snap_index(targets, cfg_pt)
+    if cfg_i is not None and cfg_j is not None:
+        ax.add_patch(plt.Rectangle((cfg_j - 0.5, cfg_i - 0.5), 1, 1, fill=False,
+                                   edgecolor="black", lw=2.2))
+    ax.set_title(f"{letter} · {segment} exit sweep (n={len(paths)})",
+                 fontsize=10, fontweight="bold")
+    ax.set_xlabel("Profit target", fontsize=8)
+    ax.set_ylabel("Stop loss", fontsize=8)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean EV %")
+
+
+DEBIT_TARGETS_BASE = [25, 50, 75, 100, 150, 200]
+DEBIT_STOPS_BASE = [30, 50, 70, 100]
+CREDIT_TARGETS_BASE = [25, 40, 50, 65, 80, 100]
+CREDIT_STOPS_BASE = [30, 50, 70, 100]
+
+
+def _draw_mfe_mae_scatter(ax, df: pd.DataFrame, letter: str, segment: str) -> None:
+    """MFE vs MAE scatter, colored by realized outcome, for one exit segment
+    (debit/credit) — split because the two structures have structurally
+    different excursion shapes (e.g. spread-capped vs long-option upside)."""
+    mfe_col = "mfe_abs" if "mfe_abs" in df.columns else ("mfe_pct" if "mfe_pct" in df.columns else None)
+    mae_col = "mae_abs" if "mae_abs" in df.columns else ("mae_pct" if "mae_pct" in df.columns else None)
+    if not (mfe_col and mae_col) or df.empty:
+        ax.set_visible(False)
+        return
+    mfe = pd.to_numeric(df[mfe_col], errors="coerce")
+    mae = pd.to_numeric(df[mae_col], errors="coerce")
+    win = df["realized_pnl"] > 0
+    ax.scatter(mae[win], mfe[win], s=30, color=C_BULL, alpha=0.6,
+               edgecolor="white", linewidth=0.5, label="realized win")
+    ax.scatter(mae[~win], mfe[~win], s=30, color=C_RANGE, alpha=0.6,
+               edgecolor="white", linewidth=0.5, label="realized loss")
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.axvline(0, color="#999", lw=0.8)
+    ax.set_title(f"{letter} · Max favorable vs max adverse excursion — {segment} (n={len(df)})",
+                fontweight="bold", fontsize=10)
+    xlabel = "MAE $ (worst the trade got)" if mfe_col == "mfe_abs" else "MAE % (worst the trade got)"
+    ylabel = "MFE $ (best the trade got)" if mfe_col == "mfe_abs" else "MFE % (best the trade got)"
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.legend(fontsize=8)
+    ax.grid(color=GRID)
+
+
+def _draw_exit_mix(ax, df: pd.DataFrame, letter: str, segment: str) -> None:
+    """Exit-reason count mix for one exit segment — split because credit's
+    stop_loss rule can be disabled entirely (config/backtest.yml), which a
+    pooled count would obscure."""
+    if "exit_reason" not in df.columns or df.empty:
+        ax.set_visible(False)
+        return
+    order = ["profit_target", "stop_loss", "expired", "cap_open", "no_data"]
+    counts = df["exit_reason"].value_counts()
+    labels = [r for r in order if r in counts.index]
+    if not labels:
+        ax.set_visible(False)
+        return
+    vals = [counts[r] for r in labels]
+    colors = {"profit_target": C_BULL, "stop_loss": C_RANGE, "expired": "#888",
+              "cap_open": "#00838f", "no_data": "#cccccc"}
+    ax.bar(labels, vals, color=[colors.get(r, "#888") for r in labels])
+    for i, v in enumerate(vals):
+        ax.text(i, v, str(v), ha="center", va="bottom", fontsize=9)
+    ax.set_ylim(0, max(vals) * 1.12)
+    held = pd.to_numeric(df.get("days_held"), errors="coerce").dropna()
+    sub = f"  ·  median hold {held.median():.0f} sessions" if len(held) else ""
+    ax.set_title(f"{letter} · Exit reason mix — {segment}{sub}", fontweight="bold", fontsize=10)
+    ax.set_ylabel("Plays")
+    ax.tick_params(axis="x", labelsize=8)
+    ax.grid(axis="y", color=GRID)
+
+
+def _draw_exit_pnl(ax, df: pd.DataFrame, letter: str, segment: str) -> None:
+    """Mean realized P&L $ by exit reason for one exit segment — split
+    because debit/credit notional scales differ enough to distort a pooled
+    dollar mean."""
+    if "exit_reason" not in df.columns or "realized_abs" not in df.columns or df.empty:
+        ax.set_visible(False)
+        return
+    order = ["profit_target", "stop_loss", "expired", "cap_open", "no_data"]
+    er_colors = {"profit_target": C_BULL, "stop_loss": C_RANGE, "expired": "#888",
+                 "cap_open": "#00838f", "no_data": "#cccccc"}
+    er_mean = df.groupby("exit_reason")["realized_abs"].mean()
+    er_n = df.groupby("exit_reason")["realized_abs"].count()
+    labels_e = [r for r in order if r in er_mean.index]
+    if not labels_e:
+        ax.set_visible(False)
+        return
+    vals_e = [er_mean[r] for r in labels_e]
+    ns_e = [er_n[r] for r in labels_e]
+    bar_e = ax.bar(labels_e, vals_e, color=[er_colors.get(r, "#888") for r in labels_e])
+    span = (max(vals_e) - min(vals_e)) or abs(vals_e[0]) or 1
+    for b, v, n in zip(bar_e, vals_e, ns_e):
+        ax.text(b.get_x() + b.get_width() / 2,
+                v + span * 0.02 * (1 if v >= 0 else -1),
+                f"${v:+,.0f}\nn={n}", ha="center",
+                va="bottom" if v >= 0 else "top", fontsize=8)
+    ax.axhline(0, color="#999", lw=0.8)
+    ymin, ymax = min(0, min(vals_e)), max(0, max(vals_e))
+    pad = (ymax - ymin) * 0.22
+    ax.set_ylim(ymin - (pad if ymin < 0 else 0), ymax + (pad if ymax > 0 else 0))
+    ax.set_title(f"{letter} · Mean realized P&L $ by exit reason — {segment}", fontweight="bold", fontsize=10)
+    ax.set_ylabel("Mean realized P&L ($)")
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+    ax.tick_params(axis="x", labelsize=8)
+    ax.grid(axis="y", color=GRID)
+
+
+def build_paths(df: pd.DataFrame, out: Path, exit_cfg: dict | None = None) -> Path | None:
+    """Charts that only the day-by-day path unlocks: a continuous hold curve,
+    a profit-target × stop-loss EV sweep, MFE-vs-MAE, and the exit-reason
+    mix. The sweep and every exit-mechanics panel (MFE/MAE, exit mix, P&L by
+    exit reason) are split debit vs credit, per config/backtest.yml's
+    segregated exit profiles; the two time-path panels (P&L vs days held,
+    P&L by entry year) stay pooled since they aren't keyed on exit rules."""
     paths = [p for p in df.get("pnl_path", pd.Series([], dtype=object)) if p]
     if not paths:
         return None
+    exit_cfg = exit_cfg or load_exit_config("config/backtest.yml")
 
-    fig, axes = plt.subplots(3, 2, figsize=(15, 16))
+    # A and F are pooled, full-width "hero" rows (time-path views, not tied to
+    # exit mechanics). B1/B2 get their own row now that they're a 2-D heatmap
+    # each — a third-width heatmap was cramped. C/D/E all key off exit_reason
+    # and excursions, which behave very differently for debit vs credit exit
+    # profiles (config/backtest.yml segregates them, same as B1/B2), so each
+    # gets split into its own debit/credit column pair rather than pooled.
+    fig = plt.figure(figsize=(16, 30))
+    gs = fig.add_gridspec(6, 2, hspace=0.55, wspace=0.3)
+    ax_A = fig.add_subplot(gs[0, :])
+    ax_B1 = fig.add_subplot(gs[1, 0])
+    ax_B2 = fig.add_subplot(gs[1, 1])
+    ax_C1 = fig.add_subplot(gs[2, 0])
+    ax_C2 = fig.add_subplot(gs[2, 1])
+    ax_D1 = fig.add_subplot(gs[3, 0])
+    ax_D2 = fig.add_subplot(gs[3, 1])
+    ax_E1 = fig.add_subplot(gs[4, 0])
+    ax_E2 = fig.add_subplot(gs[4, 1])
+    ax_F = fig.add_subplot(gs[5, :])
     fig.suptitle("Daily-path analysis — realized exits, excursions, exit tuning",
                  fontsize=16, fontweight="bold", y=0.995)
+
+    is_credit = df["is_credit"].reindex(df.index).fillna(False)
+    df_debit = df[~is_credit]
+    df_credit = df[is_credit]
 
     dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
 
     # ---- A: mean P&L $ vs trading days held (continuous), with IQR band -------
-    ax = axes[0, 0]
+    ax = ax_A
     dpaths_all = [p for p in df["dollar_pnl_path"] if p]
     use_paths = dpaths_all if dpaths_all else paths  # fall back to % if no dollar paths
     use_dollar = bool(dpaths_all)
@@ -489,105 +716,55 @@ def build_paths(df: pd.DataFrame, out: Path) -> Path | None:
     ax.legend(fontsize=8)
     ax.grid(color=GRID)
 
-    # ---- B: profit-target × stop-loss EV heatmap (path replay) ---------------
-    ax = axes[0, 1]
-    targets = [25, 50, 75, 100, 150, 200]
-    stops = [30, 50, 70, 100]
-    ev = np.array([[np.nanmean([_replay(p, pt, sl) for p in paths])
-                    for pt in targets] for sl in stops])
-    vmax = np.nanmax(np.abs(ev))
-    im = ax.imshow(ev, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
-    ax.set_xticks(range(len(targets)))
-    ax.set_xticklabels([f"+{t}%" for t in targets])
-    ax.set_yticks(range(len(stops)))
-    ax.set_yticklabels([f"-{s}%" for s in stops])
-    best = np.unravel_index(np.nanargmax(ev), ev.shape)
-    for i in range(len(stops)):
-        for j in range(len(targets)):
-            ax.text(j, i, f"{ev[i, j]:+.0f}", ha="center", va="center", fontsize=8,
-                    fontweight="bold" if (i, j) == best else "normal", color="black")
-    ax.add_patch(plt.Rectangle((best[1] - 0.5, best[0] - 0.5), 1, 1, fill=False,
-                               edgecolor="black", lw=2.5))
-    ax.set_title(f"B · EV % by exit rule (best: +{targets[int(best[1])]}% / "
-                 f"-{stops[int(best[0])]}%)", fontweight="bold")
-    ax.set_xlabel("Profit target")
-    ax.set_ylabel("Stop loss")
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Mean EV %")
+    # ---- B1/B2: profit-target × stop-loss EV sweep, split debit vs credit -----
+    # config/backtest.yml simulates these on different exit profiles (debit:
+    # profit_target/stop_loss; credit: its own profit_target, stop_loss often
+    # null) — pooling them into one sweep, like the old single-panel version
+    # did, blends two incompatible exit regimes into one misleading number.
+    # Both panels are drawn with the same heatmap function so they read the
+    # same way side by side; the stop-loss axis always ends in a "no stop"
+    # row so credit's disabled stop still lands on a real cell.
+    debit_paths = [p for p, c in zip(df["pnl_path"], is_credit) if p and not c]
+    credit_paths = [p for p, c in zip(df["pnl_path"], is_credit) if p and c]
 
-    # ---- C: MFE vs MAE scatter, colored by realized outcome ------------------
-    ax = axes[1, 0]
-    mfe_col = "mfe_abs" if "mfe_abs" in df.columns else ("mfe_pct" if "mfe_pct" in df.columns else None)
-    mae_col = "mae_abs" if "mae_abs" in df.columns else ("mae_pct" if "mae_pct" in df.columns else None)
-    if mfe_col and mae_col:
-        mfe = pd.to_numeric(df[mfe_col], errors="coerce")
-        mae = pd.to_numeric(df[mae_col], errors="coerce")
-        win = df["realized_pnl"] > 0
-        ax.scatter(mae[win], mfe[win], s=30, color=C_BULL, alpha=0.6,
-                   edgecolor="white", linewidth=0.5, label="realized win")
-        ax.scatter(mae[~win], mfe[~win], s=30, color=C_RANGE, alpha=0.6,
-                   edgecolor="white", linewidth=0.5, label="realized loss")
-        ax.axhline(0, color="#999", lw=0.8)
-        ax.axvline(0, color="#999", lw=0.8)
-        ax.set_title("C · Max favorable vs max adverse excursion", fontweight="bold")
-        xlabel = "MAE $ (worst the trade got)" if mfe_col == "mfe_abs" else "MAE % (worst the trade got)"
-        ylabel = "MFE $ (best the trade got)" if mfe_col == "mfe_abs" else "MFE % (best the trade got)"
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.legend(fontsize=8)
-        ax.grid(color=GRID)
+    debit_pt = exit_cfg["debit"]["profit_target"]
+    debit_sl = exit_cfg["debit"]["stop_loss"]
+    debit_pt_pct = debit_pt * 100 if debit_pt is not None else None
+    debit_sl_pct = debit_sl * 100 if debit_sl is not None else None
+    if debit_paths:
+        targets = _build_grid(DEBIT_TARGETS_BASE, debit_pt_pct)
+        stops = _build_stop_grid(DEBIT_STOPS_BASE, debit_sl_pct)
+        _draw_ev_heatmap(ax_B1, fig, debit_paths, targets, stops, "B1", "Debit",
+                          cfg_pt=debit_pt_pct, cfg_sl=debit_sl_pct)
     else:
-        ax.set_visible(False)
+        ax_B1.set_visible(False)
 
-    # ---- E: mean realized P&L $ by exit reason ----------------------------
-    ax = axes[2, 0]
-    if "exit_reason" in df.columns and "realized_abs" in df.columns:
-        order = ["profit_target", "stop_loss", "expired", "cap_open", "no_data"]
-        er_colors = {"profit_target": C_BULL, "stop_loss": C_RANGE, "expired": "#888",
-                     "cap_open": "#00838f", "no_data": "#cccccc"}
-        er_mean = df.groupby("exit_reason")["realized_abs"].mean()
-        er_n = df.groupby("exit_reason")["realized_abs"].count()
-        labels_e = [r for r in order if r in er_mean.index]
-        vals_e = [er_mean[r] for r in labels_e]
-        ns_e = [er_n[r] for r in labels_e]
-        bar_e = ax.bar(labels_e, vals_e,
-                       color=[er_colors.get(r, "#888") for r in labels_e])
-        for b, v, n in zip(bar_e, vals_e, ns_e):
-            ax.text(b.get_x() + b.get_width() / 2,
-                    v + (max(vals_e) - min(vals_e)) * 0.02 * (1 if v >= 0 else -1),
-                    f"${v:+,.0f}\nn={n}", ha="center",
-                    va="bottom" if v >= 0 else "top", fontsize=8)
-        ax.axhline(0, color="#999", lw=0.8)
-        ax.set_title("E · Mean realized P&L $ by exit reason", fontweight="bold")
-        ax.set_ylabel("Mean realized P&L ($)")
-        ax.yaxis.set_major_formatter(dollar_fmt)
-        ax.tick_params(axis="x", labelsize=8)
-        ax.grid(axis="y", color=GRID)
+    credit_pt = exit_cfg["credit"]["profit_target"]
+    credit_sl = exit_cfg["credit"]["stop_loss"]
+    credit_pt_pct = credit_pt * 100 if credit_pt is not None else None
+    credit_sl_pct = credit_sl * 100 if credit_sl is not None else None
+    if credit_paths:
+        targets = _build_grid(CREDIT_TARGETS_BASE, credit_pt_pct)
+        stops = _build_stop_grid(CREDIT_STOPS_BASE, credit_sl_pct)
+        _draw_ev_heatmap(ax_B2, fig, credit_paths, targets, stops, "B2", "Credit",
+                          cfg_pt=credit_pt_pct, cfg_sl=credit_sl_pct)
     else:
-        ax.set_visible(False)
+        ax_B2.set_visible(False)
 
-    # ---- D: exit-reason mix + hold-time -------------------------------------
-    ax = axes[1, 1]
-    if "exit_reason" in df.columns:
-        order = ["profit_target", "stop_loss", "expired", "cap_open", "no_data"]
-        counts = df["exit_reason"].value_counts()
-        labels = [r for r in order if r in counts.index]
-        vals = [counts[r] for r in labels]
-        colors = {"profit_target": C_BULL, "stop_loss": C_RANGE, "expired": "#888",
-                  "cap_open": "#00838f", "no_data": "#cccccc"}
-        ax.bar(labels, vals, color=[colors.get(r, "#888") for r in labels])
-        for i, v in enumerate(vals):
-            ax.text(i, v, str(v), ha="center", va="bottom", fontsize=9)
-        held = pd.to_numeric(df.get("days_held"), errors="coerce").dropna()
-        sub = f"  ·  median hold {held.median():.0f} sessions" if len(held) else ""
-        ax.set_title(f"D · Exit reason mix{sub}", fontweight="bold")
-        ax.set_ylabel("Plays")
-        ax.tick_params(axis="x", labelsize=8)
-        ax.grid(axis="y", color=GRID)
-    else:
-        ax.set_visible(False)
+    # ---- C1/C2: MFE vs MAE scatter, split debit vs credit --------------------
+    _draw_mfe_mae_scatter(ax_C1, df_debit, "C1", "Debit")
+    _draw_mfe_mae_scatter(ax_C2, df_credit, "C2", "Credit")
+
+    # ---- D1/D2: exit-reason mix + hold-time, split debit vs credit -----------
+    _draw_exit_mix(ax_D1, df_debit, "D1", "Debit")
+    _draw_exit_mix(ax_D2, df_credit, "D2", "Credit")
+
+    # ---- E1/E2: mean realized P&L $ by exit reason, split debit vs credit ----
+    _draw_exit_pnl(ax_E1, df_debit, "E1", "Debit")
+    _draw_exit_pnl(ax_E2, df_credit, "E2", "Credit")
 
     # ---- F: year-over-year mean P&L $ path (A-style, one line per entry year) -
-    ax = axes[2, 1]
+    ax = ax_F
     df["entry_year"] = df["signal_date"].dt.year
     years = sorted(df["entry_year"].dropna().unique().astype(int))
     year_colors = plt.cm.tab10(np.linspace(0, 0.9, len(years)))  # pylint: disable=no-member
@@ -1676,16 +1853,21 @@ def main():
                          "backtests/proxy_results.csv). Default: "
                          "backtests/results.csv")
     ap.add_argument("--out", default="backtests/charts")
+    ap.add_argument("--config", default="config/backtest.yml",
+                    help="Backtest config to read the debit/credit exit "
+                         "profiles from, for the exit-rule sweep chart's "
+                         "current-config markers.")
     args = ap.parse_args()
     csv_paths = [Path(p) for p in (args.csv or ["backtests/results.csv"])]
     df = load_many(csv_paths)
+    exit_cfg = load_exit_config(args.config)
     print(f"Wrote {build(df, Path(args.out))}")
     print(f"Wrote {build_ev(df, Path(args.out))}")
     print(f"Wrote {build_playbook(df, Path(args.out))}")
     spaghetti_png = build_spaghetti(df, Path(args.out))
     if spaghetti_png:
         print(f"Wrote {spaghetti_png}")
-    paths_png = build_paths(df, Path(args.out))
+    paths_png = build_paths(df, Path(args.out), exit_cfg=exit_cfg)
     if paths_png:
         print(f"Wrote {paths_png}")
     else:
