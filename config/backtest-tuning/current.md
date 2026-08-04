@@ -456,10 +456,10 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 7  | 2026-03-02 | yes | ✅ | **0%** | **0%** | **0%** | **0** | ⚠ in book with NO enrichment at all |
 | 8  | 2026-03-03 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 9  | 2026-03-04 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
-| 10 | 2026-03-05 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 10 | 2026-03-05 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 11 | 2026-03-06 | yes | ✅ | 100% | 100% | 100% | 278 | in book, complete |
-| 12 | 2026-03-09 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
-| 13 | 2026-03-10 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 12 | 2026-03-09 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
+| 13 | 2026-03-10 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 14 | 2026-03-11 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 15 | 2026-03-12 | yes | ✅ | 100% | 100% | 100% | 84 | in book, complete |
 | 16 | 2026-03-13 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
@@ -597,3 +597,119 @@ it); late dates are the most negative (03-20 −0.53, 03-27 −0.52), and the
 still-missing late-March/April dates sit closest to the episode bottom, so
 completing coverage is more likely to strengthen than soften this read.
 No config changed. No decision taken — waits on the full window.
+
+### 2026-08-04 — MID-STOP check (backfill still incomplete — NOT the decision run)
+
+Read off the refreshed `backtests/results.csv` (364 rows) + `proxy_results.csv`
+(675), window rows only, deduped on date|ticker|play|structure. Scratch script,
+read-only, no config changed. Purpose is to catch problems before the decision
+run, not to decide.
+
+**Coverage: 16 dates / 137 priced rows** (07-29: 12 / 115). 14 of the status
+table's 32 dates, plus 02-24 and 02-25 which are not on it. Still missing 18,
+including the whole late-March block (03-11 → 03-26 except 03-20) and all of
+03-30 → 04-07 — i.e. everything nearest the episode bottom. 6 unpriced
+(5 no_history / 1 unsupported).
+
+**bear_put: DEMOTE fires again, and harder.** n=82 (was 67).
+
+    mean E −0.254   bootstrap 95% CI [−0.392, −0.091]  (16 dates, cluster=date)
+    halves: early −0.100 (n=29) · late −0.338 (n=53)
+    ex-flawed-dates n=66, mean E −0.235
+    R (PROD) −0.040 → exit rule still rescuing ~0.21 of mean E
+
+All three pre-registered criteria pass on the partial sample, second time
+running, with the late half more negative than the early — the added dates
+moved the read away from zero. Comparator bull_call n=20: E +0.187, R +0.463,
+|MAE|/MFE 0.51, R-capture +0.43 vs bear_put's −0.06. Same discriminator as
+addendum 14; bear_put excursions still mirrored (0.97).
+
+**Four things to fix before the decision run — all mechanical, none of them
+change the verdict, but two would corrupt it:**
+
+1. **`2026-03-06` is duplicated wholesale in BOTH tabs** — in BacktestResults,
+   10 plays each appearing twice with identical legs/play/P&L (it is the only
+   20-row date in the window; every other is ≤11), and separately in
+   BacktestProxy (GLD/MU/USO bull_puts, same doubling). The study loader
+   (`exit_switch_mech_study.load_debit_trades`) dedups proxy-against-real via
+   `real_keys` but has **no within-real dedup**, so an unmodified re-run
+   double-weights that date. My numbers above dedup it; the decision run will
+   not unless the loader is patched.
+2. **The study scripts read the wrong files.** `AC_PATH`/`BR_PATH`/`BP_PATH`
+   point at `backtests/to_evaluate/analysis - *.csv`, exports dated **07-22**
+   holding only 8 window dates. `bear_position_study.py` re-run "unmodified"
+   would read stale data. Refresh those exports (or repoint the paths) as step 0
+   of the decision run.
+3. **The real-vs-tweak discordance flagged on 07-29 has grown, not resolved:**
+   real n=22 mean E **+0.201** (win 63.6%) · tweak n=39 **−0.514** · bs n=21
+   −0.246. Real+tweak pooled −0.256. The whole demotion currently rests on the
+   proxy tiers being trustworthy on bear_puts in a fast tape. Caveat in the
+   other direction: 6 of those 22 real rows are the duplicated 03-06 IWM/TSLA
+   pairs, so the real tier is effectively n=18. This needs settling before the
+   verdict is called clean — it is now the largest open risk on the demotion.
+4. **02-17 and 02-19 are still absent from both backtest tabs** (07-29 flagged
+   02-17 only). The status table marks both analyzed with the full chain. Either
+   the backtest was never run on them or the analysis rows are not actually
+   there — worth a direct Sheets check, not another export.
+
+**New, unrelated to bear_put: the shipped bull_put band gets its first
+out-of-sample look, and it holds.** Pooled window bull_put is bad (n=33,
+E −0.450, R −0.451, |MAE|/MFE 2.75, late half −0.733) — but split on the rule
+actually in `deployment-rules.md`:
+
+    0.08 ≤ |delta| ≤ 0.20 AND DTE ≤ 59    n= 9   E +0.180   R +0.152
+    out of band                           n=24   E −0.686   R −0.677
+
+Out-of-band is DTE-driven, not delta-driven: DTE>59 n=18 E −0.898, |delta|<0.08
+n=11 E −0.632, |delta|>0.20 n=2 E −0.048 (rows can fail both legs). 6 of the 9
+in-band rows finish positive (median E +1.00); the mean is dragged by one
+SMH −2.66. Thin and one-window, so not a promotion — but it is the first
+independent window where the constraint separates the book, and it separates it
+by 0.87 of mean E. Do NOT read the pooled bull_put number as evidence against
+the structure; it is an out-of-band number.
+
+**Lead worth chasing on the long-dated blind spot (2026-07-27 §3).** Five rows
+in this window are real-priced at DTE ≥ 180 with `pct_real_days = 1.0` —
+TLT 707/689/687 (two bull_call spreads + a long_call) and HYG 197/191. So
+Barchart history at 180–700 DTE is not universally absent; it appears to be
+ticker-dependent (bond/credit ETFs have it). n=5 does not unblock anything, but
+"h≥180 cannot be priced" is too strong as stated — the cheap next step is a
+coverage probe by ticker before assuming IBKR is the only route.
+
+#### Same-day addendum — does E survive "we never hold to expiry"?
+
+Operator objection (2026-08-04): positions are closed early in practice, and
+credits especially are closed before terminal gamma. E is a hold-to-cap mark, so
+does it measure a counterfactual we would never trade? Checked both reads:
+
+**bull_put band: survives.** 30% of window bull_put rows sit at E = +1.00
+(structural max = expired worthless), and 5 of the 9 in-band rows are among them
+— so the E-based band number IS partly a hold-through-gamma artifact. But R
+already prices the early close (credit PROD = `profit_target 0.65`, no stop, no
+time exit; only 2 of 33 rows exit `expired`), and the split holds under R alone:
+in-band R +0.152 (median +0.666) vs out-of-band R −0.677. Conclusion unchanged.
+
+**bear_put DEMOTE: the verdict is measure-dependent. Recorded, not resolved.**
+
+    criterion          mean      CI 95%             halves           verdict
+    E (hold-to-cap)   −0.254   [−0.392, −0.091]   −0.100 / −0.338   DEMOTE
+    R (PROD exits)    −0.040   [−0.218, +0.177]   +0.221 / −0.183   NO ACTION
+
+Pre-registration picked E deliberately, and three things still argue for it
+here: (a) R's rescue is exit-driven — 32 of 82 bear_put rows (39%) exit on a
+risk control (`stop_loss` 14, `dollar_stop` 10, `trailing_stop` 8), i.e. the
+structure reaches breakeven only by being cut fast; (b) **no transaction cost is
+modelled anywhere** — `spread_width_pct` is the synthetic short-strike width,
+not bid/ask, and fills are the Barchart Open, so realistic two-leg fills in a
+fast tape push R below zero; (c) R's halves run +0.221 → −0.183, deteriorating
+as the bear episode deepens, which is the wrong direction for a bear structure.
+Still: the demotion should be stated as "negative unmanaged, breakeven only
+under active risk control", not "loses money". Re-check on the full window.
+
+**Real gap this exposes (new candidate).** `simulation.credit.time_exit_dte_fraction`
+is explicitly `null` ("ride toward expiry within path_cap") while debits carry
+0.75 — the credit profile does exactly the thing we would never do live, and
+11 of 33 bull_put rows exit `cap_open`, i.e. ran to the 120-day path cap. A
+gamma-motivated DTE-floor exit for credits (close at ~21 DTE) is untested and
+cheap to sweep. Do it on the credit book AFTER the window completes; it is not
+part of the pre-registered bear decision run.
