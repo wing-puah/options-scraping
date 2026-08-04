@@ -460,7 +460,7 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 11 | 2026-03-06 | yes | ✅ | 100% | 100% | 100% | 278 | in book, complete |
 | 12 | 2026-03-09 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 13 | 2026-03-10 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
-| 14 | 2026-03-11 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 14 | 2026-03-11 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 15 | 2026-03-12 | yes | ✅ | 100% | 100% | 100% | 84 | in book, complete |
 | 16 | 2026-03-13 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 17 | 2026-03-16 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
@@ -473,8 +473,8 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 24 | 2026-03-25 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 25 | 2026-03-26 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 26 | 2026-03-27 | yes | ✅ | 100% | 100% | 100% | 253 | in book, complete |
-| 27 | 2026-03-30 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
-| 28 | 2026-03-31 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
+| 27 | 2026-03-30 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ scrape → ✅ compile → full chain → analyze |
+| 28 | 2026-03-31 | yes | ✅ | 100% | 100% | 100% | 100%| ✅ scrape → ✅ compile → full chain → analyze |
 | 29 | 2026-04-01 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
 | 30 | 2026-04-02 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
 | 31 | 2026-04-06 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
