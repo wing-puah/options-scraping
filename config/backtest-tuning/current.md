@@ -462,9 +462,9 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 13 | 2026-03-10 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 14 | 2026-03-11 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ full chain → ✅ analyze |
 | 15 | 2026-03-12 | yes | ✅ | 100% | 100% | 100% | 84 | in book, complete |
-| 16 | 2026-03-13 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
-| 17 | 2026-03-16 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
-| 18 | 2026-03-17 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
+| 16 | 2026-03-13 | yes | ✅ | 100% | 100% | 100% | 100% | full chain → analyze |
+| 17 | 2026-03-16 | yes | ✅ | 100% | 100% | 100% | 100% | full chain → analyze |
+| 18 | 2026-03-17 | yes | ✅ | 100% | 100% | 100% | 100%  | full chain → analyze |
 | 19 | 2026-03-18 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze (etfs compiled absent) |
 | 20 | 2026-03-19 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 21 | 2026-03-20 | yes | ✅ | 100% | 100% | 100% | **0** | ⚠ in book with BLANK iv_spread |
@@ -474,9 +474,9 @@ droppable"), so these are gaps to fill, not decisions to honour.
 | 25 | 2026-03-26 | yes | — | 0% | 0% | 0% | 0 | full chain → analyze |
 | 26 | 2026-03-27 | yes | ✅ | 100% | 100% | 100% | 253 | in book, complete |
 | 27 | 2026-03-30 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ scrape → ✅ compile → full chain → analyze |
-| 28 | 2026-03-31 | yes | ✅ | 100% | 100% | 100% | 100%| ✅ scrape → ✅ compile → full chain → analyze |
-| 29 | 2026-04-01 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
-| 30 | 2026-04-02 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
+| 28 | 2026-03-31 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ scrape → ✅ compile → full chain → analyze |
+| 29 | 2026-04-01 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ scrape → ✅ compile → full chain → analyze |
+| 30 | 2026-04-02 | yes | ✅ | 100% | 100% | 100% | 100% | ✅ scrape → ✅ compile → full chain → analyze |
 | 31 | 2026-04-06 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
 | 32 | 2026-04-07 | yes | — | — | — | — | — | ✅ scrape → ✅ compile → full chain → analyze |
 
