@@ -24,7 +24,7 @@ before quoting any conclusion.
 
 Run:
     source .venv/bin/activate
-    python -m backtests.study.bear_deploy | tee backtests/study/output/bear_deploy.txt
+    python -m scripts.backtest_study.bear_deploy | tee backtests/study_output/bear_deploy.txt
 """
 from __future__ import annotations
 
@@ -38,10 +38,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backtests.study import protocol as P  # noqa: E402
-from backtests.study.bear_arm import BEAR_STRUCTURES, clause_vocabulary  # noqa: E402
-from backtests.study.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
-from backtests.study.harness import replay  # noqa: E402
+from scripts.backtest_study import protocol as P  # noqa: E402
+from scripts.backtest_study.bear_arm import BEAR_STRUCTURES, clause_vocabulary  # noqa: E402
+from scripts.backtest_study.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.harness import replay  # noqa: E402
 
 # The exit B2 recommended (ml-plan §addendum, B2 MET). Bear-KEYED: it is only
 # ever applied to bear debit rows here, never to the rest of the book.

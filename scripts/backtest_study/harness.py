@@ -1,5 +1,5 @@
 """Exit-replay harness — VERBATIM port of `Trade` / `replay` / `_pct` (and their
-helpers) from `backtests/study/exit_mechanism_study.py`, ported 2026-08-11 so the
+helpers) from `scripts/backtest_study/exit_mechanism_study.py`, ported 2026-08-11 so the
 replay engine every prior tuning study (Attempts 7-13, the mech-regime switch
 study, the bear_put demotion study) rests on is available outside the
 gitignored `backtests/` tree.
@@ -16,9 +16,9 @@ The only intentional differences from the source file:
   - the variant grids, `calibrate()`/`run_variant()`/reporting, and the CLI
     `main()` are NOT ported — those are per-study reporting code, not shared
     data-layer logic. Callers do their own calibration gate (see
-    `backtests/study/book.py`) against whichever PROD profile applies.
+    `scripts/backtest_study/book.py`) against whichever PROD profile applies.
   - `DEBIT_PROD` / `CREDIT_PROD` are NOT redefined here (avoid a second
-    source of truth for the production exit knobs); `backtests/study/book.py`
+    source of truth for the production exit knobs); `scripts/backtest_study/book.py`
     owns those constants.
 """
 from __future__ import annotations

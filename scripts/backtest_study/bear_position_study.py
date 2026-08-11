@@ -19,7 +19,7 @@ the same pooled debit book as addenda 4 and 12.
 
 Run:
     source .venv/bin/activate
-    python3 backtests/study/bear_position_study.py | tee backtests/bear_position_study_output.txt
+    python3 scripts/backtest_study/bear_position_study.py | tee backtests/bear_position_study_output.txt
 """
 
 import random
@@ -28,12 +28,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from exit_mechanism_study import _to_float  # noqa: E402
-from exit_switch_mech_study import (  # noqa: E402
+from scripts.backtest_study.exit_mechanism_study import _to_float  # noqa: E402
+from scripts.backtest_study.exit_switch_mech_study import (  # noqa: E402
     MechLabeler, compute_mech_table, ensure_spy_vix, load_debit_trades,
     cell_of, model_direction, model_vol, hdr, sub,
 )

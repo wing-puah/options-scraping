@@ -19,7 +19,7 @@ system dependency. Nothing else in the protocol changed.
 Run:
     source .venv/bin/activate
     pip install -r requirements-study.txt
-    python -m backtests.study.ml_combination | tee backtests/study/output/run.txt
+    python -m scripts.backtest_study.ml_combination | tee backtests/study_output/run.txt
 """
 from __future__ import annotations
 
@@ -34,10 +34,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backtests.study import protocol as P  # noqa: E402
-from backtests.study.book import load_book  # noqa: E402
+from scripts.backtest_study import protocol as P  # noqa: E402
+from scripts.backtest_study.book import load_book  # noqa: E402
 
-OUT_DIR = ROOT / "backtests" / "ml_combination_study" / "output"
+OUT_DIR = ROOT / "backtests" / "study_output"
 SEED = 20260811
 
 # Walk-forward geometry. The 120-day embargo is expensive on a book of only

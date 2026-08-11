@@ -14,7 +14,7 @@
 > (`be_after: 0.50` keyed to bear debit spreads). Deviations at run time, both
 > declared before running: sklearn HistGradientBoosting in place of
 > LightGBM/XGBoost, and an added "abstain" replay variant so the ladder's right
-> to trade nothing is not an unfair advantage. Code: `backtests/study/`.
+> to trade nothing is not an unfair advantage. Code: `scripts/backtest_study/`.
 
 
 Goal: determine, with models instead of hand-cut screens, **which combination
@@ -159,12 +159,12 @@ tie-breaks within a tier, clearly labelled with its validation window.
 
 ## Artifacts + hygiene
 
-- Code under `backtests/study/` — TRACKED, not `backtests/` (which is
+- Code under `scripts/backtest_study/` — TRACKED, not `backtests/` (which is
   gitignored in full, the 07-22 addendum-10 finding: the producer of a
-  production input lived on one laptop). The loader (`backtests/study/book.py`)
+  production input lived on one laptop). The loader (`scripts/backtest_study/book.py`)
   is a port of the same dedup/calibration as `exit_switch_mech_study.py` so
   setup differences can't explain answer differences.
-- Outputs to `backtests/ml_combination_study/output/` (data artifacts stay
+- Outputs to `backtests/study_output/` (data artifacts stay
   untracked); a RESULTS.md per run; this file gains an addendum per phase,
   verdicts only at Phase 5.
 - No production config, prompt, or ladder change from any phase before the
@@ -259,8 +259,8 @@ non-bear rows, so the concurrent book exists and the portfolio question is
 testable on it. The operator's instruction stands — bear positions are to
 remain deployable — so this arm asks the deployment questions B1/B2 skipped.
 
-Same book, same protocol (`backtests/study/protocol.py`), same frozen exit
-grid. No new columns, no new mechanism. Code: `backtests/study/bear_deploy.py`.
+Same book, same protocol (`scripts/backtest_study/protocol.py`), same frozen exit
+grid. No new columns, no new mechanism. Code: `scripts/backtest_study/bear_deploy.py`.
 
 **What B1 could not answer, and why a new arm is not a second bite.** B1 asked
 an *absolute level* question — is there a bear subset with mean E ≥ 0 — and the

@@ -23,7 +23,7 @@ margin and real sizing, but it can and does price the concurrent book.
 
 Run:
     source .venv/bin/activate
-    python -m backtests.study.bear_arm | tee backtests/study/output/bear_arm.txt
+    python -m scripts.backtest_study.bear_arm | tee backtests/study_output/bear_arm.txt
 """
 from __future__ import annotations
 
@@ -36,9 +36,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backtests.study import protocol as P  # noqa: E402
-from backtests.study.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
-from backtests.study.harness import replay  # noqa: E402
+from scripts.backtest_study import protocol as P  # noqa: E402
+from scripts.backtest_study.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.harness import replay  # noqa: E402
 
 BEAR_STRUCTURES = ("bear_put_spread", "bear_call_spread", "long_put")
 
@@ -47,7 +47,7 @@ MIN_N = 40
 CI_FLOOR = -0.05
 MIN_POSITIVE_YEARS = 2
 
-# The FROZEN exit grid — copied from backtests/study/exit_mechanism_study.py
+# The FROZEN exit grid — copied from scripts/backtest_study/exit_mechanism_study.py
 # DEBIT_VARIANTS/CREDIT_VARIANTS. This is not a new mechanism search: no config
 # outside this list may be evaluated, which is what keeps B2 from becoming a
 # free parameter hunt over the same 300 rows.

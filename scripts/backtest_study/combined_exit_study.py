@@ -53,9 +53,9 @@ Reporting, in order:
      winner verdict per group.
 
 Run from the repo root:
-  python3 backtests/study/combined_exit_study.py --side debit
-  python3 backtests/study/combined_exit_study.py --side credit
-  python3 backtests/study/combined_exit_study.py --side debit --group-by structure,intent --min-n 20
+  python3 scripts/backtest_study/combined_exit_study.py --side debit
+  python3 scripts/backtest_study/combined_exit_study.py --side credit
+  python3 scripts/backtest_study/combined_exit_study.py --side debit --group-by structure,intent --min-n 20
 """
 import argparse
 import csv
@@ -64,11 +64,10 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # backtests/ itself (sibling import)
 
-from exit_mechanism_study import (  # noqa: E402
+from scripts.backtest_study.exit_mechanism_study import (  # noqa: E402
     Trade, replay, calibrate, run_variant, summarize, monthly_delta, flips,
     DEBIT_PROD, CREDIT_PROD, DEBIT_VARIANTS, CREDIT_VARIANTS, _pct, _to_float,
 )

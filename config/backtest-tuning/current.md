@@ -44,7 +44,7 @@ deployed ladder sleeve, so the concurrent book exists and the portfolio question
 is answerable on it. The operator's instruction (bear positions stay deployable)
 made the gap worth closing. Pre-registered as
 [`ml-plan.md` §addendum 2](ml-plan.md) BEFORE running; code
-`backtests/study/bear_deploy.py`, output `backtests/study/output/bear_deploy.txt`.
+`scripts/backtest_study/bear_deploy.py`, output `backtests/study_output/bear_deploy.txt`.
 Same 795-row book, same protocol, no new columns.
 
 **What B1/B2 had actually left open.** Three distinct estimands, not a second
@@ -178,9 +178,9 @@ which is the Mar–Apr-2025 failure mode for the third time in this log.
 ## 2026-08-11 — ML combination search RUN: NULL RESULT; and the bear arm finds an EXIT fix, not a selection one
 
 Both arms of [`ml-plan.md`](ml-plan.md) executed against the same 08-11 exports.
-Code is now TRACKED under `backtests/study/` (`book.py` loader, `harness.py`
+Code is now TRACKED under `scripts/backtest_study/` (`book.py` loader, `harness.py`
 replay port, `protocol.py` validation, `ml_combination.py`, `bear_arm.py`);
-outputs in `backtests/ml_combination_study/output/`. Book: **795 priced rows,
+outputs in `backtests/study_output/`. Book: **795 priced rows,
 118 dates, real 406 / tweak 389** (bs excluded per the 08-11 decision; the
 loader's exact-replay gate drops 48 non-reproducing proxy debit rows and 3 real
 dups, which is why 795 and not the 08-11 scratch cut's 817).
@@ -922,7 +922,7 @@ are fine, the exit is mismatched.
 
 **Queue change:** #4 bear_put emission demotion → **CANCELLED**. Replaced by
 **structure-conditional trailing stop for bear_put**, to run through the existing
-replay harness (`backtests/study/exit_mechanism_study.py`, `combined_exit_study.py`)
+replay harness (`scripts/backtest_study/exit_mechanism_study.py`, `combined_exit_study.py`)
 under the addendum-4 corrected LOO gate. Not run yet.
 
 **New concern to test in the same pass — possible composition proxy.** The
@@ -938,7 +938,7 @@ No code changed. No re-run performed.
 
 ### 2026-07-22 addendum 12 — structure-keyed bear_put trail RUN: does NOT ship, and it exposes the shipped BEAR_HE clause as a bear_put proxy that is NEGATIVE outside one window
 
-Ran the addendum-11 follow-up: `backtests/study/exit_switch_structure_study.py`
+Ran the addendum-11 follow-up: `scripts/backtest_study/exit_switch_structure_study.py`
 (output `backtests/exit_switch_structure_study_output.txt`). Data, calibration,
 dedup, post-13c join and gate thresholds are IMPORTED from
 `exit_switch_mech_study.py` — same 663-row pooled debit book (real 250 / tweak
@@ -1023,7 +1023,7 @@ slice contains.**
 **What would settle it:** a second sustained bear drawdown in the book. Until
 then, both the shipped clause and the structure candidate rest on one window.
 
-No production config changed. New file: `backtests/study/exit_switch_structure_study.py`
+No production config changed. New file: `scripts/backtest_study/exit_switch_structure_study.py`
 (read-only study, imports the mech harness).
 
 ### 2026-07-22 addendum 13 — PRE-REGISTRATION: bear-position study (written BEFORE the run)
@@ -1078,7 +1078,7 @@ change to bear_put's treatment requires new data, not a new slice.
 
 ### 2026-07-22 addendum 14 — bear-position study RUN: DEMOTE fires on all three pre-registered criteria; bear_put is a SELECTION problem, not an exit problem
 
-`backtests/study/bear_position_study.py` → `backtests/bear_position_study_output.txt`.
+`scripts/backtest_study/bear_position_study.py` → `backtests/bear_position_study_output.txt`.
 Cuts, window control and decision rule were fixed in addendum 13 before the run;
 nothing was added after seeing output. Same 663-row pooled debit book, same
 harness validation (250/250 real rows reproduce DEBIT_PROD to the cent).
@@ -1259,7 +1259,7 @@ does not block enriching the other 20.
 4. `python3 -m scripts.analysis_pipeline --date <D>` for the 26 unanalyzed
    dates — **config unchanged**, or the holdout stops being a holdout.
 5. `python3 -m scripts.backtest` + `python3 -m scripts.backtest.proxy`.
-6. Re-run `backtests/study/bear_position_study.py` **unmodified** against the
+6. Re-run `scripts/backtest_study/bear_position_study.py` **unmodified** against the
    Feb–Apr 2026 rows only. The pre-registered decision rule from addendum 13
    applies as written: DEMOTE iff mean E < 0 AND bootstrap CI upper < 0 AND
    both halves negative.

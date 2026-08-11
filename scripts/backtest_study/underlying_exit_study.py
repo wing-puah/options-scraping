@@ -11,7 +11,7 @@ price-history CSV (backtests/option_history_cache/) — the exact same scrapes
 that produced the stored marks, so dates align 1:1. No yfinance.
 Consequence: rules are CLOSE-basis only (no intraday touch variants).
 
-Run from the repo root:  python3 backtests/study/underlying_exit_study.py
+Run from the repo root:  python3 scripts/backtest_study/underlying_exit_study.py
 """
 import csv
 import re
@@ -19,7 +19,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402

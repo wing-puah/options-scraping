@@ -8,24 +8,28 @@ task spec for the full pre-registration. This script is self-contained and
 rerunnable:
 
     source .venv/bin/activate
-    python3 backtests/study/mech_regime_recut.py | tee backtests/mech_regime_recut_output.txt
+    python3 scripts/backtest_study/mech_regime_recut.py | tee backtests/mech_regime_recut_output.txt
 
 Step 0 (book construction, pooling, post-13c join) is reused VERBATIM from
-backtests/study/regime_gap_reread.py — see the block clearly marked below.
+scripts/backtest_study/regime_gap_reread.py — see the block clearly marked below.
 """
 
 import re
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
 pd.set_option("display.width", 200)
 pd.set_option("display.max_columns", 50)
 
-DATA_DIR = "backtests/to_evaluate"
+# Repo-root-anchored so the study runs from any CWD (it used to depend on
+# being launched from the repo root, which broke silently under the runner).
+ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = f"{ROOT}/backtests/to_evaluate"
 AC_PATH = f"{DATA_DIR}/analysis - AnalysisClaude.csv"
 BR_PATH = f"{DATA_DIR}/analysis - BacktestResults.csv"
 BP_PATH = f"{DATA_DIR}/analysis - BacktestProxy.csv"
-SPY_VIX_PATH = "backtests/mech_regime/spy_vix_daily.csv"
+SPY_VIX_PATH = f"{ROOT}/backtests/mech_regime/spy_vix_daily.csv"
 
 POST13C_CUTOFF = pd.Timestamp("2026-07-13")
 
@@ -124,7 +128,7 @@ def fmt_cell(label, n, mean, total, win, mae_mean=None, width=46):
 
 
 # ===========================================================================
-# STEP 0 — book construction (REUSED VERBATIM from backtests/study/regime_gap_reread.py)
+# STEP 0 — book construction (REUSED VERBATIM from scripts/backtest_study/regime_gap_reread.py)
 # ===========================================================================
 
 ac = pd.read_csv(AC_PATH)

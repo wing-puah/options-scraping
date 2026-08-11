@@ -5,10 +5,44 @@ Original dataset: 119 trades across July 2024 (chop), Jan 2025 (bull), March 202
 (panic/correction), Feb 2026; later evaluations run on the pooled real + proxy book.
 
 **Newest work lives in [`current.md`](current.md).** Everything older is split by
-period under [`archive/`](archive/). Study code lives in `backtests/study/` (tracked; the rest of `backtests/` is
-disposable scratch). Append new entries to `current.md`; when it
+period under [`archive/`](archive/). Append new entries to `current.md`; when it
 grows past ~400 lines, move its oldest sections into a new archive file and add a
 row to the index below.
+
+## Running a study
+
+Study code lives in `scripts/backtest_study/` (tracked). `backtests/` is
+disposable scratch and holds only data: the Sheets exports it reads from
+`backtests/to_evaluate/`, and the reports it writes to `backtests/study_output/`.
+
+```bash
+source .venv/bin/activate
+python3 -m scripts.backtest_study list                 # what's available
+python3 -m scripts.backtest_study run bear_deploy      # run one
+python3 -m scripts.backtest_study run exit_mechanism_study --side credit
+python3 -m scripts.backtest_study run --all            # every study
+```
+
+Each run tees the report to `backtests/study_output/<name>-<stamp>.txt` and a
+stable `<name>-latest.txt`, prefixed with a provenance header — git sha, working-tree
+state, exact argv, and the row counts and mtimes of the input exports. The runner
+finishes by printing the line to hand to Claude for the write-up:
+
+```
+write up backtests/study_output/bear_deploy-latest.txt
+```
+
+The write-up is appended here as a new `current.md` section. Quote the header's
+input inventory in it — two studies run against different exports are not
+comparable, and attributing numbers to the wrong book has happened before.
+
+**A non-zero exit is often the correct answer.** Several studies open with a
+pre-registered calibration gate (production rules must reproduce the stored
+`exit_reason`/`days_held`/`realized_pnl_pct` exactly) and stop rather than print
+numbers they cannot vouch for. That is the gate working; do not route around it.
+
+Paths in `archive/` predate 2026-08-11 and still say `backtests/study/`; the code
+they name is now under `scripts/backtest_study/`.
 
 ## Section index
 

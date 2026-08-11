@@ -12,14 +12,12 @@ venv/
 web/.env.local
 web/node_modules/
 web/.next/
+# Everything under backtests/ is disposable scratch — CSV exports, caches, and
+# study reports (backtests/study_output/) — and gets deleted periodically. The
+# study CODE that used to need a gitignore exemption here now lives in
+# scripts/backtest_study/, which is tracked normally.
 backtests/*
-# ...except the tracked study package. Everything else under backtests/ is
-# disposable scratch (CSV exports, caches, one-off outputs) and gets deleted
-# periodically; backtests/study/ is source and must survive that.
 !backtests/__init__.py
-!backtests/study/
-backtests/study/output/
-backtests/study/__pycache__/
 .cache/
 *_secret_*
 *-key.json

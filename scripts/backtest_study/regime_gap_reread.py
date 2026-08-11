@@ -8,6 +8,7 @@ only.
 """
 
 import re
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr, mannwhitneyu
@@ -15,7 +16,10 @@ from scipy.stats import spearmanr, mannwhitneyu
 pd.set_option("display.width", 200)
 pd.set_option("display.max_columns", 50)
 
-DATA_DIR = "backtests/to_evaluate"
+# Repo-root-anchored so the study runs from any CWD (it used to depend on
+# being launched from the repo root, which broke silently under the runner).
+ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = f"{ROOT}/backtests/to_evaluate"
 AC_PATH = f"{DATA_DIR}/analysis - AnalysisClaude.csv"
 BR_PATH = f"{DATA_DIR}/analysis - BacktestResults.csv"
 BP_PATH = f"{DATA_DIR}/analysis - BacktestProxy.csv"

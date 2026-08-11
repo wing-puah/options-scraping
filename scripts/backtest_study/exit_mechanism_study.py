@@ -19,8 +19,8 @@ Barchart price-history `Price~` column (backtests/option_history_cache/), the
 exact scrapes that produced the marks — close-basis only, like Attempt 9.
 
 Run from the repo root:
-  python3 backtests/study/exit_mechanism_study.py --side debit
-  python3 backtests/study/exit_mechanism_study.py --side credit
+  python3 scripts/backtest_study/exit_mechanism_study.py --side debit
+  python3 scripts/backtest_study/exit_mechanism_study.py --side credit
 """
 import argparse
 import csv
@@ -29,7 +29,7 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402

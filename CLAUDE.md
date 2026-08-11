@@ -74,6 +74,13 @@ python3 -m scripts.backtest --config config/backtest.yml --dry-run
 
 # Proxy-backtest untested plays (AnalysisClaude minus BacktestResults → BacktestProxy tab)
 python3 -m scripts.backtest.proxy --config config/backtest.yml   # all dates, idempotent
+
+# Backtest tuning studies (research tier — reports, not production)
+python3 -m scripts.backtest_study list                 # available studies
+python3 -m scripts.backtest_study run bear_deploy      # → backtests/study_output/<name>-latest.txt
+python3 -m scripts.backtest_study run --all
+# Reports carry a provenance header (git sha + input row counts); write-ups go to
+# config/backtest-tuning/current.md. See config/backtest-tuning/README.md.
 # Also: --date, --dry-run, --cache-only (no scraping), --redo (re-evaluate frozen rows)
 
 # Dashboard
@@ -143,6 +150,14 @@ scripts/                    ← entry points, each maps to a workflow step
   backtest.py               — leg-based backtest of analysis plays (shared internals in
                               scripts/backtest/shared/, used by core.py and proxy.py)
   backtest/proxy.py         — fallback-chain proxy backtest for plays the real backtest skipped
+  backtest_study/           — RESEARCH tier, never imported by production and never scheduled.
+                              Tuning studies that argue about the book: run.py = runner
+                              (`python -m scripts.backtest_study`); harness.py = FROZEN exit-replay
+                              engine (do not edit — every recorded conclusion rests on it);
+                              book.py = pooled real+proxy book loader; protocol.py = purged
+                              walk-forward / date-clustered CIs / LOO. Reports land in
+                              backtests/study_output/ (scratch); conclusions in
+                              config/backtest-tuning/current.md
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 

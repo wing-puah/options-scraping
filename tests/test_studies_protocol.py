@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backtests.study.protocol import (  # noqa: E402
+from scripts.backtest_study.protocol import (  # noqa: E402
     boot_ci_by_date, boot_ci_paired_by_date, ladder_eligible, ladder_rank,
     loo_by_date, replay_stats, sign_stable, top_k_per_day, walk_forward_splits,
     window_cuts, year_epoch_split,

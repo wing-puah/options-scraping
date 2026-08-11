@@ -1,6 +1,6 @@
 """Pooled cross-structure book loader.
 
-Generalises `load_debit_trades()` from `backtests/study/exit_switch_mech_study.py`
+Generalises `load_debit_trades()` from `scripts/backtest_study/exit_switch_mech_study.py`
 (ported 2026-08-11) from "debit rows only" to "every structure the analysis
 pipeline emits" — every prior study built its own debit-only slice of this
 same book, and a future credit-side or all-structure study needs the pooled
@@ -22,7 +22,7 @@ study that includes them). Pass `include_bs=True` only when a study
 specifically needs the larger, noisier book and says why.
 
 --- Calibration gate: a real asymmetry, not an implementation shortcut -----
-The replay harness (`backtests/study/harness.py`) can only be trusted where
+The replay harness (`scripts/backtest_study/harness.py`) can only be trusted where
 it's been checked against a PROD profile that actually governed the stored
 row:
 
@@ -69,8 +69,8 @@ already contradictory in the sheet and the sign is what actually drove which
 PROD profile priced the row historically.
 
 Run as a module for diagnostics:
-    python -m backtests.study.book --validate
-    python -m backtests.study.book --validate --include-bs
+    python -m scripts.backtest_study.book --validate
+    python -m scripts.backtest_study.book --validate --include-bs
 """
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from lib.mech_regime import MechLabeler  # noqa: E402
-from backtests.study.harness import Trade, _pct, _to_float, replay  # noqa: E402
+from scripts.backtest_study.harness import Trade, _pct, _to_float, replay  # noqa: E402
 
 DEFAULT_RESULTS_CSV = ROOT / "backtests" / "to_evaluate" / "analysis - BacktestResults.csv"
 DEFAULT_PROXY_CSV = ROOT / "backtests" / "to_evaluate" / "analysis - BacktestProxy.csv"
@@ -101,13 +101,13 @@ CREDIT_PROD = dict(pt=0.65, sl=None, trig=None, trail=None, tef=None)
 
 NEAR_MISS_TOL = 0.0001
 
-# Ported verbatim from backtests/study/exit_switch_mech_study.py (2026-08-11): the
+# Ported verbatim from scripts/backtest_study/exit_switch_mech_study.py (2026-08-11): the
 # join-key join used to flag rows written after the Attempt-13c prompt change.
 POST13C_CUTOFF = pd.Timestamp("2026-07-13")
 
 
-# --- small ported helpers (verbatim from backtests/study/exit_switch_mech_study.py
-#     and backtests/study/bear_position_study.py) -----------------------------------
+# --- small ported helpers (verbatim from scripts/backtest_study/exit_switch_mech_study.py
+#     and scripts/backtest_study/bear_position_study.py) -----------------------------------
 
 def norm_play(s) -> str:
     """60-char lowercased play prefix, used as the join key against AnalysisClaude."""
@@ -138,7 +138,7 @@ def model_vol(regime_str):
 
 def ladder_tier(rec: dict) -> str:
     """VETO / A / B / C per config/deployment-rules.md. Verbatim port of
-    `ladder_tier()` from backtests/study/bear_position_study.py — keyed off the
+    `ladder_tier()` from scripts/backtest_study/bear_position_study.py — keyed off the
     MODEL regime (market_regime free text), not the mechanical regime."""
     st, mr = rec["structure"], rec.get("market_regime") or ""
     mdir, mvol = model_direction(mr), model_vol(mr)
