@@ -3,20 +3,532 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
-**State of play (2026-08-08).** Year-split eval on the refreshed exports (below):
-the raw book's profit is 2025H1-only, but the ladder separation reproduces in
-2024/2025/2026 independently; bear_put DEMOTE criteria fire on the near-complete
-2026 holdout (7 dates still to backfill). Shipped config is the source of truth —
-`config/backtest.yml` (exits, `regime_exit.cells: BEAR_HE` only) and
-`config/deployment-rules.md` (VETO / A / B / C ladder, top-3 per day,
-bull_put band `0.08 ≤ |delta| ≤ 0.20` + `DTE ≤ 59`). The 25-date regime-gap
-gate is CLOSED (archive/06). Open questions: (1) **bear_put** — the
-pre-registered study returned DEMOTE, the verdict is deliberately *not*
-implemented, and it now waits on the Feb–Apr 2026 holdout below; (2) **the
-long-dated blind spot** — the ladder is in practice a ≤60-DTE ladder because
-h≥180 plays cannot be priced (2026-07-27 below); (3) **live substitution** —
-the operator sometimes trades naked where the engine emitted a spread, which
-breaks the live walk-forward's attribution.
+**State of play (2026-08-11, latest).** The DEPLOY arm has run and settles the bear question the operator actually asked: bear positions ARE deployable — as a *hedge*, not as a selection. Selection stays unfixable (D1: 0 of 496 subsets, even under the new exit), but the sleeve pays on the deployed book's worst dates (D2 MET) and there is now one reproducing pick rule — take the **closer-to-money** bear, `|delta|` descending (D4, all three years, holds on the shipped exit). Nothing shipped; both are recommendations. Prior state below.
+
+**State of play (2026-08-11, late).** The ML combination search has RUN and is a
+NULL RESULT (no model beats the ladder in any of 15 model×strategy cells); the
+bear arm run alongside it found that bear structures are an EXIT problem after
+all — `be_after: 0.50` keyed to bear debit spreads clears every pre-registered
+criterion including the 2026 window on its own, which is the "second sustained
+bear drawdown" addendum 12 said would settle it. Recommended, not shipped —
+awaiting the operator. Bear SELECTION remains unfixable from these columns
+(0 of 496 conditioned subsets survive). Details in the entry below.
+
+**Earlier that day.** The Feb–Apr 2026 holdout backfill is COMPLETE
+(33 window dates priced, incl. the 7 late dates and 02-17/02-19) and the
+completed-book analysis (below) has all three pre-registered bear_put DEMOTE
+criteria firing at n=164 with the real-tier discordance resolved downward —
+the demotion is decision-eligible; implementation choice (intake veto vs
+ladder VETO vs Tier-C-never-deploy) is the user's. Shipped config is the
+source of truth — `config/backtest.yml` (exits, `regime_exit.cells: BEAR_HE`
+only) and `config/deployment-rules.md` (VETO / A / B / C ladder, top-3 per
+day, bull_put band `0.08 ≤ |delta| ≤ 0.20` + `DTE ≤ 59`). Open questions:
+(1) **bear_put implementation** — verdict reached, mechanism not chosen;
+(2) **the long-dated blind spot** — h≥180 still unpriceable with real data,
+and the bs tier — measured as attenuating (tail-compressed marks shrink every
+effect toward zero) AND selection-contaminating (64 rows inside the top-3/day
+replay) — is now OFF (`proxy.bs_fallback: false`); evaluate real+tweak only,
+and filter the 301 legacy bs rows out by `proxy_method` at read time;
+(3) **live substitution** — the
+operator sometimes trades naked where the engine emitted a spread, which
+breaks the live walk-forward's attribution. Next study queued: the ML
+combination search — plan pre-written in [`ml-plan.md`](ml-plan.md), NOT run.
+
+---
+
+## 2026-08-11 — DEPLOY arm: the hedge caveat was TESTABLE, and bear deployment has a rule
+
+The 08-11 bear arm closed by calling the chop hedge "a *portfolio* decision the
+book cannot price". **That was too strong** — 84 of the bear dates also carry a
+deployed ladder sleeve, so the concurrent book exists and the portfolio question
+is answerable on it. The operator's instruction (bear positions stay deployable)
+made the gap worth closing. Pre-registered as
+[`ml-plan.md` §addendum 2](ml-plan.md) BEFORE running; code
+`backtests/study/bear_deploy.py`, output `backtests/study/output/bear_deploy.txt`.
+Same 795-row book, same protocol, no new columns.
+
+**What B1/B2 had actually left open.** Three distinct estimands, not a second
+bite at the same one: B1 asked an *absolute level* question and B2 an *exit*
+question, and neither asked (a) the two jointly, (b) what bear does to a
+concurrent long book, or (c) *which* bear to take on a day one is taken anyway.
+
+### 1. D1 — joint selection × exit: NOT MET (B1's verdict survives)
+
+B1 screened E under the PROD exit; B2 then changed the exit; the pair had never
+been run together. Re-screening the identical 496-subset vocabulary on R under
+`be_after: 0.50`: **0 survivors, ~10 expected by chance.** Pooled bear
+E −0.601 / R(PROD) −0.168 / R(bear exit) −0.203. The best subset is
+`mech LVOL AND dte 31-59` at R +0.287, CI [−0.034, +0.593] — still includes
+zero at n=49. **Bear selection remains unfixable; the new exit does not rescue
+it.** Worth noting the exit lowers pooled R slightly (−0.168 → −0.203) across
+ALL bear rows including credit — B2's +0.041 gain was measured on bear *debit*
+rows only, and that scoping is load-bearing.
+
+### 2. D2 — the hedge is REAL (all three pre-registered criteria fire)
+
+Deployed sleeve = shipped ladder (top-3/day, tiers A/B, 220 rows / 90 dates).
+Bear sleeve = that date's bear candidates. 84 overlapping dates.
+
+    deployed-book bucket   dates   deployed R    bear R     bear $   bear win%
+    worst decile               8       -0.795    +0.252     +6,669      75.0%
+    worst quartile            21       -0.457    +0.184    +16,824      66.7%
+    negative dates            25       -0.390    +0.109    +16,985      60.0%
+    positive dates            59       +0.706    -0.281    -41,895      32.2%
+    ALL                       84       +0.380    -0.165    -24,910      40.5%
+
+Sleeve correlation −0.132; tail positive in 2 of 3 evaluable years
+(2024 +0.129 / 2025 −0.048 / 2026 +0.405). **HEDGE IS REAL: MET.** The shape is
+textbook insurance: it pays where the book bleeds and bleeds where the book
+pays. Honest limits — the worst-decile row-level CI is [−0.113, +0.639] (n=28,
+includes zero), 2025's tail is mildly negative, and D2 approximates a hedge as
+equal-weighted concurrent dollars, which is a *proxy* for, not a measurement of,
+a held hedge.
+
+This is the first evidence in the log that supports carrying bear risk at all,
+and it exists only because the question was asked at the book level. Every prior
+bear verdict measured the standalone play and was correct to be negative.
+
+### 3. D4 — the operator's real question, and the one actionable rule
+
+Not "is bear good" but **"given I take a bear position today, which one?"** —
+a *within-date paired* test on 93 dates with ≥2 bear candidates (3.8/day). The
+day is its own control, so the −0.5 level that sinks every B1/D1 subset cancels.
+This test had never been run, on any structure.
+
+    ranker                    dates    pick R   day avg      gain   CI95              LOO min
+    |delta| HIGH first           93    +0.051    -0.181    +0.232  [+0.091,+0.370]     +0.204  **
+    iv_spread low first          92    -0.094    -0.180    +0.086  [-0.056,+0.236]     +0.065
+    dte short first              93    -0.176    -0.181    +0.004  [-0.203,+0.185]     -0.015
+    |delta| low first            93    -0.393    -0.181    -0.212  [-0.370,-0.062]     -0.233
+    score_total high first       93    -0.436    -0.181    -0.255  [-0.417,-0.098]     -0.276
+    widest max_loss first        93    -0.526    -0.181    -0.345  [-0.580,-0.147]     -0.368
+
+**`|delta| high first` is ADOPTED** — 1 survivor of 10 tested (~0.5 expected),
+CI excludes zero, every LOO fold positive, positive in all three years
+(+0.285 / +0.312 / +0.083). It is **not exit-dependent**: on R under the
+SHIPPED PROD exit it still holds (+0.159, CI [+0.028, +0.280], LOO +0.144, all
+three years positive). On E alone it fails (+0.059, CI includes zero) — so this
+is a *realized-return* effect, partly exit-mediated, and must be quoted that way.
+
+Read: **the losing bear trade is the cheap far-OTM one.** Buying the
+closer-to-money bear spread turns a −0.181 average day into +0.051. Two
+corroborations from elsewhere in the log: D1's best subsets pair `LVOL` with
+`|delta|>0.20`, and `score_total high first` anti-selecting (−0.255) is the
+07-21 "score is decision-irrelevant / pre-13c scores anti-select" finding
+reappearing inside a structure.
+
+### 4. D3 — always-on sizing: NOT MET, but by $86
+
+**Deviation, recorded:** the pre-registration fixed the sizing rule but not
+which bear is taken daily. The first cut used the day's widest `max_loss` —
+which D4 then measured as the single *worst* available pick. Both are reported.
+
+    sleeve = 1/day by |delta| high (D4-adopted)
+        f      total $    max DD $   worst date $
+     0.00       63,553      -7,609         -3,212
+     0.25       64,268      -7,255         -3,255
+     0.50       64,982      -7,037         -3,298
+     1.00       66,412      -7,780         -3,501
+
+    sleeve = 1/day by widest max_loss (lower bound on a bad pick)
+     0.50       42,167     -11,291         -3,877
+     1.00       20,780     -18,127         -4,542
+
+At f = 0.50 with the right pick, **max drawdown IMPROVES** (−7,609 → −7,037) and
+total rises +$1,430. The pre-registered rule still returns NOT MET because
+worst-date slips $86 on a $63.5k book — the rule's worst-date clause is doing
+all the work at a magnitude that is noise. Reported as NOT MET per the letter of
+the pre-registration; read as *the sleeve is roughly free at half size, and
+expensive at full size or with a bad pick.* The picker matters more than the
+size: same sleeve, same days, −$42.8k swing between the two.
+
+### 5. D5 — timing the hedge: POST-HOC, and it does NOT reproduce
+
+D2+D3 jointly imply a gate (pays in the tail, bleeds in the body). Seven
+deploy-time gates tested; `mech H-VOL` and `mech BEAR_HE` leave drawdown and
+worst-date unharmed while adding $2–3k. **But the year check kills it:** the
+leading gate is 2024 −$2,655 / 2025 +$5,179 / 2026 +$813 — one year carries it,
+which is the Mar–Apr-2025 failure mode for the third time in this log.
+**Candidate only, not a finding, chosen after seeing D2.**
+
+### 6. What this changes
+
+- **Bear positions are deployable — as a hedge, not as a selection.** D1
+  reconfirms there is no bear edge standalone. D2 shows the sleeve pays in the
+  deployed book's tail. These are consistent, not contradictory, and the
+  distinction is the whole answer.
+- **Recommended (NOT shipped — operator decision):** add to
+  `deployment-rules.md` — *when you take a bear position, take the
+  closer-to-money one; rank the day's bear candidates by |delta| descending.
+  Size the sleeve at ≤ ½ a normal position and treat it as insurance, not as a
+  play.* This is the first bear rule in the log that reproduces in all three
+  years on the SHIPPED exit.
+- **The `bear_arm.py` caveat is amended:** "the book cannot price a hedge" is
+  retired and replaced with the measured version — it *can* price a
+  concurrent-dollar proxy for one, and did.
+- **Still unanswered, and honestly so:** 88% of bear rows are `bear_put_spread`
+  and only 6 are naked `long_put`, so none of this speaks to the naked-put
+  hedge the operator sometimes substitutes (see the SUBSTITUTED item in the
+  live walk-forward). Margin, assignment and real position sizing remain
+  outside the book. D5's gate needs an independent window.
+- Unchanged: no production config, prompt or ladder was modified by this run.
+
+---
+
+## 2026-08-11 — ML combination search RUN: NULL RESULT; and the bear arm finds an EXIT fix, not a selection one
+
+Both arms of [`ml-plan.md`](ml-plan.md) executed against the same 08-11 exports.
+Code is now TRACKED under `backtests/study/` (`book.py` loader, `harness.py`
+replay port, `protocol.py` validation, `ml_combination.py`, `bear_arm.py`);
+outputs in `backtests/ml_combination_study/output/`. Book: **795 priced rows,
+118 dates, real 406 / tweak 389** (bs excluded per the 08-11 decision; the
+loader's exact-replay gate drops 48 non-reproducing proxy debit rows and 3 real
+dups, which is why 795 and not the 08-11 scratch cut's 817).
+
+Deviations from the plan, both recorded before the run: GBM is sklearn
+HistGradientBoosting rather than LightGBM (same family, no libomp), and a
+third replay variant (**abstain** — the model may sit out a day) was added so
+the ladder's right to trade nothing is not an unfair advantage.
+
+### 1. ML arm — nothing beats the ladder, in any form
+
+Purged expanding walk-forward, 10-date blocks, 120-day embargo → 58 of 118
+dates ever tested (the embargo is expensive at this sample size). Every model
+ranked against the ladder on the SAME dates, paired at date level.
+
+    model            forced        abstain       tie-break in A/B
+    B1 logistic      -0.173        -0.073        -0.074
+    B2 elastic net   -0.180 *      -0.095        -0.062
+    M1 GBM (E)       -0.096        -0.057        -0.006
+    M2 GBM (E>0)     -0.113        -0.097        +0.022  CI[-0.017,+0.071]
+    M3 depth-3 tree  -0.155 *      -0.102        -0.027
+    (* CI excludes zero — i.e. significantly WORSE than the ladder)
+
+**Not one positive gain with a CI excluding zero, in 15 model×strategy cells.**
+The best cell in the whole study is M2 as a within-tier tie-break at +0.022,
+CI [−0.017, +0.071] — includes zero, so ADOPT-AS-TIE-BREAK is also not met.
+M3 additionally fails the year-sign criterion (2025 +0.361 / 2026 −0.121).
+
+**Phase-5 verdict: NULL RESULT — the ladder is at or near the information
+ceiling of these columns.** This was the plan's stated modal outcome.
+
+Supporting reads, all consistent with the 07-21 column sweep:
+- The full-sample M3 tree's root split is `structure = bull_call` — the model
+  rediscovers "structure is the signal" unprompted.
+- Ablations (top-3/day $ out-of-fold): ladder-only +$6.1k → +regime +$1.9k →
+  +geometry +$11.9k → +enrichment +$2.5k → +scores +$4.0k → +calendar +$10.3k.
+  Non-monotone and inside the noise: **nothing beyond structure × regime ×
+  geometry adds anything reproducible.**
+- Composition-proxy test (rule 6) catches `cpir` red-handed: pooled Spearman
+  vs E **+0.27**, but within structure +0.04 / −0.03 / −0.10. Same trap as
+  oi_confirm/iv_pct. `iv_pct` repeats its own failure (pooled −0.17, within
+  structure −0.12 / +0.05 / +0.12, sign-flipping).
+
+### 2. Bear arm B1 — selection: NOT MET, decisively
+
+370 bear rows (bear_put 327 / bear_call 37 / long_put 6), 111 dates. Pooled
+E −0.601, CI [−0.726, −0.477], negative every year (−0.815 / −0.660 / −0.386).
+
+496 pre-declared 1- and 2-clause subsets evaluated, 203 with n ≥ 40.
+**0 survivors** of the pre-registered rule, against ~10 expected by chance at a
+nominal 5% rate. The best subset in the entire search is E −0.231
+(`mech BEAR AND iv_pct<0.5`, n=43) — still negative. There is no conditioning
+of bear entries, on any decision-time variable in the book, that is not a
+losing selection.
+
+**The operator's chop hypothesis, tested directly.** The closest thing to
+support is the RANGE + calm/choppy slice, and it is an EXIT story:
+
+    slice                    n    dates   E        R        $        |MAE|/MFE
+    model RANGE + C/L-VOL    55   16     -0.370   +0.182   +$10,119   0.76
+    model C-VOL              53   20     -0.596   +0.128    +$7,095   0.92
+    mech L-VOL               97   38     -0.581   +0.002    +$3,586   0.99
+    model H-VOL              78   17     -1.157   -0.682   -$50,482   4.01
+
+RANGE+C/L-VOL is the only bear slice that makes money (R positive in 2 of 3
+years: −0.247 / +0.320 / +0.284), and its |MAE|/MFE of 0.76 is the only
+non-mirrored bear number in the book. But **E is −0.370 with CI [−0.697,
+−0.045] and the R CI [−0.117, +0.463] includes zero**: the plays are still
+wrong, the exit is what collects. Directionally consistent with the operator's
+instinct; not a selection edge, and n=55 over 16 dates.
+
+The mirror image is decisive and already shipped: bear in H-VOL is −$50.5k at
+a 9% win rate and |MAE|/MFE 4.01 — the ladder's BEAR+H-VOL VETO earns its keep.
+
+### 3. Bear arm B2 — exit: **CRITERIA MET**, and it is the knob addendum 12 pre-nominated
+
+Frozen grid only (18 debit configs, no new mechanism). Bear debit n=332:
+mean E −0.534 vs mean R(PROD) −0.133 — the exit is ALREADY rescuing ~0.40 of a
+bad selection, and six configs rescue more. Ranked by robustness, not by size:
+
+    config              Δ pooled   CI95            ex-25MarApr   2026 alone      LOO min
+    BE ratchet @.50     +0.041   [+0.015,+0.065]   +0.020        +0.028 [+0.009,+0.053]  +0.038
+    trail .40/.50       +0.042   [+0.007,+0.073]   +0.023        +0.037 [-0.002,+0.077]  +0.038
+    trail .25/.50       +0.043   [+0.003,+0.081]   +0.020        +0.025 [-0.032,+0.078]  +0.038
+    trail .50/.50       +0.036   [+0.005,+0.064]   +0.014        +0.031 [-0.002,+0.066]  +0.032
+
+**Why this is not addendum 12 again.** Addendum 12 killed the structure-keyed
+bear trail because 94% of its gain sat in Mar–Apr 2025 (ex-window +$744 over
+241 rows ≈ 0). It closed with two statements that this run tests exactly:
+"trail .25/.50 dominates .50/.50 … recorded so the next bear-heavy window tests
+the right knob first", and "what would settle it: a second sustained bear
+drawdown in the book." Feb–Apr 2026 is that drawdown, and the backfill is now
+complete. On the completed book:
+
+- ex-Mar–Apr-2025 Δ is **+0.020** (was ≈ +0.003 in July) — the effect no longer
+  lives in one window;
+- **2026 alone is +0.028 with CI [+0.009, +0.053]**, i.e. the new, independent
+  bear window confirms it on its own;
+- positive in all three years (+0.036 / +0.055 / +0.028) and in both pricing
+  tiers (real +0.054 / tweak +0.027);
+- LOO-by-date: every fold positive (min +0.038) — the test that killed the
+  per-regime switch twice.
+
+BE ratchet @.50 is preferred over the trails on robustness, not on pooled size:
+it is the only config whose 2026-alone CI excludes zero and its pooled CI is
+the tightest. Mechanically it converts 44 rows into `be_stop` and cuts
+stop_loss 110 → 92 — it stops giving back excursions, which is precisely the
+|MAE|/MFE ≈ 1.1–1.4 mirrored-path signature of bear rows.
+
+**It must be bear-KEYED.** The same config on the non-bear debit book is
++0.234 → +0.209 (−0.026); this is why Attempt 10 was right to remove the global
+debit trail and why the correct scope is the structure, not the whole side.
+
+**Honest size.** −0.133 → −0.092 mean R: it cuts the bleed by ~31%, it does not
+create an edge, and −$54.4k → −$38.0k over 332 rows. Every bear row in the book
+is ladder tier C (299) or VETO (71) — **none are deployed by the shipped
+ladder**, so this rule only bites on positions the operator takes deliberately.
+That is exactly the stated use case (the chop hedge), which is what makes it
+worth shipping despite the modest size.
+
+Credit side (bear_call, n=38): `pt .50` clears CI+LOO (+0.344) but the best
+config `sl 1x` does not (CI [−0.012, +1.252]), the population is one year deep,
+and bear_call is already structure-vetoed at intake with 0 emissions since. **No
+credit-side change** — nothing to apply it to.
+
+### 4. What this changes
+
+- **The bear_put implementation question (open since 07-22) now has a
+  non-demotion answer**: keep bear structures selectable, keep them out of the
+  deployed top-3 (they are already C/VETO), and give them their own exit
+  profile. Selection stays unfixed because it is unfixable from these columns.
+- **Recommended (NOT shipped — operator decision):** a structure-keyed exit
+  clause for bear debit spreads, `be_after: 0.50`, alongside the existing
+  `regime_exit` block in `config/backtest.yml`, plus the matching line in
+  `deployment-rules.md` §"Exit management": *if you are holding a bear debit
+  spread, move the stop to breakeven once it has made 0.5× the debit.*
+- **The ML question is closed** for this feature set. Re-open only on new
+  columns, not on new models — the ablations say the columns, not the
+  estimator, are the binding constraint.
+- Unchanged: no production config, prompt or ladder was modified by this run.
+
+---
+
+## 2026-08-11 addendum — `mech_cell` BACKFILLED across the analysis tabs + nightly job
+
+Plumbing, no tuning conclusion. `mech_cell` shipped 2026-07-22 (archive/06
+addendum 9) but only stamps rows written after it, so the deploy-time surface
+was blank for the whole history and `NO_DATA` wherever the SPY/VIX table had
+been stale. Both are recoverable: the label is a pure function of the signal
+date and the frozen table.
+
+- `scripts/backfill_mech_cell.py` — recomputes every row, fills blanks and
+  `NO_DATA`, and KEEPS a stored label that no longer reproduces (logged as
+  DRIFT, exit 2) rather than overwriting it; `--force` overwrites, `--dry-run`
+  reports. Writes only that one column, so formulas and every other column are
+  untouched. `make backfill-mech-cell` (depends on `mech-regime`).
+- `.github/workflows/backfill-mech-cell.yml` — chained on Compile Flow
+  (`workflow_run`), which refreshes the SPY/VIX table at 22:30 UTC, so the job
+  can never label off a stale close. Idempotent; nothing to fill = no write.
+- Run 2026-08-11: **1,284 cells filled across 1,620 rows / 3 tabs, 0 DRIFT** —
+  every one of the 336 previously-stored labels reproduced exactly, which is the
+  first end-to-end check that the stored column and `lib/mech_regime.py` agree.
+  AnalysisClaude now reads 142 dates, 2024-06-17 → 2026-08-10: BEAR_HE 758 /
+  LVOL 728 / RB_EVOL 43 / NONE 78, no blanks, no NO_DATA.
+
+**Header drift found while doing it (fix written, NOT yet applied).**
+AnalysisGPT and AnalysisTickerSpecific headers had stopped at 24 columns
+against a 27-column `ROW_COLUMNS` — GPT missing `iv_pct`/`price_vector`/
+`days_to_earnings` plus pre-rename `ConvictionScore`/`ConvictionScoreLabel`,
+TickerSpecific missing `iv_skew`/`iv_pct`/`score_catalyst`. Because
+`append_rows` writes POSITIONALLY, every column past the gap is mislabelled on
+those tabs, and a column-keyed write lands in the wrong place. Data loss: none —
+all 13 rows on those two tabs are empty past `created_datetime` (both tabs are
+near-unused). `scripts/align_tab_headers.py` repairs it (relocating a
+schema column that is merely misplaced, aborting the tab if a drifted column
+holds data that is not in the schema); dry run is clean, the write is pending
+operator approval. AnalysisClaude — the tab everything reads — was already
+correct.
+
+---
+
+## 2026-08-11 addendum — `bs_options_hist` DROPPED: measured as effect-diluting and replay-contaminating; tier now off behind `proxy.bs_fallback`
+
+Scratch cut on the same 08-11 exports (`bs_tier_decision.py`, read-only, no
+config changed). Question from the operator: keep BS, or evaluate on
+real+tweak only.
+
+**Calibration is impossible and the tier knows it.** 0 same-key overlap rows
+(no play is priced both real and bs — the chain is strictly ordered, so BS is
+never checked against a real mark), and `pct_real_days = 0.00` on **all 301**
+bs rows. There is no bs row anywhere in the book with a single real price day.
+
+**What is actually lost by dropping it:** 301 rows (27% of the pooled book)
+but **0 dates** — every bs date also carries real/tweak rows. The tier is
+overwhelmingly the long-dated filler: 69% of the DTE≥180 band is bs (208 of
+302 rows), vs 5% of ≤30 DTE and 5% of 31–59. Dropping bs therefore removes
+almost nothing from the ≤60-DTE band the ladder actually deploys in.
+
+**The dilution finding (this is the real reason, not the $).** BS marks are
+tail-compressed: E sd 0.86 vs real 1.38 / tweak 1.24, `|E|>2` at **2.3% vs
+12.1% real**. Flat-ish donor vol, no spread, no gaps — so every bs row sits
+nearer zero than a real one, and pooling shrinks **every** effect toward zero
+in the same direction:
+
+    bucket            r+t E     pooled E   (bs pulls toward 0)
+    bull_call        +0.672  →  +0.540
+    tier A           +0.688  →  +0.590
+    tier B           +0.601  →  +0.495
+    bear_put         −0.528  →  −0.394
+    bear_call        −1.240  →  −1.054
+    tier VETO        −0.548  →  −0.432
+
+That is attenuation bias against exactly the separations the ladder is built
+on. No sign flips and no shipped conclusion reverses (year signs, structure
+ranking, ladder monotonicity, bear_put DEMOTE all hold either way — holdout
+r+t is E −0.406 CI [−0.517, −0.295] vs pooled −0.358), so bs has **never been
+load-bearing for a decision**; it has only ever made true effects look weaker.
+Where bs *can* be compared like-for-like (DTE≤59, n=20) it does not track
+real: E −0.220 vs real +0.026, sd 1.83.
+
+**It is not merely a headline-$ problem — it enters the replay.** bs supplies
+**64 of the top-3/day A-then-B picks**, worth +$8.5k of model-priced P&L, and
+inflates the 2026 replay from **+$3.3k (r+t) to +$8.8k (pooled)**. The 08-11
+"quote real+tweak only" rule was framed as reporting hygiene; it is actually
+a selection problem. Total bs $ is +$51.6k of the +$65.7k pooled, +$48.9k of
+that in DTE≥180 (single SNDK 04-06 long_call DTE 182 = +$27.5k).
+
+**Decision — SHIPPED same day (operator approved).**
+
+1. *Evidence layer:* real+tweak is the ONLY population for E, R, $, MFE/MAE,
+   ladder tiers, holdouts, and the replay. bs is coverage bookkeeping, never
+   evidence. Same standing as the 07-27 §3 long-dated rule.
+2. *Chain layer:* `_method2` is now opt-in behind **`proxy.bs_fallback`
+   (default `false`)** in `config/backtest.yml`, gated in `_evaluate`
+   (`scripts/backtest/proxy.py`). Directional plays fall to `underlying_trend`,
+   which answers the same question honestly (direction verdict, blank P&L,
+   `exit_basis=NONE`) instead of minting a P&L number that reads as data. Only
+   2 rows in the whole book (1 straddle, 1 strangle) would go from bs to
+   `unevaluable`; existing bs rows stay frozen unless `--redo`. Cost: no
+   path/MFE estimate for long-dated — but a tail-compressed BS path was never
+   a usable one. Kept as a flag rather than deleted so the tier can be revived
+   for a deliberate study; two tests pin both branches of the chain
+   (`test_evaluate_skips_bs_tier_by_default_and_falls_to_underlying_trend`,
+   `test_evaluate_uses_bs_tier_when_bs_fallback_enabled`). Docs synced:
+   `config/backtest-reference.md` fallback-chain section + `proxy_method` row,
+   `docs/architecture.md` proxy map, proxy.py module docstring.
+3. *Historical rows are NOT purged.* The 301 existing `bs_options_hist` rows
+   stay in BacktestProxy — filter them out at read time by `proxy_method`
+   (equivalently `pct_real_days == 0`); the flag only stops NEW ones.
+4. What this does NOT fix: the long-dated blind spot itself. Removing bs makes
+   the gap visible instead of papered over; the fix is still real long-dated
+   price history.
+
+---
+
+## 2026-08-11 — completed-book analysis: holdout coverage FULL, DEMOTE fires at n=164; bs long-dated rows contaminate pooled $ totals
+
+Source: fresh exports `backtests/to_evaluate/analysis - BacktestResults.csv`
+(406 rows) / `- BacktestProxy.csv` (796), stamped 08-11 15:38. Pooled priced
+book after dedup: **1,118 rows** (real 406 / tweak 411 / bs 301), 118 dates,
+2024-06-17 → 2026-04-07. Scratch cut (read-only), no config changed. Operator
+instruction: treat the run as complete even though some analyses are flagged
+for rerun. Housekeeping: 0 within-real dups (03-06 fix held); all 7
+previously-missing holdout dates present; 02-17/02-19 present in both tabs.
+
+### 1. Year breakdown — 2025H1-only profit confirmed; 2026 is the only year with CI fully below zero
+
+    year   n     mean E   CI95 (date-clust)     R        $ (real+tweak)
+    2024   295   −0.018   [−0.195, +0.152]      −0.059   −$14,355
+    2025   499   +0.091   [−0.037, +0.213]      +0.145   +$47,893
+    2026   324   −0.196   [−0.287, −0.101]      −0.055   −$19,503
+
+    halves: 2024H1 −0.198 · 2024H2 +0.009 · 2025H1 +0.136 (+$78.0k pooled) ·
+            2025H2 −0.181 · 2026H1 −0.196
+    MFE/MAE by year: |MAE|/MFE 1.13 / 0.79 / 1.18, R-capture −0.08 / +0.16 /
+    −0.09 — only 2025 has upside asymmetry; 2024/2026 mirrored = path-vol.
+
+**⚠ Pooled-$ contamination (new standing hazard).** Pooled realized $ reads
++$65.7k, but **+$48.9k of it is DTE≥180 `bs_options_hist` rows with
+`pct_real_days = 0.0`** — pure flat-vol BS marks on exactly the contracts the
+2026-07-27 §3 rule says carry no evidence. One row (04-06 SNDK long_call,
+DTE 182) is +$27.5k by itself; the 04-06 NVDA/MRVL long_calls (DTE 722/725)
+add +$9.6k. The honest book is **real+tweak: +$14.0k total** (−$14.4k / +$47.9k
+/ −$19.5k by year). Any headline $ from these exports must be quoted
+real+tweak; the pooled figure is not a portfolio number.
+
+### 2. Structure breakdown (pooled / real+tweak E)
+
+    structure          n(pooled)  E pooled  E r+t    R       $ r+t
+    bear_put_spread    468        −0.394    −0.528   −0.081  −$44,000
+    bull_call_spread   338        +0.540    +0.672   +0.295  +$80,237
+    bull_put_spread    237        +0.101    +0.183   −0.005   −$1,946
+    bear_call_spread    43        −1.054    −1.240   −0.518  −$11,221
+
+    year × structure (E): bear_put −0.41/−0.43/−0.35 (negative every year);
+    bull_call +0.44/+0.66/+0.29 (positive every year — still the only
+    reproducing positive); bull_put +0.24/+0.25/−0.17 (2026 out-of-band
+    DTE-driven as before); bear_call −1.97/−0.70/— (0 emissions 2026 —
+    intake veto holding).
+
+### 3. Ladder reproduces on the completed book
+
+    tier    2024            2025            2026
+    A       +0.708 (n=37)   +0.670 (n=105)  +0.305 (n=45)
+    B       +0.338 (n=88)   +0.644 (n=98)   +0.431 (n=13)
+    C       −0.294 (n=131)  −0.299 (n=207)  −0.278 (n=249)
+    VETO    −0.586 (n=39)   −0.294 (n=89)   −0.803 (n=17)
+
+A/B positive, C/VETO negative every year. Top-3/day A-then-B replay:
+2024 +$22.7k (64% win) · 2025 +$44.8k (67%) · 2026 **+$8.8k** (66%, mean R
++0.364). 2026 Tier A improved +0.210 → +0.305 with the late dates added —
+the 08-08 "genuinely weaker Tier A" worry softened. bull_put band in-window:
+in-band E +0.431 / R +0.337 (n=13) vs out-of-band −0.139 / −0.211 (n=59) —
+second independent window, band holds.
+
+### 4. bear_put holdout at FULL coverage — all three pre-registered criteria fire
+
+    n=164 priced (was 82 at the 08-04 mid-stop)
+    mean E −0.358   date-clustered bootstrap CI95 [−0.460, −0.256]
+    halves: early −0.207 (n=87) / late −0.529 (n=77)  ← late worse, as predicted
+    ex-flawed-dates (02-23/03-02/03-20): −0.380 (n=154)
+    → mean E < 0 PASS · CI upper < 0 PASS · both halves < 0 PASS → DEMOTE
+
+The 08-04 real-tier discordance is **resolved downward**: real E −0.169
+(n=51; was +0.201 at 08-04, −0.178 at 08-08) vs tweak −0.569 / bs −0.204.
+Real R +0.047 — the "negative unmanaged, ~breakeven only under active risk
+control" framing survives verbatim. Measure-dependence caveat stands: R-based
+read is −0.086 CI [−0.215, +0.042] (includes zero), halves +0.042 / −0.232
+deteriorating into the bottom. Comparator bull_call in-window: E +0.293 /
+R +0.315 (n=43), |MAE|/MFE 0.51 vs bear_put 1.25 — same discriminator as
+addenda 14/07-29.
+
+**Status.** The addendum-13 criteria are now satisfied on the completed
+second drawdown via this scratch cut. The formal decision run remains
+`bear_position_study.py` unmodified on the window (its `AC_PATH`/`BR_PATH`/
+`BP_PATH` need repointing to these exports first — the 08-04 flag #2 is
+still true). Given the operator's "treat as fully run", the demotion is
+decision-eligible NOW; what remains is the implementation choice (intake
+`structure_veto` like bear_call vs ladder VETO tier vs leave-at-C-never-
+deploy) — a user decision, deliberately not taken here.
+
+### 5. Next study: ML combination search — plan written, NOT run
+
+Pre-written plan at [`ml-plan.md`](ml-plan.md): learn which structure ×
+regime × entry-geometry × enrichment combination best predicts play outcome,
+benchmark = the shipped score-free ladder's top-3/day replay, purged
+walk-forward CV clustered by date, real+tweak training only, pre-registered
+ship criteria. Nothing executed as of this entry.
 
 ---
 
@@ -410,7 +922,7 @@ are fine, the exit is mismatched.
 
 **Queue change:** #4 bear_put emission demotion → **CANCELLED**. Replaced by
 **structure-conditional trailing stop for bear_put**, to run through the existing
-replay harness (`backtests/exit_mechanism_study.py`, `combined_exit_study.py`)
+replay harness (`backtests/study/exit_mechanism_study.py`, `combined_exit_study.py`)
 under the addendum-4 corrected LOO gate. Not run yet.
 
 **New concern to test in the same pass — possible composition proxy.** The
@@ -426,7 +938,7 @@ No code changed. No re-run performed.
 
 ### 2026-07-22 addendum 12 — structure-keyed bear_put trail RUN: does NOT ship, and it exposes the shipped BEAR_HE clause as a bear_put proxy that is NEGATIVE outside one window
 
-Ran the addendum-11 follow-up: `backtests/exit_switch_structure_study.py`
+Ran the addendum-11 follow-up: `backtests/study/exit_switch_structure_study.py`
 (output `backtests/exit_switch_structure_study_output.txt`). Data, calibration,
 dedup, post-13c join and gate thresholds are IMPORTED from
 `exit_switch_mech_study.py` — same 663-row pooled debit book (real 250 / tweak
@@ -511,7 +1023,7 @@ slice contains.**
 **What would settle it:** a second sustained bear drawdown in the book. Until
 then, both the shipped clause and the structure candidate rest on one window.
 
-No production config changed. New file: `backtests/exit_switch_structure_study.py`
+No production config changed. New file: `backtests/study/exit_switch_structure_study.py`
 (read-only study, imports the mech harness).
 
 ### 2026-07-22 addendum 13 — PRE-REGISTRATION: bear-position study (written BEFORE the run)
@@ -566,7 +1078,7 @@ change to bear_put's treatment requires new data, not a new slice.
 
 ### 2026-07-22 addendum 14 — bear-position study RUN: DEMOTE fires on all three pre-registered criteria; bear_put is a SELECTION problem, not an exit problem
 
-`backtests/bear_position_study.py` → `backtests/bear_position_study_output.txt`.
+`backtests/study/bear_position_study.py` → `backtests/bear_position_study_output.txt`.
 Cuts, window control and decision rule were fixed in addendum 13 before the run;
 nothing was added after seeing output. Same 663-row pooled debit book, same
 harness validation (250/250 real rows reproduce DEBIT_PROD to the cent).
@@ -747,7 +1259,7 @@ does not block enriching the other 20.
 4. `python3 -m scripts.analysis_pipeline --date <D>` for the 26 unanalyzed
    dates — **config unchanged**, or the holdout stops being a holdout.
 5. `python3 -m scripts.backtest` + `python3 -m scripts.backtest.proxy`.
-6. Re-run `backtests/bear_position_study.py` **unmodified** against the
+6. Re-run `backtests/study/bear_position_study.py` **unmodified** against the
    Feb–Apr 2026 rows only. The pre-registered decision rule from addendum 13
    applies as written: DEMOTE iff mean E < 0 AND bootstrap CI upper < 0 AND
    both halves negative.

@@ -309,3 +309,12 @@ proxy:
   max_expiry_deviation_days: 14          # Method-1 snap bound (days off the leg's expiry)
   probe_barchart: true                   # scrape Barchart for nearby contracts missing from
                                          # cache (default on; --cache-only disables)
+  bs_fallback: false                     # Method-2 (bs_options_hist) Black-Scholes tier.
+                                         # OFF since 2026-08-11: its marks are model-priced,
+                                         # never calibratable (pct_real_days = 0 on every such
+                                         # row) and tail-compressed, so pooling them attenuates
+                                         # every measured effect toward zero and leaks fake $
+                                         # into the deployment replay. Directional plays now
+                                         # fall through to underlying_trend (blank P&L).
+                                         # Flip to true only for a deliberate study — never
+                                         # pool the output with real+tweak evidence.

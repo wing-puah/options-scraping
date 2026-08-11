@@ -72,6 +72,37 @@ scripts/                    ← entry points, each maps to a workflow step
                               present in the compiled file, then trashes the raws (recoverable).
                               Separate from compile; --all sweeps all compiled dates. Daily
                               after compile via .github/workflows/compile-flow.yml
+  backfill_mech_cell.py     — fill `mech_cell` (lib/mech_regime.py) on every analysis tab for rows
+                              that predate the column (blank) or were written while the SPY/VIX
+                              table was missing/stale (NO_DATA). The label is a pure function of
+                              the signal date + the frozen table, so it is backfillable and
+                              re-runnable; only that one column is written
+                              (sheets_client.add_or_update_column), so user formulas and every
+                              other column are untouched. A stored label that no longer reproduces
+                              is KEPT and logged as DRIFT (exit 2) — never silently replaced —
+                              unless --force. Requires a fresh table: `make mech-regime` first
+                              (the make target does this). Daily after compile via
+                              .github/workflows/backfill-mech-cell.yml (chained on Compile Flow,
+                              which refreshes the table at 22:30 UTC)
+  studies/                  — TRACKED offline tuning studies (the `backtests/` tree is
+                              gitignored in full, so studies that lived there existed on one
+                              laptop only — 07-22 addendum 10). Read-only w.r.t. config: a study
+                              may never write production settings. `harness.py` = Trade/replay
+                              port (exit simulation; changing it invalidates every prior tuning
+                              conclusion), `book.py` = pooled real+tweak book loader with the
+                              dedup + exact-replay calibration gate (`--validate` prints the
+                              diagnostics; bs_options_hist excluded by default),
+                              `protocol.py` = purged walk-forward + date-clustered bootstrap +
+                              top-k/day replay + the mandatory window cuts,
+                              `ml_combination.py` / `bear_arm.py` = the 08-11 studies.
+                              Extra deps: `pip install -r requirements-study.txt`.
+                              Outputs go to backtests/…/output/ (untracked)
+  align_tab_headers.py      — realign an analysis tab's header row with config.ROW_COLUMNS.
+                              append_rows writes POSITIONALLY, so a header that stopped short of
+                              the schema mislabels every column after the gap and misplaces any
+                              column-keyed write. Repairs only when the drifted columns are empty
+                              or are schema columns in the wrong position (those are relocated);
+                              anything else aborts that tab untouched. --dry-run first
   build_baseline.py         — compute one market-level aggregate row per trading date
                               (lib/baseline.py) → append to BaselineDaily tab. Idempotent by
                               date; --backfill self-heals missed days. Daily after compile via
@@ -199,7 +230,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               listed contract WITH Barchart history (bounded by
                               `proxy.max_strike_steps`/`max_expiry_deviation_days`, real-first
                               pricing), (2) Black-Scholes off a donor contract's `Price~`/`IV`
-                              history (per-day sigma; NO yfinance), (3) direction-only
+                              history (per-day sigma; NO yfinance) — OFF by default since
+                              2026-08-11, `proxy.bs_fallback`, (3) direction-only
                               underlying-trend verdict, (4) unevaluable — same
                               `simulation:`/`credit:` exit rules as the real backtest →
                               BacktestProxy tab + backtests/proxy_results.csv, idempotent;

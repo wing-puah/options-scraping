@@ -424,10 +424,46 @@ def test_evaluate_unevaluable_when_play_never_built():
     assert row["daily_price_csv"] == ""
 
 
+def test_evaluate_skips_bs_tier_by_default_and_falls_to_underlying_trend(cache_dir):
+    # Donor 30 strike-steps away: outside Method 1's snap bound (max_strike_steps 6)
+    # but valid for Method 2, whose donor ranking is unbounded. With bs_fallback
+    # unset (the shipped default) Method 2 must be skipped entirely, so this
+    # bullish play lands on Method 3's direction-only verdict with blank P&L.
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
+        ("2026-06-02", 260.0, "45.0", "0.50", 9.0, 11.0),
+    ])
+
+    row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-08-11T10:00:00", False)
+
+    assert row["proxy_method"] == "underlying_trend"
+    assert row["exit_reason"] == "direction_only"
+    assert row["realized_pnl_pct"] == ""
+
+
+def test_evaluate_uses_bs_tier_when_bs_fallback_enabled(cache_dir):
+    # Same fixture, bs_fallback on -> Method 2 wins before Method 3 is reached.
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
+        ("2026-06-02", 260.0, "45.0", "0.50", 9.0, 11.0),
+    ])
+
+    row = bt._evaluate(play, None, c, {**_CFG, "bs_fallback": True}, _SIM_CFG,
+                       _SPREAD_PCT, "2026-08-11T10:00:00", False)
+
+    assert row["proxy_method"] == "bs_options_hist"
+    assert row["entry_source"] == "bs"
+
+
 def test_evaluate_unevaluable_when_fallback_chain_exhausted(cache_dir):
     # Straddle (neutral structure) with a completely empty cache for its ticker:
-    # Method 1 (no snap candidate), Method 2 (no donor), Method 3 (neutral) all
-    # fall through -> unevaluable, but with a real skip_reason from the anchor.
+    # Method 1 (no snap candidate) and Method 3 (neutral) both fall through
+    # -> unevaluable, but with a real skip_reason from the anchor.
     c = {"ticker": "SPY", "play": "sell straddle 500 Jun 20", "signal_date": SIGNAL,
          "date": SIGNAL.isoformat(), "regime": "RANGE", "market_regime": "RANGE + H-VOL"}
     play, reason = bt.classify_and_build(c, _SPREAD_PCT)

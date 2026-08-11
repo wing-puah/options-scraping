@@ -67,6 +67,19 @@ enrich-all: enrich counterpart-iv iv-percentile price-catalyst
 mech-regime:
 	$(PY) scripts/collector/fetch_mech_regime.py --download
 
+# Fill `mech_cell` on rows written before the column shipped, or while the table
+# was stale (NO_DATA). Pure function of the date, so it is safe to re-run; also
+# runs nightly after Compile Flow (.github/workflows/backfill-mech-cell.yml).
+.PHONY: backfill-mech-cell
+backfill-mech-cell: mech-regime
+	$(PY) scripts/backfill_mech_cell.py $(ARGS)
+
+# Repair an analysis tab whose header drifted behind config.ROW_COLUMNS (appends
+# are positional, so a short header mislabels every column after the gap).
+.PHONY: align-headers
+align-headers:
+	$(PY) scripts/align_tab_headers.py $(ARGS)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze: 
@@ -149,6 +162,8 @@ help:
 	@echo "  make analyze-bt ARGS=\"--date 2026-04-21\"  (ARGS passed to analyze and both backtest steps)"
 	@echo ""
 	@echo "  make mech-regime   pull the SPY/VIX regime table from Drive"
+	@echo "  make backfill-mech-cell   fill mech_cell on older analysis rows (add ARGS=\"--dry-run\")"
+	@echo "  make align-headers        realign analysis tab headers with ROW_COLUMNS (ARGS=\"--dry-run\")"
 	@echo ""
 	@echo "  make backtest      run backtest (pulls the regime table first)"
 	@echo "  make backtest-dry  dry-run backtest"

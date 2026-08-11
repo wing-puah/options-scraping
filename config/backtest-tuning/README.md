@@ -5,7 +5,8 @@ Original dataset: 119 trades across July 2024 (chop), Jan 2025 (bull), March 202
 (panic/correction), Feb 2026; later evaluations run on the pooled real + proxy book.
 
 **Newest work lives in [`current.md`](current.md).** Everything older is split by
-period under [`archive/`](archive/). Append new entries to `current.md`; when it
+period under [`archive/`](archive/). Study code lives in `backtests/study/` (tracked; the rest of `backtests/` is
+disposable scratch). Append new entries to `current.md`; when it
 grows past ~400 lines, move its oldest sections into a new archive file and add a
 row to the index below.
 
@@ -48,3 +49,4 @@ row to the index below.
 | 2026-07-22 addenda 1–10 — mech_regime overlay, shipped BEAR_HE trail, `exit_basis`, `mech_cell`, SPY/VIX in Drive | [archive/06](archive/06-mech-regime-and-shipped-exits.md) |
 | 2026-07-22 addenda 11–14 — bear_put: cancellation, structure-keyed trail, pre-registration, DEMOTE verdict | [current.md](current.md) |
 | 2026-07-22 — Feb–Apr 2026 bear holdout: coverage + backfill status | [current.md](current.md) |
+| 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [current.md](current.md) |

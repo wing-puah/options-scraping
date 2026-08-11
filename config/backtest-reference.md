@@ -172,7 +172,7 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
 | Column | Definition |
 |--------|-----------|
 | **skip_reason** | Why the real backtest produced no row: `unsupported` (structure has no handler), `no_strike` / `no_expiry` (play text unparseable), `no_history` (contract's Barchart history missing or not covering the entry window), `unpriced` (history covers the window but the sim still couldn't price entry). |
-| **proxy_method** | Which rung of the fallback chain produced the verdict: `strike_expiry_tweak` → `bs_options_hist` → `underlying_trend` → `unevaluable`. |
+| **proxy_method** | Which rung of the fallback chain produced the verdict: `strike_expiry_tweak` → `bs_options_hist` (**disabled since 2026-08-11**, `proxy.bs_fallback: false`) → `underlying_trend` → `unevaluable`. Rows written before that date can still carry `bs_options_hist`; they are model-priced and must be excluded from any evidence read. |
 | **proxy_detail** | Method-specific evidence. Tweaks are recorded as `orig → used` per leg; BS rows note the donor contract + entry sigma; trend rows carry `direction_correct=True/False` and the underlying move. |
 | **legs / legs_original** | `legs` = the position actually priced (tweaked legs for method 1, the play's own legs otherwise); `legs_original` = the play's own legs. Same sheet-safe leg format as `BacktestResults`. |
 | _(result columns)_ | Same names and definitions as `BacktestResults` (`entry_*`, `realized_pnl_pct`, `exit_reason`, `mfe_*`/`mae_*`, `daily_price_csv`, …) so the two tabs union downstream. Blank for `underlying_trend` (P&L not computable — `exit_reason` = `direction_only`) and `unevaluable` rows. |
@@ -186,11 +186,20 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
    original expiration are pinned to ONE snapped expiration (a vertical can't
    silently become a diagonal); if the pin can't be satisfied the method fails
    over to 2 instead of pricing a mangled structure.
-2. `bs_options_hist` — the play's **actual** legs are Black-Scholes-priced per
-   day using a nearby donor contract's history: `Price~` as the underlying series
-   and `IV/100` as a per-day sigma. No yfinance anywhere.
+2. `bs_options_hist` — **OFF by default since 2026-08-11** (`proxy.bs_fallback`).
+   The play's **actual** legs are Black-Scholes-priced per day using a nearby
+   donor contract's history: `Price~` as the underlying series and `IV/100` as a
+   per-day sigma. No yfinance anywhere. Disabled because these rows are
+   model-priced end to end (`pct_real_days` = 0 on every one), can never be
+   calibrated against a real mark (the chain is strictly ordered, so a play is
+   never priced both ways), and are tail-compressed — pooling them attenuates
+   every measured effect toward zero and injects model-priced dollars into the
+   deployment replay. Set `proxy.bs_fallback: true` only for a deliberate study,
+   and never pool the output with real+tweak evidence. Full measurement in
+   `config/backtest-tuning/current.md` (2026-08-11 addendum).
 3. `underlying_trend` — direction-only verdict from the donor's `Price~` path vs
-   the structure's bullish/bearish bias; neutral structures skip to 4.
+   the structure's bullish/bearish bias; neutral structures skip to 4. With the
+   BS rung off this is where directional plays without a snappable contract land.
 4. `unevaluable` — no usable options history at all, or the play never built.
 
 Exit rules, sizing and the risk-free rate come from the **same `simulation:` /

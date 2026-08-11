@@ -19,7 +19,7 @@ All 13 remaining regime-gap dates landed with analysis + priced backtest rows
 JOINED AnalysisClaude `created_datetime` (BacktestResults `created_datetime`
 is backtest-run time — min 07-17 — and would mislabel everything);
 60-char-prefix join recovers 903/913. Script:
-`backtests/regime_gap_reread.py` (+ `regime_gap_reread_output.txt`).
+`backtests/study/regime_gap_reread.py` (+ `regime_gap_reread_output.txt`).
 Caveat: 2026-03-06 was analyzed twice (30 backtest rows vs ~10 typical,
 duplicate MARKET row in the tab) — its rows are double-weighted in pooled
 stats; date-level reads unaffected.
@@ -221,7 +221,7 @@ oi_confirm/cpir/iv_pct as predictors.
 
 ### 2026-07-22 addendum 3 — mech_regime re-cut RUN: gates NO-SHIP, hypothesis rejected
 
-Ran the gated re-cut (subagent; script `backtests/mech_regime_recut.py`,
+Ran the gated re-cut (subagent; script `backtests/study/mech_regime_recut.py`,
 full output `backtests/mech_regime_recut_output.txt`, SPY/^VIX daily via
 yfinance in `backtests/mech_regime/spy_vix_daily.csv`). Frozen spec as
 per addendum 2 (SPY 50-SMA + 20d-return sign; VIX 20 H-bound, E = ≥30 or
@@ -265,7 +265,7 @@ follow-ups this window.
 
 ### 2026-07-22 addendum 4 — per-regime exit switch on MECH labels: stays GATED (5/6 criteria pass, median criterion fails by construction)
 
-Ran queue #4 (subagent; `backtests/exit_switch_mech_study.py`, output
+Ran queue #4 (subagent; `backtests/study/exit_switch_mech_study.py`, output
 `backtests/exit_switch_mech_study_output.txt`; SPY/VIX refetched from
 2023-06-01 → `backtests/mech_regime/spy_vix_daily_full.csv`, 663/663
 debit rows labeled, prior 149-row gap closed). Harness validated first:

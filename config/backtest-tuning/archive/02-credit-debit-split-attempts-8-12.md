@@ -109,7 +109,7 @@ credit lost. Attempt 8 showed the mark-based credit exits (pt 0.65 /
 stop 1×credit) rode the March TSLA pair to dollar stops. Question: would an
 underlying-breach stop have exited better?
 
-**Method:** `backtests/underlying_exit_study.py` — path replay of the 12
+**Method:** `backtests/study/underlying_exit_study.py` — path replay of the 12
 credit rows in `backtests/results.csv` (2024-06→2025-03) using the STORED
 daily marks; underlying daily price taken from the short leg's cached Barchart
 history `Price~` column (same scrapes that produced the marks — exact date
@@ -188,7 +188,7 @@ the stored `daily_price_csv` marks) split the exit rules cleanly:
   +117.8% post-exit max avg (mfe_day ≈ 40 vs exit day ≈ 22). Spread across 13
   tickers / 5 months — not one correlated event.
 
-**Method:** `backtests/exit_mechanism_study.py` (new, reusable; pattern of
+**Method:** `backtests/study/exit_mechanism_study.py` (new, reusable; pattern of
 Attempt 9's path replay). Replay engine mirrors `_summarize_path` exit priority
 exactly, incl. `time_exit_day = int(dte_entry × tef)`. **Calibration gate
 65/65** debit rows (exit_reason + days_held + realized_pnl_pct). Variants
@@ -241,7 +241,7 @@ dollar_stop=11 time_exit=6 cap_open=4 expired=1).
 
 **Motivation:** re-run the Attempt 8/9 credit knobs on the enlarged credit set
 (18 rows incl. the KWEB short straddle, vs 12 in Attempt 9) via
-`backtests/exit_mechanism_study.py --side credit`. **Calibration gate 18/18.**
+`backtests/study/exit_mechanism_study.py --side credit`. **Calibration gate 18/18.**
 
 | Variant (credit) | total $ | Δ vs prod | Δ excl. Mar-TSLA pair |
 |---|---|---|---|
@@ -350,7 +350,7 @@ had to be re-derived. This is also the first study to (a) fold in the
 proxy-backtested plays and (b) break the book down by group (structure family /
 regime trend / vol regime / play intent) instead of one pooled total.
 
-Run with `.venv/bin/python3 backtests/combined_exit_study.py --side debit` and
+Run with `.venv/bin/python3 backtests/study/combined_exit_study.py --side debit` and
 `--side credit` (harness built on Attempt 10's `exit_mechanism_study.py` replay
 engine; replays the stored `daily_price_csv` marks, mirrors `_summarize_path`
 exit priority incl. `time_exit_day = int(dte_entry × tef)`).
@@ -493,7 +493,7 @@ Two candidate follow-ups, both explicitly **not shipped**:
    single-cluster March-2025 TSLA trap. Hold until a credit-heavy window with
    independent clusters exists.
 
-The study harness (`backtests/combined_exit_study.py`) is idempotent and ready to
+The study harness (`backtests/study/combined_exit_study.py`) is idempotent and ready to
 re-run against any new window.
 
 ---

@@ -1,0 +1,76 @@
+name: Backfill Mech Cell
+
+# Fills `mech_cell` (lib/mech_regime.py) on every analysis tab — the mechanical
+# regime label the operator reads at deploy time to pick the exit profile
+# (config/deployment-rules.md §"Exit management").
+#
+# Two populations need it: rows written before the column shipped (blank), and
+# rows written while the SPY/VIX table was missing or stale (NO_DATA). The label
+# is a pure function of the signal date and the frozen table, so both are
+# backfillable after the fact — and a NO_DATA row heals itself once the table
+# catches up.
+#
+# Chained off Compile Flow because that workflow refreshes the SPY/VIX table into
+# Drive at 22:30 UTC (post-US-close). Running before it would relabel nothing new
+# at best, and write NO_DATA over today's rows at worst.
+#
+# Idempotent: a run with nothing to fill writes nothing. The job FAILS (exit 2)
+# if a stored label no longer reproduces — that is drift in the table or the spec
+# and wants a human, not an overwrite.
+
+on:
+  workflow_run:
+    workflows: ["Compile Flow"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would change without writing'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Also overwrite stored labels that no longer reproduce'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Manual runs always proceed; chained runs only after a green Compile Flow.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements-compile.txt
+
+      - name: Install Python dependencies
+        # Slim set: Drive (fetch the table) + gspread (write the column). No
+        # Playwright/scipy — nothing here scrapes.
+        run: pip install -r requirements-compile.txt
+
+      - name: Pull the SPY/VIX mech-regime table from Drive
+        # Same contract as `make mech-regime`: the label source is fetched
+        # explicitly, never implicitly inside the labelling code.
+        run: python scripts/collector/fetch_mech_regime.py --download
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+
+      - name: Backfill mech_cell on the analysis tabs
+        run: |
+          python scripts/backfill_mech_cell.py \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.force && '--force' || '' }}
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}

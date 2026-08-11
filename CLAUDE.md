@@ -56,6 +56,8 @@ python3 scripts/collector/enrich_oi.py                # next-day OI change + EOD
 python3 scripts/collector/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
 python3 scripts/collector/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
 python3 scripts/collector/fetch_price_catalyst.py     # price/earnings-catalyst columns
+python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
+python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
 # Common flags: --date YYYY-MM-DD · --backfill (all dates, idempotent) · --dry-run ·
 # --force (clear + re-scrape). compile_flow takes --start/--end; gc_flow uses --all.
 

@@ -106,6 +106,24 @@ def get_all_rows_preserving_formulas(tab: str) -> list[dict]:
     return rows
 
 
+def get_all_values(tab: str) -> tuple[list[str], list[list[str]]]:
+    """`(header, data_rows)` as raw display strings — no type coercion.
+
+    Unlike get_all_rows (gspread's get_all_records), nothing here is turned into
+    an int/float and duplicate header names do not raise. Use this when a column
+    is a KEY rather than a value — e.g. a date read back to recompute a derived
+    column, where '2026-04-21' becoming a number or a datetime would break the
+    lookup.
+    """
+    log.info("Reading raw values from tab '%s'", tab)
+    ss = _get_spreadsheet()
+    ws = _ensure_tab(ss, tab)
+    values = ws.get_all_values()
+    if not values or not values[0]:
+        return [], []
+    return values[0], values[1:]
+
+
 def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
     all_rows = get_all_rows(tab)
     return all_rows[-n:] if len(all_rows) > n else all_rows

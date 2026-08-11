@@ -18,11 +18,22 @@ Fallback chain (interpretable ``proxy_method``):
   2. ``bs_options_hist`` — Black-Scholes the play's ACTUAL legs each day, using a
      nearby cached contract's daily ``Price~`` as the underlying and ``IV/100`` as
      sigma (the ÷100 ``enrich_oi`` convention), via ``_simulate``'s ``iv_fn``.
+     **OFF by default** (``proxy.bs_fallback``) — see the note below.
   3. ``underlying_trend`` — direction-only verdict from ``Price~`` when no usable
      option data exists: map structure → bullish/bearish, compare the underlying
      move over the path. ``exit_reason="direction_only"``; P&L columns blank.
   4. ``unevaluable`` — no options history at all, or the play never built
      (unsupported / no_strike / no_expiry): identity + ``skip_reason`` only.
+
+Why method 2 is disabled by default (2026-08-11, measured on the 1,118-row pooled
+book; full entry in ``config/backtest-tuning/current.md``): no ``bs_options_hist``
+row has a single real price day (``pct_real_days`` 0.00 on all 301), and none is
+ever calibratable — the chain is strictly ordered, so a play priced by BS is never
+also priced for real. Its marks are tail-compressed (E sd 0.86 vs 1.38 real;
+``|E|>2`` at 2.3% vs 12.1%), so pooling them ATTENUATES every measured effect
+toward zero, and 64 of them had entered the top-3/day deployment replay. Setting
+``proxy.bs_fallback: true`` re-enables it for a deliberate study; anything it
+produces is model-priced and must never be pooled with real+tweak evidence.
 
 Contract discovery is cache-first, scrape-fallback: nearby-contract lookup scans
 ``backtests/option_history_cache/`` first, and when the cache has no usable
@@ -572,7 +583,12 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
     step = _infer_strike_step([p["strike"] for p in pool]) or _strike_step(
         play.legs[0].strike if play.legs else 100.0)
 
-    for method in (_method1, _method2, _method3):
+    # Method 2 is opt-in: BS marks are model-priced, uncalibratable, and
+    # attenuating (module docstring). Off → directional plays fall to method 3's
+    # honest direction-only verdict, neutral ones to `unevaluable`.
+    chain = (_method1, _method2, _method3) if cfg.get("bs_fallback", False) \
+        else (_method1, _method3)
+    for method in chain:
         outcome, pool = method(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe)
         if outcome is None:
             continue
@@ -634,7 +650,7 @@ def _print_proxy_summary(rows: list[dict]) -> None:
     priced = [r for r in rows if isinstance(r.get("realized_pnl_pct"), (int, float))]
     if priced:
         wins = sum(1 for r in priced if r["realized_pnl_pct"] > 0)
-        print(f"  priced (method 1/2): {len(priced)}  |  win rate {wins / len(priced) * 100:.1f}%")
+        print(f"  priced: {len(priced)}  |  win rate {wins / len(priced) * 100:.1f}%")
 
 
 def _write_proxy(rows: list[dict], proxy_cfg: dict, dry_run: bool) -> None:

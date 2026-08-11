@@ -1,0 +1,10 @@
+# Extra deps for the offline tuning studies under backtests/study/. NOT needed by
+# any production script or GitHub workflow — install only on a machine that runs
+# studies:  pip install -r requirements-study.txt
+#
+# scikit-learn covers the whole model class the ML plan allows (regularized
+# linear, shallow trees, histogram gradient boosting). LightGBM/XGBoost are
+# deliberately NOT pinned here: HistGradientBoosting is the same algorithm family
+# and avoids the libomp system dependency — recorded as a deviation in
+# config/backtest-tuning/ml-plan.md.
+scikit-learn>=1.5
