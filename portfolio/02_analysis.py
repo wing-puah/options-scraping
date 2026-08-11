@@ -579,9 +579,9 @@ def panel_edge_map(summary, ax):
 
 
 def panel_heatmap(table, ax, title, fmt, cmap, center=None, cbar_label="",
-                  show_names=True):
+                  show_names=True, robust=False):
     sns.heatmap(
-        table, annot=True, fmt=fmt, cmap=cmap, center=center,
+        table, annot=True, fmt=fmt, cmap=cmap, center=center, robust=robust,
         linewidths=2, linecolor=SURFACE, ax=ax,
         annot_kws={"fontsize": 9},
         cbar_kws={"label": cbar_label, "shrink": 0.8},
@@ -594,16 +594,19 @@ def panel_heatmap(table, ax, title, fmt, cmap, center=None, cbar_label="",
         ax.tick_params(labelleft=False)
 
 
+def _profit_factor(s):
+    """Gross wins / gross losses. NaN (blank cell) unless both sides are present."""
+    wins = s[s > 0].sum()
+    losses = s[s < 0].sum()
+    if wins == 0 or losses == 0:
+        return np.nan
+    return wins / abs(losses)
+
+
 def dte_tables(closed, summary):
     """The three strategy × DTE views, keyed by the panel they feed."""
     keep = summary[summary["trades"] >= MIN_TRADES_STRATEGY].index
     data = closed[closed["Strategy"].isin(keep)]
-
-    grouped = data.groupby(["Strategy", "DTE_bucket"], observed=True).agg(
-        win_rate=("win", "mean"),
-        avg_win=("pnl", lambda s: s[s > 0].mean()),
-        avg_loss=("pnl", lambda s: s[s < 0].mean()),
-    )
 
     return {
         "pnl": data.pivot_table(
@@ -614,8 +617,9 @@ def dte_tables(closed, summary):
             values="win", index="Strategy", columns="DTE_bucket",
             aggfunc="mean", observed=False,
         ),
-        "expectancy": add_expectancy(grouped).reset_index().pivot(
-            index="Strategy", columns="DTE_bucket", values="expectancy",
+        "profit_factor": data.pivot_table(
+            values="pnl", index="Strategy", columns="DTE_bucket",
+            aggfunc=_profit_factor, observed=False,
         ),
     }
 
@@ -711,8 +715,9 @@ def board_strategy_dte(closed, summary):
                   center=0, cbar_label="Avg P&L ($)")
     panel_heatmap(tables["win"], axes[1], "Win rate", ".2f", SEQUENTIAL,
                   cbar_label="Win rate", show_names=False)
-    panel_heatmap(tables["expectancy"], axes[2], "Expectancy", ".0f", DIVERGING,
-                  center=0, cbar_label="Expectancy ($)", show_names=False)
+    panel_heatmap(tables["profit_factor"], axes[2], "Profit factor", ".2f", DIVERGING,
+                  center=1, cbar_label="Gross win / gross loss", show_names=False,
+                  robust=True)
 
     save(fig, "04_strategy_dte")
 

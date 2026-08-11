@@ -99,6 +99,11 @@ backtest-all: backtest backtest-proxy
 chart:
 	$(PY) scripts/chart_backtest.py $(ARGS)
 
+# ── chart both real + proxy results (no re-run) ─────────────────────────────────
+.PHONY: chart-all
+chart-all:
+	$(PY) scripts/chart_backtest.py --csv backtests/results.csv --csv backtests/proxy_results.csv $(ARGS)
+
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
 baseline:
@@ -156,6 +161,8 @@ help:
 	@echo ""
 	@echo "  make chart         render backtest charts → backtests/charts/"
 	@echo "  make chart ARGS=\"--csv backtests/results.csv --csv backtests/proxy_results.csv\"  combine multiple CSVs"
+	@echo ""
+	@echo "  make chart-all     chart results.csv + proxy_results.csv together (no re-run)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"
