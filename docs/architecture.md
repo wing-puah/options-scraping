@@ -321,12 +321,12 @@ model-agnostic via `--engine`: `claude` (default) uses `claude -p` + `claude.md`
 AnalysisClaude; `codex` uses `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable
 settings (engines, retries, timeout, fetch defaults, sheet schema, output contract) live in
 `scripts/analysis_pipeline/config.py`; the model is overridable via `--model` (default:
-claude→`claude-opus-4-8`, codex→its configured model). The prepared rollup carries a
+claude→`claude-opus-5`, codex→its configured model). The prepared rollup carries a
 direction-agnostic conviction `Score` (0–14 raw) per ticker, ranked on **extrinsic premium**
 (intrinsic stripped so deep-ITM financing flow can't buy rank) with an `otm` component crediting
 OTM-probability-weighted extrinsic flow and an `OIConfirm` component (±) crediting/demoting
 next-day OI open-confirmation (ref-03; neutral-on-missing, but in practice live runs happen on
-D+1 after enrich_oi has landed, so live rows DO carry it — measured 91% populated), plus
+D+1 after enrich*oi has landed, so live rows DO carry it — measured 91% populated), plus
 pollution/exposure columns (`Ext$`/`Fin%`/`ΔNot$`/`Hzn`/`OTM$`),
 direction-bearing vol columns (`IVspr`/`IVskew`, not scored), a per-ticker `IVpct` column
 (Barchart's options-overview IV percentile — share of the prior-1yr days with IV below today's,
@@ -338,14 +338,30 @@ not directional), and a market-level **Hedge pressure** score (0–100) — see
 confidence cap — folded into the play cell's bracket line, upper-cased, e.g. `[DIRECTIONAL]`)
 and emits `horizon` (one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in
 the cited evidence) as its own column beside `play`. Confidence is no longer a single label:
-each play emits a `score` object of THREE model-scored Step-5 rubric components
-(`{flow, dealer, vol}` integer points, intent-weighted: Price-heavy for DIRECTIONAL, Vol-heavy
-for VOLATILITY) plus required `key_level` + `direction` fields; the other two components,
+each play emits a `score` object carrying the ONE model-scored Step-5 rubric component
+(`{vol}` integer points, intent-weighted: max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for
+VOLATILITY) plus required `key_level` + `direction` fields; the other two components,
 `price` and `catalyst`, are pipeline-computed from fetched price-history and earnings-date
 data grounded by `key_level`/`direction` (`lib/price_catalyst.py`, enriched onto the compiled
-flow file by `scripts/collector/fetch_price_catalyst.py`). All five land on the row as
-`score_flow`/`score_dealer`/`score_price`/`score_vol`/`score_catalyst` alongside the summed
-`score_total` (0–100; ≥70 strong, 40–69 moderate, <40 weak — bands read, never emitted). The analysis also emits a
-market-level `themes` array (`{theme, tickers, breadth, read}`) grouping the day's flow into
+flow file by `scripts/collector/fetch_price_catalyst.py`). All three land on the row as
+`score_price`/`score_vol`/`score_catalyst` alongside the summed
+`score_total` (0–50, or 0–55 for VOLATILITY intent; ≥35 strong, 20–34 moderate, <20 weak —
+bands read, never emitted).
+**v4 trim (2026-08-11):** `score_flow` and `score_dealer` were dropped from the prompt AND from
+`ROW_COLUMNS` — the ML combination study found the score block adds nothing reproducible to
+decisions, and `score_dealer` was judged off a vol-snapshot proxy rather than real per-name
+dealer gamma (`score_vol` is explicitly exempt). The cut-over is the repo's standard \*\*`vN*`
+rename**: the live tabs were renamed in place (`v3_AnalysisClaude`, `v3_BacktestResults`,
+`v3_BacktestProxy`) and the pipeline recreates empty ones, so every v4 tab header is written
+fresh from `ROW_COLUMNS`— no positional migration, no blank placeholder columns, and no change
+to`GOOGLE_SPREADSHEET_ID`or to any tab name in code.`BaselineDaily`is deliberately NOT
+versioned, so the regime history carries across the bump. To run against the frozen v3 book,
+pass`--tab v3_AnalysisClaude`.
+The two names are **kept in `RESULT_COLUMNS`** (`scripts/backtest/core.py`)
+so the study loaders that name them keep working on pooled v3+v4 exports — blank on v4 rows.
+v4's 0–50 `score_total`is **not comparable to v3's 0–100**; the incomparability is deliberate,
+and`score_total`is in any case decision-irrelevant (a deterministic tie-break only).
+The analysis also emits a
+market-level`themes` array (`{theme, tickers, breadth, read}`) grouping the day's flow into
 narrative clusters — presentation-only, never a multiplier on any play's score. `--days N`
 (default 5) appends a multi-day persistence section tracking recurring names.

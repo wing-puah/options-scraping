@@ -44,6 +44,17 @@ numbers they cannot vouch for. That is the gate working; do not route around it.
 Paths in `archive/` predate 2026-08-11 and still say `backtests/study/`; the code
 they name is now under `scripts/backtest_study/`.
 
+## Companion documents
+
+| Document | What it holds |
+|---|---|
+| [`../deployment-rules.md`](../deployment-rules.md) | The operator card — what to deploy, what to veto, how to exit. Instructions only. |
+| [`deployment-evidence.md`](deployment-evidence.md) | Why each of those rules exists: derivation, validation tables, caveats, and the **open pre-registered rollback triggers**. |
+| [`ml-plan.md`](ml-plan.md) | The ML combination-search plan (RUN 2026-08-11, null result). |
+
+The evidence file is a *summary of* this log, not a second source — when the two
+disagree, the log wins.
+
 ## Section index
 
 | Section | File |
@@ -84,3 +95,5 @@ they name is now under `scripts/backtest_study/`.
 | 2026-07-22 addenda 11–14 — bear_put: cancellation, structure-keyed trail, pre-registration, DEMOTE verdict | [current.md](current.md) |
 | 2026-07-22 — Feb–Apr 2026 bear holdout: coverage + backfill status | [current.md](current.md) |
 | 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [current.md](current.md) |
+| 2026-08-12 — edge status after close-out: real, narrow, NOT selection-tunable | [current.md](current.md) |
+| 2026-08-12 — bear MFE give-back below the ratchet threshold (candidate, not run) | [current.md](current.md) |

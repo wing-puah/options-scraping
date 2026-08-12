@@ -204,7 +204,10 @@ the user's portfolio size, risk tolerance, or complete volatility surface.
   prior-1yr days with IV below today's, 0–100) pick debit vs credit once direction
   is set — it normalises across names where the market VIX cannot. **High `IVpct`
   (≥70%)** on a trend name in a slow, positive-gamma grind is the **TF-S** case:
-  sell a bull put spread (bullish) or bear call spread (bearish) rather than buy a debit into rich IV.
+  sell a bull put spread if **bullish** rather than buy a debit into rich IV. If
+  **bearish**, the credit expression is unavailable — `bear_call_spread` is
+  intake-vetoed (Attempt 13, −0.82 mean / 17% win) — so take a bear put debit
+  spread or pass.
   **Low `IVpct` (≤30%)** → debit / long premium (TF). Blank (no scraped row) → fall
   back to the vol-snapshot proxy.
 - Default the structure's expiry to **≥45 DTE** (framework Step 4 DTE
@@ -274,21 +277,24 @@ Rules:
 
 ## 7. Confidence And Language
 
-Confidence is emitted numerically, not as a label: a `score` object of three
-integer component points, `{ flow, dealer, vol }` (Step 5 rubric), plus two
+Confidence is emitted numerically, not as a label: a `score` object of ONE
+integer component point, `{ vol }` (Step 5 rubric), plus two
 REQUIRED sibling fields — `key_level` (the specific price threshold the
 play's own `structure`/`invalidation`/`trigger` already implies) and
-`direction` (`bullish|bearish|neutral`). The other two Step-5 factors, `price`
-and `catalyst`, are no longer model-emitted — the pipeline computes them from
+`direction` (`bullish|bearish|neutral`). `flow` and `dealer` were retired in
+**v4** (the score block measured decision-irrelevant; `dealer` was judged off a
+vol-snapshot proxy, not real dealer data). The other two Step-5 factors, `price`
+and `catalyst`, are not model-emitted — the pipeline computes them from
 fetched price-history and earnings-date data, grounded by `key_level`/
-`direction` instead of model recall (`lib/price_catalyst.py`). Emit the three
-components plus `key_level`/`direction` only — never a total; the pipeline
-sums all five into `score_total` (0–100). Bands are interpretation of that
-total, not an output:
+`direction` instead of model recall (`lib/price_catalyst.py`). Emit `vol`
+plus `key_level`/`direction` only — never a total; the pipeline
+sums all three into `score_total` (0–50; 0–55 for VOLATILITY intent — **not**
+comparable to a v3 row's 0–100). Bands are interpretation of that
+total on the v4 scale, not an output:
 
-- Strong (≥70): repeated, cross-confirmed, and directionally coherent evidence.
-- Moderate (40–69): good evidence with a material counter-signal.
-- Weak (<40): isolated or ambiguous flow.
+- Strong (≥35): repeated, cross-confirmed, and directionally coherent evidence.
+- Moderate (20–34): good evidence with a material counter-signal.
+- Weak (<20): isolated or ambiguous flow.
 
 Only strong- and moderate-scoring ideas should become plays. Use calibrated
 language such as "suggests", "supports", and "indicates"; avoid presenting flow

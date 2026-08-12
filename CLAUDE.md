@@ -193,8 +193,28 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
   BacktestResults: skip_reason + fallback-chain proxy verdict; result columns mirror
   BacktestResults)
 - **BaselineDaily** — `build_baseline.py` (one market-aggregate row per trading date; regime
-  baseline read back by `analysis_pipeline/fetch.py`)
+  baseline read back by `analysis_pipeline/fetch.py`). NOT versioned — it carries across
+  prompt versions, so a version bump never resets the regime history.
 - **\_meta** — `sheets_client.py` (dedup hashes)
+
+**Prompt versions and the `vN_` tabs.** Any change to the analysis prompt or its inputs is a
+**version bump**: the live tabs are renamed in place with a `vN_` prefix (`v3_AnalysisClaude`,
+`v3_BacktestResults`, `v3_BacktestProxy`) and the pipeline recreates empty ones on next append.
+This is a rename, NOT a new spreadsheet — `GOOGLE_SPREADSHEET_ID` and every tab name in code
+stay unchanged. The point is that rows from two prompt versions are never pooled: a backtest
+conclusion derived on vN does not automatically transfer to vN+1.
+
+- **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped from the prompt, so
+  `ROW_COLUMNS` is 25 and `score_total` runs 0–50 (0–55 for VOLATILITY intent) — **not**
+  comparable to v3's 0–100.
+- **v3 is frozen** as the evidence base for every shipped rule in
+  `config/deployment-rules.md`. To run anything against it, pass
+  `--tab v3_AnalysisClaude`; a bare `python3 -m scripts.backtest` reads the empty v4 tab.
+- Studies under `scripts/backtest_study/` read CSV exports in `backtests/to_evaluate/` by
+  filename, so they are unaffected by the rename.
+- `RESULT_COLUMNS` (`scripts/backtest/core.py`) deliberately KEEPS `score_flow`/`score_dealer`
+  even though v4 never populates them — the results schema must stay stable across eras or the
+  study loaders break on pooled exports.
 
 ## Invariants (do not regress)
 
@@ -218,8 +238,10 @@ The `/options` skill routes as follows:
   `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable settings live in
   `scripts/analysis_pipeline/config.py`; `--model` overrides the engine model. The full data
   contract — rollup conviction `Score`/`OIConfirm`/pollution columns, `IVspr`/`IVskew`/`IVpct`,
-  hedge pressure, per-play `flow_intent`/`horizon`/`key_level`/`direction`, the five
-  `score_*` components + `score_total` bands, and the `themes` array — is documented in
+  hedge pressure, per-play `flow_intent`/`horizon`/`key_level`/`direction`, the three
+  `score_*` components (v4 dropped `score_flow`/`score_dealer`; only `score_vol` is
+  model-emitted, `score_price`/`score_catalyst` are pipeline-computed) + `score_total`
+  bands (v4: 0–50, NOT comparable to v3's 0–100), and the `themes` array — is documented in
   `docs/architecture.md` §"/options analyze" and `config/conviction-score.md`; read those only
   when changing the pipeline or its schema, not to run it
 - `modes/summary.md` — reads latest rows from AnalysisClaude + AnalysisGPT, formats for display

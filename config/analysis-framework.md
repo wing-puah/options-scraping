@@ -215,7 +215,7 @@ For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long 
 
 **Binding rule:** Select the playbook from the market read, determine the view from the playbook's environment, then select the structure from the view + IV — never the reverse. A structure that contradicts the playbook's bias is invalid. Default to **defined-risk** structures (spreads, condors, butterflies). Naked calls or puts require very low IV + very high conviction; when VVIX is elevated, defined-risk is mandatory.
 
-**Decoupling rule (2026-07-13):** conviction level must never influence the structure choice, in either direction — do not "de-risk" a high-conviction thesis into a credit spread, and do not reach for extra leverage on a weak one. Structure comes ONLY from the playbook + IV ladder above; conviction is expressed later, in Step 5's score (and, downstream, sizing). Backtest evidence (v2+v3): credit structures were systematically assigned to the highest-scoring theses (mean score_total 66.8 vs 55.8 debit; bear_call the highest at 69.9) and those credits lost — the score→structure drift, not the theses, drove the drag.
+**Decoupling rule (2026-07-13):** conviction level must never influence the structure choice, in either direction — do not "de-risk" a high-conviction thesis into a credit spread, and do not reach for extra leverage on a weak one. Structure comes ONLY from the playbook + IV ladder above; conviction is expressed later, in Step 5's score (and, downstream, sizing). Backtest evidence (v2+v3): credit structures were systematically assigned to the highest-scoring theses (mean score_total 66.8 vs 55.8 debit; bear_call the highest at 69.9 — all on the retired v3 0–100 scale, not comparable to a v4 total) and those credits lost — the score→structure drift, not the theses, drove the drag.
 
 > ⚠️ **bear_call_spread suspended (Attempt 13, 2026-07-13).** The backtest
 > intake vetoes `bear_call_spread` (`entry.structure_veto`, config/backtest.yml):
@@ -269,26 +269,42 @@ Format each play as:
 Confidence is conviction in the play's **own thesis**, scored on evidence
 quality. It is **independent of `flow_intent`** — no intent caps it — but the
 factor *weights* depend on the intent: a directional play lives or dies on price,
-a volatility play on IV. The model emits only three of the five component
-scores — a `score` object of `{ flow, dealer, vol }` integer points — plus two
+a volatility play on IV. The model emits only ONE of the three surviving
+component scores — a `score` object of `{ vol }` integer points — plus two
 REQUIRED sibling fields, `key_level` (the specific price threshold the play's
 own `structure`/`invalidation`/`trigger` already implies) and `direction`
-(`bullish|bearish|neutral`). The remaining two factors, `price` and `catalyst`,
-are no longer model judgment: the pipeline computes them from fetched
+(`bullish|bearish|neutral`). The other two factors, `price` and `catalyst`,
+are not model judgment: the pipeline computes them from fetched
 price-history and earnings-date data, grounded by `key_level`/`direction`
 rather than the model's own recall (`lib/price_catalyst.py`). The pipeline
-sums all five into `score_total` (0–100) downstream.
+sums all three into `score_total` downstream.
+
+> **v4 (2026-08-11) — the rubric is now THREE factors, and the scale changed.**
+> `Flow confirmation` and `Dealer alignment` were removed from the prompt and
+> from the analysis-row schema. The ML combination study found the score block
+> adds nothing reproducible to any decision (0 of 15 model × strategy cells beat
+> the deployment ladder), and `Dealer alignment` was never judged off real
+> per-name dealer gamma — only off the vol-snapshot proxy, which is the concern
+> the old calibration note below raised. `Vol alignment` is explicitly **exempt**
+> from the trim.
+>
+> Consequence: `score_total` runs **0–50** for DIRECTIONAL / HEDGE / SYNTHETIC
+> STOCK and **0–55** for VOLATILITY (whose surviving maxima are 10+25+20). It is
+> **NOT comparable to a v3 row's 0–100 total** — that incomparability is
+> deliberate: it stops anyone pooling v3 and v4 scores. Nothing was rescaled, and
+> nothing needed to be: `score_total` was already established as
+> decision-irrelevant and survives only as a deterministic tie-break.
 
 | Factor                 | Directional | Volatility | What earns it                                                                                                |
 | ---------------------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| **Flow confirmation**  | 25          | 20         | repetition / clustering, cross-dataset overlap (unusual + flow), extrinsic-premium concentration             |
-| **Dealer alignment**   | 25          | 25         | dealer gamma supports the play — short gamma behind a trend/breakout; long gamma behind a pin                |
 | **Price confirmation** | 20          | 10         | price action confirms — key level held or broken with follow-through, structure intact                       |
 | **Vol alignment**      | 15          | 25         | vol conditions support the *thesis*, independent of the structure chosen: realized-vs-implied gap, term structure, skew, and the expected IV path agree with what the play needs to happen |
 | **Catalyst support**   | 15          | 20         | a dated catalyst within the horizon corroborates the thesis (earnings, macro print, product event)           |
+| ~~Flow confirmation~~  | —           | —          | *retired v4 (was 25 / 20): repetition / clustering, cross-dataset overlap, extrinsic-premium concentration*   |
+| ~~Dealer alignment~~   | —           | —          | *retired v4 (was 25 / 25): judged off the vol-snapshot proxy, never real per-name GEX*                        |
 
-**Flow confirmation**, **Dealer alignment**, and **Vol alignment** are the
-model-scored rows above; **Price confirmation** and **Catalyst support** are
+**Vol alignment** is the only model-scored row above; **Price confirmation** and
+**Catalyst support** are
 code-computed from fetched data and need the play's `key_level`/`direction` to
 work — see `lib/price_catalyst.py` for the exact rule rather than restating it
 here. Both are now grounded in rollup-visible reads: **Price confirmation**
@@ -317,7 +333,7 @@ built — it typically totals Weak and is flagged rather than traded.
 
 **Per-name directional vol read (`IVspr` / `IVskew`).** The rollup carries two
 direction-bearing vol columns (Lin, Lu & Driessen 2013) — use them to confirm
-*Flow confirmation* and *Vol alignment*, never as standalone triggers:
+*Vol alignment* and the directional thesis, never as standalone triggers:
 
 - **`IVspr`** = OI-weighted (call IV − put IV) across matched strike/expiry pairs
   (10–60 DTE). **Positive → bullish** information (a positive predictor of equity
@@ -336,28 +352,33 @@ economically-sized **OTM** flow — the leveraged informed bet — but it is
 direction-agnostic; read direction from `IVspr`/`IVskew` and the sentiment
 columns, never from `OTM$`.
 
-Bands are read off the summed total, never emitted directly: **Strong (was
-"High") ≥ 70 · Moderate ("Medium") 40–69 · Weak ("Low") < 40.**
+Bands are read off the summed total, never emitted directly. On the **v4 0–50**
+scale: **Strong ≥ 35 · Moderate 20–34 · Weak < 20.** (v3 rows, on the retired
+0–100 scale, banded ≥ 70 / 40–69 / < 40 — do not compare the two.)
 
-> ⚠️ **CALIBRATION — `score_total` is unvalidated.** No backtested row carries
-> the numeric score yet (every backtested play predates the scoring redesign),
-> and the retired high/medium/low labels this rubric replaced showed **no
-> discrimination** on those rows (share reaching +30% MFE: high 68% / medium
-> 72% / low 77%). Validating `score_total` against outcomes is the load-bearing
-> follow-up (roadmap: alpha attribution), not a formality. Note also that
-> `score_dealer` is currently judged off the vol-snapshot proxy, not real
-> per-name GEX.
+> ⚠️ **CALIBRATION — `score_total` is decision-irrelevant, not merely
+> unvalidated.** Measured across the full pooled book it does not separate
+> outcomes; the 2026-07-19 monotone bands turned out to be a
+> structure×regime composition artifact, and the ML combination search
+> (2026-08-11) could not recover any signal from the score block. It survives
+> only as a **deterministic tie-break** in `config/deployment-rules.md`, never as
+> a gate. The retired high/medium/low labels this rubric replaced showed the same
+> lack of discrimination (share reaching +30% MFE: high 68% / medium 72% / low
+> 77%). The `score_dealer` vol-snapshot-proxy concern that used to sit here is
+> **resolved by removal** — the component no longer exists.
 
 Guardrails — these override the component scores *downward* only, by
-withholding points rather than by writing a label:
+withholding points rather than by writing a label. Under v4 the only component
+the model can withhold is `vol`; `price` and `catalyst` are pipeline-computed
+and not the model's to set:
 
 - If the play's `alternative_interpretation` is at least as plausible as the
-  thesis → hold the total under 40 (zero the `price` and `catalyst` components,
-  or drop the play). The benign-explanation check is mandatory.
+  thesis → withhold the `vol` points, or drop the play. The benign-explanation
+  check is mandatory.
 - Short-dated-only evidence (≤14 DTE) cannot support a multi-week thesis →
-  hold the total under 40, or re-tag as gamma/event flow.
+  withhold the `vol` points, or re-tag as gamma/event flow.
 - Polluted underlyings (convertible-hedge names, levered/inverse ETFs, miners as
-  crypto proxies) without cross-asset confirmation → hold the total under 40.
+  crypto proxies) without cross-asset confirmation → withhold the `vol` points.
 
 `horizon` (`14|60|180|720`, Step 3/4) is emitted as its own column beside
 `play`, not folded into the play cell's bracket line — the bracket now carries
@@ -410,9 +431,9 @@ carries `ticker`, `asset_class` (stock|etf), `pattern` (the Step-2 playbook),
 its own per-play `regime`/`signal` (never copies of the market read),
 `structure`, `thesis`, `trigger`, `invalidation`, `flow_intent` (Step 3),
 `horizon` (14|60|180|720), a required `alternative_interpretation` (the
-benign-explanation record), a `score` object of the three model-scored
-Step-5 components (`{flow, dealer, vol}` — no total), and the required
+benign-explanation record), a `score` object carrying the single model-scored
+Step-5 component (`{vol}` — no total), and the required
 `key_level` + `direction` fields that ground the two pipeline-computed
 components (`price`, `catalyst` — `lib/price_catalyst.py`). Confidence
-labels/bands are never emitted; the pipeline sums all five components into
-`score_total` downstream.
+labels/bands are never emitted; the pipeline sums all three components into
+`score_total` (0–50; 0–55 for VOLATILITY intent) downstream.

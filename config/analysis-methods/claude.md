@@ -294,8 +294,10 @@ combined table. Apply that table — do not restate it. The judgment on top of i
   set — it is the "rich vs cheap" read that normalises across names (40% IV is
   rich on KO, cheap on NVDA), which the market VIX cannot. A trend name in a
   slow, positive-gamma grind with **high `IVpct` (≥70%)** is the **TF-S** case:
-  sell a bull put spread (bullish) or bear call spread (bearish), because a debit into rich IV pays
-  for premium the slow move can't overcome. **Low `IVpct` (≤30%)** → IV cheap →
+  sell a bull put spread if **bullish**, because a debit into rich IV pays
+  for premium the slow move can't overcome. If **bearish**, the credit
+  expression is unavailable — `bear_call_spread` is intake-vetoed (Attempt 13,
+  −0.82 mean / 17% win) — so take a bear put debit spread or pass. **Low `IVpct` (≤30%)** → IV cheap →
   debit / long premium (TF). `IVpct` is Barchart's IV percentile (share of the
   prior-1yr days with IV below today's); blank when the name has no scraped row —
   then fall back to the vol snapshot proxy.
@@ -399,31 +401,35 @@ line, which now carries only `flow_intent`.
 ## Confidence and language
 
 Confidence is no longer a single label — the output is the framework's Step 5
-rubric, but the model now emits only three of its five components: a `score`
-object of `{ flow, dealer, vol }` integer points, sized by the intent-set
+rubric, and as of **v4** the model emits only ONE of its three surviving
+components: a `score` object of `{ vol }` integer points, sized by the intent-set
 weights, plus two REQUIRED sibling fields — `key_level` (the specific price
 threshold the play's own `structure`/`invalidation`/`trigger` already implies)
-and `direction` (`bullish|bearish|neutral`). The other two Step-5 factors,
-`price` and `catalyst`, are no longer model judgment — the pipeline computes
+and `direction` (`bullish|bearish|neutral`). (`flow` and `dealer` were retired in
+v4 — the score block measured decision-irrelevant, and `dealer` was only ever
+judged off the vol-snapshot proxy.) The other two Step-5 factors,
+`price` and `catalyst`, are not model judgment — the pipeline computes
 them from fetched price-history and earnings-date data, grounded by
 `key_level`/`direction` instead of the model's own recall
-(`lib/price_catalyst.py`). Emit the three components plus `key_level`/
-`direction`; do not compute or emit a total — the pipeline sums all five into
-`score_total` (0–100) downstream. Confidence is **independent of
+(`lib/price_catalyst.py`). Emit `vol` plus `key_level`/
+`direction`; do not compute or emit a total — the pipeline sums all three into
+`score_total` (0–50; 0–55 for VOLATILITY intent, **not** comparable to a v3 row's
+0–100) downstream. Confidence is **independent of
 `flow_intent`**: a HEDGE or DIRECTIONAL play scores wherever its evidence puts
 it. The method emphasis on what each band of the *summed total* looks like in
-this data (interpretation only — never emitted directly):
+this data (interpretation only — never emitted directly; bands are on the v4
+0–50 scale):
 
-- **Strong (≥70)** — repeated, cross-confirmed, coherent, and survives the
+- **Strong (≥35)** — repeated, cross-confirmed, coherent, and survives the
   benign-explanation check.
-- **Moderate (40–69)** — solid evidence with a material counter-signal, which
+- **Moderate (20–34)** — solid evidence with a material counter-signal, which
   is named in the play text.
-- **Weak (<40)** — isolated or ambiguous; never a conviction bet. A weak idea
+- **Weak (<20)** — isolated or ambiguous; never a conviction bet. A weak idea
   may still fill a coverage slot, but it must be framed as positioning, name the
   unresolved conflict in its text, and gate its trigger on the missing
   confirmation (e.g. a crypto proxy waiting on BTC/IBIT agreement). Guardrails
-  hold the total here by withholding points (typically zeroing `price` and
-  `catalyst`), not by writing a label.
+  hold the total here by withholding the `vol` points (`price` and `catalyst` are
+  pipeline-computed and not yours to set), not by writing a label.
 
 Strong and moderate ideas are the real plays; weak entries exist only to
 satisfy the coverage floor honestly rather than by inflating the score. Use

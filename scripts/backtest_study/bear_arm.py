@@ -68,6 +68,31 @@ DEBIT_GRID = [
     ("BE ratchet @.75", {**DEBIT_PROD, "be_after": 0.75}),
     ("BE @.50 + trail .50 trig .75",
      {**DEBIT_PROD, "trig": 0.75, "trail": 0.50, "be_after": 0.50}),
+    # DEVIATION from the frozen grid, added 2026-08-11 as a single pre-registered
+    # CONFIRMATION (not a search): production's shipped BEAR_HE cell adds a
+    # 0.50/0.50 trail, so a bear debit on a BEAR_HE date would run BE *and* that
+    # trail — a combination the frozen grid never evaluated (it only tested BE +
+    # trail at trigger .75). Decision rule fixed before running: gain holds →
+    # stack both in production; degrades/flips/ambiguous → suppress be_after
+    # inside BEAR_HE so each rule stays inside its measured envelope.
+    ("BE @.50 + trail .50 trig .50",
+     {**DEBIT_PROD, "trig": 0.50, "trail": 0.50, "be_after": 0.50}),
+    # DEVIATION from the frozen grid, added 2026-08-12 as a pre-registered
+    # THRESHOLD SWEEP (four named configs, not a search). Motivation is a
+    # measured reach gap, not a hunt: 124 bear-debit rows peaked between +1%
+    # and +50% and lost -$77.2k, entirely BELOW the shipped @.50 arming point
+    # (current.md §"bear MFE give-back"). The census of peaks does not price
+    # the cost on winners that dip back through entry after arming, which is
+    # exactly what this replay exists to measure. Decision rule fixed before
+    # running: a threshold ships only on the standing bear-arm criteria
+    # (pooled CI excludes zero, ex-Mar-Apr-2025 positive, 2026 alone positive,
+    # every LOO fold positive, right-signed in both pricing tiers) AND a clean
+    # leak guard on the non-bear debit book. If none clears, the pre-committed
+    # reading is that bear give-back is structural.
+    ("BE ratchet @.20", {**DEBIT_PROD, "be_after": 0.20}),
+    ("BE ratchet @.25", {**DEBIT_PROD, "be_after": 0.25}),
+    ("BE ratchet @.30", {**DEBIT_PROD, "be_after": 0.30}),
+    ("BE ratchet @.40", {**DEBIT_PROD, "be_after": 0.40}),
     ("tef null", {**DEBIT_PROD, "tef": None}),
     ("tef .85", {**DEBIT_PROD, "tef": 0.85}),
     ("sl .50 (tighter)", {**DEBIT_PROD, "sl": 0.50}),

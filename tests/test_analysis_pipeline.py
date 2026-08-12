@@ -63,15 +63,17 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
 
 
 def test_analysis_to_rows_score_components_and_total():
-    # score_price/score_catalyst are no longer model-emitted (Part B4) — they come
+    # score_price/score_catalyst are not model-emitted (Part B4) — they come
     # from the pipeline-computed `play_scores` dict (lib.price_catalyst), keyed by
-    # upper-cased ticker, merged in by analysis_to_rows/_score_cells.
+    # upper-cased ticker, merged in by analysis_to_rows/_score_cells. As of v4 the
+    # model emits `vol` ONLY: `flow`/`dealer` were dropped from both the prompt
+    # contract and ROW_COLUMNS, so any leftover keys on `score` are ignored.
     analysis = {
         "regime": "BULL",
         "plays": [
             {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
              "thesis": "trend", "key_level": 600, "direction": "bullish",
-             "score": {"flow": 22, "dealer": 20, "vol": 10}},
+             "score": {"vol": 10}},
         ],
     }
     play_scores = {"SPY": {"score_price": 15, "score_catalyst": 8}}
@@ -80,14 +82,16 @@ def test_analysis_to_rows_score_components_and_total():
     spy = rows[1]
     # No confidence band in the bracket anymore — the score lives in its own columns.
     assert spy["play"] == "bull call 600/610 | trend"
-    assert spy["score_flow"] == 22 and spy["score_catalyst"] == 8
+    assert spy["score_vol"] == 10 and spy["score_catalyst"] == 8
     assert spy["score_price"] == 15
-    assert spy["score_total"] == 75  # model {flow,dealer,vol} + computed {price,catalyst} summed
+    assert spy["score_total"] == 33  # model {vol} + computed {price,catalyst}, 0-50 scale
+    # v4: the two retired components are gone from the schema entirely.
+    assert "score_flow" not in spy and "score_dealer" not in spy
 
 
-def test_analysis_to_rows_score_defaults_blank_without_play_scores():
-    # If play_scores is omitted/absent for a ticker (e.g. enrichment not yet run
-    # for that date), score_price/score_catalyst degrade to blank, never crash.
+def test_analysis_to_rows_ignores_retired_score_components():
+    # A model that still emits the v3 `flow`/`dealer` keys must not leak them
+    # into the row or into score_total — the v4 total is a 3-factor 0-50 sum.
     analysis = {
         "regime": "BULL",
         "plays": [
@@ -97,8 +101,24 @@ def test_analysis_to_rows_score_defaults_blank_without_play_scores():
     }
     rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
     spy = rows[1]
+    assert list(spy.keys()) == ROW_COLUMNS
+    assert spy["score_total"] == 10  # vol only — flow/dealer are not summed
+
+
+def test_analysis_to_rows_score_defaults_blank_without_play_scores():
+    # If play_scores is omitted/absent for a ticker (e.g. enrichment not yet run
+    # for that date), score_price/score_catalyst degrade to blank, never crash.
+    analysis = {
+        "regime": "BULL",
+        "plays": [
+            {"ticker": "SPY", "asset_class": "etf", "structure": "bull call 600/610",
+             "thesis": "trend", "score": {"vol": 10}},
+        ],
+    }
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
+    spy = rows[1]
     assert spy["score_price"] == "" and spy["score_catalyst"] == ""
-    assert spy["score_total"] == 52  # only flow+dealer+vol present
+    assert spy["score_total"] == 10  # only vol present
 
 
 def test_analysis_to_rows_partial_score_and_bracket_is_flow_intent_only():
@@ -107,7 +127,7 @@ def test_analysis_to_rows_partial_score_and_bracket_is_flow_intent_only():
         "plays": [
             {"ticker": "SMH", "asset_class": "etf",
              "structure": "bear put spread 560/500", "thesis": "semi hedge",
-             "flow_intent": "Hedge", "horizon": 60, "score": {"flow": 12}},
+             "flow_intent": "Hedge", "horizon": 60, "score": {"vol": 12}},
         ],
     }
     rows = analysis_to_rows(analysis, "2026-06-11", "2026-06-11", "2026-06-11")
@@ -117,8 +137,8 @@ def test_analysis_to_rows_partial_score_and_bracket_is_flow_intent_only():
     # horizon is its own dedicated column, not folded into the bracket.
     assert smh["horizon"] == "60"
     # Partial score: present component + its total, missing components blank.
-    assert smh["score_flow"] == 12 and smh["score_total"] == 12
-    assert smh["score_dealer"] == "" and smh["score_vol"] == ""
+    assert smh["score_vol"] == 12 and smh["score_total"] == 12
+    assert smh["score_price"] == "" and smh["score_catalyst"] == ""
     assert list(smh.keys()) == ROW_COLUMNS
 
 
@@ -190,7 +210,7 @@ def test_engine_registry_covers_both_engines():
     assert set(_RUNNERS) == set(ENGINES)  # every engine has a runner
     assert ENGINES["claude"].tab == "AnalysisClaude"
     assert ENGINES["codex"].tab == "AnalysisGPT"
-    assert ENGINES["claude"].default_model == "claude-opus-4-8"
+    assert ENGINES["claude"].default_model == "claude-opus-5"
     assert ENGINES["codex"].default_model is None  # falls back to codex's config
 
 

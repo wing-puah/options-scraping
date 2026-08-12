@@ -178,6 +178,108 @@ def test_exit_basis_in_both_key_orders():
     assert _PROXY_KEY_ORDER[-1] == "exit_basis"
 
 
+# ── the structure override: be_after on bear debits only (2026-08-11) ─────────
+#
+# The NARROWNESS is the finding. `be_after: 0.50` on the non-bear debit book
+# measured +0.234 → +0.209 — a LOSS — so every test below that asserts the
+# ratchet is ABSENT is guarding a measured result, not a style preference.
+
+@pytest.fixture
+def struct_cfg(bear_cfg):
+    """bear_cfg + the shipped structure_exit block, incl. the BEAR_HE
+    suppression that `config/backtest.yml` ships."""
+    bear_cfg["structure_exit"] = {
+        "enabled": True, "cells": {"bear_debit": {"be_after": 0.50}},
+    }
+    bear_cfg["regime_exit"]["cells"]["BEAR_HE"]["be_after"] = None
+    return bear_cfg
+
+
+@pytest.mark.parametrize("structure", ["bear_put_spread", "long_put"])
+def test_bear_debit_gets_the_ratchet(struct_cfg, structure):
+    eff = _effective_sim_cfg(struct_cfg, entry_net=2.50,
+                             signal_date="2024-01-10", structure=structure)
+    assert eff["be_after"] == 0.50
+    # Unnamed keys keep their PROD values.
+    assert eff["profit_target"] == 0.90
+    assert eff["stop_loss"] == 0.75
+
+
+@pytest.mark.parametrize("structure", ["bull_call_spread", "long_call",
+                                       "bull_put_spread", ""])
+def test_non_bear_debit_never_gets_the_ratchet(struct_cfg, structure):
+    """+0.234 → +0.209 on this population. Leaking the rule here loses money."""
+    eff = _effective_sim_cfg(struct_cfg, entry_net=2.50,
+                             signal_date="2024-01-10", structure=structure)
+    assert eff.get("be_after") is None
+
+
+def test_credit_never_gets_the_ratchet(struct_cfg):
+    """Even a bear structure: the credit side showed no reproducible change."""
+    eff = _effective_sim_cfg(struct_cfg, entry_net=-1.20,
+                             signal_date="2024-01-10",
+                             structure="bear_put_spread")
+    assert eff.get("be_after") is None
+    assert eff["profit_target"] == 0.65
+
+
+def test_bear_he_suppresses_the_ratchet(struct_cfg):
+    """A3, 2026-08-11: on a BEAR_HE date the 0.50/0.50 trail dominates the
+    ratchet (0 be_stop exits when stacked), so regime merges LAST and nulls it.
+    Each rule then stays inside the envelope it was measured in."""
+    eff = _effective_sim_cfg(struct_cfg, entry_net=2.50,
+                             signal_date="2024-03-20",
+                             structure="bear_put_spread")
+    assert eff["be_after"] is None
+    assert eff["trailing_stop_trigger"] == 0.50
+    assert eff["trailing_stop_pct"] == 0.50
+
+
+def test_merge_order_is_base_structure_regime(struct_cfg):
+    """Same structure, two dates: only the regime cell differs, and it wins."""
+    outside = _effective_sim_cfg(struct_cfg, 2.50, "2024-01-10", "long_put")
+    inside = _effective_sim_cfg(struct_cfg, 2.50, "2024-03-20", "long_put")
+    assert (outside["be_after"], inside["be_after"]) == (0.50, None)
+
+
+def test_structure_exit_disabled_is_a_no_op(struct_cfg):
+    struct_cfg["structure_exit"]["enabled"] = False
+    eff = _effective_sim_cfg(struct_cfg, 2.50, "2024-01-10", "bear_put_spread")
+    assert eff.get("be_after") is None
+
+
+def test_structure_arg_defaults_to_no_override(struct_cfg):
+    """Callers that predate the structure switch keep PROD behaviour."""
+    assert _effective_sim_cfg(struct_cfg, 2.50, "2024-01-10").get("be_after") is None
+    assert _effective_sim_cfg(struct_cfg, 2.50).get("be_after") is None
+
+
+def test_exit_basis_names_bear_debit_when_the_ratchet_governed(struct_cfg):
+    """Otherwise the row reports PROD and gets pooled with base-config rows."""
+    assert _exit_basis(struct_cfg, 2.50, "2024-01-10", "bear_put_spread") == "BEAR_DEBIT"
+    assert _exit_basis(struct_cfg, 2.50, "2024-01-10", "bull_call_spread") == "PROD"
+
+
+def test_exit_basis_regime_cell_outranks_bear_debit(struct_cfg):
+    """On BEAR_HE the cell nulls be_after, so the cell IS the governing profile."""
+    assert _exit_basis(struct_cfg, 2.50, "2024-03-20", "bear_put_spread") == "BEAR_HE"
+
+
+def test_exit_basis_credit_ignores_structure(struct_cfg):
+    assert _exit_basis(struct_cfg, -1.20, "2024-01-10", "bear_put_spread") == "CREDIT"
+
+
+def test_exit_basis_never_claims_a_profile_that_did_not_apply(struct_cfg):
+    """The label must track the merge, for every combination."""
+    for entry_net, d, struct in [(2.50, "2024-01-10", "bear_put_spread"),
+                                 (2.50, "2024-01-10", "bull_call_spread"),
+                                 (2.50, "2024-03-20", "bear_put_spread"),
+                                 (-1.20, "2024-01-10", "bear_put_spread")]:
+        eff = _effective_sim_cfg(struct_cfg, entry_net, d, struct)
+        basis = _exit_basis(struct_cfg, entry_net, d, struct)
+        assert (eff.get("be_after") is not None) == (basis == "BEAR_DEBIT")
+
+
 # ── cell_for_date: the stored-column resolver ────────────────────────────────
 
 def test_cell_for_date_returns_the_cell_and_no_warning(tmp_path):

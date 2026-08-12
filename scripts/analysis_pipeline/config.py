@@ -34,7 +34,7 @@ ENGINES: dict[str, EngineConfig] = {
     "claude": EngineConfig(
         method_file=ROOT / "config/analysis-methods/claude.md",
         tab="AnalysisClaude",
-        default_model="claude-opus-4-8",
+        default_model="claude-opus-5",
     ),
     "codex": EngineConfig(
         method_file=ROOT / "config/analysis-methods/codex.md",
@@ -102,8 +102,18 @@ ROW_COLUMNS = [
     # replace the old high/medium/low `confidence` band. Appended at the END (after
     # the rollup block) per the append-at-end convention — only the header needed
     # extending, no row shift. `score_total` is summed in code, not model-produced.
-    "score_total", "score_flow", "score_dealer", "score_price", "score_vol",
-    "score_catalyst",
+    #
+    # v4 (2026-08-11): `score_flow` and `score_dealer` were DROPPED outright — the
+    # ML combination study found the score columns add nothing reproducible to
+    # decisions, and score_dealer was only ever judged off a vol-snapshot proxy, not
+    # real per-name dealer gamma. v4 runs on a NEW spreadsheet, so every tab header
+    # is written fresh from this list and there is no positional migration to fear.
+    # `score_total` therefore sums THREE factors (price + vol + catalyst) and runs
+    # 0–50 (0–55 for VOLATILITY-intent plays) — NOT comparable to a v3 row's 0–100
+    # total. The columns are deliberately KEPT in scripts/backtest/core.py
+    # RESULT_COLUMNS so pooled v3+v4 result exports stay schema-stable; they are
+    # simply blank on v4 rows.
+    "score_total", "score_price", "score_vol", "score_catalyst",
     # Deterministic per-ticker conviction Score (lib/flow_summary/core.py), already
     # written to audit/<date>-rollup.csv (FLOW_CSV_COLUMNS) but never previously
     # joined onto the analysis row. Appended at the END (append-at-end convention)
@@ -131,14 +141,17 @@ ROW_COLUMNS = [
 # it writes NO_DATA rather than guessing — see lib.mech_regime.cell_for_date.
 MECH_REGIME_CSV = "backtests/mech_regime/spy_vix_daily_full.csv"
 
-# Analysis-row key -> `score` sub-field (framework Step-5 factor). The model emits
-# these three component points (flow/dealer/vol); score_price/score_catalyst are
-# computed by the pipeline (lib.price_catalyst.compute_play_scores), not the
-# model — see analyze_date()/_score_cells(). analysis_to_rows sums all five into
-# `score_total`.
+# Analysis-row key -> `score` sub-field (framework Step-5 factor). As of v4 the
+# model emits exactly ONE component — vol; score_price/score_catalyst are computed
+# by the pipeline (lib.price_catalyst.compute_play_scores), not the model — see
+# analyze_date()/_score_cells(). analysis_to_rows sums those three into
+# `score_total` (0–50; 0–55 for VOLATILITY intent).
+#
+# `flow` and `dealer` were dropped in v4 (2026-08-11): the ML combination study
+# found the score block decision-irrelevant, and `dealer` was judged off a
+# vol-snapshot proxy rather than real dealer data. `vol` is explicitly exempt from
+# the trim — it is the one component with a post-13c rubric of its own.
 SCORE_COMPONENT_COLS = {
-    "score_flow": "flow",
-    "score_dealer": "dealer",
     "score_vol": "vol",
 }
 
@@ -168,13 +181,16 @@ ROLLUP_METRIC_COLS = {
 # (ticker/asset_class/pattern/regime/signal/structure/thesis/trigger/invalidation/
 # score/key_level/direction/flow_intent/horizon/alternative_interpretation) and the
 # market-level `themes` key are read there, so keep them in sync if you edit this.
-# `score` is a structured object of 3 of the 5 Step-5 factors — flow/dealer/vol
-# (it replaced the old high/medium/low `confidence` string); the other two,
-# score_price/score_catalyst, are computed by the pipeline from fetched
-# price-history/earnings data (lib.price_catalyst.compute_play_scores), not
-# model-emitted, which is why `key_level`/`direction` exist as separate required
-# fields feeding that computation. Coverage minimums are MIN_STOCK_PLAYS /
-# MIN_ETF_PLAYS above — keep the prose below in sync with them.
+# `score` is a structured object carrying the single model-judged Step-5 factor —
+# vol (it replaced the old high/medium/low `confidence` string). `flow` and
+# `dealer` were removed in v4; score_price/score_catalyst are computed by the
+# pipeline from fetched price-history/earnings data
+# (lib.price_catalyst.compute_play_scores), not model-emitted, which is why
+# `key_level`/`direction` exist as separate required fields feeding that
+# computation. The pipeline sums vol+price+catalyst into `score_total` (0–50;
+# 0–55 for VOLATILITY intent) — a DIFFERENT scale from v3's 0–100, deliberately
+# not comparable. Coverage minimums are MIN_STOCK_PLAYS / MIN_ETF_PLAYS above —
+# keep the prose below in sync with them.
 ANALYSIS_PROMPT_CONTRACT = """
 ## Output
 
@@ -206,15 +222,13 @@ Schema (all string fields unless noted):
       "trigger": "what must happen after the snapshot to enter",
       "invalidation": "specific price level / flow reversal / macro condition",
       "score": {
-        "flow": "integer — flow-confirmation points (repetition/clustering, cross-dataset overlap, extrinsic-premium concentration). Max 25 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 20 for VOLATILITY.",
-        "dealer": "integer — dealer-alignment points (dealer gamma supports the play). Max 25.",
-        "vol": "integer — vol-alignment points: vol conditions support the THESIS independent of the structure chosen (realized-vs-implied gap, term structure, skew/IVspr/IVskew, expected IV path). Do NOT award points for the structure matching the IV level — that consistency is Step 4's job, not evidence. Max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for VOLATILITY. Do NOT return a total — these three plus two pipeline-computed factors (price, catalyst) are summed downstream to a 0-100 score."
+        "vol": "integer — vol-alignment points: vol conditions support the THESIS independent of the structure chosen (realized-vs-implied gap, term structure, skew/IVspr/IVskew, expected IV path). Do NOT award points for the structure matching the IV level — that consistency is Step 4's job, not evidence. Max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for VOLATILITY. This is the ONLY score component you emit. Do NOT return a total — this one plus two pipeline-computed factors (price, catalyst) are summed downstream to a 0-50 score (0-55 for VOLATILITY intent)."
       },
       "key_level": "REQUIRED, number — the specific price threshold already implied by this play's `structure`/`invalidation`/`trigger` (e.g. the breakout/breakdown level, the short strike, the pin level for VC/DP). Restate the SAME level your thesis already commits to — do not derive a second, independent judgment call here. Used downstream to mechanically score price-confirmation (score_price) against fetched price history, so it must match what `invalidation`/`trigger` already say.",
       "direction": "REQUIRED, one of bullish|bearish|neutral — this play's directional stance. Follows the `pattern`/`structure` bias (bullish for a bull call spread / long call / TF-S bull put spread; bearish for the bear equivalents). Non-directional plays (VC, DP, straddles/strangles/condors) use neutral. Cross-check against the rollup's per-ticker **PxVec** (signed price-trend vector, −1..+1; + bullish, − bearish, ≈0 range-bound): a trend-following (TF/GE) play's direction should match the sign of PxVec; a mean-reversion (MR) play deliberately opposes it, so say so in the `signal`. PxVec is also the deterministic price signal that downstream grounds score_price.",
       "flow_intent": "REQUIRED, one of DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK — what the flow IS. A classification, not a tradeability cap; each intent carries its own score. DIRECTIONAL = a bet price moves a particular way (extrinsic-heavy, opening, no offsetting book; playbook TF/MR/GE/PU; invalidated by a price level). VOLATILITY = a bet on the size of the move / implied vol, direction-agnostic (straddle/strangle/condor/calendar; playbook VC/DP; invalidated by IV collapse or decay without a move). HEDGE = protection on an existing book (index/sector puts under a bid tape, collars) — the defining feature is the offsetting position protected; framed as protection, never a forecast. SYNTHETIC STOCK = mechanical deep-ITM (~1.0 delta) exposure, conversions, stock-replacement, boxes — mostly intrinsic, a soft tell; strip intrinsic before ranking. DIRECTIONAL vs VOLATILITY follows the playbook + structure; opening-view vs HEDGE turns on whether an offsetting underlying position is protected. Bid-side calls / ask-side puts without a ToOpen label read as HEDGE or SYNTHETIC STOCK until evidence shows new risk opened.",
       "horizon": "REQUIRED, one of 14|60|180|720 — the DTE bucket boundary of the dominant expiry in the play's CITED evidence: ≤14 DTE → 14, 15–60 DTE → 60, 61–180 DTE → 180, 181+ DTE → 720. Use the dominant bucket of the prints the signal cites (the rollup's Hzn column precomputes this per ticker).",
-      "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: score it low (zero price+catalyst, total under 40) or drop the play. One sentence."
+      "alternative_interpretation": "REQUIRED. The strongest benign reading of the SAME flow — what else this print could be other than the directional thesis above. Choose from (or combine): covered-call sale, long-call liquidation, short-call open, short-call close, delta hedge, convertible-bond hedge (e.g. MSTR), dealer adjustment, structured-product mechanics, portfolio insurance on an existing long, expiry rolling, multi-leg spread leg, adjusted-options / stale-strike feed artifact. Cite the specific evidence that lets you reject this reading — if you cannot, the play is positioning, not a directional bet: score it low (award no `vol` points — price/catalyst are pipeline-computed and not yours to set) or drop the play. One sentence."
     }
   ]
 }
@@ -228,7 +242,8 @@ Coverage — every run must return BOTH a market read and a full play list:
   Draw the names from the highest-scoring tickers in the fetched data; stock
   plays from the stock flow/unusual sections, ETF plays from the ETF sections.
   If conviction is thin, still meet the minimums but score those ideas low
-  (small components, total well under 40) rather than dropping them — never
+  (few or no `vol` points, so the summed total lands well under 20 on the
+  0-50 scale) rather than dropping them — never
   inflate a thin idea's score to look tradeable. Never fabricate a ticker that
   does not appear in the fetched data — if a section genuinely lacks enough
   distinct names, return what the data supports and note the shortfall in
@@ -248,16 +263,18 @@ Discipline rules — apply to every play before awarding it a strong score:
   per-ticker **IVpct** column (0-100 percentile of the name's IV in its OWN
   trailing range — the "rich vs cheap" read that normalises across names; blank
   when history is thin, then fall back to the market VIX proxy). HIGH IVpct
-  (>=70) on a trend name in a slow, positive-gamma grind is the TF-S case → use a
-  bull put spread / bear call spread, not a debit — a debit into rich IV buys
-  premium a slow move can't overcome. LOW IVpct (<=30) → IV is cheap → debit /
+  (>=70) on a trend name in a slow, positive-gamma grind is the TF-S case → if
+  BULLISH use a bull put spread, not a debit (a debit into rich IV buys premium a
+  slow move can't overcome). If BEARISH the credit expression is NOT available —
+  bear call spread is vetoed above — so take a bear put debit spread or pass.
+  LOW IVpct (<=30) → IV is cheap → debit /
   long premium (TF). Default to defined-risk spreads; naked calls or puts require
   very low IV + a very high score.
 - `alternative_interpretation` is REQUIRED on every play, not optional. It is
   the auditable record that the benign-explanation check was performed. A play
   whose `alternative_interpretation` is at least as plausible as the directional
-  thesis must be scored low (zero the price+catalyst factors, total under 40) or
-  dropped — do not bury the conflict.
+  thesis must be scored low (withhold the `vol` points — price/catalyst are
+  pipeline-computed) or dropped — do not bury the conflict.
 - `flow_intent` is a classification, NOT a score cap. Label it correctly
   and let the score float on evidence quality. HEDGE and SYNTHETIC STOCK are
   valid plays — a HEDGE framed as protection can score high; a

@@ -224,12 +224,14 @@ def _load_rollup_metrics(audit_path: Path) -> dict[str, dict]:
 
 
 def _score_cells(score: object, computed: dict | None = None) -> dict:
-    """Turn a play's ``score`` object ({flow,dealer,vol} points, model-emitted)
-    plus ``computed`` ({score_price,score_catalyst}, pipeline-computed from
-    lib.price_catalyst.compute_play_scores) into the sheet cells
-    score_flow…score_catalyst + score_total (summed here, never trusted to the
-    model). Missing/non-numeric components → blank; the total is the sum of
-    whichever of the 5 final components are present (blank if none)."""
+    """Turn a play's ``score`` object ({vol} points, model-emitted — flow/dealer
+    were dropped in v4) plus ``computed`` ({score_price,score_catalyst},
+    pipeline-computed from lib.price_catalyst.compute_play_scores) into the sheet
+    cells score_price/score_vol/score_catalyst + score_total (summed here, never
+    trusted to the model). Missing/non-numeric components → blank; the total is
+    the sum of whichever of the 3 final components are present (blank if none),
+    so it runs 0–50 (0–55 for VOLATILITY intent) and is NOT comparable to a v3
+    row's 0–100 total."""
     obj = score if isinstance(score, dict) else {}
     computed = computed or {}
 
@@ -331,9 +333,11 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # these are per-name flow metrics, not a market-level read).
             m.get("oi_confirm_pct", ""), m.get("cpir", ""), m.get("iv_spread", ""), m.get("iv_skew", ""),
             m.get("iv_pct", ""),
-            # Model evidence-quality score, component breakdown + summed total
-            # (blank on the MARKET row and whenever the play omits `score`).
-            s.get("score_total", ""), s.get("score_flow", ""), s.get("score_dealer", ""),
+            # Evidence-quality score, component breakdown + summed total (blank on
+            # the MARKET row and whenever the play omits `score`). v4 dropped
+            # score_flow/score_dealer, so the total sums three factors and runs
+            # 0–50 — not comparable to a v3 row's 0–100.
+            s.get("score_total", ""),
             s.get("score_price", ""), s.get("score_vol", ""), s.get("score_catalyst", ""),
             # Deterministic conviction Score/ScoreLabel (lib/flow_summary/core.py),
             # joined by ticker just like the rollup-context block above.

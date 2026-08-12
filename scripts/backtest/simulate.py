@@ -73,22 +73,73 @@ def _regime_override(sim_cfg: dict, signal_date) -> tuple[str, dict] | None:
     return (cell, override) if isinstance(override, dict) else None
 
 
-def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None) -> str:
+_BEAR_DEBIT_STRUCTURES = ("bear_put_spread", "long_put")
+
+
+def _structure_override(sim_cfg: dict, entry_net: float, structure: str) -> dict | None:
+    """Exit-rule overrides keyed on the position's STRUCTURE, or None.
+
+    Only one cell exists — `bear_debit` (bear_put_spread / long_put on the debit
+    side) — and the narrowness IS the finding, not an implementation shortcut:
+    the same `be_after: 0.50` applied to the NON-bear debit book measured
+    +0.234 → +0.209, a LOSS of 0.026 (bear_arm study, 2026-08-11). Widening this
+    to "all debits" destroys value. Credits get nothing: the credit side showed
+    no reproducible change and its only bear structure, bear_call_spread, is
+    structure-vetoed at intake with 0 emissions.
+    """
+    if entry_net < 0:
+        return None
+    cfg = sim_cfg.get("structure_exit")
+    if not isinstance(cfg, dict) or not cfg.get("enabled"):
+        return None
+    cells = cfg.get("cells")
+    if not isinstance(cells, dict):
+        return None
+    if structure not in _BEAR_DEBIT_STRUCTURES:
+        return None
+    override = cells.get("bear_debit")
+    return override if isinstance(override, dict) else None
+
+
+def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None,
+                structure: str = "") -> str:
     """Which exit profile governed this simulation — written to every result row.
 
-    An EMPTY value in the sheet means the row predates this column, i.e. it was
-    simulated before the mech-regime override shipped (2026-07-22) and is
-    PROD-basis by definition. Every row a current run writes carries a value, so
-    a full re-run produces a complete single-basis book that can be read on its
-    own and any older rows ignored.
+    Vocabulary: {PROD, CREDIT, BEAR_DEBIT, <regime cell>} — plus EMPTY, which
+    means the row predates this column, i.e. it was simulated before the
+    mech-regime override shipped (2026-07-22) and is PROD-basis by definition.
+    Every row a current run writes carries a value, so a full re-run produces a
+    complete single-basis book that can be read on its own and older rows
+    ignored.
+
+    Reported in merge-precedence order, so the label always names the profile
+    that actually governed the exit:
+
+      CREDIT      — credit block (never structure- or regime-switched)
+      <cell>      — a mech-regime cell fired. Named ahead of BEAR_DEBIT because
+                    regime merges LAST; on BEAR_HE it nulls `be_after`, so the
+                    cell genuinely is the governing profile.
+      BEAR_DEBIT  — structure_exit's bear_debit cell armed the `be_after`
+                    ratchet and no regime cell overrode it (2026-08-11).
+      PROD        — base config only.
+
+    BEAR_DEBIT exists so that `exit_basis == "PROD"` keeps meaning "base config
+    only" for every row. Without it a bear debit that ran the ratchet would
+    report PROD and be pooled with rows that did not — the exact ambiguity this
+    column was added to prevent.
     """
     if entry_net < 0:
         return "CREDIT"
     hit = _regime_override(sim_cfg, signal_date)
-    return hit[0] if hit else "PROD"
+    if hit:
+        return hit[0]
+    if _structure_override(sim_cfg, entry_net, structure):
+        return "BEAR_DEBIT"
+    return "PROD"
 
 
-def _effective_sim_cfg(sim_cfg: dict, entry_net: float, signal_date=None) -> dict:
+def _effective_sim_cfg(sim_cfg: dict, entry_net: float, signal_date=None,
+                       structure: str = "") -> dict:
     """Debit (entry_net >= 0) simulates on the base `sim_cfg` unchanged. Credit
     (entry_net < 0) merges `sim_cfg['credit']` over the base — presence-based, so
     a key the credit block doesn't mention keeps its debit value, while an
@@ -97,12 +148,29 @@ def _effective_sim_cfg(sim_cfg: dict, entry_net: float, signal_date=None) -> dic
     without touching the debit config). No-op when `credit` isn't a dict (absent
     or misconfigured) — credit positions then just run the debit profile.
 
-    Debits additionally take a mechanical-regime exit override keyed on
-    `signal_date` (simulation.regime_exit), merged with the same presence-based
-    semantics. Credits are never regime-switched."""
+    Debits additionally take two overrides, merged with the SAME presence-based
+    semantics, in this order:
+
+        base → structure (simulation.structure_exit) → regime (simulation.regime_exit)
+
+    Regime is merged LAST deliberately. It is how the BEAR_HE cell suppresses
+    `be_after` with an explicit `null`: on a BEAR_HE date the 0.50/0.50 trail
+    already dominates the breakeven ratchet (the trail's floor, peak−0.50, is
+    ≥ 0 exactly when the ratchet arms at peak ≥ 0.50, and the trail is checked
+    first), so stacking them is a measured no-op and each rule stays inside the
+    envelope it was measured in. See the A3 confirmation in
+    `backtests/study_output/bear_arm-latest.txt` ("BE @.50 + trail .50 trig .50").
+
+    Credits are never structure- or regime-switched."""
     if entry_net >= 0:
+        eff = sim_cfg
+        struct_hit = _structure_override(sim_cfg, entry_net, structure)
+        if struct_hit:
+            eff = {**eff, **struct_hit}
         hit = _regime_override(sim_cfg, signal_date)
-        return {**sim_cfg, **hit[1]} if hit else sim_cfg
+        if hit:
+            eff = {**eff, **hit[1]}
+        return eff
     credit = sim_cfg.get("credit")
     if not isinstance(credit, dict):
         return sim_cfg
@@ -161,7 +229,8 @@ def _max_loss_abs(sim_cfg: dict) -> float | None:
 def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                     contracts, cap_reached_expiry, max_loss_abs=None,
                     time_exit_day=None, trailing_stop_trigger=None,
-                    trailing_stop_pct=None, loss_days_exit=None) -> dict:
+                    trailing_stop_pct=None, loss_days_exit=None,
+                    be_after=None) -> dict:
     """Turn a day-by-day signed-value grid into the path string, realized exit, and MFE/MAE.
 
     Each grid mark holds the position's signed net value V = Σ qty·price. P&L is
@@ -177,9 +246,17 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
       2. trailing_stop  — trails from peak once trailing_stop_trigger is reached OR
                           profit_target activates it (whichever comes first)
       3. dollar_stop    — hard per-trade $ loss cap from portfolio sizing
-      4. stop_loss      — hard % loss floor
-      5. loss_days_exit — N consecutive trading days in loss
-      6. time_exit_day  — calendar days from entry; graceful time-based close
+      4. be_stop        — breakeven ratchet: once peak P&L reaches be_after, the
+                          stop tightens from -stop_loss to 0 (disabled when None)
+      5. stop_loss      — hard % loss floor
+      6. loss_days_exit — N consecutive trading days in loss
+      7. time_exit_day  — calendar days from entry; graceful time-based close
+
+    The be_stop slot is LOAD-BEARING: it sits between dollar_stop and stop_loss
+    to mirror the frozen research harness (scripts/backtest_study/harness.py
+    `replay`, pt → trail → underlying → dollar → be_stop → sl → tef). Every
+    recorded be_after conclusion was measured at that precedence; moving it
+    changes the numbers.
     """
     denom = abs(entry_net)
 
@@ -236,6 +313,8 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                 exit_reason, realized_p, days_held = "trailing_stop", p, grid_idx
             elif max_loss_abs is not None and pl * denom * 100 * contracts <= -max_loss_abs:
                 exit_reason, realized_p, days_held = "dollar_stop", p, grid_idx
+            elif be_after is not None and peak_pnl >= be_after and pl <= 0:
+                exit_reason, realized_p, days_held = "be_stop", p, grid_idx
             elif stop_loss is not None and pl <= -stop_loss:
                 exit_reason, realized_p, days_held = "stop_loss", p, grid_idx
             elif loss_days_exit is not None and loss_streak >= loss_days_exit:
@@ -411,7 +490,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     # Credit structures get their own sizing (structural max loss, not premium
     # received) and exit profile (config/backtest.yml simulation.credit block).
-    eff_cfg = _effective_sim_cfg(sim_cfg, entry_net, signal_date)
+    eff_cfg = _effective_sim_cfg(sim_cfg, entry_net, signal_date, structure)
 
     # Per-leg entry breakdown for diagnostics and delta.
     anchor_flow_delta = _to_float(entry_row.get("Delta"))
@@ -455,6 +534,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     _tex_frac = eff_cfg.get("time_exit_dte_fraction")
     time_exit_day = int(dte_entry * _tex_frac) if _tex_frac else None
     loss_days_exit = eff_cfg.get("loss_days_exit")
+    be_after = eff_cfg.get("be_after")
 
     _pos_value = abs(entry_net) * 100 * contracts
     _portfolio = eff_cfg.get("portfolio_value")
@@ -513,11 +593,12 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         trailing_stop_trigger=trailing_stop_trigger,
         trailing_stop_pct=trailing_stop_pct,
         loss_days_exit=loss_days_exit,
+        be_after=be_after,
     ))
 
     # Which exit profile this row was simulated on. Empty on rows written before
     # 2026-07-22 = PROD-basis; see _exit_basis.
-    result["exit_basis"] = _exit_basis(sim_cfg, entry_net, signal_date)
+    result["exit_basis"] = _exit_basis(sim_cfg, entry_net, signal_date, structure)
 
     # Structural risk columns — independent of the daily path, so computed once
     # here rather than threaded through _summarize_path. Blank when the max loss

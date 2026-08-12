@@ -108,19 +108,26 @@ component can be measured against realized P&L and pruned. `horizon` sits beside
 `play`; the `score_*` block is appended at the end. Blank on rows written before
 these columns existed. These replaced the old high/medium/low `confidence` label.
 
+⚠️ **Two eras in one schema.** The results schema is deliberately frozen across
+the v3→v4 prompt cut-over, so `score_flow`/`score_dealer` still exist as columns
+but are **blank on every v4 row** and `score_total` changes scale (0–100 → 0–50).
+Any analysis that pools v3 and v4 rows must split on era before touching the
+score block — see the two rows below.
+
 <!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **horizon** | The play's DTE bucket boundary (`14`\|`60`\|`180`\|`720`) — the dominant expiry of the cited evidence. Read off its own analysis-row column (legacy rows: regex-scraped from the play bracket). Drives expiry synthesis when no explicit month/day is named (`_resolve_expiry`). |
-| **score_total** | Sum of the five component points below (0–100), computed at row-expansion time — never model-produced. Interpretation only: ≥70 strong · 40–69 moderate · <40 weak. |
-| **score_flow** / **score_dealer** / **score_price** / **score_vol** / **score_catalyst** | The five framework Step-5 evidence-quality factors, each an integer point award. Per-factor maxima are intent-weighted (DIRECTIONAL/HEDGE/SYNTHETIC STOCK: 25/25/20/15/15; VOLATILITY: 20/25/10/25/20). |
+| **score_total** | Sum of the surviving component points below, computed at row-expansion time — never model-produced. **v4 rows: 0–50** (0–55 for VOLATILITY intent); interpretation only, ≥35 strong · 20–34 moderate · <20 weak. **v3 and earlier rows: 0–100** (≥70 / 40–69 / <40) because they still summed five factors. The two scales are **not comparable — never pool them.** Decision-irrelevant either way: it survives only as a deterministic tie-break. |
+| **score_price** / **score_vol** / **score_catalyst** | The three framework Step-5 evidence-quality factors from v4 onward, each an integer point award. Per-factor maxima are intent-weighted (DIRECTIONAL/HEDGE/SYNTHETIC STOCK: 20/15/15; VOLATILITY: 10/25/20). |
+| **score_flow** / **score_dealer** | **Retired in v4** (2026-08-11) — dropped from the prompt and from the analysis-row schema after the ML combination study found the score block decision-irrelevant, and because `score_dealer` was judged off a vol-snapshot proxy rather than real per-name dealer gamma. Both columns are deliberately **kept in `RESULT_COLUMNS`** so pooled v3+v4 exports stay schema-stable; they are simply **blank on v4 rows**. On v3 rows they carry the old intent-weighted maxima (DIRECTIONAL/HEDGE/SYNTHETIC STOCK: 25/25; VOLATILITY: 20/25). |
 
 ## Exit basis
 
 <!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
-| **exit_basis** | Which exit profile governed the simulation of this row. `PROD` = the base `simulation:` block. `CREDIT` = the `simulation.credit:` override (any row with `entry_option_price < 0`; credits are never regime-switched). `BEAR_HE` = the mechanical-regime exit override fired (`simulation.regime_exit.cells`, shipped 2026-07-22 — see `config/deployment-rules.md` §Exit management). `NONE` = BacktestProxy `underlying_trend` tier only, where no exit rules run at all. **Blank (`""`) = the row was written before this column existed, i.e. PROD-basis by definition.** <br><br>Both tabs are **append-only with no dedup**, so a full re-run leaves old and new rows side by side. When pooling rows across runs, filter on this column (plus `created_datetime`) rather than assuming one basis — a bare `python3 -m scripts.backtest` re-simulates the ENTIRE analysis tab, not just new dates. |
+| **exit_basis** | Which exit profile governed the simulation of this row. `PROD` = the base `simulation:` block. `CREDIT` = the `simulation.credit:` override (any row with `entry_option_price < 0`; credits are never regime-switched). `BEAR_HE` = the mechanical-regime exit override fired (`simulation.regime_exit.cells`, shipped 2026-07-22 — see `config/deployment-rules.md` §Exit management). `BEAR_DEBIT` = the structure-keyed `be_after` breakeven ratchet governed this row (`simulation.structure_exit.cells.bear_debit`, shipped 2026-08-11 — `bear_put_spread`/`long_put` on the debit side, outside a regime cell). `NONE` = BacktestProxy `underlying_trend` tier only, where no exit rules run at all.<br><br>Reported in **merge-precedence order** (`CREDIT` → regime cell → `BEAR_DEBIT` → `PROD`), so the label always names the profile that actually governed the exit. A regime cell outranks `BEAR_DEBIT` because regime merges LAST: on `BEAR_HE` it sets `be_after: null`, since the 0.50/0.50 trail already dominates the ratchet there. This ordering is what keeps `PROD` meaning **base config only** for every row. **Blank (`""`) = the row was written before this column existed, i.e. PROD-basis by definition.** <br><br>Both tabs are **append-only with no dedup**, so a full re-run leaves old and new rows side by side. When pooling rows across runs, filter on this column (plus `created_datetime`) rather than assuming one basis — a bare `python3 -m scripts.backtest` re-simulates the ENTIRE analysis tab, not just new dates. |
 
 ---
 

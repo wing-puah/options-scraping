@@ -3,7 +3,33 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
-**State of play (2026-08-11, latest).** The DEPLOY arm has run and settles the bear question the operator actually asked: bear positions ARE deployable — as a *hedge*, not as a selection. Selection stays unfixable (D1: 0 of 496 subsets, even under the new exit), but the sleeve pays on the deployed book's worst dates (D2 MET) and there is now one reproducing pick rule — take the **closer-to-money** bear, `|delta|` descending (D4, all three years, holds on the shipped exit). Nothing shipped; both are recommendations. Prior state below.
+**State of play (2026-08-12, late).** Operator asked whether the engine has any
+measurable edge at all, or whether selection needs more tuning. **Verdict: the
+edge is real, narrow, and not selection-tunable** — see the edge-status entry
+below. The same conversation reopened ONE bounded exit question: bear MFE
+give-back below the `be_after: 0.50` arming threshold, quantified below as
+**−$77.2k across 124 rows the shipped ratchet cannot reach**. That is a
+pre-registerable grid extension, not a re-opening of selection. Prior state
+follows.
+
+**State of play (2026-08-12).** The deployment rules are now split in two:
+[`config/deployment-rules.md`](../deployment-rules.md) is an instructions-only
+operator card, and [`deployment-evidence.md`](deployment-evidence.md) holds the
+derivation, the caveats and the **open rollback triggers** that used to be
+interleaved with them. Entry below. Prior state follows.
+
+**State of play (2026-08-11, CLOSE-OUT).** **v3 is closed and shipped.** Backtest
+tuning stops here: the ML search was a null result across all 15 cells and its
+ablations put the ceiling in the columns, not the estimator, so no further run on
+this book can answer anything. Three things shipped — the `be_after: 0.50` bear-debit
+ratchet (suppressed inside BEAR_HE, where the trail dominates it), the bear
+hedge-sleeve rules (`|delta|` descending, ≤ ½ size), and the live-loop
+`SUBSTITUTED` fix. **The shipped ratchet is worth +0.015 mean R, not the study's
++0.041** — production already carried the BEAR_HE trail, which was buying the same
+rows. The evidence source now moves from the backtest to live fills. v4 (prompt
+trimmed of `score_flow`/`score_dealer`) starts on fresh tabs with a
+pre-registered composition bridge before its rows are read against v3-derived
+rules. Details in the close-out entry below. Prior state follows.
 
 **State of play (2026-08-11, late).** The ML combination search has RUN and is a
 NULL RESULT (no model beats the ladder in any of 15 model×strategy cells); the
@@ -33,6 +59,601 @@ and filter the 301 legacy bs rows out by `proxy_method` at read time;
 operator sometimes trades naked where the engine emitted a spread, which
 breaks the live walk-forward's attribution. Next study queued: the ML
 combination search — plan pre-written in [`ml-plan.md`](ml-plan.md), NOT run.
+
+---
+
+## 2026-08-12 — edge status after close-out: real, narrow, NOT selection-tunable
+
+**Question (operator):** reading this log it looks like there is no measurable
+edge — is it a matter of fine-tuning the selection, or is the whole engine not
+worth pursuing?
+
+No new run. This is a verdict entry over the existing record, written because
+the same question was asked on 07-21 and the answer has since changed in one
+direction (selection is now closed, not merely unpromising) and hardened in
+another (the edge reproduced on a completed third year).
+
+### 1. The premise is wrong: there is an edge, and it is one cell
+
+Real+tweak, bs excluded, from the 08-11 exports:
+
+    structure          n     E        R        $          every year?
+    bull_call_spread   338  +0.672   +0.295   +$80,237   YES (+0.44/+0.66/+0.29)
+    bull_put_spread    237  +0.183   -0.005    -$1,946   no
+    bear_put_spread    468  -0.528   -0.081   -$44,000   negative every year
+    bear_call_spread    43  -1.240   -0.518   -$11,221   intake-vetoed
+
+Ladder tiers reproduce out of sample in all three years (A +0.708/+0.670/+0.305,
+B +0.338/+0.644/+0.431, C and VETO negative throughout). Top-3/day replay
++$22.7k / +$44.8k / +$8.8k at 64–67% win.
+
+**The load-bearing framing: taking every emitted play makes +$14.0k over three
+years** (−$14.4k / +$47.9k / −$19.5k). The engine emits ~10 plays/day and the
+ladder discards ~70% of them to capture 83% of the P&L. **The value is in the
+triage, not the generation.** The honest claim remains 07-21's: *the analysis
+picks good bull_calls in elevated-vol range markets.*
+
+### 2. Selection tuning is closed — three independent nulls
+
+This is the part of the question the log can now answer definitively, where on
+07-21 it could only say "unpromising":
+
+- **496 pre-registered bear subsets → 0 survivors** (~10 expected by chance),
+  re-run under the new exit. Best subset still negative.
+- **ML combination search, 15 model×strategy cells → 0 positive gains with a CI
+  excluding zero.** Best cell +0.022, CI [−0.017, +0.071].
+- **Full column sweep → only `delta`/`dte` (bull_put) and `iv_spread`
+  (bear_put) are decision-relevant.** `cpir`, `oi_confirm_pct`, `iv_pct`,
+  `score_total` all looked predictive pooled and vanished within structure —
+  the same composition trap caught four separate times.
+
+The ML ablations put the binding constraint in the **columns, not the
+estimator**, and the full-sample tree's root split is `structure = bull_call` —
+the model rediscovers the ladder unprompted. **Further selection work on this
+feature set has a measured expected value of zero.** The standing gate holds:
+re-open on new COLUMNS, never on new models or new tuning of old ones.
+
+### 3. What is actually unresolved is execution, and it is not accruing
+
+Latest live-loop mapping (`stage1_report_2026-08-12.md`): **EXACT 0 /
+STRUCTURE 2 / SUBSTITUTED 1 / NONE 15.**
+
+Zero exact matches. The mapped fills are NVDA/TSM short-call overlays, MU and
+GOOG round-trips, and a GLD `bull_call_spread` expiring 2027-01-15 (~155 DTE —
+outside the ≤60-DTE band the ladder is validated in). **The book being traded
+and the book the engine emits are close to disjoint.**
+
+This is why "confirmed in backtest, not proven live" has not moved since 07-21.
+Not because the live evidence came back bad — because there is none. Recording
+it plainly: with backtest tuning closed, the live loop is the *only* experiment
+in the system, and it is currently not running. Either Tier A/B top-3 gets
+traded as emitted for ~30–50 positions, or the ladder stays backtest-confirmed
+permanently. No further analysis resolves this.
+
+### 4. Verdict, and one question the log has never asked
+
+**Worth pursuing — but as a narrower instrument than the build implies, and the
+pursuit is no longer backtest tuning.** A triage rule that turns +$14.0k of raw
+emission into +$76k of top-3 P&L across three years is real work.
+
+Standing caveats that keep "proven" out of it, unchanged: Tier A partly encodes
+the RANGE/E-VOL cell that generated the profit (circularity mitigated by the
+time split, not eliminated); rows within a date share a market path so the
+p-values are optimistic; 25% proxy-priced; next-day-open on settlement-derived
+pricing with no slippage model.
+
+**Open question, flagged NOT tested:** does the LLM earn its keep? The ladder is
+structure × regime × entry-geometry — entirely deterministic and computable
+without a model. The ML study benchmarked estimators against the ladder *on the
+plays the engine emitted*; it never tested engine-vs-no-engine. If the model's
+real contribution is ticker/strike choice within a structure×regime cell, that
+is testable against a mechanical baseline (e.g. bull_call spread on the
+highest-flow-volume RANGE/E-VOL name). Logged as a candidate, with the warning
+that it needs a pre-registration before anyone looks at a number — it is the
+kind of question whose answer is easy to talk oneself out of.
+
+---
+
+## 2026-08-12 — bear MFE give-back: the shipped ratchet cannot reach 124 rows / −$77.2k
+
+**Operator observation:** bear positions still show MFE, but most of it is
+given back. **Confirmed, and larger than the log recorded.**
+
+**Provenance.** Read-only scratch cut, same 08-11 exports as the bear arm
+(`backtests/to_evaluate/`), `book.load_book(include_bs=False)` → **795 rows,
+real 406 / tweak 389**. Bear debit = `bear_put_spread` + `long_put`, n=332 —
+the same population the `be_after: 0.50` ratchet was measured on. No config,
+prompt or ladder touched. Not run through `scripts/backtest_study/`, so this is
+a scratch finding pending a proper study, not a shipped conclusion.
+
+### 1. The give-back is the dominant bear failure mode
+
+    population              n     rows ever green   full give-back   median capture
+                                  (MFE > +1%)       (MFE>0, R<=0)    (R / MFE)
+    bear debit             332    272  (82%)        152 of 272 (56%)     -0.55
+    bull_call (comparator) 240    223  (93%)         80 of 223 (36%)     +0.42
+
+**82% of bear rows go into profit at some point; 56% of those finish at or below
+zero.** The median bear position that was ever green ends up losing *more than
+half its peak, as a loss*. The comparator keeps +0.42 of its peak.
+
+On the 152 full-give-back rows: realized **−$123.4k**, against **+$81.4k** if
+each had been sold at its own MFE. That gap is not achievable — nobody sells at
+the peak — but it sizes the pool the exit is fishing in.
+
+### 2. The bleed sits entirely below the arming threshold
+
+    MFE band                            n    mean R   win    $
+    <= +1%  (never in profit)          60    -0.736    0%   -55,938
+    +1% to +25%                        71    -0.585   15%   -45,289
+    +25% to +50%  <- ratchet CANNOT arm 53    -0.545   17%   -31,916
+    +50% to +90%  <- ratchet arms      46    -0.385   28%   -21,756
+    >= +90%  (target zone)            102    +0.889   85%  +104,822
+
+**124 rows peaked between +1% and +50% and lost −$77.2k. Every one is below
+`be_after: 0.50`.** The shipped ratchet fires on 16 production rows; this band
+is untouched by design.
+
+Corroborated by the exit mix — `stop_loss` (n=109, mean R −0.786) carries mean
+MFE **+0.217**, and `dollar_stop` (n=69, mean R −0.765) carries mean MFE
+**+0.287**. **178 bear positions were up 20–30% and stopped out anyway.** That
+is the operator's observation, stated as a number.
+
+### 3. What this does NOT establish — read this before proposing a threshold
+
+A lower threshold is the obvious move and it is **not yet supported**. What was
+computed is a *census of peaks*, NOT a replay:
+
+    peak >= X    rows arming   still finish negative   $ realized on those
+      0.20           217              105                  -86,365
+      0.25           201               92                  -75,102
+      0.30           188               79                  -63,671
+      0.40           162               58                  -46,707
+
+**This table says only how many rows had a peak that high and lost anyway. It
+does not say a ratchet would have saved them.** The missing half is the cost on
+winners: the 102 rows in the ≥+90% band earning +$104.8k include an unknown
+number that dipped back through entry *after* passing +0.25 and would have been
+sold at breakeven. That is exactly the mechanism that made the identical config
+destroy value on the non-bear debit book (+0.234 → +0.209). MFE/MAE cannot
+resolve it — only a path replay can.
+
+Also: **60 rows (−$55.9k) were never in profit at all.** No exit rule reaches
+them. That is D1's unfixable selection problem, and it caps what any exit work
+can recover.
+
+### 4. Proposed follow-up — bounded, and pre-registered before it runs
+
+This is an **exit** question, the one dimension the log has not closed (B2 found
+a fix of exactly this class). It is a grid extension, not a new mechanism:
+
+- Add `be_after` at **0.20 / 0.25 / 0.30 / 0.40** to `bear_arm.py`'s
+  `DEBIT_GRID`, bear-debit keyed, through the FROZEN harness. Four named
+  configs, not a search.
+- **Quote both baselines** — `DEBIT_PROD` *and* shipped production (with the
+  BEAR_HE trail live). The 08-11 lesson is that the study framing overstated
+  production impact 3× because the trail was already buying the same rows; at a
+  lower threshold the overlap will be *larger*, not smaller.
+- Ship criteria, same as the 08-11 ratchet: pooled date-clustered CI excludes
+  zero, ex-Mar–Apr-2025 positive, 2026 alone positive, every LOO-by-date fold
+  positive, right-signed in both pricing tiers.
+- **Leak guard is mandatory and is the likely killer** — the non-bear debit book
+  must be unchanged. A threshold low enough to catch the +25–50% band is low
+  enough to start cutting bull_call winners if the keying ever slips.
+- Pre-commit: **if no threshold clears, the answer is that bear give-back is
+  structural** — the mirrored |MAE|/MFE ≈ 1.25 path signature is what a bad
+  selection looks like, and the correct response is the existing hedge-sleeve
+  framing (≤ ½ size, `|delta|` descending), not a better stop.
+
+Nothing shipped. `config/backtest.yml` and `deployment-rules.md` unchanged.
+
+---
+
+## 2026-08-12 — live loop promoted to tracked code, and its fill mapper put under test
+
+The close-out entry left this open as a known gap: **`backtests/live_loop/` is
+UNTRACKED.** `.gitignore` excludes `backtests/*` and its own comment calls that
+tree disposable scratch that "gets deleted periodically" — yet
+`stage1_map_fills.py` was 33KB of real code and, with backtest tuning closed, the
+**only source of new evidence in the system.** Exactly the mistake the 08-11
+refactor fixed for study code by moving it to `scripts/backtest_study/`.
+
+Moved to **`scripts/live_loop/stage1_map_fills.py`**; runs as
+`python3 -m scripts.live_loop.stage1_map_fills`. `ROOT = parents[2]` still
+resolves to the repo root at the new depth (the stale-ROOT bug that broke 7
+studies in the 08-11 move does not recur here — checked, not assumed). Data stays
+under `backtests/live_loop/`, which is the correct split: tracked code, disposable
+data. Output reproduces exactly — **EXACT 0 / STRUCTURE 2 / SUBSTITUTED 1 /
+NONE 15**.
+
+**`tests/test_live_loop.py` — 38 tests**, with the IBKR snapshot copied to
+`tests/fixtures/` so it survives a `backtests/` wipe. The 08-11 mis-labelling bug
+(`long_call` and `bull_call_spread` both mapping to `debit`, so naked fills were
+tallied as STRUCTURE matches) was found **by reading, not by a test**, and its
+failure mode is silent — a mislabelled fill does not raise, it quietly corrupts
+the evidence base. Now pinned: the `DIRECTION` gate, the
+`EXACT ≺ STRUCTURE ≺ SUBSTITUTED` ranking (both row orders), and the ladder port.
+
+**Writing the tests surfaced a seam worth recording.** `classify_structure()`
+emits `"single long call"` (spaces) for naked legs but `"bull_call_spread"`
+(underscores) for verticals, and `_live_to_canonical()` matches on the spaced
+form. Any label that canonicalises to `"unknown"` matches no play and drops to
+**NONE — indistinguishable from "no play that day"**, which is precisely the
+silent-drop failure the 07-27 entry described and the 08-11 entry corrected for a
+different branch. The vocabulary is now pinned by a parametrised test rather than
+trusted, including that genuinely unpinnable round-trip closes stay `"unknown"`
+instead of guessing.
+
+Still open from the close-out list: `scripts/chart_backtest.py:55-76` re-derives
+exit config and knows about neither `regime_exit` nor `structure_exit`.
+
+---
+
+## 2026-08-12 — v4 bridge: RECORDED DEVIATION from the pre-registration (written BEFORE the run)
+
+Amends the [pre-registration below](#2026-08-11--v4-emission-composition-bridge-pre-registration-written-before-the-run).
+**Nothing has been run.** Written now, while no v4 result exists, because a
+deviation decided after seeing numbers is not a deviation, it is a choice.
+
+**What changes: the ~20 re-runs are dropped.** The pre-registration called for
+running the v4 prompt over ~20 dates already covered by v3, writing to a scratch
+tab. Those are ~20 headless analysis calls, and analysis is the expensive step in
+this system. They are also avoidable.
+
+Measured state of the v4 tabs today: **`AnalysisClaude` = 10 rows on one date
+(2026-08-11); `AnalysisGPT` = 0.** v4 accrues ~10 rows/day from the normal daily
+cadence at no marginal cost, so **~20 dates arrives in roughly four weeks of
+changing nothing.**
+
+Checked first, for the record: nothing cached would let a v4 row be reconstructed
+for an old date. The pipeline persists the deterministic rollup
+(`audit/<date>-rollup.csv`) but sends LLM output straight to Sheets, so a v4 row
+on a v3 date genuinely costs a fresh run. There is no copy-paste shortcut.
+
+**What this costs, stated in advance.** Accumulated v4 dates will not overlap v3
+dates, so the five tests lose their **date pairing**. Substitute: match on
+**`mech_cell`**, a `ROW_COLUMNS` field backfilled across both eras, which encodes
+the tape conditions date-pairing was buying.
+
+**Pre-committed caveat, stronger than the original's.** mech_cell matching is
+coarser than date matching — it controls for regime, not for the specific day's
+flow. Combined with the original's own admission that ~20 dates is thin for a
+five-way composition test, this is powered to catch a shift the size of the
+v2→v3 credit jump (19% → 34%) and **nothing subtler**. A null result here means
+"no large shift detected", never "the populations are the same". Do not let a
+null be quoted later as validation.
+
+**Unchanged, and not renegotiable after the numbers land:** the five tests
+(structure mix, credit share, plays/day, bear share, ladder tier mix) and the
+decision rule — within noise → the v3-derived ladder carries forward; any of the
+five shifts → the ladder is UNVALIDATED on v4, keep deploying under v3 rules and
+flag every v4 row here.
+
+**Escape hatch, bounded.** If four weeks of tape produces no BEAR or H/E-VOL
+date, re-run **≤5** v3-covered dates chosen to fill that specific empty cell —
+targeted, and only on evidence the cell is missing. Running `--engine codex`
+daily would also double the accrual rate but samples a different engine
+population; noted, not recommended.
+
+Interim posture is already what the pre-registration says: deploy under v3 rules.
+This is now stated on the operator card itself rather than only here.
+
+**The study is written and gated: `scripts/backtest_study/v4_bridge.py`.** Written
+today, while v4 had 10 rows on one date — so nothing in it can have been tuned to
+a result. It refuses to produce numbers until the gate is met:
+
+- `MIN_V4_DATES = 20` → exits **rc=2** with the shortfall and the interim posture.
+- **Era guard** → exits **rc=3** if the two exports are not v3-then-v4. Era is
+  detected from the *schema* (`score_flow`/`score_dealer` present = v3), never
+  the filename, because the in-place `vN_` rename leaves both eras exporting as
+  "AnalysisClaude" and they are trivially swapped. Run today it correctly aborts
+  with *"refusing to compare a book against itself and call the null a
+  validation"*.
+- v3 is **reweighted to v4's mech_cell mix** (direct standardisation), so a
+  difference in regime composition cannot masquerade as a difference in
+  behaviour — the specific hazard the date-pairing deviation introduces.
+
+`tests/test_v4_bridge.py` (16 tests) proves the machinery before it ever runs on
+real data: both gates fire, `MIN_V4_DATES`/`ALPHA` are pinned at their
+pre-registered values, **a v2→v3-sized credit jump (20% → 35%) is detected**, and
+standardisation collapses a deliberately confounded 90%-LVOL-vs-50/50 pair to
+identical shares while the raw shares differ by >10pts. A study that cannot see
+the shift it was built for is not worth waiting a month for.
+
+One divergence from `book.ladder_tier()`, documented in the module: |delta| and
+DTE are not columns on an analysis row, so the Tier-B bull_put geometry clause
+cannot be evaluated and every bull_put falls to C. That biases the tier mix
+**identically in both eras**, which is all a composition comparison needs — but
+these tier shares must never be quoted as deployment shares.
+
+---
+
+## 2026-08-12 — deployment rules split: operator card vs evidence
+
+`config/deployment-rules.md` had grown to 284 lines by accretion — every study
+that shipped a rule appended its derivation, CIs, LOO folds, limits and rollback
+trigger to the same file, so the ~15 things an operator actually does at deploy
+time were interleaved with ~200 lines of research record. With v3 tuning closed,
+the rules have stopped churning and the doc is stable enough to freeze.
+
+- **`config/deployment-rules.md`** → instructions only, ~110 lines, as a
+  deploy-day sequence: before-you-deploy → VETO → tier → order-entry geometry →
+  hedge sleeve → exits → what not to use.
+- **`config/backtest-tuning/deployment-evidence.md`** (new) → everything else,
+  moved with the numbers intact. Nothing was dropped; the diff is a move.
+
+**Three defects fixed in passing, all found by reading the doc against the code:**
+
+1. **Stale command.** The card told the operator to run
+   `python3 backtests/mech_regime/fetch_spy_vix.py --full`. That path is
+   untracked scratch — the tracked fetcher has been
+   `scripts/collector/fetch_mech_regime.py` since the mech-regime move, and
+   `make analyze` already depends on the `mech-regime` target. Now just
+   `make analyze`.
+2. **Hand-computed regime label.** The card still spelled out "SPY < 50-day SMA
+   and 20-day return < 0" as an operator step. `mech_cell` has been a
+   `ROW_COLUMNS` field and backfilled across the analysis tabs since the 08-11
+   addendum — the card now says *read the column*, and the definition moves to
+   the evidence file as reference. This was a live opportunity to mislabel a
+   date by hand.
+3. **Exit rules split across three sections.** "Preconditions", "Exit
+   management" and "Bear debit spreads — breakeven ratchet" each held part of
+   the exit config, so setting up an order meant reading all three and
+   reconciling the BEAR_HE suppression clause yourself. Now one four-row table
+   (debit normal / debit BEAR_HE / bear debit / credit) with the suppression as
+   an explicit footnote.
+
+The `## Exit management` heading is **preserved verbatim** — six places link to
+`deployment-rules.md §"Exit management"` (`config/backtest-reference.md`,
+`scripts/backfill_mech_cell.py`, `scripts/collector/fetch_mech_regime.py`,
+`scripts/analysis_pipeline/config.py`, `scripts/analysis_pipeline/core.py`,
+`.github/workflows/backfill-mech-cell.yml`), and keeping the heading is cheaper
+than updating six references.
+
+**The three open rollback triggers are now in one table** in the evidence file
+rather than scattered across three sections — BEAR_HE trail (≥25 new affected
+dates), bear-debit `be_after` (≥60 new rows that arm it), bull_put band
+(PROVISIONAL). They are live pre-registered commitments and were the easiest
+thing in the old doc to lose. **Silence is not "not met" — check the numbers.**
+
+No rule changed. No config changed. This is a documentation move.
+
+---
+
+## 2026-08-11 — v3 CLOSE-OUT: three findings SHIPPED, and the production delta is a third of the study's
+
+v3 is closed. The trigger was not fatigue — it is that **no question left in the
+queue is answerable from this book**. The ML combination search returned a null
+result in all 15 model×strategy cells and its ablations put the binding
+constraint in the *columns*, not the estimator; the Feb–Apr 2026 holdout is
+complete; the ladder is monotone in every cut. What remained was shipping.
+
+### 1. SHIPPED — `be_after: 0.50`, bear debit only (`simulation.structure_exit`)
+
+Implemented in `scripts/backtest/simulate.py`: a `be_stop` branch in
+`_summarize_path` between `dollar_stop` and `stop_loss` (ported from the frozen
+harness ordering), plus `_structure_override()` keyed on
+`bear_put_spread`/`long_put` with `entry_net >= 0`. Merge order for debits is
+**base → structure → regime**.
+
+**A3 — the pre-registered interaction check, and a recorded deviation from the
+frozen grid.** One entry was added to `bear_arm.py`'s `DEBIT_GRID`:
+`"BE @.50 + trail .50 trig .50"`. One named config, not a search.
+
+    trail .50 trig .50            -0.098  +0.036  [+0.006,+0.063]  LOO +0.032
+    BE ratchet @.50               -0.092  +0.041  [+0.016,+0.065]  LOO +0.038
+    BE @.50 + trail .50 trig .50  -0.098  +0.036  [+0.006,+0.063]  LOO +0.032
+
+The stacked cell is **bit-identical to the trail alone, with zero `be_stop`
+exits**, and below BE alone. The cause is structural, not sampling: the trail
+arms at peak ≥ 0.50 and its floor (peak − 0.50) is then ≥ 0 — at or above the
+ratchet's threshold — and the trail is checked first. The ratchet is strictly
+dominated inside BEAR_HE. Decision rule fires **SUPPRESS**, implemented as
+`be_after: null` on the `BEAR_HE` cell (which is why regime merges last).
+Confirmed in production: suppress vs stack over the 224 BEAR_HE bear-debit rows
+differ on **0 rows**.
+
+**The production delta is NOT the study delta — record this, it will recur.**
+The study measured against `DEBIT_PROD` (pt .90 / sl .75 / tef .75, **no
+trail**). Production has shipped the BEAR_HE trail since 07-22, so the study's
+baseline is not production's:
+
+    bear debit (n=332)          mean R              total $            rows changed
+    study framing            -0.133 → -0.092                              —
+    production, measured     -0.109 → -0.093    -43,806 → -37,951         16
+      on BEAR_HE (suppressed) -0.152 → -0.152    unchanged                 0
+      elsewhere (n=108)       -0.019 → +0.028     -4,916 → +939           16
+
+So the shipped rule is worth **+0.015 mean R / +$5.9k**, not +0.041 / +$16.4k,
+and `be_stop` fires on **16 rows, not ~44**. The two rules were largely buying
+the same rows and the trail got there first on 224 of 332. The generalisable
+lesson: **a study delta measured against `DEBIT_PROD` overstates production
+impact wherever a regime cell already ships a rule that converts the same
+rows.** Every future exit study should quote both baselines.
+
+`stop_loss` 92 reproduces exactly; the *baseline* is 100, not the study's 110,
+for the same reason.
+
+**Leak guard — PASSED.** Non-bear debits (n=261): 0 rows changed, mean R and
+dollars identical. Credits (n=202): 0 rows changed. The narrowness is the
+finding (+0.234 → +0.209 on non-bear debits), and it is now enforced by tests.
+
+### 2. SHIPPED — bear hedge sleeve (`deployment-rules.md`)
+
+D2/D4/D3 written up as an operator section: bear is a **hedge, not a
+selection**; rank the day's candidates by `|delta|` DESCENDING; size at ≤ ½.
+Limits travel with the rule (D3 formally NOT MET by $86, worst-decile CI
+includes zero, naked puts unrepresented, D5 does not reproduce). The bear_put
+**DEMOTION thread (open since 07-22) is CLOSED without a demotion mechanism** —
+bear rows are already C/VETO and never enter the deployed top-3, so the answer
+was an exit profile, not an intake veto.
+
+### 3. SHIPPED — live-loop `SUBSTITUTED`, and a CORRECTION to the 07-27 entry
+
+The 07-27 §4 entry states that a naked leg filled against a spread play "falls
+to **NONE**, indistinguishable from 'no play that day'", i.e. silently dropped.
+**That is wrong, and the truth is worse.** `SIDE` maps `long_call` and
+`bull_call_spread` both to `debit`, so the family branch labelled such fills
+**STRUCTURE** — pooled into the eval as if the emitted play had been traded.
+A second defect: that branch matched on credit/debit only, so a `long_put` fill
+against a `bull_call_spread` play (opposite directions, both debit) was also
+labelled STRUCTURE.
+
+Fixed in `stage1_map_fills.py`: a `DIRECTION` map now gates the family branch,
+substitutions get their own `SUBSTITUTED` confidence, and candidate selection is
+rank-based (EXACT ≺ STRUCTURE ≺ SUBSTITUTED) so a true match always outranks a
+substitution. Tally on the checked-in snapshot moves **0/3/15 → EXACT 0 /
+STRUCTURE 2 / SUBSTITUTED 1 / NONE 15**; the reclassified row is the META
+short-put-vs-`bull_put_spread` entry the report's own prose had already flagged
+as weak while the tally counted it as a match.
+
+### 4. SHIPPED — the v4 prompt trim (`score_flow` / `score_dealer` dropped)
+
+`score_vol` stays (exempt); `score_price`/`score_catalyst` were always
+pipeline-computed. `ROW_COLUMNS` goes 27 → 25 and the columns are dropped from
+the schema outright rather than blanked, because v4 writes fresh tabs.
+`RESULT_COLUMNS` KEEPS them so the results schema stays stable across eras and
+the four study loaders that name them keep working on pooled exports. Reader
+audit found no `KeyError` risk — every analysis-row consumer uses
+`.get(col, "")`.
+
+**The queued trigger did NOT fire.** The 07-21 queue said "drop if still null
+after the 25-date backfill". They are not null — 366 of the last 400 rows carry
+both. The justification is instead the 08-11 ML ablations (nothing beyond
+structure × regime × geometry is reproducible) and the framework's own admission
+that `score_dealer` was judged off a vol-snapshot proxy, never real dealer data.
+Recording this because the trim now rests on a *different* argument than the one
+that queued it.
+
+**Correction to the plan: the new scale is 0–50 for DIRECTIONAL/HEDGE/SYNTHETIC
+but 0–55 for VOLATILITY.** VOLATILITY's dropped `flow` max was 20, not 25, so
+its survivors are 10 + 25 + 20 = 55. Documented as such everywhere rather than
+rounding the claim down; flattening it to 50 would be a rubric change, not a doc
+change. Either way v4's `score_total` is NOT comparable to v3's 0–100 and must
+never be ranked across the two eras — it survives only as a deterministic
+tie-break within a tier.
+
+**A live prompt bug found and fixed in passing.** The contract told the model
+"NEVER emit a bear call spread" and then, ~45 lines later, instructed it to use
+one for the bearish high-IVpct TF-S case; `claude.md` and `codex.md` carried the
+same contradiction. Only the framework's Step-4 table was correct. This could
+emit the single most toxic structure in the book (−0.82 mean, 17% win,
+intake-vetoed since Attempt 13) — the backtest would have refused it at intake,
+so the cost was wasted plays rather than bad fills, but it was live. All three
+now route bearish TF-S to a bear put debit spread or a pass. Folded into this
+version bump because it is a prompt change and needed one.
+
+Also fixed: the guardrails told the model to "zero the price and catalyst
+components" to hold a total down — impossible since both became
+pipeline-computed. It now withholds `vol`, the only lever it still has.
+
+### 5. The cut-over mechanics — in-place `vN_` renaming, NOT a new spreadsheet
+
+Worth recording because the close-out plan assumed a new spreadsheet and a
+`GOOGLE_SPREADSHEET_ID` change, and that is **not** what this repo does. The
+sheet already carries `v1_AnalysisClaude_20260625`, `v2_AnalysisClaude`,
+`v3_AnalysisClaude` — the established convention is to rename the live tabs with
+a `vN_` prefix in place and let the pipeline recreate fresh ones. The v3 rename
+is done (`v3_AnalysisClaude` 1,608 rows / 27 cols, `v3_BacktestResults`,
+`v3_BacktestProxy`), and an empty `AnalysisClaude` is waiting with 0 columns, so
+the first v4 append writes a clean 25-column header.
+
+Two consequences, both good, that the plan got wrong in the cautious direction:
+
+- **`BaselineDaily` is untouched** (214 rows, continuous). The plan's warning
+  that v4 would start with no regime-baseline history — the one real risk it
+  flagged — is moot under in-place renaming. No `build_baseline --backfill`
+  needed.
+- **No env change, and no code change.** `config/backtest.yml`'s
+  `analysis.tab: AnalysisClaude` and `output.sheet_tab: BacktestResults` already
+  point at the v4 tabs by virtue of the rename.
+
+The live cost is that `python -m scripts.backtest` now reads 0 rows until v4
+accumulates; v3 work must pass `--tab v3_AnalysisClaude`. Study code is
+unaffected — it reads CSV exports by filename, not tabs.
+
+### 6. Tests
+
+`tests/test_mech_regime.py` gains the structure-override suite (bear debit gets
+the ratchet, non-bear debit and credits never do, BEAR_HE suppression, merge
+order, disabled/default no-ops). `tests/test_backtest.py` gains five ladder
+tests pinning `be_stop` between `dollar_stop` and `stop_loss` — the position is
+load-bearing and was previously unguarded.
+
+### 7. `exit_basis` widened — `BEAR_DEBIT` (fixed in the same change)
+
+Shipping the ratchet initially broke the column's guarantee: a bear debit that
+ran `be_after` reported `PROD`, so `exit_basis == "PROD"` stopped meaning "base
+config only" — the exact ambiguity the column was added to prevent. The
+vocabulary is now `{PROD, CREDIT, BEAR_DEBIT, <regime cell>}`, reported in
+merge-precedence order: a regime cell outranks `BEAR_DEBIT` because regime
+merges last and, on BEAR_HE, genuinely governs (it nulls `be_after`). Pinned by
+tests that assert the label never claims a profile the merge did not apply.
+
+### 8. Known gaps left open, deliberately
+
+- **`scripts/chart_backtest.py:55-76`** re-derives exit config for chart
+  reference lines and knows about neither `regime_exit` nor `structure_exit`;
+  bear-debit charts draw a −75% stop line for positions that exited at
+  breakeven. Pre-existing, now one rule wider.
+- **`backtests/live_loop/` is UNTRACKED.** `.gitignore` excludes `backtests/*`
+  and its own comment calls that directory disposable scratch that "gets deleted
+  periodically" — yet `stage1_map_fills.py` is 30KB of real code and is now the
+  only source of new evidence. This is the same mistake the 08-11 refactor fixed
+  for study code by moving it to `scripts/backtest_study/`; the live loop was
+  missed.
+
+---
+
+## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION (written BEFORE the run)
+
+**Status: pre-registered, NOT run.** Everything below is fixed in advance. If
+the numbers land differently from what the operator hopes, the decision rule
+stands as written — that is the entire purpose of writing it first.
+
+**What is changing.** v3 is being closed out (see the close-out entry above once
+written) and the analysis prompt is being trimmed: `score_flow` and
+`score_dealer` come out of the per-play `score` object; `score_vol` stays. v4
+runs on a NEW spreadsheet, so the tabs are fresh and the schema drops both
+columns rather than blanking them.
+
+**Why a bridge test is needed at all.** The columns themselves are established
+as decision-irrelevant — the 07-21 sweep found only `delta`/`dte` (bull_put) and
+`iv_spread` (bear_put) decision-relevant, and the 08-11 ML ablations found
+nothing beyond structure × regime × geometry adds anything reproducible. That is
+NOT the risk here. The risk is **behavioral**: removing two of five Step-5
+factors may change *what plays the model emits*. The only statistically
+significant v2→v3 difference in this entire log was exactly that — credit
+emission 19% → 34% — and it was not predicted in advance either.
+
+If the emission profile shifts, every rule in `config/deployment-rules.md` was
+derived on a population v4 no longer draws from, and the ladder's validation
+does not transfer. That is worth ~20 headless runs to find out.
+
+**Test.** Run the v4 prompt over ~20 dates already covered by v3, writing to a
+scratch tab. Compare against the v3 rows on the same dates (exported from the
+old sheet before the switch). Date-paired, two-proportion tests on:
+
+1. structure mix (bull_call / bull_put / bear_put / other)
+2. credit share of emitted plays
+3. plays per day
+4. bear share
+5. ladder tier mix (A / B / C / VETO)
+
+**Decision rule, fixed now:**
+
+- **Composition within noise** → the v3-derived ladder CARRIES FORWARD to v4
+  rows. Record it and deploy unchanged.
+- **Composition shifts on any of the five** → the ladder is UNVALIDATED on v4.
+  Keep deploying under the v3 rules, flag every v4 row as such here, and let the
+  live eval arbitrate. Do NOT quietly assume the tiers transfer, and do not
+  re-derive the ladder on v4 rows until there are enough of them to mean
+  anything.
+
+**Pre-committed caveat.** ~20 dates is thin for a five-way composition test;
+this is powered to catch a shift the size of the v2→v3 credit jump, not a subtle
+one. A null result here is "no large shift detected", never "the populations are
+the same".
 
 ---
 
@@ -864,7 +1485,16 @@ result is read against tier means.
 text — but its match confidence is only `EXACT` / `STRUCTURE` / `NONE`, with no
 substitution category. A naked long call filled against a `bull_call_spread`
 play therefore falls to **`NONE`, indistinguishable from "no play that day"**:
-substitutions are silently dropped from the eval rather than labelled. Adding a
+substitutions are silently dropped from the eval rather than labelled.
+
+> **CORRECTED 2026-08-11 (v3 close-out §3): the paragraph above is wrong.** Such
+> a fill did NOT fall to `NONE` — `SIDE` maps `long_call` and `bull_call_spread`
+> both to `debit`, so the family branch labelled it `STRUCTURE` and pooled it in
+> as a match. Not dropped: *miscounted*, which is worse. A second defect (the
+> branch ignored direction entirely) is fixed in the same change. Read the
+> close-out entry, not this paragraph.
+
+Adding a
 `SUBSTITUTED` confidence (same ticker, same direction, different structure) is a
 precondition for the eval, not a nice-to-have — otherwise the deployed book
 being read is exactly the subset where he followed instructions, which biases
@@ -1446,3 +2076,300 @@ is explicitly `null` ("ride toward expiry within path_cap") while debits carry
 gamma-motivated DTE-floor exit for credits (close at ~21 DTE) is untested and
 cheap to sweep. Do it on the credit book AFTER the window completes; it is not
 part of the pre-registered bear decision run.
+
+---
+
+## 2026-08-12 — v1 → v2 → v3 prompt-version comparison, and June-2026 live-vs-analysis audit
+
+Run at operator request. Two questions: (1) did the prompt improve across
+versions, (2) how did the June-2026 live book line up with what the analysis
+actually emitted. Inputs are the CSV exports in `backtests/to_evaluate/`.
+**Real + `strike_expiry_tweak` tiers only** — `bs_options_hist`,
+`underlying_trend` and `unevaluable` excluded throughout, per the shipped
+`proxy.bs_fallback` off decision.
+
+### 0. Two data traps found on the way in — both would have flipped the answer
+
+**`realized_pnl_pct` changes dtype across versions.** v1 stores it as a
+percent STRING (`"1.64%"`, `"-100.00%"`); v2/v3 store decimal fractions
+(`0.9994`). A naive `to_numeric` silently drops 153 of 255 v1 rows and leaves
+a survivor subset whose median reads +0.60 — i.e. it manufactures a large fake
+v1 edge. Any future cross-version pull MUST strip `%` and divide by 100 for v1.
+This is the pre-`feedback_percentages_decimal` era leaking into the exports.
+
+**v1 has no BacktestProxy export**, so v1 = 255 real rows with zero tweak tier,
+while v2/v3 carry 53/411 tweak rows. Every table below is therefore reported
+BOTH as real+tweak and real-only.
+
+### 1. Version comparison — no improvement is measurable
+
+Only **22 signal dates are common to all three** versions (2024-06-17 ..
+2025-12-10). v1 covers 56 dates, v2 22, v3 118 (to 2026-04-07), so the
+full-window numbers compare different market windows and are not a version
+read. On the common window, real+tweak:
+
+    ver    n    win    med E    mean E    total $    PF    med MFE   med MAE
+    v1   101   0.554   +0.164   +0.091      8194    1.20    0.70     -0.99
+    v2   168   0.488   -0.137   +0.054     14654    1.22    0.91     -0.97
+    v3   162   0.481   -0.215   -0.043      4534    1.07    0.82     -0.99
+
+Real-only is worse for v3 (n=101, win 0.455, mean E −0.107, total −$1,100, PF 0.97).
+
+Date-clustered bootstrap on paired per-date mean E, 22 dates, real+tweak:
+
+    v3 - v1   -0.183  [-0.367, +0.002]   n.s.
+    v3 - v2   -0.154  [-0.305, -0.008]   SIG (does not survive real-only)
+    v2 - v1   -0.029  [-0.268, +0.213]   n.s.
+
+**Verdict: there is no evidence that v2 improved on v1 or that v3 improved on
+either.** The single significant result points the wrong way and is
+tier-fragile. Emission volume is flat across versions (10.9 / 10.9 / 11.5
+analysis rows per common date), so v3 is not buying breadth either.
+
+### 2. Why the comparison cannot be attributed to the prompt anyway
+
+`created_datetime` shows the three books were priced by three different
+backtest engines:
+
+    v1 rows created 2026-06-21..06-25    entry_source real+barchart
+    v2 rows created 2026-07-06..07-07    entry_source barchart_open+barchart_open
+    v3 rows created 2026-07-09..08-10    entry_source barchart_open+barchart_open
+
+The next-day-OPEN entry re-baseline (2026-07-06) lands exactly between v1 and
+v2; the DEBIT trailing-stop removal (07-04) and credit `stop_loss` removal
+(07-13) also fall inside this span — v1 has 0 `trailing_stop` exits, v3 has 31.
+**Engine version is perfectly confounded with prompt version in these exports.**
+Exit capture moves the same way (share of MFE>+25% rows that still close red:
+v1 0.21, v2 0.37, v3 0.35), which is an exit-rule signature, not a selection one.
+
+Nothing here should be read as "the prompt got worse". The correct statement is
+that these exports **cannot answer the question**. To answer it, v1 and v2
+analysis rows must be re-run through the CURRENT engine.
+
+### 3. What the gap actually decomposes into (composition, not selection)
+
+Common dates, <180 DTE, medians reweighted to v1's structure mix:
+
+    v1   raw -0.074   v1-mix-weighted -0.079    (n=85)
+    v2   raw -0.307   v1-mix-weighted -0.193    (n=141)
+    v3   raw -0.488   v1-mix-weighted -0.228    (n=129)
+
+Roughly half of v3's raw deficit is structure composition. Per-structure medians
+on common dates:
+
+    structure           v1(n)        v2(n)        v3(n)
+    bull_call_spread   +0.528(52)   -0.285(74)   +0.383(56)
+    bear_put_spread    +0.116(43)   +0.908(60)   -0.648(51)
+    bull_put_spread    -0.803(1)    +0.666(20)   +0.668(35)
+    bear_call_spread   -1.517(1)    -1.100(10)   -1.099(16)
+
+Two things line up with already-recorded conclusions and one is new:
+
+- **bear_call is toxic in all three versions** (−1.1 to −1.5). Consistent with
+  the 2026-07-13 intake veto; the residual rows here are pre-veto.
+- **bull_put is the one genuine v2→v3 gain**: emission share 12% → 20% at a
+  stable +0.67 median. That is the shipped `deployment-rules.md` constraint
+  showing up in composition.
+- **bear_put swings +0.91 (v2) → −0.65 (v3)** on overlapping dates. This is a
+  third independent sighting of the bear_put problem and it is NOT explained by
+  the engine change alone, since bull_call recovers over the same span.
+
+### 4. The whole book's dollars are long-dated, in every version
+
+Common dates, real+tweak, total $ split at 180 DTE:
+
+    ver     <180d      >=180d
+    v1      +23       +8,170
+    v2   +10,133      +4,522
+    v3    -5,998     +10,533
+
+v3's entire positive dollar result comes from DTE≥180 rows, and its <180d book —
+the band the deployment ladder actually trades — is **negative**. These are
+real-priced rows, not the bs tier, so this is a different observation from the
+2026-08-11 "+$49k of DTE≥180 bs rows" contamination note. It sharpens
+`project_longdated_blind_spot`: the ladder is ≤60 DTE by accident, and the
+money in the backtest is somewhere the ladder does not go.
+
+### 5. June-2026 live book vs the analysis — coverage gap first
+
+**The v3 AnalysisClaude export contains ZERO June-2026 rows** (v3 months present:
+Feb 110, Mar 251, Apr 44, Jul 198, Aug 64). June analysis lives in the v1 export
+(107 rows, 06-10..06-24) and the v2 export (45 rows, 06-25..06-30), and there is
+no coverage at all before 06-10. So June cannot be evaluated against v3, and no
+June row carries `score_total` — **the deployment ladder was not applicable to
+anything traded in June.**
+
+Backtest coverage also stops at 2026-04-07, so there are no backtest rows for
+June either. The audit below is live-trade vs emitted-play only.
+
+IBKR trades carry no strike/expiry/right, so entries were reconstructed by
+grouping fills on order timestamp and matching `average_price` against open
+positions. 12 option entry events in June:
+
+    date   tkr   live structure                  analysis that day        verdict
+    06-05  NVDA  bull call spread Jun'27 LEAP    (none - no coverage)     UNCOVERED
+    06-05  QQQ   debit spread                    (none - no coverage)     UNCOVERED
+    06-10  MSFT  LONG CALL naked @41.37          bull call spd 410/480    SUBSTITUTED
+    06-12  QQQ   debit spread                    bull call spd 725/760    MATCH
+    06-15  NVDA  short call (overwrite)          bull call spd 185/210    OVERWRITE
+    06-15  TSM   short call (overwrite)          (none that day)          UNCOVERED
+    06-16  MU    bull put 920/940 (SOLD vol)     long strangle, VOL       CONTRADICTED
+    06-22  INTC  bull put 115/130 (credit)       bull call spd 145/180    SUBSTITUTED
+    06-23  AMD   debit spread                    bull call spd 600/720    MATCH
+    06-23  SMH   bear put 470/440                bear put spd 600/540     MATCH
+    06-30  NVDA  short call (overwrite)          (none that day)          UNCOVERED
+    06-30  TSM   bull call spd 450/530 Dec       bull call spd 460/500    MATCH
+
+4 clean matches, 2 substitutions, 1 direct contradiction, 2 overwrites,
+4 uncovered (3 by date-gap, 1 by ticker-gap).
+
+**The `SUBSTITUTED` category from `project_live_walkforward_in_progress` is now
+observed twice and in two distinct forms**, which matters because they have
+opposite sign:
+
+- **06-10 MSFT — naked long leg where a spread was emitted.** Analysis said
+  bull call spread 410/480 163DTE; the live trade was the long call alone at
+  41.37, closed 06-22 at 29.63 for **−$1,176**. The emitted short 480 leg would
+  have financed part of that. Substitution cost money.
+- **06-22 INTC — credit structure where a debit was emitted.** Analysis said
+  bull call spread 145/180 and explicitly flagged IV ~95% as "very rich",
+  choosing a debit "to neutralize" it; the live trade was a bull PUT credit
+  spread 115/130 — same direction, opposite vega. INTC then fell. Both reads
+  were wrong on direction, but the emitted 145/180 debit spread would have been
+  a near-total loss while the credit spread is at **−$793** unrealized.
+  Substitution saved money, and did so by taking the side the analysis's own
+  IV comment argued for.
+
+**06-16 MU is the one outright contradiction**: the analysis called RANGE + E-VOL
+into earnings and emitted a long strangle (buy vol, IV 99-120%); the live trade
+sold vol via a 920/940 put credit spread. Worth logging because the analysis
+itself hedged — its Alt clause said the two-sided flow "could be dealers/funds
+selling earnings vol", which is the side actually traded.
+
+**Attribution caveat — do not compute June-entry P&L from the current book.**
+July is a wall of rolls (50 MU fills, 21 TSM fills between 07-01 and 08-11), so
+`average_price` on most surviving positions no longer reflects the June entry.
+Only two June entries are untouched: INTC 115/130 (avg 9.3576/15.9720 vs fills
+9.35/15.98) at −$793, and NVDA Jun17'27 220C (avg 38.5614 vs fill 38.55) at
+−$346. SMH, TSM and MU were all re-struck in July and their marks are NOT June
+attribution. Likewise the +$4,966 realized inside June is mostly the 06-22 TSM
+close (+$6,159) of an APRIL entry — it is not a June-selection result.
+
+### 6. Actions
+
+- **No rule change.** Nothing here clears a promotion bar.
+- **Blocked:** the v1/v2/v3 question cannot be answered from these exports.
+  Re-running v1+v2 analysis rows through the current engine is the only clean
+  path; until then, treat "v3 is better" as unevidenced in either direction.
+- **New watch:** v3 <180d real+tweak book is negative on common dates while
+  >=180d carries all the dollars. Check this again on the full v3 window.
+- **bear_put:** third sighting, now cross-version. Strengthens the standing
+  DEMOTE candidate.
+- **Live process:** June ran on v1/v2 prompts with no `score_total`, so the
+  ladder was untested in live use. The first genuine live-vs-tier eval needs a
+  month where the traded book and a scored analysis tab overlap — July is the
+  first candidate (198 v3 rows).
+
+---
+
+## 2026-08-12 (same day, second run) — Stage 1 live-vs-tier eval on July
+
+Follow-up to the section above: July was the first month where the traded book
+overlaps a scored v3 analysis tab, so the live-vs-tier eval was finally runnable.
+Re-ran `scripts/live_loop/stage1_map_fills.py` on a fresh **2026-08-12** IBKR
+snapshot (206 trades vs the old snapshot's 53; 19 open option positions vs 17).
+
+### 0. Four code fixes the wider snapshot forced
+
+The module had only ever seen a 53-trade window. Widening it broke it:
+
+1. **Crash on a non-business-day fill.** `np.busday_offset(fill, -1)` raises on a
+   weekend date; IBKR stamped two rows 2026-08-08 (Saturday). Now
+   `roll="forward"`, so a Saturday fill resolves to the prior Friday.
+2. **Zero-price settlement rows became phantom entries.** A `price == 0` /
+   `realized_pnl == 0` row is expiry/assignment bookkeeping, not a fill. They are
+   now dropped before entry reconstruction and reported in the header. Zero-price
+   rows WITH realized_pnl stay in the closing ledger — those are real expiry P&L.
+3. **NONE reasons were collapsed into one misleading label.** Every unmapped
+   entry rendered as "no same-ticker play", which reads as "the analysis never
+   covered this". False for 21 of them — see §2. Now split four ways.
+4. **Snapshot path was hardcoded**; now defaults to the newest
+   `ibkr_snapshot_*.json`, with `--snapshot` to re-run an older one, and the
+   report name carries the snapshot date so re-runs never clobber.
+
+Two assertions in the generated caveats were also stale and are now computed
+rather than asserted.
+
+### 1. The July result — selection compliance
+
+Pooling the mapped entries from BOTH snapshots (see §2 for why pooling is
+mandatory) gives **8 mapped live entries**, 2026-07-14 → 2026-08-10:
+
+    signal date  tkr   live structure       confidence    tier   top avail
+    2026-07-14   TSM   bull_put_spread      STRUCTURE     VETO   C
+    2026-07-16   META  single short put     SUBSTITUTED   VETO   A
+    2026-07-17   QQQ   bear_put_spread      STRUCTURE     C      C
+    2026-07-28   SMH   bear_put_spread      STRUCTURE     C      A
+    2026-07-30   HYG   single long put      SUBSTITUTED   C      C
+    2026-08-04   IWM   bear_put_spread      EXACT         C      B
+    2026-08-05   TSM   bull_call_spread     STRUCTURE     B      B
+    2026-08-07   GLD   bull_call_spread     STRUCTURE     B      B
+
+**4 of 8 were in the top available tier. 2 landed in a VETO cell. Zero Tier-A
+plays were ever deployed** — including 07-16 and 07-28, where an A was on the
+board and a VETO / C was taken instead.
+
+Both VETO hits are the same cell: **a credit play in RANGE + L-VOL**. That is one
+rule, violated twice, and it is the single highest-value thing to fix in live
+process. Note 07-16 META is also a SUBSTITUTED row — a naked short put where a
+bull_put_spread 620/580 was emitted — so it violates the veto by a route the
+analysis never proposed.
+
+### 2. Methodological finding — mapping decays, snapshots are not supersets
+
+Contract identity is inferred by joining a fill price to an open-position
+`average_price`; the trades payload has no strike/expiry/right. **Once a
+round-trip closes, its identity is unrecoverable.** So the 2026-07-22 snapshot
+maps the 07-15 TSM bull_put and 07-20 QQQ bear_put that the 2026-08-12 snapshot
+reads as UNKNOWN — those positions have since closed.
+
+**A later snapshot is not a superset of an earlier one.** On the 08-12 snapshot,
+21 of 59 unmapped entries fall on dates that DID carry a same-ticker play but
+whose live structure could no longer be resolved. Snapshots must be taken on a
+regular cadence and their mapped sets pooled. Both facts are now written into
+the module's caveats so the next run cannot forget them.
+
+This also relocates the Stage-2 bottleneck. Closed round-trips are no longer
+scarce (54, vs the ~30–50 threshold) — **mappability** is the constraint: only 8
+entries map at all, across two snapshots.
+
+### 3. P&L, with the attribution caveat that matters
+
+The June audit could not attribute P&L because July rolls had moved every
+`average_price` off its entry fill. For the mapped entries this problem solves
+itself: **the price-join only matches when `average_price` ≈ the entry fill, so
+mapped-and-open entries are by construction un-rolled.** All six open mapped
+entries check out (largest gap $0.011/share). Unrealized, as of 2026-08-12:
+
+    tier B     n=2    -$65     (GLD +82, TSM -146)
+    tier C     n=3   -$733     (IWM -28, HYG -29, SMH -676)
+    tier VETO  n=1   +$726     (META)
+    ALL        n=6    -$72
+
+**This does not validate or refute the ladder** and must not be quoted as
+evidence: n=6, all unrealized marks on open positions, no exits taken, and the
+single VETO row is the best performer. It is recorded so the next snapshot has a
+baseline to move against. The ordering is currently the reverse of what the
+ladder predicts, on a sample far too small to mean anything.
+
+### 4. Actions
+
+- **No rule change.** n=8 mapped entries decides nothing.
+- **Live process, actionable now:** the RANGE + L-VOL credit veto was breached
+  twice, and Tier A was passed over twice when available. Both are checkable off
+  the analysis row on a deploy morning at zero cost.
+- **Snapshot cadence:** take an IBKR snapshot at least fortnightly, keep every
+  one, pool the mapped sets. Mappings are lost permanently otherwise.
+- **Next gate:** Stage 2 needs mapped entries, not fills. At the current rate
+  (~8 per 4 weeks of overlap) a 30-entry mapped book is roughly 3–4 months out —
+  unless snapshot cadence rises, which directly raises the mapping yield.

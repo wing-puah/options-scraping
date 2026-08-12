@@ -757,6 +757,57 @@ def test_summarize_path_daily_pnl_is_per_contract_not_position_scaled():
     assert out["realized_pnl_abs"] == 3000.0  # 1.0 × 10 × 100 × 3 contracts (scaled)
 
 
+# ── be_after: the breakeven ratchet (bear debits, 2026-08-11) ─────────────────
+#
+# Its POSITION in the exit ladder is load-bearing: dollar_stop → be_stop →
+# stop_loss, ported from the frozen study harness (backtest_study/harness.py).
+# Move it and the shipped rule stops reproducing the study it was derived from.
+
+def _ratchet_path():
+    """Runs to +0.60 (arms the ratchet at 0.50), then back through breakeven."""
+    return [(date(2026, 6, 2), 1, 16.0, "barchart"),   # pl +0.60
+            (date(2026, 6, 3), 2, 9.5, "barchart")]    # pl −0.05
+
+
+def test_be_stop_fires_once_peak_clears_the_threshold():
+    out = bt._summarize_path(_ratchet_path(), 10.0, 0.90, 0.75, 1, False,
+                             be_after=0.50)
+    assert out["exit_reason"] == "be_stop"
+    assert out["days_held"] == 2
+
+
+def test_be_stop_absent_when_the_ratchet_is_off():
+    """Same path, no be_after → the small loss is not an exit at all."""
+    out = bt._summarize_path(_ratchet_path(), 10.0, 0.90, 0.75, 1, False)
+    assert out["exit_reason"] != "be_stop"
+
+
+def test_be_stop_does_not_arm_below_the_threshold():
+    """Peak +0.30 never reaches 0.50, so a dip through zero is just a dip."""
+    gm = [(date(2026, 6, 2), 1, 13.0, "barchart"),   # pl +0.30
+          (date(2026, 6, 3), 2, 9.5, "barchart")]    # pl −0.05
+    out = bt._summarize_path(gm, 10.0, 0.90, 0.75, 1, False, be_after=0.50)
+    assert out["exit_reason"] != "be_stop"
+
+
+def test_be_stop_precedes_stop_loss_in_the_ladder():
+    """A day that trips BOTH must report be_stop — the ratchet is checked
+    first, so the position exits at breakeven rather than riding to −75%."""
+    gm = [(date(2026, 6, 2), 1, 16.0, "barchart"),   # pl +0.60, arms
+          (date(2026, 6, 3), 2, 2.0, "barchart")]    # pl −0.80: be_stop AND stop_loss
+    out = bt._summarize_path(gm, 10.0, 0.90, 0.75, 1, False, be_after=0.50)
+    assert out["exit_reason"] == "be_stop"
+
+
+def test_be_stop_yields_to_dollar_stop():
+    """dollar_stop is the portfolio-level backstop and outranks the ratchet."""
+    gm = [(date(2026, 6, 2), 1, 16.0, "barchart"),
+          (date(2026, 6, 3), 2, 2.0, "barchart")]
+    out = bt._summarize_path(gm, 10.0, 0.90, 0.75, 1, False,
+                             max_loss_abs=100.0, be_after=0.50)
+    assert out["exit_reason"] == "dollar_stop"
+
+
 def test_simulate_path_cap_open_when_dte_exceeds_cap():
     # Flat price, never triggers; DTE 200 > cap 120 → held open at the cap.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
