@@ -17,6 +17,11 @@ The run writes `backtests/study_output/<name>-<stamp>.txt` plus a stable
 flag, the exact argv, and the row counts / mtimes of the input exports). It
 then prints the path to paste into Claude for the write-up.
 
+It also re-renders `docs/study-map.html`, so the readable one-page map of the
+whole package always quotes the newest report. That step is best-effort: the
+report is the valuable output, and a broken map must never turn a good run into
+a failed command.
+
 Outputs live under `backtests/` because they are data, not source — the whole
 tree is gitignored scratch. The code lives here, under `scripts/`.
 """
@@ -175,6 +180,9 @@ def main() -> int:
     p_run.add_argument("--all", action="store_true",
                        help="run every study with its default args")
     p_run.add_argument("--dry-run", action="store_true")
+    p_run.add_argument("--no-handoff", action="store_true",
+                       help="suppress the 'paste this into Claude' footer — for callers "
+                            "like scripts.study_review that do the write-up themselves")
     args, extra = ap.parse_known_args()
 
     if args.cmd != "run":
@@ -203,11 +211,25 @@ def main() -> int:
         return 0
 
     print("\n" + "=" * 78)
-    print("DONE — paste this into Claude to get the write-up:\n")
+    print("DONE — reports:" if args.no_handoff else "DONE — reports written:\n")
     for name, rc, path in results:
         status = "" if rc == 0 else f"  *** FAILED rc={rc} ***"
         rel = (OUT_DIR / f"{name}-latest.txt").relative_to(ROOT)
-        print(f"  write up {rel}{status}")
+        print(f"  {rel}{status}")
+
+    # Imported here, not at module scope: the map reads every report in the
+    # output dir, and nothing about running a study should depend on it.
+    from scripts.study_map.build import refresh_quietly
+    mapped = refresh_quietly()
+    if mapped:
+        print(f"\n  map refreshed: {mapped.relative_to(ROOT)}  (open it in a browser)")
+    # Standalone runs still need a write-up; study_review passes --no-handoff
+    # because it runs the graded write-up itself (analyst A/B + validator + digest).
+    if not args.no_handoff:
+        print("\nFor the write-up, either:")
+        print(f"  python3 -m scripts.study_review {names[0]} --skip-run"
+              "   (graded: analyst A/B + validator + digest)")
+        print("  or paste the report above into Claude and ask for a write-up.")
     print("=" * 78)
     return max(rc for _, rc, _ in results)
 

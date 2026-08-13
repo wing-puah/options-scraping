@@ -1,0 +1,95 @@
+# account_sim — account feasibility simulation of the shipped ladder
+#
+# Run with: python3 -m scripts.backtest_study run account_sim
+#      or:  python3 -m scripts.backtest_study run account_sim -- --config <path>
+#
+# RESEARCH TIER. Nothing ships from this study under any outcome. The study asks
+# one question: does the shipped operator card (top_k_per_day, tiers A/B,
+# ladder_rank ordering) still produce a book once an account has to actually pay
+# for the positions, hold reserved capital while they are open, and respect a
+# delta-notional exposure cap?
+#
+# THIS FILE IS THE SIMULATION. Selection is frozen (protocol.ladder_rank /
+# ladder_eligible), exits are frozen (the shipped debit merge / CREDIT_PROD), and
+# the replay harness is frozen (scripts/backtest_study/harness.py). Everything
+# the simulation is *parameterised by* lives here, and account_sim.py holds no
+# state of its own — it reads this file and runs what it says.
+#
+# Simulating a different account is a normal use of this study: edit the values
+# below, or copy this file and pass --config. The values that were pre-registered
+# on 2026-08-13 ($25,000 / 2% / 0.25x / 1.50x) are recorded in
+# config/backtest-tuning/current.md §"`account_sim`: PRE-REGISTRATION"; that log,
+# not this file, is the record of what the frozen study ran with.
+
+# ── The account ────────────────────────────────────────────────────────────────
+account:
+  # Starting equity. Also the denominator for both delta-notional caps below and
+  # for the A3 drawdown criterion.
+  capital: 25000
+
+  # Risk budget per position, as a fraction of capital. Positions are sized on a
+  # MAX-LOSS basis: contracts = max(1, int(budget / max_loss_per_contract)).
+  # The same figure is the hard per-position DOLLAR STOP.
+  #
+  # Note on the frozen harness: harness.MAX_LOSS_ABS is $1,000 (a $50k book at
+  # 2%). A budget that does not divide $1,000 evenly cannot be expressed exactly
+  # through the harness's scaling identity; the study rounds to a TIGHTER stop
+  # (the conservative direction) and prints how many positions were affected.
+  risk_per_trade_pct: 0.02
+
+  # Positions opened per signal date. This feeds BOTH the account walk and the
+  # top_k_per_day selection it is gated against (G4) — they cannot drift apart.
+  max_positions_per_day: 3
+
+# ── Exposure caps (x equity, delta-notional) ───────────────────────────────────
+# A friction model, NOT a tuned parameter. The anti-tuning rule in the report
+# applies: no cap value may be adopted on the basis of P&L.
+caps:
+  per_position: 0.25    # |delta-notional| of any single position
+  net: 2.50             # |net delta-notional| of the whole open book
+
+# ── Descriptive surfaces ───────────────────────────────────────────────────────
+# Grids the report sweeps to show the SHAPE of the constraint, not to pick a
+# winner. `null` means "no cap" (YAML has no infinity literal).
+grids:
+  per_position: [0.15, 0.25, 0.40, null]
+  net:          [1.00, 1.50, 2.50, null]
+
+  # Rungs tried when the edge criterion (A1) fails, to answer "at what account
+  # size would this have worked?". Printed only in that case.
+  capital_ladder: [25000, 35000, 50000]
+
+# ── The bear hedge sleeve (ARM H) ──────────────────────────────────────────────
+# One bear-debit position per day, taken AFTER the day's signal picks so it can
+# never displace one, and not counted against max_positions_per_day.
+hedge:
+  risk_fraction: 0.5    # x the signal budget
+
+# ── Population ─────────────────────────────────────────────────────────────────
+# PRIMARY = maximal runs of signal dates with no internal gap larger than
+# episode_max_gap trading sessions, and at least episode_min_dates dates.
+# SECONDARY = the full sparse book.
+population:
+  episode_max_gap: 5
+  episode_min_dates: 10
+
+# ── Criteria thresholds (A1-A6) ────────────────────────────────────────────────
+criteria:
+  attrition_floor: 0.60   # A2 — constrained dollars / unconstrained, same dates
+  maxdd_fraction: 0.25    # A3 — max drawdown as a fraction of capital
+  ratio_tolerance: 0.15   # A5 — points of ratio movement allowed on either cut
+
+# ── Gates ──────────────────────────────────────────────────────────────────────
+# G1 pins the deployed line against a figure a prior report printed on the SAME
+# exports, so a silently-changed book fails the run instead of quietly moving
+# every number below it. G2-G5 (scaling identity, ledger identity, selection
+# identity, outcome blindness) are logic gates with nothing to configure.
+#
+# Update these three numbers ONLY when the book itself legitimately changes
+# (new backtest/proxy exports), and say so in config/backtest-tuning/current.md.
+gates:
+  book_calibration:
+    expected_positions: 220
+    expected_dates: 90
+    expected_dollars: 63553
+    dollar_tolerance: 1.0

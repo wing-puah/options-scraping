@@ -1,0 +1,1786 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>$25k Feasibility Readout</title>
+<style>
+/* account_sim readout — cool-slate instrument panel.
+   Every colour is a token defined on bare :root, then redefined under BOTH
+   dark scopes. Nothing below declares a colour outside the token blocks. */
+
+:root {
+  color-scheme: light;
+
+  --ground:      #f4f6f8;
+  --panel:       #fdfdfe;
+  --panel-sunk:  #f0f3f6;
+  --ink:         #0d1117;
+  --ink-2:       #4b5563;
+  --ink-3:       #7b8593;
+  --rule:        #e0e5ea;
+  --rule-strong: #c6ced8;
+  --grid:        #e8ecf1;
+
+  /* categorical slots — validated palette, light steps */
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+
+  /* sequential blue ramp (heatmap) */
+  --seq-0: #eef4fd;
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  --seq-7: #0d366b;
+
+  /* status — reserved, never a series */
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --critical: #d03b3b;
+  --good-wash:     rgba(12, 163, 12, 0.10);
+  --warning-wash:  rgba(250, 178, 25, 0.14);
+  --critical-wash: rgba(208, 59, 59, 0.10);
+
+  --accent-wash: rgba(42, 120, 214, 0.10);
+  --shadow: 0 1px 2px rgba(13, 17, 23, 0.05), 0 8px 24px -18px rgba(13, 17, 23, 0.35);
+
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --ground:      #0b0d10;
+    --panel:       #14171c;
+    --panel-sunk:  #1a1e24;
+    --ink:         #eef1f5;
+    --ink-2:       #a8b1bd;
+    --ink-3:       #79828f;
+    --rule:        #242a32;
+    --rule-strong: #39414c;
+    --grid:        #20262d;
+
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s6: #008300;
+    --s7: #9085e9;
+    --s8: #e66767;
+
+    --seq-0: #10233c;
+    --seq-1: #0d366b;
+    --seq-2: #184f95;
+    --seq-3: #256abf;
+    --seq-4: #3987e5;
+    --seq-5: #6da7ec;
+    --seq-6: #9ec5f4;
+    --seq-7: #cde2fb;
+
+    --good-wash:     rgba(12, 163, 12, 0.16);
+    --warning-wash:  rgba(250, 178, 25, 0.16);
+    --critical-wash: rgba(208, 59, 59, 0.18);
+    --accent-wash: rgba(57, 135, 229, 0.16);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -18px rgba(0, 0, 0, 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ground:      #0b0d10;
+  --panel:       #14171c;
+  --panel-sunk:  #1a1e24;
+  --ink:         #eef1f5;
+  --ink-2:       #a8b1bd;
+  --ink-3:       #79828f;
+  --rule:        #242a32;
+  --rule-strong: #39414c;
+  --grid:        #20262d;
+
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+
+  --seq-0: #10233c;
+  --seq-1: #0d366b;
+  --seq-2: #184f95;
+  --seq-3: #256abf;
+  --seq-4: #3987e5;
+  --seq-5: #6da7ec;
+  --seq-6: #9ec5f4;
+  --seq-7: #cde2fb;
+
+  --good-wash:     rgba(12, 163, 12, 0.16);
+  --warning-wash:  rgba(250, 178, 25, 0.16);
+  --critical-wash: rgba(208, 59, 59, 0.18);
+  --accent-wash: rgba(57, 135, 229, 0.16);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -18px rgba(0, 0, 0, 0.8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px 96px;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 56px 0 28px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+h1 {
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 620;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.standfirst {
+  max-width: 66ch;
+  color: var(--ink-2);
+  margin: 0;
+  font-size: 16px;
+}
+
+.provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  padding-top: 4px;
+  border-top: 1px solid var(--rule);
+}
+
+.provenance b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- verdict ---------- */
+
+.verdict {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.verdict-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+
+.verdict-figure {
+  font-size: 48px;
+  line-height: 1.05;
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.verdict-body { max-width: 72ch; color: var(--ink-2); margin: 0; font-size: 14.5px; }
+
+/* ---------- filter row ---------- */
+
+.filters {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  margin-bottom: 28px;
+  background: var(--ground);
+  border-bottom: 1px solid var(--rule);
+}
+
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.switch button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.switch button + button { border-left: 1px solid var(--rule-strong); }
+.switch button:hover { background: var(--panel-sunk); color: var(--ink); }
+.switch button[aria-pressed="true"] { background: var(--s1); color: var(--panel); }
+.switch button:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+
+:root[data-theme="dark"] .switch button[aria-pressed="true"],
+.switch button[aria-pressed="true"] { color: #ffffff; }
+
+.filter-note {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+/* ---------- sections & panels ---------- */
+
+section { margin-bottom: 44px; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.section-head h2 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.section-head p { margin: 0; color: var(--ink-3); font-size: 13px; max-width: 52ch; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 4px; }
+
+.panel h3 { font-size: 15px; font-weight: 600; margin: 0; }
+
+.panel .how {
+  color: var(--ink-3);
+  font-size: 13px;
+  margin: 2px 0 16px;
+  max-width: 68ch;
+}
+
+.grid-2 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.grid-3 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+/* ---------- stat tiles ---------- */
+
+.tiles { display: grid; gap: 1px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+
+.tile { background: var(--panel); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.tile .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
+.tile .value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.tile .sub { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+
+/* ---------- chips ---------- */
+
+.chips { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+
+.chip {
+  display: grid;
+  grid-template-columns: 34px 20px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  background: var(--panel);
+  padding: 11px 16px;
+}
+
+.chip .id { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.chip .mark { font-size: 13px; font-weight: 700; line-height: 1.3; }
+.chip .title { font-size: 13.5px; color: var(--ink); }
+.chip .detail { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); grid-column: 3; }
+.chip .state { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 2px; white-space: nowrap; }
+
+.chip.is-good  { background: var(--good-wash); }
+.chip.is-good .mark, .chip.is-good .state { color: var(--good); }
+.chip.is-bad   { background: var(--critical-wash); }
+.chip.is-bad .mark, .chip.is-bad .state { color: var(--critical); }
+
+/* ---------- charts ---------- */
+
+figure { margin: 0; }
+
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; max-width: 100%; height: auto; }
+
+text { font-family: var(--mono); }
+.tick { font-size: 10.5px; fill: var(--ink-3); }
+.axis-title { font-size: 10.5px; fill: var(--ink-3); letter-spacing: 0.06em; }
+.dlabel { font-size: 11px; fill: var(--ink); font-weight: 600; }
+.dlabel-2 { font-size: 10.5px; fill: var(--ink-2); }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--rule-strong); stroke-width: 1; }
+.refline { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: none; opacity: 0.55; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 12px 0 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); }
+.legend .key { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+.legend .key.line { height: 3px; border-radius: 2px; }
+
+/* ---------- tooltip ---------- */
+
+.tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+  font-size: 12px;
+  min-width: 130px;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.tip[data-show="true"] { opacity: 1; }
+.tip .tip-head { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-bottom: 5px; }
+.tip .tip-row { display: flex; align-items: baseline; gap: 8px; }
+.tip .tip-row + .tip-row { margin-top: 3px; }
+.tip .tip-key { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+.tip .tip-val { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+.tip .tip-name { color: var(--ink-2); font-size: 11.5px; }
+
+/* ---------- table view ---------- */
+
+.table-toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 4px 9px;
+  cursor: pointer;
+  min-height: 26px;
+  flex: none;
+}
+
+.table-toggle:hover { background: var(--panel-sunk); color: var(--ink); }
+.table-toggle:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+
+.table-view { margin-top: 14px; overflow-x: auto; }
+.table-view[hidden] { display: none; }
+
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+tbody td:first-child { color: var(--ink); }
+
+/* ---------- notes ---------- */
+
+.note {
+  border-left: 2px solid var(--rule-strong);
+  padding: 2px 0 2px 14px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  max-width: 74ch;
+}
+
+.note.is-warning { border-left-color: var(--warning); }
+.note strong { color: var(--ink); font-weight: 600; }
+
+.stack { display: flex; flex-direction: column; gap: 18px; }
+
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+
+footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  max-width: 74ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+@media (max-width: 640px) {
+  .wrap { padding: 0 16px 64px; }
+  h1 { font-size: 27px; }
+  .verdict-figure { font-size: 34px; }
+  .chip { grid-template-columns: 30px 18px minmax(0, 1fr); }
+  .chip .state { grid-column: 3; justify-self: start; }
+}
+
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">backtest study · account_sim · research tier</p>
+    <h1>Can the shipped ladder be traded in a $25,000 account?</h1>
+    <p class="standfirst">A pre-registered feasibility simulation of the deployment ladder at
+      $25,000 of capital, 2% risk per position on a max-loss basis, three positions a day, and
+      delta-notional caps of 0.25x equity per position and 1.50x net. Selection and exits are
+      frozen; only the account is new.</p>
+    <div class="provenance">
+      <span><b>run</b> 2026-08-13 19:35:41</span>
+      <span><b>git</b> 309c564 (main, working tree dirty)</span>
+      <span><b>command</b> python -m scripts.backtest_study.account_sim</span>
+      <span><b>inputs</b> 1,926 rows analysis - BacktestResults.csv · 4,533 rows analysis - BacktestProxy.csv · 11,836 rows analysis - AnalysisClaude.csv · 803 rows spy_vix_daily_full.csv</span>
+    </div>
+  </header>
+
+  <section id="verdict">
+    <div class="verdict">
+      <div class="verdict-head">
+        <p class="verdict-figure">NO VERDICT MATCHES</p>
+      </div>
+      <p class="verdict-body">On the primary population, A1 holds but A5, A6 fail(s).</p>
+      <p class="verdict-body">The three
+        verdicts (FEASIBLE, FEASIBLE-BUT-DEGRADED, NOT FEASIBLE AT the configured capital) do not
+        partition the outcome space, and the run landed in the gap. Nothing has been relabelled to
+        fit: the A1–A6 checklist is the result, and the verdict grammar is recorded as incomplete
+        for whoever replicates this.</p>
+      <p class="verdict-body"><strong>Nothing in this study ships.</strong> The cap values are a
+        friction model, not tuned parameters. By construction the study prints no annualised
+        figure, no Sharpe ratio and no time-to-recover, and this page does not add any.</p>
+    </div>
+    
+  </section>
+
+  <section id="gates">
+    <div class="section-head">
+      <h2>Gates G1–G5</h2>
+      <p>Identity checks that must pass before any number below is admissible. A failure exits non-zero.</p>
+    </div>
+    <div class="chips">
+      <div class="chip is-good">
+        <span class="id">G1</span>
+        <span class="mark">✓</span>
+        <div><div class="title">Book calibration quoted, B1 line reproduced</div></div>
+        <span class="state">PASS</span>
+      </div>
+      <div class="chip is-good">
+        <span class="id">G2</span>
+        <span class="mark">✓</span>
+        <div><div class="title">Scaling identity calibrated at scale=1 against stored rows</div></div>
+        <span class="state">PASS</span>
+      </div>
+      <div class="chip is-good">
+        <span class="id">G3</span>
+        <span class="mark">✓</span>
+        <div><div class="title">Ledger accounting identity, checked after every event</div><div class="detail">(0 violations)</div></div>
+        <span class="state">PASS</span>
+      </div>
+      <div class="chip is-good">
+        <span class="id">G4</span>
+        <span class="mark">✓</span>
+        <div><div class="title">Unconstrained walk reproduces top_k_per_day by set equality</div></div>
+        <span class="state">PASS</span>
+      </div>
+      <div class="chip is-good">
+        <span class="id">G5</span>
+        <span class="mark">✓</span>
+        <div><div class="title">The simulator is blind to how a position turned out</div></div>
+        <span class="state">PASS</span>
+      </div>
+    </div>
+    <p class="note" style="margin-top:16px">G5 is the one that makes the rest usable by an agent proposing live
+      positions: every record is re-wrapped so that reading an outcome key raises, the outcome columns
+      are deleted from the underlying row so a read cannot route around the wrapper, and the run must
+      still produce a byte-identical book. No ordering, sizing or admission decision can be standing on
+      a number that would not exist yet in real time.</p>
+  </section>
+
+  <section id="population">
+    <div class="section-head">
+      <h2>Population</h2>
+      <p>90 deployed signal dates, 2024-06-17 to 2026-04-07.</p>
+    </div>
+    <p class="note">The primary population is the 3 dense episodes — maximal runs of signal
+      dates with no internal gap over 5 trading sessions and at least 10 dates. 44 isolated
+      dates are excluded from it. The full sparse book is reported as secondary; the pre-registration
+      says it is an availability upper bound and a concurrency lower bound, and may not carry a
+      conclusion alone.</p>
+      <div class="table-view">
+        <table>
+          <thead><tr><th>Episode</th><th>From</th><th>To</th><th>Signal dates</th><th>Sessions</th><th>Deployed picks</th></tr></thead>
+          <tbody><tr><td>E1</td><td>2025-03-11</td><td>2025-03-31</td><td>12</td><td>14</td><td>31</td></tr><tr><td>E2</td><td>2025-04-22</td><td>2025-05-16</td><td>15</td><td>18</td><td>44</td></tr><tr><td>E3</td><td>2026-02-02</td><td>2026-04-07</td><td>19</td><td>46</td><td>37</td></tr></tbody>
+        </table>
+      </div>
+  </section>
+
+  <div class="filters">
+    <div class="switch" role="group" aria-label="Population">
+      <button type="button" data-population="primary" aria-pressed="true">PRIMARY · dense episodes</button>
+      <button type="button" data-population="secondary" aria-pressed="false">SECONDARY · full book</button>
+    </div>
+    <p class="filter-note">Everything below is scoped to the selected population.</p>
+  </div>
+
+  <div id="panels"></div>
+
+  <footer>
+    Rendered by <code>python -m scripts.study_charts.account_sim</code> from
+    <code>account_sim-latest.txt</code> and <code>account_sim-positions-latest.csv</code>.
+    Every figure is either read out of the study's own report text or recomputed from its positions
+    export and reconciled against that report at build time — the build fails rather than draw a
+    chart that disagrees with the study. Research tier: not a shippable rule.
+  </footer>
+</div>
+
+<script>
+window.__ACCOUNT_SIM__ = {"capital": 25000.0, "report": {"provenance": {"inputs": [{"rows": 1926, "mtime": "2026-08-11 15:38", "path": "backtests/to_evaluate/analysis - BacktestResults.csv"}, {"rows": 4533, "mtime": "2026-08-11 15:38", "path": "backtests/to_evaluate/analysis - BacktestProxy.csv"}, {"rows": 11836, "mtime": "2026-08-11 17:24", "path": "backtests/to_evaluate/analysis - AnalysisClaude.csv"}, {"rows": 803, "mtime": "2026-08-13 11:56", "path": "backtests/mech_regime/spy_vix_daily_full.csv"}], "run_at": "2026-08-13 19:35:41", "command": "python -m scripts.backtest_study.account_sim", "git": "309c564 (main, working tree dirty)", "python": "3.11.2", "structure_arm": false}, "gates": {"gates": [{"id": "G1", "status": "PASS", "note": "", "title": "Book calibration quoted, B1 line reproduced"}, {"id": "G2", "status": "PASS", "note": "", "title": "Scaling identity calibrated at scale=1 against stored rows"}, {"id": "G3", "status": "PASS", "note": "(0 violations)", "title": "Ledger accounting identity, checked after every event"}, {"id": "G4", "status": "PASS", "note": "", "title": "Unconstrained walk reproduces top_k_per_day by set equality"}, {"id": "G5", "status": "PASS", "note": "", "title": "The simulator is blind to how a position turned out"}], "headline": "ALL PASS"}, "population_notes": {"episodes": [{"id": "E1", "start": "2025-03-11", "end": "2025-03-31", "dates": 12, "sessions": 14, "picks": 31}, {"id": "E2", "start": "2025-04-22", "end": "2025-05-16", "dates": 15, "sessions": 18, "picks": 44}, {"id": "E3", "start": "2026-02-02", "end": "2026-04-07", "dates": 19, "sessions": 46, "picks": 37}], "signal_dates": 90, "span": ["2024-06-17", "2026-04-07"], "excluded_isolated": 44}, "verdict": {"checklist": [{"id": "A1", "status": "MET"}, {"id": "A2", "status": "MET"}, {"id": "A3", "status": "MET"}, {"id": "A4", "status": "MET"}, {"id": "A5", "status": "NOT MET"}, {"id": "A6", "status": "NOT MET"}], "headline": "NO VERDICT MATCHES \u2014 A1 holds but A5, A6 fail(s)"}, "structure_arm": null, "populations": {"primary": {"baselines": {"B1": {"n": 112, "dates": 46, "dollars": 45671.0, "meanR": 0.511}, "B2": {"n": 110, "dates": 46, "dollars": 23157.0, "meanR": 0.298}, "ratio": 0.51}, "granularity": {"accounts": [{"capital": 50000.0, "budget": 1000.0, "dist": {"1": 73, "2": 11, "3": 3, "4": 7, "5": 4, "6": 2, "7": 8, "8": 1}, "dist_truncated": true, "mean_contracts": 2.2, "median_contracts": 1.0, "floor_n": 31, "floor_of": 110, "floor_pct": 28, "breach_n": 31, "breach_pct": 28, "risk_median": 1.8, "risk_p90": 3.0, "risk_max": 6.1}, {"capital": 25000.0, "budget": 500.0, "dist": {"1": 87, "2": 11, "3": 10, "4": 1, "7": 1}, "dist_truncated": false, "mean_contracts": 1.36, "median_contracts": 1.0, "floor_n": 73, "floor_of": 110, "floor_pct": 66, "breach_n": 73, "breach_pct": 66, "risk_median": 3.0, "risk_p90": 6.0, "risk_max": 12.2}], "picks": 112, "sizable": 110, "unsizable": 2}, "utilisation": [{"month": "2025-03", "sessions": 10, "res_avg": 0.25, "res_max": 0.41, "gross_avg": 0.98, "gross_max": 1.49, "net_avg": 0.98, "net_max": 1.49, "open_avg": 10.9, "open_max": 16}, {"month": "2025-04", "sessions": 22, "res_avg": 0.28, "res_max": 0.41, "gross_avg": 1.09, "gross_max": 1.5, "net_avg": 1.09, "net_max": 1.5, "open_avg": 11.7, "open_max": 16}, {"month": "2025-05", "sessions": 22, "res_avg": 0.37, "res_max": 0.43, "gross_avg": 1.44, "gross_max": 1.5, "net_avg": 1.44, "net_max": 1.5, "open_avg": 13.3, "open_max": 15}, {"month": "2025-06", "sessions": 21, "res_avg": 0.16, "res_max": 0.27, "gross_avg": 0.79, "gross_max": 1.29, "net_avg": 0.79, "net_max": 1.29, "open_avg": 6.9, "open_max": 11}, {"month": "2025-07", "sessions": 23, "res_avg": 0.09, "res_max": 0.12, "gross_avg": 0.42, "gross_max": 0.54, "net_avg": 0.42, "net_max": 0.54, "open_avg": 3.5, "open_max": 5}, {"month": "2025-08", "sessions": 21, "res_avg": 0.04, "res_max": 0.05, "gross_avg": 0.2, "gross_max": 0.27, "net_avg": 0.2, "net_max": 0.27, "open_avg": 1.7, "open_max": 2}, {"month": "2025-09", "sessions": 5, "res_avg": 0.01, "res_max": 0.01, "gross_avg": 0.04, "gross_max": 0.04, "net_avg": 0.04, "net_max": 0.04, "open_avg": 1.0, "open_max": 1}, {"month": "2026-02", "sessions": 19, "res_avg": 0.15, "res_max": 0.37, "gross_avg": 0.51, "gross_max": 1.48, "net_avg": 0.51, "net_max": 1.48, "open_avg": 5.5, "open_max": 12}, {"month": "2026-03", "sessions": 22, "res_avg": 0.34, "res_max": 0.44, "gross_avg": 1.32, "gross_max": 1.49, "net_avg": 1.32, "net_max": 1.49, "open_avg": 12.0, "open_max": 14}, {"month": "2026-04", "sessions": 22, "res_avg": 0.3, "res_max": 0.36, "gross_avg": 0.97, "gross_max": 1.14, "net_avg": 0.97, "net_max": 1.14, "open_avg": 9.2, "open_max": 12}, {"month": "2026-05", "sessions": 21, "res_avg": 0.15, "res_max": 0.2, "gross_avg": 0.34, "gross_max": 0.57, "net_avg": 0.34, "net_max": 0.57, "open_avg": 4.7, "open_max": 6}, {"month": "2026-06", "sessions": 22, "res_avg": 0.09, "res_max": 0.12, "gross_avg": 0.18, "gross_max": 0.22, "net_avg": 0.18, "net_max": 0.22, "open_avg": 2.3, "open_max": 4}, {"month": "2026-07", "sessions": 21, "res_avg": 0.06, "res_max": 0.06, "gross_avg": 0.12, "gross_max": 0.12, "net_avg": 0.12, "net_max": 0.12, "open_avg": 1.0, "open_max": 1}], "arms": [{"arm": "(R, F1)", "headline": true, "n": 51, "dates": 28, "dollars": 7860.0, "meanR": 0.278, "win": 0.65, "maxDD": -3673.0}, {"arm": "(R, F2)", "headline": false, "n": 43, "dates": 31, "dollars": 3655.0, "meanR": 0.28, "win": 0.63, "maxDD": -2860.0}, {"arm": "(D, F1)", "headline": false, "n": 52, "dates": 28, "dollars": 7550.0, "meanR": 0.262, "win": 0.62, "maxDD": -3313.0}, {"arm": "(D, F2)", "headline": false, "n": 46, "dates": 32, "dollars": 3361.0, "meanR": 0.211, "win": 0.59, "maxDD": -2778.0}], "sleeve": {"without": {"signal_n": 51, "signal_dollars": 7860.0, "sleeve_n": 0, "sleeve_dollars": 0.0, "total": 7860.0, "gross_avg": 0.68, "gross_max": 1.5, "net_avg": 0.68, "net_max": 1.5}, "with": {"signal_n": 76, "signal_dollars": 11447.0, "sleeve_n": 33, "sleeve_dollars": -832.0, "total": 10615.0, "gross_avg": 1.15, "gross_max": 4.14, "net_avg": 0.57, "net_max": 2.11}}, "cap_grid": {"net_caps": ["1.00", "1.50", "2.50", "inf"], "rows": [{"per_pos": "0.15", "cells": [{"dollars": 3776.0, "n": 45}, {"dollars": 6204.0, "n": 56}, {"dollars": 10855.0, "n": 67}, {"dollars": 13101.0, "n": 72}]}, {"per_pos": "0.25", "cells": [{"dollars": 7019.0, "n": 38}, {"dollars": 7860.0, "n": 51}, {"dollars": 11399.0, "n": 72}, {"dollars": 16570.0, "n": 88}]}, {"per_pos": "0.40", "cells": [{"dollars": 7100.0, "n": 40}, {"dollars": 8461.0, "n": 48}, {"dollars": 11586.0, "n": 71}, {"dollars": 15928.0, "n": 90}]}, {"per_pos": "inf", "cells": [{"dollars": 7164.0, "n": 37}, {"dollars": 10512.0, "n": 53}, {"dollars": 10752.0, "n": 66}, {"dollars": 17622.0, "n": 95}]}], "headline": {"per_pos": "0.25", "net": "1.50", "n": 51, "dates": 28, "dollars": 7860.0, "meanR": 0.278}, "monotone_rows": [4, 4], "monotone_cols": [2, 4]}, "criteria": [{"id": "A1", "name": "Edge Survival", "detail": "meanR +0.278  CI95 [+0.055,+0.483]  years 2025:+0.381  2026:+0.152", "status": "MET", "needs": "needs mean>0, CI excluding zero, every year positive", "ci": [0.055, 0.483], "meanR": 0.278, "years": {"2025": 0.381, "2026": 0.152}}, {"id": "A2", "name": "Attrition", "detail": "constrained $7,860 vs B2 on the same 28 dates $7,964  = 99%", "status": "MET", "needs": "needs >= 60%", "years": {}}, {"id": "A3", "name": "No Blowup", "detail": "maxDD $-3,673 = 14.7% of capital;  ledger violations 0", "status": "MET", "needs": "needs no over-reservation and DD <= 25%", "years": {}}, {"id": "A4", "name": "Attribution", "detail": "150 candidates partition exactly into 51 taken + exclusions", "status": "MET", "needs": "mismatch FAILS the run", "years": {}}, {"id": "A5", "name": "Stability", "detail": "constrained/B2 ratio ALL 99% (n=51);  ex-2025_mar_apr 210% (+111pt, n=27)  ex-2026_feb_apr 101% (+2pt, n=28)", "status": "NOT MET", "needs": "needs <= 15 points of movement on both cuts", "years": {}}, {"id": "A6", "name": "Credit Sens.", "detail": "debit-only n=39  meanR +0.181  CI95 [-0.093,+0.440]  years 2025:+0.300  2026:+0.011", "status": "NOT MET", "needs": "A1 must hold on debit-only", "ci": [-0.093, 0.44], "meanR": 0.181, "years": {"2025": 0.3, "2026": 0.011}}], "equity": {"constrained": {"sessions": 44, "total": 7860.0, "maxDD": -3673.0, "worst": -1194.0}, "b2": {"sessions": 73, "total": 23157.0, "maxDD": -3816.0, "worst": -1329.0}, "dd_pct": 14.7, "capital": 25000.0, "dd_limit_pct": 25.0}, "adverse": {"taken": {"n": 51, "meanR": 0.278}, "rejected": [{"bucket": "net_delta", "n": 66, "meanR": 0.431, "delta": 0.152}, {"bucket": "per_pos_delta", "n": 25, "meanR": 0.255, "delta": -0.023}]}, "census": {"buckets": {"taken": 51, "taken_downsized": 0, "cash": 0, "per_pos_delta": 25, "net_delta": 66, "min1_refusal": 0, "day3_cap": 6, "unsizable": 2}, "total": 150, "most_binding": "net_delta", "most_binding_n": 66, "exclusions": 97}, "regime": {"mech": [{"cell": "BEAR_HE", "structure": "bull_call_spread", "n": 21, "dollars": 5583.0, "meanR": 0.227, "win": 0.571, "thin": false}, {"cell": "BEAR_HE", "structure": "bull_put_spread", "n": 9, "dollars": 1902.0, "meanR": 0.734, "win": 1.0, "thin": true}, {"cell": "LVOL", "structure": "bull_call_spread", "n": 17, "dollars": -261.0, "meanR": 0.119, "win": 0.529, "thin": false}, {"cell": "LVOL", "structure": "bull_put_spread", "n": 2, "dollars": 360.0, "meanR": -0.104, "win": 0.5, "thin": true}, {"cell": "PROD", "structure": "bull_call_spread", "n": 1, "dollars": 95.0, "meanR": 0.271, "win": 1.0, "thin": true}, {"cell": "PROD", "structure": "bull_put_spread", "n": 1, "dollars": 181.0, "meanR": 0.702, "win": 1.0, "thin": true}], "mech_total": {"cell": "TOTAL", "structure": "ALL", "n": 51, "dollars": 7860.0, "meanR": 0.278, "win": 0.647, "thin": false}, "model": [{"cell": "BEAR/C-VOL", "structure": "bull_call_spread", "n": 2, "dollars": -18.0, "meanR": -0.015, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_call_spread", "n": 4, "dollars": 2089.0, "meanR": 0.439, "win": 0.75, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 582.0, "meanR": 0.7, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_call_spread", "n": 1, "dollars": 95.0, "meanR": 0.271, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 337.0, "meanR": 0.683, "win": 1.0, "thin": true}, {"cell": "BULL/L-VOL", "structure": "bull_call_spread", "n": 2, "dollars": 1285.0, "meanR": 1.061, "win": 1.0, "thin": true}, {"cell": "RANGE/C-VOL", "structure": "bull_call_spread", "n": 10, "dollars": -654.0, "meanR": 0.109, "win": 0.5, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_call_spread", "n": 14, "dollars": -1490.0, "meanR": -0.131, "win": 0.357, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_put_spread", "n": 6, "dollars": 1749.0, "meanR": 0.755, "win": 1.0, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_call_spread", "n": 5, "dollars": 4096.0, "meanR": 0.733, "win": 0.8, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 250.0, "meanR": 0.713, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_call_spread", "n": 1, "dollars": 14.0, "meanR": 0.041, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_put_spread", "n": 1, "dollars": -475.0, "meanR": -0.905, "win": 0.0, "thin": true}], "model_total": {"cell": "TOTAL", "structure": "ALL", "n": 51, "dollars": 7860.0, "meanR": 0.278, "win": 0.647, "thin": false}, "census": [{"cell": "BEAR_HE", "n": 30, "tierA": 21, "tierB": 9, "reserved": 896.0, "dn": 3069.0}, {"cell": "LVOL", "n": 19, "tierA": 13, "tierB": 6, "reserved": 671.0, "dn": 2580.0}, {"cell": "PROD", "n": 2, "tierA": 0, "tierB": 2, "reserved": 546.0, "dn": 1175.0}], "census_total": {"cell": "TOTAL", "n": 51, "tierA": 34, "tierB": 17, "reserved": 799.0, "dn": 2812.0}, "skips": [{"cell": "BEAR_HE", "bucket": "day3_cap", "n": 1}, {"cell": "BEAR_HE", "bucket": "net_delta", "n": 34}, {"cell": "BEAR_HE", "bucket": "per_pos_delta", "n": 13}, {"cell": "BEAR_HE", "bucket": "taken", "n": 30}, {"cell": "BEAR_HE", "bucket": "unsizable", "n": 2}, {"cell": "LVOL", "bucket": "day3_cap", "n": 5}, {"cell": "LVOL", "bucket": "net_delta", "n": 17}, {"cell": "LVOL", "bucket": "per_pos_delta", "n": 8}, {"cell": "LVOL", "bucket": "taken", "n": 19}, {"cell": "PROD", "bucket": "net_delta", "n": 15}, {"cell": "PROD", "bucket": "per_pos_delta", "n": 4}, {"cell": "PROD", "bucket": "taken", "n": 2}], "considered": 150, "agreement": [{"model": "BEAR", "mech": "BEAR", "n": 8}, {"model": "BULL", "mech": "BEAR", "n": 1}, {"model": "BULL", "mech": "BULL", "n": 4}, {"model": "RANGE", "mech": "BEAR", "n": 34}, {"model": "RANGE", "mech": "BULL", "n": 2}, {"model": "RANGE", "mech": "RANGE", "n": 2}], "agree": 14, "agree_total": 51}}, "secondary": {"baselines": {"B1": {"n": 220, "dates": 90, "dollars": 63553.0, "meanR": 0.354}, "B2": {"n": 218, "dates": 90, "dollars": 18895.0, "meanR": 0.187}, "ratio": 0.3}, "granularity": {"accounts": [{"capital": 50000.0, "budget": 1000.0, "dist": {"1": 133, "2": 27, "3": 10, "4": 11, "5": 10, "6": 5, "7": 13, "8": 4}, "dist_truncated": true, "mean_contracts": 2.41, "median_contracts": 1.0, "floor_n": 56, "floor_of": 218, "floor_pct": 26, "breach_n": 56, "breach_pct": 26, "risk_median": 1.8, "risk_p90": 3.0, "risk_max": 6.6}, {"capital": 25000.0, "budget": 500.0, "dist": {"1": 170, "2": 21, "3": 18, "4": 5, "5": 1, "6": 1, "7": 2}, "dist_truncated": false, "mean_contracts": 1.43, "median_contracts": 1.0, "floor_n": 133, "floor_of": 218, "floor_pct": 61, "breach_n": 133, "breach_pct": 61, "risk_median": 2.6, "risk_p90": 6.0, "risk_max": 13.3}], "picks": 220, "sizable": 218, "unsizable": 2}, "utilisation": [{"month": "2024-06", "sessions": 9, "res_avg": 0.28, "res_max": 0.35, "gross_avg": 1.16, "gross_max": 1.48, "net_avg": 1.16, "net_max": 1.48, "open_avg": 8.8, "open_max": 12}, {"month": "2024-07", "sessions": 23, "res_avg": 0.32, "res_max": 0.39, "gross_avg": 1.31, "gross_max": 1.49, "net_avg": 1.31, "net_max": 1.49, "open_avg": 10.2, "open_max": 12}, {"month": "2024-08", "sessions": 22, "res_avg": 0.23, "res_max": 0.27, "gross_avg": 1.25, "gross_max": 1.49, "net_avg": 1.25, "net_max": 1.49, "open_avg": 9.5, "open_max": 12}, {"month": "2024-09", "sessions": 21, "res_avg": 0.21, "res_max": 0.27, "gross_avg": 1.16, "gross_max": 1.47, "net_avg": 1.16, "net_max": 1.47, "open_avg": 8.7, "open_max": 12}, {"month": "2024-10", "sessions": 12, "res_avg": 0.08, "res_max": 0.13, "gross_avg": 0.34, "gross_max": 0.7, "net_avg": 0.34, "net_max": 0.7, "open_avg": 2.4, "open_max": 5}, {"month": "2024-11", "sessions": 20, "res_avg": 0.08, "res_max": 0.16, "gross_avg": 0.37, "gross_max": 0.86, "net_avg": 0.31, "net_max": 0.74, "open_avg": 3.5, "open_max": 6}, {"month": "2024-12", "sessions": 15, "res_avg": 0.1, "res_max": 0.2, "gross_avg": 0.45, "gross_max": 0.9, "net_avg": 0.45, "net_max": 0.9, "open_avg": 3.3, "open_max": 6}, {"month": "2025-01", "sessions": 23, "res_avg": 0.2, "res_max": 0.33, "gross_avg": 0.87, "gross_max": 1.47, "net_avg": 0.87, "net_max": 1.47, "open_avg": 8.3, "open_max": 13}, {"month": "2025-02", "sessions": 20, "res_avg": 0.07, "res_max": 0.26, "gross_avg": 0.17, "gross_max": 0.86, "net_avg": 0.17, "net_max": 0.86, "open_avg": 2.0, "open_max": 6}, {"month": "2025-03", "sessions": 21, "res_avg": 0.25, "res_max": 0.44, "gross_avg": 0.91, "gross_max": 1.48, "net_avg": 0.91, "net_max": 1.48, "open_avg": 8.8, "open_max": 16}, {"month": "2025-04", "sessions": 22, "res_avg": 0.27, "res_max": 0.44, "gross_avg": 0.96, "gross_max": 1.47, "net_avg": 0.96, "net_max": 1.47, "open_avg": 10.9, "open_max": 16}, {"month": "2025-05", "sessions": 22, "res_avg": 0.34, "res_max": 0.39, "gross_avg": 1.37, "gross_max": 1.49, "net_avg": 1.37, "net_max": 1.49, "open_avg": 12.5, "open_max": 14}, {"month": "2025-06", "sessions": 21, "res_avg": 0.13, "res_max": 0.23, "gross_avg": 0.64, "gross_max": 1.04, "net_avg": 0.64, "net_max": 1.04, "open_avg": 5.4, "open_max": 9}, {"month": "2025-07", "sessions": 23, "res_avg": 0.08, "res_max": 0.1, "gross_avg": 0.41, "gross_max": 0.48, "net_avg": 0.41, "net_max": 0.48, "open_avg": 3.3, "open_max": 4}, {"month": "2025-08", "sessions": 21, "res_avg": 0.06, "res_max": 0.09, "gross_avg": 0.33, "gross_max": 0.47, "net_avg": 0.33, "net_max": 0.47, "open_avg": 3.0, "open_max": 4}, {"month": "2025-09", "sessions": 21, "res_avg": 0.03, "res_max": 0.05, "gross_avg": 0.17, "gross_max": 0.24, "net_avg": 0.17, "net_max": 0.24, "open_avg": 1.9, "open_max": 3}, {"month": "2025-10", "sessions": 11, "res_avg": 0.02, "res_max": 0.02, "gross_avg": 0.09, "gross_max": 0.09, "net_avg": 0.09, "net_max": 0.09, "open_avg": 1.0, "open_max": 1}, {"month": "2025-11", "sessions": 20, "res_avg": 0.06, "res_max": 0.19, "gross_avg": 0.21, "gross_max": 0.58, "net_avg": 0.21, "net_max": 0.58, "open_avg": 2.0, "open_max": 5}, {"month": "2025-12", "sessions": 23, "res_avg": 0.2, "res_max": 0.24, "gross_avg": 0.57, "gross_max": 0.71, "net_avg": 0.57, "net_max": 0.71, "open_avg": 6.8, "open_max": 9}, {"month": "2026-01", "sessions": 22, "res_avg": 0.11, "res_max": 0.12, "gross_avg": 0.28, "gross_max": 0.31, "net_avg": 0.28, "net_max": 0.31, "open_avg": 2.6, "open_max": 3}, {"month": "2026-02", "sessions": 20, "res_avg": 0.21, "res_max": 0.37, "gross_avg": 0.65, "gross_max": 1.46, "net_avg": 0.65, "net_max": 1.46, "open_avg": 6.6, "open_max": 12}, {"month": "2026-03", "sessions": 22, "res_avg": 0.36, "res_max": 0.43, "gross_avg": 1.35, "gross_max": 1.49, "net_avg": 1.35, "net_max": 1.49, "open_avg": 12.6, "open_max": 14}, {"month": "2026-04", "sessions": 22, "res_avg": 0.31, "res_max": 0.35, "gross_avg": 0.99, "gross_max": 1.12, "net_avg": 0.99, "net_max": 1.12, "open_avg": 10.1, "open_max": 12}, {"month": "2026-05", "sessions": 21, "res_avg": 0.17, "res_max": 0.21, "gross_avg": 0.37, "gross_max": 0.6, "net_avg": 0.37, "net_max": 0.6, "open_avg": 5.7, "open_max": 7}, {"month": "2026-06", "sessions": 22, "res_avg": 0.11, "res_max": 0.14, "gross_avg": 0.21, "gross_max": 0.26, "net_avg": 0.21, "net_max": 0.26, "open_avg": 3.3, "open_max": 5}, {"month": "2026-07", "sessions": 21, "res_avg": 0.06, "res_max": 0.06, "gross_avg": 0.12, "gross_max": 0.12, "net_avg": 0.12, "net_max": 0.12, "open_avg": 1.0, "open_max": 1}], "arms": [{"arm": "(R, F1)", "headline": true, "n": 124, "dates": 64, "dollars": 5021.0, "meanR": 0.087, "win": 0.52, "maxDD": -6391.0}, {"arm": "(R, F2)", "headline": false, "n": 85, "dates": 59, "dollars": 9235.0, "meanR": 0.334, "win": 0.65, "maxDD": -2997.0}, {"arm": "(D, F1)", "headline": false, "n": 127, "dates": 66, "dollars": 5205.0, "meanR": 0.125, "win": 0.55, "maxDD": -6068.0}, {"arm": "(D, F2)", "headline": false, "n": 93, "dates": 62, "dollars": 7934.0, "meanR": 0.26, "win": 0.61, "maxDD": -3093.0}], "sleeve": {"without": {"signal_n": 124, "signal_dollars": 5021.0, "sleeve_n": 0, "sleeve_dollars": 0.0, "total": 5021.0, "gross_avg": 0.66, "gross_max": 1.49, "net_avg": 0.65, "net_max": 1.49}, "with": {"signal_n": 157, "signal_dollars": 8767.0, "sleeve_n": 52, "sleeve_dollars": 162.0, "total": 8929.0, "gross_avg": 1.01, "gross_max": 4.11, "net_avg": 0.55, "net_max": 2.02}}, "cap_grid": {"net_caps": ["1.00", "1.50", "2.50", "inf"], "rows": [{"per_pos": "0.15", "cells": [{"dollars": 499.0, "n": 101}, {"dollars": 2328.0, "n": 120}, {"dollars": 9876.0, "n": 138}, {"dollars": 10828.0, "n": 141}]}, {"per_pos": "0.25", "cells": [{"dollars": 5228.0, "n": 93}, {"dollars": 5021.0, "n": 124}, {"dollars": 11248.0, "n": 160}, {"dollars": 19392.0, "n": 187}]}, {"per_pos": "0.40", "cells": [{"dollars": 2144.0, "n": 87}, {"dollars": 5368.0, "n": 109}, {"dollars": 7846.0, "n": 158}, {"dollars": 14016.0, "n": 193}]}, {"per_pos": "inf", "cells": [{"dollars": 2144.0, "n": 87}, {"dollars": 6584.0, "n": 109}, {"dollars": 7690.0, "n": 157}, {"dollars": 10073.0, "n": 201}]}], "headline": {"per_pos": "0.25", "net": "1.50", "n": 124, "dates": 64, "dollars": 5021.0, "meanR": 0.087}, "monotone_rows": [3, 4], "monotone_cols": [1, 4]}, "criteria": [{"id": "A1", "name": "Edge Survival", "detail": "meanR +0.087  CI95 [-0.098,+0.274]  years 2024:-0.079  2025:+0.240  2026:+0.087", "status": "NOT MET", "needs": "needs mean>0, CI excluding zero, every year positive", "ci": [-0.098, 0.274], "meanR": 0.087, "years": {"2024": -0.079, "2025": 0.24, "2026": 0.087}}, {"id": "A2", "name": "Attrition", "detail": "constrained $5,021 vs B2 on the same 64 dates $5,679  = 88%", "status": "MET", "needs": "needs >= 60%", "years": {}}, {"id": "A3", "name": "No Blowup", "detail": "maxDD $-6,391 = 25.6% of capital;  ledger violations 0", "status": "NOT MET", "needs": "needs no over-reservation and DD <= 25%", "years": {}}, {"id": "A4", "name": "Attribution", "detail": "297 candidates partition exactly into 124 taken + exclusions", "status": "MET", "needs": "mismatch FAILS the run", "years": {}}, {"id": "A5", "name": "Stability", "detail": "constrained/B2 ratio ALL 88% (n=124);  ex-2025_mar_apr -43% (-132pt, n=102)  ex-2026_feb_apr 117% (+29pt, n=102)", "status": "NOT MET", "needs": "needs <= 15 points of movement on both cuts", "years": {}}, {"id": "A6", "name": "Credit Sens.", "detail": "debit-only n=98  meanR +0.078  CI95 [-0.082,+0.248]  years 2024:+0.039  2025:+0.141  2026:+0.000", "status": "NOT MET", "needs": "A1 must hold on debit-only", "ci": [-0.082, 0.248], "meanR": 0.078, "years": {"2024": 0.039, "2025": 0.141, "2026": 0.0}}], "equity": {"constrained": {"sessions": 108, "total": 5021.0, "maxDD": -6391.0, "worst": -1753.0}, "b2": {"sessions": 147, "total": 18895.0, "maxDD": -9539.0, "worst": -2639.0}, "dd_pct": 25.6, "capital": 25000.0, "dd_limit_pct": 25.0}, "adverse": {"taken": {"n": 124, "meanR": 0.087}, "rejected": [{"bucket": "net_delta", "n": 106, "meanR": 0.381, "delta": 0.295}, {"bucket": "per_pos_delta", "n": 53, "meanR": 0.097, "delta": 0.01}]}, "census": {"buckets": {"taken": 124, "taken_downsized": 0, "cash": 0, "per_pos_delta": 53, "net_delta": 106, "min1_refusal": 0, "day3_cap": 12, "unsizable": 2}, "total": 297, "most_binding": "net_delta", "most_binding_n": 106, "exclusions": 171}, "regime": {"mech": [{"cell": "BEAR_HE", "structure": "bull_call_spread", "n": 46, "dollars": 6413.0, "meanR": 0.154, "win": 0.5, "thin": false}, {"cell": "BEAR_HE", "structure": "bull_put_spread", "n": 10, "dollars": 1845.0, "meanR": 0.738, "win": 1.0, "thin": false}, {"cell": "LVOL", "structure": "bull_call_spread", "n": 47, "dollars": -1934.0, "meanR": -0.032, "win": 0.404, "thin": false}, {"cell": "LVOL", "structure": "bull_put_spread", "n": 14, "dollars": -3186.0, "meanR": -0.539, "win": 0.5, "thin": false}, {"cell": "PROD", "structure": "bull_call_spread", "n": 3, "dollars": 1953.0, "meanR": 1.191, "win": 1.0, "thin": true}, {"cell": "PROD", "structure": "bull_put_spread", "n": 2, "dollars": 182.0, "meanR": 0.854, "win": 1.0, "thin": true}, {"cell": "RB_EVOL", "structure": "bull_call_spread", "n": 1, "dollars": -351.0, "meanR": -0.705, "win": 0.0, "thin": true}, {"cell": "RB_EVOL", "structure": "bull_put_spread", "n": 1, "dollars": 100.0, "meanR": 0.732, "win": 1.0, "thin": true}], "mech_total": {"cell": "TOTAL", "structure": "ALL", "n": 124, "dollars": 5021.0, "meanR": 0.087, "win": 0.524, "thin": false}, "model": [{"cell": "BEAR/C-VOL", "structure": "bull_call_spread", "n": 2, "dollars": -18.0, "meanR": -0.015, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_call_spread", "n": 8, "dollars": 2451.0, "meanR": 0.215, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 582.0, "meanR": 0.7, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_call_spread", "n": 5, "dollars": 1628.0, "meanR": 0.573, "win": 0.8, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 214.0, "meanR": 0.653, "win": 1.0, "thin": true}, {"cell": "BULL/L-VOL", "structure": "bull_call_spread", "n": 22, "dollars": -2144.0, "meanR": -0.17, "win": 0.318, "thin": false}, {"cell": "BULL/L-VOL", "structure": "bull_put_spread", "n": 7, "dollars": -2522.0, "meanR": -1.239, "win": 0.286, "thin": true}, {"cell": "RANGE/C-VOL", "structure": "bull_call_spread", "n": 13, "dollars": -1553.0, "meanR": -0.158, "win": 0.385, "thin": false}, {"cell": "RANGE/C-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 101.0, "meanR": 0.663, "win": 1.0, "thin": true}, {"cell": "RANGE/E-VOL", "structure": "bull_call_spread", "n": 28, "dollars": 498.0, "meanR": 0.12, "win": 0.429, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_put_spread", "n": 10, "dollars": 1112.0, "meanR": 0.795, "win": 1.0, "thin": false}, {"cell": "RANGE/H-VOL", "structure": "bull_call_spread", "n": 9, "dollars": 5497.0, "meanR": 0.706, "win": 0.889, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_put_spread", "n": 3, "dollars": 533.0, "meanR": 0.735, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_call_spread", "n": 10, "dollars": -279.0, "meanR": -0.002, "win": 0.4, "thin": false}, {"cell": "RANGE/L-VOL", "structure": "bull_put_spread", "n": 3, "dollars": -1078.0, "meanR": -0.642, "win": 0.333, "thin": true}], "model_total": {"cell": "TOTAL", "structure": "ALL", "n": 124, "dollars": 5021.0, "meanR": 0.087, "win": 0.524, "thin": false}, "census": [{"cell": "BEAR_HE", "n": 56, "tierA": 45, "tierB": 11, "reserved": 871.0, "dn": 3204.0}, {"cell": "LVOL", "n": 61, "tierA": 20, "tierB": 41, "reserved": 628.0, "dn": 2687.0}, {"cell": "PROD", "n": 5, "tierA": 2, "tierB": 3, "reserved": 480.0, "dn": 1974.0}, {"cell": "RB_EVOL", "n": 2, "tierA": 1, "tierB": 1, "reserved": 681.0, "dn": 3352.0}], "census_total": {"cell": "TOTAL", "n": 124, "tierA": 68, "tierB": 56, "reserved": 733.0, "dn": 2902.0}, "skips": [{"cell": "BEAR_HE", "bucket": "net_delta", "n": 34}, {"cell": "BEAR_HE", "bucket": "per_pos_delta", "n": 20}, {"cell": "BEAR_HE", "bucket": "taken", "n": 56}, {"cell": "BEAR_HE", "bucket": "unsizable", "n": 2}, {"cell": "LVOL", "bucket": "day3_cap", "n": 12}, {"cell": "LVOL", "bucket": "net_delta", "n": 55}, {"cell": "LVOL", "bucket": "per_pos_delta", "n": 26}, {"cell": "LVOL", "bucket": "taken", "n": 61}, {"cell": "PROD", "bucket": "net_delta", "n": 16}, {"cell": "PROD", "bucket": "per_pos_delta", "n": 5}, {"cell": "PROD", "bucket": "taken", "n": 5}, {"cell": "RB_EVOL", "bucket": "net_delta", "n": 1}, {"cell": "RB_EVOL", "bucket": "per_pos_delta", "n": 2}, {"cell": "RB_EVOL", "bucket": "taken", "n": 2}], "considered": 297, "agreement": [{"model": "BEAR", "mech": "BEAR", "n": 12}, {"model": "BULL", "mech": "BEAR", "n": 2}, {"model": "BULL", "mech": "BULL", "n": 33}, {"model": "RANGE", "mech": "BEAR", "n": 61}, {"model": "RANGE", "mech": "BULL", "n": 11}, {"model": "RANGE", "mech": "RANGE", "n": 5}], "agree": 50, "agree_total": 124}}}}, "populations": {"primary": {"capital": 25000.0, "summary": {"n": 51, "candidates": 150, "dates": 28, "dollars": 7859.5, "meanR": 0.27801595460529377, "ci": [0.0548, 0.4829], "win": 0.6470588235294118, "sessions": 44, "maxDD": -3673.0, "worst": -1194.0, "best": 1340.0, "median_days": 27.0, "credit_n": 12}, "equity": [{"sess": "2025-03-27", "pnl": -294.5, "cum": -294.5, "drawdown": -294.5, "closed": 1}, {"sess": "2025-04-03", "pnl": -1194.0, "cum": -1488.5, "drawdown": -1488.5, "closed": 2}, {"sess": "2025-04-07", "pnl": -759.0, "cum": -2247.5, "drawdown": -2247.5, "closed": 2}, {"sess": "2025-04-08", "pnl": -535.0, "cum": -2782.5, "drawdown": -2782.5, "closed": 1}, {"sess": "2025-04-10", "pnl": -491.0, "cum": -3273.5, "drawdown": -3273.5, "closed": 1}, {"sess": "2025-04-11", "pnl": 122.5, "cum": -3151.0, "drawdown": -3151.0, "closed": 1}, {"sess": "2025-04-16", "pnl": -522.0, "cum": -3673.0, "drawdown": -3673.0, "closed": 1}, {"sess": "2025-04-23", "pnl": 430.5, "cum": -3242.5, "drawdown": -3242.5, "closed": 1}, {"sess": "2025-05-02", "pnl": 382.0, "cum": -2860.5, "drawdown": -2860.5, "closed": 1}, {"sess": "2025-05-12", "pnl": 156.0, "cum": -2704.5, "drawdown": -2704.5, "closed": 1}, {"sess": "2025-05-13", "pnl": 1340.0, "cum": -1364.5, "drawdown": -1364.5, "closed": 1}, {"sess": "2025-05-14", "pnl": 852.5, "cum": -512.0, "drawdown": -512.0, "closed": 2}, {"sess": "2025-05-27", "pnl": 1337.5, "cum": 825.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-05-30", "pnl": 181.0, "cum": 1006.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-02", "pnl": 609.5, "cum": 1616.0, "drawdown": 0.0, "closed": 2}, {"sess": "2025-06-04", "pnl": 1032.5, "cum": 2648.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-09", "pnl": 337.5, "cum": 2986.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-13", "pnl": 495.5, "cum": 3481.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-25", "pnl": 747.5, "cum": 4229.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-07-07", "pnl": 371.0, "cum": 4600.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-07-17", "pnl": 348.0, "cum": 4948.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-07-22", "pnl": 537.5, "cum": 5485.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-08-21", "pnl": -67.0, "cum": 5418.5, "drawdown": -67.0, "closed": 1}, {"sess": "2025-09-05", "pnl": 95.0, "cum": 5513.5, "drawdown": 0.0, "closed": 1}, {"sess": "2026-02-11", "pnl": 272.5, "cum": 5786.0, "drawdown": 0.0, "closed": 1}, {"sess": "2026-03-12", "pnl": -550.0, "cum": 5236.0, "drawdown": -550.0, "closed": 1}, {"sess": "2026-03-13", "pnl": -525.0, "cum": 4711.0, "drawdown": -1075.0, "closed": 1}, {"sess": "2026-03-17", "pnl": 922.0, "cum": 5633.0, "drawdown": -153.0, "closed": 2}, {"sess": "2026-03-18", "pnl": -145.0, "cum": 5488.0, "drawdown": -298.0, "closed": 1}, {"sess": "2026-03-20", "pnl": -353.0, "cum": 5135.0, "drawdown": -651.0, "closed": 1}, {"sess": "2026-03-25", "pnl": -847.5, "cum": 4287.5, "drawdown": -1498.5, "closed": 1}, {"sess": "2026-03-26", "pnl": 127.5, "cum": 4415.0, "drawdown": -1371.0, "closed": 1}, {"sess": "2026-03-27", "pnl": -415.5, "cum": 3999.5, "drawdown": -1786.5, "closed": 2}, {"sess": "2026-04-02", "pnl": 594.0, "cum": 4593.5, "drawdown": -1192.5, "closed": 2}, {"sess": "2026-04-13", "pnl": 21.0, "cum": 4614.5, "drawdown": -1171.5, "closed": 1}, {"sess": "2026-04-24", "pnl": 1057.5, "cum": 5672.0, "drawdown": -114.0, "closed": 1}, {"sess": "2026-04-27", "pnl": 897.5, "cum": 6569.5, "drawdown": 0.0, "closed": 1}, {"sess": "2026-04-29", "pnl": -315.0, "cum": 6254.5, "drawdown": -315.0, "closed": 1}, {"sess": "2026-05-08", "pnl": 692.5, "cum": 6947.0, "drawdown": 0.0, "closed": 1}, {"sess": "2026-05-12", "pnl": 1054.0, "cum": 8001.0, "drawdown": 0.0, "closed": 1}, {"sess": "2026-06-03", "pnl": 14.0, "cum": 8015.0, "drawdown": 0.0, "closed": 1}, {"sess": "2026-06-12", "pnl": -82.0, "cum": 7933.0, "drawdown": -82.0, "closed": 1}, {"sess": "2026-06-22", "pnl": -571.0, "cum": 7362.0, "drawdown": -653.0, "closed": 1}, {"sess": "2026-07-29", "pnl": 497.5, "cum": 7859.5, "drawdown": -155.5, "closed": 1}], "census": [{"bucket": "taken", "n": 51}, {"bucket": "per_pos_delta", "n": 25}, {"bucket": "net_delta", "n": 66}, {"bucket": "day3_cap", "n": 6}, {"bucket": "unsizable", "n": 2}], "adverse": [{"bucket": "taken", "n": 51, "meanR": 0.27801595460529377, "ci": [0.0548, 0.4829]}, {"bucket": "net_delta", "n": 66, "meanR": 0.4305110535331933, "ci": [0.1671, 0.6438]}, {"bucket": "per_pos_delta", "n": 25, "meanR": 0.255099075356, "ci": [-0.0243, 0.5099]}], "exits": [{"reason": "profit_target", "n": 24, "dollars": 12492.0}, {"reason": "time_exit", "n": 4, "dollars": 1637.0}, {"reason": "cap_open", "n": 6, "dollars": 805.5}, {"reason": "expired", "n": 1, "dollars": -475.0}, {"reason": "trailing_stop", "n": 3, "dollars": 42.0}, {"reason": "stop_loss", "n": 5, "dollars": -1897.5}, {"reason": "dollar_stop", "n": 8, "dollars": -4744.5}], "contracts": [{"contracts": 1, "n": 40}, {"contracts": 2, "n": 7}, {"contracts": 3, "n": 4}], "tiers": [{"tier": "A", "n": 34, "dollars": 4055.000000187199}, {"tier": "B", "n": 17, "dollars": 3804.5000000229998}], "structures": [{"structure": "bull_call_spread", "n": 39, "dollars": 5417.000000227199}, {"structure": "bull_put_spread", "n": 12, "dollars": 2442.499999983}], "risk_hist": [{"lo": 0, "hi": 1, "n": 0}, {"lo": 1, "hi": 2, "n": 18}, {"lo": 2, "hi": 3, "n": 9}, {"lo": 3, "hi": 4, "n": 11}, {"lo": 4, "hi": 5, "n": 3}, {"lo": 5, "hi": 6, "n": 6}, {"lo": 6, "hi": 8, "n": 4}, {"lo": 8, "hi": 10, "n": 0}, {"lo": 10, "hi": 15, "n": 0}], "risk_over_budget": 33, "risk_n": 51, "regime": {"mech": [{"cell": "BEAR_HE", "structure": "bull_call_spread", "n": 21, "dollars": 5583.0, "meanR": 0.22744262647654234, "win": 0.5714285714285714, "thin": false}, {"cell": "BEAR_HE", "structure": "bull_put_spread", "n": 9, "dollars": 1901.5, "meanR": 0.7343495397888888, "win": 1.0, "thin": true}, {"cell": "LVOL", "structure": "bull_call_spread", "n": 17, "dollars": -261.0, "meanR": 0.11937189901152516, "win": 0.5294117647058824, "thin": false}, {"cell": "LVOL", "structure": "bull_put_spread", "n": 2, "dollars": 360.0, "meanR": -0.1044642857309524, "win": 0.5, "thin": true}, {"cell": "PROD", "structure": "bull_call_spread", "n": 1, "dollars": 95.0, "meanR": 0.27142857142857146, "win": 1.0, "thin": true}, {"cell": "PROD", "structure": "bull_put_spread", "n": 1, "dollars": 181.0, "meanR": 0.7015503876, "win": 1.0, "thin": true}], "model": [{"cell": "BEAR/C-VOL", "structure": "bull_call_spread", "n": 2, "dollars": -18.0, "meanR": -0.014687882450000023, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_call_spread", "n": 4, "dollars": 2089.0, "meanR": 0.43867053931331773, "win": 0.75, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 581.5, "meanR": 0.7003211084000001, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_call_spread", "n": 1, "dollars": 95.0, "meanR": 0.27142857142857146, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 337.0, "meanR": 0.6826900873999999, "win": 1.0, "thin": true}, {"cell": "BULL/L-VOL", "structure": "bull_call_spread", "n": 2, "dollars": 1285.0, "meanR": 1.06114894415, "win": 1.0, "thin": true}, {"cell": "RANGE/C-VOL", "structure": "bull_call_spread", "n": 10, "dollars": -654.0, "meanR": 0.10902797959076924, "win": 0.5, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_call_spread", "n": 14, "dollars": -1490.5, "meanR": -0.1312289679005779, "win": 0.35714285714285715, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_put_spread", "n": 6, "dollars": 1749.5, "meanR": 0.7546083407499999, "win": 1.0, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_call_spread", "n": 5, "dollars": 4096.5, "meanR": 0.7327524885324417, "win": 0.8, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 249.5, "meanR": 0.7128571429, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_call_spread", "n": 1, "dollars": 14.0, "meanR": 0.041176470588235335, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_put_spread", "n": 1, "dollars": -475.0, "meanR": -0.9047619047619048, "win": 0.0, "thin": true}], "census": [{"cell": "BEAR_HE", "n": 30, "tierA": 21, "tierB": 9, "reserved": 896.3, "dn": 3068.6191400000002}, {"cell": "LVOL", "n": 19, "tierA": 13, "tierB": 6, "reserved": 670.7368421052631, "dn": 2580.175473684211}, {"cell": "PROD", "n": 2, "tierA": 0, "tierB": 2, "reserved": 546.0, "dn": 1175.218}], "skips": [{"cell": "BEAR_HE", "bucket": "day3_cap", "n": 1}, {"cell": "BEAR_HE", "bucket": "net_delta", "n": 34}, {"cell": "BEAR_HE", "bucket": "per_pos_delta", "n": 13}, {"cell": "BEAR_HE", "bucket": "taken", "n": 30}, {"cell": "BEAR_HE", "bucket": "unsizable", "n": 2}, {"cell": "LVOL", "bucket": "day3_cap", "n": 5}, {"cell": "LVOL", "bucket": "net_delta", "n": 17}, {"cell": "LVOL", "bucket": "per_pos_delta", "n": 8}, {"cell": "LVOL", "bucket": "taken", "n": 19}, {"cell": "PROD", "bucket": "net_delta", "n": 15}, {"cell": "PROD", "bucket": "per_pos_delta", "n": 4}, {"cell": "PROD", "bucket": "taken", "n": 2}], "considered": 150, "agreement": [{"model": "BEAR", "mech": "BEAR", "n": 8}, {"model": "BULL", "mech": "BEAR", "n": 1}, {"model": "BULL", "mech": "BULL", "n": 4}, {"model": "RANGE", "mech": "BEAR", "n": 34}, {"model": "RANGE", "mech": "BULL", "n": 2}, {"model": "RANGE", "mech": "RANGE", "n": 2}], "agree": 14, "agree_total": 51}}, "secondary": {"capital": 25000.0, "summary": {"n": 124, "candidates": 297, "dates": 64, "dollars": 5021.0, "meanR": 0.08658960706350836, "ci": [-0.0978, 0.2738], "win": 0.5241935483870968, "sessions": 108, "maxDD": -6391.0, "worst": -1753.5, "best": 2074.0, "median_days": 17.0, "credit_n": 26}, "equity": [{"sess": "2024-06-25", "pnl": -381.0, "cum": -381.0, "drawdown": -381.0, "closed": 1}, {"sess": "2024-06-26", "pnl": -530.0, "cum": -911.0, "drawdown": -911.0, "closed": 1}, {"sess": "2024-07-09", "pnl": -315.0, "cum": -1226.0, "drawdown": -1226.0, "closed": 1}, {"sess": "2024-07-10", "pnl": 528.5, "cum": -697.5, "drawdown": -697.5, "closed": 1}, {"sess": "2024-07-17", "pnl": -894.0, "cum": -1591.5, "drawdown": -1591.5, "closed": 2}, {"sess": "2024-07-19", "pnl": -512.5, "cum": -2104.0, "drawdown": -2104.0, "closed": 1}, {"sess": "2024-07-24", "pnl": -602.5, "cum": -2706.5, "drawdown": -2706.5, "closed": 1}, {"sess": "2024-07-29", "pnl": -480.0, "cum": -3186.5, "drawdown": -3186.5, "closed": 1}, {"sess": "2024-07-30", "pnl": -1040.5, "cum": -4227.0, "drawdown": -4227.0, "closed": 2}, {"sess": "2024-07-31", "pnl": 136.5, "cum": -4090.5, "drawdown": -4090.5, "closed": 1}, {"sess": "2024-08-01", "pnl": -632.5, "cum": -4723.0, "drawdown": -4723.0, "closed": 1}, {"sess": "2024-08-02", "pnl": -663.5, "cum": -5386.5, "drawdown": -5386.5, "closed": 1}, {"sess": "2024-08-07", "pnl": -452.0, "cum": -5838.5, "drawdown": -5838.5, "closed": 1}, {"sess": "2024-08-14", "pnl": -552.5, "cum": -6391.0, "drawdown": -6391.0, "closed": 1}, {"sess": "2024-08-15", "pnl": 216.5, "cum": -6174.5, "drawdown": -6174.5, "closed": 1}, {"sess": "2024-08-20", "pnl": 629.5, "cum": -5545.0, "drawdown": -5545.0, "closed": 1}, {"sess": "2024-08-23", "pnl": 466.0, "cum": -5079.0, "drawdown": -5079.0, "closed": 1}, {"sess": "2024-09-02", "pnl": -202.0, "cum": -5281.0, "drawdown": -5281.0, "closed": 1}, {"sess": "2024-09-03", "pnl": -188.5, "cum": -5469.5, "drawdown": -5469.5, "closed": 2}, {"sess": "2024-09-06", "pnl": -512.5, "cum": -5982.0, "drawdown": -5982.0, "closed": 1}, {"sess": "2024-09-12", "pnl": 403.5, "cum": -5578.5, "drawdown": -5578.5, "closed": 1}, {"sess": "2024-09-16", "pnl": 22.0, "cum": -5556.5, "drawdown": -5556.5, "closed": 1}, {"sess": "2024-09-18", "pnl": 4.0, "cum": -5552.5, "drawdown": -5552.5, "closed": 1}, {"sess": "2024-09-19", "pnl": 99.5, "cum": -5453.0, "drawdown": -5453.0, "closed": 1}, {"sess": "2024-09-24", "pnl": 450.0, "cum": -5003.0, "drawdown": -5003.0, "closed": 1}, {"sess": "2024-09-25", "pnl": 73.0, "cum": -4930.0, "drawdown": -4930.0, "closed": 1}, {"sess": "2024-10-01", "pnl": -318.5, "cum": -5248.5, "drawdown": -5248.5, "closed": 1}, {"sess": "2024-10-02", "pnl": 429.0, "cum": -4819.5, "drawdown": -4819.5, "closed": 1}, {"sess": "2024-10-07", "pnl": 213.5, "cum": -4606.0, "drawdown": -4606.0, "closed": 1}, {"sess": "2024-10-11", "pnl": 183.0, "cum": -4423.0, "drawdown": -4423.0, "closed": 1}, {"sess": "2024-10-16", "pnl": 475.0, "cum": -3948.0, "drawdown": -3948.0, "closed": 1}, {"sess": "2024-11-06", "pnl": 777.5, "cum": -3170.5, "drawdown": -3170.5, "closed": 1}, {"sess": "2024-11-07", "pnl": 1187.0, "cum": -1983.5, "drawdown": -1983.5, "closed": 2}, {"sess": "2024-11-11", "pnl": 2074.0, "cum": 90.5, "drawdown": 0.0, "closed": 2}, {"sess": "2024-11-20", "pnl": -390.0, "cum": -299.5, "drawdown": -390.0, "closed": 1}, {"sess": "2024-11-25", "pnl": -853.5, "cum": -1153.0, "drawdown": -1243.5, "closed": 2}, {"sess": "2024-12-09", "pnl": 76.0, "cum": -1077.0, "drawdown": -1167.5, "closed": 1}, {"sess": "2024-12-23", "pnl": -508.5, "cum": -1585.5, "drawdown": -1676.0, "closed": 1}, {"sess": "2024-12-30", "pnl": -592.0, "cum": -2177.5, "drawdown": -2268.0, "closed": 1}, {"sess": "2025-01-06", "pnl": 459.5, "cum": -1718.0, "drawdown": -1808.5, "closed": 1}, {"sess": "2025-01-10", "pnl": -425.0, "cum": -2143.0, "drawdown": -2233.5, "closed": 1}, {"sess": "2025-01-13", "pnl": -515.0, "cum": -2658.0, "drawdown": -2748.5, "closed": 1}, {"sess": "2025-01-16", "pnl": 174.5, "cum": -2483.5, "drawdown": -2574.0, "closed": 1}, {"sess": "2025-01-17", "pnl": 892.0, "cum": -1591.5, "drawdown": -1682.0, "closed": 1}, {"sess": "2025-01-21", "pnl": 746.0, "cum": -845.5, "drawdown": -936.0, "closed": 2}, {"sess": "2025-01-24", "pnl": 524.0, "cum": -321.5, "drawdown": -412.0, "closed": 1}, {"sess": "2025-01-27", "pnl": 415.5, "cum": 94.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-02-03", "pnl": -339.0, "cum": -245.0, "drawdown": -339.0, "closed": 1}, {"sess": "2025-02-04", "pnl": -281.0, "cum": -526.0, "drawdown": -620.0, "closed": 2}, {"sess": "2025-02-06", "pnl": -170.0, "cum": -696.0, "drawdown": -790.0, "closed": 2}, {"sess": "2025-03-05", "pnl": 1272.5, "cum": 576.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-03-10", "pnl": -877.5, "cum": -301.0, "drawdown": -877.5, "closed": 1}, {"sess": "2025-03-27", "pnl": -294.5, "cum": -595.5, "drawdown": -1172.0, "closed": 1}, {"sess": "2025-04-03", "pnl": -1753.5, "cum": -2349.0, "drawdown": -2925.5, "closed": 3}, {"sess": "2025-04-04", "pnl": -560.0, "cum": -2909.0, "drawdown": -3485.5, "closed": 1}, {"sess": "2025-04-07", "pnl": -759.0, "cum": -3668.0, "drawdown": -4244.5, "closed": 2}, {"sess": "2025-04-08", "pnl": -535.0, "cum": -4203.0, "drawdown": -4779.5, "closed": 1}, {"sess": "2025-04-10", "pnl": -491.0, "cum": -4694.0, "drawdown": -5270.5, "closed": 1}, {"sess": "2025-04-11", "pnl": 122.5, "cum": -4571.5, "drawdown": -5148.0, "closed": 1}, {"sess": "2025-04-15", "pnl": 66.5, "cum": -4505.0, "drawdown": -5081.5, "closed": 1}, {"sess": "2025-04-23", "pnl": 430.5, "cum": -4074.5, "drawdown": -4651.0, "closed": 1}, {"sess": "2025-05-08", "pnl": -151.5, "cum": -4226.0, "drawdown": -4802.5, "closed": 1}, {"sess": "2025-05-13", "pnl": 1340.0, "cum": -2886.0, "drawdown": -3462.5, "closed": 1}, {"sess": "2025-05-14", "pnl": 852.5, "cum": -2033.5, "drawdown": -2610.0, "closed": 2}, {"sess": "2025-05-20", "pnl": 382.5, "cum": -1651.0, "drawdown": -2227.5, "closed": 1}, {"sess": "2025-05-21", "pnl": -220.5, "cum": -1871.5, "drawdown": -2448.0, "closed": 1}, {"sess": "2025-05-27", "pnl": 1337.5, "cum": -534.0, "drawdown": -1110.5, "closed": 1}, {"sess": "2025-05-29", "pnl": 658.5, "cum": 124.5, "drawdown": -452.0, "closed": 1}, {"sess": "2025-06-02", "pnl": 609.5, "cum": 734.0, "drawdown": 0.0, "closed": 2}, {"sess": "2025-06-04", "pnl": 1032.5, "cum": 1766.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-09", "pnl": 337.5, "cum": 2104.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-06-25", "pnl": 747.5, "cum": 2851.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-07-17", "pnl": 348.0, "cum": 3199.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-07-22", "pnl": 537.5, "cum": 3737.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-08-21", "pnl": -67.0, "cum": 3670.0, "drawdown": -67.0, "closed": 1}, {"sess": "2025-09-05", "pnl": 95.0, "cum": 3765.0, "drawdown": 0.0, "closed": 1}, {"sess": "2025-09-17", "pnl": 572.5, "cum": 4337.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-09-29", "pnl": -34.5, "cum": 4303.0, "drawdown": -34.5, "closed": 1}, {"sess": "2025-12-09", "pnl": 101.5, "cum": 4404.5, "drawdown": 0.0, "closed": 1}, {"sess": "2025-12-12", "pnl": -732.0, "cum": 3672.5, "drawdown": -732.0, "closed": 1}, {"sess": "2025-12-23", "pnl": 24.0, "cum": 3696.5, "drawdown": -708.0, "closed": 1}, {"sess": "2025-12-26", "pnl": 38.5, "cum": 3735.0, "drawdown": -669.5, "closed": 1}, {"sess": "2025-12-30", "pnl": 60.5, "cum": 3795.5, "drawdown": -609.0, "closed": 1}, {"sess": "2025-12-31", "pnl": -600.0, "cum": 3195.5, "drawdown": -1209.0, "closed": 2}, {"sess": "2026-01-20", "pnl": -47.5, "cum": 3148.0, "drawdown": -1256.5, "closed": 1}, {"sess": "2026-02-11", "pnl": 272.5, "cum": 3420.5, "drawdown": -984.0, "closed": 1}, {"sess": "2026-02-13", "pnl": -351.0, "cum": 3069.5, "drawdown": -1335.0, "closed": 1}, {"sess": "2026-03-12", "pnl": -550.0, "cum": 2519.5, "drawdown": -1885.0, "closed": 1}, {"sess": "2026-03-13", "pnl": -525.0, "cum": 1994.5, "drawdown": -2410.0, "closed": 1}, {"sess": "2026-03-17", "pnl": 87.0, "cum": 2081.5, "drawdown": -2323.0, "closed": 1}, {"sess": "2026-03-18", "pnl": -145.0, "cum": 1936.5, "drawdown": -2468.0, "closed": 1}, {"sess": "2026-03-20", "pnl": -353.0, "cum": 1583.5, "drawdown": -2821.0, "closed": 1}, {"sess": "2026-03-24", "pnl": 1065.0, "cum": 2648.5, "drawdown": -1756.0, "closed": 1}, {"sess": "2026-03-25", "pnl": -847.5, "cum": 1801.0, "drawdown": -2603.5, "closed": 1}, {"sess": "2026-03-26", "pnl": 127.5, "cum": 1928.5, "drawdown": -2476.0, "closed": 1}, {"sess": "2026-03-27", "pnl": -415.5, "cum": 1513.0, "drawdown": -2891.5, "closed": 2}, {"sess": "2026-04-02", "pnl": 309.0, "cum": 1822.0, "drawdown": -2582.5, "closed": 1}, {"sess": "2026-04-13", "pnl": 21.0, "cum": 1843.0, "drawdown": -2561.5, "closed": 1}, {"sess": "2026-04-24", "pnl": 1057.5, "cum": 2900.5, "drawdown": -1504.0, "closed": 1}, {"sess": "2026-04-27", "pnl": 897.5, "cum": 3798.0, "drawdown": -606.5, "closed": 1}, {"sess": "2026-04-29", "pnl": -315.0, "cum": 3483.0, "drawdown": -921.5, "closed": 1}, {"sess": "2026-05-08", "pnl": 692.5, "cum": 4175.5, "drawdown": -229.0, "closed": 1}, {"sess": "2026-05-12", "pnl": 1054.0, "cum": 5229.5, "drawdown": 0.0, "closed": 1}, {"sess": "2026-06-03", "pnl": 14.0, "cum": 5243.5, "drawdown": 0.0, "closed": 1}, {"sess": "2026-06-12", "pnl": -82.0, "cum": 5161.5, "drawdown": -82.0, "closed": 1}, {"sess": "2026-06-22", "pnl": -571.0, "cum": 4590.5, "drawdown": -653.0, "closed": 1}, {"sess": "2026-06-30", "pnl": -67.0, "cum": 4523.5, "drawdown": -720.0, "closed": 1}, {"sess": "2026-07-29", "pnl": 497.5, "cum": 5021.0, "drawdown": -222.5, "closed": 1}], "census": [{"bucket": "taken", "n": 124}, {"bucket": "per_pos_delta", "n": 53}, {"bucket": "net_delta", "n": 106}, {"bucket": "day3_cap", "n": 12}, {"bucket": "unsizable", "n": 2}], "adverse": [{"bucket": "taken", "n": 124, "meanR": 0.08658960706350836, "ci": [-0.0978, 0.2738]}, {"bucket": "net_delta", "n": 106, "meanR": 0.3814142709855571, "ci": [0.1779, 0.5649]}, {"bucket": "per_pos_delta", "n": 53, "meanR": 0.09691757072641509, "ci": [-0.1122, 0.3]}], "exits": [{"reason": "profit_target", "n": 51, "dollars": 24133.5}, {"reason": "time_exit", "n": 8, "dollars": 798.5}, {"reason": "cap_open", "n": 11, "dollars": 1776.0}, {"reason": "expired", "n": 1, "dollars": -475.0}, {"reason": "trailing_stop", "n": 10, "dollars": -107.0}, {"reason": "stop_loss", "n": 19, "dollars": -6845.5}, {"reason": "dollar_stop", "n": 24, "dollars": -14259.5}], "contracts": [{"contracts": 1, "n": 96}, {"contracts": 2, "n": 13}, {"contracts": 3, "n": 13}, {"contracts": 4, "n": 1}, {"contracts": 5, "n": 1}], "tiers": [{"tier": "A", "n": 68, "dollars": 6615.0000002321985}, {"tier": "B", "n": 56, "dollars": -1593.9999998373014}], "structures": [{"structure": "bull_call_spread", "n": 97, "dollars": 6081.000000325198}, {"structure": "bull_put_spread", "n": 27, "dollars": -1059.9999999302995}], "risk_hist": [{"lo": 0, "hi": 1, "n": 0}, {"lo": 1, "hi": 2, "n": 54}, {"lo": 2, "hi": 3, "n": 23}, {"lo": 3, "hi": 4, "n": 22}, {"lo": 4, "hi": 5, "n": 8}, {"lo": 5, "hi": 6, "n": 9}, {"lo": 6, "hi": 8, "n": 7}, {"lo": 8, "hi": 10, "n": 0}, {"lo": 10, "hi": 15, "n": 1}], "risk_over_budget": 70, "risk_n": 124, "regime": {"mech": [{"cell": "BEAR_HE", "structure": "bull_call_spread", "n": 46, "dollars": 6413.0, "meanR": 0.15417900412345584, "win": 0.5, "thin": false}, {"cell": "BEAR_HE", "structure": "bull_put_spread", "n": 10, "dollars": 1845.0, "meanR": 0.73772316083, "win": 1.0, "thin": false}, {"cell": "LVOL", "structure": "bull_call_spread", "n": 47, "dollars": -1934.5, "meanR": -0.03191923567579073, "win": 0.40425531914893614, "thin": false}, {"cell": "LVOL", "structure": "bull_put_spread", "n": 14, "dollars": -3186.5, "meanR": -0.5385194181115647, "win": 0.5, "thin": false}, {"cell": "PROD", "structure": "bull_call_spread", "n": 3, "dollars": 1953.5, "meanR": 1.1905295451428572, "win": 1.0, "thin": true}, {"cell": "PROD", "structure": "bull_put_spread", "n": 2, "dollars": 182.0, "meanR": 0.8543672014, "win": 1.0, "thin": true}, {"cell": "RB_EVOL", "structure": "bull_call_spread", "n": 1, "dollars": -351.0, "meanR": -0.7048192771084337, "win": 0.0, "thin": true}, {"cell": "RB_EVOL", "structure": "bull_put_spread", "n": 1, "dollars": 99.5, "meanR": 0.7316176471, "win": 1.0, "thin": true}], "model": [{"cell": "BEAR/C-VOL", "structure": "bull_call_spread", "n": 2, "dollars": -18.0, "meanR": -0.014687882450000023, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_call_spread", "n": 8, "dollars": 2451.0, "meanR": 0.2151920748941589, "win": 0.5, "thin": true}, {"cell": "BEAR/E-VOL", "structure": "bull_put_spread", "n": 2, "dollars": 581.5, "meanR": 0.7003211084000001, "win": 1.0, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_call_spread", "n": 5, "dollars": 1628.0, "meanR": 0.5727940871657143, "win": 0.8, "thin": true}, {"cell": "BULL/C-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 213.5, "meanR": 0.6529051988, "win": 1.0, "thin": true}, {"cell": "BULL/L-VOL", "structure": "bull_call_spread", "n": 22, "dollars": -2144.0, "meanR": -0.16951833951487605, "win": 0.3181818181818182, "thin": false}, {"cell": "BULL/L-VOL", "structure": "bull_put_spread", "n": 7, "dollars": -2522.5, "meanR": -1.2385940513142857, "win": 0.2857142857142857, "thin": true}, {"cell": "RANGE/C-VOL", "structure": "bull_call_spread", "n": 13, "dollars": -1552.5, "meanR": -0.1582983281461083, "win": 0.38461538461538464, "thin": false}, {"cell": "RANGE/C-VOL", "structure": "bull_put_spread", "n": 1, "dollars": 101.5, "meanR": 0.6633986928, "win": 1.0, "thin": true}, {"cell": "RANGE/E-VOL", "structure": "bull_call_spread", "n": 28, "dollars": 498.0, "meanR": 0.11988149858326203, "win": 0.42857142857142855, "thin": false}, {"cell": "RANGE/E-VOL", "structure": "bull_put_spread", "n": 10, "dollars": 1111.5, "meanR": 0.7953305686800001, "win": 1.0, "thin": false}, {"cell": "RANGE/H-VOL", "structure": "bull_call_spread", "n": 9, "dollars": 5497.5, "meanR": 0.7064624539402454, "win": 0.8888888888888888, "thin": true}, {"cell": "RANGE/H-VOL", "structure": "bull_put_spread", "n": 3, "dollars": 532.5, "meanR": 0.7349080804333333, "win": 1.0, "thin": true}, {"cell": "RANGE/L-VOL", "structure": "bull_call_spread", "n": 10, "dollars": -279.0, "meanR": -0.0024894109411764615, "win": 0.4, "thin": false}, {"cell": "RANGE/L-VOL", "structure": "bull_put_spread", "n": 3, "dollars": -1078.0, "meanR": -0.6421686242206349, "win": 0.3333333333333333, "thin": true}], "census": [{"cell": "BEAR_HE", "n": 56, "tierA": 45, "tierB": 11, "reserved": 871.4107142857143, "dn": 3203.515414285714}, {"cell": "LVOL", "n": 61, "tierA": 20, "tierB": 41, "reserved": 627.9508196721312, "dn": 2687.213026229508}, {"cell": "PROD", "n": 5, "tierA": 2, "tierB": 3, "reserved": 479.6, "dn": 1974.4142}, {"cell": "RB_EVOL", "n": 2, "tierA": 1, "tierB": 1, "reserved": 681.0, "dn": 3351.6677}], "skips": [{"cell": "BEAR_HE", "bucket": "net_delta", "n": 34}, {"cell": "BEAR_HE", "bucket": "per_pos_delta", "n": 20}, {"cell": "BEAR_HE", "bucket": "taken", "n": 56}, {"cell": "BEAR_HE", "bucket": "unsizable", "n": 2}, {"cell": "LVOL", "bucket": "day3_cap", "n": 12}, {"cell": "LVOL", "bucket": "net_delta", "n": 55}, {"cell": "LVOL", "bucket": "per_pos_delta", "n": 26}, {"cell": "LVOL", "bucket": "taken", "n": 61}, {"cell": "PROD", "bucket": "net_delta", "n": 16}, {"cell": "PROD", "bucket": "per_pos_delta", "n": 5}, {"cell": "PROD", "bucket": "taken", "n": 5}, {"cell": "RB_EVOL", "bucket": "net_delta", "n": 1}, {"cell": "RB_EVOL", "bucket": "per_pos_delta", "n": 2}, {"cell": "RB_EVOL", "bucket": "taken", "n": 2}], "considered": 297, "agreement": [{"model": "BEAR", "mech": "BEAR", "n": 12}, {"model": "BULL", "mech": "BEAR", "n": 2}, {"model": "BULL", "mech": "BULL", "n": 33}, {"model": "RANGE", "mech": "BEAR", "n": 61}, {"model": "RANGE", "mech": "BULL", "n": 11}, {"model": "RANGE", "mech": "RANGE", "n": 5}], "agree": 50, "agree_total": 124}}}, "source": {"report": "account_sim-latest.txt", "positions": "account_sim-positions-latest.csv"}};
+</script>
+<script>
+/* Study-chart kit — the layout and drawing primitives every study_charts page
+ * shares, with no knowledge of any particular study.
+ *
+ * Split out of page.js when a second page (the regime readout) needed the same
+ * scaffolding. Nothing in here reads a global data payload: every function
+ * takes what it draws as an argument, which is what made the split possible at
+ * all. Labels come from CSV/report text, so they are inserted with textContent,
+ * never innerHTML.
+ */
+(function () {
+  "use strict";
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  // ---------- small helpers ----------
+
+  function el(tag, attrs, text) {
+    var node = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k]);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function h(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function money(v, digits) {
+    var sign = v < 0 ? "-" : "";
+    return sign + "$" + Math.abs(v).toLocaleString("en-US", {
+      minimumFractionDigits: digits || 0, maximumFractionDigits: digits || 0
+    });
+  }
+
+  function signed(v, digits) {
+    return (v >= 0 ? "+" : "") + v.toFixed(digits === undefined ? 3 : digits);
+  }
+
+  function pct(v, digits) { return (v * 100).toFixed(digits === undefined ? 0 : digits) + "%"; }
+
+  function niceTicks(lo, hi, count) {
+    var span = hi - lo;
+    if (span <= 0) return [lo];
+    var raw = span / (count || 5);
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var norm = raw / mag;
+    var step = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag;
+    var out = [];
+    for (var t = Math.ceil(lo / step) * step; t <= hi + step * 1e-9; t += step) out.push(Math.round(t / step) * step);
+    return out;
+  }
+
+  // ---------- tooltip ----------
+
+  var tip = h("div", "tip");
+  tip.setAttribute("role", "status");
+  document.body.appendChild(tip);
+
+  function showTip(evt, head, rows) {
+    tip.textContent = "";
+    var headEl = h("div", "tip-head", head);
+    tip.appendChild(headEl);
+    rows.forEach(function (r) {
+      var row = h("div", "tip-row");
+      if (r.color) {
+        var key = h("span", "tip-key");
+        key.style.background = r.color;
+        row.appendChild(key);
+      }
+      row.appendChild(h("span", "tip-val", r.value));
+      if (r.name) row.appendChild(h("span", "tip-name", r.name));
+      tip.appendChild(row);
+    });
+    tip.setAttribute("data-show", "true");
+    moveTip(evt);
+  }
+
+  function moveTip(evt) {
+    var pad = 14;
+    var box = tip.getBoundingClientRect();
+    var x = evt.clientX + pad;
+    var y = evt.clientY + pad;
+    if (x + box.width > window.innerWidth - 8) x = evt.clientX - box.width - pad;
+    if (y + box.height > window.innerHeight - 8) y = evt.clientY - box.height - pad;
+    tip.style.left = Math.max(8, x) + "px";
+    tip.style.top = Math.max(8, y) + "px";
+  }
+
+  function hideTip() { tip.setAttribute("data-show", "false"); }
+
+  function hoverable(node, head, rows) {
+    node.style.cursor = "default";
+    node.addEventListener("pointerenter", function (e) { showTip(e, head, rows); });
+    node.addEventListener("pointermove", moveTip);
+    node.addEventListener("pointerleave", hideTip);
+    node.setAttribute("tabindex", "0");
+    node.addEventListener("focus", function () {
+      var b = node.getBoundingClientRect();
+      showTip({ clientX: b.left + b.width / 2, clientY: b.top }, head, rows);
+    });
+    node.addEventListener("blur", hideTip);
+  }
+
+  // ---------- panel scaffolding ----------
+
+  function panel(title, how, opts) {
+    var fig = h("figure", "panel");
+    var head = h("div", "panel-head");
+    var titles = h("div");
+    titles.appendChild(h("h3", null, title));
+    head.appendChild(titles);
+    var body = h("div");
+    var table = h("div", "table-view");
+    table.hidden = true;
+    if (opts && opts.table) {
+      var btn = h("button", "table-toggle", "Table");
+      btn.type = "button";
+      btn.setAttribute("aria-expanded", "false");
+      btn.addEventListener("click", function () {
+        table.hidden = !table.hidden;
+        btn.setAttribute("aria-expanded", String(!table.hidden));
+        btn.textContent = table.hidden ? "Table" : "Hide table";
+      });
+      head.appendChild(btn);
+    }
+    fig.appendChild(head);
+    if (how) fig.appendChild(h("p", "how", how));
+    fig.appendChild(body);
+    fig.appendChild(table);
+    return { figure: fig, body: body, table: table };
+  }
+
+  function buildTable(container, columns, rows) {
+    container.textContent = "";
+    var t = h("table");
+    var thead = h("thead");
+    var tr = h("tr");
+    columns.forEach(function (c) { tr.appendChild(h("th", null, c)); });
+    thead.appendChild(tr);
+    t.appendChild(thead);
+    var tbody = h("tbody");
+    rows.forEach(function (r) {
+      var row = h("tr");
+      r.forEach(function (cell) { row.appendChild(h("td", null, String(cell))); });
+      tbody.appendChild(row);
+    });
+    t.appendChild(tbody);
+    container.appendChild(t);
+  }
+
+  function legend(items) {
+    var ul = h("ul", "legend");
+    items.forEach(function (it) {
+      var li = h("li");
+      var key = h("span", "key" + (it.line ? " line" : ""));
+      key.style.background = it.color;
+      li.appendChild(key);
+      li.appendChild(h("span", null, it.label));
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function svgRoot(width, height) {
+    var svg = el("svg", {
+      viewBox: "0 0 " + width + " " + height,
+      width: width, height: height, role: "img"
+    });
+    return svg;
+  }
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function roundedRight(x, y, w, hgt, r) {
+    r = Math.min(r, w);
+    return "M" + x + "," + y +
+      " H" + (x + w - r) + " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
+      " V" + (y + hgt - r) + " Q" + (x + w) + "," + (y + hgt) + " " + (x + w - r) + "," + (y + hgt) +
+      " H" + x + " Z";
+  }
+
+  function roundedTop(x, y, w, hgt, r) {
+    r = Math.min(r, hgt, w / 2);
+    return "M" + x + "," + (y + hgt) +
+      " V" + (y + r) + " Q" + x + "," + y + " " + (x + r) + "," + y +
+      " H" + (x + w - r) + " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
+      " V" + (y + hgt) + " Z";
+  }
+
+  function roundedBottom(x, y, w, hgt, r) {
+    r = Math.min(r, hgt, w / 2);
+    return "M" + x + "," + y +
+      " V" + (y + hgt - r) + " Q" + x + "," + (y + hgt) + " " + (x + r) + "," + (y + hgt) +
+      " H" + (x + w - r) + " Q" + (x + w) + "," + (y + hgt) + " " + (x + w) + "," + (y + hgt - r) +
+      " V" + y + " Z";
+  }
+  function columnChart(host, tableHost, opts) {
+    // opts: {rows:[{label,value,sub}], valueFmt, axisTitle, refLine:{v,label}, emphIndex, tableCols, tableRows}
+    var rows = opts.rows;
+    // t clears the axis title above the tallest bar's own data label.
+    var m = { t: 36, r: 16, b: opts.rotateLabels ? 74 : 52, l: 62 };
+    // Keep bands near 90px so a three-category chart is not stretched over 1040px.
+    var innerW = Math.min(1040 - m.l - m.r, Math.max(240, rows.length * 90));
+    var W = innerW + m.l + m.r, H = 236 + (opts.rotateLabels ? 22 : 0);
+    var innerH = H - m.t - m.b;
+    var maxV = Math.max.apply(null, rows.map(function (r) { return r.value; }).concat(opts.refLine ? [opts.refLine.v] : []));
+    var ticks = niceTicks(0, maxV, 4);
+    var yMax = Math.max(ticks[ticks.length - 1], maxV);
+    var y = function (v) { return m.t + innerH * (1 - v / (yMax || 1)); };
+    var band = innerW / rows.length;
+    var barW = Math.min(24, band - 8);
+
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, opts.title || ""));
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + innerW, y1: y(t), y2: y(t) }));
+      svg.appendChild(el("text", { class: "tick", x: m.l - 10, y: y(t) + 3.5, "text-anchor": "end" }, opts.tickFmt ? opts.tickFmt(t) : String(t)));
+    });
+
+    rows.forEach(function (r, i) {
+      var cx = m.l + band * i + band / 2;
+      var hgt = Math.max(1, y(0) - y(r.value));
+      var emph = opts.emphIndex === i;
+      var color = emph ? css("--s2") : css("--s1");
+      var bar = el("path", { d: roundedTop(cx - barW / 2, y(r.value), barW, hgt, 4), fill: color });
+      hoverable(bar, r.label, [{ color: color, value: opts.valueFmt(r.value), name: opts.valueName || "value" }]
+        .concat(r.sub ? [{ value: r.sub, name: opts.subName || "" }] : []));
+      svg.appendChild(bar);
+      if (opts.labelEvery === undefined || i % opts.labelEvery === 0 || emph) {
+        svg.appendChild(el("text", { class: "dlabel", x: cx, y: y(r.value) - 7, "text-anchor": "middle" }, opts.valueFmt(r.value)));
+      }
+      var t = el("text", { class: "tick", x: cx, y: m.t + innerH + 16, "text-anchor": "middle" }, r.label);
+      if (opts.rotateLabels) t.setAttribute("transform", "rotate(-38 " + cx + " " + (m.t + innerH + 16) + ")");
+      if (opts.rotateLabels) t.setAttribute("text-anchor", "end");
+      svg.appendChild(t);
+    });
+
+    if (opts.refLine) {
+      svg.appendChild(el("line", { class: "refline", x1: m.l, x2: m.l + innerW, y1: y(opts.refLine.v), y2: y(opts.refLine.v) }));
+      svg.appendChild(el("text", { class: "tick", x: m.l + innerW, y: y(opts.refLine.v) - 6, "text-anchor": "end" }, opts.refLine.label));
+    }
+    svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l + innerW, y1: y(0), y2: y(0) }));
+    if (opts.axisTitle) svg.appendChild(el("text", { class: "axis-title", x: m.l, y: 12 }, opts.axisTitle));
+    host.appendChild(svg);
+    if (opts.tableCols) buildTable(tableHost, opts.tableCols, opts.tableRows);
+  }
+
+  function divergingBars(host, tableHost, opts) {
+    var rows = opts.rows;
+    var W = 1040, rowH = 34, m = { t: 22, r: 110, b: 30, l: 176 };
+    var H = m.t + rows.length * rowH + m.b;
+    var innerW = W - m.l - m.r;
+    var vals = rows.map(function (r) { return r.value; });
+    var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+    var ticks = niceTicks(lo, hi, 6);
+    var xLo = Math.min(ticks[0], lo), xHi = Math.max(ticks[ticks.length - 1], hi);
+    var x = function (v) { return m.l + innerW * (v - xLo) / (xHi - xLo || 1); };
+
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, opts.title || ""));
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t), y1: m.t, y2: m.t + rows.length * rowH }));
+      svg.appendChild(el("text", { class: "tick", x: x(t), y: H - 12, "text-anchor": "middle" }, opts.valueFmt(t)));
+    });
+
+    rows.forEach(function (r, i) {
+      var yTop = m.t + i * rowH + 6;
+      var barH = rowH - 12;
+      var color = r.value >= 0 ? css("--s1") : css("--s8");
+      var x0 = x(0), x1 = x(r.value);
+      var bar = el("path", {
+        d: r.value >= 0 ? roundedRight(x0, yTop, Math.max(2, x1 - x0), barH, 4)
+          : roundedRight(x1, yTop, Math.max(2, x0 - x1), barH, 4),
+        fill: color
+      });
+      hoverable(bar, r.label, [{ color: color, value: opts.valueFmt(r.value), name: opts.valueName }]
+        .concat(r.sub ? [{ value: r.sub, name: opts.subName }] : []));
+      svg.appendChild(bar);
+      // A long negative bar would push its outside label into the category gutter;
+      // when that happens the label moves inside the bar end instead of overprinting.
+      var text = opts.valueFmt(r.value);
+      var outsideX = r.value >= 0 ? x1 + 10 : x1 - 10;
+      var inside = r.value < 0 && outsideX - text.length * 7 < m.l + 6;
+      svg.appendChild(el("text", {
+        class: inside ? null : "dlabel",
+        x: inside ? x1 + 10 : outsideX,
+        y: yTop + barH - 5,
+        "text-anchor": inside || r.value >= 0 ? "start" : "end",
+        "font-size": inside ? 11 : null,
+        "font-weight": inside ? 600 : null,
+        "font-family": inside ? "var(--mono)" : null,
+        fill: inside ? "#ffffff" : null
+      }, text));
+      svg.appendChild(el("text", { class: "dlabel", x: m.l - 14, y: yTop + barH - 5, "text-anchor": "end" }, r.label));
+    });
+    svg.appendChild(el("line", { class: "baseline", x1: x(0), x2: x(0), y1: m.t, y2: m.t + rows.length * rowH }));
+    if (opts.axisTitle) svg.appendChild(el("text", { class: "axis-title", x: m.l, y: 12 }, opts.axisTitle));
+    host.appendChild(svg);
+    if (opts.tableCols) buildTable(tableHost, opts.tableCols, opts.tableRows);
+  }
+  function tile(label, value, sub) {
+    var t = h("div", "tile");
+    t.appendChild(h("span", "label", label));
+    t.appendChild(h("span", "value", value));
+    if (sub) t.appendChild(h("span", "sub", sub));
+    return t;
+  }
+
+  function chipList(items) {
+    var wrap = h("div", "chips");
+    items.forEach(function (it) {
+      var good = it.status === "PASS" || it.status === "MET";
+      var row = h("div", "chip " + (good ? "is-good" : "is-bad"));
+      row.appendChild(h("span", "id", it.id));
+      row.appendChild(h("span", "mark", good ? "✓" : "✗"));
+      var mid = h("div");
+      mid.appendChild(h("div", "title", it.title));
+      if (it.detail) mid.appendChild(h("div", "detail", it.detail));
+      row.appendChild(mid);
+      row.appendChild(h("span", "state", it.status));
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  function section(id, title, blurb) {
+    var s = h("section");
+    s.id = id;
+    var head = h("div", "section-head");
+    head.appendChild(h("h2", null, title));
+    if (blurb) head.appendChild(h("p", null, blurb));
+    s.appendChild(head);
+    return s;
+  }
+
+  function chartHost(fig) {
+    var box = h("div", "chart");
+    fig.body.appendChild(box);
+    return box;
+  }
+
+  // ---------- heatmap ----------
+
+  var RAMP = ["--seq-0", "--seq-1", "--seq-2", "--seq-3",
+              "--seq-4", "--seq-5", "--seq-6", "--seq-7"];
+
+  function rampStep(v, lo, hi) {
+    var t = (v - lo) / (hi - lo || 1);
+    return Math.max(0, Math.min(RAMP.length - 1, Math.floor(t * RAMP.length)));
+  }
+
+  function rampFill(step) { return css(RAMP[step]); }
+
+  /* Ink chosen by fill luminance so a label always clears its own cell. */
+  function rampInk(step) { return step >= 4 ? "#ffffff" : css("--ink"); }
+
+  /* A labelled matrix of cells on the sequential ramp.
+   *
+   * The ramp is sequential, so `value` must be a magnitude that means more
+   * the higher it is — a count, a share. A signed quantity read on a
+   * sequential ramp says "big negative" and "big positive" are opposite ends
+   * of one scale, which they are not; those belong in divergingBars.
+   *
+   * spec: {title, rowTitle, cols, rows:[{label, cells:[{value,n,note}|null]}],
+   *        fmt, sub, highlight(i,j), footnote, tableCols, tableRows}
+   */
+  function matrix(host, tableHost, spec) {
+    var all = [];
+    spec.rows.forEach(function (r) {
+      r.cells.forEach(function (c) { if (c) all.push(c.value); });
+    });
+    var lo = all.length ? Math.min.apply(null, all) : 0;
+    var hi = all.length ? Math.max.apply(null, all) : 0;
+    var fmt = spec.fmt || String;
+
+    var cellW = Math.max(104, Math.min(180, Math.floor(880 / spec.cols.length)));
+    var cellH = spec.sub ? 62 : 48;
+    var m = { t: 34, l: 150 };
+    var W = m.l + spec.cols.length * cellW + 8;
+    var H = m.t + spec.rows.length * cellH + (spec.footnote ? 34 : 10);
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, spec.title));
+
+    spec.cols.forEach(function (label, j) {
+      svg.appendChild(el("text", {
+        class: "tick", x: m.l + j * cellW + cellW / 2, y: m.t - 12, "text-anchor": "middle"
+      }, label));
+    });
+    if (spec.rowTitle) {
+      svg.appendChild(el("text", { class: "axis-title", x: 0, y: m.t - 12 }, spec.rowTitle));
+    }
+
+    spec.rows.forEach(function (r, i) {
+      svg.appendChild(el("text", {
+        class: "tick", x: m.l - 14, y: m.t + i * cellH + cellH / 2 + 4, "text-anchor": "end"
+      }, r.label));
+      r.cells.forEach(function (c, j) {
+        var x = m.l + j * cellW + 1, y = m.t + i * cellH + 1;
+        var w = cellW - 3, hgt = cellH - 3;
+        if (!c) {
+          // An absent cell is drawn as empty, never as a zero: "the book never
+          // deployed here" and "it deployed here and made nothing" are
+          // different facts and must not share a colour.
+          svg.appendChild(el("rect", {
+            x: x, y: y, width: w, height: hgt, fill: css("--panel-sunk"), rx: 2
+          }));
+          return;
+        }
+        var step = rampStep(c.value, lo, hi);
+        var fill = rampFill(step), ink = rampInk(step);
+        var rect = el("rect", { x: x, y: y, width: w, height: hgt, fill: fill, rx: 2 });
+        hoverable(rect, r.label + "  ×  " + spec.cols[j],
+          [{ color: fill, value: fmt(c.value), name: spec.valueName || "value" }]
+            .concat(c.n !== undefined ? [{ value: String(c.n), name: "positions" }] : [])
+            .concat(c.note ? [{ value: c.note, name: "" }] : []));
+        svg.appendChild(rect);
+        svg.appendChild(el("text", {
+          x: x + w / 2, y: y + (spec.sub ? 26 : 30), "text-anchor": "middle",
+          "font-size": 13, "font-weight": 600, fill: ink, "font-family": "var(--mono)"
+        }, fmt(c.value)));
+        if (spec.sub) {
+          svg.appendChild(el("text", {
+            x: x + w / 2, y: y + 43, "text-anchor": "middle",
+            "font-size": 11, fill: ink, opacity: 0.8, "font-family": "var(--mono)"
+          }, spec.sub(c)));
+        }
+        if (spec.highlight && spec.highlight(i, j)) {
+          svg.appendChild(el("rect", {
+            x: x - 1, y: y - 1, width: w + 2, height: hgt + 2, fill: "none",
+            stroke: css("--s2"), "stroke-width": 2.5, rx: 3
+          }));
+        }
+      });
+    });
+    if (spec.footnote) {
+      svg.appendChild(el("text", { class: "tick", x: m.l, y: H - 10 }, spec.footnote));
+    }
+    host.appendChild(svg);
+    if (spec.tableCols) buildTable(tableHost, spec.tableCols, spec.tableRows);
+  }
+
+  window.__STUDY_KIT__ = {
+    matrix: matrix,
+    rampStep: rampStep,
+    rampFill: rampFill,
+    rampInk: rampInk,
+    el: el,
+    h: h,
+    money: money,
+    signed: signed,
+    pct: pct,
+    niceTicks: niceTicks,
+    showTip: showTip,
+    moveTip: moveTip,
+    hideTip: hideTip,
+    hoverable: hoverable,
+    panel: panel,
+    buildTable: buildTable,
+    legend: legend,
+    svgRoot: svgRoot,
+    css: css,
+    roundedRight: roundedRight,
+    roundedTop: roundedTop,
+    roundedBottom: roundedBottom,
+    columnChart: columnChart,
+    divergingBars: divergingBars,
+    tile: tile,
+    chipList: chipList,
+    section: section,
+    chartHost: chartHost,
+  };
+})();
+
+/* account_sim readout — SVG chart layer.
+ *
+ * Everything is drawn from window.__ACCOUNT_SIM__, which the Python renderer
+ * embeds. Series names and category labels come from CSV/report text, so they
+ * are inserted with textContent, never innerHTML.
+ *
+ * The generic layer — helpers, tooltip, panel scaffolding, columnChart,
+ * divergingBars — lives in kit.js, which the renderer inlines ahead of this
+ * file. Only the charts that know what account_sim means are below.
+ */
+(function () {
+  "use strict";
+
+  var DATA = window.__ACCOUNT_SIM__;
+  var state = { population: "primary" };
+
+  var K = window.__STUDY_KIT__;
+  var el = K.el, h = K.h, money = K.money, signed = K.signed, pct = K.pct,
+      niceTicks = K.niceTicks, hideTip = K.hideTip, hoverable = K.hoverable,
+      panel = K.panel, buildTable = K.buildTable, legend = K.legend,
+      svgRoot = K.svgRoot, css = K.css, roundedRight = K.roundedRight,
+      roundedTop = K.roundedTop, roundedBottom = K.roundedBottom,
+      columnChart = K.columnChart, divergingBars = K.divergingBars,
+      tile = K.tile, chipList = K.chipList, section = K.section,
+      chartHost = K.chartHost, matrix = K.matrix;
+
+  // The account's capital is config-sourced now, not a fixed $25k — every
+  // prose site that used to hardcode it reads it back from the payload
+  // instead. `acct()` is the full "$25,000" form, `acctK()` the compact
+  // "$25k" form used where space is tight (bar labels, table headers).
+  function acct() { return money(DATA.capital); }
+  function acctK() { return "$" + (DATA.capital / 1000) + "k"; }
+
+  // ---------- charts ----------
+
+  function equityChart(host, tableHost, series, summary) {
+    if (!series.length) return;
+    var W = 1040, H = 316, DDH = 112;
+    var m = { t: 18, r: 88, b: 44, l: 62 };
+    var innerW = W - m.l - m.r, innerH = H - m.t - m.b;
+
+    var cums = series.map(function (d) { return d.cum; });
+    var lo = Math.min(0, Math.min.apply(null, cums));
+    var hi = Math.max.apply(null, cums);
+    var ticks = niceTicks(lo, hi, 5);
+    var yLo = Math.min(ticks[0], lo), yHi = Math.max(ticks[ticks.length - 1], hi);
+    var x = function (i) { return m.l + (series.length === 1 ? innerW / 2 : innerW * i / (series.length - 1)); };
+    var y = function (v) { return m.t + innerH * (1 - (v - yLo) / (yHi - yLo || 1)); };
+
+    var svg = svgRoot(W, H + DDH);
+    svg.appendChild(el("title", {}, "Realized cumulative profit and loss by exit session"));
+
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + innerW, y1: y(t), y2: y(t) }));
+      svg.appendChild(el("text", { class: "tick", x: m.l - 10, y: y(t) + 3.5, "text-anchor": "end" }, money(t)));
+    });
+    svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l + innerW, y1: y(0), y2: y(0) }));
+
+    // area wash + line
+    var areaPts = series.map(function (d, i) { return x(i) + "," + y(d.cum); });
+    svg.appendChild(el("path", {
+      d: "M" + x(0) + "," + y(0) + " L" + areaPts.join(" L") + " L" + x(series.length - 1) + "," + y(0) + " Z",
+      fill: css("--s1"), opacity: 0.10
+    }));
+    svg.appendChild(el("path", {
+      d: "M" + areaPts.join(" L"), fill: "none", stroke: css("--s1"),
+      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round"
+    }));
+
+    // trough marker — the maxDD low point
+    var peak = 0, troughIdx = 0, worst = 0;
+    series.forEach(function (d, i) {
+      peak = Math.max(peak, d.cum);
+      if (d.cum - peak < worst) { worst = d.cum - peak; troughIdx = i; }
+    });
+    svg.appendChild(el("circle", {
+      cx: x(troughIdx), cy: y(series[troughIdx].cum), r: 4.5,
+      fill: css("--s1"), stroke: css("--panel"), "stroke-width": 2
+    }));
+    // Label above the trough when it sits low in the plot, so it clears the x axis.
+    var troughY = y(series[troughIdx].cum);
+    var troughLow = troughY > m.t + innerH * 0.6;
+    svg.appendChild(el("text", {
+      class: "dlabel-2", x: x(troughIdx), y: troughY + (troughLow ? -14 : 22),
+      "text-anchor": troughIdx === 0 ? "start" : "middle"
+    }, "max DD " + money(worst)));
+
+    // endpoint direct label
+    var last = series[series.length - 1];
+    svg.appendChild(el("circle", {
+      cx: x(series.length - 1), cy: y(last.cum), r: 4.5,
+      fill: css("--s1"), stroke: css("--panel"), "stroke-width": 2
+    }));
+    svg.appendChild(el("text", {
+      class: "dlabel", x: x(series.length - 1) + 10, y: y(last.cum) + 4
+    }, money(last.cum)));
+
+    // x ticks — first, last, and a few between
+    var xTickIdx = [0];
+    var step = Math.max(1, Math.round((series.length - 1) / 5));
+    for (var i = step; i < series.length - 1; i += step) xTickIdx.push(i);
+    xTickIdx.push(series.length - 1);
+    xTickIdx.forEach(function (i) {
+      svg.appendChild(el("text", {
+        class: "tick", x: x(i), y: m.t + innerH + 16, "text-anchor": i === 0 ? "start" : (i === series.length - 1 ? "end" : "middle")
+      }, series[i].sess.slice(2)));
+    });
+
+    // underwater panel
+    var ddTop = H + 14, ddInner = DDH - 40;
+    var ddMin = Math.min.apply(null, series.map(function (d) { return d.drawdown; }));
+    var yd = function (v) { return ddTop + ddInner * (v / (ddMin || -1)); };
+    svg.appendChild(el("text", { class: "axis-title", x: m.l, y: ddTop - 2 }, "UNDERWATER"));
+    var ddPts = series.map(function (d, i) { return x(i) + "," + yd(d.drawdown); });
+    svg.appendChild(el("path", {
+      d: "M" + x(0) + "," + yd(0) + " L" + ddPts.join(" L") + " L" + x(series.length - 1) + "," + yd(0) + " Z",
+      fill: css("--s8"), opacity: 0.14
+    }));
+    svg.appendChild(el("path", { d: "M" + ddPts.join(" L"), fill: "none", stroke: css("--s8"), "stroke-width": 2 }));
+    svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l + innerW, y1: yd(0), y2: yd(0) }));
+    svg.appendChild(el("text", { class: "tick", x: m.l - 10, y: yd(ddMin) + 3.5, "text-anchor": "end" }, money(ddMin)));
+
+    // crosshair + hit layer
+    var cross = el("line", { class: "refline", y1: m.t, y2: H + DDH - 26, opacity: 0 });
+    svg.appendChild(cross);
+    var hit = el("rect", { x: m.l, y: m.t, width: innerW, height: H + DDH - m.t - 26, fill: "transparent" });
+    svg.appendChild(hit);
+    hit.addEventListener("pointermove", function (evt) {
+      var box = svg.getBoundingClientRect();
+      var px = (evt.clientX - box.left) * (W / box.width);
+      var i = Math.round((px - m.l) / (innerW / Math.max(1, series.length - 1)));
+      i = Math.max(0, Math.min(series.length - 1, i));
+      var d = series[i];
+      cross.setAttribute("x1", x(i));
+      cross.setAttribute("x2", x(i));
+      cross.setAttribute("opacity", 1);
+      showTip(evt, d.sess, [
+        { color: css("--s1"), value: money(d.cum), name: "cumulative" },
+        { color: css("--s1"), value: money(d.pnl), name: "this session" },
+        { color: css("--s8"), value: money(d.drawdown), name: "drawdown" },
+        { value: String(d.closed), name: d.closed === 1 ? "position closed" : "positions closed" }
+      ]);
+    });
+    hit.addEventListener("pointerleave", function () { cross.setAttribute("opacity", 0); hideTip(); });
+
+    host.appendChild(svg);
+    host.parentNode.appendChild(legend([
+      { color: css("--s1"), label: "Realized cumulative P&L", line: true },
+      { color: css("--s8"), label: "Drawdown from peak", line: true }
+    ]));
+
+    buildTable(tableHost, ["Exit session", "Session P&L", "Cumulative", "Drawdown", "Closed"],
+      series.map(function (d) {
+        return [d.sess, money(d.pnl), money(d.cum), money(d.drawdown), d.closed];
+      }).concat([["TOTAL", money(summary.dollars), money(summary.dollars), money(summary.maxDD), summary.n]]));
+  }
+
+  function attritionChart(host, tableHost, baselines, summary, ratio) {
+    var bars = [
+      { label: "B1 stored contracts", sub: "the $50k book's own sizing", v: baselines.B1.dollars, n: baselines.B1.n, emph: false },
+      { label: "B2 " + acctK() + " sizing", sub: "unconstrained, max-loss sized", v: baselines.B2.dollars, n: baselines.B2.n, emph: false },
+      { label: "Constrained walk", sub: "caps and 3-a-day applied", v: summary.dollars, n: summary.n, emph: true }
+    ];
+    var W = 1040, rowH = 62, m = { t: 8, r: 132, b: 30, l: 168 };
+    var H = m.t + bars.length * rowH + m.b;
+    var innerW = W - m.l - m.r;
+    var hi = Math.max.apply(null, bars.map(function (b) { return b.v; }));
+    var ticks = niceTicks(0, hi, 5);
+    var xMax = Math.max(ticks[ticks.length - 1], hi);
+    var x = function (v) { return m.l + innerW * v / (xMax || 1); };
+
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, "Where the paper book's dollars go: sizing first, then the caps"));
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t), y1: m.t, y2: m.t + bars.length * rowH }));
+      svg.appendChild(el("text", { class: "tick", x: x(t), y: H - 12, "text-anchor": "middle" }, money(t)));
+    });
+
+    bars.forEach(function (b, i) {
+      var yTop = m.t + i * rowH + (rowH - 24) / 2;
+      var w = Math.max(2, x(b.v) - m.l);
+      var color = b.emph ? css("--s1") : css("--rule-strong");
+      var r = el("path", { d: roundedRight(m.l, yTop, w, 24, 4), fill: color });
+      hoverable(r, b.label, [
+        { color: color, value: money(b.v), name: "realized" },
+        { value: String(b.n), name: "positions" }
+      ]);
+      svg.appendChild(r);
+      svg.appendChild(el("text", { class: "dlabel", x: m.l + w + 10, y: yTop + 16 }, money(b.v)));
+      svg.appendChild(el("text", { class: "dlabel", x: m.l - 12, y: yTop + 10, "text-anchor": "end" }, b.label));
+      svg.appendChild(el("text", { class: "tick", x: m.l - 12, y: yTop + 23, "text-anchor": "end" }, b.n + " positions"));
+    });
+    svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l, y1: m.t, y2: m.t + bars.length * rowH }));
+    host.appendChild(svg);
+
+    buildTable(tableHost, ["Stage", "Positions", "Dates", "Realized $", "Mean R"], [
+      ["B1 stored contracts", baselines.B1.n, baselines.B1.dates, money(baselines.B1.dollars), signed(baselines.B1.meanR)],
+      ["B2 " + acctK() + " sizing", baselines.B2.n, baselines.B2.dates, money(baselines.B2.dollars), signed(baselines.B2.meanR)],
+      ["Constrained walk", summary.n, summary.dates, money(summary.dollars), signed(summary.meanR)],
+      ["B2 / B1 ratio", "", "", ratio.toFixed(2) + "x", ""]
+    ]);
+  }
+
+
+  var CENSUS_LABELS = {
+    taken: "Taken", taken_downsized: "Taken, downsized", cash: "Cash short",
+    per_pos_delta: "Per-position delta cap", net_delta: "Net delta cap",
+    min1_refusal: "Refused at 1 contract", day3_cap: "3-a-day cap", unsizable: "No usable max loss"
+  };
+
+  function censusChart(host, tableHost, census, mostBinding) {
+    var slots = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s7"];
+    var total = census.reduce(function (a, c) { return a + c.n; }, 0);
+    var W = 1040, H = 124, m = { l: 0, r: 0, t: 44 }, barH = 34;
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, "Every candidate the walk considered, split by what happened to it"));
+
+    var cursor = 0;
+    census.forEach(function (c, i) {
+      var color = css(slots[i % slots.length]);
+      var w = W * c.n / total;
+      var drawW = Math.max(1, w - 2); // 2px surface gap does the separating
+      var rect = el("rect", { x: cursor, y: m.t, width: drawW, height: barH, fill: color, rx: 2 });
+      hoverable(rect, CENSUS_LABELS[c.bucket] || c.bucket, [
+        { color: color, value: String(c.n), name: "candidates" },
+        { value: pct(c.n / total, 1), name: "of all considered" }
+      ]);
+      svg.appendChild(rect);
+      // Only label inside the segment when the text actually fits.
+      var label = String(c.n);
+      if (drawW > 34) {
+        svg.appendChild(el("text", {
+          x: cursor + drawW / 2, y: m.t + 22, "text-anchor": "middle",
+          "font-size": 12, "font-weight": 600, fill: "#ffffff", "font-family": "var(--mono)"
+        }, label));
+      }
+      if (drawW > 74) {
+        svg.appendChild(el("text", {
+          class: "tick", x: cursor + drawW / 2, y: m.t - 8, "text-anchor": "middle"
+        }, pct(c.n / total, 0)));
+      }
+      cursor += w;
+    });
+
+    svg.appendChild(el("text", { class: "axis-title", x: 0, y: 12 }, "ALL " + total + " CANDIDATES CONSIDERED"));
+    svg.appendChild(el("text", {
+      class: "tick", x: 0, y: m.t + barH + 18
+    }, "most binding: " + (CENSUS_LABELS[mostBinding] || mostBinding).toLowerCase()));
+    host.appendChild(svg);
+
+    host.parentNode.appendChild(legend(census.map(function (c, i) {
+      return { color: css(slots[i % slots.length]), label: (CENSUS_LABELS[c.bucket] || c.bucket) + " · " + c.n };
+    })));
+
+    buildTable(tableHost, ["Outcome", "Candidates", "Share"],
+      census.map(function (c) { return [CENSUS_LABELS[c.bucket] || c.bucket, c.n, pct(c.n / total, 1)]; })
+        .concat([["TOTAL", total, "100%"]]));
+  }
+
+  function adverseChart(host, tableHost, adverse) {
+    var W = 1040, rowH = 66, m = { t: 14, r: 118, b: 34, l: 254 };
+    var H = m.t + adverse.length * rowH + m.b;
+    var innerW = W - m.l - m.r;
+    var vals = [];
+    adverse.forEach(function (a) {
+      vals.push(a.meanR);
+      if (a.ci) { vals.push(a.ci[0]); vals.push(a.ci[1]); }
+    });
+    var lo = Math.min(0, Math.min.apply(null, vals));
+    var hi = Math.max(0, Math.max.apply(null, vals));
+    var ticks = niceTicks(lo, hi, 6);
+    var xLo = Math.min(ticks[0], lo), xHi = Math.max(ticks[ticks.length - 1], hi);
+    var x = function (v) { return m.l + innerW * (v - xLo) / (xHi - xLo || 1); };
+
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, "Mean R of the picks the caps took versus the picks they skipped"));
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t), y1: m.t, y2: m.t + adverse.length * rowH }));
+      svg.appendChild(el("text", { class: "tick", x: x(t), y: H - 16, "text-anchor": "middle" }, signed(t, 2)));
+    });
+    svg.appendChild(el("text", { class: "axis-title", x: m.l + innerW / 2, y: H - 2, "text-anchor": "middle" }, "MEAN R"));
+
+    adverse.forEach(function (a, i) {
+      var yTop = m.t + i * rowH + (rowH - 22) / 2;
+      var isTaken = a.bucket === "taken";
+      var color = a.meanR >= 0 ? css("--s1") : css("--s8");
+      var x0 = x(0), x1 = x(a.meanR);
+      var rect = el("path", {
+        d: a.meanR >= 0 ? roundedRight(x0, yTop, Math.max(2, x1 - x0), 22, 4)
+          : roundedRight(x1, yTop, Math.max(2, x0 - x1), 22, 4),
+        fill: color, opacity: isTaken ? 1 : 0.55
+      });
+      var rows = [{ color: color, value: signed(a.meanR), name: "mean R" }, { value: String(a.n), name: "positions" }];
+      if (a.ci) rows.push({ value: "[" + signed(a.ci[0], 2) + ", " + signed(a.ci[1], 2) + "]", name: "95% CI" });
+      hoverable(rect, isTaken ? "Taken" : "Skipped · " + (CENSUS_LABELS[a.bucket] || a.bucket), rows);
+      svg.appendChild(rect);
+
+      if (a.ci) {
+        var cy = yTop + 11;
+        svg.appendChild(el("line", { x1: x(a.ci[0]), x2: x(a.ci[1]), y1: cy, y2: cy, stroke: css("--ink-2"), "stroke-width": 1.5 }));
+        [a.ci[0], a.ci[1]].forEach(function (v) {
+          svg.appendChild(el("line", { x1: x(v), x2: x(v), y1: cy - 6, y2: cy + 6, stroke: css("--ink-2"), "stroke-width": 1.5 }));
+        });
+      }
+      // Clear the CI whisker, not just the bar end, or the two overprint.
+      var labelX = Math.max(x0, x1, a.ci ? x(a.ci[1]) : x1) + 12;
+      svg.appendChild(el("text", { class: "dlabel", x: labelX, y: yTop + 15 }, signed(a.meanR)));
+      svg.appendChild(el("text", {
+        class: "dlabel", x: m.l - 14, y: yTop + 9, "text-anchor": "end"
+      }, isTaken ? "Taken" : "Skipped · " + (CENSUS_LABELS[a.bucket] || a.bucket).toLowerCase()));
+      svg.appendChild(el("text", { class: "tick", x: m.l - 14, y: yTop + 22, "text-anchor": "end" }, "n = " + a.n));
+    });
+    svg.appendChild(el("line", { class: "baseline", x1: x(0), x2: x(0), y1: m.t, y2: m.t + adverse.length * rowH }));
+    host.appendChild(svg);
+
+    buildTable(tableHost, ["Bucket", "n", "Mean R", "95% CI (date-clustered)"],
+      adverse.map(function (a) {
+        return [a.bucket === "taken" ? "Taken" : "Skipped · " + (CENSUS_LABELS[a.bucket] || a.bucket),
+          a.n, signed(a.meanR), a.ci ? "[" + signed(a.ci[0]) + ", " + signed(a.ci[1]) + "]" : "—"];
+      }));
+  }
+
+
+  function capGrid(host, tableHost, grid) {
+    var netCaps = grid.net_caps, rows = grid.rows;
+    var all = [];
+    rows.forEach(function (r) { r.cells.forEach(function (c) { all.push(c.dollars); }); });
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    var cellW = 150, cellH = 62, m = { t: 34, l: 92 };
+    var W = m.l + netCaps.length * cellW + 8, H = m.t + rows.length * cellH + 34;
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, "Realized dollars across the per-position and net delta-notional cap grid"));
+
+    netCaps.forEach(function (n, j) {
+      svg.appendChild(el("text", {
+        class: "tick", x: m.l + j * cellW + cellW / 2, y: m.t - 12, "text-anchor": "middle"
+      }, "net " + n + (n === "inf" ? "" : "x")));
+    });
+    svg.appendChild(el("text", { class: "axis-title", x: 0, y: m.t - 12 }, "PER-POS"));
+
+    rows.forEach(function (r, i) {
+      svg.appendChild(el("text", {
+        class: "tick", x: m.l - 14, y: m.t + i * cellH + cellH / 2 + 4, "text-anchor": "end"
+      }, r.per_pos + (r.per_pos === "inf" ? "" : "x")));
+      r.cells.forEach(function (c, j) {
+        var step = K.rampStep(c.dollars, lo, hi);
+        var fill = K.rampFill(step);
+        var isHeadline = r.per_pos === grid.headline.per_pos && netCaps[j] === grid.headline.net;
+        var x = m.l + j * cellW + 1, y = m.t + i * cellH + 1;
+        var rect = el("rect", { x: x, y: y, width: cellW - 3, height: cellH - 3, fill: fill, rx: 2 });
+        hoverable(rect, "per-pos " + r.per_pos + "x  ×  net " + netCaps[j] + "x", [
+          { color: fill, value: money(c.dollars), name: "realized" },
+          { value: String(c.n), name: "positions taken" }
+        ].concat(isHeadline ? [{ value: "configured cell", name: "" }] : []));
+        svg.appendChild(rect);
+        var ink = K.rampInk(step);
+        svg.appendChild(el("text", {
+          x: x + (cellW - 3) / 2, y: y + 26, "text-anchor": "middle",
+          "font-size": 13, "font-weight": 600, fill: ink, "font-family": "var(--mono)"
+        }, money(c.dollars)));
+        svg.appendChild(el("text", {
+          x: x + (cellW - 3) / 2, y: y + 43, "text-anchor": "middle",
+          "font-size": 11, fill: ink, opacity: 0.8, "font-family": "var(--mono)"
+        }, c.n + " taken"));
+        if (isHeadline) {
+          svg.appendChild(el("rect", {
+            x: x - 1, y: y - 1, width: cellW - 1, height: cellH - 1, fill: "none",
+            stroke: css("--s2"), "stroke-width": 2.5, rx: 3
+          }));
+        }
+      });
+    });
+    svg.appendChild(el("text", {
+      class: "tick", x: m.l, y: H - 10
+    }, "orange ring = the configured cell (per-pos " + grid.headline.per_pos + "x × net " + grid.headline.net + "x)"));
+    host.appendChild(svg);
+
+    buildTable(tableHost, ["Per-position cap"].concat(netCaps.map(function (n) { return "net " + n; })),
+      rows.map(function (r) {
+        return [r.per_pos].concat(r.cells.map(function (c) { return money(c.dollars) + " / " + c.n; }));
+      }));
+  }
+
+  function armsChart(host, tableHost, arms) {
+    var metrics = [
+      { key: "dollars", label: "REALIZED $", fmt: function (v) { return money(v); } },
+      { key: "meanR", label: "MEAN R", fmt: function (v) { return signed(v); } },
+      { key: "maxDD", label: "MAX DRAWDOWN", fmt: function (v) { return money(v); } }
+    ];
+    var wrap = h("div", "grid-3");
+    metrics.forEach(function (metric) {
+      var W = 320, H = 200, m = { t: 26, r: 10, b: 40, l: 58 };
+      var innerW = W - m.l - m.r, innerH = H - m.t - m.b;
+      var vals = arms.map(function (a) { return a[metric.key]; });
+      var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+      var ticks = niceTicks(lo, hi, 3);
+      var yLo = Math.min(ticks[0], lo), yHi = Math.max(ticks[ticks.length - 1], hi);
+      var y = function (v) { return m.t + innerH * (1 - (v - yLo) / (yHi - yLo || 1)); };
+      var band = innerW / arms.length, barW = Math.min(24, band - 12);
+
+      var svg = svgRoot(W, H);
+      svg.appendChild(el("title", {}, metric.label + " by arm"));
+      svg.appendChild(el("text", { class: "axis-title", x: 0, y: 12 }, metric.label));
+      ticks.forEach(function (t) {
+        svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + innerW, y1: y(t), y2: y(t) }));
+        svg.appendChild(el("text", { class: "tick", x: m.l - 8, y: y(t) + 3.5, "text-anchor": "end" },
+          metric.key === "meanR" ? t.toFixed(2) : money(t)));
+      });
+      arms.forEach(function (a, i) {
+        var cx = m.l + band * i + band / 2;
+        var v = a[metric.key];
+        var color = a.headline ? css("--s2") : css("--s1");
+        // The rounded end is the DATA end — bottom for a bar hanging below zero.
+        var top = Math.min(y(v), y(0)), hgt = Math.max(1, Math.abs(y(v) - y(0)));
+        var shape = v >= 0 ? roundedTop : roundedBottom;
+        var bar = el("path", { d: shape(cx - barW / 2, top, barW, hgt, 4), fill: color, opacity: a.headline ? 1 : 0.6 });
+        hoverable(bar, a.arm + (a.headline ? " — headline" : ""), [
+          { color: color, value: metric.fmt(v), name: metric.label.toLowerCase() },
+          { value: String(a.n), name: "positions" }
+        ]);
+        svg.appendChild(bar);
+        svg.appendChild(el("text", {
+          class: "tick", x: cx, y: m.t + innerH + 16, "text-anchor": "middle"
+        }, a.arm.replace(/[() ]/g, "")));
+      });
+      svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l + innerW, y1: y(0), y2: y(0) }));
+      var cell = h("div", "chart");
+      cell.appendChild(svg);
+      wrap.appendChild(cell);
+    });
+    host.appendChild(wrap);
+    host.parentNode.appendChild(legend([
+      { color: css("--s2"), label: "(R, F1) — the headline arm, what production does" },
+      { color: css("--s1"), label: "Reported, not adopted" }
+    ]));
+    buildTable(tableHost, ["Arm", "n", "Dates", "Realized $", "Mean R", "Win", "Max DD"],
+      arms.map(function (a) {
+        return [a.arm + (a.headline ? " HEADLINE" : ""), a.n, a.dates, money(a.dollars), signed(a.meanR), pct(a.win), money(a.maxDD)];
+      }));
+  }
+
+  function dumbbell(host, tableHost, accounts) {
+    var big = accounts[0], small = accounts[1];
+    // The intended risk budget as a %, read back from this run's own
+    // capital/budget rather than assumed to be 2 — the reference line below
+    // has to sit at whatever the config actually set.
+    var riskPct = small.capital ? 100 * small.budget / small.capital : 2;
+    var rows = [
+      { label: "Median position", a: big.risk_median, b: small.risk_median },
+      { label: "90th percentile", a: big.risk_p90, b: small.risk_p90 },
+      { label: "Largest position", a: big.risk_max, b: small.risk_max }
+    ];
+    var W = 1040, rowH = 52, m = { t: 26, r: 74, b: 44, l: 168 };
+    var H = m.t + rows.length * rowH + m.b;
+    var innerW = W - m.l - m.r;
+    var hi = Math.max.apply(null, rows.map(function (r) { return Math.max(r.a, r.b); }));
+    var ticks = niceTicks(0, hi, 5);
+    var xMax = Math.max(ticks[ticks.length - 1], hi);
+    var x = function (v) { return m.l + innerW * v / (xMax || 1); };
+
+    var svg = svgRoot(W, H);
+    svg.appendChild(el("title", {}, "Realized risk per position as a share of capital, $50k book versus " + acctK() + " book"));
+    ticks.forEach(function (t) {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t), y1: m.t, y2: m.t + rows.length * rowH }));
+      svg.appendChild(el("text", { class: "tick", x: x(t), y: H - 22, "text-anchor": "middle" }, t + "%"));
+    });
+    svg.appendChild(el("text", { class: "axis-title", x: m.l + innerW / 2, y: H - 6, "text-anchor": "middle" },
+      "REALIZED RISK PER POSITION, % OF CAPITAL"));
+
+    // the intended risk budget
+    svg.appendChild(el("line", { class: "refline", x1: x(riskPct), x2: x(riskPct), y1: m.t, y2: m.t + rows.length * rowH }));
+    svg.appendChild(el("text", { class: "tick", x: x(riskPct), y: m.t - 8, "text-anchor": "middle" }, riskPct.toFixed(riskPct % 1 ? 1 : 0) + "% intended budget"));
+
+    rows.forEach(function (r, i) {
+      var cy = m.t + i * rowH + rowH / 2;
+      svg.appendChild(el("line", { x1: x(r.a), x2: x(r.b), y1: cy, y2: cy, stroke: css("--rule-strong"), "stroke-width": 3, "stroke-linecap": "round" }));
+      [{ v: r.a, color: css("--seq-3"), name: "$50,000 account" }, { v: r.b, color: css("--s1"), name: acct() + " account" }].forEach(function (pt) {
+        var dot = el("circle", { cx: x(pt.v), cy: cy, r: 6, fill: pt.color, stroke: css("--panel"), "stroke-width": 2 });
+        hoverable(dot, r.label, [{ color: pt.color, value: pt.v.toFixed(1) + "%", name: pt.name }]);
+        svg.appendChild(dot);
+      });
+      svg.appendChild(el("text", { class: "dlabel", x: m.l - 14, y: cy + 4, "text-anchor": "end" }, r.label));
+      // Both ends direct-labelled: the light $50k step sits under 3:1 on the light surface.
+      svg.appendChild(el("text", { class: "dlabel-2", x: x(r.a) - 12, y: cy + 4, "text-anchor": "end" }, r.a.toFixed(1) + "%"));
+      svg.appendChild(el("text", { class: "dlabel", x: x(r.b) + 12, y: cy + 4 }, r.b.toFixed(1) + "%"));
+    });
+    svg.appendChild(el("line", { class: "baseline", x1: m.l, x2: m.l, y1: m.t, y2: m.t + rows.length * rowH }));
+    host.appendChild(svg);
+    host.parentNode.appendChild(legend([
+      { color: css("--seq-3"), label: "$50,000 account · $1,000 budget" },
+      { color: css("--s1"), label: acct() + " account · " + money(small.budget) + " budget" }
+    ]));
+
+    buildTable(tableHost, ["Measure", "$50k account", acctK() + " account"],
+      rows.map(function (r) { return [r.label, r.a.toFixed(1) + "%", r.b.toFixed(1) + "%"]; }).concat([
+        ["1-contract floor share", big.floor_pct + "%", small.floor_pct + "%"],
+        ["Mean contracts", big.mean_contracts.toFixed(2), small.mean_contracts.toFixed(2)]
+      ]));
+  }
+
+  // ---------- render ----------
+
+
+  function render() {
+    var host = document.getElementById("panels");
+    host.textContent = "";
+    var pop = DATA.populations[state.population];
+    var rep = DATA.report.populations[state.population];
+    var s = pop.summary;
+    var isPrimary = state.population === "primary";
+
+    // --- headline tiles
+    var sec = section("headline", isPrimary ? "The dense-episode book" : "The full sparse book",
+      isPrimary
+        ? "The primary population: runs of signal dates with no internal gap over 5 sessions."
+        : "An availability upper bound and a concurrency lower bound. The pre-registration says it may not carry a conclusion alone.");
+    var tiles = h("div", "tiles");
+    tiles.appendChild(tile("Positions taken", String(s.n), s.dates + " signal dates"));
+    tiles.appendChild(tile("Realized", money(s.dollars), "on " + acct() + " of capital"));
+    tiles.appendChild(tile("Mean R", signed(s.meanR), s.ci ? "95% CI " + signed(s.ci[0], 2) + " to " + signed(s.ci[1], 2) : ""));
+    tiles.appendChild(tile("Win rate", pct(s.win), s.n + " closed positions"));
+    tiles.appendChild(tile("Max drawdown", money(s.maxDD), pct(Math.abs(s.maxDD) / DATA.capital, 1) + " of capital"));
+    tiles.appendChild(tile("Worst session", money(s.worst), "median hold " + s.median_days + "d"));
+    sec.appendChild(tiles);
+    host.appendChild(sec);
+
+    // --- equity
+    sec = section("equity", "Equity and drawdown",
+      "P&L booked on the session a position exits — open positions are never marked to market, so this understates intra-position drawdown.");
+    var p = panel("Realized cumulative P&L", "Each step is one exit session, not one calendar day; gaps between episodes are closed up. The underwater panel below shares the same x positions.", { table: true });
+    equityChart(chartHost(p), p.table, pop.equity, s);
+    sec.appendChild(p.figure);
+    var ddNote = h("p", "note");
+    ddNote.appendChild(document.createTextNode("Max drawdown reached " + money(s.maxDD) + ", or "));
+    ddNote.appendChild(h("strong", null, pct(Math.abs(s.maxDD) / DATA.capital, 1) + " of starting capital"));
+    ddNote.appendChild(document.createTextNode(" against the A3 limit of " + rep.equity.dd_limit_pct + "%."));
+    sec.appendChild(ddNote);
+    host.appendChild(sec);
+
+    // --- attrition
+    sec = section("attrition", "Where the paper book's dollars go",
+      "B1 to B2 isolates granularity — contract counts. B2 to constrained isolates the caps.");
+    p = panel("Three stages, same picks", "B1 is the stored book at its own contract counts, which are a $50k account's. B2 re-sizes those same picks for " + acct() + " with no caps. The constrained walk then applies the delta-notional caps and the 3-a-day limit.", { table: true });
+    attritionChart(chartHost(p), p.table, rep.baselines, s, rep.baselines.ratio);
+    sec.appendChild(p.figure);
+    var note = h("p", "note");
+    note.appendChild(document.createTextNode("The book shrinks by "));
+    note.appendChild(h("strong", null, "size before any constraint applies"));
+    note.appendChild(document.createTextNode(" — B2 is " + rep.baselines.ratio.toFixed(2) + "x of B1. On the " + rep.criteria[1].detail + "."));
+    sec.appendChild(note);
+    host.appendChild(sec);
+
+    // --- constraints
+    sec = section("constraints", "What the caps did",
+      "Every candidate the walk considered is accounted for exactly once (criterion A4).");
+    var stack = h("div", "stack");
+    p = panel("Binding-constraint census", "One segment per outcome. The exclusion buckets are what the account could not fit, not what the ladder declined to pick.", { table: true });
+    censusChart(chartHost(p), p.table, pop.census, rep.census.most_binding);
+    stack.appendChild(p.figure);
+
+    p = panel("Adverse-ordering check", "If the caps systematically skipped the better picks, the account is not merely smaller than the paper book — it is adversely selected. Skipped picks are replayed at the size they would have been given. Whiskers are the study's own date-clustered bootstrap 95% CI.", { table: true });
+    adverseChart(chartHost(p), p.table, pop.adverse);
+    stack.appendChild(p.figure);
+    sec.appendChild(stack);
+
+    // The study prints a delta-vs-taken per rejected bucket but draws no verdict
+    // from it (report.parse_adverse). Quote those deltas as-is, for every bucket,
+    // rather than picking a "worst" one and asserting what it means.
+    var rejected = rep.adverse.rejected;
+    if (rejected.length) {
+      note = h("p", "note is-warning");
+      note.appendChild(document.createTextNode("The study's delta vs taken, per skipped bucket: "));
+      rejected.forEach(function (r, i) {
+        if (i > 0) note.appendChild(document.createTextNode(", "));
+        note.appendChild(h("strong", null, (CENSUS_LABELS[r.bucket] || r.bucket).toLowerCase()));
+        note.appendChild(document.createTextNode(" " + signed(r.delta) + " R (n=" + r.n + ")"));
+      });
+      note.appendChild(document.createTextNode("."));
+      sec.appendChild(note);
+    }
+    host.appendChild(sec);
+
+    // --- sizing
+    var small = rep.granularity.accounts[1];
+    var riskShare = small.capital ? small.budget / small.capital : null;
+    var riskPctLabel = riskShare === null ? "the risk budget" : pct(riskShare);
+    sec = section("sizing", "What " + riskPctLabel + " of " + acct() + " actually buys",
+      "The intended risk budget is " + money(small.budget) + " per position. Most spreads cost more than that at one contract.");
+    stack = h("div", "stack");
+    p = panel("Realized risk per position", "Each rung compares the same book sized for a $50,000 account against a " + acctK() + " one. Anything right of the reference line breached the " + riskPctLabel + " budget the moment it was opened.", { table: true });
+    dumbbell(chartHost(p), p.table, rep.granularity.accounts);
+    stack.appendChild(p.figure);
+
+    p = panel("Contracts held per position", "At " + acct() + " the position size collapses toward the one-contract floor, and a floor position is a position whose risk the budget never actually controlled.", { table: true });
+    columnChart(chartHost(p), p.table, {
+      rows: pop.contracts.map(function (c) {
+        return { label: c.contracts + "c", value: c.n, sub: pct(c.n / s.n, 0) + " of taken" };
+      }),
+      valueFmt: function (v) { return String(v); },
+      valueName: "positions",
+      subName: "share",
+      axisTitle: "POSITIONS",
+      title: "Contract counts held per position"
+    });
+    stack.appendChild(p.figure);
+    sec.appendChild(stack);
+
+    note = h("p", "note is-warning");
+    note.appendChild(h("strong", null, small.floor_pct + "% of sized candidates"));
+    note.appendChild(document.createTextNode(" breached the " + money(small.budget) + " budget at a single contract (" + small.floor_n + " of " + small.floor_of + "), against " +
+      rep.granularity.accounts[0].floor_pct + "% for the same picks in a $50,000 account. The headline arm takes those positions anyway — that is what the F1 in (R, F1) means."));
+    sec.appendChild(note);
+    host.appendChild(sec);
+
+    // --- exits
+    sec = section("exits", "How the positions ended",
+      "Exit reasons come from the frozen replay harness, not from this simulation.");
+    stack = h("div", "stack");
+    p = panel("Realized dollars by exit reason", "Bars right of zero made money, left of zero lost it. The count of positions behind each bar is in the tooltip and the table.", { table: true });
+    divergingBars(chartHost(p), p.table, {
+      rows: pop.exits.map(function (e) {
+        return { label: e.reason.replace(/_/g, " "), value: e.dollars, sub: e.n + " positions" };
+      }),
+      valueFmt: function (v) { return money(v); },
+      valueName: "realized",
+      subName: "count",
+      axisTitle: "REALIZED $",
+      title: "Realized dollars by exit reason",
+      tableCols: ["Exit reason", "Positions", "Realized $", "Average per position"],
+      tableRows: pop.exits.map(function (e) {
+        return [e.reason.replace(/_/g, " "), e.n, money(e.dollars), money(e.dollars / e.n)];
+      })
+    });
+    stack.appendChild(p.figure);
+    sec.appendChild(stack);
+    host.appendChild(sec);
+
+    // --- utilisation
+    sec = section("utilisation", "How full the account ran",
+      "Net delta-notional as a multiple of equity, averaged over the sessions in each month.");
+    p = panel("Monthly net delta-notional", "The cap is 1.50x equity. Months that sit against it are months where the account, not the ladder, decided how many positions it held.", { table: true });
+    columnChart(chartHost(p), p.table, {
+      rows: rep.utilisation.map(function (u) {
+        return { label: u.month, value: u.net_avg, sub: "peak " + u.net_max.toFixed(2) + "x · " + u.open_avg.toFixed(1) + " open avg" };
+      }),
+      valueFmt: function (v) { return v.toFixed(2) + "x"; },
+      tickFmt: function (v) { return v.toFixed(2) + "x"; },
+      valueName: "net avg",
+      subName: "",
+      axisTitle: "NET DELTA-NOTIONAL, MULTIPLE OF EQUITY",
+      refLine: { v: 1.5, label: "1.50x net cap" },
+      rotateLabels: true,
+      labelEvery: 2,
+      title: "Monthly average net delta-notional",
+      tableCols: ["Month", "Sessions", "Reserved avg", "Reserved max", "Net avg", "Net max", "Open avg", "Open max"],
+      tableRows: rep.utilisation.map(function (u) {
+        return [u.month, u.sessions, u.res_avg.toFixed(2) + "x", u.res_max.toFixed(2) + "x",
+          u.net_avg.toFixed(2) + "x", u.net_max.toFixed(2) + "x", u.open_avg.toFixed(1), u.open_max];
+      })
+    });
+    sec.appendChild(p.figure);
+    host.appendChild(sec);
+
+    // --- arms
+    sec = section("arms", "The four arms",
+      "F1 takes the one-contract floor when the budget is breached; F2 refuses it. R rejects on breach; D downsizes.");
+    p = panel("Same selection, four sizing policies", "(R, F1) is what production does and is the only arm the study adopts. The other three are reported, not adopted.", { table: true });
+    armsChart(chartHost(p), p.table, rep.arms);
+    sec.appendChild(p.figure);
+    host.appendChild(sec);
+
+    // --- cap grid
+    sec = section("capgrid", "The cap grid", "Read monotonicity, and nothing else.");
+    p = panel("Realized dollars across the cap surface", "Each cell is a full re-walk at that pair of caps. Rows monotone in the net cap: " +
+      rep.cap_grid.monotone_rows[0] + "/" + rep.cap_grid.monotone_rows[1] + ". Columns monotone in the per-position cap: " +
+      rep.cap_grid.monotone_cols[0] + "/" + rep.cap_grid.monotone_cols[1] + ".", { table: true });
+    capGrid(chartHost(p), p.table, rep.cap_grid);
+    sec.appendChild(p.figure);
+    note = h("p", "note is-warning");
+    note.appendChild(h("strong", null, "Anti-tuning rule: "));
+    note.appendChild(document.createTextNode("no cap value may be adopted, recommended, or carried into a conclusion on the basis of its P&L here. The only admissible reading is qualitative monotonicity. The walk is stateful, so a cap that rejects a large early position leaves headroom a looser cap has already spent — the non-monotone columns are path dependence, and G3 and G4 both pass."));
+    sec.appendChild(note);
+    host.appendChild(sec);
+
+    // --- criteria
+    sec = section("criteria", "Criteria A1–A6", "Pre-registered before the run. The checklist is the result.");
+    sec.appendChild(chipList(rep.criteria.map(function (c) {
+      return { id: c.id, title: c.name, detail: c.detail, status: c.status };
+    })));
+    host.appendChild(sec);
+
+    document.querySelectorAll("[data-pop-label]").forEach(function (n) {
+      n.textContent = isPrimary ? "dense episodes" : "full book";
+    });
+  }
+
+  // ---------- boot ----------
+
+  document.querySelectorAll("[data-population]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.population = btn.getAttribute("data-population");
+      document.querySelectorAll("[data-population]").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      render();
+    });
+  });
+
+  render();
+  window.addEventListener("resize", function () { hideTip(); });
+})();
+
+</script>
+
+</body>
+</html>

@@ -122,6 +122,105 @@ chart-all:
 baseline:
 	$(PY) scripts/build_baseline.py $(ARGS)
 
+# ── backtest tuning studies (research tier) ────────────────────────────────────
+# Reports land in backtests/study_output/<name>-latest.txt with a provenance
+# header; conclusions go to config/backtest-tuning/current.md. Never scheduled.
+.PHONY: studies
+studies:
+	$(PY) -m scripts.backtest_study list
+
+.PHONY: study
+study:
+	$(PY) -m scripts.backtest_study run $(ARGS)
+
+.PHONY: study-all
+study-all:
+	$(PY) -m scripts.backtest_study run --all $(ARGS)
+
+# ── study map ──────────────────────────────────────────────────────────────────
+# The readable one-pager: what each study asks, what it concluded, and what its
+# last run printed. `make study` and `make study-review` refresh it themselves,
+# so this target is only for a manual rebuild (or after editing catalog.py).
+.PHONY: study-map
+study-map:
+	$(PY) -m scripts.study_map $(ARGS)
+
+.PHONY: study-map-open
+study-map-open:
+	$(PY) -m scripts.study_map --open
+
+# ── clean study output ─────────────────────────────────────────────────────────
+# Clear the study runner's scratch reports. Prompts before deleting, and pins
+# any report the tuning log cites or a study's gate greps for (--force to
+# override). Default keeps each study's -latest.txt; ARGS="--all" wipes the lot.
+.PHONY: clean-studies
+clean-studies:
+ifeq ($(strip $(ARGS)),)
+	$(PY) scripts/clean_study_output.py --keep-latest
+else
+	$(PY) scripts/clean_study_output.py $(ARGS)
+endif
+
+# ── study review ────────────────────────────────────────────────────────────────
+# Deterministic two-analyst replication protocol wrapper (headless `claude -p`
+# calls, isolated sessions). ARGS="<study> [flags]" — see
+# config/backtest-tuning/replication-protocol.md § Automated invocation.
+# The study name defaults to $(STUDY_REVIEW_STUDY) when ARGS starts with a flag
+# (or is empty), so `make study-review` and `make study-review ARGS="--skip-run"`
+# both work; naming another study in ARGS overrides it.
+STUDY_REVIEW_STUDY ?= account_sim
+.PHONY: study-review
+study-review:
+	$(PY) -m scripts.study_review \
+	  $(if $(filter-out -%,$(firstword $(ARGS))),,$(STUDY_REVIEW_STUDY)) $(ARGS)
+
+# ── study charts (research tier) ───────────────────────────────────────────────
+# Renders a study's EXISTING result as one self-contained HTML page; it never
+# computes a new conclusion — every CSV-recomputed figure is reconciled against
+# the report, and a mismatch exits non-zero. Run the study FIRST.
+# Each run writes TWO files: the scratch HTML FRAGMENT under
+# backtests/study_output/ (what the Artifact publisher wants) and the tracked
+# standalone docs/account-sim-charts.html, which opens from a fresh checkout the
+# way docs/study-map.html does. ARGS="--no-docs" writes only the scratch one.
+# The report is auto-paired to the positions CSV's arm, so chart the
+# structure-universe arm by pointing --positions at its own export. That arm
+# writes ONLY the scratch fragment: its page reads the same as the frozen book's
+# chart for chart, so a second tracked page would just cost a reader a diff.
+.PHONY: study-chart
+study-chart:
+	$(PY) -m scripts.study_charts.account_sim $(ARGS)
+
+.PHONY: study-chart-open
+study-chart-open:
+	$(PY) -m scripts.study_charts.account_sim --standalone --open $(ARGS)
+
+# Fragment only, by design — see the note above. Add ARGS="--standalone --open"
+# to look at it.
+.PHONY: study-chart-structure
+study-chart-structure:
+	$(PY) -m scripts.study_charts.account_sim \
+	  --positions backtests/study_output/account_sim-positions-structure-latest.csv $(ARGS)
+
+# The regime page: the same account_sim run, re-grouped by the two regime
+# readings the book carries. It draws a cut the study does NOT pre-register —
+# the study prints that cut itself, flagged, and this reconciles against it.
+.PHONY: study-chart-regime
+study-chart-regime:
+	$(PY) -m scripts.study_charts.regime $(ARGS)
+
+.PHONY: study-chart-regime-open
+study-chart-regime-open:
+	$(PY) -m scripts.study_charts.regime --standalone --open $(ARGS)
+
+# Every tracked docs page in one command: the study map, the account_sim
+# readout, the regime breakdown. None runs a study — they only read what the
+# last run left behind.
+.PHONY: study-docs
+study-docs:
+	$(PY) -m scripts.study_map
+	$(PY) -m scripts.study_charts.account_sim
+	$(PY) -m scripts.study_charts.regime
+
 .PHONY: help
 help:
 	@echo ""
@@ -178,6 +277,31 @@ help:
 	@echo "  make chart ARGS=\"--csv backtests/results.csv --csv backtests/proxy_results.csv\"  combine multiple CSVs"
 	@echo ""
 	@echo "  make chart-all     chart results.csv + proxy_results.csv together (no re-run)"
+	@echo ""
+	@echo "  make studies       list available backtest tuning studies"
+	@echo "  make study ARGS=\"account_sim\"  run one study → backtests/study_output/<name>-latest.txt"
+	@echo "  make study ARGS=\"account_sim --dry-run\"  (also --cache-only, --redo, --date)"
+	@echo "  make study-all     run every study with its default args"
+	@echo ""
+	@echo "  make study-map     rebuild docs/study-map.html (what each study asks + its last run)"
+	@echo "  make study-map-open  rebuild it and open it in a browser"
+	@echo ""
+	@echo "  make clean-studies clear backtests/study_output/, keeping each -latest.txt"
+	@echo "  make clean-studies ARGS=\"--all\"  wipe it (add --force to drop cited/gate-marked reports, --dry-run to preview)"
+	@echo ""
+	@echo "  make study-review  run account_sim, then two-analyst replication grading + digest"
+	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
+	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
+	@echo ""
+	@echo "  make study-chart   render the account_sim result → study_output fragment + docs/account-sim-charts.html"
+	@echo "  make study-chart-open   same, wrapped as a full page and opened in a browser"
+	@echo "  make study-chart-structure  chart the --structure-universe arm's export (fragment only)"
+	@echo "  make study-chart-regime  render the deployed book by market regime → docs/account-sim-regime.html"
+	@echo "  make study-chart-regime-open  same, wrapped as a full page and opened in a browser"
+	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-docs)"
+	@echo "  make study-docs    rebuild all three tracked docs pages (map + readout + regime)"
+	@echo ""
+	@echo "  make study-docs    rebuild both tracked docs pages (study map + account_sim charts)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"

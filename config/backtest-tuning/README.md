@@ -44,10 +44,99 @@ numbers they cannot vouch for. That is the gate working; do not route around it.
 Paths in `archive/` predate 2026-08-11 and still say `backtests/study/`; the code
 they name is now under `scripts/backtest_study/`.
 
+## Running a study review
+
+`make study-review ARGS="<study>"` (or `python3 -m scripts.study_review
+<study>`) runs the two-analyst replication protocol headlessly: it runs the
+study, then grades the resulting report with analyst A + B and a validator,
+then writes a plain-language digest. Four outputs land in
+`backtests/study_output/`: `<study>-review-analyst-a-latest.md`,
+`<study>-review-analyst-b-latest.md`, `<study>-review-validator-latest.md`,
+and `<study>-digest-latest.md`. `--skip-run` reuses the existing
+`<study>-latest.txt` instead of re-running the study; `--dry-run` exercises
+the pipeline with placeholder outputs and makes no `claude` calls. See
+[`replication-protocol.md`](replication-protocol.md) § Automated invocation
+for the full flag list and how this relates to the manual, interactive path.
+
+Reading a study report cold? Start with [`glossary.md`](glossary.md) for
+metric definitions.
+
+## The map page
+
+Every study run — and every `make study-review` — re-renders
+`docs/study-map.html`: what each of the 18 studies asks, what it concluded, and
+what its own last run printed, alongside the newest sections of `current.md`.
+Open it in a browser (`make study-map-open`); rebuild it alone with `make
+study-map`, and `python3 -m scripts.study_map --check` prints the same
+last-run status as a table.
+
+Two kinds of claim live on that page and the markup keeps them apart. The
+**verdict** lines are hand-written in `scripts/study_map/catalog.py` — edit
+them there when a conclusion changes, and note that a study with no entry
+fails the test suite. The **last run** blocks are quoted verbatim out of
+`backtests/study_output/` and are only as fresh as the last run; where a report
+has no verdict block, the excerpt is labelled as the tail of the report so it
+cannot be misread as a conclusion the study drew.
+
+## Charting a study report
+
+`python3 -m scripts.study_charts.account_sim` renders the account_sim result as
+one self-contained HTML page — equity and drawdown, the attrition waterfall, the
+binding-constraint census, the adverse-ordering check, sizing, exits, monthly
+utilisation, the cap grid, the four arms, and the A1–A6 checklist — with a
+PRIMARY/SECONDARY population switch scoping everything below it.
+
+One run writes two files. `backtests/study_output/account_sim-charts-latest.html`
+is a bare fragment, which is what the Artifact publisher wants; `docs/account-sim-charts.html`
+is the same page wrapped as a standalone document and is **tracked**, for the
+same reason `docs/study-map.html` is — it has to open from a fresh checkout
+without running anything first. The `--structure-universe` arm writes only the
+scratch fragment and never a tracked page: the widened candidate set moves the
+book by a handful of picks, so its page reads the same as the frozen book's
+chart for chart, and a second tracked page would only cost a reader a diff to
+learn there was nothing to learn. `--no-docs` writes only the scratch fragment;
+`--standalone --open` views it off disk. `make study-docs` rebuilds every
+tracked docs page — the map and the readouts — without running a study.
+
+It renders, it never concludes. Every figure is either read out of the report
+text or recomputed from `<study>-positions-latest.csv`, and the recomputed ones
+are **reconciled against the report before the page is written** — a mismatch
+exits non-zero rather than drawing a chart that disagrees with the study. That
+check is what catches the easy mistake here: `account_sim-latest.txt` is
+whichever ARM ran last, which is not necessarily the arm that wrote
+`account_sim-positions-latest.csv`, so the report is chosen to match the
+positions file's arm (pass `--positions .../account_sim-positions-structure-latest.csv`
+for the `--structure-universe` arm). The renderer also may not introduce a
+statistic the study refuses to print — no annualised figure, no Sharpe, no
+time-to-recover.
+
+### The regime breakdown page
+
+`python3 -m scripts.study_charts.regime` (or `make study-chart-regime`) draws a
+second page over the same run, `docs/account-sim-regime.html`: which structures
+the account actually deployed under each of the two regime readings the book
+carries — the mechanical cell from `lib/mech_regime.py`, which selects the exit
+profile, and the model read parsed out of `market_regime`, which the deployment
+ladder keys the tier off — what each cell cost in reserved capital and
+delta-notional, what the caps refused there, and how far the two readings
+disagree (on the frozen book's primary population, on 37 of 51 deployed
+positions).
+
+**account_sim pre-registers no cut by regime**, and that governs how this was
+built. The study prints the cut itself, in a `DEPLOYED BOOK BY REGIME` section
+flagged post-hoc with cells under ten positions marked `thin`; the page then
+recomputes it from the positions export and reconciles against that section like
+every other figure. So the rule for extending it is: **a regime table goes into
+the study first, never into the page alone.** A descriptive table nobody
+re-derives is where a quiet disagreement would sit forever, and a regime split
+drawn as charts is exactly the kind of thing that starts getting quoted as an
+edge the study never tested.
+
 ## Companion documents
 
 | Document | What it holds |
 |---|---|
+| [`study-map.md`](study-map.md) | **Start here.** One-page map of `scripts/backtest_study/` — what each study asks and what it concluded. Rendered, with each study's last run quoted onto it, as [`docs/study-map.html`](../../docs/study-map.html) (`make study-map-open`). |
 | [`../deployment-rules.md`](../deployment-rules.md) | The operator card — what to deploy, what to veto, how to exit. Instructions only. |
 | [`deployment-evidence.md`](deployment-evidence.md) | Why each of those rules exists: derivation, validation tables, caveats, and the **open pre-registered rollback triggers**. |
 | [`ml-plan.md`](ml-plan.md) | The ML combination-search plan (RUN 2026-08-11, null result). |

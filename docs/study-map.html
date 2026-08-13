@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Backtest Study Map</title>
+<style>
+/* Study map — instrument-panel reference page.
+ *
+ * Two colour systems, kept apart on purpose:
+ *   --accent* is STRUCTURAL (rules, eyebrows, the diagram). It never carries meaning.
+ *   --ship/--null/--open/--ref are SEMANTIC. They only ever encode a study's state.
+ * Mixing them is what makes a status page unreadable at a glance.
+ *
+ * Theming is three-state: bare :root is the light palette (the un-stamped default
+ * under a light OS), the media query handles an un-stamped dark OS, and the
+ * [data-theme] blocks let an explicit choice win in either direction. Components
+ * only ever read tokens — never a literal, never a colour defined inside a block.
+ */
+
+:root {
+  --paper:      #F6F7F7;
+  --card:       #FFFFFF;
+  --sunk:       #EDEFF0;
+  --ink:        #13191B;
+  --ink-soft:   #47555A;
+  --faint:      #7C8A8F;
+  --line:       #DCE1E3;
+  --line-soft:  #E7EAEB;
+
+  --accent:     #2F5A67;
+  --accent-dim: #5B8492;
+
+  --ship: #0D6E48;
+  --null: #5F6E74;
+  --open: #9A5410;
+  --ref:  #3B5570;
+
+  --ship-bg: #E4F1EA;
+  --null-bg: #E9ECED;
+  --open-bg: #F8ECDE;
+  --ref-bg:  #E6EBF0;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --w: 1020px;
+  --r: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #101617;
+    --card:      #171E20;
+    --sunk:      #1D2528;
+    --ink:       #E7EDEE;
+    --ink-soft:  #A9B8BC;
+    --faint:     #7B8C91;
+    --line:      #2A3437;
+    --line-soft: #222B2E;
+
+    --accent:     #7FB4C2;
+    --accent-dim: #5D8A96;
+
+    --ship: #4FBF8D;
+    --null: #9AABB1;
+    --open: #E0A05A;
+    --ref:  #86A8C6;
+
+    --ship-bg: #1B2C24;
+    --null-bg: #22292B;
+    --open-bg: #2E2417;
+    --ref-bg:  #1B2733;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:     #101617;
+  --card:      #171E20;
+  --sunk:      #1D2528;
+  --ink:       #E7EDEE;
+  --ink-soft:  #A9B8BC;
+  --faint:     #7B8C91;
+  --line:      #2A3437;
+  --line-soft: #222B2E;
+
+  --accent:     #7FB4C2;
+  --accent-dim: #5D8A96;
+
+  --ship: #4FBF8D;
+  --null: #9AABB1;
+  --open: #E0A05A;
+  --ref:  #86A8C6;
+
+  --ship-bg: #1B2C24;
+  --null-bg: #22292B;
+  --open-bg: #2E2417;
+  --ref-bg:  #1B2733;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: var(--w);
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+a { color: var(--accent); text-decoration-color: var(--line); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+code, .mono { font-family: var(--mono); }
+
+/* ── masthead ─────────────────────────────────────────────────────────────── */
+.masthead { display: flex; flex-direction: column; gap: 14px; }
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.standfirst {
+  margin: 0;
+  max-width: 66ch;
+  font-size: 16px;
+  color: var(--ink-soft);
+}
+
+.thesis {
+  margin: 0;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  max-width: 74ch;
+}
+.thesis strong { color: var(--ink); }
+
+.built {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+/* ── scoreboard ───────────────────────────────────────────────────────────── */
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.score {
+  background: var(--card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.score .n {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.score .k {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.score.is-shipped .n { color: var(--ship); }
+.score.is-null    .n { color: var(--null); }
+.score.is-open    .n { color: var(--open); }
+.score.is-reference .n { color: var(--ref); }
+
+/* ── section furniture ────────────────────────────────────────────────────── */
+section { display: flex; flex-direction: column; gap: 18px; }
+
+.section-head { display: flex; flex-direction: column; gap: 6px; }
+.section-head h2 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.section-head p { margin: 0; color: var(--ink-soft); max-width: 72ch; }
+
+.family-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.family-head .line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.family-head h2 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.family-head .ask { color: var(--ink-soft); font-size: 14px; }
+.family-head .note { margin: 0; color: var(--ink-soft); max-width: 74ch; font-size: 14px; }
+.family-head .count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+}
+
+/* ── study cards ──────────────────────────────────────────────────────────── */
+.cards { display: flex; flex-direction: column; gap: 14px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--null);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card.is-shipped   { border-left-color: var(--ship); }
+.card.is-null      { border-left-color: var(--null); }
+.card.is-open      { border-left-color: var(--open); }
+.card.is-reference { border-left-color: var(--ref); }
+
+.card-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.card-head h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pill {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill.is-shipped   { color: var(--ship); background: var(--ship-bg); }
+.pill.is-null      { color: var(--null); background: var(--null-bg); }
+.pill.is-open      { color: var(--open); background: var(--open-bg); }
+.pill.is-reference { color: var(--ref);  background: var(--ref-bg); }
+
+.run-state {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.run-state .bad { color: var(--open); font-weight: 600; }
+.run-state .good { color: var(--ship); }
+
+.qa { display: flex; flex-direction: column; gap: 8px; }
+.qa p { margin: 0; max-width: 82ch; }
+.qa .q { color: var(--ink); }
+.qa .v { color: var(--ink-soft); }
+.qa .label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-right: 8px;
+}
+
+/* ── last-run block ───────────────────────────────────────────────────────── */
+details.run {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 10px;
+}
+details.run > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+details.run > summary::-webkit-details-marker { display: none; }
+details.run > summary::before { content: "▸"; font-size: 10px; color: var(--accent-dim); }
+details.run[open] > summary::before { content: "▾"; }
+details.run > summary .kind {
+  color: var(--faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.run-body { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.meta b { color: var(--ink-soft); font-weight: 600; }
+
+pre.excerpt {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre;
+}
+
+.caveat {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--faint);
+  max-width: 78ch;
+}
+.caveat.is-warning { color: var(--open); }
+
+.links { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--mono); font-size: 11.5px; }
+
+/* ── tuning log ───────────────────────────────────────────────────────────── */
+.log { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.log-row { background: var(--card); padding: 13px 16px; display: flex; flex-direction: column; gap: 4px; }
+.log-row .when {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.log-row .what { margin: 0; font-weight: 600; }
+.log-row .gist { margin: 0; color: var(--ink-soft); font-size: 14px; max-width: 82ch; }
+
+/* ── plain tables ─────────────────────────────────────────────────────────── */
+.table-view { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+th {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 600;
+  background: var(--sunk);
+}
+td.name { font-family: var(--mono); white-space: nowrap; color: var(--ink); }
+td p { margin: 0; color: var(--ink-soft); }
+
+/* ── ordered notes ────────────────────────────────────────────────────────── */
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 12px; }
+ol.steps li { counter-increment: step; display: flex; gap: 14px; }
+ol.steps li::before {
+  content: counter(step);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+}
+ol.steps b { display: block; }
+ol.steps p { margin: 0; color: var(--ink-soft); max-width: 78ch; }
+
+ul.traps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+ul.traps li { padding-left: 14px; border-left: 2px solid var(--line); }
+ul.traps b { display: block; font-family: var(--mono); font-size: 13.5px; }
+ul.traps p { margin: 0; color: var(--ink-soft); max-width: 80ch; }
+
+/* ── flow diagram ─────────────────────────────────────────────────────────── */
+.diagram { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
+.diagram svg { display: block; min-width: 640px; width: 100%; height: auto; }
+.d-box { fill: var(--sunk); stroke: var(--line); }
+.d-box-accent { fill: none; stroke: var(--accent-dim); }
+.d-title { fill: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.d-sub { fill: var(--ink-soft); font-family: var(--sans); font-size: 11px; }
+.d-tag { fill: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; }
+.d-line { stroke: var(--accent-dim); stroke-width: 1.2; fill: none; }
+
+/* ── footer ───────────────────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  font-size: 12.5px;
+  color: var(--faint);
+  max-width: 82ch;
+}
+footer code { color: var(--ink-soft); }
+
+@media (max-width: 640px) {
+  .wrap { padding: 32px 16px 64px; gap: 32px; }
+  .run-state { margin-left: 0; width: 100%; }
+  .family-head .count { margin-left: 0; }
+}
+
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">scripts/backtest_study · research tier · never scheduled</p>
+    <h1>Study map</h1>
+    <p class="standfirst"><code>scripts/backtest/</code> <strong>prices</strong> the book.
+      <code>scripts/backtest_study/</code> <strong>argues</strong> about it. Nothing here is
+      imported by production, nothing runs on a schedule, and no study writes config — a study
+      ends in a plain-text report that becomes an addendum in <code>current.md</code>, and a
+      human decides whether anything ships.</p>
+    <p class="thesis"><strong>The result of the whole programme, in one sentence:</strong>
+      selection is not tunable from the columns we have; the money is in the exit rules and in
+      position management. Every selection study returns a null. Two exit rules shipped.</p>
+    <p class="built">
+      <span>built 2026-08-13 19:40</span>
+      <span>verdicts: hand-written, from current.md</span>
+      <span>run blocks: quoted from backtests/study_output/</span>
+    </p>
+  </header>
+
+  <div class="scoreboard">
+    <div class="score"><span class="n">18</span><span class="k">studies</span></div>
+    <div class="score is-shipped"><span class="n">5</span><span class="k">shipped</span></div>
+    <div class="score is-null"><span class="n">7</span><span class="k">null result</span></div>
+    <div class="score is-open"><span class="n">3</span><span class="k">open · blocked on data</span></div>
+    <div class="score is-reference"><span class="n">3</span><span class="k">reference</span></div>
+    <div class="score"><span class="n">18/18</span><span class="k">reports on disk</span></div>
+  </div>
+
+  <section id="shape">
+    <div class="section-head">
+      <h2>The shape of the whole thing</h2>
+      <p>A play is picked, managed, wrapped and funded. The four families are those four
+        decisions, and each one is a question somebody tried to answer with a study.</p>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 900 500" role="img" aria-label="Flow from the analysis engine
+        through the pooled book and the frozen harness into four study families and
+        out to the operator card.">
+        <rect class="d-box" x="300" y="8" width="300" height="46" rx="3"/><text class="d-title" x="312" y="28">ANALYSIS ENGINE</text><text class="d-sub" x="312" y="44">v3 frozen · v4 live</text>
+        <path class="d-line" d="M 450 54 V 82"/>
+        <rect class="d-box" x="190" y="82" width="520" height="68" rx="3"/><text class="d-tag" x="202" y="102">BOOK.PY</text><text class="d-title" x="202" y="118">THE BOOK</text><text class="d-sub" x="202" y="134">real rows + real-priced proxy rows, calibration-gated</text><text class="d-sub" x="202" y="148">n is the ~118 SIGNAL DATES, not the ~1,100 rows</text>
+        <path class="d-line" d="M 450 150 V 178"/>
+        <rect class="d-box" x="190" y="178" width="520" height="68" rx="3"/><text class="d-tag" x="202" y="198">HARNESS.PY / PROTOCOL.PY</text><text class="d-title" x="202" y="214">HARNESS · PROTOCOL</text><text class="d-sub" x="202" y="230">frozen replay of stored marks — prices nothing</text><text class="d-sub" x="202" y="244">purged walk-forward · date-clustered CIs · LOO · window re-cuts</text>
+        <path class="d-line" d="M 450 246 V 276"/>
+        <path class="d-line" d="M 157 276 H 742"/>
+        <path class="d-line" d="M 157 276 V 300"/><path class="d-line" d="M 157 408 V 432"/><path class="d-line" d="M 352 276 V 300"/><path class="d-line" d="M 352 408 V 432"/><path class="d-line" d="M 547 276 V 300"/><path class="d-line" d="M 547 408 V 432"/><path class="d-line" d="M 742 276 V 300"/><path class="d-line" d="M 742 408 V 432"/>
+        <rect class="d-box" x="70" y="300" width="175" height="108" rx="3"/><text class="d-tag" x="82" y="320">6 STUDIES</text><text class="d-title" x="82" y="336">① SELECTION</text><text class="d-sub" x="82" y="352">what to trade</text><text class="d-sub" x="82" y="366"></text><text class="d-sub" x="82" y="380">mostly null</text><text class="d-sub" x="82" y="394">0/496 subsets · 0/15 cells</text><rect class="d-box" x="265" y="300" width="175" height="108" rx="3"/><text class="d-tag" x="277" y="320">7 STUDIES</text><text class="d-title" x="277" y="336">② MANAGEMENT</text><text class="d-sub" x="277" y="352">when to get out</text><text class="d-sub" x="277" y="366"></text><text class="d-sub" x="277" y="380">the edge is here</text><text class="d-sub" x="277" y="394">2 rules shipped</text><rect class="d-box" x="460" y="300" width="175" height="108" rx="3"/><text class="d-tag" x="472" y="320">3 STUDIES</text><text class="d-title" x="472" y="336">③ STRUCTURE</text><text class="d-sub" x="472" y="352">which wrapper</text><text class="d-sub" x="472" y="366"></text><text class="d-sub" x="472" y="380">one +0.085</text><text class="d-sub" x="472" y="394">dies out of sample</text><rect class="d-box" x="655" y="300" width="175" height="108" rx="3"/><text class="d-tag" x="667" y="320">2 STUDIES</text><text class="d-title" x="667" y="336">④ DEPLOYMENT</text><text class="d-sub" x="667" y="352">can I run it</text><text class="d-sub" x="667" y="366"></text><text class="d-sub" x="667" y="380">feasibility only</text><text class="d-sub" x="667" y="394">delta binds, not cash</text>
+        <path class="d-line" d="M 157 432 H 742"/>
+        <rect class="d-box-accent" x="300" y="432" width="300" height="52" rx="3"/><text class="d-title" x="312" y="452">config/deployment-rules.md</text><text class="d-sub" x="312" y="468">the operator card — top 3/day, tiers A/B</text>
+      </svg>
+    </div>
+  </section>
+
+  <section id="log">
+    <div class="section-head">
+      <h2>Latest from the tuning log</h2>
+      <p>The newest sections of <code>config/backtest-tuning/current.md</code>, quoted —
+        headings and first line only. The log is the source of truth; this is a pointer
+        into it, not a second copy. Last edited 2026-08-13 19:20.</p>
+    </div>
+    <div class="log">
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim made CONFIG-DRIVEN: the study's parameters move to config/account-sim.yml, the module holds no state, and no number moves</p><p class="gist">Status: REFACTOR ONLY. No result changed. The regression bar was that a default run reproduce the previous one exactly, and it does: account_sim-positions-latest.csv is byte-identical before and after, and every data-bearing line of the…</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim SIZING ARM ($1,000/position, per-pos 0.40x, net 2.50x) RUN: operator-chosen, NOT measured — and it exposed a memoisation bug that G5 caught</p><p class="gist">Status: NOTHING SHIPS. This is an arm, not a result. The three sizing constants were chosen by the operator (risk $500 → $1,000; net delta cap</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">calendar_hedge --arm S RUN: the structure sweep is uniformly POWER-STOPPED — zero candidates, and that is a power fact, not evidence against any structure</p><p class="gist">Provenance. backtests/study_output/calendar_hedge-latest.txt (ARM S run; the H arm stays preserved at calendar_hedge-20260813-130412.txt), git 470b95f (dirty), 08-11 exports, grown option cache (19,382 contracts after the sweep-leg…</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">calendar_hedge RUN: gates all pass (R4 exact), but the hedge claim cannot be read — power stop fires at n=6 and the readable correlation is wrong-signed</p><p class="gist">Provenance. backtests/study_output/calendar_hedge-20260813-130412.txt (the stamped R4-PASS run — -latest.txt was later overwritten by a post-scrape gate run that fails R4 by construction; see the R4 note below), git 470b95f (dirty), the…</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim RUN: the $25k edge survives its caps but not its window; the verdict grammar had a hole</p><p class="gist">Provenance. backtests/study_output/account_sim-latest.txt, git 470b95f (dirty), the 08-11 exports (BacktestResults 1,926 / BacktestProxy 4,533 / AnalysisClaude</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim: PRE-REGISTRATION (written BEFORE the study was built or run)</p><p class="gist">Question. Does the shipped ladder's paper edge survive a $25,000 account with real opening constraints? This is a FEASIBILITY study, not an edge search. The selection rule is FROZEN (protocol.top_k_per_day(book, ladder_rank, k=3,…</p></div>
+    </div>
+  </section>
+
+  <section id="selection">
+    <div class="family-head">
+      <div class="line">
+        <h2>① Selection</h2>
+        <span class="ask">which plays are worth taking?</span>
+        <span class="count">6 studies</span>
+      </div>
+      <p class="note">Mostly null. 0 of 496 bear subsets, 0 of 15 ML cells. Selection is not tunable from the columns we have.</p>
+    </div>
+    <div class="cards">
+    <article class="card is-reference">
+      <div class="card-head">
+        <h3>regime_gap_reread.py</h3>
+        <span class="pill is-reference">reference</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Numbers only, no interpretation: build the pooled book and print the report.</p>
+        <p class="v"><span class="label">Verdict</span>The baseline snapshot other studies import verbatim. It argues nothing on purpose — it exists so two studies can agree on what the book is.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:51</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.7s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">    |delta| vs mfe_pct | side=debit                         n=  566  rho= 0.1931  p= 0.0000
+    |delta| vs mae_pct | side=debit                         n=  566  rho=-0.1794  p= 0.0000
+5c. real-priced bull_put iv_skew vs realized — all rows
+    iv_skew vs realized_pnl_pct | real-priced bull_put_spread, all n=   78  rho= 0.2321  p= 0.0409
+5c. real-priced bull_put iv_skew vs realized — post-13c
+    iv_skew vs realized_pnl_pct | real-priced bull_put_spread, post-13c n=   53  rho=-0.0219  p= 0.8761
+5d. bear_put_spread x iv_spread vs mae_pct — pooled (continuity check of Tier-C rule)
+    iv_spread vs mae_pct | bear_put_spread, pooled          n=  380  rho=-0.2149  p= 0.0000</pre>
+          <div class="links"><span>report: <code>regime_gap_reread-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-shipped">
+      <div class="card-head">
+        <h3>mech_regime_recut.py</h3>
+        <span class="pill is-shipped">shipped</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Does a deterministic regime label — a pure function of SPY/VIX history at the signal date — beat the model's free-text regime?</p>
+        <p class="v"><span class="label">Verdict</span>Overlay adopted. <code>mech_cell</code> is a column now, and it is what keys the shipped BEAR_HE exit override.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— lines stating a pre-registered criterion, quoted in order</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:20</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 0.9s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">    VERDICT RULE: OR-VETO REJECTED (newly-vetoed subset net-positive)</pre>
+          <div class="links"><span>report: <code>mech_regime_recut-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>bear_position_study.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 1</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Pre-registered cuts on bear_put: is it a SELECTION problem (E&lt;0) or an EXIT problem (E&gt;0 with R&lt;0)?</p>
+        <p class="v"><span class="label">Verdict</span>DEMOTE criteria all fire at n=164. Implementation left to the operator; the finding is that the structure does not earn its emission share.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:36:38</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.9s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">*** HARNESS VALIDATION FAILED — stopping. ***</pre>
+          <div class="links"><span>report: <code>bear_position_study-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-shipped">
+      <div class="card-head">
+        <h3>bear_arm.py</h3>
+        <span class="pill is-shipped">shipped</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>B1 — is there any bear subset, definable at decision time, that is not negative? B2 — or is the exit simply mis-tuned?</p>
+        <p class="v"><span class="label">Verdict</span>B1 NO: 0 of 496 subsets pass. B2 YES: <code>be_after: 0.50</code> keyed to bear debit clears every pre-registered criterion and shipped.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:35:44</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 28.9s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">VERDICT (pre-registered rules, ml-plan.md §Kickoff addendum)
+  B1 KEEP-CONDITIONED: NOT met — 0 subset(s) passed all criteria
+  B2 EXIT FIX: see the per-side criteria lines above</pre>
+          <div class="links"><span>report: <code>bear_arm-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>ml_combination.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Does any learned combination of structure × regime × geometry × enrichment beat the score-free ladder out of sample?</p>
+        <p class="v"><span class="label">Verdict</span>NULL — 0 of 15 model × strategy cells. Re-open on new COLUMNS only, never on new models; the ladder is at the ceiling of this feature set.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:21</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 21.7s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">PHASE 5 — pre-registered ship decision (ml-plan.md, written before the run)
+  M3 out-of-fold paired R gain vs B0: -0.155 CI95 [-0.314, -0.001]  -&gt; CI excludes zero: False
+  positive in &gt;=2 of 3 years: False  ({'2025': 0.3612206349206349, '2026': -0.12093899999999999})
+  survives both ex-window cuts: True
+  B1  gain -0.173 CI [-0.374, +0.010]
+  B2  gain -0.180 CI [-0.363, -0.024]
+  M1  gain -0.096 CI [-0.228, +0.023]
+  M2  gain -0.113 CI [-0.268, +0.035]
+  VERDICT: NULL RESULT — the ladder is at/near the ceiling of this data
+  (ADOPT-AS-TIE-BREAK requires a within-tier ordering gain at the same CI standard —
+   evaluate only if a model's gain CI excludes zero while M3's does not.)
+Dataset written to /Users/wing/claude_playground/options-trading/backtests/study_output/dataset.csv</pre>
+          <div class="links"><span>report: <code>ml_combination-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-open">
+      <div class="card-head">
+        <h3>v4_bridge.py</h3>
+        <span class="pill is-open">open · blocked on data</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 3</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>v4 dropped two prompt factors. Does the v3-derived ladder still apply to what v4 actually emits?</p>
+        <p class="v"><span class="label">Verdict</span>Written before the data existed. It refuses to compare a book against itself, so it aborts until a real v4 export lands.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:54</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.5s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">ABORT: expected v3 then v4, got v3 then v3.
+  v3 exports carry score_flow/score_dealer; v4 exports do not.
+  Re-export, or swap --v3-csv/--v4-csv. Refusing to compare a
+  book against itself and call the null a validation.</pre>
+          <div class="links"><span>report: <code>v4_bridge-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    </div>
+  </section>
+
+  <section id="management">
+    <div class="family-head">
+      <div class="line">
+        <h2>② Management</h2>
+        <span class="ask">when do I get out?</span>
+        <span class="count">7 studies</span>
+      </div>
+      <p class="note">Where the edge actually is. Both shipped exit rules came from here.</p>
+    </div>
+    <div class="cards">
+    <article class="card is-shipped">
+      <div class="card-head">
+        <h3>exit_mechanism_study.py</h3>
+        <span class="pill is-shipped">shipped</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>The original grid: replay stored daily marks under alternative exit rules, real-priced rows only.</p>
+        <p class="v"><span class="label">Verdict</span>SHIPPED the production debit profile — profit target 0.90, stop 0.75, time exit at 0.75 of DTE, no trailing stop (Attempt 10).</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:14</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.9s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">no trail, tef null                           total=$    -1786  $/ct=   -1306  win=  1/4  med=$  -913  Δ=$      +0  Δ-LOO=$      +0  [v1 cmp: $   +661…
+                                             exits: stop_loss=2  dollar_stop=1  profit_target=1
+    per-month Δ vs prod: (no change)
+    biggest movers (0 rows changed):
+no trail, tef .85                            total=$    -1786  $/ct=   -1306  win=  1/4  med=$  -913  Δ=$      +0  Δ-LOO=$      +0  [v1 cmp: $   +653…
+                                             exits: stop_loss=2  dollar_stop=1  profit_target=1
+    per-month Δ vs prod: (no change)
+    biggest movers (0 rows changed):</pre>
+          <div class="links"><span>report: <code>exit_mechanism_study-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-reference">
+      <div class="card-head">
+        <h3>combined_exit_study.py</h3>
+        <span class="pill is-reference">reference</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 1</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>The same grid on a bigger tuning set — real rows and real-priced proxy rows pooled.</p>
+        <p class="v"><span class="label">Verdict</span>Confirms production is the best GLOBAL config, and in doing so shows exits are regime-conditional. That is what motivated the two switch studies.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:12</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.8s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">FileNotFoundError: [Errno 2] No such file or directory: '/Users/wing/claude_playground/options-trading/backtests/results_proxy.csv'</pre>
+          <div class="links"><span>report: <code>combined_exit_study-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>underlying_exit_study.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 1</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Credit spreads: stop on the UNDERLYING breaching a level, instead of on the option mark?</p>
+        <p class="v"><span class="label">Verdict</span>Nothing shipped (Attempt 9).</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:52</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 1.8s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">FileNotFoundError: [Errno 2] No such file or directory: '/Users/wing/claude_playground/options-trading/backtests/v2_BacktestResults_nocreditdiff.csv'</pre>
+          <div class="links"><span>report: <code>underlying_exit_study-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-shipped">
+      <div class="card-head">
+        <h3>exit_switch_mech_study.py</h3>
+        <span class="pill is-shipped">shipped</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 1</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>A per-regime exit switch keyed on the mechanical regime — is it stable where the model-keyed version failed leave-one-out?</p>
+        <p class="v"><span class="label">Verdict</span>BEAR_HE cell SHIPPED (trail 0.50 at trigger 0.50). The L-VOL and RANGE/BULL cells stay gated and commented out in config/backtest.yml.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:16</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 2.1s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">  *** HARNESS VALIDATION FAILED — STOPPING per pre-registration. ***
+    HARD 2026-03-19 MU bear_put_spread want=('trailing_stop', 18, 0.0013) got=('dollar_stop', 34, -0.5396)
+    HARD 2026-03-18 SMH bear_put_spread want=('trailing_stop', 14, 0.1512) got=('stop_loss', 31, -0.8209)
+    HARD 2026-03-18 META bear_put_spread want=('trailing_stop', 15, 0.0476) got=('dollar_stop', 21, -0.4654)
+    HARD 2026-03-13 NVDA bear_put_spread want=('trailing_stop', 8, 0.0613) got=('profit_target', 10, 1.1362)</pre>
+          <div class="links"><span>report: <code>exit_switch_mech_study-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-reference">
+      <div class="card-head">
+        <h3>exit_switch_structure_study.py</h3>
+        <span class="pill is-reference">reference</span>
+        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 1</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Q1 — does a bear_put-keyed trail pass the same ship gate? Q2 — is BEAR_HE secretly just a composition proxy for that structure effect?</p>
+        <p class="v"><span class="label">Verdict</span>The guard on the shipped rule. It exists to catch the composition trap that killed oi_confirm_pct and iv_pct.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— the run did not finish — this is where it stopped</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:18</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 2.0s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">*** HARNESS VALIDATION FAILED — stopping (same gate as the mech study). ***</pre>
+          <div class="links"><span>report: <code>exit_switch_structure_study-latest.txt</code></span></div>
+<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>bear_giveback.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>82% of bear rows go green and then give it back. Can a breakeven ratchet capture that, and does the underlying path explain it?</p>
+        <p class="v"><span class="label">Verdict</span>The <code>be_after</code> grid does NOT ship beyond what is already live. The give-back pattern lives in the UNDERLYING, not in the mark.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:36:32</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 5.4s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">  RANGE + E-VOL                  n=  50  win   66%  PF  2.99  meanR +0.543  $    25,423  MFE  +1.47  MAE  -0.47  gb  0.32  cap  +0.37
+  RANGE + H-VOL                  n=  13  win   77%  PF  9.80  meanR +0.644  $    10,425  MFE  +1.08  MAE  -0.25  gb  0.23  cap  +0.60
+  RANGE + L-VOL                  n=  15  win   53%  PF  1.81  meanR +0.197  $     3,700  MFE  +1.26  MAE  -0.68  gb  0.54  cap  +0.16
+  RANGE + C-VOL                  n=  32  win   56%  PF  1.35  meanR +0.179  $     4,926  MFE  +1.02  MAE  -0.60  gb  0.59  cap  +0.18
+  BULL + L-VOL                   n=  60  win   43%  PF  1.07  meanR +0.033  $     1,919  MFE  +0.99  MAE  -0.71  gb  0.71  cap  +0.03
+  BULL + C-VOL                   n=  40  win   75%  PF  5.01  meanR +0.544  $    24,507  MFE  +1.37  MAE  -0.31  gb  0.22  cap  +0.40
+  BEAR + E-VOL                   n=  20  win   65%  PF  2.37  meanR +0.446  $     6,760  MFE  +1.56  MAE  -0.38  gb  0.25  cap  +0.29
+  BEAR + H-VOL                   n=   9  win   67%  PF  2.27  meanR +0.389  $     2,948  MFE  +1.50  MAE  -0.43  gb  0.29  cap  +0.26</pre>
+          <div class="links"><span>report: <code>bear_giveback-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>next_day_move.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Move the give-back question to day 0, where it is knowable at the close: cut positions the stock did not confirm?</p>
+        <p class="v"><span class="label">Verdict</span>ARM C does not clear the confound, so no rule. The sensitivity is structural, not a tradeable signal.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:42</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 8.1s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">  inside apply_day0_cut, not by pre-filtering the row list. Pre-filtering would
+  make this vacuous — the rule could not touch a row it was never handed. Here
+  it could, and must not.
+  cut when wrong sign                         bear rows changed  170   non-bear changed    0   OK
+  cut when worse than -0.5 sigma              bear rows changed   90   non-bear changed    0   OK
+  cut when inside the flat band (+0.5 sigma)  bear rows changed  234   non-bear changed    0   OK
+  0 in the non-bear column is the only acceptable number.
+  ARM R population note: 787 of 795 book rows carry a day-0 move; the rest are counted in the coverage table above.</pre>
+          <div class="links"><span>report: <code>next_day_move-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    </div>
+  </section>
+
+  <section id="structure">
+    <div class="family-head">
+      <div class="line">
+        <h2>③ Structure</h2>
+        <span class="ask">am I expressing the signal in the wrong wrapper?</span>
+        <span class="count">3 studies</span>
+      </div>
+      <p class="note">One +0.085 effect that does not hold out of sample, and one survivor that is power-stopped rather than refuted.</p>
+    </div>
+    <div class="cards">
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>bear_rewrap.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>A bear SPREAD sells the lower put, giving away the vol expansion that makes a bear position pay. What if the short leg goes?</p>
+        <p class="v"><span class="label">Verdict</span>The wrapper is worth +0.085 and it does NOT hold in 2026. Nothing ships; re-runnable as dates land.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— lines stating a pre-registered criterion, quoted in order</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:36:40</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 20.7s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">  P1 worst-decile: n= 21  meanR +0.262  CI [-0.273, +0.730]  $+9,450   -&gt; not met
+  P2 correlation with deployed sleeve: -0.089 over 84 shared dates   -&gt; MET
+  P1 worst-decile: n= 13  meanR +0.160  CI [-0.306, +0.527]  $+2,505   -&gt; not met
+  P2 correlation with deployed sleeve: -0.125 over 74 shared dates   -&gt; MET
+  P1 worst-decile: n= 10  meanR -0.188  CI [-0.746, +0.318]  $-2,458   -&gt; not met
+  P2 correlation with deployed sleeve: -0.073 over 65 shared dates   -&gt; MET</pre>
+          <div class="links"><span>report: <code>bear_rewrap-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-null">
+      <div class="card-head">
+        <h3>vol_sleeve.py</h3>
+        <span class="pill is-null">null result</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Synthesize straddle / strangle / calendar on the dates the engine already signalled. Is there a vol sleeve in here?</p>
+        <p class="v"><span class="label">Verdict</span>CLOSED. The straddle clears its gate then dies ex-window, and its correlation with the deployed book is the WRONG SIGN — it re-wraps the same exposure. Only the calendar survives.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:56</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 32.6s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">  vrp &lt; 0 (implied cheap)         237  +0.160   -0.022            [+0.008, +0.350]  &lt;- excludes 0
+  earnings inside DTE             178  +0.082   +0.056            [-0.149, +0.194]
+  iv_pct bottom tercile (&lt;0.55)   144  +0.033   +0.079            [-0.223, +0.132]
+--- calendar  (n=169) -------------------------------------------------------
+  condition                         n   meanE  vs rest  diff CI95 (date-clustered)
+  vrp &lt; 0 (implied cheap)          72  -0.099   +0.950            [-2.604, +0.067]
+  earnings inside DTE              36  +0.192   +0.587            [-1.520, +0.424]
+  iv_pct bottom tercile (&lt;0.57)    49  -0.131   +0.762            [-2.151, +0.031]</pre>
+          <div class="links"><span>report: <code>vol_sleeve-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-open">
+      <div class="card-head">
+        <h3>calendar_hedge.py</h3>
+        <span class="pill is-open">open · blocked on data</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Re-derive that one survivor under a pre-registered pick rule and a strict fill rule.</p>
+        <p class="v"><span class="label">Verdict</span>Every gate passes and R4 reproduces exactly — then H2 power-stops at n=6. Blocked on new dates, not refuted.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:37:03</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 8.7s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">VERDICT
+  H0 FILL           MET
+  H2 (primary)      NOT EVALUABLE
+  H2 under hold     NOT EVALUABLE   (sensitivity — may not change the verdict)
+  Ship ceiling per the pre-registration: an optional second hedge sleeve
+  in config/deployment-rules.md §4, requiring H0 MET and H0b not flipping
+  the verdict and H2 MET and H3 deployable at f &gt;= 0.25. Anything less is
+  a candidate. Nothing here changes config/backtest.yml.</pre>
+          <div class="links"><span>report: <code>calendar_hedge-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    </div>
+  </section>
+
+  <section id="deployment">
+    <div class="family-head">
+      <div class="line">
+        <h2>④ Deployment</h2>
+        <span class="ask">can I actually run this?</span>
+        <span class="count">2 studies</span>
+      </div>
+      <p class="note">Feasibility, not edge. Delta-notional binds before cash does.</p>
+    </div>
+    <div class="cards">
+    <article class="card is-shipped">
+      <div class="card-head">
+        <h3>bear_deploy.py</h3>
+        <span class="pill is-shipped">shipped</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>Bear selection is unfixable — but is bear worth holding as a HEDGE? Four estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, D4 conditional pick.</p>
+        <p class="v"><span class="label">Verdict</span>D2 MET — bear pays on the deployed book's worst dates, correlation −0.13. D4 ADOPTED — pick bear by |delta| DESCENDING. D1 and D3 not met. Bear is a hedge, not a selection.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:36:13</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 19.4s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">VERDICT (pre-registered rules, ml-plan.md §addendum 2)
+  D1 joint selection x exit : NOT MET
+  D2 hedge is real          : MET
+  D3 always-on sizing       : NOT MET at any size
+  D4 conditional pick       : adopted — |delta| high first
+  D5 gated sleeve (POST-HOC): 4 candidate gate(s)</pre>
+          <div class="links"><span>report: <code>bear_deploy-latest.txt</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    <article class="card is-open">
+      <div class="card-head">
+        <h3>account_sim.py</h3>
+        <span class="pill is-open">open · blocked on data</span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
+      </div>
+      <div class="qa">
+        <p class="q"><span class="label">Asks</span>The ladder assumes infinite capital. Does a real $25,000 account — paying for positions, holding reserve, respecting a delta cap — still produce a book?</p>
+        <p class="v"><span class="label">Verdict</span>The caps survive; the WINDOW does not. Delta-notional binds before cash does. Feasibility only — nothing ships from this study under any outcome.</p>
+      </div>
+      <details class="run">
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
+        <div class="run-body">
+          <div class="meta"><span><b>run</b> 2026-08-13 19:35:41</span><span><b>git</b> 309c564 (main, working tree dirty)</span><span><b>took</b> 3.3s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">VERDICT (PRIMARY dense episodes population — the primary)
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  NOT MET
+  A6  NOT MET
+  &gt;&gt;&gt; NO VERDICT MATCHES — A1 holds but A5, A6 fail(s) &lt;&lt;&lt;
+  The three verdicts (FEASIBLE = A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3
+  with A2 failing; NOT FEASIBLE AT $25,000 = A1 fails) do not partition the outcome
+  space, and the run landed in the gap. Nothing is relabelled to fit: the
+  checklist above is the result, and the verdict grammar is recorded as</pre>
+          <div class="links"><span>report: <code>account_sim-latest.txt</code></span><span>charts: <code>account_sim-charts-latest.html</code></span></div>
+<p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
+        </div>
+      </details>
+    </article>
+    </div>
+  </section>
+
+  <section id="infra">
+    <div class="section-head">
+      <h2>Infrastructure</h2>
+      <p>Not studies — these carry no verdict, and every verdict rests on them.</p>
+    </div>
+    <div class="table-view">
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td class="name">run.py</td><td><p>The runner. Writes backtests/study_output/&lt;name&gt;-latest.txt with a provenance header — git sha, dirty flag, exact argv, input row counts and mtimes — so no write-up can attribute numbers to the wrong export.</p></td></tr>
+          <tr><td class="name">harness.py</td><td><p>FROZEN. Trade / replay. It prices nothing; it replays a stored mark series. Every recorded conclusion depends on its exact exit priority, clamps and rounding, and a behavioural change would invalidate the log SILENTLY. Changing the exit mechanism means copying this file.</p></td></tr>
+          <tr><td class="name">book.py</td><td><p>The pooled real + proxy loader. bs_options_hist rows are excluded by default — they are priced FROM the model that scores them.</p></td></tr>
+          <tr><td class="name">protocol.py</td><td><p>The four defences every conclusion rests on: date clustering, purging plus a 120-day embargo, same-dates comparison, and window-dominance re-cuts.</p></td></tr>
+          <tr><td class="name">underlying.py</td><td><p>Daily stock bars — real OHLC, falling back to close-only Price~. The widening that harness.py is deliberately frozen out of.</p></td></tr>
+          <tr><td class="name">underlying_features.py</td><td><p>As-of-entry price-STATE columns: rv20, Parkinson, semivar, ATR%, efficiency ratio, VRP, beta. This family is the ML re-open condition — none of it existed when B1 searched 496 subsets.</p></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="reading">
+    <div class="section-head">
+      <h2>How to read any one report</h2>
+    </div>
+    <ol class="steps">
+      <li><div><b>Check the header</b><p>Row counts and mtimes of the input exports. Two runs on different exports are not comparable — that has caused a wrong attribution before.</p></div></li>
+      <li><div><b>Check the calibration gate</b><p>Most studies open by proving production rules reproduce the stored exit_reason / days_held / realized_pnl_pct. A non-zero exit here is the gate WORKING — do not route around it.</p></div></li>
+      <li><div><b>Check the pre-registration</b><p>Nearly every study names a current.md section written BEFORE it ran. A number not covered by a pre-registered criterion is an observation, not a result.</p></div></li>
+      <li><div><b>Know which metric you are reading</b><p>E is P&amp;L at the path cap — selection only. R is realized under the exit rules — selection plus exit. E&lt;0 means no exit rule can rescue it. Definitions live in glossary.md.</p></div></li>
+    </ol>
+  </section>
+
+  <section id="traps">
+    <div class="section-head">
+      <h2>Traps this log has actually fallen into</h2>
+    </div>
+    <ul class="traps">
+      <li><b>Composition, not signal</b><p>A cut looks predictive because it changed the MIX of structures, not because the variable matters. Killed oi_confirm_pct, iv_pct, and the score_total bands.</p></li>
+      <li><b>Grading against a baseline production does not run</b><p>Changed a decision twice. Always compare against the SHIPPED merge, never against a clean default.</p></li>
+      <li><b>One window carrying an effect</b><p>Every headline is re-cut ex-Mar–Apr-2025 and ex-Feb–Apr-2026.</p></li>
+      <li><b>Row count is not sample size</b><p>Rows inside a signal date share the tape. n is the ~118 dates, not the ~1,100 rows.</p></li>
+    </ul>
+  </section>
+
+  <footer>
+    Rendered by <code>python -m scripts.study_map</code>, and re-rendered automatically after
+    every <code>python -m scripts.backtest_study run …</code>. The <em>verdict</em> lines are
+    hand-written in <code>scripts/study_map/catalog.py</code> and change only when someone edits
+    them; the <em>last run</em> blocks are quoted verbatim out of
+    <code>backtests/study_output/</code> and are only as current as the last run. Nothing on this
+    page states a conclusion a study did not print — an excerpt with no verdict block in it is
+    labelled as the tail of the report, and a study nobody has run says so.
+  </footer>
+</div>
+
+</body>
+</html>

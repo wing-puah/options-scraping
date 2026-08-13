@@ -36,6 +36,20 @@ row:
   in a way the harness can't reconstruct, and including it anyway would
   silently mix un-vetted rows into every downstream mean.
 
+  `require_proxy_calibration=False` opens that gate (measured 2026-08-13).
+  The excluded set is NOT what the paragraph above assumes: all 19 non-exact
+  `tweak` debit rows carry a stored `exit_reason` of `trailing_stop`, a rule
+  REMOVED from `DEBIT_PROD` by Attempt 10 (2026-07-04). They are rows exported
+  under a superseded exit config, not rows the harness cannot price — their
+  price paths replay fine, they simply disagree with a stored outcome that no
+  longer reflects production. Opening the gate is therefore sound ONLY for a
+  caller that re-replays every row itself under a current profile and never
+  reads the stored `R`/`exit_reason` (`account_sim` does exactly this); a
+  caller that consumes stored outcomes must leave the gate shut. Admitted
+  rows keep `calibrated=False`, so `calibrated`-keyed logic (e.g. that study's
+  G2) still skips them, and the count lands in
+  `diag["n_proxy_admitted_non_exact"]`.
+
   CREDIT — there is no single credit PROD that calibrates the accumulated
   sheet. Attempt 13 (2026-07-13) removed the credit stop (sl 1x -> None);
   `CREDIT_PROD` below is the POST-Attempt-13 profile, but `BacktestResults`
@@ -306,13 +320,21 @@ def load_book(results_csv: str | Path | None = None,
              proxy_csv: str | Path | None = None,
              analysis_csv: str | Path | None = None,
              include_bs: bool = False,
-             sources: set[str] | None = None) -> tuple[list[dict], dict]:
+             sources: set[str] | None = None,
+             require_proxy_calibration: bool = True) -> tuple[list[dict], dict]:
     """Load the pooled real+proxy book across ALL structures.
 
     Returns (records, diag). `diag["counts_by_source"]` reflects the FULL
     parsed book (real/tweak/bs all counted) before the `include_bs`/`sources`
     filter is applied to the returned `records` — use `len(records)` for the
     actually-returned count.
+
+    `require_proxy_calibration=False` admits proxy debit rows that fail the
+    exact-replay gate, with `calibrated=False` and a count in
+    `diag["n_proxy_admitted_non_exact"]`. Read the module docstring's
+    calibration-gate section before passing it: it is only sound for callers
+    that re-replay every row and ignore the stored outcome. Orthogonal to
+    `include_bs` — opening this gate does NOT re-admit `bs_options_hist` rows.
     """
     results_csv = Path(results_csv) if results_csv else DEFAULT_RESULTS_CSV
     proxy_csv = Path(proxy_csv) if proxy_csv else DEFAULT_PROXY_CSV
@@ -326,7 +348,9 @@ def load_book(results_csv: str | Path | None = None,
         "n_excluded_no_path_or_method": 0,
         "n_trade_construction_failed": 0,
         "n_proxy_excluded_non_exact": 0,
+        "n_proxy_admitted_non_exact": 0,
         "n_credit_ungated": 0,
+        "require_proxy_calibration": require_proxy_calibration,
         "debit_calib": {"n": 0, "exact": 0, "near": 0, "hard": 0},
         "include_bs": include_bs,
     }
@@ -405,9 +429,11 @@ def load_book(results_csv: str | Path | None = None,
         else:
             exact, near = _calib(t, DEBIT_PROD)
             if not exact:
-                diag["n_proxy_excluded_non_exact"] += 1
-                continue
-            calibrated = True
+                if require_proxy_calibration:
+                    diag["n_proxy_excluded_non_exact"] += 1
+                    continue
+                diag["n_proxy_admitted_non_exact"] += 1
+            calibrated = exact
         diag["counts_by_source"][src] += 1
         records.append(_build_record(t, src, calibrated, ac_lookup, mech_labeler))
 

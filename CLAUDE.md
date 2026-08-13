@@ -96,6 +96,68 @@ python3 -m scripts.backtest_study run --all
 # Reports carry a provenance header (git sha + input row counts); write-ups go to
 # config/backtest-tuning/current.md. See config/backtest-tuning/README.md.
 # Also: --date, --dry-run, --cache-only (no scraping), --redo (re-evaluate frozen rows)
+# account_sim is CONFIG-DRIVEN and holds no state: config/account-sim.yml is the
+# simulation (capital, risk %, positions/day, the two delta-notional caps, the
+# grids, the population and criteria thresholds, and G1's expected book line).
+# Edit that file, or copy it and pass --config, to simulate a different account;
+# there is no --capital/--risk-dollars/--per-pos-cap/--net-cap flag any more.
+python3 -m scripts.backtest_study run account_sim -- --config config/my-account.yml
+# It also exports its deployed/skipped positions (incl. the market/ticker/
+# mechanical regime block) to backtests/study_output/account_sim-positions-latest.csv
+# Its G5 gate ENFORCES that selection/sizing never read an outcome field —
+# keep it passing; it is what makes the sim safe to drive a live-position agent.
+python3 -m scripts.backtest_study run account_sim -- --structure-universe
+# ^ arm: admits proxy debit rows the exact-replay gate withheld (stale
+#   trailing_stop exports, not unpriceable rows). Widens the CANDIDATE SET only;
+#   bs rows stay dropped, gates still run on the frozen book, and it writes a
+#   SEPARATE artifact (account_sim-positions-structure-latest.csv). This is the
+#   ONLY arm that gets its own CSV stem — a different config overwrites the
+#   default export, and the report records which config produced it.
+
+# Study review pipeline (research tier — two-analyst replication grading + digest)
+python3 -m scripts.study_review account_sim              # run study, then A/B + validator + digest
+python3 -m scripts.study_review account_sim --skip-run   # reuse <name>-latest.txt
+python3 -m scripts.study_review account_sim --skip-run --dry-run  # exercise pipeline, no LLM calls
+# Outputs: backtests/study_output/<name>-review-{analyst-a,analyst-b,validator}-latest.md + <name>-digest-latest.md
+# Metric definitions for study reports: config/backtest-tuning/glossary.md
+
+# Study map (research tier — the readable one-pager over the whole study package)
+make study-map-open                                    # rebuild docs/study-map.html + open it
+python3 -m scripts.study_map --check                   # per-study last-run status as a table
+# Auto-rebuilt after every `backtest_study run` and every `study_review`, so it
+# always quotes the newest reports. Per-study VERDICTS are hand-written in
+# scripts/study_map/catalog.py (a study with no entry there FAILS the test suite);
+# the last-run blocks are quoted verbatim from backtests/study_output/ and never
+# paraphrased — an excerpt with no VERDICT block is labelled as the report's tail.
+
+# Study charts (research tier — renders a study result, never computes a new one)
+python3 -m scripts.study_charts.account_sim              # → account_sim-charts-latest.html
+python3 -m scripts.study_charts.account_sim --standalone --open   # view off disk
+python3 -m scripts.study_charts.account_sim --positions backtests/study_output/account_sim-positions-structure-latest.csv
+make study-docs                                          # rebuild every tracked docs page
+# Each run writes two files: the study_output FRAGMENT (no doctype/head/body —
+# what the Artifact publisher wants; --standalone wraps it for a browser) and a
+# tracked standalone docs/account-sim-charts.html, the same deal as
+# docs/study-map.html. The structure arm writes ONLY the fragment — its page
+# reads the same as the frozen book's chart for chart, so there is exactly one
+# tracked charts page and an explicit --docs on that arm is refused.
+# --no-docs skips the docs copy.
+# The report is auto-paired to the positions file's ARM (account_sim-latest.txt is
+# whichever arm ran last), and every CSV-recomputed figure is reconciled against
+# the report before writing — a mismatch exits non-zero. Do not add a statistic
+# the study refuses to print (no annualised figure / Sharpe / time-to-recover).
+
+python3 -m scripts.study_charts.regime                   # → docs/account-sim-regime.html
+make study-chart-regime-open                             # rebuild it and open it
+# SECOND page over the same run: what the deployed book was, by market regime —
+# mech_cell (lib/mech_regime.py) and the model read (market_regime), side by side,
+# plus what the caps skipped per cell and where the two readings disagree.
+# account_sim pre-registers NO regime cut, so the study prints this cut ITSELF
+# (its `DEPLOYED BOOK BY REGIME` section, flagged post-hoc, thin cells marked) and
+# the page reconciles against it like every other figure. Adding a regime table to
+# the page WITHOUT adding it to the study first is the thing not to do.
+# Shared page shell: scripts/study_charts/cli.py (pipeline), assets/kit.js (chart
+# primitives, inlined ahead of each page's own script).
 
 # Dashboard
 cd web && npm run dev   # http://localhost:3000
@@ -178,6 +240,25 @@ scripts/                    ← entry points, each maps to a workflow step
                               walk-forward / date-clustered CIs / LOO. Reports land in
                               backtests/study_output/ (scratch); conclusions in
                               config/backtest-tuning/current.md
+  study_map/                — RESEARCH tier. Renders docs/study-map.html: what each study
+                              asks (catalog.py, hand-written) + what its last run printed
+                              (summary.py, quoted from the reports) + the newest current.md
+                              sections (tuning.py). Rebuilt automatically by the study
+                              runner and by study_review; `make study-map` to force it.
+  study_charts/             — RESEARCH tier. Renders a study's result as
+                              self-contained HTML pages; adds no conclusion.
+                              report.py = strict parser for the fixed-width report
+                              (a changed section raises, never a half-drawn chart);
+                              series.py = positions-CSV series + `reconcile()`, which
+                              must agree with the report or the build fails;
+                              cli.py = the pipeline both pages share (arm pairing,
+                              reconcile-or-write-nothing, docs copy rules);
+                              account_sim.py + render.py + assets/page.js = the
+                              account feasibility readout (capital read from the
+                              report, not hardcoded); regime.py + render_regime.py +
+                              assets/regime.js = the deployed book by market regime;
+                              assets/kit.js = chart primitives shared by both;
+                              assets/page.css = the tokens both pages draw from
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
@@ -286,6 +367,10 @@ weight evidence and resolve conflicting flow.
 - `config/positions.yml` — open options positions for position review
 - `config/backtest.yml` — backtest settings (analysis tab to test, entry match side, path cap,
   profit/stop, pricing fallbacks). No signal filter — the analysis is the filter.
+- `config/account-sim.yml` — RESEARCH tier. The `account_sim` study's whole parameter surface:
+  capital, risk %, positions/day, the two delta-notional caps, the cap/capital grids, the hedge
+  fraction, the dense-episode definition, the A2/A3/A5 thresholds and G1's expected book line.
+  `scripts/backtest_study/account_sim.py` reads it and holds no state of its own.
 - `config/barchart-reference.md` — column definitions for barchart CSV data
 - `config/backtest-reference.md` — column definitions for the `BacktestResults` sheet (realized
   exit, MFE/MAE, the `daily_price_csv` path)

@@ -52,9 +52,13 @@ what order, and what it does with the result.
    analysts grade what the study printed, not what they could compute
    themselves from `backtests/to_evaluate/` — re-deriving numbers defeats
    the point of grading a specific, stamped, provenance-headed artifact.
-2. **Both agents get the same two artifacts and nothing else.** Same
+2. **Both agents get the same artifacts and nothing else.** Same
    pre-registration section, same report path (Mode 1); same TRAIN-split
-   file (Mode 2). No agent gets extra context the other lacks.
+   file (Mode 2). Mode 1 optionally carries a THIRD named artifact — the
+   study's positions CSV (`backtests/study_output/<study>-positions-latest.csv`),
+   when the study exports one (today only `account_sim`) — passed identically
+   to both analysts alongside the report. No agent gets extra context the
+   other lacks.
 3. **Fixed verdict schema, no prose.** Analysts output a table:
    `MET`/`NOT MET`/`NOT EVALUABLE` per criterion, the exact number, one
    sentence on what would flip it. No recommendations, no synthesis — that
@@ -128,6 +132,54 @@ entry for this study.
 
 Mode 2 follows the same three-step shape, with the prompt instead naming a
 TRAIN-split CSV path and instructing "Mode 2 (independent exploration)."
+
+## Automated invocation
+
+`python -m scripts.study_review <study>` (or `make study-review ARGS="<study>"`)
+is the deterministic, headless path through Mode 1, modeled on
+`scripts/analysis_pipeline`: it optionally runs the study
+(`python -m scripts.backtest_study run <study>`) first, then makes headless
+`claude -p` calls — isolated sessions, with the `research-analyst` and
+`research-validator` personas inlined from `.claude/agents/research-{analyst,
+validator}.md` rather than spawned as Agent-tool subagents — for analyst A and
+B in parallel, then the validator, then a plain-language digest grounded in
+`config/backtest-tuning/glossary.md`. Inputs to the analysts are the same as
+the worked example above: the pre-registration section, the stamped report,
+and (when present) the study's positions CSV, all inlined into the prompt
+text.
+
+This is a deliberate trade-off, not a lesser version of the manual path:
+because everything the analysts and validator see is inlined text rather
+than a live session with tool access, the validator's source-check step
+means re-reading the inlined artifact text passed to it, not re-opening
+files on disk. That is sufficient for Mode 1 (grading a finished, stamped
+report against a finished pre-registration) but is why this path is not
+offered for Mode 2 exploration, where an analyst may need to look beyond
+the two named artifacts.
+
+Outputs land in `backtests/study_output/`:
+`<study>-review-analyst-a-latest.md`, `<study>-review-analyst-b-latest.md`,
+`<study>-review-validator-latest.md`, and `<study>-digest-latest.md`. Flags:
+`--skip-run` (reuse the existing `-latest.txt` instead of re-running the
+study), `--run-args "…"` (forwarded to `backtest_study run`),
+`--pre-reg-section STR` (required when heading auto-detect against
+`current.md` is ambiguous), `--positions-csv PATH` / `--no-positions-csv`
+(override or suppress the third artifact), `--model M`, `--skip-digest`,
+`--dry-run` (exercises the pipeline with placeholder outputs, no `claude`
+calls).
+
+The interactive worked example above — spawning `research-analyst` /
+`research-validator` via the `Agent` tool from a live session — remains the
+manual alternative: use it when Mode 2 exploration is needed, when an
+analyst may need to read beyond the named artifacts, or when running the
+protocol from inside an existing session is more convenient than shelling
+out.
+
+The digest is a plain-language explanation of the graded report for the
+operator — it is not an input to any verdict or adjudication. The
+ship/no-ship call is made from the analysts' and validator's output only;
+the digest exists purely to make that output legible, and is written last,
+after the call has already been reached.
 
 ## First applications
 
