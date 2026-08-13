@@ -7,26 +7,25 @@ everything here has its evidence trail there or in
 
 ## 0. Repo state — READ FIRST
 
-All of 2026-08-13's work is **uncommitted, in the worktree
-`.claude/worktrees/swirling-tinkering-aurora`** (branch `main`, base 9a2ca50).
-It contains two change sets, both verified (680 tests pass; the only failures
-are pre-existing: the `tests/test_live_loop.py` worktree collection abort and
-2 `test_underlying_features.py` beta AttributeErrors, reproduced on the main
-checkout):
+*(Rewritten 2026-08-13 evening; the original §0 described the morning's
+then-uncommitted work, which has since landed.)*
 
-1. **Method-config audit** — ≈−25 `IVspr` veto RETIRED
-   (`conviction-score.md`); `OIConfirm` component removed from the
-   deterministic Score (`lib/flow_summary/core.py` + both score docs; ceiling
-   14 → 12, 17 → 15 with persistence; **folded into v4 by operator decision,
-   no tab bump** — v4 rows ≤ 2026-08-12 carry the old composition); codex
-   engine retired (codex.md deleted, `ENGINES` pruned, AnalysisGPT historical).
-2. **bear_put demotion mechanism** — new §1.4 selection veto in
-   [`deployment-rules.md`](../deployment-rules.md) with the §4 hedge sleeve
-   carved out; `deployment-evidence.md` closed-threads superseded; entry in
-   `current.md`.
+The morning change sets are **MERGED to `main`**: method-config audit
+(`51746ac`) and bear_put demotion §1.4 (`8a786f2`), via merge `66cd01a`.
 
-**First action of the next session: review + commit these** (or merge the
-worktree back), otherwise the docs and code drift from what this file claims.
+The evening session's work — the `volume_signal` study (§2.1, NULL), its
+pre-registration + run entry + amendment + replication grading in
+`current.md`, the `Bar.v`/`volume_features.py` infra, 42 new tests, and the
+worktree-pytest fix — is committed on the branch
+**`worktree-refactored-coalescing-hamster`**. If `git log main` does not show
+it, the merge is the first action:
+
+    git merge worktree-refactored-coalescing-hamster   # from the main checkout
+
+Suite state: 896 passed, 1 skipped (`test_live_loop.py` self-skips where the
+IBKR snapshot data is absent — the `--ignore` workaround is gone), 2
+pre-existing `test_underlying_features.py` beta AttributeErrors (reproduced
+on the main checkout, still open).
 
 ## 1. Decisions made 2026-08-13 (done, no action)
 
@@ -36,7 +35,16 @@ worktree back), otherwise the docs and code drift from what this file claims.
 
 ## 2. Open queue, in rough priority order
 
-### 2.1 Underlying-volume signal study — NEXT UP, pre-registration required
+### 2.1 Underlying-volume signal study — DONE 2026-08-13, NULL
+Pre-registered and RUN the same day (`volume_signal`; entry + amendment note
+in `current.md`). **NULL — the volume column is closed, no version bump.**
+No R separation on non-bear debit; the frozen exit variant negative
+out-of-fold. Infra kept (`Bar.v`, `volume_features.py`). Post-hoc
+carry-forwards recorded (bear os_ratio monotonicity → only conceivable home
+is the §4 hedge-sleeve pick rule, own pre-registration required; credit
+monotonicity on ungated replays). Original plan follows for the record.
+
+#### (original plan, superseded)
 Operator asked for it (2026-08-13). Satisfies the ML-search reopen condition
 ("new COLUMNS only"). **The data is already on disk**: the Barchart history
 CSV schema (`lib/barchart/options.py` docstring) carries `Volume`, and
@@ -106,8 +114,8 @@ arming rows), bull_put band re-read on the next independent window.
 - **Per-regime exit switch** — still gated (candidate: pt 1.10+ in
   E-VOL/RANGE).
 - **Prompt/infra**: pipeline `core.py` refactor deferred; PostToolUse hook
-  never runs pytest; worktree pytest needs
-  `--ignore=tests/test_live_loop.py`.
+  never runs pytest. (The worktree pytest wart is FIXED 2026-08-13:
+  `test_live_loop.py` self-skips when the snapshot data is absent.)
 
 ## 3. Standing rules the next session must not re-litigate
 

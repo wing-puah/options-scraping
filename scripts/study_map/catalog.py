@@ -153,6 +153,16 @@ STUDIES: dict[str, Study] = {
         verdict="The `be_after` grid does NOT ship beyond what is already live. The give-back "
                 "pattern lives in the UNDERLYING, not in the mark.",
     ),
+    "volume_signal": Study(
+        family="management", state="null",
+        question="Share volume is the one column on disk no study has read. Does an "
+                 "unusual-O/S ratio (flow contracts / share volume) condition exits — "
+                 "or anything — or is it just liquidity in a costume?",
+        verdict="NULL — no R separation on non-bear debit and the one frozen exit "
+                "variant is negative out-of-fold (LOO share 1%). The column is closed; "
+                "the live pipeline never pays the version bump. Bear's monotone "
+                "os_ratio read is a post-hoc carry-forward, not a candidate.",
+    ),
     "next_day_move": Study(
         family="management", state="null",
         question="Move the give-back question to day 0, where it is knowable at the close: "
@@ -226,6 +236,10 @@ INFRA: dict[str, str] = {
                               "ATR%, efficiency ratio, VRP, beta. This family is the ML "
                               "re-open condition — none of it existed when B1 searched "
                               "496 subsets.",
+    "volume_features.py": "As-of-entry VOLUME columns: unusual-O/S (flow contracts / "
+                          "share volume), relative-volume z, Amihud. Split-guarded, "
+                          "rescaled tickers withheld from the window features. Built for "
+                          "volume_signal (NULL) and kept for future pre-registered use.",
 }
 
 # ── the traps, kept where the map is read ─────────────────────────────────────

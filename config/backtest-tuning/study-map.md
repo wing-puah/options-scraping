@@ -91,6 +91,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `exit_switch_structure_study.py` | Q1: does a bear_put-keyed trail pass the same ship gate? Q2: is BEAR_HE secretly just a *composition proxy* for that structure effect? | Guards the shipped rule against the trap that killed `oi_confirm_pct`. |
 | `bear_giveback.py` | 82% of bear rows go green then give it back. Can a breakeven ratchet capture it, and does the underlying path explain it? | `be_after` grid does **NOT** ship beyond what's already live; the give-back pattern is in the **underlying**, not the mark. |
 | `next_day_move.py` | Move the give-back question to day 0 (knowable at the close): cut positions the stock didn't confirm? | ARM C doesn't clear the confound → **no rule**. Sensitivity is structural. |
+| `volume_signal.py` | Share volume — the one column on disk no study had read. Does unusual-O/S (flow contracts / share volume) condition exits, or anything? | **NULL** — no R separation on non-bear debit, and the one frozen exit variant is negative out-of-fold (LOO share 1%). Column closed; no version bump. Bear's monotone os_ratio read is a post-hoc carry-forward only. |
 
 ## ③ STRUCTURE — "am I expressing the signal in the wrong wrapper?"
 
@@ -119,6 +120,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `protocol.py` | The four things every conclusion rests on: date clustering, purging + embargo, same-dates comparison, window dominance re-cuts. |
 | `underlying.py` | Daily stock bars — real OHLC, falling back to close-only `Price~`. The widening `harness.py` is frozen out of. |
 | `underlying_features.py` | As-of-entry price-*state* columns (rv20, Parkinson, semivar, ATR%, efficiency ratio, VRP, beta). This family is the ML re-open — none of it existed when B1 searched 496 subsets. |
+| `volume_features.py` | As-of-entry *volume* columns (unusual-O/S, relative-volume z, Amihud), split-guarded, rescaled tickers withheld from the window features. Built for `volume_signal` (NULL), kept for future pre-registered use. |
 
 ---
 

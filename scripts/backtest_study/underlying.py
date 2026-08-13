@@ -103,12 +103,19 @@ SRC_TILDE = "price_tilde"
 
 @dataclass(frozen=True)
 class Bar:
-    """One session. `o`/`h`/`l` are None on the close-only fallback path."""
+    """One session. `o`/`h`/`l` are None on the close-only fallback path.
+
+    `v` is share volume, populated on the OHLC path only: `Price~` is a quote
+    stamped on an option row, there is no share count to read there, and a
+    fabricated one would silently widen the volume features' denominator past
+    what `volume_features.coverage()` reports.
+    """
     c: float
     o: float | None = None
     h: float | None = None
     l: float | None = None
     source: str = SRC_OHLC
+    v: float | None = None
 
     @property
     def has_ohlc(self) -> bool:
@@ -150,8 +157,10 @@ def _load_ohlc_cache(ticker: str) -> dict[date, Bar]:
         c = to_float(row.get("Latest"))
         if c is None or c <= 0:
             continue
+        vol = to_float(row.get("Volume"))
         out[d] = Bar(c=c, o=to_float(row.get("Open")), h=to_float(row.get("High")),
-                     l=to_float(row.get("Low")), source=SRC_OHLC)
+                     l=to_float(row.get("Low")), source=SRC_OHLC,
+                     v=vol if vol is not None and vol > 0 else None)
     return out
 
 
