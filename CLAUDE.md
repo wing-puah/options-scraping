@@ -4,6 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Subagent model selection
 
+Using the Agent tool is ENCOURAGED in this repo — delegate parallelizable or
+large work to subagents to keep tokens out of the main session. This section
+governs only WHICH model a subagent gets, not whether to spawn one; do not
+read it as a restriction on calling Agent. (The one real carve-out is
+CodeGraph's own guidance: don't spawn a subagent just to look up code the
+`.codegraph/` index can answer in one `codegraph_explore` call — that applies
+to code lookups only.)
+
 When spawning subagents via the Agent tool, ALWAYS pass an explicit `model`
 parameter — never omit it. An omitted model makes the subagent inherit the main
 session's model (the most expensive one). This applies especially in plan mode:
