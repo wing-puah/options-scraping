@@ -61,9 +61,8 @@ python3 scripts/align_tab_headers.py --dry-run        # check tab headers agains
 # Common flags: --date YYYY-MM-DD · --backfill (all dates, idempotent) · --dry-run ·
 # --force (clear + re-scrape). compile_flow takes --start/--end; gc_flow uses --all.
 
-# Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
+# Full analysis pipeline: fetch → headless engine (claude) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
-python3 -m scripts.analysis_pipeline --engine codex       # latest date, codex → AnalysisGPT
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  # → AnalysisTickerSpecific tab
 python3 -m scripts.analysis_pipeline --fetch-only         # fetch + audit CSV only, no LLM
 # Also: --start/--end, --days N, --dry-run, --model <id> (full matrix in docs/architecture.md)
@@ -119,7 +118,6 @@ Google Drive (OAuth2 personal account)
     │ scripts/analysis_pipeline/fetch.py → markdown to LLM
     ▼
 Claude Code: /options analyze ──► AnalysisClaude tab
-GPT Codex:   /options analyze ──► AnalysisGPT tab
     │
     ▼
 Google Sheets (service account) ──► Next.js Dashboard (web/)
@@ -189,7 +187,7 @@ scripts/                    ← entry points, each maps to a workflow step
 # Live (runs 2×/day via GitHub Actions, then skill on demand)
 scripts/collector/scrape_flow.py --mode flow
 scripts/collector/scrape_flow.py --mode unusual
-→ /options analyze  (Claude Code or GPT Codex)
+→ /options analyze  (Claude Code)
 
 # Historical
 scripts/collector/scrape_flow.py --start … --end …
@@ -200,13 +198,15 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 
 - **AnalysisClaude** — `/options analyze` via Claude Code (appends one row per ticker/play per
   run)
-- **AnalysisGPT** — `/options analyze` via GPT Codex (appends one row per ticker/play per run)
-- **_(both above)_** — each play row also carries deterministic per-ticker rollup context
+- **AnalysisGPT** — retired (historical only); was written by `/options analyze --engine codex`
+  via GPT Codex until the codex engine was removed 2026-08-13. Old rows stay in the tab and are
+  still readable by anything that reads the schema below, but nothing writes new rows to it.
+- **AnalysisClaude** also carries deterministic per-ticker rollup context
   (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/`iv_pct`), joined from that date's
   `audit/<date>-rollup.csv` at row-expansion time (NOT model-produced) — appended at the end of
   `ROW_COLUMNS`, kept separate from the model's `signal`. The backtest reads these straight off
   the row (audit CSV is a fallback for older rows). NOTE: adding a column (e.g. `iv_pct`/`IVPct`)
-  means the AnalysisClaude/AnalysisGPT/AnalysisTickerSpecific tab HEADER must gain that column
+  means the AnalysisClaude/AnalysisTickerSpecific tab HEADER must gain that column
   too, or new rows write an unlabelled trailing column.
 - **AnalysisTickerSpecific** — `analysis_pipeline --tickers …` (ticker-focused runs; same row
   schema, kept separate from the daily full-market tabs)
@@ -246,8 +246,7 @@ conclusion derived on vN does not automatically transfer to vN+1.
   field may be empty, but they must NEVER fall back to the market values. See the invariant
   comment on `analysis_to_rows()` in `scripts/analysis_pipeline/core.py` and the per-play schema
   in `scripts/analysis_pipeline/config.py` (`ANALYSIS_PROMPT_CONTRACT`). This regression has
-  happened before — keep the four touch points (JSON contract, row expansion, claude.md, codex.md)
-  in sync.
+  happened before — keep the touch points (JSON contract, row expansion, claude.md) in sync.
 
 ## Skill modes
 
@@ -256,17 +255,17 @@ The `/options` skill routes as follows:
 - `analyze` — shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze in-context).
   Runs fetch → headless engine call → write; the LLM step is an isolated session so the
   framework/method/raw data never enter the calling agent's context. Model-agnostic via
-  `--engine`: `claude` (default) uses `claude -p` + `claude.md` → AnalysisClaude; `codex` uses
-  `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable settings live in
+  `--engine`: `claude` (default, currently the only registered engine) uses `claude -p` +
+  `claude.md` → AnalysisClaude. All operator-tunable settings live in
   `scripts/analysis_pipeline/config.py`; `--model` overrides the engine model. The full data
-  contract — rollup conviction `Score`/`OIConfirm`/pollution columns, `IVspr`/`IVskew`/`IVpct`,
+  contract — rollup conviction `Score`/`OIConfirmPct`/pollution columns, `IVspr`/`IVskew`/`IVpct`,
   hedge pressure, per-play `flow_intent`/`horizon`/`key_level`/`direction`, the three
   `score_*` components (v4 dropped `score_flow`/`score_dealer`; only `score_vol` is
   model-emitted, `score_price`/`score_catalyst` are pipeline-computed) + `score_total`
   bands (v4: 0–50, NOT comparable to v3's 0–100), and the `themes` array — is documented in
   `docs/architecture.md` §"/options analyze" and `config/conviction-score.md`; read those only
   when changing the pipeline or its schema, not to run it
-- `modes/summary.md` — reads latest rows from AnalysisClaude + AnalysisGPT, formats for display
+- `modes/summary.md` — reads latest rows from AnalysisClaude, formats for display
 - `modes/positions.md` — fetches live positions from IBKR MCP and cross-references against latest
   flow data
 

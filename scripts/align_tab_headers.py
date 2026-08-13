@@ -17,7 +17,7 @@ mapping decision a script must not guess at.
 
 Run:
     python scripts/align_tab_headers.py --dry-run
-    python scripts/align_tab_headers.py --tab AnalysisGPT
+    python scripts/align_tab_headers.py --tab AnalysisClaude
 """
 from __future__ import annotations
 

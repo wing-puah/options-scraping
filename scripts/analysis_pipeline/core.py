@@ -2,7 +2,7 @@
 Core logic for the options flow analysis pipeline.
 
     fetch    → fetch.fetch_data                        (deterministic)
-    analyze  → headless engine call (claude / codex)  (LLM, isolated context)
+    analyze  → headless engine call (claude)          (LLM, isolated context)
     write    → sheets_client.append_rows(tab)         (deterministic)
 
 The only LLM touchpoint is a single headless call per date, run from a neutral
@@ -120,42 +120,14 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
     return _parse_and_validate(wrapper.get("result", ""))
 
 
-def _invoke_codex(prompt: str, model: str | None, cwd: str) -> dict:
-    """One `codex exec` call. Prompt on stdin; final message captured to a file.
-
-    Codex streams an event log to stdout, so we use --output-last-message to get
-    just the agent's final message. read-only sandbox + skip-git-repo-check let it
-    run non-interactively inside the throwaway cwd.
-    """
-    out_path = Path(cwd) / "codex_last_message.txt"
-    if out_path.exists():
-        out_path.unlink()
-    cmd = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
-           "--cd", cwd, "--color", "never", "-o", str(out_path)]
-    if model:
-        cmd += ["-m", model]
-    cmd += ["-"]  # read the prompt from stdin
-    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd,
-                          timeout=config.REQUEST_TIMEOUT_S, check=False)
-    # Codex prints a banner first and the real error (e.g. usage limit) last, and
-    # can exit 0 while still failing to produce output — so report the tail and
-    # treat a missing file as failure regardless of exit code.
-    tail = (proc.stderr or proc.stdout or "").strip()[-800:]
-    if proc.returncode != 0:
-        raise RuntimeError(f"codex exited {proc.returncode}: {tail}")
-    if not out_path.exists():
-        raise RuntimeError(f"codex produced no final-message file: {tail}")
-    return _parse_and_validate(out_path.read_text())
-
-
 # Maps each engine name in config.ENGINES to the function that invokes its CLI.
-_RUNNERS = {"claude": _invoke_claude, "codex": _invoke_codex}
+_RUNNERS = {"claude": _invoke_claude}
 
 
 def run_engine(engine: str, prompt: str, model: str | None) -> dict:
     """Run one headless analysis via the chosen engine, with retries.
 
-    The engine step is the only LLM touchpoint. Both runners execute from a
+    The engine step is the only LLM touchpoint. The runner executes from a
     throwaway cwd so the project's CLAUDE.md / AGENTS.md and skills never load
     into the isolated session. Retries on non-zero exit, timeout, or unparseable
     output.
@@ -506,9 +478,9 @@ def _print_report(date_str: str, analysis: dict, *, tab: str, written: bool) -> 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="analysis_pipeline",
-        description="Options flow analysis pipeline (fetch → headless claude/codex → Sheets).")
+        description="Options flow analysis pipeline (fetch → headless claude → Sheets).")
     parser.add_argument("--engine", choices=sorted(ENGINES), default=config.DEFAULT_ENGINE,
-                        help="Analysis engine: claude (→ AnalysisClaude) or codex (→ AnalysisGPT). "
+                        help="Analysis engine: claude (→ AnalysisClaude). "
                              f"Default: {config.DEFAULT_ENGINE}.")
     parser.add_argument("--date", help="Single trading date YYYY-MM-DD.")
     parser.add_argument("--tickers",
@@ -528,7 +500,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help=f"Top-N raw trades per flow section (default: {config.DEFAULT_RAW_N}).")
     parser.add_argument("--model", default=None,
                         help="Model for the engine's headless call. Default: engine default "
-                             "(claude→opus, codex→its configured model).")
+                             "(claude→opus).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
     parser.add_argument("--skip-llm", action="store_true",

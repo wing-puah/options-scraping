@@ -93,8 +93,9 @@ def _finalize_oi_factors(contracts: dict) -> dict:
     not a failed confirmation, and letting flats count against the ratio was
     dragging every percentage down. Returned as a decimal fraction (0.45 = 45%),
     or None when no contract actually moved. ``oi_n`` reports that moving-contract
-    sample size so the conviction score can gate on it. Delta/IV prefer the EOD
-    settlement greeks, falling back to the size-weighted intraday snapshot.
+    sample size, for callers wanting to gate on confidence before trusting a thin
+    ``oi_confirm_pct``. Delta/IV prefer the EOD settlement greeks, falling back to
+    the size-weighted intraday snapshot.
 
     Returns the per-ticker scalars (None when no contract carried enriched OI
     data) plus ``oi_by_bucket``: (dte_label, moneyness_band) → {call OIFC
@@ -158,8 +159,8 @@ def _finalize_oi_factors(contracts: dict) -> dict:
         # percentage format directly. Markdown renders it ×100 for display.
         # Denominator is the MOVING-contract count (opens + closes); flats excluded.
         "oi_confirm_pct": round(oi_confirm_n / oi_move_n, 4) if oi_move_n else None,
-        # Sample size behind oi_confirm_pct — the conviction score gates on this so a
-        # single opening contract can't earn a name a full confirmation bonus.
+        # Sample size behind oi_confirm_pct — callers should treat a thin count as
+        # low-confidence rather than trusting a single opening contract.
         "oi_n": oi_move_n,
         "oifc": oifc if has_oi else None,
         "oifp": oifp if has_oi else None,
@@ -564,7 +565,6 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 #   otm     OTM-prob-weighted extrinsic rank — informed OTM tell          0–2
 #   open    ≥1 BuyToOpen / SellToOpen / ToOpen label present              0 / 1
 #   persist extra days the name recurs across the window (multi-day)     0–3
-#   oi_confirm  next-day OI open-confirmation share (ref-03)      −2 / −1 / +1 / +2
 #   fin_penalty  financing-dominance demotion (direction-agnostic)    −4 / −3 / −2 / 0
 #
 # The `flow` component = min(ext_rank, size_rank + 1). Extrinsic premium
@@ -586,19 +586,6 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 # term" rule above. IV-augmentation (×IV, the paper's OIFCA variant) is left off
 # deliberately to keep IV out of the score.
 #
-# The `oi_confirm` term is the one FORWARD-confirmed component: it reads the
-# ticker's next-session open-interest change (ref-03 open-confirmation, from
-# enrich_oi). oi_confirm_pct = opens / (opens + closes) over the ticker's moving
-# contracts (flat ΔOI excluded); a high share means the flow genuinely opened
-# positions, a low share means it was closing/rolling and the premium overstated
-# conviction. Bands: ≥0.60 → +2, ≥0.40 → +1, ≥0.25 → −1, else −2. It is neutral
-# (0) when the data is absent — the enrichment lags one session, so the LATEST
-# date a live run scores has no OI-confirm yet — or when the moving-contract
-# sample is thin (oi_n < 3), so a single opening print can't earn a full bonus.
-# This is the only component besides fin_penalty that can go negative; TODO-P3's
-# "OIConfirm<40% underperforms" is what the −1/−2 penalty encodes. Backfilled /
-# backtested dates carry it in full.
-#
 # A missing opening label scores 0, never negative — Barchart frequently omits
 # the flag, and absence of the label is not evidence the trade was closing.
 #
@@ -613,8 +600,8 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 # discount, not a bull/bear call). Total is clamped to ≥0.
 #
 # Direction (bull/bear) lives in the separate sentiment columns; it never feeds
-# this number. Single-day raw ceiling is 14 (before any fin_penalty, incl. a full
-# +2 oi_confirm); persistence can push it to 17.
+# this number. Single-day raw ceiling is 12 (before any fin_penalty); persistence
+# can push it to 15.
 
 _SCORE_BUCKETS = (  # (min_score, label), highest first
     (9, "high-conv"),
@@ -629,29 +616,6 @@ def score_label(score: float) -> str:
         if score >= threshold:
             return label
     return "ignore"
-
-
-_OI_CONFIRM_MIN_N = 3  # min moving contracts before oi_confirm_pct is trusted
-
-
-def _oi_confirm_points(pct: float | None, n: int | None) -> int:
-    """Bonus/penalty for next-day OI open-confirmation (ref-03).
-
-    Neutral (0) when the data is absent (the latest live date has no next-session
-    OI yet) or the moving-contract sample is thin (``n < _OI_CONFIRM_MIN_N``) —
-    absence is never a penalty. Otherwise rewards a high open share and demotes a
-    low one (the TODO-P3 ``OIConfirm<40%`` underperformance). Bands are tunable —
-    see config/conviction-score.md.
-    """
-    if pct is None or n is None or n < _OI_CONFIRM_MIN_N:
-        return 0
-    if pct >= 0.60:
-        return 2
-    if pct >= 0.40:
-        return 1
-    if pct >= 0.25:
-        return -1
-    return -2
 
 
 def _voloi_by_symbol(unusual_rows: Iterable[dict] | None) -> dict[str, float]:
@@ -732,11 +696,6 @@ def score_flow_rollup(
 
         persist = min(max(persist_days_by_sym.get(sym, 0), 0), 3)
 
-        # Next-day OI open-confirmation (ref-03). Forward-confirmed, so neutral on
-        # the latest live date (enrichment lags a session) and under-sampled names;
-        # rewards genuine opening flow, demotes closing/rolling. See _oi_confirm_points.
-        oi_confirm = _oi_confirm_points(r.get("oi_confirm_pct"), r.get("oi_n"))
-
         # Financing penalty — direction-agnostic demotion of stock-substitute flow.
         # The `flow`/`otm` components already RANK on extrinsic (intrinsic stripped),
         # but a name can still rank high on absolute extrinsic while its premium is
@@ -761,7 +720,6 @@ def score_flow_rollup(
         parts = {
             "flow": flow, "rep": rep, "cross": cross,
             "voloi": voloi_pts, "otm": otm, "open": opening, "persist": persist,
-            "oi_confirm": oi_confirm,
             "fin_penalty": fin_penalty,
         }
         total = max(0, sum(parts.values()))
@@ -1053,7 +1011,7 @@ def summarize_flow(
 # spreadsheet; the score breakdown is split into its component columns.
 FLOW_CSV_COLUMNS = [
     "Section", "Symbol", "Score", "ScoreLabel",
-    "Flow", "Rep", "Cross", "VolOI", "Otm", "Open", "Persist", "OIConfirm", "FinPenalty",
+    "Flow", "Rep", "Cross", "VolOI", "Otm", "Open", "Persist", "FinPenalty",
     "Trades", "TotalPremium", "ExtPremium", "ExtCallPremium", "ExtPutPremium",
     "OTMExtPremium", "DeltaNotional", "FinancingShare", "Horizon",
     "Contracts", "PremPerContract",
@@ -1130,7 +1088,6 @@ def flow_rollup_csv(sections: list[tuple[str, list[dict]]]) -> str:
                 "Otm": parts.get("otm", ""),
                 "Open": parts.get("open", ""),
                 "Persist": parts.get("persist", ""),
-                "OIConfirm": parts.get("oi_confirm", ""),
                 "FinPenalty": parts.get("fin_penalty", ""),
                 "Trades": r["trades"],
                 "TotalPremium": round(r["premium_total"]),

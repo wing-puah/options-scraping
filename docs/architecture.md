@@ -189,9 +189,12 @@ scripts/                    ← entry points, each maps to a workflow step
                               `make price-catalyst` wraps it
   analysis_pipeline/        — full pipeline package (run via `python3 -m
                               scripts.analysis_pipeline`): fetch → headless engine call
-                              (isolated session; `--engine claude|codex`, `--model` overridable)
+                              (isolated session; `--engine claude` — currently the only
+                              registered engine, `--model` overridable)
                               → expand to per-ticker rows → append to the engine's tab
-                              (AnalysisClaude / AnalysisGPT). Source of truth for /options
+                              (AnalysisClaude; the codex engine and its AnalysisGPT tab were
+                              retired 2026-08-13 — AnalysisGPT keeps its historical rows but
+                              nothing writes to it anymore). Source of truth for /options
                               analyze; the skill just shells out here.
                               · config.py    — ALL user-tunable settings: engine registry
                                 (model/method/tab), retries, timeout, fetch defaults, sheet
@@ -289,14 +292,13 @@ python3 scripts/collector/fetch_price_catalyst.py --backfill            # every 
 python3 scripts/collector/fetch_price_catalyst.py --backfill --dry-run
 python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10 --force   # clear columns and re-scrape
 
-# Full analysis pipeline: fetch → headless engine (claude/codex) → write Sheets
+# Full analysis pipeline: fetch → headless engine (claude) → write Sheets
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
-python3 -m scripts.analysis_pipeline --engine codex       # latest date, codex → AnalysisGPT
 python3 -m scripts.analysis_pipeline --date 2026-04-21
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  # ticker-focused → AnalysisTickerSpecific tab
 python3 -m scripts.analysis_pipeline --start 2026-04-14 --end 2026-04-18 --days 5
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analyze, no write
-python3 -m scripts.analysis_pipeline --engine codex --model gpt-5  # override engine model
+python3 -m scripts.analysis_pipeline --model claude-opus-5  # override engine model
 python3 -m scripts.analysis_pipeline --fetch-only                  # fetch + audit CSV only, no LLM
 python3 -m scripts.analysis_pipeline --fetch-only --date 2026-06-09
 
@@ -317,16 +319,16 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
 `analyze` shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze in-context).
 Runs fetch → headless engine call → write; the LLM step is an isolated session so the
 framework/method/raw data never enter the calling agent's context. The pipeline is
-model-agnostic via `--engine`: `claude` (default) uses `claude -p` + `claude.md` →
-AnalysisClaude; `codex` uses `codex exec` + `codex.md` → AnalysisGPT. All operator-tunable
+model-agnostic via `--engine`: `claude` (default, currently the only registered engine) uses
+`claude -p` + `claude.md` → AnalysisClaude. (The `codex` engine — `codex exec` + `codex.md` →
+AnalysisGPT — was retired 2026-08-13; the operator stopped running analysis with it, and
+AnalysisGPT keeps its historical rows but nothing writes to it anymore.) All operator-tunable
 settings (engines, retries, timeout, fetch defaults, sheet schema, output contract) live in
 `scripts/analysis_pipeline/config.py`; the model is overridable via `--model` (default:
-claude→`claude-opus-5`, codex→its configured model). The prepared rollup carries a
-direction-agnostic conviction `Score` (0–14 raw) per ticker, ranked on **extrinsic premium**
+claude→`claude-opus-5`). The prepared rollup carries a
+direction-agnostic conviction `Score` (0–12 raw) per ticker, ranked on **extrinsic premium**
 (intrinsic stripped so deep-ITM financing flow can't buy rank) with an `otm` component crediting
-OTM-probability-weighted extrinsic flow and an `OIConfirm` component (±) crediting/demoting
-next-day OI open-confirmation (ref-03; neutral-on-missing, but in practice live runs happen on
-D+1 after enrich*oi has landed, so live rows DO carry it — measured 91% populated), plus
+OTM-probability-weighted extrinsic flow, plus
 pollution/exposure columns (`Ext$`/`Fin%`/`ΔNot$`/`Hzn`/`OTM$`),
 direction-bearing vol columns (`IVspr`/`IVskew`, not scored), a per-ticker `IVpct` column
 (Barchart's options-overview IV percentile — share of the prior-1yr days with IV below today's,

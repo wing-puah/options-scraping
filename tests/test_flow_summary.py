@@ -319,10 +319,9 @@ def test_score_maxes_out_with_full_corroboration():
     r = rollup[0]
     # otm is 0: _flow_row carries no Delta cell, so OTM-prob weighting never fires.
     # fin_penalty is 0: these rows carry no Delta, so fin_share is 0 (no financing).
-    # oi_confirm is 0: _flow_row carries no oi_change, so open-confirmation is absent.
     assert r["score_parts"] == {
         "flow": 3, "rep": 2, "cross": 2, "voloi": 2, "otm": 0, "open": 1, "persist": 0,
-        "oi_confirm": 0, "fin_penalty": 0,
+        "fin_penalty": 0,
     }
     assert r["score"] == 10
     assert r["score_label"] == "high-conv"
@@ -966,39 +965,6 @@ def test_oi_confirm_pct_all_flat_is_none():
     assert row["oi_confirm_pct"] is None
     assert row["oi_n"] == 0
     assert row["oifc"] == 0.0 and row["oifp"] == 0.0
-
-
-def test_oi_confirm_points_bands_and_gate():
-    from lib.flow_summary.core import _oi_confirm_points
-    # Neutral when absent or under-sampled — absence is never a penalty.
-    assert _oi_confirm_points(None, 10) == 0
-    assert _oi_confirm_points(0.9, None) == 0
-    assert _oi_confirm_points(0.9, 2) == 0          # oi_n < _OI_CONFIRM_MIN_N (3)
-    # Bands, with a sufficient moving-contract sample.
-    assert _oi_confirm_points(0.80, 5) == 2
-    assert _oi_confirm_points(0.60, 5) == 2         # inclusive lower edge
-    assert _oi_confirm_points(0.50, 5) == 1
-    assert _oi_confirm_points(0.40, 5) == 1         # inclusive lower edge
-    assert _oi_confirm_points(0.30, 5) == -1
-    assert _oi_confirm_points(0.25, 5) == -1        # inclusive lower edge
-    assert _oi_confirm_points(0.10, 5) == -2
-    assert _oi_confirm_points(0.0, 5) == -2
-
-
-def test_oi_confirm_feeds_conviction_score():
-    # Four distinct opening contracts (oi_n=4 ≥ 3, confirm=1.0) → +2; four distinct
-    # closing contracts (confirm=0.0) → −2. Verifies the component reaches the score.
-    def _contracts(sym, sign):
-        return [
-            _oi_row(sym, "Call", "ask", "100000", spot="100", strike=str(110 + i),
-                    dte="10", oi_change=str(sign * 500), exp="2026-07-17")
-            for i in range(4)
-        ]
-    rollup = _flow_ticker_rows(_contracts("OPENS", 1) + _contracts("CLOSE", -1))
-    score_flow_rollup(rollup)
-    parts = {r["symbol"]: r["score_parts"]["oi_confirm"] for r in rollup}
-    assert parts["OPENS"] == 2
-    assert parts["CLOSE"] == -2
 
 
 def test_oi_breakdown_csv_empty_without_enrichment():

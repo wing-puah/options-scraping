@@ -36,11 +36,6 @@ ENGINES: dict[str, EngineConfig] = {
         tab="AnalysisClaude",
         default_model="claude-opus-5",
     ),
-    "codex": EngineConfig(
-        method_file=ROOT / "config/analysis-methods/codex.md",
-        tab="AnalysisGPT",
-        default_model=None,  # fall back to Codex's configured default model
-    ),
 }
 
 DEFAULT_ENGINE = "claude"

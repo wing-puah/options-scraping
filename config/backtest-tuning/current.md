@@ -3,6 +3,31 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-13, bear_put demotion mechanism CHOSEN).** The one
+decision the 08-11 holdout left with the operator is made: the bear_put
+demotion ships as **card rule §1.4 in `deployment-rules.md`** — bear debit
+(`bear_put_spread` / `long_put`) is vetoed **as a selection play**, with the §4
+hedge sleeve explicitly carved out. Intake veto rejected (it would empty the
+sleeve's candidate pool); zero historical deployments change (every bear row
+was already Tier C or VETO). This supersedes the 08-11 closed-thread note
+"resolved WITHOUT a demotion mechanism" — same substance, now explicit on the
+card, closing the thin-day loophole by which Tier C could still deploy a bear
+play. `deployment-evidence.md` closed-threads updated. The open queue for the
+next session now lives in [`next-steps.md`](next-steps.md). Entry below.
+Prior state follows.
+
+**State of play (2026-08-13, method-config audit).** A cross-check of the v4
+method docs against this log and `deployment-rules.md` closed three loose
+ends: the `conviction-score.md` **≈ −25** `IVspr` directional-veto threshold
+is **RETIRED** (stale on the matched-pair spread definition; `iv_spread`
+itself stays decision-relevant via the bear_put demotion read), the
+deterministic conviction `Score`'s `OIConfirm` component (built on the
+already-killed `oi_confirm_pct`) is **REMOVED — folded into v4 by operator
+decision, no tab bump** (rows ≤2026-08-12 carry the old composition), and the
+**codex engine is retired** (codex.md deleted, AnalysisGPT tabs go
+historical). No rollup/schema columns removed. Entry below. Prior state
+follows.
+
 **State of play (2026-08-13).** Two studies pre-registered AND RUN the same day,
 each graded through the new two-analyst replication protocol
 (`replication-protocol.md`, agents in `.claude/agents/`). **Nothing ships from
@@ -118,6 +143,93 @@ and filter the 301 legacy bs rows out by `proxy_method` at read time;
 operator sometimes trades naked where the engine emitted a spread, which
 breaks the live walk-forward's attribution. Next study queued: the ML
 combination search — plan pre-written in [`ml-plan.md`](ml-plan.md), NOT run.
+
+---
+
+## 2026-08-13 — bear_put demotion mechanism CHOSEN: card-level selection veto (§1.4), hedge sleeve carved out
+
+Operator decision, not a new study. No backtest run; no numbers change.
+
+**The verdict being implemented** (2026-08-11, `bear_deploy` +
+completed-book holdout): all pre-registered DEMOTE criteria fired at n=164
+out-of-sample; bear SELECTION is unfixable (0 of 496 conditioned subsets
+positive, best subset still −0.231); bear as a HEDGE is real (pays on the
+deployed book's worst decile, date-level corr −0.13, D2 met on all three
+criteria; D4 pick rule `|delta|` DESCENDING; ≤ ½ size).
+
+**Mechanism chosen: card veto, not intake veto, not Tier-C-status-quo.**
+The three candidates and why the middle one won:
+
+1. **Intake veto** (bear_call treatment) — REJECTED. §4's hedge sleeve picks
+   from "the day's bear candidates", i.e. analysis emissions; an intake veto
+   would remove the only instrument that pays on the book's worst dates. The
+   operator's constraint was explicit: bear_put must survive as a hedge.
+2. **Card rule §1.4** — CHOSEN. `bear_put_spread` / `long_put` never deploy as
+   a selection play, however thin the day's A/B supply; the §4 sleeve is
+   carved out by name. Emissions, rows, and the sleeve's candidate pool are
+   untouched.
+3. **Tier-C status quo** (the 08-11 closed-thread position: "resolved WITHOUT
+   a mechanism") — SUPERSEDED. Empirically equivalent on the historical book
+   (all 370 bear rows were already Tier C or VETO; zero deployments change),
+   but Tier C is "skip when capital-constrained", which left a thin-day path
+   for a bear_put into the top-3. The card rule closes it and gives the deploy
+   morning a one-line rule instead of a soft expectation.
+
+**Files:** `deployment-rules.md` §1.4 (new) + §4 lead paragraph;
+`deployment-evidence.md` closed-threads "bear_put DEMOTION question" updated
+with the supersession. The `long_put` inclusion follows the demote family as
+studied (bear debit = `bear_put_spread` + `long_put`, the ratchet's own
+definition); `bear_call_spread` stays intake-vetoed, unchanged.
+
+---
+
+## 2026-08-13 — method-config audit: −25 veto RETIRED, OIConfirm dropped from Score (in-v4), codex engine retired
+
+Not a data study — a cross-read of this log + `deployment-rules.md` against
+`config/analysis-framework.md`, `config/analysis-methods/claude.md`,
+`config/conviction-score.md`, and `scripts/analysis_pipeline/config.py`.
+No backtest run.
+
+### 1. Already aligned — nothing to fix
+The v4 trim (`score_flow`/`score_dealer` dropped, `iv_pct` sizing flag not a
+gate, `bear_call_spread` intake veto, `score_total` decision-irrelevant
+tie-break) is correctly stated everywhere it is referenced (framework Step 5,
+method docs, architecture.md, deployment-rules §6).
+
+### 2. `conviction-score.md` — ≈−25 `IVspr` veto RETIRED
+Carried a STALE tag since the matched-pair redefinition + 2026-07-02 paper
+filters; never re-derived. Now RETIRED outright — no fixed `IVspr` threshold
+as a play-level veto. The column stays: one of only two decision-relevant
+enrichment columns (`deployment-evidence.md`, `ml-plan.md`), through
+`bear_put_spread × iv_spread` (confirmed archive/04 §3, archive/05 §2,
+archive/06; 6th read in this file's 2026-08-11 close-out).
+
+### 3. `OIConfirm` REMOVED from the deterministic conviction `Score` — in v4
+Input `oi_confirm_pct` was killed in the 2026-08-11 ML full-column sweep
+(r ≈ −0.03 vs realized P&L, composition artifact; long annotated
+"placeholder only"). The derived −2/−1/+1/+2 component
+(`lib/flow_summary/core.py` `_oi_confirm_points` → `score_flow_rollup`) is
+deleted; single-day Score ceiling 14 → 12 (17 → 15 with persistence).
+`Score`/`ScoreLabel` are LLM-visible inputs, so by the letter of the `vN_`
+convention this is a version bump; **operator decision 2026-08-13: fold into
+v4, no tab rename** — v4 was 2 days old. Discontinuity marker: v4 rows dated
+≤2026-08-12 scored with the old composition. The `oi_confirm_pct` column,
+`OIConfirmPct` rollup field, and the `enrich_oi` chain all STAY (eod_iv
+feeds `iv_spread`; the column remains study-readable).
+
+### 4. Codex engine retired
+`config/analysis-methods/codex.md` deleted; `codex` removed from `ENGINES`;
+AnalysisGPT tabs (v3_ and v4-era) stay in the spreadsheet as historical,
+nothing writes to them; `/options summary` reads AnalysisClaude only. This
+also disposes of the two contradictions the audit found in codex.md (§299
+score-band promotion language vs the tie-break-only rule; §180 "two to four
+plays" vs the 8-play coverage floor) — moot with the file.
+
+### 5. No rollup-column removal
+`ROW_COLUMNS`/`ROLLUP_METRIC_COLS` unchanged. Era-stable schemas for the
+study loaders, and the ML-search reopen condition is "new columns" — the
+non-decision-relevant columns (oi_confirm_pct, cpir, iv_skew, iv_pct) are
+cheap provenance, not clutter.
 
 ---
 

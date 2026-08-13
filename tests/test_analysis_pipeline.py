@@ -205,13 +205,11 @@ def test_dates_to_process_range_is_weekdays_only():
     assert out == ["2026-04-17", "2026-04-20"]
 
 
-def test_engine_registry_covers_both_engines():
-    assert set(ENGINES) == {"claude", "codex"}
+def test_engine_registry_covers_claude():
+    assert set(ENGINES) == {"claude"}
     assert set(_RUNNERS) == set(ENGINES)  # every engine has a runner
     assert ENGINES["claude"].tab == "AnalysisClaude"
-    assert ENGINES["codex"].tab == "AnalysisGPT"
     assert ENGINES["claude"].default_model == "claude-opus-5"
-    assert ENGINES["codex"].default_model is None  # falls back to codex's config
 
 
 def test_engine_method_files_exist():

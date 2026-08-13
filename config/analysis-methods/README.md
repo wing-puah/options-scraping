@@ -10,7 +10,6 @@ selected.
 
 Current methods:
 
-- `codex.md` - Codex / OpenAI analysis method
 - `claude.md` - Claude / Anthropic analysis method
 
 When adding another model, create a separate file matching this naming. Each file

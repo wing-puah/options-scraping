@@ -2,7 +2,7 @@
 name: options
 description: >
   Options trading toolkit. Analyzes barchart unusual activity and flow
-  data scraped to Google Sheets. Modes: analyze (Claude + GPT analysis),
+  data scraped to Google Sheets. Modes: analyze (Claude analysis),
   summary (show latest stored analysis), positions (cross-reference open positions).
 ---
 
@@ -30,27 +30,26 @@ isolated headless engine call, so the analysis framework, method file, and raw
 flow data never enter this conversation's context. (User-tunable settings live in
 `scripts/analysis_pipeline/config.py`.)
 
-The pipeline is model-agnostic via `--engine`:
+The pipeline is model-agnostic via `--engine` (currently one engine registered):
 
 - `claude` (default) → `claude -p`, method `claude.md`, writes **AnalysisClaude**
-- `codex` → `codex exec`, method `codex.md`, writes **AnalysisGPT**
 
 ### Steps
 
 1. Parse args from the invocation (everything after `analyze`):
-   - `claude` | `codex` — engine token (default `claude`); map to `--engine`
+   - `claude` — engine token (default `claude`); map to `--engine`
    - `--date YYYY-MM-DD` — single date (omit for latest available)
    - `--start YYYY-MM-DD` / `--end YYYY-MM-DD` — range (weekdays only)
    - `--tickers NVDA,AMD,SPY` — ticker-focused run: narrows the per-ticker flow
      tables and returns plays only for these names (full market read retained).
      Writes to the **AnalysisTickerSpecific** tab, NOT the engine's daily tab.
    - `--days N` — persistence window
-   - `--model NAME` — override the engine's model (default: claude→`opus`, codex→its configured model)
+   - `--model NAME` — override the engine's model (default: claude→`opus`)
    - `--dry-run` — fetch + analyze but do not write to Sheets
    - `--yes` — skip the confirmation in step 2
 2. Unless `--yes` or `--dry-run`, confirm intent with the user (this writes to
-   the engine's tab — AnalysisClaude for claude, AnalysisGPT for codex; or
-   AnalysisTickerSpecific when `--tickers` is given).
+   the engine's tab — AnalysisClaude for claude; or AnalysisTickerSpecific
+   when `--tickers` is given).
 3. Run the pipeline and stream its report back:
 
    ```bash
@@ -72,13 +71,12 @@ Print this when invoked with no arguments:
 options — Options Flow Intelligence
 
   /options analyze
-      Fetch latest barchart data from Google Sheets, run Claude analysis
-      in-context, and also run GPT-4o analysis via OpenAI API.
-      Results are written to AnalysisClaude and AnalysisGPT tabs.
-      ⚠ This consumes Claude context and OpenAI API tokens.
+      Fetch latest barchart data from Google Sheets and run analysis via a
+      headless Claude engine call (isolated context).
+      Results are written to the AnalysisClaude tab.
 
   /options summary
-      Display the latest stored analyses from AnalysisClaude and AnalysisGPT
+      Display the latest stored analyses from AnalysisClaude
       without running new analysis. Zero token cost.
 
   /options positions

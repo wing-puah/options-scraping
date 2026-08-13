@@ -1,8 +1,8 @@
 # Options Trading Toolkit
 
 Automated options-flow intelligence: scrapes barchart.com on a schedule, stores raw
-data in Google Drive, compiles and enriches it, then runs dual LLM analysis
-(Claude + GPT Codex) and surfaces the results in Google Sheets and a Next.js dashboard.
+data in Google Drive, compiles and enriches it, then runs LLM analysis via Claude
+and surfaces the results in Google Sheets and a Next.js dashboard.
 
 ## Architecture
 
@@ -20,7 +20,6 @@ Google Drive (OAuth2 personal account)
     │ scripts/analysis_pipeline/fetch.py → markdown to the engine
     ▼
 Claude Code  (/options analyze)              ──► AnalysisClaude tab
-GPT Codex    (/options analyze --engine codex) ──► AnalysisGPT tab
     │
     ▼
 Google Sheets (service account) ──► Next.js Dashboard (web/, localhost:3000)
@@ -111,9 +110,6 @@ npm run dev   # http://localhost:3000
 # Run analysis (fetch → headless engine → write Sheets). Claude by default.
 /options analyze
 
-# Same pipeline via GPT Codex → AnalysisGPT tab
-/options analyze codex
-
 # Display latest stored analysis (no token cost)
 /options summary
 
@@ -123,8 +119,8 @@ npm run dev   # http://localhost:3000
 
 `/options analyze` shells out to `python3 -m scripts.analysis_pipeline`; the LLM step
 runs in an isolated headless session so the framework/raw data never enter the calling
-agent's context. The engine is model-agnostic via `--engine` (`claude` → `claude -p`,
-`codex` → `codex exec`); `--model` overrides the default. All operator-tunable settings
+agent's context. The engine is model-agnostic via `--engine` (currently `claude` →
+`claude -p`); `--model` overrides the default. All operator-tunable settings
 live in `scripts/analysis_pipeline/config.py`.
 
 ### Scheduled analysis
@@ -156,7 +152,6 @@ python3 scripts/collector/enrich_oi.py --date 2026-06-09 --force
 
 # Full analysis pipeline directly (without the skill)
 python3 -m scripts.analysis_pipeline --date 2026-04-21
-python3 -m scripts.analysis_pipeline --engine codex
 python3 -m scripts.analysis_pipeline --skip-llm --dry-run
 ```
 
@@ -200,7 +195,7 @@ are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` s
 | Tab             | Written by                                                           |
 | --------------- | -------------------------------------------------------------------- |
 | AnalysisClaude  | `/options analyze` via Claude Code (one row per ticker/play per run) |
-| AnalysisGPT     | `/options analyze --engine codex` via GPT Codex                      |
+| AnalysisGPT     | retired (historical) — was `/options analyze --engine codex` via GPT Codex; the codex engine was removed 2026-08-13, tab kept for old rows |
 | BaselineDaily   | `build_baseline.py` (one market-aggregate row per trading date)      |
 | BacktestResults | `backtest.py` (optional)                                             |
 | \_meta          | `sheets_client.py` (dedup hashes)                                    |
@@ -211,9 +206,9 @@ are written to `BacktestResults` (optional) plus the per-day `daily_price_csv` s
   Actions cookies don't persist between runs (acceptable for the scheduled cadence).
 - The market-hours guard uses `America/New_York` regardless of system timezone; GitHub
   Actions runs in UTC.
-- The `AnalysisClaude` / `AnalysisGPT` tabs are **append-only** — each run adds one MARKET
-  row plus one row per ticker/play. Never clear them without explicit confirmation; the
-  backtest depends on the stored history.
+- The `AnalysisClaude` tab (and the retired `AnalysisGPT` tab's existing history) is
+  **append-only** — each run adds one MARKET row plus one row per ticker/play. Never
+  clear it without explicit confirmation; the backtest depends on the stored history.
 - A later `compile_flow` re-run regenerates the compiled file and drops the enrichment
   columns; the next `enrich_oi --backfill` re-adds them.
   </content>
