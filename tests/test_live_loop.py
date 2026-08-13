@@ -17,15 +17,24 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from live_loop.stage1_map_fills import (
-    DIRECTION,
-    SIDE,
-    _CONF_RANK,
-    _live_to_canonical,
-    ladder_tier,
-    map_entry,
-    play_structure,
-)
+# stage1_map_fills resolves its IBKR snapshot at IMPORT time and raises
+# SystemExit when backtests/live_loop/ has no ibkr_snapshot_*.json — true in
+# every worktree (backtests/ is gitignored data). Without this guard that
+# SystemExit aborts the ENTIRE pytest run as an INTERNALERROR, not just this
+# module, which is why the suite used to need --ignore=tests/test_live_loop.py.
+try:
+    from live_loop.stage1_map_fills import (
+        DIRECTION,
+        SIDE,
+        _CONF_RANK,
+        _live_to_canonical,
+        ladder_tier,
+        map_entry,
+        play_structure,
+    )
+except SystemExit as exc:
+    pytest.skip(f"live_loop snapshot data not present: {exc}",
+                allow_module_level=True)
 
 
 # --------------------------------------------------------------------------
