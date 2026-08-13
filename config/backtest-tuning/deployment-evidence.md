@@ -336,6 +336,81 @@ waved through.
 
 ---
 
+## Deployment reference stats
+
+Look-up table for deploy time. Source: `bear_giveback` study ARM S, 2026-08-12,
+`backtests/study_output/bear_giveback-latest.txt`. Book = **795 rows, real+tweak
+only** (bs excluded — attenuating). **Profit factor (PF) = gross winning $ /
+|gross losing $|** on realized R. **PF < 1.0 means the cell lost money however
+good its win rate looks.**
+
+**Read these as in-sample descriptions of the book, not predictions.** They do
+not override the ladder — the ladder is the decision rule and these are the
+numbers behind it. Cells below n≈20 move a lot.
+
+### By ladder tier — monotone in PF, which is the point
+
+| Tier | n | Win | PF | mean R | $ |
+|---|---|---|---|---|---|
+| **A** | 131 | 63% | **2.29** | +0.400 | +50,017 |
+| **B** | 166 | 67% | **1.78** | +0.303 | +32,141 |
+| C | 408 | 43% | 0.79 | −0.098 | −41,516 |
+| VETO | 90 | 32% | 0.34 | −0.394 | −28,311 |
+
+### By structure
+
+| Structure | n | Win | PF | mean R | $ |
+|---|---|---|---|---|---|
+| `bull_call_spread` | 242 | 60% | **2.05** | +0.329 | +79,392 |
+| `bull_put_spread` | 166 | **68%** | **0.94** | +0.063 | −2,163 |
+| `bear_put_spread` | 327 | 37% | 0.74 | −0.114 | −44,774 |
+| `bear_call_spread` | 37 | 32% | 0.19 | −0.578 | −11,221 |
+| `long_put` | 6 | 17% | 0.01 | −0.613 | −4,884 |
+| `long_call` | 8 | 0% | 0.00 | −0.522 | −8,221 |
+
+**`bull_put_spread` is the entry to read twice: 68% win — the highest of any
+structure — at PF 0.94 and −$2.2k.** Two-thirds of them win and the book still
+loses money, because the losers are far bigger than the winners. **Win rate is
+not a deploy criterion.** This is the fat-left-tail problem the §3 geometry band
+exists to manage.
+
+### The deploy cell: `bull_call_spread` by model regime × vol
+
+| Regime + vol | n | Win | PF | mean R | $ |
+|---|---|---|---|---|---|
+| RANGE + H-VOL | 13 | 77% | 9.80 | +0.644 | +10,425 |
+| **RANGE + E-VOL** | **50** | 66% | **2.99** | +0.543 | +25,423 |
+| BULL + C-VOL | 40 | 75% | 5.01 | +0.544 | +24,507 |
+| BEAR + E-VOL | 20 | 65% | 2.37 | +0.446 | +6,760 |
+| RANGE + L-VOL | 15 | 53% | 1.81 | +0.197 | +3,700 |
+| RANGE + C-VOL | 32 | 56% | 1.35 | +0.179 | +4,926 |
+| BULL + L-VOL | 60 | 43% | 1.07 | +0.033 | +1,919 |
+
+RANGE + E-VOL at n=50 is the only large, high-PF cell — this is the Tier A
+engine. RANGE + H-VOL's PF 9.80 is **n=13; do not read it as a better cell**.
+BULL + L-VOL is where bull_calls go to do nothing (PF 1.07 on 60 rows).
+
+### By mech cell × structure (mech = the exit-conditioning label)
+
+| Mech cell | Structure | n | Win | PF | mean R | $ |
+|---|---|---|---|---|---|---|
+| BEAR_HE | `bull_call_spread` | 95 | 64% | 2.58 | +0.463 | +38,787 |
+| BEAR_HE | `bull_put_spread` | 90 | 67% | 1.25 | +0.063 | +5,083 |
+| BEAR_HE | `bear_put_spread` | 218 | 35% | 0.66 | −0.164 | −40,277 |
+| BEAR_HE | `bear_call_spread` | 31 | 35% | 0.27 | −0.440 | −7,461 |
+| LVOL | `bull_call_spread` | 125 | 54% | 1.58 | +0.192 | +26,912 |
+| LVOL | `bear_put_spread` | 91 | 46% | 1.18 | +0.088 | +7,347 |
+| LVOL | `bull_put_spread` | 61 | 67% | 0.63 | +0.027 | −5,689 |
+| RB_EVOL | all | 17 | — | <1 | negative | −7,289 |
+
+Two things worth carrying to deploy time: **bull_call in BEAR_HE is the single
+best large cell in the book** (PF 2.58, n=95) — buying calls into mechanical
+bear/high-vol tape is where the engine earns, which is counter-intuitive enough
+to state plainly; and **`bear_put_spread` in LVOL is the only bear cell with
+PF > 1** (1.18, n=91), consistent with the chop-hedge slice in D1.
+
+---
+
 ## Open pre-registered rollback triggers
 
 Live commitments. Each was written **before** its rule shipped and must be

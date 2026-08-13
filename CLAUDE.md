@@ -75,6 +75,21 @@ python3 -m scripts.backtest --config config/backtest.yml --dry-run
 # Proxy-backtest untested plays (AnalysisClaude minus BacktestResults → BacktestProxy tab)
 python3 -m scripts.backtest.proxy --config config/backtest.yml   # all dates, idempotent
 
+# Underlying stock OHLC cache (research tier — feeds studies that need real bars)
+python3 scripts/collector/fetch_underlying_ohlc.py     # every book ticker, one request each
+python3 scripts/collector/fetch_underlying_ohlc.py --date 2026-04-07 --dry-run
+# Date flags select TICKERS and drive the coverage gate; they do not window the feed.
+# Flags split-adjusted tickers into backtests/underlying_ohlc_cache/rescaled_tickers.txt
+# (a basis warning — their % moves stay valid, only $ moves are withheld).
+
+# Counterpart option history (research tier — makes VOL structures priceable)
+python3 scripts/collector/fetch_counterpart_history.py --dry-run
+python3 scripts/collector/fetch_counterpart_history.py --limit 200   # resumable
+# Fetches the opposite-type, same-strike mirror of every book entry leg into the
+# SAME backtests/option_history_cache/ under the SAME filename convention, so the
+# existing pricing path reads them with no code change. ~1,250 contracts; takes
+# straddle-ability from 15/481 (ticker,expiry) groups to 481/481.
+
 # Backtest tuning studies (research tier — reports, not production)
 python3 -m scripts.backtest_study list                 # available studies
 python3 -m scripts.backtest_study run bear_deploy      # → backtests/study_output/<name>-latest.txt
@@ -140,6 +155,7 @@ lib/                        ← shared modules, imported by scripts, never run d
 scripts/                    ← entry points, each maps to a workflow step
   collector/                — scrape_flow.py, enrich_oi.py, fetch_iv_percentile.py,
                               fetch_counterpart_iv.py, fetch_price_catalyst.py
+                              fetch_underlying_ohlc.py, fetch_counterpart_history.py
                               (run as `python scripts/collector/<name>.py`)
   compile_flow.py           — dedupe a day's hourly snapshots → compiled CSV in Drive
   gc_flow.py                — trash raw snapshots verified-present in the compiled file
@@ -154,7 +170,13 @@ scripts/                    ← entry points, each maps to a workflow step
                               Tuning studies that argue about the book: run.py = runner
                               (`python -m scripts.backtest_study`); harness.py = FROZEN exit-replay
                               engine (do not edit — every recorded conclusion rests on it);
-                              book.py = pooled real+proxy book loader; protocol.py = purged
+                              book.py = pooled real+proxy book loader; underlying.py = daily
+                              stock bars (real OHLC → `Price~` close-only fallback; the
+                              all-legs widening harness.py must not get);
+                              underlying_features.py = as-of-entry price-STATE columns
+                              (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta —
+                              the OHLC-only two carry a smaller denominator, always print
+                              `coverage()`); protocol.py = purged
                               walk-forward / date-clustered CIs / LOO. Reports land in
                               backtests/study_output/ (scratch); conclusions in
                               config/backtest-tuning/current.md

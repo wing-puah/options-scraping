@@ -37,7 +37,8 @@ OUT_DIR = ROOT / "backtests" / "study_output"
 
 # Shared data layer, not runnable studies (`book` is listed anyway — its
 # --validate diagnostics table is the standard pre-flight before any study).
-INFRA = {"__init__", "__main__", "run", "harness", "protocol"}
+INFRA = {"__init__", "__main__", "run", "harness", "protocol", "underlying",
+         "underlying_features"}
 
 # Flags a study needs but has no sensible argparse default for. Applied only
 # when the caller did not pass that flag themselves.

@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.backtest_study.protocol import (  # noqa: E402
     boot_ci_by_date, boot_ci_paired_by_date, ladder_eligible, ladder_rank,
-    loo_by_date, replay_stats, sign_stable, top_k_per_day, walk_forward_splits,
-    window_cuts, year_epoch_split,
+    loo_by_date, ordered_by_day, replay_stats, sign_stable, top_k_per_day,
+    walk_forward_splits, window_cuts, year_epoch_split,
 )
 
 
@@ -130,6 +130,28 @@ def test_pre_13c_scores_do_not_tie_break():
     a = _row("2025-01-02", "A", score=90, post13c=False)
     b = _row("2025-01-02", "A", score=10, post13c=True)
     assert ladder_rank(a)[1] == 0.0 and ladder_rank(b)[1] == 10.0
+
+
+def test_ordered_by_day_matches_top_k_per_day():
+    """The stateful traversal order IS the ladder: truncating each day's ranked
+    candidates at k must reproduce top_k_per_day exactly (same rows, same order).
+    """
+    rows = [_row("2025-01-02", "A", score=10), _row("2025-01-02", "B", score=90),
+            _row("2025-01-02", "A", score=50), _row("2025-01-02", "B", score=20),
+            _row("2025-01-03", "C", score=99), _row("2025-01-03", "B", score=5),
+            _row("2025-01-04", "A", score=None)]
+    via_ordered = [r for _, ranked in ordered_by_day(rows, ladder_rank, ladder_eligible)
+                   for r in ranked[:3]]
+    assert via_ordered == top_k_per_day(rows, ladder_rank, k=3,
+                                        eligible_fn=ladder_eligible)
+
+
+def test_ordered_by_day_days_are_sorted_and_filtered():
+    rows = [_row("2025-01-03", "A"), _row("2025-01-02", "B"),
+            _row("2025-01-02", "VETO")]
+    out = ordered_by_day(rows, ladder_rank, ladder_eligible)
+    assert [d for d, _ in out] == ["2025-01-02", "2025-01-03"]
+    assert [len(rs) for _, rs in out] == [1, 1], "VETO row must be filtered"
 
 
 def test_replay_stats_counts_dollars_dates_and_wins():

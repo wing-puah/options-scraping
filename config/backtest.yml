@@ -205,6 +205,17 @@ simulation:
   # Suppression is free on this book and keeps each rule inside the envelope it
   # was measured in.
   #
+  # SCOPE OF THAT DOMINATION (clarified 2026-08-12, comment-only): it is a
+  # property of the 0.50 THRESHOLD, not of the ratchet mechanism. The trail's
+  # floor only sits above the ratchet's for rows peaking >= 0.50; a ratchet
+  # below that arms on BEAR_HE rows the trail never reaches. Measured: swapping
+  # 0.50 -> 0.30 with suppression KEPT changes 13 rows (+0.009 vs shipped,
+  # CI [-0.006, +0.024]); STACKING 0.30 inside BEAR_HE changes 43 and is worth
+  # +0.026, CI [-0.003, +0.056], with 2024 carrying it (+0.097/+0.009/+0.007).
+  # Both fail the pre-registered bar against SHIPPED production, so nothing
+  # changed here — but do not re-derive "the trail always dominates the
+  # ratchet" from the paragraph above. See current.md §"the be_after grid RUN".
+  #
   # ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows that
   # actually arm the ratchet, i.e. reach peak P&L >= +0.50): revert `enabled` to
   # false if the total gain vs PROD on those rows is <= 0, OR if the mean R

@@ -180,6 +180,23 @@ def top_k_per_day(rows, rank_fn, k: int = 3, eligible_fn=None):
     return picked
 
 
+def ordered_by_day(rows, rank_fn, eligible_fn=None):
+    """`[(date, candidates ranked best-first)]` — the ordering `top_k_per_day`
+    applies, exposed so a STATEFUL caller (an account simulation walking a
+    capital/exposure ledger) can traverse the same ladder and stop early.
+
+    `top_k_per_day` is deliberately left untouched — every recorded conclusion
+    rests on it — and the two are pinned equal by a test
+    (tests/test_studies_protocol.py::test_ordered_by_day_matches_top_k_per_day).
+    """
+    by: dict[str, list] = {}
+    for r in rows:
+        if eligible_fn is not None and not eligible_fn(r):
+            continue
+        by.setdefault(str(r["date"]), []).append(r)
+    return [(d, sorted(by[d], key=rank_fn, reverse=True)) for d in sorted(by)]
+
+
 def ladder_rank(r):
     """A-then-B ordering for the shipped ladder, deterministic tie-break.
 
