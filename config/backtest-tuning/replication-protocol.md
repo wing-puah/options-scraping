@@ -73,9 +73,10 @@ what order, and what it does with the result.
 ## Worked example invocation
 
 Mode 1, replication grading. Two placeholders: `<pre-registration section>`
-(a `##` heading in `current.md`, e.g. `2026-08-13 — calendar_hedge:
-PRE-REGISTRATION`) and `<report path>` (e.g.
-`backtests/study_output/calendar_hedge-latest.txt`).
+(the study's file under `config/backtest-tuning/pre-registrations/`, e.g.
+`pre-registrations/calendar_hedge.md`, read whole — see
+[`pre-registrations/README.md`](pre-registrations/README.md)) and
+`<report path>` (e.g. `backtests/study_output/calendar_hedge-latest.txt`).
 
 **Step 1 — spawn A and B in one message, identical prompts:**
 
@@ -83,20 +84,18 @@ PRE-REGISTRATION`) and `<report path>` (e.g.
 Agent({
   description: "Replication grading — analyst A",
   subagent_type: "research-analyst",
-  prompt: "Mode 1 (replication grading). Read the pre-registration section
-    titled '<pre-registration section>' in
-    config/backtest-tuning/current.md, and the report at
-    <report path>. Grade every gate and criterion the pre-registration
+  prompt: "Mode 1 (replication grading). Read the pre-registration at
+    config/backtest-tuning/<pre-registration section> whole, and the report
+    at <report path>. Grade every gate and criterion the pre-registration
     lists against that report only. You are analyst A; you will not see
     analyst B's output. Follow the schema in your system prompt exactly."
 })
 Agent({
   description: "Replication grading — analyst B",
   subagent_type: "research-analyst",
-  prompt: "Mode 1 (replication grading). Read the pre-registration section
-    titled '<pre-registration section>' in
-    config/backtest-tuning/current.md, and the report at
-    <report path>. Grade every gate and criterion the pre-registration
+  prompt: "Mode 1 (replication grading). Read the pre-registration at
+    config/backtest-tuning/<pre-registration section> whole, and the report
+    at <report path>. Grade every gate and criterion the pre-registration
     lists against that report only. You are analyst B; you will not see
     analyst A's output. Follow the schema in your system prompt exactly."
 })
@@ -112,8 +111,8 @@ Agent({
   description: "Replication grading — validator",
   subagent_type: "research-validator",
   prompt: "Validate the two analyst outputs below against the same
-    pre-registration section ('<pre-registration section>' in
-    config/backtest-tuning/current.md) and report (<report path>).
+    pre-registration (config/backtest-tuning/<pre-registration section>,
+    read whole) and report (<report path>).
 
     ANALYST A OUTPUT:
     <paste A's full output>
@@ -162,8 +161,9 @@ Outputs land in `backtests/study_output/`:
 `<study>-review-validator-latest.md`, and `<study>-digest-latest.md`. Flags:
 `--skip-run` (reuse the existing `-latest.txt` instead of re-running the
 study), `--run-args "…"` (forwarded to `backtest_study run`),
-`--pre-reg-section STR` (required when heading auto-detect against
-`current.md` is ambiguous), `--positions-csv PATH` / `--no-positions-csv`
+`--pre-reg PATH` (grade against a pre-registration file other than the
+study's own `config/backtest-tuning/pre-registrations/<study>.md` — e.g. a
+renamed study or an archived copy), `--positions-csv PATH` / `--no-positions-csv`
 (override or suppress the third artifact), `--model M`, `--skip-digest`,
 `--dry-run` (exercises the pipeline with placeholder outputs, no `claude`
 calls).

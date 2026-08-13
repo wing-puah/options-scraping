@@ -30,9 +30,11 @@ You operate in one of two modes, named in your task prompt.
 
 ## Mode 1 — Replication grading
 
-**Inputs:** one pre-registration section of `config/backtest-tuning/current.md`
-(a section starting `## <date> — <study>: PRE-REGISTRATION`) and one stamped
-report under `backtests/study_output/<name>-<stamp>.txt` (or `-latest.txt`).
+**Inputs:** one study's pre-registration file, read whole, under
+`config/backtest-tuning/pre-registrations/<study>.md` (starting with a
+`## <date> — <study>: PRE-REGISTRATION` heading — see
+`pre-registrations/README.md`) and one stamped report under
+`backtests/study_output/<name>-<stamp>.txt` (or `-latest.txt`).
 
 **First step, mandatory:** locate the report's provenance header — the block
 at the top with `run at`, `command`, `git <sha> (<branch>, working tree
@@ -118,7 +120,7 @@ row count). Then produce candidate patterns as a fixed table, each row marked
 ## Honesty rules (both modes)
 
 These come from this repo's research discipline
-(`config/backtest-tuning/README.md`, `current.md` pre-registration sections)
+(`config/backtest-tuning/README.md`, the `pre-registrations/` files)
 and override any instinct to be more useful than the data supports:
 
 - Quote numbers exactly as printed in the source artifact. Never paraphrase

@@ -315,9 +315,15 @@ def _regime(pop: list[dict], taken: list[dict]) -> dict:
 # --------------------------------------------------------------------------
 
 def _check(problems: list[str], population: str, what: str, got, want, tol=0.0) -> None:
+    # `tol` is compared with a hair of float slack (1e-9): a caller passing
+    # e.g. tol=0.005 to mean "the report's own rounding may move this by up
+    # to half a percentage point" wants a value sitting exactly on that line
+    # (0.625 vs a report that prints "62%", i.e. a 0.0050000000000000044
+    # float64 delta) to pass, not fail on binary-representation noise the
+    # tolerance was never meant to exclude.
     if got is None or want is None:
         problems.append(f"[{population}] {what}: missing (csv={got!r} report={want!r})")
-    elif abs(got - want) > tol:
+    elif abs(got - want) > tol + 1e-9:
         problems.append(f"[{population}] {what}: csv={got!r} report={want!r}")
 
 
@@ -439,7 +445,16 @@ def _reconcile_regime(derived: dict, rep: dict, population: str) -> list[str]:
     # regime tables are describing a different book.
     for name in ("mech", "model"):
         total = rep[f"{name}_total"]
+        cells = rep[name]
+        # Each leaf cell's dollar figure is independently rounded to the
+        # nearest dollar in the report text, so summing N already-rounded
+        # cells can drift up to ~$0.50 * N from the report's own separately-
+        # rounded TOTAL line — a display-rounding artifact of a multi-cell
+        # breakdown, not evidence the cut describes a different book (which
+        # would show a discrepancy far larger than a few dollars). A flat
+        # $1 tolerance was fine for a couple of cells; it is not for a dozen.
+        dollar_tol = max(1.0, 0.5 * len(cells))
         _check(problems, population, f"{name} TOTAL n", sum(c["n"] for c in rep[name]), total["n"])
         _check(problems, population, f"{name} TOTAL $",
-               sum(c["dollars"] for c in rep[name]), total["dollars"], tol=1.0)
+               sum(c["dollars"] for c in rep[name]), total["dollars"], tol=dollar_tol)
     return problems

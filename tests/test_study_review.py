@@ -63,65 +63,82 @@ def test_read_persona_no_frontmatter_returns_whole_file(tmp_path):
 
 # ────────────────────────── load_pre_registration ───────────────────────────
 
-def test_load_pre_registration_single_match(tmp_path, monkeypatch):
-    current_md = tmp_path / "current.md"
-    current_md.write_text(
-        "# Tuning log\n\n"
+def test_load_pre_registration_reads_per_study_file(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "foo_study.md").write_text(
         "## 2026-08-13 — `foo_study`: PRE-REGISTRATION (written BEFORE)\n\n"
         "Criterion 1: something measurable.\n"
-        "Criterion 2: something else.\n\n"
-        "## 2026-08-13 — `foo_study` RUN: results are in\n\n"
-        "Not a pre-registration, must not be picked up.\n"
+        "Criterion 2: something else.\n"
     )
-    monkeypatch.setattr(core.config, "CURRENT_MD", current_md)
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     heading, body = load_pre_registration("foo_study", None)
     assert heading == "2026-08-13 — `foo_study`: PRE-REGISTRATION (written BEFORE)"
     assert "Criterion 1: something measurable." in body
     assert "Criterion 2: something else." in body
-    assert "RUN: results are in" not in body  # stopped at the next heading
+    assert not body.startswith("##")  # heading line stripped off the body
 
 
-def test_load_pre_registration_two_matches_raises_systemexit_listing_both(tmp_path, monkeypatch):
-    current_md = tmp_path / "current.md"
-    heading_1 = "2026-08-13 — `foo_study`: PRE-REGISTRATION (attempt 1)"
-    heading_2 = "2026-08-14 — `foo_study`: PRE-REGISTRATION (attempt 2)"
-    current_md.write_text(
-        f"## {heading_1}\n\nBody 1.\n\n"
-        f"## {heading_2}\n\nBody 2.\n"
-    )
-    monkeypatch.setattr(core.config, "CURRENT_MD", current_md)
+def test_load_pre_registration_no_leading_heading_uses_filename_as_label(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "foo_study.md").write_text("Just a plan, no heading line.\n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
-    with pytest.raises(SystemExit) as exc_info:
-        load_pre_registration("foo_study", None)
-    msg = str(exc_info.value)
-    assert heading_1 in msg
-    assert heading_2 in msg
-    assert "--pre-reg-section" in msg
+    heading, body = load_pre_registration("foo_study", None)
+    assert heading == "foo_study.md"
+    assert "Just a plan, no heading line." in body
 
 
-def test_load_pre_registration_no_match_raises_systemexit(tmp_path, monkeypatch):
-    current_md = tmp_path / "current.md"
-    current_md.write_text("## 2026-08-13 — `other_study`: PRE-REGISTRATION\n\nBody.\n")
-    monkeypatch.setattr(core.config, "CURRENT_MD", current_md)
+def test_load_pre_registration_missing_file_raises_systemexit_listing_available(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "other_study.md").write_text("## other_study: PRE-REGISTRATION\n\nBody.\n")
+    (pre_reg_dir / "README.md").write_text("Not a study — must be excluded from the listing.\n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     with pytest.raises(SystemExit) as exc_info:
         load_pre_registration("unknown_study", None)
-    assert "--pre-reg-section" in str(exc_info.value)
+    msg = str(exc_info.value)
+    assert "other_study" in msg
+    assert "README" not in msg
+    assert "--pre-reg" in msg
 
 
-def test_load_pre_registration_explicit_section_title(tmp_path, monkeypatch):
-    current_md = tmp_path / "current.md"
-    current_md.write_text(
-        "## 2026-08-13 — `foo_study`: PRE-REGISTRATION (attempt 1)\n\nBody A.\n\n"
-        "## 2026-08-14 — `foo_study`: PRE-REGISTRATION (attempt 2)\n\nBody B.\n"
-    )
-    monkeypatch.setattr(core.config, "CURRENT_MD", current_md)
+def test_load_pre_registration_empty_file_raises_systemexit(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "foo_study.md").write_text("   \n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
-    heading, body = load_pre_registration(
-        "foo_study", "2026-08-14 — `foo_study`: PRE-REGISTRATION (attempt 2)")
-    assert "Body B." in body
-    assert "Body A." not in body
+    with pytest.raises(SystemExit) as exc_info:
+        load_pre_registration("foo_study", None)
+    assert "empty" in str(exc_info.value).lower()
+
+
+def test_load_pre_registration_override_path_bypasses_pre_reg_dir(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    override_path = tmp_path / "archived" / "foo_study_old.md"
+    override_path.parent.mkdir()
+    override_path.write_text("## archived — foo_study: PRE-REGISTRATION\n\nArchived body.\n")
+
+    heading, body = load_pre_registration("foo_study", str(override_path))
+    assert heading == "archived — foo_study: PRE-REGISTRATION"
+    assert "Archived body." in body
+
+
+def test_load_pre_registration_override_missing_file_raises_systemexit(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "foo_study.md").write_text("## foo_study: PRE-REGISTRATION\n\nBody.\n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    with pytest.raises(SystemExit):
+        load_pre_registration("foo_study", str(tmp_path / "does-not-exist.md"))
 
 
 # ─────────────────────────────── prompt builders ────────────────────────────
@@ -284,8 +301,9 @@ def test_main_dry_run_writes_placeholders_and_never_calls_subprocess(tmp_path, m
     study_output_dir.mkdir()
     (study_output_dir / "somestudy-latest.txt").write_text("REPORT CONTENT HERE")
 
-    current_md = tmp_path / "current.md"
-    current_md.write_text(
+    pre_reg_dir = tmp_path / "pre-registrations"
+    pre_reg_dir.mkdir()
+    (pre_reg_dir / "somestudy.md").write_text(
         "## 2026-08-13 — `somestudy`: PRE-REGISTRATION (written BEFORE)\n\n"
         "Gate 1: some criterion.\n"
     )
@@ -296,7 +314,7 @@ def test_main_dry_run_writes_placeholders_and_never_calls_subprocess(tmp_path, m
     validator_persona.write_text("---\nmodel: sonnet\n---\n\nValidator persona body.\n")
 
     monkeypatch.setattr(core.config, "STUDY_OUTPUT_DIR", study_output_dir)
-    monkeypatch.setattr(core.config, "CURRENT_MD", current_md)
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
     monkeypatch.setattr(core.config, "ANALYST_PERSONA_FILE", analyst_persona)
     monkeypatch.setattr(core.config, "VALIDATOR_PERSONA_FILE", validator_persona)
     monkeypatch.setattr(core.config, "GLOSSARY_MD", tmp_path / "glossary-does-not-exist.md")

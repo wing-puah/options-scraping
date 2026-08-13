@@ -22,6 +22,14 @@ whole package always quotes the newest report. That step is best-effort: the
 report is the valuable output, and a broken map must never turn a good run into
 a failed command.
 
+For studies that have one, it also re-renders the HTML chart pages under
+`scripts/study_charts/` (today: `account_sim` only). Unlike the map, a chart
+failure is never swallowed quietly — the chart pipeline's own contract is
+reconcile-against-the-report-or-write-nothing, and a page that silently kept
+showing a previous run's numbers is exactly the bug this closes (an operator
+who changed a config, reran the study, and got a chart page that never moved).
+See `_render_charts` below for the exact failure-visibility rule.
+
 Outputs live under `backtests/` because they are data, not source — the whole
 tree is gitignored scratch. The code lives here, under `scripts/`.
 """
@@ -29,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib
 import subprocess
 import sys
 import time
@@ -39,6 +48,16 @@ ROOT = Path(__file__).resolve().parents[2]
 PKG = "scripts.backtest_study"
 STUDY_DIR = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "backtests" / "study_output"
+
+# Studies with an HTML chart-rendering pipeline under scripts/study_charts/.
+# A study with no entry here gets no chart render attempt — most studies have
+# no chart page, and that is not an error. Each module is a page that shares
+# scripts/study_charts/cli.py's arm-pairing and reconcile-or-write-nothing
+# rules; account_sim currently has two (the feasibility readout + the by-regime
+# cut), both drawn from the same run's report + positions CSV.
+CHART_MODULES = {
+    "account_sim": ["scripts.study_charts.account_sim", "scripts.study_charts.regime"],
+}
 
 # Shared data layer, not runnable studies (`book` is listed anyway — its
 # --validate diagnostics table is the standard pre-flight before any study).
@@ -136,6 +155,62 @@ def _merge_args(name: str, extra: list[str]) -> list[str]:
     return merged + extra
 
 
+def _render_charts(name: str, argv: list[str]) -> None:
+    """Re-render `name`'s chart pages (no-op if it has none), against whichever
+    arm this run's own argv shows it took.
+
+    Imported here, not at module scope, for the same reason as the map import
+    below: nothing about running a study should depend on study_charts being
+    importable.
+
+    Failure handling is deliberately NOT the map's best-effort swallow. The
+    map is a convenience index that degrades gracefully; a stale chart page
+    reads as a *current* one — there is no visual difference between "this
+    quotes the new run" and "this still quotes the old run" until someone
+    reads the numbers wrong. So a chart failure prints a loud, impossible-to-
+    miss warning naming the study, the page, and the reason, and leaves the
+    process exit code alone: `study_charts.cli.run` already refuses to write
+    a stale-looking page on reconcile failure (exit 1, nothing written), so
+    the previous page — old but honestly old — survives untouched. The study
+    report itself is valid and already on disk either way, so a chart problem
+    must never be reported as a study-run failure.
+    """
+    modules = CHART_MODULES.get(name)
+    if not modules:
+        return
+    # account_sim writes one positions CSV per arm (cli.is_structure_arm keys
+    # off the filename); point the chart pipeline at whichever one this run's
+    # own argv says it just wrote, so the render pairs with the report that
+    # was just written rather than the default (plain-arm) positions file.
+    stem = "account_sim-positions"
+    if "--structure-universe" in argv:
+        stem += "-structure"
+    positions = OUT_DIR / f"{stem}-latest.csv"
+    for mod_name in modules:
+        try:
+            module = importlib.import_module(mod_name)
+            rc = module.main(["--positions", str(positions)])
+        except SystemExit as exc:
+            # cli.py raises SystemExit(<message>) for setup problems (no
+            # positions CSV, no matching report, wrong arm) rather than
+            # returning a code — surface that message rather than collapsing
+            # it to a bare "exit 1".
+            if isinstance(exc.code, int):
+                rc = exc.code
+            else:
+                print(f"\n*** CHART RENDER FAILED for {name} ({mod_name}): {exc.code} ***", file=sys.stderr)
+                continue
+        except Exception as exc:  # noqa: BLE001 - report it, never crash the run over a chart
+            print(f"\n*** CHART RENDER FAILED for {name} ({mod_name}): {exc} ***", file=sys.stderr)
+            continue
+        if rc:
+            print(f"\n*** CHART RENDER FAILED for {name} ({mod_name}): exit {rc} — "
+                  f"its page was NOT updated and may be quoting a stale run; "
+                  f"see the reconciliation output above ***", file=sys.stderr)
+        else:
+            print(f"  chart refreshed: {mod_name} ({positions.name})")
+
+
 def run_one(name: str, extra: list[str], dry_run: bool = False) -> tuple[int, Path]:
     argv = _merge_args(name, extra)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -168,7 +243,7 @@ def run_one(name: str, extra: list[str], dry_run: bool = False) -> tuple[int, Pa
     return rc, out_path
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     studies = discover()
     ap = argparse.ArgumentParser(
         prog="python -m scripts.backtest_study",
@@ -183,7 +258,10 @@ def main() -> int:
     p_run.add_argument("--no-handoff", action="store_true",
                        help="suppress the 'paste this into Claude' footer — for callers "
                             "like scripts.study_review that do the write-up themselves")
-    args, extra = ap.parse_known_args()
+    # argv=None (the default) falls through to argparse's own sys.argv[1:]
+    # read, same as before this parameter existed; passing a list is what
+    # lets tests drive main() without touching sys.argv or shelling out.
+    args, extra = ap.parse_known_args(argv)
 
     if args.cmd != "run":
         width = max(len(n) for n in studies)
@@ -216,6 +294,13 @@ def main() -> int:
         status = "" if rc == 0 else f"  *** FAILED rc={rc} ***"
         rel = (OUT_DIR / f"{name}-latest.txt").relative_to(ROOT)
         print(f"  {rel}{status}")
+
+    # Only a successful run wrote a new report + positions CSV worth quoting;
+    # a failed run leaves whatever chart page already existed alone (its own
+    # "*** FAILED ***" line above is the visible signal for that case).
+    for name, rc, _ in results:
+        if rc == 0:
+            _render_charts(name, _merge_args(name, extra))
 
     # Imported here, not at module scope: the map reads every report in the
     # output dir, and nothing about running a study should depend on it.

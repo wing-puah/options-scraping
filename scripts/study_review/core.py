@@ -47,7 +47,6 @@ from lib.logger import setup_logging  # noqa: E402  (after sys.path insert, mirr
 log = logging.getLogger("study_review")
 
 _FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
-_HEADING_RE = re.compile(r"^## (.+)$", re.MULTILINE)
 
 
 def read_persona(path: Path) -> tuple[str | None, str]:
@@ -105,52 +104,48 @@ def _study_from_report_path(report_path: Path) -> str:
     return stem[:-len("-latest")] if stem.endswith("-latest") else stem
 
 
-def load_pre_registration(study: str, section_title: str | None) -> tuple[str, str]:
-    """Locate one `## ` section of current.md and return (heading, body).
+def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
+    """Read `pre-registrations/<study>.md` whole and return (heading, body).
 
-    With an explicit `section_title`, matches that exact heading text. Without
-    one, matches headings containing both the study name and "PRE-REGISTRATION"
-    (case-insensitive on the latter only — study names are not case-folded so
-    e.g. "account_sim" doesn't accidentally match an unrelated heading).
-    Exactly one match is required; zero or multiple is a SystemExit listing
-    every candidate heading found, since current.md routinely carries several
-    same-day pre-registrations for different studies and this ambiguity is
-    real, not a bug to paper over."""
-    text = config.CURRENT_MD.read_text()
-    headings = list(_HEADING_RE.finditer(text))
+    The pre-registration is what the analysts grade the run AGAINST, so the one
+    property that matters is that it is still there and still says what it said.
+    It therefore lives in its own file, read entire — no heading matching, no
+    scanning of current.md. That log is pruned into archive/ on a rolling basis
+    and its headings are edited for readability; keying this lookup off a `## `
+    section inside it meant a routine prune or a reworded heading would break
+    `study_review` at exactly the moment someone was re-grading an old study.
 
-    if section_title:
-        matches = [h for h in headings if h.group(1).strip() == section_title.strip()]
-    else:
-        study_l = study.lower()
-        matches = [
-            h for h in headings
-            if study_l in h.group(1).lower() and "pre-registration" in h.group(1).lower()
-        ]
+    `heading` is the file's first `## ` line (a label for the prompt);
+    `body` is EVERYTHING after it. A study that re-registers appends a new dated
+    section to the same file rather than overwriting, so a changed plan stays
+    visible to the graders instead of being quietly replaced — which is why the
+    whole file goes to them, not just the newest section.
 
-    if len(matches) == 1:
-        heading = matches[0]
-        start = heading.end()
-        later = [h for h in headings if h.start() > heading.start()]
-        end = later[0].start() if later else len(text)
-        return heading.group(1).strip(), text[start:end].strip()
+    `override` is an explicit path, for grading against a pre-registration that
+    is not the study's own file (a renamed study, or an archived copy).
+    """
+    path = Path(override) if override else config.PRE_REG_DIR / config.PRE_REG_PATTERN.format(study=study)
+    if not path.is_file():
+        available = sorted(p.stem for p in config.PRE_REG_DIR.glob("*.md") if p.stem != "README")
+        listed = "\n".join(f"  - {s}" for s in available) or "  (none found)"
+        raise SystemExit(
+            f"No pre-registration for study {study!r} at {path}.\n"
+            f"Studies with a pre-registration on file:\n{listed}\n"
+            "Write one before grading a run, or pass --pre-reg <path> to point at "
+            "a different file. A pre-registration is written BEFORE the study is "
+            "run; grading a run against a plan reconstructed afterwards is not a "
+            "replication check.")
 
-    # Zero or multiple matches — build the best available candidate list so
-    # the operator can pass --pre-reg-section with an exact heading.
-    if matches:
-        candidates = [h.group(1).strip() for h in matches]
-        reason = f"{len(matches)} sections matched study {study!r}"
-    else:
-        # Fall back to any heading mentioning the study name at all, even
-        # without "PRE-REGISTRATION", so a typo'd/renamed section still shows up.
-        candidates = [h.group(1).strip() for h in headings if study.lower() in h.group(1).lower()]
-        if not candidates:
-            candidates = [h.group(1).strip() for h in headings]
-        reason = f"no section matched study {study!r} + 'PRE-REGISTRATION'"
-    listed = "\n".join(f"  - {c}" for c in candidates) or "  (no headings found in current.md)"
-    raise SystemExit(
-        f"{reason} in {config.CURRENT_MD}. Candidate headings:\n{listed}\n"
-        "Pass --pre-reg-section '<exact heading>' to disambiguate.")
+    text = path.read_text().strip()
+    if not text:
+        raise SystemExit(f"Pre-registration {path} is empty — nothing to grade the run against.")
+
+    first_line, _, rest = text.partition("\n")
+    if first_line.startswith("## "):
+        return first_line[len("## "):].strip(), rest.strip()
+    # No leading heading: the whole file is the pre-registration and the path
+    # is the only label available. Still perfectly gradeable.
+    return path.name, text
 
 
 def load_positions_csv(study: str, override: str | None, skip: bool) -> str | None:
@@ -183,9 +178,9 @@ _NO_FILE_ACCESS_NOTE = (
     "This is a headless, isolated session: you have NO filesystem access and NO "
     "tools beyond generating text. Work ONLY from the artifacts inlined below in "
     "this prompt. Where your persona instructions above reference a file by path "
-    "(e.g. a report under backtests/study_output/, a section of current.md), treat "
-    "the matching inlined block below as that file's content — there is nothing "
-    "else to open."
+    "(e.g. a report under backtests/study_output/, a file under "
+    "config/backtest-tuning/pre-registrations/), treat the matching inlined "
+    "block below as that file's content — there is nothing else to open."
 )
 
 
@@ -193,8 +188,8 @@ def _artifact_blocks(section_heading: str, section_body: str, report_path: Path,
                      report_text: str, positions_csv_text: str | None) -> list[str]:
     """Artifact blocks shared by the analyst and validator prompts."""
     blocks = [
-        f'## Pre-registration section ("{section_heading}", from '
-        f"config/backtest-tuning/current.md)\n\n{section_body}",
+        f'## Pre-registration ("{section_heading}", from '
+        f"config/backtest-tuning/pre-registrations/)\n\n{section_body}",
         f"## Study report ({_rel(report_path)})\n\n{report_text}",
     ]
     if positions_csv_text:
@@ -377,10 +372,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-args", default="",
                         help="Extra args passed through to the study run, shell-quoted "
                              "(e.g. --run-args '--side debit').")
-    parser.add_argument("--pre-reg-section", default=None,
-                        help="Exact '## ...' heading in current.md to grade against. Default: "
-                             "auto-locate the one section matching both the study name and "
-                             "'PRE-REGISTRATION'.")
+    parser.add_argument("--pre-reg", default=None,
+                        help="Path to the pre-registration file to grade against. Default: "
+                             "config/backtest-tuning/pre-registrations/<study>.md.")
     parser.add_argument("--positions-csv", default=None,
                         help="Path to a positions CSV to inline. Default: "
                              "backtests/study_output/<study>-positions-latest.csv if present.")
@@ -408,7 +402,7 @@ def main(argv: list[str] | None = None) -> None:
     report_text = report_path.read_text()
     log.info("Report: %s", report_path)
 
-    section_heading, section_body = load_pre_registration(study, args.pre_reg_section)
+    section_heading, section_body = load_pre_registration(study, args.pre_reg)
     log.info("Pre-registration section: %s", section_heading)
 
     positions_csv_text = load_positions_csv(study, args.positions_csv, args.no_positions_csv)

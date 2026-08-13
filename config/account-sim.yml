@@ -16,10 +16,7 @@
 # state of its own — it reads this file and runs what it says.
 #
 # Simulating a different account is a normal use of this study: edit the values
-# below, or copy this file and pass --config. The values that were pre-registered
-# on 2026-08-13 ($25,000 / 2% / 0.25x / 1.50x) are recorded in
-# config/backtest-tuning/current.md §"`account_sim`: PRE-REGISTRATION"; that log,
-# not this file, is the record of what the frozen study ran with.
+# below, or copy this file and pass --config.
 
 # ── The account ────────────────────────────────────────────────────────────────
 account:

@@ -638,7 +638,14 @@
     // --- utilisation
     sec = section("utilisation", "How full the account ran",
       "Net delta-notional as a multiple of equity, averaged over the sessions in each month.");
-    p = panel("Monthly net delta-notional", "The cap is 1.50x equity. Months that sit against it are months where the account, not the ladder, decided how many positions it held.", { table: true });
+    // The net cap is config-driven (config/account-sim.yml); it also reads "inf"
+    // when the config sets caps.net: null, which is uncapped, not a number.
+    var netCapStr = rep.cap_grid.headline.net;
+    var netCapNum = netCapStr === "inf" ? null : parseFloat(netCapStr);
+    var utilPanelText = netCapNum === null
+      ? "The net delta-notional was uncapped for this run. Months that ran high did so on the account's own budget, not against a cap."
+      : "The cap is " + netCapNum.toFixed(2) + "x equity. Months that sit against it are months where the account, not the ladder, decided how many positions it held.";
+    p = panel("Monthly net delta-notional", utilPanelText, { table: true });
     columnChart(chartHost(p), p.table, {
       rows: rep.utilisation.map(function (u) {
         return { label: u.month, value: u.net_avg, sub: "peak " + u.net_max.toFixed(2) + "x · " + u.open_avg.toFixed(1) + " open avg" };
@@ -648,7 +655,7 @@
       valueName: "net avg",
       subName: "",
       axisTitle: "NET DELTA-NOTIONAL, MULTIPLE OF EQUITY",
-      refLine: { v: 1.5, label: "1.50x net cap" },
+      refLine: netCapNum === null ? null : { v: netCapNum, label: netCapNum.toFixed(2) + "x net cap" },
       rotateLabels: true,
       labelEvery: 2,
       title: "Monthly average net delta-notional",
