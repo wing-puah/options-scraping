@@ -34,6 +34,8 @@ CENSUS_ORDER = [
     "min1_refusal",
     "day3_cap",
     "unsizable",
+    # the compounding ruin guard's bucket; always 0 on the frozen book.
+    "ruined",
 ]
 
 # Exit reasons, ordered good -> bad, so the stacked bar reads left to right.

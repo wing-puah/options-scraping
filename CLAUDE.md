@@ -110,6 +110,18 @@ python3 -m scripts.backtest_study run --all
 # Edit that file, or copy it and pass --config, to simulate a different account;
 # there is no --capital/--risk-dollars/--per-pos-cap/--net-cap flag any more.
 python3 -m scripts.backtest_study run account_sim -- --config config/my-account.yml
+# The `compounding:` block re-marks SIZING to realized equity at fixed calendar
+# intervals (month/quarter/year): both delta caps scale with marked equity, the
+# per-position risk budget scales but is ceilinged by `budget_ceiling`. It is
+# OFF in account-sim.yml (that file is the frozen, pre-registered, path-
+# INDEPENDENT book); the arm is config/account-sim-compounding.yml. marked_equity
+# counts only positions CLOSED BEFORE the mark session — open positions are never
+# marked to market — and is a sizing number only, so G3 still balances against the
+# STARTING capital. Post-hoc: A1-A6 were pre-registered against a path-independent
+# sim, and A2/A5 DO NOT TRANSFER (their B2 benchmark compounds too, so the ratio
+# stops isolating the caps); the report says so inline. G1-G4 stay pinned to the
+# frozen basis; G5 runs sighted-vs-blind on BOTH bases and must match on each.
+python3 -m scripts.backtest_study run account_sim -- --config config/account-sim-compounding.yml
 # It also exports its deployed/skipped positions (incl. the market/ticker/
 # mechanical regime block) to backtests/study_output/account_sim-positions-latest.csv
 # Its G5 gate ENFORCES that selection/sizing never read an outcome field —

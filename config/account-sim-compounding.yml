@@ -1,7 +1,19 @@
-# account_sim — account feasibility simulation of the shipped ladder
+# account_sim — THE COMPOUNDING ARM (post-hoc sensitivity, not the frozen book)
 #
-# Run with: python3 -m scripts.backtest_study run account_sim
-#      or:  python3 -m scripts.backtest_study run account_sim -- --config <path>
+# This file is config/account-sim.yml with `compounding.enabled: true` and
+# nothing else changed. The FROZEN, pre-registered, path-INDEPENDENT book — the
+# one every recorded conclusion rests on, and the one that writes the default
+# artifacts — lives in config/account-sim.yml. Run this arm only to see what
+# re-marking sizing to realized equity does, and read the POST-HOC banner on the
+# report's EQUITY MARKS section before quoting any number off it.
+#
+# Run with: python3 -m scripts.backtest_study run account_sim -- \
+#               --config config/account-sim-compounding.yml
+#
+# NOTE: this arm has NO separate positions-CSV stem. Like capital/caps/risk%, it
+# is an ordinary config, so it OVERWRITES account_sim-positions-latest.csv; the
+# report records which config produced it. Re-run the frozen config afterwards
+# to leave the tracked artifacts describing the frozen book.
 #
 # RESEARCH TIER. Nothing ships from this study under any outcome. The study asks
 # one question: does the shipped operator card (top_k_per_day, tiers A/B,
@@ -53,8 +65,8 @@ caps:
 # interval nor the budget ceiling may be adopted on the basis of P&L.
 #
 # `enabled: false` is the FROZEN, pre-registered, path-independent book — the
-# basis every recorded conclusion rests on. Leave it false here; the compounding
-# arm lives in config/account-sim-compounding.yml.
+# basis every recorded conclusion rests on. THIS FILE IS THE ARM, so it is true
+# here; the frozen book lives in config/account-sim.yml.
 #
 # When enabled, sizing is re-marked to REALIZED equity at each interval
 # boundary: marked_equity = capital + realized P&L of positions CLOSED strictly
@@ -64,7 +76,7 @@ caps:
 # additionally clipped by budget_ceiling. The ledger's own `capital` is NEVER
 # touched, so the G3 identity keeps its original starting capital.
 compounding:
-  enabled: false          # opt-in; false = the frozen path-independent book
+  enabled: true           # THE ARM. false (account-sim.yml) = the frozen book
   mark_interval: month    # month | quarter | year
   budget_ceiling: 1000    # absolute $ ceiling on per-position risk budget; null = none
 

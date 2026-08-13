@@ -29,9 +29,9 @@ from scripts.backtest_study.account_sim import (  # noqa: E402
     BlindRec, Cfg, ConfigError, Ledger, LOOKAHEAD_REC_KEYS,
     LOOKAHEAD_ROW_COLUMNS, LookaheadError, Pos, Settings, Sim,
     POSITIONS_CSV_COLUMNS, admission, blind_records, book_signature,
-    dense_episodes, load_settings, new_cache, positions_rows, replay_sized,
-    risk_contracts, sessions_between, signed_dn, simulate, solve_contracts,
-    write_positions_csv,
+    dense_episodes, load_settings, mark_key, new_cache, positions_rows,
+    replay_sized, risk_contracts, sessions_between, signed_dn, simulate,
+    sizing_budget, solve_contracts, write_positions_csv,
 )
 from scripts.backtest_study.harness import MAX_LOSS_ABS, Trade  # noqa: E402
 
@@ -48,7 +48,9 @@ def make_settings(**over) -> Settings:
                 episode_min_dates=10, attrition_floor=0.60,
                 maxdd_fraction=0.25, ratio_tolerance=0.15,
                 g1_positions=220, g1_dates=90, g1_dollars=63_553.0,
-                g1_dollar_tol=1.0, source=Path("test.yml"))
+                g1_dollar_tol=1.0, compound_enabled=False,
+                mark_interval="month", budget_ceiling=1_000.0,
+                source=Path("test.yml"))
     return Settings(**{**base, **over})
 
 
@@ -298,6 +300,238 @@ def test_downsize_respects_the_net_cap_against_an_open_book():
     # ...and with the shipped 0.25 per-position cap it is per-pos that binds, at 2.
     assert solve_contracts(max_c=10, unit_reserved=10.0, unit_dn=2_500.0,
                            cash=25_000.0, net_open=30_000.0, cfg=_cfg()) == 2
+
+
+# ── compounding: the OPT-IN sizing re-mark (post-hoc friction model) ────────
+#
+# `compound=False` is the FROZEN, pre-registered, path-independent book, so the
+# regression guard below matters as much as the feature tests: turning the knob
+# off must reproduce sizing that cannot see realized P&L at all.
+
+def test_mark_key_buckets_months():
+    assert mark_key(date(2025, 1, 31), "month") == (2025, 1)
+    assert mark_key(date(2025, 2, 1), "month") == (2025, 2)
+    # a year boundary is also a month boundary.
+    assert mark_key(date(2025, 12, 31), "month") != \
+        mark_key(date(2026, 1, 1), "month")
+
+
+def test_mark_key_buckets_quarters():
+    for m in (1, 2, 3):
+        assert mark_key(date(2025, m, 15), "quarter") == (2025, 0)
+    assert mark_key(date(2025, 4, 1), "quarter") == (2025, 1)
+    assert mark_key(date(2025, 7, 1), "quarter") == (2025, 2)
+    assert mark_key(date(2025, 10, 1), "quarter") == (2025, 3)
+    assert mark_key(date(2026, 1, 1), "quarter") == (2026, 0)
+
+
+def test_mark_key_buckets_years():
+    assert mark_key(date(2025, 1, 1), "year") == (2025,)
+    assert mark_key(date(2025, 12, 31), "year") == (2025,)
+    assert mark_key(date(2026, 1, 1), "year") == (2026,)
+
+
+def test_mark_key_accepts_an_iso_string_like_a_session():
+    assert mark_key("2025-03-04", "month") == mark_key(date(2025, 3, 4), "month")
+
+
+def test_mark_key_rejects_an_unknown_interval():
+    with pytest.raises(ConfigError, match="mark_interval"):
+        mark_key(date(2025, 1, 1), "fortnight")
+
+
+def test_sizing_budget_without_a_ceiling_is_just_risk_pct():
+    assert sizing_budget(25_000.0, 0.02, None) == pytest.approx(500.0)
+    assert sizing_budget(80_000.0, 0.02, None) == pytest.approx(1_600.0)
+
+
+def test_sizing_budget_ceiling_binds_only_above_it():
+    assert sizing_budget(25_000.0, 0.02, 1_000.0) == pytest.approx(500.0)
+    assert sizing_budget(50_000.0, 0.02, 1_000.0) == pytest.approx(1_000.0)
+    assert sizing_budget(90_000.0, 0.02, 1_000.0) == pytest.approx(1_000.0)
+
+
+def test_admission_caps_scale_with_an_explicit_equity():
+    """0.25 x 25,000 = 6,250 rejects a 7,000 position; re-marked to 40,000 the
+    same cap is 10,000 and admits it."""
+    reject, why = admission(100, 7_000, 25_000, 0.0, _cfg())
+    assert not reject and why == "per_pos_delta"
+    ok, why2 = admission(100, 7_000, 25_000, 0.0, _cfg(), equity=40_000.0)
+    assert ok and why2 is None
+    # ...and a marked-DOWN account tightens it: 0.25 x 20,000 = 5,000.
+    down, why3 = admission(100, 6_000, 25_000, 0.0, _cfg(), equity=20_000.0)
+    assert not down and why3 == "per_pos_delta"
+
+
+def test_admission_net_cap_also_scales_with_equity():
+    # net cap 1.50 x 25,000 = 37,500; 33,000 open + 6,000 breaches it.
+    tight, why = admission(100, 6_000, 25_000, 33_000, _cfg())
+    assert not tight and why == "net_delta"
+    # 1.50 x 40,000 = 60,000 leaves room.
+    assert admission(100, 6_000, 25_000, 33_000, _cfg(),
+                     equity=40_000.0) == (True, None)
+
+
+@pytest.mark.parametrize("args", [
+    (500, 5_000, 25_000, 0.0),          # inside every cap
+    (900, 100, 800, 0.0),               # cash
+    (100, 6_300, 25_000, 0.0),          # per_pos_delta
+    (100, 6_000, 25_000, 33_000),       # net_delta
+])
+def test_admission_equity_none_reproduces_the_static_basis(args):
+    """`equity=None` must be exactly today's behaviour — the frozen book's
+    admission is `cfg.capital`, and nothing about it may move."""
+    cfg = _cfg()
+    assert admission(*args, cfg) == admission(*args, cfg, equity=None)
+    assert admission(*args, cfg) == admission(*args, cfg,
+                                              equity=cfg.capital)
+
+
+def test_solve_contracts_forwards_equity_to_admission():
+    # per-pos cap 0.25 x 25,000 = 6,250 -> 2 units of 2,500; at 50,000 -> 5.
+    kw = dict(max_c=10, unit_reserved=10.0, unit_dn=2_500.0, cash=25_000.0,
+              net_open=0.0, cfg=_cfg())
+    assert solve_contracts(**kw) == 2
+    assert solve_contracts(**kw, equity=50_000.0) == 5
+
+
+# -- simulate()-level: the re-mark actually moves sizing --------------------
+
+def _fat_rec(signal: date, mlpc=500.0, entry=50.0, mark=90.0, dte=5,
+             underlying=50.0, delta=0.05):
+    """A one-leg long call that runs flat and well in the money.
+
+    Deliberately fat (entry $50, so `denom` is $50) so ONE position books
+    thousands of dollars and a month boundary visibly re-marks the budget —
+    the study's real book needs dozens of positions to move equity that far.
+    """
+    end = signal + timedelta(days=dte)
+    d, n = signal + timedelta(days=1), 0
+    while d <= end:
+        if d.weekday() < 5:
+            n += 1
+        d += timedelta(days=1)
+    row = _hand_trade([mark] * n, contracts=1, entry=entry, dte=dte,
+                      signal=signal)
+    row["entry_underlying"] = str(underlying)
+    return {"t": Trade(row), "credit": False, "structure": "long_call",
+            "mech_cell": "PROD", "max_loss_per_contract": mlpc, "delta": delta,
+            "date": signal.isoformat(), "ticker": "TEST"}
+
+
+def _two_month_day_lists():
+    """One profitable January date, then a February date — the January
+    position exits inside January, so February's mark sees its realized P&L."""
+    jan, feb = date(2025, 1, 6), date(2025, 2, 3)
+    return [(jan.isoformat(), [_fat_rec(jan)]),
+            (feb.isoformat(), [_fat_rec(feb)])]
+
+
+def test_compounding_re_marks_the_budget_after_a_profitable_month():
+    day_lists = _two_month_day_lists()
+    sim = simulate(day_lists, _cfg(compound=True, mark_interval="month",
+                                   budget_ceiling=None))
+    assert len(sim.marks) == 2
+    (_, eq0, budget0, pp0, net0), (_, eq1, budget1, pp1, net1) = sim.marks
+
+    # The first mark is the untouched starting basis: nothing has closed yet.
+    assert eq0 == pytest.approx(25_000.0)
+    assert budget0 == pytest.approx(500.0)
+    assert (pp0, net0) == pytest.approx((0.25 * 25_000, 1.50 * 25_000))
+
+    # January booked +$4,000 (R +0.80 x $50 denom x 100 x 1 contract).
+    assert eq1 == pytest.approx(29_000.0)
+    assert budget1 == pytest.approx(29_000.0 * 0.02)
+    assert budget1 > budget0
+    # BOTH delta caps scale with the mark; only the budget has a ceiling.
+    assert (pp1, net1) == pytest.approx((0.25 * 29_000, 1.50 * 29_000))
+
+    # The mark is a SIZING number only — the ledger keeps the STARTING capital,
+    # which is what makes G3's identity meaningful.
+    assert sim.ledger.capital == pytest.approx(25_000.0)
+    assert not sim.ledger.violations
+
+
+def test_compounding_budget_ceiling_clamps_the_re_marked_budget():
+    day_lists = _two_month_day_lists()
+    uncapped = simulate(day_lists, _cfg(compound=True, budget_ceiling=None))
+    capped = simulate(day_lists, _cfg(compound=True, budget_ceiling=550.0))
+    assert uncapped.marks[1][2] == pytest.approx(580.0)
+    assert capped.marks[1][2] == pytest.approx(550.0)     # the ceiling binds
+    # ...and the delta caps are NOT ceilinged — they still track the mark.
+    assert capped.marks[1][3] == pytest.approx(uncapped.marks[1][3])
+    assert capped.marks[1][4] == pytest.approx(uncapped.marks[1][4])
+
+
+def test_compounding_ruin_guard_takes_nothing_and_keeps_the_a4_partition():
+    """A wiped account opens nothing, and every candidate it refuses lands in
+    its OWN census bucket — A4 asserts the buckets partition every candidate,
+    so a ruined day that fell through to `taken`/`cash` would break the sum.
+
+    Capital 0 is a degenerate account, chosen because it exercises the guard
+    directly: the very first mark is `0 + realized 0 <= 0`.
+    """
+    day_lists = _two_month_day_lists()
+    sim = simulate(day_lists, _cfg(capital=0.0, compound=True))
+    assert sim.taken == []
+    assert sim.census["ruined"] == 2
+    assert [why for _, why, _ in sim.skipped] == ["ruined", "ruined"]
+    assert all(m[1] <= 0 for m in sim.marks)
+    # the ledger is untouched by the guard — no half-opened position.
+    assert not sim.ledger.violations
+    assert sim.ledger.reserved == 0.0
+
+    # ...and the frozen path never fills that bucket at all: with no re-mark
+    # there is no ruin to detect, and a broke account is refused on CASH.
+    frozen = simulate(day_lists, _cfg(capital=100.0, compound=False))
+    assert frozen.census["ruined"] == 0 and frozen.census["cash"] == 2
+
+
+def test_compounding_quarter_interval_marks_less_often_than_month():
+    """Two dates in the same quarter but different months: one mark, not two."""
+    day_lists = _two_month_day_lists()
+    monthly = simulate(day_lists, _cfg(compound=True, mark_interval="month"))
+    quarterly = simulate(day_lists, _cfg(compound=True,
+                                         mark_interval="quarter"))
+    assert len(monthly.marks) == 2
+    assert len(quarterly.marks) == 1
+
+
+def test_compounding_off_is_path_independent_and_records_no_marks():
+    """The REGRESSION GUARD. With the knob off, every position is sized off the
+    static configured budget and no mark is taken — the frozen book."""
+    day_lists = _two_month_day_lists()
+    cfg = _cfg()
+    assert cfg.compound is False and cfg.budget_ceiling is None
+    sim = simulate(day_lists, cfg)
+    assert sim.marks == []
+    assert len(sim.taken) == 2
+    for p in sim.taken:
+        assert p.contracts == risk_contracts(
+            p.rec["max_loss_per_contract"], cfg.budget)
+    # ...and the book is byte-identical to one built without naming the knob.
+    plain = Cfg(label="t", capital=25_000.0, per_pos_cap=0.25, net_cap=1.50,
+                risk_pct=0.02, max_per_day=3)
+    assert book_signature(sim) == book_signature(simulate(day_lists, plain))
+
+
+def test_compounding_re_marked_caps_admit_a_position_the_frozen_cap_refuses():
+    """The end-to-end proof that the re-mark reaches ADMISSION, not just the
+    printed marks: February's position has $7,000 of delta-notional, over the
+    frozen 0.25 x $25,000 = $6,250 cap and under the re-marked 0.25 x $29,000
+    = $7,250 one."""
+    jan, feb = date(2025, 1, 6), date(2025, 2, 3)
+    day_lists = [(jan.isoformat(), [_fat_rec(jan)]),
+                 (feb.isoformat(), [_fat_rec(feb, underlying=1_400.0)])]
+
+    frozen = simulate(day_lists, _cfg(compound=False))
+    assert len(frozen.signal_pos) == 1
+    assert frozen.census["per_pos_delta"] == 1
+
+    compounded = simulate(day_lists, _cfg(compound=True, budget_ceiling=None))
+    assert len(compounded.signal_pos) == 2
+    assert compounded.census["per_pos_delta"] == 0
+    assert book_signature(frozen) != book_signature(compounded)
 
 
 # ── population helpers ──────────────────────────────────────────────────────
@@ -550,6 +784,8 @@ def _full_config_dict() -> dict:
         "account": {"capital": 25_000, "risk_per_trade_pct": 0.02,
                     "max_positions_per_day": 3},
         "caps": {"per_position": 0.25, "net": 1.50},
+        "compounding": {"enabled": False, "mark_interval": "month",
+                        "budget_ceiling": 1_000},
         "grids": {"per_position": [0.15, 0.25, 0.40, None],
                   "net": [1.00, 1.50, 2.50, None],
                   "capital_ladder": [25_000, 35_000, 50_000]},
@@ -607,6 +843,9 @@ def test_load_settings_non_mapping_top_level_raises_config_error(tmp_path):
     ("account", "max_positions_per_day"),
     ("caps", "per_position"),
     ("caps", "net"),
+    ("compounding", "enabled"),
+    ("compounding", "mark_interval"),
+    ("compounding", "budget_ceiling"),
     ("grids", "per_position"),
     ("grids", "net"),
     ("grids", "capital_ladder"),
@@ -642,6 +881,68 @@ def test_load_settings_null_grid_entries_become_infinity(tmp_path):
     # everything before the trailing null stays a plain float.
     assert st.per_pos_grid[:-1] == (0.15, 0.25, 0.40)
     assert st.net_grid[:-1] == (1.00, 1.50, 2.50)
+
+
+def _write_cfg(tmp_path, **compounding) -> Path:
+    cfg = copy.deepcopy(_full_config_dict())
+    cfg["compounding"].update(compounding)
+    p = tmp_path / "cfg.yml"
+    p.write_text(yaml.safe_dump(cfg))
+    return p
+
+
+def test_load_settings_reads_the_compounding_block(tmp_path):
+    st = load_settings(_write_cfg(tmp_path, enabled=True,
+                                  mark_interval="quarter",
+                                  budget_ceiling=750))
+    assert st.compound_enabled is True
+    assert st.mark_interval == "quarter"
+    assert st.budget_ceiling == 750.0
+
+
+def test_load_settings_defaults_the_shipped_config_to_the_frozen_book():
+    """The tracked config must stay the FROZEN, path-independent book — the
+    basis every recorded conclusion rests on. The compounding ARM lives in its
+    own config file, not in this one."""
+    assert load_settings().compound_enabled is False
+
+
+@pytest.mark.parametrize("interval", ["month", "quarter", "year"])
+def test_load_settings_accepts_every_documented_interval(tmp_path, interval):
+    st = load_settings(_write_cfg(tmp_path, mark_interval=interval))
+    assert st.mark_interval == interval
+
+
+def test_load_settings_rejects_an_unknown_mark_interval(tmp_path):
+    with pytest.raises(ConfigError, match="month, quarter, year"):
+        load_settings(_write_cfg(tmp_path, mark_interval="fortnight"))
+
+
+def test_load_settings_treats_a_null_budget_ceiling_as_no_ceiling(tmp_path):
+    st = load_settings(_write_cfg(tmp_path, budget_ceiling=None))
+    assert st.budget_ceiling is None
+    assert sizing_budget(1e9, 0.02, st.budget_ceiling) == pytest.approx(2e7)
+
+
+@pytest.mark.parametrize("bad", [0, -1, -1_000.0])
+def test_load_settings_rejects_a_non_positive_budget_ceiling(tmp_path, bad):
+    with pytest.raises(ConfigError, match="budget_ceiling"):
+        load_settings(_write_cfg(tmp_path, budget_ceiling=bad))
+
+
+def test_settings_cfg_threads_the_compounding_block_into_every_simulation():
+    """`Settings.cfg()` is the single construction point, so an arm cannot be
+    switched on for one simulation in the report and off for another by
+    accident — only an explicit keyword (which `run_gates` uses to pin G1-G4
+    to the frozen basis) may override it."""
+    st = make_settings(compound_enabled=True, mark_interval="quarter",
+                       budget_ceiling=750.0)
+    cfg = st.cfg("arm")
+    assert (cfg.compound, cfg.mark_interval, cfg.budget_ceiling) == \
+        (True, "quarter", 750.0)
+    assert st.cfg("gate basis", compound=False).compound is False
+    # ...and the frozen settings never hand out a compounding cfg.
+    assert make_settings().cfg("frozen").compound is False
 
 
 def test_settings_cfg_carries_settings_values_with_overrides_winning():

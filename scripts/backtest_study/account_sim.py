@@ -87,6 +87,25 @@ EPS = 1e-9
 
 DEFAULT_CONFIG = ROOT / "config" / "account-sim.yml"
 
+# Calendar periods the OPT-IN compounding re-mark may run on. A FRICTION MODEL,
+# not a tuned parameter — see `mark_key` and the report's EQUITY MARKS banner.
+MARK_INTERVALS = ("month", "quarter", "year")
+
+# The binding-constraint census buckets, in report order. A4 asserts these
+# PARTITION every candidate the walk considered, so `simulate()` may not emit a
+# bucket that is missing here — every census sum in this module is derived from
+# these tuples rather than re-listing the names. `ruined` is the compounding
+# ruin guard's bucket and is always 0 on the frozen, path-independent book.
+CENSUS_TAKEN = ("taken", "taken_downsized")
+CENSUS_EXCLUSIONS = ("cash", "per_pos_delta", "net_delta", "min1_refusal",
+                     "day3_cap", "unsizable", "ruined")
+CENSUS_BUCKETS = CENSUS_TAKEN + CENSUS_EXCLUSIONS
+# The subset the "MOST BINDING constraint" line ranks: an account CONSTRAINT
+# refused the position. `unsizable` is excluded because no constraint bound —
+# the row carries no usable max loss at any size.
+BINDING_BUCKETS = ("cash", "per_pos_delta", "net_delta", "min1_refusal",
+                   "day3_cap", "ruined")
+
 
 # ── the configuration ───────────────────────────────────────────────────────
 #
@@ -120,23 +139,35 @@ class Settings:
     g1_dates: int
     g1_dollars: float
     g1_dollar_tol: float
+    compound_enabled: bool
+    mark_interval: str
+    budget_ceiling: float | None
     source: Path
 
     @property
     def budget(self) -> float:
-        """Risk budget per position — also the hard per-position dollar stop."""
+        """Risk budget per position — also the hard per-position dollar stop.
+
+        The STATIC value, off configured capital. Under compounding `simulate()`
+        re-marks it per day; this stays the header/reference figure.
+        """
         return self.capital * self.risk_pct
 
     def cfg(self, label: str, **over) -> "Cfg":
         """A `Cfg` on these settings, with any knob overridden by keyword.
 
         Every simulation in the report is built through here, so the sizing a
-        run uses can only come from the config it was given.
+        run uses can only come from the config it was given — including the
+        compounding block, which every simulation inherits unless a caller
+        (`run_gates`, which pins G1-G4 to the frozen basis) says otherwise.
         """
         base = dict(capital=self.capital, per_pos_cap=self.per_pos_cap,
                     net_cap=self.net_cap, risk_pct=self.risk_pct,
                     max_per_day=self.max_per_day,
-                    hedge_risk_fraction=self.hedge_risk_fraction)
+                    hedge_risk_fraction=self.hedge_risk_fraction,
+                    compound=self.compound_enabled,
+                    mark_interval=self.mark_interval,
+                    budget_ceiling=self.budget_ceiling)
         return Cfg(label=label, **{**base, **over})
 
 
@@ -178,6 +209,18 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
     max_per_day = int(_req(raw, p, "account", "max_positions_per_day"))
     if max_per_day < 1:
         raise ConfigError(f"{p}: account.max_positions_per_day must be >= 1")
+    interval = str(_req(raw, p, "compounding", "mark_interval"))
+    if interval not in MARK_INTERVALS:
+        raise ConfigError(f"{p}: compounding.mark_interval must be one of "
+                          f"{', '.join(sorted(MARK_INTERVALS))} — got {interval!r}")
+    # `null` means "no ceiling", the same convention `_grid` uses for a missing
+    # cap; here it is stored as None rather than infinity so the report can say
+    # "none" instead of printing an infinity.
+    ceiling_raw = _req(raw, p, "compounding", "budget_ceiling")
+    ceiling = None if ceiling_raw is None else float(ceiling_raw)
+    if ceiling is not None and ceiling <= 0:
+        raise ConfigError(f"{p}: compounding.budget_ceiling must be > 0 "
+                          f"(or null for no ceiling) — got {ceiling_raw!r}")
     return Settings(
         capital=float(_req(raw, p, "account", "capital")),
         risk_pct=float(_req(raw, p, "account", "risk_per_trade_pct")),
@@ -202,6 +245,9 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
                               "expected_dollars")),
         g1_dollar_tol=float(_req(raw, p, "gates", "book_calibration",
                                  "dollar_tolerance")),
+        compound_enabled=bool(_req(raw, p, "compounding", "enabled")),
+        mark_interval=interval,
+        budget_ceiling=ceiling,
         source=path,
     )
 
@@ -303,27 +349,65 @@ def risk_contracts(max_loss_per_contract, budget: float):
     return max(1, int(budget / max_loss_per_contract))
 
 
+def mark_key(sess, interval: str):
+    """The calendar period a session belongs to; equity is re-marked when it
+    changes. A FRICTION MODEL knob — the interval is not tuned and is never
+    adopted on P&L."""
+    d = sess if isinstance(sess, date) else date.fromisoformat(str(sess)[:10])
+    if interval == "month":
+        return (d.year, d.month)
+    if interval == "quarter":
+        return (d.year, (d.month - 1) // 3)
+    if interval == "year":
+        return (d.year,)
+    raise ConfigError(f"unknown compounding.mark_interval {interval!r} — "
+                      f"expected one of {', '.join(sorted(MARK_INTERVALS))}")
+
+
+def sizing_budget(marked_equity: float, risk_pct: float,
+                  ceiling: float | None) -> float:
+    """Per-position risk dollars at this mark, with the absolute ceiling applied.
+
+    The ceiling is a FRICTION MODEL, not a tuned parameter: a real small account
+    does not keep scaling one position's risk without bound as equity grows.
+    """
+    budget = marked_equity * risk_pct
+    return budget if ceiling is None else min(budget, ceiling)
+
+
 def admission(reserved: float, dn_signed: float, cash: float, net_open: float,
-              cfg: "Cfg") -> tuple[bool, str | None]:
+              cfg: "Cfg", *, equity: float | None = None) -> tuple[bool, str | None]:
     """`(ok, binding_constraint)` — the FIRST failing constraint, in fixed order.
 
     Fixed order cash -> per-position delta -> net delta is what makes A4's
     "exactly ONE binding constraint" well defined.
+
+    Both delta caps are evaluated against `equity`, which defaults to
+    `cfg.capital` — the static, path-independent basis. Under compounding
+    `simulate()` passes the re-marked equity instead, so the caps scale with the
+    account the same way the budget does.
     """
+    eq = cfg.capital if equity is None else equity
     if cfg.enforce_cash and reserved > cash + EPS:
         return False, "cash"
-    if abs(dn_signed) > cfg.per_pos_cap * cfg.capital + EPS:
+    if abs(dn_signed) > cfg.per_pos_cap * eq + EPS:
         return False, "per_pos_delta"
-    if abs(net_open + dn_signed) > cfg.net_cap * cfg.capital + EPS:
+    if abs(net_open + dn_signed) > cfg.net_cap * eq + EPS:
         return False, "net_delta"
     return True, None
 
 
 def solve_contracts(max_c: int, unit_reserved: float, unit_dn: float,
-                    cash: float, net_open: float, cfg: "Cfg") -> int:
-    """Largest integer contract count in [1, max_c] passing EVERY cap; 0 = none."""
+                    cash: float, net_open: float, cfg: "Cfg", *,
+                    equity: float | None = None) -> int:
+    """Largest integer contract count in [1, max_c] passing EVERY cap; 0 = none.
+
+    `equity` is forwarded to `admission()`; `None` keeps the static
+    `cfg.capital` basis.
+    """
     for c in range(max_c, 0, -1):
-        ok, _ = admission(c * unit_reserved, c * unit_dn, cash, net_open, cfg)
+        ok, _ = admission(c * unit_reserved, c * unit_dn, cash, net_open, cfg,
+                          equity=equity)
         if ok:
             return c
     return 0
@@ -508,13 +592,27 @@ class Cfg:
     take_floor: bool = True         # F1 (True) vs F2 (False)
     enforce_cash: bool = True
     hedge: bool = False             # ARM H bear sleeve
+    # OPT-IN compounding re-mark. A FRICTION MODEL, not a tuned parameter, and
+    # NOT pre-registered — `compound=False` is the frozen, path-independent book.
+    compound: bool = False
+    mark_interval: str = "month"
+    budget_ceiling: float | None = None
 
     @property
     def budget(self) -> float:
+        """The STATIC per-position risk budget, off configured capital.
+
+        This is the header/reference figure. When `compound` is set,
+        `simulate()` re-marks the LIVE budget per day and uses that instead.
+        """
         return self.capital * self.risk_pct
 
     @property
     def stop(self) -> float:
+        """The STATIC per-position dollar stop — it tracks `budget`.
+
+        As with `budget`, `simulate()` re-marks the live value when `compound`.
+        """
         return self.capital * self.risk_pct
 
 
@@ -547,6 +645,9 @@ class Sim:
     downsize_reason: Counter = field(default_factory=Counter)
     ledger: Ledger | None = None
     stop_inexact: int = 0
+    # (session, marked_equity, budget, per_pos_cap_$, net_cap_$) — one per
+    # compounding re-mark; always empty when `cfg.compound` is False.
+    marks: list = field(default_factory=list)
 
     # -- derived views -------------------------------------------------------
     @property
@@ -577,6 +678,12 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     entries; entries are admitted in ladder order until `cfg.max_per_day` are
     held. `cache` is the caller's replay memo — omit it and this run memoises
     nothing outside itself.
+
+    When `cfg.compound` is set, the sizing basis is RE-MARKED to realized equity
+    at every `cfg.mark_interval` boundary (see the re-mark comment in the loop).
+    That is a post-hoc FRICTION MODEL, not a pre-registered arm; `compound=False`
+    is the frozen, path-independent book. The mark never touches the ledger's
+    own `capital`, so G3's identity keeps its original starting capital.
     """
     if cache is None:
         cache = new_cache()
@@ -596,9 +703,9 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
             open_pos.remove(p)
             net_open -= p.dn
 
-    def take(rec, contracts, downsized=False, hedge=False):
+    def take(rec, contracts, stop, downsized=False, hedge=False):
         nonlocal net_open
-        rp = replay_sized(rec, contracts, cfg.stop, cache=cache)
+        rp = replay_sized(rec, contracts, stop, cache=cache)
         if not rp["stop_exact"]:
             sim.stop_inexact += 1
         t = rec["t"]
@@ -615,65 +722,99 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
         net_open += pos.dn
         return pos
 
+    # The live sizing basis. Without compounding these never move, and every
+    # expression below reduces to `cfg.capital` / `cfg.budget` / `cfg.stop`.
+    marked = float(cfg.capital)
+    budget = cfg.budget
+    stop = cfg.stop
+    period = None
+    ruined = False
+
     for d, ranked in day_lists:
         entry_sess = ranked[0]["t"].grid[0]
         release_before(entry_sess)
 
+        if cfg.compound:
+            # NOT LOOKAHEAD: `release_before(entry_sess)` has already run, so
+            # `led.realized` holds exactly the positions whose `exit_sess` is
+            # STRICTLY BEFORE this session. Open positions are not marked to
+            # market — this study has no mid-flight valuation, so the mark is
+            # realized-only, which understates equity rather than anticipating
+            # it. `marked` is a SIZING number only and never touches
+            # `led.capital` (G3's identity keeps the starting capital).
+            key = mark_key(entry_sess, cfg.mark_interval)
+            if key != period:
+                period = key
+                marked = cfg.capital + led.realized
+                budget = sizing_budget(marked, cfg.risk_pct, cfg.budget_ceiling)
+                stop = budget
+                ruined = marked <= 0
+                sim.marks.append((entry_sess, marked, budget,
+                                  cfg.per_pos_cap * marked, cfg.net_cap * marked))
+
         n_today = 0
         for rec in ranked:
+            if ruined:
+                # RUIN GUARD — the account is wiped, so nothing can be opened.
+                # Its own census bucket so the A4 partition stays exact.
+                sim.census["ruined"] += 1
+                sim.skipped.append((rec, "ruined", None))
+                continue
             if n_today >= cfg.max_per_day:
                 sim.census["day3_cap"] += 1
                 sim.skipped.append((rec, "day3_cap", None))
                 continue
             mlpc = rec["max_loss_per_contract"]
-            c = risk_contracts(mlpc, cfg.budget)
+            c = risk_contracts(mlpc, budget)
             if c is None:
                 # Unsizable, but the ladder DID select it — it burns the slot.
                 sim.census["unsizable"] += 1
                 sim.skipped.append((rec, "unsizable", None))
                 n_today += 1
                 continue
-            if mlpc > cfg.budget and not cfg.take_floor:
+            if mlpc > budget and not cfg.take_floor:
                 sim.census["min1_refusal"] += 1
                 sim.skipped.append((rec, "min1_refusal",
-                                    replay_sized(rec, c, cfg.stop, cache=cache)))
+                                    replay_sized(rec, c, stop, cache=cache)))
                 continue
             unit_dn = signed_dn(rec, 1)
-            ok, why = admission(c * mlpc, c * unit_dn, led.cash, net_open, cfg)
+            ok, why = admission(c * mlpc, c * unit_dn, led.cash, net_open, cfg,
+                                equity=marked)
             if not ok and cfg.downsize:
-                c2 = solve_contracts(c, mlpc, unit_dn, led.cash, net_open, cfg)
+                c2 = solve_contracts(c, mlpc, unit_dn, led.cash, net_open, cfg,
+                                     equity=marked)
                 if c2 > 0:
                     sim.downsize_reason[why] += 1
                     sim.census["taken_downsized"] += 1
-                    take(rec, c2, downsized=True)
+                    take(rec, c2, stop, downsized=True)
                     n_today += 1
                     continue
             if not ok:
                 sim.census[why] += 1
-                sim.skipped.append((rec, why, replay_sized(rec, c, cfg.stop, cache=cache)))
+                sim.skipped.append((rec, why, replay_sized(rec, c, stop, cache=cache)))
                 continue
             sim.census["taken"] += 1
-            take(rec, c)
+            take(rec, c, stop)
             n_today += 1
 
         # ARM H — the shipped bear sleeve, AFTER the day's signal picks so it can
         # never displace one. Not counted against cfg.max_per_day.
-        if cfg.hedge and bear_by_day and d in bear_by_day:
+        if cfg.hedge and bear_by_day and d in bear_by_day and not ruined:
             cands = sorted(bear_by_day[d],
                            key=lambda r: abs(r["delta"]) if r.get("delta") is not None else -1,
                            reverse=True)
             for rec in cands[:1]:
                 if rec.get("delta") is None or not rec["max_loss_per_contract"]:
                     continue
-                base = risk_contracts(rec["max_loss_per_contract"], cfg.budget)
+                base = risk_contracts(rec["max_loss_per_contract"], budget)
                 if base is None:
                     continue
                 c = max(1, int(cfg.hedge_risk_fraction * base))
                 ok, _ = admission(c * rec["max_loss_per_contract"], c * signed_dn(rec, 1),
-                                  led.cash, net_open, cfg)
+                                  led.cash, net_open, cfg, equity=marked)
                 if ok:
                     sim.census["hedge_taken"] += 1
-                    take(rec, c, hedge=True)
+                    take(rec, c, stop, hedge=True)
                 else:
                     sim.census["hedge_rejected"] += 1
 
@@ -837,6 +978,15 @@ def write_positions_csv(path, populations: dict, arm: str = "RF1") -> int:
 
 def run_gates(recs, diag, picked, st: Settings, cache: dict,
               selftest: bool = False) -> dict:
+    """G1-G5.
+
+    G1-G4 are pinned to the FROZEN basis (`compound=False`) whatever the config
+    says: G1 is an identity against a figure a PRIOR report printed and G4 is
+    about selection ORDERING. Neither may move because an arm changed sizing —
+    a compounding run that shifted G1's dollars would be reporting a different
+    book against the same expectation. G5 is the exception and runs on BOTH
+    bases; see its preamble.
+    """
     hdr("GATES — G1..G5 (non-zero exit on any failure)")
     results = {}
 
@@ -907,8 +1057,8 @@ def run_gates(recs, diag, picked, st: Settings, cache: dict,
     # -- G3 ledger self-check ------------------------------------------------
     sub("G3 — ledger accounting identity, checked after every event")
     day_lists = P.ordered_by_day(recs, P.ladder_rank, P.ladder_eligible)
-    probe = simulate(day_lists, st.cfg("G3 probe"), selftest_leak=selftest,
-                     cache=cache)
+    probe = simulate(day_lists, st.cfg("G3 probe", compound=False),
+                     selftest_leak=selftest, cache=cache)
     led = probe.ledger
     print(f"  events checked: {led.checks}   positions: {len(probe.signal_pos)}")
     print(f"  final cash ${led.cash:,.2f}  reserved ${led.reserved:,.2f}  "
@@ -923,7 +1073,8 @@ def run_gates(recs, diag, picked, st: Settings, cache: dict,
 
     # -- G4 selection identity ----------------------------------------------
     sub("G4 — unconstrained walk reproduces top_k_per_day by set equality")
-    unc = simulate(day_lists, st.cfg("G4 probe", **UNCONSTRAINED), cache=cache)
+    unc = simulate(day_lists, st.cfg("G4 probe", compound=False,
+                                     **UNCONSTRAINED), cache=cache)
     got_ids = {id(p.rec) for p in unc.signal_pos}
     got_ids |= {id(r) for r, why, _ in unc.skipped if why == "unsizable"}
     want_ids = {id(r) for r in picked}
@@ -957,27 +1108,51 @@ def run_gates(recs, diag, picked, st: Settings, cache: dict,
     print(f"  row columns deleted from every Trade: "
           f"{', '.join(sorted(LOOKAHEAD_ROW_COLUMNS))}")
 
-    base_sig = book_signature(simulate(day_lists, st.cfg("G5 base"),
-                                       cache=cache))
-    try:
-        blind_lists = P.ordered_by_day(blind, P.ladder_rank, P.ladder_eligible)
-        # A FRESH cache: a blind result must never be served from a sighted
-        # computation, which is the whole point of the gate.
-        blind_sig = book_signature(simulate(blind_lists, st.cfg("G5 blind"),
-                                            cache=new_cache()))
-        leaked = None
-    except LookaheadError as exc:
-        blind_sig, leaked = None, str(exc)
+    # The comparison is run on EVERY code path the report actually uses. The
+    # frozen basis is always checked; when the config turns compounding on, that
+    # path is checked too, and BOTH must be byte-identical for G5 to pass.
+    #
+    # Compounding makes sizing depend on realized P&L, which looks like it
+    # should break blinding and does not: `blind_records()` deletes the outcome
+    # COLUMNS but keeps the price path, and `replay_sized()` RECOMPUTES the
+    # outcome from that path. The equity marks are therefore reproducible
+    # without reading a single outcome field — which is exactly the property
+    # this gate has to prove rather than assume.
+    bases = [("frozen", dict(compound=False))]
+    if st.compound_enabled:
+        bases.append(("compounding", dict(compound=True)))
+        print(f"  bases compared: frozen AND compounding "
+              f"(mark {st.mark_interval}) — both must be identical")
+    g5 = tripwire
+    base_sig = blind_sig = None
+    # Unprefixed when there is only one basis, so the frozen report's G5 block
+    # is byte-for-byte what it was before compounding existed.
+    tags = {name: (f"[{name}] " if len(bases) > 1 else "") for name, _ in bases}
+    for name, over in bases:
+        base_sig = book_signature(
+            simulate(day_lists, st.cfg(f"G5 base {name}", **over), cache=cache))
+        try:
+            blind_lists = P.ordered_by_day(blind, P.ladder_rank,
+                                           P.ladder_eligible)
+            # A FRESH cache: a blind result must never be served from a sighted
+            # computation, which is the whole point of the gate.
+            blind_sig = book_signature(
+                simulate(blind_lists, st.cfg(f"G5 blind {name}", **over),
+                         cache=new_cache()))
+            leaked = None
+        except LookaheadError as exc:
+            blind_sig, leaked = None, str(exc)
 
-    if leaked:
-        print(f"  LOOKAHEAD DETECTED: {leaked}")
-        g5 = False
-    else:
+        if leaked:
+            print(f"  {tags[name]}LOOKAHEAD DETECTED: {leaked}")
+            g5 = False
+            continue
         n_diff = sum(1 for a, b in zip(base_sig, blind_sig) if a != b)
-        g5 = (len(base_sig) == len(blind_sig) and n_diff == 0
-              and tripwire and len(base_sig) > 0)
-        print(f"  positions: sighted {len(base_sig)}  blind {len(blind_sig)}  "
-              f"differing {n_diff}")
+        same = (len(base_sig) == len(blind_sig) and n_diff == 0
+                and len(base_sig) > 0)
+        g5 = g5 and same
+        print(f"  {tags[name]}positions: sighted {len(base_sig)}  blind "
+              f"{len(blind_sig)}  differing {n_diff}")
         for a, b in zip(base_sig, blind_sig):
             if a != b:
                 print(f"    DIVERGED sighted {a}  vs blind {b}")
@@ -1030,7 +1205,13 @@ def print_baselines(picked, b2: Sim, cfg: Cfg, label: str) -> dict:
           f"n={b1_n:>4}  dates={len({r['date'] for r in picked}):>3}  "
           f"${b1_dol:>10,.0f}  meanR {b1_R:+.3f}")
     b2_rows = b2.rows()
-    print(f"  B2  ${cfg.capital:,.0f} max-loss sizing, unconstrained  "
+    # B2 is compounded too when the arm is on (same re-mark, unconstrained
+    # sizing) — naming a static dollar figure there would misdescribe it as
+    # the fixed benchmark. Off, this is byte-identical to the original label.
+    b2_desc = (f"compounded max-loss sizing (from ${cfg.capital:,.0f}), "
+               f"unconstrained" if cfg.compound else
+               f"${cfg.capital:,.0f} max-loss sizing, unconstrained")
+    print(f"  B2  {b2_desc}  "
           f"n={len(b2_rows):>4}  dates={len(b2.dates):>3}  "
           f"${b2.dollars:>10,.0f}  meanR {fmean([r['R'] for r in b2_rows]):+.3f}")
     print(f"\n  B1 -> B2 isolates GRANULARITY (contract counts), B2 -> constrained "
@@ -1105,8 +1286,11 @@ def print_utilisation(sim: Sim, label: str) -> None:
 def print_census(sim: Sim, label: str) -> bool:
     hdr(f"[{label}] BINDING-CONSTRAINT CENSUS (A4 self-check)")
     c = sim.census
-    order = ["taken", "taken_downsized", "cash", "per_pos_delta", "net_delta",
-             "min1_refusal", "day3_cap", "unsizable"]
+    # `ruined` is the compounding ruin guard's bucket (always 0 on the frozen,
+    # path-independent book). It is listed here — and summed below — because A4
+    # asserts the buckets PARTITION every candidate: a bucket that exists in
+    # simulate() but not in this enumeration would silently break that sum.
+    order = CENSUS_BUCKETS
     total = sum(c[k] for k in order)
     for k in order:
         print(f"  {k:<18} {c[k]:>5}")
@@ -1121,12 +1305,10 @@ def print_census(sim: Sim, label: str) -> bool:
               "  ".join(f"{k}={v}" for k, v in sim.downsize_reason.items()))
     n_taken = c["taken"] + c["taken_downsized"]
     ok = (n_taken == len(sim.signal_pos)
-          and total == n_taken + c["cash"] + c["per_pos_delta"] + c["net_delta"]
-          + c["min1_refusal"] + c["day3_cap"] + c["unsizable"])
+          and total == n_taken + sum(c[k] for k in CENSUS_EXCLUSIONS))
     print(f"  A4 sum check: taken {n_taken} == positions {len(sim.signal_pos)} and "
           f"buckets partition {n_cand} candidates -> {'OK' if ok else 'MISMATCH'}")
-    binding = [(k, c[k]) for k in ("cash", "per_pos_delta", "net_delta",
-                                   "min1_refusal", "day3_cap") if c[k]]
+    binding = [(k, c[k]) for k in BINDING_BUCKETS if c[k]]
     if binding:
         top = max(binding, key=lambda kv: kv[1])
         print(f"  MOST BINDING constraint: {top[0]} ({top[1]} of "
@@ -1292,6 +1474,74 @@ def print_equity(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     return out
 
 
+# ── EQUITY MARKS (post-hoc friction model, printed only under compounding) ───
+# Same flagging discipline as "DEPLOYED BOOK BY REGIME" above: this section
+# DESCRIBES what an opt-in sizing arm did. It is not one of the pre-registered
+# criteria, no rule may be read off it, and the interval and ceiling are a
+# friction model that may not be adopted on P&L.
+
+# Long enough for every month of a ~3-year book; a longer run is truncated with
+# an explicit count rather than silently shortened.
+MARKS_PRINT_CAP = 60
+
+
+def _ceiling_str(ceiling: float | None) -> str:
+    return "none" if ceiling is None else f"${ceiling:,.0f}"
+
+
+def print_equity_marks(sim: Sim, label: str, st: Settings) -> None:
+    """One line per compounding re-mark. No-op when the arm is off."""
+    if not sim.cfg.compound:
+        return
+    hdr(f"[{label}] EQUITY MARKS (post-hoc, NOT pre-registered — FRICTION MODEL)")
+    ceiling = _ceiling_str(sim.cfg.budget_ceiling)
+    print(f"""  COMPOUNDING IS NOT PRE-REGISTERED. The pre-registration
+  (config/backtest-tuning/pre-registrations/account_sim.md) fixes
+  STARTING_CAPITAL at a constant base and calls a compounding-equity run "a
+  labelled sensitivity only"; A1-A6 were registered against a path-INDEPENDENT
+  simulation. Every criterion, verdict and cap-grid cell in this run is
+  therefore computed on a basis the criteria were not registered for.
+
+  The mark interval ({sim.cfg.mark_interval}) and the {ceiling} budget ceiling are a FRICTION
+  MODEL, not tuned parameters. NEITHER MAY BE ADOPTED ON THE BASIS OF P&L —
+  the same anti-tuning rule the cap grid carries.
+
+  marked_equity = starting capital + realized P&L of positions CLOSED STRICTLY
+  BEFORE the mark session. Open positions are NOT marked to market (this study
+  has no mid-flight valuation), so the mark understates equity rather than
+  anticipating it, and it reads nothing an operator would not already know.
+  It is a SIZING number only: the ledger's own capital is untouched, which is
+  why G3's identity still balances against the STARTING capital.""")
+    marks = sim.marks
+    print(f"\n  {'mark session':<14}{'marked equity':>15}{'budget':>10}"
+          f"{'per-pos cap $':>15}{'net cap $':>13}  flag")
+    ceil_val = sim.cfg.budget_ceiling
+
+    def _bound(budget: float) -> bool:
+        return ceil_val is not None and budget >= ceil_val - EPS
+
+    shown = marks[:MARKS_PRINT_CAP]
+    n_ceiling = sum(1 for m in marks if _bound(m[2]))
+    for sess, marked, budget, per_pos_dol, net_dol in shown:
+        flags = ["ceiling"] if _bound(budget) else []
+        if marked <= 0:
+            flags.append("RUINED")
+        print(f"  {str(sess):<14}{marked:>15,.0f}{budget:>10,.0f}"
+              f"{per_pos_dol:>15,.0f}{net_dol:>13,.0f}  "
+              f"{' '.join(flags)}".rstrip())
+    if len(marks) > len(shown):
+        print(f"  ... {len(marks) - len(shown)} further marks not printed "
+              f"(cap {MARKS_PRINT_CAP})")
+    if marks:
+        first, peak, last = marks[0][1], max(m[1] for m in marks), marks[-1][1]
+        print(f"\n  marks {len(marks)}   first ${first:,.0f}   peak ${peak:,.0f}"
+              f"   final ${last:,.0f}   (starting capital ${sim.cfg.capital:,.0f})")
+        print(f"  budget ceiling bound on {n_ceiling} of {len(marks)} marks; "
+              f"ruin guard fired on {sum(1 for m in marks if m[1] <= 0)}")
+    else:
+        print("  no marks — the population held no signal dates.")
+
+
 def print_cap_grid(day_lists, base: Cfg, label: str, st: Settings,
                    cache: dict) -> None:
     hdr(f"[{label}] CAP GRID — monotonicity read ONLY")
@@ -1417,6 +1667,30 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
 # Criteria + verdict
 # ════════════════════════════════════════════════════════════════════════════
 
+# A2 and A5 both read as "attrition/stability against B2" only when B2 is the
+# frozen, path-independent benchmark. Under compounding B2 is re-marked too,
+# so the ratio can exceed 100% for a reason that has nothing to do with the
+# caps adding money — see the warning text below. Printed verbatim under both
+# criteria; not a relabelling, the MET/NOT MET verdicts are untouched.
+COMPOUND_A2_A5_WARNING = """     WARNING: under compounding, A2/A5 are ratios against a benchmark (B2)
+     that is ITSELF compounded, so they no longer isolate the CAPS.
+     (A ratio over 100% is not by itself the anomaly — it happens on the
+     path-independent book too, whenever the caps remove net-LOSING picks.
+     What breaks here is attribution, not the bound.) On the frozen basis
+     B2 and the constrained book are sized off the same static capital, so
+     the ratio moves only with WHICH positions the caps removed. Under
+     compounding B2 holds more positions than the constrained book, draws
+     down harder, and throttles its own future budgets differently, so its
+     dollar total moves even when its position set does not — B2 is the
+     SAME 110 positions over the SAME 46 dates in both arms, and still goes
+     $23,157 -> $18,424. The ratio therefore mixes the caps' selection
+     effect with a divergent equity path and cannot be read as either
+     attrition or stability. Both criteria were pre-registered against a
+     path-INDEPENDENT simulation
+     (config/backtest-tuning/pre-registrations/account_sim.md) and DO NOT
+     TRANSFER to this arm; they must not carry weight here."""
+
+
 def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     hdr(f"[{label}] CRITERIA A1-A6")
     rows = sim.rows()
@@ -1442,6 +1716,8 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
           f"{len(same)} dates ${b2_same:,.0f}  = {ratio:.0%}")
     print(f"     {'MET' if a2 else 'NOT MET'}  (needs >= {st.attrition_floor:.0%})")
     res["A2"] = a2
+    if sim.cfg.compound:
+        print(COMPOUND_A2_A5_WARNING)
 
     # A3 NO BLOWUP
     _, vals = equity_curve(sim.signal_pos)
@@ -1456,13 +1732,10 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
 
     # A4 ATTRIBUTION — computed by print_census, re-derived here
     c = sim.census
-    n_taken = c["taken"] + c["taken_downsized"]
-    total = n_taken + c["cash"] + c["per_pos_delta"] + c["net_delta"] + \
-        c["min1_refusal"] + c["day3_cap"] + c["unsizable"]
+    n_taken = sum(c[k] for k in CENSUS_TAKEN)
+    total = n_taken + sum(c[k] for k in CENSUS_EXCLUSIONS)
     a4 = (n_taken == len(sim.signal_pos)
-          and total == sum(c[k] for k in ("taken", "taken_downsized", "cash",
-                                          "per_pos_delta", "net_delta",
-                                          "min1_refusal", "day3_cap", "unsizable")))
+          and total == sum(c[k] for k in CENSUS_BUCKETS))
     print(f"  A4 ATTRIBUTION    {total} candidates partition exactly into "
           f"{n_taken} taken + exclusions")
     print(f"     {'MET' if a4 else 'NOT MET'}  (mismatch FAILS the run)")
@@ -1488,6 +1761,8 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     print(f"     {'MET' if a5 else 'NOT MET'}  (needs <= "
           f"{st.ratio_tolerance * 100:.0f} points of movement on both cuts)")
     res["A5"] = a5
+    if sim.cfg.compound:
+        print(COMPOUND_A2_A5_WARNING)
 
     # A6 CREDIT SENSITIVITY — A1 on the debit-only subset
     deb = [r for r in rows if not r["credit"]]
@@ -1661,9 +1936,11 @@ def report_population(recs, picked_all, dates_allowed, label: str,
     print_arms(day_lists, bear_by_day, capital, label, st, cache)
     print_hedge(day_lists, bear_by_day, capital, label, st, cache)
     print_cap_grid(day_lists, base, label, st, cache)
-    # Last in the population block, deliberately: it is a post-hoc description,
-    # not one of the criteria above.
+    # Last in the population block, deliberately: both are post-hoc
+    # descriptions, not criteria. `print_equity_marks` is a no-op unless the
+    # opt-in compounding arm is on, so the frozen report is unchanged by it.
     print_regime(head, label)
+    print_equity_marks(head, label, st)
     res = evaluate(head, b2, label, st)
     return res, head, b2
 
@@ -1714,6 +1991,14 @@ def main(argv=None) -> int:
   net cap {st.net_cap:.2f}x equity.
   NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME. No annualised figure,
   Sharpe, or time-to-recover appears anywhere in this report by construction.""")
+    if st.compound_enabled:
+        # Printed only when the arm is on, so the frozen report stays byte-stable.
+        print(f"  COMPOUNDING: ENABLED   mark interval {st.mark_interval}   "
+              f"budget ceiling {_ceiling_str(st.budget_ceiling)}")
+        print(f"  Sizing (budget/stop and BOTH delta caps) is re-marked to "
+              f"REALIZED equity at\n  each {st.mark_interval} boundary. POST-HOC "
+              f"and NOT pre-registered — see the EQUITY\n  MARKS section's banner "
+              f"before quoting any number below.")
 
     # The FROZEN book is always the gate basis: G1 reproduces a prior report's
     # deployed line and G4 pins selection against `top_k_per_day`. Neither
