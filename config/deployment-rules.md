@@ -27,6 +27,13 @@ rollback triggers behind them live in
    not a trade.
 2. **Any play when the model regime is BEAR + H-VOL.**
 3. **Any credit play when the model regime is RANGE + L-VOL.**
+4. **`bear_put_spread` / `long_put` as a selection play** — never in the deployed
+   top-3, however thin the day's A/B supply. Bear is a hedge, not a selection:
+   all pre-registered DEMOTE criteria fired on the n=164 holdout, and 0 of 496
+   conditioned subsets found a profitable bear slice. **This veto does not apply
+   to the §4 hedge sleeve** — that is the one sanctioned way to hold a bear
+   position. Bear plays stay emitted and visible on the analysis rows; the
+   sleeve picks from them (which is why this is a card veto, not an intake veto).
 
 ## 2. Tier the survivors, deploy top-3/day in tier order
 
@@ -53,9 +60,10 @@ Tier membership is **structure × model regime × entry geometry**. Nothing else
 
 ## 4. Bear positions — hedge sleeve only (optional)
 
-Bear is a **hedge, not a selection**. The ladder never puts a bear play in the
-deployed top-3, so this only applies to a position you take deliberately for
-drawdown protection.
+Bear is a **hedge, not a selection** — §1.4 vetoes bear debit as a selection
+play outright (until 2026-08-13 bear rows merely landed in Tier C, which a thin
+day could still deploy). This section only applies to a position you take
+deliberately for drawdown protection.
 
 - **Pick:** rank the day's bear candidates by **`|delta|` DESCENDING** and take
   the closer-to-money one.

@@ -473,6 +473,17 @@ would remove positions the ladder does not deploy anyway — while also removing
 the only instrument that pays on the book's worst dates. The answer to "bear
 loses money" is **its own exit profile plus a pick rule**, not an intake veto.
 
+**Superseded 2026-08-13 — a mechanism was chosen after all (operator
+decision).** The demotion is now explicit as card rule **§1.4**: bear debit
+(`bear_put_spread` / `long_put`) is vetoed **as a selection play**, with the §4
+hedge sleeve carved out. Same substance as the 08-11 resolution — the intake
+veto stays rejected (it would empty the sleeve's candidate pool), and zero
+historical deployments change (all 370 bear rows were already Tier C or VETO).
+What the card rule adds is closing the thin-day loophole: Tier C is
+"skip when capital-constrained", so a bear_put could in principle have reached
+the top-3 on a day with fewer than three A/B survivors. Now it cannot.
+Decision logged in [`current.md`](current.md) §2026-08-13.
+
 **The ML/selection question (closed 2026-08-11) — NULL RESULT.** Not one
 positive gain with a CI excluding zero, in 15 model × strategy cells. Ablations
 were non-monotone and inside the noise beyond structure × regime × geometry.
