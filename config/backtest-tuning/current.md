@@ -11,7 +11,14 @@ its caps (99% of the $25k-sized book) but **the binding constraint is delta
 exposure, not cash**, the cap ordering is adverse (rejected picks outperform
 taken), and A5/A6 fail — the pre-registered verdict grammar had a hole (A1
 holds, A5/A6 fail matches no label); feasibility NOT CONFIRMABLE on this
-window. `calendar_hedge`: R1–R4 all pass (R4 reproduces vol_sleeve's calendar
+window. **Same-day addendum:** `account_sim` audited for lookahead ahead of the
+live-agent step — no per-row foresight in selection or sizing, now ENFORCED by a
+new **G5 blindness gate** (outcome keys raise, outcome columns deleted from the
+trade row, book must come out identical: 124/124, 0 differing); the remaining
+lookaheads are rule-level (in-sample ladder) and universe-level, the latter
+addressed by `--structure-universe`, which admits 19 stale-`trailing_stop` proxy
+rows the calibration gate wrongly withheld (+3 deployed picks, 0 displaced,
+**verdict unchanged**; bs still dropped). `calendar_hedge`: R1–R4 all pass (R4 reproduces vol_sleeve's calendar
 cell EXACTLY), H0 fill 75.6%/66.7% MET, but **H2 is NOT EVALUABLE — the power
 stop fired at n=6 exactly as pre-committed — and the readable correlation
 component is wrong-signed (+0.075)**; H3 blocked by the worst-date criterion by
@@ -118,6 +125,200 @@ and filter the 301 legacy bs rows out by `proxy_method` at read time;
 operator sometimes trades naked where the engine emitted a spread, which
 breaks the live walk-forward's attribution. Next study queued: the ML
 combination search — plan pre-written in [`ml-plan.md`](ml-plan.md), NOT run.
+
+---
+
+## 2026-08-13 — `account_sim` made CONFIG-DRIVEN: the study's parameters move to `config/account-sim.yml`, the module holds no state, and no number moves
+
+**Status: REFACTOR ONLY. No result changed.** The regression bar was that a
+default run reproduce the previous one exactly, and it does:
+`account_sim-positions-latest.csv` is **byte-identical** before and after, and
+every data-bearing line of the report is unchanged. The only report differences
+are three deliberate wording changes, listed below.
+
+**What moved.** `scripts/backtest_study/account_sim.py` had accumulated a second
+job on top of simulating: policing its own pre-registration. It carried two
+parallel constant blocks (`PREREG_*` mirroring the editable sizing constants), a
+module-level mutable `ARM` rebound with `global` inside `main()` and then read
+implicitly from `Cfg`'s field defaults and four report functions, a second
+module-level `_MEMO` cache, and self-labelling machinery (`is_preregistered`,
+`Arm.tag`, a "SIZING ARM" banner, an arm-suffixed CSV stem). All of it is gone.
+
+The parameter surface is now `config/account-sim.yml` — capital, risk %,
+positions/day, the two delta-notional caps, the cap and capital grids, the hedge
+fraction, the dense-episode definition, the A2/A3/A5 thresholds, and G1's
+expected book line (220 / 90 / $63,553). It is read once into a frozen
+`Settings` and passed explicitly wherever it is needed; `load_settings()` raises
+on **any** missing key rather than half-reading a config and printing a full
+report against sizing nobody chose. The four sizing flags
+(`--capital`, `--risk-dollars`, `--per-pos-cap`, `--net-cap`) are replaced by a
+single `--config PATH`.
+
+**Two latent problems closed on the way.**
+
+  * `top_k_per_day(..., k=3)` was hardcoded at the call site while
+    `MAX_POSITIONS_PER_DAY = 3` lived separately. Changing one would have failed
+    G4 for no visible reason. Both now come from
+    `account.max_positions_per_day`.
+  * `_MEMO` was module-global. It is now an explicit `cache` owned by the caller
+    (`new_cache()`), and **G5's blind probe takes its own**. That is load-bearing:
+    the memo is keyed on `id(rec)` precisely so a blind result can never be
+    served from a sighted computation, which is what makes the gate mean
+    anything. A global cache also let answers leak between runs in a process.
+
+**Report wording changes** (paired with `scripts/study_charts/` in the same
+change, since `report.py` is a strict parser):
+
+  * cap-grid headline `(pre-registered, ...)` → `(the configured cell, ...)`
+  * `NOT FEASIBLE AT $25k` → `NOT FEASIBLE AT $25,000`, formatted from the
+    configured capital
+  * `NO PRE-REGISTERED VERDICT MATCHES` → `NO VERDICT MATCHES`
+
+**What this does NOT change.** Selection, exits, the harness, the book loader and
+all five gates are untouched. The values pre-registered on 2026-08-13
+($25,000 / 2% / 0.25x / 1.50x) are still the shipped defaults, and the
+pre-registration itself is still recorded below — in this log, which is where a
+pre-registration belongs, rather than mirrored in source where it was being
+diffed against on every run.
+
+**Reproducing the sizing arm below.** The arm recorded in the next section was
+run with `--risk-dollars 1000 --per-pos-cap 0.40 --net-cap 2.50`. Those flags no
+longer exist: copy `config/account-sim.yml`, set `risk_per_trade_pct: 0.04`,
+`caps.per_position: 0.40`, `caps.net: 2.50`, and pass `--config`. Note the
+export no longer gets an arm-suffixed stem — a non-default config **overwrites**
+`account_sim-positions-latest.csv`, and the report's `config` line is what
+records which simulation produced it. Only `--structure-universe` still writes a
+separate artifact.
+
+---
+
+## 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 2.50x) RUN: operator-chosen, NOT measured — and it exposed a memoisation bug that G5 caught
+
+**Status: NOTHING SHIPS. This is an arm, not a result.** The three sizing
+constants were chosen by the operator (risk $500 → $1,000; net delta cap
+1.50x → 2.50x; per-position cap 0.25x → 0.40x, raised because doubling the
+budget doubles contracts and would otherwise have been eaten by the old
+per-position cap). They were **not** selected on any measurement here, and no
+figure below may be read as evidence for them. The anti-tuning rule on the cap
+grid binds harder on an arm than on the pre-registered cell, not softer.
+
+**Provenance.** `backtests/study_output/account_sim-arm-risk1000-latest.txt`
+(+ positions export
+`account_sim-positions-risk4pct-pp0.4-net2.5-latest.csv`, 447 rows), git
+309c564 (dirty), same 08-11 exports and same frozen book as the pre-registered
+run. The pre-registered report stays at `account_sim-latest.txt` and its
+numbers are **unchanged** — verified by re-running the bare study after the
+code change and diffing: 656 lines, the only differences are two cosmetic
+GRANULARITY section titles.
+
+**How the arm is expressed.** An `Arm` overlay (`account_sim.ARM`) carries the
+run's four sizing values; `main()` rebinds it once from the command line and
+every `Cfg` defaults to it. Left alone it equals the pre-registered baseline,
+so a bare run reproduces the frozen study bit-for-bit; an arm run is
+banner-flagged in the report, tagged in the CSV `arm` column, and written to
+its own CSV stem — the `--structure-universe` precedent:
+
+    python -m scripts.backtest_study run account_sim -- \
+        --risk-dollars 1000 --per-pos-cap 0.40 --net-cap 2.50
+
+> **SUPERSEDED later the same day** by the config-driven refactor at the top of
+> this file. The `PREREG_*` literals, `Arm`, `Arm.is_preregistered`, `Arm.tag`,
+> the arm banner, the arm-suffixed CSV stem and the four sizing flags described
+> in the next two paragraphs no longer exist, and the four tests that pinned
+> them are gone. The parameters now live in `config/account-sim.yml`; to
+> reproduce this arm, copy it with `risk_per_trade_pct: 0.04`,
+> `caps.per_position: 0.40`, `caps.net: 2.50` and pass `--config`. Everything
+> else in this section — the numbers, the G5 bug and its fix — stands unchanged,
+> and its two cited artifacts are still on disk.
+
+**Amended same day — the sizing constants are now EDITABLE** (operator's call).
+The module previously said it "may not change them after the run"; that
+sentence is gone, along with `--capital` being missing. Simulating a different
+account is a normal use of a research-tier study, so `STARTING_CAPITAL` /
+`RISK_PER_TRADE_PCT` / `PER_POSITION_CAP` / `NET_CAP` may be edited in source
+or moved per-run with `--capital` / `--risk-dollars` / `--per-pos-cap` /
+`--net-cap`. What is preserved is the LABEL, not the values: the
+pre-registered numbers are recorded separately as the `PREREG_*` literals, and
+`Arm.is_preregistered` compares against **those**, so an edited constant
+cannot silently produce a report that claims to be the pre-registered study —
+it flags, tags and re-stems exactly like a flag would. `Arm.tag` names only
+the knobs that moved (`cap50k`, `risk4pct-pp0.4-net2.5`). Four tests pin this.
+The verdict grammar still says "NOT FEASIBLE AT $25k" verbatim, because
+`scripts/study_charts/render.py` matches those strings exactly — on a
+changed-capital run read it as the arm's label, not a claim about $25k.
+
+**A REAL BUG, found by G5 and fixed.** The arm's first run FAILED G5
+(outcome-blindness): sighted 132 positions vs blind 134, 13 differing.
+`replay_sized`'s memo key was `(id(rec), contracts, stop)` — it did **not**
+include the exit profile. G2 calls that function with an explicit `DEBIT_PROD`
+profile (the one that generated the stored rows) at the stored contract count
+and stop `MAX_LOSS_ABS` = $1,000. Any `simulate()` whose own stop is also
+$1,000 then asks for the same key and gets **G2's calibration answer back
+instead of the shipped `be_after`-0.50 merge**. Blinded records are distinct
+objects, so they missed the poisoned entries — which is exactly why the two
+books diverged and why the gate fired. Fixed: the profile is now part of the
+key. The gate is doing more than its stated job; it caught a cache-collision
+bug, not a lookahead.
+
+Two stops reach $1,000: **a $25k book at 4%** (this arm) and **a $50k book at
+2%** (the top rung of `CAPITAL_LADDER`). The pre-registered report is
+unaffected — its stop is $500, keys never collided, and the capital ladder
+only prints when A1 fails, which it did not. **No published pre-registered
+figure ever stood on the bug.**
+
+**What the arm printed (PRIMARY dense episodes, descriptive only).**
+
+| | pre-registered ($500 / 0.25x / 1.50x) | arm ($1,000 / 0.40x / 2.50x) |
+|---|---|---|
+| positions taken | 51 | 63 |
+| realized $ | $7,860 | $20,217 |
+| meanR | +0.278 CI [+0.055,+0.483] | +0.428 CI [+0.249,+0.594] |
+| maxDD | −$3,673 (14.7% of capital) | −$2,851 (11.4%) |
+| attrition vs B2 (A2) | 99% | 135% |
+| most binding constraint | net_delta (66 of 97) | net_delta (62 of 85) |
+| per_pos_delta exclusions | 25 | 14 |
+| A5 stability | NOT MET | NOT MET |
+| A6 credit sensitivity | NOT MET | MET |
+| verdict | A1 holds, A5+A6 fail | A1 holds, A5 fails |
+
+**Reading, with the caveats that matter more than the numbers:**
+
+1. **Net delta is STILL the binding constraint** (62 of 85 exclusions) even at
+   2.50x. Raising the cap did not relieve it; it moved the frontier out and
+   the book refilled against it. Peak sessions run 2.45–2.48x net — pinned to
+   the new ceiling, the same way they were pinned to the old one. Cash never
+   binds once (0 of 85, peak reserve 0.78x).
+2. **The per-position cap change did what it was for.** per_pos_delta
+   exclusions fall 25 → 14 despite contracts doubling, so 0.40x roughly
+   absorbs the doubled budget rather than eating it.
+3. **The adverse-ordering finding SURVIVES and its two halves separate.**
+   net_delta-rejected picks still out-perform taken (+0.482 vs +0.428, delta
+   +0.053 — narrower than the frozen cell but the same sign), while
+   per_pos_delta-rejected picks now under-perform (+0.126, delta −0.302). The
+   net cap is still adversely selecting; the per-position cap is not.
+4. **A5 still fails, and by MORE.** Ex-2025_mar_apr moves +142pt (frozen:
+   +111pt). The bigger book is *more* concentrated in that window, not less.
+   The A5 failure is the reason feasibility is not confirmable, and the arm
+   does not fix it — it worsens it.
+5. **A6 flipping to MET is not a finding.** Debit-only n=46 meanR +0.386 CI
+   [+0.172,+0.594] clears where the frozen cell's n=39 CI included zero. This
+   is the same rows at different sizes with a wider net cap admitting more of
+   them; treating a criterion flip produced by an operator-chosen knob as
+   evidence is precisely what the anti-tuning rule forbids.
+6. **Per-position risk is now materially larger.** Realized per-position risk
+   is median 3.6%, p90 6.0%, **max 12.2%** of capital (frozen: 1.8 / 3.0 /
+   6.1%). The 1-contract floor share is 28%, so on more than a quarter of
+   picks the account cannot express the budget at all and takes a single
+   contract whose max loss exceeds it — at $1,000 that floor breach is twice
+   the dollars it was.
+
+**Verdict grammar hole is unchanged.** "A1 holds but A5 fail(s)" still matches
+no pre-registered label, same as the frozen run. Not relabelled.
+
+**Carry-forward.** The memo-key fix is a correctness fix to research
+infrastructure and applies to every future `account_sim` run at a $1,000 stop
+— including the $50k rung of the capital ladder, which would have been
+silently contaminated the first time A1 failed and the ladder printed.
 
 ---
 
@@ -343,6 +544,77 @@ is ever considered, the delta-cap ordering question (rank-walk vs
 exposure-efficient selection) is the pre-registerable item — the adverse
 ordering read is post-hoc here; (3) ARM H sizing floor should be `max(1, …)`
 only when ½-size ≥ 1 contract, else skip, if the sleeve is ever re-run.
+
+### 2026-08-13 addendum — lookahead audit, G5 blindness gate, and the structure universe
+
+Prompted by the operator question "does the sim see the backtest result before
+picking a tier?", asked because the next step is an agent proposing positions
+against the live portfolio. **Verdict: no per-row lookahead** — `ladder_eligible`
+reads `tier`; `ladder_tier` reads `structure` + `market_regime` + `delta` +
+`dte`; `ladder_rank` adds a `score_total` tie-break; sizing reads
+`max_loss_per_contract`; exposure reads `delta` × `entry_underlying`; the exit
+profile keys off `structure`/`credit`/`mech_cell` (as-of-date). No outcome field
+is read before a pick. Three lookaheads DO exist above the row level and are
+recorded, not fixed: **(a)** the ladder and exit profile are in-sample (fitted on
+this book), **(b)** within-day ties resolve by file order for pre-13c rows, and
+**(c)** the candidate universe was outcome-filtered — addressed below.
+
+**G5 — outcome blindness, now GATED.** Auditing the path by eye is not a
+guarantee for a downstream agent, so blindness is enforced in two layers:
+`BlindRec` raises `LookaheadError` on any read of `R`/`E`/`R_dol`/`E_dol`/
+`mfe`/`mae`/`mfe_day`/`mae_day`/`exit_reason`/`days_held`, AND the equivalent
+columns are DELETED from the underlying `Trade` row so a read cannot route
+around the wrapper via `rec["t"].row`. G5 requires the resulting book to be
+**identical** to the sighted run: 124/124 positions, 0 differing. `Trade`
+construction touches only entry-side fields and the price path, so stripped rows
+still price. `--selftest-gates` flips all five gates to FAIL.
+
+**Structure universe (`--structure-universe`), NOT the default.** The frozen
+book withholds 19 `strike_expiry_tweak` debit rows that fail book.py's
+exact-replay gate. The gate's stated rationale — "priced or dated in a way the
+harness can't reconstruct" — is **wrong for these rows**: all 19 carry a stored
+`exit_reason` of `trailing_stop`, a rule removed from `DEBIT_PROD` by Attempt 10
+(2026-07-04). They are stale-exit-config exports whose price paths replay fine.
+Since this study never reads a stored outcome (G5 proves it), admitting them is
+sound *here and only here* — `load_book(require_proxy_calibration=False)` keeps
+`calibrated=False` on them, so `calibrated`-keyed logic (G2) still skips them,
+and it does **not** re-admit `bs_options_hist` rows (orthogonal filters, tested).
+
+Effect: candidate universe 795 → 814 (+19, all 2026, tier A=3 / C=14 / VETO=2);
+deployed book 220 → 223 picks over 90 → 91 dates, 3 gained (NVDA 03-11, GOOGL
+03-23, NVDA 04-02, all `bull_call_spread`), **0 displaced**. PRIMARY moves
+$7,860 → $8,357, meanR +0.278 → +0.280. **Verdict is UNCHANGED** (A1 MET, A5/A6
+NOT MET, same gap in the grammar) — the arm does not rescue feasibility and
+nothing is adopted from it. Gates always run on the FROZEN book so G1's B1
+reproduction and G4's selection identity cannot move because an arm widened the
+universe; the arm writes a separate artifact
+(`account_sim-positions-structure-latest.csv`, arm `RF1-structure`) so a
+consumer can never confuse the two books.
+
+**Positions CSV** now also carries the regime block —
+`market_regime`/`model_dir`/`model_vol` (what the tier keys off) kept SEPARATE
+from the per-play `regime` (per the repo invariant), plus
+`mech_direction`/`mech_vol`/`mech_cell`. Tier is now reproducible from the CSV
+alone. Export remains a debugging artifact: not pre-registered, adopts nothing.
+
+**Same-day addendum 2 — a `DEPLOYED BOOK BY REGIME` section was added to the
+report, and it is NOT a deviation from the pre-registration.** It adds no
+decision, changes no printed number and touches neither selection, sizing nor
+exits — it re-groups the book the walk already produced, so the gates and the
+A1–A6 verdict are bit-for-bit what they were. It is labelled post-hoc in the
+report itself, cells under 10 positions are marked `thin`, and it exists because
+the obvious next question about a deployed book ("which structures, in which
+regimes") was being answered by hand-crosstabbing the positions export, which
+is how a number nobody re-derives becomes a quoted finding. Anyone grading this
+report should read that section as a description, not a result.
+
+Worth recording from it, as description only: on PRIMARY the model's direction
+and the mechanical one **agree on 14 of 51 deployed positions** — the model
+reads RANGE on 34 positions the SPY/VIX label calls BEAR. The two are read off
+different things so this is not an error rate, but it does mean the tier (keyed
+on the model read) and the exit profile (keyed on the mechanical cell) are
+routinely disagreeing about the same position. Not a finding, and no cut here
+was pre-registered; flagged as a candidate question for a study that would be.
 
 ---
 

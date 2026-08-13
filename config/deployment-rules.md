@@ -109,17 +109,17 @@ play into a tier because its cell looks good here. §1–4 is the selection rule
 
 **Column key**
 
-| Col | Meaning |
-|---|---|
-| `n` | rows in the cell |
-| `win` | share with realized R > 0 |
-| `PF` | profit factor — gross winning $ / \|gross losing $\| |
-| `meanR` | mean realized return as a fraction of premium at risk |
-| `$` | summed realized dollars (size-weighted; `meanR` is not) |
-| `MFE` | mean best unrealized point on the path |
-| `MAE` | mean worst unrealized point on the path |
-| `gb` | give-back = \|MAE\| / MFE. **>1 = the average row went deeper under water than it ever showed green.** |
-| `cap` | capture = meanR / MFE. **Low `cap` with high `MFE` is an exit problem; low `MFE` is a selection problem.** |
+| Col     | Meaning                                                                                                    |
+| ------- | ---------------------------------------------------------------------------------------------------------- |
+| `n`     | rows in the cell                                                                                           |
+| `win`   | share with realized R > 0                                                                                  |
+| `PF`    | profit factor — gross winning $ / \|gross losing $\|                                                       |
+| `meanR` | mean realized return as a fraction of premium at risk                                                      |
+| `$`     | summed realized dollars (size-weighted; `meanR` is not)                                                    |
+| `MFE`   | mean best unrealized point on the path                                                                     |
+| `MAE`   | mean worst unrealized point on the path                                                                    |
+| `gb`    | give-back = \|MAE\| / MFE. **>1 = the average row went deeper under water than it ever showed green.**     |
+| `cap`   | capture = meanR / MFE. **Low `cap` with high `MFE` is an exit problem; low `MFE` is a selection problem.** |
 
 `win` and `PF` disagree constantly — read them together. `bull_put_spread` wins
 68% of the time and still has PF 0.94.
@@ -202,16 +202,16 @@ That is §1.2, and it holds pooled across every structure.
 
 ### 7.5 The Tier-A cell — `bull_call_spread` by regime × vol
 
-| Cell | Tier | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
-|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| RANGE + E-VOL | A | 50 | 66% | 2.99 | +0.543 | +25.4k | +1.47 | −0.47 | 0.32 | +0.37 |
-| RANGE + H-VOL | A | 13 | 77% | 9.80 | +0.644 | +10.4k | +1.08 | −0.25 | 0.23 | +0.60 |
-| RANGE + L-VOL | A | 15 | 53% | 1.81 | +0.197 | +3.7k | +1.26 | −0.68 | 0.54 | +0.16 |
-| RANGE + C-VOL | A | 32 | 56% | 1.35 | +0.179 | +4.9k | +1.02 | −0.60 | 0.59 | +0.18 |
-| BULL + C-VOL | B | 40 | 75% | 5.01 | +0.544 | +24.5k | +1.37 | −0.31 | 0.22 | +0.40 |
-| BULL + L-VOL | B | 60 | 43% | 1.07 | +0.033 | +1.9k | +0.99 | −0.71 | 0.71 | +0.03 |
-| BEAR + E-VOL | A | 20 | 65% | 2.37 | +0.446 | +6.8k | +1.56 | −0.38 | 0.25 | +0.29 |
-| BEAR + H-VOL | VETO | 9 | 67% | 2.27 | +0.389 | +2.9k | +1.50 | −0.43 | 0.29 | +0.26 |
+| Cell          | Tier |   n | win |   PF |  meanR |      $ |   MFE |   MAE |   gb |   cap |
+| ------------- | ---- | --: | --: | ---: | -----: | -----: | ----: | ----: | ---: | ----: |
+| RANGE + E-VOL | A    |  50 | 66% | 2.99 | +0.543 | +25.4k | +1.47 | −0.47 | 0.32 | +0.37 |
+| RANGE + H-VOL | A    |  13 | 77% | 9.80 | +0.644 | +10.4k | +1.08 | −0.25 | 0.23 | +0.60 |
+| RANGE + L-VOL | A    |  15 | 53% | 1.81 | +0.197 |  +3.7k | +1.26 | −0.68 | 0.54 | +0.16 |
+| RANGE + C-VOL | A    |  32 | 56% | 1.35 | +0.179 |  +4.9k | +1.02 | −0.60 | 0.59 | +0.18 |
+| BULL + C-VOL  | B    |  40 | 75% | 5.01 | +0.544 | +24.5k | +1.37 | −0.31 | 0.22 | +0.40 |
+| BULL + L-VOL  | B    |  60 | 43% | 1.07 | +0.033 |  +1.9k | +0.99 | −0.71 | 0.71 | +0.03 |
+| BEAR + E-VOL  | A    |  20 | 65% | 2.37 | +0.446 |  +6.8k | +1.56 | −0.38 | 0.25 | +0.29 |
+| BEAR + H-VOL  | VETO |   9 | 67% | 2.27 | +0.389 |  +2.9k | +1.50 | −0.43 | 0.29 | +0.26 |
 
 Two things to notice, both already reflected in the rules:
 

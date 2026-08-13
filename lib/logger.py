@@ -51,7 +51,8 @@ _MUTE_AT_WARNING = [
 # state; add them here if their progress output is wanted.
 _OWN_LOGGERS = ["lib", "scrape_flow", "analysis_pipeline", "backtest",
                 "fetch_mech_regime", "backfill_mech_cell", "align_tab_headers",
-                "fetch_underlying_ohlc", "fetch_counterpart_history"]
+                "fetch_underlying_ohlc", "fetch_counterpart_history",
+                "study_review"]
 
 
 def setup_logging(level: int = logging.DEBUG) -> None:

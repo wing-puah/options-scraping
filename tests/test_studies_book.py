@@ -156,6 +156,56 @@ def test_noncalibrating_debit_proxy_row_is_excluded(paths):
     assert diag["n_proxy_excluded_non_exact"] == 1
 
 
+def test_noncalibrating_debit_proxy_row_admitted_when_gate_opened(paths):
+    """`require_proxy_calibration=False` admits the row but keeps
+    `calibrated=False`, so `calibrated`-keyed logic downstream still skips it."""
+    bad_row = _row(ticker="DDD", structure="bull_call_spread", entry=1.00,
+                   proxy_method="strike_expiry_tweak")
+    _stamp_noncalibrating(bad_row)
+    _write_csv(paths["results"], [])
+    _write_csv(paths["proxy"], [bad_row])
+
+    records, diag = _load(paths, require_proxy_calibration=False)
+    assert len(records) == 1
+    assert records[0]["calibrated"] is False
+    assert records[0]["source"] == "tweak"
+    assert diag["n_proxy_excluded_non_exact"] == 0
+    assert diag["n_proxy_admitted_non_exact"] == 1
+    assert diag["require_proxy_calibration"] is False
+
+
+def test_opening_the_calibration_gate_does_not_readmit_bs_rows(paths):
+    """The two filters are orthogonal: opening the calibration gate must not
+    smuggle model-priced rows back into the book."""
+    bs_row = _row(ticker="BBB", structure="bull_call_spread", entry=1.00,
+                  proxy_method="bs_options_hist")
+    _stamp_noncalibrating(bs_row)
+    _write_csv(paths["results"], [])
+    _write_csv(paths["proxy"], [bs_row])
+
+    records, _ = _load(paths, require_proxy_calibration=False)
+    assert records == []
+
+    records, _ = _load(paths, require_proxy_calibration=False, include_bs=True)
+    assert [r["source"] for r in records] == ["bs"]
+
+
+def test_calibrating_proxy_row_is_unaffected_by_the_open_gate(paths):
+    """Rows that DO reproduce keep calibrated=True either way — opening the
+    gate must widen the universe, not relabel what was already admitted."""
+    good_row = _row(ticker="GGG", structure="bull_call_spread", entry=1.00,
+                    proxy_method="strike_expiry_tweak")
+    _stamp_calibrating(good_row, book.DEBIT_PROD)
+    _write_csv(paths["results"], [])
+    _write_csv(paths["proxy"], [good_row])
+
+    for require in (True, False):
+        records, diag = _load(paths, require_proxy_calibration=require)
+        assert len(records) == 1
+        assert records[0]["calibrated"] is True
+        assert diag["n_proxy_admitted_non_exact"] == 0
+
+
 def test_real_debit_row_kept_even_on_hard_calibration_mismatch(paths):
     """Real rows are never dropped by the gate — mismatches are diagnostic only."""
     row = _row(ticker="EEE", structure="bull_call_spread", entry=1.00)
