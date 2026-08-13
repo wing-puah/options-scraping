@@ -2,6 +2,10 @@
   "permissions": {
     "allow": [
       "mcp__codegraph__*"
+    ],
+    "deny": [
+      "Edit(./scripts/backtest_study/harness.py)",
+      "Write(./scripts/backtest_study/harness.py)"
     ]
   },
   "hooks": {

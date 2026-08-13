@@ -62,6 +62,37 @@ def test_analysis_to_rows_expands_plays_and_drops_blank_ticker():
     assert nvda["signal"] == ""  # signals live on the MARKET row only
 
 
+def test_analysis_to_rows_never_inherits_market_regime():
+    """INVARIANT: per-play `regime`/`signal` are ticker-specific, never market copies.
+
+    A play that omits the field gets an EMPTY cell, not the market read; a play that
+    supplies its own keeps it. This regression has shipped before — see the invariant
+    comment on analysis_to_rows() in scripts/analysis_pipeline/core.py. Do not "fix"
+    a blank play regime by falling back to analysis["regime"].
+    """
+    analysis = {
+        "regime": "BEAR + H-VOL + RISK-OFF",
+        "signals": ["[FLOW] QQQ put sweeps"],
+        "plays": [
+            # omits both fields -> must stay empty, NOT inherit "BEAR + H-VOL + RISK-OFF"
+            {"ticker": "NVDA", "structure": "bear put 180/170", "thesis": "hedge pressure"},
+            # carries its own -> must be preserved verbatim, NOT overwritten by the market read
+            {"ticker": "AMD", "structure": "bull call 160/170", "thesis": "reversal",
+             "regime": "BULL", "signal": "[FLOW] call sweeps"},
+        ],
+    }
+    market, nvda, amd = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21")
+
+    assert market["regime"] == "BEAR + H-VOL + RISK-OFF"  # market row keeps the top-level read
+
+    assert nvda["regime"] == ""   # empty, not the market regime
+    assert nvda["signal"] == ""
+    assert market["regime"] not in (nvda["regime"], amd["regime"])
+
+    assert amd["regime"] == "BULL"                 # its own, not the market's BEAR
+    assert amd["signal"] == "[FLOW] call sweeps"   # its own, not the market's signals
+
+
 def test_analysis_to_rows_score_components_and_total():
     # score_price/score_catalyst are not model-emitted (Part B4) — they come
     # from the pipeline-computed `play_scores` dict (lib.price_catalyst), keyed by
