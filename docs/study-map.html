@@ -486,7 +486,7 @@ footer code { color: var(--ink-soft); }
       selection is not tunable from the columns we have; the money is in the exit rules and in
       position management. Every selection study returns a null. Two exit rules shipped.</p>
     <p class="built">
-      <span>built 2026-08-13 21:36</span>
+      <span>built 2026-08-13 22:15</span>
       <span>verdicts: hand-written, from current.md</span>
       <span>run blocks: quoted from backtests/study_output/</span>
     </p>
@@ -531,15 +531,15 @@ footer code { color: var(--ink-soft); }
       <h2>Latest from the tuning log</h2>
       <p>The newest sections of <code>config/backtest-tuning/current.md</code>, quoted —
         headings and first line only. The log is the source of truth; this is a pointer
-        into it, not a second copy. Last edited 2026-08-13 21:35.</p>
+        into it, not a second copy. Last edited 2026-08-13 22:15.</p>
     </div>
     <div class="log">
       <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim COMPOUNDING arm: sizing re-marked to realized equity monthly, budget ceilinged at $1,000 — it COSTS money on this book, and it breaks A2/A5</p><p class="gist">Status: NEW OPT-IN ARM. Nothing ships. Post-hoc — compounding is NOT pre-registered, and the mark interval and the $1,000 ceiling are a FRICTION MODEL that may not be adopted on P&amp;L.</p></div>
       <div class="log-row"><span class="when">2026-08-13</span><p class="what">volume_signal RUN: NULL — the volume column is closed</p><p class="gist">Report: backtests/study_output/volume_signal-latest.txt (stamped runs volume_signal-20260813-202006.txt first run, -202122.txt amended-label rerun; the diff between them is the timestamp and the verdict lines ONLY — every number is…</p></div>
-      <div class="log-row"><span class="when">2026-08-13</span><p class="what">volume_signal: PRE-REGISTRATION (written BEFORE the study was built or run)</p><p class="gist">Question. Underlying share volume is the one column already on disk that no study has read (scripts/backtest_study/underlying.py drops it at parse time). Does it condition anything the book cares about? This satisfies the ML-search reopen…</p></div>
       <div class="log-row"><span class="when">2026-08-13</span><p class="what">bear_put demotion mechanism CHOSEN: card-level selection veto (§1.4), hedge sleeve carved out</p><p class="gist">Operator decision, not a new study. No backtest run; no numbers change.</p></div>
       <div class="log-row"><span class="when">2026-08-13</span><p class="what">method-config audit: −25 veto RETIRED, OIConfirm dropped from Score (in-v4), codex engine retired</p><p class="gist">Not a data study — a cross-read of this log + deployment-rules.md against config/analysis-framework.md, config/analysis-methods/claude.md, config/conviction-score.md, and scripts/analysis_pipeline/config.py. No backtest run.</p></div>
       <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim caps reconfigured to 0.25x / 2.50x: the verdict does not move, and loosening the net cap made the adverse ordering WORSE</p><p class="gist">Status: CONFIG CHANGE + INFRA FIX. Nothing ships. The verdict is unchanged.</p></div>
+      <div class="log-row"><span class="when">2026-08-13</span><p class="what">account_sim made CONFIG-DRIVEN: the study's parameters move to config/account-sim.yml, the module holds no state, and no number moves</p><p class="gist">Status: REFACTOR ONLY. No result changed. The regression bar was that a default run reproduce the previous one exactly, and it does: account_sim-positions-latest.csv is byte-identical before and after, and every data-bearing line of the…</p></div>
     </div>
   </section>
 
