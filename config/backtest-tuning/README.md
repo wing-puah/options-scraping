@@ -183,15 +183,40 @@ disagree, the log wins.
 | 2026-07-22 — Regime-gap backfill: the 13 remaining dates | [archive/05](archive/05-pooled-evals-762-and-regime-labels.md) |
 | 2026-07-22 — 25-date gate CLOSED at 913 pooled priced | [archive/06](archive/06-mech-regime-and-shipped-exits.md) |
 | 2026-07-22 addenda 1–10 — mech_regime overlay, shipped BEAR_HE trail, `exit_basis`, `mech_cell`, SPY/VIX in Drive | [archive/06](archive/06-mech-regime-and-shipped-exits.md) |
-| 2026-07-22 addenda 11–14 — bear_put: cancellation, structure-keyed trail, pre-registration, DEMOTE verdict | [current.md](current.md) |
-| 2026-07-22 — Feb–Apr 2026 bear holdout: coverage + backfill status | [current.md](current.md) |
-| 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [current.md](current.md) |
-| 2026-08-12 — edge status after close-out: real, narrow, NOT selection-tunable | [current.md](current.md) |
-| 2026-08-12 — bear MFE give-back below the ratchet threshold (candidate, not run) | [current.md](current.md) |
-| 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [current.md](current.md) |
-| 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [current.md](current.md) |
+| 2026-07-22 addenda 11–14 — bear_put: cancellation, structure-keyed trail, pre-registration, DEMOTE verdict | [archive/07](archive/07-bear-put-demotion-thread-and-holdout.md) |
+| 2026-07-22 — Feb–Apr 2026 bear holdout: coverage + backfill status | [archive/07](archive/07-bear-put-demotion-thread-and-holdout.md) |
+| 2026-07-27 — the pre-engine discretionary book, and the long-dated blind spot | [archive/08](archive/08-pre-engine-book-and-year-split.md) |
+| 2026-08-08 — year-split evaluation on refreshed exports: 2025 IS the outlier | [archive/08](archive/08-pre-engine-book-and-year-split.md) |
+| 2026-08-11 — completed-book analysis: holdout coverage FULL, DEMOTE fires at n=164 | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-11 addendum — `bs_options_hist` DROPPED: attenuating + replay-contaminating | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-11 addendum — `mech_cell` BACKFILLED across the analysis tabs | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-11 — ML combination search RUN: NULL RESULT; bear `be_after` finding | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION | [pre-registrations/v4_bridge.md](pre-registrations/v4_bridge.md) |
+| 2026-08-11 — v3 CLOSE-OUT: three findings SHIPPED, production delta measured | [archive/09](archive/09-v3-closeout.md) |
+| 2026-08-12 — deployment rules split: operator card vs evidence | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — v4 bridge: RECORDED DEVIATION from the pre-registration | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — live loop promoted to tracked code + fill mapper | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — v1 → v2 → v3 prompt-version comparison + June live-vs-analysis audit | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — Stage 1 live-vs-tier eval on July | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — deployment reference stats added to the operator card | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
+| 2026-08-12 — edge status after close-out: real, narrow, NOT selection-tunable | [archive/11](archive/11-exit-conditioning.md) |
+| 2026-08-12 — bear MFE give-back below the ratchet threshold (candidate, not run) | [archive/11](archive/11-exit-conditioning.md) |
+| 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [archive/11](archive/11-exit-conditioning.md) |
+| 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [archive/11](archive/11-exit-conditioning.md) |
+| 2026-08-12 — `bear_rewrap`: the WRAPPER is worth +0.085 but does not hold up | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |
+| 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/vol_sleeve.md](pre-registrations/vol_sleeve.md) |
+| 2026-08-12 — `vol_sleeve` RUN: the sleeve DOUBLES DOWN; the calendar is the only survivor | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |
 | 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/account_sim.md](pre-registrations/account_sim.md) |
 | 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [current.md](current.md) |
 | 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [current.md](current.md) |
 | 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [current.md](current.md) |
 | 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/calendar_hedge.md](pre-registrations/calendar_hedge.md) |
+| 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 3.00x) | [current.md](current.md) |
+| 2026-08-13 — `account_sim` made CONFIG-DRIVEN (`config/account-sim.yml`) | [current.md](current.md) |
+| 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x | [current.md](current.md) |
+| 2026-08-13 — method-config audit: −25 veto RETIRED, OIConfirm dropped, codex engine retired | [current.md](current.md) |
+| 2026-08-13 — bear_put demotion mechanism CHOSEN: card veto §1.4, hedge sleeve carved out | [current.md](current.md) |
+| 2026-08-13 — `volume_signal`: PRE-REGISTRATION | [pre-registrations/volume_signal.md](pre-registrations/volume_signal.md) |
+| 2026-08-13 — `volume_signal` RUN: NULL — the volume column is closed | [current.md](current.md) |
+| 2026-08-13 — `account_sim` COMPOUNDING arm: costs money on this book; A2/A5 do not transfer | [current.md](current.md) |
