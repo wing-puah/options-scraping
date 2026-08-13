@@ -141,6 +141,7 @@ edge the study never tested.
 | [`deployment-evidence.md`](deployment-evidence.md) | Why each of those rules exists: derivation, validation tables, caveats, and the **open pre-registered rollback triggers**. |
 | [`ml-plan.md`](ml-plan.md) | The ML combination-search plan (RUN 2026-08-11, null result). |
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst independent-replication protocol (`research-analyst` × 2 + `research-validator`) for grading study reports and exploring train splits. |
+| [`pre-registrations/`](pre-registrations/) | One immutable file per study: the plan written *before* the run. Kept out of `current.md` so it survives pruning. |
 
 The evidence file is a *summary of* this log, not a second source — when the two
 disagree, the log wins.
@@ -189,8 +190,8 @@ disagree, the log wins.
 | 2026-08-12 — bear MFE give-back below the ratchet threshold (candidate, not run) | [current.md](current.md) |
 | 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [current.md](current.md) |
 | 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [current.md](current.md) |
-| 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [current.md](current.md) |
+| 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/account_sim.md](pre-registrations/account_sim.md) |
 | 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [current.md](current.md) |
 | 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [current.md](current.md) |
 | 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [current.md](current.md) |
-| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [current.md](current.md) |
+| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/calendar_hedge.md](pre-registrations/calendar_hedge.md) |

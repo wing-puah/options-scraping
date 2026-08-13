@@ -26,6 +26,20 @@ def _esc(text: str) -> str:
     return html.escape(str(text), quote=False)
 
 
+def _caps_phrase(headline: dict) -> str:
+    """Name the run's delta-notional caps from the report's headline cell.
+    `inf` is a legal configured value (YAML `null`), so it gets prose rather
+    than a number."""
+    per_pos, net = headline["per_pos"], headline["net"]
+    if per_pos == "inf" and net == "inf":
+        return "no delta-notional caps at all"
+    if per_pos == "inf":
+        return f"an uncapped per-position delta-notional and a net cap of {net}x equity"
+    if net == "inf":
+        return f"a per-position delta-notional cap of {per_pos}x equity and no net cap"
+    return f"delta-notional caps of {per_pos}x equity per position and {net}x net"
+
+
 def asset_js(*names: str) -> str:
     """Inline JS assets in order, escaped so a string in them cannot close the
     surrounding <script>. kit.js goes first on every page: it defines the
@@ -90,6 +104,13 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
     risk_pct_str = (
         f"{100 * risk_acc['budget'] / risk_acc['capital']:g}%" if risk_acc["capital"] else "its"
     )
+    # The caps are config-driven (config/account-sim.yml), so the standfirst
+    # quotes the report's own HEADLINE CELL rather than naming a value. A
+    # hardcoded pair here silently outlives the config it describes.
+    caps_str = _caps_phrase(parsed["populations"]["primary"]["cap_grid"]["headline"])
+    # max_positions_per_day is config-driven too (config/account-sim.yml), read
+    # back from the report's own header block rather than assumed as "three".
+    positions_str = f"{parsed['account_config']['max_per_day']} positions a day"
 
     payload = {
         "capital": capital,
@@ -155,8 +176,8 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
     <p class="eyebrow">backtest study · account_sim · research tier</p>
     <h1>Can the shipped ladder be traded in a {capital_str} account?</h1>
     <p class="standfirst">A pre-registered feasibility simulation of the deployment ladder at
-      {capital_str} of capital, {risk_pct_str} risk per position on a max-loss basis, three positions a day, and
-      delta-notional caps of 0.25x equity per position and 1.50x net. Selection and exits are
+      {capital_str} of capital, {risk_pct_str} risk per position on a max-loss basis, {positions_str}, and
+      {caps_str}. Selection and exits are
       frozen; only the account is new.</p>
 {_provenance(prov)}
   </header>

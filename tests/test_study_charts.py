@@ -200,6 +200,15 @@ def make_report(path: Path, command: str = "python -m scripts.backtest_study.acc
                  "  python    3.11.2\n"
                  "  inputs:\n"
                  "   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv")
+        + _section("account_sim — $25,000 FEASIBILITY simulation of the shipped ladder",
+                   "  config    config/account-sim.yml\n"
+                   "  Selection FROZEN (top-3/day, tiers A+B, ladder_rank). Exits FROZEN\n"
+                   "  (shipped debit merge / CREDIT_PROD). Capital $25,000, risk\n"
+                   "  2% = $500 per position on a MAX-LOSS basis,\n"
+                   "  3 positions/day, per-position delta-notional cap 0.25x equity,\n"
+                   "  net cap 2.50x equity.\n"
+                   "  NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME. No annualised figure,\n"
+                   "  Sharpe, or time-to-recover appears anywhere in this report by construction.")
         + _section("GATES — G1..G5 (non-zero exit on any failure)",
                    "  G1: PASS\n  G2: PASS\n  G3: PASS  (0 violations)\n  G4: PASS\n  G5: PASS\n\n  GATES: ALL PASS")
         + _section("POPULATION — dense episodes FIRST (primary), full book secondary",

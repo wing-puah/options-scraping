@@ -3,6 +3,17 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-13, `account_sim` caps at 0.25x / 2.50x).** The
+configured net delta-notional cap is now **2.50x** (per-position unchanged at
+0.25x). The verdict is unchanged (`NO VERDICT MATCHES`; A5, A6 still fail), but
+the book grows 51 → 72 positions and the **adverse ordering roughly doubles** —
+the picks the net cap still excludes return +0.624 against +0.290 taken. Net
+delta remains the binding constraint at the looser cap and cash still binds zero
+times, so the open lead is **selection order, not the cap**. Also fixed: a study
+run now re-renders the chart pages (it previously refreshed only the study map,
+so `docs/account-sim-charts.html` silently quoted a stale run). Entry below.
+Prior state follows.
+
 **State of play (2026-08-13, bear_put demotion mechanism CHOSEN).** The one
 decision the 08-11 holdout left with the operator is made: the bear_put
 demotion ships as **card rule §1.4 in `deployment-rules.md`** — bear debit
@@ -237,6 +248,78 @@ plays" vs the 8-play coverage floor) — moot with the file.
 study loaders, and the ML-search reopen condition is "new columns" — the
 non-decision-relevant columns (oi_confirm_pct, cpir, iv_skew, iv_pct) are
 cheap provenance, not clutter.
+
+---
+
+## 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x: the verdict does not move, and loosening the net cap made the adverse ordering WORSE
+
+**Status: CONFIG CHANGE + INFRA FIX. Nothing ships. The verdict is unchanged.**
+
+The operator raised `caps.net` 1.50x → 2.50x in `config/account-sim.yml`
+(per-position stays 0.25x) and reported seeing no change in the results. The
+results had changed; the **chart page had not been re-rendered**. See the infra
+section below — that staleness is the more important item here.
+
+**What the cap change did.** Both cells below are read off the SAME run's cap
+grid, so they are directly comparable:
+
+| configured cell | positions | dates | dollars | meanR |
+|---|---|---|---|---|
+| 0.25x / 1.50x | 51 | 28 | $7,860 | +0.278 |
+| 0.25x / 2.50x | 72 | 37 | $11,399 | +0.290 |
+
+**The verdict does not move:** A1–A4 MET, **A5 NOT MET, A6 NOT MET**, `NO
+VERDICT MATCHES` — the same landing as at 1.50x. What moved inside the
+checklist: A2 99% → 90% (a different and larger date set, not a like-for-like
+worsening); A5's ex-2025-Mar/Apr swing +111pt → **+41pt** (still over the 15pt
+bar); A6's debit-only CI [−0.093, +0.440] at n=39 → **[+0.021, +0.435] at
+n=55**, now excluding zero, but still NOT MET because 2026 alone is −0.008 and
+A1 must hold every year.
+
+**The finding worth keeping: loosening the net cap did not relieve the binding
+constraint, it raised the quality of what the constraint keeps out.**
+`net_delta` is **still** the most binding constraint at 2.50x (40 of 76
+exclusions; **cash binds zero times**, as it did at 1.50x), and the picks it
+still excludes return meanR **+0.624** against +0.290 taken — a +0.333 gap. At
+1.50x that gap was +0.431 vs +0.278, i.e. **+0.153**. Admitting 21 more
+positions roughly doubled the adverse-ordering penalty on what remains excluded.
+
+No cap value may be read off the P&L for this, and the reason is mechanical
+rather than procedural: the grid is **monotone 4/4 in the net cap** by
+construction — the book has positive mean R, so looser is always richer, all the
+way to the uncapped cell at $17,622. The grid therefore cannot identify a cap;
+that number has to come from what the account can actually carry (margin, delta
+tolerance), and setting it to what is true of the account is simply making the
+simulation more accurate. What **is** readable is the *ordering*: at both cap
+settings the ladder-rank walk spends exposure on earlier-ranked picks that
+underperform the ones the cap then excludes. That is a **selection-order**
+problem, not a cap problem, and it is now the strongest open lead this study has
+produced.
+
+**Infra fixed in the same change (the actual bug).**
+
+  * `scripts/backtest_study/run.py` auto-refreshed the study **map** after every
+    run but never the **chart pages**, so `docs/account-sim-charts.html` kept
+    quoting the previous run's numbers with no warning. A study run now
+    re-renders the charts too. `make study-docs` already did this; nothing
+    prompted anyone to run it.
+  * `scripts/study_charts/` hardcoded config-driven values into page prose —
+    the standfirst's caps and positions/day, and the utilisation panel's net-cap
+    reference line (pinned at `v: 1.5`). All now read out of the parsed report,
+    so a config change can never again be contradicted by the page describing
+    it. `report.py` gained a `max_per_day` parse and accepts `inf` in the
+    headline cap cell (a legal value when a cap is `null`).
+  * `scripts/study_charts/series.py` — two **pre-existing** reconciliation
+    defects that the wider book exposed: a float-epsilon comparison (0.625
+    against a report printing `62%` failed by 4e-18) and a flat $1 tolerance on
+    a regime TOTAL summed from a dozen independently-rounded cells. Both now
+    tolerate display rounding only; a real mismatch still fails the build.
+
+**Config-file framing corrected.** The note in `config/account-sim.yml` saying
+the pre-registered values were the record of "what the frozen study ran with"
+is removed. The file is the simulation and is meant to be edited; the
+`## account_sim: PRE-REGISTRATION` section below stays where it is, because
+`scripts/study_review/core.py::load_pre_registration` locates it by heading.
 
 ---
 
@@ -730,241 +813,17 @@ was pre-registered; flagged as a candidate question for a study that would be.
 
 ---
 
-## 2026-08-13 — `account_sim`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## 2026-08-13 — `account_sim`: PRE-REGISTRATION → [`pre-registrations/account_sim.md`](pre-registrations/account_sim.md)
 
-**Question.** Does the shipped ladder's paper edge survive a **$25,000** account
-with real opening constraints? This is a FEASIBILITY study, not an edge search.
-The selection rule is FROZEN (`protocol.top_k_per_day(book, ladder_rank, k=3,
-ladder_eligible)` — the shipped operator card) and the exits are FROZEN (the
-shipped profiles via `bear_giveback.prod_profile_for`). No column may be added
-to selection and no exit knob may be moved. The only new machinery is an
-account ledger. **Nothing ships from this study under any outcome.**
-
-**Plan-time observations (disclosed).** These distributions were measured on the
-pooled book (795 rows real+tweak, 08-11 exports) while DESIGNING this study; the
-cap values below are informed by them and that is stated rather than hidden.
-Ladder picks: 220 over 90 dates (218 with usable max_loss). At $25k / 2%
-($500 budget): **170/218 picks floor at 1 contract; 133 breach the budget at one
-contract** (worst single-position risk $3,321 = 13.3% of equity). Per-position
-|delta-notional|/equity: p10 0.05, median 0.14, p75 0.22, p90 0.32, max 0.94.
-Daily |net| delta-notional/equity: median 1.28×, p90 4.73×, max 8.38×; only
-1/218 deployed picks is negative-delta, so net ≈ gross until a hedge sleeve is
-added. Reserved-capital/equity: median 0.27, p90 0.83, max 1.80. Concurrent
-open positions: median 8, p90 29, max 48. The 118 signal dates cluster hard
-(2026-03: 124 rows; nine months have ≤4 dates) — not a trading calendar.
-
-**Constants, fixed here.**
-- `STARTING_CAPITAL = 25_000`, fixed base (matching production's fixed
-  `portfolio_value`); a compounding-equity run is a labelled sensitivity only.
-- `RISK_PER_TRADE_PCT = 0.02` → $500; `contracts = max(1, int(500 /
-  max_loss_per_contract))` — a MAX-LOSS basis, deliberately more conservative
-  than production's risk-to-stop basis (`budget / (premium × 0.75 × 100)`),
-  because a real small account cannot assume the stop fills; the difference is
-  disclosed here, not discovered later. Verified `max_loss_per_contract ==
-  entry_net×100` on 593/593 debit rows; it is also the broker-margin basis for
-  credits.
-- `MAX_POSITIONS_PER_DAY = 3`; within-day order = `ladder_rank` descending (the
-  shipped ordering, not a knob).
-- Reserved capital = `max_loss_per_contract × contracts`, held from entry
-  session `t.grid[0]` through exit session `t.grid[days_held-1]` inclusive,
-  released with realized P&L booked at exit.
-- Delta-notional per position = `|delta| × 100 × contracts × entry_underlying`,
-  computed at entry, constant for the position's life. `delta` is the row's
-  signed NET per-spread delta (`simulate.py:496-501`; one market anchor leg +
-  BS for the rest — decision-time, never drifting). Portfolio net = |Σ signed|;
-  gross = Σ|·|; both reported.
-- **PER_POSITION_CAP = 0.25 × equity** ($6,250) — just above the observed p75,
-  bites the tail without reshaping the book (a cap below the median would be a
-  different strategy, not a friction).
-- **NET_CAP = 1.50 × equity** ($37,500) — binds on roughly the upper half of
-  occupied sessions, which is the point.
-- The $500 dollar stop is applied through the exact scaling identity: replay at
-  `contracts × 2` under the frozen harness ($1,000 stop) and divide dollars by
-  2; integrality asserted; calibrated at scale=1 against stored rows (G2).
-
-**Arms (all reported, none adopted).**
-- R (REJECT): a position breaching any cap at risk-sized contracts is skipped,
-  logged with counterfactual R / R_dol. D (DOWNSIZE): contracts reduced to the
-  largest integer satisfying every cap, then **re-replayed at the reduced
-  size** (never rescaled arithmetically); 0 → reject.
-- F1 (TAKE the 1-contract floor even when its max loss exceeds $500 — what
-  production does) vs F2 (REFUSE those picks). Known before registration: F1 vs
-  F2 divides 133/218 of the book; this is the study's central object.
-- ARM H: the SHIPPED bear hedge sleeve (1/day, `|delta|` descending, ≤½ size)
-  added to the constrained run — the only way net-vs-gross becomes measurable.
-
-**Cap grid, and the anti-tuning rule.** Per-position ∈ {0.15, 0.25, 0.40, ∞} ×
-net ∈ {1.00, 1.50, 2.50, ∞}. The HEADLINE is the single pre-registered
-(0.25, 1.50) cell, quoted first and alone. **No cap value may be adopted,
-recommended, or carried into a conclusion on the basis of its P&L in this
-grid.** The only admissible reading is qualitative monotonicity; a non-monotone
-surface is evidence of a ledger bug, not an opportunity.
-
-**Population.** PRIMARY = dense episodes: maximal runs of signal dates with no
-internal gap > 5 trading sessions and ≥ 10 dates; the episode list prints
-before any result. SECONDARY = the full sparse book, labelled as an
-availability upper bound / concurrency lower bound; it may not carry a
-conclusion alone. No annualised return, Sharpe, or time-to-recover may be
-quoted anywhere in the write-up.
-
-**Baselines.** B1 = same ladder, unconstrained, STORED contract counts and
-stored outcomes — must reproduce the deployed-book line the 08-12 `vol_sleeve`
-report printed on the same exports (**220 positions / 90 dates / $63,553**).
-B2 = same ladder, unconstrained, $25k max-loss sizing. B1→B2 isolates
-granularity; B2→constrained isolates the caps.
-
-**Criteria.**
-- A1 EDGE SURVIVAL — constrained mean R over taken positions > 0, 95%
-  date-clustered CI excluding zero, positive every year present.
-- A2 ATTRITION — constrained total $ ≥ 60% of B2 on the same dates.
-- A3 NO BLOWUP — ledger never over-reserves (violation FAILS the run) and
-  constrained max drawdown ≤ 25% of starting capital.
-- A4 ATTRIBUTION — every rejection/downsize attributes to exactly ONE binding
-  constraint (cash / per-pos delta / net delta / min-1 refusal / day-3 cap)
-  and the counts sum exactly (self-check; mismatch FAILS the run).
-- A5 STABILITY — constrained/B2 dollar ratio moves ≤ 15 points across both
-  mandatory window cuts.
-- A6 CREDIT SENSITIVITY — A1 must also hold on the debit-only subset (credit
-  rows are admitted ungated by `book.py`).
-
-**Verdicts, worded now.** FEASIBLE = A1∧A2∧A3∧A5∧A6. FEASIBLE-BUT-DEGRADED =
-A1∧A3 with A2 failing. NOT FEASIBLE AT $25k = A1 fails. On NOT FEASIBLE, and
-only after the primary verdict prints, the report prints the smallest capital
-in {25k, 35k, 50k} at which A1∧A2 pass — an operator note under the same
-anti-tuning rule.
-
-**Gates (non-zero exit on failure).** G1 book calibration quoted
-(`debit_calib`, `n_credit_ungated`). G2 replay identity: every deployed pick
-re-replayed at stored contracts, scale=1, must match stored
-`(exit_reason, days_held, round(R,4))` for calibrated debit rows. G3 ledger
-self-check: at every session `cash + Σreserved == 25,000 + Σrealized-to-date`.
-G4 selection identity: the unconstrained pick set equals `top_k_per_day(...)`
-by set equality (proves no silent re-selection).
+Moved out of this log: a pre-registration is an immutable artifact and this
+file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 
-## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION → [`pre-registrations/calendar_hedge.md`](pre-registrations/calendar_hedge.md)
 
-**Question.** The 2026-08-12 `vol_sleeve` run left one CANDIDATE: the calendar
-is uncorrelated with the deployed book (+0.088, CI spans zero) and returns
-+0.336 CI [+0.124, +0.486] on its worst decile — a per-structure subgroup of a
-POOLED gate, n=13 rows over 7 dates. This study re-derives that number under a
-pre-registered pick rule, a fixed universe, and a strict fill definition. It
-will be a different number on a smaller n; that is the point. A bounded sweep
-of untried wrappers runs SEPARATELY behind it (ARM S below).
-
-**Frozen inputs.** `book.load_book(include_bs=False)`; deployed book =
-`top_k_per_day(ladder_rank, k=3, A|B)`; synthesis/pricing =
-`vol_sleeve.build_legs` + `_strike_index` and `bear_rewrap.{entry_date_for,
-net_entry, net_marks, leg_details, size_contracts, reconstructs}` UNCHANGED;
-exits = frozen `harness.replay` under `DEBIT_PROD`. Nothing in `harness.py`,
-`vol_sleeve.py`, `bear_rewrap.py`, `config/backtest.yml`, or
-`config/deployment-rules.md` is edited.
-
-**Universe.** Only dates where the ladder actually deployed, and a candidate
-must be **fillable on the ladder's own entry session** — both legs cached on
-`grid[0]`, NOT the loose ≤5-day entry-lag rule `vol_sleeve` used (you cannot
-decide to hedge Monday and be filled Friday). The lag distribution under the
-loose rule prints as a sensitivity. Excluded and counted: `entry_net ≤ 0`
-(crossed/stale market — vol_sleeve saw 2/183) and `far_exp ≤ near_exp`.
-
-**Pick rules (decision-time only; the list is CLOSED here).**
-P1 nearest-ATM (min |K*−S|/S among the day's fillable calendars); P2 longest
-near-leg DTE; P3 shortest near-leg DTE; P4 widest expiry gap; P5 same ticker as
-the day's top-ranked deployed position (P1 tie-break); P6 ETF underlyings only,
-then P1. **THE RULE IS P1** — geometry not score, the closest analogue of the
-shipped bear-hedge convention, and implicitly what produced the vol_sleeve
-number. P2–P6 print as a robustness fan; a P2–P6 pass with P1 failing is a
-candidate for a future window, never a ship.
-
-**Sizing.** One hedge per day, ≤½ position: `bear_rewrap.size_contracts` × 0.5
-on the shipped $50k basis (directly comparable with the shipped bear sleeve).
-Portfolio effect at sleeve fractions f ∈ {0, 0.25, 0.50, 1.0}, exactly as
-`bear_deploy` D3.
-
-**Gates that must pass before any hedge number is read.**
-- **H0 FILL:** P1 produces a fillable hedge on ≥60% of deployed-book dates AND
-  ≥60% of the deployed book's worst-decile dates (both print side by side; the
-  gate fails on either). Unfillable days are carried as f=0 in every portfolio
-  line, never dropped from the denominator. A hedge unavailable exactly when
-  needed is not a hedge.
-- **H0b FRESHNESS:** the headline must survive `stale_at_cap ≤ 3` and
-  `pct_real ≥ 0.5` (`vol_sleeve.mark_quality`).
-
-**Exit.** `DEBIT_PROD` (pt .90 / sl .75 / tef .75) — the profile the candidate
-was measured under; no calendar-specific exit (that would stack a second free
-parameter on the pick rule). The frozen harness already handles calendars: the
-grid ends at the SHORT leg's expiry, `_price_asof` never carries a leg past its
-own expiration, and multi-expiry net marks are deliberately unclamped. As a
-LABELLED SENSITIVITY only: the same table under hold-to-near-expiry
-(pt/sl/tef all None) — it may not change the verdict; it exists so the
-write-up can say whether the verdict is exit-shape-dependent.
-
-**Criteria (H1–H5, mirroring bear_deploy D1–D5, renamed to avoid confusion).**
-- H1 STANDALONE (context, NOT a gate): mean E and R of the P1 sleeve,
-  date-clustered CI, per-year signs. Negative standalone does not fail a hedge.
-- **H2 HEDGE CONTRIBUTION (the primary gate, D2's rule verbatim):** on
-  deployed-book dates, (a) date-level correlation of the two daily series < 0;
-  (b) mean sleeve R on the deployed book's worst-decile dates > 0 with
-  date-clustered CI excluding zero; (c) worst-quartile tail positive in ≥2
-  evaluable years. All three.
-- H3 SIZING (D3 verbatim): the largest f whose max drawdown AND worst single
-  date are both no worse than f=0.
-- H4 CONDITIONAL PICK: within-date paired comparison of P1 vs the day's average
-  fillable calendar and vs each of P2–P6.
-- H5 TIMING (POST-HOC, labelled): gates on `mech_cell == BEAR_HE`, H-VOL,
-  RANGE+C/L-VOL, and earnings-inside-DTE (vol_sleeve's one CI-clearing
-  conditional: +0.356 vs −0.035, CI [+0.111, +0.664], n=42). Candidate-only.
-- **POWER STOP:** if the P1 worst-decile cell has fewer than 10 positions,
-  H2(b)'s CI is NOT read and H2 is recorded **NOT EVALUABLE** — not "failed".
-  Expected: the cell will be ≈7–9 under a 1/day rule; NOT EVALUABLE is a
-  likely and correct outcome, and the honest conclusion is "needs new dates".
-
-**Baselines (two — a change from vol_sleeve, which compared vs no hedge
-only).** (i) the deployed ladder alone at $50k; (ii) the ladder PLUS the
-SHIPPED bear hedge sleeve (`|delta|` descending, ½ size, 1/day). The calendar
-must beat the hedge the operator already has, not just the empty seat.
-
-**Reconstruction gates.** R1 book calibration quoted. R2
-`bear_rewrap.reconstructs` on every source row feeding the universe. R3 the
-deployed-book replay reproduces the deployed line the 08-12 `vol_sleeve` report
-printed on the same exports (220 positions / 90 dates / $63,553). **R4
-(the critical one):** with the pick rule disabled and the LOOSE fill rule, this
-study must reproduce vol_sleeve's calendar cell EXACTLY — 183 rows, meanR
-+0.158, $28,059, exit mix time_exit 124 / pt 28 / dollar_stop 22 / cap_open 5
-/ sl 4 — otherwise the gap between +0.336 and whatever H2 prints cannot be
-attributed (pick rule vs re-implementation drift). Non-zero exit on failure.
-
-**ARM S — the structure sweep. Runs only AFTER the H arm has printed, only
-under `--arm S`, in a separate invocation and report file.**
-- S1 `put_calendar` (short near put + long next-cached-expiry put at K*;
-  plan-time cache feasibility 577/786 groups). S2 `put_diagonal` (short near
-  put at K*, long next-expiry put at nearest cached strike BELOW; 561/786).
-  S3 `narrower` (bear vertical, short pulled UP to the highest cached strike
-  below the long — mirror of `sub_wider`). S4 `wider` and S5 `long_put` rerun
-  UNCHANGED from `bear_rewrap` as internal plumbing controls with known
-  answers (wider −0.056; long_put +0.002 failing 2026). S6 `iron_condor`
-  (bull-put + bear-call wings at nearest cached-or-scraped strikes around K*,
-  same expiry) — included ONLY if the leg scrape reaches ≥60% four-leg group
-  coverage (plan-time cache-only feasibility is 214/786, far short); otherwise
-  NOT EVALUABLE with the coverage number printed.
-- Missing legs are scraped FIRST by `scripts/collector/fetch_sweep_legs.py`
-  (resumable: one cache file per contract, `--limit` chunks, skip-existing,
-  manifest CSV) into the same cache under the same naming; synthesis results
-  are checkpointed to `backtests/sweep_cache/synth_results.csv` so an
-  interrupted run resumes instead of restarting.
-- MULTIPLICITY: a sweep cell is a CANDIDATE only if its worst-decile CI
-  excludes zero at Bonferroni α = 0.05 / (n_structures × n_pick_rules), is
-  right-signed every year present, and clears H0. **Nothing in ARM S can ship
-  from this run**; the maximum verdict is carry-to-next-window.
-- OUT OF SCOPE, so it is not re-litigated: ratio spreads (frozen harness
-  `_defined_risk_bounds` is None for unbounded net quantities — a harness
-  constraint); straddle/strangle (CLOSED 2026-08-12).
-
-**Ship ceiling.** Nothing changes `config/backtest.yml`. The maximum outcome is
-an optional second hedge sleeve added to `config/deployment-rules.md` §4,
-requiring H0 MET ∧ H0b not flipping the verdict ∧ H2 MET ∧ H3 deployable at
-f ≥ 0.25. Anything less is a candidate.
+Moved out of this log: a pre-registration is an immutable artifact and this
+file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 
@@ -1134,76 +993,10 @@ OHLC-derived features are computed in-module and never NaN, so the exposure is
 
 ---
 
-## 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION (written BEFORE the run)
+## 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION → [`pre-registrations/vol_sleeve.md`](pre-registrations/vol_sleeve.md)
 
-**Operator framing**, carried over from the `bear_rewrap` entry: *"bearish or
-volatility plays should be added to diversify."* The bear arm answered its half
-(bear is deployable as a HEDGE, not as selection). This is the vol half, and it
-is asked in the same order: **does the structure pay at all → does it
-diversify → and only then, when do you put it on.**
-
-**Why it can be asked now.** It could not be before: the book is 96% directional
-verticals, 21 of 1,607 plays classify as straddle/strangle, 3 ever reached
-`BacktestResults`, and ZERO calendars have ever been priced. The blocker was
-data, not analysis — a straddle needs a call AND a put at one strike/expiry, and
-the cache was built from directional legs only, so it held a same-strike pair on
-**15 of the 481 (ticker, expiry) groups the book entered (3%)**. The counterpart
-scrape (`scripts/collector/fetch_counterpart_history.py`) closed that:
-**1,322/1,337 mirrors cached, 481/481 groups (100%)**, all REAL Barchart marks
-under the existing filename convention, so the same pricing path reads them.
-
-### What is synthesized, and how (fixed before the run)
-
-At every `(ticker, signal_date, expiry)` the pooled book (real + tweak, no `bs`)
-actually entered, using `entry_underlying` as spot `S`:
-
-| structure  | legs |
-|---|---|
-| `straddle` | long call + long put at `K*` = the cached strike nearest `S` |
-| `strangle` | long put at the nearest cached strike **below** `S`, long call at the nearest **above** |
-| `calendar` | short near-expiry call + long next-expiry call, both at `K*` |
-
-Pricing is the production basis, not a new one: entry at the next session's
-**Open** (falling back to that day's mark, then carry-forward), daily marks
-carried forward per leg over `_weekday_grid` to `min(nearest DTE, 120)`, sizing
-via `_size_contracts` on the shipped 50k/2% budget, and exits replayed through
-the **frozen** `harness.replay` under `DEBIT_PROD` (pt .90 / sl .75 / tef .75).
-Nothing about the exit engine is tuned in this study.
-
-**Known basis caveat, stated up front:** the strike grid is *what the book
-traded*, so "nearest strike to spot" is the nearest strike **flow touched**, not
-the nearest listed. It biases toward strikes with real interest. The report
-quotes the |K−S|/S distribution so the reader can see how ATM these actually are.
-
-### The three questions, in order, with the gates
-
-**Q1 — unconditional E by structure × DTE.** Mean `E` (held to cap) and `R`
-(shipped exits) per structure and per DTE bucket (≤21 / 22–45 / 46–90 / >90),
-with date-clustered bootstrap CIs and the per-year sign split.
-*Non-null* = a cell with **n ≥ 30** whose mean E has a 95% date-clustered CI
-excluding zero **and** the same sign in every year present.
-
-**Q2 — date-level correlation with the DEPLOYED ladder.** The actual
-diversification test, and the one that matters even if Q1 is negative: the
-deployed book is `top_k_per_day(ladder_rank, k=3, eligible=A|B)` — the shipped
-operator card — reduced to a daily series, against the sleeve's daily series on
-overlapping dates.
-*Non-null* = pooled daily correlation **< 0 with its bootstrap CI excluding
-zero**, OR mean sleeve R on the deployed book's worst-decile dates **> 0** with
-a date-clustered CI excluding zero. (This is the D2 test from `bear_deploy`,
-applied to the vol sleeve.)
-
-**Q3 — entry conditions. Runs ONLY if Q1 or Q2 is non-null**, and the conditions
-are named here so they cannot be chosen after seeing the table: `vrp < 0`
-(implied cheap against realized — the only time-series result in the reference
-set), **earnings inside the DTE**, and **low `iv_pct`** (bottom tercile). If both
-gates fail, the study prints the gate outcome and stops; that is a result, not a
-failed run.
-
-**Nothing in this study can ship on its own.** A vol sleeve that clears Q1 or Q2
-becomes a candidate for the same treatment the bear sleeve got — a sized,
-rules-bounded addition to the operator card — and would need its own deployment
-arm first.
+Moved out of this log: a pre-registration is an immutable artifact and this
+file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 
@@ -2246,55 +2039,10 @@ tests that assert the label never claims a profile the merge did not apply.
 
 ---
 
-## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION (written BEFORE the run)
+## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION → [`pre-registrations/v4_bridge.md`](pre-registrations/v4_bridge.md)
 
-**Status: pre-registered, NOT run.** Everything below is fixed in advance. If
-the numbers land differently from what the operator hopes, the decision rule
-stands as written — that is the entire purpose of writing it first.
-
-**What is changing.** v3 is being closed out (see the close-out entry above once
-written) and the analysis prompt is being trimmed: `score_flow` and
-`score_dealer` come out of the per-play `score` object; `score_vol` stays. v4
-runs on a NEW spreadsheet, so the tabs are fresh and the schema drops both
-columns rather than blanking them.
-
-**Why a bridge test is needed at all.** The columns themselves are established
-as decision-irrelevant — the 07-21 sweep found only `delta`/`dte` (bull_put) and
-`iv_spread` (bear_put) decision-relevant, and the 08-11 ML ablations found
-nothing beyond structure × regime × geometry adds anything reproducible. That is
-NOT the risk here. The risk is **behavioral**: removing two of five Step-5
-factors may change *what plays the model emits*. The only statistically
-significant v2→v3 difference in this entire log was exactly that — credit
-emission 19% → 34% — and it was not predicted in advance either.
-
-If the emission profile shifts, every rule in `config/deployment-rules.md` was
-derived on a population v4 no longer draws from, and the ladder's validation
-does not transfer. That is worth ~20 headless runs to find out.
-
-**Test.** Run the v4 prompt over ~20 dates already covered by v3, writing to a
-scratch tab. Compare against the v3 rows on the same dates (exported from the
-old sheet before the switch). Date-paired, two-proportion tests on:
-
-1. structure mix (bull_call / bull_put / bear_put / other)
-2. credit share of emitted plays
-3. plays per day
-4. bear share
-5. ladder tier mix (A / B / C / VETO)
-
-**Decision rule, fixed now:**
-
-- **Composition within noise** → the v3-derived ladder CARRIES FORWARD to v4
-  rows. Record it and deploy unchanged.
-- **Composition shifts on any of the five** → the ladder is UNVALIDATED on v4.
-  Keep deploying under the v3 rules, flag every v4 row as such here, and let the
-  live eval arbitrate. Do NOT quietly assume the tiers transfer, and do not
-  re-derive the ladder on v4 rows until there are enough of them to mean
-  anything.
-
-**Pre-committed caveat.** ~20 dates is thin for a five-way composition test;
-this is powered to catch a shift the size of the v2→v3 credit jump, not a subtle
-one. A null result here is "no large shift detected", never "the populations are
-the same".
+Moved out of this log: a pre-registration is an immutable artifact and this
+file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 

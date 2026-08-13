@@ -164,6 +164,27 @@ def parse_verdict(rep: Report) -> dict:
     return {"checklist": checklist, "headline": headline}
 
 
+def parse_account_config(rep: Report) -> dict:
+    """The `account_sim — $... FEASIBILITY simulation` header block.
+
+    That banner's own title bakes the configured capital into its text
+    (`$25,000 FEASIBILITY simulation ...`) AND — because `run.py`'s shared
+    `STUDY:` header prints a redundant closing banner ahead of it —
+    `split_sections()` folds this whole block into the body of a blank-titled
+    phantom section rather than a section of its own (see the `''` entries in
+    `Report.sections`). Scoping this lookup through `body()`/`scoped()` would
+    depend on that quirk; searching the raw text instead is simpler and does
+    not care where the block ends up sectioned. `max_positions_per_day` is
+    config-driven (`config/account-sim.yml`), so prose elsewhere reads it back
+    from here instead of assuming a fixed count.
+    """
+    lines = rep.text.splitlines()
+    m = rep.find(
+        r"(\d+) positions/day, per-position delta-notional cap", lines, "the positions/day line"
+    )
+    return {"max_per_day": int(m.group(1))}
+
+
 def parse_structure_arm(rep: Report) -> dict | None:
     """The `--structure-universe` widening block, present only on that arm."""
     try:
@@ -355,7 +376,7 @@ def parse_cap_grid(rep: Report, pop: str) -> dict:
     if not rows:
         raise ReportParseError(f"{rep.path}: could not parse the {pop} cap grid")
     headline = rep.find(
-        r"per-pos ([\d.]+) x net ([\d.]+) \(the configured", body, "the headline cap cell"
+        r"per-pos (inf|[\d.]+) x net (inf|[\d.]+) \(the configured", body, "the headline cap cell"
     )
     hl = rep.find(r"n=(\d+)\s+dates=(\d+)\s+\$([\d,\-]+)\s+meanR ([+-][\d.]+)", body, "the headline cap numbers")
     mono_rows = rep.find(r"rows monotone in the net cap:\s+(\d+)/(\d+)", body, "the row monotonicity read")
@@ -575,6 +596,7 @@ def parse(path: Path) -> dict:
     rep = Report(path.read_text(), path)
     out: dict = {
         "provenance": parse_provenance(rep),
+        "account_config": parse_account_config(rep),
         "gates": parse_gates(rep),
         "population_notes": parse_episodes(rep),
         "verdict": parse_verdict(rep),

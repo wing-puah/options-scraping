@@ -17,8 +17,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 STUDY_OUTPUT_DIR = ROOT / "backtests" / "study_output"
 TUNING_DIR = ROOT / "config" / "backtest-tuning"
+# No longer read by load_pre_registration() (see PRE_REG_DIR below) — kept as
+# a path constant in case a future write-up step wants to append/reference
+# current.md directly. Not currently imported by anything outside this file.
 CURRENT_MD = TUNING_DIR / "current.md"
 GLOSSARY_MD = TUNING_DIR / "glossary.md"
+
+# One file per study, holding that study's pre-registration verbatim. This is
+# deliberately NOT current.md: that log is a rolling narrative that gets pruned
+# into archive/, so keying a tool off a `## ` heading inside it meant a routine
+# prune (or a heading reworded for readability) silently broke `study_review`.
+# A pre-registration is an immutable artifact with its own lifecycle, so it gets
+# its own file and is read whole — no heading matching anywhere.
+PRE_REG_DIR = TUNING_DIR / "pre-registrations"
+PRE_REG_PATTERN = "{study}.md"
 
 # Persona files whose bodies are inlined verbatim into the headless prompts.
 # Their YAML frontmatter `model:` field (when present) is the primary source
