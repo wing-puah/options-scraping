@@ -1,6 +1,6 @@
 """Study map — one page that says what every backtest study is for, and what its last run said.
 
-`scripts/backtest_study/` holds eighteen studies whose reports are long,
+`scripts/backtest_study/` holds nineteen studies whose reports are long,
 fixed-width and written for one careful reading. The map is the opposite: a
 single self-contained HTML page, opened straight off disk, that answers "what
 is this file even asking?" at a glance and then — for whichever studies have

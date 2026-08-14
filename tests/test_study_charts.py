@@ -16,8 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from scripts.study_charts import regime, render, render_regime, report, series
+from scripts.study_charts import compounding, regime, render, render_regime, report, series
 from scripts.study_charts.account_sim import docs_dest, is_structure_arm, main, pick_report
+from scripts.study_charts.cli import is_compounding_arm
 
 BANNER = "=" * 78
 
@@ -98,11 +99,66 @@ SECONDARY_REGIME = dict(
 )
 
 
+# What the compounding arm prints under A2 and A5 — in the study's shape, not
+# copied from it. The page must carry this text verbatim, so the fixture is the
+# only place a test may state it.
+COMPOUND_WARNING = (
+    "     WARNING: under compounding, A2/A5 are ratios against a benchmark (B2)\n"
+    "     that is ITSELF compounded, so they no longer isolate the CAPS.\n"
+    "     Both criteria were pre-registered against a path-INDEPENDENT\n"
+    "     simulation and DO NOT TRANSFER to this arm."
+)
+
+# (session, marked equity, budget, per-pos cap $, net cap $, flags)
+MARKS = [
+    ("2025-03-01", 25_000, 500, 6_250, 62_500, ""),
+    ("2025-04-01", 25_900, 518, 6_475, 64_750, ""),
+    ("2025-05-01", 24_100, 482, 6_025, 60_250, ""),
+]
+
+
+def _marks_section(tag: str, marks: list, interval: str = "month",
+                   ceiling: str = "$1,000", truncated: int = 0, cap: int = 60) -> str:
+    """`[<tag>] EQUITY MARKS`, laid out like the study's own printer.
+
+    Hand-written for the same reason the regime fixture is: generating it from
+    the parser's own patterns would only prove the parser agrees with itself.
+    """
+    rows = "\n".join(
+        f"  {sess:<14}{eq:>15,.0f}{bud:>10,.0f}{pp:>15,.0f}{net:>13,.0f}  {flags}".rstrip()
+        for sess, eq, bud, pp, net, flags in marks
+    )
+    count = len(marks) + truncated
+    trunc_line = (f"\n  ... {truncated} further marks not printed (cap {cap})"
+                  if truncated else "")
+    body = (
+        "  COMPOUNDING IS NOT PRE-REGISTERED. A1-A6 were registered against a\n"
+        "  path-INDEPENDENT simulation.\n"
+        "\n"
+        f"  The mark interval ({interval}) and the {ceiling} budget ceiling are a FRICTION\n"
+        "  MODEL, not tuned parameters.\n"
+        "\n"
+        f"  {'mark session':<14}{'marked equity':>15}{'budget':>10}"
+        f"{'per-pos cap $':>15}{'net cap $':>13}  flag\n"
+        f"{rows}{trunc_line}\n"
+        f"\n  marks {count}   first ${marks[0][1]:,.0f}   "
+        f"peak ${max(m[1] for m in marks):,.0f}   final ${marks[-1][1]:,.0f}   "
+        f"(starting capital $25,000)\n"
+        f"  budget ceiling bound on 0 of {count} marks; ruin guard fired on 0"
+    )
+    return _section(f"[{tag}] EQUITY MARKS (post-hoc, NOT pre-registered — FRICTION MODEL)", body)
+
+
 def _population_sections(tag: str, n: int, dates: int, dollars: int, meanR: float,
                          maxdd: int, worst: int, win: int, a5: str = "MET", a6: str = "MET",
-                         regime_tables: dict | None = None) -> str:
-    """The eleven population-scoped sections `report.parse` requires."""
-    return (
+                         regime_tables: dict | None = None,
+                         marks: list | None = None) -> str:
+    """The eleven population-scoped sections `report.parse` requires.
+
+    `marks` adds the twelfth that only the compounding arm prints, and the
+    A2/A5 non-transfer warning that arm prints under those two criteria.
+    """
+    sections = (
         _regime_section(tag, **(regime_tables or PRIMARY_REGIME))
         + _section(f"[{tag}] B1 / B2 BASELINES",
                    f"  B1  stored contracts, stored outcomes     n= {n + 4}  dates= {dates}"
@@ -187,6 +243,13 @@ def _population_sections(tag: str, n: int, dates: int, dollars: int, meanR: floa
                    "  A6 CREDIT SENS.   debit-only n=39  meanR +0.181  CI95 [-0.093,+0.440]  years 2025:+0.300\n"
                    f"     {a6}  (A1 must hold on debit-only)")
     )
+    if marks is None:
+        return sections
+    for verdict_line in ("     MET  (needs >= 60%)\n",
+                         f"     {a5}  (needs <= 15 points of movement on both cuts)\n"):
+        assert verdict_line in sections, "the criteria fixture moved; the warning follows it"
+        sections = sections.replace(verdict_line, verdict_line + COMPOUND_WARNING + "\n")
+    return sections + _marks_section(tag, marks)
 
 
 # The config file as the study echoes it: a comment, nested keys, a blank line,
@@ -220,8 +283,18 @@ CONFIGURATION_BODY = (
 
 def make_report(path: Path, command: str = "python -m scripts.backtest_study.account_sim",
                 primary=(2, 2, 900, 0.35, -300, -300, 50),
-                secondary=(3, 3, 1200, 0.20, -500, -500, 67)) -> Path:
-    """A structurally faithful account_sim report over synthetic numbers."""
+                secondary=(3, 3, 1200, 0.20, -500, -500, 67),
+                compounding: bool = False, marks: list | None = None) -> Path:
+    """A structurally faithful account_sim report over synthetic numbers.
+
+    `compounding=True` produces the other arm's report: the same sections over
+    the same numbers, with `--compounding` on the command line, an EQUITY MARKS
+    section per population, and the A2/A5 non-transfer warning inline.
+    """
+    marks = MARKS if marks is None else marks
+    if compounding and "--compounding" not in command:
+        command += " --compounding"
+    pop_marks = marks if compounding else None
     text = (
         _section("STUDY: account_sim",
                  "  run at    2026-08-13 16:05:44\n"
@@ -249,9 +322,10 @@ def make_report(path: Path, command: str = "python -m scripts.backtest_study.acc
                    "  E1  2025-03-11 .. 2025-03-31    12 dates over  14 sessions    31 deployed picks\n"
                    "  total: 1 episodes, 12 dates, 31 deployed picks\n"
                    "  excluded from PRIMARY: 44 isolated dates")
-        + _population_sections("PRIMARY dense episodes", *primary, regime_tables=PRIMARY_REGIME)
+        + _population_sections("PRIMARY dense episodes", *primary, regime_tables=PRIMARY_REGIME,
+                               marks=pop_marks)
         + _population_sections("SECONDARY full book", *secondary, a5="NOT MET", a6="NOT MET",
-                               regime_tables=SECONDARY_REGIME)
+                               regime_tables=SECONDARY_REGIME, marks=pop_marks)
         + _section("VERDICT (PRIMARY dense episodes population — the pre-registered primary)",
                    "  A1  MET\n  A2  MET\n  A3  MET\n  A4  MET\n  A5  NOT MET\n  A6  NOT MET\n\n"
                    "  >>> NO VERDICT MATCHES — A1 holds but A5, A6 fail(s) <<<")
@@ -913,12 +987,12 @@ def test_structure_arm_writes_the_fragment_but_no_docs_page(tmp_path):
 
 
 def test_structure_arm_refuses_an_explicit_docs_path(tmp_path):
-    """A hand-typed --docs is how the frozen book's tracked page gets clobbered."""
+    """A hand-typed --docs is how the frozen book's page gets clobbered."""
     rep = make_report(tmp_path / "account_sim-latest.txt",
                       command="python -m scripts.backtest_study.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-structure-latest.csv")
     docs = tmp_path / "docs" / "account-sim-charts.html"
-    with pytest.raises(SystemExit, match="no tracked docs page"):
+    with pytest.raises(SystemExit, match="no docs page"):
         main(["--report", str(rep), "--positions", str(pos),
               "--out", str(tmp_path / "p.html"), "--docs", str(docs)])
     assert not docs.exists()
@@ -1065,3 +1139,249 @@ def test_regime_page_is_a_separate_tracked_file_from_the_readout(tmp_path):
     assert docs_dest(Path("account_sim-positions-latest.csv"), tmp_path).name \
         == "account-sim-charts.html"
     assert regime.docs_dest(Path("account_sim-positions-structure-latest.csv"), tmp_path) is None
+
+
+# ─────────────────── the compounding arm: parse, pair, draw ─────────────────
+
+@pytest.fixture
+def compounding_report(tmp_path):
+    return make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True)
+
+
+@pytest.fixture
+def compounding_parsed(compounding_report):
+    return report.parse(compounding_report)
+
+
+def test_parse_flags_the_compounding_arm_off_the_command_line(compounding_parsed, parsed):
+    """The second arm axis, read the same way the structure one is."""
+    assert compounding_parsed["provenance"]["compound_arm"] is True
+    assert compounding_parsed["provenance"]["structure_arm"] is False
+    assert parsed["provenance"]["compound_arm"] is False
+
+
+def test_equity_marks_are_absent_from_the_frozen_report(parsed):
+    """A section only one arm prints is a no-op on the other, not a failure."""
+    assert parsed["populations"]["primary"]["equity_marks"] is None
+
+
+def test_parse_equity_marks_reads_one_row_per_re_mark(compounding_parsed):
+    marks = compounding_parsed["populations"]["primary"]["equity_marks"]
+    assert [m["session"] for m in marks["marks"]] == ["2025-03-01", "2025-04-01", "2025-05-01"]
+    assert marks["marks"][1] == {"session": "2025-04-01", "equity": 25900.0, "budget": 518.0,
+                                 "per_pos": 6475.0, "net": 64750.0, "flags": []}
+    assert marks["count"] == 3 and marks["truncated"] == 0
+    assert (marks["first"], marks["peak"], marks["final"]) == (25000.0, 25900.0, 24100.0)
+    assert marks["interval"] == "month" and marks["ceiling"] == "$1,000"
+    assert "COMPOUNDING IS NOT PRE-REGISTERED" in marks["note"]
+
+
+def test_parse_equity_marks_keeps_a_truncated_tail_accounted_for(tmp_path):
+    """The report caps how many marks it prints; the page may not read the
+    printed rows as the whole sizing path."""
+    path = make_report(tmp_path / "trunc.txt", compounding=True)
+    path.write_text(path.read_text().replace(
+        _marks_section("PRIMARY dense episodes", MARKS),
+        _marks_section("PRIMARY dense episodes", MARKS, truncated=4, cap=3)))
+    marks = report.parse(path)["populations"]["primary"]["equity_marks"]
+    assert marks["count"] == 7 and marks["truncated"] == 4 and marks["print_cap"] == 3
+    assert len(marks["marks"]) == 3
+
+
+def test_parse_equity_marks_raises_when_a_row_goes_missing(tmp_path):
+    """A dropped row would draw a shorter, smoother sizing path than the one
+    that was simulated, with every other assertion still passing."""
+    path = make_report(tmp_path / "short.txt", compounding=True)
+    path.write_text(path.read_text().replace(
+        f"  {'2025-04-01':<14}{25900:>15,.0f}{518:>10,.0f}{6475:>15,.0f}{64750:>13,.0f}\n", ""))
+    with pytest.raises(report.ReportParseError, match="EQUITY MARKS says 3 marks"):
+        report.parse(path)
+
+
+def test_parse_equity_marks_raises_when_the_table_header_changes(tmp_path):
+    path = make_report(tmp_path / "hdr.txt", compounding=True)
+    path.write_text(path.read_text().replace("marked equity", "equity mark"))
+    with pytest.raises(report.ReportParseError, match="EQUITY MARKS table header"):
+        report.parse(path)
+
+
+def test_parse_criteria_carries_the_non_transfer_warning_verbatim(compounding_parsed, parsed):
+    """The page quotes this text rather than restating it, so the parser has to
+    hand it over unchanged — and the frozen report carries none of it."""
+    crit = {c["id"]: c for c in compounding_parsed["populations"]["primary"]["criteria"]}
+    assert "DO NOT TRANSFER to this arm" in crit["A2"]["warning"]
+    assert crit["A2"]["warning"] == crit["A5"]["warning"]
+    assert crit["A2"]["status"] == "MET", "the warning must not disturb the verdict"
+    assert crit["A1"]["warning"] == ""
+    assert all(c["warning"] == "" for c in parsed["populations"]["primary"]["criteria"])
+
+
+def test_is_compounding_arm_reads_the_positions_filename():
+    assert is_compounding_arm(Path("account_sim-positions-compounding-latest.csv")) is True
+    assert is_compounding_arm(Path("account_sim-positions-latest.csv")) is False
+    assert is_compounding_arm(Path("account_sim-positions-structure-latest.csv")) is False
+    both = Path("account_sim-positions-compounding-structure-latest.csv")
+    assert is_compounding_arm(both) and is_structure_arm(both)
+
+
+def test_pick_report_matches_on_both_arm_axes(tmp_path):
+    """The glob `account_sim-*.txt` also matches the compounding arm's report,
+    so matching on the structure axis alone would pair the frozen book's page
+    with the compounding run — the exact silent mis-pairing this prevents."""
+    make_report(tmp_path / "account_sim-20260813-100000.txt")
+    make_report(tmp_path / "account_sim-compounding-20260813-200000.txt", compounding=True)
+    plain = pick_report(tmp_path / "account_sim-positions-latest.csv", tmp_path)
+    comp = pick_report(tmp_path / "account_sim-positions-compounding-latest.csv", tmp_path)
+    assert plain.name == "account_sim-20260813-100000.txt"
+    assert comp.name == "account_sim-compounding-20260813-200000.txt"
+
+
+def test_pick_report_refuses_a_frozen_csv_when_only_the_compounding_arm_ran(tmp_path):
+    make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True)
+    with pytest.raises(SystemExit, match="plain \\(frozen-book\\)"):
+        pick_report(tmp_path / "account_sim-positions-latest.csv", tmp_path)
+
+
+def test_pick_report_refuses_a_compounding_csv_when_only_the_frozen_arm_ran(tmp_path):
+    make_report(tmp_path / "account_sim-latest.txt")
+    with pytest.raises(SystemExit, match="--compounding"):
+        pick_report(tmp_path / "account_sim-positions-compounding-latest.csv", tmp_path)
+
+
+def test_the_compounding_arm_gets_its_own_page_and_never_the_frozen_ones(tmp_path):
+    """The whole point of the second page: the compounding arm can no longer
+    overwrite the frozen book's."""
+    comp_csv = Path("account_sim-positions-compounding-latest.csv")
+    frozen_csv = Path("account_sim-positions-latest.csv")
+    assert compounding.docs_dest(comp_csv, tmp_path).name == "account-sim-compounding.html"
+    assert docs_dest(comp_csv, tmp_path) is None            # not onto the readout's page
+    assert regime.docs_dest(comp_csv, tmp_path) is None     # nor the regime page's
+    assert compounding.docs_dest(frozen_csv, tmp_path) is None   # and not the other way
+    assert docs_dest(frozen_csv, tmp_path).name == "account-sim-charts.html"
+
+
+def test_compounding_plus_structure_still_reads_as_the_structure_arm(tmp_path):
+    """Both axes at once: the structure rule wins, so that combination writes a
+    fragment and no page at all."""
+    both = Path("account_sim-positions-compounding-structure-latest.csv")
+    assert compounding.docs_dest(both, tmp_path) is None
+    assert docs_dest(both, tmp_path) is None
+
+
+def _run_compounding(tmp_path, *extra, report_kwargs=None):
+    rep = make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True,
+                      **(report_kwargs or {}))
+    pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
+    out = tmp_path / "compounding.html"
+    docs = tmp_path / "docs" / "account-sim-compounding.html"
+    code = compounding.main(["--report", str(rep), "--positions", str(pos),
+                             "--out", str(out), "--docs", str(docs), *extra])
+    return code, out, docs
+
+
+def test_compounding_main_writes_the_fragment_and_its_own_docs_page(tmp_path):
+    code, out, docs = _run_compounding(tmp_path)
+    assert code == 0
+    assert out.read_text().startswith("<title>")
+    assert docs.read_text().startswith("<!doctype html>")
+
+
+def test_compounding_main_writes_no_html_at_all_when_reconciliation_fails(tmp_path):
+    code, out, docs = _run_compounding(
+        tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
+    assert code == 1
+    assert not out.exists() and not docs.exists()
+
+
+def test_compounding_main_refuses_the_frozen_books_export(tmp_path):
+    rep = make_report(tmp_path / "account_sim-latest.txt")
+    pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
+    with pytest.raises(SystemExit, match="compounding arm"):
+        compounding.main(["--report", str(rep), "--positions", str(pos),
+                          "--out", str(tmp_path / "p.html")])
+
+
+def test_the_readout_refuses_to_write_the_compounding_arm_to_its_own_page(tmp_path):
+    """A hand-typed --docs is how one arm's numbers land on another's page."""
+    rep = make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True)
+    pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
+    docs = tmp_path / "docs" / "account-sim-charts.html"
+    with pytest.raises(SystemExit, match="wrong page for this arm"):
+        main(["--report", str(rep), "--positions", str(pos),
+              "--out", str(tmp_path / "p.html"), "--docs", str(docs)])
+    assert not docs.exists()
+
+
+def test_the_readout_pointed_at_the_compounding_arm_writes_a_fragment_only(tmp_path):
+    rep = make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True)
+    pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
+    out = tmp_path / "page.html"
+    code = main(["--report", str(rep), "--positions", str(pos), "--out", str(out)])
+    assert code == 0 and out.exists()
+    assert not (tmp_path / "docs").exists()
+
+
+@pytest.fixture
+def compounding_page(compounding_parsed, rows):
+    populations = {p: series.build(rows, p, 25_000.0) for p in report.POPULATIONS}
+    return compounding.build(compounding_parsed, populations, 25_000.0,
+                             {"report": "account_sim-compounding-latest.txt",
+                              "positions": "account_sim-positions-compounding-latest.csv"})
+
+
+def test_compounding_page_is_a_fragment_with_its_assets_inlined(compounding_page):
+    lowered = compounding_page.lower()
+    assert compounding_page.startswith("<title>")
+    for tag in ("<!doctype", "<html", "<head>", "<body"):
+        assert tag not in lowered
+    assert "https://" not in compounding_page
+
+
+def test_compounding_page_says_which_arm_it_is_and_which_it_is_not(compounding_page):
+    markup = compounding_page.split("window.__ACCOUNT_SIM__")[0]
+    assert "NOT the pre-registered book" in markup
+    assert "account-sim-charts.html" in markup, "it names the frozen book's own page"
+    assert "pre-registered feasibility simulation" not in markup, \
+        "the frozen book's standfirst must not be reused here"
+
+
+def test_compounding_page_quotes_the_non_transfer_warning_rather_than_restating_it(compounding_page):
+    """The study says A2/A5 do not transfer; the page carries those words."""
+    markup = compounding_page.split("window.__ACCOUNT_SIM__")[0]
+    assert "A2 and A5 do not transfer to this arm" in markup
+    for line in COMPOUND_WARNING.strip().splitlines():
+        assert line.strip() in markup
+
+
+def test_compounding_page_draws_the_re_mark_series(compounding_page):
+    markup = compounding_page.split("window.__ACCOUNT_SIM__")[0]
+    assert '<section id="equity-marks">' in markup
+    for sess, equity, *_ in MARKS:
+        assert sess in markup and f"{equity:,.0f}" in markup
+    assert "3 marks · first $25,000" in markup
+
+
+def test_compounding_page_refuses_to_draw_a_report_from_the_frozen_arm(parsed, rows):
+    """Defence in depth behind the filename check: a page headed "compounding"
+    over the frozen book's numbers is the mislabelling this all exists to stop."""
+    populations = {p: series.build(rows, p, 25_000.0) for p in report.POPULATIONS}
+    with pytest.raises(SystemExit, match="compounding arm"):
+        compounding.build(parsed, populations, 25_000.0,
+                          {"report": "account_sim-latest.txt", "positions": "p.csv"})
+
+
+def test_compounding_page_never_introduces_a_statistic_the_study_refuses_to_print(compounding_page):
+    lowered = compounding_page.lower()
+    for banned in ("annualised return", "annualized return", "sharpe ratio", "time to recover"):
+        assert banned not in lowered.replace("no sharpe ratio", "").replace("no time-to-recover", "")
+
+
+def test_the_frozen_readout_carries_none_of_the_compounding_pages_framing(page):
+    """Every hook the compounding page uses is defaulted off, so the frozen
+    readout keeps its own lede and grows no warning that does not apply to it."""
+    markup = page.split("window.__ACCOUNT_SIM__")[0]
+    assert "A pre-registered feasibility simulation" in markup
+    assert "Can the shipped ladder be traded in a $25,000 account?" in markup
+    assert "compounding sensitivity" not in markup.lower()
+    assert 'id="equity-marks"' not in markup
+    assert "scripts.study_charts.account_sim" in markup, "the footer names the module"

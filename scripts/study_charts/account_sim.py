@@ -14,10 +14,10 @@ report it claims to draw is worse than no chart.
 
 Two files come out of one run, for two different readers: the scratch fragment
 under `backtests/study_output/` (what the Artifact publisher wants) and a
-standalone `docs/account-sim-charts.html`, which is tracked for the same reason
-`docs/study-map.html` is — it has to open from a fresh checkout without running
-anything first. `--no-docs` writes only the scratch one, and the
-structure-universe arm always writes only the scratch one (see `cli.docs_dest`).
+standalone `docs/account-sim-charts.html`, the double-clickable copy. `docs/` is
+generated output and gitignored — `make study-docs` rebuilds the lot. `--no-docs`
+writes only the scratch one, and the structure-universe arm always writes only
+the scratch one (see `cli.docs_dest`).
 
 The pipeline itself lives in `cli.py`, shared with the regime page.
 """
@@ -40,7 +40,7 @@ DOCS_NAME = "account-sim-charts.html"
 
 
 def docs_dest(positions: Path, docs_dir: Path = DOCS_DIR) -> Path | None:
-    """Where this page's tracked copy lives, or None for the structure arm."""
+    """Where this page's docs copy lives, or None for the structure arm."""
     return cli.docs_dest(positions, DOCS_NAME, docs_dir)
 
 

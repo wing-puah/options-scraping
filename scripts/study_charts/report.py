@@ -9,6 +9,7 @@ half-parsed report is worse than no chart.
 from __future__ import annotations
 
 import re
+import textwrap
 from pathlib import Path
 
 BANNER = "=" * 78
@@ -97,6 +98,11 @@ def parse_provenance(rep: Report) -> dict:
         if key not in out:
             raise ReportParseError(f"{rep.path}: provenance header missing {key!r}")
     out["structure_arm"] = "--structure-universe" in out["command"]
+    # The second, independent arm axis: the compounding sensitivity re-marks
+    # SIZING to realized equity. Derived from the command line for the same
+    # reason the structure axis is — the report's own record of how it was run
+    # is the only thing that cannot drift from the run that produced it.
+    out["compound_arm"] = "--compounding" in out["command"]
     return out
 
 
@@ -512,25 +518,128 @@ def parse_cap_grid(rep: Report, pop: str) -> dict:
 
 
 def parse_criteria(rep: Report, pop: str) -> list[dict]:
+    """The A1-A6 checklist, plus any warning the study printed under a criterion.
+
+    On the frozen report a criterion is exactly two lines. The compounding arm
+    prints a block of prose under A2 and A5 saying those two do NOT transfer to
+    it; that text is carried through verbatim (`warning`) so the compounding
+    page can quote the study rather than paraphrase it. Nothing else in this
+    section is prose, so anything trailing a verdict line is that block.
+    """
     body = rep.scoped(pop, "CRITERIA A1-A6")
     out: list[dict] = []
     for line in body:
         if m := re.match(r"\s+(A\d) ([A-Z][A-Z .&-]*?)\s\s+(.+)", line):
-            out.append({"id": m.group(1), "name": m.group(2).strip().title(), "detail": m.group(3).strip()})
+            out.append({"id": m.group(1), "name": m.group(2).strip().title(),
+                        "detail": m.group(3).strip(), "warning_lines": []})
         elif m := re.match(r"\s+(MET|NOT MET)\s+\((.+)\)\s*$", line):
             if not out:
                 raise ReportParseError(f"{rep.path}: a criteria verdict preceded its criterion")
             out[-1]["status"] = m.group(1)
             out[-1]["needs"] = m.group(2)
+        elif line.strip() and out and "status" in out[-1]:
+            out[-1]["warning_lines"].append(line)
     if len(out) != 6 or any("status" not in c for c in out):
         raise ReportParseError(f"{rep.path}: expected 6 fully-parsed criteria for {pop}, got {out}")
     for c in out:
+        c["warning"] = textwrap.dedent("\n".join(c.pop("warning_lines"))).strip()
         if m := re.search(r"CI95 \[([+-][\d.]+),([+-][\d.]+)\]", c["detail"]):
             c["ci"] = [float(m.group(1)), float(m.group(2))]
         if m := re.search(r"meanR ([+-][\d.]+)", c["detail"]):
             c["meanR"] = float(m.group(1))
         c["years"] = {y: float(v) for y, v in re.findall(r"(\d{4}):([+-][\d.]+)", c["detail"])}
     return out
+
+
+# The compounding arm's re-mark table:
+#   `<session>  <marked equity>  <budget>  <per-pos cap $>  <net cap $>  [flags]`
+# Every column is a whole-dollar figure, so a row that lost one no longer
+# matches and is reported as a count mismatch rather than silently dropped.
+_MARKS_HEADER = re.compile(r"mark session\s+marked equity\s+budget\s+per-pos cap \$\s+net cap \$")
+_MARK_ROW = re.compile(r"\s{2}(\S+)\s+(-?[\d,]+)\s+(-?[\d,]+)\s+(-?[\d,]+)\s+(-?[\d,]+)\s*(.*?)\s*$")
+
+
+def parse_equity_marks(rep: Report, pop: str) -> dict | None:
+    """`[<pop>] EQUITY MARKS`, the section only the compounding arm prints.
+
+    Absent from the frozen, path-independent report — that is a no-op rather
+    than a parse failure, so this returns None. PRESENT but changed IS a
+    failure: the row count, the truncation line and the two summary lines must
+    agree with each other, because the page quotes this table as the sizing
+    path the run actually took. A table that silently lost rows would show a
+    shorter, smoother equity path than the one that was simulated.
+    """
+    try:
+        body = rep.scoped(pop, "EQUITY MARKS")
+    except ReportParseError:
+        return None
+    friction = rep.find(r"mark interval \((\w+)\) and the (\S+) budget ceiling",
+                        body, "the EQUITY MARKS friction-model line")
+    rep.find(_MARKS_HEADER.pattern, body, "the EQUITY MARKS table header")
+
+    note: list[str] = []
+    marks: list[dict] = []
+    seen_header = False
+    truncated, print_cap = 0, None
+    for line in body:
+        if not seen_header:
+            seen_header = bool(_MARKS_HEADER.search(line))
+            if not seen_header:
+                note.append(line)
+        elif m := re.match(r"\s+\.\.\. (\d+) further marks not printed \(cap (\d+)\)", line):
+            truncated, print_cap = int(m.group(1)), int(m.group(2))
+        elif m := _MARK_ROW.match(line):
+            marks.append({
+                "session": m.group(1),
+                "equity": _num(m.group(2)),
+                "budget": _num(m.group(3)),
+                "per_pos": _num(m.group(4)),
+                "net": _num(m.group(5)),
+                "flags": m.group(6).split(),
+            })
+
+    out = {
+        "interval": friction.group(1),
+        "ceiling": friction.group(2),
+        # The study's own words for why this arm is a sensitivity and not the
+        # book. Carried verbatim: the page quotes it rather than restating it.
+        "note": textwrap.dedent("\n".join(note)).strip("\n").strip(),
+        "marks": marks,
+        "truncated": truncated,
+        "print_cap": print_cap,
+    }
+    if not marks and any("no marks" in line for line in body):
+        # A population with no signal dates re-marks nothing. The study says so
+        # in one line and prints no summary, so there is nothing to cross-check.
+        return {**out, "count": 0, "first": None, "peak": None, "final": None,
+                "capital": None, "ceiling_bound": 0, "ruined": 0}
+    total = rep.find(
+        r"marks (\d+)\s+first \$(-?[\d,]+)\s+peak \$(-?[\d,]+)\s+final \$(-?[\d,]+)"
+        r"\s+\(starting capital \$([\d,]+)\)",
+        body, "the EQUITY MARKS summary line")
+    bound = rep.find(r"budget ceiling bound on (\d+) of (\d+) marks; ruin guard fired on (\d+)",
+                     body, "the EQUITY MARKS ceiling/ruin line")
+    count = int(total.group(1))
+    if len(marks) + truncated != count:
+        raise ReportParseError(
+            f"{rep.path}: [{POPULATIONS[pop]}] EQUITY MARKS says {count} marks but "
+            f"{len(marks)} rows parsed plus {truncated} truncated"
+        )
+    if int(bound.group(2)) != count:
+        raise ReportParseError(
+            f"{rep.path}: [{POPULATIONS[pop]}] EQUITY MARKS summary says {count} marks, "
+            f"its ceiling line says {bound.group(2)}"
+        )
+    return {
+        **out,
+        "count": count,
+        "first": _num(total.group(2)),
+        "peak": _num(total.group(3)),
+        "final": _num(total.group(4)),
+        "capital": _num(total.group(5)),
+        "ceiling_bound": int(bound.group(1)),
+        "ruined": int(bound.group(3)),
+    }
 
 
 def parse_equity_summary(rep: Report, pop: str) -> dict:
@@ -728,6 +837,9 @@ def parse(path: Path) -> dict:
             "cap_grid": parse_cap_grid(rep, pop),
             "criteria": parse_criteria(rep, pop),
             "equity": parse_equity_summary(rep, pop),
+            # None on the frozen report — the section exists only under
+            # --compounding, and only that arm's page draws it.
+            "equity_marks": parse_equity_marks(rep, pop),
             "adverse": parse_adverse(rep, pop),
             "census": parse_census(rep, pop),
             "regime": parse_regime(rep, pop),

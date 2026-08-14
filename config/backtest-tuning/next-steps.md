@@ -19,37 +19,30 @@ Suite state as last measured (08-13): 896 passed, 1 skipped
 pre-existing `test_underlying_features.py` beta AttributeErrors — **still open,
 unverified since**; re-run `pytest` before trusting that count.
 
-## 0b. START HERE — `selection_order` is registered and waiting to be built
+## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
 
-The next piece of work is **pre-registered and approved by the operator
-(2026-08-14), with no code written yet**:
+**Done. Verdict POWER-STOPPED. Do not re-run it on these dates.**
+`scripts/backtest_study/selection_order.py` exists, all six arms ran, gates
+G1–G5 pass, and G0 stopped every arm: each re-ordering changes only 7–14% of
+the deployed book, so the best-powered arm reaches **11 affected dates on
+PRIMARY** (20 at best on SECONDARY) against the pre-registered floor of **25**. No
+arm was confirmed, none refuted, and the O4 band was never drawn. The full
+entry is in [`current.md`](current.md); the report is
+`backtests/study_output/selection_order-latest.txt`.
 
-    config/backtest-tuning/pre-registrations/selection_order.md
+What this does and does not settle: `account_sim`'s adverse-ordering read is
+**not refuted** — this book cannot adjudicate it. The census texture (the caps
+excluding the same picks whatever the order) is the shape of
+`CAP-BOUND-NOT-ORDER-BOUND`, but that label requires arms that CLEAR G0, so it
+is a **carry-forward, not a verdict**.
 
-Read that file first — it is the whole specification (six frozen arms, gates
-G0–G5, the seven-part candidate bar, the verdict grammar), and the summary
-entry in [`current.md`](current.md) points at it. The build is a thin wrapper:
-an arm is only a different `rank_fn` passed to `protocol.ordered_by_day`, with
-`simulate()`, caps, sizing and exits untouched.
+Before any re-registration on a larger book, fix the one registration bug the
+build exposed: **criterion (4) "positive in all three years" is unsatisfiable on
+PRIMARY**, which spans two calendar years. It is implemented as "every year
+present positive" with an inline disclosure; the wording, not the
+implementation, is what needs correcting.
 
-Order of work:
-
-1. `scripts/backtest_study/selection_order.py`, run via
-   `python -m scripts.backtest_study run selection_order`.
-2. **G0 first.** Print the contested-date census before anything else; an arm
-   under 25 affected dates is power-stopped and its cells are never read. The
-   count is not yet known — it was not measurable when the study was
-   registered, which is the point of declaring the threshold in advance.
-3. `scripts/study_map/catalog.py` needs an entry with a hand-written VERDICT,
-   or the test suite fails.
-4. Grade the run through the two-analyst replication protocol, like
-   `account_sim` and `calendar_hedge`.
-
-Do not widen the arm set, sweep a cap, or relax a criterion after seeing a
-number. If nothing clears, **ORDERING-IS-NOISE is a real and useful verdict** —
-record it and close the thread.
-
-Optional 30-minute pre-step, both already recorded as follow-ups: close the
+Optional 30-minute step, both already recorded as follow-ups: close the
 `account_sim` verdict-grammar hole (A1 holds / A5-A6 fail matches no label, and
 follow-up (1) says fix it before any re-run — four re-runs have happened since;
 note SECONDARY now also fails A3 at 25.1% DD), and change ARM H's sizing floor

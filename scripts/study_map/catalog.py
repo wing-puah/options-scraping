@@ -66,7 +66,7 @@ class Study:
     verdict: str
 
 
-# ── the eighteen studies ──────────────────────────────────────────────────────
+# ── the nineteen studies ──────────────────────────────────────────────────────
 STUDIES: dict[str, Study] = {
     # ① selection
     "regime_gap_reread": Study(
@@ -210,7 +210,21 @@ STUDIES: dict[str, Study] = {
         question="The ladder assumes infinite capital. Does a real $25,000 account — paying "
                  "for positions, holding reserve, respecting a delta cap — still produce a book?",
         verdict="The caps survive; the WINDOW does not. Delta-notional binds before cash does. "
-                "Feasibility only — nothing ships from this study under any outcome.",
+                "Feasibility only — nothing ships from this study under any outcome. The run "
+                "also prints a POST-HOC compounding arm (account_sim-compounding-latest.txt, "
+                "its own page): on this book compounding COSTS money and the verdict is "
+                "unmoved; A2/A5 do not transfer to it.",
+    ),
+    "selection_order": Study(
+        family="deployment", state="open",
+        question="account_sim's rejected picks outperformed its taken ones. Does a different "
+                 "BLIND entry-side ORDER of the same candidate set spend the scarce delta "
+                 "budget better — or was that read an artifact?",
+        verdict="POWER-STOPPED at G0, on the pre-registered threshold. Each of the four "
+                "re-orderings changes only 7-14% of the deployed book, so the best-powered "
+                "arm reaches 11 affected dates (PRIMARY) against a floor of 25 declared "
+                "before the count was knowable. Census only: no arm confirmed, none refuted, "
+                "no O4 band drawn, and NO re-run on these dates.",
     ),
 }
 

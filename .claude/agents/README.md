@@ -27,7 +27,7 @@ frontmatter, auto-discovered by Claude Code and callable via the Agent tool with
 5. **Every persona ends with a Composition block** — invoke directly when / related /
    do not invoke from another persona.
 6. Persona files carry the *perspective*. Cross-cutting facts (data contracts, column
-   schemas) belong in `CLAUDE.md` and `docs/architecture.md`; link to them rather than
+   schemas) belong in `CLAUDE.md` and `ARCHITECTURE.md`; link to them rather than
    duplicating, or they drift.
 
 Note: plugin/agent frontmatter does not support `hooks`, `mcpServers`, or
@@ -64,7 +64,7 @@ were deliberately not adopted — see the note in the commit that added this fil
 ## Adding a persona
 
 1. Create `.claude/agents/<role>.md` with `name`, `description`, `tools`, `model`.
-2. Define the role, scope, output format, and rules; link to `docs/architecture.md`
+2. Define the role, scope, output format, and rules; link to `ARCHITECTURE.md`
    for contracts instead of restating them.
 3. Add a Composition block at the bottom.
 4. Add a row to the table above.

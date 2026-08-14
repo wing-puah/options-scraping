@@ -66,7 +66,7 @@ SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
 python3 scripts/collector/scrape_flow.py --date 2026-04-21
 python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
-# Daily data steps (each defaults to the latest date; full flag matrix in docs/architecture.md)
+# Daily data steps (each defaults to the latest date; full flag matrix in ARCHITECTURE.md)
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
 python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file
 python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
@@ -83,7 +83,7 @@ python3 scripts/align_tab_headers.py --dry-run        # check tab headers agains
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  # → AnalysisTickerSpecific tab
 python3 -m scripts.analysis_pipeline --fetch-only         # fetch + audit CSV only, no LLM
-# Also: --start/--end, --days N, --dry-run, --model <id> (full matrix in docs/architecture.md)
+# Also: --start/--end, --days N, --dry-run, --model <id> (full matrix in ARCHITECTURE.md)
 
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml
@@ -120,29 +120,41 @@ python3 -m scripts.backtest_study run --all
 # Edit that file, or copy it and pass --config, to simulate a different account;
 # there is no --capital/--risk-dollars/--per-pos-cap/--net-cap flag any more.
 python3 -m scripts.backtest_study run account_sim -- --config config/my-account.yml
-# The `compounding:` block re-marks SIZING to realized equity at fixed calendar
-# intervals (month/quarter/year): both delta caps scale with marked equity, the
-# per-position risk budget scales but is ceilinged by `budget_ceiling`. It is
-# OFF in account-sim.yml (that file is the frozen, pre-registered, path-
-# INDEPENDENT book); the arm is config/account-sim-compounding.yml. marked_equity
-# counts only positions CLOSED BEFORE the mark session — open positions are never
-# marked to market — and is a sizing number only, so G3 still balances against the
-# STARTING capital. Post-hoc: A1-A6 were pre-registered against a path-independent
-# sim, and A2/A5 DO NOT TRANSFER (their B2 benchmark compounds too, so the ratio
-# stops isolating the caps); the report says so inline. G1-G4 stay pinned to the
-# frozen basis; G5 runs sighted-vs-blind on BOTH bases and must match on each.
-python3 -m scripts.backtest_study run account_sim -- --config config/account-sim-compounding.yml
+# ONE `run account_sim` produces BOTH BASES, as two arms of the same run:
+#   account_sim-latest.txt              the FROZEN, pre-registered, path-INDEPENDENT
+#                                       book — the basis every recorded conclusion
+#                                       rests on. Unchanged; still the default report.
+#   account_sim-compounding-latest.txt  the COMPOUNDING sensitivity (--compounding),
+#                                       which re-marks SIZING to realized equity at
+#                                       fixed calendar intervals (month/quarter/year):
+#                                       both delta caps scale with marked equity, the
+#                                       per-position risk budget scales but is
+#                                       ceilinged by `budget_ceiling`.
+# The arm is a FLAG, not a config file (config/account-sim-compounding.yml is gone).
+# config/account-sim.yml's `compounding:` block now parameterises the arm only
+# (mark_interval, budget_ceiling); whether it runs is the flag's job.
+# Each arm writes its OWN report, positions CSV and page — the compounding arm can
+# no longer overwrite the frozen book's artifacts.
+# marked_equity counts only positions CLOSED BEFORE the mark session — open positions
+# are never marked to market — and is a sizing number only, so G3 still balances
+# against the STARTING capital. Post-hoc: A1-A6 were pre-registered against a
+# path-independent sim, and A2/A5 DO NOT TRANSFER (their B2 benchmark compounds too,
+# so the ratio stops isolating the caps); the report says so inline. G1-G4 stay
+# pinned to the frozen basis; G5 runs sighted-vs-blind on BOTH bases and must match
+# on each.
+python3 -m scripts.backtest_study run account_sim -- --compounding   # that arm alone
 # It also exports its deployed/skipped positions (incl. the market/ticker/
 # mechanical regime block) to backtests/study_output/account_sim-positions-latest.csv
+# (the compounding arm: account_sim-positions-compounding-latest.csv).
 # Its G5 gate ENFORCES that selection/sizing never read an outcome field —
 # keep it passing; it is what makes the sim safe to drive a live-position agent.
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 # ^ arm: admits proxy debit rows the exact-replay gate withheld (stale
 #   trailing_stop exports, not unpriceable rows). Widens the CANDIDATE SET only;
 #   bs rows stay dropped, gates still run on the frozen book, and it writes a
-#   SEPARATE artifact (account_sim-positions-structure-latest.csv). This is the
-#   ONLY arm that gets its own CSV stem — a different config overwrites the
-#   default export, and the report records which config produced it.
+#   SEPARATE artifact (account_sim-positions-structure-latest.csv).
+# Every ARM gets its own CSV stem; a different --config does NOT — it overwrites the
+# default export, and the report records which config produced it.
 
 # Study review pipeline (research tier — two-analyst replication grading + digest)
 python3 -m scripts.study_review account_sim              # run study, then A/B + validator + digest
@@ -164,18 +176,29 @@ python3 -m scripts.study_map --check                   # per-study last-run stat
 python3 -m scripts.study_charts.account_sim              # → account_sim-charts-latest.html
 python3 -m scripts.study_charts.account_sim --standalone --open   # view off disk
 python3 -m scripts.study_charts.account_sim --positions backtests/study_output/account_sim-positions-structure-latest.csv
-make study-docs                                          # rebuild every tracked docs page
+make study-docs                                          # rebuild every docs/ page
+# docs/ IS GENERATED OUTPUT AND GITIGNORED. Nothing there is tracked, so a fresh
+# checkout has no pages until `make study-docs` (or any study run) builds them.
+# The hand-written architecture doc that used to live there is now ARCHITECTURE.md
+# at the repo root.
 # Each run writes two files: the study_output FRAGMENT (no doctype/head/body —
 # what the Artifact publisher wants; --standalone wraps it for a browser) and a
-# tracked standalone docs/account-sim-charts.html, the same deal as
-# docs/study-map.html. The structure arm writes ONLY the fragment — its page
-# reads the same as the frozen book's chart for chart, so there is exactly one
-# tracked charts page and an explicit --docs on that arm is refused.
-# --no-docs skips the docs copy.
-# The report is auto-paired to the positions file's ARM (account_sim-latest.txt is
-# whichever arm ran last), and every CSV-recomputed figure is reconciled against
-# the report before writing — a mismatch exits non-zero. Do not add a statistic
-# the study refuses to print (no annualised figure / Sharpe / time-to-recover).
+# standalone docs/account-sim-charts.html, the same deal as docs/study-map.html.
+# The structure arm writes ONLY the fragment — its page reads the same as the
+# frozen book's chart for chart, so there is one charts page for that arm and an
+# explicit --docs on it is refused. --no-docs skips the docs copy.
+# The report is auto-paired to the positions file's ARM on BOTH axes (structure and
+# compounding), and every CSV-recomputed figure is reconciled against the report
+# before writing — a mismatch exits non-zero. Do not add a statistic the study
+# refuses to print (no annualised figure / Sharpe / time-to-recover).
+
+python3 -m scripts.study_charts.compounding              # → docs/account-sim-compounding.html
+make study-chart-compounding-open                        # rebuild it and open it
+# THIRD page: the COMPOUNDING arm's own readout, drawn from
+# account_sim-compounding-latest.txt + account_sim-positions-compounding-latest.csv.
+# Same page shape as the frozen book's charts page plus the EQUITY MARKS re-mark
+# series, which exists only on this arm. It is a POST-HOC, NOT-pre-registered
+# sensitivity — the page says so, and A2/A5 do not transfer to it.
 
 python3 -m scripts.study_charts.regime                   # → docs/account-sim-regime.html
 make study-chart-regime-open                             # rebuild it and open it
@@ -225,7 +248,7 @@ Google Sheets (service account) ──► Next.js Dashboard (web/)
 ## File layout
 
 Compact map only. **Before editing `lib/` or `scripts/` code, read the matching section of
-`docs/architecture.md`** — it holds the per-file data contracts, column schemas, and
+`ARCHITECTURE.md`** — it holds the per-file data contracts, column schemas, and
 resume/idempotency semantics that used to live here.
 
 ```
@@ -281,14 +304,17 @@ scripts/                    ← entry points, each maps to a workflow step
                               (a changed section raises, never a half-drawn chart);
                               series.py = positions-CSV series + `reconcile()`, which
                               must agree with the report or the build fails;
-                              cli.py = the pipeline both pages share (arm pairing,
+                              cli.py = the pipeline every page shares (arm pairing on
+                              both the structure and compounding axes,
                               reconcile-or-write-nothing, docs copy rules);
                               account_sim.py + render.py + assets/page.js = the
                               account feasibility readout (capital read from the
                               report, not hardcoded); regime.py + render_regime.py +
                               assets/regime.js = the deployed book by market regime;
-                              assets/kit.js = chart primitives shared by both;
-                              assets/page.css = the tokens both pages draw from
+                              compounding.py = the same readout for the compounding
+                              arm, plus its EQUITY MARKS series;
+                              assets/kit.js = chart primitives shared by all;
+                              assets/page.css = the tokens the pages draw from
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
@@ -374,7 +400,7 @@ The `/options` skill routes as follows:
   `score_*` components (v4 dropped `score_flow`/`score_dealer`; only `score_vol` is
   model-emitted, `score_price`/`score_catalyst` are pipeline-computed) + `score_total`
   bands (v4: 0–50, NOT comparable to v3's 0–100), and the `themes` array — is documented in
-  `docs/architecture.md` §"/options analyze" and `config/conviction-score.md`; read those only
+  `ARCHITECTURE.md` §"/options analyze" and `config/conviction-score.md`; read those only
   when changing the pipeline or its schema, not to run it
 - `modes/summary.md` — reads latest rows from AnalysisClaude, formats for display
 - `modes/positions.md` — fetches live positions from IBKR MCP and cross-references against latest
@@ -399,8 +425,10 @@ weight evidence and resolve conflicting flow.
   profit/stop, pricing fallbacks). No signal filter — the analysis is the filter.
 - `config/account-sim.yml` — RESEARCH tier. The `account_sim` study's whole parameter surface:
   capital, risk %, positions/day, the two delta-notional caps, the cap/capital grids, the hedge
-  fraction, the dense-episode definition, the A2/A3/A5 thresholds and G1's expected book line.
-  `scripts/backtest_study/account_sim.py` reads it and holds no state of its own.
+  fraction, the dense-episode definition, the A2/A3/A5 thresholds, G1's expected book line, and
+  the compounding arm's `mark_interval`/`budget_ceiling` (the arm itself is the `--compounding`
+  flag, not a config switch). `scripts/backtest_study/account_sim.py` reads it and holds no
+  state of its own.
 - `config/barchart-reference.md` — column definitions for barchart CSV data
 - `config/backtest-reference.md` — column definitions for the `BacktestResults` sheet (realized
   exit, MFE/MAE, the `daily_price_csv` path)

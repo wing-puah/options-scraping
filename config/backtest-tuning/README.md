@@ -87,26 +87,28 @@ utilisation, the cap grid, the four arms, and the A1–A6 checklist — with a
 PRIMARY/SECONDARY population switch scoping everything below it.
 
 One run writes two files. `backtests/study_output/account_sim-charts-latest.html`
-is a bare fragment, which is what the Artifact publisher wants; `docs/account-sim-charts.html`
-is the same page wrapped as a standalone document and is **tracked**, for the
-same reason `docs/study-map.html` is — it has to open from a fresh checkout
-without running anything first. The `--structure-universe` arm writes only the
-scratch fragment and never a tracked page: the widened candidate set moves the
+is a bare fragment, which is what the Artifact publisher wants;
+`docs/account-sim-charts.html` is the same page wrapped as a standalone document.
+`docs/` is **generated output and gitignored** — a fresh checkout has no pages
+until something builds them. The `--structure-universe` arm writes only the
+scratch fragment and never a `docs/` page: the widened candidate set moves the
 book by a handful of picks, so its page reads the same as the frozen book's
-chart for chart, and a second tracked page would only cost a reader a diff to
-learn there was nothing to learn. `--no-docs` writes only the scratch fragment;
-`--standalone --open` views it off disk. `make study-docs` rebuilds every
-tracked docs page — the map and the readouts — without running a study.
+chart for chart, and a second page would only cost a reader a diff to learn
+there was nothing to learn. The `--compounding` arm, by contrast, DOES get its
+own page — it is a different sizing basis, not a slightly different candidate
+set, and it must never be confused with the frozen book. `--no-docs` writes only
+the scratch fragment; `--standalone --open` views it off disk. `make study-docs`
+rebuilds every `docs/` page — the map and the readouts — without running a study.
 
 It renders, it never concludes. Every figure is either read out of the report
 text or recomputed from `<study>-positions-latest.csv`, and the recomputed ones
 are **reconciled against the report before the page is written** — a mismatch
 exits non-zero rather than drawing a chart that disagrees with the study. That
-check is what catches the easy mistake here: `account_sim-latest.txt` is
-whichever ARM ran last, which is not necessarily the arm that wrote
-`account_sim-positions-latest.csv`, so the report is chosen to match the
-positions file's arm (pass `--positions .../account_sim-positions-structure-latest.csv`
-for the `--structure-universe` arm). The renderer also may not introduce a
+check is what catches the easy mistake here: the report is chosen to match the
+positions file's ARM on both axes — structure and compounding — rather than
+assumed (pass `--positions .../account_sim-positions-structure-latest.csv` for
+the `--structure-universe` arm; the compounding arm has its own page and its own
+default). The renderer also may not introduce a
 statistic the study refuses to print — no annualised figure, no Sharpe, no
 time-to-recover.
 
@@ -131,6 +133,22 @@ the study first, never into the page alone.** A descriptive table nobody
 re-derives is where a quiet disagreement would sit forever, and a regime split
 drawn as charts is exactly the kind of thing that starts getting quoted as an
 edge the study never tested.
+
+### The compounding arm's page
+
+`python3 -m scripts.study_charts.compounding` (or `make study-chart-compounding`)
+draws `docs/account-sim-compounding.html`, the same readout for the **compounding
+sensitivity** arm rather than the frozen book, plus the `EQUITY MARKS` re-mark
+series, which exists only on that arm. It reads that arm's own artifacts
+(`account_sim-compounding-latest.txt` + `account_sim-positions-compounding-latest.csv`),
+both written by the same `run account_sim` that writes the frozen ones.
+
+The separation is the point. The compounding arm is **post-hoc and not
+pre-registered**: A1–A6 were registered against a path-INDEPENDENT sim, and
+**A2/A5 do not transfer** to it, because their B2 benchmark compounds too, so the
+ratio stops isolating the caps. A reader who lands on a page must be able to tell
+which basis they are holding without checking a filename, so the page says so in
+its own banner and the arms never share an artifact.
 
 ## Companion documents
 

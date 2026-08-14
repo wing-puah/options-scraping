@@ -368,7 +368,8 @@ def test_refresh_quietly_never_raises(tmp_path, monkeypatch):
     assert build.refresh_quietly(tmp_path / "out.html") is None
 
 
-def test_checked_in_page_is_current():
-    """`docs/study-map.html` is generated but tracked — it must not go stale."""
-    assert build.DEST.exists(), "run `make study-map`"
+def test_built_page_is_a_document():
+    """`docs/` is gitignored, so the page may legitimately not exist yet."""
+    if not build.DEST.exists():
+        pytest.skip("no docs/study-map.html — run `make study-map`")
     assert "<title>" in build.DEST.read_text()

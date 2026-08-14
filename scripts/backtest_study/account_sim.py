@@ -54,6 +54,12 @@ a positions CSV. Run:
     python -m scripts.backtest_study run account_sim
     python -m scripts.backtest_study run account_sim -- --gates-only
     python -m scripts.backtest_study run account_sim -- --config <path>
+
+`--compounding` is an ARM of the same config, not a different simulation: it
+re-marks SIZING to realized equity (a post-hoc, NOT pre-registered friction
+model) and writes its own report / positions CSV / page, so it can never
+overwrite the frozen book's. The runner runs both arms in one
+`run account_sim`; passing the flag by hand runs the arm alone.
 """
 from __future__ import annotations
 
@@ -145,6 +151,11 @@ class Settings:
     g1_dates: int
     g1_dollars: float
     g1_dollar_tol: float
+    # ARM SELECTION, not a config value: set from `--compounding` on the
+    # command line (see `load_settings`), never from the YAML. The file
+    # parameterises the arm (`mark_interval`, `budget_ceiling`); whether the arm
+    # RUNS is the flag's job, so one config drives both bases and neither arm's
+    # artifacts can overwrite the other's.
     compound_enabled: bool
     mark_interval: str
     budget_ceiling: float | None
@@ -200,12 +211,20 @@ def _grid(values, path: str, name: str) -> tuple[float, ...]:
     return tuple(float("inf") if v is None else float(v) for v in values)
 
 
-def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
+def load_settings(path: Path = DEFAULT_CONFIG, *,
+                  compound_enabled: bool = False) -> Settings:
     """Read the study's configuration.
 
     Every key is required. A config-driven study whose config was only half read
     is worse than one that stops: it would print a full report against sizing
     nobody chose.
+
+    `compound_enabled` comes from `--compounding` on the command line, NOT from
+    the file: the compounding arm is a second pass of the SAME config (it writes
+    its own report and positions CSV), so the file states only what the arm is
+    parameterised by. A leftover `compounding.enabled:` key is refused rather
+    than ignored — a copied older config would otherwise say `true` and silently
+    produce the frozen book.
     """
     path = Path(path)
     try:
@@ -225,6 +244,12 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
     max_per_day = int(_req(raw, p, "account", "max_positions_per_day"))
     if max_per_day < 1:
         raise ConfigError(f"{p}: account.max_positions_per_day must be >= 1")
+    compounding = raw.get("compounding")
+    if isinstance(compounding, dict) and "enabled" in compounding:
+        raise ConfigError(
+            f"{p}: compounding.enabled was removed — the compounding arm is "
+            f"selected with the --compounding flag (the runner runs it as a "
+            f"second arm of every `run account_sim`). Delete the key.")
     interval = str(_req(raw, p, "compounding", "mark_interval"))
     if interval not in MARK_INTERVALS:
         raise ConfigError(f"{p}: compounding.mark_interval must be one of "
@@ -261,7 +286,7 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
                               "expected_dollars")),
         g1_dollar_tol=float(_req(raw, p, "gates", "book_calibration",
                                  "dollar_tolerance")),
-        compound_enabled=bool(_req(raw, p, "compounding", "enabled")),
+        compound_enabled=bool(compound_enabled),
         mark_interval=interval,
         budget_ceiling=ceiling,
         source=path,
@@ -974,6 +999,30 @@ def positions_rows(population: str, arm: str, sim) -> list[dict]:
     return rows
 
 
+def positions_artifact(*, compounding: bool,
+                       structure_universe: bool) -> tuple[str, str]:
+    """`(positions CSV filename, the `arm` column's value)` for this run's ARM.
+
+    Separate artifact per ARM: neither the compounding sizing arm nor the
+    widened-universe arm may silently overwrite the frozen book's export, since
+    a downstream consumer reading `account_sim-positions-latest.csv` has no way
+    to tell which sizing basis or candidate set produced the rows it is holding.
+
+    `compounding` is ordered BEFORE `structure` in both the filename and the arm
+    column, so `-structure` stays the suffix that names the widened universe on
+    either sizing basis (which is what the chart layer keys that arm off).
+    """
+    parts = ["account_sim-positions"]
+    arm = "RF1"
+    if compounding:
+        parts.append("compounding")
+        arm += "-compounding"
+    if structure_universe:
+        parts.append("structure")
+        arm += "-structure"
+    return "-".join(parts) + "-latest.csv", arm
+
+
 def write_positions_csv(path, populations: dict, arm: str = "RF1") -> int:
     """`csv.DictWriter` over `POSITIONS_CSV_COLUMNS`; one row block per
     `(population_label, sim)` pair in `populations`. Returns the row count."""
@@ -1303,7 +1352,10 @@ def print_configuration(st: Settings, cfg_name) -> None:
 
     # Under the compounding arm the dollar stop below is the STARTING one:
     # `simulate()` re-marks the budget (and so the stop) at each interval
-    # boundary. Printing it bare would contradict the file's `enabled: true`.
+    # boundary. Printing it bare would describe a stop this run never used —
+    # and the file above cannot say so, since the arm is selected by
+    # `--compounding`, not by the config (the banner at the top of the report
+    # names it, and EQUITY MARKS shows every re-mark).
     marked = " (initial — re-marked each %s; see EQUITY MARKS)" % st.mark_interval \
         if st.compound_enabled else ""
 
@@ -2108,6 +2160,15 @@ def main(argv=None) -> int:
                          "operator selecting on structure would actually see. "
                          "Does NOT re-admit bs rows. Gates still run on the "
                          "frozen book.")
+    ap.add_argument("--compounding", action="store_true",
+                    help="re-mark SIZING (budget/stop and BOTH delta caps) to "
+                         "REALIZED equity at every compounding.mark_interval "
+                         "boundary. A POST-HOC FRICTION MODEL and NOT "
+                         "pre-registered: A1-A6 were registered against a "
+                         "path-INDEPENDENT sim, and A2/A5 do not transfer. "
+                         "Writes its OWN report / positions CSV / page, so it "
+                         "never overwrites the frozen book's. Gates G1-G4 stay "
+                         "pinned to the frozen basis; G5 runs on both.")
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                     help=f"the simulation to run (default: "
                          f"{DEFAULT_CONFIG.relative_to(ROOT)}). Copy it and pass "
@@ -2115,7 +2176,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     try:
-        st = load_settings(args.config)
+        st = load_settings(args.config, compound_enabled=args.compounding)
     except ConfigError as exc:
         print(f"CONFIG ERROR: {exc}")
         return 2
@@ -2139,8 +2200,9 @@ def main(argv=None) -> int:
   Sharpe, or time-to-recover appears anywhere in this report by construction.""")
     if st.compound_enabled:
         # Printed only when the arm is on, so the frozen report stays byte-stable.
-        print(f"  COMPOUNDING: ENABLED   mark interval {st.mark_interval}   "
-              f"budget ceiling {_ceiling_str(st.budget_ceiling)}")
+        print(f"  COMPOUNDING: ENABLED (--compounding)   mark interval "
+              f"{st.mark_interval}   budget ceiling "
+              f"{_ceiling_str(st.budget_ceiling)}")
         print(f"  Sizing (budget/stop and BOTH delta caps) is re-marked to "
               f"REALIZED equity at\n  each {st.mark_interval} boundary. POST-HOC "
               f"and NOT pre-registered — see the EQUITY\n  MARKS section's banner "
@@ -2203,15 +2265,10 @@ def main(argv=None) -> int:
           "friction model,\n  not a tuned parameter, and none of them may be "
           "adopted on P&L.")
 
-    # Separate artifact per universe: the widened arm must never silently
-    # overwrite the frozen book's export, since a downstream consumer reading
-    # `account_sim-positions-latest.csv` has no way to tell which candidate set
-    # produced the rows it is holding.
-    parts = ["account_sim-positions"]
-    if args.structure_universe:
-        parts.append("structure")
-    stem = "-".join(parts) + "-latest.csv"
-    arm_col = "RF1" + ("-structure" if args.structure_universe else "")
+    # One artifact per ARM — see `positions_artifact`.
+    stem, arm_col = positions_artifact(
+        compounding=args.compounding,
+        structure_universe=args.structure_universe)
     positions_csv_path = ROOT / "backtests" / "study_output" / stem
     n_rows = write_positions_csv(
         positions_csv_path,

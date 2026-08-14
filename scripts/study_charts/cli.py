@@ -1,11 +1,14 @@
 """The entry-point body both study_charts pages share.
 
 Resolving the positions export, pairing it to a report from the same arm,
-parsing, recomputing, reconciling, and writing the fragment plus the tracked
-docs copy is the same job whichever page is being drawn — and the rules that
-matter most (write nothing when reconciliation fails; the structure arm never
-lands a tracked page) are rules that must hold for every page, so they live
-here once rather than in each entry point.
+parsing, recomputing, reconciling, and writing the fragment plus the `docs/`
+copy is the same job whichever page is being drawn — and the rules that matter
+most (write nothing when reconciliation fails; the structure arm never lands a
+docs page; no arm is ever written onto another arm's page) are rules that must
+hold for every page, so they live here once rather than in each entry point.
+
+Two arm axes, matched independently everywhere: `--structure-universe` and
+`--compounding`. `docs/` is generated output, rebuilt by `make study-docs`.
 """
 from __future__ import annotations
 
@@ -28,9 +31,37 @@ def is_structure_arm(positions: Path) -> bool:
     return "-structure" in positions.name
 
 
+def is_compounding_arm(positions: Path) -> bool:
+    """The compounding arm writes `account_sim-positions-compounding-latest.csv`.
+
+    A second, INDEPENDENT axis from the structure one: a run can be either,
+    both (`-positions-compounding-structure-latest.csv`) or neither, so every
+    pairing check below matches on both rather than on whichever it thought of
+    first.
+    """
+    return "-compounding" in positions.name
+
+
+def arm_label(structure: bool, compounding: bool) -> str:
+    """How to name an arm in an error message."""
+    flags = [f for f, on in (("--compounding", compounding),
+                             ("--structure-universe", structure)) if on]
+    return " ".join(flags) if flags else "plain (frozen-book)"
+
+
+def arm_of(positions: Path) -> str:
+    return arm_label(is_structure_arm(positions), is_compounding_arm(positions))
+
+
 def pick_report(positions: Path, out_dir: Path) -> Path:
-    """Newest account_sim report whose command line matches the positions arm."""
-    want_structure = is_structure_arm(positions)
+    """Newest account_sim report whose command line matches the positions arm.
+
+    Matched on BOTH arm axes. The glob is deliberately wide — every arm's
+    report is `account_sim-*.txt` — so matching on one axis would let the
+    frozen book's page pair with the compounding arm's report, which is exactly
+    the silent mis-pairing this module exists to prevent.
+    """
+    want = (is_structure_arm(positions), is_compounding_arm(positions))
     candidates: list[tuple[float, Path]] = []
     for path in out_dir.glob("account_sim-*.txt"):
         if "-review-" in path.name or "-digest-" in path.name:
@@ -39,12 +70,11 @@ def pick_report(positions: Path, out_dir: Path) -> Path:
             prov = report.parse_provenance(report.Report(path.read_text(), path))
         except report.ReportParseError:
             continue
-        if prov["structure_arm"] == want_structure:
+        if (prov["structure_arm"], prov["compound_arm"]) == want:
             candidates.append((path.stat().st_mtime, path))
     if not candidates:
-        arm = "--structure-universe" if want_structure else "the plain (frozen-book)"
         raise SystemExit(
-            f"no account_sim report in {out_dir} was produced by {arm} run.\n"
+            f"no account_sim report in {out_dir} was produced by a {arm_label(*want)} run.\n"
             f"Run the study first, or pass --report explicitly."
         )
     return max(candidates)[1]
@@ -62,28 +92,56 @@ def add_arguments(ap: argparse.ArgumentParser, docs_name: str) -> None:
                          "(the default fragment is what the Artifact publisher wants)")
     ap.add_argument("--docs", type=Path,
                     help=f"also write a standalone copy here (default: docs/{docs_name}; "
-                         "the structure arm writes no tracked copy at all)")
+                         "the structure arm writes no docs copy at all, and no arm "
+                         "may be written to another arm's page)")
     ap.add_argument("--no-docs", dest="write_docs", action="store_false",
-                    help="skip the tracked docs/ copy; write only --out")
+                    help="skip the docs/ copy; write only --out")
     ap.add_argument("--open", dest="open_after", action="store_true", help="open the page when done")
     ap.add_argument("--capital", type=float, default=None,
                     help="account capital the study simulated (default: read out of the "
                          "report's own EQUITY CURVE section)")
 
 
-def docs_dest(positions: Path, docs_name: str, docs_dir: Path = DOCS_DIR) -> Path | None:
-    """Where the tracked, double-clickable copy of this page lives, or None.
+def is_compounding_page(docs_name: str) -> bool:
+    """Whether a page's docs filename is the compounding arm's own page."""
+    return "-compounding" in docs_name
 
-    Only the frozen book gets a tracked page. The structure-universe arm is an
-    exploratory widening of the candidate set that moves the book by a handful
-    of picks, so its page reads the same as the frozen one chart for chart —
-    two near-identical tracked pages cost a reader a diff to learn there was
-    nothing to learn. It still writes its scratch fragment under
-    `backtests/study_output/`, which is what looking at the widened arm needs.
+
+def docs_dest(positions: Path, docs_name: str, docs_dir: Path = DOCS_DIR) -> Path | None:
+    """Where the generated, double-clickable copy of this page lives, or None.
+
+    Two rules, and both exist to stop one arm's numbers landing on another
+    arm's page (`docs/` is generated output, rebuilt by `make study-docs` — a
+    page that quietly changed arm reads exactly like a page that did not).
+
+    1. The structure-universe arm gets NO page. It is an exploratory widening
+       of the candidate set that moves the book by a handful of picks, so its
+       page reads the same as the frozen one chart for chart — two near
+       identical pages cost a reader a diff to learn there was nothing to
+       learn. Its scratch fragment under `backtests/study_output/` is what
+       looking at that arm needs.
+    2. The compounding arm HAS a page, its own (`account-sim-compounding.html`
+       and friends), and may only be written there — never onto the frozen
+       book's. The check runs both ways: the frozen book cannot be written onto
+       the compounding page either.
     """
     if is_structure_arm(positions):
         return None
+    if is_compounding_arm(positions) != is_compounding_page(docs_name):
+        return None
     return docs_dir / docs_name
+
+
+def out_suffix(positions: Path, out_stem: str) -> str:
+    """Arm marks the default fragment filename carries.
+
+    Each arm's fragment needs its own name or the arms overwrite each other's
+    scratch output. A mark the stem already states (the compounding page's stem
+    is `account_sim-compounding-charts`) is not repeated.
+    """
+    marks = ((is_compounding_arm(positions), "-compounding"),
+             (is_structure_arm(positions), "-structure"))
+    return "".join(mark for on, mark in marks if on and mark not in out_stem)
 
 
 def run(args: argparse.Namespace, *, build: Callable[..., str],
@@ -92,14 +150,22 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     positions = args.positions.resolve()
     if not positions.exists():
         raise SystemExit(f"positions CSV not found: {positions}")
-    # An explicit --docs is refused rather than honoured on the widened arm:
-    # a hand-typed path is exactly how the frozen book's tracked page gets
-    # clobbered, and the scratch fragment already covers looking at this arm.
-    if args.docs and is_structure_arm(positions):
+    # An explicit --docs is refused rather than honoured whenever this arm has
+    # no page of its own: a hand-typed path is exactly how one arm's numbers
+    # land on another arm's page, and the scratch fragment already covers
+    # looking at any arm.
+    if args.docs and docs_dest(positions, docs_name) is None:
+        if is_structure_arm(positions):
+            raise SystemExit(
+                "the --structure-universe arm writes no docs page "
+                f"(--docs {args.docs} refused). Its scratch fragment under "
+                "backtests/study_output/ is the way to view it; add --standalone to open it."
+            )
         raise SystemExit(
-            "the --structure-universe arm writes no tracked docs page "
-            f"(--docs {args.docs} refused). Its scratch fragment under "
-            "backtests/study_output/ is the way to view it; add --standalone to open it."
+            f"wrong page for this arm: docs/{docs_name} is "
+            f"{'the compounding arm' if is_compounding_page(docs_name) else 'the frozen book'}'s "
+            f"page, but {positions.name} is the {arm_of(positions)} arm's export "
+            f"(--docs {args.docs} refused). Each arm writes only its own page."
         )
     report_path = (args.report or pick_report(positions, positions.parent)).resolve()
     if not report_path.exists():
@@ -108,10 +174,12 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     parsed = report.parse(report_path)
     rows = series.load(positions)
 
-    if parsed["provenance"]["structure_arm"] != is_structure_arm(positions):
+    prov = parsed["provenance"]
+    if (prov["structure_arm"], prov["compound_arm"]) != (is_structure_arm(positions),
+                                                         is_compounding_arm(positions)):
         raise SystemExit(
-            f"arm mismatch: {report_path.name} ran `{parsed['provenance']['command']}` but "
-            f"{positions.name} is the {'structure' if is_structure_arm(positions) else 'plain'} arm's export."
+            f"arm mismatch: {report_path.name} ran `{prov['command']}` but "
+            f"{positions.name} is the {arm_of(positions)} arm's export."
         )
 
     # No --capital given: take the study's own figure out of the report rather
@@ -140,8 +208,7 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     fragment = build(parsed, populations, capital, source)
     page = render.wrap_standalone(fragment) if args.standalone else fragment
 
-    suffix = "-structure" if is_structure_arm(positions) else ""
-    out = args.out or (positions.parent / f"{out_stem}{suffix}-latest.html")
+    out = args.out or (positions.parent / f"{out_stem}{out_suffix(positions, out_stem)}-latest.html")
     out.write_text(page)
 
     print(f"report      {report_path}")
@@ -159,12 +226,14 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     if args.write_docs:
         dest = args.docs or docs_dest(positions, docs_name)
         if dest is None:
-            print("docs copy   skipped — the structure arm gets no tracked page")
+            why = ("the structure arm gets no docs page" if is_structure_arm(positions)
+                   else f"docs/{docs_name} is not the {arm_of(positions)} arm's page")
+            print(f"docs copy   skipped — {why}")
         else:
             docs = dest.resolve()
             docs.parent.mkdir(parents=True, exist_ok=True)
             docs.write_text(render.wrap_standalone(fragment))
-            print(f"wrote       {docs}  (standalone, tracked)")
+            print(f"wrote       {docs}  (standalone, generated)")
 
     if args.open_after:
         # A fragment opened off disk has no doctype or charset, so prefer a

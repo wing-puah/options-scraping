@@ -29,7 +29,8 @@ from scripts.backtest_study.account_sim import (  # noqa: E402
     BlindRec, Cfg, ConfigError, Ledger, LOOKAHEAD_REC_KEYS,
     LOOKAHEAD_ROW_COLUMNS, LookaheadError, Pos, Settings, Sim,
     POSITIONS_CSV_COLUMNS, admission, blind_records, book_signature,
-    dense_episodes, load_settings, mark_key, new_cache, positions_rows,
+    dense_episodes, load_settings, mark_key, new_cache, positions_artifact,
+    positions_rows,
     replay_sized, risk_contracts, sessions_between, signed_dn, simulate,
     sizing_budget, solve_contracts, write_positions_csv,
 )
@@ -754,6 +755,68 @@ def test_positions_rows_skipped_without_counterfactual_leaves_outcome_blank():
     assert row["R"] is None and row["dollars"] is None
 
 
+# ── one positions artifact per ARM ──────────────────────────────────────────
+#
+# Both arms of a `run account_sim` write a positions CSV, and the chart layer
+# pairs a page to a report by ARM. A shared filename would let the compounding
+# sensitivity overwrite the frozen book's export — the exact failure folding the
+# arm into the run exists to remove — and a shared `arm` column would leave the
+# pooled rows unattributable.
+
+def test_positions_artifact_frozen_arm_keeps_the_original_names():
+    """The frozen book's artifact names are load-bearing (tracked pages, the
+    chart layer's default) and must not move."""
+    assert positions_artifact(compounding=False, structure_universe=False) == \
+        ("account_sim-positions-latest.csv", "RF1")
+
+
+def test_positions_artifact_names_the_structure_arm_as_before():
+    assert positions_artifact(compounding=False, structure_universe=True) == \
+        ("account_sim-positions-structure-latest.csv", "RF1-structure")
+
+
+def test_positions_artifact_names_the_compounding_arm_separately():
+    assert positions_artifact(compounding=True, structure_universe=False) == \
+        ("account_sim-positions-compounding-latest.csv", "RF1-compounding")
+
+
+def test_positions_artifact_orders_compounding_before_structure():
+    """Sizing basis first, candidate universe second — so `-structure` stays
+    the suffix naming the widened universe on either basis."""
+    stem, arm = positions_artifact(compounding=True, structure_universe=True)
+    assert stem == "account_sim-positions-compounding-structure-latest.csv"
+    assert arm == "RF1-compounding-structure"
+    assert "-structure" in stem and "-structure" in arm
+
+
+def test_positions_artifact_gives_every_arm_a_distinct_file_and_label():
+    combos = [(c, s) for c in (False, True) for s in (False, True)]
+    made = [positions_artifact(compounding=c, structure_universe=s)
+            for c, s in combos]
+    assert len({stem for stem, _ in made}) == len(combos)
+    assert len({arm for _, arm in made}) == len(combos)
+
+
+def test_positions_rows_carries_the_arm_label_it_was_given():
+    """`write_positions_csv`'s `arm` is what a pooled reader attributes rows
+    by, so it travels onto every row — taken and skipped alike."""
+    rec = _rec()
+    sim = Sim(cfg=_cfg(), taken=[_pos(rec)], skipped=[(rec, "day3_cap", None)])
+    rows = positions_rows("primary", "RF1-compounding", sim)
+    assert {r["arm"] for r in rows} == {"RF1-compounding"}
+
+
+def test_write_positions_csv_writes_the_arm_column_for_every_row(tmp_path):
+    rec = _rec()
+    sim = Sim(cfg=_cfg(), taken=[_pos(rec)], skipped=[(rec, "cash", None)])
+    stem, arm = positions_artifact(compounding=True, structure_universe=False)
+    path = tmp_path / stem
+    write_positions_csv(path, {"primary": sim}, arm=arm)
+    with open(path, newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert rows and {r["arm"] for r in rows} == {"RF1-compounding"}
+
+
 def test_write_positions_csv_round_trips_both_populations(tmp_path):
     rec = _rec()
     primary = Sim(cfg=_cfg(label="p"), taken=[_pos(rec)],
@@ -785,8 +848,9 @@ def _full_config_dict() -> dict:
         "account": {"capital": 25_000, "risk_per_trade_pct": 0.02,
                     "max_positions_per_day": 3},
         "caps": {"per_position": 0.25, "net": 1.50},
-        "compounding": {"enabled": False, "mark_interval": "month",
-                        "budget_ceiling": 1_000},
+        # No `enabled` key: the compounding ARM is selected by --compounding,
+        # not by the file (see `positions_artifact` / run.py's STUDY_ARMS).
+        "compounding": {"mark_interval": "month", "budget_ceiling": 1_000},
         "grids": {"per_position": [0.15, 0.25, 0.40, None],
                   "net": [1.00, 1.50, 2.50, None],
                   "capital_ladder": [25_000, 35_000, 50_000]},
@@ -844,7 +908,6 @@ def test_load_settings_non_mapping_top_level_raises_config_error(tmp_path):
     ("account", "max_positions_per_day"),
     ("caps", "per_position"),
     ("caps", "net"),
-    ("compounding", "enabled"),
     ("compounding", "mark_interval"),
     ("compounding", "budget_ceiling"),
     ("grids", "per_position"),
@@ -892,20 +955,62 @@ def _write_cfg(tmp_path, **compounding) -> Path:
     return p
 
 
-def test_load_settings_reads_the_compounding_block(tmp_path):
-    st = load_settings(_write_cfg(tmp_path, enabled=True,
-                                  mark_interval="quarter",
+def test_load_settings_reads_the_compounding_blocks_parameters(tmp_path):
+    """The file says what the arm is parameterised BY. Whether the arm RUNS is
+    the flag's job, so the same file loads on either basis."""
+    st = load_settings(_write_cfg(tmp_path, mark_interval="quarter",
                                   budget_ceiling=750))
-    assert st.compound_enabled is True
     assert st.mark_interval == "quarter"
     assert st.budget_ceiling == 750.0
 
 
+def test_load_settings_takes_the_arm_from_the_caller_not_the_file(tmp_path):
+    """`--compounding` selects the arm; the config is identical on both bases.
+
+    That is what lets ONE `run account_sim` print both — and what stops the arm
+    from being a differently-named config file whose artifacts overwrite the
+    frozen book's.
+    """
+    path = _write_cfg(tmp_path)
+    assert load_settings(path).compound_enabled is False
+    assert load_settings(path, compound_enabled=True).compound_enabled is True
+
+
 def test_load_settings_defaults_the_shipped_config_to_the_frozen_book():
-    """The tracked config must stay the FROZEN, path-independent book — the
-    basis every recorded conclusion rests on. The compounding ARM lives in its
-    own config file, not in this one."""
+    """No flag = the FROZEN, path-independent book, the basis every recorded
+    conclusion rests on. The tracked config drives BOTH arms, so it must not
+    lean either way by itself."""
     assert load_settings().compound_enabled is False
+    assert load_settings(compound_enabled=True).compound_enabled is True
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_load_settings_refuses_a_leftover_compounding_enabled_key(tmp_path, enabled):
+    """A copy of the retired arm config would say `enabled: true` and, silently
+    ignored, would produce the FROZEN book under an arm's name. It fails loudly
+    and names the flag that replaced it."""
+    with pytest.raises(ConfigError, match="compounding.enabled"):
+        load_settings(_write_cfg(tmp_path, enabled=enabled))
+    with pytest.raises(ConfigError, match="--compounding"):
+        load_settings(_write_cfg(tmp_path, enabled=enabled))
+
+
+@pytest.mark.parametrize("argv,want", [([], False), (["--compounding"], True)])
+def test_main_forwards_the_compounding_flag_to_load_settings(monkeypatch, capsys,
+                                                             argv, want):
+    """The flag is the only thing that turns the arm on, so the wiring from
+    argv to `Settings` is worth pinning. The run is stopped at config load —
+    nothing here touches the book."""
+    seen = {}
+
+    def _fake(path, *, compound_enabled=False):
+        seen["compound_enabled"] = compound_enabled
+        raise ConfigError("stopped before the book is loaded")
+
+    monkeypatch.setattr(account_sim, "load_settings", _fake)
+    assert account_sim.main(argv) == 2
+    assert seen["compound_enabled"] is want
+    assert "CONFIG ERROR" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("interval", ["month", "quarter", "year"])
@@ -974,12 +1079,12 @@ def test_configuration_echo_prints_the_config_file_itself(capsys):
 def test_configuration_echo_prints_the_bytes_that_were_parsed(tmp_path, capsys):
     """`source_text` comes off the same read `load_settings` parsed, so a
     --config run cannot show one file and simulate another."""
-    path = _write_cfg(tmp_path, enabled=True, mark_interval="quarter")
-    st = load_settings(path)
+    path = _write_cfg(tmp_path, mark_interval="quarter")
+    st = load_settings(path, compound_enabled=True)
     assert st.source_text == path.read_text()
     echoed = _echoed_file(_config_text(st, capsys, name=str(path)))
     assert yaml.safe_load(echoed) == yaml.safe_load(path.read_text())
-    assert "enabled: true" in echoed
+    assert "mark_interval: quarter" in echoed
 
 
 def test_configuration_echo_prints_the_exit_policy_the_replay_will_apply(capsys):
@@ -1017,8 +1122,9 @@ def test_configuration_echo_resolves_the_dollar_stop_the_file_states_as_a_rate(c
 
 
 def test_configuration_echo_marks_the_dollar_stop_as_initial_under_compounding(capsys):
-    """Compounding re-marks the stop, so printing it bare would contradict the
-    `enabled: true` in the file printed directly above it."""
+    """Compounding re-marks the stop, so printing it bare would describe a stop
+    this run never used — and the file printed directly above it cannot say so,
+    since the arm is selected by `--compounding`, not by the config."""
     off = _config_text(make_settings(), capsys)
     assert "hard dollar stop at $500 " in off and "re-marked" not in off
     on = _config_text(make_settings(compound_enabled=True, mark_interval="quarter"), capsys)

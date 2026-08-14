@@ -144,29 +144,56 @@ def _episodes(notes: dict) -> str:
       </div>"""
 
 
-def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
-    """Assemble the page fragment from parsed report + derived series."""
+def lede_facts(parsed: dict, capital: float) -> dict:
+    """The run's configured numbers, in words, read back out of its own report.
+
+    Every one of these is config-driven (`config/account-sim.yml` or whatever
+    `--config` named), so the page quotes the report rather than naming a
+    value: a hardcoded pair here silently outlives the config it describes.
+    Shared with the pages that write their own standfirst.
+    """
+    # accounts[1] is this run's configured account (accounts[0] is the stored
+    # book's own historical size).
+    risk_acc = parsed["populations"]["primary"]["granularity"]["accounts"][1]
+    return {
+        "capital": f"${capital:,.0f}",
+        "risk_pct": (f"{100 * risk_acc['budget'] / risk_acc['capital']:g}%"
+                     if risk_acc["capital"] else "its"),
+        "caps": _caps_phrase(parsed["populations"]["primary"]["cap_grid"]["headline"]),
+        "positions": f"{parsed['account_config']['max_per_day']} positions a day",
+    }
+
+
+def build(parsed: dict, populations: dict, capital: float, source: dict, *,
+          title: str | None = None, heading: str | None = None,
+          standfirst: str | None = None, banner: str = "", sections: str = "",
+          entry: str = "scripts.study_charts.account_sim") -> str:
+    """Assemble the page fragment from parsed report + derived series.
+
+    The keyword arguments are what lets a second arm reuse this page instead of
+    growing a near-copy of it: `title`/`heading`/`standfirst` replace the lede
+    (the frozen book's says "pre-registered", which is only true of that arm),
+    `banner` adds a standing warning under the verdict, `sections` adds page
+    sections after the population panels, and `entry` names the module that
+    rendered it in the footer. Defaulted, the output is byte-identical to what
+    the frozen readout has always emitted.
+    """
     prov = parsed["provenance"]
     verdict = parsed["verdict"]
     gates = parsed["gates"]
     notes = parsed["population_notes"]
 
-    title = f"${capital / 1000:g}k Feasibility Readout"
+    title = title or f"${capital / 1000:g}k Feasibility Readout"
     capital_str = f"${capital:,.0f}"
-    # The intended per-position risk %, read back out of the report's own
-    # GRANULARITY account line rather than assumed — accounts[1] is this run's
-    # configured account (accounts[0] is the stored book's own historical size).
-    risk_acc = parsed["populations"]["primary"]["granularity"]["accounts"][1]
-    risk_pct_str = (
-        f"{100 * risk_acc['budget'] / risk_acc['capital']:g}%" if risk_acc["capital"] else "its"
+    facts = lede_facts(parsed, capital)
+    risk_pct_str, caps_str, positions_str = facts["risk_pct"], facts["caps"], facts["positions"]
+    heading = heading or f"Can the shipped ladder be traded in a {capital_str} account?"
+    standfirst = standfirst or (
+        f"A pre-registered feasibility simulation of the deployment ladder at\n      "
+        f"{capital_str} of capital, {risk_pct_str} risk per position on a max-loss basis, "
+        f"{positions_str}, and\n      {caps_str}. Selection and exits are\n      "
+        f"frozen; only the account is new."
     )
-    # The caps are config-driven (config/account-sim.yml), so the standfirst
-    # quotes the report's own HEADLINE CELL rather than naming a value. A
-    # hardcoded pair here silently outlives the config it describes.
-    caps_str = _caps_phrase(parsed["populations"]["primary"]["cap_grid"]["headline"])
-    # max_positions_per_day is config-driven too (config/account-sim.yml), read
-    # back from the report's own header block rather than assumed as "three".
-    positions_str = f"{parsed['account_config']['max_per_day']} positions a day"
 
     payload = {
         "capital": capital,
@@ -230,11 +257,8 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
 <div class="wrap">
   <header class="masthead">
     <p class="eyebrow">backtest study · account_sim · research tier</p>
-    <h1>Can the shipped ladder be traded in a {capital_str} account?</h1>
-    <p class="standfirst">A pre-registered feasibility simulation of the deployment ladder at
-      {capital_str} of capital, {risk_pct_str} risk per position on a max-loss basis, {positions_str}, and
-      {caps_str}. Selection and exits are
-      frozen; only the account is new.</p>
+    <h1>{heading}</h1>
+    <p class="standfirst">{standfirst}</p>
 {_provenance(prov)}
   </header>
 
@@ -250,6 +274,7 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
         figure, no Sharpe ratio and no time-to-recover, and this page does not add any.</p>
     </div>
     {arm_note}
+    {banner}
   </section>
 
   <section id="setup">
@@ -305,9 +330,9 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
   </div>
 
   <div id="panels"></div>
-
+{sections}
   <footer>
-    Rendered by <code>python -m scripts.study_charts.account_sim</code> from
+    Rendered by <code>python -m {entry}</code> from
     <code>{_esc(source['report'])}</code> and <code>{_esc(source['positions'])}</code>.
     Every figure is either read out of the study's own report text or recomputed from its positions
     export and reconciled against that report at build time — the build fails rather than draw a

@@ -179,13 +179,16 @@ study-review:
 # computes a new conclusion — every CSV-recomputed figure is reconciled against
 # the report, and a mismatch exits non-zero. Run the study FIRST.
 # Each run writes TWO files: the scratch HTML FRAGMENT under
-# backtests/study_output/ (what the Artifact publisher wants) and the tracked
-# standalone docs/account-sim-charts.html, which opens from a fresh checkout the
-# way docs/study-map.html does. ARGS="--no-docs" writes only the scratch one.
-# The report is auto-paired to the positions CSV's arm, so chart the
-# structure-universe arm by pointing --positions at its own export. That arm
-# writes ONLY the scratch fragment: its page reads the same as the frozen book's
-# chart for chart, so a second tracked page would just cost a reader a diff.
+# backtests/study_output/ (what the Artifact publisher wants) and the standalone
+# docs/account-sim-charts.html — generated output, rebuilt by `make study-docs`,
+# that opens on a double-click the way docs/study-map.html does. ARGS="--no-docs"
+# writes only the scratch one.
+# The report is auto-paired to the positions CSV's arm on BOTH arm axes
+# (--structure-universe and --compounding), so chart another arm by pointing
+# --positions at its own export. The structure arm writes ONLY the scratch
+# fragment: its page reads the same as the frozen book's chart for chart, so a
+# second page would just cost a reader a diff. The compounding arm has a page of
+# its own (below), and no arm may be written onto another arm's page.
 .PHONY: study-chart
 study-chart:
 	$(PY) -m scripts.study_charts.account_sim $(ARGS)
@@ -212,14 +215,34 @@ study-chart-regime:
 study-chart-regime-open:
 	$(PY) -m scripts.study_charts.regime --standalone --open $(ARGS)
 
-# Every tracked docs page in one command: the study map, the account_sim
-# readout, the regime breakdown. None runs a study — they only read what the
-# last run left behind.
+# The compounding arm's own page. That arm is a POST-HOC sensitivity (sizing
+# re-marked to realized equity), not the pre-registered book, so it gets a page
+# of its own — docs/account-sim-compounding.html — and cli.docs_dest refuses
+# either arm on the other's page. Run the compounding arm of the study first.
+.PHONY: study-chart-compounding
+study-chart-compounding:
+	$(PY) -m scripts.study_charts.compounding $(ARGS)
+
+.PHONY: study-chart-compounding-open
+study-chart-compounding-open:
+	$(PY) -m scripts.study_charts.compounding --standalone --open $(ARGS)
+
+# Every generated docs page in one command: the study map, the account_sim
+# readout, the regime breakdown, the compounding arm. None runs a study — they
+# only read what the last run left behind. docs/ is generated output; this is
+# the command that rebuilds it.
 .PHONY: study-docs
 study-docs:
 	$(PY) -m scripts.study_map
 	$(PY) -m scripts.study_charts.account_sim
 	$(PY) -m scripts.study_charts.regime
+	@# The compounding arm is opt-in: skip its page rather than fail the whole
+	@# rebuild when that arm has not been run in this checkout.
+	@if [ -f backtests/study_output/account_sim-positions-compounding-latest.csv ]; then \
+	  $(PY) -m scripts.study_charts.compounding; \
+	else \
+	  echo "skipped scripts.study_charts.compounding — no compounding arm export yet"; \
+	fi
 
 .PHONY: help
 help:
@@ -298,10 +321,10 @@ help:
 	@echo "  make study-chart-structure  chart the --structure-universe arm's export (fragment only)"
 	@echo "  make study-chart-regime  render the deployed book by market regime → docs/account-sim-regime.html"
 	@echo "  make study-chart-regime-open  same, wrapped as a full page and opened in a browser"
+	@echo "  make study-chart-compounding  render the POST-HOC compounding arm → docs/account-sim-compounding.html"
+	@echo "  make study-chart-compounding-open  same, wrapped as a full page and opened in a browser"
 	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-docs)"
-	@echo "  make study-docs    rebuild all three tracked docs pages (map + readout + regime)"
-	@echo ""
-	@echo "  make study-docs    rebuild both tracked docs pages (study map + account_sim charts)"
+	@echo "  make study-docs    rebuild every generated docs page (map + readout + regime + compounding)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"

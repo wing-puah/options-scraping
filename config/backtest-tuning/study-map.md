@@ -107,6 +107,7 @@ management. Every selection study returns a null; two exit studies shipped.
 |---|---|---|
 | `bear_deploy.py` | Bear selection is unfixable — but is bear worth holding as a **hedge**? Four estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, D4 conditional pick. | **D2 MET** (bear pays on the deployed book's worst dates, corr −0.13). **D4 ADOPTED** (pick bear by \|delta\| *descending*). D1/D3 not met. Bear = a hedge, not a selection. |
 | `account_sim.py` | The ladder assumes infinite capital. Does a real **$25,000** account — paying for positions, holding reserve, respecting a delta cap — still produce a book? | Caps survive; the **window** doesn't. **Delta-notional binds, not cash.** Feasibility only, nothing ships. |
+| `selection_order.py` | `account_sim`'s *rejected* picks outperformed its taken ones. Does a different **blind entry-side order** of the same candidate set spend the scarce delta budget better — or was that read an artifact? | **POWER-STOPPED** at G0. Each re-ordering changes only 7–14% of the deployed book, so the best-powered arm reaches 11 affected dates vs a floor of **25** declared before the count was knowable. Census only — nothing confirmed, nothing refuted, no O4 band drawn. |
 
 ---
 

@@ -32,7 +32,7 @@ DOCS_NAME = "account-sim-regime.html"
 
 
 def docs_dest(positions: Path, docs_dir: Path = cli.DOCS_DIR) -> Path | None:
-    """Where this page's tracked copy lives, or None for the structure arm."""
+    """Where this page's docs copy lives, or None for the structure arm."""
     return cli.docs_dest(positions, DOCS_NAME, docs_dir)
 
 

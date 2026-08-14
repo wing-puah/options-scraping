@@ -3,6 +3,44 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-14, `account_sim` COMPOUNDING arm FOLDED IN — no number
+moves).** Infrastructure only; **no evidence changes and no conclusion moves.**
+The compounding sensitivity is no longer a copied config file
+(`config/account-sim-compounding.yml` is **deleted**) but a `--compounding` FLAG,
+and one bare `run account_sim` now prints **both bases**: the frozen,
+path-independent book (`account_sim-latest.txt`, unchanged) and the arm
+(`account_sim-compounding-latest.txt`). Each arm writes its **own** report,
+positions CSV (`account_sim-positions-compounding-latest.csv`) and page
+(`docs/account-sim-compounding.html`, `scripts.study_charts.compounding`), and
+the chart layer now pairs a report to a positions file on **both** axes
+(structure AND compounding) — so the failure that prompted this, an arm silently
+rebuilding the frozen book's page from its own numbers, is now structurally
+impossible in either direction. Verified on re-run: the frozen book reproduces
+(G1 passes, PRIMARY 72 positions / $11,398 / meanR +0.290) and the arm reproduces
+the figures recorded in the 2026-08-13 entry below (70 positions, **$9,852**).
+`compounding:` in `config/account-sim.yml` now holds only what the arm is
+parameterised BY (`mark_interval`, `budget_ceiling`); a leftover `enabled:` key
+is a hard `ConfigError` rather than a silent frozen-book-under-an-arm's-name.
+The arm remains **post-hoc and not pre-registered**, and **A2/A5 still do not
+transfer** to it. Prior state follows.
+
+**State of play (2026-08-14, `selection_order` RUN — POWER-STOPPED).** The
+ordering study is **built, run and closed on this book**. Verdict
+**POWER-STOPPED** at G0: every arm changes only **7–14%** of the deployed book,
+so the best-powered one reaches **11 affected dates on PRIMARY (20 at best on
+SECONDARY) against a floor of 25** declared before the count was knowable.
+Gates G1–G5 all pass — B1 reproduces `220 / 90 / $63,553`, O0 is byte-identical
+to a direct `ladder_rank` walk, and all six arms **including an O4 draw** survive
+both blindness layers. Nothing was read: under a total stop the arm table drops
+its outcome columns and the 200-draw band is **not drawn at all**, because a
+number on the page gets quoted eventually whatever the caveat says. So
+`account_sim`'s adverse-ordering read is neither confirmed nor refuted — **this
+book cannot adjudicate it**, and the census texture that would make it
+`CAP-BOUND-NOT-ORDER-BOUND` is a carry-forward, not a verdict. **Do not re-run on
+these dates.** One registration bug to fix before any re-registration: criterion
+(4)'s "all three years" is unsatisfiable on a two-year PRIMARY. Entry below.
+Prior state follows.
+
 **State of play (2026-08-14, `selection_order` PRE-REGISTERED).** The one
 follow-up `account_sim` left as pre-registerable — the delta-cap **ordering**
 question — is **PRE-REGISTERED, not built and not run**:
@@ -134,6 +172,122 @@ R4 is re-keyed to the pre-scrape cache snapshot (labelled amendment). The
 mechanism, flat-band cut waits for new bear rows, rollback triggers
 accumulating. Prior state (2026-08-12 and older) is archived — see
 [`archive/`](archive/) files 07–12 and the [README](README.md) section index.
+
+---
+
+## 2026-08-14 — `selection_order` RUN: **POWER-STOPPED** at G0. Every re-ordering moves 7–14% of the book, so no arm reaches the pre-registered floor — nothing read, nothing refuted
+
+**Status: BUILT AND RUN, same day as its registration. Verdict POWER-STOPPED.
+Gates G1–G5 all PASS. No arm confirmed, no arm refuted, no O4 band drawn, and
+NO re-run on these dates. Nothing ships — nothing could have.**
+
+`scripts/backtest_study/selection_order.py`, run via
+`python -m scripts.backtest_study run selection_order`. Six arms exactly as
+registered; `simulate()`, caps, sizing and exits are `account_sim`'s, untouched.
+ARM H off for every arm, compounding off (the study refuses to start if
+`account-sim.yml` has it on).
+
+**G0, which is the whole result.** The contested-date census, printed before
+anything else:
+
+| population | dates | contested | O1 | O2 | O3 | O1b |
+|---|---|---|---|---|---|---|
+| PRIMARY dense episodes | 46 | 26 (57%) | **10** | **7** | **11** | **10** |
+| SECONDARY full book | 90 | 50 (56%) | 18 | 12 | 15 | 20 |
+
+Affected dates, against a floor of **25** declared before the count was
+knowable. Every arm is power-stopped on both populations; the best-powered arm
+on PRIMARY is O3 at 11. PRIMARY exclusions run day3_cap 11 / net_delta 40 /
+per_pos_delta 25, so contested dates are not scarce — 26 of 46 — but re-ordering
+them barely moves the book: each arm changes only **7–14%** of O0's taken
+positions (O2 the least at 7%, O3 the most at 14%).
+
+**The power stop is enforced, not just announced.** The registration says a
+stopped arm's "cells are not read", and an arm's mean R *is* its cell — so under
+a total stop the arm table degrades to a census (positions and dates, both
+knowable at entry) and the outcome columns are **withheld rather than printed
+with a caveat beside them**. The O4 band is not drawn either: 200 draws exist to
+serve criterion (7), and with no criterion to serve the distribution would be an
+unregistered number with nothing attached to it. A number that is on the page
+gets quoted eventually, whatever the caveat says.
+
+**Gates.** G1 — B1 reproduces `220 / 90 / $63,553` exactly, and O0 built through
+this study's arm plumbing is byte-identical to a walk built directly on
+`protocol.ladder_rank` on both populations (72 / $11,399 and 160 / $11,248), so
+the plumbing is neutral. G2 — all six arms **including an O4 draw** produce a
+byte-identical book under both blindness layers; the rank functions read
+`delta` / `entry_underlying` / `max_loss_per_contract` / `tier` and nothing else.
+G3 — candidates partition exactly (150 PRIMARY, 297 SECONDARY) for every arm.
+G4 — no annualised figure, Sharpe or time-to-recover, by construction. G5 —
+satisfied **vacuously**, and it says so on the page: under a total power stop no
+outcome number is printed at all, so nothing on the report could be adopted.
+(G5 originally printed only inside a powered arm's block, which meant "no G5
+line" and "G5 passed" looked identical from the outside; analyst A flagged it
+and the gate now reports under every outcome.)
+
+**The replication protocol earned its keep on this run.** Analysts A and B
+agreed on all 13 rows (G0–G5, bars 1–7) on every pass — but between them they
+caught **three** real defects in the first report, all now fixed and the report
+regenerated. None of them moves a number; all three are the class of defect that
+makes a report un-checkable by its next reader, which is what the two-analyst
+pass is for.
+
+1. **G5 never printed** (above). Graded `NOT EVALUABLE` rather than assumed
+   passed, which is exactly the right call and the reason it got fixed.
+2. **The anti-tuning block claimed "the random-control seed is fixed and
+   printed" while no seed appeared anywhere** — because O4 never ran. The claim
+   and the number had come apart. The seed (`20260814`, draw *i* uses `SEED + i`)
+   now prints unconditionally, drawn or not.
+3. **G0 printed *after* G1/G2**, while the registration says it "runs FIRST and
+   blocks everything". The validator declined to call it a violation (logical
+   precedence was satisfied — nothing readable was printed before it), but it
+   required taking execution order on trust. All arms' books are now built
+   first, G0 runs and prints for both populations before any other gate, and the
+   two orders agree on the page.
+
+Final grading: **no violations**, both analysts agree on every row, G0 NOT MET
+(the power stop), G1–G5 MET, bars 1–7 NOT EVALUABLE. Also fixed on a code read
+the analysts could not do (they see the report, not the source): the O4 band's
+lower edge was computed at `alpha/2` while labelled `p5` — latent, never fired
+here, and corrected to a true `[p5, p95]`.
+
+**CARRY-FORWARD, explicitly NOT a verdict.** The reason the arms are
+under-powered is itself the shape of `CAP-BOUND-NOT-ORDER-BOUND`: the caps
+exclude the same picks whatever the order. It may **not** be recorded as that
+verdict — the label requires arms that CLEAR G0, and reading a blocked arm's
+shape as a conclusion is precisely the move a power stop exists to prevent. It
+is a carry-forward for a re-registration on a materially larger book. Note also
+that this does **not** refute `account_sim`'s post-hoc adverse-ordering
+observation; it says this book cannot adjudicate it.
+
+**Three implementation decisions, all coded before the first run:**
+
+1. **Delta-notional is taken at the size the position would be OPENED**, not per
+   contract — the resource the net cap meters is `|delta| × 100 × contracts ×
+   underlying`, so ranking on the per-contract figure would rank on a quantity
+   the constraint never sees. O2's ratio is size-INVARIANT (the count cancels),
+   so it is computed per contract and means the same thing at any size.
+   Degenerate rows are decided in the module, not at read time: no usable max
+   loss → sorts last within tier (no reserved dollars to spend); zero
+   delta-notional → sorts first (consumes none of the scarce resource). An
+   unsizable row still holds its place in the order at one contract, because
+   dropping it would change the candidate set, which this study may not do.
+2. **`CAP-BOUND-NOT-ORDER-BOUND` needed two descriptive thresholds** the
+   registration did not supply (|mean gain| < 0.05 R, < 10% of O0's taken picks
+   changed). Coded before the first run and not moved. They label a verdict; they
+   gate no adoption, and nothing ships under any label here.
+3. **Registration-wording note: criterion (4) is unsatisfiable as written on
+   PRIMARY.** "Positive in all three years" describes the full book
+   (2024-06-17 .. 2026-04-07); the dense episodes span **two** calendar years, so
+   requiring three would fail the criterion by construction rather than on
+   evidence. Implemented as *every year present positive*, with an inline
+   disclosure that prints whenever fewer than three years are in the cut. Never
+   exercised this run — no arm was evaluated. **Fix the wording before any
+   re-registration.**
+
+**Do not re-run this on these dates.** The registered stop covers it. The only
+thing that changes the answer is a materially larger book, and the same wall is
+already blocking the whole hedge programme (all 30 ARM S cells, H2 at n=6).
 
 ---
 

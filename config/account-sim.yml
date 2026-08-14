@@ -3,6 +3,11 @@
 # Run with: python3 -m scripts.backtest_study run account_sim
 #      or:  python3 -m scripts.backtest_study run account_sim -- --config <path>
 #
+# One `run account_sim` runs TWO ARMS off this one file: the frozen,
+# path-independent book, and — as a second, separately-named report / positions
+# CSV / page — the post-hoc compounding sensitivity (`--compounding`, see the
+# compounding block below). Neither arm can overwrite the other's artifacts.
+#
 # RESEARCH TIER. Nothing ships from this study under any outcome. The study asks
 # one question: does the shipped operator card (top_k_per_day, tiers A/B,
 # ladder_rank ordering) still produce a book once an account has to actually pay
@@ -45,18 +50,24 @@ caps:
   per_position: 0.25    # |delta-notional| of any single position
   net: 2.50             # |net delta-notional| of the whole open book
 
-# ── Compounding (OPT-IN sizing re-mark) ────────────────────────────────────────
+# ── Compounding (the --compounding ARM's parameters) ───────────────────────────
+# There is no `enabled` key: the arm is SELECTED BY FLAG, not by this file. A
+# bare `run account_sim` runs BOTH bases — the frozen, path-independent book
+# (this file as written) and, as a second arm, the same file with
+# `--compounding` — and each arm writes its OWN report, positions CSV and chart
+# page, so neither can overwrite the other's artifacts. The keys below only say
+# what the arm is parameterised BY, and apply to that second pass alone.
+#
 # A FRICTION MODEL, NOT a tuned parameter, and NOT pre-registered: the A1-A6
 # criteria were registered against a path-INDEPENDENT sim (see
 # config/backtest-tuning/pre-registrations/account_sim.md, which calls a
 # compounding-equity run "a labelled sensitivity only"). Neither the mark
-# interval nor the budget ceiling may be adopted on the basis of P&L.
+# interval nor the budget ceiling may be adopted on the basis of P&L, and A2/A5
+# DO NOT TRANSFER to the arm (their B2 benchmark compounds too, so the ratio
+# stops isolating the caps). The frozen book below — this file with no flag — is
+# the basis every recorded conclusion rests on.
 #
-# `enabled: false` is the FROZEN, pre-registered, path-independent book — the
-# basis every recorded conclusion rests on. Leave it false here; the compounding
-# arm lives in config/account-sim-compounding.yml.
-#
-# When enabled, sizing is re-marked to REALIZED equity at each interval
+# Under the arm, sizing is re-marked to REALIZED equity at each interval
 # boundary: marked_equity = capital + realized P&L of positions CLOSED strictly
 # before that session (open positions are never marked to market — this study
 # has no mid-flight valuation). The budget/stop, the per-position delta cap and
@@ -64,7 +75,6 @@ caps:
 # additionally clipped by budget_ceiling. The ledger's own `capital` is NEVER
 # touched, so the G3 identity keeps its original starting capital.
 compounding:
-  enabled: false          # opt-in; false = the frozen path-independent book
   mark_interval: month    # month | quarter | year
   budget_ceiling: 1000    # absolute $ ceiling on per-position risk budget; null = none
 

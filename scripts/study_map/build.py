@@ -1,8 +1,9 @@
 """Build the page and put it where it can be double-clicked.
 
-`docs/study-map.html` is a *generated* file that is nonetheless tracked, because
-its whole job is to be openable from a fresh checkout without running anything
-first. Regenerating it is cheap and side-effect free — it only ever reads.
+`docs/study-map.html` is generated output and `docs/` is gitignored, so a fresh
+checkout has no page until something builds one — `make study-map`, or any
+study run (the runner refreshes it). Regenerating is cheap and side-effect free:
+it only ever reads.
 """
 from __future__ import annotations
 

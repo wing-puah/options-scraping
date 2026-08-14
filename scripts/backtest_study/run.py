@@ -20,6 +20,12 @@ only ever holds a SUCCESSFUL run: a failed study (bad flag, gate crash) keeps
 its stamped transcript for debugging but must not clobber the canonical report
 that the map, the chart pages, and `study_review --skip-run` all quote.
 
+A study may also declare extra ARMS (`STUDY_ARMS`) — the same module run again
+with one flag flipped, filed under its own report stem, positions CSV and chart
+pages. `run account_sim` therefore prints both the frozen, path-independent book
+and the post-hoc compounding sensitivity in one command, with neither arm able
+to overwrite the other's artifacts. The exit code is the worst arm's.
+
 It also re-renders `docs/study-map.html`, so the readable one-page map of the
 whole package always quotes the newest report. That step is best-effort: the
 report is the valuable output, and a broken map must never turn a good run into
@@ -44,6 +50,7 @@ import importlib
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +67,47 @@ OUT_DIR = ROOT / "backtests" / "study_output"
 # cut), both drawn from the same run's report + positions CSV.
 CHART_MODULES = {
     "account_sim": ["scripts.study_charts.account_sim", "scripts.study_charts.regime"],
+}
+
+
+# ── extra arms ───────────────────────────────────────────────────────────────
+#
+# Some studies have a SECOND basis worth printing every time, not a different
+# study: same module, same config, one flag flipped. `account_sim`'s
+# compounding sensitivity is the case this exists for — it used to be a copied
+# config file the operator had to remember to run, and running it silently
+# overwrote the frozen book's positions CSV and chart pages, so the tracked
+# artifacts could end up describing a post-hoc arm nobody meant to publish.
+#
+# So an arm is a first-class part of one `run <name>`: its own stamped report
+# and `-latest` promotion under its own STEM, its own positions CSV (the study
+# names that itself, keyed off the same flag), and its own chart modules. A
+# failing arm therefore cannot clobber the other arm's `-latest`, and the run's
+# exit code is the worst arm's.
+#
+# An arm is NOT run when it would be wrong or redundant: when the caller already
+# passed its own flag (they asked for that arm alone), or when the run is a
+# gates-only / gate-selftest run, where the arm would re-run the same gates on
+# the same frozen basis and print nothing else.
+
+SINGLE_ARM_FLAGS = ("--gates-only", "--selftest-gates")
+
+
+@dataclass(frozen=True)
+class Arm:
+    """One extra invocation of a study module within a single `run <name>`."""
+
+    suffix: str                     # report stem becomes `<name>-<suffix>`
+    args: tuple[str, ...]           # appended to the caller's own extra args
+    charts: tuple[str, ...] = ()    # chart modules for THIS arm only
+
+
+STUDY_ARMS = {
+    "account_sim": (
+        Arm(suffix="compounding",
+            args=("--compounding",),
+            charts=("scripts.study_charts.compounding",)),
+    ),
 }
 
 # Shared data layer, not runnable studies (`book` is listed anyway — its
@@ -125,14 +173,19 @@ def _input_inventory() -> list[str]:
     return rows
 
 
-def _header(name: str, argv: list[str]) -> str:
+def _header(name: str, argv: list[str], module: str | None = None) -> str:
+    """The provenance header. `name` is what the report is CALLED (the arm's
+    stem, e.g. `account_sim-compounding`); `module` is what actually ran and
+    defaults to `name` — they differ only for an extra arm, where the command
+    line has to stay copy-pasteable and the arm's flag is what identifies the
+    arm downstream (the chart layer reads it off this line)."""
     dirty = "dirty" if _git("status", "--porcelain") else "clean"
     lines = [
         "=" * 78,
         f"STUDY: {name}",
         "=" * 78,
         f"  run at    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"  command   python -m {PKG}.{name} {' '.join(argv)}".rstrip(),
+        f"  command   python -m {PKG}.{module or name} {' '.join(argv)}".rstrip(),
         f"  git       {_git('rev-parse', '--short', 'HEAD')} "
         f"({_git('rev-parse', '--abbrev-ref', 'HEAD')}, working tree {dirty})",
         f"  python    {sys.version.split()[0]}",
@@ -158,9 +211,14 @@ def _merge_args(name: str, extra: list[str]) -> list[str]:
     return merged + extra
 
 
-def _render_charts(name: str, argv: list[str]) -> None:
+def _render_charts(name: str, argv: list[str],
+                   modules: list[str] | tuple[str, ...] | None = None) -> None:
     """Re-render `name`'s chart pages (no-op if it has none), against whichever
     arm this run's own argv shows it took.
+
+    `modules` overrides `CHART_MODULES[name]` and is how an extra arm renders
+    ITS page and only its page: the compounding arm must not redraw the frozen
+    book's two pages from compounded numbers.
 
     Imported here, not at module scope, for the same reason as the map import
     below: nothing about running a study should depend on study_charts being
@@ -178,14 +236,18 @@ def _render_charts(name: str, argv: list[str]) -> None:
     report itself is valid and already on disk either way, so a chart problem
     must never be reported as a study-run failure.
     """
-    modules = CHART_MODULES.get(name)
+    modules = modules if modules is not None else CHART_MODULES.get(name)
     if not modules:
         return
-    # account_sim writes one positions CSV per arm (cli.is_structure_arm keys
+    # account_sim writes one positions CSV per arm (the chart layer keys the arm
     # off the filename); point the chart pipeline at whichever one this run's
     # own argv says it just wrote, so the render pairs with the report that
-    # was just written rather than the default (plain-arm) positions file.
+    # was just written rather than the default (frozen-arm) positions file.
+    # Suffix ORDER matches the study's own: compounding (sizing basis) before
+    # structure (candidate universe).
     stem = "account_sim-positions"
+    if "--compounding" in argv:
+        stem += "-compounding"
     if "--structure-universe" in argv:
         stem += "-structure"
     positions = OUT_DIR / f"{stem}-latest.csv"
@@ -214,19 +276,27 @@ def _render_charts(name: str, argv: list[str]) -> None:
             print(f"  chart refreshed: {mod_name} ({positions.name})")
 
 
-def run_one(name: str, extra: list[str], dry_run: bool = False) -> tuple[int, Path]:
+def run_one(name: str, extra: list[str], dry_run: bool = False,
+            stem: str | None = None) -> tuple[int, Path]:
+    """Run study `name` and capture its report under `stem` (default `name`).
+
+    `stem` is what an extra arm is filed as (`account_sim-compounding`): the
+    module that runs is still `name`, so the two arms of one study cannot write
+    over each other's stamped transcript or `-latest` report.
+    """
+    stem = stem or name
     argv = _merge_args(name, extra)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_path = OUT_DIR / f"{name}-{stamp}.txt"
-    latest = OUT_DIR / f"{name}-latest.txt"
+    out_path = OUT_DIR / f"{stem}-{stamp}.txt"
+    latest = OUT_DIR / f"{stem}-latest.txt"
     cmd = [sys.executable, "-u", "-m", f"{PKG}.{name}", *argv]
 
     if dry_run:
         print(f"[dry-run] {' '.join(cmd)}  ->  {out_path}")
         return 0, out_path
 
-    header = _header(name, argv)
+    header = _header(stem, argv, module=name)
     print(header, end="")
     t0 = time.time()
     with out_path.open("w") as fh:
@@ -246,11 +316,32 @@ def run_one(name: str, extra: list[str], dry_run: bool = False) -> tuple[int, Pa
         latest.write_text(out_path.read_text())
     else:
         # A failed run (typo'd flag, gate crash) must not clobber the canonical
-        # report that the map, charts, and study_review all quote.
-        print(f"\n*** {name} FAILED (exit {rc}) — {latest.name} left at the "
+        # report that the map, charts, and study_review all quote — and with
+        # two arms in one run, a failing arm must not take the other's down.
+        print(f"\n*** {stem} FAILED (exit {rc}) — {latest.name} left at the "
               f"previous good run; this attempt's output is in {out_path.name} ***",
               file=sys.stderr)
     return rc, out_path
+
+
+def arm_plan(name: str, extra: list[str]) -> list[tuple[str, list[str], tuple[str, ...]]]:
+    """`[(report_stem, arm_extra_args, chart_modules)]` for one `run <name>`.
+
+    Always at least the study itself. Extra arms are appended unless the caller
+    asked for a single arm — either by passing that arm's own flag (they want
+    that basis alone, and running it twice would just overwrite it) or by
+    passing a gates-only / gate-selftest flag (every arm runs the same gates on
+    the same frozen basis, so the extra arm would add nothing).
+    """
+    base_charts = tuple(CHART_MODULES.get(name, ()))
+    plan = [(name, list(extra), base_charts)]
+    if any(f in extra for f in SINGLE_ARM_FLAGS):
+        return plan
+    for arm in STUDY_ARMS.get(name, ()):
+        if any(f in extra for f in arm.args):
+            continue
+        plan.append((f"{name}-{arm.suffix}", [*extra, *arm.args], arm.charts))
+    return plan
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -279,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
         for name, doc in studies.items():
             default = " ".join(DEFAULT_ARGS.get(name, []))
             tag = f"  [default: {default}]" if default else ""
+            arms = ", ".join(a.suffix for a in STUDY_ARMS.get(name, ()))
+            tag += f"  [+arms: {arms}]" if arms else ""
             print(f"  {name:{width}s}  {doc[:88]}{tag}")
         print(f"\nOutput goes to {OUT_DIR.relative_to(ROOT)}/<name>-latest.txt")
         return 0
@@ -290,27 +383,30 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         ap.error(f"unknown study {unknown[0]!r}; known: {', '.join(studies)}")
 
+    # (report stem, module name, that arm's argv, its chart modules, rc)
     results = []
     for name in names:
-        rc, path = run_one(name, extra, args.dry_run)
-        results.append((name, rc, path))
+        for stem, arm_extra, charts in arm_plan(name, extra):
+            rc, _path = run_one(name, arm_extra, args.dry_run, stem=stem)
+            results.append((stem, name, arm_extra, charts, rc))
 
     if args.dry_run:
         return 0
 
     print("\n" + "=" * 78)
     print("DONE — reports:" if args.no_handoff else "DONE — reports written:\n")
-    for name, rc, path in results:
+    for stem, _name, _arm_extra, _charts, rc in results:
         status = "" if rc == 0 else f"  *** FAILED rc={rc} ***"
-        rel = (OUT_DIR / f"{name}-latest.txt").relative_to(ROOT)
+        rel = (OUT_DIR / f"{stem}-latest.txt").relative_to(ROOT)
         print(f"  {rel}{status}")
 
     # Only a successful run wrote a new report + positions CSV worth quoting;
     # a failed run leaves whatever chart page already existed alone (its own
-    # "*** FAILED ***" line above is the visible signal for that case).
-    for name, rc, _ in results:
+    # "*** FAILED ***" line above is the visible signal for that case). Each
+    # arm renders its OWN pages from its OWN positions CSV.
+    for _stem, name, arm_extra, charts, rc in results:
         if rc == 0:
-            _render_charts(name, _merge_args(name, extra))
+            _render_charts(name, _merge_args(name, arm_extra), charts)
 
     # Imported here, not at module scope: the map reads every report in the
     # output dir, and nothing about running a study should depend on it.
@@ -326,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
               "   (graded: analyst A/B + validator + digest)")
         print("  or paste the report above into Claude and ask for a write-up.")
     print("=" * 78)
-    failed = [(name, rc) for name, rc, _ in results if rc]
+    failed = [(stem, rc) for stem, _n, _a, _c, rc in results if rc]
     if failed:
         # To stderr, after everything else: with --all a single study's failure
         # is easy to lose in thousands of report lines, and the non-zero exit
@@ -335,7 +431,9 @@ def main(argv: list[str] | None = None) -> int:
               + ", ".join(f"{n} (exit {rc})" for n, rc in failed)
               + " — their -latest.txt was NOT updated; "
               "scroll up for each one's output ***", file=sys.stderr)
-    return max(rc for _, rc, _ in results)
+    # The worst arm's / study's code: one failing arm fails the command, and
+    # the arms that succeeded still promoted their own -latest reports.
+    return max(rc for *_rest, rc in results)
 
 
 if __name__ == "__main__":

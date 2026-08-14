@@ -14,7 +14,7 @@ categorized feedback. **You are read-only** — report findings, never apply the
 ## Before you start
 
 1. Read the task description or spec. A review without knowing the intent is a lint pass.
-2. Read `CLAUDE.md`, then the matching section of `docs/architecture.md` for every
+2. Read `CLAUDE.md`, then the matching section of `ARCHITECTURE.md` for every
    `lib/` or `scripts/` file the diff touches — that is where the data contracts,
    column schemas, and resume/idempotency semantics live.
 3. Use `codegraph_explore` (a `.codegraph/` index exists) to pull the verbatim source
