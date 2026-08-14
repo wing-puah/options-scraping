@@ -10,12 +10,28 @@ here may be added to after seeing the output.
 Outcome measures (both reported on every cut):
   E = pnl_at_cap_pct  — P&L at the last priced path day, computed independently
                         of the exit rule (simulate.py:267). SELECTION measure.
-  R = realized_pnl_pct under PROD — SELECTION + EXIT.
+  R = pnl under DEBIT_PROD, RE-REPLAYED per row — SELECTION + EXIT.
   E<0 => selection problem (no exit rule rescues it).
   E>0 and R<0 => exit problem.
 
 Book/calibration/dedup are IMPORTED from exit_switch_mech_study.py, so this is
 the same pooled debit book as addenda 4 and 12.
+
+--- R basis: CORRECTED 2026-08-14 -------------------------------------------
+R was previously the STORED `realized_pnl_pct` column, and this docstring
+described it as "under PROD". That was true when written and became false on
+2026-07-22, when 31cb935 shipped the `regime_exit.cells.BEAR_HE` trail: 12 real
+debit rows now carry a stored outcome produced by a rule DEBIT_PROD does not
+contain, and 9 of the 12 are bear_put_spread/long_put — squarely this study's
+population, and it feeds config/deployment-rules.md §"Bear positions — hedge
+sleeve". R is now re-replayed per row under DEBIT_PROD (see `build`), which
+makes the label true for every row and matches what the exit-switch studies
+already do. E is untouched (pnl_at_cap_pct is exit-rule-independent by
+construction). Numbers in the ORIGINAL 2026-07-22 run were computed on the old
+basis. All 12 affected rows carry created_datetime >= 2026-07-22 23:39, i.e. at
+or after the trail's ship commit, so they were almost certainly absent from that
+run's export — but treat any R figure this study prints NOW as superseding the
+recorded one rather than assuming the two are comparable.
 
 Run:
     source .venv/bin/activate
@@ -31,10 +47,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.exit_mechanism_study import _to_float  # noqa: E402
+from scripts.backtest_study.exit_mechanism_study import _to_float, replay  # noqa: E402
 from scripts.backtest_study.exit_switch_mech_study import (  # noqa: E402
-    MechLabeler, compute_mech_table, ensure_spy_vix, load_debit_trades,
-    cell_of, model_direction, model_vol, hdr, sub,
+    DEBIT_PROD, MechLabeler, compute_mech_table, ensure_spy_vix,
+    load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
+    hdr, sub,
 )
 
 TARGET = "bear_put_spread"
@@ -74,7 +91,18 @@ def build(trades, labeler):
         d = t.signal_date.isoformat()
         mdir, mvol, mok, _ = labeler.label(d)
         e = _to_float(row.get("pnl_at_cap_pct"))
-        r_ = _to_float(row.get("realized_pnl_pct"))
+        # R is RE-REPLAYED under DEBIT_PROD, never read off the row.
+        # CORRECTED 2026-08-14: this used to be `_to_float(row["realized_pnl_pct"])`,
+        # which silently imported a DIFFERENT exit config for the 12 real rows
+        # whose stored outcome came from the shipped `regime_exit.BEAR_HE` trail
+        # (2026-07-22, 31cb935) — and 9 of those 12 are bear_put_spread/long_put,
+        # squarely this study's population, feeding deployment-rules.md
+        # §"Bear positions — hedge sleeve". The docstring's "R = realized_pnl_pct
+        # under PROD" was false for exactly those rows: the stored column is not
+        # under PROD when a regime override governed the row. Re-replaying makes
+        # the label true for every row and matches what the two exit-switch
+        # studies already do for everything they report.
+        r_ = replay(t, **DEBIT_PROD)["pnl_pct"]
         if e is None or r_ is None:
             continue
         rec = dict(
@@ -134,15 +162,10 @@ def main():
     ensure_spy_vix()
     labeler = MechLabeler(compute_mech_table())
     trades, diag = load_debit_trades()
-    rc = diag["real_calib"]
-    if rc["hard"] or abs(rc["replay"] - rc["stored"]) >= 0.01:
-        print("*** HARNESS VALIDATION FAILED — stopping. ***")
-        sys.exit(1)
-    recs = build(trades, labeler)
-
     hdr("BOOK")
-    print(f"Harness validation: {rc['ok']}/{rc['n']} real debit rows reproduce DEBIT_PROD; "
-          f"replay ${rc['replay']:,.2f} = stored ${rc['stored']:,.2f} — PASS")
+    # Same gate as both exit-switch studies — one shared implementation.
+    harness_gate(diag, study="bear position")
+    recs = build(trades, labeler)
     print(f"Rows with both E and R: {len(recs)}")
     print("Structures: " + "  ".join(f"{k}={v}" for k, v in
                                      Counter(r["structure"] for r in recs).most_common()))

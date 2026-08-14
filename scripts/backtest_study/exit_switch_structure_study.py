@@ -59,8 +59,8 @@ from scripts.backtest_study.exit_mechanism_study import replay  # noqa: E402
 from scripts.backtest_study.exit_switch_mech_study import (  # noqa: E402
     DEBIT_PROD, V_TRAIL, V_TEFNULL, V_PT110, SWITCH_CELLS, CELL_VARIANT,
     MechLabeler, compute_mech_table, ensure_spy_vix, build_post13c_lookup,
-    load_debit_trades, cell_of, model_direction, model_vol, norm_play,
-    POST13C_CUTOFF, hdr, sub,
+    load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
+    norm_play, POST13C_CUTOFF, hdr, sub,
 )
 import pandas as pd  # noqa: E402
 
@@ -228,14 +228,12 @@ def main():
 
     hdr("STEP 1 — BOOK, CALIBRATION, COMPOSITION")
     trades, diag = load_debit_trades()
-    rc, px = diag["real_calib"], diag["proxy"]
-    if rc["hard"] or abs(rc["replay"] - rc["stored"]) >= 0.01:
-        print("*** HARNESS VALIDATION FAILED — stopping (same gate as the mech study). ***")
-        sys.exit(1)
+    px = diag["proxy"]
+    # Same gate as the mech study — literally the same function, so the
+    # 2026-08-14 exact-replay correction can never drift between the two.
+    rc = harness_gate(diag, study="structure switch")
     print(f"Debit priced book: real={rc['n']} tweak={px['n_tweak']} bs={px['n_bs']} "
           f"-> pooled = {rc['n'] + px['n_tweak'] + px['n_bs']}")
-    print(f"Harness validation: {rc['ok']}/{rc['n']} real debit rows reproduce DEBIT_PROD exactly; "
-          f"replay total ${rc['replay']:,.2f} vs stored ${rc['stored']:,.2f} — PASS")
 
     recs = enrich(trades, labeler, post13c_lu)
     post = [r for r in recs if r["post13c"] is True]

@@ -26,11 +26,28 @@ The replay harness (`scripts/backtest_study/harness.py`) can only be trusted whe
 it's been checked against a PROD profile that actually governed the stored
 row:
 
-  DEBIT — `DEBIT_PROD` (pt=0.90, sl=0.75, tef=0.75, no trail) has been the
-  production debit profile since Attempt 10 (2026-07-04) and every debit row
-  in `BacktestResults` was generated under it. Real debit rows are always
-  kept (the gate is diagnostic: exact / near-rounding-tie / hard mismatch,
-  tallied in `diag["debit_calib"]`), but a PROXY debit row is only admitted
+  DEBIT — `DEBIT_PROD` (pt=0.90, sl=0.75, tef=0.75, no trail) was the sole
+  production debit profile from Attempt 10 (2026-07-04) until 2026-07-22, when
+  `31cb935` shipped `simulation.regime_exit.cells.BEAR_HE` (trail .50/.50).
+  CORRECTED 2026-08-14: this docstring used to say "every debit row in
+  `BacktestResults` was generated under it", which is now FALSE — production
+  resolves a per-row effective config (`scripts/backtest/simulate.py:150-165`)
+  while this loader replays one flat profile, so rows signal-dated into BEAR_HE
+  after that commit carry a stored outcome from a rule `DEBIT_PROD` does not
+  contain. Currently 12 of 301 real debit rows, all 12 mech-cell BEAR_HE, worth
+  -$5,145.00; they show up in the tally below as `hard`.
+
+  That mislabel is cosmetic HERE — this loader never gates on the count and
+  always keeps real debit rows — but it is not cosmetic in a report that prints
+  it. `exit_switch_mech_study.py` now distinguishes the two with
+  `unreachable_reasons()` / `_classify()` (a stored exit reason the profile
+  cannot emit == a superseded basis, not a pricing failure). Aligning this
+  tally's vocabulary to that four-way split is a recorded follow-up; it changes
+  no admission decision and no study's numbers, only three print sites.
+
+  Real debit rows are always kept (the gate is diagnostic: exact /
+  near-rounding-tie / hard mismatch, tallied in `diag["debit_calib"]`), but a
+  PROXY debit row is only admitted
   if it reproduces `(exit_reason, days_held, realized_pnl_pct)` EXACTLY —
   a proxy row that doesn't replay to the stored outcome was priced or dated
   in a way the harness can't reconstruct, and including it anyway would
