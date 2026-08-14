@@ -3,6 +3,26 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-14, `selection_order` PRE-REGISTERED).** The one
+follow-up `account_sim` left as pre-registerable — the delta-cap **ordering**
+question — is **PRE-REGISTERED, not built and not run**:
+[`pre-registrations/selection_order.md`](pre-registrations/selection_order.md).
+Six frozen arms, each only a different `rank_fn` into
+`protocol.ordered_by_day`, with tier membership, universe, sizing, caps and
+exits held exactly as `account_sim` runs them — this is an ORDERING study, not
+a selection study, and selection stays closed (new COLUMNS only). The decisive
+arm is **O4, a seeded random control**: an arm must beat the random band, not
+merely beat `ladder_rank`, and if `ladder_rank` itself sits inside that band the
+adverse-ordering read (+0.624 rejected vs +0.290 taken) was an artifact and the
+thread closes. **G0 is a blocking power pre-check** — under 25 affected dates an
+arm is power-stopped and never read, declared before the contested-date count is
+known. Nothing ships under any outcome; the ladder is itself in-sample, so an
+ordering evaluated on this book is second-order in-sample. Also recorded from
+reading `simulate()`: the `day3_cap` / `unsizable` / `ruined` census buckets
+append a `None` counterfactual, so the existing "rejected picks returned +X"
+description covers only the `net_delta` / `per_pos_delta` / `min1_refusal`
+exclusions. Prior state follows.
+
 **State of play (2026-08-13, `account_sim` COMPOUNDING arm added).** Sizing can
 now be re-marked to realized equity at fixed calendar intervals
 (`compounding:` in `config/account-sim.yml`, off by default; the arm lives in
@@ -114,6 +134,30 @@ R4 is re-keyed to the pre-scrape cache snapshot (labelled amendment). The
 mechanism, flat-band cut waits for new bear rows, rollback triggers
 accumulating. Prior state (2026-08-12 and older) is archived — see
 [`archive/`](archive/) files 07–12 and the [README](README.md) section index.
+
+---
+
+## 2026-08-14 — `selection_order`: PRE-REGISTRATION → [`pre-registrations/selection_order.md`](pre-registrations/selection_order.md)
+
+**Status: PRE-REGISTERED ONLY. Not built, not run, nothing shipped.**
+
+`account_sim` follow-up (2) recorded the adverse cap ordering as **post-hoc**:
+the picks the net delta cap excludes returned meanR +0.624 against +0.290 taken
+at 0.25x/2.50x (+0.431 vs +0.278 at 1.50x), and loosening the cap doubled the
+gap rather than relieving it. Cash binds zero times at both settings. This
+registration is what makes a test of that observation admissible.
+
+Six arms, frozen: `ladder_rank` (baseline), delta-notional ascending, reserved-$
+per delta-notional, `|delta|` descending (the `bear_deploy` D4 transfer, never
+run outside bear), one TIER-BLIND arm across A∪B (admissible only because A vs B
+is statistically merged, p=.65), and a seeded random control. Unit is a
+**contested date**, tested within-date paired against the baseline (the D4 method
+— it cancels the date's level). The candidate bar is the full seven-part
+conjunction: CI excluding zero, median positive among AFFECTED dates with ≥25 of
+them, every LOO fold positive, all three years, the shipped exit config, the
+ex-BOTH-windows cut added by hand, and above the random band.
+
+Read the registration for the arm table, gates G0–G5 and the verdict grammar.
 
 ---
 

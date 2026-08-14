@@ -7,25 +7,53 @@ everything here has its evidence trail there or in
 
 ## 0. Repo state — READ FIRST
 
-*(Rewritten 2026-08-13 evening; the original §0 described the morning's
-then-uncommitted work, which has since landed.)*
+*(Rewritten 2026-08-14. The 08-13 §0 described work that has since merged.)*
 
-The morning change sets are **MERGED to `main`**: method-config audit
-(`51746ac`) and bear_put demotion §1.4 (`8a786f2`), via merge `66cd01a`.
+Everything through 2026-08-13 is **MERGED to `main`** — method-config audit,
+bear_put demotion §1.4, and the `volume_signal` study with its infra and tests
+(merges `66cd01a`, `6ce3330`; latest `c5fc85b` adds the study-run chart
+re-render and its tests).
 
-The evening session's work — the `volume_signal` study (§2.1, NULL), its
-pre-registration + run entry + amendment + replication grading in
-`current.md`, the `Bar.v`/`volume_features.py` infra, 42 new tests, and the
-worktree-pytest fix — is committed on the branch
-**`worktree-refactored-coalescing-hamster`**. If `git log main` does not show
-it, the merge is the first action:
+Suite state as last measured (08-13): 896 passed, 1 skipped
+(`test_live_loop.py` self-skips where the IBKR snapshot data is absent), 2
+pre-existing `test_underlying_features.py` beta AttributeErrors — **still open,
+unverified since**; re-run `pytest` before trusting that count.
 
-    git merge worktree-refactored-coalescing-hamster   # from the main checkout
+## 0b. START HERE — `selection_order` is registered and waiting to be built
 
-Suite state: 896 passed, 1 skipped (`test_live_loop.py` self-skips where the
-IBKR snapshot data is absent — the `--ignore` workaround is gone), 2
-pre-existing `test_underlying_features.py` beta AttributeErrors (reproduced
-on the main checkout, still open).
+The next piece of work is **pre-registered and approved by the operator
+(2026-08-14), with no code written yet**:
+
+    config/backtest-tuning/pre-registrations/selection_order.md
+
+Read that file first — it is the whole specification (six frozen arms, gates
+G0–G5, the seven-part candidate bar, the verdict grammar), and the summary
+entry in [`current.md`](current.md) points at it. The build is a thin wrapper:
+an arm is only a different `rank_fn` passed to `protocol.ordered_by_day`, with
+`simulate()`, caps, sizing and exits untouched.
+
+Order of work:
+
+1. `scripts/backtest_study/selection_order.py`, run via
+   `python -m scripts.backtest_study run selection_order`.
+2. **G0 first.** Print the contested-date census before anything else; an arm
+   under 25 affected dates is power-stopped and its cells are never read. The
+   count is not yet known — it was not measurable when the study was
+   registered, which is the point of declaring the threshold in advance.
+3. `scripts/study_map/catalog.py` needs an entry with a hand-written VERDICT,
+   or the test suite fails.
+4. Grade the run through the two-analyst replication protocol, like
+   `account_sim` and `calendar_hedge`.
+
+Do not widen the arm set, sweep a cap, or relax a criterion after seeing a
+number. If nothing clears, **ORDERING-IS-NOISE is a real and useful verdict** —
+record it and close the thread.
+
+Optional 30-minute pre-step, both already recorded as follow-ups: close the
+`account_sim` verdict-grammar hole (A1 holds / A5-A6 fail matches no label, and
+follow-up (1) says fix it before any re-run — four re-runs have happened since;
+note SECONDARY now also fails A3 at 25.1% DD), and change ARM H's sizing floor
+from `max(1, int(0.5×c))` to skipping when half-size is under one contract.
 
 ## 1. Decisions made 2026-08-13 (done, no action)
 
