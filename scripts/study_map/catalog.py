@@ -13,6 +13,15 @@ described.
     null       ran, answered, and the answer was "no" — nothing shipped
     open       not refuted, blocked on data (usually new signal dates)
     reference  produces a baseline or a guard rather than a verdict
+
+`retired` is an orthogonal axis: whether the study can be RUN at all, not what
+it argued. `state` still records the outcome that was reached while its inputs
+existed — retiring a study does not erase its verdict. A retired study is
+`None` (the default, meaning "runnable") or a one-line reason-plus-date string
+explaining why its inputs are gone and where its recorded verdict lives.
+`scripts.backtest_study.run`'s `run --all` reads this to exclude retired
+studies from the bulk run (they stay runnable by explicit name, with a printed
+notice) — see the "Retired studies" note in that module's docstring.
 """
 from __future__ import annotations
 
@@ -64,6 +73,7 @@ class Study:
     state: str
     question: str
     verdict: str
+    retired: str | None = None
 
 
 # ── the nineteen studies ──────────────────────────────────────────────────────
@@ -125,12 +135,26 @@ STUDIES: dict[str, Study] = {
                  "rows pooled.",
         verdict="Confirms production is the best GLOBAL config, and in doing so shows exits "
                 "are regime-conditional. That is what motivated the two switch studies.",
+        retired="RETIRED 2026-08-14 — its inputs (backtests/results_proxy.csv, an author "
+                "transposition that never matched config/backtest.yml's actual "
+                "proxy_results.csv name) are gitignored scratch, deleted long ago and "
+                "unrecoverable. Verdict already recorded (Attempts 8, 9, 12) in "
+                "config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md; "
+                "not repointed at a surviving file — see next-steps.md §0c(B) for why.",
     ),
     "underlying_exit_study": Study(
         family="management", state="null",
         question="Credit spreads: stop on the UNDERLYING breaching a level, instead of on "
                  "the option mark?",
         verdict="Nothing shipped (Attempt 9).",
+        retired="RETIRED 2026-08-14 — its second input "
+                "(backtests/v2_BacktestResults_nocreditdiff.csv) is gitignored scratch, "
+                "deleted long ago and unrecoverable (the genuine rename, "
+                "v2_results_nocreditdiff.csv, survives but has 0 credit rows today, so "
+                "repointing would only emit a degenerate empty report). Verdict already "
+                "recorded (Attempt 9) in "
+                "config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md — "
+                "see next-steps.md §0c(B) for why it is not repointed.",
     ),
     "exit_switch_mech_study": Study(
         family="management", state="shipped",
@@ -293,6 +317,13 @@ def state_of(name: str) -> str:
     """`shipped` / `null` / `open` / `reference` for a study, or `unknown`."""
     study = STUDIES.get(name)
     return study.state if study else "unknown"
+
+
+def retired_studies() -> dict[str, str]:
+    """`{name: reason}` for every study marked retired. Empty for a study with
+    no catalog entry — `run --all` falls back to treating it as runnable
+    rather than silently dropping an undescribed study file."""
+    return {n: s.retired for n, s in STUDIES.items() if s.retired}
 
 
 def by_family() -> dict[str, list[tuple[str, Study]]]:

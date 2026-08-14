@@ -61,6 +61,17 @@ EVAL_DIR = ROOT / "backtests" / "to_evaluate"
 # --- pre-registered constants. Changing these after a run invalidates it. ----
 MIN_V4_DATES = 20
 ALPHA = 0.05
+
+# Exit codes this script returns as a DESIGNED refusal to produce a result —
+# not a bug: 2 = the MIN_V4_DATES gate above not yet met, 3 = the era guard
+# below (main()) refusing to compare a book against itself. Both are
+# pre-registered, terminal, and quotable — see the module docstring's GATE
+# note and backtest-tuning/README.md's "non-zero exit is often correct".
+# scripts/backtest_study/run.py reads this constant via `ast` (never imports
+# the module) to report a matching exit under `run --all` as REFUSED rather
+# than FAILED, and to still promote `v4_bridge-latest.txt` on that exit — see
+# run.py's "Designed refusals" docstring note.
+DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
 # v3 carried these two; v4 dropped them (ROW_COLUMNS 27 -> 25). Era is detected
 # from the schema, never from the filename — the v3 and v4 exports are both
 # called "AnalysisClaude" after the in-place vN_ rename, and attributing numbers

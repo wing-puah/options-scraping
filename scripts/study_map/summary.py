@@ -24,12 +24,30 @@ returns is always tagged with HOW it was found (`excerpt_kind`), in descending
 order of how much the report is committing to it:
 
     verdict   a banner section titled VERDICT / CONCLUSION / DECISION / …
-    failure   the abort or traceback line from a run that exited non-zero
+    refusal   a non-zero exit the study itself DECLARED as a designed refusal
+              (DESIGNED_REFUSAL_EXIT_CODES) — a pre-registered gate not met, or
+              a guard refusing to compare a book against itself. Correct
+              behaviour, not breakage — see scripts/backtest_study/run.py.
+    failure   the abort or traceback line from a run that exited non-zero and
+              was NOT declared — a real failure
     matched   lines that state a pre-registered criterion (MET / NOT MET / …)
     tail      no marker found — literally the last lines of the report
 
 Nothing here summarises. A `tail` excerpt is labelled as the tail on the page
-precisely so it cannot be read as a conclusion the study drew.
+precisely so it cannot be read as a conclusion the study drew, and a `refusal`
+excerpt is labelled as a refusal so it is never mistaken for a `failure`.
+
+Two more things are quoted from elsewhere and folded into `RunSummary` because
+the runner and the catalog are the systems of record for them, not this
+report-parsing layer:
+
+  retired   scripts.study_map.catalog.retired_studies() — the same source
+            `scripts.backtest_study.run`'s `run --all` reads to skip a study.
+  refused   whether the report's own exit code is one `name` declared via
+            DESIGNED_REFUSAL_EXIT_CODES — read with the runner's own
+            `_refusal_codes()` (scripts/backtest_study/run.py), never
+            re-implemented here, so there is one source of truth for "is this
+            exit code a designed refusal".
 """
 from __future__ import annotations
 
@@ -37,6 +55,10 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from scripts.backtest_study.run import _refusal_codes as _declared_refusal_codes
+
+from . import catalog
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "backtests" / "study_output"
@@ -98,6 +120,8 @@ class RunSummary:
     digest_path: Path | None = None
     charts_path: Path | None = None
     regime_path: Path | None = None
+    retired: str | None = None   # catalog.retired_studies()[name], or None
+    refused: bool = False        # exit_code is one of name's DESIGNED_REFUSAL_EXIT_CODES
 
     @property
     def ok(self) -> bool:
@@ -105,11 +129,22 @@ class RunSummary:
 
     @property
     def status(self) -> str:
+        if self.retired and not self.ran:
+            # A retired study never getting run again is the point, not an
+            # oversight — "never run" would read as "nobody got round to it".
+            return "retired"
         if not self.ran:
             return "never run"
         if self.exit_code is None:
             return "incomplete"
-        return "ok" if self.exit_code == 0 else f"exit {self.exit_code}"
+        if self.exit_code == 0:
+            return "ok"
+        if self.refused:
+            # Declared via DESIGNED_REFUSAL_EXIT_CODES — the study correctly
+            # declining to answer, not a crash. Keep the exit code visible:
+            # which gate/guard fired is still useful at a glance.
+            return f"refused (exit {self.exit_code})"
+        return f"exit {self.exit_code}"
 
     @property
     def git_sha(self) -> str:
@@ -193,8 +228,17 @@ def _nonempty_tail(lines: list[str], n: int) -> list[str]:
     return kept[-n:]
 
 
-def extract(body: list[str], exit_code: int | None) -> tuple[list[str], str]:
-    """`(excerpt_lines, kind)` — see the module docstring for the four kinds."""
+def extract(body: list[str], exit_code: int | None,
+           refusal_codes: frozenset[int] = frozenset()) -> tuple[list[str], str]:
+    """`(excerpt_lines, kind)` — see the module docstring for the five kinds.
+
+    `refusal_codes` is the study's own DESIGNED_REFUSAL_EXIT_CODES (read by
+    the caller via `scripts.backtest_study.run._refusal_codes`); when
+    `exit_code` is one of them, a would-be `failure` excerpt is labelled
+    `refusal` instead — same text, different verdict on what it means.
+    """
+    is_refusal = exit_code is not None and exit_code in refusal_codes
+
     sections = _banner_sections(body)
     for title, start in reversed(sections):
         if _CONCLUSION_TITLE.search(title):
@@ -212,7 +256,14 @@ def extract(body: list[str], exit_code: int | None) -> tuple[list[str], str]:
                     if not follow.strip():
                         break
                     chunk.append(follow)
-                return [_clip(ln) for ln in chunk], "failure"
+                return [_clip(ln) for ln in chunk], ("refusal" if is_refusal else "failure")
+        if is_refusal:
+            # A designed refusal does not always print in the ABORT/Traceback
+            # shape _FAILURE looks for (e.g. a plain "GATE NOT MET" message) —
+            # it is still the study's own terminal status, not an unlabelled
+            # tail, so it gets its own excerpt kind either way.
+            tail = _nonempty_tail(body, 8)
+            return [_clip(ln) for ln in tail], "refusal"
 
     matched = [ln for ln in body if _CRITERION.search(ln)]
     if matched:
@@ -233,6 +284,8 @@ def _digest_title(path: Path) -> str:
 def summarize(name: str, out_dir: Path = OUT_DIR) -> RunSummary:
     """Parse `<name>-latest.txt`, plus any digest / charts pages beside it."""
     out = RunSummary(name=name)
+    out.retired = catalog.retired_studies().get(name)
+    refusal_codes = _declared_refusal_codes(name)
 
     digest = out_dir / f"{name}-digest-latest.md"
     if digest.exists():
@@ -255,7 +308,8 @@ def summarize(name: str, out_dir: Path = OUT_DIR) -> RunSummary:
     if not out.run_at:
         out.run_at = datetime.fromtimestamp(
             report.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-    out.excerpt, out.excerpt_kind = extract(body, out.exit_code)
+    out.refused = out.exit_code is not None and out.exit_code in refusal_codes
+    out.excerpt, out.excerpt_kind = extract(body, out.exit_code, refusal_codes)
     return out
 
 

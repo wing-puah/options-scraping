@@ -77,6 +77,23 @@ def test_prose_companion_names_every_study():
     assert not missing, f"study-map.md does not mention: {missing}"
 
 
+def test_retired_field_defaults_to_none():
+    assert catalog.STUDIES["bear_deploy"].retired is None
+
+
+def test_retired_studies_helper_matches_the_dataclass_field():
+    assert catalog.retired_studies() == {
+        n: s.retired for n, s in catalog.STUDIES.items() if s.retired
+    }
+
+
+def test_exactly_the_two_gitignored_scratch_studies_are_retired():
+    """Pins the actual Part-B retirement, not just the mechanism — see
+    config/backtest-tuning/next-steps.md §0c(B)."""
+    assert set(catalog.retired_studies()) == {
+        "combined_exit_study", "underlying_exit_study"}
+
+
 def test_infra_table_matches_the_runners_infra_set():
     """catalog.INFRA is keyed by filename; run.INFRA by module stem, minus dunders."""
     catalogued = {name.removesuffix(".py") for name in catalog.INFRA}
@@ -106,6 +123,31 @@ def test_missing_report_is_reported_as_never_run(tmp_path):
     assert run.excerpt == []
 
 
+def test_retired_study_with_no_report_reads_as_retired_not_never_run(tmp_path):
+    """The whole point of retiring a study is that it will NOT be run again —
+    'never run' would read as 'nobody got round to it' instead."""
+    run = summary.summarize("combined_exit_study", tmp_path)
+    assert not run.ran
+    assert run.retired is not None
+    assert run.status == "retired"
+
+
+def test_a_non_retired_study_with_no_report_is_unaffected(tmp_path):
+    run = summary.summarize("bear_deploy", tmp_path)
+    assert run.retired is None
+    assert run.status == "never run"
+
+
+def test_retired_study_with_an_actual_report_shows_its_real_status(tmp_path):
+    """Retirement only overrides the ran=False case. A retired study CAN still
+    be run directly (run.py prints a notice and runs it) — if it left a
+    report, that report's own outcome is what's true, not a blanket 'retired'."""
+    write_report(tmp_path, "combined_exit_study", "some body\n", rc=0)
+    run = summary.summarize("combined_exit_study", tmp_path)
+    assert run.ran and run.retired is not None
+    assert run.status == "ok"
+
+
 def test_missing_input_lines_are_surfaced(tmp_path):
     path = write_report(tmp_path, "demo", "body\n")
     path.write_text(path.read_text().replace(
@@ -120,6 +162,72 @@ def test_nonzero_exit_never_reads_as_ok(tmp_path):
     run = summary.summarize("demo", tmp_path)
     assert not run.ok
     assert run.status == "exit 1"
+
+
+# ── designed refusals ─────────────────────────────────────────────────────────
+#
+# v4_bridge is the one study that declares DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# (scripts/backtest_study/v4_bridge.py) — these tests use its real name so the
+# read goes through run.py's actual `_refusal_codes()`, the same reader
+# `run --all` uses, rather than a mock of it.
+
+def test_declared_refusal_reads_as_refused_not_ok_but_not_a_failure(tmp_path):
+    body = ("ABORT: expected v3 then v4, got v3 then v3.\n"
+            "  Refusing to compare a book against itself.\n")
+    write_report(tmp_path, "v4_bridge", body, rc=3)
+    run = summary.summarize("v4_bridge", tmp_path)
+
+    assert not run.ok               # exit_code != 0, unchanged semantics
+    assert run.refused is True
+    assert run.status == "refused (exit 3)"
+    assert run.excerpt_kind == "refusal"
+    assert run.excerpt[0].startswith("ABORT:")
+
+
+def test_declared_refusal_without_a_failure_shaped_message_is_still_a_refusal(tmp_path):
+    """Not every designed refusal prints in the ABORT/Traceback shape
+    _FAILURE looks for — e.g. v4_bridge's MIN_V4_DATES gate just prints a
+    plain 'GATE NOT MET' paragraph. It must still classify as a refusal, not
+    silently fall through to 'matched' or 'tail'."""
+    body = "GATE NOT MET — v4 has 5 of 20 required dates.\n  15 more to go.\n"
+    write_report(tmp_path, "v4_bridge", body, rc=2)
+    run = summary.summarize("v4_bridge", tmp_path)
+
+    assert run.refused is True
+    assert run.status == "refused (exit 2)"
+    assert run.excerpt_kind == "refusal"
+    assert run.excerpt[0].startswith("GATE NOT MET")
+
+
+def test_an_undeclared_exit_code_on_a_refusal_study_still_fails(tmp_path):
+    """v4_bridge only declared {2, 3} — an exit 1 (a real crash) from the same
+    study must NOT be swallowed by the refusal path."""
+    body = "Traceback (most recent call last):\nValueError: boom\n"
+    write_report(tmp_path, "v4_bridge", body, rc=1)
+    run = summary.summarize("v4_bridge", tmp_path)
+
+    assert run.refused is False
+    assert run.status == "exit 1"
+    assert run.excerpt_kind == "failure"
+
+
+def test_a_study_with_no_declared_refusal_codes_never_reads_as_refused(tmp_path):
+    write_report(tmp_path, "bear_deploy", "*** something broke ***\n", rc=1)
+    run = summary.summarize("bear_deploy", tmp_path)
+
+    assert run.refused is False
+    assert run.status == "exit 1"
+    assert run.excerpt_kind == "failure"
+
+
+def test_extract_is_given_the_refusal_codes_directly():
+    """Unit-level pin on extract() itself, independent of summarize()'s wiring."""
+    body = ["ABORT: nope", "  detail"]
+    excerpt, kind = summary.extract(body, 3, refusal_codes=frozenset({2, 3}))
+    assert kind == "refusal"
+    excerpt2, kind2 = summary.extract(body, 3, refusal_codes=frozenset())
+    assert kind2 == "failure"
+    assert excerpt == excerpt2  # same text either way — only the label differs
 
 
 # ── excerpt extraction ────────────────────────────────────────────────────────
@@ -319,6 +427,64 @@ def test_page_carries_both_themes_for_every_token(page):
     assert "--ink" in dark and "--paper" in dark
 
 
+def test_page_marks_retired_studies_with_the_retired_pill_and_card_class(page):
+    assert 'class="card is-reference is-retired"' in page   # combined_exit_study
+    assert 'class="card is-null is-retired"' in page         # underlying_exit_study
+    assert page.count('<span class="pill is-retired">retired</span>') == \
+        len(catalog.retired_studies())
+
+
+def test_page_shows_the_retirement_reason_as_a_caveat(page):
+    assert "RETIRED 2026-08-14" in page
+    assert "results_proxy.csv" in page               # combined_exit_study's reason
+    assert "v2_BacktestResults_nocreditdiff.csv" in page  # underlying_exit_study's reason
+
+
+def test_non_retired_study_gets_no_retired_pill(page):
+    """bear_deploy is an ordinary, runnable study — its card must not claim
+    retirement just because the page also renders retired ones."""
+    idx = page.index('<h3>bear_deploy.py</h3>')
+    head_end = page.index("</div>", idx)
+    assert 'is-retired' not in page[idx:head_end]
+
+
+def test_page_shows_refused_not_bad_styling_for_a_designed_refusal(tmp_path):
+    for name in catalog.STUDIES:
+        if name == "v4_bridge":
+            write_report(tmp_path, name,
+                        "ABORT: expected v3 then v4, got v3 then v3.\n", rc=3)
+        else:
+            write_report(tmp_path, name, VERDICT_BODY)
+    md = tmp_path / "current.md"
+    md.write_text("## 2026-08-12 — a thing happened\n\nprose.\n")
+    out = build.build_fragment(out_dir=tmp_path, log_path=md)
+
+    assert '<span class="refused">refused (exit 3)</span>' in out
+    assert "BY DESIGN" in out
+    assert "v4_bridge declared exit 3 as a designed refusal" in out
+    # A refusal must never be indistinguishable from a real failure's styling.
+    assert '<span class="bad">refused' not in out
+    assert 'kind">— BY DESIGN' in out  # the excerpt's own kind-note, not "did not finish"
+
+
+def test_page_shows_retired_label_when_a_retired_study_has_no_report(tmp_path):
+    retired = catalog.retired_studies()
+    for name in catalog.STUDIES:
+        if name in retired:
+            continue  # leave unrun — the case under test
+        write_report(tmp_path, name, VERDICT_BODY)
+    md = tmp_path / "current.md"
+    md.write_text("## 2026-08-12 — a thing happened\n\nprose.\n")
+    out = build.build_fragment(out_dir=tmp_path, log_path=md)
+
+    assert out.count('<span class="retired-label">retired</span>') == len(retired)
+    for name in retired:
+        card = out[out.index(f'<h3>{name}.py</h3>'):]
+        head_end = card.index("</div>")
+        # "never run" would understate it — it must read as retired instead.
+        assert "never run" not in card[:head_end]
+
+
 def test_page_separates_written_verdicts_from_quoted_runs(page):
     assert "verdicts: hand-written" in page
     assert "run blocks: quoted" in page
@@ -335,7 +501,12 @@ def test_page_escapes_report_text(tmp_path):
 
 def test_never_run_studies_say_so_rather_than_showing_nothing(tmp_path):
     out = build.build_fragment(out_dir=tmp_path, log_path=tmp_path / "absent.md")
-    assert out.count("never run") >= len(catalog.STUDIES)
+    non_retired = len(catalog.STUDIES) - len(catalog.retired_studies())
+    # Retired studies with no report say "retired", not "never run" — see
+    # test_page_shows_retired_label_when_a_retired_study_has_no_report.
+    assert out.count("never run") >= non_retired
+    assert out.count('<span class="retired-label">retired</span>') == \
+        len(catalog.retired_studies())
     assert "No report on disk" in out
 
 
