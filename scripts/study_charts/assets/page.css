@@ -425,6 +425,117 @@ thead th { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.05em; 
 tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 tbody td:first-child { color: var(--ink); }
 
+/* ---------- setup (the config file the run loaded + the frozen exits) ---------- */
+
+.setup {
+  display: grid;
+  gap: 1px;
+  /* One column until there is room for the file to keep a readable measure
+     beside the exits; the file column is the wider of the two. */
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .setup { grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); }
+}
+
+.setup-group,
+.setup-file {
+  background: var(--panel);
+  padding: 14px 16px 16px;
+  /* Fill the row. The container's background is the 1px divider between the
+     two panels, so any row space a panel does not cover shows up as a grey
+     band under it. */
+  height: 100%;
+}
+.setup-group.is-frozen { background: var(--panel-sunk); }
+
+.setup-file pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  /* The file is shown as written: wrapping it would re-flow YAML indentation,
+     which is the syntax. So it scrolls in its own box instead — and the box is
+     capped so a 120-line config does not set the height of the whole page. */
+  white-space: pre;
+  overflow: auto;
+  max-height: min(62vh, 620px);
+  overscroll-behavior: contain;
+}
+
+.setup-file pre .y-key { color: var(--ink); font-weight: 500; }
+.setup-file pre .y-com { color: var(--ink-3); }
+
+.setup-group > h3,
+.setup-file > h3 {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  /* Not uppercased, unlike the page's other micro-headings: one of these two
+     is a file path (case is part of it) and the other is the study's own
+     sentence, naming a module. Shouting either would misquote it. */
+  color: var(--ink-3);
+  font-weight: 500;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.setup-group dl { margin: 0; }
+
+.setup-group > h3 .origin,
+.setup-file > h3 .origin {
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  padding: 1px 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.setup-group.is-frozen > h3 .origin { border-color: var(--warning); color: var(--ink-2); }
+
+.setup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px 14px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.setup-row:first-of-type { border-top: 0; padding-top: 0; }
+
+.setup-row dt {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  word-break: break-word;
+}
+
+.setup-row dd {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  /* Values are quoted verbatim from a fixed-width report; without this a run
+     of spaces collapses and the page stops matching the text it claims to
+     show. Still wraps, so a long exit phrase does not scroll the page. */
+  white-space: pre-wrap;
+}
+
+@media (min-width: 560px) {
+  .setup-row { grid-template-columns: minmax(120px, 40%) minmax(0, 1fr); align-items: baseline; }
+}
+
 /* ---------- notes ---------- */
 
 .note {

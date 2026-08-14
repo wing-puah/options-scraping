@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -69,6 +70,61 @@ def _provenance(prov: dict) -> str:
       <span><b>git</b> {_esc(prov['git'])}</span>
       <span><b>command</b> {_esc(prov['command'])}</span>
       <span><b>inputs</b> {_esc(inputs)}</span>
+    </div>"""
+
+
+def _yaml(text: str) -> str:
+    """The config file, escaped, with comments and keys tinted.
+
+    Presentational only: this adds `<span>`s around slices of the text and
+    removes nothing, so what renders is still the file's own bytes. The comment
+    rule is YAML's (a `#` at line start or after whitespace) minus the
+    quoted-string exception, which this config has no occasion to use — the
+    worst a miss can do is colour a run of text, never alter it.
+    """
+    lines = []
+    for line in text.split("\n"):
+        m = re.search(r"(?:^|(?<=\s))#.*$", line)
+        code, comment = (line[: m.start()], line[m.start():]) if m else (line, "")
+        key = re.match(r"(\s*(?:- )?)([\w.-]+)(:)", code)
+        if key:
+            html_ = (
+                _esc(key.group(1))
+                + f'<span class="y-key">{_esc(key.group(2))}</span>'
+                + _esc(key.group(3))
+                + _esc(code[key.end():])
+            )
+        else:
+            html_ = _esc(code)
+        if comment:
+            html_ += f'<span class="y-com">{_esc(comment)}</span>'
+        lines.append(html_)
+    return "\n".join(lines)
+
+
+def _setup(cfg: dict) -> str:
+    """The config file this run loaded, plus the exits that file cannot set.
+
+    The file is the report's echo of the bytes the run parsed, shown as text.
+    The exit rows are the study's own words for what the frozen replay applied.
+    Nothing here re-derives a value or restates one in the page's words: a page
+    that paraphrased "2% risk" or "stop -75%" would be free to drift from the
+    run that produced the charts below it.
+    """
+    rows = "".join(
+        f'<div class="setup-row"><dt>{_esc(r["label"])}</dt>'
+        f'<dd>{_esc(r["value"])}</dd></div>'
+        for r in cfg["exits"]
+    )
+    return f"""    <div class="setup">
+      <section class="setup-file">
+        <h3>{_esc(cfg['source'])}<span class="origin">as this run read it</span></h3>
+        <pre>{_yaml(cfg['file'])}</pre>
+      </section>
+      <section class="setup-group is-frozen">
+        <h3>{_esc(cfg['exits_title'])}<span class="origin">frozen exit policy</span></h3>
+        <dl>{rows}</dl>
+      </section>
     </div>"""
 
 
@@ -194,6 +250,22 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
         figure, no Sharpe ratio and no time-to-recover, and this page does not add any.</p>
     </div>
     {arm_note}
+  </section>
+
+  <section id="setup">
+    <div class="section-head">
+      <h2>Setup</h2>
+      <p>The config file this run loaded, echoed into its report from the same bytes it
+        parsed — not re-read here from a file that may since have moved on.</p>
+    </div>
+{_setup(parsed['configuration'])}
+    <p class="note" style="margin-top:16px"><code>{_esc(parsed['configuration']['source'])}</code>
+      <strong>is</strong> the simulation: capital, caps, compounding, population, criteria, grids
+      and gates all come from it, and copying it and passing <code>--config</code> is how a
+      different account gets simulated. The shaded group is the <strong>exit policy</strong>,
+      which is <em>not</em> in that file — it is the shipped ladder's, applied by the frozen replay
+      harness, and no edit to the config can move it. The cap values and the compounding block are a
+      friction model — no value in either may be adopted on the basis of P&amp;L.</p>
   </section>
 
   <section id="gates">

@@ -91,6 +91,12 @@ DEFAULT_CONFIG = ROOT / "config" / "account-sim.yml"
 # not a tuned parameter — see `mark_key` and the report's EQUITY MARKS banner.
 MARK_INTERVALS = ("month", "quarter", "year")
 
+# The shipped breakeven-ratchet threshold for bear debit structures. It is part
+# of the FROZEN exit policy, not a knob of this study: `bear_giveback.py`'s ARM P
+# measured it and the deployment ladder shipped 0.50. It is named here only so
+# `profile_for` and the CONFIGURATION section quote one value rather than two.
+SHIPPED_BE_AFTER = 0.50
+
 # The binding-constraint census buckets, in report order. A4 asserts these
 # PARTITION every candidate the walk considered, so `simulate()` may not emit a
 # bucket that is missing here — every census sum in this module is derived from
@@ -143,6 +149,12 @@ class Settings:
     mark_interval: str
     budget_ceiling: float | None
     source: Path
+    # The literal text of `source`, captured by the same read that was parsed
+    # into the fields above — so the CONFIGURATION section can print the file
+    # itself rather than a re-worded rendering of it. It has no default on
+    # purpose: a `Settings` built without the bytes it came from could echo a
+    # setup nobody can check against the run.
+    source_text: str
 
     @property
     def budget(self) -> float:
@@ -197,9 +209,13 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
     """
     path = Path(path)
     try:
-        raw = yaml.safe_load(path.read_text())
+        text = path.read_text()
     except FileNotFoundError:
         raise ConfigError(f"{path}: no such config file") from None
+    # Parsed from `text`, not from a second read: the report prints these same
+    # bytes, so the file it shows is provably the file that was parsed.
+    try:
+        raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ConfigError(f"{path}: not valid YAML — {exc}") from None
     if not isinstance(raw, dict):
@@ -249,6 +265,7 @@ def load_settings(path: Path = DEFAULT_CONFIG) -> Settings:
         mark_interval=interval,
         budget_ceiling=ceiling,
         source=path,
+        source_text=text,
     )
 
 
@@ -1173,6 +1190,135 @@ def run_gates(recs, diag, picked, st: Settings, cache: dict,
 # Report sections
 # ════════════════════════════════════════════════════════════════════════════
 
+# ── CONFIGURATION echo ──────────────────────────────────────────────────────
+#
+# The header line has always NAMED the account (capital, risk %, positions/day,
+# the two caps), but the rest of what the simulation is parameterised by — the
+# episode definition, the A2/A3/A5 thresholds, the swept grids, and above all
+# the EXIT policy the replay actually applies — lived only in
+# config/account-sim.yml and in the frozen exit modules. A reader holding the
+# report could not say which stop fired at what level without opening three
+# files, and anything drawing the report (scripts/study_charts) could not show
+# the setup at all without re-reading a config the run might not have used.
+#
+# So the run prints the config file ITSELF — `Settings.source_text`, the same
+# bytes `load_settings` parsed. Not a rendering of it, not a list of the values
+# that survived parsing: the file, comments and all. The file is the study's
+# own statement of what it simulated (`THIS FILE IS THE SIMULATION`), and any
+# re-worded echo is a second copy free to disagree with it — the exact failure
+# a printed configuration exists to prevent.
+#
+# The one group that is NOT in the file is EXITS: the shipped ladder's policy,
+# applied by the frozen replay, which no config can move. It is derived from
+# the same `profile_for()` the replay calls, never re-typed, and is printed
+# here because a setup you cannot read off one page is not a setup.
+#
+# Layout contract (scripts/study_charts/report.py parses this section): a
+# `sub()` sub-header opens each group; the FILE group's lines are carried
+# through verbatim, and the EXITS group's rows are
+# `  <label>` + 4-or-more spaces + `<value>`. Both group titles are fixed
+# strings — the parser keys off them, so the config path stays in the banner
+# rather than the sub-header, where a long `--config` path would eat `sub()`'s
+# trailing dashes.
+
+# The report indents the file by two spaces, like every other body block. That
+# is also what keeps a YAML document marker (`---`) off column 0, where the
+# group-header parser lives.
+_CFG_FILE_INDENT = "  "
+CFG_FILE_GROUP = "the config file this run loaded, verbatim"
+CFG_EXITS_GROUP = "exits — FROZEN, not in that file (book.py + the shipped merge)"
+
+_CFG_LABEL_W = 44
+
+# One synthetic record per exit profile the shipped merge can produce, so the
+# printed exits come out of `profile_for()` rather than a second, driftable copy
+# of the same numbers. `structure`/`mech_cell` are the only keys it reads.
+_EXIT_ROWS = (
+    ("debit, non-bear",
+     dict(credit=False, structure="bull_call_spread", mech_cell="LVOL")),
+    ("debit, bear (%s)" % " / ".join(BEAR_DEBIT),
+     dict(credit=False, structure=BEAR_DEBIT[0], mech_cell="LVOL")),
+    ("debit, bear, in a BEAR_HE cell",
+     dict(credit=False, structure=BEAR_DEBIT[0], mech_cell="BEAR_HE")),
+    ("credit",
+     dict(credit=True, structure="bull_put_spread", mech_cell="LVOL")),
+)
+
+
+def _exit_phrase(prof: dict) -> str:
+    """A profile dict as a field list, in `harness.replay`'s own priority order.
+
+    That order is profit_target -> trailing_stop -> ... -> be_stop -> stop_loss
+    -> time_exit (`harness.replay`), so the breakeven ratchet is listed AHEAD of
+    the stop: on a row carrying both, the ratchet is what fires. Printing them
+    the other way round would imply the -75% stop is tested first, which is a
+    false claim about a frozen engine.
+
+    Fields are joined with a middle dot rather than whitespace because this
+    string is also rendered as HTML, where a run of spaces collapses.
+    """
+    parts = []
+    if prof.get("pt") is not None:
+        parts.append(f"take profit {prof['pt']:+.0%}")
+    if prof.get("trail") is not None and prof.get("trig") is not None:
+        parts.append(f"trail {prof['trail']:.0%} once {prof['trig']:+.0%} is touched")
+    elif prof.get("trail") is not None:
+        parts.append(f"trail {prof['trail']:.0%}")
+    if prof.get("be_after") is not None:
+        parts.append(f"breakeven ratchet once peak {prof['be_after']:+.0%}")
+    if prof.get("sl") is not None:
+        parts.append(f"stop {-prof['sl']:+.0%}")
+    if prof.get("tef") is not None:
+        parts.append(f"time exit at {prof['tef']:.0%} of DTE")
+    return " · ".join(parts) if parts else "held to expiry"
+
+
+def _cfg_row(label: str, value: str) -> str:
+    """One `  <label>` + 4-or-more spaces + `<value>` row.
+
+    The separator is never allowed to fall below the 4 spaces the parser splits
+    on: a label at or past the pad width degrades the column alignment rather
+    than the contract. Padding to exactly `_CFG_LABEL_W` would give a 41-char
+    label a 3-space gap, and the row would then be silently dropped from the
+    published page instead of failing.
+    """
+    return f"  {label}{' ' * max(4, _CFG_LABEL_W - len(label))}{value}"
+
+
+def print_configuration(st: Settings, cfg_name) -> None:
+    """Echo the config file this run loaded, plus the exits it cannot set."""
+    hdr(f"CONFIGURATION — the account this run simulated ({cfg_name})")
+    print("""  The file below IS the simulation — capital, caps, compounding, population,
+  criteria, grids, gates — printed as this run read it. Copy it and pass
+  --config to simulate a different account. The EXITS group after it is NOT in
+  that file: it is the shipped exit policy the frozen replay applies, printed
+  so the whole setup can be read off one page.""")
+
+    sub(CFG_FILE_GROUP)
+    for line in st.source_text.splitlines():
+        # rstrip() only: trailing whitespace is invisible in a fixed-width
+        # artifact and would otherwise be the one thing a reader could not
+        # verify by eye. Everything a reader CAN see is the file's own bytes.
+        print(f"{_CFG_FILE_INDENT}{line}".rstrip())
+
+    # Under the compounding arm the dollar stop below is the STARTING one:
+    # `simulate()` re-marks the budget (and so the stop) at each interval
+    # boundary. Printing it bare would contradict the file's `enabled: true`.
+    marked = " (initial — re-marked each %s; see EQUITY MARKS)" % st.mark_interval \
+        if st.compound_enabled else ""
+
+    sub(CFG_EXITS_GROUP)
+    for label, rec in _EXIT_ROWS:
+        print(_cfg_row(label, _exit_phrase(profile_for(rec))))
+    # The one resolved figure worth printing next to the file: the dollar stop
+    # is the risk budget, and the file states that as a fraction. A reader
+    # would otherwise have to do the multiplication to know what stops a
+    # position out in dollars.
+    print(_cfg_row("every position, on top of the above",
+                   f"hard dollar stop at ${st.budget:,.0f} "
+                   f"(account.risk_per_trade_pct x account.capital){marked}; expiry"))
+
+
 def print_population(recs, picked, episodes, st: Settings) -> None:
     hdr("POPULATION — dense episodes FIRST (primary), full book secondary")
     print(f"""  PRIMARY = maximal runs of signal dates with no internal gap > """
@@ -1999,6 +2145,11 @@ def main(argv=None) -> int:
               f"REALIZED equity at\n  each {st.mark_interval} boundary. POST-HOC "
               f"and NOT pre-registered — see the EQUITY\n  MARKS section's banner "
               f"before quoting any number below.")
+
+    # Printed before anything is computed: the whole parameter surface of this
+    # run, so the report is self-describing and nothing downstream has to open
+    # the config file separately to say what was simulated.
+    print_configuration(st, cfg_name)
 
     # The FROZEN book is always the gate basis: G1 reproduces a prior report's
     # deployed line and G4 pins selection against `top_k_per_day`. Neither

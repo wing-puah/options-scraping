@@ -185,6 +185,120 @@ def parse_account_config(rep: Report) -> dict:
     return {"max_per_day": int(m.group(1))}
 
 
+# The two `sub()` groups the study prints inside CONFIGURATION. The study owns
+# the exact titles (`account_sim.CFG_FILE_GROUP` / `CFG_EXITS_GROUP`); this
+# parser keys off these markers, and a rename on either side fails the build
+# rather than silently swapping which half the page calls "the config file".
+CONFIG_FILE_MARKER = "verbatim"
+CONFIG_EXITS_MARKER = "exits"
+
+# What the study indents the config file by, so its lines sit in the report's
+# body column. Stripped back off here, leaving the file's own bytes.
+CONFIG_FILE_INDENT = "  "
+
+
+def parse_configuration(rep: Report) -> dict:
+    """The `CONFIGURATION —` section: the config file the run actually loaded.
+
+    Two groups, and they are read differently on purpose. The FIRST is the
+    config file itself, echoed by the run from the same bytes it parsed; it is
+    carried through as text with only the report's indent removed, so the page
+    shows the file rather than anyone's rendering of it. The SECOND is the
+    frozen exit policy, which is not in that file and is printed as
+    `  <label>` + 4-or-more spaces + `<value>` rows.
+
+    A missing section raises like every other, so an older report cannot
+    silently render a page with an empty setup panel.
+    """
+    body = rep.body("CONFIGURATION —")
+    source = rep.find(r"CONFIGURATION — .*\(([^()]+)\)\s*$",
+                      [t for t, _ in rep.sections if t.startswith("CONFIGURATION —")],
+                      "the config file name in the CONFIGURATION banner").group(1)
+    groups: list[dict] = []
+    for line in body:
+        if m := re.match(r"--- (.+?) -{3,}\s*$", line):
+            groups.append({"title": m.group(1).strip(), "lines": []})
+        elif line.startswith("--- "):
+            # `sub()` pads its rule to a fixed width, so a long enough group
+            # title leaves fewer than three trailing dashes. Ignoring the line
+            # would fold that group's lines into the PREVIOUS group — which
+            # here means the exit levels get read as part of the config file,
+            # and the page positively asserts that editing the file moves the
+            # stops. Wrong-but-plausible is what this parser exists to prevent.
+            raise ReportParseError(
+                f"{rep.path}: CONFIGURATION group header not recognised: {line.strip()!r}"
+            )
+        elif groups:
+            groups[-1]["lines"].append(line)
+        elif line.strip():
+            # Prose before the first group header is the section's intro.
+            continue
+    if len(groups) != 2:
+        raise ReportParseError(
+            f"{rep.path}: expected 2 CONFIGURATION groups (the config file, then the "
+            f"frozen exits), found {len(groups)}: {[g['title'] for g in groups]}"
+        )
+    file_group, exits_group = groups
+    if not file_group["title"].endswith(CONFIG_FILE_MARKER):
+        raise ReportParseError(
+            f"{rep.path}: first CONFIGURATION group {file_group['title']!r} is not the "
+            f"config-file echo (expected a title ending {CONFIG_FILE_MARKER!r})"
+        )
+    if not exits_group["title"].startswith(CONFIG_EXITS_MARKER):
+        raise ReportParseError(
+            f"{rep.path}: second CONFIGURATION group {exits_group['title']!r} is not the "
+            f"frozen exits (expected a title starting {CONFIG_EXITS_MARKER!r})"
+        )
+    return {
+        "source": source,
+        "file": _config_file_text(rep, file_group),
+        "exits": _config_exit_rows(rep, exits_group),
+        "exits_title": exits_group["title"],
+    }
+
+
+def _config_file_text(rep: Report, group: dict) -> str:
+    """The echoed config file, with the report's body indent taken back off."""
+    out = []
+    for line in group["lines"]:
+        if line and not line.startswith(CONFIG_FILE_INDENT):
+            # Every echoed line carries the indent. One that does not is a line
+            # the study did not print as file content — and dedenting it anyway
+            # would put text into the page's config panel that is not in the
+            # config file.
+            raise ReportParseError(
+                f"{rep.path}: CONFIGURATION file line is not indented as file "
+                f"content: {line!r}"
+            )
+        out.append(line[len(CONFIG_FILE_INDENT):])
+    text = "\n".join(out).strip("\n")
+    if not text.strip():
+        raise ReportParseError(f"{rep.path}: CONFIGURATION echoed an empty config file")
+    return text
+
+
+def _config_exit_rows(rep: Report, group: dict) -> list[dict]:
+    rows = []
+    for line in group["lines"]:
+        if not line.strip():
+            continue
+        m = re.match(r"  (\S.*?)\s{4,}(\S.*?)\s*$", line)
+        if not m:
+            # A row that will not split on its 4-space separator is a row this
+            # parser would otherwise drop — an exit level missing from the page
+            # while every other assertion still passed.
+            raise ReportParseError(
+                f"{rep.path}: CONFIGURATION line in group {group['title']!r} "
+                f"has no label/value separator: {line.strip()!r}"
+            )
+        rows.append({"label": m.group(1), "value": m.group(2)})
+    if not rows:
+        raise ReportParseError(
+            f"{rep.path}: CONFIGURATION group {group['title']!r} has no rows"
+        )
+    return rows
+
+
 def parse_structure_arm(rep: Report) -> dict | None:
     """The `--structure-universe` widening block, present only on that arm."""
     try:
@@ -597,6 +711,7 @@ def parse(path: Path) -> dict:
     out: dict = {
         "provenance": parse_provenance(rep),
         "account_config": parse_account_config(rep),
+        "configuration": parse_configuration(rep),
         "gates": parse_gates(rep),
         "population_notes": parse_episodes(rep),
         "verdict": parse_verdict(rep),

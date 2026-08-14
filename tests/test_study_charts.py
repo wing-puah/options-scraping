@@ -11,6 +11,7 @@ those numbers agree (the zero-baseline drawdown especially) and pin the failure
 when a CSV is paired with a report from a different arm.
 """
 import copy
+import re
 from pathlib import Path
 
 import pytest
@@ -188,6 +189,35 @@ def _population_sections(tag: str, n: int, dates: int, dollars: int, meanR: floa
     )
 
 
+# The config file as the study echoes it: a comment, nested keys, a blank line,
+# an inline comment, and — the shape that matters — a value followed by a run of
+# four or more spaces, which is the EXIT group's row separator. A file line must
+# never be read as a label/value row.
+CONFIG_FILE = (
+    "# account_sim — the account this run simulated\n"
+    "account:\n"
+    "  capital: 25000        # starting equity, and both caps' denominator\n"
+    "  risk_per_trade_pct: 0.02\n"
+    "\n"
+    "caps:\n"
+    "  per_position: 0.25\n"
+    "  net: 2.50\n"
+)
+
+CONFIGURATION_BODY = (
+    "  The file below IS the simulation. The EXITS group after it is not in it.\n"
+    "\n"
+    "--- the config file this run loaded, verbatim -------------------------------\n"
+    + "\n".join(f"  {line}".rstrip() for line in CONFIG_FILE.rstrip("\n").split("\n"))
+    + "\n\n"
+    "--- exits — FROZEN, not in that file (book.py + the shipped merge) ----------\n"
+    "  debit, non-bear                             take profit +90% · stop -75% · time exit at 75% of DTE\n"
+    "  credit                                      take profit +65%\n"
+    "  every position, on top of the above         hard dollar stop at $500 "
+    "(account.risk_per_trade_pct x account.capital); expiry"
+)
+
+
 def make_report(path: Path, command: str = "python -m scripts.backtest_study.account_sim",
                 primary=(2, 2, 900, 0.35, -300, -300, 50),
                 secondary=(3, 3, 1200, 0.20, -500, -500, 67)) -> Path:
@@ -209,6 +239,8 @@ def make_report(path: Path, command: str = "python -m scripts.backtest_study.acc
                    "  net cap 2.50x equity.\n"
                    "  NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME. No annualised figure,\n"
                    "  Sharpe, or time-to-recover appears anywhere in this report by construction.")
+        + _section("CONFIGURATION — the account this run simulated (config/account-sim.yml)",
+                   CONFIGURATION_BODY)
         + _section("GATES — G1..G5 (non-zero exit on any failure)",
                    "  G1: PASS\n  G2: PASS\n  G3: PASS  (0 violations)\n  G4: PASS\n  G5: PASS\n\n  GATES: ALL PASS")
         + _section("POPULATION — dense episodes FIRST (primary), full book secondary",
@@ -379,6 +411,136 @@ def test_parse_raises_when_a_section_is_present_but_empty(tmp_path):
 
 def test_structure_arm_block_is_absent_on_the_plain_run(parsed):
     assert parsed["structure_arm"] is None
+
+
+# ──────────────────────── the CONFIGURATION echo ────────────────────────────
+
+def test_parse_configuration_recovers_the_config_file_byte_for_byte(parsed):
+    """The panel's whole claim is that it shows the file the run loaded, so the
+    parser may only take the report's indent back off — nothing else."""
+    cfg = parsed["configuration"]
+    assert cfg["source"] == "config/account-sim.yml"
+    assert cfg["file"] == CONFIG_FILE.strip("\n")
+    # In particular, a file line whose value is followed by four or more spaces
+    # is file content, not a label/value row that would be split in two.
+    assert "  capital: 25000        # starting equity" in cfg["file"]
+
+
+def test_parse_configuration_keeps_the_stop_levels_as_the_study_wrote_them(parsed):
+    """The exit rows are the reason this section carries anything besides the
+    file: the page must show the stop the replay applied, and no config states
+    it."""
+    exits = parsed["configuration"]["exits"]
+    assert exits[0]["value"] == "take profit +90% · stop -75% · time exit at 75% of DTE"
+    assert exits[1] == {"label": "credit", "value": "take profit +65%"}
+    assert parsed["configuration"]["exits_title"].startswith("exits")
+
+
+def test_parse_configuration_raises_rather_than_dropping_an_unsplittable_row(tmp_path):
+    """A label long enough to eat the 4-space separator must fail the build.
+
+    Dropping it instead would remove a stop level from the page while every
+    other assertion still passed.
+    """
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "  credit                                      take profit +65%",
+        "  credit  take profit +65%"))
+    with pytest.raises(report.ReportParseError, match="separator"):
+        report.parse(path)
+
+
+def test_parse_configuration_raises_on_a_group_header_it_cannot_read(tmp_path):
+    """`sub()` pads to a fixed width, so a long title leaves too few dashes.
+
+    Ignoring the line would fold the frozen exit rows into the config file the
+    page shows — the page would then assert that editing the file moves them.
+    """
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "--- exits — FROZEN, not in that file (book.py + the shipped merge) ----------",
+        "--- exits — FROZEN, not in that file (book.py + the shipped merge) -"))
+    with pytest.raises(report.ReportParseError, match="group header not recognised"):
+        report.parse(path)
+
+
+def test_parse_configuration_raises_when_a_group_goes_missing(tmp_path):
+    """Losing the exits header folds its rows into the file group."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "--- exits — FROZEN, not in that file (book.py + the shipped merge) ----------\n", ""))
+    with pytest.raises(report.ReportParseError, match="expected 2 CONFIGURATION groups"):
+        report.parse(path)
+
+
+def test_parse_configuration_raises_when_the_groups_are_not_the_two_it_knows(tmp_path):
+    """The parser reads the two groups differently — one as a file, one as
+    rows. A renamed group must fail rather than be read as the other kind."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "--- the config file this run loaded, verbatim ---",
+        "--- the config file this run loaded, as text ---"))
+    with pytest.raises(report.ReportParseError, match="is not the config-file echo"):
+        report.parse(path)
+
+
+def test_parse_configuration_raises_on_a_file_line_that_lost_its_indent(tmp_path):
+    """Every echoed line carries the report's body indent. Dedenting one that
+    does not would put text into the page's config panel that is not in the
+    config file."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "  account:\n", "account:\n"))
+    with pytest.raises(report.ReportParseError, match="not indented as file content"):
+        report.parse(path)
+
+
+def test_parse_configuration_reads_what_the_study_actually_prints(tmp_path, capsys):
+    """The one test coupling this parser to the real emitter.
+
+    Every other test here runs off a synthetic fixture, which can drift from
+    the study without anything noticing. This one prints the section with
+    account_sim's own code and parses that, so a layout change on either side
+    fails loudly instead of producing a page with an empty setup panel.
+    """
+    from scripts.backtest_study import account_sim as study
+
+    settings = study.load_settings()
+    study.print_configuration(settings, "config/account-sim.yml")
+    real = capsys.readouterr().out.lstrip("\n") + "\n"
+    fixture = _section("CONFIGURATION — the account this run simulated (config/account-sim.yml)",
+                       CONFIGURATION_BODY)
+    path = make_report(tmp_path / "r.txt")
+    assert fixture in path.read_text(), "the fixture section moved; this test substitutes it"
+    path.write_text(path.read_text().replace(fixture, real))
+
+    cfg = report.parse(path)["configuration"]
+    assert cfg["source"] == "config/account-sim.yml"
+    # The round trip that matters: what the page will show is the file on disk.
+    assert cfg["file"] == settings.source_text.rstrip("\n")
+    assert cfg["file"] == study.DEFAULT_CONFIG.read_text().rstrip("\n")
+    assert cfg["exits_title"].startswith("exits")
+    assert all(r["label"] and r["value"] for r in cfg["exits"])
+
+
+def test_parse_configuration_raises_when_the_section_is_missing(tmp_path):
+    """An older report renders no page rather than a page with an empty setup."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace("CONFIGURATION — the account", "SOMETHING ELSE — the account"))
+    with pytest.raises(report.ReportParseError, match="CONFIGURATION"):
+        report.parse(path)
+
+
+def test_parse_configuration_raises_when_the_exits_group_is_emptied(tmp_path):
+    path = make_report(tmp_path / "r.txt")
+    body = path.read_text()
+    for line in body.splitlines():
+        if line.startswith("  debit,") or line.startswith("  credit ") \
+                or line.startswith("  every position"):
+            body = body.replace(line + "\n", "")
+    path.write_text(body)
+    with pytest.raises(report.ReportParseError, match="has no rows"):
+        report.parse(path)
 
 
 # ─────────────────────────────── derived series ─────────────────────────────
@@ -615,6 +777,65 @@ def test_page_never_introduces_a_statistic_the_study_refuses_to_print(page):
     lowered = page.lower()
     for banned in ("annualised return", "annualized return", "sharpe ratio", "time to recover"):
         assert banned not in lowered.replace("no sharpe ratio", "").replace("no time-to-recover", "")
+
+
+def test_page_shows_the_config_file_the_run_loaded(page):
+    markup = page.split("window.__ACCOUNT_SIM__")[0]
+    assert "<h2>Setup</h2>" in markup
+    shown = markup.split('<section class="setup-file">')[1].split("</pre>")[0]
+    # Every line of the file, in order, with only syntax spans added. The tags
+    # are stripped here for the same reason they are added there: they are
+    # presentation, and the text under them must still be the file.
+    text = re.sub(r"<[^>]+>", "", shown.split("<pre>")[1])
+    assert text == CONFIG_FILE.strip("\n")
+
+
+def test_page_shows_the_exit_rows_as_the_study_wrote_them(page):
+    markup = page.split("window.__ACCOUNT_SIM__")[0]
+    assert "take profit +90% · stop -75% · time exit at 75% of DTE" in markup
+    assert "<dt>every position, on top of the above</dt>" in markup
+
+
+def test_exit_fields_stay_separated_once_the_browser_renders_them(page):
+    """HTML collapses a run of spaces, so a whitespace-separated exit phrase
+    would render as one run-on sentence — the page would stop matching the
+    report it quotes, while a source-level assertion still passed."""
+    value = page.split("<dt>debit, non-bear</dt><dd>")[1].split("</dd>")[0]
+    assert "  " not in value, "no separator may depend on whitespace surviving HTML"
+    assert value.count("·") == 2
+    # belt and braces: the CSS also preserves runs, so a report field that does
+    # contain spaces is shown as written.
+    assert "white-space: pre-wrap" in page.split(".setup-row dd {")[1].split("}")[0]
+
+
+def test_page_marks_the_exit_policy_as_not_coming_from_the_config(page):
+    """Editing account-sim.yml cannot move the stops, so the page may not
+    present them as if it could."""
+    markup = page.split("window.__ACCOUNT_SIM__")[0]
+    frozen = markup.split('class="setup-group is-frozen"')
+    assert len(frozen) == 2, "exactly the exits group is shaded"
+    assert "frozen exit policy" in frozen[1].split("</section>")[0]
+    # ...and the file panel says the opposite: this half IS the config.
+    assert "as this run read it" in markup.split('<section class="setup-file">')[1]
+
+
+def test_page_never_re_flows_the_config_files_indentation(page):
+    """YAML indentation is syntax. A wrapped config panel would show nesting
+    the file does not have, which is a false claim about what was simulated."""
+    css = page.split(".setup-file pre {")[1].split("}")[0]
+    assert "white-space: pre" in css and "pre-wrap" not in css
+
+
+def test_page_names_the_config_file_the_run_actually_read(tmp_path, rows):
+    """A run driven by --config must not have the page name the default file."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace("config/account-sim.yml", "config/my-account.yml"))
+    parsed = report.parse(path)
+    populations = {p: series.build(rows, p, 25_000.0) for p in report.POPULATIONS}
+    markup = render.build(parsed, populations, 25_000.0,
+                          {"report": "r.txt", "positions": "p.csv"}).split("window.__ACCOUNT_SIM__")[0]
+    assert "config/my-account.yml" in markup
+    assert "config/account-sim.yml" not in markup
 
 
 def test_standalone_wrapper_produces_a_real_document(page):

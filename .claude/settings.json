@@ -1,5 +1,19 @@
 {
   "permissions": {
     "allow": ["mcp__codegraph__*"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/delegation-nudge.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

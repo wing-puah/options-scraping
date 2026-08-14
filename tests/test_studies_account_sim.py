@@ -50,7 +50,8 @@ def make_settings(**over) -> Settings:
                 g1_positions=220, g1_dates=90, g1_dollars=63_553.0,
                 g1_dollar_tol=1.0, compound_enabled=False,
                 mark_interval="month", budget_ceiling=1_000.0,
-                source=Path("test.yml"))
+                source=Path("test.yml"),
+                source_text="account:\n  capital: 25000\n")
     return Settings(**{**base, **over})
 
 
@@ -928,6 +929,100 @@ def test_load_settings_treats_a_null_budget_ceiling_as_no_ceiling(tmp_path):
 def test_load_settings_rejects_a_non_positive_budget_ceiling(tmp_path, bad):
     with pytest.raises(ConfigError, match="budget_ceiling"):
         load_settings(_write_cfg(tmp_path, budget_ceiling=bad))
+
+
+# ── the CONFIGURATION echo ──────────────────────────────────────────────────
+
+def _config_text(st, capsys, name="config/account-sim.yml") -> str:
+    account_sim.print_configuration(st, name)
+    return capsys.readouterr().out
+
+
+def _echoed_file(text: str) -> str:
+    """The config file back out of the printed section, dedented.
+
+    The same recovery `scripts/study_charts/report.py` performs, done here
+    independently so the two sides cannot drift onto a shared bug.
+    """
+    lines = text.splitlines()
+    start = next(i for i, ln in enumerate(lines)
+                 if ln.startswith(f"--- {account_sim.CFG_FILE_GROUP} ")) + 1
+    end = next(i for i, ln in enumerate(lines[start:], start)
+               if ln.startswith("--- "))
+    return "\n".join(ln[2:] if ln.startswith("  ") else ln
+                     for ln in lines[start:end]).strip("\n")
+
+
+def test_configuration_echo_prints_the_config_file_itself(capsys):
+    """The section IS the file, not a rendering of it.
+
+    A re-worded echo is a second copy of the setup, free to disagree with the
+    file — and a knob added to account-sim.yml would be silently outside what
+    the report (and so the charts page, which quotes it) shows. Every line of
+    the file must come back out of the printed section unchanged.
+    """
+    st = load_settings()
+    echoed = _echoed_file(_config_text(st, capsys))
+    on_disk = account_sim.DEFAULT_CONFIG.read_text()
+    for line in on_disk.splitlines():
+        assert line.rstrip() in echoed.splitlines(), f"line dropped from the echo: {line!r}"
+    # And it is still the same YAML: the report's indent-and-rstrip cannot have
+    # re-nested a key or eaten a value.
+    assert yaml.safe_load(echoed) == yaml.safe_load(on_disk)
+
+
+def test_configuration_echo_prints_the_bytes_that_were_parsed(tmp_path, capsys):
+    """`source_text` comes off the same read `load_settings` parsed, so a
+    --config run cannot show one file and simulate another."""
+    path = _write_cfg(tmp_path, enabled=True, mark_interval="quarter")
+    st = load_settings(path)
+    assert st.source_text == path.read_text()
+    echoed = _echoed_file(_config_text(st, capsys, name=str(path)))
+    assert yaml.safe_load(echoed) == yaml.safe_load(path.read_text())
+    assert "enabled: true" in echoed
+
+
+def test_configuration_echo_prints_the_exit_policy_the_replay_will_apply(capsys):
+    """The stop levels are read out of `profile_for`, not re-typed. A study that
+    printed its own copy could describe exits the harness never ran."""
+    text = _config_text(make_settings(), capsys)
+    debit = account_sim.profile_for(
+        dict(credit=False, structure="bull_call_spread", mech_cell="LVOL"))
+    credit = account_sim.profile_for(
+        dict(credit=True, structure="bull_put_spread", mech_cell="LVOL"))
+    assert f"take profit {debit['pt']:+.0%}" in text
+    assert f"stop {-debit['sl']:+.0%}" in text
+    assert f"time exit at {debit['tef']:.0%} of DTE" in text
+    assert f"take profit {credit['pt']:+.0%}" in text
+    # the bear-debit ratchet and the BEAR_HE trail are separate rows
+    assert f"breakeven ratchet once peak {account_sim.SHIPPED_BE_AFTER:+.0%}" in text
+    assert "trail 50% once +50% is touched" in text
+
+
+def test_configuration_echo_names_the_config_file_it_was_handed(capsys):
+    """A --config run must describe itself, not the default file."""
+    text = _config_text(make_settings(), capsys, name="config/my-account.yml")
+    assert "CONFIGURATION — the account this run simulated (config/my-account.yml)" in text
+
+
+def test_configuration_echo_resolves_the_dollar_stop_the_file_states_as_a_rate(capsys):
+    """The file gives risk as a fraction; what stops a position out is dollars.
+
+    It is the one resolved figure the section prints, so it must be the run's
+    own arithmetic — a reader should not have to do the multiplication, and a
+    stale hand-typed figure is exactly what would go unnoticed.
+    """
+    text = _config_text(make_settings(capital=60_000.0, risk_pct=0.03), capsys)
+    assert "hard dollar stop at $1,800" in text
+
+
+def test_configuration_echo_marks_the_dollar_stop_as_initial_under_compounding(capsys):
+    """Compounding re-marks the stop, so printing it bare would contradict the
+    `enabled: true` in the file printed directly above it."""
+    off = _config_text(make_settings(), capsys)
+    assert "hard dollar stop at $500 " in off and "re-marked" not in off
+    on = _config_text(make_settings(compound_enabled=True, mark_interval="quarter"), capsys)
+    assert "initial — re-marked each quarter" in on
 
 
 def test_settings_cfg_threads_the_compounding_block_into_every_simulation():
