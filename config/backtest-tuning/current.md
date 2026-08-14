@@ -113,6 +113,19 @@ new** (was 139). The
 regeneration is **outcome-blind** — nothing has been scraped, no outcome exists
 for any candidate date, and the trigger was a data-availability probe.
 
+Of those 155, **2 are excluded and 153 are queued**: `2024-01-02` and
+`2024-01-05` sit at session index 0 and 3 of the window, so with
+`DEFAULT_DAYS = 5` their trailing persistence window falls in the December-2023
+junk range and cannot be built. Analysing them on a truncated window would make
+their model input structurally different from the other 153 — the same
+non-comparability class `iv_pct_status` exists to catch. Recorded with the
+reason in `neutral_dates_v1.md` rather than silently skipped, and dropped in
+preference to a third regeneration that would reshuffle the phase for all 153
+others to fix a 1.3% edge effect. First fully-windowed session: `2024-01-08`.
+Queues written to `backtests/enrich_queue_{a,b}.txt` (73 + 80, disjoint date
+ranges so they run in parallel) plus `enrich_queue_pilot.txt` (the first 10,
+carrying the kill switch).
+
 *IV floor is FAR deeper than believed, and Trap B does not materialise here.*
 The options-overview feed returned **n=1000 bars spanning 2022-08-17 →
 2026-08-13, identical across SPY/AAPL/NVDA/XOM/KO** — so retention is a
