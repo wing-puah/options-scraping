@@ -208,6 +208,14 @@ def _market(monkeypatch):
         monkeypatch.setattr(uf, "market_closes", lambda: series)
     uf.market_closes.cache_clear()
     yield _install
+    # `monkeypatch` is a DEPENDENCY of this fixture, so pytest tears it down
+    # AFTER this finalizer — meaning `uf.market_closes` is still the plain
+    # lambda here, and calling `.cache_clear()` on it raised AttributeError.
+    # Undo the patch first so the clear lands on the real lru_cached function;
+    # without it the synthetic series would survive in the cache and leak into
+    # every later test, which is the exact contamination this fixture exists to
+    # prevent. (Fixed 2026-08-14; the tests always passed, only teardown errored.)
+    monkeypatch.undo()
     uf.market_closes.cache_clear()
 
 

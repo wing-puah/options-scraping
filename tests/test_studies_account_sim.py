@@ -15,6 +15,7 @@ conclusions rest on —
 """
 import copy
 import csv
+import itertools
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -1221,3 +1222,79 @@ def test_replay_sized_with_separate_caches_yields_equal_results_without_sharing(
 
     cache1[("sentinel", "poison")] = "leaked"
     assert ("sentinel", "poison") not in cache2
+
+
+# ── verdict grammar is total (2026-08-14 amendment) ──────────────────────────
+#
+# The pre-registration names three verdicts (FEASIBLE, FEASIBLE-BUT-DEGRADED,
+# NOT FEASIBLE AT $X) that do not cover every outcome of A1/A2/A3/A5/A6 — see
+# the comment above `print_verdict` in account_sim.py. This test enumerates
+# every one of the 32 combinations and asserts each maps to EXACTLY one of
+# the five labels the amended grammar now defines, and that the labels
+# partition the space in the expected proportions (a silent overlap or gap
+# would otherwise slip back in unnoticed).
+
+def _verdict_bucket(verdict: str) -> str:
+    if verdict.startswith("NOT FEASIBLE AT ") and "BLOWUP RISK" in verdict:
+        return "blowup"
+    if verdict == "FEASIBLE":
+        return "feasible"
+    if verdict == "FEASIBLE-BUT-DEGRADED":
+        return "degraded"
+    if verdict.startswith("NOT FEASIBLE AT "):
+        return "not_feasible"
+    if verdict.startswith("FEASIBILITY NOT CONFIRMED"):
+        return "not_confirmed"
+    return "unmatched"
+
+
+def test_verdict_grammar_is_total(capsys):
+    st = make_settings()
+    buckets = {"not_feasible": 0, "feasible": 0, "degraded": 0,
+               "blowup": 0, "not_confirmed": 0, "unmatched": 0}
+    seen = set()
+
+    for a1, a2, a3, a5, a6 in itertools.product([True, False], repeat=5):
+        res = {"A1": a1, "A2": a2, "A3": a3, "A4": True, "A5": a5, "A6": a6}
+        verdict = account_sim.print_verdict(res, "TEST", st)
+        capsys.readouterr()  # discard the printed report
+        bucket = _verdict_bucket(verdict)
+        assert bucket != "unmatched", (
+            f"combination {res} produced an unlabelled verdict: {verdict!r}")
+        buckets[bucket] += 1
+        seen.add((a1, a2, a3, a5, a6))
+
+    assert len(seen) == 32, "not every combination was exercised"
+    # Reference partition, independently re-derived from the grammar:
+    #  - A1 fails                                             -> not_feasible  (16)
+    #  - A1, A2, A3, A5, A6 all hold                           -> feasible       (1)
+    #  - A1, A3 hold and A2 fails (A5/A6 unconstrained)        -> degraded       (4)
+    #  - A1 holds, A3 fails (A2/A5/A6 unconstrained)           -> blowup         (8)
+    #  - A1, A2, A3 hold, and A5 and/or A6 fails               -> not_confirmed  (3)
+    assert buckets == {"not_feasible": 16, "feasible": 1, "degraded": 4,
+                        "blowup": 8, "not_confirmed": 3, "unmatched": 0}
+
+
+def test_verdict_grammar_closes_the_flagged_gap(capsys):
+    """The exact combination that printed "NO VERDICT MATCHES" on four prior
+    re-runs (A1 holds, A2/A3 hold, A5 and A6 both fail) now gets a label that
+    does not read as a pass."""
+    st = make_settings()
+    res = {"A1": True, "A2": True, "A3": True, "A4": True,
+           "A5": False, "A6": False}
+    verdict = account_sim.print_verdict(res, "TEST", st)
+    capsys.readouterr()
+    assert verdict.startswith("FEASIBILITY NOT CONFIRMED")
+    assert verdict not in ("FEASIBLE", "FEASIBLE-BUT-DEGRADED")
+
+
+def test_verdict_grammar_labels_the_a3_blowup_case(capsys):
+    """SECONDARY now fails A3 (25.1% drawdown) with A1 still held — the other
+    combination the original three labels never named."""
+    st = make_settings()
+    res = {"A1": True, "A2": True, "A3": False, "A4": True,
+           "A5": True, "A6": True}
+    verdict = account_sim.print_verdict(res, "TEST", st)
+    capsys.readouterr()
+    assert verdict.startswith(f"NOT FEASIBLE AT ${st.capital:,.0f}")
+    assert "BLOWUP RISK" in verdict
