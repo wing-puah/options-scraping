@@ -15,7 +15,10 @@ least once.
 The run writes `backtests/study_output/<name>-<stamp>.txt` plus a stable
 `<name>-latest.txt`, both prefixed with a provenance header (git sha, dirty
 flag, the exact argv, and the row counts / mtimes of the input exports). It
-then prints the path to paste into Claude for the write-up.
+then prints the path to paste into Claude for the write-up. `<name>-latest.txt`
+only ever holds a SUCCESSFUL run: a failed study (bad flag, gate crash) keeps
+its stamped transcript for debugging but must not clobber the canonical report
+that the map, the chart pages, and `study_review --skip-run` all quote.
 
 It also re-renders `docs/study-map.html`, so the readable one-page map of the
 whole package always quotes the newest report. That step is best-effort: the
@@ -239,7 +242,14 @@ def run_one(name: str, extra: list[str], dry_run: bool = False) -> tuple[int, Pa
                   f"{'=' * 78}\n")
         fh.write(footer)
     print(footer, end="")
-    latest.write_text(out_path.read_text())
+    if rc == 0:
+        latest.write_text(out_path.read_text())
+    else:
+        # A failed run (typo'd flag, gate crash) must not clobber the canonical
+        # report that the map, charts, and study_review all quote.
+        print(f"\n*** {name} FAILED (exit {rc}) — {latest.name} left at the "
+              f"previous good run; this attempt's output is in {out_path.name} ***",
+              file=sys.stderr)
     return rc, out_path
 
 
@@ -316,6 +326,15 @@ def main(argv: list[str] | None = None) -> int:
               "   (graded: analyst A/B + validator + digest)")
         print("  or paste the report above into Claude and ask for a write-up.")
     print("=" * 78)
+    failed = [(name, rc) for name, rc, _ in results if rc]
+    if failed:
+        # To stderr, after everything else: with --all a single study's failure
+        # is easy to lose in thousands of report lines, and the non-zero exit
+        # below is what makes `make study-all` stop with an Error.
+        print("\n*** STUDY FAILURES: "
+              + ", ".join(f"{n} (exit {rc})" for n, rc in failed)
+              + " — their -latest.txt was NOT updated; "
+              "scroll up for each one's output ***", file=sys.stderr)
     return max(rc for _, rc, _ in results)
 
 

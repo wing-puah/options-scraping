@@ -27,6 +27,19 @@ class _FakeChartModule:
         return self.result
 
 
+class _FakePopen:
+    """Stands in for `subprocess.Popen` inside `run_one` — no real study
+    subprocess runs; `stdout` is a canned iterable of lines and `wait()`
+    hands back whatever exit code the test wants."""
+
+    def __init__(self, lines: list[str], rc: int):
+        self.stdout = iter(lines)
+        self._rc = rc
+
+    def wait(self) -> int:
+        return self._rc
+
+
 # ────────────────────────────── _render_charts ───────────────────────────────
 
 def test_render_charts_skips_studies_with_no_chart_module(monkeypatch):
@@ -119,6 +132,47 @@ def test_render_charts_keeps_going_after_one_module_fails(monkeypatch, capsys):
     assert good.calls  # the second module still ran
 
 
+# ───────────────────────────────── run_one ───────────────────────────────────
+
+def test_run_one_promotes_the_stamped_report_to_latest_on_a_zero_exit(monkeypatch, tmp_path):
+    monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(study_runner, "_header", lambda name, argv: "HEADER\n")
+    monkeypatch.setattr(study_runner.subprocess, "Popen",
+                        lambda *a, **k: _FakePopen(["line one\n", "line two\n"], 0))
+
+    rc, out_path = study_runner.run_one("fake_study", [], dry_run=False)
+
+    assert rc == 0
+    latest = tmp_path / "fake_study-latest.txt"
+    assert latest.exists()
+    assert latest.read_text() == out_path.read_text()
+    body = out_path.read_text()
+    assert body.startswith("HEADER\n")
+    assert "line one\n" in body and "line two\n" in body
+    assert "exit code 0" in body
+
+
+def test_run_one_leaves_latest_untouched_and_warns_on_a_nonzero_exit(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(study_runner, "_header", lambda name, argv: "HEADER\n")
+    monkeypatch.setattr(study_runner.subprocess, "Popen",
+                        lambda *a, **k: _FakePopen(["gate crashed\n"], 3))
+    latest = tmp_path / "fake_study-latest.txt"
+    latest.write_text("SENTINEL: previous good run")
+
+    rc, out_path = study_runner.run_one("fake_study", [], dry_run=False)
+
+    assert rc == 3
+    # The stamped transcript for this attempt is written for debugging...
+    assert out_path.exists()
+    assert "gate crashed" in out_path.read_text()
+    # ...but the canonical -latest.txt that the map/charts/study_review quote
+    # is left exactly as it was before this failed attempt.
+    assert latest.read_text() == "SENTINEL: previous good run"
+    err = capsys.readouterr().err
+    assert "*** fake_study FAILED (exit 3)" in err
+
+
 # ───────────────────────── wiring into main()'s run loop ────────────────────
 
 def test_main_renders_charts_after_a_successful_run(monkeypatch):
@@ -178,3 +232,51 @@ def test_main_does_not_render_charts_for_a_study_with_no_chart_module(monkeypatc
 
     assert rc == 0
     assert calls == [("bear_deploy", [])]
+
+
+# ─────────────────────── main()'s stderr failure summary ────────────────────
+
+def test_main_prints_a_stderr_failure_summary_when_a_study_fails(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "run_one",
+                        lambda name, extra, dry_run=False: (2, study_runner.OUT_DIR / f"{name}-latest.txt"))
+    monkeypatch.setattr(study_runner, "_render_charts", lambda name, argv: None)
+    monkeypatch.setattr(map_build, "refresh_quietly", lambda *a, **k: None)
+
+    rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "*** STUDY FAILURES:" in err
+    assert "bear_deploy (exit 2)" in err
+
+
+def test_main_prints_no_failure_summary_when_every_study_succeeds(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "run_one",
+                        lambda name, extra, dry_run=False: (0, study_runner.OUT_DIR / f"{name}-latest.txt"))
+    monkeypatch.setattr(study_runner, "_render_charts", lambda name, argv: None)
+    monkeypatch.setattr(map_build, "refresh_quietly", lambda *a, **k: None)
+
+    rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
+
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "STUDY FAILURES" not in err
+
+
+def test_main_lists_every_failed_study_with_its_own_exit_code_and_still_returns_the_max_rc(monkeypatch, capsys):
+    """With --all, one bad study among several must not get lost — each
+    failure is named individually, and the return code is the max across
+    all of them (matching the existing "returns max rc" contract)."""
+    monkeypatch.setattr(study_runner, "discover", lambda: {"study_a": "a", "study_b": "b"})
+    rcs = {"study_a": 1, "study_b": 0}
+    monkeypatch.setattr(study_runner, "run_one",
+                        lambda name, extra, dry_run=False: (rcs[name], study_runner.OUT_DIR / f"{name}-latest.txt"))
+    monkeypatch.setattr(study_runner, "_render_charts", lambda name, argv: None)
+    monkeypatch.setattr(map_build, "refresh_quietly", lambda *a, **k: None)
+
+    rc = study_runner.main(["run", "--all", "--no-handoff"])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "*** STUDY FAILURES: study_a (exit 1)" in err
+    assert "study_b" not in err

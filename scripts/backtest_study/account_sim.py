@@ -506,7 +506,7 @@ def new_cache() -> dict:
 def profile_for(rec: dict) -> dict:
     """The SHIPPED exit profile for a row. Debit rows go through the base ->
     bear-debit(be_after .50) -> BEAR_HE merge; credit rows never reach it."""
-    return dict(CREDIT_PROD) if rec["credit"] else prod_profile_for(rec, 0.50, True)
+    return dict(CREDIT_PROD) if rec["credit"] else prod_profile_for(rec, SHIPPED_BE_AFTER, True)
 
 
 def replay_sized(rec: dict, contracts: int, stop: float,

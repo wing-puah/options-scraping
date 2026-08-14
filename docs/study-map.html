@@ -486,7 +486,7 @@ footer code { color: var(--ink-soft); }
       selection is not tunable from the columns we have; the money is in the exit rules and in
       position management. Every selection study returns a null. Two exit rules shipped.</p>
     <p class="built">
-      <span>built 2026-08-13 22:29</span>
+      <span>built 2026-08-13 23:05</span>
       <span>verdicts: hand-written, from current.md</span>
       <span>run blocks: quoted from backtests/study_output/</span>
     </p>
@@ -1036,21 +1036,29 @@ G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere ab
       <div class="card-head">
         <h3>account_sim.py</h3>
         <span class="pill is-open">open · blocked on data</span>
-        <span class="run-state">last run 2026-08-13 · <span class="bad">exit 2</span></span>
+        <span class="run-state">last run 2026-08-13 · <span class="good">ok</span></span>
       </div>
       <div class="qa">
         <p class="q"><span class="label">Asks</span>The ladder assumes infinite capital. Does a real $25,000 account — paying for positions, holding reserve, respecting a delta cap — still produce a book?</p>
         <p class="v"><span class="label">Verdict</span>The caps survive; the WINDOW does not. Delta-notional binds before cash does. Feasibility only — nothing ships from this study under any outcome.</p>
       </div>
       <details class="run">
-        <summary>what the last run printed <span class="kind">— no verdict block in this report — this is its last few lines, not a conclusion it drew</span></summary>
+        <summary>what the last run printed <span class="kind">— quoted from the report's own VERDICT block</span></summary>
         <div class="run-body">
-          <div class="meta"><span><b>run</b> 2026-08-13 22:25:55</span><span><b>git</b> 6ce3330 (main, working tree dirty)</span><span><b>took</b> 1.9s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
-          <pre class="excerpt">usage: account_sim.py [-h] [--gates-only] [--selftest-gates] [--include-bs]
-                      [--structure-universe] [--config CONFIG]
-account_sim.py: error: unrecognized arguments: --run</pre>
+          <div class="meta"><span><b>run</b> 2026-08-13 23:05:10</span><span><b>git</b> 586e8b3 (main, working tree dirty)</span><span><b>took</b> 3.5s</span><span><b>inputs</b> 1,926 analysis - BacktestResults.csv · 4,533 analysis - BacktestProxy.csv · 11,836 analysis - AnalysisClaude.csv · 803 spy_vix_daily_full.csv</span></div>
+          <pre class="excerpt">VERDICT (PRIMARY dense episodes population — the primary)
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  NOT MET
+  A6  NOT MET
+  &gt;&gt;&gt; NO VERDICT MATCHES — A1 holds but A5, A6 fail(s) &lt;&lt;&lt;
+  The three verdicts (FEASIBLE = A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3
+  with A2 failing; NOT FEASIBLE AT $25,000 = A1 fails) do not partition the outcome
+  space, and the run landed in the gap. Nothing is relabelled to fit: the
+  checklist above is the result, and the verdict grammar is recorded as</pre>
           <div class="links"><span>report: <code>account_sim-latest.txt</code></span><span>charts: <code>account_sim-charts-latest.html</code></span><span>by regime: <code>account_sim-regime-latest.html</code></span></div>
-<p class="caveat is-warning">This run exited non-zero. For most studies that is a calibration or input gate refusing to print numbers it cannot vouch for — read it as the gate working, not as a result.</p>
 <p class="caveat">Working tree was dirty at run time, so the git sha does not fully identify the code that produced this.</p>
         </div>
       </details>
