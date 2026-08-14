@@ -1980,29 +1980,71 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     return res
 
 
+# 2026-08-14 AMENDMENT — verdict grammar closed to total (labelled, not a
+# silent redefinition; moves NO threshold, NO measured number, and NO
+# meaning of A1-A6).
+#
+# The pre-registration (config/backtest-tuning/pre-registrations/account_sim.md)
+# names three verdicts and does not cover every outcome: FEASIBLE =
+# A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing;
+# NOT FEASIBLE AT $X = A1 fails. Flagged since 2026-08-13: "A1 holds, A5 and
+# A6 fail" (both PRIMARY and SECONDARY, every run since) matches none of the
+# three and printed "NO VERDICT MATCHES" on four re-runs. Separately, the
+# SECONDARY arm now also fails A3 (25.1% drawdown, limit 25%) with A1 still
+# held — a second combination the original three labels never named.
+#
+# This amendment adds two labels so every reachable combination of
+# A1/A2/A3/A5/A6 maps to exactly one label (proved exhaustively in
+# tests/test_studies_account_sim.py::test_verdict_grammar_is_total):
+#
+#   NOT FEASIBLE AT $X — BLOWUP RISK   A1 holds, A3 fails (any A2/A5/A6).
+#       A harder failure than plain "NOT FEASIBLE", not a pass: a drawdown
+#       breach with the edge otherwise intact.
+#   FEASIBILITY NOT CONFIRMED          A1, A2, A3 all hold; A5 and/or A6
+#                                       fail. Says feasibility is not
+#                                       confirmable on this window — neither
+#                                       asserted nor denied.
+#
+# Both new labels are checked AFTER "FEASIBLE" and "FEASIBLE-BUT-DEGRADED"
+# in the elif chain below, so they never shadow the original three; between
+# themselves the BLOWUP check runs first (A3 is the more severe failure),
+# leaving "FEASIBILITY NOT CONFIRMED" as the true catch-all for A1^A2^A3 with
+# A5 and/or A6 failing.
 def print_verdict(res: dict, label: str, st: Settings) -> str:
     hdr(f"VERDICT ({label} population — the primary)")
     for k in ("A1", "A2", "A3", "A4", "A5", "A6"):
         print(f"  {k}  {'MET' if res[k] else 'NOT MET'}")
     not_feasible = f"NOT FEASIBLE AT ${st.capital:,.0f}"
+    blowup = f"NOT FEASIBLE AT ${st.capital:,.0f} — BLOWUP RISK (A1 holds, A3 fails)"
+    not_confirmed = ("FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5 and/or A6 "
+                      "fail; stability/robustness not established on this "
+                      "window)")
+    amended = False
     if not res["A1"]:
         verdict = not_feasible
     elif res["A1"] and res["A2"] and res["A3"] and res["A5"] and res["A6"]:
         verdict = "FEASIBLE"
     elif res["A1"] and res["A3"] and not res["A2"]:
         verdict = "FEASIBLE-BUT-DEGRADED"
+    elif res["A1"] and not res["A3"]:
+        verdict = blowup
+        amended = True
     else:
-        failed = [k for k in ("A2", "A3", "A5", "A6") if not res[k]]
-        verdict = ("NO VERDICT MATCHES — A1 holds but "
-                   + ", ".join(failed) + " fail(s)")
+        # Only combination left reachable here: A1, A2, A3 all MET, and at
+        # least one of A5/A6 NOT MET (else the FEASIBLE branch above would
+        # have matched).
+        verdict = not_confirmed
+        amended = True
     print(f"\n  >>> {verdict} <<<")
-    if verdict.startswith("NO VERDICT"):
+    if amended:
         print(f"""
-  The three verdicts (FEASIBLE = A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3
-  with A2 failing; {not_feasible} = A1 fails) do not partition the outcome
-  space, and the run landed in the gap. Nothing is relabelled to fit: the
-  checklist above is the result, and the verdict grammar is recorded as
-  incomplete for whoever replicates this.""")
+  2026-08-14 AMENDMENT (labelled, not a redefinition — see the comment above
+  print_verdict): the pre-registered grammar (FEASIBLE = A1^A2^A3^A5^A6;
+  FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing; {not_feasible} = A1 fails)
+  did not name this combination and previously printed "NO VERDICT MATCHES"
+  here. No criterion threshold, measured number, or meaning of A1-A6 moved —
+  only the outcome-to-label mapping was completed. The checklist above is
+  the whole result; this label states what it means, nothing more.""")
     if not res["A4"]:
         print("  A4 MISMATCH — the run FAILS regardless of the verdict above.")
     return verdict

@@ -23,19 +23,39 @@ cancels out of every switch-vs-PROD comparison. The study is consequently run
 on the DEBIT book only. This also cleanly resolves harness validation: the
 accumulated BacktestResults sheet mixes credit rows generated before AND after
 the Attempt-13 credit-stop removal (sl 1x -> null), so no single credit PROD
-reproduces the whole credit book — but every DEBIT row reproduces DEBIT_PROD
-exactly (see Step 2 output).
+reproduces the whole credit book.
+
+--- Harness validation: CORRECTED 2026-08-14 --------------------------------
+This docstring used to claim "every DEBIT row reproduces DEBIT_PROD exactly".
+That was true when written and is now FALSE, and the gate that enforced it had
+become permanently unsatisfiable. On 2026-07-22 commit 31cb935 shipped
+`simulation.regime_exit.cells.BEAR_HE` (a .50/.50 trail); production resolves a
+per-row effective exit config (`scripts/backtest/simulate.py:150-165`) while the
+frozen harness takes flat call args and never sees the signal date. So every row
+signal-dated into BEAR_HE after that commit carries a STORED outcome produced by
+a rule DEBIT_PROD does not contain — currently 12 of 301 real debit rows, all 12
+mech-cell BEAR_HE, worth -$5,145.00 of stored-vs-replay difference.
+
+`harness_gate()` below therefore classifies each row exact / near-rounding-tie /
+superseded-basis / HARD and stops only on HARD (a row with no exit-rule
+explanation). Superseded rows are KEPT and re-replayed under every variant, as
+`enrich()` already does for all rows — they are not a random subset but exactly
+the rows where the shipped rule changed the outcome, so dropping them would bias
+the cell under test. Nothing about the exit grid, the replay engine, or any
+pre-registered criterion changed.
 
 --- Data ------------------------------------------------------------------
 The replay harness needs daily_price_csv / legs / entry_option_price. The
-harness's own results.csv is a stale 5-row artefact and results_proxy.csv is
-absent, so combined_exit_study.py cannot be rerun literally; the live priced
-book is the exported Sheets under backtests/to_evaluate/ (BacktestResults +
-BacktestProxy), which carry the same replay columns. Pooled priced book =
-BacktestResults(real) + BacktestProxy(tweak, real-priced) + BacktestProxy(bs,
-model-priced), each path-replayable and calibrated to DEBIT_PROD; proxy rows
-that do not reproduce DEBIT_PROD are excluded (designed handling), as are
-proxy rows duplicating a real-row identity.
+harness's own results.csv is a stale 4-row artefact and results_proxy.csv never
+existed under that name, so combined_exit_study.py cannot be rerun literally (it
+is RETIRED as of 2026-08-14); the live priced book is the exported Sheets under
+backtests/to_evaluate/ (BacktestResults + BacktestProxy), which carry the same
+replay columns. Pooled priced book = BacktestResults(real) +
+BacktestProxy(tweak, real-priced) + BacktestProxy(bs, model-priced), each
+path-replayable and calibrated to DEBIT_PROD; proxy rows that do not reproduce
+DEBIT_PROD are excluded (designed handling — a pre-registered POPULATION choice,
+deliberately unchanged by the 2026-08-14 gate correction), as are proxy rows
+duplicating a real-row identity.
 
 Run:
     source .venv/bin/activate
@@ -51,6 +71,7 @@ import csv
 import re
 import statistics
 import sys
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -219,6 +240,33 @@ def norm_play(s):
     return re.sub(r"\s+", " ", s.strip().lower())[:60]
 
 
+# ── the replay-basis classifier ─────────────────────────────────────────────
+# `replay()` can only ever emit an exit reason whose governing knob is set in
+# the profile it is called with (harness.py:119-170). So the set of exit reasons
+# a profile CANNOT produce is a mechanical property of the profile, not a guess:
+# a stored row whose exit_reason falls in that set was, by construction, written
+# under a different exit configuration. That is what `superseded-basis` means
+# below, and it is why the classification needs no date heuristic and no
+# `exit_basis` column (see the note on that column in `_classify`).
+_REASON_REQUIRES = {
+    "profit_target": ("pt",),
+    "trailing_stop": ("trig", "trail"),
+    "underlying_stop": ("und_buffer",),
+    "be_stop": ("be_after",),
+    "stop_loss": ("sl",),
+    "time_exit": ("tef",),
+    # dollar_stop / expired / cap_open are unconditional in replay() — always reachable.
+}
+
+
+def unreachable_reasons(prod):
+    """Exit reasons `replay(**prod)` can never emit, because the knob that
+    produces them is unset. Under DEBIT_PROD (pt/sl/tef, no trail) this is
+    {trailing_stop, underlying_stop, be_stop}."""
+    return {reason for reason, knobs in _REASON_REQUIRES.items()
+            if any(prod.get(k) is None for k in knobs)}
+
+
 def _calib(t, prod):
     rp = replay(t, **prod)
     want = (t.row["exit_reason"], int(float(t.row["days_held"])), round(_pct(t.row["realized_pnl_pct"]), 4))
@@ -228,9 +276,50 @@ def _calib(t, prod):
     return exact, near, want, got
 
 
+def _classify(t, prod, unreachable):
+    """'exact' | 'near' | 'superseded' | 'hard', plus (want, got).
+
+    superseded — the row replays fine; its STORED outcome was produced by an
+      exit rule this profile does not contain, so the disagreement is a config
+      difference, not a pricing failure. On this book that is the
+      `regime_exit.cells.BEAR_HE` trail shipped 2026-07-22 (`31cb935`) and, on
+      older rows, the pre-Attempt-10 global trail.
+    hard — a genuine mismatch with no config explanation: the harness and the
+      stored row disagree about a path both sides claim the same rules for.
+      This is the only bucket that stops a study.
+
+    NOT keyed on the `exit_basis` column. That column exists in `_KEY_ORDER`
+    (`scripts/backtest/core.py:61`) but reaches the export UNLABELLED and
+    MISALIGNED — measured 2026-08-14: 7 of 13 `CREDIT`-tagged rows have a
+    POSITIVE entry price (impossible per `simulate.py:_exit_basis`), no
+    `BEAR_HE`-tagged row has a `trailing_stop` exit, and all 12 rows that
+    provably ran the BEAR_HE trail are blank. The Sheets tab header was never
+    given the column, so the values land in a nameless trailing field — exactly
+    the hazard CLAUDE.md warns about. Re-key on it only after
+    `scripts/align_tab_headers.py` has fixed the header AND the values have been
+    re-verified against entry-price sign.
+    """
+    exact, near, want, got = _calib(t, prod)
+    if exact:
+        return "exact", want, got
+    if near:
+        return "near", want, got
+    if want[0] in unreachable:
+        return "superseded", want, got
+    return "hard", want, got
+
+
 def load_debit_trades():
-    """Returns (trades, diag). Each trade tagged .source (real/tweak/bs)."""
+    """Returns (trades, diag). Each trade tagged .source (real/tweak/bs) and
+    .calibrated (did it reproduce DEBIT_PROD exactly?).
+
+    `diag["real_calib"]` tallies the four buckets `_classify` returns. The
+    dollar totals come in two flavours: `stored`/`replay` over the CALIBRATED
+    rows only (the pair the harness gate compares — see `harness_gate`), and
+    `stored_all`/`replay_all` over every real debit row (reporting only; these
+    two are EXPECTED to differ once any row is superseded-basis)."""
     diag = {}
+    unreachable = unreachable_reasons(DEBIT_PROD)
 
     real = []
     for r in csv.DictReader(open(BR_PATH)):
@@ -243,28 +332,40 @@ def load_debit_trades():
     real_keys = {(t.signal_date.isoformat(), t.ticker, t.structure) for t in real}
 
     # real-book calibration (the harness-validation gate)
-    ok = nm = hard = 0
-    hard_rows = []
-    stored = rep = 0.0
+    ok = nm = sup = hard = 0
+    hard_rows, sup_rows = [], []
+    stored = rep = stored_all = rep_all = 0.0
     for t in real:
-        exact, near, want, got = _calib(t, DEBIT_PROD)
-        if exact:
+        kind, want, got = _classify(t, DEBIT_PROD, unreachable)
+        t.calibrated = kind == "exact"
+        rep_dol = t.dollars(replay(t, **DEBIT_PROD)["pnl_pct"])
+        stored_dol = float(t.row["realized_pnl_abs"])
+        if kind == "exact":
             ok += 1
-        elif near:
+        elif kind == "near":
             nm += 1
+        elif kind == "superseded":
+            sup += 1
+            sup_rows.append((t, want, got))
         else:
             hard += 1
             hard_rows.append((t, want, got))
-        stored += float(t.row["realized_pnl_abs"])
-        rep += t.dollars(replay(t, **DEBIT_PROD)["pnl_pct"])
-    diag["real_calib"] = dict(n=len(real), ok=ok, near=nm, hard=hard, hard_rows=hard_rows,
-                              stored=stored, replay=rep)
+        stored_all += stored_dol
+        rep_all += rep_dol
+        if kind in ("exact", "near"):
+            stored += stored_dol
+            rep += rep_dol
+    diag["real_calib"] = dict(n=len(real), ok=ok, near=nm, superseded=sup, hard=hard,
+                              hard_rows=hard_rows, superseded_rows=sup_rows,
+                              stored=stored, replay=rep,
+                              stored_all=stored_all, replay_all=rep_all)
 
     # proxy rows
     prox_rows = list(csv.DictReader(open(BP_PATH)))
     tweak, bs = [], []
     n_dup = n_excl = n_nopath = 0
     excl_rows = []
+    excl_kinds = Counter()
     for r in prox_rows:
         method = r.get("proxy_method", "")
         if method not in ("strike_expiry_tweak", "bs_options_hist") or not r.get("daily_price_csv"):
@@ -282,19 +383,85 @@ def load_debit_trades():
         except AssertionError:
             n_excl += 1
             continue
-        exact, near, want, got = _calib(t, DEBIT_PROD)
-        if not exact:  # proxy: any non-exact match excluded (designed handling)
+        kind, want, got = _classify(t, DEBIT_PROD, unreachable)
+        if kind != "exact":
+            # PROXY ADMISSION IS UNCHANGED: any non-exact proxy row stays
+            # excluded. This is a pre-registered POPULATION choice, not the
+            # harness gate — widening it would change every number these
+            # studies print. The classification is recorded for an honest
+            # census only (see `book.py`'s `require_proxy_calibration`, which
+            # is the sanctioned way to open this for a caller that re-replays
+            # everything and never reads a stored outcome).
             n_excl += 1
             excl_rows.append((t, want, got))
+            excl_kinds[kind] += 1
             continue
+        t.calibrated = True
         t.source = "tweak" if method == "strike_expiry_tweak" else "bs"
         (tweak if t.source == "tweak" else bs).append(t)
     diag["proxy"] = dict(n_dup=n_dup, n_excl=n_excl, n_nopath=n_nopath,
-                         n_tweak=len(tweak), n_bs=len(bs), excl_rows=excl_rows)
+                         n_tweak=len(tweak), n_bs=len(bs), excl_rows=excl_rows,
+                         excl_kinds=dict(excl_kinds))
 
     trades = real + tweak + bs
     trades.sort(key=lambda t: (t.signal_date, t.ticker))
     return trades, diag
+
+
+def harness_gate(diag, study=""):
+    """THE harness-validation gate — one predicate, one implementation, called
+    by every study that loads this book (mech switch, structure switch,
+    bear position). Prints the calibration census and stops ONLY on a true hard
+    mismatch.
+
+    Why this is not the original "every real debit row reproduces DEBIT_PROD"
+    assertion (corrected 2026-08-14): production stopped having that property on
+    2026-07-22, when `31cb935` shipped `simulation.regime_exit.cells.BEAR_HE`
+    (trail .50/.50). `simulate.py:150-165` resolves a per-row effective config
+    (base -> structure -> regime); the frozen harness takes flat call args and
+    never sees the signal date (`harness.py:113`). So a BEAR_HE-dated row's
+    STORED outcome came from a profile DEBIT_PROD does not contain, and NO
+    future export can satisfy the old gate. Asserting it anyway just disables
+    three studies permanently.
+
+    Superseded-basis rows are KEPT, not dropped. On this book they are 12/12
+    mech-cell BEAR_HE — not a random 6% of BEAR_HE (12/203) but precisely the
+    rows where the shipped rule changed the outcome, i.e. the maximum-signal
+    rows in the exact cell under test. Dropping them would bias the estimate and
+    WOULD violate the pre-registration; keeping them and re-replaying them under
+    each variant (which `enrich()` already does for every row) does not.
+
+    The stored-vs-replay dollar check is therefore over CALIBRATED rows only.
+    Over all rows the two are expected to differ by exactly the superseded rows'
+    contribution, which is reported rather than asserted away.
+    """
+    rc = diag["real_calib"]
+    tag = f" ({study})" if study else ""
+    print(f"    row calibration{tag}: {rc['ok']}/{rc['n']} exact, {rc['near']} rounding-tie, "
+          f"{rc['superseded']} superseded-basis, {rc['hard']} HARD")
+    print(f"    calibrated-row replay ${rc['replay']:,.2f} vs stored ${rc['stored']:,.2f}"
+          f"   diff ${rc['replay'] - rc['stored']:,.2f}")
+    if rc["superseded"]:
+        delta = rc["replay_all"] - rc["stored_all"] - (rc["replay"] - rc["stored"])
+        print(f"    superseded-basis rows carry ${delta:,.2f} of stored-vs-replay difference "
+              f"(a config change, not a pricing failure):")
+        cells = Counter(want[0] for _, want, _ in rc["superseded_rows"])
+        print("      stored exit_reason: "
+              + "  ".join(f"{k}={v}" for k, v in cells.most_common())
+              + f"  — unreachable under DEBIT_PROD: {sorted(unreachable_reasons(DEBIT_PROD))}")
+        for t, want, got in rc["superseded_rows"]:
+            print(f"      SUPERSEDED {t.signal_date} {t.ticker:6} {t.structure:18} "
+                  f"stored={want} replay={got}")
+    if rc["hard"] or abs(rc["replay"] - rc["stored"]) >= 0.01:
+        print("\n  *** HARNESS VALIDATION FAILED — STOPPING per pre-registration. ***")
+        print("  (A HARD row is one the harness cannot reconcile under ANY known config —")
+        print("   unlike a superseded-basis row, it has no exit-rule explanation.)")
+        for t, want, got in rc["hard_rows"]:
+            print(f"    HARD {t.signal_date} {t.ticker} {t.structure} want={want} got={got}")
+        sys.exit(1)
+    print("    -> PASS: every calibrated real debit row reproduces DEBIT_PROD, "
+          "totals match to the cent, and no row is unreconcilable.")
+    return rc
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -512,22 +679,18 @@ def main():
     print(f"Model-cell distribution (debit): " + "  ".join(f"{k}={v}" for k, v in modc.most_common()))
 
     # ── Step 2: harness validation ──
-    hdr("STEP 2 — HARNESS VALIDATION (DEBIT_PROD reproduces the real book)")
-    print("combined_exit_study.py cannot be rerun literally: results.csv is a stale 5-row")
-    print("artefact and results_proxy.csv is absent. Equivalent validation = its gate_real +")
-    print("SANITY check applied to the live BacktestResults book (real debit rows):")
-    print(f"    row calibration: {rc['ok']}/{rc['n']} exact, {rc['near']} rounding-tie, {rc['hard']} HARD")
-    print(f"    PROD replay total ${rc['replay']:,.2f}  vs stored realized_pnl_abs ${rc['stored']:,.2f}"
-          f"   diff ${rc['replay']-rc['stored']:,.2f}")
-    if rc["hard"] or abs(rc["replay"] - rc["stored"]) >= 0.01:
-        print("\n  *** HARNESS VALIDATION FAILED — STOPPING per pre-registration. ***")
-        for t, want, got in rc["hard_rows"]:
-            print(f"    HARD {t.signal_date} {t.ticker} {t.structure} want={want} got={got}")
-        sys.exit(1)
-    print("    -> PASS: every real debit row reproduces DEBIT_PROD; total matches to the cent.")
+    hdr("STEP 2 — HARNESS VALIDATION (DEBIT_PROD reproduces the calibrated real book)")
+    print("combined_exit_study.py cannot be rerun literally: results.csv is a stale 4-row")
+    print("artefact and results_proxy.csv never existed under that name (both studies are")
+    print("RETIRED, 2026-08-14). Equivalent validation = its gate_real + SANITY check")
+    print("applied to the live BacktestResults book (real debit rows):")
+    harness_gate(diag, study="mech switch")
     if px["excl_rows"]:
+        kinds = "  ".join(f"{k}={v}" for k, v in sorted(px.get("excl_kinds", {}).items()))
         print(f"  ({len(px['excl_rows'])} proxy rows excluded for not reproducing DEBIT_PROD — "
               f"designed proxy handling, not folded into any table.)")
+        print(f"   breakdown: {kinds}  — 'superseded' are BEAR_HE-dated rows carrying the "
+              f"shipped trail, same cause as the real book's; proxy admission is unchanged.")
 
     post13c_recs = [r for r in recs if r["post13c"] is True]
     print(f"\npost-13c debit rows (AC-join): {len(post13c_recs)}  "

@@ -85,8 +85,8 @@ management. Every selection study returns a null; two exit studies shipped.
 | File | The question | Verdict |
 |---|---|---|
 | `exit_mechanism_study.py` | The original grid: replay stored daily marks under alternative exit rules, real rows only. | **SHIPPED** the production debit profile — pt 0.90 / sl 0.75 / tef 0.75, no trail (Attempt 10). |
-| `combined_exit_study.py` | Same grid, bigger tuning set (real + proxy-priced rows pooled). | PROD confirmed best *global* config — but exits are regime-conditional, which motivated the switch studies below. |
-| `underlying_exit_study.py` | Credit spreads: stop on the **underlying** breaching a level instead of on the mark? | ❌ Nothing shipped (Attempt 9). |
+| `combined_exit_study.py` | Same grid, bigger tuning set (real + proxy-priced rows pooled). | **RETIRED 2026-08-14** — inputs are gitignored scratch, deleted and unrecoverable. Verdict (already recorded): PROD confirmed best *global* config — but exits are regime-conditional, which motivated the switch studies below. |
+| `underlying_exit_study.py` | Credit spreads: stop on the **underlying** breaching a level instead of on the mark? | **RETIRED 2026-08-14** — inputs are gitignored scratch, deleted and unrecoverable. Verdict (already recorded): ❌ nothing shipped (Attempt 9). |
 | `exit_switch_mech_study.py` | Per-regime exit switch keyed on the mechanical regime — stable where the model-keyed version failed LOO? | **BEAR_HE cell SHIPPED** (trail 0.50 / trigger 0.50). L-VOL and RANGE/BULL cells stay gated. |
 | `exit_switch_structure_study.py` | Q1: does a bear_put-keyed trail pass the same ship gate? Q2: is BEAR_HE secretly just a *composition proxy* for that structure effect? | Guards the shipped rule against the trap that killed `oi_confirm_pct`. |
 | `bear_giveback.py` | 82% of bear rows go green then give it back. Can a breakeven ratchet capture it, and does the underlying path explain it? | `be_after` grid does **NOT** ship beyond what's already live; the give-back pattern is in the **underlying**, not the mark. |

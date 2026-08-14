@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 import scripts.study_map.build as map_build
+import scripts.study_map.catalog as smc
 from scripts.backtest_study import run as study_runner
 
 
@@ -222,6 +223,170 @@ def test_run_one_leaves_latest_untouched_and_warns_on_a_nonzero_exit(monkeypatch
     assert "*** fake_study FAILED (exit 3)" in err
 
 
+# ─────────────────────────── designed refusals ───────────────────────────────
+#
+# A study can declare exit codes that mean "I deliberately declined to
+# produce a result" (a pre-registered gate not met, a guard refusing to
+# compare a book against itself) rather than "something broke". v4_bridge is
+# the one study that declares this today.
+
+def test_refusal_codes_reads_v4_bridges_real_declaration():
+    assert study_runner._refusal_codes("v4_bridge") == frozenset({2, 3})
+
+
+def test_refusal_codes_is_empty_for_a_study_with_no_declaration():
+    """bear_deploy declares no DESIGNED_REFUSAL_EXIT_CODES — every non-zero
+    exit of its is a real failure, unchanged."""
+    assert study_runner._refusal_codes("bear_deploy") == frozenset()
+
+
+def test_refusal_codes_is_empty_for_an_unknown_name():
+    assert study_runner._refusal_codes("not_a_real_study_xyz") == frozenset()
+
+
+def test_run_one_promotes_latest_and_notes_a_refusal_on_a_declared_exit_code(
+        monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(study_runner, "_header",
+                        lambda name, argv, module=None: "HEADER\n")
+    monkeypatch.setattr(study_runner.subprocess, "Popen",
+                        lambda *a, **k: _FakePopen(["GATE NOT MET\n"], 2))
+
+    rc, out_path = study_runner.run_one("fake_study", [], dry_run=False,
+                                        refusal_codes=frozenset({2, 3}))
+
+    assert rc == 2
+    latest = tmp_path / "fake_study-latest.txt"
+    # Unlike a real failure, a declared refusal's report IS promoted — the
+    # gate message is the study's current, correct, quotable status.
+    assert latest.exists()
+    assert latest.read_text() == out_path.read_text()
+    err = capsys.readouterr().err
+    assert "DESIGNED REFUSAL" in err
+    assert "FAILED" not in err
+
+
+def test_run_one_still_fails_on_an_exit_code_outside_the_declared_set(
+        monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(study_runner, "_header",
+                        lambda name, argv, module=None: "HEADER\n")
+    monkeypatch.setattr(study_runner.subprocess, "Popen",
+                        lambda *a, **k: _FakePopen(["boom\n"], 1))
+    latest = tmp_path / "fake_study-latest.txt"
+    latest.write_text("SENTINEL: previous good run")
+
+    rc, out_path = study_runner.run_one("fake_study", [], dry_run=False,
+                                        refusal_codes=frozenset({2, 3}))
+
+    assert rc == 1
+    assert latest.read_text() == "SENTINEL: previous good run"
+    err = capsys.readouterr().err
+    assert "*** fake_study FAILED (exit 1)" in err
+
+
+def test_main_designed_refusal_is_not_a_failure_and_does_not_fail_the_command(
+        monkeypatch, capsys):
+    """v4_bridge's real DESIGNED_REFUSAL_EXIT_CODES = {2, 3}; a stubbed exit 3
+    must be reported as REFUSED, not FAILED, and must not make main() return
+    non-zero — that is the whole point of declaring it."""
+    monkeypatch.setattr(study_runner, "discover", lambda: {"v4_bridge": "doc"})
+    _stub_run_one(monkeypatch, lambda stem: 3)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "v4_bridge", "--no-handoff"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "DESIGNED REFUSALS (not failures): v4_bridge (exit 3)" in captured.out
+    assert "STUDY FAILURES" not in captured.err
+
+
+def test_main_still_fails_v4_bridge_on_an_undeclared_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "discover", lambda: {"v4_bridge": "doc"})
+    _stub_run_one(monkeypatch, lambda stem: 1)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "v4_bridge", "--no-handoff"])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "*** STUDY FAILURES: v4_bridge (exit 1)" in err
+
+
+def test_main_all_worst_real_failure_wins_even_alongside_a_refusal(monkeypatch, capsys):
+    """A refusal must not mask an actual failure elsewhere in `--all`."""
+    monkeypatch.setattr(study_runner, "discover",
+                        lambda: {"v4_bridge": "doc", "bear_deploy": "doc"})
+    _stub_run_one(monkeypatch, lambda stem: 3 if stem == "v4_bridge" else 1)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "--all", "--no-handoff"])
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "bear_deploy (exit 1)" in err
+    assert "v4_bridge" not in err  # the refusal is not in the FAILURES line
+
+
+# ─────────────────────────────── retirement ──────────────────────────────────
+#
+# A study whose inputs are gone for good is marked `retired=` in
+# scripts.study_map.catalog. `run --all` excludes it from the bulk run but a
+# `run <name>` still runs it directly, with a printed notice.
+
+def test_main_all_skips_a_retired_study_but_runs_the_rest(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "discover",
+                        lambda: {"study_a": "a", "study_b": "b"})
+    monkeypatch.setattr(smc, "retired_studies",
+                        lambda: {"study_a": "gone — inputs unrecoverable"})
+    runs = _stub_run_one(monkeypatch, lambda stem: 0)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "--all", "--no-handoff"])
+
+    assert rc == 0
+    assert runs == [("study_b", [], "study_b")]
+    out = capsys.readouterr().out
+    assert "SKIPPING study_a (retired): gone — inputs unrecoverable" in out
+
+
+def test_main_runs_a_retired_study_directly_with_a_notice(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "discover", lambda: {"study_a": "a"})
+    monkeypatch.setattr(smc, "retired_studies",
+                        lambda: {"study_a": "gone — inputs unrecoverable"})
+    runs = _stub_run_one(monkeypatch, lambda stem: 0)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "study_a", "--no-handoff"])
+
+    assert rc == 0
+    assert runs == [("study_a", [], "study_a")]
+    out = capsys.readouterr().out
+    assert "NOTE: study_a is RETIRED" in out
+    assert "gone — inputs unrecoverable" in out
+    assert "Running anyway because it was named explicitly" in out
+
+
+def test_catalogs_retired_studies_names_exactly_the_two_from_part_b():
+    """Pins the actual retirement, not just the mechanism: combined_exit_study
+    and underlying_exit_study are the two studies whose scratch inputs are
+    gone for good (config/backtest-tuning/next-steps.md §0c(B))."""
+    assert set(smc.retired_studies()) == {"combined_exit_study", "underlying_exit_study"}
+
+
+def test_run_list_shows_the_retirement_notice_as_the_one_line_summary(capsys):
+    """discover()'s summary is the module docstring's first line — retiring a
+    study rewrites that line, so `list` surfaces the retired status without
+    any extra machinery."""
+    study_runner.main(["list"])
+    out = capsys.readouterr().out
+    assert "combined_exit_study" in out
+    for line in out.splitlines():
+        if line.strip().startswith("combined_exit_study"):
+            assert "RETIRED" in line
+
+
 # ──────────────────────────── extra arms (arm_plan) ─────────────────────────
 #
 # `account_sim` declares one: the post-hoc compounding sensitivity, run as a
@@ -274,7 +439,7 @@ def _stub_run_one(monkeypatch, rc_for):
     """Record every `run_one` invocation; `rc_for(stem)` gives its exit code."""
     runs = []
 
-    def _run_one(name, extra, dry_run=False, stem=None):
+    def _run_one(name, extra, dry_run=False, stem=None, refusal_codes=frozenset()):
         stem = stem or name
         runs.append((name, list(extra), stem))
         return rc_for(stem), study_runner.OUT_DIR / f"{stem}-latest.txt"

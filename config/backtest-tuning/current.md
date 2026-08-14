@@ -140,6 +140,31 @@ expansion. Separately, the `startDate`/`endDate` param names — flagged in-code
 as "a best guess to VERIFY" — are now **verified honoured** (a
 2025-06-02..2025-06-13 request returned 10/10 rows inside the window).
 
+**State of play (2026-08-14, study suite REPAIRED — `run --all` exits 0, suite
+1,149 passed / 0 errors).** Infrastructure and one contamination fix; **no
+pre-registered criterion changed and no verdict moved.** The six `--all` failures
+are gone: the DEBIT_PROD exact-replay gate now **classifies** rows (exact / near
+/ superseded-basis / HARD) and stops only on HARD, so the three studies it had
+permanently disabled run again — 289 exact / 12 superseded / **0 HARD**, with the
+whole −$5,145.00 isolated to the 12 BEAR_HE rows the shipped trail produced and
+the calibrated totals matching to the cent. Superseded rows are **kept and
+re-replayed**, never dropped. `bear_position_study`'s `R` is now re-replayed
+instead of read off `realized_pnl_pct` (the contamination was **12 rows,
+−$5,145.06**; bear_put mean R −0.1016 → −0.1069, so it made the bear book look
+*better* than it was — verdict still **DEMOTE TO VETO**, card veto §1.4 stands).
+`combined_exit_study` / `underlying_exit_study` are **RETIRED** (inputs
+unrecoverable, verdicts already archived), and `v4_bridge`'s exit 3 is now a
+first-class **DESIGNED REFUSAL** status rather than a failure. Three carried
+follow-ups closed: `account_sim`'s verdict grammar is **total** (test-enforced
+over all 32 combinations; PRIMARY now prints `FEASIBILITY NOT CONFIRMED` instead
+of `NO VERDICT MATCHES`), ARM H's sizing floor skips instead of rounding a
+half-size hedge up to a full contract, and `selection_order` criterion (4) is
+reworded. **NEW STANDING HAZARD: the `exit_basis` column is unusable on the
+current export** — unlabelled and scrambled; do not key anything on it (details
+in the entry below). Frozen `account_sim` book re-verified unmoved (72 positions
+/ $11,398 / meanR +0.290); `calendar_hedge` H0 re-verified unmoved (75.6% /
+66.7% MET). Prior state follows.
+
 **State of play (2026-08-14, `account_sim` COMPOUNDING arm FOLDED IN — no number
 moves).** Infrastructure only; **no evidence changes and no conclusion moves.**
 The compounding sensitivity is no longer a copied config file
@@ -309,6 +334,219 @@ R4 is re-keyed to the pre-scrape cache snapshot (labelled amendment). The
 mechanism, flat-band cut waits for new bear rows, rollback triggers
 accumulating. Prior state (2026-08-12 and older) is archived — see
 [`archive/`](archive/) files 07–12 and the [README](README.md) section index.
+
+---
+
+## 2026-08-14 — study-suite triage FIXED: the exact-replay gate now classifies instead of asserting, `bear_position_study`'s R is re-replayed, and the `exit_basis` column turns out to be UNUSABLE
+
+**Status: IMPLEMENTED. No pre-registered criterion changed, no exit grid
+changed, no shipped rule moved.** This entry closes
+[`next-steps.md`](next-steps.md) §0c(A) — the diagnosis in the section
+immediately below. All three blocked studies run again and exit 0.
+
+**The fix — one predicate, three callers.** The gate demanded that every real
+debit row replay bit-exactly under `DEBIT_PROD`. It now classifies each row
+**exact / near-rounding-tie / superseded-basis / HARD** and stops only on HARD.
+`harness_gate()` in `exit_switch_mech_study.py` is the single implementation;
+`exit_switch_structure_study.py` and `bear_position_study.py` call it instead of
+re-implementing the predicate, so the correction cannot drift between the three.
+
+**How superseded-basis is identified — mechanically, not by date heuristic.**
+`replay()` can only emit an exit reason whose governing knob is set in the
+profile it is called with (`harness.py:119-170`), so the set of reasons a
+profile CANNOT produce is a property of the profile. Under `DEBIT_PROD` that is
+`{trailing_stop, underlying_stop, be_stop}`. A stored row whose `exit_reason`
+falls in that set was, by construction, written under a different exit config.
+New `unreachable_reasons(prod)` computes it; `_classify()` applies it. Measured
+on the current export: **289 exact / 0 near / 12 superseded / 0 HARD**, and the
+calibrated-row totals now match **to the cent** ($27,216.20 both sides), with the
+whole **−$5,145.00** isolated to the 12 superseded rows and reported rather than
+asserted away. All 12 carry stored `trailing_stop`.
+
+The 12 rows are **KEPT and re-replayed**, not dropped — they are not a random 6%
+of BEAR_HE (12/203) but exactly the rows where the shipped rule changed the
+outcome, i.e. maximum-signal rows in the cell under test. `enrich()` already
+re-replays every row under PROD and each variant, so nothing downstream needed to
+change. Proxy admission is **deliberately unchanged** (exact-only): that is a
+pre-registered POPULATION choice, and widening it would move every number these
+studies print. The proxy exclusion census is now broken out by class for honesty
+— 48 excluded = 25 near / 22 superseded / 1 hard.
+
+**`bear_position_study`'s R is now re-replayed** (`replay(t, **DEBIT_PROD)`),
+never read off `realized_pnl_pct`. Size of the contamination, measured on the
+same book both ways: **12 rows move (all real; 8 `bear_put_spread`, 3
+`bull_call_spread`, 1 `long_put`), −$5,145.06.** Headline effect
+`bear_put_spread` mean R **−0.1016 → −0.1069**; `long_put` −0.570 → −0.627 (n=7,
+one row); pooled −0.0045. The stored column made the bear book look *better*
+than it was, so the correction **strengthens** the demote reading rather than
+reversing it — re-run verdict is still **DEMOTE TO VETO**, and card veto §1.4
+stands unchanged. `E` (`pnl_at_cap_pct`) is exit-rule-independent by construction
+and untouched. NOTE for anyone comparing: a naive row-level diff reports "95.7%
+of rows changed" — that is 4-decimal CSV round-trip noise. At a `NEAR_MISS_TOL`
+threshold it is 12 rows, 1.5%.
+
+Re-run verdicts, all unchanged: `exit_switch_mech_study` **STAYS GATED**,
+`exit_switch_structure_study` completes, `bear_position_study` **DEMOTE TO
+VETO**. 15 new tests in `tests/test_exit_replay_gate.py` pin the four buckets,
+that superseded rows are kept and tagged `calibrated=False`, that the dollar
+check ignores them, that proxy admission did not widen, that a **true HARD row
+still exits 1**, and that `bear_position_study`'s R cannot regress to the stored
+column.
+
+**NEW FINDING — `exit_basis` is present in the export but UNUSABLE, so do not
+re-key anything on it.** §0c's recommended route was "identify superseded-basis
+by the `exit_basis` column when present". It is present — as an **unlabelled
+47th column** (the Sheets tab header was never given the name, exactly the hazard
+CLAUDE.md warns about) — and its values are **scrambled relative to their rows**:
+
+- Rows created AFTER the trail shipped (67, every one of which should carry a
+  basis): **65 blank**, 2 `CREDIT`.
+- Rows created BEFORE the column existed (339, none of which should carry one):
+  **55 `BEAR_HE`, 11 `CREDIT`**.
+- 7 of 13 `CREDIT`-tagged rows have a **positive** entry price, impossible per
+  `simulate.py:_exit_basis` (which returns `CREDIT` only when `entry_net < 0`);
+  6 of those 7 were created 2026-07-09/07-10, *before* `exit_basis` shipped.
+- No `BEAR_HE`-tagged row has a `trailing_stop` exit, while all 12 rows that
+  provably ran the BEAR_HE trail are blank.
+
+This is why the classifier keys on unreachable exit reasons instead. Operator
+action, NOT taken here (it is a Sheets write): `scripts/align_tab_headers.py`
+covers only the **analysis** tabs (`config.ROW_COLUMNS`) and does **not** check
+`BacktestResults`/`BacktestProxy` against `scripts/backtest/core._KEY_ORDER` —
+that gap is what let the column land nameless. Re-key any study on `exit_basis`
+only after the header is fixed AND the values are re-verified against entry-price
+sign. `config/backtest-reference.md:130`'s claim that **blank = PROD-basis by
+definition** is **false on this export** and should not be relied on.
+
+---
+
+## 2026-08-14 — `run --all` is GREEN: two dead studies RETIRED, and "designed refusal" is now a status the runner understands rather than a failure
+
+**Status: IMPLEMENTED, infrastructure only. No study re-run to a conclusion, no
+number moved.** With the gate correction above, `backtest_study run --all` goes
+from **6 failures to exit 0**. The six were three unrelated causes, and only the
+gate was a real problem; these are the other two.
+
+**(B) `combined_exit_study` and `underlying_exit_study` are RETIRED.** Both crash
+on scratch CSVs under `backtests/` that were deleted long ago — a gitignored,
+periodically-deleted tree, so the inputs were never recoverable. Their verdicts
+are already recorded (Attempts 8, 9, 12 in
+[`archive/02-credit-debit-split-attempts-8-12.md`](archive/02-credit-debit-split-attempts-8-12.md))
+and neither is named in this file. `catalog.py`'s `Study` gains a `retired`
+field — deliberately **orthogonal to `state`**, because retirement is about
+whether a study can be RUN, not about what it argued — plus a
+`retired_studies()` helper. `--all` skips them with the reason printed;
+`run <name>` still runs one explicitly after a notice. The study-map page renders
+them with a `retired` pill and their reason as a caveat.
+
+**Why they were not simply repointed at surviving files** — this is the part
+worth not re-deriving. `backtests/results.csv` is **4 rows on 2 dates** today (a
+rolling file every `backtest.py` run stomps) against the 94 real debit + 22
+credit rows Attempt 12 actually ran on. `combined_exit_study`'s
+`results_proxy.csv` is an **author transposition that never matched the writer**
+(`config/backtest.yml` has said `proxy_results.csv` since the block existed).
+`v2_results_nocreditdiff.csv` IS the genuine rename of the file
+`underlying_exit_study` wants — but that study's *other* input has **0 credit
+rows** today, so `load_credit_rows` returns `[]` and it would emit a degenerate
+empty report regardless. Numbers off a 4-row wrong-vintage book could be
+mistaken for a fresh confirmation of the reference verdict. Porting
+`combined_exit_study` to `book.py` remains possible but is a **design decision,
+not a loader swap** — it imports `Trade`/`replay` from `exit_mechanism_study.py`,
+a separate older implementation from the FROZEN `harness.py` — and is not wanted
+now. Count rows in these exports with `csv.DictReader`, **never `wc -l`**:
+embedded newlines in `daily_price_csv` inflate line counts ~4×.
+
+**(C) A non-zero exit is often CORRECT, and the runner now knows it.** `v4_bridge`
+exit 3 was never a defect — it is the pre-registered refusal to compare a v3 book
+against itself when no v4 export exists (gate `MIN_V4_DATES = 20`, v4 accruing
+~1 date/day). Rather than special-casing the name, a study may now declare
+`DESIGNED_REFUSAL_EXIT_CODES = {…}` as a module constant, read by `run.py` via
+`ast` (never imported, same reasoning as `discover()`). Such an exit promotes
+`-latest.txt` like a clean run, prints under **DESIGNED REFUSALS (not failures)**,
+and is excluded from the return code — so a refusal-only run exits 0. `v4_bridge`
+declares `{2, 3}`. Several other studies stop on their own pre-registered
+calibration or power gates and are equally correct to do so; the convention is
+documented where `--all` is read. `MIN_V4_DATES` was NOT lowered and `--v4-csv`
+was NOT pointed at a v3 export.
+
+**And the study MAP had to learn the same two words**, or the fix would only have
+moved the misreport to a second tool: `study_map --check` was still printing
+`v4_bridge … exit 3 [failure]` and labelling both retired studies `never run`.
+`summary.py` now imports `run.py`'s `_refusal_codes` and `catalog`'s retired set
+rather than re-deriving either, so there is one source of truth; status reads
+`refused (exit 3)` / `retired`, with a fifth excerpt kind `refusal` whose gloss
+says **BY DESIGN**. The kind is applied whether or not the report happens to
+carry an ABORT-shaped line, so a plain "gate not met" message can't fall through
+to `matched`/`tail`. The load-bearing safety property is tested: **an UNDECLARED
+non-zero exit on a refusal-capable study still classifies as `failure`** — the
+refusal path must never swallow a real failure. Suite ends at **1,149 passed / 0
+errors**.
+
+**Unrelated but now closed:** the two long-standing `test_underlying_features.py`
+teardown errors. `_market`'s finalizer called `.cache_clear()` on
+`uf.market_closes` while the monkeypatched lambda was still installed —
+`monkeypatch` is a dependency of that fixture, so pytest tears it down *after*.
+Undo first, then clear. The tests always passed; only teardown errored, but the
+synthetic SPY series was surviving in the `lru_cache` and leaking into later
+tests, which is the exact contamination the fixture exists to prevent. **Suite is
+now 1,139 passed / 0 errors.**
+
+---
+
+## 2026-08-14 — three recorded follow-ups closed: `account_sim`'s verdict grammar is now TOTAL, ARM H's sizing floor skips instead of rounding up, `selection_order` criterion (4) reworded
+
+**Status: IMPLEMENTED. No criterion threshold, no measured number, and no
+verdict moved.** Three small items that had been carried for days, done together.
+
+**(1) `account_sim` verdict grammar closed to TOTAL.** The pre-registered
+grammar named `FEASIBLE` (A1^A2^A3^A5^A6), `FEASIBLE-BUT-DEGRADED` (A1^A3, A2
+fails) and `NOT FEASIBLE AT $25,000` (A1 fails) — and nothing for **A1 holds
+while A5/A6 fail**, which is what this book actually produces. The study printed
+`NO VERDICT MATCHES` on four consecutive re-runs. Two labels added, both checked
+after the original three and neither readable as a pass:
+
+- `NOT FEASIBLE AT $X — BLOWUP RISK (A1 holds, A3 fails)` — the case the
+  SECONDARY arm now hits at 25.1% drawdown against a 25% limit.
+- `FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5 and/or A6 fail; stability/
+  robustness not established on this window)` — the flagged gap, which now fires
+  on PRIMARY.
+
+Only the outcome→label mapping was completed; A1–A6 keep their thresholds and
+meanings, and the amendment prints inline wherever a new label fires. Totality
+is now a TEST, not a claim: `test_verdict_grammar_is_total` enumerates all 32
+A1/A2/A3/A5/A6 combinations and asserts each maps to exactly one of the five
+labels, pinning the partition at 16/1/4/8/3. Frozen book re-verified unmoved —
+G1 PASS, B1 220 positions / 90 dates / $63,553, taken n=72 meanR **+0.290**,
+rejected-`net_delta` **+0.624**.
+
+**(2) ARM H sizing floor now SKIPS a sub-one-contract hedge** instead of
+`max(1, int(0.5 × c))` rounding it back up to a FULL-size hedge — the opposite
+of what the arm specifies. `hedge_contracts`/`H_dol` are `None` when half-size
+rounds under one, at both sites (`_typed`, and a second latent copy in ARM S's
+`rec_substitutions`). The floor fires on **34 of the 68 picked sleeve
+positions** (every `contracts == 1` row), moving H1's half-size dollar total
+**$13,252 → $7,154 (−$6,098)**. The programme is POWER-STOPPED
+([`next-steps.md`](next-steps.md) §2.3), so this changes no conclusion — but the
+figure is different and is recorded here rather than left to be re-quoted.
+
+**Caught in review and reverted — the floor must bite at SIZING, not on the
+UNIVERSE.** The first implementation filtered the candidate set on
+`hedge_contracts`, which dropped 61 of 132 strict-fillable candidates and flipped
+**H0 from the recorded MET (75.6% deployed / 66.7% worst-decile) to NOT MET
+(51.1% / 33.3%)**. H0 asks whether the hedge is AVAILABLE when needed — a fill
+question — and "fillable but too small to half-size" is not "unfillable".
+Conflating them silently redefines the gate. The universe is restored (130
+retained over 68 dates, H0 **MET** at the recorded numbers); an unsizable
+candidate stays in it, is counted by H0, and contributes **$0**, disclosed on its
+own line. Regression test pins that H0's counts do not move when the floor fires.
+
+**(3) `selection_order` criterion (4) reworded.** "Positive in all three years"
+was unsatisfiable on a PRIMARY spanning two calendar years. The implementation
+was already correct (`all(v > 0 for v in ymeans.values())`, every year present,
+with an inline disclosure); only the WORDING was wrong, in the printed string and
+in the pre-registration. Both now read "positive in every calendar year present
+in the arm's population", with a dated wording-correction note. Implementation
+untouched, study NOT re-run — it is POWER-STOPPED and closed on this book.
 
 ---
 

@@ -24,7 +24,32 @@ A study may also declare extra ARMS (`STUDY_ARMS`) — the same module run again
 with one flag flipped, filed under its own report stem, positions CSV and chart
 pages. `run account_sim` therefore prints both the frozen, path-independent book
 and the post-hoc compounding sensitivity in one command, with neither arm able
-to overwrite the other's artifacts. The exit code is the worst arm's.
+to overwrite the other's artifacts. The exit code is the worst arm's, real
+failures only — see "Designed refusals" below.
+
+Retired studies. A study whose inputs are gone for good (gitignored scratch,
+deleted, unrecoverable — see `combined_exit_study.py` / `underlying_exit_study.py`
+for the worked examples) is marked `retired=` in `scripts.study_map.catalog`,
+never deleted or silently dropped from `discover()` (a study module with no
+catalog entry still fails the test suite). `run --all` excludes retired
+studies from the bulk run and prints one notice line per skip; `run <name>`
+still runs a retired study directly, printing a notice first, for anyone who
+wants to see it fail on the missing file with their own eyes.
+
+Designed refusals. Some studies exit non-zero ON PURPOSE — a pre-registered
+calibration or power gate not cleared, or (like `v4_bridge.py`) a guard that
+refuses to compare a book against itself. `README.md` calls this out: "a
+non-zero exit is often the correct answer." Such a study declares which exit
+codes mean this by setting a module-level `DESIGNED_REFUSAL_EXIT_CODES` (a
+set of ints) — see `v4_bridge.py` for the convention. `run --all` reads it
+(via `ast`, the same no-import approach as `discover()`, since two studies do
+real work at import time) and reports a matching exit code as REFUSED, not
+FAILED: distinct in the run-by-run status line, excluded from the `***
+STUDY FAILURES ***` tally and from `main()`'s own non-zero return, and its
+report IS promoted to `-latest.txt` same as a clean run — the refusal message
+is itself the current, correct, quotable status, not something to discard in
+favour of a stale prior report. A study with no `DESIGNED_REFUSAL_EXIT_CODES`
+(the default) has every non-zero exit treated as a real failure, unchanged.
 
 It also re-renders `docs/study-map.html`, so the readable one-page map of the
 whole package always quotes the newest report. That step is best-effort: the
@@ -149,6 +174,32 @@ def discover() -> dict[str, str]:
         lines = [ln.strip() for ln in doc.strip().splitlines() if ln.strip()]
         out[path.stem] = lines[0] if lines else "(no docstring)"
     return out
+
+
+def _refusal_codes(name: str) -> frozenset[int]:
+    """Exit codes `name` declares as a DESIGNED refusal — see the "Designed
+    refusals" note in this module's docstring and `v4_bridge.py`'s
+    `DESIGNED_REFUSAL_EXIT_CODES` for the worked example.
+
+    Parsed with `ast`, never imported, for the same reason as `discover()`:
+    two studies do real work at import time, so importing every study just to
+    read one constant would run them.
+    """
+    path = STUDY_DIR / f"{name}.py"
+    if not path.exists():
+        return frozenset()
+    tree = ast.parse(path.read_text())
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "DESIGNED_REFUSAL_EXIT_CODES"
+                   for t in node.targets):
+            continue
+        try:
+            return frozenset(ast.literal_eval(node.value))
+        except (ValueError, TypeError):
+            return frozenset()
+    return frozenset()
 
 
 def _git(*args: str) -> str:
@@ -277,12 +328,19 @@ def _render_charts(name: str, argv: list[str],
 
 
 def run_one(name: str, extra: list[str], dry_run: bool = False,
-            stem: str | None = None) -> tuple[int, Path]:
+            stem: str | None = None,
+            refusal_codes: frozenset[int] = frozenset()) -> tuple[int, Path]:
     """Run study `name` and capture its report under `stem` (default `name`).
 
     `stem` is what an extra arm is filed as (`account_sim-compounding`): the
     module that runs is still `name`, so the two arms of one study cannot write
     over each other's stamped transcript or `-latest` report.
+
+    `refusal_codes` are exit codes `name` declared (via
+    `DESIGNED_REFUSAL_EXIT_CODES`, see this module's docstring) as a DESIGNED
+    refusal rather than a failure — a non-zero exit in that set is treated
+    like a clean run: `-latest.txt` IS promoted, just with a note instead of a
+    FAILED warning.
     """
     stem = stem or name
     argv = _merge_args(name, extra)
@@ -312,8 +370,15 @@ def run_one(name: str, extra: list[str], dry_run: bool = False,
                   f"{'=' * 78}\n")
         fh.write(footer)
     print(footer, end="")
-    if rc == 0:
+    if rc == 0 or rc in refusal_codes:
+        # A designed refusal is a legitimate, current, quotable report — the
+        # gate/guard message IS the study's correct status right now, not
+        # something to hide behind a stale prior -latest.txt.
         latest.write_text(out_path.read_text())
+        if rc != 0:
+            print(f"\n*** {stem} exited {rc} — a DESIGNED REFUSAL declared in its own "
+                  f"DESIGNED_REFUSAL_EXIT_CODES, not a failure; {latest.name} promoted "
+                  f"as usual. ***", file=sys.stderr)
     else:
         # A failed run (typo'd flag, gate crash) must not clobber the canonical
         # report that the map, charts, and study_review all quote — and with
@@ -383,29 +448,57 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         ap.error(f"unknown study {unknown[0]!r}; known: {', '.join(studies)}")
 
-    # (report stem, module name, that arm's argv, its chart modules, rc)
+    # Retired studies (scripts.study_map.catalog) are excluded from --all's
+    # bulk run but stay runnable by explicit name — see this module's
+    # docstring "Retired studies" note. Imported here, not at module scope,
+    # for the same reason as the map import below.
+    from scripts.study_map.catalog import retired_studies
+    retired = retired_studies()
+    skipped: list[str] = []
+    if args.all:
+        skipped = [n for n in names if n in retired]
+        names = [n for n in names if n not in retired]
+        for n in skipped:
+            print(f"SKIPPING {n} (retired): {retired[n]}\n")
+    else:
+        for n in names:
+            if n in retired:
+                print(f"NOTE: {n} is RETIRED — {retired[n]}\n"
+                      f"  Running anyway because it was named explicitly.\n")
+
+    # (report stem, module name, that arm's argv, its chart modules, rc, refused)
     results = []
     for name in names:
+        codes = _refusal_codes(name)
         for stem, arm_extra, charts in arm_plan(name, extra):
-            rc, _path = run_one(name, arm_extra, args.dry_run, stem=stem)
-            results.append((stem, name, arm_extra, charts, rc))
+            rc, _path = run_one(name, arm_extra, args.dry_run, stem=stem,
+                                refusal_codes=codes)
+            results.append((stem, name, arm_extra, charts, rc, rc != 0 and rc in codes))
 
     if args.dry_run:
         return 0
 
     print("\n" + "=" * 78)
     print("DONE — reports:" if args.no_handoff else "DONE — reports written:\n")
-    for stem, _name, _arm_extra, _charts, rc in results:
-        status = "" if rc == 0 else f"  *** FAILED rc={rc} ***"
+    for stem, _name, _arm_extra, _charts, rc, refused in results:
+        if rc == 0:
+            status = ""
+        elif refused:
+            status = f"  (DESIGNED REFUSAL, exit {rc} — see report)"
+        else:
+            status = f"  *** FAILED rc={rc} ***"
         rel = (OUT_DIR / f"{stem}-latest.txt").relative_to(ROOT)
         print(f"  {rel}{status}")
+    for n in skipped:
+        print(f"  {n}  — SKIPPED (retired): {retired[n].split(' — ', 1)[-1][:80]}…")
 
-    # Only a successful run wrote a new report + positions CSV worth quoting;
-    # a failed run leaves whatever chart page already existed alone (its own
-    # "*** FAILED ***" line above is the visible signal for that case). Each
-    # arm renders its OWN pages from its OWN positions CSV.
-    for _stem, name, arm_extra, charts, rc in results:
-        if rc == 0:
+    # A successful run OR a designed refusal wrote a new report + (for
+    # account_sim) positions CSV worth quoting; a real failure leaves whatever
+    # chart page already existed alone (its own "*** FAILED ***" line above is
+    # the visible signal for that case). Each arm renders its OWN pages from
+    # its OWN positions CSV.
+    for _stem, name, arm_extra, charts, rc, refused in results:
+        if rc == 0 or refused:
             _render_charts(name, _merge_args(name, arm_extra), charts)
 
     # Imported here, not at module scope: the map reads every report in the
@@ -422,7 +515,13 @@ def main(argv: list[str] | None = None) -> int:
               "   (graded: analyst A/B + validator + digest)")
         print("  or paste the report above into Claude and ask for a write-up.")
     print("=" * 78)
-    failed = [(stem, rc) for stem, _n, _a, _c, rc in results if rc]
+    failed = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if rc and not refused]
+    refusals = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if refused]
+    if refusals:
+        # Informational only — not a failure, so this stays off stderr and out
+        # of the non-zero-exit calculation below.
+        print("\n  DESIGNED REFUSALS (not failures): "
+              + ", ".join(f"{n} (exit {rc})" for n, rc in refusals))
     if failed:
         # To stderr, after everything else: with --all a single study's failure
         # is easy to lose in thousands of report lines, and the non-zero exit
@@ -431,9 +530,11 @@ def main(argv: list[str] | None = None) -> int:
               + ", ".join(f"{n} (exit {rc})" for n, rc in failed)
               + " — their -latest.txt was NOT updated; "
               "scroll up for each one's output ***", file=sys.stderr)
-    # The worst arm's / study's code: one failing arm fails the command, and
-    # the arms that succeeded still promoted their own -latest reports.
-    return max(rc for *_rest, rc in results)
+    # The worst arm's / study's code among REAL failures only: a designed
+    # refusal must not make `run --all` (or `make study-all`) look broken —
+    # that is the whole point of declaring it. 0 when nothing real failed,
+    # even if every study that ran was a refusal.
+    return max((rc for *_rest, rc, refused in results if not refused), default=0)
 
 
 if __name__ == "__main__":

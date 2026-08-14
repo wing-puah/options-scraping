@@ -278,7 +278,24 @@ def _typed(row: dict) -> dict:
     # exit fired and the row would no longer be the one R4 validated. The
     # halving is applied to dollars only, exactly as `bear_deploy` applies its
     # sleeve fraction.
-    hedge_ct = max(1, int(HEDGE_SIZE * out["contracts"])) if out["contracts"] else None
+    #
+    # 2026-08-13 recorded follow-up (closed 2026-08-14): at contracts == 1,
+    # `int(HEDGE_SIZE * 1) == 0` used to be floored back UP to 1 — a FULL-size
+    # hedge where the arm specifies half-size. The floor now SKIPS the
+    # position instead of rounding up: `hedge_contracts` / `H_dol` are None
+    # when half-size rounds under one contract.
+    #
+    # This is a SIZING fact only, not a fill fact — the candidate stays in
+    # every fillable/universe count (`strict`, `keep`, H0's fill gate) exactly
+    # as before; a None `H_dol` must be coalesced to $0 wherever a caller sums
+    # or correlates it (ARM H does not take the position, so it contributes
+    # $0 — same treatment as "no pick that day"). Do NOT filter these rows out
+    # of the candidate universe: that flips H0 (a recorded gate) by conflating
+    # "fillable but unsizable" with "unfillable". The whole ARM H programme is
+    # POWER-STOPPED on this book (next-steps.md §2.3), so this changes no
+    # conclusion — only which $0 rows disclose as unsizable in the census.
+    raw_ct = int(HEDGE_SIZE * out["contracts"]) if out["contracts"] else None
+    hedge_ct = raw_ct if raw_ct and raw_ct >= 1 else None
     out["hedge_contracts"] = hedge_ct
     out["H_dol"] = (out["R"] * denom * 100 * hedge_ct
                     if out["R"] is not None and hedge_ct else None)
@@ -870,8 +887,13 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
     print("  worst-decile cell and (b) is NOT EVALUABLE — not 'failed'.")
 
     # (a) correlation of the two DAILY DOLLAR series over every deployed date,
-    #     unfillable days carried at 0.
-    sleeve_dol = {d: (picks[d]["H_dol"] if d in picks else 0.0) for d in dep_dates}
+    #     unfillable days carried at 0 — and so is a day whose pick IS
+    #     fillable but unsizable at the ARM H half-size floor (H_dol is None
+    #     there; see `_typed`, 2026-08-14): ARM H does not take that
+    #     position, so it contributes $0, same as no pick that day.
+    sleeve_dol = {d: (picks[d]["H_dol"]
+                      if d in picks and picks[d]["H_dol"] is not None else 0.0)
+                  for d in dep_dates}
     pairs = [(dep[d]["dollars"], sleeve_dol[d]) for d in dep_dates]
     r_dol = VS.pearson([a for a, _ in pairs], [b for _, b in pairs])
     ci_dol = VS.corr_ci(pairs)
@@ -1041,7 +1063,12 @@ def h3_sizing(picks: dict[str, dict], dep: dict, dep_dates: list[str],
     print("  beat the hedge the operator ALREADY HAS, not just the empty seat.")
     print("  (i) the deployed ladder alone; (ii) ladder + the SHIPPED bear sleeve")
     print("  (|delta| descending, 1/day, <= 1/2 size, config/deployment-rules.md §4).")
-    cal = {d: (picks[d]["H_dol"] if d in picks else 0.0) for d in dep_dates}
+    # A pick that is fillable but unsizable at the ARM H half-size floor
+    # (H_dol None; see `_typed`, 2026-08-14) contributes $0 here too — ARM H
+    # does not take it, same as no pick that day.
+    cal = {d: (picks[d]["H_dol"]
+               if d in picks and picks[d]["H_dol"] is not None else 0.0)
+           for d in dep_dates}
     ladder = {d: dep[d]["dollars"] for d in dep_dates}
     bear = bear_sleeve_dollars(book, dep_dates)
     print(f"\n  calendar sleeve: {sum(1 for d in dep_dates if d in picks)} positions; "
@@ -1201,7 +1228,13 @@ def rec_substitutions(bear: list[dict], labels: list[str]):
             k = (longs[0] if longs else legs[0]).strike
             near = min(l.expiration for l in legs)
             far = max(l.expiration for l in legs)
-            hedge_ct = max(1, int(HEDGE_SIZE * t.contracts))
+            # ARM H half-size floor, same skip-don't-round-up rule as
+            # `_typed` (2026-08-14): at t.contracts == 1 the floor SKIPS
+            # (hedge_ct None, H_dol None) rather than rounding up to a
+            # full-size hedge. This is a sizing fact only — the row still
+            # goes into `out[label]` so R-based comparisons are unaffected.
+            raw_ct = int(HEDGE_SIZE * t.contracts)
+            hedge_ct = raw_ct if raw_ct >= 1 else None
             out[label].append(dict(
                 date=rec["date"], ticker=rec["ticker"],
                 expiry=near.isoformat(), far_exp=far.isoformat(),
@@ -1209,7 +1242,8 @@ def rec_substitutions(bear: list[dict], labels: list[str]):
                 dte=t.dte_entry, R=res["R"], E=None,
                 entry_net=t.entry_net, contracts=t.contracts,
                 exit_reason=res["exit_reason"],
-                H_dol=res["R"] * abs(t.entry_net) * 100 * hedge_ct))
+                H_dol=(res["R"] * abs(t.entry_net) * 100 * hedge_ct
+                       if hedge_ct is not None else None)))
             diag[f"built_{label}"] += 1
     return dict(out), dict(diag), dict(controls)
 
@@ -1517,6 +1551,19 @@ def main(argv=None) -> int:
     print(f"  candidate calendars retained           {len(keep):>5}  over "
           f"{len({str(r['date']) for r in keep})} dates, "
           f"{len({r['ticker'] for r in keep})} tickers")
+    # 2026-08-14: the ARM H half-size floor (`_typed`'s `hedge_contracts`,
+    # None when HEDGE_SIZE * contracts rounds under one contract) is a
+    # SIZING fact, not a fill fact — "fillable but too small to half-size"
+    # is not "unfillable". It must NOT move `keep`/`strict`/H0's fill
+    # gate (a recorded gate: 75.6% deployed / 66.7% worst-decile MET), so
+    # unsizable candidates stay IN the universe here and are only skipped
+    # where ARM H actually sizes and sums dollars (h2_contribution's
+    # `sleeve_dol`, h3_sizing's `cal`, etc. — those coalesce a None hedge to
+    # $0, same as "no pick that day"). Disclosed, not excluded:
+    n_unsizable = sum(1 for r in keep if r["hedge_contracts"] is None)
+    if n_unsizable:
+        print(f"  ... of which unsizable at half-size    {n_unsizable:>5}  "
+              f"contribute $0 (ARM H sizing floor, 2026-08-14)")
 
     sub("entry-lag distribution under the LOOSE rule (sensitivity, not the universe)")
     print("  STRICT is not a single lag bucket: grid[0] is the first WEEKDAY after")

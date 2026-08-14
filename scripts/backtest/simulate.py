@@ -112,6 +112,19 @@ def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None,
     complete single-basis book that can be read on its own and older rows
     ignored.
 
+    ⚠️ THAT IS THE INTENT, AND THE EXPORT DOES NOT CURRENTLY HONOUR IT. This
+    function is correct; the value does not survive the trip to the sheet. The
+    `BacktestResults` tab header was never given the column name, so the value
+    lands in an unlabelled trailing field, and in the 2026-08-11 export the
+    labels are scrambled relative to their rows (measured 2026-08-14: 65 of 67
+    post-trail rows blank; 55 `BEAR_HE` labels on rows that predate the column;
+    7 of 13 `CREDIT` tags on positive-entry-price rows, which the branch below
+    cannot produce). Do not consume this column from an export until
+    `scripts/align_tab_headers.py` covers these tabs against `core._KEY_ORDER`
+    and the values are re-verified. Full write-up:
+    config/backtest-tuning/current.md §2026-08-14 study-suite triage FIXED;
+    contract note: config/backtest-reference.md `exit_basis`.
+
     Reported in merge-precedence order, so the label always names the profile
     that actually governed the exit:
 

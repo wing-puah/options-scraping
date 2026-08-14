@@ -106,7 +106,8 @@ standard that is the only precedent here that ever passed:
 2. **median gain positive among AFFECTED dates** (not all dates) and **≥25
    affected dates**;
 3. **every LOO fold positive**;
-4. **positive in all three years**;
+4. **positive in every calendar year present in the arm's population**
+   [wording corrected 2026-08-14 — see "Wording correction" below];
 5. holds on the SHIPPED exit config, not only a variant;
 6. survives `protocol.window_cuts` AND the **ex-BOTH-windows cut added by hand** —
    `window_cuts()` drops only one window at a time, and the vol_sleeve straddle
@@ -144,6 +145,20 @@ the same book is second-order in-sample. The only mitigations are that these are
 **mechanical entry-side rules with no fitted thresholds**, and that adoption
 requires out-of-fold survival. That caveat does not disappear if the numbers look
 good, and it is why nothing ships from this study under any outcome.
+
+### Wording correction (2026-08-14, post-run — labelled, not a re-registration)
+
+Criterion (4) originally read "positive in all three years." The PRIMARY
+population spans only **two** calendar years (2025, 2026), which makes that
+literal wording unsatisfiable by construction — a registration bug the build
+exposed, not a finding about the arms. The implementation was already correct
+— `selection_order.py` evaluates "every year present positive" and prints an
+inline DISCLOSURE saying so whenever the population spans fewer than three
+years — so this corrects the WORDING above to match the implementation:
+**"positive in every calendar year present in the arm's population."** No
+threshold, no measured number, and no arm's PASS/FAIL under criterion (4)
+moves. `selection_order` is POWER-STOPPED and closed on this book; this
+correction does not reopen it or license a re-run on these dates.
 
 ### Build notes (not part of the registration)
 

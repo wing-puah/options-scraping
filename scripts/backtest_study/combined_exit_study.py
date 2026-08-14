@@ -1,4 +1,35 @@
-"""Combined exit-mechanism study: real + proxy-priced trades, one exit-rule table.
+"""RETIRED 2026-08-14 — see scripts/study_map/catalog.py's entry for this study.
+
+Its second input, backtests/results_proxy.csv, is gitignored scratch
+(backtests/* is disposable, .gitignore:15-19) that was deleted long ago and is
+not recoverable. The file that DOES exist today, backtests/proxy_results.csv,
+was never the same file — this study's constant was an author transposition
+that never matched config/backtest.yml's actual output name, so there is no
+"just repoint it" fix. Do not repoint the constants below at a surviving file:
+backtests/results.csv is now a 4-row, 2-date rolling file every `backtest.py`
+run stomps, and a fresh run against it could be mistaken for a confirmation of
+the recorded verdict rather than what it would actually be — noise from a
+different, much smaller book. See config/backtest-tuning/next-steps.md §0c(B)
+for the full diagnosis.
+
+Its recorded verdict (Attempts 8, 9, 12) already lives in
+config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md and is
+quoted in scripts/study_map/catalog.py — neither needs this script to run
+again. `run --all` (scripts/backtest_study/run.py) excludes this study from
+the bulk run; `run combined_exit_study` still runs it directly, with a printed
+retirement notice, for anyone who wants to see it fail on the missing file.
+
+Porting this study onto scripts/backtest_study/book.py (the pooled real+proxy
+loader every other study now uses) is possible but was deliberately NOT done
+as part of this retirement — it imports Trade/replay from
+exit_mechanism_study.py, a separate, older implementation than the FROZEN
+harness.py that book.py replays against, so swapping loaders is a design
+decision about which engine to trust, not a mechanical fix. Only do it if this
+study is wanted live again.
+
+---
+
+Combined exit-mechanism study: real + proxy-priced trades, one exit-rule table.
 
 exit_mechanism_study.py answers "did the production exit rules reproduce
 backtests/results.csv" and tunes variants on that REAL set alone. This script

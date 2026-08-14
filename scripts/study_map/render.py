@@ -25,6 +25,8 @@ TITLE = "Backtest Study Map"
 
 _KIND_NOTE = {
     "verdict": "quoted from the report's own VERDICT block",
+    "refusal": "BY DESIGN — the study declared this exit code as a pre-registered "
+               "gate or guard declining to answer, not a broken run",
     "failure": "the run did not finish — this is where it stopped",
     "matched": "lines stating a pre-registered criterion, quoted in order",
     "tail": "no verdict block in this report — this is its last few lines, "
@@ -108,10 +110,16 @@ def _diagram(counts: dict[str, int]) -> str:
 # ── cards ─────────────────────────────────────────────────────────────────────
 def _run_state(run: summary.RunSummary) -> str:
     if not run.ran:
+        if run.retired:
+            return '<span class="run-state"><span class="retired-label">retired</span></span>'
         return '<span class="run-state">never run</span>'
     when = run.run_at.split()[0] if run.run_at else ""
     if run.ok:
         mark = '<span class="good">ok</span>'
+    elif run.refused:
+        # A designed refusal is not "bad" — it is the study correctly
+        # declining to answer. Its own visual class, not .bad's warning tone.
+        mark = f'<span class="refused">{_e(run.status)}</span>'
     else:
         mark = f'<span class="bad">{_e(run.status)}</span>'
     return f'<span class="run-state">last run {_e(when)} · {mark}</span>'
@@ -135,7 +143,14 @@ def _run_block(run: summary.RunSummary) -> str:
         meta.append(f'<span><b>MISSING</b> {_e(", ".join(run.missing_inputs))}</span>')
 
     caveats = []
-    if not run.ok:
+    if run.refused:
+        caveats.append('<p class="caveat">This run exited non-zero BY DESIGN — '
+                       f'{_e(run.name)} declared exit {run.exit_code} as a designed refusal '
+                       '(a pre-registered gate not met, or a guard refusing to compare a '
+                       'book against itself). Correct behaviour, not a broken run — see '
+                       '<code>scripts/backtest_study/run.py</code>\'s "Designed refusals" '
+                       'note.</p>')
+    elif not run.ok:
         caveats.append('<p class="caveat is-warning">This run exited non-zero. For most '
                        'studies that is a calibration or input gate refusing to print '
                        'numbers it cannot vouch for — read it as the gate working, not '
@@ -172,16 +187,23 @@ def _run_block(run: summary.RunSummary) -> str:
 
 def _card(name: str, study: catalog.Study, run: summary.RunSummary) -> str:
     state = study.state
-    return f"""    <article class="card is-{state}">
+    card_cls = f"card is-{state}" + (" is-retired" if study.retired else "")
+    retired_pill = ('<span class="pill is-retired">retired</span>'
+                    if study.retired else "")
+    retired_note = (f'      <p class="caveat is-warning">{_rich(study.retired)}</p>'
+                    if study.retired else "")
+    return f"""    <article class="{card_cls}">
       <div class="card-head">
         <h3>{_e(name)}.py</h3>
         <span class="pill is-{state}">{_e(catalog.STATES[state])}</span>
+        {retired_pill}
         {_run_state(run)}
       </div>
       <div class="qa">
         <p class="q"><span class="label">Asks</span>{_rich(study.question)}</p>
         <p class="v"><span class="label">Verdict</span>{_rich(study.verdict)}</p>
       </div>
+{retired_note}
 {_run_block(run)}
     </article>"""
 

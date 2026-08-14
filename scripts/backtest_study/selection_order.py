@@ -515,9 +515,11 @@ def evaluate_arm(name: str, rows, affected: set, band, label: str) -> dict:
                                         for y, v in ymeans.items())
           + f"  -> {'PASS' if c4 else 'FAIL'}")
     if len(ymeans) < 3:
-        print(f"      DISCLOSURE: the registration says 'positive in all three "
-              f"years'; this population spans {len(ymeans)}. Evaluated as EVERY "
-              f"year present positive —")
+        print(f"      DISCLOSURE: criterion (4) reads 'positive in every calendar "
+              f"year present in the arm's population' (wording corrected "
+              f"2026-08-14 — see the pre-registration; the implementation is "
+              f"unchanged and no number moves); this population spans "
+              f"{len(ymeans)}. Evaluated as EVERY year present positive —")
         print("      requiring three on a two-year population would make the "
               "criterion unsatisfiable by construction. Recorded as a "
               "registration-wording note, not a relaxation.")
