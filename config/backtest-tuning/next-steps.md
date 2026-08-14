@@ -14,10 +14,12 @@ bear_put demotion §1.4, and the `volume_signal` study with its infra and tests
 (merges `66cd01a`, `6ce3330`; latest `c5fc85b` adds the study-run chart
 re-render and its tests).
 
-Suite state as last measured (08-13): 896 passed, 1 skipped
-(`test_live_loop.py` self-skips where the IBKR snapshot data is absent), 2
-pre-existing `test_underlying_features.py` beta AttributeErrors — **still open,
-unverified since**; re-run `pytest` before trusting that count.
+Suite state **re-measured 2026-08-14: 1,093 passed, 2 errors in 15.5s.** The 2
+errors are the same pre-existing `test_underlying_features.py` beta
+`AttributeError: 'function' object has no attribute 'cache_clear'`
+(`:211`) — **still open**, now confirmed to survive to 08-14 rather than merely
+unverified. (Was 896 passed / 1 skipped on 08-13; `test_live_loop.py` no longer
+self-skips here, the IBKR snapshot data is present.)
 
 ## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
 
@@ -47,6 +49,122 @@ Optional 30-minute step, both already recorded as follow-ups: close the
 follow-up (1) says fix it before any re-run — four re-runs have happened since;
 note SECONDARY now also fails A3 at 25.1% DD), and change ARM H's sizing floor
 from `max(1, int(0.5×c))` to skipping when half-size is under one contract.
+
+## 0c. Study suite — 6 FAILING, triaged 2026-08-14, NOTHING FIXED YET
+
+`backtest_study run --all` reports six failures. They are **three unrelated
+causes**, not one, and only the first is a real problem:
+
+**(A) The DEBIT_PROD exact-replay gate can never pass again — 3 studies.**
+`bear_position_study`, `exit_switch_mech_study`, `exit_switch_structure_study`
+(exit 1). The gate demands every real debit row replay bit-exactly under
+`DEBIT_PROD` (pt .90 / sl .75 / tef .75, **no trail**). It now gets 289/301
+exact, **12 HARD**, replay $22,510.70 vs stored $27,655.70 (**−$5,145.00**, all
+of it from those 12 rows).
+
+The 12 are **12/12 mech cell BEAR_HE**, and `trailing_stop` appears in *no other
+cell* (BEAR_HE 12, LVOL 0, RB_EVOL 0, unlabelled 0). Every one carries
+`created_datetime` after `31cb935` (2026-07-22 21:28) landed — i.e. they were
+produced by the **shipped `regime_exit.cells.BEAR_HE` trail**, not by legacy
+pre-Attempt-10 drift. (The `be_after` ratchet shipped `470b95f`, 2026-08-12,
+*after* the 2026-08-11 15:38 export — which is why the export shows zero
+`be_stop` and why that is not evidence against the above.)
+
+Production resolves a per-row effective config (`simulate.py:150-165`,
+`base → structure → regime`); the frozen harness takes flat call args and never
+sees the signal date (`harness.py:113`, `DEBIT_PROD` at `book.py:113`). **So the
+gate asserts a property production stopped having on 2026-07-22, and no future
+export can satisfy it** unless the overrides were disabled at simulation time.
+`BacktestResults` is append-only with no dedup (`core.py:58`), so a re-run adds
+beside the offending rows rather than replacing them.
+
+`exit_switch_mech_study.py:26-28` ("every DEBIT row reproduces DEBIT_PROD
+exactly") is now **factually false** and must be corrected in any fix.
+
+The gate is one predicate over one loader, **duplicated verbatim three times** —
+fixing `load_debit_trades` fixes all three; fixing only the mech study's print
+does not:
+- origin: `exit_switch_mech_study.py:245-260` (`_calib` at `:222-228`), print +
+  `sys.exit(1)` at `:519-529`
+- `bear_position_study.py:136-140` (re-implemented, no detail print)
+- `exit_switch_structure_study.py:230-234` (same)
+
+**The asymmetry that decides the fix.** The two exit-switch studies read stored
+outcomes *only inside the gate* and re-`replay()` everything they report — their
+estimands are clean, they are merely blocked. **`bear_position_study.py:77` reads
+`realized_pnl_pct` straight off the row as `R`**, and 9 of the 12 bad rows are
+`bear_put_spread`/`long_put`, squarely its population. Its docstring line 13
+("R = realized_pnl_pct under PROD") is false for those rows. **That study is
+contaminated, not just blocked** — and it feeds `deployment-rules.md`
+§"Bear positions — hedge sleeve".
+
+TODO (recommended route — precedent-following, not a new licence):
+- [ ] Change `load_debit_trades` (`exit_switch_mech_study.py:245-260`) to tally
+      `exact / near / superseded-basis / hard` separately, and `sys.exit(1)`
+      only on a *true* hard mismatch (a row the harness cannot price at all).
+      Identify superseded-basis by the `exit_basis` column (`simulate.py:107-135`,
+      `backtest-reference.md:130`) when present, else mech-cell + `created_datetime`.
+      Keep the rows in the book tagged `calibrated=False` and let the variant
+      tables re-replay them as they already do. **This is exactly the case
+      `book.py:24-51` already argues and `account_sim` already runs on.**
+- [ ] Fix `bear_position_study.py:77` to derive `R` from
+      `replay(t, **DEBIT_PROD)["pnl_pct"]` instead of the stored column.
+- [ ] Correct `exit_switch_mech_study.py:26-28`; restate the `stored` total check
+      as "over calibrated rows only"; record the amendment in `current.md`.
+- [ ] Do **not** simply drop the 12 rows. They are not a random 6% of BEAR_HE
+      (12/203) — they are precisely the rows where the shipped rule changed the
+      outcome, i.e. maximum-signal rows in the exact cell under test. Dropping
+      them biases the estimate and *would* violate the pre-registration; keeping
+      and re-replaying them does not.
+- [ ] Alternative held in reserve, deliberately NOT chosen: re-export with
+      `regime_exit`/`structure_exit` disabled. Restores the literal frozen basis,
+      but yields a book that no longer reflects production, needs a `v5_` tab
+      (append-only), and re-simulates ~406 rows against drifted pricing caches —
+      big, drift-prone, and its only unique benefit is already achievable per-row
+      by re-replaying.
+
+**(B) Two studies point at scratch CSVs that no longer exist — retire them.**
+`combined_exit_study` (`:75-76`) and `underlying_exit_study` (`:31-32`) crash on
+`FileNotFoundError`. `backtests/*` is gitignored, disposable, periodically
+deleted (`.gitignore:15-19`), so these inputs were never recoverable.
+**Repointing the constants is NOT a fix** — count rows with `csv.DictReader`, not
+`wc -l`; embedded newlines in `daily_price_csv` inflate line counts ~4×:
+- `results.csv` is **4 rows on 2 dates** (Attempt 12 ran on 94 real debit + 22
+  credit). It is a rolling file every `backtest.py` run stomps
+  (`config/backtest.yml:361`).
+- `proxy_results.csv` is **15 rows**. `combined_exit_study`'s
+  `results_proxy.csv` is an **author transposition that never matched the
+  writer** — `config/backtest.yml:374` has said `proxy_results.csv` since that
+  block was introduced.
+- `v2_results_nocreditdiff.csv` **is** the genuine rename of
+  `v2_BacktestResults_nocreditdiff.csv` (66 rows, 12 credit, same window as
+  `archive/02-…-attempts-8-12.md:65-68` cites) — but `underlying_exit_study`'s
+  *other* input has **0 credit rows** today, so `load_credit_rows` returns `[]`
+  and the study emits a degenerate empty report regardless of the rename.
+
+TODO:
+- [ ] Mark both **archival/retired** in `scripts/study_map/catalog.py` (a study
+      with no catalog entry fails the suite) and stop running them in `--all`.
+      Their verdicts are already recorded and their write-ups live in
+      `archive/02-credit-debit-split-attempts-8-12.md` (Attempts 8, 9, 12);
+      neither is named in `current.md`. `exit_switch_mech_study.py:516-530`
+      already carries the equivalent validation against the live book.
+- [ ] Do **not** repoint and re-run: numbers off a 4-row wrong-vintage book
+      could be mistaken for a fresh confirmation of the "reference" verdict.
+- [ ] Porting `combined_exit_study` to `book.py` is possible but is a **design
+      decision, not a loader swap** — it imports `Trade`/`replay` from
+      `exit_mechanism_study.py:66-145`, a separate older implementation from the
+      FROZEN `harness.py` that `book.py` uses (`book.py:104`). Only do this if
+      the study is wanted live again.
+
+**(C) `v4_bridge` exit 3 — WORKING AS DESIGNED, no action.** Not a failure.
+`_resolve()` (`v4_bridge.py:266-267`) falls back to the bare
+`analysis - AnalysisClaude.csv` when the `v3_`/`v4_` names are absent, both
+sides resolve to the same file, `detect_era()` (`:133-134`) finds
+`score_flow`/`score_dealer` on both, and `:284-289` aborts rather than compare a
+book against itself. Matches `pre-registrations/v4_bridge.md`. See §2.2 — the
+runner should stop reporting this as a failure, or the expectation should be
+documented where `--all` is read.
 
 ## 1. Decisions made 2026-08-13 (done, no action)
 
@@ -95,7 +213,8 @@ Plan sketch (pre-register before running, per house rules):
 ### 2.2 v4 composition bridge — WAITING ON DATA, do not force
 `scripts/backtest_study/v4_bridge.py`, gate `MIN_V4_DATES = 20`; v4 accrues
 ~1 date/day. Until it fires, deploy under the v3-derived rules unchanged.
-Do not lower the gate.
+Do not lower the gate. Its **exit 3 in `--all` is the designed refusal, not a
+defect** (§0c(C)) — do not "fix" it by pointing `--v4-csv` at a v3 export.
 
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
 The whole hedge programme (calendar / put calendar / diagonal / sweep
@@ -137,6 +256,12 @@ arming rows), bull_put band re-read on the next independent window.
 - **Prompt/infra**: pipeline `core.py` refactor deferred; PostToolUse hook
   never runs pytest. (The worktree pytest wart is FIXED 2026-08-13:
   `test_live_loop.py` self-skips when the snapshot data is absent.)
+  The delegation-nudge PreToolUse hook is FIXED 2026-08-14: `is_read_bash` was
+  blind to `source .venv/bin/activate && <read>` and `echo "==="; <read>` — the
+  two dominant idioms here — so it undercounted ~60% and first fired at true-read
+  14. It now skips setup/banner segments, and thresholds tightened to
+  `FIRST=4 / REPEAT=3`. Still **advisory by design**: `systemMessage` only, no
+  `permissionDecision`, so it can nudge but never enforce delegation.
 
 ## 3. Standing rules the next session must not re-litigate
 

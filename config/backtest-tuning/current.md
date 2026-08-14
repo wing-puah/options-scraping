@@ -175,6 +175,55 @@ accumulating. Prior state (2026-08-12 and older) is archived — see
 
 ---
 
+## 2026-08-14 — study-suite triage: the DEBIT_PROD exact-replay gate is **permanently unsatisfiable**, and `bear_position_study`'s R column is **partly contaminated**
+
+**Status: DIAGNOSED, NOTHING FIXED, NO VERDICT CHANGED.** No study was re-run to
+a conclusion and no shipped rule moves on this. The actionable list is
+[`next-steps.md`](next-steps.md) §0c; only the two findings that bear on the
+evidence base are recorded here.
+
+`backtest_study run --all` fails six studies. Three (`bear_position_study`,
+`exit_switch_mech_study`, `exit_switch_structure_study`) stop on the shared
+DEBIT_PROD calibration gate: 289/301 exact, **12 HARD**, replay $22,510.70 vs
+stored $27,655.70 (**−$5,145.00**, entirely from those 12).
+
+**Finding 1 — the gate cannot pass again, and that is a consequence of shipping,
+not a bug.** The 12 HARD rows are **12/12 mech cell BEAR_HE**, `trailing_stop`
+occurs in no other cell (LVOL 0, RB_EVOL 0), and every one has
+`created_datetime` after `31cb935` (2026-07-22 21:28). They are the **shipped
+`regime_exit.cells.BEAR_HE` trail's own output**. Production resolves a per-row
+effective config (`simulate.py:150-165`); the frozen harness replays one flat
+profile and never sees the signal date (`harness.py:113`, `book.py:113`). The
+gate therefore asserts a property production stopped having on 2026-07-22.
+`exit_switch_mech_study.py:26-28` — "every DEBIT row reproduces DEBIT_PROD
+exactly" — is now **false**. This does not disturb the BEAR_HE ship: its
+pre-registered rollback trigger (≥25 new affected BEAR+H/E dates,
+`deployment-evidence.md`) was always the forward mechanism and is untouched.
+
+**Finding 2 — `bear_position_study`'s evidence base is contaminated, not merely
+blocked.** The two exit-switch studies read stored outcomes *only* inside the
+gate and re-`replay()` every reported table, so their estimands are clean.
+**`bear_position_study.py:77` reads `realized_pnl_pct` off the row as `R`**, and
+9 of the 12 affected rows are `bear_put_spread`/`long_put` — its exact
+population. Its docstring line 13 ("R = realized_pnl_pct under PROD") is false
+for those rows. **Its DEMOTE-criteria result at n=164 should not be re-quoted
+until `R` is re-derived from `replay(t, **DEBIT_PROD)`.** The demotion itself
+already shipped as card veto §1.4 on separate evidence (2026-08-13) and is not
+withdrawn here; what is flagged is the study's own numbers.
+
+**Method note for anyone re-checking this:** count rows in these exports with
+`csv.DictReader`, **never `wc -l`** — embedded newlines inside `daily_price_csv`
+inflate line counts roughly 4× (`results.csv` reads as 16 lines, 4 rows). Two
+of the six failures were misjudged on `wc -l` counts before this was caught.
+
+The other three failures carry no finding: `combined_exit_study` and
+`underlying_exit_study` crash on deleted gitignored scratch inputs (retire
+them — verdicts already recorded in `archive/02-credit-debit-split-attempts-8-12.md`),
+and `v4_bridge` exit 3 is its designed refusal to compare a v3 book against
+itself.
+
+---
+
 ## 2026-08-14 — `selection_order` RUN: **POWER-STOPPED** at G0. Every re-ordering moves 7–14% of the book, so no arm reaches the pre-registered floor — nothing read, nothing refuted
 
 **Status: BUILT AND RUN, same day as its registration. Verdict POWER-STOPPED.

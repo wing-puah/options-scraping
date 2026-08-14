@@ -38,11 +38,18 @@ from pathlib import Path
 
 STATE_DIR = Path("/tmp/claude-delegation-nudge")
 
-# First nudge on the 5th inline read, then every 4th after it (9, 13, ...).
+# First nudge on the 4th inline read, then every 3rd after it (7, 10, ...).
 # CLAUDE.md's own exception is "a lookup answerable by ONE codegraph_explore
-# call" — one or two reads are unremarkable, five is an investigation.
-FIRST = 5
-REPEAT = 4
+# call" — one or two reads are unremarkable, four is an investigation.
+#
+# Tightened from 5/4 on 2026-08-14, together with the is_read_bash fix below.
+# The two changes belong together: the old classifier undercounted by ~60%, so
+# 5/4 against a true count is much stricter than 5/4 was against the old one.
+# Replaying one real session's 16 Bash calls: old classifier counted 6 (first
+# nudge at true-read 14, i.e. after the investigation was over), fixed
+# classifier counts 10 (first nudge at true-read 4).
+FIRST = 4
+REPEAT = 3
 
 # Shell binaries that mean "inspecting file contents". Deliberately excludes
 # git (state inspection, not bulk reading) and codegraph (the sanctioned tool
@@ -55,24 +62,48 @@ READ_BINARIES = {
 # Wrappers that prefix a real command; strip them before classifying.
 WRAPPERS = {"rtk", "proxy", "sudo", "command", "time", "nice", "xargs", "env"}
 
+# Preamble that carries no output of its own: environment setup and banners.
+# These are SKIPPED, and the next segment is classified instead. Without this
+# the classifier is blind to `source .venv/bin/activate && rtk grep …`, which
+# is the dominant idiom in this repo — CLAUDE.md mandates the venv activation
+# before every script — and to the `echo "=== header ==="; cat file` habit.
+SETUP_BINARIES = {
+    "source", ".", "cd", "echo", "printf", "export", "set", "ls", "pwd",
+    "mkdir", "touch", "true", "date", "which", "clear",
+}
+
 SPLIT = re.compile(r"\|\||&&|[|;\n]")
 
 
-def is_read_bash(command: str) -> bool:
-    """True if a shell command LEADS with a file-reading binary.
-
-    Only the head of the pipeline is classified, deliberately. Judging any
-    segment would count `pytest ... | tail -20` and `npm run build | grep error`
-    as file reading, which they are not — the pipe is formatting output the
-    command just produced. Leading with `grep`/`sed`/`cat` is the shape that
-    actually means "inspecting a file", and it is the shape this session used
-    (`rtk grep -n ... file.py`). Undercounting a `git show … | grep` is the
-    accepted cost of not crying wolf on every test run.
-    """
-    tokens = SPLIT.split(command or "", maxsplit=1)[0].strip().split()
+def _head_binary(segment: str) -> str:
+    """Leading binary of one shell segment, wrappers and VAR=val assignments stripped."""
+    tokens = segment.strip().split()
     while tokens and (tokens[0] in WRAPPERS or "=" in tokens[0]):
         tokens.pop(0)
-    return bool(tokens) and Path(tokens[0]).name in READ_BINARIES
+    return Path(tokens[0]).name if tokens else ""
+
+
+def is_read_bash(command: str) -> bool:
+    """True if a shell command's FIRST REAL segment is a file-reading binary.
+
+    Setup/banner segments (`source …`, `echo "=== x ==="`, `ls -l`) are skipped
+    and the next segment is classified. Classification then STOPS at the first
+    segment that is neither setup nor a read binary — it does not scan the whole
+    pipeline. That stopping rule is what keeps `pytest … | tail -20` and
+    `npm run build | grep error` uncounted: there the pipe formats output the
+    command just produced, which is not file reading. `source .venv/bin/activate
+    && python3 -m scripts.backtest_study run x | tail -40` stays uncounted for
+    the same reason — running a study is execution, not reading.
+
+    Undercounting a `git show … | grep` remains the accepted cost of not crying
+    wolf; git is deliberately absent from READ_BINARIES as state inspection.
+    """
+    for segment in SPLIT.split(command or ""):
+        head = _head_binary(segment)
+        if not head or head in SETUP_BINARIES:
+            continue
+        return head in READ_BINARIES
+    return False
 
 
 def counts(tool: str, payload: dict) -> bool:
