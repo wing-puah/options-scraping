@@ -14,12 +14,16 @@ bear_put demotion §1.4, and the `volume_signal` study with its infra and tests
 (merges `66cd01a`, `6ce3330`; latest `c5fc85b` adds the study-run chart
 re-render and its tests).
 
-Suite state **re-measured 2026-08-14: 1,093 passed, 2 errors in 15.5s.** The 2
-errors are the same pre-existing `test_underlying_features.py` beta
-`AttributeError: 'function' object has no attribute 'cache_clear'`
-(`:211`) — **still open**, now confirmed to survive to 08-14 rather than merely
-unverified. (Was 896 passed / 1 skipped on 08-13; `test_live_loop.py` no longer
-self-skips here, the IBKR snapshot data is present.)
+Suite state **re-measured 2026-08-14 after the study-suite repair: 1,149 passed,
+0 errors.** The two long-standing `test_underlying_features.py` beta
+`cache_clear` teardown errors are **CLOSED** — `_market`'s finalizer cleared the
+cache while the monkeypatched lambda was still installed (`monkeypatch` is a
+dependency of that fixture, so it tears down *after*); undo first, then clear.
+The tests always passed, but the synthetic SPY series was leaking into later
+tests through the `lru_cache`. (Was 1,093/2 earlier on 08-14; 896 passed / 1
+skipped on 08-13.)
+
+`backtest_study run --all` **exits 0** as of 2026-08-14 — see §0c.
 
 ## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
 
@@ -38,133 +42,120 @@ excluding the same picks whatever the order) is the shape of
 `CAP-BOUND-NOT-ORDER-BOUND`, but that label requires arms that CLEAR G0, so it
 is a **carry-forward, not a verdict**.
 
-Before any re-registration on a larger book, fix the one registration bug the
-build exposed: **criterion (4) "positive in all three years" is unsatisfiable on
-PRIMARY**, which spans two calendar years. It is implemented as "every year
-present positive" with an inline disclosure; the wording, not the
-implementation, is what needs correcting.
+The one registration bug the build exposed is **FIXED 2026-08-14**: criterion
+(4)'s "positive in all three years" was unsatisfiable on a PRIMARY spanning two
+calendar years. Only the WORDING was wrong — the implementation already did
+"every year present positive" with an inline disclosure — so the printed string
+and the pre-registration now read "positive in every calendar year present in the
+arm's population", under a dated wording-correction note. Implementation
+untouched, study not re-run.
 
-Optional 30-minute step, both already recorded as follow-ups: close the
-`account_sim` verdict-grammar hole (A1 holds / A5-A6 fail matches no label, and
-follow-up (1) says fix it before any re-run — four re-runs have happened since;
-note SECONDARY now also fails A3 at 25.1% DD), and change ARM H's sizing floor
-from `max(1, int(0.5×c))` to skipping when half-size is under one contract.
+Both of the carried 30-minute follow-ups are **DONE 2026-08-14**: the
+`account_sim` verdict-grammar hole is closed (grammar is now total, enforced by a
+test over all 32 criterion combinations; PRIMARY prints `FEASIBILITY NOT
+CONFIRMED`, and the SECONDARY A3 blowup at 25.1% DD has its own label), and ARM
+H's sizing floor now skips when half-size is under one contract instead of
+rounding up to a full one. Details in [`current.md`](current.md).
 
-## 0c. Study suite — 6 FAILING, triaged 2026-08-14, NOTHING FIXED YET
+## 0c. Study suite — was 6 FAILING, **ALL RESOLVED 2026-08-14**; `run --all` exits 0
 
-`backtest_study run --all` reports six failures. They are **three unrelated
-causes**, not one, and only the first is a real problem:
+The six failures were **three unrelated causes**. All three are fixed; the full
+write-up is in [`current.md`](current.md) §2026-08-14 (two entries: the gate
+correction and the runner/retirement work). Kept here in short form because the
+*reasoning* behind two of the choices should not be re-derived.
 
-**(A) The DEBIT_PROD exact-replay gate can never pass again — 3 studies.**
+**(A) The DEBIT_PROD exact-replay gate — FIXED by classifying, not by asserting.**
 `bear_position_study`, `exit_switch_mech_study`, `exit_switch_structure_study`
-(exit 1). The gate demands every real debit row replay bit-exactly under
-`DEBIT_PROD` (pt .90 / sl .75 / tef .75, **no trail**). It now gets 289/301
-exact, **12 HARD**, replay $22,510.70 vs stored $27,655.70 (**−$5,145.00**, all
-of it from those 12 rows).
+all stopped on a gate demanding every real debit row replay bit-exactly under
+`DEBIT_PROD`. Production stopped having that property on 2026-07-22, when
+`31cb935` shipped `regime_exit.cells.BEAR_HE` (trail .50/.50): it resolves a
+per-row effective config (`simulate.py:150-165`) while the frozen harness takes
+flat call args and never sees the signal date. No export could ever satisfy it.
 
-The 12 are **12/12 mech cell BEAR_HE**, and `trailing_stop` appears in *no other
-cell* (BEAR_HE 12, LVOL 0, RB_EVOL 0, unlabelled 0). Every one carries
-`created_datetime` after `31cb935` (2026-07-22 21:28) landed — i.e. they were
-produced by the **shipped `regime_exit.cells.BEAR_HE` trail**, not by legacy
-pre-Attempt-10 drift. (The `be_after` ratchet shipped `470b95f`, 2026-08-12,
-*after* the 2026-08-11 15:38 export — which is why the export shows zero
-`be_stop` and why that is not evidence against the above.)
+`harness_gate()` in `exit_switch_mech_study.py` is now the **single**
+implementation, called by all three studies. It classifies each row **exact /
+near-rounding-tie / superseded-basis / HARD** and stops only on HARD.
+Superseded-basis is identified mechanically, not by date heuristic:
+`unreachable_reasons(prod)` computes the exit reasons `replay()` cannot emit
+under a profile (for `DEBIT_PROD`: `trailing_stop`, `underlying_stop`,
+`be_stop`), so a stored row carrying one of those was by construction written
+under a different config. Measured: **289 exact / 0 near / 12 superseded / 0
+HARD**, calibrated totals matching to the cent, the whole −$5,145.00 isolated and
+reported. The 12 rows are **kept and re-replayed** — they are precisely the rows
+where the shipped rule changed the outcome, so dropping them would bias the cell
+under test. Proxy admission is unchanged (exact-only): a pre-registered
+POPULATION choice, not part of the gate.
 
-Production resolves a per-row effective config (`simulate.py:150-165`,
-`base → structure → regime`); the frozen harness takes flat call args and never
-sees the signal date (`harness.py:113`, `DEBIT_PROD` at `book.py:113`). **So the
-gate asserts a property production stopped having on 2026-07-22, and no future
-export can satisfy it** unless the overrides were disabled at simulation time.
-`BacktestResults` is append-only with no dedup (`core.py:58`), so a re-run adds
-beside the offending rows rather than replacing them.
+`bear_position_study.py`'s `R` is now `replay(t, **DEBIT_PROD)["pnl_pct"]`
+instead of the stored `realized_pnl_pct`. Contamination measured on the same
+book both ways: **12 rows, −$5,145.06**; bear_put mean R −0.1016 → −0.1069,
+`long_put` −0.570 → −0.627 (n=7). It made the bear book look *better* than it
+was, so the correction **strengthens** the demote reading — re-run verdict is
+still **DEMOTE TO VETO** and card veto §1.4 stands. (A naive row-level diff
+reports "95.7% of rows changed" — that is 4-decimal CSV round-trip noise; at a
+`NEAR_MISS_TOL` threshold it is 12 rows.) 15 tests in
+`tests/test_exit_replay_gate.py` pin all of this, including that a **true HARD
+row still exits 1**.
 
-`exit_switch_mech_study.py:26-28` ("every DEBIT row reproduces DEBIT_PROD
-exactly") is now **factually false** and must be corrected in any fix.
+⚠️ **NEW STANDING HAZARD — do NOT key anything on the `exit_basis` column.** This
+section previously recommended identifying superseded rows by that column. It
+exists in `_KEY_ORDER` (`scripts/backtest/core.py:61`) and the writer
+(`simulate.py:_exit_basis`) is correct, but it reaches the export as an
+**unlabelled 47th column** (the Sheets tab header was never given the name) and
+its values are **scrambled relative to their rows**. Measured 2026-08-14: of 67
+`BacktestResults` rows created after the trail shipped — every one of which should
+carry a basis — **65 are blank**, while **55 `BEAR_HE` and 11 `CREDIT` labels sit
+on rows created *before* the column existed**; **7 of 13 `CREDIT`-tagged rows have
+a positive entry price**, which `_exit_basis` cannot produce; and no
+`BEAR_HE`-tagged row has a `trailing_stop` exit. Root cause is the hazard
+CLAUDE.md warns about: `scripts/align_tab_headers.py` checks only the **analysis**
+tabs against `config.ROW_COLUMNS` and does **not** cover
+`BacktestResults`/`BacktestProxy` against `core._KEY_ORDER`.
+`config/backtest-reference.md`'s "blank = PROD-basis by definition" is **false on
+this export**; both that file and `simulate.py` now carry the warning.
 
-The gate is one predicate over one loader, **duplicated verbatim three times** —
-fixing `load_debit_trades` fixes all three; fixing only the mech study's print
-does not:
-- origin: `exit_switch_mech_study.py:245-260` (`_calib` at `:222-228`), print +
-  `sys.exit(1)` at `:519-529`
-- `bear_position_study.py:136-140` (re-implemented, no detail print)
-- `exit_switch_structure_study.py:230-234` (same)
+- [ ] **Operator action (a Sheets write, NOT taken):** extend
+      `align_tab_headers.py` to cover the two backtest tabs against
+      `core._KEY_ORDER`, fix the header, then re-verify the values against
+      entry-price sign before any study reads the column.
+- [ ] **Minor follow-up:** `book.py`'s `diag["debit_calib"]` still counts those
+      12 as `hard`, using the old vocabulary. Harmless there (it never gates and
+      always keeps real debit rows) but misleading in the three reports that
+      print it (`account_sim.py:1062`, `calendar_hedge.py:634`,
+      `volume_signal.py:97`). Aligning it to the four-way split changes no
+      admission decision and no study's numbers — three print sites. Its
+      docstring already carries the correction.
 
-**The asymmetry that decides the fix.** The two exit-switch studies read stored
-outcomes *only inside the gate* and re-`replay()` everything they report — their
-estimands are clean, they are merely blocked. **`bear_position_study.py:77` reads
-`realized_pnl_pct` straight off the row as `R`**, and 9 of the 12 bad rows are
-`bear_put_spread`/`long_put`, squarely its population. Its docstring line 13
-("R = realized_pnl_pct under PROD") is false for those rows. **That study is
-contaminated, not just blocked** — and it feeds `deployment-rules.md`
-§"Bear positions — hedge sleeve".
+**(B) `combined_exit_study` and `underlying_exit_study` — RETIRED.** Inputs are
+deleted gitignored scratch and were never recoverable. `catalog.py`'s `Study`
+gained a `retired` field (orthogonal to `state`: retirement is about whether a
+study can be RUN, not what it argued) plus `retired_studies()`; `--all` skips
+them with the reason printed, `run <name>` still runs one explicitly after a
+notice, and the study-map page renders a `retired` pill and caveat. **Do not
+repoint them at surviving files** — `results.csv` is 4 rows on 2 dates today
+(Attempt 12 ran on 94 real debit + 22 credit), `results_proxy.csv` was always an
+author transposition of the writer's `proxy_results.csv`, and although
+`v2_results_nocreditdiff.csv` IS the genuine rename, `underlying_exit_study`'s
+other input has 0 credit rows so it would emit an empty report anyway. Numbers
+off a 4-row wrong-vintage book would read as a fresh confirmation. Porting
+`combined_exit_study` to `book.py` stays a design decision, not a loader swap
+(it imports `Trade`/`replay` from the older `exit_mechanism_study.py`, not the
+frozen `harness.py`). Count rows with `csv.DictReader`, never `wc -l`.
 
-TODO (recommended route — precedent-following, not a new licence):
-- [ ] Change `load_debit_trades` (`exit_switch_mech_study.py:245-260`) to tally
-      `exact / near / superseded-basis / hard` separately, and `sys.exit(1)`
-      only on a *true* hard mismatch (a row the harness cannot price at all).
-      Identify superseded-basis by the `exit_basis` column (`simulate.py:107-135`,
-      `backtest-reference.md:130`) when present, else mech-cell + `created_datetime`.
-      Keep the rows in the book tagged `calibrated=False` and let the variant
-      tables re-replay them as they already do. **This is exactly the case
-      `book.py:24-51` already argues and `account_sim` already runs on.**
-- [ ] Fix `bear_position_study.py:77` to derive `R` from
-      `replay(t, **DEBIT_PROD)["pnl_pct"]` instead of the stored column.
-- [ ] Correct `exit_switch_mech_study.py:26-28`; restate the `stored` total check
-      as "over calibrated rows only"; record the amendment in `current.md`.
-- [ ] Do **not** simply drop the 12 rows. They are not a random 6% of BEAR_HE
-      (12/203) — they are precisely the rows where the shipped rule changed the
-      outcome, i.e. maximum-signal rows in the exact cell under test. Dropping
-      them biases the estimate and *would* violate the pre-registration; keeping
-      and re-replaying them does not.
-- [ ] Alternative held in reserve, deliberately NOT chosen: re-export with
-      `regime_exit`/`structure_exit` disabled. Restores the literal frozen basis,
-      but yields a book that no longer reflects production, needs a `v5_` tab
-      (append-only), and re-simulates ~406 rows against drifted pricing caches —
-      big, drift-prone, and its only unique benefit is already achievable per-row
-      by re-replaying.
-
-**(B) Two studies point at scratch CSVs that no longer exist — retire them.**
-`combined_exit_study` (`:75-76`) and `underlying_exit_study` (`:31-32`) crash on
-`FileNotFoundError`. `backtests/*` is gitignored, disposable, periodically
-deleted (`.gitignore:15-19`), so these inputs were never recoverable.
-**Repointing the constants is NOT a fix** — count rows with `csv.DictReader`, not
-`wc -l`; embedded newlines in `daily_price_csv` inflate line counts ~4×:
-- `results.csv` is **4 rows on 2 dates** (Attempt 12 ran on 94 real debit + 22
-  credit). It is a rolling file every `backtest.py` run stomps
-  (`config/backtest.yml:361`).
-- `proxy_results.csv` is **15 rows**. `combined_exit_study`'s
-  `results_proxy.csv` is an **author transposition that never matched the
-  writer** — `config/backtest.yml:374` has said `proxy_results.csv` since that
-  block was introduced.
-- `v2_results_nocreditdiff.csv` **is** the genuine rename of
-  `v2_BacktestResults_nocreditdiff.csv` (66 rows, 12 credit, same window as
-  `archive/02-…-attempts-8-12.md:65-68` cites) — but `underlying_exit_study`'s
-  *other* input has **0 credit rows** today, so `load_credit_rows` returns `[]`
-  and the study emits a degenerate empty report regardless of the rename.
-
-TODO:
-- [ ] Mark both **archival/retired** in `scripts/study_map/catalog.py` (a study
-      with no catalog entry fails the suite) and stop running them in `--all`.
-      Their verdicts are already recorded and their write-ups live in
-      `archive/02-credit-debit-split-attempts-8-12.md` (Attempts 8, 9, 12);
-      neither is named in `current.md`. `exit_switch_mech_study.py:516-530`
-      already carries the equivalent validation against the live book.
-- [ ] Do **not** repoint and re-run: numbers off a 4-row wrong-vintage book
-      could be mistaken for a fresh confirmation of the "reference" verdict.
-- [ ] Porting `combined_exit_study` to `book.py` is possible but is a **design
-      decision, not a loader swap** — it imports `Trade`/`replay` from
-      `exit_mechanism_study.py:66-145`, a separate older implementation from the
-      FROZEN `harness.py` that `book.py` uses (`book.py:104`). Only do this if
-      the study is wanted live again.
-
-**(C) `v4_bridge` exit 3 — WORKING AS DESIGNED, no action.** Not a failure.
-`_resolve()` (`v4_bridge.py:266-267`) falls back to the bare
-`analysis - AnalysisClaude.csv` when the `v3_`/`v4_` names are absent, both
-sides resolve to the same file, `detect_era()` (`:133-134`) finds
-`score_flow`/`score_dealer` on both, and `:284-289` aborts rather than compare a
-book against itself. Matches `pre-registrations/v4_bridge.md`. See §2.2 — the
-runner should stop reporting this as a failure, or the expectation should be
-documented where `--all` is read.
+**(C) `v4_bridge` exit 3 — now a first-class DESIGNED REFUSAL.** It was never a
+defect: it is the pre-registered refusal to compare a v3 book against itself.
+A study may now declare `DESIGNED_REFUSAL_EXIT_CODES = {…}` as a module constant,
+read by `run.py` via `ast` (never imported, same as `discover()`); such an exit
+promotes `-latest.txt`, prints under **DESIGNED REFUSALS (not failures)**, and is
+excluded from the return code. `v4_bridge` declares `{2, 3}`. Other studies stop
+on their own pre-registered calibration or power gates and are equally correct to
+do so. `MIN_V4_DATES` was NOT lowered and `--v4-csv` was NOT pointed at a v3
+export. `study_map` was taught the same two words (it was still printing
+`exit 3 [failure]` and `never run`), importing `run.py`'s `_refusal_codes` and
+`catalog`'s retired set rather than re-deriving either — `--check` now reads
+`refused (exit 3)` and `retired`. **An undeclared non-zero exit on a
+refusal-capable study still classifies as `failure`**, and that is pinned by a
+test: the refusal path must never swallow a real failure.
 
 ## 1. Decisions made 2026-08-13 (done, no action)
 
