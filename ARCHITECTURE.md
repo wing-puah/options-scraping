@@ -34,8 +34,15 @@ lib/                        ← shared modules, imported by scripts, never run d
                               `as_of_iv_cells` (pick a ticker's iv/iv_rank/iv_pct AS OF trade
                               date D from a parsed Barchart series, most-recent-on/before within
                               a staleness window, formatted: rank/pct as decimals, iv in
-                              points), `iv_pct_from_flow_rows` (read `{SYMBOL: iv_pct}` back off
-                              the enriched rows — how the analysis consumes it). The per-name
+                              points), `as_of_iv_cells_with_status` (the same pick plus WHY:
+                              ok | stale_fallback | out_of_window | empty_series | fetch_error,
+                              written to the `iv_pct_status` column — `out_of_window` means the
+                              feed answered but its ~2yr window, measured from the RUN date,
+                              starts after the trade date, so that date's IVpct is gone for good;
+                              `as_of_iv_cells` is now a thin wrapper dropping the status),
+                              `iv_pct_from_flow_rows` (read `{SYMBOL: iv_pct}` back off
+                              the enriched rows — how the analysis consumes it) and its sibling
+                              `iv_coverage_from_flow_rows` (`{SYMBOL: iv_pct_status}`). The per-name
                               "rich vs cheap" read (Barchart IV percentile) the framework's
                               Step-4 TF-vs-TF-S structure choice needs. Pure functions;
                               scrape/Drive I/O live in scripts/collector/fetch_iv_percentile.py. NO
@@ -116,7 +123,11 @@ scripts/                    ← entry points, each maps to a workflow step
                               (lib/iv_history.as_of_iv_cells; exact date else most-recent within
                               a staleness window), and APPEND columns to every row of that
                               ticker: `iv` (points), `iv_rank`/`iv_pct` (decimals),
-                              `iv_pct_enriched_on` (run date — provenance + resume marker). Same
+                              `iv_pct_enriched_on` (run date — provenance + resume marker),
+                              `iv_pct_status` (why those cells look the way they do — the run
+                              prints a DEPTH EXHAUSTED banner when `out_of_window` covers more
+                              than `DEPTH_EXHAUSTED_SHARE` of a date's pending tickers, i.e. the
+                              date has fallen off the far end of the rolling window). Same
                               enrich-in-place pattern as enrich_oi: NO separate cache tab — the
                               compiled file on Drive is the only store; checkpointed back every
                               50 tickers + on exit; resume is per-ticker via the marker (empty
@@ -334,7 +345,8 @@ direction-bearing vol columns (`IVspr`/`IVskew`, not scored), a per-ticker `IVpc
 (Barchart's options-overview IV percentile — share of the prior-1yr days with IV below today's,
 0–100 — scraped by `fetch_iv_percentile.py` and enriched as `iv_pct` onto the compiled flow
 file; the rich/cheap read that picks TF debit vs TF-S credit in framework Step 4; not scored,
-not directional), and a market-level **Hedge pressure** score (0–100) — see
+not directional) with its `iv_pct_status` provenance marker riding beside it through the rollup
+CSV (`IVPctStatus`) onto the analysis row, and a market-level **Hedge pressure** score (0–100) — see
 `config/conviction-score.md`. Each play also declares `flow_intent`
 (DIRECTIONAL/VOLATILITY/HEDGE/SYNTHETIC STOCK — a classification of what the flow IS, **not** a
 confidence cap — folded into the play cell's bracket line, upper-cased, e.g. `[DIRECTIONAL]`)

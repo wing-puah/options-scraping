@@ -317,11 +317,14 @@ def test_cell_for_date_missing_table_is_no_data_not_a_crash(tmp_path):
     assert value == "NO_DATA" and "not found" in warning
 
 
-def test_mech_cell_is_last_in_the_analysis_row_schema():
-    """Sheets append is positional — a new column must go at the very end or
-    every existing tab row misaligns."""
+def test_mech_cell_is_appended_after_the_pre_existing_schema():
+    """Sheets append is positional — a new column must go at the very END or every
+    existing tab row misaligns. `mech_cell` was the last column when it landed; later
+    append-at-end columns sit after it, so what this pins is that nothing was ever
+    INSERTED ahead of it."""
     from scripts.analysis_pipeline.config import ROW_COLUMNS
-    assert ROW_COLUMNS[-1] == "mech_cell"
+    assert ROW_COLUMNS.index("mech_cell") == len(ROW_COLUMNS) - 2
+    assert ROW_COLUMNS[-1] == "iv_pct_status"
 
 
 def test_mech_cell_is_on_every_row_including_market():

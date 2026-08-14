@@ -2,7 +2,8 @@
 Barchart per-symbol options-overview IV history (IV / IV rank / IV percentile).
 
 Barchart's options-history page (``…/stocks/quotes/{SYM}/options-history``) renders a
-DAILY series — up to ~2 years — of options-overview stats INCLUDING **IV rank** and
+DAILY series — ~1000 bars, i.e. ~4 CALENDAR years — of options-overview stats
+INCLUDING **IV rank** and
 **IV percentile** (percentile = share of the prior-1-year days whose IV closed below
 that day's IV; rank = (IV − 1yr-low)/(1yr-high − 1yr-low)×100). Unlike our own
 premium-weighted ``eod_iv`` aggregate, this is Barchart's chain-level metric, already

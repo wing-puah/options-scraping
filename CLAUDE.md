@@ -364,8 +364,9 @@ stay unchanged. The point is that rows from two prompt versions are never pooled
 conclusion derived on vN does not automatically transfer to vN+1.
 
 - **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped from the prompt, so
-  `ROW_COLUMNS` is 25 and `score_total` runs 0–50 (0–55 for VOLATILITY intent) — **not**
-  comparable to v3's 0–100.
+  `score_total` runs 0–50 (0–55 for VOLATILITY intent) — **not** comparable to v3's 0–100.
+  `ROW_COLUMNS` was 25 at the v4 cut-over and is 26 since `iv_pct_status` was appended
+  (append-at-end; not a version bump — no prompt or input changed).
 - **v3 is frozen** as the evidence base for every shipped rule in
   `config/deployment-rules.md`. To run anything against it, pass
   `--tab v3_AnalysisClaude`; a bare `python3 -m scripts.backtest` reads the empty v4 tab.

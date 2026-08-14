@@ -1056,3 +1056,33 @@ def test_price_read_blank_when_absent():
     csv_text = flow_rollup_csv([("stocks", build_scored_flow_rollup(rows))])
     parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
     assert parsed["AVGO"]["PriceVector"] == "" and parsed["AVGO"]["DaysToEarn"] == ""
+
+
+# ---------------------------------------------------------------------------
+# iv_pct provenance (IVPctStatus) — rides beside iv_pct through the same seams
+# ---------------------------------------------------------------------------
+
+def test_iv_status_surfaced_in_rollup_csv_and_ticker_metrics():
+    """The marker has to reach the audit CSV, because that is the only path onto the
+    analysis row — and a blank iv_pct caused by exhausted Barchart retention must stay
+    distinguishable from a genuine one (it flips the Step-4 debit/credit choice)."""
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
+    status = {"AVGO": "out_of_window"}
+    rollup = build_scored_flow_rollup(rows, iv_status=status)
+    assert rollup[0]["iv_pct_status"] == "out_of_window"
+
+    csv_text = flow_rollup_csv([("stocks", rollup)])
+    parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
+    assert parsed["AVGO"]["IVPctStatus"] == "out_of_window"
+    assert parsed["AVGO"]["IVPct"] == ""          # blank value, explained status
+
+    m = ticker_metrics(rows, iv_status=status)["AVGO"]
+    assert m["iv_pct_status"] == "out_of_window"
+
+
+def test_iv_status_blank_when_absent():
+    """Rows enriched before the column existed: blank, never "None"."""
+    rows = [_flow_row("AVGO", "Call", "ask", "1000000")]
+    csv_text = flow_rollup_csv([("stocks", build_scored_flow_rollup(rows))])
+    parsed = {r["Symbol"]: r for r in csv.DictReader(io.StringIO(csv_text))}
+    assert parsed["AVGO"]["IVPctStatus"] == ""

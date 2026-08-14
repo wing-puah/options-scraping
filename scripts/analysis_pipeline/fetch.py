@@ -20,7 +20,7 @@ from lib.baseline import BASELINE_TAB, baseline_context_md, compute_daily_baseli
 from lib.csv_utils import parse_csv
 from lib.drive_client import FILE_PREFIXES, get_drive_client
 from lib.counterpart_iv import build_iv_lookup, sidecar_name
-from lib.iv_history import iv_pct_from_flow_rows
+from lib.iv_history import iv_coverage_from_flow_rows, iv_pct_from_flow_rows
 from lib.price_catalyst import catalyst_read, price_catalyst_from_flow_rows, price_read
 from lib.sheets_client import get_all_rows
 from lib.vol_snapshot import fetch_vol_snapshot, vol_snapshot_md
@@ -154,6 +154,24 @@ def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
         return {}
 
 
+def _load_iv_pct_status(flow_rows: list[dict]) -> dict[str, str]:
+    """``{UPPER_SYMBOL: iv_pct_status}`` — the provenance marker beside ``iv_pct``.
+
+    Written by the same enricher (``scripts/collector/fetch_iv_percentile.py``) and read
+    off the row the same way as :func:`_load_iv_pct`. It rides through the rollup CSV
+    onto the analysis row (``ROW_COLUMNS``) so a later study can tell a blank IVpct that
+    means "no read" from one that means "Barchart's ~2yr window no longer reaches this
+    date" (``out_of_window``) — the two are not interchangeable, because a blank IVpct
+    changes which structure the framework's Step 4 picks (debit vs credit). Degrades to
+    ``{}`` (blank column) on any failure or on rows enriched before the column existed.
+    """
+    try:
+        return iv_coverage_from_flow_rows(flow_rows)
+    except Exception:
+        log.exception("Could not read IV percentile status from flow rows")
+        return {}
+
+
 def _load_price_read(flow_rows: list[dict], date_str: str | None) -> dict[str, dict]:
     """``{UPPER_SYMBOL: {price_vector, days_to_earnings}}`` — the deterministic
     per-ticker price read derived from the enriched price/earnings columns on the
@@ -228,6 +246,7 @@ def fetch_data(
 
     counterpart_iv = _load_counterpart_iv(client, date_str)
     iv_pct = _load_iv_pct(section_rows["stocks-flow"] + section_rows["etfs-flow"])
+    iv_status = _load_iv_pct_status(section_rows["stocks-flow"] + section_rows["etfs-flow"])
     price_read_map = _load_price_read(section_rows["stocks-flow"] + section_rows["etfs-flow"], date_str)
 
     if ticker:
@@ -280,7 +299,8 @@ def fetch_data(
         sections_out.extend(_persistence_sections(client, date_str, days))
 
     if audit_csv_path is not None:
-        _write_audit_csv(section_rows, audit_csv_path, counterpart_iv, iv_pct, price_read_map)
+        _write_audit_csv(section_rows, audit_csv_path, counterpart_iv, iv_pct, price_read_map,
+                         iv_status)
 
     return "\n\n".join(sections_out)
 
@@ -288,13 +308,15 @@ def fetch_data(
 def _write_audit_csv(section_rows: dict[str, list[dict]], path: Path,
                      counterpart_iv: dict[str, list[dict]] | None = None,
                      iv_pct: dict[str, float] | None = None,
-                     price_read: dict[str, dict] | None = None) -> None:
+                     price_read: dict[str, dict] | None = None,
+                     iv_status: dict[str, str] | None = None) -> None:
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
         rows = section_rows[flow_key]
         if rows:
             unusual = section_rows[_FLOW_UNUSUAL_PAIR[flow_key]]
-            sections.append((label, build_scored_flow_rollup(rows, unusual, counterpart_iv, iv_pct, price_read)))
+            sections.append((label, build_scored_flow_rollup(
+                rows, unusual, counterpart_iv, iv_pct, price_read, iv_status)))
     if not sections:
         return
     path = Path(path)
@@ -331,6 +353,7 @@ def fetch_scored_csv(date_str: str | None = None) -> str:
     counterpart_iv = _load_counterpart_iv(client, date_str)
     flow_by_key = {k: _load_rows(client, k, date_str) for k in ("stocks-flow", "etfs-flow")}
     iv_pct = _load_iv_pct(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
+    iv_status = _load_iv_pct_status(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
     price_read_map = _load_price_read(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"], date_str)
     sections = []
     for flow_key, label in (("stocks-flow", "stocks"), ("etfs-flow", "etfs")):
@@ -338,13 +361,14 @@ def fetch_scored_csv(date_str: str | None = None) -> str:
         if not flow_rows:
             continue
         unusual = _load_rows(client, _FLOW_UNUSUAL_PAIR[flow_key], date_str)
-        sections.append((label, build_scored_flow_rollup(flow_rows, unusual, counterpart_iv, iv_pct, price_read_map)))
+        sections.append((label, build_scored_flow_rollup(
+            flow_rows, unusual, counterpart_iv, iv_pct, price_read_map, iv_status)))
     return flow_rollup_csv(sections)
 
 
 def fetch_ticker_metrics(date_str: str | None = None) -> dict[str, dict]:
     """Drive flow (stocks + ETFs) for a date → ``{SYMBOL: {oi_confirm_pct, cpir,
-    iv_spread, iv_pct, price_vector, days_to_earnings}}``.
+    iv_spread, iv_pct, iv_pct_status, price_vector, days_to_earnings}}``.
 
     The single recompute call the rollup backfill needs: Drive I/O lives here, the
     pure computation in :func:`lib.flow_summary.ticker_metrics`. These metrics
@@ -354,12 +378,13 @@ def fetch_ticker_metrics(date_str: str | None = None) -> dict[str, dict]:
     counterpart_iv = _load_counterpart_iv(client, date_str)
     flow_by_key = {k: _load_rows(client, k, date_str) for k in ("stocks-flow", "etfs-flow")}
     iv_pct = _load_iv_pct(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
+    iv_status = _load_iv_pct_status(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"])
     price_read_map = _load_price_read(flow_by_key["stocks-flow"] + flow_by_key["etfs-flow"], date_str)
     out: dict[str, dict] = {}
     for flow_key in ("stocks-flow", "etfs-flow"):
         rows = flow_by_key[flow_key]
         if rows:
-            out.update(ticker_metrics(rows, counterpart_iv, iv_pct, price_read_map))
+            out.update(ticker_metrics(rows, counterpart_iv, iv_pct, price_read_map, iv_status))
     return out
 
 

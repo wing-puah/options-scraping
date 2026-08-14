@@ -3,6 +3,130 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-14, CORPUS REPRESENTATIVENESS — a defect found, an
+expansion PRE-REGISTERED, no conclusion moved).** Prompted by the question
+"2026 was mainly bear and the algorithm does badly in bear — should we scrape
+more?". **The premise is inverted and the answer to it is no**, but the
+investigation surfaced a real defect that is not about bear at all.
+
+*What the premise gets wrong.* The corpus is neither mainly-2026 nor
+mainly-bear: `AnalysisClaude` spans 2024-06-17 → 2026-08-10, 142 dates, 1,607
+rows, `mech_cell` BEAR_HE 758 / LVOL 728 / NONE 78 / RB_EVOL 43. And the
+**shipped** system is bear-*strong*, not bear-weak: the awful pooled bear cells
+(§7.4 BEAR+H-VOL n=64, win 30%, PF 0.39, −$20,632; mech BEAR_HE
+`bear_put_spread` n=218, −$40,300) are **already vetoed** by deployment-rules
+§1.2/§1.4, and in the deployed book BEAR_HE is the **best** mechanical cell
+(PRIMARY n=44, +$10,399, meanR +0.366, win 0.659). The worst deployed cell is
+**BULL/L-VOL — n=34, −$4,727, meanR −0.325, win 0.353**, and it is unvetoed.
+More bear data cannot help regardless: `bear_deploy` already searched **496
+conditioned subsets at n=164 and found 0 positive** (best −0.231).
+
+*Why the hedge worst-decile wall is not worth buying out.* `bear_rewrap`'s P1 is
+computed over the worst **10% of deployed dates** (`bear_rewrap.py:570`) with a
+**date-clustered** bootstrap (`protocol.py:81`), so the effective sample is **9
+clusters, not the 21 rows it prints**. Modelling half-width ~1/√(tail dates)
+from `long_put` (meanR +0.262, CI [−0.273, +0.730]): the criterion first clears
+at **~33 tail dates ≈ +394 newly analysed dates — 81% of the 484 that remain
+fetchable — and then clears by ~+0.001**, only if the point estimate holds
+exactly (the baseline's +0.108 never clears at any attainable sample). Under
+ARM S's 30-cell multiplicity the requirement is **W≈85 ≈ +996 dates, more than
+the data universe contains**, and 6 of the 30 cells (`P5 top-pick ticker`) fill
+0% and are dead at any N. **The wall is half a multiplicity problem, and that
+half is free to fix** by pre-registering one structure × one pick rule. Recorded
+so the standing "the only path forward is NEW DATES" framing is not over-read:
+new dates alone do not open the 30-cell sweep.
+
+*The defect actually found.* The book was assembled from three dense crash
+episodes, and it is **not a representative sample of the tape**:
+
+| | n dates | VIX mean | VIX median |
+|---|---|---|---|
+| full path-completable window (2024-02-15 → 2026-04-16) | 543 | 17.93 | 16.65 |
+| **currently analysed, in that window** | 117 | **21.93** | **21.65** |
+| after the +139 expansion below | 256 | 19.07 | 17.53 |
+
+**~4 VIX points of stress over-representation.** This is a validity issue for
+every conclusion drawn on the book, independent of any power question, and it is
+the structural reason BULL/L-VOL is thin — calm regimes are under-sampled by
+construction, so the cell that looks worst is also the cell least observed.
+
+*Pre-registered, before any of it is run.* A **neutral** date expansion:
+`backtests/neutral_dates_v1.md` — every 3rd session by calendar index over
+`[2024-02-15, 2026-04-16]`, **k=3 chosen because it must be coprime with 5** or
+the sample locks to one weekday (verified: Mon 27 / Tue 27 / Wed 28 / Thu 28 /
+Fri 29). 543 sessions → 181 selected → **139 new**. Selection reads **only the
+calendar** — never an outcome, price, or VIX field — which is what keeps it from
+reshaping the loss distribution the decile is defined against. Cherry-picking
+stress dates would have done exactly that, which is why
+`backtests/next_25_dates.md` (2026-07-20, regime-gap selected, never executed)
+is **not** reused here.
+
+Declared now rather than discovered later: (a) the existing 117 dates are **not**
+neutral, so the pooled book is a **mixture** — the mech_cell composition of old
+vs new deployed dates gets printed, and a move beyond a declared band labels the
+pooled result non-comparable to the 08-14 print; (b) **the decile re-anchors** —
+old-W and new-W get printed side by side with the worst-date overlap, and every
+pre-expansion P1 number becomes a legacy reference, not a comparator;
+(c) guard-rejected or failed dates are **recorded with a reason, never silently
+skipped**; (d) `WORST_DECILE = 0.10` and `POWER_STOP_MIN_N = 10` are **not to be
+touched** — widening to the already-defined `WORST_QUARTILE` would take W from 9
+to 22 for free, but doing so after seeing the decile fail is precisely the
+post-hoc criterion change the anti-tuning rule forbids.
+
+**Nothing has been scraped and no number below moves.** A **pre-declared kill
+switch** governs: the first 10 neutral dates measure the deployed-date yield on
+*neutral* (not cherry-picked) dates — the 0.763 the arithmetic assumes was
+measured on signal-rich dates — and **if 10 dates add fewer than 4 deployed
+dates, stop.** Corrected cost estimate: ~**1–1.5 h/date**, driven by `enrich_oi`
+being per-*contract*, so 139 dates ≈ **175 h**; the scrape step is ~2% of it.
+
+Two data-integrity guards ship first, and are worth having even if the backfill
+never runs: a **flow-staleness guard** (the `options-flow` feed silently serves
+~500 rows of run-date-anchored junk past its retention window — HTTP 200,
+correct schema; the TODO from archive/06 was never implemented) and an explicit
+**IV-depth signal** (blank `IVpct` does not merely drop a column, it **changes
+which structure the model picks** per analysis-framework §"TF vs TF-S", so
+backfilled rows would differ from existing rows on the debit/credit axis for a
+non-market reason). Both are now **shipped**, with `iv_pct_status` appended to
+`ROW_COLUMNS` (25 → 26, append-at-end, **not** a version bump — the prompt
+contract is untouched and the column is deterministic rollup context like
+`oi_confirm_pct`/`cpir`).
+
+**Both floors were then RE-PROBED live (2026-08-14), and both prior assumptions
+were wrong — in opposite directions.**
+
+*Flow floor is EARLIER than believed: `2024-01-02`, not 2024-02-15.* Every
+probed date from 2023-11-01 through 2023-12-27 returned the **byte-identical**
+fallback — sha256 prefix `26fc63189d6d182f` on all six, exactly 500 rows, median
+DTE ~1000–1060, and SPY `Price~` **777.86** (that day's SPY) against real closes
+of 422.66 / 459.10. Every date from 2024-01-02 on came back genuine (median DTE
+38–51, SPY drift ≤0.004), and the 2024-06-17 control (already in the corpus)
+passed at median DTE 32 / drift 0.001. The guard caught the junk independently
+on all four checks, so the probe validated the guard and the guard defined the
+floor, as intended. **Both flow feeds share that floor** — `stocks-flow` was
+probed separately and rejects 2023-12-15 (under its own distinct fallback hash
+`bef2fdd5730f89a5`, so each feed caches its own junk) while returning genuine
+data from 2024-01-02 on, so there is no window in which a date would yield
+usable ETF flow but unusable stock flow. Net effect: the window gains 31
+sessions and the list is regenerated at **574 sessions → 192 selected → 155
+new** (was 139). The
+regeneration is **outcome-blind** — nothing has been scraped, no outcome exists
+for any candidate date, and the trigger was a data-availability probe.
+
+*IV floor is FAR deeper than believed, and Trap B does not materialise here.*
+The options-overview feed returned **n=1000 bars spanning 2022-08-17 →
+2026-08-13, identical across SPY/AAPL/NVDA/XOM/KO** — so retention is a
+market-wide rolling ~1000-bar window, and **~1000 trading days is ~4 CALENDAR
+years, not the "~2 years" claimed throughout the code** (corrected in
+`lib/barchart/iv_history.py`, `session.py`, `lib/iv_history.py`,
+`fetch_iv_percentile.py`). The earliest expansion date sits **503 days above**
+that floor, so **no date in this list can come back `out_of_window`** and
+`iv_pct` should resolve for all 155. The debit/credit provenance confound is
+therefore a *latent* risk the guard now covers, not an active one for this
+expansion. Separately, the `startDate`/`endDate` param names — flagged in-code
+as "a best guess to VERIFY" — are now **verified honoured** (a
+2025-06-02..2025-06-13 request returned 10/10 rows inside the window).
+
 **State of play (2026-08-14, `account_sim` COMPOUNDING arm FOLDED IN — no number
 moves).** Infrastructure only; **no evidence changes and no conclusion moves.**
 The compounding sensitivity is no longer a copied config file

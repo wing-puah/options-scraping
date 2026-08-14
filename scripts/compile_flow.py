@@ -41,7 +41,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from lib.logger import setup_logging
-from lib.csv_utils import normalize_flow_rows, parse_csv
+from lib.csv_utils import DEDUP_KEY, normalize_flow_rows, parse_csv
 from lib.drive_client import get_drive_client, trading_day
 
 log = logging.getLogger("compile_flow")
@@ -51,8 +51,8 @@ FLOW_PREFIXES = ["etfs-flow", "stocks-flow"]
 
 # Columns that identify a unique trade execution. Everything else (Price~, DTE,
 # Volume, Open Int, IV, Delta, quote columns) can drift between snapshots and is
-# deliberately excluded from the dedup key.
-DEDUP_KEY = ["Symbol", "Type", "Strike", "Expires", "Trade", "Size", "Side", "Premium", "Time"]
+# deliberately excluded from the dedup key. Defined in lib.csv_utils so the
+# scrape-time staleness fingerprint hashes exactly the columns dedup keys on.
 
 COMPILED_SUFFIX = "compiled"
 

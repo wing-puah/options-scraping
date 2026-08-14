@@ -247,7 +247,7 @@ class BarchartSession:
 
         ``start``/``end`` (``YYYY-MM-DD``) restrict the feed to a date window — the few
         days around a trade date the enricher needs — so the payload is a handful of
-        rows, not the full ~2-year series. When omitted, the whole series is pulled.
+        rows, not the full series. When omitted, the whole series is pulled.
 
         Same interception approach as :meth:`fetch_history_csv`: navigate to the
         options-history page, capture the authenticated core-api request it fires, then
@@ -343,17 +343,19 @@ class BarchartSession:
     def _augment_iv_history_url(feed_url: str, start: str | None = None,
                                end: str | None = None) -> str:
         """Restrict the feed to a ``start``..``end`` window when given, else lift the row
-        cap so the full ~2-year daily series returns in one response.
+        cap so the full daily series returns in one response.
 
         Barchart's grids paginate via ``limit`` (and sometimes ``maxRecords``); ~1000
-        daily bars covers two trading years. Edited textually to avoid re-encoding the
+        daily bars is ~4 CALENDAR years (250 trading days/yr), not two — measured
+        2026-08-14, see below. Edited textually to avoid re-encoding the
         comma/paren-bearing ``fields`` param (same reasoning as _augment_history_url).
 
-        NOTE: the ``startDate``/``endDate`` param names and ``YYYY-MM-DD`` format are
-        Barchart core-api's convention — a best guess to VERIFY against a live feed
-        capture. If a windowed fetch ever returns nothing, the feed likely wants a
-        different param name/format; the limit is kept generous so an ignored window
-        still returns recent rows (which covers a live/latest-date run).
+        VERIFIED 2026-08-14 against the live feed, so the param names are no longer a
+        guess: a 2025-06-02..2025-06-13 request returned 10 rows, 10/10 inside the
+        window. The unwindowed call returned n=1000 spanning 2022-08-17 → 2026-08-13,
+        identical across SPY/AAPL/NVDA/XOM/KO — so the retention floor is a
+        market-wide rolling ~1000-bar window, not a per-name one. The limit is kept
+        generous so an ignored window would still return recent rows.
         """
         url = feed_url
         if start and end:

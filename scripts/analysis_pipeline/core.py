@@ -322,6 +322,11 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # above, which are blank there). Passed in by the caller, not read
             # here, so tests stay independent of the local SPY/VIX table.
             mech_cell,
+            # Why `iv_pct` reads the way it does (blank on the MARKET row, like the
+            # per-ticker block above). Carried so a blank IVpct caused by Barchart's
+            # rolling-window retention (`out_of_window`) is separable from a genuine
+            # one — they imply different Step-4 structure choices.
+            m.get("iv_pct_status", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]

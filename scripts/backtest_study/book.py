@@ -216,6 +216,21 @@ def _row_or_ac(row: dict, ac_row, field: str):
     return None
 
 
+def _cell_str(src, field: str) -> str:
+    """A dict/Series cell as a stripped string; blank for None/NaN (pandas hands back
+    float('nan'), which `str()` would turn into the truthy literal "nan")."""
+    v = src.get(field) if src is not None else None
+    return "" if v is None or not pd.notna(v) else str(v).strip()
+
+
+def _row_or_ac_str(row: dict, ac_row, field: str) -> str:
+    """Same fallback as :func:`_row_or_ac` for a TEXT column.
+
+    `_row_or_ac` coerces through `_to_float`, which blanks any label column, so a
+    vocabulary string like `iv_pct_status` needs the raw cell instead."""
+    return _cell_str(row, field) or _cell_str(ac_row, field)
+
+
 def _ac_only(ac_row, field: str):
     """Fields that exist ONLY on AnalysisClaude (price_vector, days_to_earnings)
     — neither BacktestResults nor BacktestProxy carries them."""
@@ -278,6 +293,10 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
         iv_spread=_row_or_ac(row, ac_row, "iv_spread"),
         iv_skew=_row_or_ac(row, ac_row, "iv_skew"),
         iv_pct=_row_or_ac(row, ac_row, "iv_pct"),
+        # Provenance for iv_pct (lib/iv_history vocabulary; "" on rows written before
+        # the column existed). `out_of_window` means the blank iv_pct is a Barchart
+        # retention artifact, not a market read — a cut a study can split on.
+        iv_pct_status=_row_or_ac_str(row, ac_row, "iv_pct_status"),
         oi_confirm_pct=_row_or_ac(row, ac_row, "oi_confirm_pct"),
         cpir=_row_or_ac(row, ac_row, "cpir"),
         mfe=_to_float(row.get("mfe_pct")),

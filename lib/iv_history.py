@@ -43,7 +43,29 @@ IV_ENRICH_COLUMNS = ["iv", "iv_rank", "iv_pct"]
 # when Barchart returns nothing), so resume can tell "scraped, empty" from "not yet
 # scraped" and never re-fetches an empty ticker.
 IV_MARKER_COLUMN = "iv_pct_enriched_on"
-IV_ALL_COLUMNS = IV_ENRICH_COLUMNS + [IV_MARKER_COLUMN]
+
+# WHY a status column exists at all: the Barchart options-overview feed rides a rolling
+# rolling window measured from the RUN date, not the trade date. Backfilling an old date
+# therefore has three failure modes that all collapse into the same blank `iv_pct` —
+# the fetch raised, the feed was empty, or the feed answered but its window STARTS AFTER
+# the date we asked for (retention no longer reaches that date). Only the third is a
+# depth problem, and it is detectable with zero extra fetches (`min(series) > anchor`).
+# The distinction is decision-relevant, not cosmetic: per config/analysis-framework.md
+# Step 4, a blank IVpct falls back to GEX → vol snapshot → absolute IV, and on calm /
+# contango dates that fallback prefers CREDIT where a real low IVpct would have said
+# DEBIT. So a backfilled row can differ from a live row on the debit/credit axis for a
+# reason that has nothing to do with the market — this column is what lets a study
+# exclude or split on that.
+IV_STATUS_COLUMN = "iv_pct_status"
+IV_ALL_COLUMNS = IV_ENRICH_COLUMNS + [IV_MARKER_COLUMN, IV_STATUS_COLUMN]
+
+# The status vocabulary, exhaustive. Keep these strings stable — they are written into
+# the compiled flow file, the rollup CSV and the analysis tab, so a rename orphans rows.
+IV_STATUS_OK = "ok"                          # the exact anchor-date row was used
+IV_STATUS_STALE = "stale_fallback"           # an older row inside the staleness window
+IV_STATUS_OUT_OF_WINDOW = "out_of_window"    # series non-empty but starts AFTER the anchor
+IV_STATUS_EMPTY = "empty_series"             # nothing usable as of the anchor
+IV_STATUS_ERROR = "fetch_error"              # the fetch itself failed
 
 # How stale an as-of-date pick may be: if the exact date has no row (e.g. a live run
 # before the session's EOD row is published), fall back to the most recent row within
@@ -63,6 +85,64 @@ def _fmt_decimal(v) -> str:
     return "" if v is None else str(round(v / 100.0, 4))
 
 
+def as_of_iv_cells_with_status(
+    series: dict[str, dict], anchor_iso: str,
+    staleness_days: int = LOOKUP_STALENESS_DAYS,
+) -> tuple[dict[str, str], str]:
+    """``({iv, iv_rank, iv_pct}, status)`` for a ticker as of ``anchor_iso``.
+
+    Same pick as :func:`as_of_iv_cells` plus WHY the cells came out the way they did:
+
+    ``ok``              the exact anchor-date row was used.
+    ``stale_fallback``  no anchor row; an older one within ``staleness_days`` was used.
+    ``out_of_window``   the series is non-empty but its EARLIEST date is after the
+                        anchor — Barchart's rolling retention (measured from the
+                        RUN date) no longer reaches the date we asked for. The one
+                        status that means "this date can never be enriched again".
+    ``empty_series``    nothing usable as of the anchor: a literally empty series, or a
+                        non-empty one whose rows are all older than the staleness window
+                        (a feed gap, NOT depth exhaustion).
+    ``fetch_error``     the caller's fetch failed. Also covers an unparseable
+                        ``anchor_iso`` — a caller bug, deliberately bucketed away from
+                        the depth signal so it can never be mistaken for one.
+    """
+    blank = {c: "" for c in IV_ENRICH_COLUMNS}
+    if not series:
+        return blank, IV_STATUS_EMPTY
+    try:
+        anchor = date.fromisoformat(anchor_iso)
+    except (TypeError, ValueError):
+        return blank, IV_STATUS_ERROR
+
+    best_iso: str | None = None
+    earliest: date | None = None
+    for iso in series:
+        try:
+            d = date.fromisoformat(iso)
+        except ValueError:
+            continue
+        if earliest is None or d < earliest:
+            earliest = d
+        if d > anchor or (anchor - d).days > staleness_days:
+            continue
+        if best_iso is None or iso > best_iso:
+            best_iso = iso
+    if best_iso is None:
+        # The whole series starting after D is the depth-exhausted case; anything else
+        # (only stale rows, or no parseable date at all) is an ordinary blank.
+        if earliest is not None and earliest > anchor:
+            return blank, IV_STATUS_OUT_OF_WINDOW
+        return blank, IV_STATUS_EMPTY
+
+    v = series[best_iso]
+    cells = {
+        "iv": _fmt(v.get("iv")),
+        "iv_rank": _fmt_decimal(v.get("iv_rank")),
+        "iv_pct": _fmt_decimal(v.get("iv_pct")),
+    }
+    return cells, (IV_STATUS_OK if best_iso == anchor.isoformat() else IV_STATUS_STALE)
+
+
 def as_of_iv_cells(series: dict[str, dict], anchor_iso: str,
                    staleness_days: int = LOOKUP_STALENESS_DAYS) -> dict[str, str]:
     """Formatted ``{iv, iv_rank, iv_pct}`` cells for a ticker as of ``anchor_iso``.
@@ -73,32 +153,11 @@ def as_of_iv_cells(series: dict[str, dict], anchor_iso: str,
     the anchor (so a live run before the EOD row is published still gets yesterday's
     values). Returns blanks when nothing is in range. ``iv_rank``/``iv_pct`` come out as
     decimal-fraction strings; ``iv`` stays in points.
+
+    Thin wrapper over :func:`as_of_iv_cells_with_status` for callers that want the
+    cells only.
     """
-    blank = {c: "" for c in IV_ENRICH_COLUMNS}
-    try:
-        anchor = date.fromisoformat(anchor_iso)
-    except (TypeError, ValueError):
-        return blank
-
-    best_iso: str | None = None
-    for iso in series:
-        try:
-            d = date.fromisoformat(iso)
-        except ValueError:
-            continue
-        if d > anchor or (anchor - d).days > staleness_days:
-            continue
-        if best_iso is None or iso > best_iso:
-            best_iso = iso
-    if best_iso is None:
-        return blank
-
-    v = series[best_iso]
-    return {
-        "iv": _fmt(v.get("iv")),
-        "iv_rank": _fmt_decimal(v.get("iv_rank")),
-        "iv_pct": _fmt_decimal(v.get("iv_pct")),
-    }
+    return as_of_iv_cells_with_status(series, anchor_iso, staleness_days)[0]
 
 
 def iv_pct_from_flow_rows(rows) -> dict[str, float]:
@@ -117,4 +176,24 @@ def iv_pct_from_flow_rows(rows) -> dict[str, float]:
         pct = to_float(r.get("iv_pct"))
         if pct is not None:
             out[sym] = pct
+    return out
+
+
+def iv_coverage_from_flow_rows(rows) -> dict[str, str]:
+    """``{UPPER_SYMBOL: iv_pct_status}`` read off enriched flow rows' status column.
+
+    Sibling of :func:`iv_pct_from_flow_rows` — same shape (one value per symbol,
+    identical across a ticker's rows, first non-blank wins), for the provenance marker
+    rather than the value. Carried through to the analysis row so a study can tell a
+    genuinely blank IVpct from one blanked by exhausted Barchart retention, which
+    silently flips the framework's Step-4 debit/credit choice.
+    """
+    out: dict[str, str] = {}
+    for r in rows or []:
+        sym = str(r.get("Symbol") or "").strip().upper()
+        if not sym or sym in out:
+            continue
+        status = str(r.get(IV_STATUS_COLUMN) or "").strip()
+        if status:
+            out[sym] = status
     return out

@@ -89,6 +89,19 @@ def test_analysis_to_rows_score_components_and_total():
     assert "score_flow" not in spy and "score_dealer" not in spy
 
 
+def test_analysis_to_rows_carries_iv_pct_status_per_ticker():
+    """`iv_pct_status` is joined from the rollup like the other per-ticker metrics:
+    on the play row, blank on MARKET. It is the marker that says whether a blank
+    `iv_pct` means "no read" or "Barchart's window no longer reaches this date" —
+    the two imply different Step-4 structures, so they must never pool silently."""
+    analysis = {"regime": "BULL", "plays": [{"ticker": "SPY", "structure": "bull call"}]}
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-21", "2026-04-21",
+                            rollup_metrics={"SPY": {"iv_pct": "", "iv_pct_status": "out_of_window"}})
+    assert rows[0]["iv_pct_status"] == ""            # MARKET: per-ticker, so blank
+    assert rows[1]["iv_pct_status"] == "out_of_window"
+    assert rows[1]["iv_pct"] == ""
+
+
 def test_analysis_to_rows_ignores_retired_score_components():
     # A model that still emits the v3 `flow`/`dealer` keys must not leak them
     # into the row or into score_total — the v4 total is a 3-factor 0-50 sum.

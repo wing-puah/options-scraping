@@ -129,6 +129,17 @@ ROW_COLUMNS = [
     # backtest, which recomputes it from signal_date at simulate time. Appended at
     # the END (append-at-end convention) → header extension only, no row shift.
     "mech_cell",
+    # Provenance for `iv_pct` (lib/iv_history: ok | stale_fallback | out_of_window |
+    # empty_series | fetch_error), joined off the rollup CSV like the block above.
+    # NOT cosmetic: a blank `iv_pct` is not inert — per config/analysis-framework.md
+    # Step 4 it falls back to GEX → vol snapshot → absolute IV, which on calm/contango
+    # dates prefers CREDIT where a real low IVpct would have said DEBIT. Because
+    # fetch_iv_percentile rides a ~2yr window measured from the RUN date, a backfilled
+    # date can lose its IVpct purely to retention (`out_of_window`) and so differ from a
+    # live row on the debit/credit axis for a non-market reason. This column is what
+    # lets a study exclude or split on that. Appended at the END (append-at-end
+    # convention) → header extension only, no row shift.
+    "iv_pct_status",
 ]
 
 # Production SPY/VIX table backing `mech_cell`. Untracked + local-only (gitignored
@@ -160,6 +171,7 @@ ROLLUP_METRIC_COLS = {
     "iv_spread": "IVSpread",
     "iv_skew": "IVSkew",
     "iv_pct": "IVPct",
+    "iv_pct_status": "IVPctStatus",
     "conviction_score": "Score",
     "conviction_score_label": "ScoreLabel",
     "price_vector": "PriceVector",
