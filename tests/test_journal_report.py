@@ -16,7 +16,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from scripts.journal import page, report
+from scripts.journal import page, recwriter, report
 from scripts.journal.config import (DELTA_SOURCE_IBKR, DELTA_SOURCE_UNAVAILABLE,
                                     Leg, PositionEvent, PositionRisk)
 from scripts.journal.risk import BookRisk, Caps
@@ -378,3 +378,185 @@ def test_a_pipe_in_a_structure_label_is_escaped_too():
     text = report.build([_event(structure="odd|label")], BookRisk(caps=_caps()), _meta())
     activity = [ln for ln in text.splitlines() if "odd" in ln][0]
     assert "odd\\|label" in activity
+
+
+# --------------------------------------------------------------------------
+# page.py — recommendations panel (deliberately outside the reconciled set)
+# --------------------------------------------------------------------------
+def _rec_row(**kw):
+    defaults = dict(session_date="2026-08-14", role="deploy", rank=1, ticker="NVDA",
+                    structure="bull_call_spread", tier="B", deploy="True",
+                    trigger_verdict="PASS", headroom_ok="True",
+                    play="[DIRECTIONAL] TF | bull call spread 170/180")
+    defaults.update(kw)
+    return defaults
+
+
+def test_compute_figures_carries_no_recommendation_key():
+    """The invariant that keeps the page buildable forever: a recommendation
+    figure slipped into compute_figures() would make reconcile() demand it be
+    parseable back out of report.build()'s markdown, which never prints one —
+    so build() would raise ReconcileError on every single run."""
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    figs = page.compute_figures([_event()], book)
+    assert not any(k.lower().startswith(("rec", "recommend")) for k in figs)
+
+
+def test_build_computed_figures_are_identical_with_or_without_recommendation_data(
+        tmp_path, monkeypatch):
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    figs_without_recs = page.compute_figures(events, book)
+
+    monkeypatch.setattr(recwriter, "read_csv_rows", lambda path=None: [_rec_row()])
+    out_path = tmp_path / "journal-2026-08-14.html"
+    page.build(events, book, _meta(), out_path)
+    figs_with_recs = page.compute_figures(events, book)
+
+    assert figs_with_recs == figs_without_recs
+    assert out_path.exists()
+
+
+def test_no_recommendations_available_renders_empty_state_and_still_writes_both_files(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(recwriter, "read_csv_rows", lambda path=None: [])
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    out_path = tmp_path / "journal-2026-08-14.html"
+
+    page.build(events, book, _meta(), out_path)
+
+    text = out_path.read_text()
+    assert "No recommendations recorded yet" in text
+    assert out_path.exists()
+    assert (tmp_path / "journal-latest.html").exists()
+
+
+def test_recommendations_panel_degrades_to_empty_state_on_objects_with_no_get():
+    """A list of plain objects (no .get method) must not blow up the page."""
+    out = page._recommendations_panel([object(), object()])
+    assert "No recommendations recorded yet" in out
+
+
+def test_recommendations_panel_degrades_to_empty_state_when_get_raises():
+    class _Boom:
+        def get(self, key, default=None):
+            raise RuntimeError("boom")
+
+    out = page._recommendations_panel([_Boom()])
+    assert "No recommendations recorded yet" in out
+
+
+def test_recent_recommendations_returns_empty_and_does_not_raise_when_csv_read_fails(
+        tmp_path, monkeypatch):
+    def _boom(path=None):
+        raise RuntimeError("no csv on disk")
+
+    monkeypatch.setattr(recwriter, "read_csv_rows", _boom)
+    assert page._recent_recommendations(_meta()) == ()
+
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    out_path = tmp_path / "journal-2026-08-14.html"
+    page.build(events, book, _meta(), out_path)
+    assert out_path.exists()
+    assert "No recommendations recorded yet" in out_path.read_text()
+
+
+def test_recommendation_row_renders_html_escaped():
+    row = _rec_row(play="<script>alert('x')</script> Tom & Jerry | pairs trade")
+    out = page._recommendations_panel([row])
+    assert "<script>alert" not in out
+    assert "&lt;script&gt;" in out
+    assert "Tom &amp; Jerry" in out
+
+
+def test_recommendation_row_renders_html_escaped_end_to_end(tmp_path, monkeypatch):
+    row = _rec_row(play="<script>alert('x')</script> Tom & Jerry | pairs trade")
+    monkeypatch.setattr(recwriter, "read_csv_rows", lambda path=None: [row])
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    out_path = tmp_path / "journal-2026-08-14.html"
+
+    page.build(events, book, _meta(), out_path)
+
+    text = out_path.read_text()
+    assert "<script>alert" not in text
+    assert "&lt;script&gt;" in text
+    assert "Tom &amp; Jerry" in text
+
+
+def test_chart_util_and_chart_conf_sit_in_grid_two_row_and_chart_dn_is_standalone(
+        tmp_path):
+    """Regression guard for the chart layout swap: chart-util/chart-conf now
+    share the grid-2 row, and chart-dn is the standalone full-width figure
+    below it. Fails loudly if the order is ever swapped back."""
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    out_path = tmp_path / "journal-2026-08-14.html"
+    page.build(events, book, _meta(), out_path)
+    text = out_path.read_text()
+
+    grid_start = text.index('<div class="grid-2">')
+    standalone_start = text.index('<figure class="panel" style="margin-top:18px">')
+    assert grid_start < standalone_start
+
+    grid_block = text[grid_start:standalone_start]
+    assert 'id="chart-util"' in grid_block
+    assert 'id="chart-conf"' in grid_block
+    assert 'id="chart-dn"' not in grid_block
+    # util is drawn before conf within the grid row, matching the source order
+    assert grid_block.index('id="chart-util"') < grid_block.index('id="chart-conf"')
+
+    standalone_end = text.index('</section>', standalone_start)
+    standalone_block = text[standalone_start:standalone_end]
+    assert 'id="chart-dn"' in standalone_block
+
+    # the inlined draw script was reordered to match: util, then conf, then dn
+    script_util = text.index('getElementById("chart-util")')
+    script_conf = text.index('getElementById("chart-conf")')
+    script_dn = text.index('getElementById("chart-dn")')
+    assert script_util < script_conf < script_dn
+
+
+def test_generated_html_makes_no_external_resource_reference_with_recs_panel_present(
+        tmp_path, monkeypatch):
+    """The pre-existing no-external-resource guard must still hold with a
+    populated recommendations panel in the page, not just the empty state."""
+    monkeypatch.setattr(recwriter, "read_csv_rows", lambda path=None: [_rec_row()])
+    events = [_event()]
+    book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    out_path = tmp_path / "journal-2026-08-14.html"
+    page.build(events, book, _meta(), out_path)
+
+    text = out_path.read_text()
+    urls = re.findall(r'https?://[^\s"\'<>]+', text)
+    external = [u for u in urls if "w3.org" not in u]
+    assert external == []
+    assert 'src="http' not in text
+    assert 'href="http' not in text
+
+
+def test_rec_cell_maps_true_false_strings_to_yes_no():
+    assert page._rec_cell("True") == "yes"
+    assert page._rec_cell("False") == "no"
+
+
+def test_rec_cell_maps_none_and_blank_to_empty_string_never_no():
+    """A blank means 'not evaluated', and must never render the same as a
+    real False verdict."""
+    assert page._rec_cell(None) == ""
+    assert page._rec_cell("") == ""
+    assert page._rec_cell(None) != "no"
+
+
+def test_rec_cell_passes_through_other_values_unchanged():
+    assert page._rec_cell("PASS") == "PASS"
+    assert page._rec_cell(3) == "3"

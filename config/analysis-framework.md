@@ -188,6 +188,19 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 | **VC** Vol Compression     | VOLATILITY               | Vol compression                             | Short strangle                        | Iron condor                  | Butterfly                           |
 | **DP** Dealer Pinning      | VOLATILITY               | Pinning                                     | Short strangle                        | Iron condor                  | Butterfly                           |
 
+> 📛 **Naming the structure.** The "Debit spread" / "Credit spread" cells above
+> say what KIND of expression the column is; they are not the name you emit.
+> Resolve each to its canonical name and write only that: **bull call spread**,
+> **bear put spread**, **bull put spread**, bear call spread (vetoed — never
+> emit), long call, long put, short put, short call, straddle, strangle, short
+> strangle, iron condor, butterfly, calendar, diagonal. **Never write `debit` or
+> `credit` inside the name** — `bear put spread 350/320`, never `bear put debit
+> spread 350/320`; `bull put spread 400/385`, never `bull put credit spread
+> 400/385`. The debit/credit nature is already implied by the name, and belongs
+> in the thesis if it needs stating. A qualifier inside the name is not cosmetic:
+> the downstream parser matches the canonical string, and a name it cannot match
+> gets backtested as a single long option instead of a two-leg vertical.
+
 > ⚠️ **UNEXERCISED (VC / DP / the VOLATILITY branch):** ~zero VC/DP plays exist
 > across 292 backtested rows. That is expected — the per-name dealer-gamma/GEX
 > gate that selects these playbooks (Phase 2, see roadmap) is not yet an input —
@@ -203,7 +216,7 @@ Prioritise names that appear in both the unusual-activity and flow datasets — 
 5. **VIX contango + no catalyst.** Deep contango (VIX/VIX3M < 0.85), no E-VOL, no HP, no near-term event → grind → TF-S.
 
 - **TF (momentum/breakout):** debit structures capture the acceleration. Signs: LOW IVpct or rising IV, E-VOL, breakout from range, VIX/VIX3M rising toward or above 1, negative-gamma OI cluster being breached.
-- **TF-S (slow grinder):** **bull put spread** for bullish — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: HIGH IVpct, BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend. *Bearish TF-S: the credit expression (bear call spread) is **suspended** — see the Attempt-13 callout below; use a bear put debit spread or pass.
+- **TF-S (slow grinder):** **bull put spread** for bullish — the edge is time decay + "price doesn't breach the short strike," not "price moves far." Signs: HIGH IVpct, BULL + L-VOL + stable, VIX/VIX3M well in contango (<0.85), no E-VOL, no HP, no near-term catalyst, price grinding along a slow trend. *Bearish TF-S: the credit expression (bear call spread) is **suspended** — see the Attempt-13 callout below; use a bear put spread (a debit) or pass.
 
 > **Preferred read — IV percentile, with a fallback.** `IVpct` (Barchart's per-ticker IV percentile) is the preferred rich/cheap input and should drive the TF-vs-TF-S call whenever it is present. It is **blank when the name wasn't enriched** (`fetch_iv_percentile` hasn't scraped it onto the compiled flow file, or Barchart returned no in-window row). When `IVpct` is blank, fall back to the proxy: dealer-gamma/GEX read → else the vol snapshot (contango + stable L-VOL + no E-VOL + no catalyst → treat as positive-gamma / TF-S and prefer credit) → else absolute IV level. The vol snapshot is already injected into every rollup.
 
@@ -221,7 +234,7 @@ For **GE (Gamma Expansion)**, cross-check VIX term structure: contango → long 
 > intake vetoes `bear_call_spread` (`entry.structure_veto`, config/backtest.yml):
 > −$8.6k on v3 real (17% win, n=18), −$11.2k real+tweak, −$4.4k on v2, and no
 > exit rule redeems it. Until a future credit study clears the structure, express
-> a bearish TF-S / conservative-ladder read as a **bear put debit spread**
+> a bearish TF-S / conservative-ladder read as a **bear put spread** (a debit)
 > (accepting the IV-mismatch note below) or pass on the play — do not emit
 > bear call spreads.
 

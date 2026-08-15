@@ -1,72 +1,50 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this
+repository. It is the compact, always-loaded layer: canonical commands, the tier map, and the
+invariants. Detail lives in `ARCHITECTURE.md` (per-file contracts, full flag matrices, the
+journal and study internals) — **read the relevant section there before editing `lib/` or
+`scripts/` code.**
 
 ## Subagent model selection
 
-**Delegation default: DELEGATE.** Spawn subagents freely for anything that
-reads broadly — investigations, code reviews, multi-file analysis, study runs,
-large doc/skill loads. The point is to keep bulk tokens out of the main session.
-This section governs only WHICH model a subagent gets, not whether to spawn one;
-do not read it as a restriction on calling Agent.
+**Delegation default: DELEGATE.** Spawn subagents freely for anything that reads broadly —
+investigations, code reviews, multi-file analysis, study runs, large doc/skill loads — to keep
+bulk tokens out of the main session. This section governs only WHICH model a subagent gets,
+never whether to spawn one.
 
-The single exception: a lookup answerable by ONE `codegraph_explore` call — do
-that inline. Anything needing repeated lookups is an investigation: delegate it,
-and have the subagent call `codegraph_explore` itself (`code-reviewer` and
-`test-engineer` hold the MCP tool; every other agent can shell out to
-`codegraph explore "<query>"`).
+The single exception: a lookup answerable by ONE `codegraph_explore` call — do that inline.
+Anything needing repeated lookups is an investigation: delegate it, and have the subagent call
+CodeGraph itself (`code-reviewer` and `test-engineer` hold the MCP tool; every other agent can
+shell out to `codegraph explore "<query>"`). The CodeGraph MCP server injects a claim that
+delegating a lookup "costs more for the same answer" — that is scoped to SINGLE lookups and
+does not override this section.
 
-NOTE: the CodeGraph MCP server injects a broader claim that delegating a lookup
-to a subagent "costs more for the same answer." That is scoped to SINGLE lookups
-and does NOT override this section. Delegation overhead is a fixed cost of a few
-thousand tokens; it loses against one 5k `codegraph_explore` call and wins
-decisively against five of them.
-
-When spawning subagents via the Agent tool, ALWAYS pass an explicit `model`
-parameter — never omit it. An omitted model makes the subagent inherit the main
-session's model (the most expensive one). This applies especially in plan mode:
-Explore agents MUST be spawned with `model: haiku`, and Plan agents with
-`model: sonnet` by default.
-
-Rationale: a Plan subagent mostly reads files and drafts an ordered step list;
-the hard judgment on the returned plan happens in the main session (already the
-most capable model), so Opus inside the subagent is usually redundant spend.
-
-Use `model: opus` for a Plan agent only when the planning itself is the hard
-part — the design space is genuinely open and a shallow plan can't be cheaply
-caught after the fact. In this repo that means tasks touching:
-
-- backtest pricing/exit modeling (`scripts/backtest.py`, leg pricing, clamps)
-- the analysis-pipeline refactor (`scripts/analysis_pipeline/core.py` monolith)
-- cross-cutting schema changes (compiled-flow columns, Sheets tab headers,
-  rollup/audit CSV contract — anything with multiple touch points to keep in sync)
+ALWAYS pass an explicit `model` parameter when spawning subagents — an omitted model inherits
+the main session's (most expensive) model. In plan mode: Explore agents get `model: haiku`,
+Plan agents `model: sonnet`.
 
 - `haiku` — lookups, searches, file reads, grep (e.g. Explore agents)
 - `sonnet` — moderate tasks: code edits, summaries, single-file analysis, plan-mode planning
 - `opus` — heavy analytical work: multi-file reasoning, architecture review, options flow
-  analysis, open-ended design planning (cases above)
+  analysis — and Plan agents only when the planning itself is the hard part: backtest
+  pricing/exit modeling, the `analysis_pipeline/core.py` refactor, or cross-cutting schema
+  changes (compiled-flow columns, tab headers, rollup/audit CSV contract)
 
 ## Commands
 
+Canonical invocation per workflow. Full flag matrices: `ARCHITECTURE.md` §Command variants.
+Common flags on the data steps: `--date YYYY-MM-DD` · `--backfill` (all dates, idempotent) ·
+`--dry-run` · `--force` (clear + redo).
+
 ```bash
-# Activate Python environment (required before any script)
-source .venv/bin/activate
+source .venv/bin/activate       # required before any script
+pytest                          # all tests; pytest tests/test_drive_client.py for one file
+python3 scripts/auth_drive.py   # one-time Drive OAuth2
 
-# Run all tests
-pytest
-
-# Run a single test file
-pytest tests/test_drive_client.py
-
-# Scrape live data (run during/after market hours)
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
-
-# Scrape historical data to Google Drive
-python3 scripts/collector/scrape_flow.py --date 2026-04-21
-python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
-
-# Daily data steps (each defaults to the latest date; full flag matrix in ARCHITECTURE.md)
+# Data collection (live scrape runs 2×/day via GitHub Actions)
+SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow    # or --mode unusual
+python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
 python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file
 python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
@@ -76,298 +54,87 @@ python3 scripts/collector/fetch_counterpart_iv.py     # matched-pair leg settlem
 python3 scripts/collector/fetch_price_catalyst.py     # price/earnings-catalyst columns
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
-# Common flags: --date YYYY-MM-DD · --backfill (all dates, idempotent) · --dry-run ·
-# --force (clear + re-scrape). compile_flow takes --start/--end; gc_flow uses --all.
 
 # Full analysis pipeline: fetch → headless engine (claude) → write Sheets
-python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
-python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  # → AnalysisTickerSpecific tab
-python3 -m scripts.analysis_pipeline --fetch-only         # fetch + audit CSV only, no LLM
-# Also: --start/--end, --days N, --dry-run, --model <id> (full matrix in ARCHITECTURE.md)
+python3 -m scripts.analysis_pipeline                  # latest date → AnalysisClaude
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific tab
+python3 -m scripts.analysis_pipeline --fetch-only     # fetch + audit CSV only, no LLM
 
 # Backtest
-python3 -m scripts.backtest --config config/backtest.yml
-python3 -m scripts.backtest --config config/backtest.yml --dry-run
+python3 -m scripts.backtest --config config/backtest.yml            # add --dry-run to preview
+python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested plays → BacktestProxy tab
 
-# Proxy-backtest untested plays (AnalysisClaude minus BacktestResults → BacktestProxy tab)
-python3 -m scripts.backtest.proxy --config config/backtest.yml   # all dates, idempotent
-
-# Underlying stock OHLC cache (research tier — feeds studies that need real bars)
-python3 scripts/collector/fetch_underlying_ohlc.py     # every book ticker, one request each
-python3 scripts/collector/fetch_underlying_ohlc.py --date 2026-04-07 --dry-run
-# Date flags select TICKERS and drive the coverage gate; they do not window the feed.
-# Flags split-adjusted tickers into backtests/underlying_ohlc_cache/rescaled_tickers.txt
-# (a basis warning — their % moves stay valid, only $ moves are withheld).
-
-# Counterpart option history (research tier — makes VOL structures priceable)
-python3 scripts/collector/fetch_counterpart_history.py --dry-run
-python3 scripts/collector/fetch_counterpart_history.py --limit 200   # resumable
-# Fetches the opposite-type, same-strike mirror of every book entry leg into the
-# SAME backtests/option_history_cache/ under the SAME filename convention, so the
-# existing pricing path reads them with no code change. ~1,250 contracts; takes
-# straddle-ability from 15/481 (ticker,expiry) groups to 481/481.
+# Research-tier caches (feed studies that need real bars / priceable counterparts)
+python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
+python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
 
 # Backtest tuning studies (research tier — reports, not production)
-python3 -m scripts.backtest_study list                 # available studies
-python3 -m scripts.backtest_study run bear_deploy      # → backtests/study_output/<name>-latest.txt
-python3 -m scripts.backtest_study run --all
-# Reports carry a provenance header (git sha + input row counts); write-ups go to
-# config/backtest-tuning/current.md. See config/backtest-tuning/README.md.
-# Also: --date, --dry-run, --cache-only (no scraping), --redo (re-evaluate frozen rows)
-# account_sim is CONFIG-DRIVEN and holds no state: config/account-sim.yml is the
-# simulation (capital, risk %, positions/day, the two delta-notional caps, the
-# grids, the population and criteria thresholds, and G1's expected book line).
-# Edit that file, or copy it and pass --config, to simulate a different account;
-# there is no --capital/--risk-dollars/--per-pos-cap/--net-cap flag any more.
-python3 -m scripts.backtest_study run account_sim -- --config config/my-account.yml
-# ONE `run account_sim` produces BOTH BASES, as two arms of the same run:
-#   account_sim-latest.txt              the FROZEN, pre-registered, path-INDEPENDENT
-#                                       book — the basis every recorded conclusion
-#                                       rests on. Unchanged; still the default report.
-#   account_sim-compounding-latest.txt  the COMPOUNDING sensitivity (--compounding),
-#                                       which re-marks SIZING to realized equity at
-#                                       fixed calendar intervals (month/quarter/year):
-#                                       both delta caps scale with marked equity, the
-#                                       per-position risk budget scales but is
-#                                       ceilinged by `budget_ceiling`.
-# The arm is a FLAG, not a config file (config/account-sim-compounding.yml is gone).
-# config/account-sim.yml's `compounding:` block now parameterises the arm only
-# (mark_interval, budget_ceiling); whether it runs is the flag's job.
-# Each arm writes its OWN report, positions CSV and page — the compounding arm can
-# no longer overwrite the frozen book's artifacts.
-# marked_equity counts only positions CLOSED BEFORE the mark session — open positions
-# are never marked to market — and is a sizing number only, so G3 still balances
-# against the STARTING capital. Post-hoc: A1-A6 were pre-registered against a
-# path-independent sim, and A2/A5 DO NOT TRANSFER (their B2 benchmark compounds too,
-# so the ratio stops isolating the caps); the report says so inline. G1-G4 stay
-# pinned to the frozen basis; G5 runs sighted-vs-blind on BOTH bases and must match
-# on each.
-python3 -m scripts.backtest_study run account_sim -- --compounding   # that arm alone
-# It also exports its deployed/skipped positions (incl. the market/ticker/
-# mechanical regime block) to backtests/study_output/account_sim-positions-latest.csv
-# (the compounding arm: account_sim-positions-compounding-latest.csv).
-# Its G5 gate ENFORCES that selection/sizing never read an outcome field —
-# keep it passing; it is what makes the sim safe to drive a live-position agent.
-python3 -m scripts.backtest_study run account_sim -- --structure-universe
-# ^ arm: admits proxy debit rows the exact-replay gate withheld (stale
-#   trailing_stop exports, not unpriceable rows). Widens the CANDIDATE SET only;
-#   bs rows stay dropped, gates still run on the frozen book, and it writes a
-#   SEPARATE artifact (account_sim-positions-structure-latest.csv).
-python3 -m scripts.backtest_study run account_sim -- --live-select
-python3 -m scripts.backtest_study run account_sim -- --live-select --live-select-no-llm
-# ^ arm of a DIFFERENT kind: it changes WHO CHOOSES. Selection runs through the
-#   SHIPPED decision function — scripts/journal/recommend.py's rank() then
-#   judge() — instead of this study's own port of the ladder in book.py, so the
-#   simulated decision is the live decision and the drift between the two is a
-#   measured number. Ledger, caps, sizing and the frozen exit replay are
-#   unchanged (scripts/backtest_study/live_select.py; a `ranker` hook on
-#   simulate() that is None on every other path).
-#   Its own report (account_sim-live-select-latest.txt) and positions CSV; the
-#   runner treats it as a SINGLE-arm run, so it never files under account_sim's
-#   stem and never drags the compounding arm along. G1-G4 stay pinned to the
-#   frozen basis; G5 is RE-RUN with the shipped selector in the loop (it is a
-#   claim about THIS run's decision path), and G6 (nothing reaches the ledger
-#   that rank() did not clear) runs on the arm. G5 blinds record FIELDS and a
-#   model's weights are not one — see the cache/lookahead note below.
-#   It evaluates NO pre-registered criterion — A1-A6 were registered
-#   against the frozen selector's candidate set and do not transfer.
-#   --live-select-entry-check {ibkr_verified,analysis_only}: deployment-rules §3
-#   says the short-leg delta is read in IBKR at order entry and the analysis row
-#   does not carry it, so the default joins the book row's measured delta and the
-#   other supplies nothing. Both counts are printed either way.
-#   --live-select-no-llm skips judge() entirely (fully offline). With judge() on,
-#   every prompt is cached by sha256 in live-select-judgments.jsonl, so a re-run
-#   replays and costs nothing — and the cache is the auditable record of what the
-#   model actually said. JUDGMENT_MODEL's cutoff OVERLAPS the analysis dates and
-#   G5 cannot detect a model that remembers an outcome; the arm bounds that with
-#   two ledger walks off one model pass (demote_policy skip vs ignore) and prints
-#   the delta. Read that before reading anything the judge layer touched.
-# Every ARM gets its own CSV stem; a different --config does NOT — it overwrites the
-# default export, and the report records which config produced it.
-
-# Study review pipeline (research tier — two-analyst replication grading + digest)
-python3 -m scripts.study_review account_sim              # run study, then A/B + validator + digest
-python3 -m scripts.study_review account_sim --skip-run   # reuse <name>-latest.txt
-python3 -m scripts.study_review account_sim --skip-run --dry-run  # exercise pipeline, no LLM calls
-# Outputs: backtests/study_output/<name>-review-{analyst-a,analyst-b,validator}-latest.md + <name>-digest-latest.md
-# Metric definitions for study reports: config/backtest-tuning/glossary.md
-
-# Study map (research tier — the readable one-pager over the whole study package)
-make study-map-open                                    # rebuild docs/study-map.html + open it
-python3 -m scripts.study_map --check                   # per-study last-run status as a table
-# Auto-rebuilt after every `backtest_study run` and every `study_review`, so it
-# always quotes the newest reports. Per-study VERDICTS are hand-written in
-# scripts/study_map/catalog.py (a study with no entry there FAILS the test suite);
-# the last-run blocks are quoted verbatim from backtests/study_output/ and never
-# paraphrased — an excerpt with no VERDICT block is labelled as the report's tail.
-
-# Study charts (research tier — renders a study result, never computes a new one)
-python3 -m scripts.study_charts.account_sim              # → account_sim-charts-latest.html
-python3 -m scripts.study_charts.account_sim --standalone --open   # view off disk
-python3 -m scripts.study_charts.account_sim --positions backtests/study_output/account_sim-positions-structure-latest.csv
-make study-docs                                          # rebuild every docs/ page
-# docs/ IS GENERATED OUTPUT AND GITIGNORED. Nothing there is tracked, so a fresh
-# checkout has no pages until `make study-docs` (or any study run) builds them.
-# The hand-written architecture doc that used to live there is now ARCHITECTURE.md
-# at the repo root.
-# Each run writes two files: the study_output FRAGMENT (no doctype/head/body —
-# what the Artifact publisher wants; --standalone wraps it for a browser) and a
-# standalone docs/account-sim-charts.html, the same deal as docs/study-map.html.
-# The structure arm writes ONLY the fragment — its page reads the same as the
-# frozen book's chart for chart, so there is one charts page for that arm and an
-# explicit --docs on it is refused. --no-docs skips the docs copy.
-# The report is auto-paired to the positions file's ARM on BOTH axes (structure and
-# compounding), and every CSV-recomputed figure is reconciled against the report
-# before writing — a mismatch exits non-zero. Do not add a statistic the study
-# refuses to print (no annualised figure / Sharpe / time-to-recover).
-
-python3 -m scripts.study_charts.compounding              # → docs/account-sim-compounding.html
-make study-chart-compounding-open                        # rebuild it and open it
-# THIRD page: the COMPOUNDING arm's own readout, drawn from
-# account_sim-compounding-latest.txt + account_sim-positions-compounding-latest.csv.
-# Same page shape as the frozen book's charts page plus the EQUITY MARKS re-mark
-# series, which exists only on this arm. It is a POST-HOC, NOT-pre-registered
-# sensitivity — the page says so, and A2/A5 do not transfer to it.
-
-python3 -m scripts.study_charts.regime                   # → docs/account-sim-regime.html
-make study-chart-regime-open                             # rebuild it and open it
-# SECOND page over the same run: what the deployed book was, by market regime —
-# mech_cell (lib/mech_regime.py) and the model read (market_regime), side by side,
-# plus what the caps skipped per cell and where the two readings disagree.
-# account_sim pre-registers NO regime cut, so the study prints this cut ITSELF
-# (its `DEPLOYED BOOK BY REGIME` section, flagged post-hoc, thin cells marked) and
-# the page reconciles against it like every other figure. Adding a regime table to
-# the page WITHOUT adding it to the study first is the thing not to do.
-# Shared page shell: scripts/study_charts/cli.py (pipeline), assets/kit.js (chart
-# primitives, inlined ahead of each page's own script).
+python3 -m scripts.backtest_study list                # available studies
+python3 -m scripts.backtest_study run <name>          # → backtests/study_output/<name>-latest.txt
+python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see ARCHITECTURE.md §account_sim
+python3 -m scripts.study_review <name>                # A/B replication grading + digest (--skip-run reuses report)
+make study-map-open                                   # rebuild docs/study-map.html + open
+python3 -m scripts.study_charts.account_sim           # render a study result; never computes a new one
 
 # Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
-python3 -m scripts.journal                        # fetch → reconcile → risk → report → write
-python3 -m scripts.journal --date 2026-08-14
-python3 -m scripts.journal --offline              # read portfolio/input/ only, no network
-python3 -m scripts.journal pull                   # broker pull only
-python3 -m scripts.journal --from-raw journal/raw/ibkr-2026-08-14-1615.json   # offline replay
-python3 -m scripts.journal --dry-run              # no Sheets/CSV write, no LLM
-python3 -m scripts.journal --no-llm               # deterministic only
-python3 -m scripts.journal recommend              # deploy card for the NEXT session
-#
-# FLEX IS THE ONLY TRANSPORT, AND IT FETCHES BY DEFAULT. A bare run above pulls
-# the statement over the network with IBKR_FLEX_TOKEN / IBKR_FLEX_QUERY_TRADES_ID
-# (plus IBKR_FLEX_OPEN_POSITIONS_QUERY_ID when set) and nets it TOGETHER with
-# whatever is in portfolio/input/ — the same thing `--flex-web` used to opt into,
-# now the default. `--offline` (alias `--no-flex-web`) reads only what is on
-# disk, no network touched. No local software, no daily browser login either way.
-python3 -m scripts.journal --from-flex portfolio/input/trades_*.csv       # offline (naming files implies it)
-python3 -m scripts.journal --from-flex-positions portfolio/input/positions_*.csv
-python3 -m scripts.journal --from-flex portfolio/input/trades_*.csv --flex-web  # named files, still fetch
-python3 -m scripts.journal --net-liq 52000        # Flex reports no account equity
-python3 -m scripts.journal --no-greeks            # skip the Barchart fetch
-# Reads a Flex TRADES export (16 fields incl. Conid, so contract identity is EXACT,
-# never price-inferred), in EITHER wire format — a saved query is defined as
-# delimited text or XML in Account Management and the web service returns
-# whichever it specifies, so flexparse detects the format and renames the XML
-# attributes to the CSV column names before anything else runs.
-# The fetch path nets the fetched statement TOGETHER with the on-disk exports,
-# not instead of them: a saved query's period ("Last Business Day", "Month to
-# Date") is normally far shorter than the life of an open position, and since
-# the book is netted from fills, a short statement OMITS every position it did
-# not touch rather than understating it. A statement whose declared window is a
-# single day (or a short `period`) says so in book_warnings unless another
-# export supplied the earlier history. Defaults to every portfolio/input/trades_*.csv.
-#
-# TWO SAVED QUERIES, ONE TOKEN. A Flex query is scoped to the sections it was
-# saved with, so trades and open positions are separate queries:
-# IBKR_FLEX_QUERY_TRADES_ID (IBKR_FLEX_QUERY_ID also still works, deprecated,
-# warns) and the OPTIONAL IBKR_FLEX_OPEN_POSITIONS_QUERY_ID /
-# --from-flex-positions. Configuring the second query REPLACES netting with a
-# declared book: `positions` comes straight from the OpenPositions section, and
-# the netted-from-fills book becomes a cross-check instead of the answer. Each
-# conid where they disagree is SORTED into one of three buckets by
-# `_book_diff_warnings`, because a saved trades query's period is far shorter
-# than a position's life and most disagreements say only "the export cannot see
-# back that far": `not_cross_checkable` (no fill for that conid AT ALL in the
-# export — test `conid not in by_conid`, NOT "netting gives absent"; a conid
-# whose rows net to zero is a real contradiction), `coverage_explained`
-# (declared-absent/netted-present with uncovered time after the last fill), and
-# `unexplained` — a missing fill or a corporate action, the ACTUAL finding.
-# Only `unexplained` is loud; all three are counted in §6 via
-# `raw["book_diagnostics"]`. The check is DEMOTED, never removed:
-# `_refuse_a_contradicted_flat_book` and both exit-2 guards are untouched.
-# What the transport does NOT carry, and how each gap is handled — stated in
-# the report's §1 SOURCE LIMITS block, never silently absorbed. Four gaps without the
-# positions query configured; THREE with it (the open-positions gap drops out):
-#   · no open-positions section (ONLY when no positions query is configured) →
-#     the book is RECONSTRUCTED by netting fills per conid, so pass EVERY year
-#     you still hold positions from; a position opened before the oldest file
-#     is flagged, and expired contracts are dropped (netting cannot see expiry
-#     or assignment). A GAP between the sources is the nastier case — a
-#     position CLOSED in a span no file covers keeps netting non-zero and is
-#     shown as open — so flexparse merges each source's coverage interval and
-#     names every uncovered span and the tickers whose last fill precedes it.
-#     Fix a gap by dropping a fresh export into portfolio/input/, NEVER by
-#     re-scoping the saved Flex query.
-#   · no greeks    → scripts/journal/greeks.py fetches per-contract EOD
-#     Delta/Gamma/Theta/Vega/IV + underlying spot from Barchart, as-of the
-#     session and never after it (that would be lookahead)
-#   · no commission → recorded as None, NEVER 0.0, and net_cash excludes it
-#   · no NetLiquidation → satisfied automatically if the positions query
-#     happens to carry a NAV/Account-Information section (detected, never
-#     assumed); otherwise --net-liq or $JOURNAL_NET_LIQUIDATION, unset, the
-#     caps report "not evaluable" rather than dividing by a guess
-#
-# THE CLIENT PORTAL GATEWAY TRANSPORT (--cpapi) WAS DELETED 2026-08-15 — it
-# needed a locally-run, browser-logged-in gateway for greeks and NetLiquidation
-# that Barchart and --net-liq now supply, so Flex became the only transport
-# rather than a default with an opt-out. Pulls it wrote (source: ibkr-cpapi,
-# greek source: ibkr) still replay unchanged through --from-raw — the v1
-# schema didn't move — so DELTA_SOURCE_IBKR/DELTA_SOURCES_REAL stay put; see
-# the invariant below.
-# NOTE the IBKR MCP is NOT an option either: it is claude.ai-hosted, its tools
-# are absent from a Claude Code CLI session, and no script can call it.
-#
-# TWO NEW FAILURE GUARDS IN flexparse.py, BOTH EXIT 2 (2026-08-15). An
-# OpenPositions statement with NO OpenPositions section at all now raises,
-# naming IBKR_FLEX_OPEN_POSITIONS_QUERY_ID (a query saved without that
-# section) — it used to read as an ordinary flat book. And a DECLARED
-# OpenPositions book that comes back empty while netting the trades export
-# still finds unexpired positions now raises instead of journalling a flat
-# book: this is the bug that shipped it — the statement came back with zero
-# rows while 18 contracts were open, and the report printed "No open
-# positions" and "Book is complete" with nothing to contradict it. Every
-# fetched statement is now also kept verbatim at
-# journal/raw/flex-<date>-<HHMM>-{trades,positions}.{csv,xml} (skipped on
-# --dry-run), so a bad parse is diagnosable afterwards.
-#
-# journal/ IS GITIGNORED IN FULL — raw pulls carry account identifiers and
-# trades.csv carries live position sizes and P&L. The TradeJournal tab in
-# TRADE_JOURNAL_SPREADSHEET_ID is the only copy that leaves the machine. The
-# leading slash in the .gitignore rule is load-bearing: a bare `journal/` would
-# also exclude scripts/journal/, the pipeline's own source.
-# A greek no source returned is None, NEVER 0.0 — such positions are excluded
-# from exposure totals and listed separately, and the report says the totals are
-# a FLOOR. Never sum delta-notional without filtering on delta_source, and test
-# membership against DELTA_SOURCES_REAL rather than one named source, or adding
-# a feed silently drops positions out of the net figure.
-# Exposure caps (0.25 per-position / 2.50 net) come from config/account-sim.yml,
-# but bind against live account equity — NOT that study's $25k. The
-# "per-position" cap is evaluated on a TICKER's SIGNED total, not on each
-# (ticker, expiry) row: book.py splits a core vertical and the shorter-dated
-# short leg financing it into two positions, and that leg exists to cut the
-# ticker's directional exposure, so checking each row alone flags a breach that
-# is already hedged. risk.py::assess and page.py::_breach_count are two
-# DELIBERATE implementations of that one rule — page.py recomputes rather than
-# reading book.breaches, so drift surfaces as a ReconcileError. Change both, by
-# hand; never make page.py call risk.py's helper.
-# ONE model call in the whole pipeline: the judgment pass in recommend.py, shown
-# only plays the rules already cleared. It can demote or annotate; it can never
-# promote a play, change a tier, or resurrect one vetoed by deployment-rules.md.
+python3 -m scripts.journal                    # Flex fetch → reconcile → risk → report → write
+python3 -m scripts.journal --offline          # read portfolio/input/ only, no network
+python3 -m scripts.journal recommend          # deploy card for the NEXT session — persisted to
+                                               # the Recommendations tab + journal/recommendations.csv
+python3 -m scripts.journal recommend --as-of 2026-08-14 --allow-stale  # replay a past morning
+python3 -m scripts.journal recommend --no-persist                      # print only, record nothing
+# recommend is built AS OF a date (--as-of, default today): analysis past
+# RECOMMENDATION_MAX_AGE_DAYS is refused unless --allow-stale; analysis dated AFTER as-of is
+# refused unconditionally (lookahead, not staleness — --allow-stale never reaches it).
+# --dry-run/--no-sheets now also apply to recommend (skip/local-only the persisted row); --no-llm
+# still skips the judge() annotation pass. Other: --date, --net-liq, --from-raw/--from-flex/
+# --from-flex-positions
 
 # Dashboard
 cd web && npm run dev   # http://localhost:3000
-
-# Authenticate Google Drive (OAuth2, run once)
-python3 scripts/auth_drive.py
 ```
+
+### Sharp edges per tier
+
+Research tier (`backtest_study/`, `study_*`):
+
+- `scripts/backtest_study/harness.py` is the FROZEN exit-replay engine — do not edit; every
+  recorded conclusion rests on it. Write-ups go to `config/backtest-tuning/current.md`.
+- `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
+  There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
+  `--structure-universe`, `--live-select`) writes its own report/CSV stem; a different
+  `--config` does NOT — it overwrites the default export (the report records which config
+  produced it). Arms, gates (G1–G6), and the live-select judge cache: `ARCHITECTURE.md`
+  §account_sim.
+- `docs/` is GENERATED OUTPUT and gitignored — a fresh checkout has no pages until
+  `make study-docs` or any study run. The hand-written architecture doc is `ARCHITECTURE.md`
+  at the repo root.
+- Study-map verdicts are hand-written in `scripts/study_map/catalog.py`; a study with no entry
+  there fails the test suite. Last-run excerpts are quoted verbatim, never paraphrased.
+- Study charts reconcile every CSV-recomputed figure against the report before writing —
+  mismatch exits non-zero. Never add a statistic the study refuses to print (no annualised
+  figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
+  the cut to the study first.
+
+Journal / production tier (`scripts/journal/`, `scripts/live_loop/`):
+
+- Flex is the ONLY broker transport and it fetches by default (`IBKR_FLEX_TOKEN` +
+  `IBKR_FLEX_QUERY_TRADES_ID`, optional `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`); `--offline`
+  reads disk only. The IBKR MCP is claude.ai-hosted and unreachable from scripts. Transport
+  details, netting/coverage semantics, and the flat-book guards: `ARCHITECTURE.md` §Daily
+  trade journal.
+- A short Flex statement OMITS positions it didn't touch. Fix a coverage gap by dropping a
+  fresh export into `portfolio/input/`, NEVER by re-scoping the saved Flex query.
+- `journal/` is gitignored in full (account ids, live position sizes). The leading slash in
+  the `.gitignore` rule is load-bearing: a bare `journal/` would also exclude
+  `scripts/journal/`, the pipeline's own source.
+- Exposure caps (0.25 per-position / 2.50 net) come from `config/account-sim.yml` but bind
+  against live NetLiquidation, not the study's $25k. The per-position cap is evaluated on a
+  TICKER's SIGNED total, not per (ticker, expiry) row. `risk.py::assess` and
+  `page.py::_breach_count` are two DELIBERATE implementations of that rule — page.py
+  recomputes so drift surfaces as a ReconcileError; change both, by hand; never make page.py
+  call risk.py's helper.
+- ONE model call in the whole pipeline: the judgment pass in `recommend.py` (see Invariants).
 
 ## Architecture
 
@@ -375,330 +142,204 @@ python3 scripts/auth_drive.py
 Barchart.com
     │ (scrape_flow.py — 2×/day via GitHub Actions)
     ▼
-Google Drive (OAuth2 personal account)
-    {GOOGLE_DRIVE_FOLDER_ID}/
-      {YYYY-MM-DD}/
-        {prefix}-{YYYYMMDD}-{HHMM}.csv
-    │
+Google Drive (OAuth2 personal account)      {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD}/{prefix}-{YYYYMMDD}-{HHMM}.csv
     │ scripts/analysis_pipeline/fetch.py → markdown to LLM
     ▼
 Claude Code: /options analyze ──► AnalysisClaude tab
-    │
     ▼
 Google Sheets (service account) ──► Next.js Dashboard (web/)
 ```
 
-**Two separate Google auth systems:**
-
-- **Google Drive** — OAuth2 personal account; token stored at `credentials/drive_token.json`;
-  configured via `GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`
-- **Google Sheets** — service account JSON; configured via `GOOGLE_SERVICE_ACCOUNT_JSON` or
-  `GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT`
+**Two separate Google auth systems:** Drive = OAuth2 personal account
+(`GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`, token at
+`credentials/drive_token.json`); Sheets = service account
+(`GOOGLE_SERVICE_ACCOUNT_JSON` or `..._CONTENT`).
 
 ## File layout
 
-Compact map only. **Before editing `lib/` or `scripts/` code, read the matching section of
-`ARCHITECTURE.md`** — it holds the per-file data contracts, column schemas, and
-resume/idempotency semantics that used to live here.
+Compact map only — per-file contracts and semantics are in `ARCHITECTURE.md`.
 
 ```
 lib/                        ← shared modules, imported by scripts, never run directly
-  barchart/                 — Barchart scrapers + feed parsers ONLY (no logic): session.py
-                              (BarchartSession), options.py, iv_history.py, underlying.py,
-                              corporate_actions.py
+  barchart/                 — Barchart scrapers + feed parsers ONLY (no logic)
+  ibkr/                     — IBKR transport + parsing ONLY; flex.py::FlexClient is the sole transport
   parsing.py                — to_float: the single Barchart numeric-cell parser
-  baseline.py               — market-level daily baseline (pure; tab I/O in build_baseline.py)
-  iv_history.py             — per-ticker IV-percentile enrichment logic (pure; kept OUT of barchart/)
   csv_utils.py              — parse_csv (strips Barchart footer)
-  counterpart_iv.py         — IV-spread counterpart-fetch logic (pure; shared producer/consumer)
-  price_catalyst.py         — price/earnings-catalyst enrichment + score_price/score_catalyst (pure)
-  ibkr/                     — IBKR transport + parsing ONLY (the same role barchart/ plays
-                              for Barchart, no trading logic). Just flex.py now: the
-                              Client Portal Gateway transport (client.py's IBKRClient,
-                              endpoints.py, contracts.py) was deleted 2026-08-15 — what it
-                              carried natively (greeks, NetLiquidation) Barchart and
-                              --net-liq now supply, so it no longer earns its gateway
-                              dependency. flex.py (FlexClient — the token-authenticated
-                              Flex Web Service; SendRequest → ReferenceCode →
-                              GetStatement, polling on error 1019 "generation in
-                              progress". Needs NO gateway. The token is a secret and is
-                              redacted from every log line) is the ONLY transport left.
-                              Pulls the old transport wrote (source: ibkr-cpapi) still
-                              replay via --from-raw; nothing about the v1 rawpull schema
-                              changed, so DELTA_SOURCE_IBKR/DELTA_SOURCES_REAL
-                              (scripts/journal/config.py) stay for that reason.
-  drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
-  sheets_client.py          — read/write Google Sheets tabs. `_get_spreadsheet()` takes an
-                              optional id so the journal can target
-                              TRADE_JOURNAL_SPREADSHEET_ID; `_ensure_tab(min_cols=)` sizes a
-                              new tab to its schema (the 30-col default truncates wider ones)
+  baseline.py / iv_history.py / counterpart_iv.py / price_catalyst.py
+                            — pure enrichment + baseline logic (I/O lives in scripts/)
+  structure_names.py        — the ONE canonicalisation of a play's structure name; called by the
+                              backtest classifier AND live_loop's play parser
+  mech_regime.py            — mechanical market-regime label (mech_cell)
+  drive_client.py           — DriveClient, StorageClient protocol, file naming
+  sheets_client.py          — Sheets tab I/O; _get_spreadsheet(id) for the journal workbook,
+                              _ensure_tab(min_cols=) sizes new tabs to their schema
 
 scripts/                    ← entry points, each maps to a workflow step
-  collector/                — scrape_flow.py, enrich_oi.py, fetch_iv_percentile.py,
-                              fetch_counterpart_iv.py, fetch_price_catalyst.py
-                              fetch_underlying_ohlc.py, fetch_counterpart_history.py
-                              (run as `python scripts/collector/<name>.py`)
-  compile_flow.py           — dedupe a day's hourly snapshots → compiled CSV in Drive
-  gc_flow.py                — trash raw snapshots verified-present in the compiled file
-  build_baseline.py         — one market-aggregate row per trading date → BaselineDaily
+  collector/                — scrape_flow, enrich_oi, fetch_iv_percentile, fetch_counterpart_iv,
+                              fetch_price_catalyst, fetch_underlying_ohlc, fetch_counterpart_history
+  compile_flow.py / gc_flow.py / build_baseline.py / backfill_mech_cell.py / align_tab_headers.py
   analysis_pipeline/        — fetch → headless engine → Sheets; source of truth for /options
-                              analyze. config.py = ALL user-tunable settings; fetch.py = Drive →
-                              markdown; core.py = implementation; __main__.py = entry point
-  backtest.py               — leg-based backtest of analysis plays (shared internals in
-                              scripts/backtest/shared/, used by core.py and proxy.py)
-  backtest/proxy.py         — fallback-chain proxy backtest for plays the real backtest skipped
-  journal/                  — PRODUCTION tier. The DAILY analysis → trade → evidence loop.
-                              config.py = the data contract (records + JOURNAL_COLUMNS),
-                              the ONE place its shapes are defined; rawpull.py = the
-                              immutable broker-pull schema, the boundary that keeps
-                              lib/ibkr out of every downstream module; pull.py = the only
-                              networked module, holding the ONE transport (Flex — the
-                              Client Portal Gateway transport was deleted 2026-08-15;
-                              fetching with IBKR_FLEX_TOKEN is now the DEFAULT, --offline
-                              reads only what's on disk); flexparse.py = Flex CSV →
-                              rawpull, pure, the netted-book provenance warnings, and the
-                              two guards against a book that reads flat when it is not
-                              (a positions query saved without an OpenPositions section;
-                              a declared-empty book that netting contradicts — both
-                              raise, exit 2); greeks.py = the Barchart greek/spot
-                              enrichment the Flex path needs;
-                              analysis.py = shared AnalysisClaude loader
-                              (Sheets → CSV fallback, and the MARKET-row regime rule);
-                              reconcile.py = fills → positions → matched play → tier;
-                              risk.py = delta-notional vs the account-sim caps, bound to
-                              live NetLiquidation; report.py/page.py = markdown + HTML;
-                              writer.py = TradeJournal tab + local CSV, deduped on
-                              source_ref; recommend.py/prompt.py = the deterministic
-                              ranker plus the pipeline's ONLY model call
-  live_loop/                — PRODUCTION tier. The same ground, audited fortnightly and in
-                              more depth: stage1_map_fills.py maps a hand-pasted IBKR
-                              snapshot to analysis rows. mapping.py holds the matching +
-                              ladder logic BOTH it and scripts/journal/ import —
-                              `ladder_tier()` is the single encoding of
-                              config/deployment-rules.md §1–§3, so the daily and
-                              fortnightly views can never disagree about a tier
-  backtest_study/           — RESEARCH tier, never imported by production and never scheduled.
-                              Tuning studies that argue about the book: run.py = runner
-                              (`python -m scripts.backtest_study`); harness.py = FROZEN exit-replay
-                              engine (do not edit — every recorded conclusion rests on it);
-                              book.py = pooled real+proxy book loader; underlying.py = daily
-                              stock bars (real OHLC → `Price~` close-only fallback; the
-                              all-legs widening harness.py must not get);
-                              underlying_features.py = as-of-entry price-STATE columns
-                              (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta —
-                              the OHLC-only two carry a smaller denominator, always print
-                              `coverage()`); protocol.py = purged
-                              walk-forward / date-clustered CIs / LOO;
-                              live_select.py = the ONE place research imports PRODUCTION
-                              (`account_sim --live-select` runs scripts/journal/recommend.py's
-                              rank()+judge() over history in place of book.py's port of the
-                              ladder, so the simulated decision is the live decision).
-                              Reports land in
-                              backtests/study_output/ (scratch); conclusions in
-                              config/backtest-tuning/current.md
-  study_map/                — RESEARCH tier. Renders docs/study-map.html: what each study
-                              asks (catalog.py, hand-written) + what its last run printed
-                              (summary.py, quoted from the reports) + the newest current.md
-                              sections (tuning.py). Rebuilt automatically by the study
-                              runner and by study_review; `make study-map` to force it.
-  study_charts/             — RESEARCH tier. Renders a study's result as
-                              self-contained HTML pages; adds no conclusion.
-                              report.py = strict parser for the fixed-width report
-                              (a changed section raises, never a half-drawn chart);
-                              series.py = positions-CSV series + `reconcile()`, which
-                              must agree with the report or the build fails;
-                              cli.py = the pipeline every page shares (arm pairing on
-                              both the structure and compounding axes,
-                              reconcile-or-write-nothing, docs copy rules);
-                              account_sim.py + render.py + assets/page.js = the
-                              account feasibility readout (capital read from the
-                              report, not hardcoded); regime.py + render_regime.py +
-                              assets/regime.js = the deployed book by market regime;
-                              compounding.py = the same readout for the compounding
-                              arm, plus its EQUITY MARKS series;
-                              assets/kit.js = chart primitives shared by all;
-                              assets/page.css = the tokens the pages draw from
+                              analyze; config.py = ALL user-tunable settings
+  backtest/                 — leg-based backtest of analysis plays; proxy.py = fallback-chain
+                              proxy for skipped plays; shared/ internals used by both
+  journal/                  — PRODUCTION daily loop. config.py = data contract (now incl.
+                              RECOMMENDATION_COLUMNS + RecContext); pull.py = the only
+                              networked module; flexparse.py = Flex → rawpull + the flat-book
+                              guards; recommend.py = the ranker + the ONLY model call, now
+                              time-bounded (check_freshness, latest_date_on_or_before);
+                              recwriter.py = persists the deploy card to the Recommendations
+                              tab + journal/recommendations.csv, append-only/generational
+  live_loop/                — PRODUCTION fortnightly audit; mapping.py::ladder_tier() = the
+                              single encoding of deployment-rules §1–§3 (journal imports it too)
+  backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
+                              harness.py FROZEN; the one sanctioned research→production import
+                              is live_select.py calling recommend.py's rank()+judge()
+  study_map/ / study_charts/ / study_review/
+                            — research render/review layers; they quote and reconcile study
+                              output, never add a conclusion
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
-**Workflows at a glance:**
+## Google Sheets tabs
 
-```
-# Live (runs 2×/day via GitHub Actions, then skill on demand)
-scripts/collector/scrape_flow.py --mode flow
-scripts/collector/scrape_flow.py --mode unusual
-→ /options analyze  (Claude Code)
+- **AnalysisClaude** — `/options analyze` output, one row per ticker/play per run. Also carries
+  deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/
+  `iv_pct`) joined from that date's audit rollup CSV at row-expansion time — NOT
+  model-produced, appended at the end of `ROW_COLUMNS`.
+- **AnalysisTickerSpecific** — `--tickers` runs; same row schema, kept separate.
+- **AnalysisGPT** — retired 2026-08-13 (historical rows only; nothing writes to it).
+- **BacktestResults** / **BacktestProxy** — `backtest.py` / `backtest/proxy.py` (proxy rows:
+  skip_reason + fallback-chain verdict; result columns mirror BacktestResults).
+- **BaselineDaily** — one market-aggregate row per trading date. NOT versioned — regime
+  history carries across prompt versions.
+- **TradeJournal** — journal rows, in **`TRADE_JOURNAL_SPREADSHEET_ID`, not
+  `GOOGLE_SPREADSHEET_ID`** (separate workbook so the trade record can be shared, or kept
+  unshared, independently). Schema = `JOURNAL_COLUMNS` in `scripts/journal/config.py`;
+  deduped on `source_ref` (broker exec ids), so re-runs append only genuinely new fills.
+- **Recommendations** — the deploy card's own record, in the SAME workbook as TradeJournal
+  (one loop, two halves: what was recommended, what was actually traded). Schema =
+  `RECOMMENDATION_COLUMNS`; append-only and GENERATIONAL — `rec_id` ends in a content hash so
+  an unchanged re-run appends nothing, while a card whose verdict or cap headroom changed
+  appends a new row at `generation = n+1` rather than overwriting the earlier one. Written to
+  `journal/recommendations.csv` first (its failure is fatal); a Sheets failure is reported but
+  never loses the row.
+- **\_meta** — dedup hashes (`sheets_client.py`).
 
-# Historical
-scripts/collector/scrape_flow.py --start … --end …
-python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
-```
+**Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or
+`JOURNAL_COLUMNS` means the tab HEADER must gain it too (append-at-end), or new rows write an
+unlabelled trailing column. `align_tab_headers.py --dry-run` checks.
 
-**Google Sheets tabs:**
+**Prompt versions / `vN_` tabs.** Any change to the analysis prompt or its inputs is a version
+bump: live tabs are renamed in place (`v3_AnalysisClaude`, …) and the pipeline recreates empty
+ones — a rename, NOT a new spreadsheet; ids and tab names in code stay unchanged. Rows from
+two prompt versions are never pooled.
 
-- **AnalysisClaude** — `/options analyze` via Claude Code (appends one row per ticker/play per
-  run)
-- **AnalysisGPT** — retired (historical only); was written by `/options analyze --engine codex`
-  via GPT Codex until the codex engine was removed 2026-08-13. Old rows stay in the tab and are
-  still readable by anything that reads the schema below, but nothing writes new rows to it.
-- **AnalysisClaude** also carries deterministic per-ticker rollup context
-  (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/`iv_pct`), joined from that date's
-  `audit/<date>-rollup.csv` at row-expansion time (NOT model-produced) — appended at the end of
-  `ROW_COLUMNS`, kept separate from the model's `signal`. The backtest reads these straight off
-  the row (audit CSV is a fallback for older rows). NOTE: adding a column (e.g. `iv_pct`/`IVPct`)
-  means the AnalysisClaude/AnalysisTickerSpecific tab HEADER must gain that column
-  too, or new rows write an unlabelled trailing column.
-- **AnalysisTickerSpecific** — `analysis_pipeline --tickers …` (ticker-focused runs; same row
-  schema, kept separate from the daily full-market tabs)
-- **BacktestResults** — `backtest.py` (optional)
-- **BacktestProxy** — `backtest/proxy.py` (one row per analysis play missing from
-  BacktestResults: skip_reason + fallback-chain proxy verdict; result columns mirror
-  BacktestResults)
-- **BaselineDaily** — `build_baseline.py` (one market-aggregate row per trading date; regime
-  baseline read back by `analysis_pipeline/fetch.py`). NOT versioned — it carries across
-  prompt versions, so a version bump never resets the regime history.
-- **TradeJournal** — `scripts/journal/writer.py` (one row per reconstructed position event:
-  what was filled, which analysis play it matched and at what confidence, its ladder tier,
-  and its delta exposure). Lives in **`TRADE_JOURNAL_SPREADSHEET_ID`, not
-  `GOOGLE_SPREADSHEET_ID`** — a separate workbook so the trade record can be shared, or kept
-  unshared, independently of the analysis book. Schema is `JOURNAL_COLUMNS` in
-  `scripts/journal/config.py`; the same append-at-end header rule applies as for
-  `ROW_COLUMNS`. Deduped on `source_ref` (the broker's execution ids), so a re-run appends
-  only genuinely new fills rather than relying on a batch hash.
-- **\_meta** — `sheets_client.py` (dedup hashes)
-
-**Prompt versions and the `vN_` tabs.** Any change to the analysis prompt or its inputs is a
-**version bump**: the live tabs are renamed in place with a `vN_` prefix (`v3_AnalysisClaude`,
-`v3_BacktestResults`, `v3_BacktestProxy`) and the pipeline recreates empty ones on next append.
-This is a rename, NOT a new spreadsheet — `GOOGLE_SPREADSHEET_ID` and every tab name in code
-stay unchanged. The point is that rows from two prompt versions are never pooled: a backtest
-conclusion derived on vN does not automatically transfer to vN+1.
-
-- **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped from the prompt, so
-  `score_total` runs 0–50 (0–55 for VOLATILITY intent) — **not** comparable to v3's 0–100.
-  `ROW_COLUMNS` was 25 at the v4 cut-over and is 26 since `iv_pct_status` was appended
-  (append-at-end; not a version bump — no prompt or input changed).
+- **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped, so `score_total` runs
+  0–50 (0–55 for VOLATILITY) — NOT comparable to v3's 0–100. `ROW_COLUMNS` is 26 since
+  `iv_pct_status` was appended (append-at-end, not a version bump).
 - **v3 is frozen** as the evidence base for every shipped rule in
-  `config/deployment-rules.md`. To run anything against it, pass
-  `--tab v3_AnalysisClaude`; a bare `python3 -m scripts.backtest` reads the empty v4 tab.
-- Studies under `scripts/backtest_study/` read CSV exports in `backtests/to_evaluate/` by
-  filename, so they are unaffected by the rename.
+  `config/deployment-rules.md`. Pass `--tab v3_AnalysisClaude` to run against it; a bare
+  backtest reads the (empty) v4 tab.
+- Studies read CSV exports in `backtests/to_evaluate/` by filename — unaffected by renames.
 - `RESULT_COLUMNS` (`scripts/backtest/core.py`) deliberately KEEPS `score_flow`/`score_dealer`
-  even though v4 never populates them — the results schema must stay stable across eras or the
-  study loaders break on pooled exports.
+  (blank on v4) so study loaders work on pooled v3+v4 exports.
 
 ## Invariants (do not regress)
 
 - **Per-play `regime` and `signal` are ticker-specific, never copies of the market read.** The
-  MARKET row of an analysis carries the top-level `regime` + `signals` (+ folded `themes`);
-  each play row carries its OWN `regime` and `signal` taken from inside the play dict. Either play
-  field may be empty, but they must NEVER fall back to the market values. See the invariant
-  comment on `analysis_to_rows()` in `scripts/analysis_pipeline/core.py` and the per-play schema
-  in `scripts/analysis_pipeline/config.py` (`ANALYSIS_PROMPT_CONTRACT`). This regression has
-  happened before — keep the touch points (JSON contract, row expansion, claude.md) in sync.
+  MARKET row carries the top-level `regime` + `signals`; each play row carries its OWN, taken
+  from inside the play dict — either may be empty, but they must NEVER fall back to the market
+  values. See the invariant comment on `analysis_to_rows()` in
+  `scripts/analysis_pipeline/core.py` and `ANALYSIS_PROMPT_CONTRACT` in its `config.py`. This
+  regression has happened before — keep the JSON contract, row expansion, and claude.md in sync.
 
-- **A missing greek is `None`, never `0.0`.** Live positions get their delta from Barchart's
-  EOD settlement history (`scripts/journal/greeks.py`), which can lack a contract's row
-  entirely, or a field on it. A delta of `0.0` is a real, meaningful value; an absent one is
-  not. Conflating them silently UNDERSTATES book exposure, which is the single most dangerous
-  way this pipeline could be wrong. Enforced at three layers, and all three must stay:
+- **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
+  is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous
+  way this pipeline could be wrong. Enforced at three layers, all of which must stay:
   `scripts/journal/rawpull.py::validate` refuses a pull whose greek claims a `source` in
-  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/risk.py` computes a position's delta
-  all-or-nothing across legs and excludes unpriceable positions from every total (flipping
-  `BookRisk.complete` to False); and the report states plainly that such totals are a FLOOR.
-  Never sum `delta_notional` without first filtering on `PositionRisk.priced`. (A fourth layer,
-  `lib/ibkr/endpoints.py::snapshot`, enforced the same rule for the Client Portal Gateway
-  transport deleted 2026-08-15; its retired greek `source=ibkr` still carries the same
-  null-delta refusal on replay, via `DELTA_SOURCES_REAL`.)
+  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/risk.py` computes a position's
+  delta all-or-nothing across legs and excludes unpriceable positions from every total
+  (`BookRisk.complete` → False); the report states such totals are a FLOOR. Never sum
+  `delta_notional` without filtering on `PositionRisk.priced`, and test greek sources by
+  membership in `DELTA_SOURCES_REAL`, never equality with one named source.
 
 - **The model may annotate the deploy card; it may never promote a play.** `recommend.py`
-  ranks deterministically from `config/deployment-rules.md` via
-  `scripts/live_loop/mapping.py::ladder_tier`, then shows the headless model ONLY the
-  survivors. Its verdicts are applied as annotations onto that ordering — the ordering is
-  never rebuilt from its response, and any ticker it returns that was not in the survivor set
-  is dropped. The rules encode backtest evidence with confidence intervals; a model's read of
+  ranks deterministically from `config/deployment-rules.md` via `ladder_tier()`, then shows
+  the headless model ONLY the survivors. Verdicts are applied as annotations onto that
+  ordering — never a re-sort or rebuild, and a returned ticker outside the survivor set is
+  dropped. The rules encode backtest evidence with confidence intervals; a model's read of
   today's tape does not outrank them.
 
-- **`ladder_tier()` is the ONLY encoding of `config/deployment-rules.md` §1–§3.** Both
-  `scripts/journal/` (daily) and `scripts/live_loop/` (fortnightly audit) import it from
-  `scripts/live_loop/mapping.py`. Two copies would let the daily card and the audit disagree
-  about whether a position was ever deployable — do not inline a tier rule anywhere else.
-  What is fed to it may change; the rules inside it may not. A financed multi-leg position
-  is tiered off `event.core_structure` (the vertical `mapping.decompose_core()` finds at its
-  centre), NOT off its `"3-leg combo (debit)"` label. Never encode the core into the label
-  instead: `_live_to_canonical` matches bare substrings, so a cosmetic rename containing
-  `"bull_call"` would flip a tier silently.
+- **A deploy card never sees anything dated after its as-of date.** `recommend` is built AS
+  OF a date (`--as-of`, default today), and three things are bounded by it:
+  `analysis.latest_date_on_or_before()` picks the analysis session (never the unbounded
+  `latest_date()`, which stays correct for `reconcile.py`'s backward-looking match);
+  `__main__._raw_on_or_before()` picks the broker pull — the newest one whose `trade_date` is
+  ≤ the session, confirmed against that field rather than trusted from the filename — and
+  marks the book AT the session, never `date.today()`. `check_freshness()` raises two
+  different refusals and only one is overridable: analysis older than
+  `RECOMMENDATION_MAX_AGE_DAYS` is refused unless `--allow-stale`; analysis dated AFTER as-of
+  is refused UNCONDITIONALLY, because that is lookahead rather than staleness and
+  `--allow-stale` must never reach it. With no broker pull dated on or before the session, the
+  card ranks against an EMPTY book rather than the newest one on disk — `rank()` stamps
+  `duplicate_exposure=False` off an empty book, which reads as "checked, clear", so both
+  book-derived verdicts serialise as a BLANK cell (never `False`) whenever `book_evaluable` is
+  False, on the card and in every persisted row. The one thing that CANNOT be bounded this way
+  is `judge()`: `JUDGMENT_MODEL`'s training cutoff overlaps the analysis dates, so a verdict on
+  a historical session may be recall rather than reasoning — every row carries `judge_status`
+  and `judge_lookahead_risk` so a later reader can segregate judge-touched rows instead of
+  discovering the contamination after building on them. `scripts/backtest_study/live_select.py`
+  documents the same concern for its own judge layer.
 
-- **The match vocabulary is defined once, in `mapping.CONFIDENCES`.** `MATCH_CONFIDENCES` in
-  `scripts/journal/config.py` and `stage1_map_fills.py`'s tally both DERIVE from it — a
-  category added in one place and hand-copied to another vanishes silently from whichever
-  count was missed. `EXACT`/`STRUCTURE` mean the emitted play was traded; `CORE` means it was
-  traded as the core of a larger position with a short leg sold to finance it, and must never
-  be promoted to `EXACT`; `OVERLAY` means a financing/carry leg that was never a play attempt
-  and leaves BOTH sides of the matched/unmatched ratio. An ambiguous multi-leg group is
-  reported undecidable rather than decomposed on a guess — a fabricated structure reaching
-  `ladder_tier()` is worse than reporting no match at all.
+- **`ladder_tier()` is the ONLY encoding of `config/deployment-rules.md` §1–§3.** Both
+  `scripts/journal/` and `scripts/live_loop/` import it from `scripts/live_loop/mapping.py`.
+  Two copies would let the daily card and the fortnightly audit disagree — never inline a
+  tier rule elsewhere. A financed multi-leg position is tiered off `event.core_structure`
+  (the vertical `mapping.decompose_core()` finds at its centre), NOT off its
+  `"3-leg combo (debit)"` label; `_live_to_canonical` matches bare substrings, so a cosmetic
+  rename containing `"bull_call"` would flip a tier silently.
+
+- **The match vocabulary is defined once, in `mapping.CONFIDENCES`.** `MATCH_CONFIDENCES`
+  (`scripts/journal/config.py`) and `stage1_map_fills.py`'s tally both DERIVE from it.
+  `EXACT`/`STRUCTURE` = the emitted play was traded; `CORE` = traded as the core of a larger
+  financed position, never promoted to `EXACT`; `OVERLAY` = a financing/carry leg, excluded
+  from BOTH sides of the matched/unmatched ratio. An ambiguous multi-leg group is reported
+  undecidable rather than decomposed on a guess.
 
 ## Skill modes
 
-The `/options` skill routes as follows:
+`/options` routes: `analyze` shells out to `python3 -m scripts.analysis_pipeline` (never
+analyzes in-context — the LLM step is an isolated session so framework/method/raw data never
+enter the calling agent's context; `--engine claude` is the only registered engine, `--model`
+overrides). `modes/summary.md` formats latest AnalysisClaude rows. `modes/positions.md`
+cross-references live positions against latest flow.
 
-- `analyze` — shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze in-context).
-  Runs fetch → headless engine call → write; the LLM step is an isolated session so the
-  framework/method/raw data never enter the calling agent's context. Model-agnostic via
-  `--engine`: `claude` (default, currently the only registered engine) uses `claude -p` +
-  `claude.md` → AnalysisClaude. All operator-tunable settings live in
-  `scripts/analysis_pipeline/config.py`; `--model` overrides the engine model. The full data
-  contract — rollup conviction `Score`/`OIConfirmPct`/pollution columns, `IVspr`/`IVskew`/`IVpct`,
-  hedge pressure, per-play `flow_intent`/`horizon`/`key_level`/`direction`, the three
-  `score_*` components (v4 dropped `score_flow`/`score_dealer`; only `score_vol` is
-  model-emitted, `score_price`/`score_catalyst` are pipeline-computed) + `score_total`
-  bands (v4: 0–50, NOT comparable to v3's 0–100), and the `themes` array — is documented in
-  `ARCHITECTURE.md` §"/options analyze" and `config/conviction-score.md`; read those only
-  when changing the pipeline or its schema, not to run it
-- `modes/summary.md` — reads latest rows from AnalysisClaude, formats for display
-- `modes/positions.md` — fetches live positions from IBKR MCP and cross-references against latest
-  flow data
-
-The analysis framework (`config/analysis-framework.md`) defines the 5-step process: regime
-classification (BULL/BEAR/RANGE + volatility + sentiment labels, with macro **optional** — only
-assigned when corroborated by cross-asset evidence), signal tagging
-([FLOW]/[PRICE]/[MACRO]/[VEGA]/[CAT]), sector narrowing, play proposals, and invalidation
-conditions. Output is a JSON object with keys: `regime`, `signals`, `themes`, `plays`,
-`invalidation`.
-
-Model-specific analysis judgment is documented in `config/analysis-methods/`.
-Each model should apply the shared framework, then use its own method file to
-weight evidence and resolve conflicting flow.
+The analysis framework (`config/analysis-framework.md`) defines the 5-step process — regime
+classification (macro optional, only when corroborated), signal tagging, sector narrowing,
+play proposals, invalidation — output JSON keys: `regime`, `signals`, `themes`, `plays`,
+`invalidation`. Per-model judgment lives in `config/analysis-methods/`. The full data contract
+(rollup columns, score components, bands) is in `ARCHITECTURE.md` §"/options analyze" and
+`config/conviction-score.md` — read those only when changing the pipeline or its schema.
 
 ## Configuration files
 
-- `.env` — credentials and paths (see `.env.example` for all required vars)
+- `.env` — credentials and paths (`.env.example` lists all required vars)
 - `config/positions.yml` — open options positions for position review
-- `config/backtest.yml` — backtest settings (analysis tab to test, entry match side, path cap,
-  profit/stop, pricing fallbacks). No signal filter — the analysis is the filter.
-- `config/account-sim.yml` — RESEARCH tier. The `account_sim` study's whole parameter surface:
-  capital, risk %, positions/day, the two delta-notional caps, the cap/capital grids, the hedge
-  fraction, the dense-episode definition, the A2/A3/A5 thresholds, G1's expected book line, and
-  the compounding arm's `mark_interval`/`budget_ceiling` (the arm itself is the `--compounding`
-  flag, not a config switch). `scripts/backtest_study/account_sim.py` reads it and holds no
-  state of its own.
-- `config/barchart-reference.md` — column definitions for barchart CSV data
-- `config/backtest-reference.md` — column definitions for the `BacktestResults` sheet (realized
-  exit, MFE/MAE, the `daily_price_csv` path)
+- `config/backtest.yml` — backtest settings (tab, entry side, path cap, exits, pricing
+  fallbacks). No signal filter — the analysis is the filter.
+- `config/account-sim.yml` — RESEARCH tier; the `account_sim` study's whole parameter surface
+- `config/barchart-reference.md` / `config/backtest-reference.md` — column definitions
 
 ## Testing
 
 Tests live in `tests/`. `conftest.py` adds the project root (for `lib.*`) and `scripts/` to
-`sys.path`. Tests use mock Drive services injected via `DriveClient(service, root_folder_id)` — no
-real credentials needed.
+`sys.path`. Tests use mock Drive services injected via `DriveClient(service, root_folder_id)`
+— no real credentials needed.
 
-<!-- rtk-instructions v2 (trimmed 2026-08-13; full reference: ~/.claude/rtk-reference.md) -->
 # RTK (Rust Token Killer)
 
-**Always prefix shell commands with `rtk`** — dedicated filters cut 60–99% of
-output; unfiltered commands pass through unchanged, so it is always safe. Use it
-inside `&&` chains too (`rtk git add . && rtk git commit -m "msg"`). A hook also
-rewrites plain commands automatically. `rtk proxy <cmd>` runs unfiltered
-(debugging); `rtk gain` shows savings. Full per-command reference:
-`~/.claude/rtk-reference.md` (open on demand, not auto-loaded).
+**Always prefix shell commands with `rtk`** — dedicated filters cut 60–99% of output;
+unfiltered commands pass through unchanged, so it is always safe. Use it inside `&&` chains
+too (`rtk git add . && rtk git commit -m "msg"`). A hook also rewrites plain commands
+automatically. `rtk proxy <cmd>` runs unfiltered (debugging); `rtk gain` shows savings. Full
+reference: `~/.claude/rtk-reference.md` (open on demand, not auto-loaded).

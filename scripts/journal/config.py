@@ -12,6 +12,8 @@ is a chain of independently-runnable steps that hand each other these records:
     page.py      -> docs/journal-<date>.html
     writer.py    -> Sheets TradeJournal tab + journal/trades.csv
     recommend.py latest analysis + open book -> the deploy card
+    recwriter.py the deploy card -> Sheets Recommendations tab
+                 + journal/recommendations.csv
 
 THE MISSING/ZERO INVARIANT. A greek of `None` means "the broker did not give us
 one". A greek of `0.0` is a real, meaningful market value. These must never be
@@ -22,9 +24,12 @@ never sum over a list without first filtering on `delta_source`.
 
 DATA PRIVACY. Everything this contract describes is real trading activity.
 `journal/` is gitignored in full (raw pulls carry account identifiers;
-trades.csv carries position sizes and P&L). The Sheets tab is the only copy that
-leaves the machine. Do not add a path under `journal/` to version control, and
-do not write journal content anywhere outside `journal/` and that tab.
+trades.csv carries position sizes and P&L). Journal content has exactly THREE
+permitted destinations: `journal/`, the Sheets tabs in
+TRADE_JOURNAL_SPREADSHEET_ID, and `docs/` — which page.py has always written
+position sizes and P&L into, and which is gitignored for that reason
+(.gitignore). Do not add a path under `journal/` or `docs/` to version control,
+and do not write journal content anywhere else.
 """
 
 from __future__ import annotations
@@ -42,6 +47,7 @@ JOURNAL_DIR = ROOT / "journal"
 RAW_DIR = JOURNAL_DIR / "raw"          # immutable broker pulls, write-once
 REPORTS_DIR = JOURNAL_DIR / "reports"  # <date>.md
 TRADES_CSV = JOURNAL_DIR / "trades.csv"
+RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
 DOCS_DIR = ROOT / "docs"               # generated HTML, also gitignored
 
 # Fallback analysis source when Sheets is unreachable — the same exports
@@ -57,6 +63,14 @@ AC_CSV_FALLBACK = EVAL_DIR / "analysis - AnalysisClaude.csv"
 # shared (or not shared) on its own.
 TRADE_JOURNAL_TAB = "TradeJournal"
 TRADE_JOURNAL_SPREADSHEET_ENV = "TRADE_JOURNAL_SPREADSHEET_ID"
+
+# The deploy card's own record, in the SAME workbook as TRADE_JOURNAL_TAB: the
+# two describe one loop (what was recommended, what was actually traded) and
+# separating their workbooks would mean sharing one without the other.
+RECOMMENDATIONS_TAB = "Recommendations"
+
+# How many analysis sessions the dashboard's recommendations panel shows.
+PAGE_RECENT_REC_SESSIONS = 3
 
 # --------------------------------------------------------------------------
 # Broker / pull
@@ -99,6 +113,17 @@ SIGNAL_LOOKBACK_DAYS = 3
 # different era entirely. Any candidate older than this is not a plausible cause
 # of today's trade, so it is dropped and the event is scored NONE.
 MAX_SIGNAL_AGE_DAYS = 10
+
+# The deploy card's staleness bound. ALIASED, not re-typed as another 10, and
+# the distinction is worth keeping in view: MAX_SIGNAL_AGE_DAYS answers "could
+# this analysis plausibly have CAUSED today's fill" (a backward, forensic
+# question reconcile.py asks), while this answers "is this analysis still
+# ACTIONABLE" (a forward one). They happen to coincide today, and there is a
+# real argument they always should — an analysis too old to explain a trade is
+# too old to justify one. If that argument ever breaks, split them here rather
+# than editing the number above: tuning the matcher's window must not silently
+# change when the card refuses to build.
+RECOMMENDATION_MAX_AGE_DAYS = MAX_SIGNAL_AGE_DAYS
 
 # Ranked best-first. DERIVED from scripts/live_loop/mapping.py rather than
 # mirrored: the daily journal and the fortnightly audit assign these labels from
@@ -292,6 +317,39 @@ class PositionRisk:
                 and self.delta_source in DELTA_SOURCES_REAL)
 
 
+@dataclass(frozen=True)
+class RecContext:
+    """Everything a deploy card knows about ITSELF, as opposed to about a play.
+
+    Threaded from `cmd_recommend` into `recwriter.to_rows` so each persisted row
+    can state not just what was recommended but what the card could SEE when it
+    recommended it.
+
+    `book_evaluable` is the load-bearing one. When no broker pull dated on or
+    before the session exists, `rank()` is handed an empty BookRisk and stamps
+    `duplicate_exposure=False` on every candidate — which reads as "not a
+    duplicate" when the truth is "not checked". The field is a plain bool and
+    cannot carry that distinction (widening it would ripple into
+    scripts/backtest_study/live_select.py), so the WRITER resolves it: with
+    `book_evaluable=False` it emits a blank cell rather than FALSE. Same
+    missing/zero discipline the greeks get, applied at the serialisation seam.
+    """
+
+    session_date: str
+    as_of_date: str
+    staleness_days: int
+    analysis_source: str = ""
+    net_liq: float | None = None
+    book_source: str = ""          # raw pull basename; "" when none qualified
+    book_as_of: str = ""           # that pull's own trade_date
+    book_evaluable: bool = False
+    stale_override: bool = False
+    judgment: dict | None = None
+    judge_status: str = "not_run"  # not_run | ran | failed
+    notes: str = ""
+    generated_at: datetime | None = None   # injectable so tests are deterministic
+
+
 # --------------------------------------------------------------------------
 # Sheets / CSV column order — CHANGE IN ONE PLACE ONLY
 # --------------------------------------------------------------------------
@@ -341,3 +399,83 @@ JOURNAL_COLUMNS = [
 # is what makes a re-run of the same date append zero rows. date/ticker are in
 # the key for readability when inspecting the _meta fingerprint.
 DEDUP_KEY_COLS = ["date", "ticker", "source_ref"]
+
+
+# --------------------------------------------------------------------------
+# Recommendations — the deploy card's own record
+# --------------------------------------------------------------------------
+# One flat table covering all four roles a card assigns (deploy / hedge / veto /
+# tier_c), so "what did the ladder refuse, and was it right" stays answerable
+# from the same place as "what did it pick". Same append-at-end header rule as
+# JOURNAL_COLUMNS: a column added here means the Recommendations tab HEADER
+# must gain it too, or new rows write an unlabelled trailing column.
+RECOMMENDATION_COLUMNS = [
+    # --- when, and how far from the analysis it ranks -------------------
+    "session_date",        # the analysis date the card ranks
+    "as_of_date",          # the date the operator was standing on
+    "generated_at_utc",
+    "staleness_days",      # as_of_date - session_date, in calendar days
+    # --- identity ------------------------------------------------------
+    "rec_id",
+    "generation",          # nth distinct card for this (session, role, ticker, structure)
+    # --- what the deterministic ranker decided --------------------------
+    "role",                # deploy | hedge | veto | tier_c
+    "rank",                # 1-based within role; blank for veto/tier_c
+    "deploy",              # top-DEPLOY_BUDGET flag, role=deploy only
+    "ticker",
+    "structure",
+    "market_regime",       # the LABEL only; the full cell is a paragraph
+    "tier",
+    "tier_partial",
+    "tier_reason",
+    "score_total",
+    "horizon",
+    "play",                # the headline, not the full multi-line cell
+    "trigger",
+    "invalidation",
+    "alternative_interpretation",
+    "delta",
+    "duplicate_exposure",  # blank (NOT False) when book_evaluable is False
+    "headroom_ok",         # blank (NOT False) when not evaluable
+    "headroom_note",
+    "reasons",
+    # --- what the model added, and what that is worth -------------------
+    "judge_ran",
+    "judge_status",        # not_run | ran | failed
+    "judge_model",
+    "trigger_verdict",
+    "trigger_note",
+    "alt_verdict",
+    "alt_note",
+    "demoted",
+    "demote_reasons",
+    "hedge_pick",
+    "judge_lookahead_risk",
+    # --- provenance -----------------------------------------------------
+    "analysis_source",
+    "book_source",         # the raw pull used, or blank
+    "book_as_of",          # that pull's own trade_date
+    "book_evaluable",
+    "net_liq",
+    "stale_override",
+    "notes",
+]
+
+# Excluded from the content hash that forms `rec_id`. These three are the row's
+# IDENTITY and its WALL CLOCK, not its content: including them would make every
+# re-run look like a new recommendation and defeat the dedup entirely.
+REC_IDENTITY_EXCLUDED = ("rec_id", "generation", "generated_at_utc")
+
+# `rec_id` alone is globally unique (it ends in a content hash). session_date and
+# ticker are in the key for readability when inspecting the _meta fingerprint —
+# the same reason date/ticker are in DEDUP_KEY_COLS.
+REC_DEDUP_KEY_COLS = ["session_date", "ticker", "rec_id"]
+
+# Stamped on every row the judgment pass touched. JUDGMENT_MODEL's training
+# cutoff OVERLAPS the analysis dates, so on a historical replay the model may be
+# recalling an outcome rather than reading a setup. Nothing here can detect that
+# — the column exists so a later reader can segregate judge-touched rows instead
+# of discovering the contamination after building on them. Same concern
+# scripts/backtest_study/live_select.py documents for its own judge layer.
+JUDGE_LOOKAHEAD_NOTE = ("model cutoff may postdate session_date — verdicts on "
+                        "historical sessions are not evidence")

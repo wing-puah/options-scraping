@@ -631,6 +631,85 @@ untouched, study NOT re-run — it is POWER-STOPPED and closed on this book.
 
 ---
 
+## 2026-08-15 — structure-name defect FIXED: `bear put debit spread` was backtested as a **single long option**, silently. v4 book re-run; v3 left frozen and quantified
+
+**Status: SHIPPED (parser + prompt + tests), v4 BOOK RE-RUN, no verdict re-read.**
+This is a data-integrity fix, not a tuning result. Nothing was concluded from the
+corrected rows — they are reported so the size of the contamination is on record.
+
+**The defect.** The model periodically writes the debit/credit qualifier INSIDE
+the structure name — `bear put debit spread 350/320`, `bull put credit spread
+62/57`, `call debit spread 87/92` — because the framework's own Step-4 table
+labels those columns "Debit spread" / "Credit spread" and three prose clauses
+said, verbatim, "take a bear put debit spread or pass". Neither `bear put
+spread` nor `put spread` is a substring of `bear put debit spread`, so the
+phrase matched **no** spread branch in `scripts/backtest/classify.py` and fell
+through to the single-leg branch. **It did not skip — it wrote a row**, with a
+`structure`/`legs` contradicting the row's own `play` text:
+
+| tab | row | stored | correct |
+|---|---|---|---|
+| `BacktestProxy` | 2024-02-06 META / KRE / SMH, all `[HEDGE] PU` | `structure` **blank**, `unevaluable` | `bear_put_spread` |
+| `BacktestProxy` | 2024-02-06 TSLA `[SYNTHETIC STOCK] PU` | `long_put`, **+97.9% `profit_target`** | `bear_put_spread` (unpriceable — short leg has no history) |
+| `BacktestResults` | 2024-01-19 BABA `[SYNTHETIC STOCK] PU` | `short_put` — **sign-flipped**, a credit structure standing in for a debit one | `bear_put_spread` |
+
+The TSLA row is the instructive one: a 185/165 vertical caps at
+(185−165)/debit, so a **+97.9%** print is not a mis-estimate, it is a payoff the
+structure cannot produce. Priced as a naked 185 put it is perfectly reachable.
+
+**A second, independent gate had the same shape.** `_UNSUPPORTED_PATTERNS` held
+the bare substring `"covered"`, so rationale prose — *"the downside deserves to
+be covered"* — rejected a priceable `bear put spread 470/440` (2025-03-14 QQQ,
+`[HEDGE] TF`) as `unsupported`. Now matched as structures (`covered call`,
+`covered-call`, `buy-write`, …), not as a word.
+
+**Blast radius beyond the backtest.** `scripts/live_loop/mapping.py::play_structure`
+— the PRODUCTION path both `scripts/journal/` and the fortnightly audit read —
+had the identical blind spot and returned `"unknown"`, so a play the operator
+actually *traded* could not be matched to its fill at all. That is why the
+defect surfaced as "it happens on the HEDGE and PU" rather than as a backtest
+anomaly: `[HEDGE] PU` plays are exactly the ones being traded and reconciled.
+
+**The fix.** `lib/structure_names.py::canonical_spread_names` — ONE encoding of
+the rewrite, imported by both the backtest classifier and the live-loop play
+parser, so the two can never disagree about what a play's text named. The
+(option type, debit|credit) pair determines the vertical completely; an explicit
+`bull`/`bear` word that contradicts it is a model slip and loses. Prompt side:
+`scripts/analysis_pipeline/config.py` now pins an explicit structure vocabulary
+and forbids the qualifier inside the name, and the three prose clauses in
+`config/analysis-framework.md` + `config/analysis-methods/claude.md` that
+modelled the bad phrasing were reworded. `tests/test_structure_names.py` (21
+cases) locks both parsers.
+
+**v4 book re-run** (`--date 2024-01-19`, `--date 2024-02-06`, real then proxy
+`--redo`). `BacktestResults` 29 → 30 rows: SMH enters as a real
+`bear_put_spread` (−82.4%, `stop_loss`), BABA leaves it for the proxy (a
+vertical needs both legs priced; as `short_put` it only ever needed one).
+`BacktestProxy` 77 → 76. Two ORPHANS were also swept: `--redo` deletes only rows
+still in the untested set, so a play that graduates proxy→real leaves its stale
+proxy row behind (2024-01-19 ARM, 2024-02-06 SMH). Post-run overlap between the
+two tabs is **0**, and structure-vs-play mismatches on both live tabs are **0**.
+
+**v3 IS NOT FIXED, DELIBERATELY.** The frozen evidence base carries **31**
+rows of this defect — `v3_BacktestResults` 4, `v3_BacktestProxy` 27 — and
+re-running them would rewrite the basis every shipped rule in
+`config/deployment-rules.md` rests on. The affected rows cluster in
+2026-02-17 → 2026-04-06 (plus 2025-03-14, 2026-07-29) and are almost all
+`long_put`-for-`bear_put_spread` / `long_call`-for-`bull_call_spread`, i.e. the
+**naked leg of a debit vertical**: unhedged downside, uncapped upside, and a
+denominator (premium at risk) roughly 2–3× too large. Direction is right in
+every case, so the sign of a per-structure effect is unlikely to flip; the
+magnitudes on those 31 rows are not usable. Any study that reads a v3 structure
+cut at n small enough for 31 rows to matter should say so. **Re-running v3 is an
+operator decision, not a maintenance one** — recorded here, not taken.
+
+**Two unrelated `no_strike` gaps found in passing, NOT fixed:**
+`_extract_strikes` requires the keyword BEFORE the number, so `long 135 straddle`
+(2024-01-29 XOP) and `~500-strike call` (2024-02-09 NVDA) yield no strikes and
+go `unevaluable`. Different cause, different fix, left alone.
+
+---
+
 ## 2026-08-14 — study-suite triage: the DEBIT_PROD exact-replay gate is **permanently unsatisfiable**, and `bear_position_study`'s R column is **partly contaminated**
 
 **Status: DIAGNOSED, NOTHING FIXED, NO VERDICT CHANGED.** No study was re-run to

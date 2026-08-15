@@ -261,11 +261,6 @@ journal:
 journal-dry:
 	$(PY) -m scripts.journal --dry-run $(ARGS)
 
-# Was the fetching variant of `journal` back when reading files was the default.
-# Kept as an alias so muscle memory and any saved command line keep working.
-.PHONY: journal-flex
-journal-flex: journal
-
 # Replay a past broker pull with no network — the offline path for every
 # downstream step. Pass ARGS="--from-raw journal/raw/ibkr-<date>-<HHMM>.json".
 .PHONY: journal-replay

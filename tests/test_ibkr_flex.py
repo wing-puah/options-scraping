@@ -17,7 +17,8 @@ import pytest
 import requests
 
 from lib.ibkr.flex import (FlexClient, FlexError,
-                           positions_query_id_from_env)
+                           positions_query_id_from_env,
+                           trades_query_id_from_env)
 
 _SUCCESS_ENVELOPE = """<FlexStatementResponse timestamp="now">
 <Status>Success</Status>
@@ -35,6 +36,14 @@ _FATAL_ENVELOPE = """<FlexStatementResponse timestamp="now">
 <Status>Fail</Status>
 <ErrorCode>1003</ErrorCode>
 <ErrorMessage>Invalid token or query ID.</ErrorMessage>
+</FlexStatementResponse>"""
+
+# The rate limit, verbatim from a real pull: note the status is Warn, NOT Fail
+# — the shape that used to be handed downstream as if it were a statement.
+_RATE_LIMITED_ENVELOPE = """<FlexStatementResponse timestamp='15 August, 2026 04:46 AM EDT'>
+<Status>Warn</Status>
+<ErrorCode>1018</ErrorCode>
+<ErrorMessage>Too many requests have been made from this token. Please try again shortly.</ErrorMessage>
 </FlexStatementResponse>"""
 
 _CSV_BODY = "ClientAccountID,Symbol,TradeDate\nU1234567,AAPL,20260814\n"
@@ -80,6 +89,7 @@ def make_client(responses, **kwargs) -> FlexClient:
     kwargs.setdefault("token", "s3cr3t-token")
     kwargs.setdefault("query_id", "998877")
     kwargs.setdefault("poll_delay", 0)  # no real sleeping in tests
+    kwargs.setdefault("rate_limit_delay", 0)
     return FlexClient(session=session, **kwargs)
 
 
@@ -156,6 +166,52 @@ def test_1019_exceeding_max_attempts_raises():
 
 
 # --------------------------------------------------------------------------
+# 1018 rate limit — a `Warn`, not a `Fail`
+# --------------------------------------------------------------------------
+
+def test_rate_limited_envelope_is_never_returned_as_a_statement():
+    """The regression: `<Status>Warn</Status>` with error 1018 used to fall
+    through as the report body, so `flexparse` was handed IBKR's error XML and
+    reported "this query has no OpenPositions section" — sending the operator
+    to re-save a query that was fine all along."""
+    client = make_client([FakeResponse(_RATE_LIMITED_ENVELOPE, STATEMENT_URL)],
+                         max_attempts=1)
+    with pytest.raises(FlexError) as exc_info:
+        client.get_statement("123456789", STATEMENT_URL)
+    assert exc_info.value.code == 1018
+    assert "Too many requests" in exc_info.value.message
+
+
+def test_rate_limit_is_retried_then_succeeds():
+    client = make_client([
+        FakeResponse(_RATE_LIMITED_ENVELOPE, STATEMENT_URL),
+        FakeResponse(_CSV_BODY, STATEMENT_URL),
+    ], max_attempts=5)
+    assert client.get_statement("123456789", STATEMENT_URL) == _CSV_BODY
+    assert len(client.session.calls) == 2
+
+
+def test_rate_limit_waits_longer_than_a_statement_still_generating(monkeypatch):
+    slept = []
+    monkeypatch.setattr("lib.ibkr.flex.time.sleep", slept.append)
+    client = make_client([
+        FakeResponse(_IN_PROGRESS_ENVELOPE, send_url()),
+        FakeResponse(_RATE_LIMITED_ENVELOPE, send_url()),
+        FakeResponse(_SUCCESS_ENVELOPE, send_url()),
+    ], max_attempts=5, poll_delay=5.0, rate_limit_delay=30.0)
+    client.send_request()
+    assert slept == [5.0, 30.0]
+
+
+def test_success_envelope_from_get_statement_is_refused():
+    """Belt and braces: only an actual report body may leave `get_statement`,
+    so nothing that isn't a statement can reach the parser."""
+    client = make_client([FakeResponse(_SUCCESS_ENVELOPE, STATEMENT_URL)])
+    with pytest.raises(FlexError, match="not a report body"):
+        client.get_statement("123456789", STATEMENT_URL)
+
+
+# --------------------------------------------------------------------------
 # fatal errors
 # --------------------------------------------------------------------------
 
@@ -193,7 +249,6 @@ def test_missing_token_raises_before_any_network_call(monkeypatch):
 
 def test_missing_query_id_raises_before_any_network_call(monkeypatch):
     monkeypatch.delenv("IBKR_FLEX_QUERY_TRADES_ID", raising=False)
-    monkeypatch.delenv("IBKR_FLEX_QUERY_ID", raising=False)
     session = QueueSession([])
     client = FlexClient(token="s3cr3t-token", query_id=None, session=session)
     with pytest.raises(RuntimeError, match="IBKR_FLEX_QUERY_TRADES_ID"):
@@ -203,7 +258,6 @@ def test_missing_query_id_raises_before_any_network_call(monkeypatch):
 
 def test_get_statement_does_not_require_query_id(monkeypatch):
     monkeypatch.delenv("IBKR_FLEX_QUERY_TRADES_ID", raising=False)
-    monkeypatch.delenv("IBKR_FLEX_QUERY_ID", raising=False)
     session = QueueSession([FakeResponse(_CSV_BODY, STATEMENT_URL)])
     client = FlexClient(token="s3cr3t-token", query_id=None, session=session)
     assert client.get_statement("123456789", STATEMENT_URL) == _CSV_BODY
@@ -212,23 +266,13 @@ def test_get_statement_does_not_require_query_id(monkeypatch):
 # --------------------------------------------------------------------------
 # Two query ids, one token — the trades/positions query split
 # --------------------------------------------------------------------------
-def test_legacy_query_id_env_still_works_and_warns(monkeypatch, caplog):
+def test_trades_query_id_from_env_is_none_when_unset(monkeypatch):
     monkeypatch.delenv("IBKR_FLEX_QUERY_TRADES_ID", raising=False)
-    monkeypatch.setenv("IBKR_FLEX_QUERY_ID", "legacy-id")
-    caplog.set_level(logging.WARNING, logger="lib.ibkr.flex")
-    client = FlexClient(token="s3cr3t-token", session=QueueSession([
-        FakeResponse(_SUCCESS_ENVELOPE, send_url()),
-    ]))
-    assert client.query_id == "legacy-id"
-    reference_code, _ = client.send_request()
-    assert reference_code == "123456789"
-    assert "IBKR_FLEX_QUERY_ID is deprecated" in caplog.text
-    assert "IBKR_FLEX_QUERY_TRADES_ID" in caplog.text
+    assert trades_query_id_from_env() is None
 
 
-def test_current_query_id_env_wins_over_legacy(monkeypatch):
+def test_trades_query_id_env_is_the_client_default(monkeypatch):
     monkeypatch.setenv("IBKR_FLEX_QUERY_TRADES_ID", "current-id")
-    monkeypatch.setenv("IBKR_FLEX_QUERY_ID", "legacy-id")
     client = FlexClient(token="s3cr3t-token", session=QueueSession([]))
     assert client.query_id == "current-id"
 

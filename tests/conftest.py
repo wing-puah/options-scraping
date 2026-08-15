@@ -21,7 +21,6 @@ _ENV_FALLBACKS = (
     "JOURNAL_NET_LIQUIDATION",
     "IBKR_ACCOUNT_ID",
     "IBKR_FLEX_TOKEN",
-    "IBKR_FLEX_QUERY_ID",              # legacy; scrubbed while the fallback lives
     "IBKR_FLEX_QUERY_TRADES_ID",
     "IBKR_FLEX_OPEN_POSITIONS_QUERY_ID",
     "TRADE_JOURNAL_SPREADSHEET_ID",

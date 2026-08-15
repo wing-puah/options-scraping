@@ -5,6 +5,8 @@ Entry point for the daily trade journal.
     python3 -m scripts.journal --date 2026-08-14
     python3 -m scripts.journal pull                broker pull only
     python3 -m scripts.journal recommend           deploy card for the NEXT session
+    python3 -m scripts.journal recommend --as-of 2026-08-15   replay a past morning
+    python3 -m scripts.journal recommend --no-persist         print it, record nothing
     python3 -m scripts.journal --offline           read portfolio/input/ only, no network
     python3 -m scripts.journal --from-raw <path>   replay a past pull, no network
     python3 -m scripts.journal --dry-run           write nothing; show what it would write
@@ -15,8 +17,16 @@ by default, or read off disk with `--offline`. It needs no local software and
 no daily login, which is the whole reason it is the transport; what it costs is
 greeks (enriched from Barchart) and NetLiquidation (supply `--net-liq`).
 
+THE CARD'S TIME BOUND. `recommend` is built AS OF a date (default today) and may
+read nothing published after it — not a later analysis session, not a later
+broker pull. Analysis older than RECOMMENDATION_MAX_AGE_DAYS is refused unless
+`--allow-stale`; analysis dated AFTER the as-of date is refused unconditionally,
+because that is lookahead rather than staleness. Every card is recorded to the
+Recommendations tab and journal/recommendations.csv, append-only.
+
 EXIT CODES. 0 success; 2 a usage/config problem, INCLUDING a broker pull this
-pipeline will not stand behind — an OpenPositions statement that declares a flat
+pipeline will not stand behind, and an analysis book too old (or too new) to
+build a deploy card from — an OpenPositions statement that declares a flat
 book while the fills say otherwise is refused rather than journalled. A journal
 recording an empty day because a source came back empty looks exactly like a day
 you chose not to trade, and nothing about it prompts a second look. 3 the broker
@@ -38,7 +48,7 @@ from lib.ibkr.flex import FlexError
 
 from . import analysis, book, flexparse, rawpull, report, risk, writer
 from .config import (DOCS_DIR, FLEX_INPUT_DIR, FLEX_INPUT_GLOB,
-                     NET_LIQUIDATION_ENV, REPORTS_DIR, ROOT)
+                     NET_LIQUIDATION_ENV, RAW_DIR, REPORTS_DIR, ROOT)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -101,7 +111,26 @@ def _parse_args(argv=None):
     src.add_argument("--no-greeks", action="store_true",
                      help="skip the Barchart greek fetch; positions stay unpriced and "
                           "the exposure totals are reported as a floor")
-    p.add_argument("--dry-run", action="store_true", help="compute and report, but write nothing")
+    rc = p.add_argument_group(
+        "recommend",
+        "The deploy card's time bound. Every card is built AS OF a date and may "
+        "never read anything published after it.")
+    rc.add_argument("--as-of", metavar="YYYY-MM-DD",
+                    help="the day the card stands on (default today). Bounds BOTH the "
+                         "analysis session and the broker book. Pair it with --date to "
+                         "replay a past morning honestly: --date alone leaves as-of at "
+                         "today, so an old session is correctly refused as stale")
+    rc.add_argument("--allow-stale", action="store_true",
+                    help="build the card even though the analysis is past the max-age "
+                         "bound. Marked as stale on the card and on every persisted row. "
+                         "Does NOT permit a session dated after --as-of; that is "
+                         "lookahead and is always refused")
+    rc.add_argument("--no-persist", action="store_true",
+                    help="print the deploy card but record it nowhere")
+    p.add_argument("--dry-run", action="store_true",
+                   help="compute and report, but write nothing. (For `run` this also "
+                        "skips saving the broker pull; for `recommend` it means the "
+                        "card is printed and not recorded.)")
     p.add_argument("--no-llm", action="store_true", help="skip the judgment pass entirely")
     p.add_argument("--no-sheets", action="store_true", help="write the local CSV only")
     p.add_argument("--no-page", action="store_true", help="skip the HTML page")
@@ -119,13 +148,70 @@ def _setup_logging(verbose: bool) -> None:
 
 def _latest_raw():
     """Newest pull on disk, for --page-only / a --from-raw with no path."""
-    pulls = sorted(rawpull_dir_glob())
+    pulls = sorted(RAW_DIR.glob("ibkr-*.json")) if RAW_DIR.exists() else []
     return pulls[-1] if pulls else None
 
 
-def rawpull_dir_glob():
-    from .config import RAW_DIR
-    return RAW_DIR.glob("ibkr-*.json") if RAW_DIR.exists() else []
+def _raw_on_or_before(session: str):
+    """Newest pull whose trade_date is NOT AFTER `session`, or None.
+
+    The deploy card's book picker, and the reason it exists is that
+    `_latest_raw()` is a lookahead the moment you plan anything but today:
+    ranking a past session against the newest pull on disk shows the card
+    positions that were opened after that session, then reports cap headroom
+    and duplicate exposure against them.
+
+    The filename carries the trade date (`pull.raw_path`), so it prefilters
+    cheaply — but the filename is a CONVENIENCE and `raw["trade_date"]` is the
+    truth, so each candidate is confirmed after loading and skipped if the two
+    disagree.
+    """
+    if not RAW_DIR.exists():
+        return None
+    for path in sorted(RAW_DIR.glob("ibkr-*.json"), reverse=True):
+        stamp = path.stem.split("-")
+        if len(stamp) >= 4 and "-".join(stamp[1:4]) > session:
+            continue
+        try:
+            raw = rawpull.load(path)
+        except Exception as exc:  # noqa: BLE001 - a bad pull is not this step's problem
+            log.warning("Skipping unreadable pull %s (%s)", path.name, exc)
+            continue
+        trade_date = str(raw.get("trade_date") or "")
+        if trade_date and trade_date > session:
+            log.debug("Skipping %s — its trade_date %s is after the session %s",
+                      path.name, trade_date, session)
+            continue
+        return path, raw
+    return None
+
+
+def _book_context(session: str):
+    """`(book_risk, net_liq, provenance)` for a deploy card's session.
+
+    Falls back to an EMPTY book rather than a newer one. That degradation is
+    deliberate and must stay visible downstream: `rank()` derives duplicate
+    exposure from the open book, so an empty book makes every candidate look
+    un-duplicated. `provenance["evaluable"]` is what lets the card and the
+    persisted rows say "not checked" instead of "clear".
+    """
+    found = _raw_on_or_before(session)
+    if found is None:
+        log.warning("No broker pull dated on or before %s — ranking WITHOUT cap "
+                    "headroom or duplicate-exposure checks (they will be reported "
+                    "as not evaluated, never as clear)", session)
+        return risk.BookRisk(), None, {
+            "evaluable": False, "source": "", "as_of": "",
+            "note": "No broker pull dated on or before this session was available."}
+
+    path, raw = found
+    # Mark the book AT THE SESSION, not at date.today(): `as_of` drives DTE and
+    # the expired-contract drop in book.open_positions, so today's date would
+    # stamp a past-session card with today's DTE. cmd_run has always done this.
+    book_risk, _, _ = _build_book(raw, date.fromisoformat(session))
+    return book_risk, raw.get("net_liquidation"), {
+        "evaluable": True, "source": path.name,
+        "as_of": str(raw.get("trade_date") or ""), "note": ""}
 
 
 def _use_web_service(args) -> bool:
@@ -145,7 +231,6 @@ def _use_web_service(args) -> bool:
 def _fetch(args) -> dict:
     """Get a pull from Flex, the pipeline's one transport — see _parse_args."""
     from . import pull as pull_mod
-    from .config import RAW_DIR
 
     return pull_mod.pull_flex(
         args.from_flex, trade_date=args.date, net_liquidation=args.net_liq,
@@ -305,38 +390,78 @@ def cmd_pull(args) -> int:
 
 def cmd_recommend(args) -> int:
     from . import recommend as rec
+    from . import recwriter
+    from .config import RecContext
 
     ac_df, ac_source = analysis.load()
-    session = args.date or analysis.latest_date(ac_df)
-    if not session:
-        log.error("No analysis rows available — nothing to recommend from")
+    # The day the card STANDS ON. Everything it may look at is bounded by this:
+    # the analysis session below, and the broker book in _book_context.
+    as_of = args.as_of or date.today().isoformat()
+    try:
+        date.fromisoformat(as_of)
+    except ValueError:
+        log.error("--as-of must be YYYY-MM-DD, got %r", as_of)
         return EXIT_USAGE
 
-    # Rank against the CURRENT book so cap headroom and duplicate exposure are real.
-    latest = _latest_raw()
-    if latest is not None:
-        raw = rawpull.load(latest)
-        book_risk, _, _ = _build_book(raw, date.today())
-        net_liq = raw.get("net_liquidation")
-    else:
-        log.warning("No broker pull on disk — ranking without live cap headroom or "
-                    "duplicate-exposure checks")
-        book_risk, net_liq = risk.BookRisk(), None
+    # NOT analysis.latest_date(): that is unbounded, and would hand the card a
+    # session published after the day it is planning for.
+    session = args.date or analysis.latest_date_on_or_before(ac_df, as_of)
+    if not session:
+        log.error("No analysis rows dated on or before %s — nothing to recommend from",
+                  as_of)
+        return EXIT_USAGE
+
+    try:
+        staleness, stale_note = rec.check_freshness(
+            session, as_of, allow_stale=args.allow_stale)
+    except rec.StaleAnalysis as exc:
+        log.error("%s", exc)
+        return EXIT_USAGE
+
+    book_risk, net_liq, prov = _book_context(session)
 
     candidates, rejected = rec.rank(ac_df, session, book_risk, net_liq)
 
     judged = None
+    judge_status = "not_run"
     if not args.no_llm:
         context = _judgment_context(session, ac_source, book_risk)
         try:
             judged = rec.judge(candidates, context)
+            judge_status = "ran" if judged.get("ran") else "failed"
         except Exception as exc:  # noqa: BLE001 - the card must stand without the model
             # The deterministic card IS the recommendation; the model only
             # annotates it. Losing the annotation must never lose the card.
+            judge_status = "failed"
             log.warning("Judgment pass failed (%s) — printing the deterministic card", exc)
 
+    # PRINT BEFORE PERSISTING. A disk error or a missing credential must never
+    # cost you the card on screen — the record is a convenience, the card is the
+    # product.
     print(rec.render(candidates, rejected, judged,
-                     date=session, source=ac_source, net_liq=net_liq))
+                     date=session, source=ac_source, net_liq=net_liq,
+                     as_of=as_of, staleness_days=staleness, stale_note=stale_note,
+                     book_evaluable=prov["evaluable"], book_note=prov["note"]))
+
+    if args.no_persist:
+        return 0
+
+    notes = " ".join(n for n in (stale_note, prov["note"]) if n)
+    ctx = RecContext(
+        session_date=session, as_of_date=as_of, staleness_days=staleness,
+        analysis_source=ac_source, net_liq=net_liq,
+        book_source=prov["source"], book_as_of=prov["as_of"],
+        book_evaluable=prov["evaluable"], stale_override=bool(args.allow_stale),
+        judgment=judged, judge_status=judge_status, notes=notes)
+
+    summary = recwriter.write(candidates, rejected, ctx,
+                              dry_run=args.dry_run, skip_sheets=args.no_sheets)
+    log.info("Recommendations: %d row(s) → CSV, %d → Sheets, %d already recorded",
+             summary["csv_written"], summary["sheets_written"],
+             summary["skipped_duplicate"])
+    if summary.get("sheets_error"):
+        log.warning("Sheets copy did not update (%s) — rows are safe locally",
+                    summary["sheets_error"])
     return 0
 
 

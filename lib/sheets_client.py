@@ -82,6 +82,33 @@ def _ensure_tab(spreadsheet: gspread.Spreadsheet, tab_name: str,
         return spreadsheet.add_worksheet(title=tab_name, rows=5000, cols=cols)
 
 
+def ensure_tab(tab: str, min_cols: int = 0,
+               spreadsheet_id: str | None = None) -> None:
+    """Create `tab` if absent, and WIDEN it if it exists but is too narrow.
+
+    Call this before the first read of a tab whose schema is wider than the
+    30-column default. `_ensure_tab`'s `min_cols` only applies to a tab it
+    CREATES, and `get_all_rows` calls it without one — so on a fresh workbook a
+    read-then-append sequence (which is what a dedup-before-write does) has the
+    READ create the tab at 30 columns, after which every append silently
+    truncates the trailing columns. That failure is invisible in the returned
+    data: the append reports success and the sheet is simply missing its last
+    columns.
+
+    Widening an existing tab is safe and idempotent — it only ever adds empty
+    columns to the right, never touches cell contents, and does nothing when the
+    tab is already wide enough.
+    """
+    if min_cols <= 0:
+        return
+    ss = _get_spreadsheet(spreadsheet_id)
+    ws = _ensure_tab(ss, tab, min_cols=min_cols)
+    if ws.col_count < min_cols:
+        log.info("Widening tab '%s' from %d to %d columns to fit its schema",
+                 tab, ws.col_count, min_cols)
+        ws.resize(rows=ws.row_count, cols=min_cols)
+
+
 def get_all_rows(tab: str, spreadsheet_id: str | None = None) -> list[dict]:
     log.info("Reading all rows from tab '%s'", tab)
     ss = _get_spreadsheet(spreadsheet_id)

@@ -3,6 +3,8 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from lib.structure_names import canonical_spread_names
+
 from .config import _UNSUPPORTED_PATTERNS
 from .helpers import _to_float, _opt_price, _row_iv, _parse_expiration
 from .legs import parse_legs
@@ -166,7 +168,11 @@ def classify_play(play_text: str) -> dict:
 
     # Keyword matching sees only the primary play line — the Alt: section's
     # alternative reads ('covered-call', 'straddle', …) must not classify.
-    text = _primary_text(play_text).lower()
+    # canonical_spread_names first: 'bear put debit spread' contains neither
+    # 'bear put spread' nor 'put spread', so without the rewrite it falls all
+    # the way through to the single-leg branch and a vertical is priced as one
+    # long option. See lib/structure_names.py.
+    text = canonical_spread_names(_primary_text(play_text)).lower()
     if not text.strip():
         return {"structure": "unsupported", "option_type": None, "strikes": [], "is_credit": False}
 

@@ -11,6 +11,13 @@ service several seconds to assemble, so both steps can come back with
 Transport and parsing only, mirroring `IBKRClient`'s role for the Client
 Portal Gateway — no business logic here.
 
+An error envelope is told apart from a report body by its `<Status>`, and
+`Fail` is NOT the only non-success value — a rate limit (1018) comes back as
+`Warn`. Anything carrying an `<ErrorCode>` is therefore an error whatever its
+status says, because the one thing this module must never do is hand an error
+envelope downstream as if it were a statement: the parser then diagnoses the
+sections the envelope does not have instead of the error it actually is.
+
 A Flex query is scoped to the SECTIONS it was saved with, so "trades" and
 "open positions" are two separate queries with two separate ids
 (`IBKR_FLEX_QUERY_TRADES_ID`, `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`) against
@@ -37,20 +44,25 @@ log = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 
-# The env var naming the default query. A Flex query is scoped to the SECTIONS
-# it was defined with, so trades and open positions are two separate saved
-# queries with two separate ids — hence the "TRADES" in the current name.
-# `_LEGACY_QUERY_ID_ENV` is the pre-two-query name, still honoured so an
-# existing .env keeps working, but warned about on use so it does not quietly
-# become the thing pointing at a trades query forever.
+# The two env vars naming the saved queries. A Flex query is scoped to the
+# SECTIONS it was defined with, so trades and open positions are normally two
+# separate saved queries with two separate ids — hence the "TRADES" in the
+# first name. Pointing BOTH at one query saved with both sections is supported
+# and costs one handshake instead of two; `scripts/journal/flexparse.py` splits
+# the sections apart.
 _QUERY_ID_ENV = "IBKR_FLEX_QUERY_TRADES_ID"
-_LEGACY_QUERY_ID_ENV = "IBKR_FLEX_QUERY_ID"
 POSITIONS_QUERY_ID_ENV = "IBKR_FLEX_OPEN_POSITIONS_QUERY_ID"
 
-# The one retryable Flex error: the statement is still being assembled.
-# Every other code (bad token, unknown query, no data for the period, ...)
-# is fatal and must surface immediately rather than being polled against.
+# The two retryable Flex errors, both of them transient states of the service
+# rather than anything wrong with the request: 1019 is "the statement is still
+# being assembled", 1018 is "you have asked this token for too much too
+# quickly" — which the journal trips routinely, because it runs TWO handshakes
+# (trades then positions) back to back on one token. Every other code (bad
+# token, unknown query, no data for the period, ...) is fatal and must surface
+# immediately rather than being polled against.
 _STATEMENT_IN_PROGRESS_CODE = 1019
+_RATE_LIMITED_CODE = 1018
+_RETRYABLE_CODES = frozenset({_STATEMENT_IN_PROGRESS_CODE, _RATE_LIMITED_CODE})
 
 
 class FlexError(RuntimeError):
@@ -104,24 +116,14 @@ def _try_parse_envelope(text: str) -> ET.Element | None:
     return root
 
 
-def _query_id_from_env() -> str | None:
-    """The default query id, preferring the current var over the legacy one.
+def trades_query_id_from_env() -> str | None:
+    """The trades query id, or None when it is not configured.
 
     Read at construction rather than at call time so `FlexClient()` with no
     args is exactly what `os.environ` held when it was built — the same
     contract every other `lib.ibkr` client has.
     """
-    current = os.environ.get(_QUERY_ID_ENV)
-    if current:
-        return current
-    legacy = os.environ.get(_LEGACY_QUERY_ID_ENV)
-    if legacy:
-        log.warning("%s is deprecated — rename it to %s in your .env. There are now "
-                    "TWO Flex queries (trades and open positions), and the old name "
-                    "does not say which one it holds.",
-                    _LEGACY_QUERY_ID_ENV, _QUERY_ID_ENV)
-        return legacy
-    return None
+    return os.environ.get(_QUERY_ID_ENV) or None
 
 
 def positions_query_id_from_env() -> str | None:
@@ -150,6 +152,7 @@ class FlexClient:
         base_url: str | None = None,
         max_attempts: int = 10,
         poll_delay: float = 5.0,
+        rate_limit_delay: float = 30.0,
         timeout: float = 30.0,
     ) -> None:
         # Falling back to the env vars here (rather than at call time) means
@@ -157,11 +160,12 @@ class FlexClient:
         # what `os.environ` holds at construction, which is what every other
         # `lib.ibkr` client does — predictable, and easy to override per-test.
         self.token = token or os.environ.get("IBKR_FLEX_TOKEN")
-        self.query_id = query_id or _query_id_from_env()
+        self.query_id = query_id or trades_query_id_from_env()
         self.session = session if session is not None else requests.Session()
         self.base_url = (base_url or _DEFAULT_BASE_URL).rstrip("/")
         self.max_attempts = max_attempts
         self.poll_delay = poll_delay
+        self.rate_limit_delay = rate_limit_delay
         self.timeout = timeout
 
     # -- config guards -------------------------------------------------
@@ -193,15 +197,19 @@ class FlexClient:
     # -- transport -------------------------------------------------------
 
     def _get_with_retry(self, url: str, params: dict) -> tuple[ET.Element | None, str]:
-        """GET `url`, polling through error 1019 ("statement generation in
-        progress") on either step of the handshake — see the module
-        docstring for why both steps can return it.
+        """GET `url`, polling through the retryable Flex errors — 1019
+        ("statement generation in progress") and 1018 ("too many requests") —
+        on either step of the handshake. See the module docstring for why both
+        steps can return them.
 
         Returns `(envelope, text)`: `envelope` is the parsed `<Status>`
-        element's root when the response is a status envelope, or None when
-        it's a raw report body (the success case for GetStatement). Any
-        `Fail` status that isn't the retryable 1019 — or 1019 once
-        `max_attempts` is exhausted — raises `FlexError` immediately.
+        element's root when the response is a SUCCESSFUL status envelope, or
+        None when it's a raw report body (the success case for GetStatement).
+        An envelope is judged on its `<ErrorCode>`, not only on a `Fail`
+        status, because a rate limit arrives as `Warn` and would otherwise be
+        returned to the caller as though it were a statement. Any error that
+        isn't retryable — or a retryable one once `max_attempts` is exhausted
+        — raises `FlexError` immediately.
         """
         attempt = 0
         while True:
@@ -215,21 +223,27 @@ class FlexClient:
             if envelope is None:
                 return None, text
             status = envelope.findtext("Status")
-            if status != "Fail":
+            code = int(envelope.findtext("ErrorCode") or 0)
+            if status == "Success" and not code:
                 return envelope, text
 
-            code = int(envelope.findtext("ErrorCode") or 0)
             message = envelope.findtext("ErrorMessage") or ""
-            if code == _STATEMENT_IN_PROGRESS_CODE and attempt < self.max_attempts:
+            if code in _RETRYABLE_CODES and attempt < self.max_attempts:
+                # A rate limit needs a longer wait than a statement that is
+                # merely still assembling: polling it at `poll_delay` is what
+                # provoked it in the first place.
+                delay = (self.rate_limit_delay if code == _RATE_LIMITED_CODE
+                         else self.poll_delay)
                 log.warning(
-                    "Flex statement not ready yet (error 1019, attempt %d/%d) — retrying in %.1fs",
-                    attempt, self.max_attempts, self.poll_delay,
+                    "Flex statement not ready yet (error %d: %s, attempt %d/%d) "
+                    "— retrying in %.1fs",
+                    code, message, attempt, self.max_attempts, delay,
                 )
-                if self.poll_delay:
-                    time.sleep(self.poll_delay)
+                if delay:
+                    time.sleep(delay)
                 continue
 
-            log.error("Flex Web Service error %d: %s", code, message)
+            log.error("Flex Web Service error %d (status %s): %s", code, status, message)
             raise FlexError(code, message)
 
     # -- public API --------------------------------------------------------
@@ -265,7 +279,17 @@ class FlexClient:
         """
         self._require_token()
         params = {"q": reference_code, "t": self.token, "v": "3"}
-        _, text = self._get_with_retry(statement_url, params)
+        envelope, text = self._get_with_retry(statement_url, params)
+        if envelope is not None:
+            # A report body is never a status envelope, so an envelope here is
+            # the service answering something other than the statement. Errors
+            # already raised inside `_get_with_retry`; this catches the
+            # remaining shape (a bare Success envelope with no report) so that
+            # NOTHING but an actual statement can be returned to the caller —
+            # the downstream parser would otherwise diagnose the envelope's
+            # missing sections instead of the transport problem.
+            raise FlexError(0, "GetStatement returned a "
+                               f"<{envelope.tag}> status envelope, not a report body")
         return text
 
     def fetch(self, query_id: str | None = None) -> str:

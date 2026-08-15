@@ -101,7 +101,7 @@ def test_a_dry_run_keeps_no_statement(monkeypatch):
 # pull_flex
 # --------------------------------------------------------------------------
 def test_pull_flex_without_enrichment_touches_no_network():
-    raw = pull_mod.pull_flex([flex_csv()], enrich=False)
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=False)
     assert raw["source"] == "ibkr-flex"
     assert raw["greeks"]["100"]["source"] == "unavailable"
 
@@ -115,7 +115,7 @@ def test_pull_flex_calls_the_enricher_with_the_session_date(monkeypatch):
 
     import scripts.journal.greeks as greeks_mod
     monkeypatch.setattr(greeks_mod, "enrich", fake_enrich)
-    pull_mod.pull_flex([flex_csv()], enrich=True)
+    pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
     assert seen["as_of"].isoformat() == "2026-08-14"
 
 
@@ -155,6 +155,63 @@ def test_flex_web_fetches_both_queries_through_one_client(monkeypatch, tmp_path)
 
     assert calls == ["constructed", ("fetch", None), ("fetch", "pos-query-id")]
     assert raw["book_reconstructed"] is False
+
+
+def test_one_query_saved_with_both_sections_costs_one_handshake(monkeypatch, tmp_path):
+    """When BOTH env vars name the SAME saved query, that query carries both
+    sections and the statement already in hand IS the declared book. Fetching
+    it a second time would be another handshake for a byte-identical answer —
+    and on one token, the thing that trips IBKR's 1018 rate limit."""
+    import lib.ibkr.flex as flex_mod
+
+    combined = f"{HEADER}\n{ROW}\n{POSITIONS_CSV}"
+    calls = []
+
+    class FakeClient:
+        def __init__(self):
+            self.query_id = "one-query-id"
+
+        def fetch(self, query_id=None):
+            calls.append(("fetch", query_id))
+            return combined
+
+    monkeypatch.setattr(flex_mod, "FlexClient", FakeClient)
+    monkeypatch.setattr(flex_mod, "positions_query_id_from_env", lambda: "one-query-id")
+    monkeypatch.setattr(flex_mod, "trades_query_id_from_env", lambda: "one-query-id")
+    monkeypatch.setattr(pull_mod, "FLEX_INPUT_DIR", tmp_path)
+
+    raw = pull_mod.pull_flex(use_web_service=True, enrich=False)
+
+    assert calls == [("fetch", None)]              # ONE handshake, not two
+    assert raw["book_reconstructed"] is False      # still the DECLARED book
+    assert len(raw["positions"]) == 1
+    assert len(raw["trades"]) == 1
+
+
+def test_two_distinct_query_ids_still_run_two_handshakes(monkeypatch, tmp_path):
+    """The fetch-once path must key on the ids being EQUAL, not on a positions
+    query merely being configured — otherwise a real second query is skipped
+    and the declared book silently becomes the trades statement."""
+    import lib.ibkr.flex as flex_mod
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self):
+            self.query_id = "trades-query-id"
+
+        def fetch(self, query_id=None):
+            calls.append(("fetch", query_id))
+            return POSITIONS_CSV if query_id else f"{HEADER}\n{ROW}\n"
+
+    monkeypatch.setattr(flex_mod, "FlexClient", FakeClient)
+    monkeypatch.setattr(flex_mod, "positions_query_id_from_env", lambda: "pos-query-id")
+    monkeypatch.setattr(flex_mod, "trades_query_id_from_env", lambda: "trades-query-id")
+    monkeypatch.setattr(pull_mod, "FLEX_INPUT_DIR", tmp_path)
+
+    pull_mod.pull_flex(use_web_service=True, enrich=False)
+
+    assert calls == [("fetch", None), ("fetch", "pos-query-id")]
 
 
 def test_flex_web_skips_the_second_handshake_when_no_positions_query_is_configured(
@@ -249,12 +306,12 @@ def test_flex_sources_says_what_to_do_when_there_is_no_export(tmp_path, monkeypa
 # Source caveats reach the report
 # --------------------------------------------------------------------------
 def test_a_reconstructed_book_is_declared_in_the_caveats():
-    raw = pull_mod.pull_flex([flex_csv()], enrich=False)
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=False)
     notes = cli._source_caveats(raw)
     assert any("RECONSTRUCTED" in n for n in notes)
 
 
 def test_absent_commission_is_declared_rather_than_shown_as_zero():
-    raw = pull_mod.pull_flex([flex_csv()], enrich=False)
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=False)
     notes = cli._source_caveats(raw)
     assert any("EXCLUDE commission" in n for n in notes)

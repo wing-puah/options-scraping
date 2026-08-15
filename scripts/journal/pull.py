@@ -54,48 +54,46 @@ def raw_path(trade_date: str, now: datetime | None = None):
 # --------------------------------------------------------------------------
 # Flex — the transport
 # --------------------------------------------------------------------------
-def flex_sources(explicit=None) -> list:
-    """The export files to net the open book from.
+def flex_sources(explicit=None, *, statement=None) -> list:
+    """The export files to net the open book from, newest last.
 
-    Defaults to EVERY `trades_*.csv` in `portfolio/input/`, newest last, rather
-    than just the current year. A position entered in a prior year and still
-    open is invisible to a single-year export, and the netted book would be
-    quietly short by exactly that position — the failure this ordering avoids.
+    Defaults to EVERY `trades_*.csv` in `portfolio/input/` rather than just the
+    current year. A position entered in a prior year and still open is
+    invisible to a single-year export, and the netted book would be quietly
+    short by exactly that position — the failure this ordering avoids.
+
+    `statement` is a freshly fetched statement to net TOGETHER with that
+    history, not instead of it. A saved Flex query has a fixed period, and the
+    common ones ("Last Business Day", "Month to Date") are far shorter than the
+    life of an open position; since the book is netted from fills, a short
+    statement does not merely understate a position, it omits every position it
+    did not touch. Netting it with the yearly exports fixes that without the
+    operator re-scoping the query, and costs nothing when the query is already
+    wide — `parse()` dedupes on TradeID, so the overlap collapses.
+
+    Missing exports are fatal WITHOUT a statement (there would be nothing to
+    read) and merely narrowing WITH one — that pull is still valid, and
+    `flexparse` records the narrower window in `book_warnings`.
     """
     if explicit:
         # Only strings become paths. `flexparse.parse` also accepts in-memory CSV
         # (a StringIO), which is how a token-fetched statement and every test
         # reach it; coercing those to Path would break both.
-        return [Path(p) if isinstance(p, str) else p for p in explicit]
-    found = sorted(FLEX_INPUT_DIR.glob(FLEX_INPUT_GLOB))
-    if not found:
-        raise FileNotFoundError(
-            f"No Flex export found at {FLEX_INPUT_DIR}/{FLEX_INPUT_GLOB}. Export one "
-            "from IBKR (Reporting > Flex Queries) or pass --from-flex <path>.")
-    return found
+        on_disk = [Path(p) if isinstance(p, str) else p for p in explicit]
+    else:
+        on_disk = sorted(FLEX_INPUT_DIR.glob(FLEX_INPUT_GLOB))
 
-
-def _web_sources(statement, explicit=None) -> list:
-    """The fetched statement, PLUS whatever history is on disk.
-
-    A saved Flex query has a fixed period, and the common ones ("Last Business
-    Day", "Month to Date") are far shorter than the life of an open position.
-    The open book here is netted from fills, so a short statement does not
-    merely understate a position — it omits every position it did not touch.
-    Netting the statement together with the yearly exports fixes that without
-    the operator having to go and re-scope the query, and costs nothing when
-    the query is already wide: `parse()` dedupes on TradeID, so the overlap
-    collapses.
-
-    Absent exports are not an error in this path — the statement alone is a
-    valid, if narrower, pull, and `flexparse` says so in `book_warnings`.
-    """
-    try:
-        on_disk = flex_sources(explicit)
-    except FileNotFoundError:
+    if not on_disk:
+        if statement is None:
+            raise FileNotFoundError(
+                f"No Flex export found at {FLEX_INPUT_DIR}/{FLEX_INPUT_GLOB}. Export one "
+                "from IBKR (Reporting > Flex Queries) or pass --from-flex <path>.")
         log.info("No local export to widen the statement with — the book will be "
                  "netted from the statement's own window only")
         return [statement]
+
+    if statement is None:
+        return on_disk
     log.info("Netting the statement together with %d local export(s): %s",
              len(on_disk), ", ".join(str(getattr(p, "name", p)) for p in on_disk))
     return [*on_disk, statement]
@@ -124,12 +122,20 @@ def _save_statement(directory, kind: str, text: str, now: datetime | None = None
     return path
 
 
-def pull_flex(sources=None, *, trade_date: str | None = None,
+def pull_flex(sources=None, *, use_web_service: bool,
+              trade_date: str | None = None,
               net_liquidation: float | None = None, account_id: str | None = None,
-              use_web_service: bool = False, enrich: bool = True,
+              enrich: bool = True,
               as_of: date | None = None, positions_source=None,
               statement_dir=None) -> dict:
     """Build a validated pull from a Flex statement.
+
+    `use_web_service` has NO default on purpose. Fetching is the CLI's default
+    (`__main__._use_web_service`), so a default of False here would be the
+    opposite of what the pipeline does, and a new in-process caller that simply
+    omitted it would silently journal from whatever stale exports happen to be
+    in `portfolio/input/` — the exact failure the CLI default exists to
+    prevent. Making it explicit costs one keyword and removes the trap.
 
     `use_web_service=True` fetches the statement with `IBKR_FLEX_TOKEN` /
     `IBKR_FLEX_QUERY_TRADES_ID` and nets it TOGETHER with the exports on disk,
@@ -158,8 +164,10 @@ def pull_flex(sources=None, *, trade_date: str | None = None,
     unavailable`, and the report labels the exposure totals a FLOOR rather than
     counting an absent delta as zero.
     """
+    statement = None
     if use_web_service:
-        from lib.ibkr.flex import FlexClient, positions_query_id_from_env
+        from lib.ibkr.flex import (FlexClient, positions_query_id_from_env,
+                                   trades_query_id_from_env)
         log.info("Fetching Flex statement via the web service (no gateway needed)")
         client = FlexClient()
         trades_text = client.fetch()
@@ -169,7 +177,18 @@ def pull_flex(sources=None, *, trade_date: str | None = None,
 
         if positions_source is None:
             positions_query_id = positions_query_id_from_env()
-            if positions_query_id:
+            if positions_query_id and positions_query_id == trades_query_id_from_env():
+                # ONE query saved with BOTH sections: the statement already in
+                # hand is the declared book too. Fetching it again would be a
+                # second handshake for a byte-identical answer — and the section
+                # split happens in `flexparse`, which reads each reader's own
+                # section out of the one text.
+                log.info("The OpenPositions query IS the trades query (%s) — "
+                         "reading both sections from the one statement",
+                         positions_query_id)
+                positions_source = io.StringIO(trades_text)
+                positions_source.name = "the Flex web-service statement"
+            elif positions_query_id:
                 log.info("Fetching the OpenPositions statement via the web "
                          "service (query %s)", positions_query_id)
                 positions_text = client.fetch(query_id=positions_query_id)
@@ -177,13 +196,9 @@ def pull_flex(sources=None, *, trade_date: str | None = None,
                 positions_source = io.StringIO(positions_text)
                 positions_source.name = "the Flex web-service OpenPositions statement"
 
-        parsed = flexparse.parse(_web_sources(statement, sources), trade_date=trade_date,
-                                 net_liquidation=net_liquidation, account_id=account_id,
-                                 positions_source=positions_source)
-    else:
-        parsed = flexparse.parse(flex_sources(sources), trade_date=trade_date,
-                                 net_liquidation=net_liquidation, account_id=account_id,
-                                 positions_source=positions_source)
+    parsed = flexparse.parse(flex_sources(sources, statement=statement),
+                             trade_date=trade_date, net_liquidation=net_liquidation,
+                             account_id=account_id, positions_source=positions_source)
 
     if not enrich:
         log.warning("Skipping the greek enrichment — every position will be "

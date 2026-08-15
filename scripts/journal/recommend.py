@@ -40,7 +40,8 @@ import pandas as pd
 
 from . import analysis, prompt
 from . import risk as risk_mod
-from .config import JUDGMENT_MAX_ATTEMPTS, JUDGMENT_MODEL, JUDGMENT_TIMEOUT_S
+from .config import (JUDGMENT_MAX_ATTEMPTS, JUDGMENT_MODEL, JUDGMENT_TIMEOUT_S,
+                     RECOMMENDATION_MAX_AGE_DAYS)
 
 try:
     from scripts.live_loop import mapping
@@ -144,6 +145,63 @@ class Rejected:
     tier: str                 # "VETO" | "C"
     reason: str
     score_total: float | None = None
+
+
+# --------------------------------------------------------------------------
+# PART 0 — the time bound
+# --------------------------------------------------------------------------
+class StaleAnalysis(RuntimeError):
+    """The chosen analysis session cannot support a deploy card: either too old
+    to still be actionable, or — the unconditional case — dated AFTER the day
+    the card is being built for."""
+
+
+def check_freshness(session, as_of, *,
+                    max_age_days: int = RECOMMENDATION_MAX_AGE_DAYS,
+                    allow_stale: bool = False) -> tuple[int, str]:
+    """`(staleness_days, note)` for a card. Raises `StaleAnalysis` if unusable.
+
+    TWO REFUSALS, AND ONLY ONE OF THEM IS OVERRIDABLE. Keeping them apart is the
+    whole point of this function:
+
+      * `staleness > max_age_days` — the analysis is too cold to act on. A
+        judgement call about actionability, so `allow_stale` may override it;
+        an operator rebuilding a historical card, or coming back to a genuine
+        11-day gap, has a real reason to look. The override is recorded on the
+        card and on every persisted row, never silent.
+
+      * `session > as_of` — the analysis did not EXIST yet. That is not
+        staleness, it is lookahead, and there is no version of it that is a
+        legitimate request. `allow_stale` does not reach it and must never be
+        made to: a card ranked off plays published after the session it plans
+        would look like foresight and be nothing of the kind.
+    """
+    days = analysis.staleness_days(session, as_of)
+    if days is None:
+        raise StaleAnalysis(
+            f"Cannot date the analysis session ({session!r}) against as-of "
+            f"({as_of!r}) — refusing to build a card whose age is unknown")
+
+    if days < 0:
+        raise StaleAnalysis(
+            f"Analysis session {session} is AFTER the as-of date {as_of} "
+            f"({-days} day(s) in the future). That is lookahead, not staleness: "
+            "the card would rank plays that had not been published yet. "
+            "--allow-stale does not override this.")
+
+    if days > max_age_days:
+        if not allow_stale:
+            raise StaleAnalysis(
+                f"Analysis session {session} is {days} days before the as-of "
+                f"date {as_of}, past the {max_age_days}-day bound. Re-run the "
+                "analysis pipeline, or pass --allow-stale to build the card "
+                "anyway (it will be marked as stale).")
+        return days, (f"**--allow-stale**: this card ranks analysis from {session}, "
+                      f"{days} days before {as_of} and past the "
+                      f"{max_age_days}-day bound. Treat it as a reconstruction, "
+                      "not a read of today's tape.")
+
+    return days, ""
 
 
 # --------------------------------------------------------------------------
@@ -608,12 +666,20 @@ def _render_rejected(r: Rejected) -> str:
 
 
 def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict | None,
-           *, date: str, source: str = "", net_liq: float | None = None) -> str:
+           *, date: str, source: str = "", net_liq: float | None = None,
+           as_of: str = "", staleness_days: int | None = None,
+           stale_note: str = "", book_evaluable: bool = True,
+           book_note: str = "") -> str:
     """Render the full markdown deploy card.
 
     Stands on its own with `judgment=None` (the `--no-llm` path) — the
     judgment section is present and clearly says "not run" rather than being
     omitted, so the deterministic card is always complete on its own.
+
+    Every provenance argument is keyword-only WITH A DEFAULT that reproduces the
+    pre-existing card byte-for-byte. `scripts/backtest_study/live_select.py`
+    imports this module directly (the one sanctioned research->production
+    import), so a required parameter here would break the research tier.
     """
     deploy = [c for c in candidates if c.role == "deploy"]
     hedge = [c for c in candidates if c.role == "hedge"]
@@ -625,6 +691,30 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
     lines.append("")
     lines.append(_V3_V4_CAVEAT)
     lines.append("")
+
+    # --- provenance: WHEN this card stands, and what it could not see -----
+    if as_of:
+        age = ("age unknown" if staleness_days is None else
+               "same day" if staleness_days == 0 else
+               f"{staleness_days} day{'s' if staleness_days != 1 else ''} old")
+        lines.append(f"_Session {date} · as of {as_of} · analysis {age}._")
+        lines.append("")
+    if stale_note:
+        lines.append(f"> {stale_note}")
+        lines.append("")
+    if not book_evaluable:
+        # The empty-book case. `rank()` computes duplicate exposure from the
+        # open book, so with no book it stamps False on everything -- which
+        # reads as "checked, and clear". Say plainly that it was not checked;
+        # an unevaluated cap must never be mistaken for a satisfied one.
+        lines.append("> **Cap headroom and duplicate exposure were NOT evaluated.** "
+                     + (book_note or "No broker pull dated on or before this session "
+                                     "was available.")
+                     + " Every \"duplicate exposure: no\" below means UNKNOWN, not "
+                       "clear, and every \"cap headroom\" line means unchecked. "
+                       "Verify both in IBKR at order entry (§3).")
+        lines.append("")
+
     if source:
         lines.append(f"_Analysis source: {source}. Net liq: "
                      f"{'—' if net_liq is None else f'${net_liq:,.0f}'}._")

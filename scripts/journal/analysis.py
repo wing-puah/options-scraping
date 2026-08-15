@@ -26,7 +26,7 @@ row that happens to be in hand.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -123,8 +123,56 @@ def analysis_dates(df: pd.DataFrame) -> list[str]:
 
 
 def latest_date(df: pd.DataFrame) -> str | None:
+    """The newest analysis date in the book, UNBOUNDED.
+
+    Correct for reconcile.py's callers, which are describing fills that have
+    already happened. NOT correct for the deploy card — see
+    `latest_date_on_or_before`, which is what `recommend` must use.
+    """
     dates = analysis_dates(df)
     return dates[-1] if dates else None
+
+
+def _as_iso(d: str | date) -> str:
+    return d.isoformat() if isinstance(d, date) else str(d)[:10]
+
+
+def latest_date_on_or_before(df: pd.DataFrame, as_of: str | date) -> str | None:
+    """The newest analysis date that is NOT AFTER `as_of`.
+
+    The deploy card's date picker. `latest_date()` returns the maximum date in
+    the book unconditionally, which is a lookahead the moment the book contains
+    a row dated after the day you are standing on — replaying a past session
+    would rank plays that had not been published yet.
+
+    THE BOUND IS INCLUSIVE, and that is a deliberate difference from
+    `candidate_signal_dates` below, which excludes `d >= fill_date`. The two are
+    asking opposite questions. That one asks "could this analysis have CAUSED
+    this fill?" — and deployment-rules.md §0 fixes the entry basis at the NEXT
+    session's open, so analysis published the day of a fill cannot have caused
+    it. This one asks "what may I plan tomorrow's open from?" — and today's
+    analysis is exactly that. Do not "fix" the asymmetry; it is the rule.
+    """
+    bound = _as_iso(as_of)
+    prior = [d for d in analysis_dates(df) if d <= bound]
+    return prior[-1] if prior else None
+
+
+def staleness_days(session: str | date, as_of: str | date) -> int | None:
+    """Calendar days between an analysis session and the day you are standing on.
+
+    Calendar, not trading, days — for the same reason `MAX_SIGNAL_AGE_DAYS` is
+    measured that way: a weekday-only counter needs a market-holiday table to be
+    correct, and getting that subtly wrong would silently widen the staleness
+    gate. `None` when either date is unparseable.
+    """
+    try:
+        a = datetime.strptime(_as_iso(session), "%Y-%m-%d").date()
+        b = datetime.strptime(_as_iso(as_of), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        log.warning("Unparseable date pair (%r, %r) — staleness unknown", session, as_of)
+        return None
+    return (b - a).days
 
 
 def candidate_signal_dates(df: pd.DataFrame, fill_date: str,

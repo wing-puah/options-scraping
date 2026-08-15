@@ -21,18 +21,32 @@ from the caps rather than reading `book.breaches`'s length), `report.build()`
 renders the markdown, and `extract_report_figures()` parses the SAME numbers
 back out of that markdown text. Any disagreement raises `ReconcileError` and
 writes nothing — a half-drawn or silently-diverging page is worse than no page.
+
+WHAT IS IN THE RECONCILED SET, AND WHAT IS NOT. `compute_figures()` returns
+EXACTLY the reconciled set: `reconcile()` walks its keys and demands each one be
+parseable back out of the report text, so anything added there must also be
+printed by `report.py` or the page stops being written — permanently, on every
+run. The RECOMMENDATIONS PANEL is deliberately outside that set. It is a
+read-back of a different artefact (`journal/recommendations.csv`) answering a
+different question (what the deploy card said, on the session it said it), it
+has no counterpart in this session's report, and it is rendered only after the
+reconcile gate has passed. Keep it out of `compute_figures()`, and keep the
+page's own copy honest about which half of it is reconciled.
 """
 
 from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 from pathlib import Path
 
 from . import report
 from .config import MATCH_CONFIDENCES, PositionEvent
 from .risk import BookRisk
+
+log = logging.getLogger(__name__)
 
 STUDY_CHARTS_ASSETS = Path(__file__).resolve().parents[1] / "study_charts" / "assets"
 
@@ -204,21 +218,6 @@ _PAGE_SCRIPT = """
   var DATA = window.__JOURNAL__;
   var dummy = document.createElement("div");
 
-  var dnHost = document.getElementById("chart-dn");
-  var dnRows = DATA.positions
-    .filter(function (p) { return p.dn !== null && p.dn !== undefined; })
-    .map(function (p) { return { label: p.ticker + " " + p.structure, value: p.dn }; });
-  if (dnRows.length) {
-    K.divergingBars(dnHost, dummy, {
-      rows: dnRows,
-      valueFmt: function (v) { return K.money(v); },
-      valueName: "delta-notional",
-      axisTitle: "delta-notional ($)"
-    });
-  } else {
-    dnHost.textContent = "No priced positions.";
-  }
-
   var utilHost = document.getElementById("chart-util");
   var c = DATA.computed;
   var utilRows = [
@@ -243,11 +242,93 @@ _PAGE_SCRIPT = """
     valueFmt: function (v) { return String(v); },
     axisTitle: "count"
   });
+
+  var dnHost = document.getElementById("chart-dn");
+  var dnRows = DATA.positions
+    .filter(function (p) { return p.dn !== null && p.dn !== undefined; })
+    .map(function (p) { return { label: p.ticker + " " + p.structure, value: p.dn }; });
+  if (dnRows.length) {
+    K.divergingBars(dnHost, dummy, {
+      rows: dnRows,
+      valueFmt: function (v) { return K.money(v); },
+      valueName: "delta-notional",
+      axisTitle: "delta-notional ($)"
+    });
+  } else {
+    dnHost.textContent = "No priced positions.";
+  }
 })();
 """
 
 
-def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: dict) -> str:
+# --------------------------------------------------------------------------
+# Recent recommendations — DELIBERATELY OUTSIDE THE RECONCILED SET
+# --------------------------------------------------------------------------
+_REC_COLUMNS = [
+    ("session_date", "session"), ("role", "role"), ("rank", "#"),
+    ("ticker", "ticker"), ("structure", "structure"), ("tier", "tier"),
+    ("deploy", "deploy"), ("trigger_verdict", "trigger fired"),
+    ("headroom_ok", "headroom"), ("play", "play"),
+]
+
+_REC_EMPTY = ("No recommendations recorded yet — run "
+              "<code>python3 -m scripts.journal recommend</code>.")
+
+_REC_PROVENANCE = (
+    "Read back from <code>journal/recommendations.csv</code>: what the deploy card "
+    "said, on the session it said it. Unlike the tiles and charts above, these rows "
+    "are <strong>not</strong> reconciled against this session's markdown report — "
+    "they describe a different artefact. A blank headroom or trigger cell means "
+    "<em>not evaluated</em>, never <em>clear</em>.")
+
+
+def _recommendations_panel(recs) -> str:
+    """The recent-recommendations table.
+
+    NOTHING HERE MAY REACH `compute_figures()`. `reconcile()` requires every key
+    in that dict to be parseable back out of `report.build()`'s markdown, and the
+    report prints no recommendations — so a recommendation figure added there
+    would make `build()` raise on every run, forever. This panel is fed from a
+    separate artefact and rendered after the reconcile gate has already passed.
+
+    Never raises: an unreadable record degrades to the empty-state sentence. A
+    dashboard nicety must not be able to stop the journal page being written.
+    """
+    head = ('      <div class="panel-head"><h3>Recent recommendations</h3></div>\n'
+            f'      <p class="note">{_REC_PROVENANCE}</p>\n')
+    try:
+        rows = list(recs or ())
+        if not rows:
+            body = f'      <p class="note">{_REC_EMPTY}</p>'
+        else:
+            th = "".join(f"<th>{html.escape(label)}</th>" for _, label in _REC_COLUMNS)
+            trs = []
+            for r in rows:
+                tds = "".join(
+                    f"<td>{html.escape(_rec_cell(r.get(key)))}</td>"
+                    for key, _ in _REC_COLUMNS)
+                trs.append(f"<tr>{tds}</tr>")
+            body = ('      <div class="chart"><table>\n'
+                    f'        <thead><tr>{th}</tr></thead>\n'
+                    f'        <tbody>{"".join(trs)}</tbody>\n'
+                    '      </table></div>')
+    except Exception:  # noqa: BLE001 - never block the page on the panel
+        body = f'      <p class="note">{_REC_EMPTY}</p>'
+    return f'    <figure class="panel">\n{head}{body}\n    </figure>'
+
+
+def _rec_cell(v) -> str:
+    """A blank stays blank. `False` is a real verdict and must not read as one."""
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if s.lower() in ("true", "false"):
+        return "yes" if s.lower() == "true" else "no"
+    return s
+
+
+def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: dict,
+            recs=()) -> str:
     date = meta.get("date") or ""
     css = (STUDY_CHARTS_ASSETS / "page.css").read_text()
     kit_js = (STUDY_CHARTS_ASSETS / "kit.js").read_text().replace("</script", "<\\/script")
@@ -273,10 +354,12 @@ def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: d
     <p class="eyebrow">trade journal &middot; production</p>
     <h1>{html.escape(title)}</h1>
     <p class="standfirst">Rendered from the day's reconciled fills and open-book
-      risk mark. Every figure here is independently recomputed from the same
-      records the markdown report reads and checked against that report's own
-      text at build time; a disagreement stops the page from being written at
-      all rather than shipping a chart that quietly disagrees with it.</p>
+      risk mark. Every figure in the tiles and charts is independently recomputed
+      from the same records the markdown report reads and checked against that
+      report's own text at build time; a disagreement stops the page from being
+      written at all rather than shipping a chart that quietly disagrees with it.
+      The recommendations table below is the one exception, and says so: it reads
+      back a different artefact and has no counterpart in this session's report.</p>
   </header>
 
   <section id="tiles">
@@ -288,18 +371,22 @@ def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: d
   <section id="charts">
     <div class="grid-2">
       <figure class="panel">
-        <div class="panel-head"><h3>Delta-notional by position</h3></div>
-        <div id="chart-dn" class="chart"></div>
-      </figure>
-      <figure class="panel">
         <div class="panel-head"><h3>Cap utilisation</h3></div>
         <div id="chart-util" class="chart"></div>
       </figure>
+      <figure class="panel">
+        <div class="panel-head"><h3>Match confidence</h3></div>
+        <div id="chart-conf" class="chart"></div>
+      </figure>
     </div>
     <figure class="panel" style="margin-top:18px">
-      <div class="panel-head"><h3>Match confidence</h3></div>
-      <div id="chart-conf" class="chart"></div>
+      <div class="panel-head"><h3>Delta-notional by position</h3></div>
+      <div id="chart-dn" class="chart"></div>
     </figure>
+  </section>
+
+  <section id="recommendations" style="margin-top:18px">
+{_recommendations_panel(recs)}
   </section>
 
   <footer>
@@ -326,6 +413,23 @@ window.__JOURNAL__ = {data_json};
 # --------------------------------------------------------------------------
 # build()
 # --------------------------------------------------------------------------
+def _recent_recommendations(meta: dict):
+    """The cards to show, bounded by the session this page is FOR.
+
+    `on_or_before` is the point: historical pages are rebuilt from today's
+    files, so without it re-rendering last month's page would show it
+    recommendations that did not exist yet — the same lookahead the card itself
+    refuses, arriving through the dashboard instead.
+    """
+    try:
+        from . import recwriter
+        return recwriter.recent_rows(recwriter.read_csv_rows(),
+                                     on_or_before=meta.get("date"))
+    except Exception as exc:  # noqa: BLE001 - the page matters more than the panel
+        log.debug("No recommendations panel data (%s)", exc)
+        return ()
+
+
 def build(events: list[PositionEvent], book: BookRisk, meta: dict, out_path: Path) -> Path:
     """Render, reconcile against the markdown report, and write both the dated
     file and `journal-latest.html` alongside it. Raises `ReconcileError` and
@@ -340,7 +444,12 @@ def build(events: list[PositionEvent], book: BookRisk, meta: dict, out_path: Pat
             + "\n".join(f"  {p}" for p in problems)
         )
 
-    page = _render(events, book, meta, computed)
+    # AFTER the reconcile gate, and on purpose. The recommendations record is a
+    # different artefact answering a different question, so it is not part of
+    # the reconciled set (see `_recommendations_panel`); reading it here means a
+    # missing or unreadable record can never be mistaken for a page/report
+    # mismatch, and can never stop the page from being written.
+    page = _render(events, book, meta, computed, _recent_recommendations(meta))
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

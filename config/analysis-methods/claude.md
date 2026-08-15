@@ -297,7 +297,7 @@ combined table. Apply that table — do not restate it. The judgment on top of i
   sell a bull put spread if **bullish**, because a debit into rich IV pays
   for premium the slow move can't overcome. If **bearish**, the credit
   expression is unavailable — `bear_call_spread` is intake-vetoed (Attempt 13,
-  −0.82 mean / 17% win) — so take a bear put debit spread or pass. **Low `IVpct` (≤30%)** → IV cheap →
+  −0.82 mean / 17% win) — so take a bear put spread (a debit) or pass. **Low `IVpct` (≤30%)** → IV cheap →
   debit / long premium (TF). `IVpct` is Barchart's IV percentile (share of the
   prior-1yr days with IV below today's); blank when the name has no scraped row —
   then fall back to the vol snapshot proxy.

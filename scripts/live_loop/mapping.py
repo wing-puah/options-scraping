@@ -29,6 +29,8 @@ import re
 import numpy as np
 import pandas as pd
 
+from lib.structure_names import canonical_spread_names
+
 
 # --------------------------------------------------------------------------
 # Structure classification (live fills -> canonical structure labels)
@@ -257,7 +259,11 @@ def leg_desc(entry, structure, positions):
 # Analysis-play parsing
 # --------------------------------------------------------------------------
 def play_structure(play_text: str) -> str:
-    t = str(play_text).lower()
+    # canonical_spread_names first, for the same reason the backtest classifier
+    # calls it: 'bear put debit spread' matches none of the keys below and used
+    # to return "unknown", so a play the operator actually traded could not be
+    # matched to its fill at all. lib/structure_names.py is the one encoding.
+    t = canonical_spread_names(str(play_text)).lower()
     for key in ["bull call spread", "bear call spread", "bull put spread",
                 "bear put spread"]:
         if key in t:

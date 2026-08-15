@@ -13,8 +13,11 @@ DIFFERENT STRUCTURES on the same date, not two regimes on the same date.
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
-from journal.recommend import Candidate, Rejected, judge, rank, render
+from journal import analysis
+from journal.recommend import (Candidate, Rejected, StaleAnalysis, check_freshness,
+                               judge, rank, render)
 from journal.risk import BookRisk
 
 DATE = "2026-08-14"
@@ -296,3 +299,120 @@ def test_dataclasses_importable_and_shaped():
     r = Rejected(ticker="Y", play="p", structure="bear_call_spread", market_regime="RANGE",
                  tier="VETO", reason="r")
     assert r.score_total is None
+
+
+# --------------------------------------------------------------------------
+# PART 0 -- the time bound
+#
+# Two refusals live in check_freshness and only ONE of them is overridable.
+# Staleness is a judgement call about actionability; a session dated AFTER the
+# as-of date is lookahead, and --allow-stale must never reach it.
+# --------------------------------------------------------------------------
+def test_freshness_passes_inside_the_bound():
+    days, note = check_freshness("2026-08-14", "2026-08-15")
+    assert days == 1 and note == ""
+
+
+def test_freshness_passes_at_exactly_the_bound():
+    days, note = check_freshness("2026-08-05", "2026-08-15", max_age_days=10)
+    assert days == 10 and note == ""
+
+
+def test_freshness_refuses_one_day_past_the_bound():
+    with pytest.raises(StaleAnalysis, match="past the 10-day bound"):
+        check_freshness("2026-08-04", "2026-08-15", max_age_days=10)
+
+
+def test_allow_stale_builds_the_card_but_says_so():
+    days, note = check_freshness("2026-08-04", "2026-08-15", max_age_days=10,
+                                 allow_stale=True)
+    assert days == 11
+    assert "allow-stale" in note and "11 days" in note
+
+
+def test_a_session_after_the_as_of_date_is_refused_even_with_allow_stale():
+    """Lookahead, not staleness: the card would rank plays that had not been
+    published yet. There is no legitimate version of this request."""
+    with pytest.raises(StaleAnalysis, match="lookahead"):
+        check_freshness("2026-08-20", "2026-08-15", allow_stale=True)
+
+
+def test_an_undateable_session_is_refused_rather_than_assumed_fresh():
+    with pytest.raises(StaleAnalysis):
+        check_freshness("not-a-date", "2026-08-15", allow_stale=True)
+
+
+def test_staleness_counts_calendar_days_across_a_weekend():
+    # 2026-08-14 is a Friday; the following Monday is 3 calendar days later.
+    assert analysis.staleness_days("2026-08-14", "2026-08-17") == 3
+
+
+# --------------------------------------------------------------------------
+# Lookahead: the analysis date picker
+# --------------------------------------------------------------------------
+def _dated(*dates):
+    return pd.DataFrame([{"date": d, "ticker": "AAA", "play": "p"} for d in dates])
+
+
+def test_latest_date_on_or_before_never_returns_a_future_session():
+    df = _dated("2026-08-10", "2026-08-12", "2026-08-20")
+    assert analysis.latest_date_on_or_before(df, "2026-08-14") == "2026-08-12"
+
+
+def test_latest_date_on_or_before_is_inclusive():
+    """Today's analysis is exactly what tomorrow's open is planned from -- the
+    deliberate difference from candidate_signal_dates, which excludes it."""
+    df = _dated("2026-08-10", "2026-08-12")
+    assert analysis.latest_date_on_or_before(df, "2026-08-12") == "2026-08-12"
+
+
+def test_latest_date_on_or_before_returns_none_when_everything_is_newer():
+    df = _dated("2026-08-20")
+    assert analysis.latest_date_on_or_before(df, "2026-08-14") is None
+
+
+def test_latest_date_stays_unbounded():
+    """reconcile.py describes fills that already happened and needs the real
+    maximum -- adding a bound here would be a silent behaviour change for it."""
+    df = _dated("2026-08-10", "2026-08-20")
+    assert analysis.latest_date(df) == "2026-08-20"
+
+
+# --------------------------------------------------------------------------
+# The card's provenance banners
+# --------------------------------------------------------------------------
+def test_render_without_the_new_kwargs_is_unchanged():
+    """scripts/backtest_study/live_select.py imports this module directly; a
+    required parameter here would break the research tier."""
+    ac_df = _ac_df("RANGE + E-VOL", [_row("AAA", "Bull call spread 100/110, ~50 DTE")])
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    card = render(candidates, rejected, None, date=DATE)
+    assert "as of" not in card
+    assert "NOT evaluated" not in card
+
+
+def test_render_states_plainly_when_the_book_was_not_evaluable():
+    """rank() stamps duplicate_exposure=False off an empty book, which reads as
+    'checked and clear'. The card must say it was not checked at all."""
+    card = render([], [], None, date=DATE, as_of="2026-08-15",
+                  staleness_days=1, book_evaluable=False)
+    assert "NOT evaluated" in card
+    assert "UNKNOWN, not clear" in card
+
+
+def test_render_shows_the_session_and_as_of_provenance():
+    card = render([], [], None, date=DATE, as_of="2026-08-15", staleness_days=1)
+    assert f"Session {DATE}" in card and "as of 2026-08-15" in card
+
+
+def test_render_pluralises_the_age_and_handles_same_day():
+    same = render([], [], None, date=DATE, as_of=DATE, staleness_days=0)
+    assert "same day" in same
+    two = render([], [], None, date=DATE, as_of="2026-08-16", staleness_days=2)
+    assert "2 days old" in two
+
+
+def test_render_carries_the_stale_override_banner():
+    card = render([], [], None, date=DATE, as_of="2026-08-30",
+                  staleness_days=16, stale_note="**--allow-stale**: reconstruction")
+    assert "--allow-stale" in card

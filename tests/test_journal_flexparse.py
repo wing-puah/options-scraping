@@ -781,6 +781,137 @@ def test_a_statement_with_no_openpositions_section_at_all_raises():
         flexparse.parse_positions(trades_xml)
 
 
+# --------------------------------------------------------------------------
+# Multi-section delimited statements — ONE query carrying both sections
+# --------------------------------------------------------------------------
+
+def combined_text(*, trades=None, positions=None, order="trades-first",
+                  separator="", nav=""):
+    """One delimited statement carrying BOTH sections, concatenated with no
+    marker other than each section's own header — the layout a single Flex
+    query saved with both sections produces."""
+    t = "\n".join([HEADER, *(trades or [row()])])
+    p = "\n".join([POSITIONS_HEADER, *(positions or [position_row()])])
+    first, second = (t, p) if order == "trades-first" else (p, t)
+    return first + "\n" + separator + second + "\n" + nav
+
+
+def combined_source(**kwargs):
+    src = io.StringIO(combined_text(**kwargs))
+    src.name = "the combined Flex statement"
+    return src
+
+
+def test_one_combined_statement_feeds_both_readers():
+    """The point of the whole thing: a single saved query carrying Trades AND
+    OpenPositions is passed as both sources, and each reader takes its own
+    section instead of swallowing the other's rows."""
+    raw = flexparse.parse([combined_source()], positions_source=combined_source(),
+                          net_liquidation=50000.0)
+    assert len(raw["trades"]) == 1
+    assert len(raw["positions"]) == 1
+    assert raw["book_reconstructed"] is False   # the DECLARED book, not netted
+
+
+@pytest.mark.parametrize("order", ["trades-first", "positions-first"])
+def test_section_order_does_not_matter(order):
+    raw = flexparse.parse([combined_source(order=order)],
+                          positions_source=combined_source(order=order),
+                          net_liquidation=50000.0)
+    assert len(raw["trades"]) == 1
+    assert len(raw["positions"]) == 1
+
+
+def test_a_blank_line_between_sections_is_not_a_section():
+    raw = flexparse.parse([combined_source(separator="\n")],
+                          positions_source=combined_source(separator="\n"),
+                          net_liquidation=50000.0)
+    assert len(raw["trades"]) == 1
+    assert len(raw["positions"]) == 1
+
+
+def test_a_trailing_nav_section_is_read_but_never_becomes_a_position():
+    """The NAV block has its own width and its own columns. It must supply
+    net_liquidation and contribute NO rows to the declared book — folding it
+    into the positions section is exactly what a flat DictReader does."""
+    nav = "ClientAccountID,NetLiquidation,Cash\nU1234567,51234.50,1000\n"
+    raw = flexparse.parse([combined_source(nav=nav)],
+                          positions_source=combined_source(nav=nav))
+    assert raw["net_liquidation"] == 51234.50
+    assert len(raw["positions"]) == 1
+
+
+def test_two_sections_of_the_same_kind_are_refused():
+    """Two Trades sections would be two reporting windows merged into one
+    book — refuse rather than concatenate them."""
+    doubled = io.StringIO(combined_text() + "\n" + "\n".join([HEADER, row(tid="9")]))
+    with pytest.raises(FlexParseError, match="carries 2 trades sections"):
+        flexparse.parse([doubled])
+
+
+def test_a_single_section_statement_is_left_exactly_as_it_was():
+    """The compatibility guarantee: with one section there is nothing to carve,
+    so the reader gets the original text and every existing export behaves
+    identically to before sections existed."""
+    assert flexparse._csv_section(csv_text(row()).getvalue(),
+                                  flexparse.SECTION_TRADES, "x") is None
+    assert flexparse._csv_section(positions_csv_text(position_row()).getvalue(),
+                                  flexparse.SECTION_POSITIONS, "x") is None
+
+
+def test_section_kinds_are_told_apart_by_their_headers():
+    import csv as _csv
+    trades_hdr = next(_csv.reader([HEADER]))
+    positions_hdr = next(_csv.reader([POSITIONS_HEADER]))
+    assert flexparse._csv_section_kind(trades_hdr) == flexparse.SECTION_TRADES
+    assert flexparse._csv_section_kind(positions_hdr) == flexparse.SECTION_POSITIONS
+    # A data row spells out values, never a full set of column names.
+    assert flexparse._csv_section_kind(next(_csv.reader([row()]))) == flexparse.SECTION_OTHER
+
+
+def test_a_trades_csv_aimed_at_the_positions_query_is_refused():
+    """REQUIRED_POSITION_COLUMNS is a SUBSET of a trades header, so the
+    missing-column check passes and every FILL parses as a declared position —
+    an authoritative-looking book that is pure fiction. The XML branch catches
+    this by looking for an <OpenPositions> element; CSV needs its own guard."""
+    trades = csv_text(row(tid="1", conid="100", side="BUY", qty="1"))
+    with pytest.raises(FlexParseError, match="TRADES export"):
+        flexparse.parse_positions(trades)
+
+
+def test_the_positions_csv_guard_names_the_env_var_and_the_fix():
+    trades = csv_text(row(tid="1", conid="100", side="BUY", qty="1"))
+    with pytest.raises(FlexParseError) as exc:
+        flexparse.parse_positions(trades)
+    assert "IBKR_FLEX_OPEN_POSITIONS_QUERY_ID" in str(exc.value)
+    # It must NOT send the operator to XML — a combined CSV splits fine now.
+    assert "XML" not in str(exc.value)
+    assert "Open Positions section" in str(exc.value)
+
+
+def test_a_real_positions_csv_still_parses_after_the_guard():
+    """The guard must key on trades-only columns, not on anything an
+    OpenPositions export legitimately carries."""
+    declared = flexparse.parse_positions(positions_csv_text())
+    assert declared["positions"] == []
+
+
+def test_a_saved_error_envelope_is_diagnosed_as_one_not_as_a_bad_query():
+    """A rate-limited pull leaves IBKR's own error XML on disk. Replaying it
+    must name the error, NOT send the operator off to re-save a query that was
+    never wrong — which is what the missing-section check would otherwise say."""
+    envelope = io.StringIO(
+        "<FlexStatementResponse timestamp='15 August, 2026 04:46 AM EDT'>"
+        "<Status>Warn</Status><ErrorCode>1018</ErrorCode>"
+        "<ErrorMessage>Too many requests have been made from this token. "
+        "Please try again shortly.</ErrorMessage></FlexStatementResponse>")
+    with pytest.raises(FlexParseError) as exc:
+        flexparse.parse_positions(envelope)
+    assert "1018" in str(exc.value)
+    assert "Too many requests" in str(exc.value)
+    assert "IBKR_FLEX_OPEN_POSITIONS_QUERY_ID" not in str(exc.value)
+
+
 def test_an_empty_openpositions_section_parses_as_a_flat_book():
     """The section is there and says nothing is held — that is an answer, and
     `parse()` is where it gets cross-examined against the fills."""

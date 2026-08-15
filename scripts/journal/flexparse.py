@@ -131,6 +131,19 @@ REQUIRED_POSITION_COLUMNS = (
     "UnderlyingSymbol",
 )
 
+# Columns that ONLY a Trades export has — a position has no execution id, no
+# side and no open/close indicator. They exist because REQUIRED_POSITION_COLUMNS
+# is entirely a SUBSET of a trades header: every one of those seven columns is
+# present on a Trade row too, so the missing-column check CANNOT tell a trades
+# export from a positions one, and a trades CSV aimed at the positions query
+# parses cleanly into one "declared position" per fill. That book is then
+# treated as AUTHORITATIVE (`book_reconstructed=False`) — a confidently wrong
+# book, which is worse than any error. The XML branch is safe by construction
+# (it looks for an `<OpenPositions>` element); this is the delimited format's
+# equivalent, and the reverse direction needs no guard because a positions
+# header fails REQUIRED_COLUMNS outright.
+TRADES_ONLY_COLUMNS = ("TradeID", "Buy/Sell", "Open/CloseIndicator")
+
 # XML `<OpenPosition>` attribute -> the CSV column carrying the same field.
 # NOTE the one attribute that is NOT a case change of its CSV name: the XML
 # quantity attribute is `position` (IBKR's XML calls the signed contract count
@@ -200,10 +213,24 @@ def _xml_root(text: str, source) -> ET.Element:
     regardless of which section it was meant to carry.
     """
     try:
-        return ET.fromstring(text)
+        root = ET.fromstring(text)
     except ET.ParseError as exc:
         raise FlexParseError(
             f"Flex export {_label(source)} is not parseable XML: {exc}") from exc
+    if root.find("Status") is not None:
+        # Not a statement at all: a Flex Web Service STATUS ENVELOPE, which the
+        # transport is supposed to have raised on (lib/ibkr/flex.py). Saying so
+        # here too is what keeps a saved one replayable — otherwise the section
+        # checks below diagnose an envelope's missing sections as a
+        # misconfigured query, which is exactly the wrong place to send the
+        # operator looking.
+        code = root.findtext("ErrorCode") or "?"
+        message = root.findtext("ErrorMessage") or root.findtext("Status") or ""
+        raise FlexParseError(
+            f"Flex export {_label(source)} is not a statement — it is the Flex "
+            f"Web Service's own error response (code {code}: {message}). "
+            "Nothing is wrong with the saved query; re-run the pull.")
+    return root
 
 
 def _rows_from_xml(text: str, source) -> tuple[list[dict], dict]:
@@ -234,18 +261,101 @@ def _rows_from_xml(text: str, source) -> tuple[list[dict], dict]:
     return rows, meta
 
 
+SECTION_TRADES = "trades"
+SECTION_POSITIONS = "positions"
+SECTION_OTHER = "other"
+
+
+def _csv_section_kind(fields: list[str]) -> str:
+    """Which section a delimited statement's HEADER line introduces.
+
+    Judged on the column names alone. The positions test must exclude the
+    trades-only columns as well as require its own, because
+    REQUIRED_POSITION_COLUMNS is a subset of a trades header — see
+    TRADES_ONLY_COLUMNS. A data row lands on `other` harmlessly: its fields are
+    values, which never spell out a full set of column names.
+    """
+    names = set(fields)
+    if set(REQUIRED_COLUMNS) <= names:
+        return SECTION_TRADES
+    if set(REQUIRED_POSITION_COLUMNS) <= names and not set(TRADES_ONLY_COLUMNS) & names:
+        return SECTION_POSITIONS
+    return SECTION_OTHER
+
+
+def _csv_sections(text: str) -> list[tuple[str, list[str]]]:
+    """Split a delimited Flex statement into `(kind, lines)`, headers included.
+
+    A Flex CSV bundles sections back to back with NO marker other than each
+    section's own header line (the layout `_net_liquidation_from_csv` has
+    always assumed). Two independent signals open a new section, and either
+    alone is enough:
+
+      * the line is a RECOGNISED header (trades or positions), or
+      * its field count differs from the section it would otherwise join —
+        sections exist precisely because their column sets differ, so their
+        widths differ too.
+
+    The width rule is what stops an unrecognised trailing block (a NAV /
+    Account Information section, say) from being folded into its neighbour and
+    arriving as garbage rows. Blank lines separate nothing and join nothing.
+    """
+    sections: list[tuple[str, list[str]]] = []
+    width: int | None = None
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        fields = next(csv.reader([line]), [])
+        kind = _csv_section_kind(fields)
+        opens_section = (not sections
+                         or kind in (SECTION_TRADES, SECTION_POSITIONS)
+                         or len(fields) != width)
+        if opens_section:
+            sections.append((kind, [line]))
+            width = len(fields)
+        else:
+            sections[-1][1].append(line)
+    return sections
+
+
+def _csv_section(text: str, kind: str, source) -> str | None:
+    """The text of `text`'s `kind` section, or None to use `text` as it stands.
+
+    None for a single-section statement is deliberate rather than lazy: it
+    hands the caller back the ORIGINAL text untouched, so every one-section
+    export — which is every export this pipeline has ever seen — takes a code
+    path identical to the one it took before sections existed, down to the
+    error messages.
+    """
+    sections = _csv_sections(text)
+    if len(sections) <= 1:
+        return None
+    matching = [lines for section_kind, lines in sections if section_kind == kind]
+    if not matching:
+        return None
+    if len(matching) > 1:
+        raise FlexParseError(
+            f"Flex export {_label(source)} carries {len(matching)} {kind} "
+            "sections. A statement holds at most one of each; reading them as "
+            "one section would merge two different reporting windows.")
+    return "\n".join(matching[0]) + "\n"
+
+
 def _read_rows(source: str | Path | io.StringIO) -> tuple[list[dict], dict]:
     """Rows of one Flex statement, as dicts keyed by the CSV column names.
 
     Accepts a path or in-memory text, in EITHER wire format — the format is
     detected from the content rather than the filename, because a token-fetched
-    statement arrives as bare text with no name at all.
+    statement arrives as bare text with no name at all. A multi-section
+    delimited statement is carved down to its Trades section first; a
+    single-section one is read exactly as it always was.
     """
     text = _source_text(source)
     if text.lstrip().startswith("<"):
         return _rows_from_xml(text, source)
 
-    rows = list(csv.DictReader(io.StringIO(text)))
+    body = _csv_section(text, SECTION_TRADES, source)
+    rows = list(csv.DictReader(io.StringIO(text if body is None else body)))
     if not rows:
         raise FlexParseError(f"Flex export {_label(source)} has no data rows")
 
@@ -345,8 +455,25 @@ def _read_position_rows(source) -> tuple[list[dict], dict, float | None]:
                 "go back to netting the book from fills.")
         return rows, meta, _net_liquidation_from_xml(root)
 
-    reader = csv.DictReader(io.StringIO(text))
+    # The Positions section only — but `_net_liquidation_from_csv` below still
+    # gets the WHOLE text, because the NAV figure lives in a different section
+    # of the same statement and has always been found by scanning across them.
+    body = _csv_section(text, SECTION_POSITIONS, source)
+    reader = csv.DictReader(io.StringIO(text if body is None else body))
     header = reader.fieldnames or []
+    trades_only = [c for c in TRADES_ONLY_COLUMNS if c in header]
+    if trades_only:
+        # Checked BEFORE the missing-column test, which a trades header passes —
+        # see TRADES_ONLY_COLUMNS for why that check cannot catch this.
+        raise FlexParseError(
+            f"Flex export {_label(source)} is a TRADES export, not an "
+            f"OpenPositions one — its header carries {', '.join(trades_only)}, "
+            f"which a position never has. {POSITIONS_QUERY_ID_ENV} is pointing "
+            "at the trades query; point it at one saved with the Open Positions "
+            "section, or unset it to net the book from fills. (A statement "
+            "carrying BOTH sections is fine — those are split apart before this "
+            "check; this one has no positions section at all.) Reading it as a "
+            "declared book would turn every fill into an open position.")
     missing = [c for c in REQUIRED_POSITION_COLUMNS if c not in header]
     if missing:
         raise FlexParseError(
