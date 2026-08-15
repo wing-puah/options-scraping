@@ -226,15 +226,23 @@ disagree, the log wins.
 | 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/vol_sleeve.md](pre-registrations/vol_sleeve.md) |
 | 2026-08-12 — `vol_sleeve` RUN: the sleeve DOUBLES DOWN; the calendar is the only survivor | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |
 | 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/account_sim.md](pre-registrations/account_sim.md) |
-| 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [current.md](current.md) |
-| 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [current.md](current.md) |
-| 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [current.md](current.md) |
+| 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
+| 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
+| 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/calendar_hedge.md](pre-registrations/calendar_hedge.md) |
-| 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 3.00x) | [current.md](current.md) |
-| 2026-08-13 — `account_sim` made CONFIG-DRIVEN (`config/account-sim.yml`) | [current.md](current.md) |
-| 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x | [current.md](current.md) |
-| 2026-08-13 — method-config audit: −25 veto RETIRED, OIConfirm dropped, codex engine retired | [current.md](current.md) |
-| 2026-08-13 — bear_put demotion mechanism CHOSEN: card veto §1.4, hedge sleeve carved out | [current.md](current.md) |
+| 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 3.00x) | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
+| 2026-08-13 — `account_sim` made CONFIG-DRIVEN (`config/account-sim.yml`) | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
+| 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
+| 2026-08-13 — method-config audit: −25 veto RETIRED, OIConfirm dropped, codex engine retired | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
+| 2026-08-13 — bear_put demotion mechanism CHOSEN: card veto §1.4, hedge sleeve carved out | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
 | 2026-08-13 — `volume_signal`: PRE-REGISTRATION | [pre-registrations/volume_signal.md](pre-registrations/volume_signal.md) |
-| 2026-08-13 — `volume_signal` RUN: NULL — the volume column is closed | [current.md](current.md) |
-| 2026-08-13 — `account_sim` COMPOUNDING arm: costs money on this book; A2/A5 do not transfer | [current.md](current.md) |
+| 2026-08-13 — `volume_signal` RUN: NULL — the volume column is closed | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
+| 2026-08-13 — `account_sim` COMPOUNDING arm: costs money on this book; A2/A5 do not transfer | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
+| 2026-08-14 — `selection_order`: PRE-REGISTRATION (six ordering arms, O4 random control, G0 power pre-check) | [pre-registrations/selection_order.md](pre-registrations/selection_order.md) |
+| 2026-08-14 — `selection_order` RUN: POWER-STOPPED at G0 — 7–14% of the book moves, nothing read, nothing refuted | [current.md](current.md) |
+| 2026-08-14 — study-suite triage: DEBIT_PROD exact-replay gate unsatisfiable; `bear_position_study` R partly contaminated | [current.md](current.md) |
+| 2026-08-15 — structure-name defect FIXED: `bear put debit spread` backtested as a single long option; v4 re-run, v3 frozen | [current.md](current.md) |
+| 2026-08-14 — three carried follow-ups closed: verdict grammar TOTAL, ARM H sizing floor skips, criterion (4) reworded | [current.md](current.md) |
+| 2026-08-14 — `run --all` GREEN: two dead studies RETIRED, designed refusal now a runner status | [current.md](current.md) |
+| 2026-08-14 — study-suite triage FIXED: gate classifies instead of asserting; `exit_basis` column UNUSABLE | [current.md](current.md) |
+| 2026-08-15 — `account_sim --live-select` ARM ADDED: shipped selector run under history; 150 unpriceable candidates, 37 below-top-3 slots, §1.3 veto gap | [current.md](current.md) |
