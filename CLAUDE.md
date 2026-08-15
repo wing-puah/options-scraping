@@ -153,6 +153,35 @@ python3 -m scripts.backtest_study run account_sim -- --structure-universe
 #   trailing_stop exports, not unpriceable rows). Widens the CANDIDATE SET only;
 #   bs rows stay dropped, gates still run on the frozen book, and it writes a
 #   SEPARATE artifact (account_sim-positions-structure-latest.csv).
+python3 -m scripts.backtest_study run account_sim -- --live-select
+python3 -m scripts.backtest_study run account_sim -- --live-select --live-select-no-llm
+# ^ arm of a DIFFERENT kind: it changes WHO CHOOSES. Selection runs through the
+#   SHIPPED decision function — scripts/journal/recommend.py's rank() then
+#   judge() — instead of this study's own port of the ladder in book.py, so the
+#   simulated decision is the live decision and the drift between the two is a
+#   measured number. Ledger, caps, sizing and the frozen exit replay are
+#   unchanged (scripts/backtest_study/live_select.py; a `ranker` hook on
+#   simulate() that is None on every other path).
+#   Its own report (account_sim-live-select-latest.txt) and positions CSV; the
+#   runner treats it as a SINGLE-arm run, so it never files under account_sim's
+#   stem and never drags the compounding arm along. G1-G4 stay pinned to the
+#   frozen basis; G5 is RE-RUN with the shipped selector in the loop (it is a
+#   claim about THIS run's decision path), and G6 (nothing reaches the ledger
+#   that rank() did not clear) runs on the arm. G5 blinds record FIELDS and a
+#   model's weights are not one — see the cache/lookahead note below.
+#   It evaluates NO pre-registered criterion — A1-A6 were registered
+#   against the frozen selector's candidate set and do not transfer.
+#   --live-select-entry-check {ibkr_verified,analysis_only}: deployment-rules §3
+#   says the short-leg delta is read in IBKR at order entry and the analysis row
+#   does not carry it, so the default joins the book row's measured delta and the
+#   other supplies nothing. Both counts are printed either way.
+#   --live-select-no-llm skips judge() entirely (fully offline). With judge() on,
+#   every prompt is cached by sha256 in live-select-judgments.jsonl, so a re-run
+#   replays and costs nothing — and the cache is the auditable record of what the
+#   model actually said. JUDGMENT_MODEL's cutoff OVERLAPS the analysis dates and
+#   G5 cannot detect a model that remembers an outcome; the arm bounds that with
+#   two ledger walks off one model pass (demote_policy skip vs ignore) and prints
+#   the delta. Read that before reading anything the judge layer touched.
 # Every ARM gets its own CSV stem; a different --config does NOT — it overwrites the
 # default export, and the report records which config produced it.
 
@@ -212,6 +241,127 @@ make study-chart-regime-open                             # rebuild it and open i
 # Shared page shell: scripts/study_charts/cli.py (pipeline), assets/kit.js (chart
 # primitives, inlined ahead of each page's own script).
 
+# Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
+python3 -m scripts.journal                        # fetch → reconcile → risk → report → write
+python3 -m scripts.journal --date 2026-08-14
+python3 -m scripts.journal --offline              # read portfolio/input/ only, no network
+python3 -m scripts.journal pull                   # broker pull only
+python3 -m scripts.journal --from-raw journal/raw/ibkr-2026-08-14-1615.json   # offline replay
+python3 -m scripts.journal --dry-run              # no Sheets/CSV write, no LLM
+python3 -m scripts.journal --no-llm               # deterministic only
+python3 -m scripts.journal recommend              # deploy card for the NEXT session
+#
+# FLEX IS THE ONLY TRANSPORT, AND IT FETCHES BY DEFAULT. A bare run above pulls
+# the statement over the network with IBKR_FLEX_TOKEN / IBKR_FLEX_QUERY_TRADES_ID
+# (plus IBKR_FLEX_OPEN_POSITIONS_QUERY_ID when set) and nets it TOGETHER with
+# whatever is in portfolio/input/ — the same thing `--flex-web` used to opt into,
+# now the default. `--offline` (alias `--no-flex-web`) reads only what is on
+# disk, no network touched. No local software, no daily browser login either way.
+python3 -m scripts.journal --from-flex portfolio/input/trades_*.csv       # offline (naming files implies it)
+python3 -m scripts.journal --from-flex-positions portfolio/input/positions_*.csv
+python3 -m scripts.journal --from-flex portfolio/input/trades_*.csv --flex-web  # named files, still fetch
+python3 -m scripts.journal --net-liq 52000        # Flex reports no account equity
+python3 -m scripts.journal --no-greeks            # skip the Barchart fetch
+# Reads a Flex TRADES export (16 fields incl. Conid, so contract identity is EXACT,
+# never price-inferred), in EITHER wire format — a saved query is defined as
+# delimited text or XML in Account Management and the web service returns
+# whichever it specifies, so flexparse detects the format and renames the XML
+# attributes to the CSV column names before anything else runs.
+# The fetch path nets the fetched statement TOGETHER with the on-disk exports,
+# not instead of them: a saved query's period ("Last Business Day", "Month to
+# Date") is normally far shorter than the life of an open position, and since
+# the book is netted from fills, a short statement OMITS every position it did
+# not touch rather than understating it. A statement whose declared window is a
+# single day (or a short `period`) says so in book_warnings unless another
+# export supplied the earlier history. Defaults to every portfolio/input/trades_*.csv.
+#
+# TWO SAVED QUERIES, ONE TOKEN. A Flex query is scoped to the sections it was
+# saved with, so trades and open positions are separate queries:
+# IBKR_FLEX_QUERY_TRADES_ID (IBKR_FLEX_QUERY_ID also still works, deprecated,
+# warns) and the OPTIONAL IBKR_FLEX_OPEN_POSITIONS_QUERY_ID /
+# --from-flex-positions. Configuring the second query REPLACES netting with a
+# declared book: `positions` comes straight from the OpenPositions section, and
+# the netted-from-fills book becomes a cross-check instead of the answer. Each
+# conid where they disagree is SORTED into one of three buckets by
+# `_book_diff_warnings`, because a saved trades query's period is far shorter
+# than a position's life and most disagreements say only "the export cannot see
+# back that far": `not_cross_checkable` (no fill for that conid AT ALL in the
+# export — test `conid not in by_conid`, NOT "netting gives absent"; a conid
+# whose rows net to zero is a real contradiction), `coverage_explained`
+# (declared-absent/netted-present with uncovered time after the last fill), and
+# `unexplained` — a missing fill or a corporate action, the ACTUAL finding.
+# Only `unexplained` is loud; all three are counted in §6 via
+# `raw["book_diagnostics"]`. The check is DEMOTED, never removed:
+# `_refuse_a_contradicted_flat_book` and both exit-2 guards are untouched.
+# What the transport does NOT carry, and how each gap is handled — stated in
+# the report's §1 SOURCE LIMITS block, never silently absorbed. Four gaps without the
+# positions query configured; THREE with it (the open-positions gap drops out):
+#   · no open-positions section (ONLY when no positions query is configured) →
+#     the book is RECONSTRUCTED by netting fills per conid, so pass EVERY year
+#     you still hold positions from; a position opened before the oldest file
+#     is flagged, and expired contracts are dropped (netting cannot see expiry
+#     or assignment). A GAP between the sources is the nastier case — a
+#     position CLOSED in a span no file covers keeps netting non-zero and is
+#     shown as open — so flexparse merges each source's coverage interval and
+#     names every uncovered span and the tickers whose last fill precedes it.
+#     Fix a gap by dropping a fresh export into portfolio/input/, NEVER by
+#     re-scoping the saved Flex query.
+#   · no greeks    → scripts/journal/greeks.py fetches per-contract EOD
+#     Delta/Gamma/Theta/Vega/IV + underlying spot from Barchart, as-of the
+#     session and never after it (that would be lookahead)
+#   · no commission → recorded as None, NEVER 0.0, and net_cash excludes it
+#   · no NetLiquidation → satisfied automatically if the positions query
+#     happens to carry a NAV/Account-Information section (detected, never
+#     assumed); otherwise --net-liq or $JOURNAL_NET_LIQUIDATION, unset, the
+#     caps report "not evaluable" rather than dividing by a guess
+#
+# THE CLIENT PORTAL GATEWAY TRANSPORT (--cpapi) WAS DELETED 2026-08-15 — it
+# needed a locally-run, browser-logged-in gateway for greeks and NetLiquidation
+# that Barchart and --net-liq now supply, so Flex became the only transport
+# rather than a default with an opt-out. Pulls it wrote (source: ibkr-cpapi,
+# greek source: ibkr) still replay unchanged through --from-raw — the v1
+# schema didn't move — so DELTA_SOURCE_IBKR/DELTA_SOURCES_REAL stay put; see
+# the invariant below.
+# NOTE the IBKR MCP is NOT an option either: it is claude.ai-hosted, its tools
+# are absent from a Claude Code CLI session, and no script can call it.
+#
+# TWO NEW FAILURE GUARDS IN flexparse.py, BOTH EXIT 2 (2026-08-15). An
+# OpenPositions statement with NO OpenPositions section at all now raises,
+# naming IBKR_FLEX_OPEN_POSITIONS_QUERY_ID (a query saved without that
+# section) — it used to read as an ordinary flat book. And a DECLARED
+# OpenPositions book that comes back empty while netting the trades export
+# still finds unexpired positions now raises instead of journalling a flat
+# book: this is the bug that shipped it — the statement came back with zero
+# rows while 18 contracts were open, and the report printed "No open
+# positions" and "Book is complete" with nothing to contradict it. Every
+# fetched statement is now also kept verbatim at
+# journal/raw/flex-<date>-<HHMM>-{trades,positions}.{csv,xml} (skipped on
+# --dry-run), so a bad parse is diagnosable afterwards.
+#
+# journal/ IS GITIGNORED IN FULL — raw pulls carry account identifiers and
+# trades.csv carries live position sizes and P&L. The TradeJournal tab in
+# TRADE_JOURNAL_SPREADSHEET_ID is the only copy that leaves the machine. The
+# leading slash in the .gitignore rule is load-bearing: a bare `journal/` would
+# also exclude scripts/journal/, the pipeline's own source.
+# A greek no source returned is None, NEVER 0.0 — such positions are excluded
+# from exposure totals and listed separately, and the report says the totals are
+# a FLOOR. Never sum delta-notional without filtering on delta_source, and test
+# membership against DELTA_SOURCES_REAL rather than one named source, or adding
+# a feed silently drops positions out of the net figure.
+# Exposure caps (0.25 per-position / 2.50 net) come from config/account-sim.yml,
+# but bind against live account equity — NOT that study's $25k. The
+# "per-position" cap is evaluated on a TICKER's SIGNED total, not on each
+# (ticker, expiry) row: book.py splits a core vertical and the shorter-dated
+# short leg financing it into two positions, and that leg exists to cut the
+# ticker's directional exposure, so checking each row alone flags a breach that
+# is already hedged. risk.py::assess and page.py::_breach_count are two
+# DELIBERATE implementations of that one rule — page.py recomputes rather than
+# reading book.breaches, so drift surfaces as a ReconcileError. Change both, by
+# hand; never make page.py call risk.py's helper.
+# ONE model call in the whole pipeline: the judgment pass in recommend.py, shown
+# only plays the rules already cleared. It can demote or annotate; it can never
+# promote a play, change a tier, or resurrect one vetoed by deployment-rules.md.
+
 # Dashboard
 cd web && npm run dev   # http://localhost:3000
 
@@ -262,8 +412,26 @@ lib/                        ← shared modules, imported by scripts, never run d
   csv_utils.py              — parse_csv (strips Barchart footer)
   counterpart_iv.py         — IV-spread counterpart-fetch logic (pure; shared producer/consumer)
   price_catalyst.py         — price/earnings-catalyst enrichment + score_price/score_catalyst (pure)
+  ibkr/                     — IBKR transport + parsing ONLY (the same role barchart/ plays
+                              for Barchart, no trading logic). Just flex.py now: the
+                              Client Portal Gateway transport (client.py's IBKRClient,
+                              endpoints.py, contracts.py) was deleted 2026-08-15 — what it
+                              carried natively (greeks, NetLiquidation) Barchart and
+                              --net-liq now supply, so it no longer earns its gateway
+                              dependency. flex.py (FlexClient — the token-authenticated
+                              Flex Web Service; SendRequest → ReferenceCode →
+                              GetStatement, polling on error 1019 "generation in
+                              progress". Needs NO gateway. The token is a secret and is
+                              redacted from every log line) is the ONLY transport left.
+                              Pulls the old transport wrote (source: ibkr-cpapi) still
+                              replay via --from-raw; nothing about the v1 rawpull schema
+                              changed, so DELTA_SOURCE_IBKR/DELTA_SOURCES_REAL
+                              (scripts/journal/config.py) stay for that reason.
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
-  sheets_client.py          — read/write Google Sheets tabs
+  sheets_client.py          — read/write Google Sheets tabs. `_get_spreadsheet()` takes an
+                              optional id so the journal can target
+                              TRADE_JOURNAL_SPREADSHEET_ID; `_ensure_tab(min_cols=)` sizes a
+                              new tab to its schema (the 30-col default truncates wider ones)
 
 scripts/                    ← entry points, each maps to a workflow step
   collector/                — scrape_flow.py, enrich_oi.py, fetch_iv_percentile.py,
@@ -279,6 +447,36 @@ scripts/                    ← entry points, each maps to a workflow step
   backtest.py               — leg-based backtest of analysis plays (shared internals in
                               scripts/backtest/shared/, used by core.py and proxy.py)
   backtest/proxy.py         — fallback-chain proxy backtest for plays the real backtest skipped
+  journal/                  — PRODUCTION tier. The DAILY analysis → trade → evidence loop.
+                              config.py = the data contract (records + JOURNAL_COLUMNS),
+                              the ONE place its shapes are defined; rawpull.py = the
+                              immutable broker-pull schema, the boundary that keeps
+                              lib/ibkr out of every downstream module; pull.py = the only
+                              networked module, holding the ONE transport (Flex — the
+                              Client Portal Gateway transport was deleted 2026-08-15;
+                              fetching with IBKR_FLEX_TOKEN is now the DEFAULT, --offline
+                              reads only what's on disk); flexparse.py = Flex CSV →
+                              rawpull, pure, the netted-book provenance warnings, and the
+                              two guards against a book that reads flat when it is not
+                              (a positions query saved without an OpenPositions section;
+                              a declared-empty book that netting contradicts — both
+                              raise, exit 2); greeks.py = the Barchart greek/spot
+                              enrichment the Flex path needs;
+                              analysis.py = shared AnalysisClaude loader
+                              (Sheets → CSV fallback, and the MARKET-row regime rule);
+                              reconcile.py = fills → positions → matched play → tier;
+                              risk.py = delta-notional vs the account-sim caps, bound to
+                              live NetLiquidation; report.py/page.py = markdown + HTML;
+                              writer.py = TradeJournal tab + local CSV, deduped on
+                              source_ref; recommend.py/prompt.py = the deterministic
+                              ranker plus the pipeline's ONLY model call
+  live_loop/                — PRODUCTION tier. The same ground, audited fortnightly and in
+                              more depth: stage1_map_fills.py maps a hand-pasted IBKR
+                              snapshot to analysis rows. mapping.py holds the matching +
+                              ladder logic BOTH it and scripts/journal/ import —
+                              `ladder_tier()` is the single encoding of
+                              config/deployment-rules.md §1–§3, so the daily and
+                              fortnightly views can never disagree about a tier
   backtest_study/           — RESEARCH tier, never imported by production and never scheduled.
                               Tuning studies that argue about the book: run.py = runner
                               (`python -m scripts.backtest_study`); harness.py = FROZEN exit-replay
@@ -290,7 +488,12 @@ scripts/                    ← entry points, each maps to a workflow step
                               (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta —
                               the OHLC-only two carry a smaller denominator, always print
                               `coverage()`); protocol.py = purged
-                              walk-forward / date-clustered CIs / LOO. Reports land in
+                              walk-forward / date-clustered CIs / LOO;
+                              live_select.py = the ONE place research imports PRODUCTION
+                              (`account_sim --live-select` runs scripts/journal/recommend.py's
+                              rank()+judge() over history in place of book.py's port of the
+                              ladder, so the simulated decision is the live decision).
+                              Reports land in
                               backtests/study_output/ (scratch); conclusions in
                               config/backtest-tuning/current.md
   study_map/                — RESEARCH tier. Renders docs/study-map.html: what each study
@@ -354,6 +557,14 @@ python3 -m scripts.analysis_pipeline --date …   (fetch + analyze + write)
 - **BaselineDaily** — `build_baseline.py` (one market-aggregate row per trading date; regime
   baseline read back by `analysis_pipeline/fetch.py`). NOT versioned — it carries across
   prompt versions, so a version bump never resets the regime history.
+- **TradeJournal** — `scripts/journal/writer.py` (one row per reconstructed position event:
+  what was filled, which analysis play it matched and at what confidence, its ladder tier,
+  and its delta exposure). Lives in **`TRADE_JOURNAL_SPREADSHEET_ID`, not
+  `GOOGLE_SPREADSHEET_ID`** — a separate workbook so the trade record can be shared, or kept
+  unshared, independently of the analysis book. Schema is `JOURNAL_COLUMNS` in
+  `scripts/journal/config.py`; the same append-at-end header rule applies as for
+  `ROW_COLUMNS`. Deduped on `source_ref` (the broker's execution ids), so a re-run appends
+  only genuinely new fills rather than relying on a batch hash.
 - **\_meta** — `sheets_client.py` (dedup hashes)
 
 **Prompt versions and the `vN_` tabs.** Any change to the analysis prompt or its inputs is a
@@ -385,6 +596,48 @@ conclusion derived on vN does not automatically transfer to vN+1.
   comment on `analysis_to_rows()` in `scripts/analysis_pipeline/core.py` and the per-play schema
   in `scripts/analysis_pipeline/config.py` (`ANALYSIS_PROMPT_CONTRACT`). This regression has
   happened before — keep the touch points (JSON contract, row expansion, claude.md) in sync.
+
+- **A missing greek is `None`, never `0.0`.** Live positions get their delta from Barchart's
+  EOD settlement history (`scripts/journal/greeks.py`), which can lack a contract's row
+  entirely, or a field on it. A delta of `0.0` is a real, meaningful value; an absent one is
+  not. Conflating them silently UNDERSTATES book exposure, which is the single most dangerous
+  way this pipeline could be wrong. Enforced at three layers, and all three must stay:
+  `scripts/journal/rawpull.py::validate` refuses a pull whose greek claims a `source` in
+  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/risk.py` computes a position's delta
+  all-or-nothing across legs and excludes unpriceable positions from every total (flipping
+  `BookRisk.complete` to False); and the report states plainly that such totals are a FLOOR.
+  Never sum `delta_notional` without first filtering on `PositionRisk.priced`. (A fourth layer,
+  `lib/ibkr/endpoints.py::snapshot`, enforced the same rule for the Client Portal Gateway
+  transport deleted 2026-08-15; its retired greek `source=ibkr` still carries the same
+  null-delta refusal on replay, via `DELTA_SOURCES_REAL`.)
+
+- **The model may annotate the deploy card; it may never promote a play.** `recommend.py`
+  ranks deterministically from `config/deployment-rules.md` via
+  `scripts/live_loop/mapping.py::ladder_tier`, then shows the headless model ONLY the
+  survivors. Its verdicts are applied as annotations onto that ordering — the ordering is
+  never rebuilt from its response, and any ticker it returns that was not in the survivor set
+  is dropped. The rules encode backtest evidence with confidence intervals; a model's read of
+  today's tape does not outrank them.
+
+- **`ladder_tier()` is the ONLY encoding of `config/deployment-rules.md` §1–§3.** Both
+  `scripts/journal/` (daily) and `scripts/live_loop/` (fortnightly audit) import it from
+  `scripts/live_loop/mapping.py`. Two copies would let the daily card and the audit disagree
+  about whether a position was ever deployable — do not inline a tier rule anywhere else.
+  What is fed to it may change; the rules inside it may not. A financed multi-leg position
+  is tiered off `event.core_structure` (the vertical `mapping.decompose_core()` finds at its
+  centre), NOT off its `"3-leg combo (debit)"` label. Never encode the core into the label
+  instead: `_live_to_canonical` matches bare substrings, so a cosmetic rename containing
+  `"bull_call"` would flip a tier silently.
+
+- **The match vocabulary is defined once, in `mapping.CONFIDENCES`.** `MATCH_CONFIDENCES` in
+  `scripts/journal/config.py` and `stage1_map_fills.py`'s tally both DERIVE from it — a
+  category added in one place and hand-copied to another vanishes silently from whichever
+  count was missed. `EXACT`/`STRUCTURE` mean the emitted play was traded; `CORE` means it was
+  traded as the core of a larger position with a short leg sold to finance it, and must never
+  be promoted to `EXACT`; `OVERLAY` means a financing/carry leg that was never a play attempt
+  and leaves BOTH sides of the matched/unmatched ratio. An ambiguous multi-leg group is
+  reported undecidable rather than decomposed on a guess — a fabricated structure reaching
+  `ladder_tier()` is worse than reporting no match at all.
 
 ## Skill modes
 

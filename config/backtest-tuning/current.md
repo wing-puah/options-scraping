@@ -337,6 +337,87 @@ accumulating. Prior state (2026-08-12 and older) is archived — see
 
 ---
 
+## 2026-08-15 — `account_sim --live-select` ARM ADDED: the shipped selector run under history. **150 ranked candidates were never priceable, 37 deploy slots were filled from below the selector's own top-3, and the research ladder is missing the §1.3 credit veto on 21 export rows**
+
+**Status: ARM ADDED, nothing adopted. No pre-registered criterion is evaluated by
+this arm, no threshold moved, and the frozen `account_sim` book is byte-identical
+(verified by diff — only the provenance header and the already-committed verdict-
+label amendment differ).** Report:
+`backtests/study_output/account_sim-live-select-latest.txt`; positions:
+`account_sim-positions-live-select-latest.csv`.
+
+*What the arm is.* `account_sim` re-implements the deployment ladder in
+`scripts/backtest_study/book.py::ladder_tier`. The function that actually decides
+what gets deployed is `scripts/journal/recommend.py` — `rank()` (which encodes
+`deployment-rules.md` §1–§3 exactly once, via
+`scripts/live_loop/mapping.ladder_tier`) then `judge()` (the one demote-only model
+call). `--live-select` swaps the first for the second and changes nothing else:
+ledger, caps, sizing and the frozen exit replay are untouched, reached through a
+`ranker` hook on `simulate()` that is `None` on every other path.
+`recommend.py` gained no sim-specific branch.
+
+*Finding 1 — the frozen book is partly a pricing artifact, and the size of it is
+now a number.* Of **1,448 (date, ticker) analysis pairs** (residual zero; every
+pair lands in exactly one bucket): 283 ranked as a priceable deploy candidate,
+**150 ranked as a deploy candidate and had no priceable record**, 423 were §4
+hedge-sleeve candidates, 184 Tier C, 169 §1 VETO, and **239 sat on a session the
+walk never reached at all** because that date had no priceable row anywhere. The
+150 split **107 `bs_options_hist` · 28 `unevaluable` · 8 no evaluation row · 4
+structure mismatch · 3 withheld by the exact-replay gate**, and by year
+2024=30 / 2025=82 / 2026=38. **37 deploy slots across 31 sessions went to a play
+the selector itself ranked below its own top-3**, purely because a higher-ranked
+candidate could not be priced. Composition against the frozen book's 220 picks:
+208 offers, 182 shared, 38 only-frozen, 26 only-live-select.
+
+*Finding 2 — the research ladder is behind production on §1.3.* Counted on the
+raw exports, **21 rows** (7 `BacktestResults` + 14 `BacktestProxy`, all
+`bull_put_spread`) are credit plays in a RANGE + L-VOL market that production
+VETOES and `book.py` admits — **not the 23 (8 + 15) the plan predicted**; no
+credit definition (`mapping.SIDE`, or `entry_option_price` sign) reproduces 23,
+and the 21 are stable across both. Inside the frozen 795-record candidate
+universe the same clause accounts for **13 rows** (10 C→VETO, 3 B→VETO; real 7 /
+tweak 6). Under `ibkr_verified` that is the ONLY divergence class; withholding
+the delta (`analysis_only`) moves rows into a §3 availability bucket instead —
+Tier B falls 248→195 with `partial` rising 44→105.
+
+*Finding 3 — `rank()` reads the open book but does not filter on it.* The plan
+expected selection to differ because `rank()` sees live positions before
+ordering. It does read them, for `duplicate_exposure` and cap headroom, and
+records both as text — **nothing downstream reads them back**. So `rank()`'s
+order and membership are independent of the book handed to it. The synthetic
+`risk.BookRisk` is still built from the sim's genuinely-open positions (it is
+what makes the printed reasons true, and it keeps the missing/zero invariant: a
+record with no delta lands in `unpriced`, never in the totals as a zero), but no
+one should expect ledger state to move a pick.
+
+*The judgment layer, and its bound.* `judge()`'s prompts are cached by
+`sha256(prompt)` into `backtests/study_output/live-select-judgments.jsonl`
+(prompt hash, model id, session, raw response, timestamp), so a re-run replays
+and the arm is reproducible — **verified: a second run makes zero model calls and
+produces an identical book**. `JUDGMENT_MODEL` is `claude-opus-5`, whose cutoff
+overlaps these analysis dates, so it can "remember" outcomes and **G5 cannot
+detect that** — G5 blinds record fields, not model weights. The arm therefore
+bounds rather than assures: two ledger walks off ONE model pass,
+`demote_policy=skip` against `ignore`, whose difference IS the judge layer's
+whole effect. The real pass has **not been run** (104 opus-5 calls, deliberately
+not spent); the path is exercised end-to-end against a stub, which demoted 190
+candidates and moved the book by $8,250 — that is a property of the stub, **not
+evidence about the model**.
+
+*Two mechanisms worth keeping.* §2e: `judge()` keys verdicts by ticker, so two
+plays on one ticker on one date would have the second silently take the first's
+verdict — **2 sessions carry that** (2026-02-19, 2026-03-06, five tickers each),
+and the arm blanks the annotation on both rather than letting one read annotate
+two plays. §2d: `recommend.DEPLOY_BUDGET` and `account.max_positions_per_day`
+agree today in two files by coincidence; the arm asserts it at startup and
+refuses to run on drift. **G5 is re-run with the shipped selector in the loop**
+(G1–G4 stay pinned to the frozen basis) and PASSES on both walks, sighted vs
+blind, 153 = 153, 0 differing — but note what it cannot reach: it blinds record
+FIELDS, and a model's weights are not a record field. **G6** (nothing reaches the
+ledger that `rank()` did not clear) PASSES on both walks.
+
+---
+
 ## 2026-08-14 — study-suite triage FIXED: the exact-replay gate now classifies instead of asserting, `bear_position_study`'s R is re-replayed, and the `exit_basis` column turns out to be UNUSABLE
 
 **Status: IMPLEMENTED. No pre-registered criterion changed, no exit grid

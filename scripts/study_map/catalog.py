@@ -265,6 +265,12 @@ INFRA: dict[str, str] = {
                   "SILENTLY. Changing the exit mechanism means copying this file.",
     "book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
                "default — they are priced FROM the model that scores them.",
+    "live_select.py": "The `account_sim --live-select` arm: research tier importing "
+                      "PRODUCTION, so the simulated decision is the live decision. Runs "
+                      "scripts/journal/recommend.py's rank() + judge() over history in "
+                      "place of book.py's port of the ladder, and reports selection "
+                      "coverage, ladder divergence, and the judge layer's bounded effect. "
+                      "Carries no verdict — it is not a study.",
     "protocol.py": "The four defences every conclusion rests on: date clustering, purging "
                    "plus a 120-day embargo, same-dates comparison, and window-dominance "
                    "re-cuts.",

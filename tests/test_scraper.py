@@ -65,7 +65,12 @@ def test_sunday():
 # ── _download_and_upload ──────────────────────────────────────────────────────
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    # asyncio.run, NOT get_event_loop().run_until_complete. get_event_loop() is
+    # deprecated from 3.10 and returns the main thread's *current* loop — which
+    # any earlier test that called asyncio.run() has already closed and cleared,
+    # making these tests pass alone and fail in a full-suite run depending on
+    # collection order. asyncio.run() owns its own loop and is order-independent.
+    return asyncio.run(coro)
 
 
 def make_session(csv_content: str | None) -> AsyncMock:

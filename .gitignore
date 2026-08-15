@@ -28,3 +28,14 @@ docs/
 audit/
 portfolio/input/
 portfolio/output/
+# /journal/ is the LIVE TRADE RECORD and is never committed — not the raw broker
+# pulls (they carry account identifiers), not trades.csv (real position sizes
+# and P&L), not the reports (the same content in prose). The directory is
+# created at runtime, so a fresh checkout simply has no journal until the first
+# `make journal`. The Sheets TradeJournal tab, whose sharing the operator
+# controls, is the only copy that leaves this machine.
+#
+# LEADING SLASH IS LOAD-BEARING. A bare `journal/` matches a directory of that
+# name at ANY depth, which silently excludes `scripts/journal/` — the pipeline's
+# own source code — from version control. Anchor it to the repo root.
+/journal/

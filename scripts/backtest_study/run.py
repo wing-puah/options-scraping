@@ -135,10 +135,23 @@ STUDY_ARMS = {
     ),
 }
 
+# Arms the CALLER asks for by flag, which rename the report stem instead of
+# adding a second invocation. `--live-select` is one: it changes who SELECTS, so
+# its book is not a sensitivity of the frozen one and must not be filed as it.
+# Two things follow, and both matter. It gets its own `-latest.txt` — filing it
+# under `account_sim-latest.txt` would overwrite the report every recorded
+# conclusion in config/backtest-tuning/current.md rests on. And it suppresses
+# the extra arms — a `--live-select --compounding` pass nobody asked for would
+# land on `account_sim-compounding-latest.txt` and quietly replace the
+# compounding sensitivity with a differently-selected book.
+CALLER_ARMS = {
+    "account_sim": (("--live-select", "live-select"),),
+}
+
 # Shared data layer, not runnable studies (`book` is listed anyway — its
 # --validate diagnostics table is the standard pre-flight before any study).
 INFRA = {"__init__", "__main__", "run", "harness", "protocol", "underlying",
-         "underlying_features", "volume_features"}
+         "underlying_features", "volume_features", "live_select"}
 
 # Flags a study needs but has no sensible argparse default for. Applied only
 # when the caller did not pass that flag themselves.
@@ -397,8 +410,16 @@ def arm_plan(name: str, extra: list[str]) -> list[tuple[str, list[str], tuple[st
     that basis alone, and running it twice would just overwrite it) or by
     passing a gates-only / gate-selftest flag (every arm runs the same gates on
     the same frozen basis, so the extra arm would add nothing).
+
+    A CALLER_ARMS flag is the third case: one invocation, filed under its own
+    stem, with no extra arms and no chart pages (its numbers are not the ones
+    those pages draw, and a page redrawn from them would look current while
+    describing a different selector).
     """
     base_charts = tuple(CHART_MODULES.get(name, ()))
+    for flag, suffix in CALLER_ARMS.get(name, ()):
+        if flag in extra:
+            return [(f"{name}-{suffix}", list(extra), ())]
     plan = [(name, list(extra), base_charts)]
     if any(f in extra for f in SINGLE_ARM_FLAGS):
         return plan

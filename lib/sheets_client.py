@@ -47,8 +47,16 @@ def _get_client() -> gspread.Client:
     return gspread.authorize(creds)
 
 
-def _get_spreadsheet() -> gspread.Spreadsheet:
-    spreadsheet_id = os.getenv("GOOGLE_SPREADSHEET_ID")
+def _get_spreadsheet(spreadsheet_id: str | None = None) -> gspread.Spreadsheet:
+    """Open a spreadsheet by id, defaulting to GOOGLE_SPREADSHEET_ID.
+
+    The explicit argument exists so a caller can target a DIFFERENT workbook
+    without disturbing the default — the trade journal writes to
+    TRADE_JOURNAL_SPREADSHEET_ID, deliberately separate from the analysis book so
+    the two can be shared independently. Passing None keeps the historical
+    behaviour for every existing caller.
+    """
+    spreadsheet_id = spreadsheet_id or os.getenv("GOOGLE_SPREADSHEET_ID")
     if not spreadsheet_id:
         log.error("GOOGLE_SPREADSHEET_ID not set")
         raise RuntimeError("Set GOOGLE_SPREADSHEET_ID")
@@ -56,19 +64,27 @@ def _get_spreadsheet() -> gspread.Spreadsheet:
     return _get_client().open_by_key(spreadsheet_id)
 
 
-def _ensure_tab(spreadsheet: gspread.Spreadsheet, tab_name: str) -> gspread.Worksheet:
+def _ensure_tab(spreadsheet: gspread.Spreadsheet, tab_name: str,
+                min_cols: int = 0) -> gspread.Worksheet:
+    """Fetch a tab, creating it if absent.
+
+    `min_cols` widens a NEW tab to fit a schema wider than the 30-column
+    default — a tab created too narrow silently truncates trailing columns on
+    every write, which is the same class of bug as a stale header.
+    """
     try:
         ws = spreadsheet.worksheet(tab_name)
         log.debug("Found existing tab '%s'", tab_name)
         return ws
     except gspread.WorksheetNotFound:
-        log.info("Tab '%s' not found — creating it", tab_name)
-        return spreadsheet.add_worksheet(title=tab_name, rows=5000, cols=30)
+        cols = max(30, min_cols)
+        log.info("Tab '%s' not found — creating it (%d cols)", tab_name, cols)
+        return spreadsheet.add_worksheet(title=tab_name, rows=5000, cols=cols)
 
 
-def get_all_rows(tab: str) -> list[dict]:
+def get_all_rows(tab: str, spreadsheet_id: str | None = None) -> list[dict]:
     log.info("Reading all rows from tab '%s'", tab)
-    ss = _get_spreadsheet()
+    ss = _get_spreadsheet(spreadsheet_id)
     ws = _ensure_tab(ss, tab)
     rows = ws.get_all_records()
     log.info("Read %d row(s) from tab '%s'", len(rows), tab)
@@ -136,15 +152,20 @@ def _sanitize(v):
     return v
 
 
-def append_rows(tab: str, rows: list[dict], raw: bool = False) -> None:
+def append_rows(tab: str, rows: list[dict], raw: bool = False,
+                spreadsheet_id: str | None = None) -> None:
     """Append dict rows (header written on first use). raw=True stores values
     as-is (RAW input option) so string dates like '2026-06-10' are not
-    locale-parsed into sheet dates — required when the date is a dedup key."""
+    locale-parsed into sheet dates — required when the date is a dedup key.
+
+    `spreadsheet_id` targets a workbook other than GOOGLE_SPREADSHEET_ID."""
     if not rows:
         return
     log.info("Appending %d row(s) to tab '%s'", len(rows), tab)
-    ss = _get_spreadsheet()
-    ws = _ensure_tab(ss, tab)
+    ss = _get_spreadsheet(spreadsheet_id)
+    # Size a new tab to the schema — 32-column journal rows would otherwise be
+    # truncated by the 30-column default.
+    ws = _ensure_tab(ss, tab, min_cols=len(rows[0]))
     # NB: get_all_values() returns [[]] (truthy!) for a fresh tab — test the
     # first row's cells, not the outer list, or the header is silently skipped.
     if not ws.row_values(1):
@@ -230,8 +251,8 @@ def add_or_update_column(tab: str, header_name: str, values: list) -> None:
     log.info("Column '%s' written to tab '%s' (col %s)", header_name, tab, col)
 
 
-def get_meta(tab: str) -> dict:
-    ss = _get_spreadsheet()
+def get_meta(tab: str, spreadsheet_id: str | None = None) -> dict:
+    ss = _get_spreadsheet(spreadsheet_id)
     ws = _ensure_tab(ss, "_meta")
     records = ws.get_all_records()
     for row in records:
@@ -240,8 +261,9 @@ def get_meta(tab: str) -> dict:
     return {}
 
 
-def set_meta(tab: str, fingerprint: str = "", last_row_time: str = "") -> None:
-    ss = _get_spreadsheet()
+def set_meta(tab: str, fingerprint: str = "", last_row_time: str = "",
+             spreadsheet_id: str | None = None) -> None:
+    ss = _get_spreadsheet(spreadsheet_id)
     ws = _ensure_tab(ss, "_meta")
 
     now = datetime.now(timezone.utc).isoformat()

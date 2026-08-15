@@ -24,6 +24,7 @@ import pytest
 # module, which is why the suite used to need --ignore=tests/test_live_loop.py.
 try:
     from live_loop.stage1_map_fills import (
+        CONFIDENCES,
         DIRECTION,
         SIDE,
         _CONF_RANK,
@@ -31,6 +32,12 @@ try:
         ladder_tier,
         map_entry,
         play_structure,
+    )
+    from live_loop.mapping import (
+        _core_strikes,
+        _vertical_label,
+        core_structure,
+        decompose_core,
     )
 except SystemExit as exc:
     pytest.skip(f"live_loop snapshot data not present: {exc}",
@@ -166,9 +173,23 @@ def test_no_play_for_that_ticker_date_is_none():
 # --------------------------------------------------------------------------
 # candidate ranking — a true match must outrank a substitution
 # --------------------------------------------------------------------------
-def test_rank_order_is_exact_then_structure_then_substituted():
+def test_rank_order_is_exact_then_structure_then_core_then_substituted():
     assert (_CONF_RANK["EXACT"] < _CONF_RANK["STRUCTURE"]
-            < _CONF_RANK["SUBSTITUTED"])
+            < _CONF_RANK["CORE"] < _CONF_RANK["SUBSTITUTED"])
+
+
+def test_the_confidence_vocabulary_is_defined_once():
+    """`scripts/journal/config.py::MATCH_CONFIDENCES` DERIVES from this tuple.
+    A category present in one and not the other vanishes silently from a count."""
+    from journal.config import MATCH_CONFIDENCES
+    # `==`, not `is`: conftest puts BOTH the repo root and scripts/ on sys.path,
+    # so mapping.py is importable as two distinct module objects and the tuples
+    # are equal without being identical. The claim under test is that the
+    # vocabulary is not hand-copied, and equality is what carries that.
+    assert MATCH_CONFIDENCES == CONFIDENCES
+    # every rankable confidence must be in the vocabulary, or a match could be
+    # produced that no tally has a bucket for
+    assert set(_CONF_RANK) <= set(CONFIDENCES)
 
 
 @pytest.mark.parametrize("order", [
@@ -240,3 +261,154 @@ def test_bear_put_never_reaches_the_deployed_tiers():
 def test_unknown_structure_does_not_crash_the_ladder():
     tier, _, _ = ladder_tier("unknown", "RANGE + C-VOL", dte_proxy=np.nan)
     assert tier in {"A", "B", "C", "VETO"}
+
+
+# --------------------------------------------------------------------------
+# decompose_core — a financed vertical is the play plus a leg sold against it
+#
+# The operator's actual strategy: buy a debit vertical, sell a further (always
+# short, usually shorter-dated) leg to reduce the debit. The broker reports one
+# N-leg combo, `classify_structure` can only call it "3-leg combo (debit)", and
+# that canonicalises to "unknown" — which has no SIDE/DIRECTION entry, so
+# `map_entry` used to reject it outright and the trade scored NONE against the
+# very play it was built from. These pin the decomposition that fixes it, and —
+# more importantly — pin that an AMBIGUOUS group is never guessed at.
+# --------------------------------------------------------------------------
+def _mleg(strike, right, expiry, qty, price):
+    """One leg in `classify_structure`/`decompose_core`'s entry shape."""
+    return {"trade": {"side": "BUY" if qty > 0 else "SELL", "price": price,
+                      "commission": 0.0, "symbol": "CRWV"},
+            "match": {"symbol": "CRWV", "strike": strike, "expiry": expiry,
+                      "right": right, "position": qty}}
+
+
+def _crwv():
+    """The real 2026-08-14 fill: a 110/135 Jan-27 call spread, financed by a
+    short Sep-26 150 call."""
+    return {"legs": [
+        _mleg(110.0, "C", "2027-01-15", 1, 22.00),
+        _mleg(135.0, "C", "2027-01-15", -1, 13.00),
+        _mleg(150.0, "C", "2026-09-18", -1, 2.65),
+    ]}
+
+
+def test_a_financed_vertical_decomposes_into_its_core_and_the_financing_leg():
+    core, overlays = decompose_core(_crwv())
+    assert core is not None
+    assert {c["match"]["strike"] for c in core} == {110.0, 135.0}
+    assert [o["match"]["strike"] for o in overlays] == [150.0]
+    assert core_structure(_crwv()) == "bull_call_spread"
+    assert _core_strikes(_crwv()) == {110.0, 135.0}
+
+
+def test_the_core_matches_the_emitted_play_as_core_not_none():
+    """THE BUG. Before decomposition this scored NONE against its own play."""
+    ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
+                        "play": "bull call spread 110/135", "horizon": 45}])
+    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
+                    "2026-08-13", "CRWV", ac)
+    assert out["confidence"] == "CORE"
+    assert out["ac_structure"] == "bull_call_spread"
+    assert out["core_structure"] == "bull_call_spread"
+
+
+def test_a_core_match_is_not_promoted_to_exact_even_when_strikes_agree():
+    """EXACT means the emitted play was traded. This is the emitted play PLUS a
+    leg the analysis never proposed — a materially different position."""
+    ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
+                        "play": "bull call spread 110/135", "horizon": 45}])
+    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
+                    "2026-08-13", "CRWV", ac)
+    assert out["confidence"] != "EXACT"
+
+
+def test_the_core_still_matches_when_the_plays_strikes_differ():
+    ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
+                        "play": "bull call spread 120/140", "horizon": 45}])
+    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
+                    "2026-08-13", "CRWV", ac)
+    assert out["confidence"] == "CORE"
+
+
+def test_the_direction_gate_still_binds_on_a_decomposed_core():
+    """Decomposition widens WHAT can match, never WHETHER direction matters."""
+    ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
+                        "play": "bear put spread 100/90", "horizon": 45}])
+    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
+                    "2026-08-13", "CRWV", ac)
+    assert out["confidence"] == "NONE"
+
+
+def test_a_whole_group_match_outranks_a_core_reading():
+    """A 2-leg entry that matches outright is stronger evidence than any
+    decomposition, so ranking must prefer it."""
+    out = _map("bull_call_spread", [185.0, 200.0], "bull call spread 185/200")
+    assert out["confidence"] == "EXACT"
+
+
+# -- undecidable groups fall back; they are never guessed at ----------------
+def test_a_long_leftover_leg_makes_the_group_undecidable():
+    """A financing overlay is SHORT by definition. A long leftover means this is
+    some other structure whose shape we do not know."""
+    e = _crwv()
+    e["legs"][2] = _mleg(150.0, "C", "2026-09-18", 1, 2.65)   # long, not short
+    assert decompose_core(e) == (None, [])
+
+
+def test_a_credit_core_makes_the_group_undecidable():
+    """'A debit vertical, part-financed' is the strategy modelled. A credit core
+    is a different animal and gets no invented interpretation."""
+    e = _crwv()
+    e["legs"][0] = _mleg(110.0, "C", "2027-01-15", 1, 5.00)   # core now a credit
+    assert decompose_core(e) == (None, [])
+
+
+def test_a_group_with_no_vertical_pair_is_undecidable():
+    e = {"legs": [_mleg(110.0, "C", "2027-01-15", -1, 22.00),
+                  _mleg(135.0, "C", "2027-01-15", -1, 13.00),
+                  _mleg(150.0, "C", "2026-09-18", -1, 2.65)]}
+    assert decompose_core(e) == (None, [])
+
+
+def test_an_unmatched_leg_makes_the_group_undecidable():
+    e = _crwv()
+    e["legs"][1]["match"] = None
+    assert decompose_core(e) == (None, [])
+
+
+def test_a_tie_between_two_equal_cores_is_undecidable_rather_than_arbitrary():
+    """Two candidate cores with identical net debit: picking either would be a
+    coin flip presented as a fact."""
+    e = {"legs": [_mleg(110.0, "C", "2027-01-15", 1, 20.00),
+                  _mleg(135.0, "C", "2027-01-15", -1, 10.00),
+                  _mleg(110.0, "P", "2027-01-15", 1, 20.00),
+                  _mleg(135.0, "P", "2027-01-15", -1, 10.00),
+                  _mleg(150.0, "C", "2026-09-18", -1, 2.65)]}
+    assert decompose_core(e) == (None, [])
+
+
+def test_decompose_core_never_raises_on_a_minimal_leg_shape():
+    """THE SEAM THAT PROTECTS THIS WHOLE MODULE'S SUITE. `_live()` builds legs
+    as {"match": {"strike": s}} — no expiry, no right, no position, no trade.
+    Every field must be read with .get() and a missing one must make the group
+    undecidable, never raise."""
+    e = {"legs": [{"match": {"strike": s}} for s in (110.0, 135.0, 150.0)]}
+    assert decompose_core(e) == (None, [])
+    assert core_structure(e) is None
+    assert _core_strikes(e) == set()
+    assert decompose_core({}) == (None, [])
+    assert decompose_core({"legs": []}) == (None, [])
+
+
+# -- _vertical_label is one encoding, shared by the two-leg branch and the core
+@pytest.mark.parametrize("lo_qty,hi_qty,right,expected", [
+    (1, -1, "C", "bull_call_spread"),
+    (-1, 1, "C", "bear_call_spread"),
+    (1, -1, "P", "bull_put_spread"),
+    (-1, 1, "P", "bear_put_spread"),
+])
+def test_vertical_label_names_every_plain_vertical(lo_qty, hi_qty, right, expected):
+    a = {"strike": 100.0, "right": right, "position": lo_qty, "expiry": "2026-12-18"}
+    b = {"strike": 110.0, "right": right, "position": hi_qty, "expiry": "2026-12-18"}
+    assert _vertical_label(a, b, "debit") == expected
+    assert _vertical_label(b, a, "debit") == expected   # order-independent

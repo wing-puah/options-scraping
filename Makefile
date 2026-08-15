@@ -244,6 +244,44 @@ study-docs:
 	  echo "skipped scripts.study_charts.compounding — no compounding arm export yet"; \
 	fi
 
+# ── Daily trade journal (PRODUCTION) ─────────────────────────────────────────
+# Fetches the Flex statement with IBKR_FLEX_TOKEN — no gateway, no login — and
+# nets it TOGETHER with the exports in portfolio/input/: a saved query's period
+# is usually far shorter than the life of an open position, and the book is
+# netted from fills, so the statement alone would omit every position it did not
+# touch. Pass your account equity, which a Flex trades query does not carry:
+# without it the exposure caps report "not evaluable" rather than guessing.
+#   make journal ARGS="--net-liq 52000"
+# `ARGS="--offline"` reads portfolio/input/ only and touches no network.
+.PHONY: journal
+journal:
+	$(PY) -m scripts.journal $(ARGS)
+
+.PHONY: journal-dry
+journal-dry:
+	$(PY) -m scripts.journal --dry-run $(ARGS)
+
+# Was the fetching variant of `journal` back when reading files was the default.
+# Kept as an alias so muscle memory and any saved command line keep working.
+.PHONY: journal-flex
+journal-flex: journal
+
+# Replay a past broker pull with no network — the offline path for every
+# downstream step. Pass ARGS="--from-raw journal/raw/ibkr-<date>-<HHMM>.json".
+.PHONY: journal-replay
+journal-replay:
+	$(PY) -m scripts.journal $(ARGS)
+
+# The deploy card for the next session. --no-llm gives the deterministic card alone.
+.PHONY: journal-recommend
+journal-recommend:
+	$(PY) -m scripts.journal recommend $(ARGS)
+
+.PHONY: journal-page-open
+journal-page-open:
+	$(PY) -m scripts.journal --page-only $(ARGS)
+	@open docs/journal-latest.html 2>/dev/null || echo "built docs/journal-latest.html"
+
 .PHONY: help
 help:
 	@echo ""
@@ -330,4 +368,11 @@ help:
 	@echo "  make dashboard     start web dashboard"
 	@echo ""
 	@echo "  make daily         scrape + compile + analyze (full day)"
+	@echo ""
+	@echo "  make journal       fetch today's IBKR fills (Flex) → reconcile vs analysis → report + Sheets"
+	@echo "  make journal-dry   same, but write nothing (shows the rows it would append)"
+	@echo "  make journal ARGS=\"--offline\"  read portfolio/input/ only, no network"
+	@echo "  make journal-replay ARGS=\"--from-raw journal/raw/ibkr-<date>-<HHMM>.json\"  offline replay"
+	@echo "  make journal-recommend  deploy card for the next session (add ARGS=\"--no-llm\")"
+	@echo "  make journal-page-open  rebuild docs/journal-latest.html and open it"
 	@echo ""

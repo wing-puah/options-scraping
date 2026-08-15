@@ -60,6 +60,16 @@ re-marks SIZING to realized equity (a post-hoc, NOT pre-registered friction
 model) and writes its own report / positions CSV / page, so it can never
 overwrite the frozen book's. The runner runs both arms in one
 `run account_sim`; passing the flag by hand runs the arm alone.
+
+`--live-select` is an arm of a different kind: it changes WHO CHOOSES. Selection
+runs through the shipped decision function (`scripts/journal/recommend.py` —
+`rank()` then `judge()`), which encodes the deployment ladder once via
+`scripts/live_loop/mapping.ladder_tier`, instead of this study's own port of it
+in `book.py`. Everything else — ledger, caps, sizing, frozen exit replay — is
+unchanged. It files its own report and positions CSV, evaluates no
+pre-registered criterion (A1-A6 were registered against the frozen selector's
+candidate set and do not transfer), and is never run as a sensitivity of the
+frozen book. See `scripts/backtest_study/live_select.py`.
 """
 from __future__ import annotations
 
@@ -88,6 +98,10 @@ from scripts.backtest_study.book import CREDIT_PROD, DEBIT_PROD, load_book  # no
 from scripts.backtest_study.harness import (  # noqa: E402
     MAX_LOSS_ABS, Trade, _pct, _to_float, replay,
 )
+# The `--live-select` arm. Imported here, at module scope; live_select.py reaches
+# BACK into this module through deferred function-level imports, which is what
+# keeps the cycle from closing at import time.
+from scripts.backtest_study import live_select  # noqa: E402
 
 EPS = 1e-9
 
@@ -712,7 +726,8 @@ class Sim:
 
 
 def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
-             selftest_leak: bool = False, cache: dict | None = None) -> Sim:
+             selftest_leak: bool = False, cache: dict | None = None,
+             ranker=None) -> Sim:
     """Event-loop the ladder through an account ledger.
 
     `day_lists` is `protocol.ordered_by_day(...)` output, already restricted to
@@ -720,6 +735,15 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     entries; entries are admitted in ladder order until `cfg.max_per_day` are
     held. `cache` is the caller's replay memo — omit it and this run memoises
     nothing outside itself.
+
+    `ranker` belongs to the `--live-select` arm alone and is `None` on every
+    other path, including every gate: given, it is called once per session as
+    `ranker(date, ranked, open_positions, ledger, net_open, marked_equity)` and
+    returns the day's candidate list, so the SHIPPED selector
+    (`scripts/journal/recommend.py`) can choose against the book as it stands at
+    that session rather than against a static pre-ranking. The ledger, the caps,
+    the sizing and the exit replay below are untouched by it — the hook replaces
+    who chooses, never what happens to what is chosen.
 
     When `cfg.compound` is set, the sizing basis is RE-MARKED to realized equity
     at every `cfg.mark_interval` boundary (see the re-mark comment in the loop).
@@ -793,6 +817,12 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 ruined = marked <= 0
                 sim.marks.append((entry_sess, marked, budget,
                                   cfg.per_pos_cap * marked, cfg.net_cap * marked))
+
+        if ranker is not None:
+            # `entry_sess` is already fixed above and does not move: every record
+            # on a signal date shares that date, so `t.grid[0]` is the same
+            # session whichever candidate happens to be first in the list.
+            ranked = ranker(d, ranked, open_pos, led, net_open, marked)
 
         n_today = 0
         for rec in ranked:
@@ -999,18 +1029,21 @@ def positions_rows(population: str, arm: str, sim) -> list[dict]:
     return rows
 
 
-def positions_artifact(*, compounding: bool,
-                       structure_universe: bool) -> tuple[str, str]:
+def positions_artifact(*, compounding: bool, structure_universe: bool,
+                       live_select: bool = False) -> tuple[str, str]:
     """`(positions CSV filename, the `arm` column's value)` for this run's ARM.
 
-    Separate artifact per ARM: neither the compounding sizing arm nor the
-    widened-universe arm may silently overwrite the frozen book's export, since
-    a downstream consumer reading `account_sim-positions-latest.csv` has no way
-    to tell which sizing basis or candidate set produced the rows it is holding.
+    Separate artifact per ARM: no arm may silently overwrite the frozen book's
+    export, since a downstream consumer reading
+    `account_sim-positions-latest.csv` has no way to tell which sizing basis,
+    candidate set or SELECTOR produced the rows it is holding.
 
     `compounding` is ordered BEFORE `structure` in both the filename and the arm
     column, so `-structure` stays the suffix that names the widened universe on
     either sizing basis (which is what the chart layer keys that arm off).
+    `live-select` is last and never combines with the other two: the runner
+    treats `--live-select` as a single-arm run, because a book chosen by a
+    different selector is not a sensitivity of the frozen one.
     """
     parts = ["account_sim-positions"]
     arm = "RF1"
@@ -1020,6 +1053,9 @@ def positions_artifact(*, compounding: bool,
     if structure_universe:
         parts.append("structure")
         arm += "-structure"
+    if live_select:
+        parts.append("live-select")
+        arm += "-live-select"
     return "-".join(parts) + "-latest.csv", arm
 
 
@@ -2211,6 +2247,25 @@ def main(argv=None) -> int:
                          "Writes its OWN report / positions CSV / page, so it "
                          "never overwrites the frozen book's. Gates G1-G4 stay "
                          "pinned to the frozen basis; G5 runs on both.")
+    ap.add_argument("--live-select", action="store_true",
+                    help="select with the SHIPPED decision function "
+                         "(scripts/journal/recommend.py: rank() then judge()) "
+                         "instead of this study's own port of the ladder, over "
+                         "the WHOLE analysis population. Its own report and "
+                         "positions CSV; G1-G5 still run on the frozen basis and "
+                         "G6 runs on the arm. Evaluates no pre-registered "
+                         "criterion — A1-A6 do not transfer to a different "
+                         "candidate set.")
+    ap.add_argument("--live-select-entry-check", default="ibkr_verified",
+                    choices=live_select.ENTRY_CHECKS,
+                    help="how §3's delta gate is fed. ibkr_verified (default) "
+                         "joins the book row's measured entry delta/DTE, which "
+                         "is what the operator reads at order entry; "
+                         "analysis_only supplies nothing, which is what the "
+                         "deploy card alone can see.")
+    ap.add_argument("--live-select-no-llm", action="store_true",
+                    help="deterministic rank() only — no judge() call, no cache "
+                         "read or write. Fully offline.")
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                     help=f"the simulation to run (default: "
                          f"{DEFAULT_CONFIG.relative_to(ROOT)}). Copy it and pass "
@@ -2269,6 +2324,28 @@ def main(argv=None) -> int:
     if args.gates_only:
         print("\n--gates-only: gates passed, stopping before the report.")
         return 0
+
+    if args.live_select and args.structure_universe:
+        # Refused rather than silently ignored: the two arms widen different
+        # things (who selects vs what is selectable) and combining them would
+        # write one file whose name claims only the second.
+        print("\n--live-select and --structure-universe are separate arms and do "
+              "not combine; run them one at a time.")
+        return 2
+
+    if args.live_select:
+        # A different SELECTOR, so a different report: the arm branches out here
+        # rather than folding into `report_population`, because A1-A6 were
+        # pre-registered against the frozen selector's candidate set and printing
+        # them against another one would read as the same criteria met or missed.
+        try:
+            return live_select.run_arm(
+                recs, picked, st, cache,
+                entry_check=args.live_select_entry_check,
+                use_llm=not args.live_select_no_llm)
+        except live_select.BudgetDrift as exc:
+            print(f"\nBUDGET DRIFT: {exc}")
+            return 2
 
     if args.structure_universe:
         recs_wide, diag_wide = load_book(include_bs=args.include_bs,

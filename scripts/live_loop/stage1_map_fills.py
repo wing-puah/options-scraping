@@ -43,6 +43,43 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Re-exported for existing importers (e.g. tests/test_live_loop.py) that pull
+# structure/ladder helpers straight off this module rather than mapping.py.
+try:  # `python3 -m scripts.live_loop.stage1_map_fills` (package = scripts.live_loop)
+    from .mapping import (  # noqa: F401
+        CONFIDENCES,
+        DIRECTION,
+        SIDE,
+        _CONF_RANK,
+        _is_overlay,
+        _live_strikes,
+        _live_to_canonical,
+        classify_structure,
+        ladder_tier,
+        leg_desc,
+        map_entry,
+        play_dte,
+        play_strikes,
+        play_structure,
+    )
+except ImportError:  # tests/conftest.py puts scripts/ on sys.path (package = live_loop)
+    from live_loop.mapping import (  # noqa: F401
+        CONFIDENCES,
+        DIRECTION,
+        SIDE,
+        _CONF_RANK,
+        _is_overlay,
+        _live_strikes,
+        _live_to_canonical,
+        classify_structure,
+        ladder_tier,
+        leg_desc,
+        map_entry,
+        play_dte,
+        play_strikes,
+        play_structure,
+    )
+
 # --------------------------------------------------------------------------
 # Paths
 # --------------------------------------------------------------------------
@@ -187,205 +224,6 @@ def reconstruct(trades: pd.DataFrame, positions: list[dict]):
     return entries, closing, positions, settlement
 
 
-def classify_structure(entry, positions):
-    """Return (structure_label, net_price, net_with_comm, status, note, is_overlay)."""
-    legs = entry["legs"]
-    # net price per share: BUY=+ (debit component), SELL=- (credit component)
-    net = 0.0
-    comm = 0.0
-    for lg in legs:
-        tr = lg["trade"]
-        sgn = 1 if tr["side"] == "BUY" else -1
-        net += sgn * float(tr["price"])
-        comm += float(tr["commission"])
-    net_with_comm = net + comm / 100.0  # commissions always cost -> raise debit / cut credit
-
-    matched = [lg for lg in legs if lg["match"] is not None]
-    all_matched = len(matched) == len(legs)
-    status = "OPEN" if all_matched else "CLOSED"  # unmatched opening fills are round-trip closed
-    debit_credit = "debit" if net > 0 else "credit"
-
-    # -- single leg --
-    if len(legs) == 1:
-        lg = legs[0]
-        tr = lg["trade"]
-        side = "long" if tr["side"] == "BUY" else "short"
-        if lg["match"] is not None:
-            m = lg["match"]
-            right = "call" if m["right"] == "C" else "put"
-            label = f"single {side} {right}"
-            # overlay = short single-expiry leg over a same-ticker spread at another expiry
-            is_overlay = _is_overlay(m, positions)
-            if is_overlay:
-                label += " (overlay)"
-            return label, net, net_with_comm, "OPEN", "", is_overlay
-        else:
-            right = "call/put UNKNOWN"
-            return (f"single {side} option ({debit_credit}), strike/expiry UNKNOWN",
-                    net, net_with_comm, "CLOSED",
-                    "round-trip: opened then bought/sold back within window (no open position to pin identity)",
-                    False)
-
-    # -- two-leg combos --
-    if len(legs) == 2 and all_matched:
-        a, b = matched[0]["match"], matched[1]["match"]
-        if a["expiry"] != b["expiry"]:
-            return ("diagonal/calendar (mixed expiry)", net, net_with_comm, status,
-                    "legs span two expiries — not a vertical", True)
-        # same expiry vertical
-        rights = {a["right"], b["right"]}
-        # sort by strike
-        lo, hi = (a, b) if a["strike"] < b["strike"] else (b, a)
-        lo_pos = lo["position"]  # <0 short, >0 long
-        hi_pos = hi["position"]
-        if rights == {"C"}:
-            if lo_pos > 0 and hi_pos < 0:
-                lbl = "bull_call_spread"
-            elif lo_pos < 0 and hi_pos > 0:
-                lbl = "bear_call_spread"
-            else:
-                lbl = f"call vertical ({debit_credit})"
-        elif rights == {"P"}:
-            if hi_pos < 0 and lo_pos > 0:
-                lbl = "bull_put_spread"
-            elif hi_pos > 0 and lo_pos < 0:
-                lbl = "bear_put_spread"
-            else:
-                lbl = f"put vertical ({debit_credit})"
-        else:
-            lbl = f"mixed C/P vertical ({debit_credit})"
-        return lbl, net, net_with_comm, status, "", False
-
-    # -- two-leg combo, unmatched (closed) --
-    if len(legs) == 2:
-        return (f"2-leg vertical ({debit_credit}), strikes/right UNKNOWN",
-                net, net_with_comm, "CLOSED",
-                "both legs closed (no open position to pin identity); structure inferred from net sign only",
-                False)
-
-    return (f"{len(legs)}-leg combo ({debit_credit})", net, net_with_comm, status, "", False)
-
-
-def _is_overlay(matched_pos, positions):
-    """A single short leg is an overlay if the same ticker has other open option
-    legs at a different expiry (i.e. it sits on top of an existing spread)."""
-    if matched_pos["position"] >= 0:
-        return False
-    sym = matched_pos["symbol"]
-    others = [p for p in positions
-              if p["is_option"] and p["symbol"] == sym and p is not matched_pos]
-    return any(p["expiry"] != matched_pos["expiry"] for p in others)
-
-
-def leg_desc(entry, structure, positions):
-    parts = []
-    for lg in entry["legs"]:
-        tr = lg["trade"]
-        if lg["match"] is not None:
-            m = lg["match"]
-            sgn = "+1" if m["position"] > 0 else "-1"
-            parts.append(f"{m['symbol']} {m['expiry']} {m['strike']:g}{m['right']} {sgn} @ {tr['price']:g}")
-        else:
-            sgn = "+1" if tr["side"] == "BUY" else "-1"
-            parts.append(f"{tr['symbol']} UNKNOWN {sgn} @ {tr['price']:g}")
-    return " / ".join(parts)
-
-
-# --------------------------------------------------------------------------
-# Analysis-play parsing
-# --------------------------------------------------------------------------
-def play_structure(play_text: str) -> str:
-    t = str(play_text).lower()
-    for key in ["bull call spread", "bear call spread", "bull put spread",
-                "bear put spread"]:
-        if key in t:
-            return key.replace(" ", "_")
-    if "protective put spread" in t or "put spread" in t:
-        return "bear_put_spread"  # protective put spread == long put spread == bear_put debit
-    if "call spread" in t:
-        return "bull_call_spread"
-    if "long call" in t:
-        return "long_call"
-    if "long put" in t:
-        return "long_put"
-    return "unknown"
-
-
-def play_strikes(play_text: str):
-    m = re.search(r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)", str(play_text))
-    if m:
-        return {float(m.group(1)), float(m.group(2))}
-    return set()
-
-
-def play_dte(play_text: str, horizon):
-    """Best-effort DTE proxy from the play text; falls back to horizon column."""
-    t = str(play_text)
-    # patterns like "45-60 DTE", "45–60 DTE", "~60 DTE", "90-127 DTE"
-    m = re.search(r"(\d{1,3})\s*[-–]\s*(\d{1,3})\s*DTE", t)
-    if m:
-        return (int(m.group(1)) + int(m.group(2))) / 2.0
-    m = re.search(r"~?\s*(\d{1,3})\s*DTE", t)
-    if m:
-        return float(m.group(1))
-    try:
-        return float(horizon)
-    except (TypeError, ValueError):
-        return np.nan
-
-
-SIDE = {"bull_call_spread": "debit", "bear_put_spread": "debit", "long_call": "debit",
-        "long_put": "debit", "bull_put_spread": "credit", "bear_call_spread": "credit",
-        "short_put": "credit", "short_call": "credit"}
-
-# Directional bias, independent of debit/credit side. A family match on SIDE
-# alone is direction-blind (e.g. long_put vs bull_call_spread are both
-# "debit" but opposite bets) -- the family/substitution branch in map_entry()
-# must require DIRECTION agreement too, not just SIDE agreement.
-DIRECTION = {"bull_call_spread": "bullish", "long_call": "bullish",
-             "bull_put_spread": "bullish", "short_put": "bullish",
-             "bear_put_spread": "bearish", "long_put": "bearish",
-             "bear_call_spread": "bearish", "short_call": "bearish"}
-
-
-# --------------------------------------------------------------------------
-# Step C — deployment-ladder tier (encodes config/deployment-rules.md)
-# --------------------------------------------------------------------------
-def ladder_tier(structure: str, market_regime: str, dte_proxy=np.nan):
-    """Return (tier, partial_flag, reason). Tiers from deployment-rules.md.
-
-    Short-leg delta is NOT on the analysis row, so the bull_put 0.08<=|d|<=0.20
-    clause can only be checked by DTE proxy -> flagged PARTIAL.
-    """
-    reg = market_regime or ""
-    side = SIDE.get(structure, None)
-    has_bear = "BEAR" in reg
-    has_hvol = "H-VOL" in reg
-    has_range = "RANGE" in reg
-    has_lvol = "L-VOL" in reg
-    has_evol = "E-VOL" in reg
-
-    # Step 1 vetoes
-    if structure == "bear_call_spread":
-        return "VETO", False, "bear_call_spread intake veto"
-    if has_bear and has_hvol:
-        return "VETO", False, "market regime BEAR + H-VOL"
-    if side == "credit" and has_range and has_lvol:
-        return "VETO", False, "credit play in RANGE + L-VOL"
-
-    # Step 2 tiers
-    if structure == "bull_call_spread" and (has_range or has_evol):
-        return "A", False, "bull_call_spread in RANGE/E-VOL"
-    if structure == "bull_call_spread":
-        return "B", False, "other bull_call_spread"
-    if structure == "bull_put_spread":
-        # delta unknown; DTE proxy only -> PARTIAL
-        if pd.notna(dte_proxy) and dte_proxy <= 59:
-            return "B", True, f"bull_put DTE proxy {dte_proxy:g}<=59 (delta UNVERIFIED)"
-        return "C", True, f"bull_put DTE proxy {dte_proxy} (delta UNVERIFIED)"
-    return "C", False, "Tier-C residual (bear_put / other)"
-
-
 # --------------------------------------------------------------------------
 # Report builder
 # --------------------------------------------------------------------------
@@ -475,16 +313,22 @@ def main():
     emit("")
     emit("Signal date = prior **business day** of the fill (entry basis = next-day open). "
          "Also checked same-day and D-2. Confidence: EXACT (structure + both strikes), "
-         "STRUCTURE (structure matches, strikes differ), SUBSTITUTED (same ticker/date/"
+         "STRUCTURE (structure matches, strikes differ), CORE (the play's structure was "
+         "traded as the CORE of a larger position, with a short leg sold to finance it), "
+         "SUBSTITUTED (same ticker/date/"
          "direction, different structure family — e.g. a naked leg traded against a spread "
-         "play, or vice versa), NONE (no same-ticker play that date, or the only candidate "
-         "play(s) that date are the opposite direction).")
+         "play, or vice versa), OVERLAY (a financing/carry leg sold against a position "
+         "already open — not a play attempt at all), NONE (no same-ticker play that date, "
+         "or the only candidate play(s) that date are the opposite direction).")
     emit("")
     emit("| # | fill date | ticker | live structure | signal date (D-1 bday) | AC play | confidence |")
     emit("|---|-----------|--------|----------------|------------------------|---------|-----------|")
 
     mapped = []
-    conf_tally = {"EXACT": 0, "STRUCTURE": 0, "SUBSTITUTED": 0, "NONE": 0}
+    # Built from mapping.CONFIDENCES, never hand-listed: a category added there
+    # and missing here would KeyError on the increment below — or worse, be
+    # silently dropped from the tally if the increment ever grew a .get().
+    conf_tally = {c: 0 for c in CONFIDENCES}
     for x in inv:
         e = x["entry"]
         fill = pd.Timestamp(e["fill_date"])
@@ -566,7 +410,10 @@ def main():
         sig = m["signal_date"]
         reg = mkt.get(sig, "")
         tier, partial, reason = ladder_tier(r["ac_structure"], reg, r["dte_proxy"])
-        if r["confidence"] == "SUBSTITUTED":
+        # CORE counts here for the same reason SUBSTITUTED does: both are tiered
+        # on the EMITTED play's structure while the fill traded something else —
+        # a different family, or that family plus a financing leg.
+        if r["confidence"] in ("SUBSTITUTED", "CORE"):
             n_substituted_tiered += 1
         emit(f"| {m['idx']} | {m['entry']['symbol']} | {sig} | {reg[:32]} | "
              f"{r['ac_structure']} | {r['confidence']} | **{tier}** | "
@@ -583,10 +430,11 @@ def main():
                  f"({m['structure']}) — {reason}")
     if n_substituted_tiered:
         emit("")
-        emit(f"> **ℹ {n_substituted_tiered} SUBSTITUTED row(s) above** are tiered on the "
-             "*emitted* play's structure, not the structure actually traded — the operator "
-             "traded a different (same-direction) structure, so the tier reflects what the "
-             "analysis emitted, not what filled.")
+        emit(f"> **ℹ {n_substituted_tiered} SUBSTITUTED/CORE row(s) above** are tiered on "
+             "the *emitted* play's structure, not the structure actually traded — the "
+             "operator traded a different (same-direction) structure, or that structure "
+             "as the core of a financed one, so the tier reflects what the analysis "
+             "emitted, not what filled.")
     emit("")
 
     # selection-compliance: all plays that date with tiers
@@ -654,15 +502,18 @@ def main():
          f"{br['signal_date'].max()}. BacktestProxy span: {bp['signal_date'].min()} → "
          f"{bp['signal_date'].max()}.")
     emit("")
-    # NOTE: only "NONE" is dropped here -- SUBSTITUTED entries stay in scope
-    # (own `confidence` column) so the eval can read slippage/coverage for
-    # operator substitutions separately from true structure matches.
+    # NOTE: only "NONE" and "OVERLAY" are dropped here -- SUBSTITUTED and CORE
+    # entries stay in scope (own `confidence` column) so the eval can read
+    # slippage/coverage for operator substitutions and financed cores
+    # separately from true structure matches. OVERLAY joins NONE because a
+    # financing leg was never an attempt at a play, so there is no modeled
+    # entry price it could be compared against.
     emit("| # | ticker | signal date | confidence | in BacktestResults? | in BacktestProxy? | modeled entry px | live net px | slippage |")
     emit("|---|--------|-------------|------------|---------------------|-------------------|------------------|-------------|----------|")
     n_compare = 0
     for m in mapped:
         r = m["map"]
-        if r["confidence"] == "NONE":
+        if r["confidence"] in ("NONE", "OVERLAY"):
             continue
         sig = m["signal_date"]
         tkr = m["entry"]["symbol"]
@@ -732,9 +583,11 @@ def main():
         f"round-trips. But only "
         f"{sum(1 for m in mapped if m['map']['confidence'] != 'NONE')} entries map to an analysis "
         f"row at all ({conf_tally['EXACT']} EXACT + {conf_tally['STRUCTURE']} STRUCTURE traded "
-        f"the emitted play; {conf_tally['SUBSTITUTED']} SUBSTITUTED traded a different, "
-        "same-direction structure and must be read as a separate split, not pooled with the "
-        f"above). Of the {conf_tally['NONE']} unmapped, {n_none_no_analysis} fall on dates with "
+        f"the emitted play; {conf_tally['CORE']} CORE traded it as the core of a financed "
+        f"structure; {conf_tally['SUBSTITUTED']} SUBSTITUTED traded a different, "
+        "same-direction structure — each must be read as a separate split, not pooled with the "
+        f"above; {conf_tally['OVERLAY']} OVERLAY were financing legs, never play attempts). "
+        f"Of the {conf_tally['NONE']} unmapped, {n_none_no_analysis} fall on dates with "
         f"no analysis at all, {n_none_unknown} fall on dates that DID cover the ticker but "
         "whose live structure could not be resolved (see the identity-decay caveat), and "
         f"{n_none_nomatch} had a play that genuinely did not match on direction or family. "
@@ -758,83 +611,6 @@ def main():
     text = "\n".join(_LINES)
     REPORT_MD.write_text(text)
     print(text)
-
-
-# Preference order when several plays exist for the same ticker/date: an
-# EXACT or true STRUCTURE match must win over a SUBSTITUTED one whenever both
-# are on offer, so ranking (not "first candidate found") decides `best`.
-_CONF_RANK = {"EXACT": 0, "STRUCTURE": 1, "SUBSTITUTED": 2}
-
-
-def map_entry(inv_row, sig, ticker, ac):
-    """Match a live entry to AnalysisClaude rows on the signal date."""
-    day = ac[(ac["date"] == sig) & (ac["ticker"] == ticker)]
-    out = {"confidence": "NONE", "ac_play": None, "ac_structure": None,
-           "dte_proxy": np.nan}
-    if day.empty:
-        return out
-    live_struct = _live_to_canonical(inv_row["structure"])
-    live_strikes = _live_strikes(inv_row)
-    best = None
-    best_rank = 99
-    for _, pr in day.iterrows():
-        ps = play_structure(pr["play"])
-        pk = play_strikes(pr["play"])
-        if ps == live_struct and live_strikes and pk == live_strikes:
-            cand_conf = "EXACT"
-        elif ps == live_struct:
-            cand_conf = "STRUCTURE"
-        elif (SIDE.get(ps) == SIDE.get(live_struct) and SIDE.get(ps) is not None
-              and DIRECTION.get(ps) == DIRECTION.get(live_struct)
-              and DIRECTION.get(ps) is not None):
-            # same side + direction, different structure family -> the operator
-            # substituted a naked leg for a spread (or vice versa). NOT the
-            # emitted play, so this must never be tallied as a structure match.
-            cand_conf = "SUBSTITUTED"
-        else:
-            # direction mismatch (or unrelated structures) -> not a candidate
-            continue
-        rank = _CONF_RANK[cand_conf]
-        if rank < best_rank:
-            best, best_rank = (pr, cand_conf, ps), rank
-            if rank == 0:
-                break
-    if best is None:
-        # no structure/family/direction match but same ticker/date exists -> NONE per brief
-        return out
-    pr, conf, ps = best
-    out.update(confidence=conf, ac_play=str(pr["play"]).replace("\n", " "),
-               ac_structure=ps, dte_proxy=play_dte(pr["play"], pr.get("horizon")))
-    return out
-
-
-def _live_to_canonical(struct: str) -> str:
-    s = struct.lower()
-    if "bull_call" in s:
-        return "bull_call_spread"
-    if "bear_call" in s:
-        return "bear_call_spread"
-    if "bull_put" in s:
-        return "bull_put_spread"
-    if "bear_put" in s:
-        return "bear_put_spread"
-    if "short put" in s:
-        return "short_put"
-    if "short call" in s:
-        return "short_call"
-    if "long call" in s:
-        return "long_call"
-    if "long put" in s:
-        return "long_put"
-    return "unknown"
-
-
-def _live_strikes(inv_row):
-    strikes = set()
-    for lg in inv_row["entry"]["legs"]:
-        if lg["match"] is not None:
-            strikes.add(lg["match"]["strike"])
-    return strikes
 
 
 if __name__ == "__main__":
