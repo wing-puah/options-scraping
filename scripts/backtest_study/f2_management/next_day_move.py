@@ -46,17 +46,17 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.bear_giveback import (  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
-from scripts.backtest_study.book import CREDIT_PROD, load_book  # noqa: E402
-from scripts.backtest_study.harness import replay  # noqa: E402
-from scripts.backtest_study.underlying import (  # noqa: E402
+from scripts.backtest_study.lib.book import CREDIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import replay  # noqa: E402
+from scripts.backtest_study.lib.underlying import (  # noqa: E402
     SRC_OHLC, entry_day, load_bars, move_windows, rescaled_tickers, sigma_1d,
 )
 

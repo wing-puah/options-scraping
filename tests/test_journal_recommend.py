@@ -382,7 +382,7 @@ def test_latest_date_stays_unbounded():
 # The card's provenance banners
 # --------------------------------------------------------------------------
 def test_render_without_the_new_kwargs_is_unchanged():
-    """scripts/backtest_study/live_select.py imports this module directly; a
+    """scripts/backtest_study/lib/live_select.py imports this module directly; a
     required parameter here would break the research tier."""
     ac_df = _ac_df("RANGE + E-VOL", [_row("AAA", "Bull call spread 100/110, ~50 DTE")])
     candidates, rejected = rank(ac_df, DATE, _empty_book(), None)

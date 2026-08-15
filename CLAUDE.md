@@ -117,7 +117,7 @@ cd web && npm run dev   # http://localhost:3000
 
 Research tier (`backtest_study/`, `study_*`):
 
-- `scripts/backtest_study/harness.py` is the FROZEN exit-replay engine — do not edit; every
+- `scripts/backtest_study/lib/harness.py` is the FROZEN exit-replay engine — do not edit; every
   recorded conclusion rests on it. Write-ups go to `research/current.md`.
 - `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
   There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
@@ -215,8 +215,10 @@ scripts/                    ← entry points, each maps to a workflow step
   live_loop/                — PRODUCTION fortnightly audit; mapping.py::ladder_tier() = the
                               single encoding of deployment-rules §1–§3 (journal imports it too)
   backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
-                              harness.py FROZEN; the one sanctioned research→production import
-                              is live_select.py calling s06_recommend.py's rank()+judge()
+                              f1_selection/ → f2_management/ → f3_structure/ → f4_deployment/
+                              ("pick it, manage it, wrap it, fund it"); lib/harness.py FROZEN;
+                              the one sanctioned research→production import is
+                              lib/live_select.py calling s06_recommend.py's rank()+judge()
   study_map/ / study_charts/ / study_review/
                             — research render/review layers; they quote and reconcile study
                               output, never add a conclusion
@@ -311,7 +313,7 @@ two prompt versions are never pooled.
   is `judge()`: `JUDGMENT_MODEL`'s training cutoff overlaps the analysis dates, so a verdict on
   a historical session may be recall rather than reasoning — every row carries `judge_status`
   and `judge_lookahead_risk` so a later reader can segregate judge-touched rows instead of
-  discovering the contamination after building on them. `scripts/backtest_study/live_select.py`
+  discovering the contamination after building on them. `scripts/backtest_study/lib/live_select.py`
   documents the same concern for its own judge layer.
 
 - **`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1–§3.** Both

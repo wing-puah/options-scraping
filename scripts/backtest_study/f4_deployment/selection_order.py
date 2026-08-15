@@ -43,14 +43,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import account_sim as A  # noqa: E402
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.bear_giveback import hdr, sub  # noqa: E402
-from scripts.backtest_study.book import load_book  # noqa: E402
+from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import hdr, sub  # noqa: E402
+from scripts.backtest_study.lib.book import load_book  # noqa: E402
 
 # ── frozen constants (registered; none of these is a knob) ───────────────────
 
@@ -777,7 +777,7 @@ def report_population(label: str, book: dict, st, cache) -> dict:
 
 def main(argv=None) -> int:
     argparse.ArgumentParser(
-        prog="python -m scripts.backtest_study.selection_order",
+        prog="python -m scripts.backtest_study.f4_deployment.selection_order",
         description=__doc__.splitlines()[0]).parse_args(argv or [])
 
     st = A.load_settings(A.DEFAULT_CONFIG)

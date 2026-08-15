@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pytest  # noqa: E402
 import yaml  # noqa: E402
 
-from scripts.backtest_study import account_sim  # noqa: E402
-from scripts.backtest_study.account_sim import (  # noqa: E402
+from scripts.backtest_study.f4_deployment import account_sim  # noqa: E402
+from scripts.backtest_study.f4_deployment.account_sim import (  # noqa: E402
     BlindRec, Cfg, ConfigError, Ledger, LOOKAHEAD_REC_KEYS,
     LOOKAHEAD_ROW_COLUMNS, LookaheadError, Pos, Settings, Sim,
     POSITIONS_CSV_COLUMNS, admission, blind_records, book_signature,
@@ -35,7 +35,7 @@ from scripts.backtest_study.account_sim import (  # noqa: E402
     replay_sized, risk_contracts, sessions_between, signed_dn, simulate,
     sizing_budget, solve_contracts, write_positions_csv,
 )
-from scripts.backtest_study.harness import MAX_LOSS_ABS, Trade  # noqa: E402
+from scripts.backtest_study.lib.harness import MAX_LOSS_ABS, Trade  # noqa: E402
 
 
 # ── building a Settings without touching disk ───────────────────────────────

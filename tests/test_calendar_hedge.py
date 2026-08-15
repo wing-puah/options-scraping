@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 
-from scripts.backtest_study.calendar_hedge import (  # noqa: E402
+from scripts.backtest_study.f3_structure.calendar_hedge import (  # noqa: E402
     HEDGE_SIZE, apply_pick, h0_fill, h2_contribution, h3_sizing, _typed,
 )
 

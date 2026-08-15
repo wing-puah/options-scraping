@@ -39,7 +39,7 @@ difference in the answer cannot come from a difference in the setup.
 
 Run:
     source .venv/bin/activate
-    python3 scripts/backtest_study/exit_switch_structure_study.py \
+    python3 scripts/backtest_study/f2_management/exit_switch_structure_study.py \
         | tee backtests/exit_switch_structure_study_output.txt
 
 Read-only: touches no config/, scripts/, lib/, or existing backtests/*.py.
@@ -52,11 +52,11 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.exit_mechanism_study import replay  # noqa: E402
-from scripts.backtest_study.exit_switch_mech_study import (  # noqa: E402
+from scripts.backtest_study.f2_management.exit_mechanism_study import replay  # noqa: E402
+from scripts.backtest_study.f2_management.exit_switch_mech_study import (  # noqa: E402
     DEBIT_PROD, V_TRAIL, V_TEFNULL, V_PT110, SWITCH_CELLS, CELL_VARIANT,
     MechLabeler, compute_mech_table, ensure_spy_vix, build_post13c_lookup,
     load_debit_trades, harness_gate, cell_of, model_direction, model_vol,

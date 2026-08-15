@@ -19,7 +19,7 @@ system dependency. Nothing else in the protocol changed.
 Run:
     source .venv/bin/activate
     pip install -r requirements-study.txt
-    python -m scripts.backtest_study.ml_combination | tee backtests/study_output/run.txt
+    python -m scripts.backtest_study.f1_selection.ml_combination | tee backtests/study_output/run.txt
 """
 from __future__ import annotations
 
@@ -31,11 +31,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.book import load_book  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.lib.book import load_book  # noqa: E402
 
 OUT_DIR = ROOT / "backtests" / "study_output"
 SEED = 20260811

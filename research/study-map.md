@@ -18,6 +18,13 @@ production, nothing runs on a schedule, and no study writes config — a study
 ends in a plain-text report that becomes an addendum in [`current.md`](current.md),
 and a human decides whether anything ships.
 
+The four sections below are the same order the studies sit in on disk:
+`f1_selection/` → `f2_management/` → `f3_structure/` → `f4_deployment/`
+("pick it, manage it, wrap it, fund it"). The Infrastructure table at the
+bottom — `run.py`, `harness.py`, `book.py`, `protocol.py`, the `underlying*`
+and `volume_features` families — lives in `lib/`: import-only, and it argues
+nothing, so it carries no verdict and no family of its own.
+
 ---
 
 ## The shape of the whole thing

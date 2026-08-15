@@ -21,7 +21,7 @@ source=DELTA_SOURCE_UNAVAILABLE` — never a zero standing in for "we don't know
 NO LOOKAHEAD. Barchart's settlement row for date D is only known once D's session
 has closed, so `enrich()` never reads a row dated AFTER `as_of` — that would be
 marking today's book off tomorrow's close, an error this repo treats as a
-correctness bug (the same posture `scripts/backtest_study/harness.py` takes on
+correctness bug (the same posture `scripts/backtest_study/lib/harness.py` takes on
 entry pricing). When the exact `as_of` row is absent, the fetch falls back to the
 latest row ON OR BEFORE it and the staleness is logged (not stored — the rawpull
 `Greek` shape has no field for it; `lib/rawpull.py` is not this file's to change).

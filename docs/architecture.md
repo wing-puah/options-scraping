@@ -194,21 +194,27 @@ Never imported by production, never scheduled. Reports land in `backtests/study_
 in `research/glossary.md`; the replication protocol in
 `research/replication-protocol.md`.
 
-**`scripts/backtest_study/`** — run via `python3 -m scripts.backtest_study {list,run}`.
+**`scripts/backtest_study/`** — run via `python3 -m scripts.backtest_study {list,run}`. The studies
+themselves sit in four family folders, `f1_selection/` → `f2_management/` → `f3_structure/` →
+`f4_deployment/` (pick it, manage it, wrap it, fund it) — the same taxonomy `scripts/study_map/
+catalog.py::FAMILIES` renders onto the study map, and the test suite asserts a module's folder
+equals its catalog `family`. `lib/` holds the shared substrate: import-only (except `book.py
+--validate`) and carries no verdict of its own — see `research/study-map.md` for what each study
+in the family folders concluded.
 
 - `run.py` — runner; every report carries a provenance header (git sha + input row counts).
   Flags: `--date`, `--dry-run`, `--cache-only` (no scraping), `--redo` (re-evaluate frozen
   rows), `--all`.
-- `harness.py` — FROZEN exit-replay engine. Do not edit: every recorded conclusion rests on
+- `lib/harness.py` — FROZEN exit-replay engine. Do not edit: every recorded conclusion rests on
   it; changing it invalidates all prior tuning conclusions.
-- `book.py` — pooled real+proxy book loader with dedup + the exact-replay calibration gate
+- `lib/book.py` — pooled real+proxy book loader with dedup + the exact-replay calibration gate
   (bs-tier rows excluded by default).
-- `underlying.py` — daily stock bars (real OHLC → `Price~` close-only fallback; the all-legs
-  widening harness.py must not get). `underlying_features.py` — as-of-entry price-STATE
+- `lib/underlying.py` — daily stock bars (real OHLC → `Price~` close-only fallback; the all-legs
+  widening harness.py must not get). `lib/underlying_features.py` — as-of-entry price-STATE
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry
   a smaller denominator — always print `coverage()`).
-- `protocol.py` — purged walk-forward, date-clustered CIs, LOO.
-- `live_select.py` — the ONE sanctioned research→production import (see account_sim below).
+- `lib/protocol.py` — purged walk-forward, date-clustered CIs, LOO.
+- `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
 
 ### account_sim
 
@@ -489,7 +495,7 @@ Delta-notional is additive across legs, so the split changes position COUNT only
 exposure.
 
 **Risk** — `signed_dn = delta × 100 × contracts × underlying`, identical to
-`scripts/backtest_study/account_sim.py::signed_dn`, so a live book and a simulated one
+`scripts/backtest_study/f4_deployment/account_sim.py::signed_dn`, so a live book and a simulated one
 compare directly. Caps `per_position` 0.25 / `net` 2.50 are read from
 `config/account-sim.yml` (that study calls them "a friction model, NOT a tuned parameter" —
 why they transfer) but bind against the broker's NetLiquidation, not the study's $25k. The
@@ -540,7 +546,7 @@ is refused unless `--allow-stale`; analysis dated after as-of is refused uncondi
 that is lookahead, not staleness, and `--allow-stale` cannot reach it. `judge()` itself stays
 unbounded: `JUDGMENT_MODEL`'s training cutoff overlaps the analysis dates, so every row is
 stamped `judge_status`/`judge_lookahead_risk` (`config.JUDGE_LOOKAHEAD_NOTE`) rather than
-treated as clean — the same concern `scripts/backtest_study/live_select.py` documents for its
+treated as clean — the same concern `scripts/backtest_study/lib/live_select.py` documents for its
 own judge layer.
 
 **Recommendation record** (`s07_recwriter.py`) — every evaluated candidate (role

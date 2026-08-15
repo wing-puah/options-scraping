@@ -2,7 +2,7 @@
 
 RESEARCH TIER importing PRODUCTION. That is the allowed direction and the whole
 point: `account_sim` re-implements the deployment ladder in
-`scripts/backtest_study/book.py::ladder_tier`, while the function that actually
+`scripts/backtest_study/lib/book.py::ladder_tier`, while the function that actually
 decides what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (the
 deterministic ladder, encoded once in `scripts/live_loop/mapping.ladder_tier`)
 followed by `judge()` (the one model call, demote-only). The two ladders have
@@ -71,13 +71,13 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.bear_giveback import hdr, sub  # noqa: E402
-from scripts.backtest_study.book import (  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import hdr, sub  # noqa: E402
+from scripts.backtest_study.lib.book import (  # noqa: E402
     DEFAULT_PROXY_CSV, DEFAULT_RESULTS_CSV, ladder_tier as book_ladder_tier,
 )
 from scripts.journal.lib import analysis as janalysis  # noqa: E402
@@ -210,7 +210,7 @@ def join_entry_check(ac_df: pd.DataFrame, by_key: dict[tuple, dict], mode: str,
 
     # Deferred: account_sim imports this module, so a module-level import here
     # would be circular. Nothing else in this file needs it at import time.
-    from scripts.backtest_study.account_sim import risk_contracts, signed_dn
+    from scripts.backtest_study.f4_deployment.account_sim import risk_contracts, signed_dn
 
     out = ac_df.copy()
     stats = {"mode": mode, "rows": 0, "joined": 0, "no_record": 0}
@@ -970,7 +970,7 @@ def build_walk(recs, ac_df, st, *, entry_check: str, policy: str,
     agree.
     """
     # Deferred: account_sim imports this module (see join_entry_check).
-    from scripts.backtest_study import account_sim as A
+    from scripts.backtest_study.f4_deployment import account_sim as A
 
     by_key = records_by_key(recs)
     frame, entry_stats = join_entry_check(ac_df, by_key, entry_check, st.budget)
@@ -1007,7 +1007,7 @@ def print_gate5_arm(recs, ac_df, st, *, entry_check: str, judgment_cache,
     only bound this arm has on it.
     """
     # Deferred: account_sim imports this module (see join_entry_check).
-    from scripts.backtest_study import account_sim as A
+    from scripts.backtest_study.f4_deployment import account_sim as A
 
     sub("G5 (arm) — the SHIPPED selector is BLIND to how a position turned out")
     print("""  Every record is re-wrapped so reading an outcome key raises, AND the outcome
@@ -1082,7 +1082,7 @@ def run_arm(recs, picked, st, cache, *, entry_check: str, use_llm: bool,
     of what the model said, and a test's answer has no business in it.
     """
     # Deferred: account_sim imports this module (see join_entry_check).
-    from scripts.backtest_study import account_sim as A
+    from scripts.backtest_study.f4_deployment import account_sim as A
 
     assert_budgets_agree(st.max_per_day)
 

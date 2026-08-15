@@ -274,7 +274,10 @@ Transport, netting/coverage semantics and the flat-book guards: `docs/architectu
 ## Research / backtest-study tier
 
 Research code (`scripts/backtest_study/`, `study_map/`, `study_charts/`, `study_review/`) is
-never imported by production and never scheduled. It produces reports, not trades.
+never imported by production and never scheduled. It produces reports, not trades. Studies sit
+in four family folders under `backtest_study/` — `f1_selection/` → `f2_management/` →
+`f3_structure/` → `f4_deployment/` (pick it, manage it, wrap it, fund it) — with the shared,
+verdict-free substrate in `lib/`.
 
 ```bash
 python3 -m scripts.backtest_study list               # available studies
@@ -283,7 +286,7 @@ python3 -m scripts.study_review <name>               # A/B replication grading +
 make study-docs                                      # rebuild every generated page in site/
 ```
 
-`scripts/backtest_study/harness.py` is the frozen exit-replay engine — every recorded
+`scripts/backtest_study/lib/harness.py` is the frozen exit-replay engine — every recorded
 conclusion rests on it. Write-ups go to `research/current.md`; each study's pre-run commitment
 goes to `research/pre-registrations/` *before* the run; the two-analyst grading procedure is
 `research/replication-protocol.md`.

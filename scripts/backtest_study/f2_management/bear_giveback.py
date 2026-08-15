@@ -42,13 +42,13 @@ from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.book import DEBIT_PROD, load_book  # noqa: E402
-from scripts.backtest_study.harness import replay  # noqa: E402
-from scripts.backtest_study import protocol as P  # noqa: E402
+from scripts.backtest_study.lib.book import DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import replay  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
 
 BEAR_DEBIT = ("bear_put_spread", "long_put")
 

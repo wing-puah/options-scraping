@@ -162,7 +162,7 @@ correction does not reopen it or license a re-run on these dates.
 
 ### Build notes (not part of the registration)
 
-- Module `scripts/backtest_study/selection_order.py`; run via
+- Module `scripts/backtest_study/f4_deployment/selection_order.py`; run via
   `python -m scripts.backtest_study run selection_order`; report to
   `backtests/study_output/selection_order-latest.txt`.
 - A `scripts/study_map/catalog.py` entry with a hand-written VERDICT is REQUIRED —

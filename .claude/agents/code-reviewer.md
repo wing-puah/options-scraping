@@ -36,7 +36,7 @@ General:
 Repo-specific — these are the failure modes that have actually bitten here:
 - **Lookahead bias.** Does any feature, filter, or exit decision consume data that
   did not exist as of the entry timestamp? Entry basis is the **next-day OPEN**.
-  As-of-entry price state belongs in `backtest_study/underlying_features.py`.
+  As-of-entry price state belongs in `backtest_study/lib/underlying_features.py`.
 - **NaN and coverage.** Does a new column silently shrink the denominator? OHLC-only
   features carry a smaller one and must print `coverage()`. Reported `n` must match
   the rows actually priced, not the rows loaded.
@@ -71,7 +71,7 @@ Layer boundaries that must hold:
   second hand-rolled float parser in the diff is a finding.
 - **`scripts/backtest_study/` is the RESEARCH tier**: never imported by production,
   never scheduled. A production module importing from it is Critical.
-- **`scripts/backtest_study/harness.py` is FROZEN.** Every recorded conclusion in
+- **`scripts/backtest_study/lib/harness.py` is FROZEN.** Every recorded conclusion in
   `research/` rests on it. An edit to it invalidates the evidence base —
   Critical unless the change is explicitly a re-baseline with the write-up to match.
 - `RESULT_COLUMNS` in `scripts/backtest/core.py` deliberately keeps dead v3 columns so

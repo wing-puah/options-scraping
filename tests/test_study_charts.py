@@ -281,7 +281,7 @@ CONFIGURATION_BODY = (
 )
 
 
-def make_report(path: Path, command: str = "python -m scripts.backtest_study.account_sim",
+def make_report(path: Path, command: str = "python -m scripts.backtest_study.f4_deployment.account_sim",
                 primary=(2, 2, 900, 0.35, -300, -300, 50),
                 secondary=(3, 3, 1200, 0.20, -500, -500, 67),
                 compounding: bool = False, marks: list | None = None) -> Path:
@@ -577,7 +577,7 @@ def test_parse_configuration_reads_what_the_study_actually_prints(tmp_path, caps
     account_sim's own code and parses that, so a layout change on either side
     fails loudly instead of producing a page with an empty setup panel.
     """
-    from scripts.backtest_study import account_sim as study
+    from scripts.backtest_study.f4_deployment import account_sim as study
 
     settings = study.load_settings()
     study.print_configuration(settings, "config/account-sim.yml")
@@ -757,7 +757,7 @@ def test_is_structure_arm_reads_the_positions_filename():
 def test_pick_report_prefers_the_report_from_the_matching_arm(tmp_path):
     make_report(tmp_path / "account_sim-20260813-100000.txt")
     make_report(tmp_path / "account_sim-20260813-200000.txt",
-                command="python -m scripts.backtest_study.account_sim --structure-universe")
+                command="python -m scripts.backtest_study.f4_deployment.account_sim --structure-universe")
     plain = pick_report(tmp_path / "account_sim-positions-latest.csv", tmp_path)
     structure = pick_report(tmp_path / "account_sim-positions-structure-latest.csv", tmp_path)
     assert plain.name == "account_sim-20260813-100000.txt"
@@ -962,7 +962,7 @@ def test_main_writes_no_html_at_all_when_reconciliation_fails(tmp_path):
 
 def test_main_refuses_a_report_from_the_other_arm(tmp_path):
     rep = make_report(tmp_path / "account_sim-latest.txt",
-                      command="python -m scripts.backtest_study.account_sim --structure-universe")
+                      command="python -m scripts.backtest_study.f4_deployment.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
     with pytest.raises(SystemExit, match="arm mismatch"):
         main(["--report", str(rep), "--positions", str(pos), "--out", str(tmp_path / "p.html")])
@@ -978,7 +978,7 @@ def test_only_the_frozen_book_gets_a_tracked_site_page(tmp_path):
 
 def test_structure_arm_writes_the_fragment_but_no_site_page(tmp_path):
     rep = make_report(tmp_path / "account_sim-latest.txt",
-                      command="python -m scripts.backtest_study.account_sim --structure-universe")
+                      command="python -m scripts.backtest_study.f4_deployment.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-structure-latest.csv")
     out = tmp_path / "page.html"
     code = main(["--report", str(rep), "--positions", str(pos), "--out", str(out)])
@@ -989,7 +989,7 @@ def test_structure_arm_writes_the_fragment_but_no_site_page(tmp_path):
 def test_structure_arm_refuses_an_explicit_site_path(tmp_path):
     """A hand-typed --site is how the frozen book's page gets clobbered."""
     rep = make_report(tmp_path / "account_sim-latest.txt",
-                      command="python -m scripts.backtest_study.account_sim --structure-universe")
+                      command="python -m scripts.backtest_study.f4_deployment.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-structure-latest.csv")
     site = tmp_path / "site" / "account-sim-charts.html"
     with pytest.raises(SystemExit, match="no site page"):

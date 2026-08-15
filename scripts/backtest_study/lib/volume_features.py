@@ -36,13 +36,13 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from lib.parsing import to_float  # noqa: E402
-from scripts.backtest_study.underlying import Bar, rescaled_tickers  # noqa: E402
-from scripts.backtest_study.underlying_features import (  # noqa: E402
+from scripts.backtest_study.lib.underlying import Bar, rescaled_tickers  # noqa: E402
+from scripts.backtest_study.lib.underlying_features import (  # noqa: E402
     RV_WINDOW, _MAX_ABS_LOG_RETURN, _MIN_RV_OBS, trailing_bars,
 )
 

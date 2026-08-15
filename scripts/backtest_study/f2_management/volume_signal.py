@@ -27,18 +27,18 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study import volume_features as VF  # noqa: E402
-from scripts.backtest_study.bear_giveback import (  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.lib import volume_features as VF  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, prod_profile_for,
 )
-from scripts.backtest_study.book import DEBIT_PROD, load_book  # noqa: E402
-from scripts.backtest_study.harness import replay  # noqa: E402
-from scripts.backtest_study.underlying import load_bars  # noqa: E402
+from scripts.backtest_study.lib.book import DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import replay  # noqa: E402
+from scripts.backtest_study.lib.underlying import load_bars  # noqa: E402
 
 MIN_CELL_N = 20
 

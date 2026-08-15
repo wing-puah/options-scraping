@@ -19,7 +19,7 @@ again. `run --all` (scripts/backtest_study/run.py) excludes this study from
 the bulk run; `run combined_exit_study` still runs it directly, with a printed
 retirement notice, for anyone who wants to see it fail on the missing file.
 
-Porting this study onto scripts/backtest_study/book.py (the pooled real+proxy
+Porting this study onto scripts/backtest_study/lib/book.py (the pooled real+proxy
 loader every other study now uses) is possible but was deliberately NOT done
 as part of this retirement — it imports Trade/replay from
 exit_mechanism_study.py, a separate, older implementation than the FROZEN
@@ -84,9 +84,9 @@ Reporting, in order:
      winner verdict per group.
 
 Run from the repo root:
-  python3 scripts/backtest_study/combined_exit_study.py --side debit
-  python3 scripts/backtest_study/combined_exit_study.py --side credit
-  python3 scripts/backtest_study/combined_exit_study.py --side debit --group-by structure,intent --min-n 20
+  python3 scripts/backtest_study/f2_management/combined_exit_study.py --side debit
+  python3 scripts/backtest_study/f2_management/combined_exit_study.py --side credit
+  python3 scripts/backtest_study/f2_management/combined_exit_study.py --side debit --group-by structure,intent --min-n 20
 """
 import argparse
 import csv
@@ -95,10 +95,10 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.exit_mechanism_study import (  # noqa: E402
+from scripts.backtest_study.f2_management.exit_mechanism_study import (  # noqa: E402
     Trade, replay, calibrate, run_variant, summarize, monthly_delta, flips,
     DEBIT_PROD, CREDIT_PROD, DEBIT_VARIANTS, CREDIT_VARIANTS, _pct, _to_float,
 )

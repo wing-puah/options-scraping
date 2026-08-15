@@ -38,10 +38,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 
-from scripts.backtest_study import account_sim as A  # noqa: E402
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study import selection_order as S  # noqa: E402
-from scripts.backtest_study.harness import Trade  # noqa: E402
+from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f4_deployment import selection_order as S  # noqa: E402
+from scripts.backtest_study.lib.harness import Trade  # noqa: E402
 
 BUDGET = 500.0
 

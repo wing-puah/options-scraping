@@ -282,7 +282,7 @@ def headroom_for(book: BookRisk, candidate_dn: float,
 
     Returns `(ok, binding_constraint)` — the FIRST failing cap, checked
     per-position then net, the same fixed order
-    `scripts/backtest_study/account_sim.py::admission` uses so that "exactly one
+    `scripts/backtest_study/f4_deployment/account_sim.py::admission` uses so that "exactly one
     binding constraint" stays well defined.
 
     Pass `ticker` to check the candidate against that ticker's EXISTING signed

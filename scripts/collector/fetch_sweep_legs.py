@@ -15,7 +15,7 @@ book's own (ticker, expiry, spot) entries would need, and fetches them.
 
 TARGET DERIVATION (`sweep_targets` / `sweep_target_records`)
 --------------------------------------------------------------
-Every (ticker, expiry) the pooled book (`scripts.backtest_study.book.load_book`,
+Every (ticker, expiry) the pooled book (`scripts.backtest_study.lib.book.load_book`,
 `include_bs=False`) entered a leg into is one "near" anchor, with K* = the
 cached strike nearest that entry's spot (preferring a strike with BOTH a
 call and a put cached, since that is the flow-truth strike the book traded
@@ -91,8 +91,8 @@ from lib.barchart.options import (  # noqa: E402
 from lib.logger import safe_err, setup_logging  # noqa: E402
 from lib.parsing import to_float  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
-from scripts.backtest_study.book import load_book  # noqa: E402
-from scripts.backtest_study.vol_sleeve import _strike_index, paired_strikes  # noqa: E402
+from scripts.backtest_study.lib.book import load_book  # noqa: E402
+from scripts.backtest_study.f3_structure.vol_sleeve import _strike_index, paired_strikes  # noqa: E402
 
 log = logging.getLogger("fetch_sweep_legs")
 

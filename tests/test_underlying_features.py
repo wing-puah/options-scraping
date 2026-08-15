@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/backtest_study/underlying_features.py`.
+"""Unit tests for `scripts/backtest_study/lib/underlying_features.py`.
 
 Bars are constructed directly rather than written to a cache and re-read — the
 module takes `{date: Bar}` and does no I/O of its own except the SPY series,
@@ -14,8 +14,8 @@ from datetime import date, timedelta
 
 import pytest
 
-from scripts.backtest_study import underlying_features as uf
-from scripts.backtest_study.underlying import SRC_OHLC, SRC_TILDE, Bar
+from scripts.backtest_study.lib import underlying_features as uf
+from scripts.backtest_study.lib.underlying import SRC_OHLC, SRC_TILDE, Bar
 
 START = date(2024, 1, 1)
 ANN = math.sqrt(252)

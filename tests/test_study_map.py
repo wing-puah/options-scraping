@@ -167,7 +167,7 @@ def test_nonzero_exit_never_reads_as_ok(tmp_path):
 # ── designed refusals ─────────────────────────────────────────────────────────
 #
 # v4_bridge is the one study that declares DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
-# (scripts/backtest_study/v4_bridge.py) — these tests use its real name so the
+# (scripts/backtest_study/f1_selection/v4_bridge.py) — these tests use its real name so the
 # read goes through run.py's actual `_refusal_codes()`, the same reader
 # `run --all` uses, rather than a mock of it.
 

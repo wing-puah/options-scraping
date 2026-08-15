@@ -1,6 +1,6 @@
 """Unit tests for the day-0 underlying-move tier: the bar loader
-(`scripts/backtest_study/underlying.py`) and the pieces of
-`scripts/backtest_study/next_day_move.py` that decide what a row means.
+(`scripts/backtest_study/lib/underlying.py`) and the pieces of
+`scripts/backtest_study/f2_management/next_day_move.py` that decide what a row means.
 
 Everything is synthetic and written to tmp_path — nothing here reads the real
 (gitignored) caches under backtests/ or touches the network, so these stay green
@@ -11,9 +11,9 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study import next_day_move as ndm
-from scripts.backtest_study import underlying as und
-from scripts.backtest_study.harness import Trade
+from scripts.backtest_study.f2_management import next_day_move as ndm
+from scripts.backtest_study.lib import underlying as und
+from scripts.backtest_study.lib.harness import Trade
 
 SIGNAL = date(2024, 3, 4)      # Monday
 EXPIRY = date(2024, 3, 15)     # Friday

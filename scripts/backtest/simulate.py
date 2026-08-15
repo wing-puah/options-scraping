@@ -266,7 +266,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
       7. time_exit_day  — calendar days from entry; graceful time-based close
 
     The be_stop slot is LOAD-BEARING: it sits between dollar_stop and stop_loss
-    to mirror the frozen research harness (scripts/backtest_study/harness.py
+    to mirror the frozen research harness (scripts/backtest_study/lib/harness.py
     `replay`, pt → trail → underlying → dollar → be_stop → sl → tef). Every
     recorded be_after conclusion was measured at that precedence; moving it
     changes the numbers.

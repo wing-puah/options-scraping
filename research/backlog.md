@@ -52,7 +52,7 @@ underlying closes, exiting at that day's spread mark, and adding an
 - The strings are free-form model output. A parser that silently fails to
   match must record *that*, not fall through to "condition never met" — the
   latter would understate exits and flatter the book.
-- `scripts/backtest_study/harness.py` is the **frozen** exit-replay engine.
+- `scripts/backtest_study/lib/harness.py` is the **frozen** exit-replay engine.
   Every recorded conclusion rests on it; a new exit reason belongs in the
   backtest engine, not there.
 

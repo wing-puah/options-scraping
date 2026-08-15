@@ -677,7 +677,7 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
     omitted, so the deterministic card is always complete on its own.
 
     Every provenance argument is keyword-only WITH A DEFAULT that reproduces the
-    pre-existing card byte-for-byte. `scripts/backtest_study/live_select.py`
+    pre-existing card byte-for-byte. `scripts/backtest_study/lib/live_select.py`
     imports this module directly (the one sanctioned research->production
     import), so a required parameter here would break the research tier.
     """

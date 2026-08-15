@@ -60,11 +60,11 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.underlying import (  # noqa: E402
+from scripts.backtest_study.lib.underlying import (  # noqa: E402
     SRC_OHLC, TRADING_DAYS_PER_YEAR, Bar,
 )
 

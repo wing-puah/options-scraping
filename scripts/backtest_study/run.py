@@ -148,10 +148,32 @@ CALLER_ARMS = {
     "account_sim": (("--live-select", "live-select"),),
 }
 
-# Shared data layer, not runnable studies (`book` is listed anyway — its
-# --validate diagnostics table is the standard pre-flight before any study).
-INFRA = {"__init__", "__main__", "run", "harness", "protocol", "underlying",
-         "underlying_features", "volume_features", "live_select"}
+# ── where the studies live ───────────────────────────────────────────────────
+#
+# A study IS a module in a family folder. That is the whole rule, and it is a
+# POSITIVE one: before 2026-08-15 this was a hand-maintained `INFRA` blocklist
+# of names to skip, so adding a helper module to the package silently made it a
+# "study" — discovered, listed, and then failing the catalog test with no hint
+# as to why. Now a helper goes in `lib/` and is never a candidate.
+#
+# The folders are ORDERED, and the order is real: it is the order a play moves
+# through the system — pick it, manage it, wrap it, fund it. It is the same
+# order `scripts/study_map/catalog.py::FAMILIES` renders on the map, and the
+# `fN_` prefix is what makes `ls` agree with both (`f` only because a package
+# name may not begin with a digit — the same reason journal steps are `sNN_`).
+FAMILY_DIRS = ("f1_selection", "f2_management", "f3_structure", "f4_deployment")
+
+# `lib/` modules the runner will still RUN. Only `book`, whose `--validate`
+# diagnostics table is the standard pre-flight before any study; the rest are
+# import-only. Listing it here rather than in a family folder keeps the rule
+# above true: it has no verdict in the catalog, so it is not a study.
+RUNNABLE_LIB = {"book"}
+
+# Kept for `scripts/study_map/catalog.py`, which cross-checks its own INFRA
+# prose against this: every module that is NOT a study. Derived from the
+# directory now, so the two can no longer drift by hand.
+INFRA = {"run"} | {p.stem for p in (Path(__file__).resolve().parent / "lib").glob("*.py")
+                   if not p.stem.startswith("__")}
 
 # Flags a study needs but has no sensible argparse default for. Applied only
 # when the caller did not pass that flag themselves.
@@ -172,6 +194,43 @@ INPUT_CSVS = [
 ]
 
 
+def study_paths() -> dict[str, Path]:
+    """`{study_name: module file}` — every runnable name, in family order.
+
+    A study is a module in a family folder (plus `lib/book.py`, see
+    `RUNNABLE_LIB`). The name is the bare STEM, never the dotted path: it is
+    what `run <name>` takes, what the report is filed as
+    (`backtests/study_output/<name>-latest.txt`), what `study_map.catalog` keys
+    on, and what a hundred lines of `research/current.md` cite. Moving a study
+    between families must therefore never rename it — the folder is navigation,
+    the stem is identity.
+    """
+    out: dict[str, Path] = {}
+    for family in FAMILY_DIRS:
+        for path in sorted((STUDY_DIR / family).glob("*.py")):
+            if not path.stem.startswith("__"):
+                out[path.stem] = path
+    for stem in sorted(RUNNABLE_LIB):
+        out[stem] = STUDY_DIR / "lib" / f"{stem}.py"
+    return out
+
+
+def module_of(name: str) -> str:
+    """The dotted module path `run <name>` executes, e.g.
+    `scripts.backtest_study.f4_deployment.account_sim`.
+
+    An unknown name falls back to the package root rather than raising.
+    Nothing reaches here with one in practice — `main()` rejects unknown names
+    against `discover()` before any run starts — so the fallback exists for
+    callers that drive `run_one` directly with a stub name and a faked
+    subprocess (the report-promotion tests). If one ever did reach the
+    subprocess, it fails as a plain ModuleNotFoundError, exactly as it did when
+    every study sat flat in this directory.
+    """
+    path = study_paths().get(name)
+    return f"{PKG}.{path.parent.name}.{name}" if path else f"{PKG}.{name}"
+
+
 def discover() -> dict[str, str]:
     """`{study_name: one-line summary}`, summary read from the module docstring.
 
@@ -180,12 +239,10 @@ def discover() -> dict[str, str]:
     read a docstring would run the whole study.
     """
     out = {}
-    for path in sorted(STUDY_DIR.glob("*.py")):
-        if path.stem in INFRA:
-            continue
+    for name, path in study_paths().items():
         doc = ast.get_docstring(ast.parse(path.read_text())) or ""
         lines = [ln.strip() for ln in doc.strip().splitlines() if ln.strip()]
-        out[path.stem] = lines[0] if lines else "(no docstring)"
+        out[name] = lines[0] if lines else "(no docstring)"
     return out
 
 
@@ -198,8 +255,8 @@ def _refusal_codes(name: str) -> frozenset[int]:
     two studies do real work at import time, so importing every study just to
     read one constant would run them.
     """
-    path = STUDY_DIR / f"{name}.py"
-    if not path.exists():
+    path = study_paths().get(name)
+    if path is None or not path.exists():
         return frozenset()
     tree = ast.parse(path.read_text())
     for node in tree.body:
@@ -249,7 +306,7 @@ def _header(name: str, argv: list[str], module: str | None = None) -> str:
         f"STUDY: {name}",
         "=" * 78,
         f"  run at    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"  command   python -m {PKG}.{module or name} {' '.join(argv)}".rstrip(),
+        f"  command   python -m {module_of(module or name)} {' '.join(argv)}".rstrip(),
         f"  git       {_git('rev-parse', '--short', 'HEAD')} "
         f"({_git('rev-parse', '--abbrev-ref', 'HEAD')}, working tree {dirty})",
         f"  python    {sys.version.split()[0]}",
@@ -361,7 +418,7 @@ def run_one(name: str, extra: list[str], dry_run: bool = False,
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_path = OUT_DIR / f"{stem}-{stamp}.txt"
     latest = OUT_DIR / f"{stem}-latest.txt"
-    cmd = [sys.executable, "-u", "-m", f"{PKG}.{name}", *argv]
+    cmd = [sys.executable, "-u", "-m", module_of(name), *argv]
 
     if dry_run:
         print(f"[dry-run] {' '.join(cmd)}  ->  {out_path}")
@@ -451,15 +508,24 @@ def main(argv: list[str] | None = None) -> int:
     args, extra = ap.parse_known_args(argv)
 
     if args.cmd != "run":
+        # Grouped by family, in family order, so `list` reads the same way the
+        # directory and the study map do — pick it, manage it, wrap it, fund it.
+        paths = study_paths()
         width = max(len(n) for n in studies)
         print(f"Studies ({len(studies)}) — `python -m {PKG} run <name>`:\n")
-        for name, doc in studies.items():
-            default = " ".join(DEFAULT_ARGS.get(name, []))
-            tag = f"  [default: {default}]" if default else ""
-            arms = ", ".join(a.suffix for a in STUDY_ARMS.get(name, ()))
-            tag += f"  [+arms: {arms}]" if arms else ""
-            print(f"  {name:{width}s}  {doc[:88]}{tag}")
-        print(f"\nOutput goes to {OUT_DIR.relative_to(ROOT)}/<name>-latest.txt")
+        for folder in (*FAMILY_DIRS, "lib"):
+            names = [n for n in studies if paths[n].parent.name == folder]
+            if not names:
+                continue
+            print(f"  {folder}/")
+            for name in names:
+                default = " ".join(DEFAULT_ARGS.get(name, []))
+                tag = f"  [default: {default}]" if default else ""
+                arms = ", ".join(a.suffix for a in STUDY_ARMS.get(name, ()))
+                tag += f"  [+arms: {arms}]" if arms else ""
+                print(f"    {name:{width}s}  {studies[name][:84]}{tag}")
+            print()
+        print(f"Output goes to {OUT_DIR.relative_to(ROOT)}/<name>-latest.txt")
         return 0
 
     names = list(studies) if args.all else ([args.name] if args.name else [])

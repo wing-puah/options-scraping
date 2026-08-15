@@ -61,22 +61,22 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.bear_giveback import cell_stats, fmt_row, hdr, sub  # noqa: E402
-from scripts.backtest_study.bear_rewrap import (  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import cell_stats, fmt_row, hdr, sub  # noqa: E402
+from scripts.backtest_study.f3_structure.bear_rewrap import (  # noqa: E402
     entry_date_for, leg_details, net_entry, net_marks, reconstructs, size_contracts,
 )
-from scripts.backtest_study.book import DEBIT_PROD, load_book  # noqa: E402
-from scripts.backtest_study.harness import PATH_CAP_DAYS, Trade, replay  # noqa: E402
-from scripts.backtest_study import underlying as U  # noqa: E402
-from scripts.backtest_study import underlying_features as UF  # noqa: E402
+from scripts.backtest_study.lib.book import DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import PATH_CAP_DAYS, Trade, replay  # noqa: E402
+from scripts.backtest_study.lib import underlying as U  # noqa: E402
+from scripts.backtest_study.lib import underlying_features as UF  # noqa: E402
 
 STRUCTURES = ("straddle", "strangle", "calendar")
 

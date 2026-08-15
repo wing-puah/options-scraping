@@ -97,7 +97,7 @@ re-run constantly, and a non-idempotent script corrupts a whole tab quietly.
 - **Schema sync.** If a change adds a column to `ROW_COLUMNS`, there should be a test
   that the tab header and the row width agree. An unlabelled trailing column is the
   classic symptom.
-- **Frozen code.** `scripts/backtest_study/harness.py` is frozen. Write tests
+- **Frozen code.** `scripts/backtest_study/lib/harness.py` is frozen. Write tests
   *around* it; never edit it to make a test pass.
 
 ## Output Format

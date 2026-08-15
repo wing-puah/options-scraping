@@ -11,7 +11,7 @@ acceptable — and valuable — answer (it would close the per-regime exit
 question).
 
 This is NOT a new exit-mechanism search. Exit configs are drawn ONLY from the
-frozen grid already validated by scripts/backtest_study/exit_mechanism_study.py, whose
+frozen grid already validated by scripts/backtest_study/f2_management/exit_mechanism_study.py, whose
 replay engine (Trade / replay / calibrate) is IMPORTED, not reimplemented.
 
 --- Scope note (important) -------------------------------------------------
@@ -59,7 +59,7 @@ duplicating a real-row identity.
 
 Run:
     source .venv/bin/activate
-    python3 scripts/backtest_study/exit_switch_mech_study.py | tee backtests/exit_switch_mech_study_output.txt
+    python3 scripts/backtest_study/f2_management/exit_switch_mech_study.py | tee backtests/exit_switch_mech_study_output.txt
 
 Does NOT modify config/, scripts/, lib/, or existing backtests/*.py. SPY/VIX
 is fetched (start 2023-06-01) to backtests/mech_regime/spy_vix_daily_full.csv
@@ -77,10 +77,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.exit_mechanism_study import Trade, replay, _pct, _to_float  # noqa: E402
+from scripts.backtest_study.f2_management.exit_mechanism_study import Trade, replay, _pct, _to_float  # noqa: E402
 
 # ── production exit profiles (source of truth: config/backtest.yml + Attempt 13) ──
 # NOTE: exit_mechanism_study.CREDIT_PROD still carries the pre-Attempt-13 sl=1.00.

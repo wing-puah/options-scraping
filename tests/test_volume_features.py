@@ -2,12 +2,12 @@
 
 Three things under test, all pure / mock-only — no real caches, no network:
 
-  * `scripts/backtest_study/underlying.py` — `Bar.v` (share volume), added on
+  * `scripts/backtest_study/lib/underlying.py` — `Bar.v` (share volume), added on
     the OHLC loader path only; the `Price~` fallback never carries one.
-  * `scripts/backtest_study/volume_features.py` — the three as-of-entry
+  * `scripts/backtest_study/lib/volume_features.py` — the three as-of-entry
     volume features (`os_ratio`, `rvolz20`, `amihud20`), the split-artifact
     window cleaner, the rescaled-ticker withholding, and the tercile helpers.
-  * `scripts/backtest_study/volume_signal.py` — the study's pure population
+  * `scripts/backtest_study/f2_management/volume_signal.py` — the study's pure population
     predicates and its one frozen exit variant (`keyed_profile`), whose leak
     guard (only non-bear debit + HIGH os_ratio may ever change) is the single
     most important property in the file.
@@ -20,10 +20,10 @@ from datetime import date, timedelta
 
 import pytest
 
-from scripts.backtest_study import underlying as und
-from scripts.backtest_study import volume_features as VF
-from scripts.backtest_study import volume_signal as VS
-from scripts.backtest_study.underlying import Bar, SRC_OHLC, SRC_TILDE
+from scripts.backtest_study.lib import underlying as und
+from scripts.backtest_study.lib import volume_features as VF
+from scripts.backtest_study.f2_management import volume_signal as VS
+from scripts.backtest_study.lib.underlying import Bar, SRC_OHLC, SRC_TILDE
 
 START = date(2024, 1, 1)
 
@@ -57,7 +57,7 @@ assert len(BASE_VOLS) == 20
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 1. scripts/backtest_study/underlying.py — Bar.v
+# 1. scripts/backtest_study/lib/underlying.py — Bar.v
 # ═══════════════════════════════════════════════════════════════════════════
 
 OHLC_HEADER = ("Time,Open,High,Low,Latest,Change,%Change,Volume,Open Int,IV,Delta,"
@@ -138,7 +138,7 @@ def test_tilde_fallback_bars_never_carry_a_volume(_isolate_underlying_caches):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 2. scripts/backtest_study/volume_features.py
+# 2. scripts/backtest_study/lib/volume_features.py
 # ═══════════════════════════════════════════════════════════════════════════
 
 # --- os_ratio -----------------------------------------------------------------
@@ -364,7 +364,7 @@ def test_load_contracts_empty_when_audit_dir_is_absent(tmp_path, monkeypatch):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 3. scripts/backtest_study/volume_signal.py (pure helpers only)
+# 3. scripts/backtest_study/f2_management/volume_signal.py (pure helpers only)
 # ═══════════════════════════════════════════════════════════════════════════
 
 # --- giveback ---------------------------------------------------------------

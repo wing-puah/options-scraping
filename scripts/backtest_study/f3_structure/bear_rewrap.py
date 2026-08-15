@@ -65,7 +65,7 @@ from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -73,12 +73,12 @@ from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: E402
 from scripts.backtest.legs import Leg, parse_legs  # noqa: E402
-from scripts.backtest_study.bear_giveback import (  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
-from scripts.backtest_study.book import load_book  # noqa: E402
-from scripts.backtest_study.harness import Trade, replay  # noqa: E402
-from scripts.backtest_study import protocol as P  # noqa: E402
+from scripts.backtest_study.lib.book import load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import Trade, replay  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
 
 # Production debit sizing, transcribed from config/backtest.yml (portfolio_value
 # 50000, risk_per_trade_pct 0.02, stop_loss 0.75). Contracts matter beyond

@@ -161,7 +161,7 @@ tie-breaks within a tier, clearly labelled with its validation window.
 
 - Code under `scripts/backtest_study/` — TRACKED, not `backtests/` (which is
   gitignored in full, the 07-22 addendum-10 finding: the producer of a
-  production input lived on one laptop). The loader (`scripts/backtest_study/book.py`)
+  production input lived on one laptop). The loader (`scripts/backtest_study/lib/book.py`)
   is a port of the same dedup/calibration as `exit_switch_mech_study.py` so
   setup differences can't explain answer differences.
 - Outputs to `backtests/study_output/` (data artifacts stay
@@ -259,8 +259,8 @@ non-bear rows, so the concurrent book exists and the portfolio question is
 testable on it. The operator's instruction stands — bear positions are to
 remain deployable — so this arm asks the deployment questions B1/B2 skipped.
 
-Same book, same protocol (`scripts/backtest_study/protocol.py`), same frozen exit
-grid. No new columns, no new mechanism. Code: `scripts/backtest_study/bear_deploy.py`.
+Same book, same protocol (`scripts/backtest_study/lib/protocol.py`), same frozen exit
+grid. No new columns, no new mechanism. Code: `scripts/backtest_study/f4_deployment/bear_deploy.py`.
 
 **What B1 could not answer, and why a new arm is not a second bite.** B1 asked
 an *absolute level* question — is there a bear subset with mean E ≥ 0 — and the

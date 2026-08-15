@@ -16,7 +16,7 @@
 #
 # THIS FILE IS THE SIMULATION. Selection is frozen (protocol.ladder_rank /
 # ladder_eligible), exits are frozen (the shipped debit merge / CREDIT_PROD), and
-# the replay harness is frozen (scripts/backtest_study/harness.py). Everything
+# the replay harness is frozen (scripts/backtest_study/lib/harness.py). Everything
 # the simulation is *parameterised by* lives here, and account_sim.py holds no
 # state of its own — it reads this file and runs what it says.
 #

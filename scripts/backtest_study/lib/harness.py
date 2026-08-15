@@ -1,5 +1,5 @@
 """Exit-replay harness — VERBATIM port of `Trade` / `replay` / `_pct` (and their
-helpers) from `scripts/backtest_study/exit_mechanism_study.py`, ported 2026-08-11 so the
+helpers) from `scripts/backtest_study/f2_management/exit_mechanism_study.py`, ported 2026-08-11 so the
 replay engine every prior tuning study (Attempts 7-13, the mech-regime switch
 study, the bear_put demotion study) rests on is available outside the
 gitignored `backtests/` tree.
@@ -16,9 +16,9 @@ The only intentional differences from the source file:
   - the variant grids, `calibrate()`/`run_variant()`/reporting, and the CLI
     `main()` are NOT ported — those are per-study reporting code, not shared
     data-layer logic. Callers do their own calibration gate (see
-    `scripts/backtest_study/book.py`) against whichever PROD profile applies.
+    `scripts/backtest_study/lib/book.py`) against whichever PROD profile applies.
   - `DEBIT_PROD` / `CREDIT_PROD` are NOT redefined here (avoid a second
-    source of truth for the production exit knobs); `scripts/backtest_study/book.py`
+    source of truth for the production exit knobs); `scripts/backtest_study/lib/book.py`
     owns those constants.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402

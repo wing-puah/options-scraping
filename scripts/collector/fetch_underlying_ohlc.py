@@ -16,7 +16,7 @@ One request per ticker, via the same plumbing ``fetch_price_catalyst`` uses
     backtests/underlying_ohlc_cache/{TICKER}.csv
 
 in the standard Barchart history schema, so ``lib.barchart.options`` parses it
-unchanged. Reads are handled by ``scripts/backtest_study/underlying.py``.
+unchanged. Reads are handled by ``scripts/backtest_study/lib/underlying.py``.
 
 WHAT THE DATE FLAGS GOVERN
 --------------------------
@@ -56,7 +56,7 @@ series is internally consistent, so any RATIO taken off it — which is every
 window the study measures — is unaffected. What breaks is absolute dollars and
 any comparison mixing these bars with the book's unadjusted prices, so consumers
 drop those rows from $-denominated cells only. See
-``scripts/backtest_study/underlying.py`` for the consuming side.
+``scripts/backtest_study/lib/underlying.py`` for the consuming side.
 
 Needs BARCHART_EMAIL/PASSWORD. Nothing here touches Drive or Sheets.
 
@@ -133,7 +133,7 @@ def book_ticker_windows(start: str | None = None, end: str | None = None,
     a ticker that only appears in 2026 does not need 2024 bars to be complete.
 
     ``bs_options_hist`` proxy rows are excluded by default, matching
-    ``scripts.backtest_study.book.load_book(include_bs=False)``: they were
+    ``scripts.backtest_study.lib.book.load_book(include_bs=False)``: they were
     dropped as evidence on 2026-08-11, so scraping the ~59 tickers only they
     contribute is 59 requests spent on rows no study reads.
     """

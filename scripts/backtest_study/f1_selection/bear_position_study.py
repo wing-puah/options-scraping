@@ -35,7 +35,7 @@ recorded one rather than assuming the two are comparable.
 
 Run:
     source .venv/bin/activate
-    python3 scripts/backtest_study/bear_position_study.py | tee backtests/bear_position_study_output.txt
+    python3 scripts/backtest_study/f1_selection/bear_position_study.py | tee backtests/bear_position_study_output.txt
 """
 
 import random
@@ -44,11 +44,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.exit_mechanism_study import _to_float, replay  # noqa: E402
-from scripts.backtest_study.exit_switch_mech_study import (  # noqa: E402
+from scripts.backtest_study.f2_management.exit_mechanism_study import _to_float, replay  # noqa: E402
+from scripts.backtest_study.f2_management.exit_switch_mech_study import (  # noqa: E402
     DEBIT_PROD, MechLabeler, compute_mech_table, ensure_spy_vix,
     load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
     hdr, sub,

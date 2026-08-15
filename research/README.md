@@ -11,9 +11,14 @@ row to the index below.
 
 ## Running a study
 
-Study code lives in `scripts/backtest_study/` (tracked). `backtests/` is
-disposable scratch and holds only data: the Sheets exports it reads from
-`backtests/to_evaluate/`, and the reports it writes to `backtests/study_output/`.
+Study code lives in `scripts/backtest_study/` (tracked), split into four family
+folders — `f1_selection/` → `f2_management/` → `f3_structure/` →
+`f4_deployment/` (pick it, manage it, wrap it, fund it) — plus a `lib/` of
+shared, verdict-free substrate; a study's bare name (`bear_deploy`,
+`exit_mechanism_study`, …) is unaffected by which folder it sits in.
+`backtests/` is disposable scratch and holds only data: the Sheets exports it
+reads from `backtests/to_evaluate/`, and the reports it writes to
+`backtests/study_output/`.
 
 ```bash
 source .venv/bin/activate

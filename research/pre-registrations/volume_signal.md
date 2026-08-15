@@ -1,7 +1,7 @@
 ## 2026-08-13 — `volume_signal`: PRE-REGISTRATION (written BEFORE the study was built or run)
 
 **Question.** Underlying share volume is the one column already on disk that no
-study has read (`scripts/backtest_study/underlying.py` drops it at parse time).
+study has read (`scripts/backtest_study/lib/underlying.py` drops it at parse time).
 Does it condition anything the book cares about? This satisfies the ML-search
 reopen condition — **new COLUMNS only** — and inherits every closed-thread
 rule: selection is structure×regime, `score_total` is a tie-break, and any

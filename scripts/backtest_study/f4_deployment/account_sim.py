@@ -69,7 +69,7 @@ in `book.py`. Everything else — ledger, caps, sizing, frozen exit replay — i
 unchanged. It files its own report and positions CSV, evaluates no
 pre-registered criterion (A1-A6 were registered against the frozen selector's
 candidate set and do not transfer), and is never run as a sensitivity of the
-frozen book. See `scripts/backtest_study/live_select.py`.
+frozen book. See `scripts/backtest_study/lib/live_select.py`.
 """
 from __future__ import annotations
 
@@ -85,23 +85,23 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study import protocol as P  # noqa: E402
-from scripts.backtest_study.bear_deploy import max_drawdown  # noqa: E402
-from scripts.backtest_study.bear_giveback import (  # noqa: E402
+from scripts.backtest_study.lib import protocol as P  # noqa: E402
+from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown  # noqa: E402
+from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, hdr, prod_profile_for, sub,
 )
-from scripts.backtest_study.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
-from scripts.backtest_study.harness import (  # noqa: E402
+from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
+from scripts.backtest_study.lib.harness import (  # noqa: E402
     MAX_LOSS_ABS, Trade, _pct, _to_float, replay,
 )
 # The `--live-select` arm. Imported here, at module scope; live_select.py reaches
 # BACK into this module through deferred function-level imports, which is what
 # keeps the cycle from closing at import time.
-from scripts.backtest_study import live_select  # noqa: E402
+from scripts.backtest_study.lib import live_select  # noqa: E402
 
 EPS = 1e-9
 

@@ -21,8 +21,8 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study import exit_switch_mech_study as m
-from scripts.backtest_study.harness import Trade, replay
+from scripts.backtest_study.f2_management import exit_switch_mech_study as m
+from scripts.backtest_study.lib.harness import Trade, replay
 
 SIGNAL = date(2024, 3, 4)     # Monday
 EXPIRY = date(2024, 3, 15)    # Friday
@@ -250,7 +250,7 @@ def test_bear_position_study_R_is_replayed_not_stored(tmp_path, monkeypatch):
     row, which imported a different exit config for exactly the superseded rows
     — 9 of the 12 on the real book are bear structures, this study's population,
     and it feeds deployment-rules.md §"Bear positions — hedge sleeve"."""
-    from scripts.backtest_study import bear_position_study as bps
+    from scripts.backtest_study.f1_selection import bear_position_study as bps
 
     sup = _stamp(_row(ticker="SUPD"), **{**m.DEBIT_PROD, "trig": 0.50, "trail": 0.50})
     trades, _ = _write_book(tmp_path, monkeypatch, [sup])

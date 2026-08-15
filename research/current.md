@@ -239,7 +239,7 @@ label amendment differ).** Report:
 `account_sim-positions-live-select-latest.csv`.
 
 *What the arm is.* `account_sim` re-implements the deployment ladder in
-`scripts/backtest_study/book.py::ladder_tier`. The function that actually decides
+`scripts/backtest_study/lib/book.py::ladder_tier`. The function that actually decides
 what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (which encodes
 `deployment-rules.md` §1–§3 exactly once, via
 `scripts/live_loop/mapping.ladder_tier`) then `judge()` (the one demote-only model
@@ -657,7 +657,7 @@ itself.
 Gates G1–G5 all PASS. No arm confirmed, no arm refuted, no O4 band drawn, and
 NO re-run on these dates. Nothing ships — nothing could have.**
 
-`scripts/backtest_study/selection_order.py`, run via
+`scripts/backtest_study/f4_deployment/selection_order.py`, run via
 `python -m scripts.backtest_study run selection_order`. Six arms exactly as
 registered; `simulate()`, caps, sizing and exits are `account_sim`'s, untouched.
 ARM H off for every arm, compounding off (the study refuses to start if

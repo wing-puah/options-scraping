@@ -18,7 +18,7 @@ pd.set_option("display.max_columns", 50)
 
 # Repo-root-anchored so the study runs from any CWD (it used to depend on
 # being launched from the repo root, which broke silently under the runner).
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = f"{ROOT}/backtests/to_evaluate"
 AC_PATH = f"{DATA_DIR}/analysis - AnalysisClaude.csv"
 BR_PATH = f"{DATA_DIR}/analysis - BacktestResults.csv"

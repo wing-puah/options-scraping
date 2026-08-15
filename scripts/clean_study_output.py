@@ -42,7 +42,7 @@ LATEST_SUFFIXES = ("-latest.txt", "-latest.csv", "-latest.md")
 # gate reads the report directory must register its marker here, or a cleanup
 # can silently revoke that gate.
 #
-#   "H2 (primary)"  — scripts/backtest_study/calendar_hedge.py:1266 globs every
+#   "H2 (primary)"  — scripts/backtest_study/f3_structure/calendar_hedge.py:1266 globs every
 #                     calendar_hedge-*.txt for this line before it will run ARM
 #                     S. Only stamped reports carry it; -latest.txt may not.
 GATE_MARKERS = ("H2 (primary)",)

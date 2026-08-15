@@ -25,4 +25,4 @@ here — see [`../replication-protocol.md`](../replication-protocol.md).
 | [`calendar_hedge.md`](calendar_hedge.md) | `calendar_hedge` |
 | [`vol_sleeve.md`](vol_sleeve.md) | `vol_sleeve` |
 | [`volume_signal.md`](volume_signal.md) | `volume_signal` |
-| [`v4_bridge.md`](v4_bridge.md) | `v4_bridge` (module: `scripts/backtest_study/v4_bridge.py`) |
+| [`v4_bridge.md`](v4_bridge.md) | `v4_bridge` (module: `scripts/backtest_study/f1_selection/v4_bridge.py`) |

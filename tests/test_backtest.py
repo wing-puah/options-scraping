@@ -760,7 +760,7 @@ def test_summarize_path_daily_pnl_is_per_contract_not_position_scaled():
 # ── be_after: the breakeven ratchet (bear debits, 2026-08-11) ─────────────────
 #
 # Its POSITION in the exit ladder is load-bearing: dollar_stop → be_stop →
-# stop_loss, ported from the frozen study harness (backtest_study/harness.py).
+# stop_loss, ported from the frozen study harness (backtest_study/lib/harness.py).
 # Move it and the shipped rule stops reproducing the study it was derived from.
 
 def _ratchet_path():

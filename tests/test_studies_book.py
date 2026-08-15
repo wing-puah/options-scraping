@@ -1,4 +1,4 @@
-"""Unit tests for scripts/backtest_study/book.py — the pooled cross-structure book
+"""Unit tests for scripts/backtest_study/lib/book.py — the pooled cross-structure book
 loader. All fixtures are tiny synthetic CSVs written to tmp_path; nothing here
 touches the real (gitignored, untracked) backtests/to_evaluate/ exports or the
 network, so these must stay green regardless of what's on the laptop.
@@ -8,8 +8,8 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study import book
-from scripts.backtest_study.harness import Trade, replay
+from scripts.backtest_study.lib import book
+from scripts.backtest_study.lib.harness import Trade, replay
 
 SIGNAL = date(2024, 3, 4)     # Monday
 EXPIRY = date(2024, 3, 15)    # Friday, 11 calendar days out

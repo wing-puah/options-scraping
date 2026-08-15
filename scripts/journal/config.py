@@ -334,7 +334,7 @@ class RecContext:
     `duplicate_exposure=False` on every candidate — which reads as "not a
     duplicate" when the truth is "not checked". The field is a plain bool and
     cannot carry that distinction (widening it would ripple into
-    scripts/backtest_study/live_select.py), so the WRITER resolves it: with
+    scripts/backtest_study/lib/live_select.py), so the WRITER resolves it: with
     `book_evaluable=False` it emits a blank cell rather than FALSE. Same
     missing/zero discipline the greeks get, applied at the serialisation seam.
     """
@@ -480,6 +480,6 @@ REC_DEDUP_KEY_COLS = ["session_date", "ticker", "rec_id"]
 # recalling an outcome rather than reading a setup. Nothing here can detect that
 # — the column exists so a later reader can segregate judge-touched rows instead
 # of discovering the contamination after building on them. Same concern
-# scripts/backtest_study/live_select.py documents for its own judge layer.
+# scripts/backtest_study/lib/live_select.py documents for its own judge layer.
 JUDGE_LOOKAHEAD_NOTE = ("model cutoff may postdate session_date — verdicts on "
                         "historical sessions are not evidence")

@@ -35,7 +35,7 @@ THE BLANK-VS-FALSE SEAM. `rank()` computes `duplicate_exposure` from the open
 book; handed an empty one it stamps False on every candidate, meaning "not a
 duplicate" when the truth is "not checked". The dataclass field cannot carry
 that distinction and widening it would ripple into
-scripts/backtest_study/live_select.py, so it is resolved HERE: with
+scripts/backtest_study/lib/live_select.py, so it is resolved HERE: with
 `ctx.book_evaluable` False, both book-derived verdicts serialise as a blank
 cell, never as FALSE. Same missing/zero discipline the greeks get.
 """

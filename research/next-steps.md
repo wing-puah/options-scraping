@@ -28,7 +28,7 @@ skipped on 08-13.)
 ## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
 
 **Done. Verdict POWER-STOPPED. Do not re-run it on these dates.**
-`scripts/backtest_study/selection_order.py` exists, all six arms ran, gates
+`scripts/backtest_study/f4_deployment/selection_order.py` exists, all six arms ran, gates
 G1–G5 pass, and G0 stopped every arm: each re-ordering changes only 7–14% of
 the deployed book, so the best-powered arm reaches **11 affected dates on
 PRIMARY** (20 at best on SECONDARY) against the pre-registered floor of **25**. No
@@ -180,7 +180,7 @@ Operator asked for it (2026-08-13). Satisfies the ML-search reopen condition
 CSV schema (`lib/barchart/options.py` docstring) carries `Volume`, and
 `fetch_underlying_ohlc.py` uses the same feed — every file in
 `backtests/underlying_ohlc_cache/` has it. The study loader just ignores it
-(`scripts/backtest_study/underlying.py`, `Bar` has no volume field).
+(`scripts/backtest_study/lib/underlying.py`, `Bar` has no volume field).
 
 Plan sketch (pre-register before running, per house rules):
 - Extend `Bar` + `_load_ohlc_cache` with volume; **no volume on the `Price~`
@@ -202,7 +202,7 @@ Plan sketch (pre-register before running, per house rules):
   that for an untested column).
 
 ### 2.2 v4 composition bridge — WAITING ON DATA, do not force
-`scripts/backtest_study/v4_bridge.py`, gate `MIN_V4_DATES = 20`; v4 accrues
+`scripts/backtest_study/f1_selection/v4_bridge.py`, gate `MIN_V4_DATES = 20`; v4 accrues
 ~1 date/day. Until it fires, deploy under the v3-derived rules unchanged.
 Do not lower the gate. Its **exit 3 in `--all` is the designed refusal, not a
 defect** (§0c(C)) — do not "fix" it by pointing `--v4-csv` at a v3 export.

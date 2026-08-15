@@ -55,7 +55,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 EVAL_DIR = ROOT / "backtests" / "to_evaluate"
 
 # --- pre-registered constants. Changing these after a run invalidates it. ----
