@@ -110,16 +110,24 @@ criteria:
   ratio_tolerance: 0.15   # A5 — points of ratio movement allowed on either cut
 
 # ── Gates ──────────────────────────────────────────────────────────────────────
-# G1 pins the deployed line against a figure a prior report printed on the SAME
-# exports, so a silently-changed book fails the run instead of quietly moving
-# every number below it. G2-G5 (scaling identity, ledger identity, selection
-# identity, outcome blindness) are logic gates with nothing to configure.
+# There is nothing here to configure, and that is deliberate. This block used to
+# hold `gates.book_calibration` (expected_positions: 220 / expected_dates: 90 /
+# expected_dollars: 63553 / dollar_tolerance: 1.0), read by G1, which failed the
+# run whenever the deployed book line moved off those three numbers.
 #
-# Update these three numbers ONLY when the book itself legitimately changes
-# (new backtest/proxy exports), and say so in research/current.md.
-gates:
-  book_calibration:
-    expected_positions: 220
-    expected_dates: 90
-    expected_dollars: 63553
-    dollar_tolerance: 1.0
+# REMOVED 2026-08-15. They were a FINGERPRINT OF ONE EXPORT, not a hypothesis:
+# the book grows on every legitimate data refresh, so the gate fired on refreshes
+# rather than on regressions, and the only way past it was to hand-edit the
+# constants to whatever the new run printed — which destroys the one thing a
+# stored expectation is for. (That day's export refresh broke it along with three
+# other studies; the numbers had already been re-typed once for the same reason.)
+#
+# What the checksum was actually protecting — that the FROZEN replay engine
+# (scripts/backtest_study/lib/harness.py) still behaves identically — is a code
+# property, not a data property, and now lives in the pytest suite where a
+# regression fails on the commit that caused it instead of on the next refresh.
+# The book calibration itself is still PRINTED (its own BOOK CALIBRATION section
+# in the report, descriptive only); G2-G5 (scaling identity, ledger identity,
+# selection identity, outcome blindness) are logic gates and never needed config.
+#
+# Do NOT reintroduce an expected-book constant here.

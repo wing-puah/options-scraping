@@ -7,8 +7,13 @@ backtests/v2_results_nocreditdiff.csv, does still exist — but this study's
 OTHER input (backtests/results.csv, the rolling file every `backtest.py` run
 stomps) has 0 credit rows today, so `load_credit_rows` would return `[]` and
 the study would emit a degenerate empty report regardless of the rename. Do
-not repoint the constants below — see
-research/next-steps.md §0c(B) for the full diagnosis.
+not repoint OLD_CSV — see research/next-steps.md §0c(B) for the full diagnosis.
+
+(2026-08-15: the OTHER input was repointed, and only in the sense of ceasing to
+be a fixed name at all — `NEW_CSV` now resolves per era through `lib/era.py`
+instead of naming `backtests/results.csv`, the rolling file every backtest run
+stomps. That closes an era-blindness this study shared with four others; it
+does not revive the study, whose blocking input remains OLD_CSV.)
 
 Its recorded verdict (Attempt 9, NULL — nothing shipped) already lives in
 research/archive/02-credit-debit-split-attempts-8-12.md and is
@@ -49,8 +54,32 @@ from lib.parsing import to_float as _to_float  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import parse_legs  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 
-NEW_CSV = ROOT / "backtests" / "results.csv"
+# --- the two books, and why only ONE of them is era-resolved ----------------
+# NEW is the CURRENT book, resolved through `lib/era.py` so `STUDY_ERA` selects
+# it. It used to be `backtests/results.csv` — the rolling file every
+# `python3 -m scripts.backtest` run stomps, so it named no population at all:
+# whatever the last local run left behind, with nothing in the filename or
+# schema to say which prompt era that was. Resolving it does NOT un-retire this
+# study (see the retirement notice above: OLD is gone and unrecoverable); it
+# stops the surviving half of the input pair from being era-blind while the
+# retirement stands.
+NEW_CSV = era.resolve_paths()["results"]
+
+# OLD is PINNED to v2, deliberately. The whole design is old-run-vs-new-run
+# across a production rule change, so this side must NOT track the current era —
+# era-resolving it would collapse the comparison into a book against itself.
+# The name is also NOT repointed at the surviving `backtests/v2_results_
+# nocreditdiff.csv`: per the retirement notice, that rename has 0 credit rows
+# today, so a repoint would trade a loud missing-file failure for a silent
+# degenerate empty report.
+#
+# EXEMPT FROM `era.enforce`, for the same reason `load_book(check_era=False)`
+# exists: this caller mixes eras BY DESIGN, and the guard's "these exports
+# disagree about their era" refusal would be refusing the comparison itself. The
+# exemption covers only that cross-era agreement check — NEW is still
+# era-RESOLVED above.
 OLD_CSV = ROOT / "backtests" / "v2_BacktestResults_nocreditdiff.csv"
 
 PATH_CAP_DAYS = 120          # config/backtest.yml simulation.path_cap_days
@@ -222,7 +251,7 @@ def main():
 
     # ── calibration gate ──
     print("=" * 100)
-    print("CALIBRATION: replay of production credit rules vs results.csv actuals")
+    print("CALIBRATION: replay of production credit rules vs the new book's actuals")
     print("=" * 100)
     ok = 0
     for t in trades:

@@ -20,13 +20,27 @@ expected outcome, not a failure of the study.
 
 THE RECONSTRUCTION GATES COME FIRST, AND R4 IS THE CRITICAL ONE
 ---------------------------------------------------------------
-R1 quotes the book calibration. R2 re-prices every source row. R3 reproduces the
-deployed ladder line (220 / 90 / $63,553). **R4** rebuilds `vol_sleeve`'s
+R1 quotes the book calibration. R2 re-prices every source row. R3 PRINTS the
+deployed ladder line this book produces. **R4** rebuilds `vol_sleeve`'s
 calendar cell with the pick rule DISABLED and the LOOSE fill rule and must
 reproduce it EXACTLY — 183 rows, meanR +0.158, $28,059, and the exit mix.
 Without R4 the gap between +0.336 and whatever H2 prints cannot be attributed
 to the pick rule rather than to re-implementation drift, so R4 failing is a
 hard non-zero exit and the H arm does not run.
+
+AMENDMENT 2026-08-15 (labelled): R3 was a PASS/FAIL comparison against
+`R3_EXPECT = dict(n=220, dates=90, dollars=63553.0)` — a checksum of ONE export
+snapshot. Those three numbers fingerprint the population, not the code, so every
+legitimate data refresh broke the gate: when the bare exports were refreshed that
+day and the book went from ~1,900 rows / 142 dates to 74 rows / 10 dates, R3
+failed and stopped a study whose logic had not changed. R3 now PRINTS the
+deployed line — that is genuinely informative, it is the base the hedge is
+measured against — and gates nothing. R4 keeps its constants deliberately: R4 is
+a RE-IMPLEMENTATION check (does this code reproduce a cell another study built
+from the same cache?), and re-implementation drift is exactly what a fixed
+expectation should catch. What replaces R3-as-gate is the thin-era refusal in
+main(): a population too small to conclude from is now said in one line with the
+numbers, rather than discovered as a snapshot mismatch three gates in.
 
 THE FROZEN HARNESS IS NOT EDITED
 --------------------------------
@@ -72,6 +86,7 @@ if str(ROOT) not in sys.path:
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import underlying as U  # noqa: E402
 from scripts.backtest_study.f3_structure import vol_sleeve as VS  # noqa: E402
@@ -82,6 +97,16 @@ from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
 from scripts.backtest_study.f3_structure import bear_rewrap as BR  # noqa: E402
 from scripts.backtest_study.lib.book import DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import PATH_CAP_DAYS, Trade, replay  # noqa: E402
+
+# Exit codes this study returns as a DESIGNED refusal rather than a failure:
+# 2 = the era is too thin to conclude from (the `era.require_dates` call in
+# main()), 3 = `load_book`'s era guard refusing an export set that is not the era
+# asked for. `run.py` reads this by AST parse and never imports the module, so it
+# MUST stay a literal module-level assignment — an alias to
+# `era.DESIGNED_REFUSAL_EXIT_CODES` would be invisible to it and a correct
+# refusal would be reported as FAILED (and its report deleted). Note that R2/R4
+# failing is still exit 1: those are real reconstruction failures, not refusals.
+DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
 
 # ── pre-registered constants (do not tune) ───────────────────────────────────
 
@@ -102,7 +127,10 @@ R4_EXPECT = dict(
            "cap_open": 5, "stop_loss": 4},
 )
 R4_DOLLAR_TOL = 1.0
-R3_EXPECT = dict(n=220, dates=90, dollars=63553.0)
+# NO R3_EXPECT. It was `dict(n=220, dates=90, dollars=63553.0)` and it gated R3
+# PASS/FAIL; see the module docstring's 2026-08-15 amendment for why a snapshot
+# checksum on the POPULATION (as opposed to R4's checksum on a re-implementation)
+# breaks on every legitimate re-export and had to go.
 
 # The ETF list for pick rule P6, fixed here and printed in the report.
 ETF_UNDERLYINGS = (
@@ -664,18 +692,25 @@ def r2_recon(diag: Counter) -> bool:
     return passed
 
 
-def r3_deployed(book: list[dict]) -> tuple[bool, list[dict]]:
-    hdr("R3 — the deployed ladder line reproduces the 08-12 vol_sleeve print")
+def r3_deployed(book: list[dict]) -> list[dict]:
+    """The deployed ladder line THIS book produces — printed, not gated.
+
+    Returns the picked rows; the H arm's universe is restricted to these dates
+    and every hedge number is read against this base, so the line has to be on
+    the page. It used to be compared against a stored 220/90/$63,553 and the
+    study exited 1 on any difference — a checksum of one export, which failed on
+    the 2026-08-15 refresh for no reason but the data being newer. Thin
+    populations are refused in main() with a date count instead.
+    """
+    hdr("R3 — the deployed ladder line this book produces (printed, NOT a gate)")
     picked = P.top_k_per_day(book, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
     st = P.replay_stats(picked)
     print(f"  deployed: {st['n']} positions over {st['dates']} dates, "
           f"${st['dollars']:,.0f}   meanR {st['mean_R']:+.3f}  win {st['win']:.0%}")
-    print(f"  expected: {R3_EXPECT['n']} positions over {R3_EXPECT['dates']} dates, "
-          f"${R3_EXPECT['dollars']:,.0f}")
-    ok = (st["n"] == R3_EXPECT["n"] and st["dates"] == R3_EXPECT["dates"]
-          and abs(st["dollars"] - R3_EXPECT["dollars"]) <= R4_DOLLAR_TOL)
-    print(f"  R3 {'PASS' if ok else 'FAIL'}")
-    return ok, picked
+    print("  (for orientation, the 2026-08-12 vol_sleeve print on the then-current "
+          "export was\n   220 positions / 90 dates / $63,553 — a different "
+          "population, not a target)")
+    return picked
 
 
 def r4_calendar_cell(store: Store, structure: str, snapshot_note: str) -> tuple[bool, list[dict]]:
@@ -1439,7 +1474,8 @@ def arm_s(universe: dict, idx, store: Store, book: list[dict], dep: dict,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gates-only", action="store_true",
-                    help="run R1-R4 and stop (non-zero exit if any gate fails)")
+                    help="run R1-R4 and stop (non-zero exit if a gate fails; R3 "
+                         "prints and never fails)")
     ap.add_argument("--arm", default="H", choices=("H", "S"),
                     help="H = the study proper (default); S = the structure sweep, "
                          "which refuses to run before the H-arm report exists")
@@ -1472,6 +1508,13 @@ def main(argv=None) -> int:
     print(f"  P6 ETF list ({len(ETF_UNDERLYINGS)}): " + " ".join(ETF_UNDERLYINGS))
 
     book, bdiag = load_book(include_bs=False)
+    # Refuse a thin era HERE — before `_strike_index()` and `build_universe()`,
+    # which are the expensive parts, and before any gate can mistake "there was
+    # nothing to test" for "the test failed". This study has no larger date floor
+    # of its own (POWER_STOP_MIN_N is a ROW count, applied to H2 downstream), so
+    # it takes the shared power floor.
+    era.require_dates(bdiag["n_dates"], bdiag["era"],
+                      what="the deployed-date universe and its worst decile")
     idx = VS._strike_index()
 
     # ---- gates ----
@@ -1479,9 +1522,7 @@ def main(argv=None) -> int:
     universe, udiag = build_universe(book)
     if not r2_recon(udiag):
         return 1
-    r3_ok, deployed = r3_deployed(book)
-    if not r3_ok:
-        return 1
+    deployed = r3_deployed(book)
 
     hdr("SYNTHESIS — building every candidate the universe can carry")
     print("  Results are checkpointed to the store keyed (structure, ticker, date,")
@@ -1510,7 +1551,7 @@ def main(argv=None) -> int:
     if not r4_ok:
         return 1
     if a.gates_only:
-        hdr("GATES ONLY — R1-R4 all pass; the H arm was not run")
+        hdr("GATES ONLY — R2 and R4 pass (R1/R3 print); the H arm was not run")
         return 0
 
     # ---- the deployed book, its dates, and its worst decile ----

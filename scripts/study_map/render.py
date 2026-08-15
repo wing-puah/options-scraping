@@ -20,6 +20,8 @@ from pathlib import Path
 
 from . import catalog, summary, tuning
 
+ROOT = Path(__file__).resolve().parents[2]
+
 ASSETS = Path(__file__).resolve().parent / "assets"
 TITLE = "Backtest Study Map"
 
@@ -125,6 +127,24 @@ def _run_state(run: summary.RunSummary) -> str:
     return f'<span class="run-state">last run {_e(when)} · {mark}</span>'
 
 
+def _record_path(name: str) -> str | None:
+    """Repo-relative path of `name`'s per-era record, or None if it has none yet.
+
+    Resolved through `scripts.study_results.record_path` rather than rebuilt
+    from a family string here — that module derives the family from the study's
+    real module directory, and a second derivation in the renderer is exactly
+    how the map would start pointing at files that do not exist. Imported
+    lazily for the same reason the catalog import below is: keeping module
+    import side-effect-free.
+    """
+    try:
+        from scripts.study_results import record_path
+    except ImportError:
+        return None
+    path = record_path(name)
+    return str(path.relative_to(ROOT)) if path.exists() else None
+
+
 def _run_block(run: summary.RunSummary) -> str:
     if not run.ran:
         return ('      <p class="caveat">No report on disk. Run '
@@ -132,6 +152,11 @@ def _run_block(run: summary.RunSummary) -> str:
                 'and this block fills in.</p>')
 
     meta = [f"<span><b>run</b> {_e(run.run_at)}</span>"]
+    # Always shown, "?" included: which population a number came from is not an
+    # optional detail here. A report predating the era line (2026-08-15) cannot
+    # say, and the map must show that it cannot rather than omit the field and
+    # read as though the question never arose.
+    meta.append(f"<span><b>era</b> {_e(run.era.split()[0] if run.era else '?')}</span>")
     if run.git:
         meta.append(f"<span><b>git</b> {_e(run.git)}</span>")
     if run.elapsed:
@@ -145,11 +170,20 @@ def _run_block(run: summary.RunSummary) -> str:
     caveats = []
     if run.refused:
         caveats.append('<p class="caveat">This run exited non-zero BY DESIGN — '
-                       f'{_e(run.name)} declared exit {run.exit_code} as a designed refusal '
-                       '(a pre-registered gate not met, or a guard refusing to compare a '
-                       'book against itself). Correct behaviour, not a broken run — see '
-                       '<code>scripts/backtest_study/run.py</code>\'s "Designed refusals" '
-                       'note.</p>')
+                       f'{_e(run.name)} exited {run.exit_code} as a designed refusal '
+                       '(a pre-registered gate not met, an export era that is not the one '
+                       'asked for, or an era too thin to conclude from). Correct behaviour, '
+                       'not a broken run — see <code>scripts/backtest_study/run.py</code>\'s '
+                       '"Designed refusals" note.</p>')
+        # Without this, a refused card is a dead end: it says the current era
+        # cannot answer and gives no route to the era that could. The record is
+        # the ONLY place a past era's numbers survive — the reports themselves
+        # are gitignored and are overwritten by exactly this kind of re-run.
+        rec = _record_path(run.name)
+        if rec is not None:
+            caveats.append('<p class="caveat">The last era that could answer is recorded in '
+                           f'<code>{_e(rec)}</code> — reports are gitignored scratch, so that '
+                           'file is where a past era\'s numbers survive.</p>')
     elif not run.ok:
         caveats.append('<p class="caveat is-warning">This run exited non-zero. For most '
                        'studies that is a calibration or input gate refusing to print '

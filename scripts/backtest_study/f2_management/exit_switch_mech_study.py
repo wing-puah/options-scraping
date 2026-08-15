@@ -81,6 +81,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from scripts.backtest_study.f2_management.exit_mechanism_study import Trade, replay, _pct, _to_float  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 
 # ── production exit profiles (source of truth: config/backtest.yml + Attempt 13) ──
 # NOTE: exit_mechanism_study.CREDIT_PROD still carries the pre-Attempt-13 sl=1.00.
@@ -114,10 +115,27 @@ CELL_VARIANT = {"BEAR_HE": V_TRAIL, "LVOL": V_TEFNULL, "RB_EVOL": V_PT110}
 
 POST13C_CUTOFF = pd.Timestamp("2026-07-13")
 
-DATA_DIR = ROOT / "backtests" / "to_evaluate"
-AC_PATH = DATA_DIR / "analysis - AnalysisClaude.csv"
-BR_PATH = DATA_DIR / "analysis - BacktestResults.csv"
-BP_PATH = DATA_DIR / "analysis - BacktestProxy.csv"
+# WHICH POPULATION THIS RUN READS — resolved through `lib/era.py`, never named.
+#
+# These used to be a hand-built directory plus the three BARE export filenames,
+# which look like a fixed input set and are not one: the vN_ tab rename is IN
+# PLACE, so `analysis - BacktestResults.csv` means whatever the live tab held at
+# export time. On 2026-08-15 a re-export turned four months of v3 evidence into
+# 14 dates of v4; this study kept running on a 74-row book and overwrote its
+# `-latest.txt` with numbers drawn from a population its recorded verdict
+# (BEAR_HE trail 0.50/0.50, SHIPPED) was never derived on.
+#
+# Resolved at import so `STUDY_ERA` — which the runner sets on the subprocess
+# before it starts — selects the export set; the guard itself runs inside
+# `load_debit_trades`, so importing this module for its replay helpers
+# (tests/test_exit_replay_gate.py does exactly that) can never exit the process,
+# while every caller that actually opens these files is guarded — including the
+# two studies that import the loader and never call this module's `main()`.
+_ERA = era.requested_era()
+_ERA_PATHS = era.resolve_paths(_ERA)
+AC_PATH = _ERA_PATHS["analysis"]
+BR_PATH = _ERA_PATHS["results"]
+BP_PATH = _ERA_PATHS["proxy"]
 SPY_VIX_FULL = ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 
 NEAR_MISS_TOL = 0.0001
@@ -309,9 +327,13 @@ def _classify(t, prod, unreachable):
     return "hard", want, got
 
 
-def load_debit_trades():
+def load_debit_trades(check_era: bool = True):
     """Returns (trades, diag). Each trade tagged .source (real/tweak/bs) and
     .calibrated (did it reproduce DEBIT_PROD exactly?).
+
+    `diag["era"]` is the era these exports actually ARE — the same key, with the
+    same meaning, `lib/book.py::load_book` puts in its own diag, so a caller can
+    hand it straight to `era.require_dates`.
 
     `diag["real_calib"]` tallies the four buckets `_classify` returns. The
     dollar totals come in two flavours: `stored`/`replay` over the CALIBRATED
@@ -319,6 +341,34 @@ def load_debit_trades():
     `stored_all`/`replay_all` over every real debit row (reporting only; these
     two are EXPECTED to differ once any row is superseded-basis)."""
     diag = {}
+
+    # THE ERA GUARD LIVES HERE, WITH THE LOADER — not in `main()`.
+    #
+    # It used to be the first statement of this module's `main()`, which
+    # protected exactly ONE of this loader's three callers. `bear_position_study`
+    # and `exit_switch_structure_study` import `load_debit_trades` and never call
+    # this module's `main()`, so they read the era-resolved exports and skipped
+    # the guard entirely. On 2026-08-15 that cost a full SHIP-GATE EVALUATION
+    # printed by the structure study off 10 dates of v4 — including its own
+    # "top-5 dates share of total: 100.0%" concentration warning, which it then
+    # went on to evaluate anyway. A guard on one entry point is not a guard on a
+    # shared loader; the guard belongs where the FILES are opened.
+    #
+    # Checked on the paths ACTUALLY used (the module-level globals, which a
+    # caller or a test may have repointed), which is the identical rule
+    # `load_book` states for its own path overrides: an override has to answer
+    # for its era too.
+    #
+    # `check_era=False` is the same escape hatch, with the same meaning, as
+    # `load_book(check_era=False)`: a caller handing this loader a SYNTHETIC book
+    # that is not any era at all (tests/test_exit_replay_gate.py writes two-row
+    # fixtures, one of them with an empty proxy file). It does NOT relax the date
+    # floor — that stays each study's own `era.require_dates` call, stated on the
+    # unit that study actually concludes from.
+    diag["era"] = era.enforce(
+        _ERA, {"results": BR_PATH, "proxy": BP_PATH, "analysis": AC_PATH}
+    ) if check_era else _ERA
+
     unreachable = unreachable_reasons(DEBIT_PROD)
 
     real = []
@@ -633,13 +683,28 @@ def summarize_folds(fold_gains, label):
 # ════════════════════════════════════════════════════════════════════════════
 
 def main():
+    # The book loads FIRST, ahead of `ensure_spy_vix()`, which will hit the
+    # network to build the SPY/VIX table. That ordering is the era guard's: it
+    # now lives inside `load_debit_trades` (see the comment there — a guard in
+    # this `main()` protected one of the loader's three callers), and loading
+    # first keeps a refusal (exit 3) free of a network fetch, exactly as it was
+    # when `era.enforce` was this function's first statement.
+    trades, diag = load_debit_trades()
+    actual_era = diag["era"]
+
     ensure_spy_vix()
     labeler = MechLabeler(compute_mech_table())
     post13c_lu = build_post13c_lookup()
 
     hdr("STEP 1 — DATA & MECH-LABEL COVERAGE")
-    trades, diag = load_debit_trades()
     recs = enrich(trades, labeler, post13c_lu)
+
+    # The shared power floor (exit 2), on the DEBIT book's distinct signal dates.
+    # That is the right unit here and not merely the convenient one: Step 3(b)'s
+    # leave-one-out folds are drawn per SIGNAL DATE, so the date count is the
+    # study's real sample size regardless of how many rows those dates carry.
+    era.require_dates(len({r["date"] for r in recs}), actual_era,
+                      what="the shared research floor; LOO folds are one per signal date")
 
     rc = diag["real_calib"]
     px = diag["proxy"]

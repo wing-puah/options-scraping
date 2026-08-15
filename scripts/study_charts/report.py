@@ -5,19 +5,78 @@ is deliberately strict: every section it wants is looked up by its exact banner
 title, and a missing section raises rather than yielding an empty chart. A study
 report that changed shape should break the build loudly — a chart drawn from a
 half-parsed report is worse than no chart.
+
+That strictness has one precondition, added 2026-08-16: the thing being parsed
+has to BE a report. Studies are era-scoped now, and a study whose era is too
+thin to conclude from REFUSES — it prints its refusal, exits with a designed
+non-zero code, and `run.py` promotes that to `-latest.txt` because it is the
+study's correct current status. Handing that to `parse()` produced a
+`ReportParseError` about a missing CONFIGURATION separator: true, useless, and
+pointing at the wrong file. `read_refusal()` below is the guard every entry
+point runs BEFORE parsing. It does not soften the loud path — a genuinely
+malformed report still raises, which is the property the paragraph above is
+about; it only stops that error being raised about a file that never claimed to
+be a full report.
 """
 from __future__ import annotations
 
 import re
 import textwrap
 from pathlib import Path
+from typing import NamedTuple
+
+# What counts as a DESIGNED refusal is the runner's vocabulary, not the chart
+# layer's — imported rather than re-listed here so the two cannot disagree. A
+# copy of `{2, 3}` in this file would go stale the day a third code is added,
+# and "the chart layer and the runner agree about what a refusal is" is the
+# entire content of this check.
+#
+# Two spellings because this module has two entry paths: the chart package is
+# imported as `scripts.study_charts.report` (repo ROOT on sys.path), while
+# `scripts/clean_study_output.py` runs as a script and gets only `scripts/` on
+# sys.path, where the same package is spelled `backtest_study.lib.era`.
+try:
+    from scripts.backtest_study.lib.era import DESIGNED_REFUSAL_EXIT_CODES
+except ImportError:  # running with scripts/ on sys.path, not the repo root
+    from backtest_study.lib.era import DESIGNED_REFUSAL_EXIT_CODES
 
 BANNER = "=" * 78
 POPULATIONS = {"primary": "PRIMARY dense episodes", "secondary": "SECONDARY full book"}
 
+# The runner's footer, written at the end of EVERY report it captures:
+#     ==============...
+#     exit code 2 after 1.9s
+#     ==============...
+# The exit code is the STRUCTURED fact about how a run ended, which is why it —
+# and not a grep for "REFUSED" in the body — is what `read_refusal` keys on. The
+# refusal WORDING is prose a study is free to reword; the code is declared in
+# `era.DESIGNED_REFUSAL_EXIT_CODES` and cannot drift silently.
+_EXIT_FOOTER_RE = re.compile(r"^exit code (-?\d+) after [\d.]+s\s*$", re.M)
+
+# The refusal text itself: `era._refuse` prints "\nREFUSED — <message>", where
+# the message may run to several indented lines, and the footer banner is the
+# next thing in the file. Captured only to QUOTE back to a human — never parsed
+# for meaning, so a reworded message costs nothing.
+_REFUSAL_RE = re.compile(r"^REFUSED —[ \t]*(.*?)(?=\n=====|\Z)", re.M | re.S)
+
+# What `parse_provenance` reports for a run that recorded no era. Reused by the
+# refusal path so an unknown era reads the same everywhere it is printed.
+UNKNOWN_ERA = "?"
+
 
 class ReportParseError(RuntimeError):
     """The report did not contain a section this renderer needs."""
+
+
+class Refusal(NamedTuple):
+    """A study's DESIGNED refusal, read off the report it wrote.
+
+    Not an error: the study ran, decided it had no business concluding
+    anything yet, and said so. Callers print it and skip.
+    """
+    code: int       # the runner's footer exit code, in DESIGNED_REFUSAL_EXIT_CODES
+    message: str    # the study's own REFUSED text, verbatim and unparsed
+    era: str        # the era that run read, from the provenance header
 
 
 def _num(text: str) -> float:
@@ -73,10 +132,65 @@ class Report:
                 return m
         raise ReportParseError(f"{self.path}: could not find {what}")
 
+    @property
+    def exit_code(self) -> int | None:
+        """The runner's footer exit code, or None on a report that has no footer.
+
+        LAST match, not first: the footer is the last thing in the file by
+        construction, and a study is free to print the phrase in its own body.
+        None covers a report captured some other way (a hand-saved excerpt, a
+        `tee` from before the runner existed) — those are not refusals and are
+        parsed as normal.
+        """
+        codes = _EXIT_FOOTER_RE.findall(self.text)
+        return int(codes[-1]) if codes else None
+
+    @property
+    def refusal(self) -> Refusal | None:
+        """This report's designed refusal, or None if it is a real report.
+
+        The exit code decides; the message is only quoted. A report that exits
+        with a refusal code but prints no REFUSED line still counts as one —
+        the code is the declaration, and saying so beats parsing a full report
+        out of a run that did not produce one.
+        """
+        code = self.exit_code
+        if code is None or code == 0 or code not in DESIGNED_REFUSAL_EXIT_CODES:
+            return None
+        found = _REFUSAL_RE.findall(self.text)
+        message = found[-1].strip() if found else (
+            f"(exit {code}, but the report carries no REFUSED line — "
+            f"read {self.path.name} in full)"
+        )
+        # The provenance header is written by the runner BEFORE the study runs,
+        # so a refusal has one. Degrading to UNKNOWN_ERA rather than raising
+        # keeps this guard total: its whole job is to answer "is this
+        # parseable?", and it must not itself become a way to fail.
+        try:
+            era = parse_provenance(self)["era"]
+        except ReportParseError:
+            era = UNKNOWN_ERA
+        return Refusal(code=code, message=message, era=era)
+
 
 # --------------------------------------------------------------------------
 # whole-report sections
 # --------------------------------------------------------------------------
+
+def read_refusal(path: Path) -> Refusal | None:
+    """`Refusal` if the report at `path` is a designed refusal, else None.
+
+    The guard every chart entry point runs before `parse()`. Returns None —
+    NOT a refusal — for anything it cannot read as a report at all, so a
+    genuinely malformed file falls through to `parse()` and raises there, in
+    the loud, specific way this module is built to. Deciding "unparseable"
+    here would swallow exactly the failure the strictness exists to catch.
+    """
+    try:
+        return Report(path.read_text(), path).refusal
+    except (OSError, ReportParseError):
+        return None
+
 
 def parse_provenance(rep: Report) -> dict:
     body = rep.body("STUDY:")
@@ -90,6 +204,8 @@ def parse_provenance(rep: Report) -> dict:
             out["git"] = m.group(1).strip()
         elif m := re.match(r"\s+python\s+(.+)", line):
             out["python"] = m.group(1).strip()
+        elif m := re.match(r"\s+era\s+(\S+)", line):
+            out["era"] = m.group(1).strip()
         elif m := re.match(r"\s+([\d,]+) rows\s+(\S+ \S+)\s+(.+)", line):
             out["inputs"].append(
                 {"rows": int(m.group(1).replace(",", "")), "mtime": m.group(2), "path": m.group(3).strip()}
@@ -97,6 +213,12 @@ def parse_provenance(rep: Report) -> dict:
     for key in ("run_at", "command", "git"):
         if key not in out:
             raise ReportParseError(f"{rep.path}: provenance header missing {key!r}")
+    # Not required: reports written before the era line existed (2026-08-15)
+    # are still parseable, and a caller that cares can test for the default.
+    # "?" rather than "current" on purpose — an old report genuinely does not
+    # record which era it ran on, and that is exactly the ambiguity that made
+    # the era line necessary. Do not let it answer to a real era name.
+    out.setdefault("era", UNKNOWN_ERA)
     out["structure_arm"] = "--structure-universe" in out["command"]
     # The second, independent arm axis: the compounding sensitivity re-marks
     # SIZING to realized equity. Derived from the command line for the same
@@ -107,22 +229,42 @@ def parse_provenance(rep: Report) -> dict:
 
 
 def parse_gates(rep: Report) -> dict:
+    """The GATES section's verdicts — G2..G5, four of them.
+
+    FOUR, not five, and the ids start at G2: `account_sim`'s G1 was a
+    book-calibration checksum against constants stored in the config, removed
+    2026-08-15 because those constants fingerprinted one export and so failed on
+    every legitimate data refresh. Its calibration numbers are still printed, in
+    a BOOK CALIBRATION section that renders no verdict — this parser
+    deliberately does not read them, because a page drawing them next to the
+    gate chips would re-imply the pass/fail they no longer carry.
+
+    The surviving gates were NOT renumbered: G2-G5 name specific checks in the
+    pre-registration and in every recorded verdict, so sliding them down one
+    would silently re-point that prose.
+    """
     body = rep.body("GATES —")
     gates = []
     for line in body:
         if m := re.match(r"\s+(G\d): (PASS|FAIL)(.*)", line):
             gates.append({"id": m.group(1), "status": m.group(2), "note": m.group(3).strip()})
-    if len(gates) != 5:
-        raise ReportParseError(f"{rep.path}: expected 5 gate verdicts, found {len(gates)}")
+    if len(gates) != 4:
+        raise ReportParseError(f"{rep.path}: expected 4 gate verdicts (G2-G5), found {len(gates)}")
     headline = rep.find(r"GATES: (.+)", body, "the GATES summary line").group(1).strip()
     titles = {
-        "G1": "Book calibration quoted, B1 line reproduced",
         "G2": "Scaling identity calibrated at scale=1 against stored rows",
         "G3": "Ledger accounting identity, checked after every event",
         "G4": "Unconstrained walk reproduces top_k_per_day by set equality",
         "G5": "The simulator is blind to how a position turned out",
     }
     for g in gates:
+        # Named, not `.get(..., "")`: an id this parser has no title for is a
+        # report whose gate set moved, and a chip captioned with a blank is how
+        # a renumbering would ship unnoticed.
+        if g["id"] not in titles:
+            raise ReportParseError(
+                f"{rep.path}: unknown gate {g['id']!r} — this parser knows "
+                f"{', '.join(sorted(titles))}")
         g["title"] = titles[g["id"]]
     return {"gates": gates, "headline": headline}
 

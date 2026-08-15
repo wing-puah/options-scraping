@@ -49,8 +49,7 @@ def make_settings(**over) -> Settings:
                 hedge_risk_fraction=0.5, episode_max_gap=5,
                 episode_min_dates=10, attrition_floor=0.60,
                 maxdd_fraction=0.25, ratio_tolerance=0.15,
-                g1_positions=220, g1_dates=90, g1_dollars=63_553.0,
-                g1_dollar_tol=1.0, compound_enabled=False,
+                compound_enabled=False,
                 mark_interval="month", budget_ceiling=1_000.0,
                 source=Path("test.yml"),
                 source_text="account:\n  capital: 25000\n")
@@ -859,10 +858,10 @@ def _full_config_dict() -> dict:
         "population": {"episode_max_gap": 5, "episode_min_dates": 10},
         "criteria": {"attrition_floor": 0.60, "maxdd_fraction": 0.25,
                      "ratio_tolerance": 0.15},
-        "gates": {"book_calibration": {"expected_positions": 220,
-                                       "expected_dates": 90,
-                                       "expected_dollars": 63_553,
-                                       "dollar_tolerance": 1.0}},
+        # No `gates:` group: `gates.book_calibration` was deleted 2026-08-15
+        # (a fingerprint of one export, not a hypothesis — it failed on data
+        # refreshes). `load_settings` reads nothing under `gates:` now, and a
+        # config still carrying the block is tolerated rather than refused.
     }
 
 
@@ -920,10 +919,6 @@ def test_load_settings_non_mapping_top_level_raises_config_error(tmp_path):
     ("criteria", "attrition_floor"),
     ("criteria", "maxdd_fraction"),
     ("criteria", "ratio_tolerance"),
-    ("gates", "book_calibration", "expected_positions"),
-    ("gates", "book_calibration", "expected_dates"),
-    ("gates", "book_calibration", "expected_dollars"),
-    ("gates", "book_calibration", "dollar_tolerance"),
 ])
 def test_load_settings_raises_naming_a_missing_required_key(tmp_path, path):
     cfg = copy.deepcopy(_full_config_dict())
@@ -1135,7 +1130,7 @@ def test_configuration_echo_marks_the_dollar_stop_as_initial_under_compounding(c
 def test_settings_cfg_threads_the_compounding_block_into_every_simulation():
     """`Settings.cfg()` is the single construction point, so an arm cannot be
     switched on for one simulation in the report and off for another by
-    accident — only an explicit keyword (which `run_gates` uses to pin G1-G4
+    accident — only an explicit keyword (which `run_gates` uses to pin G2-G4
     to the frozen basis) may override it."""
     st = make_settings(compound_enabled=True, mark_interval="quarter",
                        budget_ceiling=750.0)

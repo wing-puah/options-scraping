@@ -56,7 +56,11 @@ import pandas as pd
 from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[3]
-EVAL_DIR = ROOT / "backtests" / "to_evaluate"
+sys.path.insert(0, str(ROOT))
+
+from scripts.backtest_study.lib import era  # noqa: E402
+
+EVAL_DIR = era.EVAL_DIR
 
 # --- pre-registered constants. Changing these after a run invalidates it. ----
 MIN_V4_DATES = 20
@@ -72,11 +76,23 @@ ALPHA = 0.05
 # than FAILED, and to still promote `v4_bridge-latest.txt` on that exit — see
 # run.py's "Designed refusals" docstring note.
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
-# v3 carried these two; v4 dropped them (ROW_COLUMNS 27 -> 25). Era is detected
-# from the schema, never from the filename — the v3 and v4 exports are both
-# called "AnalysisClaude" after the in-place vN_ rename, and attributing numbers
-# to the wrong book has happened before (current.md, 07-22 vs 08-08).
-V3_ONLY_COLS = ("score_flow", "score_dealer")
+
+# Era detection (`era.detect_era`, `era.V3_ONLY_COLS`) is IMPORTED, not restated.
+# This file used to carry its own copy of both — v3 carried score_flow /
+# score_dealer, v4 dropped them, era read from the schema and never from the
+# filename, because both eras export as "AnalysisClaude" after the in-place vN_
+# rename and attributing numbers to the wrong book has happened before
+# (current.md, 07-22 vs 08-08).
+#
+# The copy was deleted on 2026-08-15 because it had DRIFTED from the shared rule
+# and was wrong in a way that only showed up off this file's own inputs: it
+# tested column PRESENCE alone. That is correct for `AnalysisClaude`, where v4
+# genuinely drops the column, and WRONG for the results exports, where
+# `RESULT_COLUMNS` (scripts/backtest/core.py) deliberately KEEPS score_flow /
+# score_dealer blank so loaders work on pooled v3+v4 books — presence-only reads
+# every v4 results export as v3. `era.detect_era` is `present AND at least one
+# non-blank value`, which is right for both shapes. Two encodings of "which
+# population is this" is exactly the class of bug this study exists to catch.
 
 STRUCTURES = ("bull_call_spread", "bull_put_spread", "bear_put_spread",
               "long_call", "long_put", "other")
@@ -141,10 +157,6 @@ def ladder_tier(structure: str, market_regime: str) -> str:
 # --------------------------------------------------------------------------
 # loading
 # --------------------------------------------------------------------------
-def detect_era(df: pd.DataFrame) -> str:
-    return "v3" if any(c in df.columns for c in V3_ONLY_COLS) else "v4"
-
-
 def _resolve(preferred: str) -> Path:
     """`preferred` if it exists, else the bare AnalysisClaude export."""
     p = EVAL_DIR / preferred
@@ -278,8 +290,22 @@ def main() -> int:
     v4_csv = args.v4_csv or _resolve("analysis - v4_AnalysisClaude.csv")
 
     a, b = load(v3_csv), load(v4_csv)
-    era_a, era_b = detect_era(pd.read_csv(v3_csv, nrows=1)), \
-        detect_era(pd.read_csv(v4_csv, nrows=1))
+
+    # PATHS, not frames. The old call read `pd.read_csv(path, nrows=1)` and
+    # handed the frame to a presence-only test, which a value-based rule cannot
+    # answer: one row is not enough to know whether score_flow is populated
+    # anywhere in the export. `era.detect_era` streams the file and
+    # short-circuits on the first non-blank value, so this stays cheap on the
+    # 11k-row analysis export while actually being able to tell the eras apart.
+    try:
+        era_a, era_b = era.detect_era(v3_csv), era.detect_era(v4_csv)
+    except ValueError as exc:
+        # Zero data rows: era is genuinely indeterminate, and defaulting such an
+        # export to "v4" would let a truncated file pass the guard below. Same
+        # class of refusal as the era swap, so it returns the same code.
+        print(f"\nABORT: {exc}")
+        print("  Re-export; refusing to assign an era to an empty book.")
+        return 3
     args.v3_csv, args.v4_csv = v3_csv, v4_csv
 
     print("=" * 74)
@@ -294,7 +320,8 @@ def main() -> int:
     # both exports are called "AnalysisClaude" and are trivially swapped.
     if era_a != "v3" or era_b != "v4":
         print(f"\nABORT: expected v3 then v4, got {era_a} then {era_b}.")
-        print("  v3 exports carry score_flow/score_dealer; v4 exports do not.")
+        print("  v3 exports carry POPULATED score_flow/score_dealer; v4 exports")
+        print("  leave them blank or drop the columns entirely (lib/era.py).")
         print("  Re-export, or swap --v3-csv/--v4-csv. Refusing to compare a")
         print("  book against itself and call the null a validation.")
         return 3

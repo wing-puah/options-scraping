@@ -169,7 +169,13 @@ def _write_book(tmp_path, monkeypatch, real_rows, proxy_rows=()):
                 w.writerow({c: r.get(c, "") for c in cols})
     monkeypatch.setattr(m, "BR_PATH", br)
     monkeypatch.setattr(m, "BP_PATH", bp)
-    return m.load_debit_trades()
+    # `check_era=False` for the same reason `load_book(check_era=False)` exists:
+    # these two-row fixtures are a SYNTHETIC book, not any prompt era, and one of
+    # them is a proxy file with a header and no data rows — which `era.enforce`
+    # correctly refuses (exit 3) as an export whose era is indeterminate. Turning
+    # the era check off is not turning the replay gate off; `harness_gate` below
+    # is what these tests pin, and it is untouched.
+    return m.load_debit_trades(check_era=False)
 
 
 def test_gate_passes_with_superseded_rows_and_keeps_them(tmp_path, monkeypatch, capsys):

@@ -1,6 +1,6 @@
-"""Tests for the `selection_order` study's PURE machinery.
+"""Tests for the `selection_order` study's PURE machinery, plus its gate path.
 
-No book load, no `arm_sim`/gate plumbing, no network: every test builds its own
+No book load and no network. Everything up to the closing section builds its own
 small `rec` dicts (and a hand-made `Trade` row, adapted from
 `tests/test_studies_account_sim.py::_hand_trade`) so the properties pinned here
 are the ones the pre-registration
@@ -28,6 +28,11 @@ are the ones the pre-registration
   * `evaluate_arm`'s seven-part bar is a strict AND -- failing any single
     part fails the whole arm, proven here from an all-seven-PASS baseline by
     flipping exactly one part at a time.
+
+The FINAL section is the exception to "pure": it constructs the shipped
+`account_sim.Settings` and runs G1/G2 against it, because the one break this
+file did not catch was a config field a gate read being deleted underneath it.
+See that section's preamble.
 """
 import sys
 import types
@@ -39,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pytest  # noqa: E402
 
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f4_deployment import selection_order as S  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade  # noqa: E402
@@ -397,3 +403,130 @@ def test_evaluate_arm_is_not_evaluable_with_no_paired_rows(capsys):
     capsys.readouterr()
     assert res["pass"] is False
     assert res["n_rows"] == 0
+
+
+# ── G1 / BOOK CALIBRATION: the gate path, exercised on the REAL Settings ────
+#
+# WHY THESE EXIST. On 2026-08-15 `account_sim` deleted `gates.book_calibration`
+# from `config/account-sim.yml` and the four `g1_*` fields from its `Settings`,
+# because those constants (220 positions / 90 dates / $63,553 / $1) fingerprinted
+# ONE export and so failed on every legitimate data refresh. `gate_g1` here read
+# the same four attributes off the same `Settings`, so the removal turned this
+# study's first gate into an AttributeError at runtime -- and NO test caught it,
+# because every test in this file works on the pure ranking machinery and none
+# ever constructed a `Settings` or entered a gate.
+#
+# So these do exactly that: build the SHIPPED settings object and run the gate
+# path against it. Any future field a gate reads and the config stops providing
+# now fails here, on the commit that removes it, rather than in a study run.
+
+def _sim_rec(signal: date, tier="A", mlpc=500.0, entry=50.0, mark=90.0, dte=5,
+             underlying=50.0, delta=0.05, ticker="TEST"):
+    """A rec `account_sim.simulate` can actually take a position on.
+
+    Adapted from `test_studies_account_sim.py::_fat_rec`, plus the `tier` /
+    `post13c` that `protocol.ladder_eligible` and `ladder_rank` read -- this
+    file's own `_rec` builds a RANKING surface only and is never simulated.
+    """
+    end = signal + timedelta(days=dte)
+    d, n = signal + timedelta(days=1), 0
+    while d <= end:
+        if d.weekday() < 5:
+            n += 1
+        d += timedelta(days=1)
+    row = _hand_trade([mark] * n, contracts=1, entry=entry, dte=dte,
+                      signal=signal)
+    row["entry_underlying"] = str(underlying)
+    return {"t": Trade(row), "credit": False, "structure": "long_call",
+            "mech_cell": "PROD", "max_loss_per_contract": mlpc, "delta": delta,
+            "date": signal.isoformat(), "ticker": ticker, "tier": tier,
+            "post13c": False}
+
+
+def _o0_sim(st, pop):
+    return A.simulate(P.ordered_by_day(pop, P.ladder_rank, P.ladder_eligible),
+                      st.cfg("O0 test", compound=False), cache=A.new_cache())
+
+
+def test_gate_g1_runs_against_the_shipped_settings_object(capsys):
+    """The regression guard: every attribute `gate_g1` reads must still exist.
+
+    Uses `load_settings(DEFAULT_CONFIG)` -- the real, committed config -- so a
+    field dropped from the YAML or from `Settings` raises here.
+    """
+    st = A.load_settings(A.DEFAULT_CONFIG)
+    pop = [_sim_rec(date(2025, 1, 6))]
+    ok = S.gate_g1(st, {"PRIMARY test": (pop, _o0_sim(st, pop))}, A.new_cache())
+    out = capsys.readouterr().out
+    assert ok is True
+    assert "identical" in out and "G1: PASS" in out
+
+
+def test_gate_g1_fails_when_the_arm_plumbing_is_not_neutral(capsys):
+    """G1's surviving job: O0 and a direct ladder walk must agree.
+
+    The baseline handed in was simulated on ONE of the population's two dates,
+    so the direct walk books more positions and the signatures diverge.
+    """
+    st = A.load_settings(A.DEFAULT_CONFIG)
+    pop = [_sim_rec(date(2025, 1, 6)), _sim_rec(date(2025, 2, 3))]
+    ok = S.gate_g1(st, {"PRIMARY test": (pop, _o0_sim(st, pop[:1]))},
+                   A.new_cache())
+    out = capsys.readouterr().out
+    assert ok is False
+    assert "DIVERGED" in out and "G1: FAIL" in out
+
+
+def test_gate_g1_no_longer_compares_the_book_line_to_a_stored_expectation(capsys):
+    """The removed half must not come back: no `expected (...)` line, and no
+    reference to the config group that no longer exists."""
+    st = A.load_settings(A.DEFAULT_CONFIG)
+    pop = [_sim_rec(date(2025, 1, 6))]
+    S.gate_g1(st, {"PRIMARY test": (pop, _o0_sim(st, pop))}, A.new_cache())
+    out = capsys.readouterr().out
+    assert "expected (" not in out
+    assert "book_calibration" not in out
+
+
+def test_print_book_calibration_prints_the_line_and_renders_no_verdict(capsys):
+    """The half that SURVIVED is descriptive: numbers, never a PASS/FAIL.
+
+    A verdict next to this line is what made it a snapshot checksum; the line
+    itself is the provenance of the book and stays.
+    """
+    picked = [{"date": "2026-03-10", "R_dol": 100.0},
+              {"date": "2026-03-10", "R_dol": 50.0},
+              {"date": "2026-03-11", "R_dol": None}]
+    S.print_book_calibration(picked)
+    out = capsys.readouterr().out
+    assert "NOT a gate" in out
+    assert "3 positions / 2 dates / $150" in out
+    assert "PASS" not in out and "FAIL" not in out
+
+
+def test_gate_g2_refuses_rather_than_failing_on_an_empty_population(capsys):
+    """UNTESTABLE is not FAIL.
+
+    On 2026-08-15 an empty population left G2's tripwire unarmed and printed six
+    arms of `sighted 0 blind 0 differing 0 -> DIVERGED`, which reads as "the rank
+    functions peek at outcomes". The truth was that there was nothing to test, so
+    G2 now refuses with `era.EXIT_THIN_ERA` instead of rendering a verdict.
+    """
+    st = A.load_settings(A.DEFAULT_CONFIG)
+    with pytest.raises(SystemExit) as exc:
+        S.gate_g2({"PRIMARY test": []}, st, st.budget)
+    out = capsys.readouterr().out
+    assert exc.value.code == era.EXIT_THIN_ERA
+    assert "NOT EVALUABLE" in out
+    assert "REFUSED" in out
+    assert "G2: PASS" not in out and "G2: FAIL" not in out
+    assert "DIVERGED" not in out
+
+
+def test_selection_order_declares_its_designed_refusal_exit_codes():
+    """`run.py` finds this by AST parse and never imports the module, so it has
+    to stay a literal module-level `set` of ints -- an alias to
+    `era.DESIGNED_REFUSAL_EXIT_CODES` would be invisible to it and a correct
+    refusal would be reported as FAILED with its report deleted."""
+    assert S.DESIGNED_REFUSAL_EXIT_CODES == {era.EXIT_THIN_ERA,
+                                             era.EXIT_ERA_MISMATCH}

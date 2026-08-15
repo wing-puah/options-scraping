@@ -60,7 +60,7 @@ def test_catalog_covers_exactly_the_runners_study_list():
     for its `--validate` diagnostics, and the map files it under infrastructure.
     """
     assert set(catalog.STUDIES) | {"book"} == set(study_runner.discover())
-    assert "book.py" in catalog.INFRA
+    assert "lib/book.py" in catalog.INFRA
 
 
 def test_every_study_has_a_known_family_and_state():
@@ -95,10 +95,14 @@ def test_exactly_the_two_gitignored_scratch_studies_are_retired():
 
 
 def test_infra_table_matches_the_runners_infra_set():
-    """catalog.INFRA is keyed by filename; run.INFRA by module stem, minus dunders."""
-    catalogued = {name.removesuffix(".py") for name in catalog.INFRA}
-    expected = {n for n in study_runner.INFRA if not n.startswith("__")} | {"book"}
-    assert catalogued == expected
+    """catalog.INFRA is keyed by path relative to scripts/backtest_study/ — run.py at
+    the package root, lib/<name>.py for everything under lib/ — while run.INFRA is
+    keyed by bare module stem, minus dunders."""
+    expected = {
+        "run.py" if stem == "run" else f"lib/{stem}.py"
+        for stem in study_runner.INFRA if not stem.startswith("__")
+    } | {"lib/book.py"}
+    assert set(catalog.INFRA) == expected
 
 
 # ── report parsing ────────────────────────────────────────────────────────────
@@ -261,8 +265,7 @@ VERDICT (second pass)
     assert "second pass" in run.excerpt[0]
 
 
-def test_failure_excerpt_quotes_the_abort_paragraph(tmp_path):
-    body = """\
+ABORT_BODY = """\
 running
 
 ABORT: expected v3 then v4, got v3 then v3.
@@ -271,9 +274,21 @@ ABORT: expected v3 then v4, got v3 then v3.
 
 unrelated trailing chatter
 """
-    write_report(tmp_path, "demo", body, rc=3)
+
+
+@pytest.mark.parametrize("rc, kind", [
+    # 3 is an era refusal, inherited by EVERY study from lib/era.py (see
+    # run._refusal_codes) — and this ABORT is exactly what emits it.
+    (3, "refusal"),
+    # 1 is nobody's designed code, so the same paragraph means a real failure.
+    (1, "failure"),
+])
+def test_abort_paragraph_is_quoted_whether_it_refused_or_failed(tmp_path, rc, kind):
+    """Same text, different verdict on what it means — the excerpt machinery
+    must not care which, or a refusal would lose its explanation."""
+    write_report(tmp_path, "demo", ABORT_BODY, rc=rc)
     run = summary.summarize("demo", tmp_path)
-    assert run.excerpt_kind == "failure"
+    assert run.excerpt_kind == kind
     assert run.excerpt[0].startswith("ABORT:")
     assert len(run.excerpt) == 3  # the abort line plus its own two lines, then the blank
 
@@ -461,10 +476,18 @@ def test_page_shows_refused_not_bad_styling_for_a_designed_refusal(tmp_path):
 
     assert '<span class="refused">refused (exit 3)</span>' in out
     assert "BY DESIGN" in out
-    assert "v4_bridge declared exit 3 as a designed refusal" in out
+    # "exited", not "declared": most studies never name these codes — they
+    # inherit the era pair from lib/era.py via run._refusal_codes, so claiming
+    # the study declared them would send a reader hunting a constant that is
+    # not in the file.
+    assert "v4_bridge exited 3 as a designed refusal" in out
     # A refusal must never be indistinguishable from a real failure's styling.
     assert '<span class="bad">refused' not in out
     assert 'kind">— BY DESIGN' in out  # the excerpt's own kind-note, not "did not finish"
+    # A refused card must route the reader to the era that COULD answer.
+    # Without it the card is a dead end: reports are gitignored scratch, so the
+    # record is the only place a past era's numbers survive.
+    assert "research/study-results/f1_selection/v4_bridge.md" in out
 
 
 def test_page_shows_retired_label_when_a_retired_study_has_no_report(tmp_path):

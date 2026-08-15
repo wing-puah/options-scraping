@@ -149,6 +149,18 @@ study-map:
 study-map-open:
 	$(PY) -m scripts.study_map --open
 
+# ── study record (per-era, TRACKED) ────────────────────────────────────────────
+# backtests/study_output/ is gitignored scratch — a re-run overwrites it, and on
+# 2026-08-15 one did, with nothing to recover from. This appends each study's
+# CURRENT report to research/study-results/<family>/<name>.md — the tree mirrors
+# scripts/backtest_study/, f1..f4 — one append-only section per
+# (export era, git sha), quoted verbatim. Run it while an era is still current:
+# once the suite is re-run on the next era, this is the only copy of this one's
+# answer. Idempotent — a re-run with nothing changed appends nothing.
+.PHONY: study-record
+study-record:
+	$(PY) -m scripts.study_results $(ARGS)
+
 # ── clean study output ─────────────────────────────────────────────────────────
 # Clear the study runner's scratch reports. Prompts before deleting, and pins
 # any report the tuning log cites or a study's gate greps for (--force to
@@ -374,9 +386,16 @@ help:
 	@echo "  make study ARGS=\"account_sim\"  run one study → backtests/study_output/<name>-latest.txt"
 	@echo "  make study ARGS=\"account_sim --dry-run\"  (also --cache-only, --redo, --date)"
 	@echo "  make study-all     run every study with its default args"
+	@echo "  make study-all ARGS=\"--era v3\"  run them against a PAST export era"
+	@echo "                     (default: the bare exports, i.e. the live tabs now;"
+	@echo "                      a study refuses if the era on disk is not the one asked for)"
 	@echo ""
 	@echo "  make study-map     rebuild site/study-map.html (what each study asks + its last run)"
 	@echo "  make study-map-open  rebuild it and open it in a browser"
+	@echo ""
+	@echo "  make study-record  append each study's current report to research/study-results/ (tracked, append-only)"
+	@echo "  make study-record ARGS=\"--dry-run\"  show what it would append, write nothing"
+	@echo "  make study-record ARGS=\"--study bear_arm\"  record one study"
 	@echo ""
 	@echo "  make clean        delete every regenerable file (scratch + study output)"
 	@echo "  make clean-dry    preview it, delete nothing"

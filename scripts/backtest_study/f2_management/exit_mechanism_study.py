@@ -1,18 +1,22 @@
 """Exit-mechanism study: replay stored daily marks under alternative exit rules.
 
-Replays the trades in backtests/results.csv using the STORED daily marks
-(daily_price_csv) — no scraping, no repricing — and evaluates a grid of exit
-variants per side (debit / credit) against the production rules. Same
+Replays the trades in the era's BacktestResults export using the STORED daily
+marks (daily_price_csv) — no scraping, no repricing — and evaluates a grid of
+exit variants per side (debit / credit) against the production rules. Same
 methodology as Attempts 7/9 (see research.md); the replay engine
 mirrors scripts/backtest/simulate.py::_summarize_path exit priority exactly,
-and a calibration gate (production rules must reproduce every results.csv
-row's exit_reason/days_held/realized_pnl_pct) runs before any variant table.
+and a calibration gate (production rules must reproduce every row's
+exit_reason/days_held/realized_pnl_pct) runs before any variant table.
+
+CHANGED 2026-08-15: the main book was `backtests/results.csv`, the rolling file
+every backtest run stomps. See MAIN_CSV below for what that cost and why the
+export replaced it. `--file` still overrides, so the old path is one flag away.
 
 Selection discipline (Attempt 8/9 lesson): variants are tuned and selected on
-results.csv ONLY, with leave-one-out and per-month deltas to catch a single
+the MAIN book ONLY, with leave-one-out and per-month deltas to catch a single
 correlated event deciding the sign. backtests/v1_20260625_results.csv is
 replayed as a for-context COMPARISON column (debit side only) — never a
-selection criterion.
+selection criterion, and deliberately a different prompt era.
 
 Underlying source for the credit-side breach rules: the short leg(s)' cached
 Barchart price-history `Price~` column (backtests/option_history_cache/), the
@@ -37,8 +41,41 @@ from lib.parsing import to_float as _to_float  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import parse_legs  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 
-MAIN_CSV = ROOT / "backtests" / "results.csv"
+# --- the two books, and why only ONE of them is era-resolved ----------------
+# MAIN is the CURRENT book, resolved through `lib/era.py` so `STUDY_ERA` selects
+# it. It used to be `backtests/results.csv` — the rolling file every
+# `python3 -m scripts.backtest` run stomps, which is era-blind in the worst way:
+# it is whatever the last local run happened to leave behind, with no filename,
+# schema, or header saying so. On 2026-08-15 that file held 5 debit rows from a
+# thin v4 run and the calibration gate below reported FAILED against it, which
+# is a diagnosis of the input rather than of the exit grid. The era-resolved
+# BacktestResults export is the same population every other management study
+# reads, and it says which era it is.
+MAIN_CSV = era.resolve_paths()["results"]
+
+# V1 is PINNED, deliberately and permanently. It is the for-context comparison
+# column (debit only, never a selection criterion — see the module docstring's
+# selection-discipline note), and its whole value is that it is a DIFFERENT
+# prompt era from MAIN. Era-resolving it would make it track MAIN and the
+# comparison would silently become a book against itself.
+#
+# EXEMPT FROM `era.enforce`, for the same reason `load_book(check_era=False)`
+# exists: this caller mixes eras BY DESIGN, so the guard's "these exports
+# disagree about their era" refusal would be refusing the study's entire point.
+# The exemption is scoped to the cross-era agreement check only — MAIN is still
+# era-RESOLVED above, so a run still reads the era it asked for.
+#
+# The exemption does NOT extend to the DATE FLOOR, and that distinction is the
+# whole of what `main()`'s `era.require_dates` call adds. The two guards answer
+# different questions: `enforce` asks "are these exports the population you
+# asked for", which a deliberately cross-era comparison must be allowed to say
+# no to; `require_dates` asks "is there enough of it to conclude from", which a
+# cross-era comparison is no more exempt from than any other study. On
+# 2026-08-15 this study ran a full variant grid, with LOO deltas and per-month
+# sign tables, off 10 dates of v4 on the MAIN side — correctly era-exempt and
+# still far too thin to read.
 V1_CSV = ROOT / "backtests" / "v1_20260625_results.csv"
 
 PATH_CAP_DAYS = 120          # config/backtest.yml simulation.path_cap_days
@@ -200,7 +237,10 @@ def replay(t: Trade, pt=None, sl=None, trig=None, trail=None, tef=None,
 
 def calibrate(trades: list[Trade], prod: dict, label: str) -> bool:
     print("=" * 100)
-    print(f"CALIBRATION ({label}): production rules replayed vs results.csv actuals")
+    # "the main book" rather than "results.csv": the input is era-resolved now,
+    # and a header naming a file the run did not read is how a report gets
+    # attributed to the wrong population.
+    print(f"CALIBRATION ({label}): production rules replayed vs the main book's actuals")
     print("=" * 100)
     ok = 0
     for t in trades:
@@ -342,6 +382,26 @@ def main() -> None:
 
     trades = load_trades(Path(args.file), side, load_underlying=need_underlying)
     print(f"{side} trades loaded from {args.file}: {len(trades)}")
+
+    # The shared power floor (exit 2), on the CURRENT side only. Stated on
+    # distinct signal dates because that is the unit every selection-relevant
+    # table below is cut by: `_delta_by_month` reads per-month signs and the
+    # Δ-LOO column drops one trade at a time against a book whose date spread is
+    # the only thing separating a rule from a single correlated event.
+    #
+    # The V1 side is deliberately NOT floored. It is the frozen for-context
+    # comparison column, never a selection criterion (see the module docstring),
+    # so its size is a property of a pinned file rather than of an era that can
+    # accrue — a floor there could only ever refuse permanently.
+    #
+    # The era named in the refusal is the one REQUESTED, not one detected off
+    # the file. Detecting it is the job of `era.enforce`, which this study is
+    # exempt from by design (see V1_CSV above), and `--file` can point MAIN at
+    # any export at all — so the honest label here is what was asked for.
+    era.require_dates(len({t.signal_date for t in trades}), era.requested_era(),
+                      what=f"the shared research floor, on the {side} side of "
+                           f"the CURRENT book")
+
     if need_underlying:
         thin = [t for t in trades
                 if sum(1 for d in t.grid if d in t.underlying) < len(t.grid) // 2]

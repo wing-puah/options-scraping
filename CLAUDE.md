@@ -15,7 +15,8 @@ navigate; put new prose where its reader will look for it.
 |---|---|---|
 | `config/` | MACHINE-READ ONLY — `*.yml`, plus `config/prompts/` for prose the code inlines into an LLM prompt (`analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/`) | yes |
 | `docs/` | How the system works and how to run it — `architecture.md`, `deployment-rules.md` (the operator card), and the column dictionaries | yes |
-| `research/` | What we learned and how — the tuning log (`current.md` + `archive/`), `pre-registrations/`, `deployment-evidence.md`, `study-map.md`, `glossary.md` | yes |
+| `research/` | What we learned and how — the tuning log (`current.md` + `archive/`), `pre-registrations/`, `study-results/` (append-only per-study, per-ERA record of what each study last printed;
+foldered `f1_selection/`…`f4_deployment/` to mirror `scripts/backtest_study/`), `deployment-evidence.md`, `study-map.md`, `glossary.md` | yes |
 | `site/` | GENERATED HTML — study map, study-chart pages, journal pages. Rebuilt by `make study-docs` | **no** (gitignored) |
 
 Pinned at the repo root and not movable: `CLAUDE.md`, `SKILL.md`, `GEMINI.md`, `modes/` — the
@@ -123,13 +124,32 @@ cd web && npm run dev   # http://localhost:3000
 Research tier (`backtest_study/`, `study_*`):
 
 - `scripts/backtest_study/lib/harness.py` is the FROZEN exit-replay engine — do not edit; every
-  recorded conclusion rests on it. Write-ups go to `research/current.md`.
+  recorded conclusion rests on it. `tests/test_harness_replay.py` pins its behaviour against a
+  committed fixture; that test is the regression check, not a study gate. Write-ups go to
+  `research/current.md`.
+- **A study runs on ONE ERA, names it, and refuses if the exports are not it.**
+  `scripts/backtest_study/lib/era.py` is the single encoding. The BARE export filename
+  (`analysis - BacktestResults.csv`) does NOT name a fixed population — a `vN_` rename makes it
+  mean whatever the live tab holds now, which on 2026-08-15 turned four months of v3 evidence
+  into 14 dates of v4 with no code change, failing 5 studies loudly and silently rewriting 14
+  more. `load_book()` resolves paths from `STUDY_ERA` (default `current`), refuses (exit 3)
+  when the exports are not the era asked for or disagree with each other, and refuses (exit 2)
+  an era too thin to conclude from. Run a past era with `--era v3`; every report's header names
+  the era it ran on. Do NOT pin a study to a frozen snapshot to dodge this, and do not lower
+  `MIN_ERA_DATES` to make a young era run.
+- **Never hardcode an expected figure off one export.** A stored `expected_positions: 220`
+  fingerprints a snapshot, not a hypothesis: the book grows, the constant breaks, and the
+  operator learns to edit it — which is what destroyed it as a check. Four gates did this and
+  are gone. A code-behaviour claim goes in `tests/`; a data claim goes in `research/` with its
+  population stated. Pre-registrations (`research/pre-registrations/`) stay immutable and are
+  read only by `scripts/study_review/` — no study code reads a number out of one.
 - `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
   There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
   `--structure-universe`, `--live-select`) writes its own report/CSV stem; a different
   `--config` does NOT — it overwrites the default export (the report records which config
-  produced it). Arms, gates (G1–G6), and the live-select judge cache: `docs/architecture.md`
-  §account_sim.
+  produced it). Arms, gates (G2–G5 — G1 was a stored book-calibration checksum, removed
+  2026-08-15; the survivors were deliberately NOT renumbered), and the live-select judge
+  cache: `docs/architecture.md` §account_sim.
 - `site/` is GENERATED OUTPUT and gitignored — a fresh checkout has no pages until
   `make study-docs` or any study run. It was called `docs/` until 2026-08-15; `docs/` is now
   TRACKED hand-written prose, so never point a generator at it.

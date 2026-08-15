@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.study_charts import compounding, regime, render, render_regime, report, series
+from scripts.study_charts import cli, compounding, regime, render, render_regime, report, series
 from scripts.study_charts.account_sim import site_dest, is_structure_arm, main, pick_report
 from scripts.study_charts.cli import is_compounding_arm
 
@@ -314,8 +314,15 @@ def make_report(path: Path, command: str = "python -m scripts.backtest_study.f4_
                    "  Sharpe, or time-to-recover appears anywhere in this report by construction.")
         + _section("CONFIGURATION — the account this run simulated (config/account-sim.yml)",
                    CONFIGURATION_BODY)
-        + _section("GATES — G1..G5 (non-zero exit on any failure)",
-                   "  G1: PASS\n  G2: PASS\n  G3: PASS  (0 violations)\n  G4: PASS\n  G5: PASS\n\n  GATES: ALL PASS")
+        + _section("BOOK CALIBRATION — descriptive provenance, NOT a gate",
+                   "  debit_calib      n=301  exact=289  near=0  hard=12\n"
+                   "  n_credit_ungated 277  (admitted WITHOUT the exact-replay gate)\n"
+                   "  B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553")
+        # Four gates, starting at G2: G1 was the book-calibration checksum,
+        # removed 2026-08-15. Its numbers are the section above, which carries
+        # no PASS/FAIL and which the parser deliberately ignores.
+        + _section("GATES — G2..G5 (non-zero exit on any failure)",
+                   "  G2: PASS\n  G3: PASS  (0 violations)\n  G4: PASS\n  G5: PASS\n\n  GATES: ALL PASS")
         + _section("POPULATION — dense episodes FIRST (primary), full book secondary",
                    "  deployed signal dates: 90  (2024-06-17 .. 2026-04-07)\n\n"
                    "--- dense episodes ----------------------------------------------------------\n"
@@ -404,9 +411,11 @@ def test_parse_reads_provenance_and_flags_the_plain_arm(parsed):
     assert prov["inputs"][0]["rows"] == 1926
 
 
-def test_parse_reads_all_five_gates(parsed):
+def test_parse_reads_all_four_gates(parsed):
+    """FOUR gates, ids starting at G2 — G1 (the book-calibration checksum) was
+    removed 2026-08-15 and the survivors were deliberately not renumbered."""
     gates = parsed["gates"]
-    assert [g["id"] for g in gates["gates"]] == ["G1", "G2", "G3", "G4", "G5"]
+    assert [g["id"] for g in gates["gates"]] == ["G2", "G3", "G4", "G5"]
     assert all(g["status"] == "PASS" for g in gates["gates"])
     assert gates["headline"] == "ALL PASS"
 
@@ -996,6 +1005,199 @@ def test_structure_arm_refuses_an_explicit_site_path(tmp_path):
         main(["--report", str(rep), "--positions", str(pos),
               "--out", str(tmp_path / "p.html"), "--site", str(site)])
     assert not site.exists()
+
+
+# ──────────────────── designed refusals: detect, skip, keep ─────────────────
+#
+# Studies are era-scoped: one whose era has too few signal dates REFUSES, exits
+# with a code declared in `era.DESIGNED_REFUSAL_EXIT_CODES`, and the runner
+# promotes THAT to `-latest.txt` because it is the study's correct current
+# status. The chart layer used to hand it to `parse()` and die on the first
+# section a refusal does not contain. These tests pin the guard AND, just as
+# importantly, pin that the guard did not soften the loud path it sits in front
+# of — a malformed report must still raise.
+
+def make_refusal(path: Path, *, era: str = "v4", code: int = 2,
+                 message: str = "era v4 has 10 dates; this study needs 30.",
+                 command: str = "python -m scripts.backtest_study.f4_deployment.account_sim") -> Path:
+    """What `run.py` captures when a study refuses: header, refusal, footer.
+
+    Shaped like the real thing (`backtests/study_output/account_sim-latest.txt`
+    on a thin era): the runner's provenance header — written BEFORE the study
+    runs, so a refusal always has one — then the study's own printed refusal,
+    then the runner's exit-code footer. No analysis sections at all, which is
+    exactly why parsing it was the bug.
+    """
+    text = (
+        _section("STUDY: account_sim",
+                 "  run at    2026-08-16 00:17:38\n"
+                 f"  command   {command}\n"
+                 "  git       53b7167 (main, working tree dirty)\n"
+                 "  python    3.11.2\n"
+                 f"  era       {era} (current — bare exports)\n"
+                 "  inputs:\n"
+                 "     142 rows  2026-08-15 19:01  backtests/to_evaluate/analysis - BacktestResults.csv")
+        + f"\nREFUSED — {message}\n"
+        + f"\n{BANNER}\nexit code {code} after 1.9s\n{BANNER}\n"
+    )
+    path.write_text(text)
+    return path
+
+
+def test_a_refusal_is_recognised_before_any_section_is_looked_for(tmp_path):
+    refused = report.read_refusal(make_refusal(tmp_path / "account_sim-latest.txt"))
+    assert refused is not None
+    assert (refused.code, refused.era) == (2, "v4")
+    assert refused.message.startswith("era v4 has 10 dates")
+
+
+def test_the_exit_code_decides_a_refusal_not_the_word_REFUSED(tmp_path):
+    """The structured fact, not the prose. A study is free to reword its
+    refusal; it is not free to change the code it declared."""
+    reworded = make_refusal(tmp_path / "reworded.txt",
+                            message="not enough dates yet, come back later")
+    assert report.read_refusal(reworded).code == 2
+
+    # The word without the code is NOT a refusal: a real report is free to
+    # discuss refusals (account_sim's own census has a `min1_refusal` bucket),
+    # and a body grep would strand that report unparsed.
+    talks_about_it = tmp_path / "talks.txt"
+    talks_about_it.write_text(
+        make_refusal(tmp_path / "src.txt").read_text().replace("exit code 2", "exit code 0"))
+    assert report.read_refusal(talks_about_it) is None
+
+
+def test_the_refusal_codes_are_the_runners_not_a_second_copy(tmp_path):
+    """Imported from era.py, so a third code cannot be added there and quietly
+    keep failing here."""
+    from scripts.backtest_study.lib import era
+    assert report.DESIGNED_REFUSAL_EXIT_CODES is era.DESIGNED_REFUSAL_EXIT_CODES
+    for code in era.DESIGNED_REFUSAL_EXIT_CODES:
+        path = make_refusal(tmp_path / f"r{code}.txt", code=code)
+        assert report.read_refusal(path).code == code
+
+
+def test_a_real_report_is_not_a_refusal(tmp_path):
+    assert report.read_refusal(make_report(tmp_path / "account_sim-latest.txt")) is None
+
+
+def test_a_malformed_report_still_raises_loudly(tmp_path):
+    """The property the refusal guard must not have traded away. A report that
+    ran to completion (exit 0) but lost a section is a REAL breakage and has to
+    keep breaking the build — silently skipping it would swap one silent
+    failure for another."""
+    path = make_report(tmp_path / "r.txt")
+    path.write_text(path.read_text().replace(
+        "[PRIMARY dense episodes] CAP GRID", "[PRIMARY] SOMETHING ELSE")
+        + f"\n{BANNER}\nexit code 0 after 12.0s\n{BANNER}\n")
+    assert report.read_refusal(path) is None
+    with pytest.raises(report.ReportParseError, match="CAP GRID"):
+        report.parse(path)
+
+
+def test_a_failed_run_is_not_treated_as_a_refusal(tmp_path):
+    """Exit 1 is a crash, not a designed refusal. Its report is malformed for
+    the same reason a refusal's is — but it must raise, not skip."""
+    path = make_refusal(tmp_path / "crashed.txt", code=1)
+    assert report.read_refusal(path) is None
+    with pytest.raises(report.ReportParseError):
+        report.parse(path)
+
+
+def test_main_skips_a_refusal_and_leaves_every_page_exactly_as_it_was(tmp_path):
+    """The whole point: exit 0, nothing written, and — critically — the pages
+    already on disk are not overwritten with a blank or partial redraw. They
+    were rendered from a real run of an earlier era and are the last good
+    visualisation there is."""
+    rep = make_refusal(tmp_path / "account_sim-latest.txt")
+    pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
+    out = tmp_path / "page.html"
+    site = tmp_path / "site" / "account-sim-charts.html"
+    site.parent.mkdir()
+    before = '<title>x</title><script>{"era": "v3"}</script>'
+    out.write_text(before)
+    site.write_text(before)
+
+    code = main(["--report", str(rep), "--positions", str(pos),
+                 "--out", str(out), "--site", str(site)])
+
+    assert code == 0
+    assert out.read_text() == before and site.read_text() == before
+
+
+def test_the_skip_says_which_era_the_kept_page_came_from(tmp_path, capsys):
+    """A page left on disk looks exactly as current as it did yesterday, so the
+    skip has to be the thing that says otherwise — naming BOTH eras, the one
+    the page was drawn from and the one that just refused."""
+    rep = make_refusal(tmp_path / "account_sim-latest.txt", era="v4")
+    pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
+    out = tmp_path / "page.html"
+    out.write_text('<script>{"era": "v3"}</script>')
+
+    main(["--report", str(rep), "--positions", str(pos), "--out", str(out), "--no-site"])
+
+    printed = capsys.readouterr().out
+    assert "SKIPPED" in printed and "era v4" in printed
+    assert "built from era v3" in printed
+    assert "wrote       nothing" in printed
+
+
+def test_a_page_with_no_era_is_called_unknown_not_stale(tmp_path, capsys):
+    """A page that records no era CANNOT be shown to disagree with the current
+    one. Saying it does would invent the fact the era line exists to stop
+    anyone inventing."""
+    rep = make_refusal(tmp_path / "account_sim-latest.txt")
+    pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
+    out = tmp_path / "page.html"
+    out.write_text("<title>a page from before the era line existed</title>")
+
+    main(["--report", str(rep), "--positions", str(pos), "--out", str(out), "--no-site"])
+
+    printed = capsys.readouterr().out
+    assert "records no era of its own" in printed
+    assert "built from era" not in printed
+
+
+def test_the_refusal_check_runs_before_the_positions_csv_is_required(tmp_path):
+    """A study that has only ever refused in this checkout never wrote a
+    positions CSV. Demanding one first would fail `make study-docs` with
+    'positions CSV not found' — true, and about the wrong thing."""
+    rep = make_refusal(tmp_path / "account_sim-latest.txt")
+    missing = tmp_path / "account_sim-positions-latest.csv"
+    code = main(["--report", str(rep), "--positions", str(missing),
+                 "--out", str(tmp_path / "page.html"), "--no-site"])
+    assert code == 0
+    assert not (tmp_path / "page.html").exists()
+
+
+def test_every_page_entry_point_skips_on_a_refusal(tmp_path):
+    """All three pages share `cli.run`, but each has its own `main` and its own
+    default positions file — so each is exercised, not just the one."""
+    plain = make_refusal(tmp_path / "account_sim-latest.txt")
+    comp = make_refusal(tmp_path / "account_sim-compounding-latest.txt",
+                        command="python -m scripts.backtest_study.f4_deployment.account_sim --compounding")
+    pos = make_positions(tmp_path / "account_sim-positions-latest.csv")
+    comp_pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
+    out = tmp_path / "page.html"
+    for entry, rep, positions in ((main, plain, pos),
+                                  (regime.main, plain, pos),
+                                  (compounding.main, comp, comp_pos)):
+        assert entry(["--report", str(rep), "--positions", str(positions),
+                      "--out", str(out), "--no-site"]) == 0
+        assert not out.exists()
+
+
+def test_page_era_reads_the_era_out_of_a_rendered_page(tmp_path, parsed, rows):
+    """The skip message's era claim comes off the page itself, not a sidecar —
+    so it stays true for a page nobody remembers rendering."""
+    populations = {pop: series.build(rows, pop, 25000.0) for pop in report.POPULATIONS}
+    page = tmp_path / "p.html"
+    prov = copy.deepcopy(parsed)
+    prov["provenance"]["era"] = "v3"
+    page.write_text(render.build(prov, populations, 25000.0,
+                                 {"report": "r.txt", "positions": "p.csv"}))
+    assert cli.page_era(page) == "v3"
+    assert cli.page_era(tmp_path / "nothing-here.html") == report.UNKNOWN_ERA
 
 
 # ─────────────────────── the regime cut: parse, check, draw ─────────────────

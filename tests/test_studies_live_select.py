@@ -332,4 +332,4 @@ def test_live_select_is_infrastructure_not_a_study():
     from scripts.study_map import catalog
     assert "live_select" in study_runner.INFRA
     assert "live_select" not in study_runner.discover()
-    assert "live_select.py" in catalog.INFRA
+    assert "lib/live_select.py" in catalog.INFRA

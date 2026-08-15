@@ -76,7 +76,7 @@ class Study:
     retired: str | None = None
 
 
-# ── the nineteen studies ──────────────────────────────────────────────────────
+# ── the twenty studies ────────────────────────────────────────────────────────
 STUDIES: dict[str, Study] = {
     # ① selection
     "regime_gap_reread": Study(
@@ -253,34 +253,42 @@ STUDIES: dict[str, Study] = {
 }
 
 # ── infrastructure ────────────────────────────────────────────────────────────
-# Mirrors run.INFRA plus book.py, which the runner lists as a study for its
+# Mirrors run.INFRA plus lib/book.py, which the runner lists as a study for its
 # --validate diagnostics but which carries no verdict of its own.
 INFRA: dict[str, str] = {
     "run.py": "The runner. Writes backtests/study_output/<name>-latest.txt with a "
-              "provenance header — git sha, dirty flag, exact argv, input row counts and "
-              "mtimes — so no write-up can attribute numbers to the wrong export.",
-    "harness.py": "FROZEN. Trade / replay. It prices nothing; it replays a stored mark "
+              "provenance header — git sha, dirty flag, exact argv, era, input row counts "
+              "and mtimes — so no write-up can attribute numbers to the wrong export. A "
+              "genuine failure DELETES -latest.txt rather than leaving a stale one.",
+    "lib/era.py": "Which prompt-version ERA an export belongs to, and where that era's "
+              "files live. The bare filename does not name a fixed population — a vN_ "
+              "rename makes it mean whatever the live tab holds now, which on 2026-08-15 "
+              "turned four months of v3 evidence into 14 dates of v4 with no code change. "
+              "Detects the era (populated score_flow = v3), refuses a run whose exports "
+              "are not the era asked for or disagree with each other, and refuses an era "
+              "too thin to conclude from.",
+    "lib/harness.py": "FROZEN. Trade / replay. It prices nothing; it replays a stored mark "
                   "series. Every recorded conclusion depends on its exact exit priority, "
                   "clamps and rounding, and a behavioural change would invalidate the log "
                   "SILENTLY. Changing the exit mechanism means copying this file.",
-    "book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
-               "default — they are priced FROM the model that scores them.",
-    "live_select.py": "The `account_sim --live-select` arm: research tier importing "
+    "lib/book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
+                   "default — they are priced FROM the model that scores them.",
+    "lib/live_select.py": "The `account_sim --live-select` arm: research tier importing "
                       "PRODUCTION, so the simulated decision is the live decision. Runs "
                       "scripts/journal/recommend.py's rank() + judge() over history in "
-                      "place of book.py's port of the ladder, and reports selection "
+                      "place of lib/book.py's port of the ladder, and reports selection "
                       "coverage, ladder divergence, and the judge layer's bounded effect. "
                       "Carries no verdict — it is not a study.",
-    "protocol.py": "The four defences every conclusion rests on: date clustering, purging "
+    "lib/protocol.py": "The four defences every conclusion rests on: date clustering, purging "
                    "plus a 120-day embargo, same-dates comparison, and window-dominance "
                    "re-cuts.",
-    "underlying.py": "Daily stock bars — real OHLC, falling back to close-only Price~. The "
-                     "widening that harness.py is deliberately frozen out of.",
-    "underlying_features.py": "As-of-entry price-STATE columns: rv20, Parkinson, semivar, "
-                              "ATR%, efficiency ratio, VRP, beta. This family is the ML "
-                              "re-open condition — none of it existed when B1 searched "
-                              "496 subsets.",
-    "volume_features.py": "As-of-entry VOLUME columns: unusual-O/S (flow contracts / "
+    "lib/underlying.py": "Daily stock bars — real OHLC, falling back to close-only Price~. The "
+                         "widening that lib/harness.py is deliberately frozen out of.",
+    "lib/underlying_features.py": "As-of-entry price-STATE columns: rv20, Parkinson, semivar, "
+                                  "ATR%, efficiency ratio, VRP, beta. This family is the ML "
+                                  "re-open condition — none of it existed when B1 searched "
+                                  "496 subsets.",
+    "lib/volume_features.py": "As-of-entry VOLUME columns: unusual-O/S (flow contracts / "
                           "share volume), relative-volume z, Amihud. Split-guarded, "
                           "rescaled tickers withheld from the window features. Built for "
                           "volume_signal (NULL) and kept for future pre-registered use.",

@@ -53,6 +53,21 @@ from scripts.backtest_study.f2_management.exit_switch_mech_study import (  # noq
     load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
     hdr, sub,
 )
+from scripts.backtest_study.lib import era  # noqa: E402
+
+# WHICH POPULATION THIS RUN READS — the era-resolved exports `load_debit_trades`
+# opens, selected by `STUDY_ERA`. No paths are named here: importing the loader
+# is what makes this the same pooled debit book as addenda 4 and 12, and a second
+# set of path constants would be a second encoding of that.
+#
+# Both era guards apply, and neither used to. The ERA check (exit 3) moved into
+# `load_debit_trades` on 2026-08-15 — it had been a statement in the mech study's
+# `main()`, which this study never calls, so this study was reading the exports
+# with no guard on which era they were. The DATE FLOOR (exit 2) is `main()`'s
+# call below. Without them this study ran to a printed VERDICT on 10 dates of v4:
+# a bootstrap CI resampled from ~10 distinct dates and a "both time halves
+# negative" test whose halves are ~5 dates each, feeding a DEMOTE/CONSTRAIN
+# decision on docs/deployment-rules.md §"Bear positions — hedge sleeve".
 
 TARGET = "bear_put_spread"
 COMP = "bull_call_spread"
@@ -159,9 +174,24 @@ def boot_ci(rows, key="E", n=BOOT_N):
 
 
 def main():
+    # The book loads FIRST — ahead of `ensure_spy_vix()`, which hits the network
+    # to build the SPY/VIX table — because `load_debit_trades` carries the era
+    # guard (exit 3) and a refusal should not be paid for with a network fetch.
+    # Same call and same order as both exit-switch studies' `main()`.
+    trades, diag = load_debit_trades()
+
+    # The shared power floor (exit 2), on distinct signal dates. Dates are the
+    # unit this study concludes on, not a convenient proxy for rows: C2's
+    # bootstrap resamples SIGNAL DATES (`boot_ci` clusters by date), C3 and the
+    # pre-registered decision rule split at the median signal date, and the
+    # CONSTRAIN clause needs both of those halves populated. A book of ~10 dates
+    # gives a bootstrap ~10 things to draw from and two half-books of ~5.
+    era.require_dates(len({t.signal_date.isoformat() for t in trades}), diag["era"],
+                      what="the shared research floor; the bootstrap and both "
+                           "time halves are cut by signal date")
+
     ensure_spy_vix()
     labeler = MechLabeler(compute_mech_table())
-    trades, diag = load_debit_trades()
     hdr("BOOK")
     # Same gate as both exit-switch studies — one shared implementation.
     harness_gate(diag, study="bear position")

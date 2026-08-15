@@ -202,13 +202,47 @@ equals its catalog `family`. `lib/` holds the shared substrate: import-only (exc
 --validate`) and carries no verdict of its own — see `research/study-map.md` for what each study
 in the family folders concluded.
 
-- `run.py` — runner; every report carries a provenance header (git sha + input row counts).
-  Flags: `--date`, `--dry-run`, `--cache-only` (no scraping), `--redo` (re-evaluate frozen
-  rows), `--all`.
+- `run.py` — runner; every report carries a provenance header (git sha + era + input row
+  counts). Flags: `--date`, `--dry-run`, `--cache-only` (no scraping), `--redo` (re-evaluate
+  frozen rows), `--all`, `--era`. A designed refusal is PROMOTED to `-latest.txt`; a genuine
+  failure DELETES it, so a study never has a report that no longer reproduces.
+- `lib/era.py` — **which export era a study runs on.** The single encoding; read its module
+  docstring before touching any input path.
+
+  A `vN_` prompt bump renames the LIVE Sheets tabs in place, so the bare export name
+  `analysis - BacktestResults.csv` does not name a fixed population — it names whatever the
+  live tab held when it was exported. On 2026-08-15 a refresh turned four months of v3
+  evidence into 14 dates of v4 with no code change: five studies refused on calibration gates
+  and fourteen silently promoted reports computed on a 74-row book.
+
+  | era | prefix | detection |
+  |---|---|---|
+  | `current` (default) | none — the bare exports | whatever `detect_era` reports |
+  | `v3` | `analysis - v3_*.csv` | `score_flow` present AND populated |
+  | v4 | — | `score_flow` absent (analysis) or present-but-blank (results/proxy) |
+
+  Presence alone is NOT the test: `RESULT_COLUMNS` deliberately keeps `score_flow` /
+  `score_dealer` on v4 so loaders keep working, so the results exports carry the column in
+  both eras and only the values separate them. A future v5 also lacks a populated
+  `score_flow` and would report here as "v4" — add its discriminator at that bump.
+
+  Two designed refusals, inherited by every study from the runner rather than restated per
+  module: **exit 3** when the exports are not the era asked for, or disagree with each other
+  (a half-finished re-export); **exit 2** when the era holds fewer than `MIN_ERA_DATES` (30)
+  distinct signal dates. The floor is a POWER floor — permanently satisfied once an era
+  reaches it — not a stored figure that rots on the next refresh. Studies needing more check
+  again with their own number (`ml_combination` needs 31 and says so).
+
+  Selected via `STUDY_ERA`, set for a whole run by `run --era v3`. `load_book(check_era=False)`
+  is the escape hatch for a caller deliberately mixing eras (`v4_bridge`, and the studies that
+  pin a v1/v2 comparison export); it must say why.
 - `lib/harness.py` — FROZEN exit-replay engine. Do not edit: every recorded conclusion rests on
   it; changing it invalidates all prior tuning conclusions.
 - `lib/book.py` — pooled real+proxy book loader with dedup + the exact-replay calibration gate
-  (bs-tier rows excluded by default).
+  (bs-tier rows excluded by default). Era-scoped: resolves its three exports from `lib/era.py`,
+  enforces the era, and applies the date floor. `diag` carries `era`, `n_dates`, `date_range`.
+  `--validate` passes `min_dates=0` — the diagnostic's job is to describe whatever book is
+  there, including one too thin to study.
 - `lib/underlying.py` — daily stock bars (real OHLC → `Price~` close-only fallback; the all-legs
   widening harness.py must not get). `lib/underlying_features.py` — as-of-entry price-STATE
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry
@@ -220,9 +254,21 @@ in the family folders concluded.
 
 Config-driven and stateless: `config/account-sim.yml` is the whole parameter surface —
 capital, risk %, positions/day, the two delta-notional caps, the cap/capital grids, hedge
-fraction, dense-episode definition, A2/A3/A5 thresholds, G1's expected book line, and the
-compounding arm's `mark_interval`/`budget_ceiling`. Copy it and pass `--config` to simulate a
-different account; there are no per-parameter CLI flags.
+fraction, dense-episode definition, A2/A3/A5 thresholds, and the compounding arm's
+`mark_interval`/`budget_ceiling`. Copy it and pass `--config` to simulate a different account;
+there are no per-parameter CLI flags. Nothing under `gates:` — the gates are logic checks with
+nothing to configure.
+
+The gates are **G2–G5**, and there is deliberately no G1. It was a checksum of the deployed
+book line (`220 positions / 90 dates / $63,553`) against constants in
+`config/account-sim.yml`; removed 2026-08-15 because those constants fingerprinted ONE export
+and so fired on every legitimate data refresh, whose only fix was to re-type them. The
+property it stood in for — the FROZEN `lib/harness.py` replay still behaving identically — is
+a code property and moved to the pytest suite. The calibration numbers it printed
+(`debit_calib`, `n_credit_ungated`, the B1 line) are still reported, in a **BOOK CALIBRATION**
+section that renders no verdict; quote them as the provenance of the book, never as evidence
+the book is unchanged. The survivors were NOT renumbered — G2–G5 name specific checks in the
+pre-registration and in every recorded verdict.
 
 ONE `run account_sim` produces BOTH BASES as two arms of the same run:
 
@@ -236,7 +282,7 @@ ONE `run account_sim` produces BOTH BASES as two arms of the same run:
   CLOSED BEFORE the mark session (open positions are never marked to market) and is a sizing
   number only, so G3 still balances against STARTING capital. Post-hoc: A1–A6 were
   pre-registered against the path-independent sim; A2/A5 DO NOT TRANSFER (their B2 benchmark
-  compounds too, so the ratio stops isolating the caps) — the report says so inline. G1–G4
+  compounds too, so the ratio stops isolating the caps) — the report says so inline. G2–G4
   stay pinned to the frozen basis; G5 runs sighted-vs-blind on BOTH bases and must match on
   each.
 
@@ -261,7 +307,7 @@ Other arms:
   replay are unchanged (`live_select.py`; a `ranker` hook on `simulate()` that is None on
   every other path). Own report (`account_sim-live-select-latest.txt`) and CSV; treated as a
   SINGLE-arm run (never files under account_sim's stem, never drags the compounding arm
-  along). G1–G4 stay pinned to the frozen basis; G5 is RE-RUN with the shipped selector in
+  along). G2–G4 stay pinned to the frozen basis; G5 is RE-RUN with the shipped selector in
   the loop; G6 (nothing reaches the ledger that rank() did not clear) runs on the arm. It
   evaluates NO pre-registered criterion — A1–A6 were registered against the frozen selector's
   candidate set and do not transfer.
@@ -283,6 +329,19 @@ Other arms:
 `python3 -m scripts.study_review <name>` runs the study then analyst A/B + validator + digest
 (`--skip-run` reuses `<name>-latest.txt`; `--dry-run` exercises the pipeline, no LLM).
 Outputs `<name>-review-{analyst-a,analyst-b,validator}-latest.md` + `<name>-digest-latest.md`.
+
+**`scripts/study_results.py`** — the per-ERA record: `make study-record` reads each
+`<name>-latest.txt` and appends a section to `research/study-results/<family>/<name>.md`,
+tracked and append-only, keyed on `(era, git sha)` so an unchanged re-run appends nothing.
+The folder MIRRORS `scripts/backtest_study/`'s `f1_selection/` → `f4_deployment/` layout, and
+derives it from the module's real parent directory rather than a table, so the two cannot
+drift. Fields come from `study_map.summary.summarize()` — the same extractor the map uses, so
+excerpts stay verbatim and there is no second header parser to go stale.
+
+Necessary because a study runs on the CURRENT era only: the moment v4 matures and the suite is
+re-run, v3's reports are overwritten and the v3-vs-v4 comparison would have nothing on the v3
+side. `backtests/study_output/` is gitignored scratch; this is where a result survives. The
+tuning log holds the reasoning, this holds the index.
 
 **`scripts/study_map/`** — renders `site/study-map.html`: what each study asks (`catalog.py`,
 hand-written — a study with no entry FAILS the test suite) + what its last run printed

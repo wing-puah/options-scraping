@@ -15,6 +15,7 @@ scripts/backtest_study/f1_selection/regime_gap_reread.py — see the block clear
 """
 
 import re
+import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -25,11 +26,37 @@ pd.set_option("display.max_columns", 50)
 # Repo-root-anchored so the study runs from any CWD (it used to depend on
 # being launched from the repo root, which broke silently under the runner).
 ROOT = Path(__file__).resolve().parents[3]
-DATA_DIR = f"{ROOT}/backtests/to_evaluate"
-AC_PATH = f"{DATA_DIR}/analysis - AnalysisClaude.csv"
-BR_PATH = f"{DATA_DIR}/analysis - BacktestResults.csv"
-BP_PATH = f"{DATA_DIR}/analysis - BacktestProxy.csv"
+sys.path.insert(0, str(ROOT))
+
+from scripts.backtest_study.lib import era  # noqa: E402
+
+# WHICH POPULATION THIS RUN READS — resolved through `lib/era.py`, never named.
+#
+# These three constants used to be a hand-built directory plus the three BARE
+# export filenames. That looked like a fixed input set and is not one: the vN_
+# tab rename is IN PLACE, so `analysis - BacktestResults.csv` means whatever the
+# live tab held at export time. On 2026-08-15 a re-export turned four months of
+# v3 evidence into 14 dates of v4 and this study kept running — quietly, on a
+# 74-row book — because nothing here ever asked what it was reading.
+#
+# COST OF NOT HAVING THIS: this study is `state="shipped"` in the study map. Its
+# `-latest.txt` was overwritten with numbers from the thin v4 book while the
+# recorded verdict (mech_cell adopted, BEAR_HE override keyed off it) still
+# pointed at v3 evidence. See `lib/era.py`'s module docstring for the full
+# account.
+_ERA = era.requested_era()
+_ERA_PATHS = era.resolve_paths(_ERA)
+AC_PATH = _ERA_PATHS["analysis"]
+BR_PATH = _ERA_PATHS["results"]
+BP_PATH = _ERA_PATHS["proxy"]
 SPY_VIX_PATH = f"{ROOT}/backtests/mech_regime/spy_vix_daily.csv"
+
+# Refuses (exit 3) when what is on disk is not the era asked for, or when the
+# three exports disagree with EACH OTHER — a half-finished re-export, which is
+# worse than either era alone. Same call, same argument order, same place in the
+# flow as `lib/book.py::load_book`: a study that builds its own paths must not
+# end up guarded differently from one that goes through the shared loader.
+_ACTUAL_ERA = era.enforce(_ERA, _ERA_PATHS)
 
 POST13C_CUTOFF = pd.Timestamp("2026-07-13")
 
@@ -199,6 +226,14 @@ pooled["abs_delta"] = pooled["delta"].abs()
 
 post13c_true = pooled["post13c"] == True  # noqa: E712
 post13c_df = pooled[post13c_true].copy()
+
+# The shared power floor (exit 2), applied on the SIGNAL DATES of the pooled
+# book — the unit every cut below is averaged over, and the one the leave-one-out
+# folds are drawn from. `load_book` applies the identical floor for the studies
+# that go through it; this study assembles its own book, so it states it here.
+# Not a snapshot fingerprint: it is satisfied permanently once an era reaches it.
+era.require_dates(int(pooled["date"].nunique()), _ACTUAL_ERA,
+                  what="the shared research floor; every cut below is a per-date cell")
 
 # END OF REUSED BLOCK
 # ===========================================================================

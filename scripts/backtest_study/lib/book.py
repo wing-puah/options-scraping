@@ -118,11 +118,18 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from lib.mech_regime import MechLabeler  # noqa: E402
+from scripts.backtest_study.lib import era as era_mod  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade, _pct, _to_float, replay  # noqa: E402
 
-DEFAULT_RESULTS_CSV = ROOT / "backtests" / "to_evaluate" / "analysis - BacktestResults.csv"
-DEFAULT_PROXY_CSV = ROOT / "backtests" / "to_evaluate" / "analysis - BacktestProxy.csv"
-DEFAULT_ANALYSIS_CSV = ROOT / "backtests" / "to_evaluate" / "analysis - AnalysisClaude.csv"
+# Resolved for the era this PROCESS was asked for (`STUDY_ERA`, default
+# `current`). Import-time resolution is correct because the runner sets the env
+# var on the subprocess before it starts — see `era.requested_era`. `load_book`
+# resolves from its own `era` argument rather than these, so an in-process
+# caller can ask for a different era without them going stale.
+_ERA_PATHS = era_mod.resolve_paths()
+DEFAULT_RESULTS_CSV = _ERA_PATHS["results"]
+DEFAULT_PROXY_CSV = _ERA_PATHS["proxy"]
+DEFAULT_ANALYSIS_CSV = _ERA_PATHS["analysis"]
 MECH_TABLE_CSV = ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 
 # Production exit profiles (source of truth: config/backtest.yml + Attempt 13,
@@ -357,7 +364,10 @@ def load_book(results_csv: str | Path | None = None,
              analysis_csv: str | Path | None = None,
              include_bs: bool = False,
              sources: set[str] | None = None,
-             require_proxy_calibration: bool = True) -> tuple[list[dict], dict]:
+             require_proxy_calibration: bool = True,
+             era: str | None = None,
+             check_era: bool = True,
+             min_dates: int | None = None) -> tuple[list[dict], dict]:
     """Load the pooled real+proxy book across ALL structures.
 
     Returns (records, diag). `diag["counts_by_source"]` reflects the FULL
@@ -371,14 +381,33 @@ def load_book(results_csv: str | Path | None = None,
     calibration-gate section before passing it: it is only sound for callers
     that re-replay every row and ignore the stored outcome. Orthogonal to
     `include_bs` — opening this gate does NOT re-admit `bs_options_hist` rows.
+
+    `era` picks which set of exports to read (default: `STUDY_ERA`, else
+    `current`). `check_era=True` then REFUSES if what is on disk is not that
+    era, or if the three exports disagree with each other — see
+    `scripts/backtest_study/lib/era.py` for why this guard exists. Pass
+    `check_era=False` only from a caller deliberately mixing eras, and say why.
+
+    `min_dates` is the power floor: `None` takes `era.MIN_ERA_DATES`, an int
+    sets it explicitly, and `0` disables it for a caller whose job is to report
+    on whatever is there (the `--validate` diagnostic below). Only applied when
+    `check_era` is on.
     """
-    results_csv = Path(results_csv) if results_csv else DEFAULT_RESULTS_CSV
-    proxy_csv = Path(proxy_csv) if proxy_csv else DEFAULT_PROXY_CSV
-    analysis_csv = Path(analysis_csv) if analysis_csv else DEFAULT_ANALYSIS_CSV
+    era = era or era_mod.requested_era()
+    era_paths = era_mod.resolve_paths(era)
+    results_csv = Path(results_csv) if results_csv else era_paths["results"]
+    proxy_csv = Path(proxy_csv) if proxy_csv else era_paths["proxy"]
+    analysis_csv = Path(analysis_csv) if analysis_csv else era_paths["analysis"]
+
+    # Checked on the paths ACTUALLY used, not on the resolved defaults — an
+    # explicit override has to answer for its era too.
+    in_use = {"results": results_csv, "proxy": proxy_csv, "analysis": analysis_csv}
+    actual_era = era_mod.enforce(era, in_use) if check_era else era
 
     ac_lookup = _build_analysis_lookup(analysis_csv)
 
     diag = {
+        "era": actual_era,
         "counts_by_source": {"real": 0, "tweak": 0, "bs": 0},
         "n_dup_dropped": 0,
         "n_excluded_no_path_or_method": 0,
@@ -481,6 +510,21 @@ def load_book(results_csv: str | Path | None = None,
     diag["date_range"] = (dates[0], dates[-1]) if dates else (None, None)
     diag["n_dates"] = len(dates)
 
+    # The shared power floor, applied HERE so a study that forgets to add its
+    # own is still protected — the failure mode this guards against is a new
+    # study quietly concluding from ten dates, and relying on every author to
+    # remember a guard is how that ships.
+    #
+    # A study whose real requirement is higher checks again after this with its
+    # own number (ml_combination needs 31, and says so); the redundancy is
+    # deliberate. Tied to `check_era` because a caller with a synthetic partial
+    # book has already declared it is not asserting on population.
+    if check_era and min_dates != 0:
+        era_mod.require_dates(
+            len(dates), actual_era,
+            minimum=min_dates if min_dates is not None else era_mod.MIN_ERA_DATES,
+            what="the shared research floor; this study may need more")
+
     return records, diag
 
 
@@ -496,7 +540,7 @@ def _print_validate(records: list[dict], diag: dict) -> None:
           "  ".join(f"{k}={v}" for k, v in Counter(r["structure"] for r in records).most_common()))
     print("By year: " +
           "  ".join(f"{k}={v}" for k, v in sorted(Counter(r["date"][:4] for r in records).items())))
-    print(f"n_dates={diag['n_dates']}  date_range={diag['date_range']}")
+    print(f"era={diag['era']}  n_dates={diag['n_dates']}  date_range={diag['date_range']}")
     print(f"dup dropped={diag['n_dup_dropped']}  "
           f"excluded (no path/method)={diag['n_excluded_no_path_or_method']}  "
           f"construction failures={diag['n_trade_construction_failed']}")
@@ -520,8 +564,12 @@ def main() -> None:
     ap.add_argument("--analysis-csv", default=None)
     args = ap.parse_args()
 
+    # min_dates=0: this is the pre-flight diagnostic. Its whole job is to
+    # report what the book IS — including that it is too thin to study — so it
+    # must not refuse the way a study does. The era check still applies: a book
+    # assembled from mismatched exports is not a book worth describing.
     records, diag = load_book(args.results_csv, args.proxy_csv, args.analysis_csv,
-                              include_bs=args.include_bs)
+                              include_bs=args.include_bs, min_dates=0)
     if args.validate:
         _print_validate(records, diag)
     else:

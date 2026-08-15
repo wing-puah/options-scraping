@@ -14,6 +14,7 @@ import pytest
 import scripts.study_map.build as map_build
 import scripts.study_map.catalog as smc
 from scripts.backtest_study import run as study_runner
+from scripts.backtest_study.lib import era
 
 
 class _FakeChartModule:
@@ -201,7 +202,11 @@ def test_run_one_promotes_the_stamped_report_to_latest_on_a_zero_exit(monkeypatc
     assert "exit code 0" in body
 
 
-def test_run_one_leaves_latest_untouched_and_warns_on_a_nonzero_exit(monkeypatch, tmp_path, capsys):
+def test_run_one_deletes_latest_and_warns_on_a_real_failure(monkeypatch, tmp_path, capsys):
+    """A genuine failure (no declared refusal codes at all here) DELETES the
+    canonical -latest.txt rather than leaving a prior good run in place — a
+    stale report and a freshly-contaminated one were indistinguishable on
+    disk, and a report that no longer reproduces is worse than none."""
     monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
     monkeypatch.setattr(study_runner, "_header",
                         lambda name, argv, module=None: "HEADER\n")
@@ -217,9 +222,11 @@ def test_run_one_leaves_latest_untouched_and_warns_on_a_nonzero_exit(monkeypatch
     assert out_path.exists()
     assert "gate crashed" in out_path.read_text()
     # ...but the canonical -latest.txt that the map/charts/study_review quote
-    # is left exactly as it was before this failed attempt.
-    assert latest.read_text() == "SENTINEL: previous good run"
+    # is gone — the study now has NO current report rather than a stale one
+    # masquerading as current.
+    assert not latest.exists()
     err = capsys.readouterr().err
+    assert "fake_study-latest.txt DELETED" in err
     assert "*** fake_study FAILED (exit 3)" in err
 
 
@@ -234,14 +241,21 @@ def test_refusal_codes_reads_v4_bridges_real_declaration():
     assert study_runner._refusal_codes("v4_bridge") == frozenset({2, 3})
 
 
-def test_refusal_codes_is_empty_for_a_study_with_no_declaration():
-    """bear_deploy declares no DESIGNED_REFUSAL_EXIT_CODES — every non-zero
-    exit of its is a real failure, unchanged."""
-    assert study_runner._refusal_codes("bear_deploy") == frozenset()
+def test_refusal_codes_falls_back_to_the_era_codes_for_a_study_with_no_declaration():
+    """bear_deploy declares no DESIGNED_REFUSAL_EXIT_CODES of its own, and still
+    gets the era ones.
+
+    Those two are emitted by shared infrastructure — `lib/era.py`, reached the
+    moment any study calls `load_book` — not by the study, so a study cannot
+    opt out of being able to emit them. Requiring each module to restate the
+    same two integers would be a rule the next study forgets, and forgetting it
+    is expensive now: an undeclared refusal reads as a FAILURE, which deletes
+    the study's `-latest.txt`."""
+    assert study_runner._refusal_codes("bear_deploy") == era.DESIGNED_REFUSAL_EXIT_CODES
 
 
-def test_refusal_codes_is_empty_for_an_unknown_name():
-    assert study_runner._refusal_codes("not_a_real_study_xyz") == frozenset()
+def test_refusal_codes_falls_back_to_the_era_codes_for_an_unknown_name():
+    assert study_runner._refusal_codes("not_a_real_study_xyz") == era.DESIGNED_REFUSAL_EXIT_CODES
 
 
 def test_run_one_promotes_latest_and_notes_a_refusal_on_a_declared_exit_code(
@@ -266,8 +280,11 @@ def test_run_one_promotes_latest_and_notes_a_refusal_on_a_declared_exit_code(
     assert "FAILED" not in err
 
 
-def test_run_one_still_fails_on_an_exit_code_outside_the_declared_set(
+def test_run_one_deletes_latest_on_an_exit_code_outside_the_declared_set(
         monkeypatch, tmp_path, capsys):
+    """This is the load-bearing distinction: a code IN refusal_codes promotes
+    -latest.txt (previous test); a code OUTSIDE it is a real bug, and this one
+    deletes the previous good run rather than leaving it in place."""
     monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
     monkeypatch.setattr(study_runner, "_header",
                         lambda name, argv, module=None: "HEADER\n")
@@ -280,8 +297,34 @@ def test_run_one_still_fails_on_an_exit_code_outside_the_declared_set(
                                         refusal_codes=frozenset({2, 3}))
 
     assert rc == 1
-    assert latest.read_text() == "SENTINEL: previous good run"
+    assert not latest.exists()
+    # The timestamped attempt report is still written, for debugging.
+    assert out_path.exists()
+    assert "boom" in out_path.read_text()
     err = capsys.readouterr().err
+    assert "fake_study-latest.txt DELETED" in err
+    assert "*** fake_study FAILED (exit 1)" in err
+
+
+def test_run_one_deleting_an_absent_latest_does_not_crash(monkeypatch, tmp_path, capsys):
+    """No prior -latest.txt existed (first-ever run, or already cleaned) — the
+    delete must be a no-op (missing_ok=True), and the message says 'absent'
+    rather than claiming something was DELETED."""
+    monkeypatch.setattr(study_runner, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(study_runner, "_header",
+                        lambda name, argv, module=None: "HEADER\n")
+    monkeypatch.setattr(study_runner.subprocess, "Popen",
+                        lambda *a, **k: _FakePopen(["boom\n"], 1))
+    latest = tmp_path / "fake_study-latest.txt"
+    assert not latest.exists()
+
+    rc, out_path = study_runner.run_one("fake_study", [], dry_run=False)
+
+    assert rc == 1
+    assert not latest.exists()
+    err = capsys.readouterr().err
+    assert "fake_study-latest.txt absent" in err
+    assert "DELETED" not in err
     assert "*** fake_study FAILED (exit 1)" in err
 
 
@@ -587,15 +630,17 @@ def test_main_does_not_render_charts_for_a_study_with_no_chart_module(monkeypatc
 # ─────────────────────── main()'s stderr failure summary ────────────────────
 
 def test_main_prints_a_stderr_failure_summary_when_a_study_fails(monkeypatch, capsys):
-    _stub_run_one(monkeypatch, lambda stem: 2)
+    """Exit 1, not 2: 2 and 3 are the era refusals that every study now
+    inherits, so they are reported as REFUSED rather than counted here."""
+    _stub_run_one(monkeypatch, lambda stem: 1)
     _stub_charts(monkeypatch)
 
     rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
 
-    assert rc == 2
+    assert rc == 1
     err = capsys.readouterr().err
     assert "*** STUDY FAILURES:" in err
-    assert "bear_deploy (exit 2)" in err
+    assert "bear_deploy (exit 1)" in err
 
 
 def test_main_prints_no_failure_summary_when_every_study_succeeds(monkeypatch, capsys):

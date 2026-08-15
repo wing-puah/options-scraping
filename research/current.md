@@ -3,6 +3,79 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-15, THE BARE EXPORT NAME IS NOT A POPULATION — studies
+are era-scoped now, and four stored checksums are gone).** A re-export at 19:01
+rewrote `backtests/to_evaluate/analysis - {BacktestResults,BacktestProxy,
+AnalysisClaude}.csv` from 1,926/4,533/11,836 rows to 142/404/1,306. Nothing was
+lost — the v3 tabs were exported alongside at 19:03 under `v3_` names — but the
+bare filenames had silently changed era, and with them the population every
+study reads.
+
+**The failure was not the five studies that stopped.** `make study-all` reported
+`ml_combination` (an unguarded `IndexError`), `calendar_hedge` (R3),
+`account_sim` and its compounding arm (G1), and `selection_order` (G2). Those
+were gates refusing a book that had collapsed from 795 records over 118 dates
+(2024-06-17 .. 2026-04-07) to 74 over 10 (2024-01-10 .. 2024-02-20) — the
+system working. **Fourteen other studies ran to completion on that 74-row book
+and promoted their `-latest.txt`**, so a report contradicting its own recorded
+verdict was indistinguishable on disk from a current one. `backtests/` is
+gitignored and no earlier stamped copies survived; `53b7167` folded what could
+still be recovered into this file and `archive/13`–`14` and marked the rest
+not-retained.
+
+**Cause.** A `vN_` bump renames the LIVE tabs in place, so the bare export name
+means *whatever the live tab held at export time* — it is not a stable
+population, and `lib/book.py` had no era concept at all. It never chose v3; it
+inherited v3 because that is what those filenames used to contain.
+`archive/09-v3-closeout.md` recorded the assumption that broke — *"Study code is
+unaffected — it reads CSV exports by filename, not tabs"* — which was true of
+the filename and false of its contents. `run.py`'s provenance header already
+carried row counts and mtimes; both moved, and both look like an ordinary
+refresh.
+
+**Fix — `scripts/backtest_study/lib/era.py`, the single encoding.** A study runs
+on ONE era, names it in its header, and refuses if the exports are not it.
+Detection is `score_flow` PRESENT AND POPULATED (v3 dropped it at the bump and
+it is not coming back); presence alone is wrong, because `RESULT_COLUMNS`
+deliberately keeps the column on v4 so loaders keep working — v3 results are
+406/406 non-blank, v4 0/30. `load_book` resolves paths per era, refuses (exit 3)
+on a requested-vs-actual mismatch or on exports that disagree with each other,
+and refuses (exit 2) below a shared 30-date power floor. `--era v3` reruns a past
+era. Both codes are inherited by EVERY study from the runner rather than
+restated per module. A genuine failure now DELETES `-latest.txt` — safe only
+because the common non-zero exit became a promoted refusal.
+
+**Four stored checksums deleted, not repaired.** `account_sim` G1,
+`selection_order` G1 and `calendar_hedge` R3 all compared the book against
+`220 positions / 90 dates / $63,553`. That is a fingerprint of one export, not a
+hypothesis: it breaks on every legitimate refresh, which teaches the operator to
+edit it, which is what destroys it as a check. The property they were really
+guarding — that the FROZEN `harness.py` still replays identically — is a CODE
+claim and now lives in `tests/test_harness_replay.py`, 28 rows covering all nine
+reachable exit reasons, both sides, the rounding clamp and seven exit-priority
+collisions. Of eleven perturbations of `harness.py`, nine fail the test; the two
+that do not are unreachable from v3 data and are recorded as gaps.
+`calendar_hedge` R4 KEEPS its constants deliberately — it is a re-implementation
+check against a cache snapshot, which is exactly what a fixed expectation should
+catch. The calibration numbers G1 printed survive as descriptive provenance
+under a banner that renders no verdict. **Gate ids were NOT renumbered**: G2–G5
+are named in the pre-registrations and in recorded verdicts, and sliding them
+down one would silently re-point that prose.
+
+**Reading older entries.** Verdicts below that quote `G1: PASS` or
+`expected (account-sim.yml gates.book_calibration): 220 / 90 / $63,553` are
+quoted verbatim from runs where that gate existed. They stand as recorded; the
+gate does not. Nothing in a shipped rule moved.
+
+**What this means for v4.** Current-era-only is now the policy — prior eras'
+results live here, in prose, with their population stated, rather than being
+pooled into a live book. v4 today is 14 dates: 4 of ordinary 2026 cadence
+(08-11 .. 08-14) and 10 backfilled neutral dates (2024-01-10 .. 02-20) from
+`enrich_queue_pilot`, which are the only ones carrying backtest rows yet. So most
+studies will REFUSE until v4 clears 30 dates. That is the honest output of a
+young era, not a regression — and with queues a/b cleared to run, the backfill
+will clear it far faster than the daily cadence would.
+
 **State of play (2026-08-15, `enrich_queue_pilot` COMPLETE — kill switch NOT
 FIRED, queues a/b are GO).** The first 10 neutral dates are scraped, enriched,
 analysed and backtested; **9 of 10 produced ≥1 priceable A/B-tier row** against

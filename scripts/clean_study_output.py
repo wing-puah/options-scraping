@@ -67,6 +67,16 @@ GATE_MARKERS = ("H2 (primary)",)
 # Files a CODE PATH reads. Pinned regardless of what any write-up says: removing
 # one breaks a build rather than losing evidence, so a write-up must never be
 # the thing keeping them alive.
+#
+# Re-checked 2026-08-16, when the chart layer learned to SKIP on a study's
+# designed refusal. Both pins still hold, and for the original reason: the
+# skip is about a report that EXISTS and says "refused", while these entries
+# are about the file being GONE. With no account_sim report at all,
+# `cli.pick_report` still raises SystemExit and `make study-docs` still fails.
+# The positions pin narrowed slightly — a refusal path no longer reads the CSV
+# — but a real report still does, and the two `-latest` files are only ever
+# deleted together (`--all` takes both, `--keep-latest` keeps both), so there
+# is no cleanup that leaves one without the other.
 CODE_INPUTS = {
     "account_sim-latest.txt":
         "scripts/study_charts/cli.py raises without it and `make study-docs` "

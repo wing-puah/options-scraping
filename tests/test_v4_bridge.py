@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 from backtest_study.f1_selection import v4_bridge as vb
+from backtest_study.lib import era
 
 
 # --------------------------------------------------------------------------
@@ -81,9 +82,27 @@ def test_play_structure(text, expected):
     assert vb.play_structure(text) == expected
 
 
-def test_detect_era_reads_the_schema_not_the_filename():
-    assert vb.detect_era(_book(_dates(1, "LVOL", ["bull_call_spread"]), "v3")) == "v3"
-    assert vb.detect_era(_book(_dates(1, "LVOL", ["bull_call_spread"]), "v4")) == "v4"
+def test_detect_era_reads_the_schema_not_the_filename(tmp_path):
+    """v4_bridge no longer owns this rule — `lib/era.py` does (2026-08-15).
+
+    Its private copy tested column PRESENCE and was handed `read_csv(nrows=1)`,
+    which cannot express the shared rule (`present AND at least one non-blank
+    value`) at all. The test keeps running against v4_bridge's own book fixtures
+    so a future divergence in what THIS study feeds the detector still fails
+    here, but the assertion is now on the one shared implementation.
+    """
+    v3 = _write(tmp_path, "v3.csv", _book(_dates(1, "LVOL", ["bull_call_spread"]), "v3"))
+    v4 = _write(tmp_path, "v4.csv", _book(_dates(1, "LVOL", ["bull_call_spread"]), "v4"))
+    assert era.detect_era(v3) == "v3"
+    assert era.detect_era(v4) == "v4"
+
+    # The case the deleted copy got WRONG: `RESULT_COLUMNS` keeps score_flow on
+    # v4, blank, so a results export carries the column in both eras. Presence
+    # alone read every v4 results export as v3.
+    blank = _book(_dates(1, "LVOL", ["bull_call_spread"]), "v4")
+    blank["score_flow"] = ""
+    blank["score_dealer"] = ""
+    assert era.detect_era(_write(tmp_path, "v4_blank.csv", blank)) == "v4"
 
 
 def test_load_excludes_market_rows_and_joins_the_market_regime(tmp_path):

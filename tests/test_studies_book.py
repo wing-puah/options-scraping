@@ -89,6 +89,13 @@ def _isolate_mech_table(tmp_path, monkeypatch):
 
 
 def _load(paths, **kw):
+    # check_era=False: these fixtures are deliberately partial/synthetic books
+    # (no populated score_flow, often only one of results/proxy on disk) built
+    # to exercise load_book's own semantics (calibration gate, bs exclusion,
+    # mech fallback, sources filter) — not era detection, which era.enforce()
+    # would otherwise refuse outright. Callers can still pass check_era=True
+    # explicitly to exercise that guard.
+    kw.setdefault("check_era", False)
     return book.load_book(results_csv=paths["results"], proxy_csv=paths["proxy"],
                           analysis_csv=paths["analysis"], **kw)
 

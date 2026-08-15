@@ -68,7 +68,7 @@ MAX_LINE_CHARS = 150
 
 _RULE = re.compile(r"^={10,}$")
 _FOOTER = re.compile(r"^exit code (-?\d+) after ([\d.]+)s\s*$")
-_FIELD = re.compile(r"^ {2}(run at|command|git|python)\s+(.*)$")
+_FIELD = re.compile(r"^ {2}(run at|command|git|python|era)\s+(.*)$")
 _INPUT = re.compile(r"^\s*([\d,]+) rows\s+(\S+ \S+)\s+(.*)$")
 _MISSING_INPUT = re.compile(r"^\s*MISSING\s+(.*)$")
 
@@ -110,6 +110,11 @@ class RunSummary:
     command: str = ""
     git: str = ""
     python: str = ""
+    # Which export era the run read. Empty on any report written before the era
+    # line existed (2026-08-15) — rendered as "?" rather than assumed, because
+    # an old report genuinely does not record it, and that silence is exactly
+    # what let a v4 re-export be read as v3 across fourteen studies.
+    era: str = ""
     inputs: list[tuple[str, str, str]] = field(default_factory=list)  # rows, mtime, path
     missing_inputs: list[str] = field(default_factory=list)
     exit_code: int | None = None

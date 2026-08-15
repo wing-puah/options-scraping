@@ -11,6 +11,11 @@ window cuts) — read that module's docstring before changing anything here. Dat
 comes from `book.py` (real + strike_expiry_tweak only; bs_options_hist is
 excluded as evidence per the 2026-08-11 decision).
 
+REFUSES (exit 2) on a book too thin for the purged walk-forward to emit a single
+test block, and (exit 3) on an export set that is not the era asked for. Both are
+the correct answer on a young era, not a failure — see `MIN_BOOK_DATES` and
+`lib/era.py`.
+
 DEVIATION from the plan, recorded here and in ml-plan.md: the gradient-boosting
 model is sklearn's HistGradientBoosting rather than LightGBM/XGBoost. Same
 algorithm family (histogram GBM with the same depth/leaf/L2 controls), no libomp
@@ -24,6 +29,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import math
 import statistics
 import sys
 from pathlib import Path
@@ -34,17 +40,47 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
 
 OUT_DIR = ROOT / "backtests" / "study_output"
 SEED = 20260811
 
+# Exit codes this study returns as a DESIGNED refusal to produce a result rather
+# than as a failure: 2 = the era is too thin for the purged walk-forward to emit
+# a single block (see MIN_BOOK_DATES below), 3 = `load_book`'s era guard refusing
+# an export set that is not the era asked for. Both are the study's CORRECT
+# current status on a young book, so `run.py` promotes the refusal to
+# `-latest.txt` instead of keeping older numbers under a newer date. It reads
+# this by AST parse and never imports the module, so it MUST stay a literal
+# module-level assignment — `era.DESIGNED_REFUSAL_EXIT_CODES` would be invisible
+# to it and every refusal here would be reported as FAILED.
+DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+
 # Walk-forward geometry. The 120-day embargo is expensive on a book of only
 # ~118 dates, so blocks are kept small to buy back test coverage: at block=15 /
 # min_train=40 only 43 dates were ever tested, which is too thin to call a null.
 BLOCK = 10
 MIN_TRAIN_DATES = 30
+
+# The smallest date count at which `P.walk_forward_splits` can emit even ONE
+# block, DERIVED from the geometry above rather than stated:
+#   - candidate test blocks start at multiples of BLOCK, so the first start that
+#     can hold MIN_TRAIN_DATES training dates is ceil(MIN_TRAIN_DATES / BLOCK) *
+#     BLOCK — with 30/10 that is index 30, not 30 exactly by coincidence;
+#   - a test block must be non-empty, so one further date has to exist AT that
+#     index. Hence + 1.
+# This is a COUNT floor and nothing more. The 120-day embargo can still purge a
+# nominally-sufficient train set (`train` is filtered to dates >= 120 calendar
+# days before the test block), so a book can clear this and still yield no
+# block; main() diagnoses that case separately rather than folding the two.
+#
+# COST OF NOT HAVING THIS: on 2026-08-15 the bare exports were refreshed and the
+# book went from ~1,900 rows / 142 dates to 74 rows / 10 dates. The split yielded
+# nothing, `tested_dates[0]` raised IndexError, and the study's answer to "is the
+# era too young to conclude from" was a traceback.
+MIN_BOOK_DATES = math.ceil(MIN_TRAIN_DATES / BLOCK) * BLOCK + 1
 
 # ── feature groups (ablation units; see ml-plan.md Phase 4) ──────────────────
 CAT_LADDER = ["structure", "model_dir", "model_vol"]
@@ -517,6 +553,14 @@ def main() -> int:
 
     hdr("PHASE 0 — dataset assembly + leakage audit")
     records, diag = load_book(include_bs=args.include_bs)
+    print(f"  era={diag['era']}  book dates={diag['n_dates']}  "
+          f"{diag['date_range'][0]} .. {diag['date_range'][1]}")
+    # Refuse HERE, with the numbers, rather than deep inside the split. Nothing
+    # below this line is meaningful on a book that cannot carry one test block.
+    era.require_dates(diag["n_dates"], diag["era"], minimum=MIN_BOOK_DATES,
+                      what=f"{MIN_TRAIN_DATES} purged train dates rounded up to a "
+                           f"{BLOCK}-date block boundary, plus one test date")
+
     df = build_frame(records)
     print(f"  rows={len(df)}  dates={df['date'].nunique()}  "
           f"{df['date'].min()} .. {df['date'].max()}")
@@ -524,8 +568,32 @@ def main() -> int:
     print(f"  structures: {dict(df['structure'].value_counts())}")
     print(f"  credit rows (ungated calibration): {diag['n_credit_ungated']}")
     leakage_audit(df)
+
+    # A second, SMALLER quantity than the one checked above: `build_frame` drops
+    # every row without a realised E/R, so the frame can hold fewer dates than
+    # the book. The split runs on THESE dates, so this is the count that decides
+    # whether it can emit a block.
+    era.require_dates(int(df["date"].nunique()), diag["era"], minimum=MIN_BOOK_DATES,
+                      what="dates with at least one priced, outcome-bearing row")
+
     blocks = list(P.walk_forward_splits(df["date"], block=BLOCK,
-                                       min_train_dates=MIN_TRAIN_DATES))
+                                        min_train_dates=MIN_TRAIN_DATES))
+    if not blocks:
+        # Count floor cleared, embargo still bites: the dates are there but they
+        # are packed into fewer than PATH_CAP_DAYS of calendar, so every
+        # candidate train set is purged. Distinct from the thin-era refusal
+        # above and worth saying separately — "add more dates" is the fix for
+        # one, "wait for calendar time to pass" is the fix for the other.
+        print(f"\nREFUSED — era {diag['era']} has {df['date'].nunique()} priced "
+              f"dates ({df['date'].min()} .. {df['date'].max()}), enough to index "
+              f"a test block but not enough CALENDAR: the {P.PATH_CAP_DAYS}-day "
+              f"embargo purges every candidate train set, so the walk-forward "
+              f"yields no block.\n"
+              f"  Not a failure, and not a reason to shrink the embargo — the "
+              f"embargo is what keeps a train label from being realised after a "
+              f"test row's entry. Re-run as the era accrues.")
+        return era.EXIT_THIN_ERA
+
     tested_dates = sorted({d for _, test in blocks for d in test})
     print(f"  purged walk-forward: {len(blocks)} test blocks of {BLOCK} dates, "
           f"embargo {P.PATH_CAP_DAYS}d -> {len(tested_dates)} of "

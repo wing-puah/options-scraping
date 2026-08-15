@@ -10,6 +10,12 @@ hold for every page, so they live here once rather than in each entry point.
 Two arm axes, matched independently everywhere: `--structure-universe` and
 `--compounding`. `site/` is generated output, rebuilt by `make study-docs`.
 
+One thing happens before any of that (added 2026-08-16): if the report is a
+DESIGNED REFUSAL — a study whose era is too thin to conclude from, see
+`scripts/backtest_study/lib/era.py` — `run` prints it and exits 0 without
+touching a byte on disk. See `skip_refused` for why each of those three
+properties is there.
+
 The `--docs`/`--no-docs` flags keep their old names as aliases of
 `--site`/`--no-site`: they appear in study invocations recorded verbatim in
 `research/`, and renaming them would invalidate those replication instructions.
@@ -17,6 +23,7 @@ The `--docs`/`--no-docs` flags keep their old names as aliases of
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import webbrowser
 from pathlib import Path
@@ -28,6 +35,13 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "backtests" / "study_output"
 SITE_DIR = ROOT / "site"
 DEFAULT_POSITIONS = OUT_DIR / "account_sim-positions-latest.csv"
+
+# A rendered page's own era, out of the JSON payload `render.build` embeds
+# (`"report": {"provenance": {…, "era": "v3"}}`). Matched textually, on the
+# FIRST occurrence, because the only caller is telling a human that the page
+# they are about to read came from a different population than the one the
+# study reads now — see `page_era`.
+_PAGE_ERA_RE = re.compile(r'"era":\s*"([^"]*)"')
 
 
 def is_structure_arm(positions: Path) -> bool:
@@ -148,12 +162,83 @@ def out_suffix(positions: Path, out_stem: str) -> str:
     return "".join(mark for on, mark in marks if on and mark not in out_stem)
 
 
+def default_out(positions: Path, out_stem: str) -> Path:
+    """The scratch fragment this arm writes when `--out` is not given."""
+    return positions.parent / f"{out_stem}{out_suffix(positions, out_stem)}-latest.html"
+
+
+def page_era(path: Path) -> str:
+    """The era the rendered page at `path` was built from, or `?`.
+
+    Every page embeds its whole parsed report as JSON, so the era the run
+    recorded is already on disk — no sidecar needed. Read with a regex rather
+    than by loading the payload: this is called on a page that may predate the
+    era line entirely (or be absent, or be some older hand-made file), and the
+    honest answer in all of those cases is "unknown", never an exception.
+
+    `?` is `report.UNKNOWN_ERA` on purpose — the same marker a report with no
+    era line parses to, so "we do not know" reads identically wherever it is
+    printed rather than looking like two different states.
+    """
+    try:
+        text = path.read_text()
+    except OSError:
+        return report.UNKNOWN_ERA
+    m = _PAGE_ERA_RE.search(text)
+    return m.group(1) if m else report.UNKNOWN_ERA
+
+
+def skip_refused(refused: report.Refusal, report_path: Path, positions: Path,
+                 *, out: Path, site: Path | None, module: str) -> int:
+    """Report a study's designed refusal and write NOTHING. Always exit 0.
+
+    Three properties, all of which cost something to get wrong:
+
+    1. Exit 0. A refusal is the study's correct current status, not a build
+       failure, and `make study-docs` must finish so the pages that CAN be
+       rebuilt are.
+    2. Nothing on disk is touched — not overwritten, not deleted. The pages
+       already there were rendered from a real run of some earlier era, and a
+       blank or half-drawn page would destroy the last good visualisation to
+       report news that fits in four lines of text.
+    3. The pages that survive are named as STALE, with the era they were built
+       from set against the era that just refused. Point 2 leaves a page on
+       disk that looks exactly as current as it did yesterday; a stale page
+       that silently reads as current is the failure the whole era change set
+       exists to remove, and re-introducing it here — at the last step, in the
+       artifact a human actually looks at — would undo the lot.
+    """
+    print(f"SKIPPED — the study REFUSED on era {refused.era}; there is nothing new to draw.")
+    print(f"  report      {report_path}")
+    for line in refused.message.splitlines():
+        print(f"  study says  {line.strip()}" if line.strip() else "  study says")
+    print(f"  positions   {positions}" + ("" if positions.exists() else "  (not written)"))
+    kept = [p for p in (out, site) if p is not None and p.exists()]
+    for page in kept:
+        built = page_era(page)
+        # Three cases, and the unknown one is NOT collapsed into the mismatch
+        # one: a page that records no era cannot be SHOWN to disagree with the
+        # current one, and asserting that it does would be inventing the very
+        # fact the era line was added to stop people inventing.
+        if built == report.UNKNOWN_ERA:
+            era_note = (f"records no era of its own, so it cannot be shown to match the "
+                        f"current era {refused.era} — read it as stale until it is redrawn")
+        elif built != refused.era:
+            era_note = (f"built from era {built}, and the current era is {refused.era} — "
+                        f"it is NOT a picture of what the study reads today")
+        else:
+            era_note = f"built from era {built}, the same era that just refused"
+        print(f"  KEPT STALE  {page}  ({era_note})")
+    if not kept:
+        print("  no page      nothing had been rendered here yet — none was written now")
+    print(f"  wrote       nothing  [{module}]")
+    return 0
+
+
 def run(args: argparse.Namespace, *, build: Callable[..., str],
         out_stem: str, site_name: str, module: str) -> int:
     """Draw one page. Returns the process exit code."""
     positions = args.positions.resolve()
-    if not positions.exists():
-        raise SystemExit(f"positions CSV not found: {positions}")
     # An explicit --site is refused rather than honoured whenever this arm has
     # no page of its own: a hand-typed path is exactly how one arm's numbers
     # land on another arm's page, and the scratch fragment already covers
@@ -174,6 +259,23 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     report_path = (args.report or pick_report(positions, positions.parent)).resolve()
     if not report_path.exists():
         raise SystemExit(f"report not found: {report_path}")
+
+    # BEFORE parsing, and before the positions CSV is required: a study that
+    # REFUSED (era too thin to conclude from) wrote a report with a provenance
+    # header, its refusal, and nothing else, and may not have written a
+    # positions CSV at all. Parsing it produced a ReportParseError naming
+    # whichever section happened to be missing first — a true statement about
+    # the wrong problem. The order here is load-bearing: check what the report
+    # IS before demanding the inputs a real report would need.
+    if refused := report.read_refusal(report_path):
+        return skip_refused(refused, report_path, positions,
+                            out=args.out or default_out(positions, out_stem),
+                            site=(args.site or site_dest(positions, site_name)
+                                  if args.write_site else None),
+                            module=module)
+
+    if not positions.exists():
+        raise SystemExit(f"positions CSV not found: {positions}")
 
     parsed = report.parse(report_path)
     rows = series.load(positions)
@@ -212,7 +314,7 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     fragment = build(parsed, populations, capital, source)
     page = render.wrap_standalone(fragment) if args.standalone else fragment
 
-    out = args.out or (positions.parent / f"{out_stem}{out_suffix(positions, out_stem)}-latest.html")
+    out = args.out or default_out(positions, out_stem)
     out.write_text(page)
 
     print(f"report      {report_path}")

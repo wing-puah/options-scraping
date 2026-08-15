@@ -988,9 +988,12 @@ def print_gate5_arm(recs, ac_df, st, *, entry_check: str, judgment_cache,
                     sighted: dict) -> bool:
     """G5, re-run with the SHIPPED selector in the loop.
 
-    G1-G4 stay pinned to the frozen basis — G1 is an identity against a figure a
-    prior report printed and G4 is about the frozen ordering, and neither may
-    move because an arm changed who selects. G5 is different: it is a claim about
+    G2-G4 stay pinned to the frozen basis — G2 is an identity against the profile
+    that generated the stored rows and G4 is about the frozen ordering, and
+    neither may move because an arm changed who selects. (There is no G1: the
+    book-calibration checksum was removed 2026-08-15 and its numbers are now
+    printed descriptively — see account_sim's BOOK CALIBRATION section.)
+    G5 is different: it is a claim about
     THIS run's decision path, and this run's decision path is `rank()` + `judge()`
     rather than `ladder_rank`. Running it only on the frozen basis would leave
     the arm's own selector unchecked.
@@ -1072,9 +1075,9 @@ def run_arm(recs, picked, st, cache, *, entry_check: str, use_llm: bool,
     """The whole `--live-select` arm. Returns a process exit code.
 
     Called from `account_sim.main()` after the gates have passed on the frozen
-    basis — G1-G4 are pinned there by design (G1 is an identity against a figure
-    a prior report printed, G4 is about the frozen selection ordering) and G5 has
-    already run on the same records this arm ranks.
+    basis — G2-G4 are pinned there by design (G2 is an identity against the
+    profile that generated the stored rows, G4 is about the frozen selection
+    ordering) and G5 has already run on the same records this arm ranks.
 
     `invoke_fn` / `cache_path` exist so the judgment path can be exercised
     end-to-end against a stub without spending a model call or writing a
@@ -1125,7 +1128,7 @@ def run_arm(recs, picked, st, cache, *, entry_check: str, use_llm: bool,
     print_judgment((rankers["skip"], rankers["ignore"]), judgment_cache, use_llm)
     print_books(sims, frozen_sim, st, use_llm)
 
-    hdr("GATES — G5 re-run with this arm's selector, plus G6 (G1-G4 stay pinned "
+    hdr("GATES — G5 re-run with this arm's selector, plus G6 (G2-G4 stay pinned "
         "to the frozen basis)")
     g5 = print_gate5_arm(recs, ac_df, st, entry_check=entry_check,
                          judgment_cache=judgment_cache, sighted=sims)

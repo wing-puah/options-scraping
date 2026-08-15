@@ -62,7 +62,21 @@ from scripts.backtest_study.f2_management.exit_switch_mech_study import (  # noq
     load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
     norm_play, POST13C_CUTOFF, hdr, sub,
 )
+from scripts.backtest_study.lib import era  # noqa: E402
 import pandas as pd  # noqa: E402
+
+# WHICH POPULATION THIS RUN READS — the era-resolved exports `load_debit_trades`
+# opens, which `STUDY_ERA` selects. Nothing is named here on purpose: importing
+# the loader is what ties this study to the mech study's population, and stating
+# a second set of paths would be a second encoding of it.
+#
+# Both era guards apply, and neither used to. The ERA check (exit 3) is inside
+# `load_debit_trades` as of 2026-08-15; before that it was a statement in the
+# mech study's `main()`, which this study never calls, so this study read the
+# right files with no guard at all. The DATE FLOOR (exit 2) is `main()`'s call
+# below. What that gap cost: a full SHIP-GATE EVALUATION printed on 10 dates of
+# v4 data, gate checks and a VERDICT line included, right underneath its own
+# "top-5 dates share of total: 100.0%" concentration warning.
 
 # ── the structure under test ────────────────────────────────────────────────
 TARGET_STRUCT = "bear_put_spread"
@@ -222,12 +236,31 @@ STRUCT_VARIANT_OF = {STRUCT_CELL: "V_TRAIL"}
 # ════════════════════════════════════════════════════════════════════════════
 
 def main():
+    # The book loads FIRST — ahead of `ensure_spy_vix()`, which hits the network
+    # to build the SPY/VIX table — because `load_debit_trades` carries the era
+    # guard (exit 3) and a refusal should not be paid for with a network fetch.
+    # Same call and same order as the mech study's `main()`.
+    trades, diag = load_debit_trades()
+
+    # The shared power floor (exit 2), on the DEBIT book's distinct signal dates.
+    # Stated on dates rather than rows for the same reason the mech study states
+    # it that way: STEP 5's leave-one-out folds are one per SIGNAL DATE, so the
+    # date count IS this study's sample size no matter how many rows those dates
+    # carry — and STEP 7's concentration check is per-date as well, which is
+    # meaningless when the whole book is a handful of dates.
+    #
+    # Checked before `enrich()` rather than after: `enrich` replays every trade
+    # under all 13 configs in CONFIGS, and there is no reason to pay for that in
+    # order to refuse. The unit is unchanged by the move — `enrich` is 1:1 over
+    # trades, so its records carry exactly these dates.
+    era.require_dates(len({t.signal_date.isoformat() for t in trades}), diag["era"],
+                      what="the shared research floor; LOO folds are one per signal date")
+
     ensure_spy_vix()
     labeler = MechLabeler(compute_mech_table())
     post13c_lu = build_post13c_lookup()
 
     hdr("STEP 1 — BOOK, CALIBRATION, COMPOSITION")
-    trades, diag = load_debit_trades()
     px = diag["proxy"]
     # Same gate as the mech study — literally the same function, so the
     # 2026-08-14 exact-replay correction can never drift between the two.

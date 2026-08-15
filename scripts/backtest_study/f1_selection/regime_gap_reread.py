@@ -8,6 +8,7 @@ only.
 """
 
 import re
+import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -19,10 +20,33 @@ pd.set_option("display.max_columns", 50)
 # Repo-root-anchored so the study runs from any CWD (it used to depend on
 # being launched from the repo root, which broke silently under the runner).
 ROOT = Path(__file__).resolve().parents[3]
-DATA_DIR = f"{ROOT}/backtests/to_evaluate"
-AC_PATH = f"{DATA_DIR}/analysis - AnalysisClaude.csv"
-BR_PATH = f"{DATA_DIR}/analysis - BacktestResults.csv"
-BP_PATH = f"{DATA_DIR}/analysis - BacktestProxy.csv"
+sys.path.insert(0, str(ROOT))
+
+from scripts.backtest_study.lib import era  # noqa: E402
+
+# WHICH POPULATION THIS RUN READS — resolved through `lib/era.py`, never named.
+#
+# These used to be a hand-built directory plus the three BARE export filenames.
+# A bare filename does not name a fixed population: the vN_ tab rename is IN
+# PLACE, so `analysis - BacktestResults.csv` means whatever the live tab held at
+# export time. On 2026-08-15 a re-export turned four months of v3 evidence into
+# 14 dates of v4 and this study kept running on the thin book without saying so.
+#
+# That matters more here than almost anywhere else: this study is the
+# `state="reference"` BASELINE — `mech_regime_recut.py` reuses its Step 0 book
+# construction VERBATIM so the two agree on what the book is. A baseline that
+# silently changes population takes every study built on it with it.
+_ERA = era.requested_era()
+_ERA_PATHS = era.resolve_paths(_ERA)
+AC_PATH = _ERA_PATHS["analysis"]
+BR_PATH = _ERA_PATHS["results"]
+BP_PATH = _ERA_PATHS["proxy"]
+
+# Refuses (exit 3) when what is on disk is not the era asked for, or when the
+# three exports disagree with EACH OTHER (a half-finished re-export). Same call
+# and same position in the flow as `lib/book.py::load_book` — one convention,
+# whether a study builds its own paths or goes through the shared loader.
+_ACTUAL_ERA = era.enforce(_ERA, _ERA_PATHS)
 
 NEW_DATES = [
     "2024-11-01", "2024-11-04", "2024-11-06", "2024-11-07", "2024-12-18",
@@ -196,6 +220,14 @@ pooled["post13c"] = np.where(
 
 join_coverage_n = int(joined_mask.sum())
 join_coverage_total = int(len(pooled))
+
+# The shared power floor (exit 2), on the pooled book's distinct SIGNAL DATES —
+# the unit every table below is cut by. `load_book` applies the identical floor
+# for studies that go through it; this one assembles its own book, so it states
+# it here. A POWER floor, not a snapshot fingerprint: satisfied permanently once
+# an era reaches it, and never a reason to lower the number.
+era.require_dates(int(pooled["date"].nunique()), _ACTUAL_ERA,
+                  what="the shared research floor; this is the baseline other studies reuse")
 
 # fill iv_spread / iv_skew / iv_pct from AC join where native pooled value missing
 for native, ac_col in [("iv_spread", "ac_iv_spread"), ("iv_skew", "ac_iv_skew"), ("iv_pct", "ac_iv_pct")]:

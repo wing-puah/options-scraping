@@ -161,10 +161,16 @@ class Settings:
     attrition_floor: float
     maxdd_fraction: float
     ratio_tolerance: float
-    g1_positions: int
-    g1_dates: int
-    g1_dollars: float
-    g1_dollar_tol: float
+    # There is no `gates:` group here any more. `g1_positions` / `g1_dates` /
+    # `g1_dollars` / `g1_dollar_tol` used to be read from
+    # `gates.book_calibration` and compared against the deployed B1 line by G1.
+    # REMOVED 2026-08-15: those were a fingerprint of ONE export, not a
+    # hypothesis — the book grows on every legitimate data refresh, so the gate
+    # fired on refreshes and taught the operator to re-type the constants, which
+    # is exactly what makes a stored expectation worthless. The property it was
+    # standing in for (the FROZEN `lib/harness.py` replay still behaves
+    # identically) is a code property and now lives in the pytest suite. The
+    # calibration numbers are still printed — see `print_book_calibration`.
     # ARM SELECTION, not a config value: set from `--compounding` on the
     # command line (see `load_settings`), never from the YAML. The file
     # parameterises the arm (`mark_interval`, `budget_ceiling`); whether the arm
@@ -196,7 +202,7 @@ class Settings:
         Every simulation in the report is built through here, so the sizing a
         run uses can only come from the config it was given — including the
         compounding block, which every simulation inherits unless a caller
-        (`run_gates`, which pins G1-G4 to the frozen basis) says otherwise.
+        (`run_gates`, which pins G2-G4 to the frozen basis) says otherwise.
         """
         base = dict(capital=self.capital, per_pos_cap=self.per_pos_cap,
                     net_cap=self.net_cap, risk_pct=self.risk_pct,
@@ -293,13 +299,11 @@ def load_settings(path: Path = DEFAULT_CONFIG, *,
         attrition_floor=float(_req(raw, p, "criteria", "attrition_floor")),
         maxdd_fraction=float(_req(raw, p, "criteria", "maxdd_fraction")),
         ratio_tolerance=float(_req(raw, p, "criteria", "ratio_tolerance")),
-        g1_positions=int(_req(raw, p, "gates", "book_calibration",
-                              "expected_positions")),
-        g1_dates=int(_req(raw, p, "gates", "book_calibration", "expected_dates")),
-        g1_dollars=float(_req(raw, p, "gates", "book_calibration",
-                              "expected_dollars")),
-        g1_dollar_tol=float(_req(raw, p, "gates", "book_calibration",
-                                 "dollar_tolerance")),
+        # No `gates.*` reads: the book-calibration checksum was deleted
+        # 2026-08-15 (see the Settings comment and config/account-sim.yml). A
+        # config still CARRYING a `gates:` block is not refused — unlike
+        # `compounding.enabled`, a leftover here cannot change what runs, so
+        # rejecting an old copied config would cost more than it protects.
         compound_enabled=bool(compound_enabled),
         mark_interval=interval,
         budget_ceiling=ceiling,
@@ -1075,25 +1079,43 @@ def write_positions_csv(path, populations: dict, arm: str = "RF1") -> int:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Gates
+# Book calibration — DESCRIPTIVE, not a gate
 # ════════════════════════════════════════════════════════════════════════════
+#
+# This block used to be G1, and G1 did two unrelated jobs: it PRINTED the book's
+# calibration tally and the deployed B1 line, and it COMPARED that line against
+# four constants stored in `config/account-sim.yml` under `gates.book_calibration`
+# (220 positions / 90 dates / $63,553 / $1 tolerance).
+#
+# The comparison was deleted on 2026-08-15. Those constants were a FINGERPRINT OF
+# ONE EXPORT, not a hypothesis about the world: the book grows every time the
+# backtest/proxy exports are legitimately refreshed, so the gate fired on data
+# refreshes rather than on regressions. What it cost: an export refresh that day
+# failed this study and three others, and the only way past it was to re-type the
+# constants to whatever the new run printed — a "gate" whose failure mode is
+# "edit the expectation" trains the operator out of ever believing it. The thing
+# the checksum was standing in for — that the FROZEN replay engine
+# (`scripts/backtest_study/lib/harness.py`) still behaves identically — is a code
+# property, and it now lives in the pytest suite, where a regression fails on the
+# commit that caused it rather than on the next unrelated data refresh.
+#
+# The PRINTING stayed, because it was never the part that was wrong: several
+# research write-ups quote `debit_calib` / `n_credit_ungated` / the B1 line as the
+# provenance of the book they read. So it moved out of the GATES section into a
+# section of its own, and it renders no verdict — a printed number with no PASS
+# next to it is what it always should have been. The gates are now G2..G5, and
+# they were deliberately NOT renumbered: G2-G5 name specific checks in the
+# pre-registration (research/pre-registrations/account_sim.md) and in every
+# recorded verdict, and sliding them down one would silently re-point that prose.
 
-def run_gates(recs, diag, picked, st: Settings, cache: dict,
-              selftest: bool = False) -> dict:
-    """G1-G5.
+def print_book_calibration(diag, picked) -> None:
+    """The book's calibration tally and its deployed B1 line. NO verdict.
 
-    G1-G4 are pinned to the FROZEN basis (`compound=False`) whatever the config
-    says: G1 is an identity against a figure a PRIOR report printed and G4 is
-    about selection ORDERING. Neither may move because an arm changed sizing —
-    a compounding run that shifted G1's dollars would be reporting a different
-    book against the same expectation. G5 is the exception and runs on BOTH
-    bases; see its preamble.
+    Reported so a reader can see which book every number below was computed on.
+    Nothing here can fail the run: see this section's preamble for why the
+    stored-expectation comparison that used to live here was removed.
     """
-    hdr("GATES — G1..G5 (non-zero exit on any failure)")
-    results = {}
-
-    # -- G1 book calibration + B1 reproduction ------------------------------
-    sub("G1 — book calibration quoted, B1 line reproduced")
+    hdr("BOOK CALIBRATION — descriptive provenance, NOT a gate")
     dc = diag["debit_calib"]
     print(f"  debit_calib      n={dc['n']}  exact={dc['exact']}  "
           f"near={dc['near']}  hard={dc['hard']}")
@@ -1104,15 +1126,27 @@ def run_gates(recs, diag, picked, st: Settings, cache: dict,
     b1_dol = sum(r["R_dol"] for r in picked if r.get("R_dol") is not None)
     print(f"  B1 (stored contracts, stored R): {b1_n} positions / {b1_dates} dates "
           f"/ ${b1_dol:,.0f}")
-    print(f"  expected ({st.source.name}, gates.book_calibration): {st.g1_positions} / "
-          f"{st.g1_dates} / ${st.g1_dollars:,.0f}")
-    g1 = (dc["n"] > 0 and b1_n == st.g1_positions and b1_dates == st.g1_dates
-          and abs(b1_dol - st.g1_dollars) <= st.g1_dollar_tol)
-    if selftest:
-        g1 = g1 and abs(b1_dol - (st.g1_dollars + 1000)) <= st.g1_dollar_tol
-        print("  [--selftest-gates] G1 target perturbed by +$1,000 — must FAIL")
-    print(f"  G1: {'PASS' if g1 else 'FAIL'}")
-    results["G1"] = g1
+    print("""  Descriptive only. This line MOVES whenever the backtest/proxy exports are
+  refreshed, which is why it is no longer checked against a stored expectation
+  (removed 2026-08-15 — the constants fingerprinted one export). Quote it as the
+  provenance of the book, never as evidence that the book is unchanged.""")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Gates
+# ════════════════════════════════════════════════════════════════════════════
+
+def run_gates(recs, picked, st: Settings, cache: dict,
+              selftest: bool = False) -> dict:
+    """G2-G5. (There is no G1 — see the BOOK CALIBRATION section above.)
+
+    G2-G4 are pinned to the FROZEN basis (`compound=False`) whatever the config
+    says: G2 is an identity against the profile that GENERATED the stored rows
+    and G4 is about selection ORDERING. Neither may move because an arm changed
+    sizing. G5 is the exception and runs on BOTH bases; see its preamble.
+    """
+    hdr("GATES — G2..G5 (non-zero exit on any failure)")
+    results = {}
 
     # -- G2 replay identity at scale=1 --------------------------------------
     sub("G2 — scaling identity calibrated at scale=1 against the stored rows")
@@ -2224,7 +2258,7 @@ def report_population(recs, picked_all, dates_allowed, label: str,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--gates-only", action="store_true",
-                    help="run G1-G4 and stop")
+                    help="run the gates (G2-G5) and stop")
     ap.add_argument("--selftest-gates", action="store_true",
                     help="invert one expectation inside EVERY gate; the run MUST "
                          "then fail (demonstrates the gates can fire)")
@@ -2245,14 +2279,14 @@ def main(argv=None) -> int:
                          "pre-registered: A1-A6 were registered against a "
                          "path-INDEPENDENT sim, and A2/A5 do not transfer. "
                          "Writes its OWN report / positions CSV / page, so it "
-                         "never overwrites the frozen book's. Gates G1-G4 stay "
+                         "never overwrites the frozen book's. Gates G2-G4 stay "
                          "pinned to the frozen basis; G5 runs on both.")
     ap.add_argument("--live-select", action="store_true",
                     help="select with the SHIPPED decision function "
                          "(scripts/journal/recommend.py: rank() then judge()) "
                          "instead of this study's own port of the ladder, over "
                          "the WHOLE analysis population. Its own report and "
-                         "positions CSV; G1-G5 still run on the frozen basis and "
+                         "positions CSV; G2-G5 still run on the frozen basis and "
                          "G6 runs on the arm. Evaluates no pre-registered "
                          "criterion — A1-A6 do not transfer to a different "
                          "candidate set.")
@@ -2310,14 +2344,20 @@ def main(argv=None) -> int:
     # the config file separately to say what was simulated.
     print_configuration(st, cfg_name)
 
-    # The FROZEN book is always the gate basis: G1 reproduces a prior report's
-    # deployed line and G4 pins selection against `top_k_per_day`. Neither
-    # identity is allowed to move because an arm widened the universe.
+    # The FROZEN book is always the gate basis: G2 replays against the profile
+    # that generated the stored rows and G4 pins selection against
+    # `top_k_per_day`. Neither identity is allowed to move because an arm
+    # widened the universe.
     recs, diag = load_book(include_bs=args.include_bs)
     picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
                              eligible_fn=P.ladder_eligible)
 
-    gates = run_gates(recs, diag, picked, st, cache, selftest=args.selftest_gates)
+    # Printed BEFORE the gates and outside them: it says which book everything
+    # below was computed on, and it renders no verdict (it used to be G1 — see
+    # that section's preamble).
+    print_book_calibration(diag, picked)
+
+    gates = run_gates(recs, picked, st, cache, selftest=args.selftest_gates)
     if not gates["ok"]:
         print("\nGATE FAILURE — no results printed. Exit 1.")
         return 1

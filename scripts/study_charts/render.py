@@ -295,8 +295,12 @@ def build(parsed: dict, populations: dict, capital: float, source: dict, *,
 
   <section id="gates">
     <div class="section-head">
-      <h2>Gates G1–G5</h2>
-      <p>Identity checks that must pass before any number below is admissible. A failure exits non-zero.</p>
+      <h2>Gates G2–G5</h2>
+      <p>Identity checks that must pass before any number below is admissible. A failure exits non-zero.
+        There is no G1: it was a checksum of the deployed book against constants stored in the config,
+        removed in August 2026 because those constants fingerprinted a single export and so failed on
+        every legitimate data refresh rather than on a regression. Its calibration numbers are still
+        reported by the study, as description rather than as a verdict.</p>
     </div>
     <div class="chips">
 {chr(10).join(_gate_chip(g) for g in gates['gates'])}

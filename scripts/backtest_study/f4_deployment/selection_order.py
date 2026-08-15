@@ -24,13 +24,21 @@ nothing here may drift from it. In brief:
   Metric    Within-date paired difference vs O0 in mean R over the day's taken
             positions. Dollars print alongside as a sanity check only. QUOTE R.
   Gates     G0 power pre-check (runs FIRST, blocks everything; <25 affected dates
-            -> POWER-STOPPED), G1 calibration, G2 blindness, G3 attribution,
-            G4 no annualised figure, G5 out-of-fold discipline.
+            -> POWER-STOPPED), G1 plumbing, G2 blindness, G3 attribution,
+            G4 no annualised figure, G5 out-of-fold discipline. Gate IDS ARE
+            FROZEN: G1's book-line checksum was removed 2026-08-15 and the line
+            is now printed descriptively, but nothing was renumbered — the ids
+            are named in the pre-registration and in recorded verdicts.
   Bar       The full seven-part conjunction in the registration. Failing any one
             is failing. No arm added, no threshold moved after a number is seen.
 
 NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME. ORDERING-IS-NOISE is a real and
 useful verdict.
+
+REFUSES (exit 2) rather than reporting a verdict when the book is too thin to
+conclude from, or when G2 has no candidates to compare. UNTESTABLE and FAILED are
+different findings and this study says which one it got; exit 3 is `load_book`'s
+era guard. See `DESIGNED_REFUSAL_EXIT_CODES` and `lib/era.py`.
 
     python -m scripts.backtest_study run selection_order
 """
@@ -48,9 +56,22 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
+from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import hdr, sub  # noqa: E402
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
+
+# Exit codes this study returns as a DESIGNED refusal to produce a result rather
+# than as a failure. 2 covers both of this file's refusals — the thin-era guard
+# in main() and G2's UNTESTABLE case (an empty population cannot be probed for
+# blindness) — as well as the long-standing compounding-config refusal, which is
+# the same kind of statement: this study declines to run, it has not failed.
+# 3 is `load_book`'s era guard rejecting an export set that is not the era asked
+# for. `run.py` finds this by AST parse and never imports the module, so it MUST
+# stay a literal module-level assignment — an alias to
+# `era.DESIGNED_REFUSAL_EXIT_CODES` would be invisible to it, and a refusal would
+# be reported as FAILED with its report deleted. A real gate failure stays exit 1.
+DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
 
 # ── frozen constants (registered; none of these is a knob) ───────────────────
 
@@ -309,35 +330,71 @@ def gate_g0(label, sims, base, cont) -> dict:
 # G1..G5
 # ════════════════════════════════════════════════════════════════════════════
 
-def gate_g1(picked, st, base_sims, cache) -> bool:
-    hdr("G1 — CALIBRATION: O0 reproduces the default account_sim run exactly")
-    print("""  An ordering study whose BASELINE does not reproduce production is
-  measuring its own bug. Two checks: the book line a prior account_sim report
-  printed on these same exports, and a byte-identical book between O0 (built
-  through this study's arm plumbing) and a walk built directly on
-  protocol.ladder_rank — proving the plumbing is neutral.""")
+# ════════════════════════════════════════════════════════════════════════════
+# Book calibration — DESCRIPTIVE, not a gate
+# ════════════════════════════════════════════════════════════════════════════
+#
+# This print used to be the first half of G1, and G1 did two unrelated jobs: it
+# COMPARED the deployed B1 line against four constants read off `Settings`
+# (`g1_positions` / `g1_dates` / `g1_dollars` / `g1_dollar_tol`, sourced from
+# `config/account-sim.yml`'s `gates.book_calibration`: 220 positions / 90 dates /
+# $63,553 / $1), and it checked that this study's arm PLUMBING is neutral.
+#
+# The comparison was deleted on 2026-08-15, at the same time and for the same
+# reason as `account_sim`'s own G1 (see that file's BOOK CALIBRATION preamble —
+# these two must not disagree about what the number means). Those constants were
+# a FINGERPRINT OF ONE EXPORT rather than a hypothesis: the book moves on every
+# legitimate refresh, so the check fired on data refreshes, and the only way past
+# it was to re-type the expectation to whatever the new run printed. What it cost
+# here: when the exports were refreshed that day the book went from ~1,900 rows /
+# 142 dates to 74 rows / 10 dates and this study failed a "calibration" gate
+# although not one line of its logic had changed. `account_sim` then removed the
+# four fields outright, which turned the same check into an AttributeError.
+#
+# The PRINTING stays — the B1 line is the provenance of the book every number
+# below is computed on, and write-ups quote it as such. It now renders no
+# verdict.
+#
+# G1 KEEPS ITS ID and its surviving half. The gates were NOT renumbered: G1..G5
+# name specific checks in research/pre-registrations/selection_order.md and in
+# every recorded verdict, and sliding them would silently re-point that prose.
+
+def print_book_calibration(picked) -> None:
+    """The deployed B1 line this book produces. NO verdict, nothing can fail.
+
+    Quote it as the provenance of the book, never as evidence that the book is
+    unchanged — see this section's preamble.
+    """
+    hdr("BOOK CALIBRATION — descriptive provenance, NOT a gate")
     b1_n = len(picked)
     b1_dates = len({r["date"] for r in picked})
     b1_dol = sum(r["R_dol"] for r in picked if r.get("R_dol") is not None)
-    print(f"\n  B1 (stored contracts, stored R): {b1_n} positions / {b1_dates} "
+    print(f"  B1 (stored contracts, stored R): {b1_n} positions / {b1_dates} "
           f"dates / ${b1_dol:,.0f}")
-    print(f"  expected (account-sim.yml gates.book_calibration): {st.g1_positions} "
-          f"/ {st.g1_dates} / ${st.g1_dollars:,.0f}")
-    line_ok = (b1_n == st.g1_positions and b1_dates == st.g1_dates
-               and abs(b1_dol - st.g1_dollars) <= st.g1_dollar_tol)
-    print(f"  book line: {'PASS' if line_ok else 'FAIL'}")
+    print("""  Descriptive only. This line MOVES whenever the backtest/proxy exports are
+  refreshed, which is why it is no longer checked against a stored expectation
+  (removed 2026-08-15 — the constants fingerprinted one export).""")
 
-    plumbing_ok = True
+
+def gate_g1(st, base_sims, cache) -> bool:
+    hdr("G1 — PLUMBING: O0 reproduces a direct ladder walk exactly")
+    print("""  An ordering study whose BASELINE does not reproduce production is
+  measuring its own bug. The check that survives is the one about CODE: a
+  byte-identical book between O0 (built through this study's arm plumbing) and a
+  walk built directly on protocol.ladder_rank, proving the plumbing is neutral.
+  The book line itself is printed above, descriptively; it used to be compared
+  against stored constants, which fingerprinted one export rather than testing
+  anything — see the BOOK CALIBRATION preamble.""")
+    ok = True
     for label, (pop, o0_sim) in base_sims.items():
         direct = A.simulate(
             P.ordered_by_day(pop, P.ladder_rank, P.ladder_eligible),
             st.cfg(f"G1 direct {label}", compound=False), cache=cache)
         same = A.book_signature(o0_sim) == A.book_signature(direct)
-        plumbing_ok = plumbing_ok and same
+        ok = ok and same
         print(f"  [{label}] O0 vs direct ladder walk: {len(o0_sim.signal_pos)} vs "
               f"{len(direct.signal_pos)} positions, ${o0_sim.dollars:,.0f} vs "
               f"${direct.dollars:,.0f}  -> {'identical' if same else 'DIVERGED'}")
-    ok = line_ok and plumbing_ok
     print(f"  G1: {'PASS' if ok else 'FAIL'}")
     return ok
 
@@ -352,15 +409,30 @@ def gate_g2(pop_by_label, st, budget) -> bool:
     print(f"  row columns deleted from every Trade: "
           f"{', '.join(sorted(A.LOOKAHEAD_ROW_COLUMNS))}")
     ok = True
+    # UNTESTABLE is not FAIL. A blindness check compares two books; with no
+    # candidates there are no books, and "the rank function did not peek" is
+    # unproven rather than false. Collected and refused (exit 2) at the end
+    # instead of being folded into `ok`.
+    #
+    # COST OF NOT HAVING THIS: on 2026-08-15 the input book collapsed to 74 rows
+    # over 10 dates. `blind[0]["R"]` raised IndexError, the bare `except
+    # IndexError: pass` left `tripwire = False`, and G2 printed six arms of
+    # "sighted 0 blind 0 differing 0 -> DIVERGED" followed by G2: FAIL. Read
+    # literally that says the rank functions peek at outcomes — an accusation
+    # against the study's core claim — when the truth was that nothing was tested.
+    untestable: list[str] = []
     for label, pop in pop_by_label.items():
+        if not pop:
+            print(f"\n  [{label}] NOT EVALUABLE — the population is empty; there "
+                  f"is no record to wrap, so the tripwire cannot be armed.")
+            untestable.append(f"{label}: empty population")
+            continue
         blind = A.blind_records(pop)
         tripwire = False
         try:
             _ = blind[0]["R"]
         except A.LookaheadError:
             tripwire = True
-        except IndexError:
-            pass
         ok = ok and tripwire
         print(f"\n  [{label}] tripwire live: {tripwire}")
         # O4 is probed at draw 0 — the band's arms are rank functions too, and a
@@ -389,11 +461,43 @@ def gate_g2(pop_by_label, st, budget) -> bool:
                 ok = False
                 continue
             a_sig, b_sig = A.book_signature(sighted), A.book_signature(blind_sim)
+            n_diff = sum(1 for x, y in zip(a_sig, b_sig) if x != y)
+            if not a_sig and not b_sig:
+                # Two empty books are trivially equal, which is why `same` has
+                # always carried `len(a_sig) > 0` — an empty comparison must not
+                # PASS. But it must not FAIL either: there was nothing to peek
+                # at. Third outcome, said out loud.
+                print(f"    {name:<11} sighted {0:>4}  blind {0:>4}  "
+                      f"differing {0:>3}  -> NOT EVALUABLE (empty book)")
+                untestable.append(f"{label}/{name}: both books empty")
+                continue
             same = a_sig == b_sig and len(a_sig) > 0
             ok = ok and same
-            n_diff = sum(1 for x, y in zip(a_sig, b_sig) if x != y)
             print(f"    {name:<11} sighted {len(a_sig):>4}  blind {len(b_sig):>4}  "
                   f"differing {n_diff:>3}  -> {'identical' if same else 'DIVERGED'}")
+
+    if untestable:
+        # Refuse rather than verdict. G2 is a conjunction over every population
+        # and arm; with a member that could not be evaluated the conjunction is
+        # undefined, and reporting either PASS or FAIL would be a claim the run
+        # did not earn. A detected divergence is still worth stating, so it is
+        # printed alongside — it just does not turn an undefined gate into FAIL.
+        print(f"\n  G2: NOT EVALUABLE — {len(untestable)} of the checks had "
+              f"nothing to compare:")
+        for line in untestable:
+            print(f"    {line}")
+        if not ok:
+            print("    (at least one EVALUABLE check also diverged — read it "
+                  "above; it is not what this refusal is about)")
+        print("\nREFUSED — the blindness gate could not be run on this book. That "
+              "is a statement about the POPULATION, not about the rank "
+              "functions:\n"
+              "  an empty candidate set proves neither that an arm peeks at an "
+              "outcome nor that it does not.\n"
+              "  Not a failure, and not a reason to weaken the gate — re-run "
+              "once the era carries candidates.")
+        sys.exit(era.EXIT_THIN_ERA)
+
     print(f"\n  G2: {'PASS' if ok else 'FAIL'}")
     return ok
 
@@ -806,6 +910,18 @@ def main(argv=None) -> int:
     A.print_configuration(st, A.DEFAULT_CONFIG.relative_to(ROOT))
 
     recs, diag = load_book(include_bs=False)
+    # Refuse a thin era HERE, with the numbers, rather than letting it surface as
+    # a gate verdict several hundred lines of report later. This study's own
+    # declared floor (MIN_AFFECTED_DATES = 25) is a G0 power stop over CONTESTED
+    # dates, a SUBSET of book dates — it cannot substitute for a floor on the
+    # book itself, and it is smaller than the shared one anyway, so the shared
+    # power floor is what binds.
+    print(f"\n  era: {diag['era']}  book dates={diag['n_dates']}  "
+          f"{diag['date_range'][0]} .. {diag['date_range'][1]}")
+    era.require_dates(diag["n_dates"], diag["era"],
+                      what="a book the six arms can be contested on at all; G0's "
+                           "25-contested-date power stop is a tighter test on top")
+
     picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
                              eligible_fn=P.ladder_eligible)
     print(f"\n  book: {len(recs)} rows  counts_by_source="
@@ -834,8 +950,10 @@ def main(argv=None) -> int:
         book["g0"] = gate_g0(label, book["sims"], book["sims"]["O0"],
                              book["contested"])
 
+    print_book_calibration(picked)
+
     gates = {}
-    gates["G1"] = gate_g1(picked, st,
+    gates["G1"] = gate_g1(st,
                           {label: (b["pop"], b["sims"]["O0"])
                            for label, b in books.items()}, cache)
     gates["G2"] = gate_g2({label: b["pop"] for label, b in books.items()},

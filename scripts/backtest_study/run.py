@@ -16,9 +16,11 @@ The run writes `backtests/study_output/<name>-<stamp>.txt` plus a stable
 `<name>-latest.txt`, both prefixed with a provenance header (git sha, dirty
 flag, the exact argv, and the row counts / mtimes of the input exports). It
 then prints the path to paste into Claude for the write-up. `<name>-latest.txt`
-only ever holds a SUCCESSFUL run: a failed study (bad flag, gate crash) keeps
-its stamped transcript for debugging but must not clobber the canonical report
-that the map, the chart pages, and `study_review --skip-run` all quote.
+only ever holds a run that is CURRENT AND TRUE: a clean run, or a designed
+refusal (which is the study's correct status right now — see below). A real
+failure (bad flag, crash) keeps its stamped transcript for debugging and
+DELETES `-latest.txt`, so the map, the chart pages and `study_review
+--skip-run` quote nothing rather than quoting a run that no longer reproduces.
 
 A study may also declare extra ARMS (`STUDY_ARMS`) — the same module run again
 with one flag flipped, filed under its own report stem, positions CSV and chart
@@ -51,6 +53,16 @@ is itself the current, correct, quotable status, not something to discard in
 favour of a stale prior report. A study with no `DESIGNED_REFUSAL_EXIT_CODES`
 (the default) has every non-zero exit treated as a real failure, unchanged.
 
+A real FAILURE deletes `-latest.txt` outright, leaving the study with no current
+report. That is deliberate and it is a change of policy (2026-08-15): the report
+used to be left at the previous good run, which meant a stale report and a
+current one were indistinguishable on disk — see `run_one` for what that cost.
+The two thin-era / era-mismatch refusals in `lib/era.py` are what make this
+safe, by moving the common non-zero exit into the promoted branch above.
+
+The `--era` flag picks which export set the whole run reads (`STUDY_ERA`), and
+every header names the era it ran on. `lib/era.py` has the why.
+
 It also re-renders `site/study-map.html`, so the readable one-page map of the
 whole package always quotes the newest report. That step is best-effort: the
 report is the valuable output, and a broken map must never turn a good run into
@@ -62,7 +74,10 @@ failure is never swallowed quietly — the chart pipeline's own contract is
 reconcile-against-the-report-or-write-nothing, and a page that silently kept
 showing a previous run's numbers is exactly the bug this closes (an operator
 who changed a config, reran the study, and got a chart page that never moved).
-See `_render_charts` below for the exact failure-visibility rule.
+See `_render_charts` below for the exact failure-visibility rule. A DESIGNED
+REFUSAL renders no charts at all and says so as a SKIP: a refusal report has no
+numbers in it to draw, so calling the chart layer would only produce a "chart
+refreshed" line about a page that was not redrawn.
 
 Outputs live under `backtests/` because they are data, not source — the whole
 tree is gitignored scratch. The code lives here, under `scripts/`.
@@ -72,6 +87,7 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
+import os
 import subprocess
 import sys
 import time
@@ -80,6 +96,10 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from scripts.backtest_study.lib import era as era_mod  # noqa: E402
+
 PKG = "scripts.backtest_study"
 STUDY_DIR = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "backtests" / "study_output"
@@ -185,13 +205,21 @@ DEFAULT_ARGS = {
 
 # Inputs whose identity decides whether two runs are comparable. Reported in
 # every header so a write-up can never silently attribute numbers to the wrong
-# export (this has happened — see current.md on the 07-22 vs 08-08 books).
-INPUT_CSVS = [
-    "backtests/to_evaluate/analysis - BacktestResults.csv",
-    "backtests/to_evaluate/analysis - BacktestProxy.csv",
-    "backtests/to_evaluate/analysis - AnalysisClaude.csv",
-    "backtests/mech_regime/spy_vix_daily_full.csv",
-]
+# export (this has happened — see current.md on the 07-22 vs 08-08 books, and
+# again on 08-15 when a re-export turned the bare filenames from v3 into v4).
+#
+# Row counts and mtimes were not enough that second time: both moved, and both
+# look like an ordinary refresh. The header now names the detected ERA of each
+# export, which is the thing that actually changed. Paths are resolved per-era,
+# so a `--era v3` run reports the files it really read.
+MECH_TABLE_REL = "backtests/mech_regime/spy_vix_daily_full.csv"
+
+
+def _input_csvs(era: str) -> list[str]:
+    """Repo-relative input paths for `era`, in report order."""
+    paths = era_mod.resolve_paths(era)
+    return [str(paths[k].relative_to(ROOT)) for k in ("results", "proxy", "analysis")] + \
+        [MECH_TABLE_REL]
 
 
 def study_paths() -> dict[str, Path]:
@@ -254,10 +282,17 @@ def _refusal_codes(name: str) -> frozenset[int]:
     Parsed with `ast`, never imported, for the same reason as `discover()`:
     two studies do real work at import time, so importing every study just to
     read one constant would run them.
+
+    The era refusals (`lib/era.py`: thin era, era mismatch) are added to EVERY
+    study's set, declared or not. They are not a study's private convention —
+    they are emitted by shared infrastructure that every study inherits the
+    moment it calls `load_book`, so requiring twenty modules to restate the
+    same two integers would just be a rule waiting to be forgotten by the
+    twenty-first. A study still declares codes of its OWN meaning here.
     """
     path = study_paths().get(name)
     if path is None or not path.exists():
-        return frozenset()
+        return era_mod.DESIGNED_REFUSAL_EXIT_CODES
     tree = ast.parse(path.read_text())
     for node in tree.body:
         if not isinstance(node, ast.Assign):
@@ -266,10 +301,11 @@ def _refusal_codes(name: str) -> frozenset[int]:
                    for t in node.targets):
             continue
         try:
-            return frozenset(ast.literal_eval(node.value))
+            return frozenset(ast.literal_eval(node.value)) | era_mod.DESIGNED_REFUSAL_EXIT_CODES
         except (ValueError, TypeError):
-            return frozenset()
-    return frozenset()
+            return era_mod.DESIGNED_REFUSAL_EXIT_CODES
+    # No declaration of its own — still inherits the era refusals.
+    return era_mod.DESIGNED_REFUSAL_EXIT_CODES
 
 
 def _git(*args: str) -> str:
@@ -280,9 +316,9 @@ def _git(*args: str) -> str:
         return "?"
 
 
-def _input_inventory() -> list[str]:
+def _input_inventory(era: str) -> list[str]:
     rows = []
-    for rel in INPUT_CSVS:
+    for rel in _input_csvs(era):
         p = ROOT / rel
         if not p.exists():
             rows.append(f"  MISSING  {rel}")
@@ -290,16 +326,49 @@ def _input_inventory() -> list[str]:
         with p.open() as fh:
             n = sum(1 for _ in fh) - 1  # minus header
         mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        # Format is load-bearing: `study_charts.report.parse_provenance` matches
+        # `\s+([\d,]+) rows\s+(\S+ \S+)\s+(.+)` against these lines, and
+        # `clean_study_output` now leans on that parse to decide whether a cited
+        # report is stale. The era goes on its own header line above rather than
+        # a per-file column, which would put a non-digit ahead of the row count
+        # and silently empty out `inputs`. Per-file detection is not needed here
+        # anyway — `era.enforce` already refuses a half-finished re-export at
+        # load time, before a report exists to record it.
         rows.append(f"  {n:>6,} rows  {mtime}  {rel}")
     return rows
 
 
-def _header(name: str, argv: list[str], module: str | None = None) -> str:
+def _era_line(era: str) -> str:
+    """What the header records as the era: the DETECTED one, always.
+
+    `current` is a SELECTOR, not an era — it means "the bare exports, whatever
+    they hold now". Recording it verbatim would reintroduce the exact ambiguity
+    this whole layer exists to remove: a v4 run and a later v5 run would both
+    file themselves under "current", and `research/study-results/` keys its
+    append-only sections on this string. So the alias is resolved here and
+    shown alongside how it was selected.
+    """
+    paths = era_mod.resolve_paths(era)
+    try:
+        detected = era_mod.detect_era(paths["results"])
+    except (OSError, ValueError):
+        # An unreadable or empty export is `era.enforce`'s problem, and it will
+        # refuse in a moment with a better message than a header could give.
+        # Say what was ASKED for and mark it unresolved rather than guess.
+        return f"{era} (UNRESOLVED — see the refusal below)"
+    how = "bare exports" if era == era_mod.CURRENT else "prefixed exports"
+    origin = f"{era} — {how}" if era != detected else how
+    return f"{detected} ({origin})"
+
+
+def _header(name: str, argv: list[str], module: str | None = None,
+            era: str | None = None) -> str:
     """The provenance header. `name` is what the report is CALLED (the arm's
     stem, e.g. `account_sim-compounding`); `module` is what actually ran and
     defaults to `name` — they differ only for an extra arm, where the command
     line has to stay copy-pasteable and the arm's flag is what identifies the
     arm downstream (the chart layer reads it off this line)."""
+    era = era or era_mod.requested_era()
     dirty = "dirty" if _git("status", "--porcelain") else "clean"
     lines = [
         "=" * 78,
@@ -310,8 +379,9 @@ def _header(name: str, argv: list[str], module: str | None = None) -> str:
         f"  git       {_git('rev-parse', '--short', 'HEAD')} "
         f"({_git('rev-parse', '--abbrev-ref', 'HEAD')}, working tree {dirty})",
         f"  python    {sys.version.split()[0]}",
+        f"  era       {_era_line(era)}",
         "  inputs:",
-        *_input_inventory(),
+        *_input_inventory(era),
         "=" * 78,
         "",
     ]
@@ -356,6 +426,11 @@ def _render_charts(name: str, argv: list[str],
     the previous page — old but honestly old — survives untouched. The study
     report itself is valid and already on disk either way, so a chart problem
     must never be reported as a study-run failure.
+
+    A DESIGNED REFUSAL never reaches this function — the caller prints a SKIP
+    for each of the study's chart modules instead, because a refusal report has
+    nothing to draw and "chart refreshed:" below would be a false statement
+    about a page that was not redrawn.
     """
     modules = modules if modules is not None else CHART_MODULES.get(name)
     if not modules:
@@ -446,15 +521,29 @@ def run_one(name: str, extra: list[str], dry_run: bool = False,
         # something to hide behind a stale prior -latest.txt.
         latest.write_text(out_path.read_text())
         if rc != 0:
-            print(f"\n*** {stem} exited {rc} — a DESIGNED REFUSAL declared in its own "
-                  f"DESIGNED_REFUSAL_EXIT_CODES, not a failure; {latest.name} promoted "
-                  f"as usual. ***", file=sys.stderr)
+            # "declared or inherited", not "declared in its own": most studies
+            # never name these codes — they inherit the era pair from
+            # `lib/era.py` via `_refusal_codes`. Saying otherwise would send a
+            # reader looking for a constant that is not in the file.
+            print(f"\n*** {stem} exited {rc} — a DESIGNED REFUSAL (declared or inherited "
+                  f"via DESIGNED_REFUSAL_EXIT_CODES), not a failure; {latest.name} "
+                  f"promoted as usual. ***", file=sys.stderr)
     else:
-        # A failed run (typo'd flag, gate crash) must not clobber the canonical
-        # report that the map, charts, and study_review all quote — and with
-        # two arms in one run, a failing arm must not take the other's down.
-        print(f"\n*** {stem} FAILED (exit {rc}) — {latest.name} left at the "
-              f"previous good run; this attempt's output is in {out_path.name} ***",
+        # A genuine failure DELETES the canonical report rather than leaving a
+        # prior good run in place. Keeping it was the older policy, and on
+        # 2026-08-15 it is what let five stale reports sit next to fourteen
+        # freshly-contaminated ones with nothing on either to tell them apart:
+        # the map, charts and study_review all quote `-latest.txt`, and a report
+        # that no longer reproduces is worse than no report at all.
+        #
+        # Safe here in a way it was not before, because the COMMON non-zero exit
+        # is now a designed refusal (thin era, era mismatch), which is promoted
+        # by the branch above. What reaches this branch is a real bug.
+        existed = latest.exists()
+        latest.unlink(missing_ok=True)
+        gone = f"{latest.name} DELETED" if existed else f"{latest.name} absent"
+        print(f"\n*** {stem} FAILED (exit {rc}) — {gone}; the study now has NO "
+              f"current report. This attempt's output is in {out_path.name} ***",
               file=sys.stderr)
     return rc, out_path
 
@@ -502,10 +591,21 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--no-handoff", action="store_true",
                        help="suppress the 'paste this into Claude' footer — for callers "
                             "like scripts.study_review that do the write-up themselves")
+    p_run.add_argument("--era", default=None,
+                       help="which export era to run on: 'current' (default — the bare "
+                            "exports, i.e. whatever the live tabs hold now) or a version "
+                            "prefix like 'v3'. Sets STUDY_ERA for every study in the run "
+                            "and is stamped in each report's provenance header.")
     # argv=None (the default) falls through to argparse's own sys.argv[1:]
     # read, same as before this parameter existed; passing a list is what
     # lets tests drive main() without touching sys.argv or shelling out.
     args, extra = ap.parse_known_args(argv)
+
+    # Set for the whole run, before any header is built or subprocess spawned,
+    # so the runner's own provenance and every study's loader agree on the era
+    # without threading a flag through fourteen argparse blocks.
+    if getattr(args, "era", None):
+        os.environ["STUDY_ERA"] = args.era
 
     if args.cmd != "run":
         # Grouped by family, in family order, so `list` reads the same way the
@@ -579,13 +679,25 @@ def main(argv: list[str] | None = None) -> int:
     for n in skipped:
         print(f"  {n}  — SKIPPED (retired): {retired[n].split(' — ', 1)[-1][:80]}…")
 
-    # A successful run OR a designed refusal wrote a new report + (for
-    # account_sim) positions CSV worth quoting; a real failure leaves whatever
-    # chart page already existed alone (its own "*** FAILED ***" line above is
-    # the visible signal for that case). Each arm renders its OWN pages from
-    # its OWN positions CSV.
+    # Only a SUCCESSFUL run wrote a new report + (for account_sim) positions
+    # CSV worth charting. A real failure leaves whatever chart page already
+    # existed alone (its own "*** FAILED ***" line above is the visible signal
+    # for that case). Each arm renders its OWN pages from its OWN positions CSV.
+    #
+    # A DESIGNED REFUSAL is a third case, and it is a SKIP, never a chart
+    # error: the study did write a promoted report, but that report is its
+    # refusal — there are no numbers in it to draw, and it may have exited
+    # before writing a positions CSV at all. `study_charts.cli.run` detects
+    # this itself and skips cleanly (exit 0, nothing written), so the only
+    # thing wrong with calling it here would be the "chart refreshed:" line
+    # underneath — which would report a page as redrawn when it was not, the
+    # exact stale-reads-as-current failure `_render_charts` exists to prevent.
     for _stem, name, arm_extra, charts, rc, refused in results:
-        if rc == 0 or refused:
+        if refused:
+            for mod_name in (charts if charts is not None else CHART_MODULES.get(name)) or ():
+                print(f"  chart SKIPPED: {mod_name} — {name} refused (exit {rc}); its page "
+                      f"was left as it was and is now a page of an older era")
+        elif rc == 0:
             _render_charts(name, _merge_args(name, arm_extra), charts)
 
     # Imported here, not at module scope: the map reads every report in the
