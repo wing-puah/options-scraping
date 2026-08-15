@@ -4,7 +4,7 @@ Counterpart IV: settlement-IV for the option legs that DIDN'T trade.
 The paper-faithful IV spread (Cremers/Weinbaum, via Lin/Lu/Driessen 2013) needs
 BOTH a call and a put at the SAME (strike, expiration) to form a matched pair.
 The traded-flow subset almost never carries both legs — so `iv_spread` is ~98%
-blank on flow alone (see config/rollup-reference.md "Validity concern").
+blank on flow alone (see docs/rollup-reference.md "Validity concern").
 
 Barchart's per-contract price-history endpoint exposes a full daily series
 INCLUDING settlement IV / OI / volume for any listed contract, whether or not it

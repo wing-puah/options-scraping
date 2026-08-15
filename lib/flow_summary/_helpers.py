@@ -34,7 +34,7 @@ def _wmean(weighted_sum: float, weight: float) -> float | None:
 
 
 def _classify_sentiment(opt_type: str, side: str) -> str:
-    """Apply Barchart's bullish/bearish rules (see config/barchart-reference.md).
+    """Apply Barchart's bullish/bearish rules (see docs/barchart-reference.md).
 
     - Call on ask  → bullish
     - Put  on bid  → bullish

@@ -356,7 +356,7 @@ def main() -> None:
         else:
             print(f"  {r['date']}  {r['prefix']:<12} {r['status']}")
 
-    # Loud, because a blank IVpct is NOT inert: per config/analysis-framework.md Step 4
+    # Loud, because a blank IVpct is NOT inert: per config/prompts/analysis-framework.md Step 4
     # it flips the structure choice toward credit. A date past the retention edge can
     # never be enriched by a later re-run, so the operator must decide now whether to
     # analyze it at all — silence here is how a whole backfill era acquires a hidden

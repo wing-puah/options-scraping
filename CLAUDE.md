@@ -2,9 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
 repository. It is the compact, always-loaded layer: canonical commands, the tier map, and the
-invariants. Detail lives in `ARCHITECTURE.md` (per-file contracts, full flag matrices, the
+invariants. Detail lives in `docs/architecture.md` (per-file contracts, full flag matrices, the
 journal and study internals) — **read the relevant section there before editing `lib/` or
 `scripts/` code.**
+
+## Where things live
+
+Four destinations, by AUDIENCE. A file in the wrong one is how this repo became hard to
+navigate; put new prose where its reader will look for it.
+
+| Directory | Holds | Tracked? |
+|---|---|---|
+| `config/` | MACHINE-READ ONLY — `*.yml`, plus `config/prompts/` for prose the code inlines into an LLM prompt (`analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/`) | yes |
+| `docs/` | How the system works and how to run it — `architecture.md`, `deployment-rules.md` (the operator card), and the column dictionaries | yes |
+| `research/` | What we learned and how — the tuning log (`current.md` + `archive/`), `pre-registrations/`, `deployment-evidence.md`, `study-map.md`, `glossary.md` | yes |
+| `site/` | GENERATED HTML — study map, study-chart pages, journal pages. Rebuilt by `make study-docs` | **no** (gitignored) |
+
+Pinned at the repo root and not movable: `CLAUDE.md`, `SKILL.md`, `GEMINI.md`, `modes/` — the
+root IS the `/options` skill (`~/.claude/skills/options` symlinks here).
+
+Reorganized 2026-08-15. `docs/` used to be the gitignored generated-output folder and
+`config/backtest-tuning/` used to be the research log; both are now what their names say. Adding
+`docs/` back to `.gitignore` would silently drop the documentation from version control.
 
 ## Subagent model selection
 
@@ -33,7 +52,7 @@ Plan agents `model: sonnet`.
 
 ## Commands
 
-Canonical invocation per workflow. Full flag matrices: `ARCHITECTURE.md` §Command variants.
+Canonical invocation per workflow. Full flag matrices: `docs/architecture.md` §Command variants.
 Common flags on the data steps: `--date YYYY-MM-DD` · `--backfill` (all dates, idempotent) ·
 `--dry-run` · `--force` (clear + redo).
 
@@ -71,9 +90,9 @@ python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option 
 # Backtest tuning studies (research tier — reports, not production)
 python3 -m scripts.backtest_study list                # available studies
 python3 -m scripts.backtest_study run <name>          # → backtests/study_output/<name>-latest.txt
-python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see ARCHITECTURE.md §account_sim
+python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see docs/architecture.md §account_sim
 python3 -m scripts.study_review <name>                # A/B replication grading + digest (--skip-run reuses report)
-make study-map-open                                   # rebuild docs/study-map.html + open
+make study-map-open                                   # rebuild site/study-map.html + open
 python3 -m scripts.study_charts.account_sim           # render a study result; never computes a new one
 
 # Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
@@ -99,16 +118,16 @@ cd web && npm run dev   # http://localhost:3000
 Research tier (`backtest_study/`, `study_*`):
 
 - `scripts/backtest_study/harness.py` is the FROZEN exit-replay engine — do not edit; every
-  recorded conclusion rests on it. Write-ups go to `config/backtest-tuning/current.md`.
+  recorded conclusion rests on it. Write-ups go to `research/current.md`.
 - `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
   There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
   `--structure-universe`, `--live-select`) writes its own report/CSV stem; a different
   `--config` does NOT — it overwrites the default export (the report records which config
-  produced it). Arms, gates (G1–G6), and the live-select judge cache: `ARCHITECTURE.md`
+  produced it). Arms, gates (G1–G6), and the live-select judge cache: `docs/architecture.md`
   §account_sim.
-- `docs/` is GENERATED OUTPUT and gitignored — a fresh checkout has no pages until
-  `make study-docs` or any study run. The hand-written architecture doc is `ARCHITECTURE.md`
-  at the repo root.
+- `site/` is GENERATED OUTPUT and gitignored — a fresh checkout has no pages until
+  `make study-docs` or any study run. It was called `docs/` until 2026-08-15; `docs/` is now
+  TRACKED hand-written prose, so never point a generator at it.
 - Study-map verdicts are hand-written in `scripts/study_map/catalog.py`; a study with no entry
   there fails the test suite. Last-run excerpts are quoted verbatim, never paraphrased.
 - Study charts reconcile every CSV-recomputed figure against the report before writing —
@@ -121,7 +140,7 @@ Journal / production tier (`scripts/journal/`, `scripts/live_loop/`):
 - Flex is the ONLY broker transport and it fetches by default (`IBKR_FLEX_TOKEN` +
   `IBKR_FLEX_QUERY_TRADES_ID`, optional `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`); `--offline`
   reads disk only. The IBKR MCP is claude.ai-hosted and unreachable from scripts. Transport
-  details, netting/coverage semantics, and the flat-book guards: `ARCHITECTURE.md` §Daily
+  details, netting/coverage semantics, and the flat-book guards: `docs/architecture.md` §Daily
   trade journal.
 - A short Flex statement OMITS positions it didn't touch. Fix a coverage gap by dropping a
   fresh export into `portfolio/input/`, NEVER by re-scoping the saved Flex query.
@@ -157,7 +176,7 @@ Google Sheets (service account) ──► Next.js Dashboard (web/)
 
 ## File layout
 
-Compact map only — per-file contracts and semantics are in `ARCHITECTURE.md`.
+Compact map only — per-file contracts and semantics are in `docs/architecture.md`.
 
 ```
 lib/                        ← shared modules, imported by scripts, never run directly
@@ -238,7 +257,7 @@ two prompt versions are never pooled.
   0–50 (0–55 for VOLATILITY) — NOT comparable to v3's 0–100. `ROW_COLUMNS` is 26 since
   `iv_pct_status` was appended (append-at-end, not a version bump).
 - **v3 is frozen** as the evidence base for every shipped rule in
-  `config/deployment-rules.md`. Pass `--tab v3_AnalysisClaude` to run against it; a bare
+  `docs/deployment-rules.md`. Pass `--tab v3_AnalysisClaude` to run against it; a bare
   backtest reads the (empty) v4 tab.
 - Studies read CSV exports in `backtests/to_evaluate/` by filename — unaffected by renames.
 - `RESULT_COLUMNS` (`scripts/backtest/core.py`) deliberately KEEPS `score_flow`/`score_dealer`
@@ -264,7 +283,7 @@ two prompt versions are never pooled.
   membership in `DELTA_SOURCES_REAL`, never equality with one named source.
 
 - **The model may annotate the deploy card; it may never promote a play.** `recommend.py`
-  ranks deterministically from `config/deployment-rules.md` via `ladder_tier()`, then shows
+  ranks deterministically from `docs/deployment-rules.md` via `ladder_tier()`, then shows
   the headless model ONLY the survivors. Verdicts are applied as annotations onto that
   ordering — never a re-sort or rebuild, and a returned ticker outside the survivor set is
   dropped. The rules encode backtest evidence with confidence intervals; a model's read of
@@ -291,7 +310,7 @@ two prompt versions are never pooled.
   discovering the contamination after building on them. `scripts/backtest_study/live_select.py`
   documents the same concern for its own judge layer.
 
-- **`ladder_tier()` is the ONLY encoding of `config/deployment-rules.md` §1–§3.** Both
+- **`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1–§3.** Both
   `scripts/journal/` and `scripts/live_loop/` import it from `scripts/live_loop/mapping.py`.
   Two copies would let the daily card and the fortnightly audit disagree — never inline a
   tier rule elsewhere. A financed multi-leg position is tiered off `event.core_structure`
@@ -314,12 +333,12 @@ enter the calling agent's context; `--engine claude` is the only registered engi
 overrides). `modes/summary.md` formats latest AnalysisClaude rows. `modes/positions.md`
 cross-references live positions against latest flow.
 
-The analysis framework (`config/analysis-framework.md`) defines the 5-step process — regime
+The analysis framework (`config/prompts/analysis-framework.md`) defines the 5-step process — regime
 classification (macro optional, only when corroborated), signal tagging, sector narrowing,
 play proposals, invalidation — output JSON keys: `regime`, `signals`, `themes`, `plays`,
-`invalidation`. Per-model judgment lives in `config/analysis-methods/`. The full data contract
-(rollup columns, score components, bands) is in `ARCHITECTURE.md` §"/options analyze" and
-`config/conviction-score.md` — read those only when changing the pipeline or its schema.
+`invalidation`. Per-model judgment lives in `config/prompts/analysis-methods/`. The full data contract
+(rollup columns, score components, bands) is in `docs/architecture.md` §"/options analyze" and
+`docs/conviction-score.md` — read those only when changing the pipeline or its schema.
 
 ## Configuration files
 
@@ -328,7 +347,11 @@ play proposals, invalidation — output JSON keys: `regime`, `signals`, `themes`
 - `config/backtest.yml` — backtest settings (tab, entry side, path cap, exits, pricing
   fallbacks). No signal filter — the analysis is the filter.
 - `config/account-sim.yml` — RESEARCH tier; the `account_sim` study's whole parameter surface
-- `config/barchart-reference.md` / `config/backtest-reference.md` — column definitions
+- `config/prompts/` — prose the CODE reads and inlines into an LLM prompt, NOT documentation:
+  `analysis-framework.md` (`analysis_pipeline/config.py::FRAMEWORK_FILE`),
+  `conviction-score-legend.md` (`fetch.py::_SCORE_LEGEND_DOC`), `analysis-methods/claude.md`
+  (`EngineConfig.method_file`). Moving one of these breaks the pipeline — they are code inputs.
+- `docs/barchart-reference.md` / `docs/backtest-reference.md` — column definitions
 
 ## Testing
 

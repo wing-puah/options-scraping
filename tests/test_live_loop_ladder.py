@@ -3,7 +3,7 @@
 `ladder_tier(structure, market_regime, dte_proxy, short_leg_delta)` gained a
 4th, optional parameter so `scripts/journal/` (a real-delta daily pipeline)
 can evaluate the bull_put_spread Tier-B clause in
-`config/deployment-rules.md` §3 for real — ``0.08 <= |delta| <= 0.20`` AND
+`docs/deployment-rules.md` §3 for real — ``0.08 <= |delta| <= 0.20`` AND
 ``DTE <= 59`` — instead of the DTE-only PARTIAL proxy `stage1_map_fills.py`
 is stuck with (no delta on the analysis row).
 

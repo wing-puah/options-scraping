@@ -8,10 +8,10 @@ OTHER input (backtests/results.csv, the rolling file every `backtest.py` run
 stomps) has 0 credit rows today, so `load_credit_rows` would return `[]` and
 the study would emit a degenerate empty report regardless of the rename. Do
 not repoint the constants below — see
-config/backtest-tuning/next-steps.md §0c(B) for the full diagnosis.
+research/next-steps.md §0c(B) for the full diagnosis.
 
 Its recorded verdict (Attempt 9, NULL — nothing shipped) already lives in
-config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md and is
+research/archive/02-credit-debit-split-attempts-8-12.md and is
 quoted in scripts/study_map/catalog.py — it does not need this script to run
 again. `run --all` (scripts/backtest_study/run.py) excludes this study from
 the bulk run; `run underlying_exit_study` still runs it directly, with a

@@ -1,6 +1,6 @@
 """Calendar hedge: the one vol_sleeve survivor, re-derived under a pre-registered pick rule.
 
-Pre-registered in `config/backtest-tuning/current.md` §2026-08-13 "`calendar_hedge`:
+Pre-registered in `research/current.md` §2026-08-13 "`calendar_hedge`:
 PRE-REGISTRATION", written BEFORE this file was built or run. The pick rules, the
 gates, the criteria, the power stop and the two baselines are fixed there;
 nothing here may be reworded after seeing a table.
@@ -1000,7 +1000,7 @@ def h0b_freshness(fillable_by_date: dict, rule, dep: dict, dep_dates: list[str],
 def bear_sleeve_dollars(book: list[dict], dates: list[str]) -> dict[str, float]:
     """The SHIPPED bear hedge sleeve: 1/day, |delta| DESCENDING, <= 1/2 size.
 
-    `config/deployment-rules.md` §4. Dollars follow `bear_deploy._sleeve_dollars`'
+    `docs/deployment-rules.md` §4. Dollars follow `bear_deploy._sleeve_dollars`'
     convention — the day's single best-ranked bear candidate, its realized
     dollars — replayed on the SHIPPED merge (`bear_giveback.prod_profile_for`,
     i.e. base -> structure_exit bear_debit be_after 0.50 -> regime_exit BEAR_HE),
@@ -1062,7 +1062,7 @@ def h3_sizing(picks: dict[str, dict], dep: dict, dep_dates: list[str],
     print("  Two baselines, a deliberate change from vol_sleeve: the calendar must")
     print("  beat the hedge the operator ALREADY HAS, not just the empty seat.")
     print("  (i) the deployed ladder alone; (ii) ladder + the SHIPPED bear sleeve")
-    print("  (|delta| descending, 1/day, <= 1/2 size, config/deployment-rules.md §4).")
+    print("  (|delta| descending, 1/day, <= 1/2 size, docs/deployment-rules.md §4).")
     # A pick that is fillable but unsizable at the ARM H half-size floor
     # (H_dol None; see `_typed`, 2026-08-14) contributes $0 here too — ARM H
     # does not take it, same as no pick that day.
@@ -1467,7 +1467,7 @@ def main(argv=None) -> int:
     print(f"  checkpoint store   {store.describe()}")
     print(f"  exit profiles      " + "   ".join(
         f"{k}={profile_hash(v)} {v}" for k, v in PROFILES.items()))
-    print(f"  pre-registration   config/backtest-tuning/current.md "
+    print(f"  pre-registration   research/current.md "
           f"§2026-08-13 calendar_hedge")
     print(f"  P6 ETF list ({len(ETF_UNDERLYINGS)}): " + " ".join(ETF_UNDERLYINGS))
 
@@ -1624,7 +1624,7 @@ def main(argv=None) -> int:
     print(f"  H2 under hold     {h2_hold['verdict']}   (sensitivity — may not change "
           f"the verdict)")
     print("\n  Ship ceiling per the pre-registration: an optional second hedge sleeve")
-    print("  in config/deployment-rules.md §4, requiring H0 MET and H0b not flipping")
+    print("  in docs/deployment-rules.md §4, requiring H0 MET and H0b not flipping")
     print("  the verdict and H2 MET and H3 deployable at f >= 0.25. Anything less is")
     print("  a candidate. Nothing here changes config/backtest.yml.")
     return 0

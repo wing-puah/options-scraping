@@ -1,6 +1,6 @@
 """As-of-entry VOLUME features for the study tier. Infrastructure, not a study.
 
-Pre-registered in `config/backtest-tuning/current.md` (2026-08-13,
+Pre-registered in `research/current.md` (2026-08-13,
 `volume_signal`). Three features and no more; windows are the standing
 `underlying_features` constants, not knobs.
 

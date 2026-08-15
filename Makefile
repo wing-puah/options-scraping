@@ -124,7 +124,7 @@ baseline:
 
 # ── backtest tuning studies (research tier) ────────────────────────────────────
 # Reports land in backtests/study_output/<name>-latest.txt with a provenance
-# header; conclusions go to config/backtest-tuning/current.md. Never scheduled.
+# header; conclusions go to research/current.md. Never scheduled.
 .PHONY: studies
 studies:
 	$(PY) -m scripts.backtest_study list
@@ -164,7 +164,7 @@ endif
 # ── study review ────────────────────────────────────────────────────────────────
 # Deterministic two-analyst replication protocol wrapper (headless `claude -p`
 # calls, isolated sessions). ARGS="<study> [flags]" — see
-# config/backtest-tuning/replication-protocol.md § Automated invocation.
+# research/replication-protocol.md § Automated invocation.
 # The study name defaults to $(STUDY_REVIEW_STUDY) when ARGS starts with a flag
 # (or is empty), so `make study-review` and `make study-review ARGS="--skip-run"`
 # both work; naming another study in ARGS overrides it.
@@ -180,8 +180,8 @@ study-review:
 # the report, and a mismatch exits non-zero. Run the study FIRST.
 # Each run writes TWO files: the scratch HTML FRAGMENT under
 # backtests/study_output/ (what the Artifact publisher wants) and the standalone
-# docs/account-sim-charts.html — generated output, rebuilt by `make study-docs`,
-# that opens on a double-click the way docs/study-map.html does. ARGS="--no-docs"
+# site/account-sim-charts.html — generated output, rebuilt by `make study-docs`,
+# that opens on a double-click the way site/study-map.html does. ARGS="--no-site"
 # writes only the scratch one.
 # The report is auto-paired to the positions CSV's arm on BOTH arm axes
 # (--structure-universe and --compounding), so chart another arm by pointing
@@ -217,7 +217,7 @@ study-chart-regime-open:
 
 # The compounding arm's own page. That arm is a POST-HOC sensitivity (sizing
 # re-marked to realized equity), not the pre-registered book, so it gets a page
-# of its own — docs/account-sim-compounding.html — and cli.docs_dest refuses
+# of its own — site/account-sim-compounding.html — and cli.site_dest refuses
 # either arm on the other's page. Run the compounding arm of the study first.
 .PHONY: study-chart-compounding
 study-chart-compounding:
@@ -227,9 +227,9 @@ study-chart-compounding:
 study-chart-compounding-open:
 	$(PY) -m scripts.study_charts.compounding --standalone --open $(ARGS)
 
-# Every generated docs page in one command: the study map, the account_sim
+# Every generated site page in one command: the study map, the account_sim
 # readout, the regime breakdown, the compounding arm. None runs a study — they
-# only read what the last run left behind. docs/ is generated output; this is
+# only read what the last run left behind. site/ is generated output; this is
 # the command that rebuilds it.
 .PHONY: study-docs
 study-docs:
@@ -275,7 +275,7 @@ journal-recommend:
 .PHONY: journal-page-open
 journal-page-open:
 	$(PY) -m scripts.journal --page-only $(ARGS)
-	@open docs/journal-latest.html 2>/dev/null || echo "built docs/journal-latest.html"
+	@open site/journal-latest.html 2>/dev/null || echo "built site/journal-latest.html"
 
 .PHONY: help
 help:
@@ -339,7 +339,7 @@ help:
 	@echo "  make study ARGS=\"account_sim --dry-run\"  (also --cache-only, --redo, --date)"
 	@echo "  make study-all     run every study with its default args"
 	@echo ""
-	@echo "  make study-map     rebuild docs/study-map.html (what each study asks + its last run)"
+	@echo "  make study-map     rebuild site/study-map.html (what each study asks + its last run)"
 	@echo "  make study-map-open  rebuild it and open it in a browser"
 	@echo ""
 	@echo "  make clean-studies clear backtests/study_output/, keeping each -latest.txt"
@@ -349,15 +349,15 @@ help:
 	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
 	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
 	@echo ""
-	@echo "  make study-chart   render the account_sim result → study_output fragment + docs/account-sim-charts.html"
+	@echo "  make study-chart   render the account_sim result → study_output fragment + site/account-sim-charts.html"
 	@echo "  make study-chart-open   same, wrapped as a full page and opened in a browser"
 	@echo "  make study-chart-structure  chart the --structure-universe arm's export (fragment only)"
-	@echo "  make study-chart-regime  render the deployed book by market regime → docs/account-sim-regime.html"
+	@echo "  make study-chart-regime  render the deployed book by market regime → site/account-sim-regime.html"
 	@echo "  make study-chart-regime-open  same, wrapped as a full page and opened in a browser"
-	@echo "  make study-chart-compounding  render the POST-HOC compounding arm → docs/account-sim-compounding.html"
+	@echo "  make study-chart-compounding  render the POST-HOC compounding arm → site/account-sim-compounding.html"
 	@echo "  make study-chart-compounding-open  same, wrapped as a full page and opened in a browser"
-	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-docs)"
-	@echo "  make study-docs    rebuild every generated docs page (map + readout + regime + compounding)"
+	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-site)"
+	@echo "  make study-docs    rebuild every generated site page (map + readout + regime + compounding)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"
@@ -369,5 +369,5 @@ help:
 	@echo "  make journal ARGS=\"--offline\"  read portfolio/input/ only, no network"
 	@echo "  make journal-replay ARGS=\"--from-raw journal/raw/ibkr-<date>-<HHMM>.json\"  offline replay"
 	@echo "  make journal-recommend  deploy card for the next session (add ARGS=\"--no-llm\")"
-	@echo "  make journal-page-open  rebuild docs/journal-latest.html and open it"
+	@echo "  make journal-page-open  rebuild site/journal-latest.html and open it"
 	@echo ""

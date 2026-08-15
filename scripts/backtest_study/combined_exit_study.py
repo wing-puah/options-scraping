@@ -9,11 +9,11 @@ that never matched config/backtest.yml's actual output name, so there is no
 backtests/results.csv is now a 4-row, 2-date rolling file every `backtest.py`
 run stomps, and a fresh run against it could be mistaken for a confirmation of
 the recorded verdict rather than what it would actually be — noise from a
-different, much smaller book. See config/backtest-tuning/next-steps.md §0c(B)
+different, much smaller book. See research/next-steps.md §0c(B)
 for the full diagnosis.
 
 Its recorded verdict (Attempts 8, 9, 12) already lives in
-config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md and is
+research/archive/02-credit-debit-split-attempts-8-12.md and is
 quoted in scripts/study_map/catalog.py — neither needs this script to run
 again. `run --all` (scripts/backtest_study/run.py) excludes this study from
 the bulk run; `run combined_exit_study` still runs it directly, with a printed

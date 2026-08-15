@@ -28,20 +28,20 @@ if str(ROOT) not in sys.path:
 
 from scripts.study_charts import cli, render_regime  # noqa: E402
 
-DOCS_NAME = "account-sim-regime.html"
+SITE_NAME = "account-sim-regime.html"
 
 
-def docs_dest(positions: Path, docs_dir: Path = cli.DOCS_DIR) -> Path | None:
-    """Where this page's docs copy lives, or None for the structure arm."""
-    return cli.docs_dest(positions, DOCS_NAME, docs_dir)
+def site_dest(positions: Path, site_dir: Path = cli.SITE_DIR) -> Path | None:
+    """Where this page's site copy lives, or None for the structure arm."""
+    return cli.site_dest(positions, SITE_NAME, site_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    cli.add_arguments(ap, DOCS_NAME)
+    cli.add_arguments(ap, SITE_NAME)
     args = ap.parse_args(argv)
     return cli.run(args, build=render_regime.build, out_stem="account_sim-regime",
-                   docs_name=DOCS_NAME, module="regime")
+                   site_name=SITE_NAME, module="regime")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Step 4b — render the day's journal as a self-contained HTML page.
 PRODUCTION TIER. Same inputs as report.py (`list[PositionEvent]`, `BookRisk`,
 `meta`) plus an output path, and it writes a standalone HTML document with
 every CSS/JS rule inlined — no external request of any kind, so it opens
-straight from `docs/` with no server. Theme-aware exactly as
+straight from `site/` with no server. Theme-aware exactly as
 `scripts/study_charts/assets/page.css` is: the CSS carries the tokens, this page
 adds none of its own.
 

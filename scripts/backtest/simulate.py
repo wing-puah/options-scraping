@@ -122,8 +122,8 @@ def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None,
     cannot produce). Do not consume this column from an export until
     `scripts/align_tab_headers.py` covers these tabs against `core._KEY_ORDER`
     and the values are re-verified. Full write-up:
-    config/backtest-tuning/current.md §2026-08-14 study-suite triage FIXED;
-    contract note: config/backtest-reference.md `exit_basis`.
+    research/current.md §2026-08-14 study-suite triage FIXED;
+    contract note: docs/backtest-reference.md `exit_basis`.
 
     Reported in merge-precedence order, so the label always names the profile
     that actually governed the exit:

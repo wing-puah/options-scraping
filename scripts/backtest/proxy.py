@@ -26,7 +26,7 @@ Fallback chain (interpretable ``proxy_method``):
      (unsupported / no_strike / no_expiry): identity + ``skip_reason`` only.
 
 Why method 2 is disabled by default (2026-08-11, measured on the 1,118-row pooled
-book; full entry in ``config/backtest-tuning/current.md``): no ``bs_options_hist``
+book; full entry in ``research/current.md``): no ``bs_options_hist``
 row has a single real price day (``pct_real_days`` 0.00 on all 301), and none is
 ever calibratable — the chain is strictly ordered, so a play priced by BS is never
 also priced for real. Its marks are tail-compressed (E sd 0.86 vs 1.38 real;

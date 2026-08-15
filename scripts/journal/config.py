@@ -9,7 +9,7 @@ is a chain of independently-runnable steps that hand each other these records:
     reconcile.py RawPull -> list[PositionEvent]
     risk.py      + greeks -> list[PositionRisk]
     report.py    -> journal/reports/<date>.md
-    page.py      -> docs/journal-<date>.html
+    page.py      -> site/journal-<date>.html
     writer.py    -> Sheets TradeJournal tab + journal/trades.csv
     recommend.py latest analysis + open book -> the deploy card
     recwriter.py the deploy card -> Sheets Recommendations tab
@@ -26,9 +26,9 @@ DATA PRIVACY. Everything this contract describes is real trading activity.
 `journal/` is gitignored in full (raw pulls carry account identifiers;
 trades.csv carries position sizes and P&L). Journal content has exactly THREE
 permitted destinations: `journal/`, the Sheets tabs in
-TRADE_JOURNAL_SPREADSHEET_ID, and `docs/` — which page.py has always written
+TRADE_JOURNAL_SPREADSHEET_ID, and `site/` — which page.py has always written
 position sizes and P&L into, and which is gitignored for that reason
-(.gitignore). Do not add a path under `journal/` or `docs/` to version control,
+(.gitignore). Do not add a path under `journal/` or `site/` to version control,
 and do not write journal content anywhere else.
 """
 
@@ -48,7 +48,7 @@ RAW_DIR = JOURNAL_DIR / "raw"          # immutable broker pulls, write-once
 REPORTS_DIR = JOURNAL_DIR / "reports"  # <date>.md
 TRADES_CSV = JOURNAL_DIR / "trades.csv"
 RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
-DOCS_DIR = ROOT / "docs"               # generated HTML, also gitignored
+SITE_DIR = ROOT / "site"               # generated HTML, also gitignored
 
 # Fallback analysis source when Sheets is unreachable — the same exports
 # scripts/live_loop/stage1_map_fills.py already reads.

@@ -30,7 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "backtests" / "study_output"
-TUNING_DIR = ROOT / "config" / "backtest-tuning"
+TUNING_DIR = ROOT / "research"
 
 # Suffixes for the stable "-latest" copy: the runner (scripts/backtest_study/
 # run.py) writes .txt, while the study/review pipelines write .csv/.md

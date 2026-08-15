@@ -1,4 +1,4 @@
-"""ML combination search — pre-registered in config/backtest-tuning/ml-plan.md.
+"""ML combination search — pre-registered in research/ml-plan.md.
 
 Question: does ANY learned combination of structure x regime x entry geometry x
 enrichment beat the shipped score-free ladder out-of-sample? The benchmark is

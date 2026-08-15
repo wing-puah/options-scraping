@@ -14,7 +14,7 @@ categorized feedback. **You are read-only** — report findings, never apply the
 ## Before you start
 
 1. Read the task description or spec. A review without knowing the intent is a lint pass.
-2. Read `CLAUDE.md`, then the matching section of `ARCHITECTURE.md` for every
+2. Read `CLAUDE.md`, then the matching section of `docs/architecture.md` for every
    `lib/` or `scripts/` file the diff touches — that is where the data contracts,
    column schemas, and resume/idempotency semantics live.
 3. Use `codegraph_explore` (a `.codegraph/` index exists) to pull the verbatim source
@@ -72,7 +72,7 @@ Layer boundaries that must hold:
 - **`scripts/backtest_study/` is the RESEARCH tier**: never imported by production,
   never scheduled. A production module importing from it is Critical.
 - **`scripts/backtest_study/harness.py` is FROZEN.** Every recorded conclusion in
-  `config/backtest-tuning/` rests on it. An edit to it invalidates the evidence base —
+  `research/` rests on it. An edit to it invalidates the evidence base —
   Critical unless the change is explicitly a re-baseline with the write-up to match.
 - `RESULT_COLUMNS` in `scripts/backtest/core.py` deliberately keeps dead v3 columns so
   pooled study loaders don't break. "Cleaning up" them is a regression, not a tidy-up.

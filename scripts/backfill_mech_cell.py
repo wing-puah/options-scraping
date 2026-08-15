@@ -2,7 +2,7 @@
 
 `mech_cell` (lib/mech_regime.py) is the mechanical market-regime cell for a
 signal date — BEAR_HE / LVOL / RB_EVOL / NONE — and it is what the operator
-reads at deploy time to pick the exit profile (config/deployment-rules.md
+reads at deploy time to pick the exit profile (docs/deployment-rules.md
 §"Exit management"). The analysis pipeline stamps it on rows it writes, but:
 
   - every row written BEFORE the column shipped (2026-07-22) has a blank cell, and

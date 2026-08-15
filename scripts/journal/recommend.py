@@ -6,7 +6,7 @@ never depends on the model and the model can never see more than the rules
 already cleared:
 
     rank()    PART A — the deterministic ranker. Reads one date's analysis
-              plays plus the open book and applies `config/deployment-rules.md`
+              plays plus the open book and applies `docs/deployment-rules.md`
               §0-§4 via `scripts/live_loop/mapping.ladder_tier` (the ONE
               encoding of §1-§3 — this module never reimplements a tier rule).
               Does all the real work; a `--no-llm` run is this function plus
@@ -61,14 +61,14 @@ DEPLOY_BUDGET = 3
 _HEDGE_ONLY_STRUCTURES = ("bear_put_spread", "long_put")
 
 # The caveat block PART C prints verbatim near the top of every card — see
-# `render()`. Quoted from config/deployment-rules.md's own top-of-file
+# `render()`. Quoted from docs/deployment-rules.md's own top-of-file
 # blockquote plus its §6 v3/v4 note, not paraphrased, so the two documents
 # cannot silently drift apart.
 _V3_V4_CAVEAT = (
     "> **Derived on v3 rows; v4 transfer is not yet validated.** The "
     "pre-registered composition bridge has not fired. Until it does, deploy "
     "under these rules unchanged and expect them to be re-confirmed, not "
-    "re-derived. — `config/deployment-rules.md`\n"
+    "re-derived. — `docs/deployment-rules.md`\n"
     ">\n"
     "> **v3 and v4 `score_total` are not comparable** (§6): v3 ran 0-100, v4 "
     "runs 0-50 (0-55 for VOLATILITY-intent plays). Every `score_total` on this "

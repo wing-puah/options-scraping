@@ -4,7 +4,7 @@ Tests for scripts/journal/recommend.py — the step-6 deploy-card ranker.
 Offline throughout. `judge()`'s `invoke` is always stubbed (a plain callable
 returning a JSON string), so nothing here spawns a `claude -p` subprocess.
 
-`rank()`'s tier decision is MARKET-level (config/deployment-rules.md invariant:
+`rank()`'s tier decision is MARKET-level (docs/deployment-rules.md invariant:
 the ladder reads the MARKET row's regime, never a play row's own `regime`), so
 every play on one `_ac_df(...)` call shares one market regime — tests that need
 two different tiers side by side (Tier A vs Tier B) get there with two

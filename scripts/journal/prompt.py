@@ -8,7 +8,7 @@ it owns the actual `claude -p` subprocess (mirrors `run_engine()` /
 builds the prompt text and parses the response shape.
 
 STRICT JSON CONTRACT. The model is asked exactly THREE things —
-`config/deployment-rules.md` leaves no fourth to ask:
+`docs/deployment-rules.md` leaves no fourth to ask:
   1. has each candidate's `trigger` fired, given the supplied context?
   2. is each candidate's `alternative_interpretation` now more likely than the
      thesis it was scored against?

@@ -31,7 +31,7 @@ gaps, and ensure code changes are properly verified.
 
 Before writing any test:
 - Read the code being tested to understand its behavior.
-- Read the matching section of `ARCHITECTURE.md` — the data contract is the spec.
+- Read the matching section of `docs/architecture.md` — the data contract is the spec.
 - Identify the public API (what to test) versus internals (what not to pin).
 - Identify edge cases and error paths.
 - Read the nearest existing `tests/test_*.py` for patterns and conventions.

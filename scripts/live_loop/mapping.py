@@ -8,7 +8,7 @@ structure into a canonical family, matching it against an AnalysisClaude play
 on its signal date, and reconstructing the deployment-ladder tier that play
 would have received.
 
-`ladder_tier()` is the ONLY encoding of `config/deployment-rules.md` §1-§3 —
+`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1-§3 —
 there must never be a second copy. Anything that needs to know a structure's
 tier (live-fill audit, daily deployment, a future backtest reconciliation)
 calls this function; do not re-derive the veto/tier rules inline elsewhere.
@@ -317,7 +317,7 @@ DIRECTION = {"bull_call_spread": "bullish", "long_call": "bullish",
 
 
 # --------------------------------------------------------------------------
-# Deployment-ladder tier (encodes config/deployment-rules.md)
+# Deployment-ladder tier (encodes docs/deployment-rules.md)
 # --------------------------------------------------------------------------
 def ladder_tier(structure: str, market_regime: str, dte_proxy=np.nan, short_leg_delta=None):
     """Return (tier, partial_flag, reason). Tiers from deployment-rules.md.

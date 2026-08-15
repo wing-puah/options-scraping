@@ -2,7 +2,7 @@
 
 `_typed()` converts a stored calendar candidate row into a report row and
 computes `hedge_contracts` under ARM H's pre-registered half-size convention
-(`HEDGE_SIZE = 0.5`, "<= 1/2 a position", `config/deployment-rules.md` §4).
+(`HEDGE_SIZE = 0.5`, "<= 1/2 a position", `docs/deployment-rules.md` §4).
 
 Fixed 2026-08-14 (recorded follow-up from 2026-08-13): at `contracts == 1`,
 `int(HEDGE_SIZE * 1) == 0` used to be floored back UP to 1 — a FULL-size

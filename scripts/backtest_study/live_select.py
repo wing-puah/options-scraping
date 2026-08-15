@@ -28,7 +28,7 @@ Four things are worth knowing before reading a number this module prints.
 
   * **The §3 delta gate cannot be read off an analysis row.** The
     AnalysisClaude export carries no `delta`, `short_leg_delta` or
-    `delta_notional`; `config/deployment-rules.md` §3 is explicit that those are
+    `delta_notional`; `docs/deployment-rules.md` §3 is explicit that those are
     read in IBKR at order entry. `entry_check="ibkr_verified"` (the default)
     joins the book row's measured entry-side delta/DTE onto the frame under the
     names `rank()` looks for, which is what the operator would have had in front
@@ -555,7 +555,7 @@ def divergence_cause(structure: str, book_tier: str, map_tier: str,
 def ladder_divergence(recs, *, entry_check: str) -> list[dict]:
     """One row per record whose two ladders disagree, itemised by cause.
 
-    `mapping.ladder_tier()` is `config/deployment-rules.md` §1-§3 as production
+    `mapping.ladder_tier()` is `docs/deployment-rules.md` §1-§3 as production
     encodes it; `book.ladder_tier()` is the research port that has since fallen
     behind it. Under `analysis_only` the delta is withheld from the production
     side too, which is what the card alone would have had — so the §3 bucket
@@ -627,7 +627,7 @@ def print_preamble(st, entry_check: str, use_llm: bool, cache: JudgmentCache | N
                      else "NOT RUN (--live-select-no-llm) — deterministic rank() only")
     print(f"""  This arm replaces account_sim's own ladder (book.py::ladder_tier) with the
   function that actually decides what gets deployed: scripts/journal/recommend.py's
-  rank() — which encodes config/deployment-rules.md §1-§3 exactly once, via
+  rank() — which encodes docs/deployment-rules.md §1-§3 exactly once, via
   scripts/live_loop/mapping.ladder_tier — followed by judge(), the single
   demote-only model call. Pricing, sizing, admission and exit replay are
   account_sim's frozen machinery, unchanged and unreachable from here.

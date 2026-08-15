@@ -2,7 +2,7 @@ name: Backfill Mech Cell
 
 # Fills `mech_cell` (lib/mech_regime.py) on every analysis tab — the mechanical
 # regime label the operator reads at deploy time to pick the exit profile
-# (config/deployment-rules.md §"Exit management").
+# (docs/deployment-rules.md §"Exit management").
 #
 # Two populations need it: rows written before the column shipped (blank), and
 # rows written while the SPY/VIX table was missing or stale (NO_DATA). The label

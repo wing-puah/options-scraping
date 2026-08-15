@@ -14,10 +14,10 @@ report it claims to draw is worse than no chart.
 
 Two files come out of one run, for two different readers: the scratch fragment
 under `backtests/study_output/` (what the Artifact publisher wants) and a
-standalone `docs/account-sim-charts.html`, the double-clickable copy. `docs/` is
-generated output and gitignored — `make study-docs` rebuilds the lot. `--no-docs`
+standalone `site/account-sim-charts.html`, the double-clickable copy. `site/` is
+generated output and gitignored — `make study-docs` rebuilds the lot. `--no-site`
 writes only the scratch one, and the structure-universe arm always writes only
-the scratch one (see `cli.docs_dest`).
+the scratch one (see `cli.site_dest`).
 
 The pipeline itself lives in `cli.py`, shared with the regime page.
 """
@@ -33,23 +33,23 @@ if str(ROOT) not in sys.path:
 
 from scripts.study_charts import cli, render  # noqa: E402
 from scripts.study_charts.cli import (  # noqa: E402,F401  (kept importable: callers and tests use these)
-    DEFAULT_POSITIONS, DOCS_DIR, OUT_DIR, is_structure_arm, pick_report,
+    DEFAULT_POSITIONS, SITE_DIR, OUT_DIR, is_structure_arm, pick_report,
 )
 
-DOCS_NAME = "account-sim-charts.html"
+SITE_NAME = "account-sim-charts.html"
 
 
-def docs_dest(positions: Path, docs_dir: Path = DOCS_DIR) -> Path | None:
-    """Where this page's docs copy lives, or None for the structure arm."""
-    return cli.docs_dest(positions, DOCS_NAME, docs_dir)
+def site_dest(positions: Path, site_dir: Path = SITE_DIR) -> Path | None:
+    """Where this page's site copy lives, or None for the structure arm."""
+    return cli.site_dest(positions, SITE_NAME, site_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    cli.add_arguments(ap, DOCS_NAME)
+    cli.add_arguments(ap, SITE_NAME)
     args = ap.parse_args(argv)
     return cli.run(args, build=render.build, out_stem="account_sim-charts",
-                   docs_name=DOCS_NAME, module="readout")
+                   site_name=SITE_NAME, module="readout")
 
 
 if __name__ == "__main__":

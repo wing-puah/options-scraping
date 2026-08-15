@@ -18,10 +18,15 @@ web/.next/
 # scripts/backtest_study/, which is tracked normally.
 backtests/*
 !backtests/__init__.py
-# docs/ is now GENERATED OUTPUT ONLY — the study map and the study-chart pages.
-# The hand-written prose that used to live here is ARCHITECTURE.md at the repo
-# root. Rebuild the whole folder with `make study-docs`.
-docs/
+# site/ is GENERATED OUTPUT ONLY — the study map, the study-chart pages, and
+# the journal pages. Rebuild the whole folder with `make study-docs`.
+#
+# It used to be called `docs/`, which meant the repo's one directory named for
+# documentation was the one place hand-written documentation could not live.
+# `docs/` is now TRACKED hand-written prose (architecture, references, the
+# deploy runbook) and `research/` is the tracked research notebook — do not
+# re-add either to this file.
+site/
 .cache/
 *_secret_*
 *-key.json

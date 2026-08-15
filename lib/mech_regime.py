@@ -14,7 +14,7 @@ only closes on or before D, so it is safe to key trade decisions on.
 
 Labels are used for EXIT conditioning only. Model-produced regime labels
 (from the analysis) remain the basis for SELECTION gates — see
-`config/backtest-tuning/current.md` §2026-07-22 addendum 4 for the evidence
+`research/current.md` §2026-07-22 addendum 4 for the evidence
 that the two label sources win on opposite jobs.
 
 Pure module: reads a CSV of `date,spy_close,vix_close`, no network — it is

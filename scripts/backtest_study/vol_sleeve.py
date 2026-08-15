@@ -1,6 +1,6 @@
 """Vol sleeve: synthesized straddle / strangle / calendar at the dates the engine signalled.
 
-Pre-registered in `config/backtest-tuning/current.md` §2026-08-12 "`vol_sleeve`:
+Pre-registered in `research/current.md` §2026-08-12 "`vol_sleeve`:
 PRE-REGISTRATION", written BEFORE this file was run. The three questions and
 their non-null gates are fixed there; nothing here may be reworded after seeing
 a table.
@@ -539,7 +539,7 @@ def q1(rows: list[dict]) -> dict:
 def q2(rows: list[dict], book: list[dict]) -> dict:
     hdr("Q2 — date-level correlation with the DEPLOYED ladder")
     print("  The deployed book is the shipped operator card, replayed: top-3 per day,")
-    print("  tiers A and B only (config/deployment-rules.md). This is the")
+    print("  tiers A and B only (docs/deployment-rules.md). This is the")
     print("  diversification test, and it can pass even when Q1 is negative —")
     print("  a sleeve that pays on the days the book bleeds is a hedge, not an edge.")
 

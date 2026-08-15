@@ -1,9 +1,9 @@
 """Study-review harness — automates the two-analyst replication protocol.
 
 Automates Mode 1 (replication grading) of
-`config/backtest-tuning/replication-protocol.md`: run a `scripts.backtest_study`
+`research/replication-protocol.md`: run a `scripts.backtest_study`
 report, grade it against its
-`config/backtest-tuning/pre-registrations/<study>.md` pre-registration with
+`research/pre-registrations/<study>.md` pre-registration with
 two isolated headless Analyst A/B calls plus a validator, then write a
 plain-language digest. Run it as a module:
 

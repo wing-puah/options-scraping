@@ -47,8 +47,8 @@ from dotenv import load_dotenv
 from lib.ibkr.flex import FlexError
 
 from . import analysis, book, flexparse, rawpull, report, risk, writer
-from .config import (DOCS_DIR, FLEX_INPUT_DIR, FLEX_INPUT_GLOB,
-                     NET_LIQUIDATION_ENV, RAW_DIR, REPORTS_DIR, ROOT)
+from .config import (FLEX_INPUT_DIR, FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV,
+                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -322,10 +322,10 @@ def cmd_run(args) -> int:
     print(text)
 
     if not args.no_page and not args.dry_run:
-        DOCS_DIR.mkdir(parents=True, exist_ok=True)
+        SITE_DIR.mkdir(parents=True, exist_ok=True)
         from . import page
-        out = page.build(events, book_risk, meta, DOCS_DIR / f"journal-{session}.html")
-        page.build(events, book_risk, meta, DOCS_DIR / "journal-latest.html")
+        out = page.build(events, book_risk, meta, SITE_DIR / f"journal-{session}.html")
+        page.build(events, book_risk, meta, SITE_DIR / "journal-latest.html")
         log.info("Page written to %s", out)
 
     if args.page_only:

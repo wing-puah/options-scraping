@@ -72,7 +72,7 @@ def test_every_study_has_a_known_family_and_state():
 
 
 def test_prose_companion_names_every_study():
-    text = (ROOT / "config" / "backtest-tuning" / "study-map.md").read_text()
+    text = (ROOT / "research" / "study-map.md").read_text()
     missing = [n for n in catalog.STUDIES if n not in text]
     assert not missing, f"study-map.md does not mention: {missing}"
 
@@ -89,7 +89,7 @@ def test_retired_studies_helper_matches_the_dataclass_field():
 
 def test_exactly_the_two_gitignored_scratch_studies_are_retired():
     """Pins the actual Part-B retirement, not just the mechanism — see
-    config/backtest-tuning/next-steps.md §0c(B)."""
+    research/next-steps.md §0c(B)."""
     assert set(catalog.retired_studies()) == {
         "combined_exit_study", "underlying_exit_study"}
 
@@ -540,7 +540,7 @@ def test_refresh_quietly_never_raises(tmp_path, monkeypatch):
 
 
 def test_built_page_is_a_document():
-    """`docs/` is gitignored, so the page may legitimately not exist yet."""
+    """`site/` is gitignored, so the page may legitimately not exist yet."""
     if not build.DEST.exists():
-        pytest.skip("no docs/study-map.html — run `make study-map`")
+        pytest.skip("no site/study-map.html — run `make study-map`")
     assert "<title>" in build.DEST.read_text()

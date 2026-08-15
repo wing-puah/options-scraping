@@ -4,7 +4,7 @@ No book load, no `arm_sim`/gate plumbing, no network: every test builds its own
 small `rec` dicts (and a hand-made `Trade` row, adapted from
 `tests/test_studies_account_sim.py::_hand_trade`) so the properties pinned here
 are the ones the pre-registration
-(`config/backtest-tuning/pre-registrations/selection_order.md`) rests on --
+(`research/pre-registrations/selection_order.md`) rests on --
 
   * `sized_contracts` never drops an unsizable row from the order -- it floors
     to one contract instead, because dropping it would change the candidate

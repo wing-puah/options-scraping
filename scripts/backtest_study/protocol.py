@@ -1,7 +1,7 @@
 """Validation protocol for the tuning studies — splits, CIs, replay, metrics.
 
 Kept separate from any model or feature code on purpose: every conclusion in
-config/backtest-tuning/ rests on these four things being right, and the failure
+research/ rests on these four things being right, and the failure
 modes they defend against have all already happened in this project's history.
 
   - **Date clustering.** Rows inside a signal_date share the tape, so the
@@ -164,7 +164,7 @@ def loo_by_date(rows, value_fn, baseline_fn):
 def top_k_per_day(rows, rank_fn, k: int = 3, eligible_fn=None):
     """The k rows each date would actually be deployed, by `rank_fn` (higher first).
 
-    Mirrors config/deployment-rules.md: 1-3 positions per day, taken in tier
+    Mirrors docs/deployment-rules.md: 1-3 positions per day, taken in tier
     order. `eligible_fn` filters first (the ladder's VETO/C exclusion); dates
     with no eligible row simply contribute nothing.
     """

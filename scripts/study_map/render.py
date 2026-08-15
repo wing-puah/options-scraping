@@ -101,7 +101,7 @@ def _diagram(counts: dict[str, int]) -> str:
         {drops}
         {boxes}
         <path class="d-line" d="M 157 432 H 742"/>
-        {_svg_box(300, 432, 300, 52, "config/deployment-rules.md",
+        {_svg_box(300, 432, 300, 52, "docs/deployment-rules.md",
                   ["the operator card — top 3/day, tiers A/B"], accent=True)}
       </svg>
     </div>"""
@@ -254,7 +254,7 @@ def _log(entries: list[tuning.LogEntry], mtime: str) -> str:
     return f"""  <section id="log">
     <div class="section-head">
       <h2>Latest from the tuning log</h2>
-      <p>The newest sections of <code>config/backtest-tuning/current.md</code>, quoted —
+      <p>The newest sections of <code>research/current.md</code>, quoted —
         headings and first line only. The log is the source of truth; this is a pointer
         into it, not a second copy. Last edited {_e(mtime or "unknown")}.</p>
     </div>

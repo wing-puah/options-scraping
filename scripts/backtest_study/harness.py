@@ -5,7 +5,7 @@ study, the bear_put demotion study) rests on is available outside the
 gitignored `backtests/` tree.
 
 DO NOT "improve" the exit scan, the clamps, or the rounding here. Every
-existing tuning conclusion recorded in `config/backtest-tuning/current.md`
+existing tuning conclusion recorded in `research/current.md`
 was produced by replaying `backtests/results.csv`/the pooled Sheets exports
 through exactly this logic; a behavioural change invalidates all of it
 silently (the replay would still run, just disagree with history). If the

@@ -104,7 +104,7 @@ def _finalize_oi_factors(contracts: dict) -> dict:
     view from the confirmation ratio.
 
     Source: Hilliard, Hilliard & Wu (2025) — see references/references_key_insight
-    (ref 03) and config/rollup-reference.md.
+    (ref 03) and docs/rollup-reference.md.
     """
     oifc = oifp = oifca = oifpa = 0.0
     oi_any_n = oi_move_n = oi_confirm_n = 0
@@ -307,7 +307,7 @@ def _flow_ticker_rows(rows: Iterable[dict],
         # The paper computes both across the FULL daily option chain; the traded
         # flow rarely carries both legs of a pair, so the missing counterpart legs
         # are BACKFILLED from Barchart price-history (counterpart_iv) — see
-        # lib/counterpart_iv.py and config/rollup-reference.md. Still None when even
+        # lib/counterpart_iv.py and docs/rollup-reference.md. Still None when even
         # the anchor leg is absent.
         "_pair_contracts": {},          # (strike, expiry) -> per-side settlement IV/OI
         "_spot": None,                  # representative underlying (for backfill moneyness)
@@ -575,7 +575,7 @@ def _accumulate_oi_contract(agg, r, t_lower, prem, size, dte, strike, spot,
 # contracts is vol-/price-inflated and gets discounted, while cheap high-volume
 # lottery flow (big size, tiny premium) is never boosted. Premium already
 # embeds IV (price ∝ vega), so IV is deliberately NOT a separate term — see
-# config/analysis-roadmap.md. When the Size column is absent the size cap never
+# research/analysis-roadmap.md. When the Size column is absent the size cap never
 # binds; when Price~/Strike are absent extrinsic falls back to full premium.
 #
 # The `otm` component ranks otm_ext = Σ extrinsic × (1−|delta|) within the day,
@@ -705,7 +705,7 @@ def score_flow_rollup(
         # names won 33% (avg −28%) vs 86% (avg +57%) below it. The 0.6 floor spares
         # borderline real bets (GLD 0.53 won) while demoting the clear financing
         # names (AMD/QQQ/TSLA/COIN). Scales with dominance; total clamped ≥0.
-        # See config/conviction-score.md and backtest-tuning/archive/
+        # See docs/conviction-score.md and research/archive/
         # 01-exit-rules-attempts-1-7.md §Financing.
         fin_share = r.get("fin_share", 0.0)
         if fin_share > 0.90:

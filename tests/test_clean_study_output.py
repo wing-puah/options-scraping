@@ -58,7 +58,7 @@ def test_all_mode_targets_the_latest_copies_too(tmp_path):
 
 def test_cited_file_is_pinned_with_its_citation(tmp_path):
     out = _mkdir(tmp_path, _FILES)
-    tuning = tmp_path / "backtest-tuning"
+    tuning = tmp_path / "research"
     tuning.mkdir()
     (tuning / "current.md").write_text(
         "Some conclusion.\n\n"

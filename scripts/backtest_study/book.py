@@ -168,7 +168,7 @@ def model_vol(regime_str):
 
 
 def ladder_tier(rec: dict) -> str:
-    """VETO / A / B / C per config/deployment-rules.md. Verbatim port of
+    """VETO / A / B / C per docs/deployment-rules.md. Verbatim port of
     `ladder_tier()` from scripts/backtest_study/bear_position_study.py — keyed off the
     MODEL regime (market_regime free text), not the mechanical regime."""
     st, mr = rec["structure"], rec.get("market_regime") or ""
