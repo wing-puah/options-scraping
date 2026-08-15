@@ -1,14 +1,18 @@
 """The entry-point body both study_charts pages share.
 
 Resolving the positions export, pairing it to a report from the same arm,
-parsing, recomputing, reconciling, and writing the fragment plus the `docs/`
+parsing, recomputing, reconciling, and writing the fragment plus the `site/`
 copy is the same job whichever page is being drawn — and the rules that matter
 most (write nothing when reconciliation fails; the structure arm never lands a
-docs page; no arm is ever written onto another arm's page) are rules that must
+site page; no arm is ever written onto another arm's page) are rules that must
 hold for every page, so they live here once rather than in each entry point.
 
 Two arm axes, matched independently everywhere: `--structure-universe` and
-`--compounding`. `docs/` is generated output, rebuilt by `make study-docs`.
+`--compounding`. `site/` is generated output, rebuilt by `make study-docs`.
+
+The `--docs`/`--no-docs` flags keep their old names as aliases of
+`--site`/`--no-site`: they appear in study invocations recorded verbatim in
+`research/`, and renaming them would invalidate those replication instructions.
 """
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ from scripts.study_charts import render, report, series
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "backtests" / "study_output"
-DOCS_DIR = ROOT / "docs"
+SITE_DIR = ROOT / "site"
 DEFAULT_POSITIONS = OUT_DIR / "account_sim-positions-latest.csv"
 
 
@@ -80,7 +84,7 @@ def pick_report(positions: Path, out_dir: Path) -> Path:
     return max(candidates)[1]
 
 
-def add_arguments(ap: argparse.ArgumentParser, docs_name: str) -> None:
+def add_arguments(ap: argparse.ArgumentParser, site_name: str) -> None:
     ap.add_argument("--positions", type=Path, default=DEFAULT_POSITIONS,
                     help="positions CSV exported by the study (default: the plain run's)")
     ap.add_argument("--report", type=Path,
@@ -90,28 +94,28 @@ def add_arguments(ap: argparse.ArgumentParser, docs_name: str) -> None:
     ap.add_argument("--standalone", action="store_true",
                     help="wrap in a full HTML document for opening off disk "
                          "(the default fragment is what the Artifact publisher wants)")
-    ap.add_argument("--docs", type=Path,
-                    help=f"also write a standalone copy here (default: docs/{docs_name}; "
-                         "the structure arm writes no docs copy at all, and no arm "
+    ap.add_argument("--site", "--docs", dest="site", type=Path,
+                    help=f"also write a standalone copy here (default: site/{site_name}; "
+                         "the structure arm writes no site copy at all, and no arm "
                          "may be written to another arm's page)")
-    ap.add_argument("--no-docs", dest="write_docs", action="store_false",
-                    help="skip the docs/ copy; write only --out")
+    ap.add_argument("--no-site", "--no-docs", dest="write_site", action="store_false",
+                    help="skip the site/ copy; write only --out")
     ap.add_argument("--open", dest="open_after", action="store_true", help="open the page when done")
     ap.add_argument("--capital", type=float, default=None,
                     help="account capital the study simulated (default: read out of the "
                          "report's own EQUITY CURVE section)")
 
 
-def is_compounding_page(docs_name: str) -> bool:
-    """Whether a page's docs filename is the compounding arm's own page."""
-    return "-compounding" in docs_name
+def is_compounding_page(site_name: str) -> bool:
+    """Whether a page's site filename is the compounding arm's own page."""
+    return "-compounding" in site_name
 
 
-def docs_dest(positions: Path, docs_name: str, docs_dir: Path = DOCS_DIR) -> Path | None:
+def site_dest(positions: Path, site_name: str, site_dir: Path = SITE_DIR) -> Path | None:
     """Where the generated, double-clickable copy of this page lives, or None.
 
     Two rules, and both exist to stop one arm's numbers landing on another
-    arm's page (`docs/` is generated output, rebuilt by `make study-docs` — a
+    arm's page (`site/` is generated output, rebuilt by `make study-docs` — a
     page that quietly changed arm reads exactly like a page that did not).
 
     1. The structure-universe arm gets NO page. It is an exploratory widening
@@ -127,9 +131,9 @@ def docs_dest(positions: Path, docs_name: str, docs_dir: Path = DOCS_DIR) -> Pat
     """
     if is_structure_arm(positions):
         return None
-    if is_compounding_arm(positions) != is_compounding_page(docs_name):
+    if is_compounding_arm(positions) != is_compounding_page(site_name):
         return None
-    return docs_dir / docs_name
+    return site_dir / site_name
 
 
 def out_suffix(positions: Path, out_stem: str) -> str:
@@ -145,27 +149,27 @@ def out_suffix(positions: Path, out_stem: str) -> str:
 
 
 def run(args: argparse.Namespace, *, build: Callable[..., str],
-        out_stem: str, docs_name: str, module: str) -> int:
+        out_stem: str, site_name: str, module: str) -> int:
     """Draw one page. Returns the process exit code."""
     positions = args.positions.resolve()
     if not positions.exists():
         raise SystemExit(f"positions CSV not found: {positions}")
-    # An explicit --docs is refused rather than honoured whenever this arm has
+    # An explicit --site is refused rather than honoured whenever this arm has
     # no page of its own: a hand-typed path is exactly how one arm's numbers
     # land on another arm's page, and the scratch fragment already covers
     # looking at any arm.
-    if args.docs and docs_dest(positions, docs_name) is None:
+    if args.site and site_dest(positions, site_name) is None:
         if is_structure_arm(positions):
             raise SystemExit(
-                "the --structure-universe arm writes no docs page "
-                f"(--docs {args.docs} refused). Its scratch fragment under "
+                "the --structure-universe arm writes no site page "
+                f"(--site {args.site} refused). Its scratch fragment under "
                 "backtests/study_output/ is the way to view it; add --standalone to open it."
             )
         raise SystemExit(
-            f"wrong page for this arm: docs/{docs_name} is "
-            f"{'the compounding arm' if is_compounding_page(docs_name) else 'the frozen book'}'s "
+            f"wrong page for this arm: site/{site_name} is "
+            f"{'the compounding arm' if is_compounding_page(site_name) else 'the frozen book'}'s "
             f"page, but {positions.name} is the {arm_of(positions)} arm's export "
-            f"(--docs {args.docs} refused). Each arm writes only its own page."
+            f"(--site {args.site} refused). Each arm writes only its own page."
         )
     report_path = (args.report or pick_report(positions, positions.parent)).resolve()
     if not report_path.exists():
@@ -220,23 +224,23 @@ def run(args: argparse.Namespace, *, build: Callable[..., str],
     print(f"wrote       {out}  ({len(page):,} bytes, "
           f"{'standalone' if args.standalone else 'artifact fragment'})  [{module}]")
 
-    # The docs copy is always standalone whatever --standalone did to `out`:
+    # The site copy is always standalone whatever --standalone did to `out`:
     # its whole job is to be opened straight from a checkout.
-    docs = None
-    if args.write_docs:
-        dest = args.docs or docs_dest(positions, docs_name)
+    site = None
+    if args.write_site:
+        dest = args.site or site_dest(positions, site_name)
         if dest is None:
-            why = ("the structure arm gets no docs page" if is_structure_arm(positions)
-                   else f"docs/{docs_name} is not the {arm_of(positions)} arm's page")
-            print(f"docs copy   skipped — {why}")
+            why = ("the structure arm gets no site page" if is_structure_arm(positions)
+                   else f"site/{site_name} is not the {arm_of(positions)} arm's page")
+            print(f"site copy   skipped — {why}")
         else:
-            docs = dest.resolve()
-            docs.parent.mkdir(parents=True, exist_ok=True)
-            docs.write_text(render.wrap_standalone(fragment))
-            print(f"wrote       {docs}  (standalone, generated)")
+            site = dest.resolve()
+            site.parent.mkdir(parents=True, exist_ok=True)
+            site.write_text(render.wrap_standalone(fragment))
+            print(f"wrote       {site}  (standalone, generated)")
 
     if args.open_after:
         # A fragment opened off disk has no doctype or charset, so prefer a
         # standalone file whenever this run wrote one.
-        webbrowser.open((out if args.standalone else docs or out).as_uri())
+        webbrowser.open((out if args.standalone else site or out).as_uri())
     return 0

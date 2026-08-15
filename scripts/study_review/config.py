@@ -1,7 +1,7 @@
 """
 User-tunable settings for the study-review two-analyst replication harness.
 
-Automates config/backtest-tuning/replication-protocol.md's Mode 1 (replication
+Automates research/replication-protocol.md's Mode 1 (replication
 grading): resolve a study report, grade it with two isolated Analyst A/B
 headless calls plus a validator, and write a plain-language digest. Wires the
 protocol's persona files (`.claude/agents/research-analyst.md`,
@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 STUDY_OUTPUT_DIR = ROOT / "backtests" / "study_output"
-TUNING_DIR = ROOT / "config" / "backtest-tuning"
+TUNING_DIR = ROOT / "research"
 # No longer read by load_pre_registration() (see PRE_REG_DIR below) — kept as
 # a path constant in case a future write-up step wants to append/reference
 # current.md directly. Not currently imported by anything outside this file.

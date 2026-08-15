@@ -5,15 +5,19 @@ PRODUCTION TIER. Every other module under `scripts/journal/` reads its record
 shapes and column order from here; nothing redefines them locally. The pipeline
 is a chain of independently-runnable steps that hand each other these records:
 
-    pull.py      broker  -> RawPull            (journal/raw/, immutable)
-    reconcile.py RawPull -> list[PositionEvent]
-    risk.py      + greeks -> list[PositionRisk]
-    report.py    -> journal/reports/<date>.md
-    page.py      -> docs/journal-<date>.html
-    writer.py    -> Sheets TradeJournal tab + journal/trades.csv
-    recommend.py latest analysis + open book -> the deploy card
-    recwriter.py the deploy card -> Sheets Recommendations tab
-                 + journal/recommendations.csv
+    s01_pull.py       broker  -> RawPull            (journal/raw/, immutable)
+    s02_reconcile.py  RawPull -> list[PositionEvent]
+    s03_risk.py       + greeks -> list[PositionRisk]
+    s04a_report.py    -> journal/reports/<date>.md
+    s04b_page.py      -> site/journal-<date>.html
+    s05_writer.py     -> Sheets TradeJournal tab + journal/trades.csv
+    s06_recommend.py  latest analysis + open book -> the deploy card
+    s07_recwriter.py  the deploy card -> Sheets Recommendations tab
+                      + journal/recommendations.csv
+
+The `sNN_` prefix IS the running order — the package listing reads as the
+pipeline. Everything those steps lean on lives under `scripts/journal/lib/`
+(see its `__init__.py`), so nothing unnumbered sits beside the flow.
 
 THE MISSING/ZERO INVARIANT. A greek of `None` means "the broker did not give us
 one". A greek of `0.0` is a real, meaningful market value. These must never be
@@ -26,9 +30,9 @@ DATA PRIVACY. Everything this contract describes is real trading activity.
 `journal/` is gitignored in full (raw pulls carry account identifiers;
 trades.csv carries position sizes and P&L). Journal content has exactly THREE
 permitted destinations: `journal/`, the Sheets tabs in
-TRADE_JOURNAL_SPREADSHEET_ID, and `docs/` — which page.py has always written
+TRADE_JOURNAL_SPREADSHEET_ID, and `site/` — which s04b_page.py has always written
 position sizes and P&L into, and which is gitignored for that reason
-(.gitignore). Do not add a path under `journal/` or `docs/` to version control,
+(.gitignore). Do not add a path under `journal/` or `site/` to version control,
 and do not write journal content anywhere else.
 """
 
@@ -48,7 +52,7 @@ RAW_DIR = JOURNAL_DIR / "raw"          # immutable broker pulls, write-once
 REPORTS_DIR = JOURNAL_DIR / "reports"  # <date>.md
 TRADES_CSV = JOURNAL_DIR / "trades.csv"
 RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
-DOCS_DIR = ROOT / "docs"               # generated HTML, also gitignored
+SITE_DIR = ROOT / "site"               # generated HTML, also gitignored
 
 # Fallback analysis source when Sheets is unreachable — the same exports
 # scripts/live_loop/stage1_map_fills.py already reads.
@@ -92,7 +96,7 @@ FLEX_INPUT_GLOB = "trades_*.csv"
 # by a guess.
 NET_LIQUIDATION_ENV = "JOURNAL_NET_LIQUIDATION"
 
-# Barchart is the greek source for the Flex path (see greeks.py). Cached per
+# Barchart is the greek source for the Flex path (see lib/greeks.py). Cached per
 # contract so a re-run of the same session costs no scraping.
 GREEKS_CACHE_DIR = ROOT / "backtests" / "option_history_cache"
 
@@ -117,7 +121,7 @@ MAX_SIGNAL_AGE_DAYS = 10
 # The deploy card's staleness bound. ALIASED, not re-typed as another 10, and
 # the distinction is worth keeping in view: MAX_SIGNAL_AGE_DAYS answers "could
 # this analysis plausibly have CAUSED today's fill" (a backward, forensic
-# question reconcile.py asks), while this answers "is this analysis still
+# question s02_reconcile.py asks), while this answers "is this analysis still
 # ACTIONABLE" (a forward one). They happen to coincide today, and there is a
 # real argument they always should — an analysis too old to explain a trade is
 # too old to justify one. If that argument ever breaks, split them here rather
@@ -129,7 +133,7 @@ RECOMMENDATION_MAX_AGE_DAYS = MAX_SIGNAL_AGE_DAYS
 # mirrored: the daily journal and the fortnightly audit assign these labels from
 # the same `map_entry`, so a hand-kept copy here could only ever drift from it —
 # and a category missing from this tuple vanishes silently out of every count
-# that iterates it (report.py's tally, page.py's chart).
+# that iterates it (s04a_report.py's tally, s04b_page.py's chart).
 try:
     from scripts.live_loop.mapping import CONFIDENCES as MATCH_CONFIDENCES  # noqa: F401
 except ImportError:  # pragma: no cover - alternate sys.path layout
@@ -238,7 +242,7 @@ class Greeks:
 class PositionEvent:
     """One reconstructed order group — the unit of a journal row.
 
-    Produced by reconcile.py. `action` is OPEN / CLOSE / ROLL / PARTIAL, decided
+    Produced by s02_reconcile.py. `action` is OPEN / CLOSE / ROLL / PARTIAL, decided
     from the legs' open_close flags plus realized P&L, never from price signs.
     """
 
@@ -256,7 +260,7 @@ class PositionEvent:
     realized_pnl: float | None = None
     dte_at_entry: float | None = None
 
-    # --- analysis match (reconcile.py) ---
+    # --- analysis match (s02_reconcile.py) ---
     signal_date: str | None = None
     entry_lag_days: int | None = None
     match_confidence: str = "NONE"
@@ -294,7 +298,7 @@ class PositionEvent:
 
 @dataclass
 class PositionRisk:
-    """An open position marked for exposure. Produced by risk.py."""
+    """An open position marked for exposure. Produced by s03_risk.py."""
 
     conid_key: str            # sorted leg conids, the stable position identity
     ticker: str

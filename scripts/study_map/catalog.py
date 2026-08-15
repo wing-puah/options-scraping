@@ -2,7 +2,7 @@
 
 This is the ONE file to edit when a study's verdict changes. Everything else in
 the package is machinery that reads reports off disk. Keep entries in sync with
-the prose companion, `config/backtest-tuning/study-map.md` — the tests assert
+the prose companion, `research/study-map.md` — the tests assert
 that every study module has an entry here and that every entry is named there,
 so a new study file under `scripts/backtest_study/` fails the suite until it is
 described.
@@ -139,7 +139,7 @@ STUDIES: dict[str, Study] = {
                 "transposition that never matched config/backtest.yml's actual "
                 "proxy_results.csv name) are gitignored scratch, deleted long ago and "
                 "unrecoverable. Verdict already recorded (Attempts 8, 9, 12) in "
-                "config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md; "
+                "research/archive/02-credit-debit-split-attempts-8-12.md; "
                 "not repointed at a surviving file — see next-steps.md §0c(B) for why.",
     ),
     "underlying_exit_study": Study(
@@ -153,7 +153,7 @@ STUDIES: dict[str, Study] = {
                 "v2_results_nocreditdiff.csv, survives but has 0 credit rows today, so "
                 "repointing would only emit a degenerate empty report). Verdict already "
                 "recorded (Attempt 9) in "
-                "config/backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md — "
+                "research/archive/02-credit-debit-split-attempts-8-12.md — "
                 "see next-steps.md §0c(B) for why it is not repointed.",
     ),
     "exit_switch_mech_study": Study(

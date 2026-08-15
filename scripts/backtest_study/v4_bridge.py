@@ -12,7 +12,7 @@ removing two of five Step-5 factors may change *what plays the model emits*. The
 only statistically significant version-over-version difference in the entire
 tuning log was exactly that — credit emission 19% -> 34% at v2->v3, also
 unpredicted. If the emission profile shifts, every rule in
-`config/deployment-rules.md` was derived on a population v4 no longer draws from,
+`docs/deployment-rules.md` was derived on a population v4 no longer draws from,
 and the ladder's validation does not transfer.
 
 PRE-REGISTERED, from current.md §"v4 emission-composition bridge" (2026-08-11)
@@ -40,7 +40,7 @@ and its 2026-08-12 recorded deviation:
                detected", NEVER "the populations are the same".
 
 GATE: exits non-zero until v4 has >= 20 dates. That is the correct answer, not a
-failure — see backtest-tuning/README.md.
+failure — see research/README.md.
 
     python -m scripts.backtest_study run v4_bridge
 """
@@ -66,7 +66,7 @@ ALPHA = 0.05
 # not a bug: 2 = the MIN_V4_DATES gate above not yet met, 3 = the era guard
 # below (main()) refusing to compare a book against itself. Both are
 # pre-registered, terminal, and quotable — see the module docstring's GATE
-# note and backtest-tuning/README.md's "non-zero exit is often correct".
+# note and research/README.md's "non-zero exit is often correct".
 # scripts/backtest_study/run.py reads this constant via `ast` (never imports
 # the module) to report a matching exit under `run --all` as REFUSED rather
 # than FAILED, and to still promote `v4_bridge-latest.txt` on that exit — see
@@ -119,7 +119,7 @@ def _model_vol(regime: str) -> str | None:
 
 
 def ladder_tier(structure: str, market_regime: str) -> str:
-    """VETO / A / B / C per config/deployment-rules.md, keyed on the MODEL regime.
+    """VETO / A / B / C per docs/deployment-rules.md, keyed on the MODEL regime.
 
     Mirrors `book.ladder_tier()` with ONE documented difference: short-leg
     |delta| and DTE are not columns on an analysis row, so the Tier-B bull_put
@@ -310,7 +310,7 @@ def main() -> int:
         print("  lower MIN_V4_DATES to make it run — the threshold was fixed")
         print("  before any v4 result existed.")
         print("\n  Interim posture (also pre-registered): deploy under the v3")
-        print("  rules in config/deployment-rules.md, unchanged.")
+        print("  rules in docs/deployment-rules.md, unchanged.")
         return 2
 
     # Restrict both eras to the mech_cells v4 actually visited, and weight v3

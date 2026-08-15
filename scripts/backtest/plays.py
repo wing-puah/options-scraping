@@ -350,7 +350,7 @@ _REGISTRY = {s: C for C in (ExplicitPlay, CalendarDiagonalPlay, IronCondorPlay,
 
 # Bullish / bearish DEBIT verticals → their SAME-DIRECTION credit counterpart.
 # {debit_structure: (credit_structure, credit_leg_option_type)}. The framework's
-# TF-S rule (config/analysis-framework.md Step 4): a trend name in a rich-IV,
+# TF-S rule (config/prompts/analysis-framework.md Step 4): a trend name in a rich-IV,
 # positive-gamma slow grind should be expressed with a CREDIT spread, because a
 # debit buys premium the slow move can't overcome. This transform lets the backtest
 # A/B that rule on EXISTING debit plays without re-running the LLM.

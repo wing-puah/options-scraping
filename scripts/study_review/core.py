@@ -7,7 +7,7 @@ Core logic for the study-review two-analyst replication harness.
     validate        → validator headless call, reading both analyst outputs  (LLM, isolated)
     digest          → plain-language write-up headless call                  (LLM, isolated)
 
-This automates Mode 1 of config/backtest-tuning/replication-protocol.md — the
+This automates Mode 1 of research/replication-protocol.md — the
 orchestration that document describes the main session performing by hand
 (spawn analyst A + B together, then the validator) is instead run here as four
 headless `claude -p` calls, each from a neutral tempfile cwd so the repo's
@@ -179,7 +179,7 @@ _NO_FILE_ACCESS_NOTE = (
     "tools beyond generating text. Work ONLY from the artifacts inlined below in "
     "this prompt. Where your persona instructions above reference a file by path "
     "(e.g. a report under backtests/study_output/, a file under "
-    "config/backtest-tuning/pre-registrations/), treat the matching inlined "
+    "research/pre-registrations/), treat the matching inlined "
     "block below as that file's content — there is nothing else to open."
 )
 
@@ -189,7 +189,7 @@ def _artifact_blocks(section_heading: str, section_body: str, report_path: Path,
     """Artifact blocks shared by the analyst and validator prompts."""
     blocks = [
         f'## Pre-registration ("{section_heading}", from '
-        f"config/backtest-tuning/pre-registrations/)\n\n{section_body}",
+        f"research/pre-registrations/)\n\n{section_body}",
         f"## Study report ({_rel(report_path)})\n\n{report_text}",
     ]
     if positions_csv_text:
@@ -244,7 +244,7 @@ def build_digest_prompt(study: str, report_path: Path, report_text: str,
     its own anti-tuning caveats, and outputs pure markdown."""
     if glossary_text is not None:
         glossary_block = (
-            "## Glossary (config/backtest-tuning/glossary.md)\n\n"
+            "## Glossary (research/glossary.md)\n\n"
             "Use ONLY these definitions for metric terms below — do not invent or "
             f"assume a different meaning.\n\n{glossary_text}")
     else:
@@ -361,7 +361,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="study_review",
         description="Automates the two-analyst independent-replication protocol's Mode 1 "
-                    "(config/backtest-tuning/replication-protocol.md): run/locate a study "
+                    "(research/replication-protocol.md): run/locate a study "
                     "report, grade it against its pre-registration with two isolated headless "
                     "Analyst A/B calls plus a validator, and write a plain-language digest.")
     parser.add_argument("study", help="Study name, as passed to "
@@ -374,7 +374,7 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(e.g. --run-args '--side debit').")
     parser.add_argument("--pre-reg", default=None,
                         help="Path to the pre-registration file to grade against. Default: "
-                             "config/backtest-tuning/pre-registrations/<study>.md.")
+                             "research/pre-registrations/<study>.md.")
     parser.add_argument("--positions-csv", default=None,
                         help="Path to a positions CSV to inline. Default: "
                              "backtests/study_output/<study>-positions-latest.csv if present.")

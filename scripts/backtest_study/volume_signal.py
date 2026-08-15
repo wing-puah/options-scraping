@@ -1,6 +1,6 @@
 """Underlying-volume signal study: does share volume condition exits, or anything?
 
-PRE-REGISTERED 2026-08-13 in config/backtest-tuning/current.md BEFORE this file
+PRE-REGISTERED 2026-08-13 in research/current.md BEFORE this file
 was written. Read that entry first; nothing here may drift from it. In brief:
 
   H1 (PRIMARY, path/exit)  HIGH unusual-O/S rows give back more. Mechanism test

@@ -1,6 +1,6 @@
 """Unit tests for the DEBIT_PROD exact-replay gate — corrected 2026-08-14.
 
-Background (config/backtest-tuning/next-steps.md §0c(A)): the gate used to demand
+Background (research/next-steps.md §0c(A)): the gate used to demand
 that EVERY real debit row replay bit-exactly under `DEBIT_PROD`. On 2026-07-22
 commit 31cb935 shipped `simulation.regime_exit.cells.BEAR_HE` (a .50/.50 trail),
 so production began resolving a per-row effective exit config that the frozen

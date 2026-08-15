@@ -13,7 +13,7 @@ import io
 import pytest
 
 from scripts.journal import __main__ as cli
-from scripts.journal import pull as pull_mod
+from scripts.journal import s01_pull as pull_mod
 
 HEADER = ("Description,UnderlyingSymbol,Open/CloseIndicator,Quantity,TradePrice,"
           "CostBasis,FifoPnlRealized,Strike,Expiry,DateTime,Put/Call,AssetClass,"
@@ -113,7 +113,7 @@ def test_pull_flex_calls_the_enricher_with_the_session_date(monkeypatch):
         seen["as_of"] = as_of
         return raw
 
-    import scripts.journal.greeks as greeks_mod
+    import scripts.journal.lib.greeks as greeks_mod
     monkeypatch.setattr(greeks_mod, "enrich", fake_enrich)
     pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
     assert seen["as_of"].isoformat() == "2026-08-14"

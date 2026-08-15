@@ -22,7 +22,7 @@ rows are never penalized for absent data.
 
 The window lengths, band widths, and weight decimals below are tunable pending
 a backtest pass, same treatment as the `OIConfirmPct` bands in
-`config/conviction-score.md` — the research fixes the component set and the
+`docs/conviction-score.md` — the research fixes the component set and the
 ordering (level > nearness > trend ≈ follow-through), not the exact decimals.
 
 Shape mirrors `lib/iv_history.py`: enrichment column constants, an

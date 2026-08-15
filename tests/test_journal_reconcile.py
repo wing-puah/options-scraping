@@ -16,8 +16,9 @@ import logging
 import pandas as pd
 import pytest
 
-from scripts.journal import analysis as A
-from scripts.journal import rawpull, reconcile
+from scripts.journal.lib import analysis as A
+from scripts.journal import s02_reconcile as reconcile
+from scripts.journal.lib import rawpull
 from scripts.journal.config import DELTA_SOURCE_IBKR
 
 # --------------------------------------------------------------------------
@@ -476,14 +477,14 @@ def test_a_merged_leg_missing_one_commission_leaves_the_event_uncosted():
 def test_conid_key_of_a_merged_event_carries_no_duplicate_conids():
     """The incidental bug this fixes: conid_key() joins sorted leg conids
     INCLUDING duplicates, so unmerged HYG keyed as '700001|700001|700002|700002'
-    while book.py keys the same position '700001|700002'. They could never join,
+    while lib/book.py keys the same position '700001|700002'. They could never join,
     so writer.to_row() attached no risk mark to those rows."""
     ev = reconcile.reconcile(_hyg_raw(), ac_df=_empty_ac())[0]
 
     key = ev.conid_key()
     parts = key.split("|")
     assert parts == sorted(set(parts), key=int)
-    # identical to the key book.py builds for the same two open contracts
+    # identical to the key lib/book.py builds for the same two open contracts
     assert key == "|".join(str(c) for c in sorted([700002, 700001]))
 
 

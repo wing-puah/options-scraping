@@ -227,7 +227,7 @@ def test_play_structure_parses_emitted_play_text(text, expected):
 
 
 # --------------------------------------------------------------------------
-# ladder_tier — the encoded copy of config/deployment-rules.md
+# ladder_tier — the encoded copy of docs/deployment-rules.md
 # --------------------------------------------------------------------------
 def test_bear_call_spread_is_vetoed_whatever_the_regime():
     tier, _, reason = ladder_tier("bear_call_spread", "BULL + L-VOL")

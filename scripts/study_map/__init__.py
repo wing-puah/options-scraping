@@ -6,13 +6,13 @@ single self-contained HTML page, opened straight off disk, that answers "what
 is this file even asking?" at a glance and then — for whichever studies have
 actually been run — appends what the report printed.
 
-    python -m scripts.study_map            # -> docs/study-map.html
+    python -m scripts.study_map            # -> site/study-map.html
     python -m scripts.study_map --open     # ...and open it in a browser
 
 Two kinds of statement live on that page and they are never mixed:
 
   * The **standing verdict** is human-written, taken from the write-ups in
-    `config/backtest-tuning/current.md`. It is what the programme concluded.
+    `research/current.md`. It is what the programme concluded.
     It lives in `catalog.py` and only changes when someone edits it.
 
   * The **last run** block is machine-extracted from

@@ -32,7 +32,7 @@ class EngineConfig:
 
 ENGINES: dict[str, EngineConfig] = {
     "claude": EngineConfig(
-        method_file=ROOT / "config/analysis-methods/claude.md",
+        method_file=ROOT / "config/prompts/analysis-methods/claude.md",
         tab="AnalysisClaude",
         default_model="claude-opus-5",
     ),
@@ -68,7 +68,7 @@ MIN_STOCK_PLAYS = 5
 MIN_ETF_PLAYS = 3
 
 # Shared analysis vocabulary/framework, layered under each engine's method file.
-FRAMEWORK_FILE = ROOT / "config/analysis-framework.md"
+FRAMEWORK_FILE = ROOT / "config/prompts/analysis-framework.md"
 
 
 # ──────────────────────────── Sheets schema ────────────────────────
@@ -125,13 +125,13 @@ ROW_COLUMNS = [
     # SPY/VIX table couldn't answer. Market-level, so it is the SAME on every row
     # of a run including MARKET — stored (not just recomputable) so the value is
     # in front of you at deploy time, where the BEAR_HE trailing-stop rule in
-    # config/deployment-rules.md §"Exit management" applies. NOT read by the
+    # docs/deployment-rules.md §"Exit management" applies. NOT read by the
     # backtest, which recomputes it from signal_date at simulate time. Appended at
     # the END (append-at-end convention) → header extension only, no row shift.
     "mech_cell",
     # Provenance for `iv_pct` (lib/iv_history: ok | stale_fallback | out_of_window |
     # empty_series | fetch_error), joined off the rollup CSV like the block above.
-    # NOT cosmetic: a blank `iv_pct` is not inert — per config/analysis-framework.md
+    # NOT cosmetic: a blank `iv_pct` is not inert — per config/prompts/analysis-framework.md
     # Step 4 it falls back to GEX → vol snapshot → absolute IV, which on calm/contango
     # dates prefers CREDIT where a real low IVpct would have said DEBIT. Because
     # fetch_iv_percentile rides a ~2yr window measured from the RUN date, a backfilled
@@ -164,7 +164,7 @@ SCORE_COMPONENT_COLS = {
 # Analysis-row key -> scored-rollup CSV column (lib/flow_summary FLOW_CSV_COLUMNS).
 # These are joined onto each play row by ticker so the entry-day flow evidence is
 # stored alongside the play (and read back by the backtest) rather than living only
-# in the transient audit file. See config/rollup-reference.md for definitions.
+# in the transient audit file. See docs/rollup-reference.md for definitions.
 ROLLUP_METRIC_COLS = {
     "oi_confirm_pct": "OIConfirmPct",
     "cpir": "CPIR",

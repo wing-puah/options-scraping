@@ -4,7 +4,7 @@ Mirrors tests/test_study_review.py's approach: stub out anything that would
 shell out or touch real study output (a real chart render, a real study
 subprocess) and exercise the deterministic wiring around it. No real study
 run, no real `scripts.study_charts` render, no writes to the tracked
-`docs/` pages happen here — see the manual end-to-end check noted in the
+`site/` pages happen here — see the manual end-to-end check noted in the
 session's task instead for that.
 """
 from __future__ import annotations
@@ -371,7 +371,7 @@ def test_main_runs_a_retired_study_directly_with_a_notice(monkeypatch, capsys):
 def test_catalogs_retired_studies_names_exactly_the_two_from_part_b():
     """Pins the actual retirement, not just the mechanism: combined_exit_study
     and underlying_exit_study are the two studies whose scratch inputs are
-    gone for good (config/backtest-tuning/next-steps.md §0c(B))."""
+    gone for good (research/next-steps.md §0c(B))."""
     assert set(smc.retired_studies()) == {"combined_exit_study", "underlying_exit_study"}
 
 

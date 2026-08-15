@@ -1,7 +1,7 @@
 """Selection-ORDER study: does a different blind entry ORDER spend the delta budget better?
 
 PRE-REGISTERED 2026-08-14, BEFORE this file was written, in
-`config/backtest-tuning/pre-registrations/selection_order.md`. Read that first;
+`research/pre-registrations/selection_order.md`. Read that first;
 nothing here may drift from it. In brief:
 
   Question  `account_sim` showed the binding constraint is delta exposure, not

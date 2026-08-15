@@ -3,7 +3,7 @@
 Replays the trades in backtests/results.csv using the STORED daily marks
 (daily_price_csv) — no scraping, no repricing — and evaluates a grid of exit
 variants per side (debit / credit) against the production rules. Same
-methodology as Attempts 7/9 (see config/backtest-tuning.md); the replay engine
+methodology as Attempts 7/9 (see research.md); the replay engine
 mirrors scripts/backtest/simulate.py::_summarize_path exit priority exactly,
 and a calibration gate (production rules must reproduce every results.csv
 row's exit_reason/days_held/realized_pnl_pct) runs before any variant table.
@@ -47,7 +47,7 @@ MAX_LOSS_ABS = 50000 * 0.02  # portfolio_value × risk_per_trade_pct (dollar_sto
 # Production exit profiles — source of truth is config/backtest.yml
 # (simulation: block for debit, simulation.credit: override for credit).
 # Attempt 10 (2026-07-04): debit trailing_stop_trigger/trailing_stop_pct removed
-# from production (see config/backtest-tuning.md); backtests/results.csv was
+# from production (see research.md); backtests/results.csv was
 # regenerated without it, so trig/trail must stay None here to calibrate.
 DEBIT_PROD = dict(pt=0.90, sl=0.75, trig=None, trail=None, tef=0.75)
 CREDIT_PROD = dict(pt=0.65, sl=1.00, trig=None, trail=None, tef=None)

@@ -2,7 +2,7 @@
 
 Every study in this package prints a long plain-text report to stdout and is
 meant to be read once, argued about, and then condensed into an addendum in
-`config/backtest-tuning/current.md`. Before this runner, that meant remembering
+`research/current.md`. Before this runner, that meant remembering
 each study's invocation, remembering to `tee` it somewhere, and remembering
 which Sheets export the numbers rested on. All three were remembered wrong at
 least once.
@@ -51,7 +51,7 @@ is itself the current, correct, quotable status, not something to discard in
 favour of a stale prior report. A study with no `DESIGNED_REFUSAL_EXIT_CODES`
 (the default) has every non-zero exit treated as a real failure, unchanged.
 
-It also re-renders `docs/study-map.html`, so the readable one-page map of the
+It also re-renders `site/study-map.html`, so the readable one-page map of the
 whole package always quotes the newest report. That step is best-effort: the
 report is the valuable output, and a broken map must never turn a good run into
 a failed command.
@@ -140,7 +140,7 @@ STUDY_ARMS = {
 # its book is not a sensitivity of the frozen one and must not be filed as it.
 # Two things follow, and both matter. It gets its own `-latest.txt` — filing it
 # under `account_sim-latest.txt` would overwrite the report every recorded
-# conclusion in config/backtest-tuning/current.md rests on. And it suppresses
+# conclusion in research/current.md rests on. And it suppresses
 # the extra arms — a `--live-select --compounding` pass nobody asked for would
 # land on `account_sim-compounding-latest.txt` and quietly replace the
 # compounding sensitivity with a differently-selected book.

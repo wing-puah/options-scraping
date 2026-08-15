@@ -50,7 +50,7 @@ IV_MARKER_COLUMN = "iv_pct_enriched_on"
 # the fetch raised, the feed was empty, or the feed answered but its window STARTS AFTER
 # the date we asked for (retention no longer reaches that date). Only the third is a
 # depth problem, and it is detectable with zero extra fetches (`min(series) > anchor`).
-# The distinction is decision-relevant, not cosmetic: per config/analysis-framework.md
+# The distinction is decision-relevant, not cosmetic: per config/prompts/analysis-framework.md
 # Step 4, a blank IVpct falls back to GEX → vol snapshot → absolute IV, and on calm /
 # contango dates that fallback prefers CREDIT where a real low IVpct would have said
 # DEBIT. So a backfilled row can differ from a live row on the debit/credit axis for a

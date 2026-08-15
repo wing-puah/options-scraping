@@ -33,7 +33,7 @@ D1 (bear selection unfixable, 0 of 496 subsets) is not re-opened; every claim in
 this module is exit management.
 
 Every bucket, threshold and pass criterion below was fixed BEFORE the first run
-and is pre-registered in config/backtest-tuning/current.md. Read-only; touches
+and is pre-registered in research/current.md. Read-only; touches
 no config. Run:
 
     python -m scripts.backtest_study run next_day_move

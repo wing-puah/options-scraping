@@ -1,6 +1,6 @@
 """Build the page and put it where it can be double-clicked.
 
-`docs/study-map.html` is generated output and `docs/` is gitignored, so a fresh
+`site/study-map.html` is generated output and `site/` is gitignored, so a fresh
 checkout has no page until something builds one — `make study-map`, or any
 study run (the runner refreshes it). Regenerating is cheap and side-effect free:
 it only ever reads.
@@ -12,7 +12,7 @@ from pathlib import Path
 from . import catalog, render, summary, tuning
 
 ROOT = Path(__file__).resolve().parents[2]
-DEST = ROOT / "docs" / "study-map.html"
+DEST = ROOT / "site" / "study-map.html"
 
 
 def build_fragment(out_dir: Path = summary.OUT_DIR,

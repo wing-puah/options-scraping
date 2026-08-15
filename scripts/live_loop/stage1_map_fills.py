@@ -28,7 +28,7 @@ Inputs (all local):
   backtests/to_evaluate/analysis - AnalysisClaude.csv
   backtests/to_evaluate/analysis - BacktestResults.csv
   backtests/to_evaluate/analysis - BacktestProxy.csv
-  config/deployment-rules.md   (encoded as ladder_tier() below)
+  docs/deployment-rules.md   (encoded as ladder_tier() below)
 
 Nothing under config/, lib/, scripts/ is modified; no network / Sheets access.
 """
@@ -384,7 +384,7 @@ def main():
     # ================= STEP C — TIERS + COMPLIANCE =================
     emit("## 3. Tier reconstruction + selection compliance (Step C)")
     emit("")
-    emit("Tier reconstructed from `config/deployment-rules.md` using the **analysis row** "
+    emit("Tier reconstructed from `docs/deployment-rules.md` using the **analysis row** "
          "(structure × MARKET regime of that date; bull_put delta clause UNVERIFIABLE off "
          "the row → DTE-proxy only, marked PARTIAL).")
     emit("")

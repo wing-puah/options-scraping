@@ -25,7 +25,7 @@ from lib.flow_summary import (
 
 
 # ---------------------------------------------------------------------------
-# Sentiment rules (per config/barchart-reference.md)
+# Sentiment rules (per docs/barchart-reference.md)
 # ---------------------------------------------------------------------------
 
 def test_sentiment_call_ask_bullish():

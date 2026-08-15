@@ -27,7 +27,7 @@ frontmatter, auto-discovered by Claude Code and callable via the Agent tool with
 5. **Every persona ends with a Composition block** — invoke directly when / related /
    do not invoke from another persona.
 6. Persona files carry the *perspective*. Cross-cutting facts (data contracts, column
-   schemas) belong in `CLAUDE.md` and `ARCHITECTURE.md`; link to them rather than
+   schemas) belong in `CLAUDE.md` and `docs/architecture.md`; link to them rather than
    duplicating, or they drift.
 
 Note: plugin/agent frontmatter does not support `hooks`, `mcpServers`, or
@@ -48,7 +48,7 @@ Also available: `/security-review` (credentials and dependency pass) and `/simpl
 ## The research pair is a protocol, not a persona choice
 
 `research-analyst` and `research-validator` implement
-`config/backtest-tuning/replication-protocol.md`. Spawn analysts in pairs (A and B)
+`research/replication-protocol.md`. Spawn analysts in pairs (A and B)
 with identical prompts naming the exact input files, never one alone and never letting
 one see the other's output; spawn the validator only after both have returned. This is
 what keeps a tuning conclusion from being one model's single pass.
@@ -64,7 +64,7 @@ were deliberately not adopted — see the note in the commit that added this fil
 ## Adding a persona
 
 1. Create `.claude/agents/<role>.md` with `name`, `description`, `tools`, `model`.
-2. Define the role, scope, output format, and rules; link to `ARCHITECTURE.md`
+2. Define the role, scope, output format, and rules; link to `docs/architecture.md`
    for contracts instead of restating them.
 3. Add a Composition block at the bottom.
 4. Add a row to the table above.

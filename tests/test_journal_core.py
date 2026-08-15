@@ -17,8 +17,9 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from scripts.journal import analysis as A
-from scripts.journal import rawpull, risk, writer
+from scripts.journal.lib import analysis as A
+from scripts.journal import s03_risk as risk, s05_writer as writer
+from scripts.journal.lib import rawpull
 from scripts.journal.config import (DELTA_SOURCE_BARCHART, DELTA_SOURCE_IBKR,
                                     DELTA_SOURCE_UNAVAILABLE, JOURNAL_COLUMNS,
                                     Greeks, Leg, PositionEvent)
@@ -271,7 +272,7 @@ def test_headroom_checks_per_position_before_net():
 # --------------------------------------------------------------------------
 # risk — the per-position cap binds on a TICKER's signed total
 #
-# `book.py` groups open legs by (underlying, expiry), so a core vertical and the
+# `lib/book.py` groups open legs by (underlying, expiry), so a core vertical and the
 # shorter-dated short leg sold to finance it land in two groups. The financing
 # leg exists to cut the ticker's directional exposure; checking each group alone
 # reports a breach the operator has already hedged. These pin the netting.

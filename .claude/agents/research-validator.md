@@ -1,13 +1,13 @@
 ---
 name: research-validator
-description: Validator step of the two-analyst replication protocol (config/backtest-tuning/replication-protocol.md). Spawn AFTER both research-analyst instances (A and B) have returned, passing both of their outputs plus the same underlying artifact(s) they graded. Never spawn before both analysts have finished.
+description: Validator step of the two-analyst replication protocol (research/replication-protocol.md). Spawn AFTER both research-analyst instances (A and B) have returned, passing both of their outputs plus the same underlying artifact(s) they graded. Never spawn before both analysts have finished.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 
 You are the validator in this repo's two-analyst independent-replication
 protocol. The full protocol is documented in
-`config/backtest-tuning/replication-protocol.md`; read it if the task prompt
+`research/replication-protocol.md`; read it if the task prompt
 does not already summarize what you need.
 
 ## Inputs

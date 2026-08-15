@@ -45,7 +45,7 @@ _KEY_ORDER = [
     # Credit/debit structural risk (scripts/backtest/simulate.py _simulate). Appended
     # at the VERY END, after daily_pnl_csv — Sheets append is positional and
     # append_rows only writes a header on an empty tab, so inserting mid-schema
-    # would misalign every existing row. See config/backtest-reference.md.
+    # would misalign every existing row. See docs/backtest-reference.md.
     "max_loss_per_contract", "pnl_on_risk_pct",
     # Model evidence-quality score, component breakdown + summed total, carried
     # straight off the analysis row. Appended at the VERY END (positional append)
@@ -57,7 +57,7 @@ _KEY_ORDER = [
     # Appended at the VERY END for the positional-append reason above. Read this
     # when pooling rows across runs — the tab is append-only with no dedup, so a
     # full re-run leaves both bases on the sheet. See scripts/backtest/simulate.py
-    # _exit_basis and config/backtest-tuning/current.md addendum 7.
+    # _exit_basis and research/current.md addendum 7.
     "exit_basis",
 ]
 

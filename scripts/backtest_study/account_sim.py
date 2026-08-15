@@ -6,7 +6,7 @@ frozen `Settings`, threads it explicitly through the run, and reports what it
 found. Simulating a different account is editing one YAML file.
 
 The values pre-registered on 2026-08-13 ($25,000 / 2% / 0.25x / 1.50x) are
-recorded in `config/backtest-tuning/current.md` (§"`account_sim`:
+recorded in `research/current.md` (§"`account_sim`:
 PRE-REGISTRATION") — that log, not this module, is the record of what the frozen
 study ran with.
 
@@ -1730,7 +1730,7 @@ def print_equity_marks(sim: Sim, label: str, st: Settings) -> None:
     hdr(f"[{label}] EQUITY MARKS (post-hoc, NOT pre-registered — FRICTION MODEL)")
     ceiling = _ceiling_str(sim.cfg.budget_ceiling)
     print(f"""  COMPOUNDING IS NOT PRE-REGISTERED. The pre-registration
-  (config/backtest-tuning/pre-registrations/account_sim.md) fixes
+  (research/pre-registrations/account_sim.md) fixes
   STARTING_CAPITAL at a constant base and calls a compounding-equity run "a
   labelled sensitivity only"; A1-A6 were registered against a path-INDEPENDENT
   simulation. Every criterion, verdict and cap-grid cell in this run is
@@ -1921,7 +1921,7 @@ COMPOUND_A2_A5_WARNING = """     WARNING: under compounding, A2/A5 are ratios ag
      effect with a divergent equity path and cannot be read as either
      attrition or stability. Both criteria were pre-registered against a
      path-INDEPENDENT simulation
-     (config/backtest-tuning/pre-registrations/account_sim.md) and DO NOT
+     (research/pre-registrations/account_sim.md) and DO NOT
      TRANSFER to this arm; they must not carry weight here."""
 
 
@@ -2020,7 +2020,7 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
 # silent redefinition; moves NO threshold, NO measured number, and NO
 # meaning of A1-A6).
 #
-# The pre-registration (config/backtest-tuning/pre-registrations/account_sim.md)
+# The pre-registration (research/pre-registrations/account_sim.md)
 # names three verdicts and does not cover every outcome: FEASIBLE =
 # A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing;
 # NOT FEASIBLE AT $X = A1 fails. Flagged since 2026-08-13: "A1 holds, A5 and

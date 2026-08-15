@@ -46,9 +46,12 @@ from dotenv import load_dotenv
 
 from lib.ibkr.flex import FlexError
 
-from . import analysis, book, flexparse, rawpull, report, risk, writer
-from .config import (DOCS_DIR, FLEX_INPUT_DIR, FLEX_INPUT_GLOB,
-                     NET_LIQUIDATION_ENV, RAW_DIR, REPORTS_DIR, ROOT)
+from . import s03_risk as risk
+from . import s04a_report as report
+from . import s05_writer as writer
+from .lib import analysis, book, flexparse, rawpull
+from .config import (FLEX_INPUT_DIR, FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV,
+                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -230,7 +233,7 @@ def _use_web_service(args) -> bool:
 
 def _fetch(args) -> dict:
     """Get a pull from Flex, the pipeline's one transport — see _parse_args."""
-    from . import pull as pull_mod
+    from . import s01_pull as pull_mod
 
     return pull_mod.pull_flex(
         args.from_flex, trade_date=args.date, net_liquidation=args.net_liq,
@@ -254,7 +257,7 @@ def _load_raw(args) -> dict:
 
     raw = _fetch(args)
     if not args.dry_run:
-        from . import pull as pull_mod
+        from . import s01_pull as pull_mod
         raw["_path"] = str(pull_mod.save(raw))
     return raw
 
@@ -285,7 +288,7 @@ def cmd_run(args) -> int:
 
     ac_df, ac_source = analysis.load()
 
-    from . import reconcile as reconcile_mod
+    from . import s02_reconcile as reconcile_mod
     events = reconcile_mod.reconcile(raw, ac_df)
     log.info("Reconciled %d position event(s) from %d fill(s)",
              len(events), len(raw.get("trades") or []))
@@ -322,10 +325,10 @@ def cmd_run(args) -> int:
     print(text)
 
     if not args.no_page and not args.dry_run:
-        DOCS_DIR.mkdir(parents=True, exist_ok=True)
-        from . import page
-        out = page.build(events, book_risk, meta, DOCS_DIR / f"journal-{session}.html")
-        page.build(events, book_risk, meta, DOCS_DIR / "journal-latest.html")
+        SITE_DIR.mkdir(parents=True, exist_ok=True)
+        from . import s04b_page as page
+        out = page.build(events, book_risk, meta, SITE_DIR / f"journal-{session}.html")
+        page.build(events, book_risk, meta, SITE_DIR / "journal-latest.html")
         log.info("Page written to %s", out)
 
     if args.page_only:
@@ -378,7 +381,7 @@ def _source_caveats(raw: dict) -> list[str]:
 
 
 def cmd_pull(args) -> int:
-    from . import pull as pull_mod
+    from . import s01_pull as pull_mod
     raw = _fetch(args)
     if args.dry_run:
         log.info("DRY RUN — pulled %d fill(s), %d open position(s); nothing written",
@@ -389,8 +392,8 @@ def cmd_pull(args) -> int:
 
 
 def cmd_recommend(args) -> int:
-    from . import recommend as rec
-    from . import recwriter
+    from . import s06_recommend as rec
+    from . import s07_recwriter as recwriter
     from .config import RecContext
 
     ac_df, ac_source = analysis.load()

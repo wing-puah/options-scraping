@@ -6,5 +6,5 @@
 # linear, shallow trees, histogram gradient boosting). LightGBM/XGBoost are
 # deliberately NOT pinned here: HistGradientBoosting is the same algorithm family
 # and avoids the libomp system dependency — recorded as a deviation in
-# config/backtest-tuning/ml-plan.md.
+# research/ml-plan.md.
 scikit-learn>=1.5

@@ -1,6 +1,6 @@
 """
 BEAR-POSITION STUDY (2026-07-22) — pre-registered in
-config/backtest-tuning/current.md §addendum 13 BEFORE this file was run.
+research/current.md §addendum 13 BEFORE this file was run.
 
 Why pre-registered: addenda 11-12 produced three verdicts on bear_put in one
 session by post-hoc slicing the same 663-row book. The cut list, the window
@@ -23,7 +23,7 @@ described it as "under PROD". That was true when written and became false on
 2026-07-22, when 31cb935 shipped the `regime_exit.cells.BEAR_HE` trail: 12 real
 debit rows now carry a stored outcome produced by a rule DEBIT_PROD does not
 contain, and 9 of the 12 are bear_put_spread/long_put — squarely this study's
-population, and it feeds config/deployment-rules.md §"Bear positions — hedge
+population, and it feeds docs/deployment-rules.md §"Bear positions — hedge
 sleeve". R is now re-replayed per row under DEBIT_PROD (see `build`), which
 makes the label true for every row and matches what the exit-switch studies
 already do. E is untouched (pnl_at_cap_pct is exit-rule-independent by
@@ -65,10 +65,10 @@ def in_window(d):
     return d[:7] in WINDOW
 
 
-# ── ladder (config/deployment-rules.md) ─────────────────────────────────────
+# ── ladder (docs/deployment-rules.md) ─────────────────────────────────────
 
 def ladder_tier(r):
-    """VETO / A / B / C per config/deployment-rules.md, from the MODEL regime."""
+    """VETO / A / B / C per docs/deployment-rules.md, from the MODEL regime."""
     st, mr = r["structure"], r["market_regime"] or ""
     mdir, mvol = model_direction(mr), model_vol(mr)
     if st == "bear_call_spread":

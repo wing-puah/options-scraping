@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from scripts.study_charts import compounding, regime, render, render_regime, report, series
-from scripts.study_charts.account_sim import docs_dest, is_structure_arm, main, pick_report
+from scripts.study_charts.account_sim import site_dest, is_structure_arm, main, pick_report
 from scripts.study_charts.cli import is_compounding_arm
 
 BANNER = "=" * 78
@@ -930,34 +930,34 @@ def _cli_inputs(tmp_path, **report_kwargs):
 def _run(tmp_path, *extra, report_kwargs=None):
     rep, pos = _cli_inputs(tmp_path, **(report_kwargs or {}))
     out = tmp_path / "page.html"
-    docs = tmp_path / "docs" / "account-sim-charts.html"
+    site = tmp_path / "site" / "account-sim-charts.html"
     code = main(["--report", str(rep), "--positions", str(pos),
-                 "--out", str(out), "--docs", str(docs), *extra])
-    return code, out, docs
+                 "--out", str(out), "--site", str(site), *extra])
+    return code, out, site
 
 
-def test_main_writes_the_fragment_and_the_tracked_docs_copy(tmp_path):
+def test_main_writes_the_fragment_and_the_tracked_site_copy(tmp_path):
     """One run, two readers: the Artifact publisher wants the fragment, a fresh
     checkout wants a page that opens on a double-click."""
-    code, out, docs = _run(tmp_path)
+    code, out, site = _run(tmp_path)
     assert code == 0
     assert out.read_text().startswith("<title>")
-    assert docs.read_text().startswith("<!doctype html>")
+    assert site.read_text().startswith("<!doctype html>")
 
 
-def test_main_no_docs_leaves_the_docs_copy_alone(tmp_path):
-    code, out, docs = _run(tmp_path, "--no-docs")
+def test_main_no_site_leaves_the_site_copy_alone(tmp_path):
+    code, out, site = _run(tmp_path, "--no-site")
     assert code == 0 and out.exists()
-    assert not docs.exists()
+    assert not site.exists()
 
 
 def test_main_writes_no_html_at_all_when_reconciliation_fails(tmp_path):
     """The contract the whole module rests on. A page that disagrees with the
-    report it claims to draw must never reach disk — not even the docs copy,
+    report it claims to draw must never reach disk — not even the site copy,
     which is tracked and would otherwise be committed as a quiet lie."""
-    code, out, docs = _run(tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
+    code, out, site = _run(tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
     assert code == 1
-    assert not out.exists() and not docs.exists()
+    assert not out.exists() and not site.exists()
 
 
 def test_main_refuses_a_report_from_the_other_arm(tmp_path):
@@ -968,34 +968,34 @@ def test_main_refuses_a_report_from_the_other_arm(tmp_path):
         main(["--report", str(rep), "--positions", str(pos), "--out", str(tmp_path / "p.html")])
 
 
-def test_only_the_frozen_book_gets_a_tracked_docs_page(tmp_path):
+def test_only_the_frozen_book_gets_a_tracked_site_page(tmp_path):
     """The widened arm's page reads the same as the frozen one chart for chart,
     so it gets no tracked copy at all — one page, not two near-identical ones."""
-    plain = docs_dest(Path("account_sim-positions-latest.csv"), tmp_path)
+    plain = site_dest(Path("account_sim-positions-latest.csv"), tmp_path)
     assert plain.name == "account-sim-charts.html"
-    assert docs_dest(Path("account_sim-positions-structure-latest.csv"), tmp_path) is None
+    assert site_dest(Path("account_sim-positions-structure-latest.csv"), tmp_path) is None
 
 
-def test_structure_arm_writes_the_fragment_but_no_docs_page(tmp_path):
+def test_structure_arm_writes_the_fragment_but_no_site_page(tmp_path):
     rep = make_report(tmp_path / "account_sim-latest.txt",
                       command="python -m scripts.backtest_study.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-structure-latest.csv")
     out = tmp_path / "page.html"
     code = main(["--report", str(rep), "--positions", str(pos), "--out", str(out)])
     assert code == 0 and out.exists()
-    assert not (tmp_path / "docs").exists()
+    assert not (tmp_path / "site").exists()
 
 
-def test_structure_arm_refuses_an_explicit_docs_path(tmp_path):
-    """A hand-typed --docs is how the frozen book's page gets clobbered."""
+def test_structure_arm_refuses_an_explicit_site_path(tmp_path):
+    """A hand-typed --site is how the frozen book's page gets clobbered."""
     rep = make_report(tmp_path / "account_sim-latest.txt",
                       command="python -m scripts.backtest_study.account_sim --structure-universe")
     pos = make_positions(tmp_path / "account_sim-positions-structure-latest.csv")
-    docs = tmp_path / "docs" / "account-sim-charts.html"
-    with pytest.raises(SystemExit, match="no docs page"):
+    site = tmp_path / "site" / "account-sim-charts.html"
+    with pytest.raises(SystemExit, match="no site page"):
         main(["--report", str(rep), "--positions", str(pos),
-              "--out", str(tmp_path / "p.html"), "--docs", str(docs)])
-    assert not docs.exists()
+              "--out", str(tmp_path / "p.html"), "--site", str(site)])
+    assert not site.exists()
 
 
 # ─────────────────────── the regime cut: parse, check, draw ─────────────────
@@ -1113,32 +1113,32 @@ def test_regime_page_never_introduces_a_statistic_the_study_refuses_to_print(reg
 def _run_regime(tmp_path, *extra, report_kwargs=None):
     rep, pos = _cli_inputs(tmp_path, **(report_kwargs or {}))
     out = tmp_path / "regime.html"
-    docs = tmp_path / "docs" / "account-sim-regime.html"
+    site = tmp_path / "site" / "account-sim-regime.html"
     code = regime.main(["--report", str(rep), "--positions", str(pos),
-                        "--out", str(out), "--docs", str(docs), *extra])
-    return code, out, docs
+                        "--out", str(out), "--site", str(site), *extra])
+    return code, out, site
 
 
-def test_regime_main_writes_the_fragment_and_the_tracked_docs_copy(tmp_path):
-    code, out, docs = _run_regime(tmp_path)
+def test_regime_main_writes_the_fragment_and_the_tracked_site_copy(tmp_path):
+    code, out, site = _run_regime(tmp_path)
     assert code == 0
     assert out.read_text().startswith("<title>")
-    assert docs.read_text().startswith("<!doctype html>")
+    assert site.read_text().startswith("<!doctype html>")
 
 
 def test_regime_main_writes_no_html_at_all_when_reconciliation_fails(tmp_path):
-    code, out, docs = _run_regime(tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
+    code, out, site = _run_regime(tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
     assert code == 1
-    assert not out.exists() and not docs.exists()
+    assert not out.exists() and not site.exists()
 
 
 def test_regime_page_is_a_separate_tracked_file_from_the_readout(tmp_path):
     """Two pages, two names — the duplicate-page problem must not come back."""
-    assert regime.docs_dest(Path("account_sim-positions-latest.csv"), tmp_path).name \
+    assert regime.site_dest(Path("account_sim-positions-latest.csv"), tmp_path).name \
         == "account-sim-regime.html"
-    assert docs_dest(Path("account_sim-positions-latest.csv"), tmp_path).name \
+    assert site_dest(Path("account_sim-positions-latest.csv"), tmp_path).name \
         == "account-sim-charts.html"
-    assert regime.docs_dest(Path("account_sim-positions-structure-latest.csv"), tmp_path) is None
+    assert regime.site_dest(Path("account_sim-positions-structure-latest.csv"), tmp_path) is None
 
 
 # ─────────────────── the compounding arm: parse, pair, draw ─────────────────
@@ -1253,19 +1253,19 @@ def test_the_compounding_arm_gets_its_own_page_and_never_the_frozen_ones(tmp_pat
     overwrite the frozen book's."""
     comp_csv = Path("account_sim-positions-compounding-latest.csv")
     frozen_csv = Path("account_sim-positions-latest.csv")
-    assert compounding.docs_dest(comp_csv, tmp_path).name == "account-sim-compounding.html"
-    assert docs_dest(comp_csv, tmp_path) is None            # not onto the readout's page
-    assert regime.docs_dest(comp_csv, tmp_path) is None     # nor the regime page's
-    assert compounding.docs_dest(frozen_csv, tmp_path) is None   # and not the other way
-    assert docs_dest(frozen_csv, tmp_path).name == "account-sim-charts.html"
+    assert compounding.site_dest(comp_csv, tmp_path).name == "account-sim-compounding.html"
+    assert site_dest(comp_csv, tmp_path) is None            # not onto the readout's page
+    assert regime.site_dest(comp_csv, tmp_path) is None     # nor the regime page's
+    assert compounding.site_dest(frozen_csv, tmp_path) is None   # and not the other way
+    assert site_dest(frozen_csv, tmp_path).name == "account-sim-charts.html"
 
 
 def test_compounding_plus_structure_still_reads_as_the_structure_arm(tmp_path):
     """Both axes at once: the structure rule wins, so that combination writes a
     fragment and no page at all."""
     both = Path("account_sim-positions-compounding-structure-latest.csv")
-    assert compounding.docs_dest(both, tmp_path) is None
-    assert docs_dest(both, tmp_path) is None
+    assert compounding.site_dest(both, tmp_path) is None
+    assert site_dest(both, tmp_path) is None
 
 
 def _run_compounding(tmp_path, *extra, report_kwargs=None):
@@ -1273,24 +1273,24 @@ def _run_compounding(tmp_path, *extra, report_kwargs=None):
                       **(report_kwargs or {}))
     pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
     out = tmp_path / "compounding.html"
-    docs = tmp_path / "docs" / "account-sim-compounding.html"
+    site = tmp_path / "site" / "account-sim-compounding.html"
     code = compounding.main(["--report", str(rep), "--positions", str(pos),
-                             "--out", str(out), "--docs", str(docs), *extra])
-    return code, out, docs
+                             "--out", str(out), "--site", str(site), *extra])
+    return code, out, site
 
 
-def test_compounding_main_writes_the_fragment_and_its_own_docs_page(tmp_path):
-    code, out, docs = _run_compounding(tmp_path)
+def test_compounding_main_writes_the_fragment_and_its_own_site_page(tmp_path):
+    code, out, site = _run_compounding(tmp_path)
     assert code == 0
     assert out.read_text().startswith("<title>")
-    assert docs.read_text().startswith("<!doctype html>")
+    assert site.read_text().startswith("<!doctype html>")
 
 
 def test_compounding_main_writes_no_html_at_all_when_reconciliation_fails(tmp_path):
-    code, out, docs = _run_compounding(
+    code, out, site = _run_compounding(
         tmp_path, report_kwargs={"primary": (9, 9, 5555, 0.99, -999, -999, 90)})
     assert code == 1
-    assert not out.exists() and not docs.exists()
+    assert not out.exists() and not site.exists()
 
 
 def test_compounding_main_refuses_the_frozen_books_export(tmp_path):
@@ -1302,14 +1302,14 @@ def test_compounding_main_refuses_the_frozen_books_export(tmp_path):
 
 
 def test_the_readout_refuses_to_write_the_compounding_arm_to_its_own_page(tmp_path):
-    """A hand-typed --docs is how one arm's numbers land on another's page."""
+    """A hand-typed --site is how one arm's numbers land on another's page."""
     rep = make_report(tmp_path / "account_sim-compounding-latest.txt", compounding=True)
     pos = make_positions(tmp_path / "account_sim-positions-compounding-latest.csv")
-    docs = tmp_path / "docs" / "account-sim-charts.html"
+    site = tmp_path / "site" / "account-sim-charts.html"
     with pytest.raises(SystemExit, match="wrong page for this arm"):
         main(["--report", str(rep), "--positions", str(pos),
-              "--out", str(tmp_path / "p.html"), "--docs", str(docs)])
-    assert not docs.exists()
+              "--out", str(tmp_path / "p.html"), "--site", str(site)])
+    assert not site.exists()
 
 
 def test_the_readout_pointed_at_the_compounding_arm_writes_a_fragment_only(tmp_path):
@@ -1318,7 +1318,7 @@ def test_the_readout_pointed_at_the_compounding_arm_writes_a_fragment_only(tmp_p
     out = tmp_path / "page.html"
     code = main(["--report", str(rep), "--positions", str(pos), "--out", str(out)])
     assert code == 0 and out.exists()
-    assert not (tmp_path / "docs").exists()
+    assert not (tmp_path / "site").exists()
 
 
 @pytest.fixture

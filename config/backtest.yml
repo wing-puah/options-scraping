@@ -222,7 +222,7 @@ simulation:
   # delta on the affected rows is < 0, OR if any single year of the pooled book
   # flips negative. Note the deployment context — every bear row in the book is
   # ladder Tier C or VETO (299 C / 71 VETO), so this only bites on positions the
-  # operator takes deliberately as a hedge (config/deployment-rules.md
+  # operator takes deliberately as a hedge (docs/deployment-rules.md
   # §"Bear positions — hedge sleeve").
   structure_exit:
     enabled: true

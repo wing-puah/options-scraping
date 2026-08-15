@@ -13,7 +13,7 @@ from . import build, catalog, summary
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="python -m scripts.study_map",
-        description="Render docs/study-map.html — what every backtest study asks, "
+        description="Render site/study-map.html — what every backtest study asks, "
                     "and what its last run printed.")
     ap.add_argument("-o", "--out", type=Path, default=build.DEST,
                     help=f"output path (default: {build.DEST.relative_to(build.ROOT)})")

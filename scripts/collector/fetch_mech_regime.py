@@ -3,7 +3,7 @@
 This is a PRODUCTION input, not a study artifact: `lib/mech_regime.py` labels
 every date from it, `config/backtest.yml` §`simulation.regime_exit` keys the
 BEAR_HE trailing stop off those labels, and `mech_cell` on the analysis row is
-what the operator reads at deploy time (config/deployment-rules.md §"Exit
+what the operator reads at deploy time (docs/deployment-rules.md §"Exit
 management").
 
 It lived in `backtests/mech_regime/fetch_spy_vix.py`, which is untracked

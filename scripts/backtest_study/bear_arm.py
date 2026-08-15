@@ -1,4 +1,4 @@
-"""BEAR arm — pre-registered in config/backtest-tuning/ml-plan.md §Kickoff addendum.
+"""BEAR arm — pre-registered in research/ml-plan.md §Kickoff addendum.
 
 Operator instruction (2026-08-11): bear positions are NOT to be removed
 wholesale — they are wanted for choppy tape — and the exit config may simply be

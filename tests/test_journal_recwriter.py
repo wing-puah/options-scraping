@@ -11,10 +11,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from journal import recwriter as rw
+from journal import s07_recwriter as rw
 from journal.config import (RECOMMENDATION_COLUMNS, REC_IDENTITY_EXCLUDED,
                             RecContext)
-from journal.recommend import Candidate, Rejected
+from journal.s06_recommend import Candidate, Rejected
 
 SESSION = "2026-08-14"
 AS_OF = "2026-08-15"

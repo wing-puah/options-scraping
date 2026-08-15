@@ -1,4 +1,4 @@
-"""DEPLOY arm — pre-registered in config/backtest-tuning/ml-plan.md §addendum 2.
+"""DEPLOY arm — pre-registered in research/ml-plan.md §addendum 2.
 
 The 2026-08-11 bear arm (`bear_arm.py`) answered "is bear selection fixable"
 (no) and "is the bear exit mis-tuned" (yes, `be_after: 0.50`), then closed with

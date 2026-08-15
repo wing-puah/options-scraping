@@ -9,7 +9,7 @@ and this post-hoc compounding sensitivity, which re-marks SIZING to realized
 equity at fixed calendar intervals — and each writes its own report and its own
 positions CSV. This page exists so the second one can never overwrite the
 first's: the frozen book keeps `account-sim-charts.html`, this arm gets
-`account-sim-compounding.html`, and `cli.docs_dest` refuses either arm on the
+`account-sim-compounding.html`, and `cli.site_dest` refuses either arm on the
 other's page (both files are generated output, rebuilt by `make study-docs`).
 
 It draws the SAME page builder as the frozen readout (`render.build`) because
@@ -36,7 +36,7 @@ if str(ROOT) not in sys.path:
 from scripts.study_charts import cli, render, report  # noqa: E402
 from scripts.study_charts.render import _esc  # noqa: E402
 
-DOCS_NAME = "account-sim-compounding.html"
+SITE_NAME = "account-sim-compounding.html"
 OUT_STEM = "account_sim-compounding-charts"
 DEFAULT_POSITIONS = cli.OUT_DIR / "account_sim-positions-compounding-latest.csv"
 
@@ -45,9 +45,9 @@ DEFAULT_POSITIONS = cli.OUT_DIR / "account_sim-positions-compounding-latest.csv"
 NON_TRANSFERRING = ("A2", "A5")
 
 
-def docs_dest(positions: Path, docs_dir: Path = cli.DOCS_DIR) -> Path | None:
+def site_dest(positions: Path, site_dir: Path = cli.SITE_DIR) -> Path | None:
     """Where this page's generated copy lives, or None off the compounding arm."""
-    return cli.docs_dest(positions, DOCS_NAME, docs_dir)
+    return cli.site_dest(positions, SITE_NAME, site_dir)
 
 
 def _quote(text: str, cite: str) -> str:
@@ -203,7 +203,7 @@ def build(parsed: dict, populations: dict, capital: float, source: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    cli.add_arguments(ap, DOCS_NAME)
+    cli.add_arguments(ap, SITE_NAME)
     ap.set_defaults(positions=DEFAULT_POSITIONS)
     args = ap.parse_args(argv)
     if not cli.is_compounding_arm(args.positions):
@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
             "page draws the compounding arm. Render the frozen book with "
             "scripts.study_charts.account_sim."
         )
-    return cli.run(args, build=build, out_stem=OUT_STEM, docs_name=DOCS_NAME,
+    return cli.run(args, build=build, out_stem=OUT_STEM, site_name=SITE_NAME,
                    module="compounding")
 
 
