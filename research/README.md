@@ -161,6 +161,7 @@ its own banner and the arms never share an artifact.
 | [`ml-plan.md`](ml-plan.md) | The ML combination-search plan (RUN 2026-08-11, null result). |
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst independent-replication protocol (`research-analyst` × 2 + `research-validator`) for grading study reports and exploring train splits. |
 | [`pre-registrations/`](pre-registrations/) | One immutable file per study: the plan written *before* the run. Kept out of `current.md` so it survives pruning. |
+| [`backlog.md`](backlog.md) | The 2026-06 backtest-engine backlog, **triaged 2026-08-15**. Historical: one item is still open (per-play `invalidation` exits), the rest is fixed, superseded, or *refuted* — including the structure read, which inverted. Not the live queue; that is [`next-steps.md`](next-steps.md) §2. |
 
 The evidence file is a *summary of* this log, not a second source — when the two
 disagree, the log wins.

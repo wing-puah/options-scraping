@@ -23,6 +23,7 @@ Prose lives in exactly two tracked places — `docs/` (how the system works, how
 | What does each backtest study ask?                            | `research/study-map.md`; the pre-run commitments are `research/pre-registrations/`     |
 | What does this study metric mean?                             | `research/glossary.md`                                                                 |
 | Where were we, what's next?                                   | `research/next-steps.md` (handoff), `research/analysis-roadmap.md` (design rationale)  |
+| Was this old backtest-engine TODO ever done?                  | `research/backlog.md` — the 2026-06 list, triaged 2026-08-15 (mostly superseded or refuted; **not** the live queue) |
 | What is the model actually prompted with?                     | `config/prompts/` — `analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/` |
 | What settings can I change?                                   | `config/*.yml` (backtest, account-sim, positions) and `scripts/analysis_pipeline/config.py` |
 | Where are the generated pages (study map, charts, journal)?   | `site/` — generated, gitignored; rebuild with `make study-docs`                        |
