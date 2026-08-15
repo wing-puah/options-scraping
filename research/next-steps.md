@@ -33,8 +33,9 @@ G1–G5 pass, and G0 stopped every arm: each re-ordering changes only 7–14% of
 the deployed book, so the best-powered arm reaches **11 affected dates on
 PRIMARY** (20 at best on SECONDARY) against the pre-registered floor of **25**. No
 arm was confirmed, none refuted, and the O4 band was never drawn. The full
-entry is in [`current.md`](current.md); the report is
-`backtests/study_output/selection_order-latest.txt`.
+entry is in [`current.md`](current.md), which also carries the report itself —
+run 2026-08-14 12:55:17, git 9c53244, folded in verbatim because the report is
+not retained on disk.
 
 What this does and does not settle: `account_sim`'s adverse-ordering read is
 **not refuted** — this book cannot adjudicate it. The census texture (the caps

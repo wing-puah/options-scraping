@@ -158,14 +158,13 @@ per-position cap). They were **not** selected on any measurement here, and no
 figure below may be read as evidence for them. The anti-tuning rule on the cap
 grid binds harder on an arm than on the pre-registered cell, not softer.
 
-**Provenance.** `backtests/study_output/account_sim-arm-risk1000-latest.txt`
-(+ positions export
-`account_sim-positions-risk4pct-pp0.4-net2.5-latest.csv`, 447 rows), git
-309c564 (dirty), same 08-11 exports and same frozen book as the pre-registered
-run. The pre-registered report stays at `account_sim-latest.txt` and its
-numbers are **unchanged** — verified by re-running the bare study after the
-code change and diffing: 656 lines, the only differences are two cosmetic
-GRANULARITY section titles.
+**Provenance.** Run 2026-08-13 18:41:39, git 309c564 (dirty), same 08-11 v3
+exports (1,926 / 4,533 / 11,836) and same frozen book as the pre-registered run;
+positions export 447 rows. The pre-registered run's numbers are **unchanged** —
+verified by re-running the bare study after the code change and diffing: 656
+lines, the only differences are two cosmetic GRANULARITY section titles. Report
+and positions CSV not retained on disk — the excerpt at the end of this section
+IS the record.
 
 **How the arm is expressed.** An `Arm` overlay (`account_sim.ARM`) carries the
 run's four sizing values; `main()` rebinds it once from the command line and
@@ -276,18 +275,191 @@ infrastructure and applies to every future `account_sim` run at a $1,000 stop
 — including the $50k rung of the capital ladder, which would have been
 silently contaminated the first time A1 failed and the ladder printed.
 
+
+<details>
+<summary>Report excerpt, verbatim — run 2026-08-13 18:41:39, git 309c564 (dirty); header, G1-G5, both populations' baselines + criteria, verdict</summary>
+
+```text
+==============================================================================
+STUDY: account_sim
+==============================================================================
+  run at    2026-08-13 18:41:39
+  command   python -m scripts.backtest_study.account_sim --risk-dollars 1000 --per-pos-cap 0.40 --net-cap 2.50
+  git       309c564 (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     803 rows  2026-08-13 11:56  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+==============================================================================
+
+[... lines 16-42 elided ...]
+
+GATES — G1..G5 (non-zero exit on any failure)
+==============================================================================
+
+--- G1 — book calibration quoted, B1 line reproduced ------------------------
+  debit_calib      n=301  exact=289  near=0  hard=12
+  n_credit_ungated 277  (admitted WITHOUT the exact-replay gate — book.py's credit caveat)
+  B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553
+  expected (vol_sleeve 2026-08-12, same exports): 220 / 90 / $63,553
+  G1: PASS
+
+--- G2 — scaling identity calibrated at scale=1 against the stored rows -----
+  The identity code path is run with factor 1 (stop = the harness's own
+  $1,000) at the STORED contract count, under DEBIT_PROD — the profile that
+  GENERATED the stored rows. It must reproduce (exit_reason, days_held,
+  round(R,4)) exactly. Calibrating against the shipped be_after-0.50 merge
+  instead would be testing an exit change, not the identity.
+  calibrated debit picks re-replayed: 175  exact=175  mismatched=0
+  credit picks (counted, NOT gated — book.py admits them ungated): 42
+  debit picks failing book.py's own calibration (excluded from G2): 3
+  G2: PASS
+
+--- G3 — ledger accounting identity, checked after every event --------------
+  events checked: 268   positions: 134
+  final cash $42,865.50  reserved $0.00  realized $17,865.50  (capital $25,000.00)
+  G3: PASS  (0 violations)
+
+--- G4 — unconstrained walk reproduces top_k_per_day by set equality --------
+  walk picks 220 (incl. 2 unsizable slot-burners)  vs top_k_per_day 220
+  symmetric difference: 0
+  G4: PASS
+
+--- G5 — the simulator is BLIND to how a position turned out ----------------
+  Every record is re-wrapped so that reading an outcome key raises, AND the
+  outcome columns are DELETED from the underlying trade row so a read cannot
+  route around the wrapper. The run must then complete and produce a
+  byte-identical book. This is what makes the sim safe to hand to an agent
+  proposing live positions: no ordering, sizing or admission decision can be
+  standing on a number that would not exist yet in real time.
+  tripwire live (reading a blinded outcome key raises): True
+  row columns deleted from every Trade: days_held, exit_reason, mae_day, mae_pct, mfe_day, mfe_pct, pnl_at_cap_pct, realized_pnl_pct
+  positions: sighted 134  blind 134  differing 0
+  G5: PASS
+
+  GATES: ALL PASS
+
+==============================================================================
+
+[... lines 89-105 elided ...]
+
+[PRIMARY dense episodes] B1 / B2 BASELINES
+==============================================================================
+  B1  stored contracts, stored outcomes     n= 112  dates= 46  $    45,671  meanR +0.511
+  B2  $25,000 max-loss sizing, unconstrained  n= 110  dates= 46  $    37,614  meanR +0.392
+
+  B1 -> B2 isolates GRANULARITY (contract counts), B2 -> constrained isolates the CAPS.
+  B2/B1 dollar ratio 0.82x — the small account holds fewer contracts, so the dollar book shrinks by SIZE before any
+  constraint is applied. B1's stored counts are a $50k book's.
+
+==============================================================================
+
+[... lines 116-357 elided ...]
+
+[PRIMARY dense episodes] CRITERIA A1-A6
+==============================================================================
+  A1 EDGE SURVIVAL  meanR +0.428  CI95 [+0.249,+0.594]  years 2025:+0.590  2026:+0.239
+     MET  (needs mean>0, CI excluding zero, every year positive)
+  A2 ATTRITION      constrained $20,217 vs B2 on the same 33 dates $15,017  = 135%
+     MET  (needs >= 60%)
+  A3 NO BLOWUP      maxDD $-2,851 = 11.4% of capital;  ledger violations 0
+     MET  (needs no over-reservation and DD <= 25%)
+  A4 ATTRIBUTION    150 candidates partition exactly into 63 taken + exclusions
+     MET  (mismatch FAILS the run)
+  A5 STABILITY      constrained/B2 ratio ALL 135% (n=63);  ex-2025_mar_apr 277% (+142pt, n=37)  ex-2026_feb_apr 120% (-15pt, n=34)
+     NOT MET  (needs <= 15 points of movement on both cuts)
+  A6 CREDIT SENS.   debit-only n=46  meanR +0.386  CI95 [+0.172,+0.594]  years 2025:+0.544  2026:+0.161
+     MET  (A1 must hold on debit-only)
+
+==============================================================================
+
+[... lines 374-373 elided ...]
+
+[SECONDARY full book] B1 / B2 BASELINES
+==============================================================================
+  B1  stored contracts, stored outcomes     n= 220  dates= 90  $    63,553  meanR +0.354
+  B2  $25,000 max-loss sizing, unconstrained  n= 218  dates= 90  $    52,000  meanR +0.303
+
+  B1 -> B2 isolates GRANULARITY (contract counts), B2 -> constrained isolates the CAPS.
+  B2/B1 dollar ratio 0.82x — the small account holds fewer contracts, so the dollar book shrinks by SIZE before any
+  constraint is applied. B1's stored counts are a $50k book's.
+
+==============================================================================
+
+[... lines 384-647 elided ...]
+
+[SECONDARY full book] CRITERIA A1-A6
+==============================================================================
+  A1 EDGE SURVIVAL  meanR +0.264  CI95 [+0.115,+0.419]  years 2024:+0.178  2025:+0.352  2026:+0.220
+     MET  (needs mean>0, CI excluding zero, every year positive)
+  A2 ATTRITION      constrained $17,866 vs B2 on the same 68 dates $29,429  = 61%
+     MET  (needs >= 60%)
+  A3 NO BLOWUP      maxDD $-4,628 = 18.5% of capital;  ledger violations 0
+     MET  (needs no over-reservation and DD <= 25%)
+  A4 ATTRIBUTION    297 candidates partition exactly into 134 taken + exclusions
+     MET  (mismatch FAILS the run)
+  A5 STABILITY      constrained/B2 ratio ALL 61% (n=134);  ex-2025_mar_apr 50% (-10pt, n=110)  ex-2026_feb_apr 49% (-11pt, n=106)
+     MET  (needs <= 15 points of movement on both cuts)
+  A6 CREDIT SENS.   debit-only n=102  meanR +0.135  CI95 [-0.041,+0.325]  years 2024:-0.003  2025:+0.236  2026:+0.161
+     NOT MET  (A1 must hold on debit-only)
+
+==============================================================================
+VERDICT (PRIMARY dense episodes population — the pre-registered primary)
+==============================================================================
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  NOT MET
+  A6  MET
+
+  >>> NO PRE-REGISTERED VERDICT MATCHES — A1 holds but A5 fail(s) <<<
+
+  The three pre-registered verdicts (FEASIBLE = A1^A2^A3^A5^A6;
+  FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing; NOT FEASIBLE AT $25k = A1
+  fails) do not partition the outcome space, and the run landed in the gap.
+  Nothing is relabelled to fit: the checklist above is the result, and the
+  verdict grammar is recorded as incomplete for whoever replicates this.
+
+==============================================================================
+CLOSE
+==============================================================================
+  verdict: NO PRE-REGISTERED VERDICT MATCHES — A1 holds but A5 fail(s)
+  Nothing in this report is a shippable rule. The cap values are a friction model,
+  not a tuned parameter; the pre-registration forbids adopting any of them on P&L.
+  positions CSV: 447 rows -> backtests/study_output/account_sim-positions-risk4pct-pp0.4-net2.5-latest.csv
+
+==============================================================================
+exit code 0 after 3.4s
+==============================================================================
+```
+
+</details>
 ---
 
 ## 2026-08-13 — `calendar_hedge --arm S` RUN: the structure sweep is uniformly POWER-STOPPED — zero candidates, and that is a power fact, not evidence against any structure
 
-**Provenance.** `backtests/study_output/calendar_hedge-latest.txt` (ARM S run;
-the H arm stays preserved at `calendar_hedge-20260813-130412.txt`), git 470b95f
+**Provenance.** ARM S run 2026-08-13, git 470b95f
 (dirty), 08-11 exports, grown option cache (**19,382 contracts** after the
 sweep-leg scrape: 1,418 of 1,452 manifest targets fetched;
 `scripts/collector/fetch_sweep_legs.py`, resumable, manifest in
 `backtests/sweep_cache/legs_manifest.csv`). Nothing ships. The two-analyst
 replication was NOT run on this report (uniform power stops leave nothing to
 grade); it can be requested.
+
+**Report not retained on disk — the prose in this section is the record.** The
+`calendar_hedge-latest.txt` that carried this ARM S run was overwritten on
+2026-08-14 12:54 by a plain H-arm re-run (`python -m
+scripts.backtest_study.calendar_hedge`, git 9c53244), which prints no ARM S
+sweep at all. That file is still on disk, but only because it carries the
+`"H2 (primary)"` marker that arms the ARM S precondition in
+`f3_structure/calendar_hedge.py` — it is a gate token, not this section's
+evidence, and none of the coverage or sweep figures below can be checked
+against it.
 
 **DEVIATION (labelled, post-first-run module amendment).** R4 is re-keyed to
 the **pre-scrape cache snapshot**: the sweep manifest's fetched contracts are
@@ -341,11 +513,14 @@ re-run this sweep on the same 118 dates with different knobs.
 
 ## 2026-08-13 — `calendar_hedge` RUN: gates all pass (R4 exact), but the hedge claim cannot be read — power stop fires at n=6 and the readable correlation is wrong-signed
 
-**Provenance.** `backtests/study_output/calendar_hedge-20260813-130412.txt`
-(the stamped R4-PASS run — `-latest.txt` was later overwritten by a
-post-scrape gate run that fails R4 by construction; see the R4 note below),
-git 470b95f (dirty), the 08-11 exports, `load_book(include_bs=False)` → 795
-rows. Checkpoint store `backtests/sweep_cache/synth_results.csv` (967 rows,
+**Provenance.** Run 2026-08-13 13:04:12, git 470b95f (dirty), the 08-11 v3
+exports (1,926 / 4,533 / 11,836), `load_book(include_bs=False)` → 795
+rows. This was the stamped R4-PASS run; the `-latest.txt` beside it was later
+overwritten by a post-scrape gate run that fails R4 by construction (see the R4
+note below). **The report is not retained on disk and CANNOT be regenerated** —
+R4 keys to the pre-scrape option cache, which the 08-13 sweep-leg scrape grew
+past recovery. The full report is folded verbatim at the end of this section and
+is now the only copy. Checkpoint store `backtests/sweep_cache/synth_results.csv` (967 rows,
 resumable, `--redo` verified). Nothing ships; the pre-registered ship ceiling
 is NOT reachable on this window.
 
@@ -427,15 +602,354 @@ pre-registration. ARM S (structure sweep) runs separately on the grown cache.
   paragraph and silently reordered the gates — both recorded; verdicts
   unaffected. First real run of the protocol otherwise clean.
 
+
+<details>
+<summary>Full report, verbatim — run 2026-08-13 13:04:12, git 470b95f (this run is NOT reproducible: R4 keys to the pre-scrape option cache)</summary>
+
+```text
+==============================================================================
+STUDY: calendar_hedge
+==============================================================================
+  run at    2026-08-13 13:04:12
+  command   python -m scripts.backtest_study.calendar_hedge
+  git       470b95f (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     803 rows  2026-08-13 11:56  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+==============================================================================
+PROVENANCE — inputs, store, and the frozen pieces this rests on
+==============================================================================
+  checkpoint store   backtests/sweep_cache/synth_results.csv — 969 rows, mtime 2026-08-13 13:03:00
+  exit profiles      DEBIT_PROD=606f5246 {'pt': 0.9, 'sl': 0.75, 'trig': None, 'trail': None, 'tef': 0.75}   HOLD=be626961 {'pt': None, 'sl': None, 'trig': None, 'trail': None, 'tef': None}
+  pre-registration   config/backtest-tuning/current.md §2026-08-13 calendar_hedge
+  P6 ETF list (30): SPY QQQ IWM DIA XLE XLF XLK XLI XLV XLY XLP XLU XLB XLRE XBI SMH GLD SLV USO TLT HYG EEM EFA FXI KWEB ARKK VXX UVXY SQQQ TQQQ
+
+==============================================================================
+R1 — book calibration, quoted before anything is built on it
+==============================================================================
+  pooled book (real+tweak, bs excluded)      795 rows over 118 dates  2024-06-17 .. 2026-04-07
+  by source: real=406  tweak=389
+  debit_calib      n=301  exact=289  near-rounding-tie=0  hard=12
+  n_credit_ungated 277   (admitted WITHOUT the exact-replay gate — see book.py docstring)
+  proxy debit rows excluded (non-exact) 48
+
+==============================================================================
+R2 — reconstruction gate on every source row feeding the universe
+==============================================================================
+  A (date, ticker) is used only if THIS code, re-pricing the ORIGINAL
+  book row from the same cache, reproduces its stored entry and marks.
+
+  reconstructs: 786 / 786  (100.0%)
+  signal ticker-dates usable: 786   (vol_sleeve 2026-08-12: 786 / 786)
+  R2 PASS
+
+==============================================================================
+R3 — the deployed ladder line reproduces the 08-12 vol_sleeve print
+==============================================================================
+  deployed: 220 positions over 90 dates, $63,553   meanR +0.354  win 65%
+  expected: 220 positions over 90 dates, $63,553
+  R3 PASS
+
+==============================================================================
+SYNTHESIS — building every candidate the universe can carry
+==============================================================================
+  Results are checkpointed to the store keyed (structure, ticker, date,
+  expiry, profile_hash); an interrupted run resumes.
+  candidate groups walked 786  (cached 786)
+
+==============================================================================
+R4 — vol_sleeve's calendar cell, rebuilt EXACTLY (the critical gate)
+==============================================================================
+  Pick rule DISABLED, LOOSE fill (entry lag <= U.MAX_ENTRY_LAG_DAYS = 5),
+  full size, DEBIT_PROD. If this does not reproduce, the gap between
+  vol_sleeve's +0.336 and whatever H2 prints cannot be attributed to
+  the pick rule rather than to re-implementation drift.
+
+  metric                 expected            got   verdict
+  rows                        183            183   OK
+  meanR (3dp)              +0.158         +0.158   OK
+  $R                       28,059         28,059   OK
+  exit mix        
+    cap_open             expected    5   got    5   OK
+    dollar_stop          expected   22   got   22   OK
+    profit_target        expected   28   got   28   OK
+    stop_loss            expected    4   got    4   OK
+    time_exit            expected  124   got  124   OK
+
+  R4 PASS — the rebuild is faithful
+
+==============================================================================
+H ARM UNIVERSE — deployed dates only, STRICT fill
+==============================================================================
+  FILLABLE means both legs cached on the ladder's OWN entry session
+  (entry_date == grid[0]) — you cannot decide to hedge on Monday and be
+  filled on Friday. The loose <= 5-day rule vol_sleeve used prints below
+  as the pre-registered sensitivity.
+
+  deployed dates                            90
+  worst-decile deployed dates                9  (by deployed daily dollars; deployed $-20,268)
+  loose-priced calendars on those dates    143
+  ... STRICT-fillable (entry on grid[0])   134
+  ... excluded, entry_net <= 0               2
+  ... excluded, far_exp <= near_exp          0
+  candidate calendars retained             132  over 68 dates, 26 tickers
+
+--- entry-lag distribution under the LOOSE rule (sensitivity, not the universe) 
+  STRICT is not a single lag bucket: grid[0] is the first WEEKDAY after
+  the signal, so a Mon-Thu signal fills strict at lag 1 and a Friday
+  signal fills strict at lag 3. The split is printed per bucket.
+
+     lag   rows   share   of which STRICT
+     1d    122   85.3%               122
+     2d      3    2.1%                 0
+     3d     15   10.5%                12
+     4d      2    1.4%                 0
+     5d      1    0.7%                 0
+  strict share of loose-priced rows: 134/143 = 93.7%
+
+==============================================================================
+H0 — FILL gate: is the hedge available when it is needed?
+==============================================================================
+  A hedge unavailable exactly when needed is not a hedge. The gate is
+  >= 60% of deployed dates AND >= 60% of the deployed book's worst
+  decile; it fails on either. Unfillable days are carried at 0 in every
+  portfolio line below, never dropped from a denominator.
+
+  P1 fillable on deployed dates          68 / 90   =  75.6%   PASS
+  P1 fillable on worst-decile dates       6 / 9    =  66.7%   PASS
+  (any strict-fillable calendar exists on 68 / 90 deployed dates — P1 always picks when one does)
+
+  H0 MET
+
+==============================================================================
+H1 — STANDALONE expectancy of the P1 sleeve (CONTEXT, not a gate)
+==============================================================================
+  A hedge is allowed to lose money standalone; the shipped bear sleeve
+  does. This is here so the write-up can say what it costs.
+
+  n=68 positions over 68 dates
+  meanR +0.228  CI [-0.016, +0.590]   win 62%   $ (1/2 size) +13,252
+  meanE +0.034  CI [-0.160, +0.218]
+  years R: 2024 +0.062  2025 +0.369  2026 +0.220   (3/3 positive)
+  years E: 2024 +0.159  2025 -0.243  2026 +0.370   (2/3 positive)
+  exits: time_exit=49  profit_target=10  dollar_stop=8  cap_open=1
+  P1                             n=  68  win   62%  PF  2.35  meanR +0.228  $    20,131  MFE  +0.99  MAE  -0.63  gb  0.64  cap  +0.23
+
+==============================================================================
+H2 — HEDGE CONTRIBUTION (P1) — THE PRIMARY GATE
+==============================================================================
+  D2's rule verbatim: (a) date-level correlation < 0, (b) mean sleeve R
+  on the deployed book's worst-decile dates > 0 with a date-clustered CI
+  excluding zero, (c) worst-quartile tail positive in >= 2 evaluable
+  years. All three. POWER STOP: fewer than 10 positions in the
+  worst-decile cell and (b) is NOT EVALUABLE — not 'failed'.
+
+--- (a) date-level correlation with the deployed book -----------------------
+  corr(daily $)       +0.075  CI95 [-0.095, +0.187]   over 90 deployed dates (unfillable carried at 0)
+  corr(daily mean R)  +0.065  CI95 [-0.106, +0.272]   (context)
+  needs < 0: NO
+
+--- (b) the sleeve on the deployed book's worst-decile dates ----------------
+  worst decile = 9 dates, deployed $-20,268
+  sleeve positions on those dates: n=6  meanR +0.163  $ (1/2) +836
+  POWER STOP — n < 10. The CI is NOT read and (b) is
+  recorded NOT EVALUABLE, not failed. This was the pre-registered
+  expectation for a 1/day rule; the honest conclusion is 'needs new dates'.
+
+--- (c) worst-quartile tail, by year ----------------------------------------
+  2024: worst-quartile dates   7  deployed     -1,524  sleeve n=  5 meanR +0.118  -> positive
+  2025: worst-quartile dates  10  deployed     -1,650  sleeve n=  8 meanR -0.086  -> not positive
+  2026: worst-quartile dates   4  deployed       -823  sleeve n=  3 meanR +0.472  -> positive
+  tail positive in 2/3 evaluable years — needs >= 2: YES
+
+--- H2 verdict --------------------------------------------------------------
+  (a) not met   (b) NOT EVALUABLE (power stop)   (c) MET
+  H2 = NOT EVALUABLE — the primary gate cannot be read on this window.
+
+==============================================================================
+H0b — FRESHNESS: does the headline survive a fresh-marks cut?
+==============================================================================
+  Long premium is the one structure a carried-forward mark flatters.
+  Cut to stale_at_cap <= 3 AND pct_real >= 0.5,
+  then RE-PICK (the cut can change which calendar P1 selects) and
+  recompute the headline.
+
+  fill after the cut: 66/90 deployed dates (73.3%), 6/9 worst-decile
+  meanR +0.274  CI [+0.016, +0.642]  n=66   meanE +0.093
+  worst-decile cell: n=6  meanR +0.163   (below the power stop — no CI read)
+
+==============================================================================
+H3 — SIZING: the largest f that harms neither drawdown nor the worst date
+==============================================================================
+  Two baselines, a deliberate change from vol_sleeve: the calendar must
+  beat the hedge the operator ALREADY HAS, not just the empty seat.
+  (i) the deployed ladder alone; (ii) ladder + the SHIPPED bear sleeve
+  (|delta| descending, 1/day, <= 1/2 size, config/deployment-rules.md §4).
+
+  calendar sleeve: 68 positions; bear sleeve: 84 positions; both over 90 deployed dates
+
+  baseline: (i) deployed ladder alone
+      f      total $     max DD $  worst date $  neg dates
+   0.00       63,553       -7,609        -3,212         31
+   0.25       66,866       -6,917        -3,229         31
+   0.50       70,179       -6,448        -3,245         31
+   1.00       76,805       -5,561        -3,279         32
+  -> NOT MET at any size — no fraction leaves both drawdown and worst-date unharmed.
+     bound by: drawdown ok at every f; worst-date fails  (f=1.00 moves DD +2,048, worst date -67, total +13,252)
+
+  (shipped bear sleeve alone contributes $+1,446 over 84 dates)
+
+  baseline: (ii) ladder + SHIPPED bear sleeve
+      f      total $     max DD $  worst date $  neg dates
+   0.00       64,999       -6,606        -3,298         36
+   0.25       68,312       -5,978        -3,315         36
+   0.50       71,625       -5,349        -3,332         35
+   1.00       78,251       -5,187        -3,365         33
+  -> NOT MET at any size — no fraction leaves both drawdown and worst-date unharmed.
+     bound by: drawdown ok at every f; worst-date fails  (f=1.00 moves DD +1,418, worst date -67, total +13,252)
+
+==============================================================================
+H4 — CONDITIONAL PICK: is P1 the right rule, within the day?
+==============================================================================
+  Same-date pairing throughout, so the day is its own control and the
+  level problem that sinks every cross-sectional comparison does not
+  apply. A P2-P6 pass with P1 failing is a candidate for a future
+  window, never a ship — the pre-registration fixes P1 as THE rule.
+
+--- coverage and standalone mean of each rule -------------------------------
+  rule                      dates    meanR      $ (1/2)
+  P1 nearest-ATM               68   +0.228       13,252
+  P2 longest near DTE          68   +0.309       15,639
+  P3 shortest near DTE         68   +0.247       12,668
+  P4 widest expiry gap         68   +0.192       11,508
+  P5 top-pick ticker           17   +0.299        2,256
+  P6 ETF only                  47   +0.215        6,784
+
+--- P1 vs the day's MEAN fillable calendar (paired by date) -----------------
+  n=68 dates  dR -0.029  CI [-0.131, +0.064]
+  (mean day carries 1.9 fillable calendars)
+
+--- P1 vs P2 longest near DTE (same-date pairs only) ------------------------
+  n=68 dates (46 identical picks)  dR -0.081  CI [-0.206, +0.042]
+
+--- P1 vs P3 shortest near DTE (same-date pairs only) -----------------------
+  n=68 dates (46 identical picks)  dR -0.019  CI [-0.198, +0.127]
+
+--- P1 vs P4 widest expiry gap (same-date pairs only) -----------------------
+  n=68 dates (49 identical picks)  dR +0.036  CI [-0.068, +0.140]
+
+--- P1 vs P5 top-pick ticker (same-date pairs only) -------------------------
+  n=17 dates (10 identical picks)  dR -0.258  CI [-0.906, +0.175]
+
+--- P1 vs P6 ETF only (same-date pairs only) --------------------------------
+  n=47 dates (36 identical picks)  dR +0.021  CI [-0.120, +0.162]
+
+==============================================================================
+H5 — TIMING (POST-HOC, labelled): when is the calendar worth carrying?
+==============================================================================
+  NOT pre-registered as a gate. Every cell here was chosen AFTER seeing
+  vol_sleeve, including the one CI-clearing conditional it found
+  (calendar x earnings-inside-DTE, +0.356 vs -0.035, n=42). Read as a
+  CANDIDATE for an independent window; nothing here can ship.
+
+  condition                         n    meanR   vs rest  diff CI95 (date-clustered)
+  mech_cell == BEAR_HE             31   +0.295    +0.172            [-0.420, +0.893]
+  mech_vol H-VOL                   21   -0.020    +0.339            [-0.907, +0.083]
+  model RANGE + C/L-VOL            15   +0.981    +0.015            [+0.111, +2.422]  <- excludes 0
+  earnings inside DTE              14   +0.184    +0.239            [-0.585, +0.382]
+
+==============================================================================
+EXIT SENSITIVITY (LABELLED) — the same tables held to near-leg expiry
+==============================================================================
+  pt / sl / tef all None. It MAY NOT change the verdict; it exists so the
+  write-up can say whether the verdict is exit-shape-dependent.
+
+==============================================================================
+H1 — STANDALONE expectancy of the P1 (hold to near expiry) sleeve (CONTEXT, not a gate)
+==============================================================================
+  A hedge is allowed to lose money standalone; the shipped bear sleeve
+  does. This is here so the write-up can say what it costs.
+
+  n=68 positions over 68 dates
+  meanR -0.193  CI [-0.466, +0.039]   win 44%   $ (1/2 size) -3,341
+  meanE +0.034  CI [-0.160, +0.218]
+  years R: 2024 +0.019  2025 -0.491  2026 +0.044   (2/3 positive)
+  years E: 2024 +0.159  2025 -0.243  2026 +0.370   (2/3 positive)
+  exits: expired=51  dollar_stop=13  cap_open=4
+  P1 (hold to near expiry)       n=  68  win   44%  PF  0.58  meanR -0.193  $   -15,891  MFE  +0.99  MAE  -0.63  gb  0.64  cap  -0.20
+
+==============================================================================
+H2 — HEDGE CONTRIBUTION (P1 hold-to-expiry) — THE PRIMARY GATE
+==============================================================================
+  D2's rule verbatim: (a) date-level correlation < 0, (b) mean sleeve R
+  on the deployed book's worst-decile dates > 0 with a date-clustered CI
+  excluding zero, (c) worst-quartile tail positive in >= 2 evaluable
+  years. All three. POWER STOP: fewer than 10 positions in the
+  worst-decile cell and (b) is NOT EVALUABLE — not 'failed'.
+
+--- (a) date-level correlation with the deployed book -----------------------
+  corr(daily $)       -0.049  CI95 [-0.227, +0.148]   over 90 deployed dates (unfillable carried at 0)
+  corr(daily mean R)  +0.012  CI95 [-0.144, +0.177]   (context)
+  needs < 0: YES
+
+--- (b) the sleeve on the deployed book's worst-decile dates ----------------
+  worst decile = 9 dates, deployed $-20,268
+  sleeve positions on those dates: n=6  meanR +0.142  $ (1/2) +1,087
+  POWER STOP — n < 10. The CI is NOT read and (b) is
+  recorded NOT EVALUABLE, not failed. This was the pre-registered
+  expectation for a 1/day rule; the honest conclusion is 'needs new dates'.
+
+--- (c) worst-quartile tail, by year ----------------------------------------
+  2024: worst-quartile dates   7  deployed     -1,524  sleeve n=  5 meanR +0.227  -> positive
+  2025: worst-quartile dates  10  deployed     -1,650  sleeve n=  8 meanR -0.121  -> not positive
+  2026: worst-quartile dates   4  deployed       -823  sleeve n=  3 meanR -0.100  -> not positive
+  tail positive in 1/3 evaluable years — needs >= 2: NO
+
+--- H2 verdict --------------------------------------------------------------
+  (a) MET   (b) NOT EVALUABLE (power stop)   (c) not met
+  H2 = NOT EVALUABLE — the primary gate cannot be read on this window.
+
+==============================================================================
+VERDICT
+==============================================================================
+  H0 FILL           MET
+  H2 (primary)      NOT EVALUABLE
+  H2 under hold     NOT EVALUABLE   (sensitivity — may not change the verdict)
+
+  Ship ceiling per the pre-registration: an optional second hedge sleeve
+  in config/deployment-rules.md §4, requiring H0 MET and H0b not flipping
+  the verdict and H2 MET and H3 deployable at f >= 0.25. Anything less is
+  a candidate. Nothing here changes config/backtest.yml.
+
+==============================================================================
+exit code 0 after 5.5s
+==============================================================================
+```
+
+</details>
 ---
 
 ## 2026-08-13 — `account_sim` RUN: the $25k edge survives its caps but not its window; the verdict grammar had a hole
 
-**Provenance.** `backtests/study_output/account_sim-latest.txt`, git 470b95f (dirty),
-the 08-11 exports (BacktestResults 1,926 / BacktestProxy 4,533 / AnalysisClaude
+**Provenance.** Run 2026-08-13, git 470b95f (dirty), the 08-11 v3 exports
+(BacktestResults 1,926 / BacktestProxy 4,533 / AnalysisClaude
 11,836 rows), `load_book(include_bs=False)` → 795 rows; mech table 803 rows
 2026-08-13 (book.py boilerplate — not used by any printed account_sim output;
 validator-checked). Nothing ships from this study by pre-registration.
+
+`backtests/study_output/account_sim-latest.txt` is RETAINED on disk, but only
+because `scripts/study_charts/cli.py` raises without it and `make study-docs`
+calls the chart build unguarded — not as this write-up's evidence. The file
+there today is a LATER re-run (2026-08-15 19:01:23, git 7708a92) against the
+same 08-11 v3 exports; it was checked against this section before the excerpt
+below was folded and reproduces every gate figure asserted here — G1
+`n=301 exact=289`, `n_credit_ungated 277`, B1 `220 / 90 / $63,553`, G2
+`175 exact=175`. Read the folded excerpt, not the file, as the record.
 
 **Gates: all four PASS.** G1 debit_calib 289/301 exact (12 hard, excluded),
 n_credit_ungated 277; **B1 reproduces the vol_sleeve deployed line exactly (220 /
@@ -572,6 +1086,172 @@ on the model read) and the exit profile (keyed on the mechanical cell) are
 routinely disagreeing about the same position. Not a finding, and no cut here
 was pre-registered; flagged as a candidate question for a study that would be.
 
+
+<details>
+<summary>Report excerpt, verbatim — run 2026-08-15 19:01:23, git 7708a92 (dirty), same 08-11 v3 exports; header, G1-G5, both populations' baselines + criteria, verdict</summary>
+
+```text
+==============================================================================
+STUDY: account_sim
+==============================================================================
+  run at    2026-08-15 19:01:23
+  command   python -m scripts.backtest_study.f4_deployment.account_sim
+  git       7708a92 (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     805 rows  2026-08-15 12:38  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+==============================================================================
+
+[... lines 16-170 elided ...]
+
+GATES — G1..G5 (non-zero exit on any failure)
+==============================================================================
+
+--- G1 — book calibration quoted, B1 line reproduced ------------------------
+  debit_calib      n=301  exact=289  near=0  hard=12
+  n_credit_ungated 277  (admitted WITHOUT the exact-replay gate — book.py's credit caveat)
+  B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553
+  expected (account-sim.yml, gates.book_calibration): 220 / 90 / $63,553
+  G1: PASS
+
+--- G2 — scaling identity calibrated at scale=1 against the stored rows -----
+  The identity code path is run with factor 1 (stop = the harness's own
+  $1,000) at the STORED contract count, under DEBIT_PROD — the profile that
+  GENERATED the stored rows. It must reproduce (exit_reason, days_held,
+  round(R,4)) exactly. Calibrating against the shipped be_after-0.50 merge
+  instead would be testing an exit change, not the identity.
+  calibrated debit picks re-replayed: 175  exact=175  mismatched=0
+  credit picks (counted, NOT gated — book.py admits them ungated): 42
+  debit picks failing book.py's own calibration (excluded from G2): 3
+  G2: PASS
+
+--- G3 — ledger accounting identity, checked after every event --------------
+  events checked: 320   positions: 160
+  final cash $36,248.00  reserved $0.00  realized $11,248.00  (capital $25,000.00)
+  G3: PASS  (0 violations)
+
+--- G4 — unconstrained walk reproduces top_k_per_day by set equality --------
+  walk picks 220 (incl. 2 unsizable slot-burners)  vs top_k_per_day 220
+  symmetric difference: 0
+  G4: PASS
+
+--- G5 — the simulator is BLIND to how a position turned out ----------------
+  Every record is re-wrapped so that reading an outcome key raises, AND the
+  outcome columns are DELETED from the underlying trade row so a read cannot
+  route around the wrapper. The run must then complete and produce a
+  byte-identical book. This is what makes the sim safe to hand to an agent
+  proposing live positions: no ordering, sizing or admission decision can be
+  standing on a number that would not exist yet in real time.
+  tripwire live (reading a blinded outcome key raises): True
+  row columns deleted from every Trade: days_held, exit_reason, mae_day, mae_pct, mfe_day, mfe_pct, pnl_at_cap_pct, realized_pnl_pct
+  positions: sighted 160  blind 160  differing 0
+  G5: PASS
+
+  GATES: ALL PASS
+
+==============================================================================
+
+[... lines 217-233 elided ...]
+
+[PRIMARY dense episodes] B1 / B2 BASELINES
+==============================================================================
+  B1  stored contracts, stored outcomes     n= 112  dates= 46  $    45,671  meanR +0.511
+  B2  $25,000 max-loss sizing, unconstrained  n= 110  dates= 46  $    23,157  meanR +0.298
+
+  B1 -> B2 isolates GRANULARITY (contract counts), B2 -> constrained isolates the CAPS.
+  B2/B1 dollar ratio 0.51x — the small account holds fewer contracts, so the dollar book shrinks by SIZE before any
+  constraint is applied. B1's stored counts are a $50k book's.
+
+==============================================================================
+
+[... lines 244-485 elided ...]
+
+[PRIMARY dense episodes] CRITERIA A1-A6
+==============================================================================
+  A1 EDGE SURVIVAL  meanR +0.290  CI95 [+0.113,+0.457]  years 2025:+0.445  2026:+0.097
+     MET  (needs mean>0, CI excluding zero, every year positive)
+  A2 ATTRITION      constrained $11,399 vs B2 on the same 37 dates $12,675  = 90%
+     MET  (needs >= 60%)
+  A3 NO BLOWUP      maxDD $-4,354 = 17.4% of capital;  ledger violations 0
+     MET  (needs no over-reservation and DD <= 25%)
+  A4 ATTRIBUTION    150 candidates partition exactly into 72 taken + exclusions
+     MET  (mismatch FAILS the run)
+  A5 STABILITY      constrained/B2 ratio ALL 90% (n=72);  ex-2025_mar_apr 131% (+41pt, n=37)  ex-2026_feb_apr 83% (-7pt, n=40)
+     NOT MET  (needs <= 15 points of movement on both cuts)
+  A6 CREDIT SENS.   debit-only n=55  meanR +0.231  CI95 [+0.021,+0.435]  years 2025:+0.379  2026:-0.008
+     NOT MET  (A1 must hold on debit-only)
+
+==============================================================================
+
+[... lines 502-501 elided ...]
+
+[SECONDARY full book] B1 / B2 BASELINES
+==============================================================================
+  B1  stored contracts, stored outcomes     n= 220  dates= 90  $    63,553  meanR +0.354
+  B2  $25,000 max-loss sizing, unconstrained  n= 218  dates= 90  $    18,895  meanR +0.187
+
+  B1 -> B2 isolates GRANULARITY (contract counts), B2 -> constrained isolates the CAPS.
+  B2/B1 dollar ratio 0.30x — the small account holds fewer contracts, so the dollar book shrinks by SIZE before any
+  constraint is applied. B1's stored counts are a $50k book's.
+
+==============================================================================
+
+[... lines 512-775 elided ...]
+
+[SECONDARY full book] CRITERIA A1-A6
+==============================================================================
+  A1 EDGE SURVIVAL  meanR +0.159  CI95 [+0.019,+0.300]  years 2024:+0.037  2025:+0.295  2026:+0.077
+     MET  (needs mean>0, CI excluding zero, every year positive)
+  A2 ATTRITION      constrained $11,248 vs B2 on the same 77 dates $6,508  = 173%
+     MET  (needs >= 60%)
+  A3 NO BLOWUP      maxDD $-6,284 = 25.1% of capital;  ledger violations 0
+     NOT MET  (needs no over-reservation and DD <= 25%)
+  A4 ATTRIBUTION    297 candidates partition exactly into 160 taken + exclusions
+     MET  (mismatch FAILS the run)
+  A5 STABILITY      constrained/B2 ratio ALL 173% (n=160);  ex-2025_mar_apr -164% (-337pt, n=125)  ex-2026_feb_apr 179% (+6pt, n=129)
+     NOT MET  (needs <= 15 points of movement on both cuts)
+  A6 CREDIT SENS.   debit-only n=123  meanR +0.137  CI95 [+0.001,+0.277]  years 2024:+0.143  2025:+0.185  2026:-0.008
+     NOT MET  (A1 must hold on debit-only)
+
+==============================================================================
+VERDICT (PRIMARY dense episodes population — the primary)
+==============================================================================
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  NOT MET
+  A6  NOT MET
+
+  >>> FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5 and/or A6 fail; stability/robustness not established on this window) <<<
+
+  2026-08-14 AMENDMENT (labelled, not a redefinition — see the comment above
+  print_verdict): the pre-registered grammar (FEASIBLE = A1^A2^A3^A5^A6;
+  FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing; NOT FEASIBLE AT $25,000 = A1 fails)
+  did not name this combination and previously printed "NO VERDICT MATCHES"
+  here. No criterion threshold, measured number, or meaning of A1-A6 moved —
+  only the outcome-to-label mapping was completed. The checklist above is
+  the whole result; this label states what it means, nothing more.
+
+==============================================================================
+CLOSE
+==============================================================================
+  verdict: FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5 and/or A6 fail; stability/robustness not established on this window)
+  Nothing in this report is a shippable rule. The cap values are a friction model,
+  not a tuned parameter, and none of them may be adopted on P&L.
+  positions CSV: 447 rows -> backtests/study_output/account_sim-positions-latest.csv
+
+==============================================================================
+exit code 0 after 3.8s
+==============================================================================
+```
+
+</details>
 ---
 
 ## 2026-08-13 — `account_sim`: PRE-REGISTRATION → [`pre-registrations/account_sim.md`](../pre-registrations/account_sim.md)

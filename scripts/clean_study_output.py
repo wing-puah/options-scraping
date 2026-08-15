@@ -14,9 +14,20 @@ Two modes:
                  generated data (`dataset.csv`) all go
 
 Some reports are still load-bearing, so both modes run a PIN SCAN first and
-refuse to delete a file that is either cited by the tuning log or carries a
-study's gate marker (see GATE_MARKERS). Pinned files are reported, not deleted;
-`--force` turns the scan off, which is what makes `--all --force` a true wipe.
+refuse to delete a file that a CODE PATH reads (see CODE_INPUTS), that the
+tuning log cites, or that carries a study's gate marker (see GATE_MARKERS).
+Pinned files are reported, not deleted; `--force` turns the scan off, which is
+what makes `--all --force` a true wipe.
+
+A PIN GUARANTEES THE FILENAME, NOT THE CONTENTS. Nothing stops the next
+`run <name>` from overwriting a cited `-latest.txt` with a run against different
+exports, and that is not hypothetical: on 2026-08-15 a `run --all` re-ran the
+suite against the truncated v4 exports, so `bear_arm-latest.txt` — pinned by
+`research/deployment-evidence.md` for a paired CI of [+0.015, +0.065] — came to
+hold E = -0.193 on a 74-row book instead. The pin held the name while the
+evidence left. So the scan also compares each cited report's provenance header
+against the sha or date the citing line claims and prints STALE when they
+disagree; see `_stale_reason`.
 
 Usage:
   python3 scripts/clean_study_output.py --keep-latest --dry-run
@@ -27,6 +38,12 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
+
+# The runner writes one provenance header and every study inherits it, so the
+# chart layer's parser is the parser for it. Dependency-light (re/textwrap/
+# pathlib) and already the system of record for reading that header.
+from study_charts.report import Report, ReportParseError, parse_provenance
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "backtests" / "study_output"
@@ -47,8 +64,36 @@ LATEST_SUFFIXES = ("-latest.txt", "-latest.csv", "-latest.md")
 #                     S. Only stamped reports carry it; -latest.txt may not.
 GATE_MARKERS = ("H2 (primary)",)
 
+# Files a CODE PATH reads. Pinned regardless of what any write-up says: removing
+# one breaks a build rather than losing evidence, so a write-up must never be
+# the thing keeping them alive.
+CODE_INPUTS = {
+    "account_sim-latest.txt":
+        "scripts/study_charts/cli.py raises without it and `make study-docs` "
+        "builds the account_sim page unguarded",
+    "account_sim-positions-latest.csv":
+        "same chart build — cli.py's DEFAULT_POSITIONS",
+}
+
 # Citations look like `backtests/study_output/<file>` in the tuning write-ups.
 _CITE_RE = re.compile(r"study_output/([A-Za-z0-9_][A-Za-z0-9_.\-]*)")
+
+# Fenced blocks are skipped by the citation scan — see cited_files().
+_FENCE_RE = re.compile(r"^\s*(`{3,})")
+
+# A citing line's claim about WHICH run it means. Only these two forms are
+# checked: a write-up that names neither cannot be contradicted, and guessing
+# from prose would produce false STALE reports on correct citations.
+_DOC_SHA = re.compile(r"\bgit\s+([0-9a-f]{7,40})\b")
+_DOC_DATE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+_CLAIM_WINDOW = 3       # lines either side of the citation to read the claim from
+
+
+class Citation(NamedTuple):
+    """Where a write-up points at a report, and the file that line lives in."""
+    where: str          # "research/archive/13-….md:344", for the printed report
+    doc: Path
+    lineno: int
 
 
 def _human(n: int) -> str:
@@ -59,14 +104,19 @@ def _human(n: int) -> str:
     return f"{n}B"
 
 
-def cited_files(tuning_dir: Path) -> dict[str, str]:
-    """`{basename: "path/to/doc.md:LINE"}` for every study_output file cited.
+def cited_files(tuning_dir: Path) -> dict[str, Citation]:
+    """`{basename: Citation}` for every study_output file cited under `tuning_dir`.
+
+    RECURSIVE, and that is the whole point: `research/archive/` and
+    `research/pre-registrations/` hold most of the `**Provenance.**` lines in
+    the repo, and the non-recursive glob this used to do read NONE of them — so
+    every archive citation pinned nothing while appearing to.
 
     First citation of a given file wins — the report only needs to show one
     place that still points at it.
     """
-    out: dict[str, str] = {}
-    for md in sorted(tuning_dir.glob("*.md")):
+    out: dict[str, Citation] = {}
+    for md in sorted(tuning_dir.rglob("*.md")):
         try:
             text = md.read_text()
         except OSError:
@@ -74,11 +124,78 @@ def cited_files(tuning_dir: Path) -> dict[str, str]:
         try:
             where = md.relative_to(ROOT)
         except ValueError:      # a tuning dir outside the repo (tests)
-            where = md.name
+            # Relative to the scanned root, not just the basename: the scan is
+            # recursive now, so `archive/13-….md` and a same-named file one
+            # level up must not print identically.
+            where = md.relative_to(tuning_dir)
+        fence = ""      # the backtick run that opened the current code block
         for lineno, line in enumerate(text.splitlines(), start=1):
+            if m := _FENCE_RE.match(line):
+                # Closing needs a bare run at least as long as the opener's, so
+                # a ```` block quoting ``` inside it stays open.
+                if not fence:
+                    fence = m.group(1)
+                elif len(m.group(1)) >= len(fence) and not line.strip(" `"):
+                    fence = ""
+                continue
+            if fence:
+                # A path inside a fence is QUOTED REPORT OUTPUT, not a citation.
+                # Study reports print their own export paths ("positions CSV:
+                # 447 rows -> backtests/study_output/…"), so a folded excerpt
+                # would otherwise pin the very files it was folded in to replace.
+                continue
             for name in _CITE_RE.findall(line):
-                out.setdefault(name, f"{where}:{lineno}")
+                out.setdefault(name, Citation(f"{where}:{lineno}", md, lineno))
     return out
+
+
+def _report_stamp(path: Path) -> tuple[str, str] | None:
+    """`(git sha, run date)` from the runner's provenance header, or None.
+
+    None is the normal answer for anything that is not a runner report — a
+    positions CSV, a review markdown, or pre-runner `tee` debris with no header
+    at all. That is not an error; it means there is nothing to check a citation
+    against.
+    """
+    if path.suffix != ".txt":
+        return None
+    try:
+        prov = parse_provenance(Report(path.read_text(errors="ignore"), path))
+    except (OSError, ReportParseError):
+        return None
+    return prov["git"].split()[0], prov["run_at"][:10]
+
+
+def _stale_reason(path: Path, cit: Citation) -> str | None:
+    """The report no longer is the run its citation names, or None.
+
+    Deliberately conservative: it fires only when the citing line NAMES a git
+    sha or a date. A write-up that claims neither is not making a checkable
+    claim, and inventing one from prose would flag correct citations. The sha
+    wins when both are present — docs routinely quote the export date next to a
+    different run date, and the sha is the unambiguous one.
+    """
+    stamp = _report_stamp(path)
+    if stamp is None:
+        return None
+    sha, run_date = stamp
+    try:
+        lines = cit.doc.read_text().splitlines()
+    except OSError:
+        return None
+
+    lo = max(0, cit.lineno - 1 - _CLAIM_WINDOW)
+    ctx = " ".join(lines[lo:cit.lineno + _CLAIM_WINDOW])
+
+    if shas := _DOC_SHA.findall(ctx):
+        # Either may be the abbreviation — compare on the shorter prefix.
+        if not any(sha.startswith(s) or s.startswith(sha) for s in shas):
+            return (f"STALE: report is git {sha} run {run_date}; "
+                    f"citation says git {'/'.join(sorted(set(shas)))}")
+    elif (dates := _DOC_DATE.findall(ctx)) and run_date not in dates:
+        return (f"STALE: report ran {run_date}; "
+                f"citation says {'/'.join(sorted(set(dates)))}")
+    return None
 
 
 def _has_gate_marker(path: Path) -> str | None:
@@ -93,8 +210,8 @@ def _has_gate_marker(path: Path) -> str | None:
 
 
 def classify(out_dir: Path, keep_latest: bool, force: bool,
-             citations: dict[str, str]) -> tuple[list[Path], list[tuple[Path, str]],
-                                                 list[Path], list[Path]]:
+             citations: dict[str, Citation]) -> tuple[list[Path], list[tuple[Path, str]],
+                                                      list[Path], list[Path]]:
     """Split the directory into (keep, pinned, delete, skipped_dirs).
 
     `keep` survives on the mode alone; `pinned` are delete candidates rescued by
@@ -115,9 +232,15 @@ def classify(out_dir: Path, keep_latest: bool, force: bool,
             keep.append(path)
             continue
         if not force:
-            where = citations.get(path.name)
-            if where:
-                pinned.append((path, f"cited {where}"))
+            if reason := CODE_INPUTS.get(path.name):
+                pinned.append((path, f"code input — {reason}"))
+                continue
+            cit = citations.get(path.name)
+            if cit:
+                why = f"cited {cit.where}"
+                if stale := _stale_reason(path, cit):
+                    why += f"  ** {stale} **"
+                pinned.append((path, why))
                 continue
             marker = _has_gate_marker(path)
             if marker:

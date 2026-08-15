@@ -116,8 +116,8 @@ shipped ahead of its gate deliberately.
 (~**31% less bleed**), **−$54.4k → −$38.0k**. Bear selection stays negative
 afterwards; the ratchet only stops giving back a peak that was already there.
 
-Evidence (`bear_arm` study, 2026-08-11,
-`backtests/study_output/bear_arm-latest.txt`): paired date-clustered CI
+Evidence (`bear_arm` study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
+not retained on disk — the figures here are the record): paired date-clustered CI
 **[+0.015, +0.065]**, **every LOO fold positive** (min +0.038), right-signed in
 all three years (2024 +0.036 / 2025 +0.055 / 2026 +0.028, the last with its own
 CI [+0.009, +0.053]) and in both pricing tiers (real +0.054 / tweak +0.027).
@@ -227,8 +227,8 @@ order. See `docs/backtest-reference.md`.
 
 **Bear is deployable as a HEDGE, not as a selection.** This is the resolution of
 the bear_put thread and it is not a compromise position — both halves were
-tested (`bear_deploy` study, 2026-08-11,
-`backtests/study_output/bear_deploy-latest.txt`).
+tested (`bear_deploy` study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
+not retained on disk — D1/D2 below are the record).
 
 ### D1 — why not a selection
 
@@ -339,7 +339,8 @@ waved through.
 ## Deployment reference stats
 
 Look-up table for deploy time. Source: `bear_giveback` study ARM S, 2026-08-12,
-`backtests/study_output/bear_giveback-latest.txt`. Book = **795 rows, real+tweak
+git 470b95f, 08-11 v3 exports; report not retained on disk — this table is the
+record. Book = **795 rows, real+tweak
 only** (bs excluded — attenuating). **Profit factor (PF) = gross winning $ /
 |gross losing $|** on realized R. **PF < 1.0 means the cell lost money however
 good its win rate looks.**

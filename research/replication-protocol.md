@@ -76,7 +76,7 @@ Mode 1, replication grading. Two placeholders: `<pre-registration section>`
 (the study's file under `research/pre-registrations/`, e.g.
 `pre-registrations/calendar_hedge.md`, read whole — see
 [`pre-registrations/README.md`](pre-registrations/README.md)) and
-`<report path>` (e.g. `backtests/study_output/calendar_hedge-latest.txt`).
+`<report path>` (e.g. `backtests/study_output/<name>-latest.txt`).
 
 **Step 1 — spawn A and B in one message, identical prompts:**
 

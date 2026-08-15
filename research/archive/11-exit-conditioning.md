@@ -204,9 +204,9 @@ Nothing shipped. `config/backtest.yml` and `deployment-rules.md` unchanged.
 ## 2026-08-12 — the `be_after` grid RUN: does NOT ship, and the give-back pattern is in the UNDERLYING
 
 Study: `scripts/backtest_study/bear_giveback.py` (new, tracked) plus four
-pre-registered entries added to `bear_arm.py`'s `DEBIT_GRID`. Reports:
-`backtests/study_output/bear_arm-latest.txt`,
-`bear_giveback-latest.txt`. Inputs: BacktestResults 1,926 / BacktestProxy 4,533 /
+pre-registered entries added to `bear_arm.py`'s `DEBIT_GRID`. Reports (`bear_arm`
+and `bear_giveback`) not retained on disk — the figures in this section are the
+record. Inputs: BacktestResults 1,926 / BacktestProxy 4,533 /
 AnalysisClaude 11,836 rows, spy_vix 802 (git 470b95f, tree dirty). Book **795
 rows, real 406 / tweak 389**, bs excluded. Bear debit n=332.
 
@@ -362,7 +362,8 @@ in one number, and the reason win rate alone must never be the deploy criterion.
 Study: `scripts/backtest_study/next_day_move.py` (new, tracked), on new data
 infrastructure (`scripts/collector/fetch_underlying_ohlc.py`,
 `scripts/backtest_study/underlying.py`, `tests/test_underlying_ohlc.py`).
-Report: `backtests/study_output/next_day_move-latest.txt`. Inputs, quoted from
+Report not retained on disk — the figures in this section are the record.
+Inputs, quoted from
 its header: BacktestResults 1,926 / BacktestProxy 4,533 / AnalysisClaude 11,836
 rows (all 2026-08-11), spy_vix 802 (2026-08-12), git 470b95f, tree dirty. Book
 **795 rows, real 406 / tweak 389**, bs excluded.

@@ -164,7 +164,7 @@ correction does not reopen it or license a re-run on these dates.
 
 - Module `scripts/backtest_study/f4_deployment/selection_order.py`; run via
   `python -m scripts.backtest_study run selection_order`; report to
-  `backtests/study_output/selection_order-latest.txt`.
+  `backtests/study_output/<name>-latest.txt`.
 - A `scripts/study_map/catalog.py` entry with a hand-written VERDICT is REQUIRED —
   a study with no entry fails the test suite.
 - `harness.py` is not touched. `protocol.top_k_per_day` is not touched (every

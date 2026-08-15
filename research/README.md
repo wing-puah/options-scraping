@@ -34,7 +34,7 @@ state, exact argv, and the row counts and mtimes of the input exports. The runne
 finishes by printing the line to hand to Claude for the write-up:
 
 ```
-write up backtests/study_output/bear_deploy-latest.txt
+write up backtests/study_output/<name>-latest.txt
 ```
 
 The write-up is appended here as a new `current.md` section. Quote the header's
@@ -91,7 +91,7 @@ binding-constraint census, the adverse-ordering check, sizing, exits, monthly
 utilisation, the cap grid, the four arms, and the A1–A6 checklist — with a
 PRIMARY/SECONDARY population switch scoping everything below it.
 
-One run writes two files. `backtests/study_output/account_sim-charts-latest.html`
+One run writes two files. `backtests/study_output/<name>-charts-latest.html`
 is a bare fragment, which is what the Artifact publisher wants;
 `site/account-sim-charts.html` is the same page wrapped as a standalone document.
 `site/` is **generated output and gitignored** — a fresh checkout has no pages

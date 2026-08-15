@@ -25,10 +25,11 @@ pre-registration discipline that is a deviation and is recorded as one. No
 criterion was added, dropped, or reworded post-hoc; the 2026 and tier cuts that
 kill the headline are the ones the plan named.
 
-**Provenance.** `backtests/study_output/bear_rewrap-latest.txt`, git 470b95f
-(dirty), the 08-11 exports, `book.load_book(include_bs=False)` → 795 rows,
+**Provenance.** Run 2026-08-12, git 470b95f
+(dirty), the 08-11 v3 exports, `book.load_book(include_bs=False)` → 795 rows,
 bear debit (`bear_put_spread` + `long_put`, non-credit) **n=332, real 168 /
-tweak 164**. Read-only: no config, prompt, ladder or tab touched.
+tweak 164**. Read-only: no config, prompt, ladder or tab touched. Report not
+retained on disk — the figures in this section are the record.
 
 ### 0. Why the PDFs underdelivered — it is not bad luck
 
@@ -170,12 +171,13 @@ file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ## 2026-08-12 — `vol_sleeve` RUN: the sleeve does not diversify, it DOUBLES DOWN; the calendar is the only survivor
 
-**Provenance.** `backtests/study_output/vol_sleeve-latest.txt`, git 470b95f
-(dirty), the 08-11 exports, `book.load_book(include_bs=False)` → 795 rows.
+**Provenance.** Run 2026-08-12, git 470b95f
+(dirty), the 08-11 v3 exports, `book.load_book(include_bs=False)` → 795 rows.
 **1,293 synthetic positions** (758 straddle / 352 strangle / 183 calendar) over
 **118 dates, 101 tickers**, every leg REAL-priced from
 `backtests/option_history_cache/`. Read-only: no config, prompt, ladder or tab
-touched. Pre-registration is the entry immediately below this one and was
+touched. Report not retained on disk — the figures in this section are the
+record. Pre-registration is the entry immediately below this one and was
 written before the study was run; the two additions to it are labelled.
 
 ### 0. The gates that ran BEFORE any result was read

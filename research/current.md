@@ -303,9 +303,10 @@ queue_a resumes past the 10 done dates. **Next: run
 **Status: ARM ADDED, nothing adopted. No pre-registered criterion is evaluated by
 this arm, no threshold moved, and the frozen `account_sim` book is byte-identical
 (verified by diff — only the provenance header and the already-committed verdict-
-label amendment differ).** Report:
-`backtests/study_output/account_sim-live-select-latest.txt`; positions:
-`account_sim-positions-live-select-latest.csv`.
+label amendment differ).** Run 2026-08-15 13:30:02, git ce9dcae (dirty), 08-11
+v3 exports (1,926 / 4,533 / 11,836); positions export 566 rows. Report and
+positions CSV not retained on disk — the excerpt at the end of this section IS
+the record.
 
 *What the arm is.* `account_sim` re-implements the deployment ladder in
 `scripts/backtest_study/lib/book.py::ladder_tier`. The function that actually decides
@@ -377,6 +378,190 @@ blind, 153 = 153, 0 differing — but note what it cannot reach: it blinds recor
 FIELDS, and a model's weights are not a record field. **G6** (nothing reaches the
 ledger that `rank()` did not clear) PASSES on both walks.
 
+
+<details>
+<summary>Report excerpt, verbatim — run 2026-08-15 13:30:02, git ce9dcae (dirty), 08-11 v3 exports; header, then the arm's own sections from LIVE SELECT to CLOSE</summary>
+
+```text
+==============================================================================
+STUDY: account_sim-live-select
+==============================================================================
+  run at    2026-08-15 13:30:02
+  command   python -m scripts.backtest_study.account_sim --live-select --live-select-no-llm
+  git       ce9dcae (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     805 rows  2026-08-15 12:38  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+==============================================================================
+
+[... lines 16-216 elided ...]
+
+LIVE SELECT — the SHIPPED selector (recommend.rank + judge) under history
+==============================================================================
+  This arm replaces account_sim's own ladder (book.py::ladder_tier) with the
+  function that actually decides what gets deployed: scripts/journal/recommend.py's
+  rank() — which encodes config/deployment-rules.md §1-§3 exactly once, via
+  scripts/live_loop/mapping.ladder_tier — followed by judge(), the single
+  demote-only model call. Pricing, sizing, admission and exit replay are
+  account_sim's frozen machinery, unchanged and unreachable from here.
+
+  NOT the frozen basis and not a criterion. A1-A6 were pre-registered against the
+  frozen selector and DO NOT TRANSFER to a different candidate set; none of them
+  is evaluated here. What this arm reports is coverage, divergence, and the two
+  books the selector produces — no verdict, no adoption.
+
+  entry check   ibkr_verified
+  judgment      NOT RUN (--live-select-no-llm) — deterministic rank() only
+  budget check  recommend.DEPLOY_BUDGET=3 ==
+                account.max_positions_per_day=3  OK
+
+  analysis source: /Users/wing/claude_playground/options-trading/backtests/to_evaluate/analysis - AnalysisClaude.csv
+
+==============================================================================
+SELECTION COVERAGE — what the selector saw, and what it could never see
+==============================================================================
+  The frozen book only ever ranks rows the backtest could PRICE. This section
+  asks the other question: of every play the analysis actually emitted, which
+  ones reached selection at all. No P&L, no dollars, no ledger effect — a row
+  counted here as unpriceable is never deployed and never assigned an outcome.
+
+  analysis population   1,448 (date, ticker) pairs over 142 dates
+                        1,465 play rows (17 extra rows on
+                        pairs carrying more than one play)
+  entry check           ibkr_verified: 765 of 1,465 play rows joined a
+                        measured entry-side delta; 700 got none
+
+--- every analysis pair, in exactly one bucket ------------------------------
+     423  §4 hedge-sleeve candidate (never a selection play)
+     283  ranked as a deploy candidate, priceable
+     239  date never reached selection (no priceable row that session)
+     184  Tier C (capital-constrained)
+     169  §1 VETO
+     150  ranked as a deploy candidate, UNPRICEABLE
+   1,448  TOTAL          residual against the 1,448-pair population: 0
+
+--- ranked but unpriceable, by cause ----------------------------------------
+     107  bs_options_hist
+      28  unevaluable
+       8  no_evaluation_row
+       4  structure_mismatch
+       3  withheld_by_calibration_gate
+
+  by year: 2024=30  2025=82  2026=38
+
+--- displacement — deploy slots filled from below the selector's own top-3 --
+  37 deploy slot(s) across 31 session(s) went to a play the selector
+  itself ranked BELOW its own top-3, purely because a higher-ranked candidate had
+  no priceable record. That is the honest size of the pricing bias in the frozen
+  book's composition — a book selected on structure would not contain them.
+
+--- composition against the frozen book's picks -----------------------------
+  frozen picks 220   live-select offers 208   shared 182
+  only frozen  38   only live-select 26
+  by structure, frozen:      bull_call_spread=179  bull_put_spread=41
+  by structure, live-select: bull_call_spread=175  bull_put_spread=33
+
+--- §3 entry check — what the ladder can verify, in both modes --------------
+  rank() outcome                      ibkr_verified  analysis_only
+  deploy Tier A                                 231            231
+  deploy Tier B                                 248            195
+  deploy Tier B (partial)                        44            105
+  hedge Tier C                                  524            524
+  rejected C                                    218            210
+  rejected VETO                                 200            200
+
+  This run selected under: ibkr_verified
+
+==============================================================================
+LADDER DIVERGENCE — the research ladder against the shipped one
+==============================================================================
+  book.py::ladder_tier is a 2026-07 port of the deployment ladder; production
+  encodes the same rules once, in scripts/live_loop/mapping.ladder_tier. The port
+  has since fallen behind. Every disagreement below is a row the simulation and
+  the live card would treat differently — itemised by cause, not asserted.
+
+--- candidate universe: 795 book records ------------------------------------
+    13  §1.3 credit veto (RANGE + L-VOL)
+    13  TOTAL
+
+  by tier transition (book -> shipped): B->VETO=3  C->VETO=10
+  by source:    real=7  tweak=6
+  by structure: bull_put_spread=13
+
+--- §1.3 credit veto, counted on the RAW exports ----------------------------
+  The clause the port is missing: a CREDIT play in a RANGE + L-VOL market is a
+  §1 veto in production and a Tier-B deploy candidate in the port. Counted on the
+  export rows themselves, before the book drops duplicates, bs_options_hist rows,
+  and rows that fail the exact-replay gate.
+     7  BacktestResults
+    14  BacktestProxy
+    21  TOTAL   by structure: bull_put_spread=21
+
+==============================================================================
+JUDGMENT LAYER — one model pass, two ledger walks, and what it moved
+==============================================================================
+  NOT RUN (--live-select-no-llm). Both ledger walks below are the deterministic
+  rank() ordering, so demote_policy skip and ignore are identical BY CONSTRUCTION
+  and their agreement says nothing about the judge layer. Re-run without the flag
+  to measure it.
+
+==============================================================================
+BOOKS — frozen selector against the shipped selector, both demote policies
+==============================================================================
+  Same ledger, same sizing, same frozen exit replay. The only difference is who
+  chose.
+  judge() did not run, so the skip/ignore pair is identical by construction and
+  bounds nothing. It is printed anyway rather than hidden — a section that
+  appears only on some runs is a section a reader stops looking for.
+
+  book                                  n  dates      dollars    mean R     win
+  frozen ladder (book.py)             160     77       11,248    +0.159     56%
+  live-select, demote=skip            153     75       15,183    +0.201     58%
+  live-select, demote=ignore          153     75       15,183    +0.201     58%
+
+--- demote_policy delta — the judge layer's whole effect --------------------
+  positions only under skip: 0   only under ignore: 0   shared: 153
+  dollars  skip $15,183   ignore $15,183   difference $+0
+
+==============================================================================
+GATES — G5 re-run with this arm's selector, plus G6 (G1-G4 stay pinned to the frozen basis)
+==============================================================================
+
+--- G5 (arm) — the SHIPPED selector is BLIND to how a position turned out ---
+  Every record is re-wrapped so reading an outcome key raises, AND the outcome
+  columns are deleted from the underlying trade row so a read cannot route
+  around the wrapper. Both ledger walks must then complete and produce a
+  byte-identical book.
+  [skip] positions: sighted 153  blind 153  differing 0
+  [ignore] positions: sighted 153  blind 153  differing 0
+  G5 (arm): PASS
+
+--- G6 — nothing reaches the ledger that rank() did not clear ---------------
+  The never-promote invariant, enforced at the sim boundary as well as inside
+  recommend.judge(). A ticker in the deploy set that was not a Part-A survivor on
+  that date is a promotion, and a promotion is the one thing the model layer is
+  structurally forbidden to do.
+  sessions checked: 236 (2 ledger walks x 118 sessions)   violations: 0
+  G6: PASS
+
+==============================================================================
+CLOSE
+==============================================================================
+  Nothing ships from this arm. It reports coverage and divergence; it evaluates
+  no pre-registered criterion, and the frozen book above it is untouched.
+  positions CSV: 566 rows -> backtests/study_output/account_sim-positions-live-select-latest.csv
+
+==============================================================================
+exit code 0 after 11.4s
+==============================================================================
+```
+
+</details>
 ---
 
 ## 2026-08-14 — study-suite triage FIXED: the exact-replay gate now classifies instead of asserting, `bear_position_study`'s R is re-replayed, and the `exit_basis` column turns out to be UNUSABLE
@@ -834,6 +1019,494 @@ observation; it says this book cannot adjudicate it.
 thing that changes the answer is a materially larger book, and the same wall is
 already blocking the whole hedge programme (all 30 ARM S cells, H2 at n=6).
 
+
+<details>
+<summary>Report excerpt, verbatim — run 2026-08-14 12:55:17, git 9c53244 (clean), 08-11 v3 exports; header, then G0 through CLOSE</summary>
+
+```text
+==============================================================================
+STUDY: selection_order
+==============================================================================
+  run at    2026-08-14 12:55:17
+  command   python -m scripts.backtest_study.selection_order
+  git       9c53244 (main, working tree clean)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     803 rows  2026-08-13 11:56  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+==============================================================================
+
+[... lines 16-178 elided ...]
+
+[PRIMARY dense episodes] G0 — POWER PRE-CHECK (runs FIRST; blocks every read below)
+==============================================================================
+  Unit of observation = a CONTESTED DATE: >=2 eligible candidates and >=1
+  exclusion in {day3_cap, net_delta, per_pos_delta}. Uncontested dates are identical
+  across arms BY CONSTRUCTION and are excluded from the paired test — including
+  them is the zero-inflation that failed exit_switch_mech's LOO median gate.
+
+  An arm under 25 AFFECTED dates is POWER-STOPPED: its cells are not read
+  and no criterion is evaluated on it. This threshold was declared in the
+  pre-registration BEFORE the count was knowable, which is the whole point.
+
+  deployed signal dates              46
+  CONTESTED dates                    26  (57% of the population)
+  exclusions in the contest buckets (population-wide): day3_cap 11  net_delta 40  per_pos_delta 25
+
+  arm    affected dates  changed picks  of O0 taken   status
+  O1                 10              8         11%   POWER-STOPPED
+  O2                  7              5          7%   POWER-STOPPED
+  O3                 11             10         14%   POWER-STOPPED
+  O1b                10              9         12%   POWER-STOPPED
+
+  arms cleared for reading: NONE — every arm power-stopped
+
+==============================================================================
+[SECONDARY full book] G0 — POWER PRE-CHECK (runs FIRST; blocks every read below)
+==============================================================================
+  Unit of observation = a CONTESTED DATE: >=2 eligible candidates and >=1
+  exclusion in {day3_cap, net_delta, per_pos_delta}. Uncontested dates are identical
+  across arms BY CONSTRUCTION and are excluded from the paired test — including
+  them is the zero-inflation that failed exit_switch_mech's LOO median gate.
+
+  An arm under 25 AFFECTED dates is POWER-STOPPED: its cells are not read
+  and no criterion is evaluated on it. This threshold was declared in the
+  pre-registration BEFORE the count was knowable, which is the whole point.
+
+  deployed signal dates              90
+  CONTESTED dates                    50  (56% of the population)
+  exclusions in the contest buckets (population-wide): day3_cap 30  net_delta 55  per_pos_delta 50
+
+  arm    affected dates  changed picks  of O0 taken   status
+  O1                 18             18         11%   POWER-STOPPED
+  O2                 12             12          8%   POWER-STOPPED
+  O3                 15             16         10%   POWER-STOPPED
+  O1b                20             20         12%   POWER-STOPPED
+
+  arms cleared for reading: NONE — every arm power-stopped
+
+==============================================================================
+G1 — CALIBRATION: O0 reproduces the default account_sim run exactly
+==============================================================================
+  An ordering study whose BASELINE does not reproduce production is
+  measuring its own bug. Two checks: the book line a prior account_sim report
+  printed on these same exports, and a byte-identical book between O0 (built
+  through this study's arm plumbing) and a walk built directly on
+  protocol.ladder_rank — proving the plumbing is neutral.
+
+  B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553
+  expected (account-sim.yml gates.book_calibration): 220 / 90 / $63,553
+  book line: PASS
+  [PRIMARY dense episodes] O0 vs direct ladder walk: 72 vs 72 positions, $11,399 vs $11,399  -> identical
+  [SECONDARY full book] O0 vs direct ladder walk: 160 vs 160 positions, $11,248 vs $11,248  -> identical
+  G1: PASS
+
+==============================================================================
+G2 — BLINDNESS: no arm's rank function may read an outcome
+==============================================================================
+  Every record is re-wrapped so reading an outcome key RAISES, and the
+  outcome columns are DELETED from the underlying trade row so a read cannot
+  route around the wrapper. Each arm must then produce a byte-identical book.
+  A rank function that peeks is worthless, and the point of this study is a
+  rule an agent could run live.
+  row columns deleted from every Trade: days_held, exit_reason, mae_day, mae_pct, mfe_day, mfe_pct, pnl_at_cap_pct, realized_pnl_pct
+
+  [PRIMARY dense episodes] tripwire live: True
+    O0          sighted   72  blind   72  differing   0  -> identical
+    O1          sighted   77  blind   77  differing   0  -> identical
+    O2          sighted   77  blind   77  differing   0  -> identical
+    O3          sighted   76  blind   76  differing   0  -> identical
+    O1b         sighted   77  blind   77  differing   0  -> identical
+    O4[draw 0]  sighted   72  blind   72  differing   0  -> identical
+
+  [SECONDARY full book] tripwire live: True
+    O0          sighted  160  blind  160  differing   0  -> identical
+    O1          sighted  169  blind  169  differing   0  -> identical
+    O2          sighted  166  blind  166  differing   0  -> identical
+    O3          sighted  160  blind  160  differing   0  -> identical
+    O1b         sighted  168  blind  168  differing   0  -> identical
+    O4[draw 0]  sighted  167  blind  167  differing   0  -> identical
+
+  G2: PASS
+
+==============================================================================
+PRIMARY DENSE EPISODES — arms, band, and the seven-part bar
+==============================================================================
+
+--- [PRIMARY dense episodes] the five deterministic arms — CENSUS ONLY (G0 power stop: no outcome column is printed) 
+  arm   positions  dates   ordering
+  O0           72     37  ladder_rank — tier, then score_total tie-break
+  O1           77     38  delta-notional ASCENDING, within tier
+  O2           77     39  reserved-$ per unit delta-notional, DESCENDING, within tier
+  O3           76     38  |delta| DESCENDING, within tier
+  O1b          77     38  delta-notional ASCENDING, TIER-BLIND across A u B
+
+--- [PRIMARY dense episodes] O4 — NOT RUN  (seed 20260814, 200 draws, not taken) 
+  The null band exists to serve criterion (7). Every arm is power-stopped, so there is no
+  criterion to serve and the 200 draws are not taken. The seed is stated anyway (20260814) so the
+  arm is reproducible by anyone re-running it on a larger book.
+
+==============================================================================
+SECONDARY FULL BOOK — arms, band, and the seven-part bar
+==============================================================================
+
+--- [SECONDARY full book] the five deterministic arms — CENSUS ONLY (G0 power stop: no outcome column is printed) 
+  arm   positions  dates   ordering
+  O0          160     77  ladder_rank — tier, then score_total tie-break
+  O1          169     79  delta-notional ASCENDING, within tier
+  O2          166     80  reserved-$ per unit delta-notional, DESCENDING, within tier
+  O3          160     75  |delta| DESCENDING, within tier
+  O1b         168     77  delta-notional ASCENDING, TIER-BLIND across A u B
+
+--- [SECONDARY full book] O4 — NOT RUN  (seed 20260814, 200 draws, not taken) 
+  The null band exists to serve criterion (7). Every arm is power-stopped, so there is no
+  criterion to serve and the 200 draws are not taken. The seed is stated anyway (20260814) so the
+  arm is reproducible by anyone re-running it on a larger book.
+
+==============================================================================
+G3 — ATTRIBUTION: candidates partition into taken + census buckets, per arm
+==============================================================================
+  The A4 identity, re-asserted per arm. A mismatch FAILS the run.
+
+  [PRIMARY dense episodes] candidates offered per arm: 150
+    O0    taken   72  exclusions   78  sum  150 vs candidates  150  -> OK
+    O1    taken   77  exclusions   73  sum  150 vs candidates  150  -> OK
+    O2    taken   77  exclusions   73  sum  150 vs candidates  150  -> OK
+    O3    taken   76  exclusions   74  sum  150 vs candidates  150  -> OK
+    O1b   taken   77  exclusions   73  sum  150 vs candidates  150  -> OK
+
+  [SECONDARY full book] candidates offered per arm: 297
+    O0    taken  160  exclusions  137  sum  297 vs candidates  297  -> OK
+    O1    taken  169  exclusions  128  sum  297 vs candidates  297  -> OK
+    O2    taken  166  exclusions  131  sum  297 vs candidates  297  -> OK
+    O3    taken  160  exclusions  137  sum  297 vs candidates  297  -> OK
+    O1b   taken  168  exclusions  129  sum  297 vs candidates  297  -> OK
+
+  G3: PASS
+
+==============================================================================
+G4 — no annualised figure, Sharpe, or time-to-recover appears anywhere
+==============================================================================
+  By construction: this study prints mean R, a paired within-date
+  difference, dollar sanity checks, and counts. It computes no return per unit
+  time and no risk-adjusted ratio, so there is nothing to annualise.
+  G4: PASS
+
+==============================================================================
+G5 — OUT-OF-FOLD DISCIPLINE: what on this page is adoption-eligible
+==============================================================================
+  In-sample tables are labelled as such. The ONLY adoption-eligible
+  numbers are LOO folds and protocol.walk_forward_splits TEST rows.
+
+  [PRIMARY dense episodes] every arm POWER-STOPPED at G0, so NO outcome number was printed at all —
+    no arm mean R, no paired gain, no band, no LOO fold, no TEST row. There is nothing
+    on this page that could be adopted, so the discipline is satisfied VACUOUSLY.
+
+  [SECONDARY full book] every arm POWER-STOPPED at G0, so NO outcome number was printed at all —
+    no arm mean R, no paired gain, no band, no LOO fold, no TEST row. There is nothing
+    on this page that could be adopted, so the discipline is satisfied VACUOUSLY.
+
+  G5: PASS
+
+==============================================================================
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+==============================================================================
+  arms powered (G0):  none
+  arms clearing all seven: none
+
+  Best-powered arm reached 11 affected dates against a threshold of 25.
+
+  CENSUS OBSERVATION, explicitly NOT a verdict upgrade: the reason the arms are
+  under-powered is itself informative — each one changes only 7-14% of O0's
+  taken positions, because on most contested dates the caps exclude the same
+  picks whatever the order. That texture is what CAP-BOUND-NOT-ORDER-BOUND
+  describes. It may NOT be recorded as that verdict: the label requires arms
+  that CLEAR G0, and reading a blocked arm's shape as a conclusion is exactly
+  the move the power stop exists to prevent. It is a carry-forward for a
+  re-registration on a materially larger book, nothing more.
+
+  VERDICT: POWER-STOPPED — every arm fell under 25 affected dates. Census only; nothing read, and NO re-run on these dates.
+
+==============================================================================
+STANDING CAVEAT (required by the pre-registration to appear here)
+==============================================================================
+  The ladder is itself IN-SAMPLE (fitted on this book), so an ordering
+  evaluated on the same book is SECOND-ORDER in-sample. The only mitigations are
+  that these are mechanical entry-side rules with no fitted thresholds, and that
+  adoption requires out-of-fold survival. That caveat does not disappear if the
+  numbers look good, and it is why nothing ships from this study under any
+  outcome.
+
+  Anti-tuning: arms frozen at six. Caps, capital, risk %, positions/day,
+  take_floor, downsize and the exit profile are NOT swept — they come from config
+  and are held at their committed values for every arm. No new columns. Every
+  arm's result is reported regardless of outcome, including the ones that lose.
+  Random-control seed: 20260814 (fixed; draw i uses SEED + i over 200 draws). Stated here
+  whether or not O4 was drawn, so the claim and the number never come apart.
+
+==============================================================================
+CLOSE
+==============================================================================
+  verdict: POWER-STOPPED — every arm fell under 25 affected dates. Census only; nothing read, and NO re-run on these dates.
+  G1: PASS
+  G2: PASS
+  G3: PASS
+  G4: PASS
+  G5: PASS
+  G0: POWER STOP FIRED on every arm
+
+==============================================================================
+exit code 0 after 2.9s
+==============================================================================
+```
+
+</details>
+
+<details>
+<summary>Two-analyst replication — digest (verbatim, 2026-08-14)</summary>
+
+````text
+```markdown
+# Plain-language digest: selection_order study (2026-08-14)
+
+## Bottom line up front
+
+**Nothing ships from this study — not because the ordering idea failed, but because there wasn't enough data to test it at all.** Every version of "try a different pick order" hit a data-size tripwire before any profit-and-loss number was even calculated. The report is honest about this: it prints zero win-rate or dollar numbers for any of the four alternate orderings it tried, on purpose, because printing them would have been misleading.
+
+## What the study was asking
+
+Right now, when more than one trade candidate wants a slot on a given day, the system picks in a specific order (tier first, then a score). This study asked: **if we instead sorted the queue a different way — e.g., smallest position-size-impact first — would the account's limited risk budget get spent on better trades?**
+
+It is explicitly framed as research-only: "NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME." That's stated up front, not as a hedge after a disappointing result — win or lose, this study was never going to change how the system trades.
+
+## The account being simulated
+
+This reuses the exact account setup from the account-feasibility study, unchanged: $25,000 starting capital, $500 (2%) risked per position, up to 3 new positions per day, a cap of 25% of equity on any single position's market exposure, and a cap of 250% of equity on the whole book's net exposure. Exit rules (when to take profit, stop out, or time out of a trade) are also frozen at whatever's currently shipped — this study only reorders *which* trades get taken when the day's slots are full, never *when* to exit them.
+
+## The trade population
+
+The underlying book has 795 recorded trades spanning June 2024 to April 2026. Two views of it are used:
+- **PRIMARY (dense episodes):** 3 unbroken stretches of active trading, 46 dates total. This is the "clean" dataset — continuous trading with no long gaps.
+- **SECONDARY (full book):** all 118 dates including gaps. This view is only ever a sanity check, never a standalone basis for a conclusion — that's a standing rule in how these studies are read.
+
+## G0 — the power check that ended the study (PRIMARY and SECONDARY)
+
+This is the step that decided everything. The study only cares about days where the ordering *could possibly matter* — days with at least 2 competing candidates where at least one got excluded by a cap. It calls these "contested dates."
+
+- PRIMARY: 26 of 46 dates (57%) were contested.
+- SECONDARY: 50 of 90 dates (56%) were contested.
+
+The rule, decided *before* the study ran (so it couldn't be gamed after seeing results): any ordering variant that changes the account's picks on fewer than 25 contested dates doesn't get its results read at all — there just isn't enough evidence to trust a conclusion.
+
+None of the four alternate orderings came close:
+
+| Arm (ordering rule) | PRIMARY affected dates | SECONDARY affected dates |
+|---|---|---|
+| O1 — smallest exposure-impact first | 10 | 18 |
+| O2 — most reserved-$ per unit of exposure first | 7 | 12 |
+| O3 — largest position-delta first | 11 | 15 |
+| O1b — smallest exposure-impact first, ignoring tier | 10 | 20 |
+
+All four fell well short of 25. Result: **every arm is "POWER-STOPPED"** — the study auto-blocked itself from printing any win-rate, average return, or dollar outcome for any of them, on both views of the data. This is the mechanism working as designed, not a bug.
+
+## G1 — does the study's baseline match production?
+
+Before trusting a study that reorders trades, you need to know its "no change" baseline (O0) actually reproduces what the real system does. It does: 220 positions across 90 dates worth $63,553 — matching the number a prior report already validated, exactly, and matching a second independently-built version of the same walk byte-for-byte. **Passed.**
+
+## G2 — could the ordering rules cheat by peeking at outcomes?
+
+Each ordering rule is only allowed to use information available *before* a trade's result is known (size, exposure, tier) — never its actual profit or loss, since that would be an unfair advantage no live trading system would have. The study rigged every trade record so that reading an outcome value raises an error, then re-ran every ordering rule under that trap. Every arm produced an identical book with the trap on vs. off. **Passed** — none of the orderings were secretly cheating.
+
+## G3 — does every candidate get accounted for?
+
+For each ordering, every candidate trade must land in exactly one bucket: taken, or excluded for a specific reason (cap-related). The counts must add up to the total candidate pool with nothing lost or double-counted. They did, for every arm, on both views. **Passed.**
+
+## G4 — no fancy risk-adjusted metrics snuck in
+
+This study never computes anything like an annualized return or a Sharpe ratio (metrics that can make thin or lucky data look more impressive than it is), so there's nothing to check here beyond confirming they don't appear. **Passed** (trivially, by construction).
+
+## G5 — no in-sample number is being mistakenly relied on
+
+Because the power-stop fired for every arm, literally zero outcome numbers were ever printed anywhere in this report — no arm's average return, no comparison between orderings, no dollar figures. So there's nothing that could accidentally be mistaken for a validated result. **Passed**, again by having nothing to check.
+
+## The "census" tables — counts only, no performance
+
+Since every arm was power-stopped, the report shows *only* how many positions/dates each ordering would have produced — never whether those trades made or lost money. Treat these as a shape check, not a performance comparison:
+
+**PRIMARY:**
+| Ordering | Positions | Dates |
+|---|---|---|
+| O0 (current/deployed) | 72 | 37 |
+| O1 | 77 | 38 |
+| O2 | 77 | 39 |
+| O3 | 76 | 38 |
+| O1b | 77 | 38 |
+
+**SECONDARY:**
+| Ordering | Positions | Dates |
+|---|---|---|
+| O0 (current/deployed) | 160 | 77 |
+| O1 | 169 | 79 |
+| O2 | 166 | 80 |
+| O3 | 160 | 75 |
+| O1b | 168 | 77 |
+
+The counts are all in a similar ballpark — none of the reorderings dramatically inflates or shrinks the number of trades taken.
+
+## O4 — the "is this better than random?" control, skipped
+
+The study had planned a fifth arm: 200 random shuffles of the queue, to check whether any real ordering beats pure chance. Because there was no valid result to compare against (every real arm was power-stopped), this random-draw control was never run. The random seed (20260814) is published anyway, so if this study is re-run later on a bigger dataset, the random control is reproducible.
+
+## Verdict
+
+**POWER-STOPPED** on both the clean dataset and the full book. No ordering rule cleared the minimum evidence bar, so nothing was read and nothing is being recommended for a re-run on this same data.
+
+One observation is flagged explicitly as *not* a finding: each alternate ordering only changed 7–14% of which trades actually got taken. That hints the account's caps — not the pick order — are usually what decides the day's trades regardless of how you sort the queue. The report is careful to say this texture **may not** be promoted to a real conclusion ("cap-bound, not order-bound") — that label specifically requires an arm that clears the power check, and none did. It's logged only as something worth re-testing if/when there's a bigger dataset.
+
+## Standing caveat (carried forward, not to be dropped)
+
+Two caveats apply regardless of outcome, and would apply even if the study *had* produced results:
+
+1. **The trade-picking system (the "ladder") was itself built using this same historical book.** So testing a new ordering rule on the same book is testing something twice-fitted to the same data — a second layer of the classic "graded your own homework" problem. The only real check on that is testing on data the system has never seen, which this study didn't do.
+2. **Anti-tuning discipline:** the study locked in exactly 6 ordering variants ahead of time and did not let itself sweep caps, capital, risk-per-trade, positions-per-day, or exit rules looking for a better combination — those all stayed at their currently-shipped values. Every arm's result was reported regardless of whether it looked good or bad (in this case, none produced a readable result at all).
+
+## Close
+
+All five structural gates (G1 baseline match, G2 no outcome-peeking, G3 full accounting, G4 no misleading risk metrics, G5 no stray in-sample numbers) **passed**. The one gate that actually governs whether any performance number gets read — G0, the power pre-check — **fired and blocked every arm**. Net effect: this run tells you the study's plumbing is trustworthy, but it does not tell you whether a different pick order would help or hurt. That question stays open until it can be tested on a materially larger dataset.
+```
+````
+
+</details>
+
+<details>
+<summary>Two-analyst replication — review-analyst-a (verbatim, 2026-08-14)</summary>
+
+```text
+==============================================================================
+STUDY: selection_order
+==============================================================================
+  run at    2026-08-14 12:07:03
+  command   python -m scripts.backtest_study.selection_order
+  git       beb1219 (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     803 rows  2026-08-13 11:56  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+| Criterion/Gate | Verdict | Exact number(s) read from report | What would change the verdict |
+|---|---|---|---|
+| G0 — power pre-check (≥25 affected dates per arm) | NOT MET | PRIMARY: `deployed signal dates 46`, `CONTESTED dates 26  (57% of the population)`; `O1 10 8 11% POWER-STOPPED`, `O2 7 5 7% POWER-STOPPED`, `O3 11 10 14% POWER-STOPPED`, `O1b 10 9 12% POWER-STOPPED`; `arms cleared for reading: NONE — every arm power-stopped`. SECONDARY: `deployed signal dates 90`, `CONTESTED dates 50  (56% of the population)`; `O1 18 18 11%`, `O2 12 12 8%`, `O3 15 16 10%`, `O1b 20 20 12%`, all `POWER-STOPPED`. `Best-powered arm reached 11 affected dates against a threshold of 25.` | A rerun on a materially larger book in which at least one arm's affected-date count reaches 25 would flip this row. |
+| G1 — calibration (O0 reproduces default `account_sim`) | MET | `B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553`; `expected (account-sim.yml gates.book_calibration): 220 / 90 / $63,553`; PRIMARY `72 vs 72 positions, $11,399 vs $11,399  -> identical`; SECONDARY `160 vs 160 positions, $11,248 vs $11,248  -> identical`; `G1: PASS` | New backtest/proxy exports that move the `220 / 90 / $63,553` book line without a matching gate update would flip this row. |
+| G2 — blindness (`BlindRec` / `blind_records` probe) | MET | `tripwire live: True`; PRIMARY `O0 sighted 72 blind 72 differing 0`, `O1 77/77/0`, `O2 77/77/0`, `O3 76/76/0`, `O1b 77/77/0`, `O4[draw 0] 72/72/0`; SECONDARY `O0 160/160/0`, `O1 169/169/0`, `O2 166/166/0`, `O3 160/160/0`, `O1b 168/168/0`, `O4[draw 0] 167/167/0`; `G2: PASS` | A rank function reading a column outside the deleted set `days_held, exit_reason, mae_day, mae_pct, mfe_day, mfe_pct, pnl_at_cap_pct, realized_pnl_pct`, producing a non-zero `differing` count, would flip this row. |
+| G3 — attribution (taken + census buckets = candidates, per arm) | MET | PRIMARY `candidates offered per arm: 150`; `O0 taken 72 exclusions 78 sum 150 vs candidates 150 -> OK`, `O1 77/73/150`, `O2 77/73/150`, `O3 76/74/150`, `O1b 77/73/150`. SECONDARY `candidates offered per arm: 297`; `O0 160/137/297`, `O1 169/128/297`, `O2 166/131/297`, `O3 160/137/297`, `O1b 168/129/297`; `G3: PASS` | A rerun in which any arm's taken + exclusions sum diverged from the candidates offered would flip this row. |
+| G4 — no annualised figure, Sharpe, or time-to-recover | MET | `G4: PASS`; report states it prints `mean R, a paired within-date difference, dollar sanity checks, and counts` and `computes no return per unit time and no risk-adjusted ratio` | A future version of the report printing any per-unit-time or risk-adjusted figure would flip this row. |
+| G5 — out-of-fold discipline | MET (vacuously, as the report itself states) | PRIMARY and SECONDARY both: `every arm POWER-STOPPED at G0, so NO outcome number was printed at all — no arm mean R, no paired gain, no band, no LOO fold, no TEST row`; `G5: PASS` | A rerun that clears G0 and prints outcome numbers would make this row substantive rather than vacuous and could flip it if in-sample tables were unlabelled. |
+| Bar (1) — paired mean gain vs O0 > 0, date-clustered bootstrap CI excluding zero (`BOOT_N = 10000`) | NOT EVALUABLE | No number printed; PRIMARY/SECONDARY arm tables are `CENSUS ONLY (G0 power stop: no outcome column is printed)`; `arms clearing all seven: none` | A rerun on a larger book where at least one arm clears the 25-affected-date threshold and the paired bootstrap CI is printed would flip this row. |
+| Bar (2) — median gain positive among AFFECTED dates and ≥25 affected dates | NOT EVALUABLE | No median printed; affected-date counts are PRIMARY `10, 7, 11, 10` and SECONDARY `18, 12, 15, 20`, all below the registered `25`; `Best-powered arm reached 11 affected dates against a threshold of 25.` | A rerun producing ≥25 affected dates for an arm together with a printed affected-date median gain would flip this row. |
+| Bar (3) — every LOO fold positive | NOT EVALUABLE | No number printed; `no LOO fold` (G5 section, both populations) | A rerun that clears G0 and prints per-fold LOO gains would flip this row. |
+| Bar (4) — positive in all three years | NOT EVALUABLE | No number printed; no per-year table appears in the report | A rerun that clears G0 and prints per-year paired gains would flip this row. |
+| Bar (5) — holds on the SHIPPED exit config, not only a variant | NOT EVALUABLE | Exit profile printed (`take profit +90% · stop -75% · time exit at 75% of DTE`, credit `+65%`, `hard dollar stop at $500`) but no outcome number is attached to it under any arm | A rerun that clears G0 and prints arm outcomes under the shipped exit profile would flip this row. |
+| Bar (6) — survives `protocol.window_cuts` AND the ex-BOTH-windows cut added by hand | NOT EVALUABLE | No number printed; no window-cut table appears in the report | A rerun that clears G0 and prints both the `window_cuts` rows and the hand-added ex-both-windows cut would flip this row. |
+| Bar (7) — exceeds the O4 random band (above the 95th percentile of 200 draws) | NOT EVALUABLE | `O4 — NOT RUN  (seed 20260814, 200 draws, not taken)` in both populations; `Random-control seed: 20260814 (fixed; draw i uses SEED + i over 200 draws)` | A rerun that clears G0 and actually draws the 200-permutation band with seed `20260814` would flip this row. |
+
+## Deviations
+
+- The pre-registration freezes **six** arms (O0, O1, O2, O3, O1b, O4) and G0 requires the per-arm count of dates whose pick set differs from O0. The G0 census tables list only **four** arms (O1, O2, O3, O1b). O0 is the baseline (zero by construction), but **O4 has no G0 row in either population**, so its power status is unstated rather than reported; the report justifies this at the "O4 — NOT RUN" block. I grade this as an omission, not an error, and do not infer O4's affected-date count.
+- The pre-registration's G0/criteria do not say whether the 25-affected-date threshold applies to PRIMARY, SECONDARY, or both. The report applies it to both and both fail on all four evaluated arms, so the ambiguity does not change any verdict here; I have quoted both populations.
+- Criteria (1)–(7) are graded `NOT EVALUABLE` rather than `NOT MET` because the pre-registered power stop fired first and the report prints no outcome column at all ("its cells are not read and no criterion is evaluated on it"). This is the pre-registration operating as written, not a shortfall in the report.
+- The task prompt named `backtests/study_output/selection_order-latest.txt`; the artifact supplied is that file's inlined contents, with no separate `-<stamp>` file available to cross-check.
+- G5 is graded `MET` on the report's own vacuous-satisfaction reasoning; the pre-registration does not state how G5 resolves when no adoption-eligible number exists, so this is my interpretation and is flagged as such.
+```
+
+</details>
+
+<details>
+<summary>Two-analyst replication — review-analyst-b (verbatim, 2026-08-14)</summary>
+
+```text
+==============================================================================
+STUDY: selection_order
+==============================================================================
+  run at    2026-08-14 12:07:03
+  command   python -m scripts.backtest_study.selection_order
+  git       beb1219 (main, working tree dirty)
+  python    3.11.2
+  inputs:
+   1,926 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestResults.csv
+   4,533 rows  2026-08-11 15:38  backtests/to_evaluate/analysis - BacktestProxy.csv
+  11,836 rows  2026-08-11 17:24  backtests/to_evaluate/analysis - AnalysisClaude.csv
+     803 rows  2026-08-13 11:56  backtests/mech_regime/spy_vix_daily_full.csv
+==============================================================================
+
+| Criterion/Gate | Verdict | Exact number(s) read from report | What would change the verdict |
+|---|---|---|---|
+| **G0 — power pre-check (≥25 affected dates per arm)** | NOT MET | PRIMARY: `deployed signal dates 46`, `CONTESTED dates 26  (57% of the population)`, `day3_cap 11  net_delta 40  per_pos_delta 25`; affected dates `O1 10`, `O2 7`, `O3 11`, `O1b 10`; `arms cleared for reading: NONE — every arm power-stopped`. SECONDARY: `deployed signal dates 90`, `CONTESTED dates 50  (56% of the population)`; `O1 18`, `O2 12`, `O3 15`, `O1b 20`; `arms cleared for reading: NONE`. | A rerun on a materially larger book in which at least one arm's affected-date count reaches 25. |
+| **G1 — calibration (O0 reproduces production)** | MET | `B1 (stored contracts, stored R): 220 positions / 90 dates / $63,553`; `expected (account-sim.yml gates.book_calibration): 220 / 90 / $63,553`; PRIMARY `72 vs 72 positions, $11,399 vs $11,399  -> identical`; SECONDARY `160 vs 160 positions, $11,248 vs $11,248  -> identical`; `G1: PASS`. | New backtest/proxy exports that move the book line off `220 / 90 / $63,553`, or an arm-plumbing change that makes O0 differ from the direct ladder walk. |
+| **G2 — blindness (`BlindRec` / `blind_records` probe)** | MET | `tripwire live: True` on both populations; PRIMARY `O0 72/72`, `O1 77/77`, `O2 77/77`, `O3 76/76`, `O1b 77/77`, `O4[draw 0] 72/72`, all `differing 0  -> identical`; SECONDARY `O0 160/160`, `O1 169/169`, `O2 166/166`, `O3 160/160`, `O1b 168/168`, `O4[draw 0] 167/167`, all `differing 0`; deleted columns `days_held, exit_reason, mae_day, mae_pct, mfe_day, mfe_pct, pnl_at_cap_pct, realized_pnl_pct`; `G2: PASS`. | A rank function reading a field outside `delta`, `entry_underlying`, `max_loss_per_contract`, `tier`, `ladder_rank`, producing a non-zero `differing` count. |
+| **G3 — attribution (candidates = taken + census buckets)** | MET | PRIMARY `candidates offered per arm: 150`; `O0 72+78=150`, `O1 77+73=150`, `O2 77+73=150`, `O3 76+74=150`, `O1b 77+73=150`, all `-> OK`. SECONDARY `candidates offered per arm: 297`; `O0 160+137=297`, `O1 169+128=297`, `O2 166+131=297`, `O3 160+137=297`, `O1b 168+129=297`, all `-> OK`; `G3: PASS`. | A census bucket that drops or double-counts a candidate so an arm's taken + exclusions no longer sums to 150 (PRIMARY) / 297 (SECONDARY). |
+| **G4 — no annualised figure, Sharpe, or time-to-recover** | MET | `G4: PASS`; report states it prints `mean R, a paired within-date difference, dollar sanity checks, and counts` and `computes no return per unit time and no risk-adjusted ratio`. | A future revision printing any per-unit-time or risk-adjusted statistic anywhere on the page. |
+| **G5 — out-of-fold discipline** | MET | `G5: PASS`; PRIMARY and SECONDARY both: `every arm POWER-STOPPED at G0, so NO outcome number was printed at all — no arm mean R, no paired gain, no band, no LOO fold, no TEST row`, satisfied `VACUOUSLY`. | A powered rerun that prints in-sample arm outcomes without labelling them, or presents a non-LOO / non-TEST number as adoption-eligible. |
+| **Criterion 1 — paired mean gain vs O0 > 0, date-clustered bootstrap CI excluding zero (BOOT_N = 10000)** | NOT EVALUABLE | No paired mean gain, CI bound, or `BOOT_N` value is printed; PRIMARY arms table is `CENSUS ONLY (G0 power stop: no outcome column is printed)` — `O0 72 / 37`, `O1 77 / 38`, `O2 77 / 39`, `O3 76 / 38`, `O1b 77 / 38`. | A rerun on a book where an arm clears G0, so the paired gain and its bootstrap CI are actually printed. |
+| **Criterion 2 — median gain positive among AFFECTED dates and ≥25 affected dates** | NOT EVALUABLE | No median gain is printed; affected-date counts are `O1 10`, `O2 7`, `O3 11`, `O1b 10` (PRIMARY) and `O1 18`, `O2 12`, `O3 15`, `O1b 20` (SECONDARY), against `Best-powered arm reached 11 affected dates against a threshold of 25`. | More dates in the affected sets lifting an arm to ≥25 so a median over affected dates can be computed and read. |
+| **Criterion 3 — every LOO fold positive** | NOT EVALUABLE | Report prints `no LOO fold` on both populations. | A powered rerun that produces LOO fold values for at least one arm. |
+| **Criterion 4 — positive in all three years** | NOT EVALUABLE | No per-year figures are printed; book `date_range=('2024-06-17', '2026-04-07')`. | A powered rerun that prints the per-year breakdown of paired gain for an arm. |
+| **Criterion 5 — holds on the SHIPPED exit config, not only a variant** | NOT EVALUABLE | Shipped exits are printed (`take profit +90% · stop -75% · time exit at 75% of DTE`; credit `take profit +65%`; `hard dollar stop at $500`), but there is no arm result to hold or fail on them — `no arm mean R, no paired gain`. | A powered rerun producing a positive result under the shipped exit profile that can then be checked against variants. |
+| **Criterion 6 — survives `protocol.window_cuts` AND the ex-BOTH-windows cut** | NOT EVALUABLE | No window-cut table or ex-both-windows figure appears anywhere in the report. | A powered rerun that prints window-cut and ex-both-windows results for a surviving arm. |
+| **Criterion 7 — exceeds the O4 random band (above the 95th percentile of 200 draws)** | NOT EVALUABLE | `O4 — NOT RUN  (seed 20260814, 200 draws, not taken)`; `Every arm is power-stopped, so there is no criterion to serve and the 200 draws are not taken.` | An arm clearing G0 on a larger book, which makes the 200-draw band worth taking and comparable. |
+
+## Deviations
+
+- **O4 not run.** The pre-registration freezes six arms and states "Every arm's result is reported regardless of outcome"; the report does not draw O4's 200 permutations (`O4 — NOT RUN`), justifying this by the universal power stop. The seed `20260814` is printed as registered, and `O4[draw 0]` does appear in G2. I record the non-execution as a deviation from the six-arm reporting rule without judging whether the power stop licenses it.
+- **Working tree dirty.** Provenance reads `git beb1219 (main, working tree dirty)`, so this report is not byte-reproducible from sha `beb1219` alone. The pre-registration states no cleanliness requirement, so this is flagged, not graded.
+- **PRIMARY vs SECONDARY.** The report applies the 25-affected-date G0 threshold separately to both populations. The pre-registration names PRIMARY (dense episodes) as the basis and SECONDARY as carrying nothing; I graded against PRIMARY and quoted SECONDARY only alongside. Both fail G0 regardless, so the interpretation does not change any row.
+- **Standing caveat.** The pre-registration requires the standing in-sample caveat to appear in the report; it does (`STANDING CAVEAT` section). It is neither a gate nor a criterion, so it has no table row.
+```
+
+</details>
+
+<details>
+<summary>Two-analyst replication — review-validator (verbatim, 2026-08-14)</summary>
+
+```text
+## Provenance/header check
+
+Both analysts open their outputs with the report's provenance block reproduced verbatim (`STUDY: selection_order`, `run at 2026-08-14 12:07:03`, `command`, `git beb1219 (main, working tree dirty)`, `python 3.11.2`, and all four input-file lines with exact row counts/timestamps/paths). This satisfies the Mode 1 methodology requirement. Confirmed against the inlined report header — no discrepancies.
+
+## Adjudication table
+
+| Criterion/Gate | Analyst A verdict | Analyst B verdict | Source-check result | Adjudication |
+|---|---|---|---|---|
+| G0 — power pre-check (≥25 affected dates) | NOT MET | NOT MET | confirmed — PRIMARY (46 dates, 26 contested/57%, O1 10/8/11%, O2 7/5/7%, O3 11/10/14%, O1b 10/9/12%, all POWER-STOPPED) and SECONDARY (90 dates, 50 contested/56%, O1 18/18/11%, O2 12/12/8%, O3 15/16/10%, O1b 20/20/12%) match report exactly | agree |
+| G1 — calibration | MET | MET | confirmed — B1 220/90/$63,553 matches gate expectation; PRIMARY 72 vs 72, $11,399 vs $11,399; SECONDARY 160 vs 160, $11,248 vs $11,248; both match report | agree |
+| G2 — blindness | MET | MET | confirmed — tripwire live True; all sighted/blind/differing-0 pairs (PRIMARY O0 72/72, O1 77/77, O2 77/77, O3 76/76, O1b 77/77, O4 72/72; SECONDARY O0 160/160, O1 169/169, O2 166/166, O3 160/160, O1b 168/168, O4 167/167) and deleted-column list match report | agree |
+| G3 — attribution | MET | MET | confirmed — PRIMARY 150 candidates (O0 72+78, O1 77+73, O2 77+73, O3 76+74, O1b 77+73); SECONDARY 297 candidates (O0 160+137, O1 169+128, O2 166+131, O3 160+137, O1b 168+129); all match report | agree |
+| G4 — no annualised/Sharpe/time-to-recover | MET | MET | confirmed — `G4: PASS` and supporting prose match report verbatim | agree |
+| G5 — out-of-fold discipline | MET (vacuous) | MET (vacuous) | confirmed — both populations' "no outcome number was printed... satisfied VACUOUSLY" text matches report | agree |
+| Bar (1) — paired mean gain vs O0, bootstrap CI | NOT EVALUABLE | NOT EVALUABLE | confirmed — no paired gain/CI printed anywhere; arm tables labelled CENSUS ONLY | agree |
+| Bar (2) — median gain among affected dates, ≥25 affected | NOT EVALUABLE | NOT EVALUABLE | confirmed — affected-date counts (PRIMARY 10/7/11/10, SECONDARY 18/12/15/20) all below 25; no median printed | agree |
+| Bar (3) — every LOO fold positive | NOT EVALUABLE | NOT EVALUABLE | confirmed — report states "no LOO fold" both populations | agree |
+| Bar (4) — positive in all three years | NOT EVALUABLE | NOT EVALUABLE | confirmed — no per-year table in report | agree |
+| Bar (5) — holds on shipped exit config | NOT EVALUABLE | NOT EVALUABLE | confirmed — exit profile printed but no arm outcome attached | agree |
+| Bar (6) — survives window_cuts + ex-both-windows cut | NOT EVALUABLE | NOT EVALUABLE | confirmed — no window-cut table anywhere | agree |
+| Bar (7) — exceeds O4 random band | NOT EVALUABLE | NOT EVALUABLE | confirmed — "O4 — NOT RUN (seed 20260814, 200 draws, not taken)" in both populations | agree |
+
+## Violations list
+
+No violations found. Both analysts: opened with the verbatim provenance header; transcribed every quoted number correctly against the inlined report (checked character-for-character, including whitespace-normalized reformatting that changed no values); correctly left the power-stopped bars as `NOT EVALUABLE` rather than rounding or answering them; disclosed their interpretive choices (G5's vacuous-satisfaction reading, O4's non-execution, the PRIMARY/SECONDARY threshold ambiguity) as explicit deviations rather than silently assuming them; and contained no prose ship/no-ship recommendations.
+
+## Validator observations
+
+(Separate from adjudication, per protocol — neither analyst flagged this, and it does not change any verdict.) Analyst B's Bar (1) row additionally quotes the PRIMARY census table (positions/dates, e.g. `O0 72/37`, `O3 76/38`) as supporting context; Analyst A's corresponding row omits this detail. Both are correct — the census figures are position/date counts, not outcome numbers, so their presence or absence doesn't affect the `NOT EVALUABLE` verdict — but B's row is marginally more complete as a source-check trail.
+```
+
+</details>
 ---
 
 ## 2026-08-14 — `selection_order`: PRE-REGISTRATION → [`pre-registrations/selection_order.md`](pre-registrations/selection_order.md)
