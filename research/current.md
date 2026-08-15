@@ -3,6 +3,16 @@
 Most recent entries. Older work is in [`archive/`](archive/); see the
 [README](README.md) for the section index.
 
+**State of play (2026-08-15, `enrich_queue_pilot` COMPLETE — kill switch NOT
+FIRED, queues a/b are GO).** The first 10 neutral dates are scraped, enriched,
+analysed and backtested; **9 of 10 produced ≥1 priceable A/B-tier row** against
+the pre-declared stop at <4, so the neutral-date deployed yield (0.90) came in
+*above* the 0.763 signal-rich assumption, not below it. Robust to the known
+§1.3 research-ladder gap (no date's deployed status rests on a RANGE+L-VOL
+credit row). Pilot progress carried into `enrich_queue_a.txt.done`; the
+remaining 143 dates (queue_a + queue_b) are cleared to run. Entry below. Prior
+state follows.
+
 **State of play (2026-08-14, CORPUS REPRESENTATIVENESS — a defect found, an
 expansion PRE-REGISTERED, no conclusion moved).** Prompted by the question
 "2026 was mainly bear and the algorithm does badly in bear — should we scrape
@@ -228,6 +238,65 @@ exclusions. Prior state follows.
 Prior state (2026-08-13 and older) is archived — see [`archive/`](archive/) files 07–14 and the [README](README.md) section index.
 
 ---
+
+## 2026-08-15 — `enrich_queue_pilot` COMPLETE: kill switch NOT fired — neutral-date deployed yield **9/10**, above the 0.763 assumption. Queues a/b are GO
+
+**Status: pre-declared criterion evaluated and PASSED. No threshold moved, no
+rule changed.** The pilot (`backtests/enrich_queue_pilot.txt`, the first 10
+dates of the neutral list in queue_a order) asked one question: does the
+deployed-date yield survive on *neutral* (calendar-selected) dates, when the
+0.763 it was measured at came from signal-rich ones? Stop rule, declared before
+anything ran: **fewer than 4 deployed dates out of 10 → stop.**
+
+*Run record.* All 10 dates (`2024-01-10 → 2024-02-20`) completed every stage —
+scrape, compile, enrich, counterpart-iv, iv-percentile, price-catalyst,
+analyze, backtest (`enrich_queue_pilot.txt.done`). Fresh tab exports pulled to
+`backtests/to_evaluate/`; the pooled book loads **74 priceable records (30 real
+/ 44 tweak; 2 proxy rows excluded by the exact-replay gate, 0 bs admitted)**
+via `scripts/backtest_study/lib/book.py::load_book` defaults.
+
+*Tier count (deployed = ≥1 priceable A/B row, `book.ladder_tier` — same
+membership basis as the 90/118 = 0.763 measurement):*
+
+| date | rows | A | B | deployed |
+|---|---|---|---|---|
+| 2024-01-10 | 3 | 0 | 1 | yes |
+| 2024-01-16 | 8 | 2 | 0 | yes |
+| 2024-01-19 | 10 | 0 | 4 | yes |
+| 2024-01-24 | 9 | 0 | 6 | yes |
+| 2024-01-29 | 10 | 3 | 3 | yes |
+| 2024-02-01 | 9 | 0 | 2 | yes |
+| 2024-02-06 | 7 | 0 | 4 | yes |
+| 2024-02-09 | 6 | 0 | 1 | yes |
+| 2024-02-14 | 4 | 0 | 0 | **no** |
+| 2024-02-20 | 8 | 0 | 5 | yes |
+
+**9/10 ≥ 4 → the kill switch does not fire.** Only 2024-02-14 yields nothing
+(4 rows, all Tier C). Sensitivity to the §1.3 gap recorded in the entry below
+(research ladder admits RANGE+L-VOL credit rows production vetoes): re-counting
+with that veto applied changes **nothing** — no date's deployed status rests on
+such a row, 9/10 either way. Zero VETO rows in the pilot at all.
+
+*Caveats, so the yield is not over-read:* (a) several dates deploy on
+tweak-priced rows only (01-10, 01-24, 02-01, 02-09) — standard pooled-book
+basis, but the real-priced-only count would be 5/10, still ≥4; (b) Jan–Feb 2024
+is one contiguous calm-bull stretch — the 143 remaining dates span the full
+window and will re-measure the yield continuously; (c) this entry reads
+NOTHING about outcomes (P&L/R untouched) — outcome reads wait for the full
+expansion per the 08-14 pre-registration.
+
+*Trap recorded:* `backtests/results.csv` / `proxy_results.csv` are **per-run
+scratch** — each backtest run rewrites them with only that run's increment
+(timestamped siblings accumulate). Reading them as the book showed "1 deployed
+date"; the Sheets tab exports are the authority. Never evaluate a multi-run
+campaign off the bare scratch files.
+
+*Actions taken:* pilot progress carried forward per the pilot file's own
+instruction (`cat enrich_queue_pilot.txt.done >> enrich_queue_a.txt.done`), so
+queue_a resumes past the 10 done dates. **Next: run
+`./scripts/scrape_and_enrich.sh backtests/enrich_queue_a.txt` and
+`…enrich_queue_b.txt` (disjoint ranges, parallel-safe), then per-date analyze +
+`make backtest-all` — 143 dates ≈ 143–215 h at the corrected 1–1.5 h/date.**
 
 ## 2026-08-15 — `account_sim --live-select` ARM ADDED: the shipped selector run under history. **150 ranked candidates were never priceable, 37 deploy slots were filled from below the selector's own top-3, and the research ladder is missing the §1.3 credit veto on 21 export rows**
 
