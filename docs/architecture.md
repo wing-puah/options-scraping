@@ -654,7 +654,67 @@ python3 -m scripts.journal --from-flex-positions portfolio/input/positions_*.csv
 python3 -m scripts.journal --from-flex portfolio/input/trades_*.csv --flex-web  # named files, still fetch
 python3 -m scripts.journal --net-liq 52000        # Flex reports no account equity
 python3 -m scripts.journal --no-greeks            # skip the Barchart fetch
+
+# Cleaning
+python3 scripts/clean_generated.py --list         # targets, sizes, rebuild commands
+python3 scripts/clean_generated.py --dry-run
+python3 scripts/clean_generated.py --caches --yes # + the refetchable network caches
+python3 scripts/clean_generated.py --only logs,site
+python3 scripts/clean_generated.py --force        # ignore the citation pin scan
 ```
+
+## Cleaning — what `make clean` may delete
+
+`make clean` runs TWO cleaners, because the two halves need different rules:
+`scripts/clean_generated.py` for the repo's scratch, and
+`scripts/clean_study_output.py` for `backtests/study_output/` (whose pin scan protects
+reports the tuning log cites or a study's gate greps for). The shared flags
+`--dry-run` / `--yes` / `--force` in `ARGS` reach both; anything else goes to the first
+alone, so `--caches` never hits the study cleaner's argparse.
+
+`scripts/clean_generated.py` is a declarative table — one `Target` per class of output,
+each recording `what` it is and the `regen` command that rebuilds it. The report prints
+`regen` because that is the only question worth asking before deleting generated output.
+**A target with no answer to "how do I get this back" does not belong in the table**, and
+a test enforces it.
+
+Two tiers: the default (local recompute — logs, `site/`, chart PNGs, stamped backtest
+exports, bytecode, `portfolio/output/`) and `--caches` (needs the network to restore —
+`audit/`, the OHLC cache, the sweep checkpoint, the regime table).
+
+Four guards stand between a glob and an `unlink`. The first three run on EVERY candidate
+on every run, dry or not, and a violation is a hard error that deletes nothing — not a
+path quietly filtered out, because a glob matching a protected path is a bug in the table:
+
+1. **inside the repo** — must resolve under the root; blocks `..` and symlink escape.
+2. **not git-tracked** — `git ls-files` is the authority; a tracked file is source,
+   whatever a glob thinks. Self-maintaining: it keeps `backtests/__init__.py` and
+   `portfolio/*.py` safe without naming them.
+3. **not protected** — `PROTECTED_PREFIXES`, matched by whole path SEGMENTS so root
+   `journal` never shadows `scripts/journal`. These trees are all gitignored, so guard 2
+   is blind to them; this list is their only protection.
+4. **not cited** — the one soft guard. Files referenced by path in `research/`, `docs/`,
+   `scripts/` or `config/` are PINNED and reported instead of deleted, because
+   `backtests/` has no git history and a provenance line in the tuning log is the only
+   thing marking an export as evidence. `--force` turns this off; nothing turns off 1–3.
+
+**`backtests/` is not uniformly disposable**, whatever its `.gitignore` comment says. Held
+out of the cleaner entirely, at no flag: `option_history_cache/` (~337MB of scraped option
+history, hours to refetch), `to_evaluate/` (hand-exported Sheets CSVs that every study
+loader reads by filename — an input, not a cache), and `live_loop/` (point-in-time IBKR
+snapshots that cannot be refetched for a past date). The frozen `v1_*`/`v2_*` evidence
+exports and the hand-written date-list `*.md`s are not matched by any glob, and the pin
+scan is the backstop if one ever is.
+
+Two exclusions worth knowing:
+
+- `site/journal-*.html` is excluded from the `site` target. `make study-docs` rebuilds the
+  study map and chart pages but NOT the journal pages — those need a real journal run
+  against that date's broker pull, so a deleted page for a past date may be unrecoverable.
+- `__pycache__` under a protected tree is PRUNED during the walk rather than collected and
+  then refused. The bytecode there is genuinely disposable, but the guard is blunt by
+  design; skipping a few KB is cheaper than carving an exception into a rule whose whole
+  value is having none.
 
 ## `/options analyze` — full data-contract detail
 

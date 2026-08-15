@@ -161,6 +161,42 @@ else
 	$(PY) scripts/clean_study_output.py $(ARGS)
 endif
 
+# ── clean everything regenerable ───────────────────────────────────────────────
+# Two cleaners, because the two halves have different safety rules:
+#   clean_generated.py    logs, site/, chart PNGs, stamped exports, bytecode —
+#                         guarded by "never delete a git-tracked file" plus a
+#                         protected-tree list (journal/, portfolio/input/,
+#                         credentials/, backtests/option_history_cache/,
+#                         to_evaluate/, live_loop/).
+#   clean_study_output.py backtests/study_output/, which needs its own pin scan
+#                         for reports the tuning log cites or a study's gate greps.
+# Both prompt before deleting, and both pin files that are cited elsewhere
+# (--force drops the pins in either). The shared flags --dry-run/--yes/--force
+# in ARGS reach BOTH halves; every other flag goes to clean_generated.py alone,
+# so `--caches` never reaches the study cleaner's argparse. Point the study half
+# somewhere else with CLEAN_STUDY_ARGS="--all".
+#
+#   make clean ARGS="--dry-run"        preview both halves
+#   make clean ARGS="--yes"            no prompts
+#   make clean ARGS="--caches --yes"   also drop the refetchable network caches
+#   make clean CLEAN_STUDY_ARGS="--all"  wipe study_output too (still keeps pinned)
+CLEAN_STUDY_ARGS ?= --keep-latest
+.PHONY: clean
+clean:
+	$(PY) scripts/clean_generated.py $(ARGS)
+	$(PY) scripts/clean_study_output.py $(CLEAN_STUDY_ARGS) \
+	  $(filter --dry-run --yes -y --force,$(ARGS))
+
+# What `make clean` would delete, touching nothing.
+.PHONY: clean-dry
+clean-dry:
+	$(MAKE) clean ARGS="--dry-run $(ARGS)"
+
+# Every target and its rebuild command, with current sizes.
+.PHONY: clean-list
+clean-list:
+	$(PY) scripts/clean_generated.py --list
+
 # ── study review ────────────────────────────────────────────────────────────────
 # Deterministic two-analyst replication protocol wrapper (headless `claude -p`
 # calls, isolated sessions). ARGS="<study> [flags]" — see
@@ -341,6 +377,11 @@ help:
 	@echo ""
 	@echo "  make study-map     rebuild site/study-map.html (what each study asks + its last run)"
 	@echo "  make study-map-open  rebuild it and open it in a browser"
+	@echo ""
+	@echo "  make clean        delete every regenerable file (scratch + study output)"
+	@echo "  make clean-dry    preview it, delete nothing"
+	@echo "  make clean-list   every clean target, its size, and how to rebuild it"
+	@echo "  make clean ARGS=\"--caches --yes\"  also drop the refetchable scrape caches"
 	@echo ""
 	@echo "  make clean-studies clear backtests/study_output/, keeping each -latest.txt"
 	@echo "  make clean-studies ARGS=\"--all\"  wipe it (add --force to drop cited/gate-marked reports, --dry-run to preview)"

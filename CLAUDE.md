@@ -95,6 +95,11 @@ python3 -m scripts.study_review <name>                # A/B replication grading 
 make study-map-open                                   # rebuild site/study-map.html + open
 python3 -m scripts.study_charts.account_sim           # render a study result; never computes a new one
 
+# Reset the checkout (both cleaners; see docs/architecture.md §Cleaning)
+make clean-list                       # every clean target, its size, how to rebuild it
+make clean-dry                        # preview; make clean ARGS="--yes" to skip prompts
+make clean ARGS="--caches --yes"      # also drop the refetchable network caches
+
 # Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
 python3 -m scripts.journal                    # Flex fetch → reconcile → risk → report → write
 python3 -m scripts.journal --offline          # read portfolio/input/ only, no network
@@ -130,6 +135,12 @@ Research tier (`backtest_study/`, `study_*`):
   TRACKED hand-written prose, so never point a generator at it.
 - Study-map verdicts are hand-written in `scripts/study_map/catalog.py`; a study with no entry
   there fails the test suite. Last-run excerpts are quoted verbatim, never paraphrased.
+- **`backtests/` is NOT uniformly disposable**, despite the `.gitignore` comment saying so.
+  `to_evaluate/` (hand-exported study inputs), `option_history_cache/` (~337MB of scraped
+  option history), `live_loop/` (point-in-time broker snapshots), the `v1_*`/`v2_*` frozen
+  evidence exports and the hand-written `*.md` date lists have NO git history to recover from.
+  `scripts/clean_generated.py` encodes which paths are safe — extend its table rather than
+  writing a new `rm -rf`, and never widen a glob without re-reading its PROTECTED_PREFIXES.
 - Study charts reconcile every CSV-recomputed figure against the report before writing —
   mismatch exits non-zero. Never add a statistic the study refuses to print (no annualised
   figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
