@@ -149,11 +149,11 @@ Journal / production tier (`scripts/journal/`, `scripts/live_loop/`):
   `scripts/journal/`, the pipeline's own source.
 - Exposure caps (0.25 per-position / 2.50 net) come from `config/account-sim.yml` but bind
   against live NetLiquidation, not the study's $25k. The per-position cap is evaluated on a
-  TICKER's SIGNED total, not per (ticker, expiry) row. `risk.py::assess` and
-  `page.py::_breach_count` are two DELIBERATE implementations of that rule — page.py
-  recomputes so drift surfaces as a ReconcileError; change both, by hand; never make page.py
-  call risk.py's helper.
-- ONE model call in the whole pipeline: the judgment pass in `recommend.py` (see Invariants).
+  TICKER's SIGNED total, not per (ticker, expiry) row. `s03_risk.py::assess` and
+  `s04b_page.py::_breach_count` are two DELIBERATE implementations of that rule — s04b_page.py
+  recomputes so drift surfaces as a ReconcileError; change both, by hand; never make s04b_page.py
+  call s03_risk.py's helper.
+- ONE model call in the whole pipeline: the judgment pass in `s06_recommend.py` (see Invariants).
 
 ## Architecture
 
@@ -201,18 +201,22 @@ scripts/                    ← entry points, each maps to a workflow step
                               analyze; config.py = ALL user-tunable settings
   backtest/                 — leg-based backtest of analysis plays; proxy.py = fallback-chain
                               proxy for skipped plays; shared/ internals used by both
-  journal/                  — PRODUCTION daily loop. config.py = data contract (now incl.
-                              RECOMMENDATION_COLUMNS + RecContext); pull.py = the only
-                              networked module; flexparse.py = Flex → rawpull + the flat-book
-                              guards; recommend.py = the ranker + the ONLY model call, now
-                              time-bounded (check_freshness, latest_date_on_or_before);
-                              recwriter.py = persists the deploy card to the Recommendations
+  journal/                  — PRODUCTION daily loop. The listing IS the flow: files are named
+                              sNN_<step>.py and run in that order (`s` only because a module
+                              name may not start with a digit). config.py = data contract (now
+                              incl. RECOMMENDATION_COLUMNS + RecContext); s01_pull.py = the only
+                              networked module; s06_recommend.py = the ranker + the ONLY model
+                              call, time-bounded (check_freshness, latest_date_on_or_before);
+                              s07_recwriter.py = persists the deploy card to the Recommendations
                               tab + journal/recommendations.csv, append-only/generational
+    journal/lib/            — journal-only helpers the steps lean on, NOT the repo-root lib/:
+                              rawpull.py (the pull schema), flexparse.py (Flex → rawpull + the
+                              flat-book guards), greeks.py, book.py, analysis.py, prompt.py
   live_loop/                — PRODUCTION fortnightly audit; mapping.py::ladder_tier() = the
                               single encoding of deployment-rules §1–§3 (journal imports it too)
   backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
                               harness.py FROZEN; the one sanctioned research→production import
-                              is live_select.py calling recommend.py's rank()+judge()
+                              is live_select.py calling s06_recommend.py's rank()+judge()
   study_map/ / study_charts/ / study_review/
                             — research render/review layers; they quote and reconcile study
                               output, never add a conclusion
@@ -275,14 +279,14 @@ two prompt versions are never pooled.
 - **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
   is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous
   way this pipeline could be wrong. Enforced at three layers, all of which must stay:
-  `scripts/journal/rawpull.py::validate` refuses a pull whose greek claims a `source` in
-  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/risk.py` computes a position's
+  `scripts/journal/lib/rawpull.py::validate` refuses a pull whose greek claims a `source` in
+  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/s03_risk.py` computes a position's
   delta all-or-nothing across legs and excludes unpriceable positions from every total
   (`BookRisk.complete` → False); the report states such totals are a FLOOR. Never sum
   `delta_notional` without filtering on `PositionRisk.priced`, and test greek sources by
   membership in `DELTA_SOURCES_REAL`, never equality with one named source.
 
-- **The model may annotate the deploy card; it may never promote a play.** `recommend.py`
+- **The model may annotate the deploy card; it may never promote a play.** `s06_recommend.py`
   ranks deterministically from `docs/deployment-rules.md` via `ladder_tier()`, then shows
   the headless model ONLY the survivors. Verdicts are applied as annotations onto that
   ordering — never a re-sort or rebuild, and a returned ticker outside the survivor set is
@@ -291,8 +295,8 @@ two prompt versions are never pooled.
 
 - **A deploy card never sees anything dated after its as-of date.** `recommend` is built AS
   OF a date (`--as-of`, default today), and three things are bounded by it:
-  `analysis.latest_date_on_or_before()` picks the analysis session (never the unbounded
-  `latest_date()`, which stays correct for `reconcile.py`'s backward-looking match);
+  `lib/analysis.py::latest_date_on_or_before()` picks the analysis session (never the unbounded
+  `latest_date()`, which stays correct for `s02_reconcile.py`'s backward-looking match);
   `__main__._raw_on_or_before()` picks the broker pull — the newest one whose `trade_date` is
   ≤ the session, confirmed against that field rather than trusted from the filename — and
   marks the book AT the session, never `date.today()`. `check_freshness()` raises two

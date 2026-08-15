@@ -1,9 +1,9 @@
 """
 Step 4a — render the day's journal as fixed-width markdown.
 
-PRODUCTION TIER, pure rendering. Takes exactly what `reconcile.py` and `risk.py`
+PRODUCTION TIER, pure rendering. Takes exactly what `s02_reconcile.py` and `s03_risk.py`
 already produced (`list[PositionEvent]`, `BookRisk`) plus a small `meta` dict the
-caller assembles from `pull.py`/`analysis.py`'s own return values, and turns them
+caller assembles from `s01_pull.py`/`lib/analysis.py`'s own return values, and turns them
 into `journal/reports/<date>.md`. No network, no Sheets, no broker calls, and no
 statistic this module did not receive — a single day's fills do not support a
 win rate or an annualised anything.
@@ -23,7 +23,7 @@ plainly that the information was not recorded rather than fabricating a zero.
     dropped_settlement  list  optional — zero-price settlement rows the
                                 reconcile step dropped before entry reconstruction
     skipped_non_option  list  optional — non-option fills the pull step counted
-                                but did not carry through (see pull.py)
+                                but did not carry through (see s01_pull.py)
 
 Money renders with thousands separators; deltas to 3dp; percentages as
 percentages (the repo stores share-type fractions as decimals — 0.045, not
@@ -38,14 +38,14 @@ from pathlib import Path
 
 from .config import (REPORTS_DIR, MATCH_CONFIDENCES, NON_ATTEMPT_CONFIDENCES,
                      PositionEvent)
-from .risk import BookRisk
+from .s03_risk import BookRisk
 
 EM_DASH = "—"
 
 
 # --------------------------------------------------------------------------
 # Formatting — the missing/zero invariant lives here, in ONE place, so every
-# section renders None and 0.0 the same (distinct) way. Shared with page.py so
+# section renders None and 0.0 the same (distinct) way. Shared with s04b_page.py so
 # the two never quietly drift into disagreeing about what a number looks like.
 # --------------------------------------------------------------------------
 def em(v) -> str:
@@ -99,7 +99,7 @@ def truncate(s: str | None, n: int = 70) -> str:
 def _pct_net_liq(delta_notional: float | None, pct_net_liq: float | None,
                  net_liq: float | None) -> float | None:
     """Prefer a value the caller already set on the record; else derive it here
-    the same way writer.py's `to_row` does (risk.py never populates the field
+    the same way s05_writer.py's `to_row` does (s03_risk.py never populates the field
     itself, so most callers reach this branch)."""
     if pct_net_liq is not None:
         return pct_net_liq

@@ -1,7 +1,7 @@
 """
 Step 4b — render the day's journal as a self-contained HTML page.
 
-PRODUCTION TIER. Same inputs as report.py (`list[PositionEvent]`, `BookRisk`,
+PRODUCTION TIER. Same inputs as s04a_report.py (`list[PositionEvent]`, `BookRisk`,
 `meta`) plus an output path, and it writes a standalone HTML document with
 every CSS/JS rule inlined — no external request of any kind, so it opens
 straight from `site/` with no server. Theme-aware exactly as
@@ -25,7 +25,7 @@ writes nothing — a half-drawn or silently-diverging page is worse than no page
 WHAT IS IN THE RECONCILED SET, AND WHAT IS NOT. `compute_figures()` returns
 EXACTLY the reconciled set: `reconcile()` walks its keys and demands each one be
 parseable back out of the report text, so anything added there must also be
-printed by `report.py` or the page stops being written — permanently, on every
+printed by `s04a_report.py` or the page stops being written — permanently, on every
 run. The RECOMMENDATIONS PANEL is deliberately outside that set. It is a
 read-back of a different artefact (`journal/recommendations.csv`) answering a
 different question (what the deploy card said, on the session it said it), it
@@ -42,9 +42,9 @@ import logging
 import re
 from pathlib import Path
 
-from . import report
+from . import s04a_report as report
 from .config import MATCH_CONFIDENCES, PositionEvent
-from .risk import BookRisk
+from .s03_risk import BookRisk
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class ReconcileError(RuntimeError):
 
 
 # --------------------------------------------------------------------------
-# compute_figures() — the headline numbers, derived independently of report.py
+# compute_figures() — the headline numbers, derived independently of s04a_report.py
 # --------------------------------------------------------------------------
 def _confidence_counts(events: list[PositionEvent]) -> dict[str, int]:
     return {c: sum(1 for e in events if e.match_confidence == c) for c in MATCH_CONFIDENCES}
@@ -71,10 +71,10 @@ def _breach_count(book: BookRisk) -> int:
     would show up as a mismatch instead of hiding behind a shared number.
 
     This is a DELIBERATE SECOND IMPLEMENTATION of the per-TICKER cap rule that
-    `risk.py::assess` applies. It must NOT be refactored to call
+    `s03_risk.py::assess` applies. It must NOT be refactored to call
     `risk.per_ticker_delta_notional` — sharing the aggregation is precisely what
     would stop a bug in it from ever surfacing here. If the cap rule changes in
-    `risk.py::assess`, change it here too, BY HAND.
+    `s03_risk.py::assess`, change it here too, BY HAND.
     """
     caps = book.caps
     if caps is None:
@@ -422,7 +422,7 @@ def _recent_recommendations(meta: dict):
     refuses, arriving through the dashboard instead.
     """
     try:
-        from . import recwriter
+        from . import s07_recwriter as recwriter
         return recwriter.recent_rows(recwriter.read_csv_rows(),
                                      on_or_before=meta.get("date"))
     except Exception as exc:  # noqa: BLE001 - the page matters more than the panel

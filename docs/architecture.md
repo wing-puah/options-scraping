@@ -180,7 +180,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               rules as the real backtest → BacktestProxy tab +
                               backtests/proxy_results.csv, idempotent; cache-first, scrapes
                               missing neighbors unless --cache-only
-  journal/ · live_loop/     — PRODUCTION tier; see §Daily trade journal below
+  journal/ · live_loop/     — PRODUCTION tier; journal/ steps are numbered sNN_*.py and its
+                              helpers live in journal/lib/; see §Daily trade journal below
   backtest_study/ · study_review/ · study_map/ · study_charts/
                             — RESEARCH tier; see §Research tier below
   auth_drive.py             — one-time OAuth2 flow for Drive
@@ -248,7 +249,7 @@ Other arms:
   dropped, gates still run on the frozen book; separate artifact
   (`account_sim-positions-structure-latest.csv`).
 - `--live-select` — an arm of a different kind: it changes WHO CHOOSES. Selection runs through
-  the SHIPPED decision function — `scripts/journal/recommend.py`'s `rank()` then `judge()` —
+  the SHIPPED decision function — `scripts/journal/s06_recommend.py`'s `rank()` then `judge()` —
   instead of book.py's port of the ladder, so the simulated decision is the live decision and
   the drift between them is a measured number. Ledger, caps, sizing, and the frozen exit
   replay are unchanged (`live_select.py`; a `ranker` hook on `simulate()` that is None on
@@ -309,6 +310,37 @@ conclusion.
 
 ## Daily trade journal — data contracts
 
+**Package layout — the listing IS the flow.** Files are named `sNN_<step>.py` and run in that
+order, so `ls scripts/journal/` reads top-to-bottom as the pipeline instead of having to be
+reconstructed from the imports. The `s` prefix carries no meaning beyond legality: a Python
+module name may not begin with a digit, so `01_pull.py` would be unimportable.
+
+```
+scripts/journal/
+  __main__.py       CLI + the three commands (run / pull / recommend)
+  config.py         the data contract every step reads — records, column orders, env names
+  s01_pull.py       broker  -> journal/raw/<date>.json           (the only networked module)
+  s02_reconcile.py  fills   -> PositionEvents, matched to the analysis that proposed them
+  s03_risk.py       open book -> delta exposure vs the deployment caps
+  s04a_report.py    -> journal/reports/<date>.md
+  s04b_page.py      -> site/journal-<date>.html
+  s05_writer.py     -> TradeJournal tab + journal/trades.csv
+  s06_recommend.py  analysis + open book -> the deploy card   (the ONE model call)
+  s07_recwriter.py  -> Recommendations tab + journal/recommendations.csv
+  lib/              journal-only helpers the steps lean on — NOT the repo-root lib/
+    rawpull.py      the on-disk pull schema; dependency-free, the boundary below
+    flexparse.py    Flex export -> rawpull, plus the flat-book guards        (s01)
+    greeks.py       Barchart EOD greeks for the open book, which Flex lacks  (s01)
+    book.py         group the broker's flat legs into logical positions      (s03)
+    analysis.py     the shared AnalysisClaude loader              (s02 AND s06)
+    prompt.py       prompt text + response parsing for the judgment pass     (s06)
+```
+
+`scripts/journal/lib/` and the repo-root `lib/` never collide: the former is only ever reached
+relatively (`from .lib import rawpull`), so an absolute `from lib import sheets_client` inside a
+journal module still resolves to the repo-root package. Anything that outgrows journal-only use
+moves UP to the repo-root `lib/`; nothing moves the other way.
+
 PRODUCTION tier. Closes the analysis → trade → evidence loop daily. `scripts/live_loop/`
 audits the same ground fortnightly and in more depth; both import
 `scripts/live_loop/mapping.py`, so `ladder_tier()` (the sole encoding of
@@ -317,16 +349,16 @@ audits the same ground fortnightly and in more depth; both import
 **Pipeline and boundaries**
 
 ```
-lib/ibkr/flex.py  ──►  pull.py  ──►  journal/raw/ibkr-<date>-<HHMM>.json  ──►  everything else
+lib/ibkr/flex.py  ──►  s01_pull.py  ──►  journal/raw/ibkr-<date>-<HHMM>.json  ──►  everything else
                        (only networked module)     (immutable, schema v1)
 ```
 
-`rawpull.py` defines that file and is dependency-free — the boundary that keeps `lib.ibkr`
-out of `reconcile`/`risk`/`report`/`writer`; swapping broker transport is a change to
-`pull.py` alone. Pulls are written once and never overwritten (`rawpull.save()` raises on an
+`lib/rawpull.py` defines that file and is dependency-free — the boundary that keeps `lib.ibkr`
+out of every later step (`s02`–`s07`); swapping broker transport is a change to
+`s01_pull.py` alone. Pulls are written once and never overwritten (`rawpull.save()` raises on an
 existing path) — a pull is the primary evidence for every journal row.
 
-**One transport.** `pull.py` holds `pull_flex()` — a Flex statement, fetched by default with
+**One transport.** `s01_pull.py` holds `pull_flex()` — a Flex statement, fetched by default with
 `IBKR_FLEX_TOKEN` (`--offline`/`--no-flex-web` reads only what is on disk). The Client Portal
 Gateway transport was deleted 2026-08-15 (its native greeks and NetLiquidation are now
 supplied by Barchart and `--net-liq`); pulls it wrote (`source: ibkr-cpapi`, greek
@@ -339,15 +371,15 @@ with it):
 
 | Gap | Filled from |
 |---|---|
-| Greeks | Barchart EOD Delta/Gamma/Theta/Vega/IV per contract (`greeks.py`), latest row **on or before** the session date — never after (lookahead) |
-| Open positions | the declared `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID` query, else reconstructed by netting fills (`flexparse.py`) |
+| Greeks | Barchart EOD Delta/Gamma/Theta/Vega/IV per contract (`lib/greeks.py`), latest row **on or before** the session date — never after (lookahead) |
+| Open positions | the declared `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID` query, else reconstructed by netting fills (`lib/flexparse.py`) |
 | NetLiquidation | a NAV/Account-Information section on the positions query if it carries one (detected, never assumed), else `--net-liq` / `JOURNAL_NET_LIQUIDATION`, else the caps report "not evaluable" |
-| Commission | nothing — recorded as `None`, never `0.0`; `net_cash` excludes it. `PositionEvent.commission` is all-or-nothing across a group's legs (same rule risk.py applies to delta) |
+| Commission | nothing — recorded as `None`, never `0.0`; `net_cash` excludes it. `PositionEvent.commission` is all-or-nothing across a group's legs (same rule s03_risk.py applies to delta) |
 
 **Two saved queries, one token — or one query carrying both sections.** A Flex query is
 scoped to the sections it was saved with, so trades and open positions are normally separate
 queries (`IBKR_FLEX_QUERY_TRADES_ID` + optional `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`). Point
-BOTH vars at ONE query saved with BOTH sections and the pull costs ONE handshake: `pull.py`
+BOTH vars at ONE query saved with BOTH sections and the pull costs ONE handshake: `s01_pull.py`
 fetches once and hands the same statement to both readers, and `flexparse._csv_sections`
 splits on each section's own header line (delimited statements carry no section marker).
 This matters because two handshakes on one token is what trips IBKR's 1018 rate limit.
@@ -371,7 +403,7 @@ thing telling a later reader how far to trust the exposure figure. Legs marked f
 different feeds are reported joined (`barchart+ibkr`), never collapsed — a half-marked
 spread is the case worth noticing, not averaging over.
 
-**Flex path specifics** (`flexparse.py`, `greeks.py`, `lib/ibkr/flex.py`)
+**Flex path specifics** (`lib/flexparse.py`, `lib/greeks.py`, `lib/ibkr/flex.py`)
 
 - *Contract identity stays exact.* A Flex trades export carries `Conid` (16 fields), so
   nothing is price-inferred. `TradeID` becomes `exec_id` — what the journal dedupes on. Flex
@@ -448,9 +480,9 @@ calendar needed), bounded BOTH by `SIGNAL_LOOKBACK_DAYS` (3 book dates) and
 `MAX_SIGNAL_AGE_DAYS` (10 calendar days) — the second bound stops a gap in the book (e.g.
 the v4 cut-over) reaching back years and stamping a fill with another prompt version's
 signal date. Market regime always comes from the date's MARKET row, never a play row.
-`analysis.py` is the shared AnalysisClaude loader (Sheets → CSV fallback).
+`lib/analysis.py` is the shared AnalysisClaude loader (Sheets → CSV fallback).
 
-**Open book** (`book.py`) — legs group by (underlying, expiry). A vertical reassembles; a
+**Open book** (`lib/book.py`) — legs group by (underlying, expiry). A vertical reassembles; a
 calendar/diagonal is reported as two positions and the report says so. Grouping by
 underlying alone would fuse a core long and a hedge overlay into a fictional structure.
 Delta-notional is additive across legs, so the split changes position COUNT only, never net
@@ -462,15 +494,15 @@ compare directly. Caps `per_position` 0.25 / `net` 2.50 are read from
 `config/account-sim.yml` (that study calls them "a friction model, NOT a tuned parameter" —
 why they transfer) but bind against the broker's NetLiquidation, not the study's $25k. The
 per-position cap is evaluated on a TICKER's SIGNED total, not per (ticker, expiry) row —
-book.py splits a core vertical and the shorter-dated short leg financing it into two
+lib/book.py splits a core vertical and the shorter-dated short leg financing it into two
 positions, and that leg exists to cut the ticker's directional exposure. A position's delta
 is all-or-nothing across legs: a spread priced on one leg would report the naked long's
 delta, since the unpriced leg is precisely the hedge.
 
 **Output** — `journal/reports/<date>.md` and `docs/journal-<date>.html`. The page recomputes
 each figure from the records and reconciles against the report, writing nothing on a
-mismatch (`risk.py::assess` and `page.py::_breach_count` are two DELIBERATE implementations
-of the cap rule — change both by hand, never share a helper). The charts are Cap utilisation
+mismatch (`s03_risk.py::assess` and `s04b_page.py::_breach_count` are two DELIBERATE
+implementations of the cap rule — change both by hand, never share a helper). The charts are Cap utilisation
 and Match confidence side by side, then Delta-notional by position full-width beneath, plus a
 Recent recommendations panel — the last `PAGE_RECENT_REC_SESSIONS` analysis sessions'
 current-generation rows, read back via `recwriter.recent_rows()` and filtered to
@@ -494,7 +526,7 @@ outside the survivor set is dropped.
 
 The card is built AS OF a date (`--as-of`, default today) and three lookahead leaks are
 closed against it. The analysis session comes from `analysis.latest_date_on_or_before()`,
-never the unbounded `latest_date()` (which stays correct for `reconcile.py`'s
+never the unbounded `latest_date()` (which stays correct for `s02_reconcile.py`'s
 backward-looking match — a fill has already happened, so ranking off the newest book date is
 fine there and wrong here). The broker book comes from `__main__._raw_on_or_before()` — the
 newest pull whose `trade_date` is ≤ the session, the filename prefiltering cheaply but
@@ -511,13 +543,13 @@ stamped `judge_status`/`judge_lookahead_risk` (`config.JUDGE_LOOKAHEAD_NOTE`) ra
 treated as clean — the same concern `scripts/backtest_study/live_select.py` documents for its
 own judge layer.
 
-**Recommendation record** (`recwriter.py`) — every evaluated candidate (role
+**Recommendation record** (`s07_recwriter.py`) — every evaluated candidate (role
 `deploy`/`hedge`/`veto`/`tier_c`) is flattened to `RECOMMENDATION_COLUMNS` and written to the
 Recommendations tab in `TRADE_JOURNAL_SPREADSHEET_ID` (the same workbook as TradeJournal) and
-to `journal/recommendations.csv`, mirroring `writer.py`'s CSV-first/CSV-fatal,
-Sheets-non-fatal split. The two are DELIBERATELY not shared code: `writer.py`'s failure loses
+to `journal/recommendations.csv`, mirroring `s05_writer.py`'s CSV-first/CSV-fatal,
+Sheets-non-fatal split. The two are DELIBERATELY not shared code: `s05_writer.py`'s failure loses
 the day's trades, so generalising its helpers over (key, tab, columns) to also serve a
-non-trade record would risk that module for a feature that isn't one — `recwriter.py` mirrors
+non-trade record would risk that module for a feature that isn't one — `s07_recwriter.py` mirrors
 its structure instead and stays independent. `rec_id` ends in a sha256 of the row's content
 (`REC_IDENTITY_EXCLUDED` drops `rec_id`/`generation`/`generated_at_utc` from the hash before
 hashing), so an unchanged re-run of the same card appends nothing at all — even on a later

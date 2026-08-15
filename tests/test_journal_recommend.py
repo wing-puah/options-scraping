@@ -15,10 +15,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from journal import analysis
-from journal.recommend import (Candidate, Rejected, StaleAnalysis, check_freshness,
+from journal.lib import analysis
+from journal.s06_recommend import (Candidate, Rejected, StaleAnalysis, check_freshness,
                                judge, rank, render)
-from journal.risk import BookRisk
+from journal.s03_risk import BookRisk
 
 DATE = "2026-08-14"
 
@@ -372,7 +372,7 @@ def test_latest_date_on_or_before_returns_none_when_everything_is_newer():
 
 
 def test_latest_date_stays_unbounded():
-    """reconcile.py describes fills that already happened and needs the real
+    """s02_reconcile.py describes fills that already happened and needs the real
     maximum -- adding a bound here would be a silent behaviour change for it."""
     df = _dated("2026-08-10", "2026-08-20")
     assert analysis.latest_date(df) == "2026-08-20"

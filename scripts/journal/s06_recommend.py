@@ -13,7 +13,7 @@ already cleared:
               `render()` and nothing else.
     judge()   PART B — the ONE judgment call. Sees ONLY the survivors `rank()`
               returns (never a rejected/vetoed play) and is asked exactly three
-              questions (see `prompt.py`). Structurally cannot promote, re-tier,
+              questions (see `lib/prompt.py`). Structurally cannot promote, re-tier,
               or resurrect anything — see the module-level note above
               `judge()` for exactly how that is enforced.
     render()  PART C — a markdown deploy card. Stands on its own with the
@@ -38,8 +38,8 @@ from dataclasses import dataclass, field, replace
 
 import pandas as pd
 
-from . import analysis, prompt
-from . import risk as risk_mod
+from .lib import analysis, prompt
+from . import s03_risk as risk_mod
 from .config import (JUDGMENT_MAX_ATTEMPTS, JUDGMENT_MODEL, JUDGMENT_TIMEOUT_S,
                      RECOMMENDATION_MAX_AGE_DAYS)
 
@@ -121,7 +121,7 @@ class Candidate:
     hedge_pick: bool = False
 
     def to_prompt_dict(self) -> dict:
-        """The subset of fields `judge()` shows the model — see `prompt.py`."""
+        """The subset of fields `judge()` shows the model — see `lib/prompt.py`."""
         return {
             "ticker": self.ticker, "tier": self.tier, "structure": self.structure,
             "play": self.play, "trigger": self.trigger,
@@ -438,7 +438,7 @@ def _default_invoke(prompt_text: str) -> str:
 
 def judge(candidates: list[Candidate], context: str, invoke=None) -> dict:
     """The ONE judgment call. Sees ONLY `rank()`'s survivors, asked exactly
-    three questions (see `prompt.py`): has each candidate's trigger fired, is
+    three questions (see `lib/prompt.py`): has each candidate's trigger fired, is
     its alternative interpretation now more likely, and (hedge sleeve only)
     which to take on a genuine tie.
 

@@ -419,7 +419,7 @@ def map_entry(inv_row, sig, ticker, ac):
     """Match a live entry to AnalysisClaude rows on the signal date."""
     day = ac[(ac["date"] == sig) & (ac["ticker"] == ticker)]
     # `core_structure` is returned whether or not a play matched: it is what
-    # `reconcile.py` tiers a financed spread off, and an untiered position is
+    # `s02_reconcile.py` tiers a financed spread off, and an untiered position is
     # not something to leave to whether an analysis row happened to exist.
     entry = inv_row.get("entry") if hasattr(inv_row, "get") else inv_row["entry"]
     core_struct = core_structure(entry) if entry else None

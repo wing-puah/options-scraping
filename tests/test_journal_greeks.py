@@ -11,8 +11,8 @@ from datetime import date
 
 import pytest
 
-from scripts.journal import rawpull
-from scripts.journal import greeks
+from scripts.journal.lib import rawpull
+from scripts.journal.lib import greeks
 from scripts.journal.config import DELTA_SOURCE_BARCHART, DELTA_SOURCE_UNAVAILABLE
 
 HEADER = ("Time,Open,High,Low,Latest,Change,%Change,Volume,Open Int,IV,Delta,"
@@ -107,7 +107,7 @@ def test_normal_enrichment_sources_delta_and_iv_in_points():
     assert g["theta"] == pytest.approx(-0.05)
     assert g["vega"] == pytest.approx(0.10)
     # IV stays in POINTS (45.20, not 0.4520) — the repo's documented exception
-    # to the decimal-fraction convention (see report.py's iv_fmt()).
+    # to the decimal-fraction convention (see s04a_report.py's iv_fmt()).
     assert g["iv"] == pytest.approx(45.20)
     assert result["underlying_prices"]["AAA"] == pytest.approx(187.34)
 

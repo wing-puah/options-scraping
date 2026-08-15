@@ -240,13 +240,13 @@ label amendment differ).** Report:
 
 *What the arm is.* `account_sim` re-implements the deployment ladder in
 `scripts/backtest_study/book.py::ladder_tier`. The function that actually decides
-what gets deployed is `scripts/journal/recommend.py` — `rank()` (which encodes
+what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (which encodes
 `deployment-rules.md` §1–§3 exactly once, via
 `scripts/live_loop/mapping.ladder_tier`) then `judge()` (the one demote-only model
 call). `--live-select` swaps the first for the second and changes nothing else:
 ledger, caps, sizing and the frozen exit replay are untouched, reached through a
 `ranker` hook on `simulate()` that is `None` on every other path.
-`recommend.py` gained no sim-specific branch.
+`s06_recommend.py` gained no sim-specific branch.
 
 *Finding 1 — the frozen book is partly a pricing artifact, and the size of it is
 now a number.* Of **1,448 (date, ticker) analysis pairs** (residual zero; every

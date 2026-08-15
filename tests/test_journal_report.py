@@ -16,10 +16,10 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from scripts.journal import page, recwriter, report
+from scripts.journal import s04b_page as page, s07_recwriter as recwriter, s04a_report as report
 from scripts.journal.config import (DELTA_SOURCE_IBKR, DELTA_SOURCE_UNAVAILABLE,
                                     Leg, PositionEvent, PositionRisk)
-from scripts.journal.risk import BookRisk, Caps
+from scripts.journal.s03_risk import BookRisk, Caps
 
 # --------------------------------------------------------------------------
 # helpers
@@ -80,7 +80,7 @@ def _meta(**kw):
 
 
 # --------------------------------------------------------------------------
-# report.py — formatting invariants
+# s04a_report.py — formatting invariants
 # --------------------------------------------------------------------------
 
 
@@ -109,7 +109,7 @@ def test_open_book_row_distinguishes_zero_delta_from_missing_fields():
 
 
 # --------------------------------------------------------------------------
-# report.py — sections
+# s04a_report.py — sections
 # --------------------------------------------------------------------------
 
 
@@ -148,7 +148,7 @@ def test_a_breach_appears_in_the_exposure_section():
 def test_the_per_ticker_exposure_table_shows_the_netting_behind_a_breach():
     """§5's table is what makes a breach checkable: the reader must be able to
     see the financing leg that a ticker's total already nets in."""
-    from scripts.journal.risk import assess
+    from scripts.journal.s03_risk import assess
     core = _risk(conid_key="k1", ticker="GLD", structure="bull_call_spread",
                  delta_notional=8529.58)
     overlay = _risk(conid_key="k2", ticker="GLD", structure="single short call",
@@ -167,7 +167,7 @@ def test_page_and_risk_agree_on_the_breach_count_after_per_ticker_netting():
     reading `book.breaches`, so a drift between them surfaces as a
     ReconcileError. This pins that they agree on a book where the netting
     actually matters."""
-    from scripts.journal.risk import assess
+    from scripts.journal.s03_risk import assess
     positions = [
         _risk(conid_key="k1", ticker="GLD", structure="bull_call_spread",
               delta_notional=8529.58),
@@ -282,7 +282,7 @@ def test_write_creates_the_dated_report_file(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# page.py — reconcile-or-write-nothing
+# s04b_page.py — reconcile-or-write-nothing
 # --------------------------------------------------------------------------
 
 
@@ -305,8 +305,8 @@ def test_page_build_raises_and_writes_nothing_on_mismatch(tmp_path, monkeypatch)
     book = BookRisk(positions=[_risk()], unpriced=[], caps=_caps(),
                     net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
 
-    # Force report.build() (as page.py calls it) to return text describing a
-    # different book than the one page.py itself will compute figures from.
+    # Force report.build() (as s04b_page.py calls it) to return text describing a
+    # different book than the one s04b_page.py itself will compute figures from.
     monkeypatch.setattr(page.report, "build",
                         lambda events, book, meta: "# fake report\n\nNet delta-notional: $1.00\n")
 
@@ -381,7 +381,7 @@ def test_a_pipe_in_a_structure_label_is_escaped_too():
 
 
 # --------------------------------------------------------------------------
-# page.py — recommendations panel (deliberately outside the reconciled set)
+# s04b_page.py — recommendations panel (deliberately outside the reconciled set)
 # --------------------------------------------------------------------------
 def _rec_row(**kw):
     defaults = dict(session_date="2026-08-14", role="deploy", rank=1, ticker="NVDA",

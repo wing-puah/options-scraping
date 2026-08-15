@@ -1,11 +1,11 @@
 """
-The on-disk shape of a broker pull — the contract between `pull.py` and everything downstream.
+The on-disk shape of a broker pull — the contract between `s01_pull.py` and everything downstream.
 
-PRODUCTION TIER, dependency-free on purpose. `pull.py` imports `lib.ibkr` and
-talks to the gateway; `reconcile.py` and `risk.py` must NOT. They read this
+PRODUCTION TIER, dependency-free on purpose. `s01_pull.py` imports `lib.ibkr` and
+talks to the gateway; `s02_reconcile.py` and `s03_risk.py` must NOT. They read this
 normalised dict instead, so the broker client's response shapes stay behind one
 boundary and swapping transport (Client Portal today, Flex or TWS tomorrow) is a
-change to `pull.py` alone.
+change to `s01_pull.py` alone.
 
 The file it describes is IMMUTABLE. `journal/raw/ibkr-<date>-<HHMM>.json` is
 written once and never edited: it is the primary evidence for every journal row,
@@ -48,7 +48,7 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
-from .config import (DELTA_SOURCE_UNAVAILABLE, DELTA_SOURCES_REAL, Greeks, Leg)
+from ..config import (DELTA_SOURCE_UNAVAILABLE, DELTA_SOURCES_REAL, Greeks, Leg)
 
 SCHEMA_VERSION = 1
 

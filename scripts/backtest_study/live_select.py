@@ -3,14 +3,14 @@
 RESEARCH TIER importing PRODUCTION. That is the allowed direction and the whole
 point: `account_sim` re-implements the deployment ladder in
 `scripts/backtest_study/book.py::ladder_tier`, while the function that actually
-decides what gets deployed is `scripts/journal/recommend.py` — `rank()` (the
+decides what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (the
 deterministic ladder, encoded once in `scripts/live_loop/mapping.ladder_tier`)
 followed by `judge()` (the one model call, demote-only). The two ladders have
 already drifted apart. This module runs the shipped pair over the historical
 book so the drift is a measured number rather than an argument, and so the
 simulated decision is the live decision.
 
-Nothing here is a second copy of production. `recommend.py` gains no
+Nothing here is a second copy of production. `s06_recommend.py` gains no
 sim-specific branch: everything the arm needs was already injectable
 (`ac_df`, `book`, `net_liq`, `invoke`), and every piece of pricing, sizing,
 admission and exit replay is `account_sim`'s own frozen machinery, reached
@@ -47,7 +47,7 @@ Four things are worth knowing before reading a number this module prints.
   * **`judge()` can see the future and G5 cannot tell.** `JUDGMENT_MODEL` is
     `claude-opus-5`, whose knowledge cutoff overlaps the analysis dates, so it
     may "remember" what a ticker did. G5 blinds RECORD FIELDS; it cannot blind
-    model weights, and `prompt.py`'s "do not use any outside knowledge of these
+    model weights, and `journal/lib/prompt.py`'s "do not use any outside knowledge of these
     tickers" is necessary and not sufficient. The arm does not pretend to solve
     this. It BOUNDS it: two ledger walks off one model pass, `demote_policy`
     `skip` against `ignore`, whose difference is the judge layer's entire effect
@@ -80,9 +80,9 @@ from scripts.backtest_study.bear_giveback import hdr, sub  # noqa: E402
 from scripts.backtest_study.book import (  # noqa: E402
     DEFAULT_PROXY_CSV, DEFAULT_RESULTS_CSV, ladder_tier as book_ladder_tier,
 )
-from scripts.journal import analysis as janalysis  # noqa: E402
-from scripts.journal import recommend  # noqa: E402
-from scripts.journal import risk as jrisk  # noqa: E402
+from scripts.journal.lib import analysis as janalysis  # noqa: E402
+from scripts.journal import s06_recommend as recommend  # noqa: E402
+from scripts.journal import s03_risk as jrisk  # noqa: E402
 from scripts.journal.config import (  # noqa: E402
     DELTA_SOURCE_BARCHART, JUDGMENT_MODEL, PositionRisk,
 )
@@ -626,7 +626,7 @@ def print_preamble(st, entry_check: str, use_llm: bool, cache: JudgmentCache | N
     judgment_line = ("cached judge() pass, model " + JUDGMENT_MODEL if use_llm
                      else "NOT RUN (--live-select-no-llm) — deterministic rank() only")
     print(f"""  This arm replaces account_sim's own ladder (book.py::ladder_tier) with the
-  function that actually decides what gets deployed: scripts/journal/recommend.py's
+  function that actually decides what gets deployed: scripts/journal/s06_recommend.py's
   rank() — which encodes docs/deployment-rules.md §1-§3 exactly once, via
   scripts/live_loop/mapping.ladder_tier — followed by judge(), the single
   demote-only model call. Pricing, sizing, admission and exit replay are
@@ -652,7 +652,7 @@ def print_preamble(st, entry_check: str, use_llm: bool, cache: JudgmentCache | N
   LOOKAHEAD CAVEAT, printed in full because no gate can replace it. JUDGMENT_MODEL
   is claude-opus-5, whose knowledge cutoff overlaps these analysis dates. judge()
   may therefore "remember" what a ticker went on to do, and G5 CANNOT DETECT THIS
-  — G5 blinds record fields, not model weights, and prompt.py's "do not use any
+  — G5 blinds record fields, not model weights, and journal/lib/prompt.py's "do not use any
   outside knowledge of these tickers" is necessary and not sufficient. The bound
   this arm can offer is a measurement, not an assurance: the two ledger walks
   below run off ONE model pass with demote_policy skip and ignore, and their

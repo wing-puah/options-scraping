@@ -1,7 +1,7 @@
 """
 Group the broker's open option legs into logical positions, then mark them.
 
-PRODUCTION TIER, pure computation. `pull.py` returns the open book as a flat
+PRODUCTION TIER, pure computation. `s01_pull.py` returns the open book as a flat
 list of contracts and quantities — the broker has no concept of "this long call
 and that short call are one bull call spread". This module reassembles them so
 exposure is reported per POSITION rather than per leg.
@@ -18,7 +18,7 @@ delta-notional figure correct, because delta-notional is additive across legs:
 the book's net exposure is identical either way.
 
 The split is therefore PRESENTATIONAL ONLY, and nothing downstream reads a risk
-verdict off it: `risk.py` checks the per-position cap against each TICKER's
+verdict off it: `s03_risk.py` checks the per-position cap against each TICKER's
 signed total (see its docstring), so a core vertical and the shorter-dated short
 leg financing it net against each other regardless of landing in two groups
 here. A presentation choice must not change a risk verdict.
@@ -33,9 +33,9 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime
 
-from .config import Greeks, Leg, PositionRisk
+from ..config import Greeks, Leg, PositionRisk
 from .rawpull import contract_for
-from .risk import mark_position
+from ..s03_risk import mark_position
 
 log = logging.getLogger(__name__)
 

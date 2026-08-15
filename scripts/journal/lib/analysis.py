@@ -1,8 +1,8 @@
 """
 Load the analysis book — the shared source of AnalysisClaude rows.
 
-PRODUCTION TIER. Both `reconcile.py` (what did I trade, and which play was it?)
-and `recommend.py` (what should I trade next?) read the book through here, so
+PRODUCTION TIER. Both `s02_reconcile.py` (what did I trade, and which play was it?)
+and `s06_recommend.py` (what should I trade next?) read the book through here, so
 they can never disagree about which rows exist or what a date's market regime
 was.
 
@@ -30,7 +30,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
-from .config import AC_CSV_FALLBACK, MAX_SIGNAL_AGE_DAYS, SIGNAL_LOOKBACK_DAYS
+from ..config import AC_CSV_FALLBACK, MAX_SIGNAL_AGE_DAYS, SIGNAL_LOOKBACK_DAYS
 
 log = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ def analysis_dates(df: pd.DataFrame) -> list[str]:
 def latest_date(df: pd.DataFrame) -> str | None:
     """The newest analysis date in the book, UNBOUNDED.
 
-    Correct for reconcile.py's callers, which are describing fills that have
+    Correct for s02_reconcile.py's callers, which are describing fills that have
     already happened. NOT correct for the deploy card — see
     `latest_date_on_or_before`, which is what `recommend` must use.
     """

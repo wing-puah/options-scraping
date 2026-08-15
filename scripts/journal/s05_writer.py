@@ -1,5 +1,5 @@
 """
-Persist journal rows to the TradeJournal Sheets tab and the local CSV.
+Step 5 — persist journal rows to the TradeJournal Sheets tab and the local CSV.
 
 PRODUCTION TIER. Two destinations, deliberately:
 

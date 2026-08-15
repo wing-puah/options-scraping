@@ -1,7 +1,7 @@
 """
 Barchart fallback for the open book's greeks, when the broker pull carries none.
 
-PRODUCTION TIER. `pull.py`'s IBKR path gets `delta`/`gamma`/`theta`/`vega`/`iv`
+PRODUCTION TIER. `s01_pull.py`'s IBKR path gets `delta`/`gamma`/`theta`/`vega`/`iv`
 straight from the Client Portal snapshot endpoint. An IBKR **Flex CSV** export is
 a second, offline way to build a `RawPull` (exact fills and positions, conid-keyed
 identity) but it carries NO greeks at all — Flex is a settlement/activity export,
@@ -24,7 +24,7 @@ marking today's book off tomorrow's close, an error this repo treats as a
 correctness bug (the same posture `scripts/backtest_study/harness.py` takes on
 entry pricing). When the exact `as_of` row is absent, the fetch falls back to the
 latest row ON OR BEFORE it and the staleness is logged (not stored — the rawpull
-`Greek` shape has no field for it; `rawpull.py` is not this file's to change).
+`Greek` shape has no field for it; `lib/rawpull.py` is not this file's to change).
 
 IV UNIT CONVENTION: Barchart's `IV` column is a percent string (e.g. "45.20%").
 Most %/share-type fields in this repo are stored as decimal fractions (the
@@ -58,7 +58,7 @@ from lib.barchart.session import BarchartSession
 from lib.parsing import to_float
 
 from . import rawpull
-from .config import DELTA_SOURCE_BARCHART, DELTA_SOURCE_UNAVAILABLE
+from ..config import DELTA_SOURCE_BARCHART, DELTA_SOURCE_UNAVAILABLE
 
 log = logging.getLogger(__name__)
 
@@ -265,7 +265,7 @@ def enrich(raw: dict, *, as_of: date, cache_dir: Path | None = None,
     Calls `rawpull.validate()` before returning either way, so a malformed
     enrichment (e.g. a `DELTA_SOURCE_BARCHART` row with a null delta — should
     never happen given the logic above, but the invariant is cheap to check
-    twice) fails loudly here rather than surfacing downstream in risk.py.
+    twice) fails loudly here rather than surfacing downstream in s03_risk.py.
     """
     if dry_run:
         contracts = raw.get("contracts") or {}

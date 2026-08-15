@@ -2,7 +2,7 @@
 Prompt + response contract for the ONE judgment call in the daily trade
 journal — "does today's context still support the deploy card's survivors?"
 
-PRODUCTION TIER, no network of its own. `recommend.py` is the only caller and
+PRODUCTION TIER, no network of its own. `s06_recommend.py` is the only caller and
 it owns the actual `claude -p` subprocess (mirrors `run_engine()` /
 `_invoke_claude()` in `scripts/analysis_pipeline/core.py`); this module only
 builds the prompt text and parses the response shape.
@@ -95,7 +95,7 @@ def build_prompt(candidates: list[dict], hedge_candidates: list[dict], context: 
 
     `candidates` / `hedge_candidates` are plain dicts (see
     `recommend.Candidate.to_prompt_dict()`) — this module has no dependency on
-    recommend.py's dataclasses or tier logic, only on the field names above.
+    s06_recommend.py's dataclasses or tier logic, only on the field names above.
     """
     cand_text = "\n".join(_candidate_block(c) for c in candidates) or "(none)"
     hedge_text = "\n".join(_candidate_block(c) for c in hedge_candidates) or "(none)"

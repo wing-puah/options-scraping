@@ -13,7 +13,7 @@ from datetime import date
 
 import pytest
 
-from scripts.journal import book
+from scripts.journal.lib import book
 from scripts.journal.config import DELTA_SOURCE_IBKR, Greeks
 
 AS_OF = date(2026, 8, 14)

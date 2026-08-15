@@ -1,8 +1,9 @@
 """
-Mark the open book for delta exposure and check it against the deployment caps.
+Step 3 — mark the open book for delta exposure and check it against the
+deployment caps.
 
 PRODUCTION TIER, pure computation — no network, no I/O beyond reading
-`config/account-sim.yml`. Feed it positions plus the greeks `pull.py` fetched
+`config/account-sim.yml`. Feed it positions plus the greeks `s01_pull.py` fetched
 and it returns `PositionRisk` records and a `BookRisk` summary.
 
 WHERE THE CAPS COME FROM. `config/account-sim.yml` sets `caps.per_position`
@@ -23,7 +24,7 @@ generalised across legs — a spread's delta-notional is the sum of its legs'
 signed contributions, which reduces to the single-leg form for a naked option.
 
 WHAT THE PER-POSITION CAP BINDS ON: the signed sum of `delta_notional` across
-every position on a TICKER, not each position alone. `book.py` groups open legs
+every position on a TICKER, not each position alone. `lib/book.py` groups open legs
 by (underlying, expiry), so a core vertical and the shorter-dated short leg sold
 to finance it land in two different groups — and that short leg exists precisely
 to cut the ticker's directional exposure. Checking each group alone reports a

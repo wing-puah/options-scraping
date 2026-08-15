@@ -10,9 +10,9 @@ import io
 
 import pytest
 
-from scripts.journal import flexparse
+from scripts.journal.lib import flexparse
 from scripts.journal.config import DELTA_SOURCE_UNAVAILABLE
-from scripts.journal.flexparse import FlexParseError
+from scripts.journal.lib.flexparse import FlexParseError
 
 HEADER = ("Description,UnderlyingSymbol,Open/CloseIndicator,Quantity,TradePrice,"
           "CostBasis,FifoPnlRealized,Strike,Expiry,DateTime,Put/Call,AssetClass,"
@@ -686,7 +686,7 @@ def test_a_declared_position_with_no_matching_fill_still_validates():
     raw = flexparse.parse(trades, positions_source=positions)
     assert any(p["conid"] == 999 for p in raw["positions"])
     assert "999" in raw["contracts"]
-    from scripts.journal import rawpull
+    from scripts.journal.lib import rawpull
     rawpull.validate(raw)  # must not raise
 
 

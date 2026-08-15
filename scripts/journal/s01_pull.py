@@ -3,7 +3,7 @@ Step 1 — pull the day's fills, the open book, equity and greeks from IBKR.
 
 PRODUCTION TIER. The ONLY module in this package that touches the network or
 imports `lib.ibkr`; everything downstream reads the normalised file this writes
-(see `rawpull.py`). Swapping broker transport is a change here and nowhere else.
+(see `lib/rawpull.py`). Swapping broker transport is a change here and nowhere else.
 
 ONE TRANSPORT. `pull_flex()` reads a Flex statement — fetched with a token
 (`lib.ibkr.flex`, the default) or read off disk from an export the operator
@@ -38,7 +38,7 @@ import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from . import flexparse, rawpull
+from .lib import flexparse, rawpull
 from .config import FLEX_INPUT_DIR, FLEX_INPUT_GLOB, GREEKS_CACHE_DIR, RAW_DIR
 
 log = logging.getLogger(__name__)
@@ -205,7 +205,7 @@ def pull_flex(sources=None, *, use_web_service: bool,
                     "unpriced and the exposure totals will be a floor")
         return parsed
 
-    from . import greeks as greeks_mod
+    from .lib import greeks as greeks_mod
     return greeks_mod.enrich(parsed, as_of=as_of or date.fromisoformat(parsed["trade_date"]),
                              cache_dir=GREEKS_CACHE_DIR)
 

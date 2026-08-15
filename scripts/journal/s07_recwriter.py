@@ -1,11 +1,12 @@
 """
-Persist the deploy card to the Recommendations Sheets tab and the local CSV.
+Step 7 — persist the deploy card to the Recommendations Sheets tab and the
+local CSV.
 
-PRODUCTION TIER. The card that `recommend.py` builds used to be printed and
+PRODUCTION TIER. The card that `s06_recommend.py` builds used to be printed and
 thrown away; this module is what makes it a RECORD — the thing you can look at a
 month later and ask "did I do what the card said, and was the card right".
 
-Two destinations, deliberately, exactly as `writer.py` does it:
+Two destinations, deliberately, exactly as `s05_writer.py` does it:
 
   * `journal/recommendations.csv` — written FIRST and independently, so a Sheets
     outage or a revoked credential can never cost you the card. Gitignored.
@@ -14,7 +15,7 @@ Two destinations, deliberately, exactly as `writer.py` does it:
     recommended, what was actually traded) and splitting the workbooks would
     mean sharing one without the other.
 
-DELIBERATELY NOT SHARED WITH writer.py. Every helper there is `source_ref`- and
+DELIBERATELY NOT SHARED WITH s05_writer.py. Every helper there is `source_ref`- and
 TradeJournal-shaped by name and by body — the key it dedupes on, the tab it
 reads, the `fieldnames=JOURNAL_COLUMNS` it writes. Generalising them over
 (key, tab, columns) would mean editing the one module whose failure loses the
@@ -140,12 +141,12 @@ def _rejected_row(r, ctx: RecContext) -> dict:
 
 
 def _regime_label(regime) -> str:
-    from .recommend import _regime_label as label
+    from .s06_recommend import _regime_label as label
     return label(regime)
 
 
 def _play_headline(play) -> str:
-    from .recommend import _play_headline as headline
+    from .s06_recommend import _play_headline as headline
     return headline(play)
 
 

@@ -31,7 +31,7 @@ import pytest  # noqa: E402
 from scripts.backtest_study import live_select as LS  # noqa: E402
 from scripts.backtest_study import run as study_runner  # noqa: E402
 from scripts.backtest_study.account_sim import positions_artifact  # noqa: E402
-from scripts.journal import recommend  # noqa: E402
+from scripts.journal import s06_recommend as recommend  # noqa: E402
 from scripts.journal.config import DELTA_SOURCE_BARCHART  # noqa: E402
 
 

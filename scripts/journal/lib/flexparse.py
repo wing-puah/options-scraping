@@ -5,7 +5,7 @@ PRODUCTION TIER, and deliberately dependency-free on the network: this module
 turns a CSV that already exists on disk into the exact dict `rawpull.validate()`
 accepts, so every downstream step (`reconcile`, `risk`, `report`, `writer`) runs
 unchanged. It is the second broker transport, sitting beside the Client Portal
-path in `pull.py` — see that module's note that swapping transport is a change
+path in `s01_pull.py` — see that module's note that swapping transport is a change
 there and nowhere else.
 
 WHY A SECOND SOURCE. The Client Portal path needs a locally-run Gateway that
@@ -15,7 +15,7 @@ exports by hand. The trade-off is what the report carries, and the two gaps are
 load-bearing enough to state up front:
 
   * NO GREEKS. A Flex statement has no delta, so exposure for this path is
-    enriched separately from Barchart (`greeks.py`). Until that runs, every
+    enriched separately from Barchart (`lib/greeks.py`). Until that runs, every
     position is `delta_source=unavailable` — never zero. See the missing/zero
     invariant in config.py.
   * NO OPEN-POSITIONS SECTION in a trades-only query — CONDITIONALLY. Without
@@ -73,7 +73,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import rawpull
-from .config import DELTA_SOURCE_UNAVAILABLE
+from ..config import DELTA_SOURCE_UNAVAILABLE
 
 log = logging.getLogger(__name__)
 

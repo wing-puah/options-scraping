@@ -3,7 +3,7 @@ Step 2 — group the day's fills into positions, classify each one, and match it
 against the analysis that (maybe) proposed it.
 
 PRODUCTION TIER, pure computation. Reads a validated rawpull dict (see
-rawpull.py) plus the analysis book (see analysis.py) and returns
+lib/rawpull.py) plus the analysis book (see lib/analysis.py) and returns
 `list[PositionEvent]` (see config.py) — no network, no Sheets, no file writes.
 
 THIS IS THE DAILY COUNTERPART OF `scripts/live_loop/stage1_map_fills.py`.
@@ -35,9 +35,10 @@ from datetime import date as _date
 from datetime import datetime as _datetime
 from pathlib import Path
 
-from . import analysis, risk
+from . import s03_risk as risk
+from .lib import analysis
 from .config import Leg, OPTION_MULTIPLIER, PositionEvent
-from .rawpull import contract_for, fill_to_leg, greeks_map
+from .lib.rawpull import contract_for, fill_to_leg, greeks_map
 
 try:  # `python3 -m scripts.journal...` — ROOT is on sys.path
     from scripts.live_loop import mapping
@@ -249,7 +250,7 @@ def _parse_expiry(v) -> _date | None:
 def _positions_adapter(raw: dict) -> list[dict]:
     """The open book in `classify_structure()`'s `positions` shape.
 
-    `pull.py` only ever writes OPTION positions into `raw["positions"]`
+    `s01_pull.py` only ever writes OPTION positions into `raw["positions"]`
     (`_is_option()` filters stock rows before the pull is built), so
     `is_option` is unconditionally True here. Expiry is parsed to a `date`
     (matching Leg.expiry) rather than left as the raw "YYYY-MM-DD" string —
@@ -364,7 +365,7 @@ def _short_leg_delta_for_tier(action: str, legs: list[Leg], greeks: dict):
     """A real short-leg delta ONLY for a currently-open position.
 
     "Currently open" is read off the pull itself, not off our own action
-    classification: `pull.py` populates `raw["greeks"]` for the OPEN book
+    classification: `s01_pull.py` populates `raw["greeks"]` for the OPEN book
     only, so a leg's conid appearing there already means the broker still
     shows the position open. A CLOSE is excluded outright regardless (its
     legs are typically gone from the book by the time of the pull, but a
@@ -491,7 +492,7 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
     action, action_notes = _classify_action(legs)
     notes.extend(action_notes)
 
-    # All-or-nothing across legs, the same rule risk.py applies to delta: a
+    # All-or-nothing across legs, the same rule s03_risk.py applies to delta: a
     # group is only as costed as its least-costed leg. Summing the known legs
     # and calling the rest zero would report a total that looks whole.
     commission = (None if any(lg.commission is None for lg in legs)
@@ -547,7 +548,7 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
                      "position — not a play attempt, excluded from the match tally")
 
     # Market-level reads keyed on the SIGNAL date, never a play row — the
-    # invariant analysis.py's docstring pins.
+    # invariant lib/analysis.py's docstring pins.
     event.market_regime = regime_by_date.get(event.signal_date)
     event.mech_cell = mech_cell_by_date.get(event.signal_date)
 
