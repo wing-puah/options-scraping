@@ -42,7 +42,7 @@ DEFAULT_ENGINE = "claude"
 
 # Ticker-focused runs (--tickers) write here instead of the engine's daily tab,
 # so focused one-off analyses never mix with the full-market daily runs that
-# backtest.py / `/options summary` read. Auto-created by sheets_client.append_rows.
+# backtest.py reads. Auto-created by sheets_client.append_rows.
 TICKER_SPECIFIC_TAB = "AnalysisTickerSpecific"
 
 
@@ -72,7 +72,7 @@ FRAMEWORK_FILE = ROOT / "config/prompts/analysis-framework.md"
 
 
 # ──────────────────────────── Sheets schema ────────────────────────
-# Column order MUST match the AnalysisClaude / AnalysisGPT header exactly —
+# Column order MUST match the AnalysisClaude / AnalysisTickerSpecific header exactly —
 # sheets_client.append_rows writes values positionally, and backtest.py reads
 # these names. Changing this means also updating the sheet header AND
 # analysis_to_rows() in core.py.

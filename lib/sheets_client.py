@@ -167,11 +167,6 @@ def get_all_values(tab: str) -> tuple[list[str], list[list[str]]]:
     return values[0], values[1:]
 
 
-def get_recent_rows(tab: str, n: int = 100) -> list[dict]:
-    all_rows = get_all_rows(tab)
-    return all_rows[-n:] if len(all_rows) > n else all_rows
-
-
 def _sanitize(v):
     """Replace non-JSON-compliant floats (nan/inf) with empty string."""
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):

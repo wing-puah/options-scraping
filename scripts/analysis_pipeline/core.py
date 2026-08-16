@@ -522,7 +522,7 @@ def main(argv: list[str] | None = None) -> None:
     model = args.model or cfg.default_model
     focus_tickers = [t.strip() for t in args.tickers.split(",") if t.strip()] if args.tickers else None
     # Ticker-focused runs route to a dedicated tab so they don't mix with the
-    # full-market daily runs that backtest.py / `/options summary` read.
+    # full-market daily runs that backtest.py reads.
     tab = config.TICKER_SPECIFIC_TAB if focus_tickers else cfg.tab
     framework_md = ""
     method_md = ""

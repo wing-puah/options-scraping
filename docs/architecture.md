@@ -5,7 +5,7 @@ Detailed per-file responsibilities, data contracts, and resume/idempotency seman
 `lib/` or `scripts/` code**, and keep this file in sync when responsibilities move.
 
 Sections: File layout · Research tier (studies) · Daily trade journal · Command variants ·
-`/options analyze` data contract.
+Analysis pipeline data contract.
 
 ## File layout (detailed)
 
@@ -775,13 +775,13 @@ Two exclusions worth knowing:
   design; skipping a few KB is cheaper than carving an exception into a rule whose whole
   value is having none.
 
-## `/options analyze` — full data-contract detail
+## Analysis pipeline — full data-contract detail
 
-`analyze` shells out to `python3 -m scripts.analysis_pipeline` (does NOT analyze
-in-context). The LLM step is an isolated session so the framework/method/raw data never
-enter the calling agent's context. Model-agnostic via `--engine`: `claude` (default, the
-only registered engine; the `codex` engine → AnalysisGPT was retired 2026-08-13) uses
-`claude -p` + `claude.md` → AnalysisClaude. All operator-tunable settings live in
+`python3 -m scripts.analysis_pipeline` (or `make analyze`) is the only way an analysis is
+produced — it is never done in-context. The LLM step is an isolated headless session, so the
+framework/method/raw data never enter the calling agent's context. Model-agnostic via
+`--engine`: `claude` is the only registered engine and uses `claude -p` + `claude.md` →
+AnalysisClaude. All operator-tunable settings live in
 `scripts/analysis_pipeline/config.py`; `--model` overrides (default claude→`claude-opus-5`).
 
 The prepared rollup carries, per ticker:

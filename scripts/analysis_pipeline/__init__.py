@@ -1,7 +1,7 @@
 """
 Options flow analysis pipeline (script-first, model-agnostic).
 
-Source of truth for `/options analyze`. Run it as a module:
+The sole entry point for producing an analysis. Run it as a module:
 
     python3 -m scripts.analysis_pipeline                  # latest date, claude → AnalysisClaude
     python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run

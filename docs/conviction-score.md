@@ -187,7 +187,7 @@ read-off-the-row pattern as `IVpct`. Neither is a conviction-score component nor
 part of the market read: `PxVec` is the deterministic price signal a trend
 play's direction should agree with (a mean-reversion play deliberately opposes
 it), and `Earn` is the primary dated catalyst. Both also land on the
-`AnalysisClaude`/`AnalysisGPT`/`AnalysisTickerSpecific` rows as the snake_case
+`AnalysisClaude`/`AnalysisTickerSpecific` rows as the snake_case
 `price_vector`/`days_to_earnings` columns, joined onto each play row by ticker at
 row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
 
@@ -200,8 +200,8 @@ row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
 | 6–8   | candidate   |
 | 9+    | high-conv   |
 
-`Score`/`ScoreLabel` also land on the `AnalysisClaude`/`AnalysisGPT`/
-`AnalysisTickerSpecific` sheet rows, as `ConvictionScore`/`ConvictionScoreLabel`
+`Score`/`ScoreLabel` also land on the `AnalysisClaude`/`AnalysisTickerSpecific`
+sheet rows, as `ConvictionScore`/`ConvictionScoreLabel`
 columns (previously only in the audit CSV) — joined onto each play row by
 ticker at row-expansion time, the same mechanism already used for
 `oi_confirm_pct`/`cpir`/`iv_spread`/`iv_pct`.

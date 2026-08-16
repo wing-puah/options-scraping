@@ -46,7 +46,7 @@ samples whatever holding horizons it wants from that path.
 Per-ticker signal context from that signal date's scored rollup, kept separate from
 the model's `signal` evidence. As of the analysis-pipeline change these are written
 onto the analysis row itself at analysis time (the `oi_confirm_pct` / `cpir` /
-`iv_spread` columns on AnalysisClaude / AnalysisGPT), so the backtest reads them
+`iv_spread` columns on AnalysisClaude / AnalysisTickerSpecific), so the backtest reads them
 straight off the row. For rows written before those columns existed, the backtest
 backfills from `audit/<date>-rollup.csv` by `(signal_date, ticker)`
 (`_attach_rollup_metrics` in [`scripts/backtest/core.py`](../scripts/backtest/core.py));

@@ -19,8 +19,8 @@ navigate; put new prose where its reader will look for it.
 foldered `f1_selection/`…`f4_deployment/` to mirror `scripts/backtest_study/`), `deployment-evidence.md`, `study-map.md`, `glossary.md` | yes |
 | `site/` | GENERATED HTML — study map, study-chart pages, journal pages. Rebuilt by `make study-docs` | **no** (gitignored) |
 
-Pinned at the repo root and not movable: `CLAUDE.md`, `SKILL.md`, `GEMINI.md`, `modes/` — the
-root IS the `/options` skill (`~/.claude/skills/options` symlinks here).
+Pinned at the repo root and not movable: `CLAUDE.md` and `GEMINI.md` — agent config, which the
+tooling only reads from the root.
 
 Reorganized 2026-08-15. `docs/` used to be the gitignored generated-output folder and
 `config/backtest-tuning/` used to be the research log; both are now what their names say. Adding
@@ -195,7 +195,7 @@ Barchart.com
 Google Drive (OAuth2 personal account)      {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD}/{prefix}-{YYYYMMDD}-{HHMM}.csv
     │ scripts/analysis_pipeline/fetch.py → markdown to LLM
     ▼
-Claude Code: /options analyze ──► AnalysisClaude tab
+python3 -m scripts.analysis_pipeline (headless LLM step) ──► AnalysisClaude tab
     ▼
 Google Sheets (service account) ──► Next.js Dashboard (web/)
 ```
@@ -228,8 +228,8 @@ scripts/                    ← entry points, each maps to a workflow step
   collector/                — scrape_flow, enrich_oi, fetch_iv_percentile, fetch_counterpart_iv,
                               fetch_price_catalyst, fetch_underlying_ohlc, fetch_counterpart_history
   compile_flow.py / gc_flow.py / build_baseline.py / backfill_mech_cell.py / align_tab_headers.py
-  analysis_pipeline/        — fetch → headless engine → Sheets; source of truth for /options
-                              analyze; config.py = ALL user-tunable settings
+  analysis_pipeline/        — fetch → headless engine → Sheets; the sole entry point for
+                              producing an analysis; config.py = ALL user-tunable settings
   backtest/                 — leg-based backtest of analysis plays; proxy.py = fallback-chain
                               proxy for skipped plays; shared/ internals used by both
   journal/                  — PRODUCTION daily loop. The listing IS the flow: files are named
@@ -258,12 +258,11 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ## Google Sheets tabs
 
-- **AnalysisClaude** — `/options analyze` output, one row per ticker/play per run. Also carries
-  deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/
+- **AnalysisClaude** — `scripts.analysis_pipeline` output, one row per ticker/play per run. Also
+  carries deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/
   `iv_pct`) joined from that date's audit rollup CSV at row-expansion time — NOT
   model-produced, appended at the end of `ROW_COLUMNS`.
 - **AnalysisTickerSpecific** — `--tickers` runs; same row schema, kept separate.
-- **AnalysisGPT** — retired 2026-08-13 (historical rows only; nothing writes to it).
 - **BacktestResults** / **BacktestProxy** — `backtest.py` / `backtest/proxy.py` (proxy rows:
   skip_reason + fallback-chain verdict; result columns mirror BacktestResults).
 - **BaselineDaily** — one market-aggregate row per trading date. NOT versioned — regime
@@ -362,25 +361,23 @@ two prompt versions are never pooled.
   from BOTH sides of the matched/unmatched ratio. An ambiguous multi-leg group is reported
   undecidable rather than decomposed on a guess.
 
-## Skill modes
+## Analysis pipeline
 
-`/options` routes: `analyze` shells out to `python3 -m scripts.analysis_pipeline` (never
-analyzes in-context — the LLM step is an isolated session so framework/method/raw data never
-enter the calling agent's context; `--engine claude` is the only registered engine, `--model`
-overrides). `modes/summary.md` formats latest AnalysisClaude rows. `modes/positions.md`
-cross-references live positions against latest flow.
+Analysis is produced ONLY by `python3 -m scripts.analysis_pipeline` (or `make analyze`) — never
+in-context. The LLM step is an isolated headless session, so the framework, method file, and raw
+flow data never enter the calling agent's context. `--engine claude` is the only registered
+engine; `--model` overrides its default.
 
 The analysis framework (`config/prompts/analysis-framework.md`) defines the 5-step process — regime
 classification (macro optional, only when corroborated), signal tagging, sector narrowing,
 play proposals, invalidation — output JSON keys: `regime`, `signals`, `themes`, `plays`,
 `invalidation`. Per-model judgment lives in `config/prompts/analysis-methods/`. The full data contract
-(rollup columns, score components, bands) is in `docs/architecture.md` §"/options analyze" and
+(rollup columns, score components, bands) is in `docs/architecture.md` §"Analysis pipeline" and
 `docs/conviction-score.md` — read those only when changing the pipeline or its schema.
 
 ## Configuration files
 
 - `.env` — credentials and paths (`.env.example` lists all required vars)
-- `config/positions.yml` — open options positions for position review
 - `config/backtest.yml` — backtest settings (tab, entry side, path cap, exits, pricing
   fallbacks). No signal filter — the analysis is the filter.
 - `config/account-sim.yml` — RESEARCH tier; the `account_sim` study's whole parameter surface

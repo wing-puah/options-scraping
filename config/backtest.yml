@@ -18,10 +18,9 @@
 
 # ── Analysis source ────────────────────────────────────────────────────────────
 analysis:
-  # Which analysis tab to backtest. Populate it first via /options analyze in
-  # range mode (which appends one analysis per date) so there is history to test.
-  #   AnalysisClaude — Claude Code analyses
-  #   AnalysisGPT    — GPT Codex analyses
+  # Which analysis tab to backtest. Populate it first with a range run —
+  # `python3 -m scripts.analysis_pipeline --start … --end …` appends one analysis
+  # per date — so there is history to test.
   tab: AnalysisClaude
 
 # ── Entry matching ─────────────────────────────────────────────────────────────

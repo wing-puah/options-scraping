@@ -59,7 +59,7 @@ Google Drive (OAuth2 personal account)
     │
     │ scripts/analysis_pipeline/fetch.py → markdown to the engine
     ▼
-Claude Code  (/options analyze)  ──► AnalysisClaude tab   (Google Sheets, same OAuth2 token)
+scripts/analysis_pipeline (headless LLM step) ──► AnalysisClaude tab   (Google Sheets, same OAuth2 token)
     │
     ├─► scripts/backtest        ──► BacktestResults / BacktestProxy tabs
     │       └─► CSV exports in backtests/to_evaluate/ (era-scoped)
@@ -177,35 +177,12 @@ the in-script market-hours guard exits cleanly if run before the open.
 > history; the only stale trace left is three `web/*` lines in `.gitignore`. Read results out
 > of the Sheets tabs, or out of the generated pages in `site/`.
 
-## Skill commands
-
-```bash
-/options analyze     # fetch → headless engine → write Sheets
-/options summary     # display latest stored analysis (no token cost)
-/options positions   # cross-reference open positions against latest flow
-```
-
-`/options analyze` shells out to `python3 -m scripts.analysis_pipeline`; the LLM step runs in
-an isolated headless session so the framework/raw data never enter the calling agent's
-context. `--engine claude` is the only registered engine; `--model` overrides the default.
-Operator-tunable settings live in `scripts/analysis_pipeline/config.py`; the prompt itself is
-assembled from `config/prompts/`.
-
-`/options positions` reads the open book from `config/positions.yml`. **Its sync step is
-broken:** `modes/positions.md` still shells out to `scripts/sync_positions.py` to pull an
-`OpenPositions` *tab* from the journal workbook, and that script does not exist (and never
-did, in git history). The only real `OpenPositions` in this repo is the IBKR Flex statement
-section that `scripts/journal` parses — a different thing entirely. Until the mode is fixed,
-maintain `config/positions.yml` by hand, or read the live book out of the journal run.
-
-### Scheduled analysis
-
-```
-/schedule options-analyze-morning: run /options analyze every weekday at 11:00 AM ET
-/schedule options-analyze-eod: run /options analyze every weekday at 4:30 PM ET
-```
-
-These use your Claude Code subscription (no Anthropic API billing).
+> **There is no `/options` skill.** This repo used to double as a Claude Code skill
+> (`SKILL.md` + `modes/`, symlinked from `~/.claude/skills/options`) exposing
+> `/options analyze | summary | positions`. That layer was removed — the repo is now a plain
+> Python project. Run the pipeline directly (see below) or via `make analyze`. The `summary`
+> and `positions` modes are gone entirely: read stored analyses out of the Sheets tabs, and
+> the live book out of `python3 -m scripts.journal`.
 
 ## Data pipeline (manual / backfill)
 
@@ -236,13 +213,18 @@ python3 scripts/collector/fetch_mech_regime.py
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
 
-# Full analysis pipeline directly (without the skill)
+# Full analysis pipeline: fetch → headless engine → write Sheets
 python3 -m scripts.analysis_pipeline --date 2026-04-21
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific
 python3 -m scripts.analysis_pipeline --fetch-only     # fetch + audit CSV only, no LLM
 ```
 
-`make help` lists the Makefile wrappers for all of the above (`make enrich-all`,
+The analysis pipeline runs its LLM step in an isolated headless session, so the framework and
+raw flow data never enter the calling agent's context. `--engine claude` is the only registered
+engine; `--model` overrides its default. Operator-tunable settings live in
+`scripts/analysis_pipeline/config.py`; the prompt itself is assembled from `config/prompts/`.
+
+`make help` lists the Makefile wrappers for all of the above (`make analyze`, `make enrich-all`,
 `make compile ARGS="--date …"`, and so on).
 
 ### Research-tier caches
@@ -427,9 +409,8 @@ the flow data.
 
 | Tab                   | Written by                                                                    |
 | --------------------- | ----------------------------------------------------------------------------- |
-| AnalysisClaude        | `/options analyze` — one MARKET row plus one row per ticker/play per run       |
+| AnalysisClaude        | `scripts/analysis_pipeline` — one MARKET row plus one row per ticker/play per run |
 | AnalysisTickerSpecific| `--tickers` runs; same row schema, kept separate                              |
-| AnalysisGPT           | retired 2026-08-13 — historical rows only; nothing writes to it               |
 | BaselineDaily         | `build_baseline.py` — one market-aggregate row per trading date; not versioned |
 | BacktestResults       | `scripts/backtest` (optional)                                                 |
 | BacktestProxy         | `scripts/backtest/proxy.py` — skipped plays, with skip_reason + fallback verdict |
@@ -465,6 +446,6 @@ unlabelled trailing column. `python3 scripts/align_tab_headers.py --dry-run` che
   gitignored too but is **not** all disposable — see the research-tier section above.
 - The `.gitignore` rule for the journal is anchored (`/journal/`) on purpose: a bare
   `journal/` would also exclude `scripts/journal/`, the pipeline's own source.
-- `make analyze-gpt` is **dead** — it passes `--engine codex`, and `codex` was removed from
-  `ENGINES` when that engine was retired, so the target fails. `claude` is the only registered
-  engine; `AnalysisGPT` holds historical rows only.
+- The `AnalysisGPT` tab still exists in the spreadsheet with historical v3/v4 rows, but the
+  `codex` engine that wrote it was retired 2026-08-13 and every reference to it has been
+  removed from the code and docs. `claude` is the only registered engine.

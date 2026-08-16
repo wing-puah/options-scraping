@@ -85,10 +85,6 @@ align-headers:
 analyze: 
 	$(PY) -m scripts.analysis_pipeline $(ARGS)
 
-.PHONY: analyze-gpt
-analyze-gpt: 
-	$(PY) -m scripts.analysis_pipeline --engine codex $(ARGS)
-
 # ── analyze then full backtest ───────────────────────────────────────────────────
 .PHONY: analyze-bt
 analyze-bt: analyze backtest-all
@@ -358,7 +354,6 @@ help:
 	@echo "  make enrich-all ARGS=\"--date 2026-06-10\"  (same ARGS passed to all four)"
 	@echo ""
 	@echo "  make analyze       run analysis pipeline (Claude)"
-	@echo "  make analyze-gpt   run analysis pipeline (GPT)"
 	@echo "  make analyze ARGS=\"--date 2026-02-14\"  (or --start/--end/--days/--dry-run/--model)"
 	@echo ""
 	@echo "  make analyze-bt    analyze, then backtest-all (real + proxy + chart)"

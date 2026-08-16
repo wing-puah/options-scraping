@@ -4,9 +4,9 @@
 stopped short of the schema mislabels every column after the gap — and any
 column-keyed write (e.g. `add_or_update_column`) lands in the wrong place. This
 is the failure CLAUDE.md warns about when a column is appended to ROW_COLUMNS:
-the tab header must gain it too. AnalysisGPT and AnalysisTickerSpecific had both
-drifted (missing `iv_pct`, `price_vector`, `days_to_earnings`, `iv_skew`,
-`score_catalyst`; old CamelCase conviction names), which is what this repairs.
+the tab header must gain it too. The analysis tabs had drifted (missing `iv_pct`,
+`price_vector`, `days_to_earnings`, `iv_skew`, `score_catalyst`; old CamelCase
+conviction names), which is what this repairs.
 
 SAFETY: values are never moved between columns. A tab is repaired only when every
 data cell to the right of the last agreeing header column is EMPTY, apart from

@@ -290,7 +290,8 @@ def main() -> None:
     log.info("Loading analysis plays from tab '%s'", tab)
     candidates, market_regime = _load_analysis(tab, start, end)
     if not candidates:
-        log.warning("No plays found in '%s' — run /options analyze first to populate it", tab)
+        log.warning("No plays found in '%s' — run `python3 -m scripts.analysis_pipeline` "
+                    "first to populate it", tab)
         sys.exit(0)
 
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.
