@@ -51,7 +51,7 @@ from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
 from lib.parsing import to_float
 from lib.csv_utils import normalize_flow_rows, parse_csv
-from lib.drive_client import get_drive_client
+from lib.drive_client import FlowCorpus, get_drive_client
 from lib.counterpart_iv import (
     COUNTERPART_COLUMNS,
     contract_key,
@@ -103,32 +103,30 @@ def _compiled_flow_rows(client, date_str: str) -> list[dict]:
     return normalize_flow_rows(rows, date.fromisoformat(date_str))
 
 
-def _compiled_dates(client) -> list[str]:
-    folders = client.list_date_folders()
-    out = []
-    for d in sorted(folders):
-        has_compiled = any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES)
-        has_single = any(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES)
-        if has_compiled or has_single:
-            out.append(d)
-    return out
+# Date discovery shares enrich_oi's bounded corpus index (one build for the whole
+# corpus, not a probe per date) but NOT its predicate: the single-snapshot fallback
+# below accepts a date where ANY prefix has exactly one snapshot, where
+# enrich_oi._enrichable_dates requires it of ALL prefixes. That divergence predates
+# this index and is left as-is — the two are not interchangeable, so do not
+# "simplify" this into an import of _enrichable_dates.
+
+def _has_flow(index: FlowCorpus, date_str: str) -> bool:
+    """Compiled file on any prefix, or exactly one raw snapshot on any prefix."""
+    return (any(index.has_compiled(date_str, p) for p in FLOW_PREFIXES)
+            or any(index.snapshot_count(date_str, p) == 1 for p in FLOW_PREFIXES))
 
 
-def _latest_compiled_date(client) -> str | None:
-    """Newest compiled (or single-snapshot) date, walking newest-first.
+def _compiled_dates(client, index: FlowCorpus | None = None) -> list[str]:
+    """Every compiled (or single-snapshot) date, oldest → newest."""
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return [d for d in sorted(index.folders) if _has_flow(index, d)]
 
-    _compiled_dates() walks every date oldest-first to build the full --backfill
-    list; when a caller only wants the last element, that means a file_exists (+
-    list_files_for_date) round trip per prefix per date all the way from the
-    oldest folder. This stops at the first match instead.
-    """
-    folders = client.list_date_folders()
-    for d in sorted(folders, reverse=True):
-        has_compiled = any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES)
-        has_single = any(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES)
-        if has_compiled or has_single:
-            return d
-    return None
+
+def _latest_compiled_date(client, index: FlowCorpus | None = None) -> str | None:
+    """Newest compiled (or single-snapshot) date, or None if there is none."""
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return next((d for d in sorted(index.folders, reverse=True)
+                 if _has_flow(index, d)), None)
 
 
 def _load_sidecar(client, date_str: str) -> list[dict]:

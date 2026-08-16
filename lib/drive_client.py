@@ -16,7 +16,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import NamedTuple, Protocol
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -76,6 +76,69 @@ def file_name(prefix: str, dt: datetime | None = None) -> str:
     """Canonical filename: {prefix}-{YYYYMMDD}-{HHMM}.csv (ET time)."""
     dt = dt or datetime.now(ET)
     return f"{prefix}-{dt.strftime('%Y%m%d-%H%M')}.csv"
+
+
+# The naming convention, in ONE place. Both the per-folder path
+# (list_files_for_date) and the corpus-wide path (flow_corpus) decide "which date
+# is this, and is it a snapshot or a compiled file?" through classify_flow_name,
+# so the two can never disagree about a filename. The (\d{4}|compiled) alternation
+# is what keeps an HHMM stamp from ever reading as a compiled file, or vice versa.
+_FLOW_NAME_RE = re.compile(r"^(\d{8})-(\d{4}|compiled)\.csv$")
+
+SNAPSHOT, COMPILED = "snapshot", "compiled"
+
+
+def classify_flow_name(name: str, prefix: str) -> tuple[str, str] | None:
+    """Parse a flow filename into (YYYY-MM-DD, SNAPSHOT | COMPILED).
+
+    Returns None when `name` does not follow prefix's convention — a different
+    prefix, a malformed date or time, or any other file that happens to live in
+    the same folder. Callers treat None as "not part of the flow corpus".
+    """
+    if not name.startswith(f"{prefix}-"):
+        return None
+    m = _FLOW_NAME_RE.match(name[len(prefix) + 1:])
+    if not m:
+        return None
+    compact, kind = m.groups()
+    date_str = f"{compact[:4]}-{compact[4:6]}-{compact[6:]}"
+    return date_str, (COMPILED if kind == COMPILED else SNAPSHOT)
+
+
+def snapshot_files(files: list[dict], prefix: str, date_str: str) -> list[dict]:
+    """Filter a folder listing down to prefix's snapshots for date_str, oldest→newest.
+
+    The in-memory equivalent of DriveClient.list_files_for_date, for a caller that
+    already holds the folder's listing. Compiled files are excluded, so a compiled
+    output is never fed back in as input.
+    """
+    return sorted(
+        (f for f in files
+         if classify_flow_name(f["name"], prefix) == (date_str, SNAPSHOT)),
+        key=lambda f: f["name"],
+    )
+
+
+class FlowCorpus(NamedTuple):
+    """What flow files exist across the WHOLE corpus, built in a bounded number of
+    Drive calls (see DriveClient.flow_corpus).
+
+    `folders` is {YYYY-MM-DD: folder_id}, exactly list_date_folders()'s shape.
+    `files` is {date: {prefix: {"compiled": bool, "snapshots": int}}}; a date or
+    prefix absent from it simply has nothing, so read it through the accessors
+    below rather than indexing directly.
+    """
+
+    folders: dict[str, str]
+    files: dict[str, dict[str, dict]]
+
+    def has_compiled(self, date_str: str, prefix: str) -> bool:
+        """Does prefix have a compiled file on date_str?"""
+        return bool(self.files.get(date_str, {}).get(prefix, {}).get("compiled"))
+
+    def snapshot_count(self, date_str: str, prefix: str) -> int:
+        """How many raw snapshots prefix has on date_str (compiled files excluded)."""
+        return self.files.get(date_str, {}).get(prefix, {}).get("snapshots", 0)
 
 
 # ── DriveClient ───────────────────────────────────────────────────────────────
@@ -216,6 +279,25 @@ class DriveClient:
 
     _DATE_FOLDER_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+    def _paginate(self, q: str, fields: str, order_by: str | None = None) -> list[dict]:
+        """Every file matching q, following nextPageToken to the last page.
+
+        Drive returns a limited page by default; a query that reads all results
+        MUST paginate or it silently sees a truncated corpus.
+        """
+        params = {"q": q, "fields": f"nextPageToken, files({fields})", "pageSize": 1000}
+        if order_by:
+            params["orderBy"] = order_by
+        out: list[dict] = []
+        page_token = None
+        while True:
+            resp = self._svc.files().list(**params, pageToken=page_token).execute()
+            out.extend(resp.get("files", []))
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+        return out
+
     def list_date_folders(self) -> dict[str, str]:
         """{YYYY-MM-DD: folder_id} for every trading-day folder directly under the root.
 
@@ -226,21 +308,52 @@ class DriveClient:
         """
         q = (f"'{self._root}' in parents "
              f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
-        folders: dict[str, str] = {}
-        page_token = None
-        while True:
-            resp = self._svc.files().list(
-                q=q, fields="nextPageToken, files(id, name)", pageSize=1000,
-                pageToken=page_token,
-            ).execute()
-            for f in resp.get("files", []):
-                if self._DATE_FOLDER_RE.match(f["name"]):
-                    folders[f["name"]] = f["id"]
-            page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
+        folders = {f["name"]: f["id"] for f in self._paginate(q, "id, name")
+                   if self._DATE_FOLDER_RE.match(f["name"])}
         log.info("Found %d date folder(s) under Drive root", len(folders))
         return folders
+
+    def flow_corpus(self, prefixes: list[str]) -> FlowCorpus:
+        """Index what flow files exist for every date, in a BOUNDED number of calls.
+
+        One paginated query per prefix plus one for the date folders — roughly ten
+        round trips for the whole corpus, regardless of how many dates it holds.
+        The per-date alternative (a file_exists per prefix per date) costs two to
+        six calls PER DATE and grows without limit as the corpus does; that is what
+        this replaces.
+
+        A file is indexed only if its name follows the convention AND it sits
+        directly in the date folder its own name claims. The query has no parent
+        constraint (Drive cannot express "in any of these folders"), so this check
+        is what keeps a same-named file from elsewhere in the Drive — or one
+        misfiled under the wrong date — out of the index.
+        """
+        folders = self.list_date_folders()
+        files: dict[str, dict[str, dict]] = {}
+        skipped = 0
+        for prefix in prefixes:
+            q = (f"name contains '{prefix}-' and name contains '.csv' "
+                 f"and trashed = false")
+            for f in self._paginate(q, "id, name, parents"):
+                parsed = classify_flow_name(f["name"], prefix)
+                if parsed is None:
+                    continue
+                date_str, kind = parsed
+                # The file must live in the date folder its NAME claims — not merely
+                # in some known date folder.
+                if folders.get(date_str) not in (f.get("parents") or []):
+                    skipped += 1
+                    continue
+                entry = files.setdefault(date_str, {}).setdefault(
+                    prefix, {"compiled": False, "snapshots": 0})
+                if kind == COMPILED:
+                    entry["compiled"] = True
+                else:
+                    entry["snapshots"] += 1
+        log.info("Built flow corpus: %d date(s) with flow files across %d prefix(es)"
+                 "%s", len(files), len(prefixes),
+                 f" — {skipped} misfiled file(s) ignored" if skipped else "")
+        return FlowCorpus(folders=folders, files=files)
 
     def list_files_for_date(self, prefix: str, date_str: str) -> list[dict]:
         """All timestamped snapshot files for prefix on date_str (YYYY-MM-DD), oldest→newest.
@@ -254,16 +367,11 @@ class DriveClient:
         if folder_id is None:
             log.info("No date folder found for '%s' — 0 snapshots", date_str)
             return []
-        compact = date_str.replace("-", "")
-        pattern = re.compile(rf"^{re.escape(prefix)}-{compact}-\d{{4}}\.csv$")
         q = f"'{folder_id}' in parents and name contains '{prefix}-' and trashed = false"
         files = self._svc.files().list(
             q=q, fields="files(id, name, createdTime)", orderBy="name"
         ).execute().get("files", [])
-        files = sorted(
-            [f for f in files if pattern.match(f["name"])],
-            key=lambda f: f["name"],
-        )
+        files = snapshot_files(files, prefix, date_str)
         log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
         return files
 

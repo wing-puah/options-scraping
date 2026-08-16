@@ -405,14 +405,20 @@ def main() -> None:
 
     client = get_drive_client()
 
+    # Built only on the branches that DISCOVER dates, then reused by the "nothing
+    # enriched" tail — an explicit --date/--start never pays for a corpus scan.
+    index = None
     if args.backfill:
-        targets = _compiled_dates(client)
+        index = client.flow_corpus(FLOW_PREFIXES)
+        targets = _compiled_dates(client, index)
     elif args.date:
         targets = [args.date]
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        latest = _latest_compiled_date(client)  # latest compiled (no next-day hold-back)
+        index = client.flow_corpus(FLOW_PREFIXES)
+        # latest compiled (no next-day hold-back)
+        latest = _latest_compiled_date(client, index)
         targets = [latest] if latest else []
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
@@ -438,9 +444,14 @@ def main() -> None:
             print(f"  {r['date']}  {r['prefix']:<12} {r['status']}")
 
     if not enriched:
-        avail = _compiled_dates(client)
-        print(f"\n  Nothing enriched. Compiled dates in Drive: "
-              f"{', '.join(avail) if avail else '(none)'}")
+        # Only worth a corpus index when the operator did NOT name the dates.
+        if args.date or args.start:
+            print("\n  Nothing enriched for the requested date(s). Run with --backfill "
+                  "(or no date flags) to list every compiled date in Drive.")
+        else:
+            avail = _compiled_dates(client, index)
+            print(f"\n  Nothing enriched. Compiled dates in Drive: "
+                  f"{', '.join(avail) if avail else '(none)'}")
 
 
 if __name__ == "__main__":

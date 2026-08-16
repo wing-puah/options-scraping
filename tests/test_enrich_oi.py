@@ -1,10 +1,14 @@
 import asyncio
-from datetime import date
+import sys
+from datetime import date, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
+from lib.drive_client import DriveClient, FlowCorpus
+
 import enrich_oi
+from compile_flow import FLOW_PREFIXES
 from enrich_oi import (
     ALL_COLUMNS,
     ENRICH_COLUMNS,
@@ -160,27 +164,59 @@ def test_done_keys_uses_marker_not_data():
 
 # ── date enumeration ──────────────────────────────────────────────────────────
 
-def _client_with_compiled(dates_by_prefix):
-    """MagicMock client whose date folders + file_exists reflect the compiled files.
+def _client_with_compiled(dates_by_prefix, snapshots_by_prefix=None):
+    """MagicMock client whose flow_corpus() reflects the given files.
 
-    Mirrors the real folder-targeted lookup: list_date_folders() returns one folder per
-    date that has any compiled file, and file_exists(name, folder) hits only for a
-    compiled file that actually exists for that prefix/date.
+    Date discovery reads ONE bounded FlowCorpus index rather than probing Drive per
+    date, so flow_corpus() is the boundary to mock. `dates_by_prefix` is
+    {prefix: [date, ...]} of compiled files; `snapshots_by_prefix` is
+    {prefix: {date: count}} of raw snapshots.
     """
     client = MagicMock()
-    all_dates = sorted({d for ds in dates_by_prefix.values() for d in ds})
-    client.list_date_folders.return_value = {d: f"folder-{d}" for d in all_dates}
+    snapshots_by_prefix = snapshots_by_prefix or {}
+    all_dates = sorted({d for ds in dates_by_prefix.values() for d in ds}
+                       | {d for ds in snapshots_by_prefix.values() for d in ds})
+    files: dict[str, dict[str, dict]] = {}
 
-    def file_exists(name, folder_id):
-        for prefix, ds in dates_by_prefix.items():
-            for d in ds:
-                if (name == f"{prefix}-{d.replace('-', '')}-compiled.csv"
-                        and folder_id == f"folder-{d}"):
-                    return f"{prefix}-{d}"
-        return None
+    def _entry(date_str, prefix):
+        return files.setdefault(date_str, {}).setdefault(
+            prefix, {"compiled": False, "snapshots": 0})
 
-    client.file_exists.side_effect = file_exists
+    for prefix, ds in dates_by_prefix.items():
+        for d in ds:
+            _entry(d, prefix)["compiled"] = True
+    for prefix, counts in snapshots_by_prefix.items():
+        for d, n in counts.items():
+            _entry(d, prefix)["snapshots"] = n
+
+    client.flow_corpus.return_value = FlowCorpus(
+        folders={d: f"folder-{d}" for d in all_dates}, files=files)
     return client
+
+
+def _corpus_svc(dates):
+    """Mock Drive service serving `dates` worth of folders + compiled files.
+
+    Used to count the REAL number of Drive round trips date discovery costs.
+    """
+    folders = [{"id": f"folder-{d}", "name": d} for d in dates]
+
+    def _list(**kw):
+        resp = MagicMock()
+        if "google-apps.folder" in kw["q"]:
+            resp.execute.return_value = {"files": folders}
+        else:
+            prefix = kw["q"].split("name contains '")[1].split("-'")[0]
+            resp.execute.return_value = {"files": [
+                {"id": f"{prefix}-{d}",
+                 "name": f"{prefix}-{d.replace('-', '')}-compiled.csv",
+                 "parents": [f"folder-{d}"]}
+                for d in dates]}
+        return resp
+
+    svc = MagicMock()
+    svc.files.return_value.list.side_effect = _list
+    return svc
 
 
 def test_compiled_dates_unions_prefixes_and_sorts():
@@ -207,33 +243,73 @@ def test_latest_compiled_date_matches_last_of_full_list():
     assert _latest_compiled_date(client) == "2026-06-11"
 
 
-def test_latest_compiled_date_stops_at_first_match_newest_first():
-    """Regression: the old `_compiled_dates(client)[-1:]` pattern walked every date
-    oldest-first, costing a file_exists call per prefix per date just to find the
-    last one. The fast path must not touch dates older than the match it returns."""
-    client = _client_with_compiled({
-        "etfs-flow": ["2026-06-09", "2026-06-10", "2026-06-11"],
-        "stocks-flow": [],
-    })
-    assert _latest_compiled_date(client) == "2026-06-11"
-    checked_dates = {c.kwargs.get("folder_id", c.args[1] if len(c.args) > 1 else None)
-                     for c in client.file_exists.call_args_list}
-    assert checked_dates == {"folder-2026-06-11"}
-
-
 def test_latest_enrichable_date_matches_last_of_full_list():
     client = _client_with_compiled({
         "etfs-flow": ["2026-06-09", "2026-06-10", "2026-06-11"],
         "stocks-flow": [],
     })
-    client.list_files_for_date.return_value = []  # no single-snapshot fallback needed
     assert _latest_enrichable_date(client) == "2026-06-11"
 
 
 def test_latest_enrichable_date_none_when_nothing_enrichable():
     client = _client_with_compiled({"etfs-flow": [], "stocks-flow": []})
-    client.list_date_folders.return_value = {}
     assert _latest_enrichable_date(client) is None
+
+
+def test_enrichable_dates_needs_a_single_snapshot_on_EVERY_prefix():
+    """The snapshot fallback is `all` prefixes, not `any` — fetch_counterpart_iv
+    deliberately uses `any`, and the two must not converge by accident."""
+    client = _client_with_compiled(
+        {"etfs-flow": [], "stocks-flow": []},
+        snapshots_by_prefix={"etfs-flow": {"2026-06-09": 1, "2026-06-10": 1},
+                             "stocks-flow": {"2026-06-09": 1, "2026-06-10": 3}},
+    )
+    assert _enrichable_dates(client) == ["2026-06-09"]
+
+
+@pytest.mark.parametrize("n_dates", [50, 500])
+def test_date_discovery_cost_is_flat_in_corpus_size(n_dates):
+    """Regression: date discovery used to cost a file_exists per prefix per date —
+    two to six Drive round trips for EVERY date folder, thousands of calls on a
+    real corpus, paid again on every no-op run. It must now be one bounded index:
+    one query for the date folders plus one per prefix, whatever the corpus size."""
+    dates = [(date(2025, 1, 1) + timedelta(days=i)).isoformat() for i in range(n_dates)]
+    svc = _corpus_svc(dates)
+    client = DriveClient(svc, "root-id")
+
+    assert _compiled_dates(client) == dates
+    assert svc.files.return_value.list.call_count == 1 + len(FLOW_PREFIXES)
+
+
+def test_explicit_date_does_not_scan_the_corpus(monkeypatch, capsys):
+    """The reported bug: `--date D` on an already-enriched date fell through to the
+    'Nothing enriched' tail, which indexed the WHOLE corpus just to print a date
+    list the operator never asked for. scrape_and_enrich.sh calls every stage that
+    way, once per date, so this ran on every no-op."""
+    client = MagicMock()
+    client.find_date_folder.return_value = None      # => no source file => nothing enriched
+    monkeypatch.setattr(enrich_oi, "get_drive_client", lambda: client)
+    monkeypatch.setattr(sys, "argv", ["enrich_oi.py", "--date", "2026-06-09"])
+
+    enrich_oi.main()
+
+    client.flow_corpus.assert_not_called()
+    assert "Enrichable dates in Drive" not in capsys.readouterr().out
+
+
+def test_no_arg_run_still_lists_dates_and_indexes_only_once(monkeypatch, capsys):
+    """The listing is still worth printing when the operator named no date — but the
+    corpus must be indexed ONCE and shared with the tail, not built again to print it.
+    """
+    client = _client_with_compiled({"etfs-flow": ["2026-06-09"], "stocks-flow": []})
+    client.find_date_folder.return_value = None      # => nothing enriched
+    monkeypatch.setattr(enrich_oi, "get_drive_client", lambda: client)
+    monkeypatch.setattr(sys, "argv", ["enrich_oi.py"])
+
+    enrich_oi.main()
+
+    assert client.flow_corpus.call_count == 1
+    assert "Enrichable dates in Drive: 2026-06-09" in capsys.readouterr().out
 
 
 # ── _scrape_and_fill (incremental fill, checkpoint, marker) ────────────────────

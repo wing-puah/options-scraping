@@ -37,6 +37,8 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
+# the three enrichers live in scripts/collector/, not scripts/
+sys.path.insert(0, str(Path(__file__).parent / "collector"))
 
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client

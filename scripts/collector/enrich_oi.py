@@ -66,7 +66,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
 from lib.csv_utils import normalize_flow_rows, parse_csv
-from lib.drive_client import get_drive_client
+from lib.drive_client import FlowCorpus, get_drive_client
 from lib.logger import safe_err, setup_logging
 from backtest.helpers import _contract_key, _to_float, _parse_expiration
 from compile_flow import FLOW_PREFIXES, compiled_name
@@ -116,68 +116,56 @@ def _source_file(client, prefix: str, date_str: str) -> tuple[str, str] | tuple[
     return None, None
 
 
-def _compiled_dates(client, folders: dict[str, str] | None = None) -> list[str]:
-    """Every trading date with a compiled flow file, oldest → newest.
+# Date discovery reads a FlowCorpus — ONE bounded index of the whole corpus (see
+# DriveClient.flow_corpus) — instead of probing Drive per date. The old shape was a
+# file_exists per prefix per date, two to six round trips for every date folder in
+# Drive; on a corpus of several hundred dates that is thousands of calls and minutes
+# of wall clock, paid again by every caller. Pass `index` to share one build across
+# several of these helpers in the same run; omit it and each builds its own.
 
-    Enumerates the date folders under the root (one query) and checks each folder
-    directly for a compiled file — no global cross-folder file search.
+def _has_compiled(index: FlowCorpus, date_str: str) -> bool:
+    """Does date_str have a compiled file for ANY flow prefix?"""
+    return any(index.has_compiled(date_str, p) for p in FLOW_PREFIXES)
+
+
+def _single_snapshot_all(index: FlowCorpus, date_str: str) -> bool:
+    """Does EVERY flow prefix have exactly one raw snapshot on date_str?
+
+    NOTE the `all`: fetch_counterpart_iv deliberately uses `any` for its own
+    discovery. Keep the two rules distinct — see the comment there.
     """
-    folders = folders if folders is not None else client.list_date_folders()
-    out: list[str] = []
-    for d in sorted(folders):
-        if any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES):
-            out.append(d)
-    return out
+    return all(index.snapshot_count(date_str, p) == 1 for p in FLOW_PREFIXES)
 
 
-def _latest_compiled_date(client, folders: dict[str, str] | None = None) -> str | None:
-    """Newest date with a compiled flow file, walking newest-first and stopping at
-    the first match — see _latest_enrichable_date for why this beats
-    _compiled_dates(client)[-1:] when only the last element is needed.
-    """
-    folders = folders if folders is not None else client.list_date_folders()
-    for d in sorted(folders, reverse=True):
-        if any(client.file_exists(compiled_name(p, d), folders[d]) for p in FLOW_PREFIXES):
-            return d
-    return None
+def _compiled_dates(client, index: FlowCorpus | None = None) -> list[str]:
+    """Every trading date with a compiled flow file, oldest → newest."""
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return [d for d in sorted(index.folders) if _has_compiled(index, d)]
 
 
-def _enrichable_dates(client) -> list[str]:
+def _latest_compiled_date(client, index: FlowCorpus | None = None) -> str | None:
+    """Newest date with a compiled flow file, or None if there is none."""
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return next((d for d in sorted(index.folders, reverse=True)
+                 if _has_compiled(index, d)), None)
+
+
+def _enrichable_dates(client, index: FlowCorpus | None = None) -> list[str]:
     """All dates with a compiled flow file OR exactly one raw snapshot per prefix.
 
-    Compiled dates are checked first (one file_exists call per prefix per date);
-    for dates with no compiled file, falls back to checking for single-snapshot days
-    so a date that has been scraped only once can be enriched without waiting for
-    compile_flow to run.
+    The single-snapshot fallback lets a date that has been scraped only once be
+    enriched without waiting for compile_flow to run.
     """
-    folders = client.list_date_folders()
-    out: list[str] = []
-    for d in sorted(folders):
-        folder_id = folders[d]
-        if any(client.file_exists(compiled_name(p, d), folder_id) for p in FLOW_PREFIXES):
-            out.append(d)
-        elif all(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES):
-            out.append(d)
-    return out
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return [d for d in sorted(index.folders)
+            if _has_compiled(index, d) or _single_snapshot_all(index, d)]
 
 
-def _latest_enrichable_date(client) -> str | None:
-    """Newest enrichable date, without checking every older date first.
-
-    _enrichable_dates() walks every date folder oldest-first to build the full list
-    (needed for --backfill); when a caller only wants the last element, that's one
-    file_exists (+ possibly list_files_for_date) API round trip per prefix per date
-    all the way from the oldest folder — hundreds of calls just to find the newest.
-    This walks newest-first and returns on the first match instead.
-    """
-    folders = client.list_date_folders()
-    for d in sorted(folders, reverse=True):
-        folder_id = folders[d]
-        if any(client.file_exists(compiled_name(p, d), folder_id) for p in FLOW_PREFIXES):
-            return d
-        if all(len(client.list_files_for_date(p, d)) == 1 for p in FLOW_PREFIXES):
-            return d
-    return None
+def _latest_enrichable_date(client, index: FlowCorpus | None = None) -> str | None:
+    """Newest enrichable date, or None if there is none."""
+    index = index if index is not None else client.flow_corpus(FLOW_PREFIXES)
+    return next((d for d in sorted(index.folders, reverse=True)
+                 if _has_compiled(index, d) or _single_snapshot_all(index, d)), None)
 
 
 def _weekday_range(start_iso: str, end_iso: str) -> list[str]:
@@ -479,14 +467,20 @@ def main() -> None:
 
     client = get_drive_client()
 
+    # Built only on the branches that actually DISCOVER dates, and then reused by
+    # the "nothing enriched" tail below — an explicit --date/--start never pays for
+    # a corpus scan.
+    index = None
     if args.backfill:
-        targets = _enrichable_dates(client)
+        index = client.flow_corpus(FLOW_PREFIXES)
+        targets = _enrichable_dates(client, index)
     elif args.date:
         targets = [args.date]
     elif args.start:
         targets = _weekday_range(args.start, args.end)
     else:
-        latest = _latest_enrichable_date(client)
+        index = client.flow_corpus(FLOW_PREFIXES)
+        latest = _latest_enrichable_date(client, index)
         targets = [latest] if latest else []
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
@@ -512,10 +506,18 @@ def main() -> None:
             print(f"  {r['date']}  {r['prefix']:<12} {r['status']}")
 
     if not enriched:
-        avail = _enrichable_dates(client)
-        print(f"\n  Nothing enriched. Enrichable dates in Drive: "
-              f"{', '.join(avail) if avail else '(none)'}")
-        print("  (the latest compiled date is held back until its next trading day lands)")
+        # Listing every enrichable date in Drive only tells the operator something
+        # when they did NOT name the dates themselves. When they did, say so in one
+        # line: the listing costs a full corpus index, and a queue runner calling
+        # this once per date would pay for it on every no-op.
+        if args.date or args.start:
+            print("\n  Nothing enriched for the requested date(s). Run with --backfill "
+                  "(or no date flags) to list every enrichable date in Drive.")
+        else:
+            avail = _enrichable_dates(client, index)
+            print(f"\n  Nothing enriched. Enrichable dates in Drive: "
+                  f"{', '.join(avail) if avail else '(none)'}")
+            print("  (the latest compiled date is held back until its next trading day lands)")
 
 
 if __name__ == "__main__":

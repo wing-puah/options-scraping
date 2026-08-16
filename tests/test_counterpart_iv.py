@@ -1,7 +1,12 @@
 """Tests for lib.counterpart_iv — counterpart-leg selection and sidecar lookup."""
 from datetime import date
+from unittest.mock import MagicMock
 
 from lib.counterpart_iv import build_iv_lookup, contract_key, needed_counterparts
+from lib.drive_client import FlowCorpus
+
+import enrich_oi
+import fetch_counterpart_iv
 
 
 def _row(symbol, opt_type, strike, expires, dte):
@@ -106,3 +111,41 @@ def test_build_iv_lookup_missing_price_passes():
     ]
     lut = build_iv_lookup(rows)
     assert [c["strike"] for c in lut["X"]] == [100.0, 105.0, 110.0]
+
+
+# ── date discovery (fetch_counterpart_iv) ─────────────────────────────────────
+
+def _corpus(compiled=(), snapshots=None):
+    """FlowCorpus over 2026-06-09/10, with the given compiled files + snapshot counts.
+
+    `compiled` is a list of (date, prefix); `snapshots` is {(date, prefix): count}.
+    """
+    files: dict = {}
+    for d, p in compiled:
+        files.setdefault(d, {}).setdefault(p, {"compiled": False, "snapshots": 0})["compiled"] = True
+    for (d, p), n in (snapshots or {}).items():
+        files.setdefault(d, {}).setdefault(p, {"compiled": False, "snapshots": 0})["snapshots"] = n
+    return FlowCorpus(folders={"2026-06-09": "f1", "2026-06-10": "f2"}, files=files)
+
+
+def test_counterpart_snapshot_rule_is_any_prefix_not_all():
+    """fetch_counterpart_iv accepts a date where ANY prefix has a single snapshot;
+    enrich_oi requires it of ALL prefixes. The two rules are deliberately different
+    — this pins the divergence so neither drifts into the other.
+    """
+    index = _corpus(snapshots={("2026-06-09", "etfs-flow"): 1,
+                               ("2026-06-09", "stocks-flow"): 4,
+                               ("2026-06-10", "etfs-flow"): 1,
+                               ("2026-06-10", "stocks-flow"): 1})
+    client = MagicMock()
+
+    assert fetch_counterpart_iv._compiled_dates(client, index) == ["2026-06-09", "2026-06-10"]
+    assert enrich_oi._enrichable_dates(client, index) == ["2026-06-10"]
+    client.flow_corpus.assert_not_called()   # a supplied index costs no Drive calls
+
+
+def test_counterpart_latest_date_is_last_of_full_list():
+    index = _corpus(compiled=[("2026-06-09", "etfs-flow"), ("2026-06-10", "stocks-flow")])
+    client = MagicMock()
+    dates = fetch_counterpart_iv._compiled_dates(client, index)
+    assert fetch_counterpart_iv._latest_compiled_date(client, index) == dates[-1] == "2026-06-10"
