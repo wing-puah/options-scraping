@@ -15,7 +15,6 @@ samples whatever holding horizons it wants from that path.
 
 ## Entry & contract identity
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). The entry fill is taken on the FIRST trading day AFTER this date under `simulation.entry_timing: next_open` (the default — the analysis is produced after the close), or on this date's EOD mark under `signal_eod`. |
@@ -31,7 +30,6 @@ samples whatever holding horizons it wants from that path.
 
 ## Entry pricing
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
@@ -53,7 +51,6 @@ backfills from `audit/<date>-rollup.csv` by `(signal_date, ticker)`
 blank when neither the row nor an audit file has the value. See
 [`docs/rollup-reference.md`](rollup-reference.md) for the full definitions.
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **oi_confirm_pct** | `OIConfirmPct` — share of the ticker's flow trades whose next-day OI change confirmed an opening position (ref-03 open-confirmation). Decimal fraction (0.45 = 45%). |
@@ -65,7 +62,6 @@ blank when neither the row nor an audit file has the value. See
 These summarise the **full daily path**. The realized exit is the **first** day a
 rule triggers — frozen at that day's mark (never a later live mark).
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **realized_pnl_pct** | Realized P&L % at the exit, from the single signed formula `(V_exit − entry_net) / abs(entry_net)` where `V` is the position's signed net mark. Profit is positive for both debit and credit positions (a credit has `entry_net < 0` and profits as `V` rises toward 0). |
@@ -81,7 +77,6 @@ rule triggers — frozen at that day's mark (never a later live mark).
 
 ## The daily path
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **daily_price_csv** | Comma-separated **signed net position mark (`Σ qty·price`), one value per trading day** from the day after entry to `min(nearest-leg DTE, path_cap_days)`. Same signed units as `entry_option_price`. An **empty token** (`,,`) is a day no source could price (any unpriceable leg blanks the whole day). Reconstruct the P&L path by splitting on `,`, dropping empties, and applying `(mark − entry_option_price) / abs(entry_option_price)` (see `pnl_path()` in [`scripts/chart_backtest.py`](../scripts/chart_backtest.py)). |
@@ -95,7 +90,6 @@ legs and `entry_option_price`, not from the day-by-day marks. Placed at the
 same append-alignment reason as `daily_pnl_csv`: `append_rows` only writes a header
 on an empty tab, so inserting a column mid-schema would misalign every existing row.
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **max_loss_per_contract** | Structural worst-case loss per contract, in dollars: `_max_loss_per_unit(legs, entry_option_price) × 100`. Debit = the premium paid (`entry_option_price × 100`) — same convention as the existing sizing, so a net-debit ratio with naked short legs understates true risk here too. Credit = `(entry_option_price − worst expiration payoff) × 100`, i.e. the credit received minus the structure's floor. **Blank (`""`)** when the max loss can't be bounded (net short calls, multi-expiration credit/calendar/diagonal) — `_size_contracts` falls back to 1 contract with a warning in that case. |
@@ -114,7 +108,6 @@ but are **blank on every v4 row** and `score_total` changes scale (0–100 → 0
 Any analysis that pools v3 and v4 rows must split on era before touching the
 score block — see the two rows below.
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **horizon** | The play's DTE bucket boundary (`14`\|`60`\|`180`\|`720`) — the dominant expiry of the cited evidence. Read off its own analysis-row column (legacy rows: regex-scraped from the play bracket). Drives expiry synthesis when no explicit month/day is named (`_resolve_expiry`). |
@@ -124,7 +117,6 @@ score block — see the two rows below.
 
 ## Exit basis
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **exit_basis** | Which exit profile governed the simulation of this row. `PROD` = the base `simulation:` block. `CREDIT` = the `simulation.credit:` override (any row with `entry_option_price < 0`; credits are never regime-switched). `BEAR_HE` = the mechanical-regime exit override fired (`simulation.regime_exit.cells`, shipped 2026-07-22 — see `docs/deployment-rules.md` §Exit management). `BEAR_DEBIT` = the structure-keyed `be_after` breakeven ratchet governed this row (`simulation.structure_exit.cells.bear_debit`, shipped 2026-08-11 — `bear_put_spread`/`long_put` on the debit side, outside a regime cell). `NONE` = BacktestProxy `underlying_trend` tier only, where no exit rules run at all.<br><br>Reported in **merge-precedence order** (`CREDIT` → regime cell → `BEAR_DEBIT` → `PROD`), so the label always names the profile that actually governed the exit. A regime cell outranks `BEAR_DEBIT` because regime merges LAST: on `BEAR_HE` it sets `be_after: null`, since the 0.50/0.50 trail already dominates the ratchet there. This ordering is what keeps `PROD` meaning **base config only** for every row. **Blank (`""`) = the row was written before this column existed, i.e. PROD-basis by definition** — that is the intent, and it is **NOT what the current export actually contains: see the warning below.** <br><br>⚠️ **DO NOT READ THIS COLUMN OFF THE CURRENT EXPORT (measured 2026-08-14).** The Sheets tab header was never given the name, so the values land in an **unlabelled 47th column**, and they are scrambled relative to their rows: of the 67 `BacktestResults` rows created after the BEAR_HE trail shipped (every one of which should carry a basis) **65 are blank**, while 55 `BEAR_HE` and 11 `CREDIT` labels sit on rows created *before* the column existed; 7 of 13 `CREDIT`-tagged rows have a **positive** entry price, which `_exit_basis` cannot produce; and no `BEAR_HE`-tagged row has a `trailing_stop` exit even though the trail is what defines that cell. The writer (`simulate.py:_exit_basis`) is correct — the defect is in the tab header / append path. `scripts/align_tab_headers.py` checks only the **analysis** tabs against `config.ROW_COLUMNS` and does **not** cover these two tabs against `scripts/backtest/core._KEY_ORDER`, which is the gap. Until the header is fixed and the values re-verified against entry-price sign, identify a row's exit basis mechanically instead — see `unreachable_reasons()` / `_classify()` in `scripts/backtest_study/f2_management/exit_switch_mech_study.py`, which key off the fact that `replay()` can only emit an exit reason whose governing knob is set. <br><br>Both tabs are **append-only with no dedup**, so a full re-run leaves old and new rows side by side. When pooling rows across runs, filter on this column (plus `created_datetime`) rather than assuming one basis — a bare `python3 -m scripts.backtest` re-simulates the ENTIRE analysis tab, not just new dates. |
@@ -175,7 +167,6 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --cache-only    #
 python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21 --redo  # re-evaluate + replace
 ```
 
-<!-- prettier-ignore -->
 | Column | Definition |
 |--------|-----------|
 | **skip_reason** | Why the real backtest produced no row: `unsupported` (structure has no handler), `no_strike` / `no_expiry` (play text unparseable), `no_history` (contract's Barchart history missing or not covering the entry window), `unpriced` (history covers the window but the sim still couldn't price entry). |

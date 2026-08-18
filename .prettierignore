@@ -1,0 +1,4 @@
+# Markdown docs are hand-aligned and read in Obsidian; prettier reflows
+# the wide column tables (and its inline ignore comment stops Obsidian from
+# rendering the table that follows it). Leave the prose alone.
+*.md
