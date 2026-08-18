@@ -27,6 +27,7 @@ comment on the `site/` rule says the same thing; keep both.
 | `deployment-rules.md`   | What gets real capital today? VETOs, the tier ladder, entry and exit management         | The operator on a deploy morning; encoded in code exactly once, by `ladder_tier()` |
 | `conviction-score.md`   | How is the direction-agnostic conviction score computed, component by component?        | Anyone changing scoring — the model-facing condensed copy is `config/prompts/conviction-score-legend.md`, and both must change together |
 | `rollup-reference.md`   | What are the per-ticker aggregation columns that feed the LLM and the scorer?            | Anyone reading the analysis markdown or the audit rollup CSV |
+| `recommendations-reference.md` | What does each column of the Recommendations tab / `journal/recommendations.csv` mean? | Anyone reading the deploy-card record, or changing `RECOMMENDATION_COLUMNS` |
 | `backtest-reference.md` | What does each column of `BacktestResults` / `backtests/results.csv` mean?               | Anyone interpreting backtest output or writing a study loader |
 | `barchart-reference.md` | What does each Barchart flow column mean?                                                | Anyone parsing raw or compiled flow — vendor help text, copied verbatim |
 

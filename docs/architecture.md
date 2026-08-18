@@ -609,7 +609,8 @@ treated as clean — the same concern `scripts/backtest_study/lib/live_select.py
 own judge layer.
 
 **Recommendation record** (`s07_recwriter.py`) — every evaluated candidate (role
-`deploy`/`hedge`/`veto`/`tier_c`) is flattened to `RECOMMENDATION_COLUMNS` and written to the
+`deploy`/`hedge`/`veto`/`tier_c`) is flattened to `RECOMMENDATION_COLUMNS` (column-by-column
+definitions: [`recommendations-reference.md`](recommendations-reference.md)) and written to the
 Recommendations tab in `TRADE_JOURNAL_SPREADSHEET_ID` (the same workbook as TradeJournal) and
 to `journal/recommendations.csv`, mirroring `s05_writer.py`'s CSV-first/CSV-fatal,
 Sheets-non-fatal split. The two are DELIBERATELY not shared code: `s05_writer.py`'s failure loses

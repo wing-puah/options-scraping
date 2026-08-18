@@ -8,6 +8,7 @@ journal/recommendations.csv.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -362,3 +363,22 @@ def test_write_then_read_back_round_trips(tmp_path):
     _write([_cand("AAA"), _cand("TLT", role="hedge", deploy=False)], [], _ctx(), p)
     out = rw.recent_rows(rw.read_csv_rows(p), on_or_before=AS_OF)
     assert {r["ticker"] for r in out} == {"AAA", "TLT"}
+
+
+# --------------------------------------------------------------------------
+# Documentation drift guard
+# --------------------------------------------------------------------------
+# docs/recommendations-reference.md is the column dictionary for this schema.
+# A column appended to RECOMMENDATION_COLUMNS with no entry there leaves the
+# tab unreadable, which is the state that made the doc necessary in the first
+# place. Same spirit as the study-map catalog check.
+_REFERENCE_DOC = (Path(__file__).resolve().parents[1]
+                  / "docs" / "recommendations-reference.md")
+
+
+def test_every_recommendation_column_is_documented():
+    doc = _REFERENCE_DOC.read_text(encoding="utf-8")
+    missing = [c for c in RECOMMENDATION_COLUMNS if f"`{c}`" not in doc]
+    assert not missing, (
+        "docs/recommendations-reference.md does not define: "
+        + ", ".join(missing))
