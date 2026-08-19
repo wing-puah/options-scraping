@@ -1788,3 +1788,24 @@ dates cluster away from event days), and where measurable (NFP) it moves
 neither entry vrp nor outcomes. The live pipeline does not pay the v5 version
 bump on this evidence. Re-run when new dates land; the calendar extends to
 2027 so the layer is ready for the deploy card if evidence ever earns it.
+
+### 2026-08-19 addendum — replication review graded; three report-completeness gaps closed
+
+`study_review` (analyst A/B opus + validator sonnet) source-checked every quoted
+number clean, and every hypothesis verdict stands as written above (H1 NOT MET
+where powered, else NOT EVALUABLE; EXIT-TRIGGER MET both analysts). Validator
+surfaced two real gaps, both closed the same day as REPORT-COMPLETENESS fixes
+(no window, control, type, or floor changed): (1) ARM X now prints H4's
+LITERAL census — exit position relative to the NEAREST event — which the first
+report omitted in favour of the trigger's hold-position terciles: exits land
+disproportionately just before/at events (−5..−1: 320 rows R +0.084; day 0:
++0.082) vs just after (+1..+5: −0.054); census only, feeds nothing. (2) The
+starred ARM I secondaries now carry full G2 cuts (analyst B's stricter reading
+of "headline"): `iv_entry_dm` survives ex-window/ex-BOTH and both pricing
+tiers but its significance is 2024-carried (2025 and 2026 CIs span zero) —
+confirming watch-not-claim. Also added a G0 day-0 audit table so the pre_open
+assignment rule is checkable from the report (the 11 post-open PCE
+entry-session rows are the 10:00 ET deviations, bucketing BEFORE as designed).
+Grading-grammar note for future runs: the validator sided with bundling
+UNBUNDLED — grade each anti-tuning clause separately rather than letting one
+unevaluable clause downgrade a row.

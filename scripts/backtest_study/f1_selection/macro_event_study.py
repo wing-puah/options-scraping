@@ -218,6 +218,13 @@ def g0(cal: MC.MacroCalendar, recs: list[dict], diag: dict) -> dict:
               f"   UNKNOWN {len(unk)}")
     print("  (! = under the floor: census only, no mean, no CI, no verdict)")
 
+    sub("day-0 audit (the pre_open assignment rule, made checkable)")
+    for t in MC.EVENT_TYPES:
+        pre = sum(1 for r in recs if r.get(f"on_asof_{t}") == "pre_open")
+        post = sum(1 for r in recs if r.get(f"on_asof_{t}") == "post_open")
+        print(f"  {t:<13} entry-session events: {pre:>3} pre-open (bucket AFTER)"
+              f"  {post:>3} post-open (bucket BEFORE)")
+
     sub("census, PRE-DECLARED NON-READABLE (near-constant / endogenous)")
     n_dte = sum(1 for r in recs if (r.get("n_macro_in_dte") or 0) >= 1)
     with_hold = [r for r in recs if r.get("n_macro_in_hold") is not None]
@@ -432,6 +439,29 @@ def arm_x(recs: list[dict], cal: MC.MacroCalendar) -> None:
         for reason, cnt in Counter(r["exit_reason"] for r in rows).most_common():
             print(f"    {str(reason):<22} {cnt:>4}")
 
+    sub("exit position relative to the NEAREST event (H4's literal census)")
+    exit_prox = {"<= -6": [], "-5..-1": [], "0": [], "+1..+5": [], ">= +6": []}
+    for r in pop:
+        t = r["t"]
+        exit_d = t.grid[min(int(r["days_held"]), len(t.grid)) - 1]
+        lo = date.fromordinal(exit_d.toordinal() - 45)
+        hi = date.fromordinal(exit_d.toordinal() + 45)
+        evs = cal.events_between(lo, hi)
+        if not evs:
+            continue
+        signed = min(((exit_d - e.date).days for e in evs), key=abs)
+        b = ("0" if signed == 0 else
+             "-5..-1" if -5 <= signed <= -1 else
+             "+1..+5" if 1 <= signed <= 5 else
+             "<= -6" if signed < 0 else ">= +6")
+        exit_prox[b].append(r)
+    print("  signed days = exit session minus nearest event (any type); "
+          "negative = exited BEFORE the event. Census only.")
+    for b, rows in exit_prox.items():
+        if rows:
+            print(f"  exit {b:<7} {len(rows):>4} rows / {n_dates(rows):>3} dates  "
+                  f"mean R {statistics.fmean(r['R'] for r in rows):+.3f}")
+
     sub("hold-position terciles (feeds the pre-declared macro_event_exit trigger)")
     buckets = {b: [] for b in TRIGGER_BUCKETS}
     for r in spans:
@@ -493,6 +523,7 @@ def main(argv=None) -> int:
         for key in IV_SECONDARY:
             arm_contrasts(recs, powered, key,
                           f"ARM I secondary — {key} (same cells, no new windows)")
+            cuts_on_headlines(recs, powered, key)
 
     read_p = arm_contrasts(
         recs, powered, "R",
