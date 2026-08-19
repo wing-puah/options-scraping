@@ -1605,3 +1605,37 @@ ex-BOTH-windows cut added by hand, and above the random band.
 Read the registration for the arm table, gates G0–G5 and the verdict grammar.
 
 ---
+
+---
+
+## 2026-08-19 — `account_sim` on v4: the date floor is not a density floor
+
+**No result. The study refuses on v4, and that refusal is the finding.**
+
+The v4 export set crossed `MIN_ERA_DATES` (31 deployed signal dates, 34 in
+`BacktestResults`) and `load_book` admitted it. `account_sim` then produced
+**zero dense episodes** — not one run of ≥10 dates whose every internal gap is
+≤5 trading sessions — because the v4 book is a BACKFILL: its signal dates are
+scattered from 2024-01-10 to 2025-01-07, roughly a fortnight apart, plus a few
+live sessions (2026-08-11 … 08-18) that have no backtest rows yet.
+
+PRIMARY is the population this study concludes from, and on v4 it is empty.
+SECONDARY (the full sparse book) is an availability upper bound and may not
+carry a conclusion alone, so there is nothing to report and nothing to grade —
+`make study-review` now stops on the refusal instead of spending three headless
+model calls replicating it.
+
+**What this says about the era floor.** `MIN_ERA_DATES` counts dates; it does
+not ask whether any of them are CONSECUTIVE. Those are different questions, and
+a backfilled era can satisfy the first while failing the second completely. Up
+to 2026-08-18 the floor was masking this: v4 had 26 dates and refused as thin,
+so the empty-PRIMARY path had never been reached. It was reached the day the
+26th date became the 31st, and the study died in `statistics.median` on an
+empty contract list rather than saying any of the above. That is now a designed
+refusal (exit 2) stated at the population boundary — see `primary_refusal()`.
+
+**Not a reason to loosen `episode_min_dates` / `episode_max_gap`.** They define
+what this study is allowed to conclude from; the v3 evidence base was built
+under them. The way to a v4 `account_sim` result is consecutive v4 sessions —
+either accrued live, or backfilled DENSELY over a contiguous window rather than
+sampled across a year.

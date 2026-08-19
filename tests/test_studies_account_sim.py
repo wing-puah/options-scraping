@@ -31,7 +31,7 @@ from scripts.backtest_study.f4_deployment.account_sim import (  # noqa: E402
     LOOKAHEAD_ROW_COLUMNS, LookaheadError, Pos, Settings, Sim,
     POSITIONS_CSV_COLUMNS, admission, blind_records, book_signature,
     dense_episodes, load_settings, mark_key, new_cache, positions_artifact,
-    positions_rows,
+    positions_rows, primary_refusal, print_granularity,
     replay_sized, risk_contracts, sessions_between, signed_dn, simulate,
     sizing_budget, solve_contracts, write_positions_csv,
 )
@@ -565,6 +565,54 @@ def test_dense_episodes_requires_explicit_max_gap_and_min_dates():
     settings this study runs with, never a module constant."""
     with pytest.raises(TypeError):
         dense_episodes(["2025-03-03"])
+
+
+# ── an empty PRIMARY population refuses instead of dividing by zero ──────────
+#
+# The era date FLOOR counts dates; it does not ask whether any of them are
+# consecutive. A backfilled book of scattered signal dates clears the floor and
+# still yields no dense episode, at which point PRIMARY is empty and every
+# statistic over it is a division by zero. This is the seam where that is
+# caught and said out loud.
+
+def test_primary_refusal_is_silent_when_a_dense_episode_exists():
+    assert primary_refusal({"2025-03-03"}, {"2025-03-03"}, make_settings()) is None
+
+
+def test_primary_refusal_names_the_thresholds_and_the_date_count():
+    msg = primary_refusal({f"2025-0{m}-03" for m in range(1, 8)}, set(),
+                          make_settings(episode_min_dates=10, episode_max_gap=5))
+    assert msg is not None
+    assert "7 signal dates" in msg
+    assert ">= 10 dates" in msg and "<= 5 trading sessions" in msg
+
+
+def test_primary_refusal_does_not_invite_loosening_the_thresholds():
+    """The thresholds define what the study may conclude from, so the refusal
+    has to read as a stop, not as a knob. A message that pointed at
+    episode_min_dates without forbidding the edit would get it edited."""
+    msg = primary_refusal({"2025-03-03"}, set(), make_settings())
+    assert "not a reason to loosen" in msg
+
+
+def test_granularity_reports_nothing_rather_than_crashing_on_an_empty_set(capsys):
+    """The crash site: with no sized pick there is no contract distribution,
+    and `statistics.median` raises on the empty list rather than returning nan
+    the way this module's `fmean` does."""
+    print_granularity([], _cfg())
+    out = capsys.readouterr().out
+    assert "deployed picks 0" in out
+    assert "no granularity to report" in out
+
+
+def test_granularity_reports_nothing_when_no_pick_carries_a_usable_max_loss(capsys):
+    """Picks can exist while every one of them is unsizable — same empty
+    distribution, reached a different way."""
+    print_granularity([{"max_loss_per_contract": None},
+                       {"max_loss_per_contract": 0.0}], _cfg())
+    out = capsys.readouterr().out
+    assert "deployed picks 2   with usable max_loss 0   unsizable 2" in out
+    assert "no granularity to report" in out
 
 
 # ── outcome blindness (G5) ──────────────────────────────────────────────────

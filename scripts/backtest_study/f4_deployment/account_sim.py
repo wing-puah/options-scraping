@@ -89,6 +89,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
@@ -1464,6 +1465,31 @@ def print_population(recs, picked, episodes, st: Settings) -> None:
     print(f"  excluded from PRIMARY: {len(excluded)} isolated dates")
 
 
+def primary_refusal(all_dates, ep_dates, st: Settings) -> str | None:
+    """The reason PRIMARY cannot be reported on, or None.
+
+    A DESIGNED refusal (`era.EXIT_THIN_ERA`), one granularity below
+    `load_book`'s date floor: an era can clear that floor on date COUNT and
+    still contain no dense episode at all, which leaves PRIMARY — the
+    population this study concludes from — empty. Reporting on regardless
+    printed nan baselines and then died in `print_granularity` on the median of
+    an empty contract list. A book backfilled at scattered dates hits this the
+    moment the date floor stops shielding it, so the refusal is stated here
+    rather than left to whichever statistic divides by zero first.
+    """
+    if ep_dates:
+        return None
+    return (f"the book has {len(all_dates)} signal dates but NOT ONE dense "
+            f"episode: no run of >= {st.episode_min_dates} dates whose every "
+            f"internal gap is <= {st.episode_max_gap} trading sessions.\n"
+            f"  PRIMARY is empty, and SECONDARY (the full sparse book) is an "
+            f"availability bound that may not carry a conclusion alone.\n"
+            f"  Not a failure, and not a reason to loosen episode_min_dates / "
+            f"episode_max_gap in config/account-sim.yml — those define what "
+            f"this\n  study is allowed to conclude from. Re-run as the era "
+            f"accrues CONSECUTIVE sessions.")
+
+
 def print_baselines(picked, b2: Sim, cfg: Cfg, label: str) -> dict:
     hdr(f"[{label}] B1 / B2 BASELINES")
     b1_n = len(picked)
@@ -1501,6 +1527,12 @@ def print_granularity(picked, cfg: Cfg) -> None:
     usable = [(r, m) for r, m in rows if m and m > 0]
     print(f"  deployed picks {len(rows)}   with usable max_loss {len(usable)}   "
           f"unsizable {len(rows) - len(usable)}")
+    if not usable:
+        # Every figure below is a distribution over the sized picks, so with none
+        # there is nothing to describe. Say so rather than dividing by zero: the
+        # population block above already carries why the set is empty.
+        print("  no pick carries a usable max_loss — no granularity to report.")
+        return
     for cap, budget in ((50_000.0, 1_000.0), (cfg.capital, cfg.budget)):
         cs = [risk_contracts(m, budget) for _, m in usable]
         dist = Counter(cs)
@@ -2403,6 +2435,11 @@ def main(argv=None) -> int:
 
     ep_dates = {d for ep in episodes for d in ep}
     all_dates = {r["date"] for r in recs}
+
+    refusal = primary_refusal(all_dates, ep_dates, st)
+    if refusal:
+        print(f"\nREFUSED — {refusal}")
+        return era.EXIT_THIN_ERA
 
     res_primary, head_primary, _ = report_population(
         recs, picked, ep_dates, "PRIMARY dense episodes", st, cache)

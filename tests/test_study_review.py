@@ -23,6 +23,67 @@ from study_review.core import (
 )
 
 
+# ─────────────────────────────── resolve_report ─────────────────────────────
+#
+# A DESIGNED refusal exits the STUDY 2 but the RUNNER 0 — correctly, since a
+# refusal is not a failure. That makes the report itself the only place the
+# refusal is visible, and grading one costs three headless model calls to
+# replicate a study that declined to conclude.
+
+def _write_report(dir_path, study, body, exit_code):
+    path = dir_path / f"{study}-latest.txt"
+    path.write_text(
+        "==============================================================\n"
+        f"STUDY: {study}\n"
+        "==============================================================\n"
+        "  run at    2026-08-19 11:30:10\n"
+        "==============================================================\n"
+        f"{body}\n"
+        "==============================================================\n"
+        f"exit code {exit_code} after 5.2s\n"
+    )
+    return path
+
+
+def test_resolve_report_refuses_to_grade_a_refused_report(tmp_path, monkeypatch):
+    out = tmp_path / "study_output"
+    out.mkdir()
+    _write_report(out, "somestudy",
+                  "REFUSED — the book has 34 signal dates but NOT ONE dense episode.",
+                  exit_code=2)
+    monkeypatch.setattr(core.config, "STUDY_OUTPUT_DIR", out)
+
+    with pytest.raises(SystemExit) as exc:
+        core.resolve_report("somestudy", skip_run=True, run_args=[])
+    msg = str(exc.value)
+    assert "REFUSED (exit 2)" in msg
+    assert "not a failure" in msg
+    assert "NOT ONE dense episode" in msg     # the study's own words, not ours
+
+
+def test_resolve_report_grades_a_report_that_concluded(tmp_path, monkeypatch):
+    out = tmp_path / "study_output"
+    out.mkdir()
+    path = _write_report(out, "somestudy", "  verdict: feasible", exit_code=0)
+    monkeypatch.setattr(core.config, "STUDY_OUTPUT_DIR", out)
+
+    assert core.resolve_report("somestudy", skip_run=True, run_args=[]) == path
+
+
+def test_resolve_report_reads_the_refusal_from_the_directory_it_was_given(
+        tmp_path, monkeypatch):
+    """`summarize()` defaults to the study map's own OUT_DIR. If study_review
+    let it, this check would read a DIFFERENT report than the one it returns."""
+    out = tmp_path / "study_output"
+    out.mkdir()
+    _write_report(out, "somestudy", "REFUSED — nothing to conclude from.", exit_code=2)
+    monkeypatch.setattr(core.config, "STUDY_OUTPUT_DIR", out)
+    monkeypatch.setattr(core.study_summary, "OUT_DIR", tmp_path / "somewhere-else")
+
+    with pytest.raises(SystemExit, match="REFUSED"):
+        core.resolve_report("somestudy", skip_run=True, run_args=[])
+
+
 # ─────────────────────────────── read_persona ───────────────────────────────
 
 def test_read_persona_strips_frontmatter_and_extracts_model(tmp_path):

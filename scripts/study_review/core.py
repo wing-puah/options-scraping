@@ -43,6 +43,10 @@ load_dotenv(config.ROOT / ".env")
 sys.path.insert(0, str(config.ROOT))
 
 from lib.logger import setup_logging  # noqa: E402  (after sys.path insert, mirrors analysis_pipeline)
+# The study map's reader, reused rather than re-derived: whether a report is a
+# DESIGNED refusal is already parsed there (exit code vs the study's own
+# DESIGNED_REFUSAL_EXIT_CODES), and a second copy here would drift from it.
+from scripts.study_map import summary as study_summary  # noqa: E402
 
 log = logging.getLogger("study_review")
 
@@ -73,9 +77,12 @@ def resolve_report(study: str, skip_run: bool, run_args: list[str]) -> Path:
     return the resulting `<study>-latest.txt` path.
 
     A nonzero exit is a hard stop (SystemExit) — a gate-failed report isn't
-    worth grading. Output streams live (no capture) so the operator watches
-    the study run the same way `python -m scripts.backtest_study run` prints
-    it directly."""
+    worth grading. Neither is a REFUSED one, and that is a separate check: the
+    runner exits 0 on a designed refusal (correctly — it is not a failure), so
+    without it three LLM calls go out to replicate a study that declined to
+    conclude. Output streams live (no capture) so the operator watches the
+    study run the same way `python -m scripts.backtest_study run` prints it
+    directly."""
     if not skip_run:
         # --no-handoff: the runner's normal footer tells the operator to paste the
         # report into Claude for a write-up. That's the manual workflow this module
@@ -95,6 +102,15 @@ def resolve_report(study: str, skip_run: bool, run_args: list[str]) -> Path:
             f"No report found at {report_path}. Run `python -m scripts.backtest_study "
             f"run {study}` first, or check the study name (see `python -m "
             "scripts.backtest_study list`).")
+    run = study_summary.summarize(study, out_dir=config.STUDY_OUTPUT_DIR)
+    if run.refused:
+        raise SystemExit(
+            f"{study} REFUSED (exit {run.exit_code}) — a designed refusal, not a "
+            f"failure, and nothing to fix:\n"
+            + "\n".join(f"  {ln}" for ln in run.excerpt)
+            + f"\n\nA refusal is the study saying it cannot conclude yet, so there "
+            f"is no conclusion to replicate. Re-run {study} once the condition it "
+            f"names has cleared.")
     return report_path
 
 
