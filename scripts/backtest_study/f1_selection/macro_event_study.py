@@ -278,25 +278,34 @@ def enrich_iv(recs: list[dict]) -> None:
 # ── ARM V: market context (VIX event study) ──────────────────────────────────
 
 def arm_v(cal: MC.MacroCalendar) -> None:
-    hdr("ARM V — VIX by event-relative session (H3: CONTEXT ONLY — index vol, "
-        "not the book's single-name IV; no verdict may rest on this table)")
-    sessions, vix = [], {}
+    hdr("ARM V — VIX and SPY by event-relative session (H3 + amendment 1: "
+        "CONTEXT ONLY — index level, not the book; no verdict may rest here)")
+    vix, spy = {}, {}
     import csv as _csv
     with UF.MARKET_SERIES.open() as fh:
         for row in _csv.DictReader(fh):
+            # a session counts only when BOTH closes parse — the series has
+            # holiday rows carrying one leg (e.g. 2026-05-25: VIX, no SPY),
+            # and a one-legged session would poison the return chain.
             try:
                 d = date.fromisoformat(str(row["date"])[:10])
-                vix[d] = float(row["vix_close"])
+                v, sp = float(row["vix_close"]), float(row["spy_close"])
             except (ValueError, KeyError, TypeError):
                 continue
+            if v > 0 and sp > 0:
+                vix[d], spy[d] = v, sp
     sessions = sorted(vix)
     if not sessions:
         print("  (no SPY/VIX series on disk — run make mech-regime)")
         return
     idx = {d: i for i, d in enumerate(sessions)}
     print(f"  series: {len(sessions)} sessions {sessions[0]} .. {sessions[-1]}")
+
+    def spy_ret(i, j):  # close[i] -> close[j], in %
+        return (spy[sessions[j]] / spy[sessions[i]] - 1.0) * 100.0
+
     for t in MC.EVENT_TYPES:
-        evs = [e for e in cal.events((t,), sessions[0], sessions[-1])]
+        evs = cal.events((t,), sessions[0], sessions[-1])
         # session 0 = the session the release lands on (or first after);
         # both 08:30 and 14:00 prints are inside that session's close.
         anchors = []
@@ -309,15 +318,30 @@ def arm_v(cal: MC.MacroCalendar) -> None:
         if not anchors:
             continue
         print(f"\n  {t}  (n={len(anchors)} events in span)")
-        print(f"    {'rel':>4} {'mean VIX':>9} {'mean dVIX':>10}  CI(dVIX, by event)")
+        print(f"    {'rel':>4} {'mean VIX':>9} {'mean dVIX':>10}  "
+              f"{'CI(dVIX)':>17}  {'SPY ret%':>9}  {'CI(SPY ret%)':>17}")
         for rel in range(-REL_SESSIONS, REL_SESSIONS + 1):
             lv = [vix[sessions[i + rel]] for i in anchors]
             dv = [vix[sessions[i + rel]] - vix[sessions[i + rel - 1]]
                   for i in anchors]
-            lo, hi = _boot_mean_ci(dv)
-            star = " *" if lo > 0 or hi < 0 else ""
+            sr = [spy_ret(i + rel - 1, i + rel) for i in anchors]
+            vlo, vhi = _boot_mean_ci(dv)
+            slo, shi = _boot_mean_ci(sr)
+            vstar = "*" if vlo > 0 or vhi < 0 else " "
+            sstar = "*" if slo > 0 or shi < 0 else " "
             print(f"    {rel:>+4} {statistics.fmean(lv):>9.2f} "
-                  f"{statistics.fmean(dv):>+10.3f}  [{lo:+.3f},{hi:+.3f}]{star}")
+                  f"{statistics.fmean(dv):>+10.3f}  "
+                  f"[{vlo:+.3f},{vhi:+.3f}]{vstar} "
+                  f"{statistics.fmean(sr):>+9.3f}  [{slo:+.3f},{shi:+.3f}]{sstar}")
+        # amendment 1: the two pre-declared cumulative drift windows
+        pre = [spy_ret(i - 3, i) for i in anchors]
+        post = [spy_ret(i, i + 3) for i in anchors]
+        for label, vals in (("PRE  drift t-3 -> t0 ", pre),
+                            ("POST drift t0 -> t+3", post)):
+            lo, hi = _boot_mean_ci(vals)
+            star = " *" if lo > 0 or hi < 0 else ""
+            print(f"    {label}  mean {statistics.fmean(vals):+.3f}%  "
+                  f"CI[{lo:+.3f},{hi:+.3f}]{star}")
 
 
 def _boot_mean_ci(vals, n=2000, seed=BOOT_SEED):

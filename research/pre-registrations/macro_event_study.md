@@ -121,3 +121,22 @@ rather than after the run:
 
 A study may earn one verdict per arm (e.g. ARM I REGIME-PROXY + ARM P
 POWER-STOPPED); the catalog verdict summarises them without averaging.
+
+## 2026-08-19 — AMENDMENT 1 (after the first run): ARM V gains an SPY-PRICE companion table
+
+Written AFTER the first run and its replication review; the VIX results had
+been seen when this was added, the SPY-return numbers had NOT. Operator asked
+"how about the relationship with index price?" — the honest home for that is
+the same context arm, not a scratch read.
+
+**ARM V-price (H3 extension, CONTEXT ONLY — same standing as the VIX table:
+no verdict may rest on it).** From the same `spy_vix_daily_full.csv` series
+and the SAME event anchors as the VIX table (session 0 = the session the
+release lands on or first after):
+- per event-relative session t−5..t+5: mean SPY close-to-close return (%),
+  with the same by-event bootstrap CI;
+- per type, two pre-declared cumulative windows: PRE drift t−3→t0 close and
+  POST drift t0→t+3 close (the pre-FOMC-drift literature window; three
+  sessions either side, fixed here before computing).
+No book join, no new proximity windows, no change to any gate, floor, or
+readable cell. The five event types and the t−5..t+5 range are unchanged.

@@ -1809,3 +1809,36 @@ entry-session rows are the 10:00 ET deviations, bucketing BEFORE as designed).
 Grading-grammar note for future runs: the validator sided with bundling
 UNBUNDLED — grade each anti-tuning clause separately rather than letting one
 unevaluable clause downgrade a row.
+
+### 2026-08-19 addendum 2 — ARM V-price (amendment 1): index PRICE around events
+
+Operator follow-up ("how about the relationship with index price?") →
+pre-registration AMENDMENT 1 (dated, after the first run; SPY numbers unseen
+when written): the VIX context arm gains SPY close-to-close returns per
+event-relative session plus two pre-declared cumulative windows (PRE t−3→t0,
+POST t0→t+3). Same anchors, same event-clustered bootstrap, CONTEXT ONLY.
+
+- **FOMC: the Lucca-Moench pre-announcement drift does NOT reproduce** at this
+  n (26 events): PRE +0.371% CI[−0.202,+1.020]. Positive point estimate,
+  unpowered; only t−2 stars (+0.442%).
+- **CPI is the strongest price pattern in the table**: PRE +0.769%
+  CI[+0.266,+1.236]* AND POST +0.642% CI[+0.213,+1.101]* — SPY rose into and
+  out of CPI prints throughout this window. Read with the obvious caveat: the
+  2023–2026 sample IS the disinflation regime; a market that rallies every
+  time inflation prints soft produces exactly this table without any
+  structural drift. Not separable at n=37.
+- **NFP: price confirms the vol story.** POST +0.794% CI[+0.162,+1.546]* with
+  the single-day star at t+3 (+0.621%*) landing the same session VIX bleeds
+  (−1.069*). Build-then-relief in both moments — the one coherent
+  cross-measure shape in the table.
+- **PCE and minutes: noise-shaped** (scattered alternating-sign stars
+  pre-event; nothing cumulative).
+- Star accounting kept honest: 110 daily cells × 5% ≈ 5.5 expected, 9
+  observed, plus 3/10 drift windows — only NFP (and CPI's paired drift) form
+  coherent shapes.
+
+Infra fix found by the run: `spy_vix_daily_full.csv` carries HOLIDAY rows with
+one leg populated (2026-05-25: VIX close, empty SPY) — ARM V now requires BOTH
+closes to parse before a date counts as a session; a one-legged session
+poisons the return chain. Still CONTEXT: none of this touches a gate, floor,
+readable cell, or the book itself. Nothing ships.
