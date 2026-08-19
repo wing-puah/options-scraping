@@ -1639,3 +1639,86 @@ what this study is allowed to conclude from; the v3 evidence base was built
 under them. The way to a v4 `account_sim` result is consecutive v4 sessions —
 either accrued live, or backfilled DENSELY over a contiguous window rather than
 sampled across a year.
+
+---
+
+## 2026-08-19 — `calendar_hedge` R4: a gate keyed to a snapshot is not a gate
+
+**Method change, no new result.** R4 — the gate that decides whether the H arm
+is allowed to run at all — was converted from a transcribed checksum to a
+same-run comparison. Nothing about the hedge hypothesis changed.
+
+**What R4 was.** It rebuilt `vol_sleeve`'s calendar cell and required it to
+reproduce `R4_EXPECT = dict(n=183, mean_r=0.158, dollars=28059.0, exits={...})`,
+transcribed by hand from `vol_sleeve-latest.txt` (2026-08-12, git 470b95f). The
+stated purpose was to catch RE-IMPLEMENTATION drift: `calendar_hedge` builds its
+own universe (`build_universe`) rather than importing `vol_sleeve.synthesize`'s
+inline one, and two copies of an entry rule eventually disagree.
+
+**Why it could not work.** The comparison had two free variables and one
+equation. `vol_sleeve` picks K\* as "the cached strike nearest spot" and the far
+leg as "the next cached expiry", so the option-history cache is an INPUT to leg
+selection, not just storage — adding contracts re-picks legs and moves the cell
+with no code change. A mismatch therefore could not be read as drift rather than
+as cache growth, which is why the FAIL path carried an entire `_r4_attribute()`
+bisect whose job was to guess which had happened.
+
+The 2026-08-13 amendment tried to remove the second variable by SUBTRACTION:
+withhold the contracts the ARM S sweep added (`legs_manifest.csv`) and rebuild
+on the reconstructed pre-scrape grid. That inverse is valid only while every
+LATER addition is manifested too. Measured 2026-08-19: 6,240 cache files
+postdate the keyed run, the manifest covers 1,452. The remaining ~4,800 came
+from routine `fetch_counterpart_history.py` runs that write no manifest, so the
+"pre-scrape grid" had stopped being one. Worse, a rescrape that OVERWRITES an
+existing contract changes leg PRICING with the same legs selected, and no index
+filter can undo that — `snapshot_index()` explicitly filters selection only, on
+the assumption that surviving files are byte-unchanged. Hence the study's own
+FAIL text: "Once the cache grows, R4 can never pass again."
+
+**Why re-baselining was not the fix either.** Re-keying the constants to a fresh
+run would define "no drift" as "whatever this run printed" — circular, and
+across an era boundary it is worse than circular: you would be baking v4's
+characteristics into the definition of correct while v4 is the thing under test.
+A constant that fails on legitimate data and cannot be corrected without
+begging the question is not repairable. It has to go.
+
+**What R4 is now.** Both sides are built in ONE process from the SAME book and
+the SAME strike index — side A through this study's `build_universe`/`evaluate`,
+side B through `vol_sleeve.synthesize(..., structures=("calendar",))` — and
+required equal row for row on (entry_net, contracts, exit_reason, days_held, R),
+keyed (ticker, date, expiry). Rounding is the checkpoint store's own round-trip
+precision (6dp / 10dp), not a tolerance. Cache growth now moves both sides
+together, so a mismatch has exactly one possible cause, which is the one the
+gate was always about. First run under the new form: **R4 PASS**, 20 rows,
+meanR +0.628, $62, exit mix identical on both sides.
+
+**A second snapshot was hiding underneath it.** The checkpoint store
+(`backtests/sweep_cache/synth_results.csv`) is keyed
+`(structure, ticker, date, expiry, profile_hash)` — no input generation. So
+after a scrape, `evaluate` would skip a cached row while `vol_sleeve.synthesize`
+recomputed a fresh one, and the converted R4 would fail on the next scrape for a
+reason that is still not drift. The key now carries a per-TICKER cache signature
+(`ticker_cache_sig()`: file count @ newest mtime), so a row built against one
+cache generation is never reused as, or compared against, a row built against
+another. Per-ticker rather than whole-cache: a scrape touches some names, and
+invalidating the other ~1,100 would empty the store without making one number
+more correct. Rows written before the column existed carry `""`, match no live
+signature, and are recomputed rather than trusted.
+
+**The rule both R3 and R4 arrived at the hard way.** A gate compares two things
+computed THIS run from the SAME input, or it is a fingerprint of one snapshot
+wearing a gate's clothes. R3 became a print on 2026-08-15 for the same reason;
+four `account_sim` gates with stored `expected_positions` were deleted the same
+day. R4 was the last transcribed expectation in `scripts/backtest_study/` and it
+survived on the argument that a RE-IMPLEMENTATION checksum is different from a
+POPULATION checksum. That argument holds only while the code's inputs are fixed,
+and a 24k-file scraped cache is not fixed. Where a code-behaviour claim genuinely
+needs a fixed expectation, it belongs in `tests/` against a COMMITTED fixture —
+version-controlled beside the code, changed only in a deliberate commit — which
+is what `tests/test_harness_replay.py` already does for the frozen harness.
+
+**Study outcome on v4 (unchanged conclusion).** With the gates passing, the H arm
+runs to completion for the first time since the cache grew: exit 0, **H0 FILL NOT
+MET** (was MET on v3), **H2 NOT EVALUABLE**, H2-under-hold NOT EVALUABLE. That is
+the thin v4 book, not a refutation — the hedge programme was already
+power-stopped. Blocked on dates, as before.

@@ -21,12 +21,13 @@ expected outcome, not a failure of the study.
 THE RECONSTRUCTION GATES COME FIRST, AND R4 IS THE CRITICAL ONE
 ---------------------------------------------------------------
 R1 quotes the book calibration. R2 re-prices every source row. R3 PRINTS the
-deployed ladder line this book produces. **R4** rebuilds `vol_sleeve`'s
-calendar cell with the pick rule DISABLED and the LOOSE fill rule and must
-reproduce it EXACTLY — 183 rows, meanR +0.158, $28,059, and the exit mix.
-Without R4 the gap between +0.336 and whatever H2 prints cannot be attributed
-to the pick rule rather than to re-implementation drift, so R4 failing is a
-hard non-zero exit and the H arm does not run.
+deployed ladder line this book produces. **R4** builds `vol_sleeve`'s calendar
+cell TWICE in this run, from the same strike index and the same book — once
+through this study's `build_universe`/`evaluate`, once through
+`vol_sleeve.synthesize` itself — and requires the two equal row for row.
+Without R4 the gap between vol_sleeve's +0.336 and whatever H2 prints cannot be
+attributed to the pick rule rather than to re-implementation drift, so R4
+failing is a hard non-zero exit and the H arm does not run.
 
 AMENDMENT 2026-08-15 (labelled): R3 was a PASS/FAIL comparison against
 `R3_EXPECT = dict(n=220, dates=90, dollars=63553.0)` — a checksum of ONE export
@@ -58,8 +59,16 @@ Every synthesized+replayed candidate is appended to
 instead of restarting, and the report is computed FROM the store. `--redo`
 drops the keys this invocation would write before recomputing them.
 
-AMENDMENT 2026-08-13 (post-first-run, labelled): R4 re-keyed to the pre-scrape
-cache snapshot via the sweep manifest; ARM S runs on the grown cache.
+AMENDMENT 2026-08-13, SUPERSEDED 2026-08-19 (labelled): R4 was re-keyed to a
+pre-scrape cache snapshot via the sweep manifest. That held the cache still by
+SUBTRACTING the sweep's own additions — a valid inverse only while every LATER
+addition is manifested too, which stopped being true within a day (6,240 cache
+files postdate the keyed run; the manifest covers 1,452) and can never be true
+for a rescrape that overwrites a contract in place. R4 now CANCELS the cache
+instead of subtracting it: both sides read the same index in the same process,
+so growth moves them together and drift is the only thing left that can differ.
+The snapshot machinery is deleted with it, and the checkpoint store is keyed on
+its input so a cached row can never be compared against a freshly built one.
 
 Read-only with respect to the project: touches no config, writes no tab. Run:
 
@@ -119,18 +128,16 @@ POWER_STOP_MIN_N = 10                # H2(b) is NOT EVALUABLE below this
 FRESH_STALE_MAX = 3                  # H0b
 FRESH_REAL_MIN = 0.5                 # H0b
 
-# R4 — vol_sleeve's calendar cell, transcribed from
-# backtests/study_output/vol_sleeve-latest.txt (2026-08-12, git 470b95f).
-R4_EXPECT = dict(
-    n=183, mean_r=0.158, dollars=28059.0,
-    exits={"time_exit": 124, "profit_target": 28, "dollar_stop": 22,
-           "cap_open": 5, "stop_loss": 4},
-)
-R4_DOLLAR_TOL = 1.0
-# NO R3_EXPECT. It was `dict(n=220, dates=90, dollars=63553.0)` and it gated R3
-# PASS/FAIL; see the module docstring's 2026-08-15 amendment for why a snapshot
-# checksum on the POPULATION (as opposed to R4's checksum on a re-implementation)
-# breaks on every legitimate re-export and had to go.
+# NO R3_EXPECT and NO R4_EXPECT. Both were checksums transcribed from one past
+# run — R3's `dict(n=220, dates=90, dollars=63553.0)` off an export, R4's
+# `dict(n=183, mean_r=0.158, dollars=28059.0, exits={...})` off
+# vol_sleeve-latest.txt (2026-08-12, git 470b95f) — and both broke on data that
+# had every right to move. R3 became a print on 2026-08-15; R4 became a same-run
+# comparison on 2026-08-19 (see `r4_calendar_cell`). The rule the two failures
+# teach: a gate compares two things computed THIS run from the SAME input, or it
+# is a fingerprint of one snapshot wearing a gate's clothes. A code-behaviour
+# claim that needs a fixed expectation belongs in `tests/` against a committed
+# fixture, where the input is version-controlled beside the code.
 
 # The ETF list for pick rule P6, fixed here and printed in the report.
 ETF_UNDERLYINGS = (
@@ -148,13 +155,7 @@ PROFILES = {
 
 SWEEP_CACHE = ROOT / "backtests" / "sweep_cache"
 STORE_PATH = SWEEP_CACHE / "synth_results.csv"
-LEGS_MANIFEST = SWEEP_CACHE / "legs_manifest.csv"
 FLUSH_EVERY = 25
-
-# R4 is rebuilt under its OWN structure label so the snapshot cell can never mix
-# with ARM S's grown-cache rows in the shared checkpoint store: same (ticker,
-# date, expiry) keys, different legs, different answer.
-SNAPSHOT_STRUCTURE = "calendar@snapshot"
 
 STORE_FIELDS = [
     "structure", "ticker", "date", "expiry", "profile_hash",
@@ -162,6 +163,7 @@ STORE_FIELDS = [
     "entry_net", "contracts", "exit_reason", "days_held", "pnl_pct",
     "E", "mfe", "mae", "dte", "moneyness", "coverage",
     "pct_real", "stale_at_cap", "entry_lag_days", "fillable_strict",
+    "cache_sig",
 ]
 
 FAIL_HASH = "FAIL"          # a build/pricing failure is not profile-specific
@@ -175,12 +177,14 @@ def profile_hash(prof: dict) -> str:
 def cache_fingerprint() -> tuple[int, str]:
     """`(n_contracts, newest_mtime)` of the option-history cache.
 
-    R4's constants are keyed to a SNAPSHOT of this cache: `vol_sleeve` picked
-    K* as the cached strike nearest spot and the far leg as the next cached
-    expiry, so ADDING contracts silently re-picks both and R4 stops reproducing
-    even though no code changed. Printed in provenance so a failing R4 can be
-    told apart from re-implementation drift in one line — and so a replication
-    knows which cache the H-arm numbers belong to.
+    PROVENANCE ONLY — no gate keys to it any more. It still has to be on the
+    page, because `vol_sleeve` picks K* as "the cached strike nearest spot" and
+    the far leg as "the next cached expiry": the same code on a grown cache
+    chooses different legs and prints a different number, so a replication
+    cannot interpret any figure here without knowing which cache produced it.
+    That property is also why R4 compares two same-run builds instead of a
+    stored one (`r4_calendar_cell`) and why the checkpoint store carries
+    `ticker_cache_sig`.
     """
     newest, n = 0.0, 0
     for p in HISTORY_CACHE.glob("*.csv"):
@@ -189,6 +193,32 @@ def cache_fingerprint() -> tuple[int, str]:
     stamp = (datetime.fromtimestamp(newest).strftime("%Y-%m-%d %H:%M:%S")
              if newest else "—")
     return n, stamp
+
+
+def ticker_cache_sig() -> dict[str, str]:
+    """`{ticker: "<n files>@<newest mtime>"}` over the option-history cache.
+
+    Stamped onto every checkpoint row and part of its key, so a row built
+    against one cache generation is never REUSED as, or COMPARED against, a row
+    built against another. Without this the checkpoint store reintroduces the
+    exact defect R4 was converted to remove: `evaluate` would skip a cached row
+    while `vol_sleeve.synthesize` recomputed a fresh one, and R4 would fail on
+    the next scrape for a reason that has nothing to do with drift.
+
+    Per TICKER, not whole-cache: a scrape touches some tickers, and invalidating
+    the other ~1,100 would empty the store without making one number more
+    correct. Files are named `{TICKER}_{...}.csv`.
+
+    Rows written before this column existed carry `""`, which matches no live
+    signature — they are recomputed rather than trusted, which is the intended
+    reading of a row whose input generation is unknown.
+    """
+    agg: dict[str, tuple[int, int]] = {}
+    for p in HISTORY_CACHE.glob("*.csv"):
+        tk = p.stem.split("_")[0].upper()
+        n, newest = agg.get(tk, (0, 0))
+        agg[tk] = (n + 1, max(newest, int(p.stat().st_mtime)))
+    return {tk: f"{n}@{m}" for tk, (n, m) in agg.items()}
 
 
 # ── checkpoint store ─────────────────────────────────────────────────────────
@@ -203,16 +233,30 @@ class Store:
     report: which calendars cannot be filled IS the fill-rate question).
     """
 
-    def __init__(self, path: Path = STORE_PATH):
+    def __init__(self, path: Path = STORE_PATH, sigs: dict[str, str] | None = None):
         self.path = path
+        self.sigs = ticker_cache_sig() if sigs is None else sigs
         self.rows: dict[tuple, dict] = {}
         self._pending: list[dict] = []
         self.load()
 
+    def sig_for(self, ticker: str) -> str:
+        return self.sigs.get(str(ticker).upper(), "")
+
     @staticmethod
     def key_of(row: dict) -> tuple:
         return (row["structure"], row["ticker"], row["date"], row["expiry"],
-                row["profile_hash"])
+                row["profile_hash"], row.get("cache_sig", ""))
+
+    def key(self, structure: str, ticker: str, d: str, expiry: str,
+            prof_hash: str) -> tuple:
+        """The key a row built THIS run would have — signature included.
+
+        Callers must go through this rather than assembling the tuple, or they
+        would look up a key with no `cache_sig` and hit rows from an older
+        cache generation.
+        """
+        return (structure, ticker, d, expiry, prof_hash, self.sig_for(ticker))
 
     def load(self) -> None:
         if not self.path.exists():
@@ -225,10 +269,11 @@ class Store:
         return key in self.rows
 
     def failed(self, structure: str, ticker: str, d: str, expiry: str) -> str | None:
-        row = self.rows.get((structure, ticker, d, expiry, FAIL_HASH))
+        row = self.rows.get(self.key(structure, ticker, d, expiry, FAIL_HASH))
         return row["status"] if row else None
 
     def put(self, row: dict) -> None:
+        row.setdefault("cache_sig", self.sig_for(row["ticker"]))
         self.rows[self.key_of(row)] = row
         self._pending.append(row)
         if len(self._pending) >= FLUSH_EVERY:
@@ -262,9 +307,16 @@ class Store:
         return dropped
 
     def select(self, structure: str, prof_hash: str) -> list[dict]:
+        """Rows of one cell — CURRENT cache generation only.
+
+        The signature is in the key, so a stale row cannot be overwritten by a
+        fresh one; it has to be filtered out here as well, or `select` would
+        return both generations of the same candidate.
+        """
         return [_typed(r) for r in self.rows.values()
                 if r["structure"] == structure and r["profile_hash"] == prof_hash
-                and r["status"] == "ok"]
+                and r["status"] == "ok"
+                and r.get("cache_sig", "") == self.sig_for(r["ticker"])]
 
     def describe(self) -> str:
         if not self.path.exists():
@@ -368,58 +420,6 @@ def build_universe(book: list[dict]) -> tuple[dict, Counter]:
 
 # ── candidate builders ───────────────────────────────────────────────────────
 
-def manifest_additions() -> tuple[set[tuple], str]:
-    """`(contracts the sweep scrape ADDED, provenance note)` from the manifest.
-
-    `scripts/collector/fetch_sweep_legs.py` records one row per contract it went
-    after; `status == "fetched"` are the ones that landed. These are exactly the
-    contracts that did NOT exist when `vol_sleeve` ran, which is what makes a
-    pre-scrape snapshot reconstructible at all.
-    """
-    if not LEGS_MANIFEST.exists():
-        return set(), f"MISSING ({LEGS_MANIFEST.relative_to(ROOT)})"
-    added: set[tuple] = set()
-    n = 0
-    with LEGS_MANIFEST.open() as fh:
-        for row in csv.DictReader(fh):
-            n += 1
-            if (row.get("status") or "").strip() != "fetched":
-                continue
-            try:
-                exp = date.fromisoformat(row["expiration"].strip())
-                strike = float(row["strike"])
-            except (ValueError, KeyError, AttributeError):
-                continue
-            cp = (row.get("opt_type") or "").strip().upper()[:1]
-            if cp not in ("C", "P"):
-                continue
-            added.add((row["ticker"].strip().upper(), exp, strike, cp))
-    mt = datetime.fromtimestamp(LEGS_MANIFEST.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-    return added, f"{len(added):,} fetched of {n:,} rows, mtime {mt}"
-
-
-def snapshot_index(idx, added: set[tuple]) -> dict:
-    """`idx` with every sweep-scraped contract removed — the PRE-SCRAPE grid.
-
-    Only leg SELECTION needs the snapshot. `vol_sleeve` picks K* as "the cached
-    strike nearest spot" and the far leg as "the next cached expiry", so a grown
-    cache silently re-picks both and R4's frozen constants stop reproducing with
-    no code change. Leg PRICING is deliberately NOT filtered: legs chosen from
-    this filtered index point only at files that already existed, and those are
-    byte-unchanged — which is exactly what R4 re-passing proves.
-    """
-    out: dict[tuple[str, date], dict[float, set[str]]] = {}
-    for (ticker, exp), strikes in idx.items():
-        keep: dict[float, set[str]] = {}
-        for strike, cps in strikes.items():
-            cps2 = {cp for cp in cps if (ticker, exp, strike, cp) not in added}
-            if cps2:
-                keep[strike] = cps2
-        if keep:
-            out[(ticker, exp)] = keep
-    return out
-
-
 def _expiries(idx, ticker: str, strike: float, cp: str) -> list[date]:
     """Every cached expiry at one (ticker, strike, call/put), ascending."""
     return sorted(exp for (tk, exp), strikes in idx.items()
@@ -508,7 +508,6 @@ def sub_narrower(rec: dict) -> list[Leg] | None:
 # Structures built from (idx, ticker, expiry, spot) — the synthesizer arm.
 GRID_BUILDERS = {
     "calendar": build_calendar,
-    SNAPSHOT_STRUCTURE: build_calendar,   # same builder, snapshot strike index
     "put_calendar": build_put_calendar,
     "put_diagonal": build_put_diagonal,
     "iron_condor": build_iron_condor,
@@ -561,7 +560,8 @@ def evaluate(universe: dict, idx, structures: tuple[str, ...], profiles: dict,
             exp_s = expiry.isoformat()
             for structure in structures:
                 groups += 1
-                done = all(store.has((structure, ticker, d, exp_s, profile_hash(p)))
+                done = all(store.has(store.key(structure, ticker, d, exp_s,
+                                               profile_hash(p)))
                            for p in profiles.values())
                 if done or store.failed(structure, ticker, d, exp_s):
                     diag["cached"] += 1
@@ -713,104 +713,130 @@ def r3_deployed(book: list[dict]) -> list[dict]:
     return picked
 
 
-def r4_calendar_cell(store: Store, structure: str, snapshot_note: str) -> tuple[bool, list[dict]]:
-    """Rebuild vol_sleeve's calendar cell: no pick rule, LOOSE fill, DEBIT_PROD."""
-    hdr("R4 — vol_sleeve's calendar cell, rebuilt EXACTLY (the critical gate)")
+R4_COMPARE_FIELDS = ("entry_net", "contracts", "exit_reason", "days_held", "R")
+
+
+def _r(v, n):
+    return None if v is None or v == "" else round(float(v), n)
+
+
+def _i(v):
+    return None if v is None or v == "" else int(v)
+
+
+def cell_fingerprint(rows: list[dict]) -> dict[tuple[str, str, str], tuple]:
+    """`{(ticker, date, expiry): (entry_net, contracts, exit_reason, days_held, R)}`.
+
+    The comparable form of a calendar cell, so a stored row and an in-memory
+    `vol_sleeve` row can be put side by side. Rounded to the precision the
+    checkpoint store ROUND-TRIPS (`entry_net` at 6dp and `R` at 10dp, the
+    formats `evaluate` writes) — that is the store's own precision, not a
+    tolerance chosen to make the gate pass, and widening it would hide the drift
+    R4 exists to catch.
+    """
+    out: dict[tuple[str, str, str], tuple] = {}
+    for r in rows:
+        key = (str(r["ticker"]), str(r["date"]), str(r["expiry"]))
+        out[key] = (_r(r.get("entry_net"), 6), _i(r.get("contracts")),
+                    r.get("exit_reason"), _i(r.get("days_held")),
+                    _r(r.get("R"), 10))
+    return out
+
+
+def cell_diff(mine: dict, theirs: dict) -> tuple[list, list, list]:
+    """`(only_mine, only_theirs, disagreed)` between two cell fingerprints."""
+    only_mine = sorted(set(mine) - set(theirs))
+    only_theirs = sorted(set(theirs) - set(mine))
+    disagreed = sorted(k for k in set(mine) & set(theirs) if mine[k] != theirs[k])
+    return only_mine, only_theirs, disagreed
+
+
+def r4_calendar_cell(store: Store, book: list[dict], idx) -> bool:
+    """`vol_sleeve`'s calendar cell, built TWICE this run, required equal.
+
+    R4 asks one question — has `build_universe`/`evaluate` drifted from the
+    construction `vol_sleeve.synthesize` performs inline? — and it now asks it
+    with both sides built in THIS process from the SAME book and the SAME strike
+    index, so the cache cancels instead of standing there as a second free
+    variable.
+
+    It used to compare against `R4_EXPECT = dict(n=183, mean_r=0.158, ...)`,
+    transcribed from vol_sleeve's 2026-08-12 report. That comparison had two
+    unknowns and one equation: `vol_sleeve` picks K* as "the cached strike
+    nearest spot" and the far leg as "the next cached expiry", so ADDING
+    contracts re-picks legs and moves the cell with no code change, and a
+    mismatch could not be read as drift rather than as cache growth — which is
+    why the FAIL path needed a whole `_r4_attribute` bisect to guess which had
+    happened. The 2026-08-13 amendment tried to hold the cache still by
+    SUBTRACTING the sweep scrape's own additions; see the module docstring for
+    why that inverse could not survive. Cancelling the variable is what
+    subtracting it was reaching for. Recorded in `research/current.md`
+    §2026-08-19.
+    """
+    hdr("R4 — the calendar cell built TWICE this run, required equal (the gate)")
     print("  Pick rule DISABLED, LOOSE fill (entry lag <= U.MAX_ENTRY_LAG_DAYS ="
-          f" {U.MAX_ENTRY_LAG_DAYS}),")
-    print("  full size, DEBIT_PROD. If this does not reproduce, the gap between")
-    print("  vol_sleeve's +0.336 and whatever H2 prints cannot be attributed to")
-    print("  the pick rule rather than to re-implementation drift.")
-    print(f"\n  strike index: {'PRE-SCRAPE SNAPSHOT' if structure == SNAPSHOT_STRUCTURE else 'FULL CACHE'}"
-          f"   sweep manifest: {snapshot_note}")
-    if structure == SNAPSHOT_STRUCTURE:
-        print("  AMENDMENT 2026-08-13 (labelled): the sweep scrape ARM S requires added")
-        print("  ~1,390 contracts, which re-picks K* and the far leg on some groups. R4")
-        print("  is therefore re-keyed to the pre-scrape grid via the manifest; ARM S")
-        print("  itself runs on the GROWN cache, which was the point of the scrape.")
+          f" {U.MAX_ENTRY_LAG_DAYS}), full size,")
+    print("  DEBIT_PROD — the construction vol_sleeve reports. Side A is this")
+    print("  study's build_universe + evaluate; side B is vol_sleeve.synthesize")
+    print("  itself. Both read the same book and the same strike index in this")
+    print("  process, so cache growth moves them together and the only thing a")
+    print("  mismatch can mean is that this study has drifted from the")
+    print("  construction it claims to reproduce.")
+    print("  NO stored expectation: nothing here is keyed to a past run.")
 
-    rows = store.select(structure, profile_hash(PROFILES["DEBIT_PROD"]))
-    got_n = len(rows)
-    got_mean = mean([r["R"] for r in rows])
-    got_dol = sum(r["R_dol"] for r in rows if r["R_dol"] is not None)
-    got_exits = Counter(r["exit_reason"] for r in rows)
+    mine_rows = store.select("calendar", profile_hash(PROFILES["DEBIT_PROD"]))
+    theirs_rows, _ = VS.synthesize(book, idx, structures=("calendar",))
 
-    print(f"\n  {'metric':<16} {'expected':>14} {'got':>14}   verdict")
-    checks = []
-    checks.append(("rows", R4_EXPECT["n"], got_n, got_n == R4_EXPECT["n"],
-                   f"{R4_EXPECT['n']:>14}", f"{got_n:>14}"))
-    checks.append(("meanR (3dp)", R4_EXPECT["mean_r"], round(got_mean, 3),
-                   round(got_mean, 3) == R4_EXPECT["mean_r"],
-                   f"{R4_EXPECT['mean_r']:>+14.3f}", f"{got_mean:>+14.3f}"))
-    checks.append(("$R", R4_EXPECT["dollars"], got_dol,
-                   abs(got_dol - R4_EXPECT["dollars"]) <= R4_DOLLAR_TOL,
-                   f"{R4_EXPECT['dollars']:>14,.0f}", f"{got_dol:>14,.0f}"))
-    for name, _, _, ok, exp_s, got_s in checks:
-        print(f"  {name:<16} {exp_s} {got_s}   {'OK' if ok else '*** MISMATCH ***'}")
+    mine, theirs = cell_fingerprint(mine_rows), cell_fingerprint(theirs_rows)
+    only_mine, only_theirs, disagreed = cell_diff(mine, theirs)
 
-    exits_ok = dict(got_exits) == R4_EXPECT["exits"]
-    print(f"  {'exit mix':<16}")
-    for k in sorted(set(R4_EXPECT["exits"]) | set(got_exits)):
-        e, g = R4_EXPECT["exits"].get(k, 0), got_exits.get(k, 0)
-        print(f"    {k:<20} expected {e:>4}   got {g:>4}   "
-              f"{'OK' if e == g else '*** MISMATCH ***'}")
+    def dol(rows):
+        return sum(r["R_dol"] for r in rows if r.get("R_dol") is not None)
 
-    ok = all(c[3] for c in checks) and exits_ok
-    print(f"\n  R4 {'PASS — the rebuild is faithful' if ok else 'FAIL'}")
+    print(f"\n  {'':<18} {'this study':>14} {'vol_sleeve':>14}")
+    print(f"  {'rows':<18} {len(mine):>14} {len(theirs):>14}")
+    print(f"  {'meanR':<18} {mean([r['R'] for r in mine_rows]):>+14.3f} "
+          f"{mean([r['R'] for r in theirs_rows]):>+14.3f}")
+    print(f"  {'$R':<18} {dol(mine_rows):>14,.0f} {dol(theirs_rows):>14,.0f}")
+    a_ex = Counter(r["exit_reason"] for r in mine_rows)
+    b_ex = Counter(r["exit_reason"] for r in theirs_rows)
+    print(f"  {'exit mix':<18}")
+    for k in sorted(set(a_ex) | set(b_ex)):
+        ae, be = a_ex.get(k, 0), b_ex.get(k, 0)
+        print(f"    {str(k):<16} {ae:>14} {be:>14}   "
+              f"{'OK' if ae == be else '*** MISMATCH ***'}")
+
+    print(f"\n  keys only in this study {len(only_mine)}   "
+          f"only in vol_sleeve {len(only_theirs)}   "
+          f"present in both but disagreeing {len(disagreed)}")
+    for label, keys in (("only here     ", only_mine),
+                        ("only vol_sleeve", only_theirs)):
+        for k in keys[:10]:
+            print(f"    {label}: {k[0]} {k[1]} exp {k[2]}")
+        if len(keys) > 10:
+            print(f"    ... and {len(keys) - 10} more")
+    for k in disagreed[:10]:
+        print(f"    disagree: {k[0]} {k[1]} exp {k[2]}")
+        for f, av, bv in zip(R4_COMPARE_FIELDS, mine[k], theirs[k]):
+            if av != bv:
+                print(f"        {f:<12} here {av!r}   vol_sleeve {bv!r}")
+    if len(disagreed) > 10:
+        print(f"    ... and {len(disagreed) - 10} more disagreeing")
+
+    ok = not (only_mine or only_theirs or disagreed)
+    print(f"\n  R4 {'PASS — the two constructions agree row for row' if ok else 'FAIL'}")
     if not ok:
         print("  STOPPING: the H arm does not run on an unverified rebuild.")
         print("""
-  BEFORE reading this as re-implementation drift, check the option-cache
-  fingerprint in PROVENANCE above. R4's constants are keyed to the cache
-  SNAPSHOT vol_sleeve ran on (2026-08-12): K* is "the cached strike nearest
-  spot" and the far leg is "the next cached expiry", so ADDING contracts
-  re-picks both legs on some groups and changes the cell with no code change.
-  This is structural, not a bug — and it collides with ARM S, which requires a
-  leg scrape FIRST. Once the cache grows, R4 can never pass again, and the
-  attribution R4 exists to provide has to come from a cache snapshot instead.""")
-        _r4_attribute(rows)
-    return ok, rows
-
-
-VOL_SLEEVE_RUN = datetime(2026, 8, 12, 15, 56, 15)   # the report R4 is keyed to
-
-
-def _r4_attribute(rows: list[dict]) -> None:
-    """Name the tickers whose cache moved AFTER the run R4 is keyed to.
-
-    Turns "R4 mismatched by $3,927" into "AAPL's contracts were rescraped and
-    AAPL is the only cell that moved" without a manual bisect. If the moved
-    tickers do NOT account for the whole gap, the residual IS re-implementation
-    drift and the message says so.
-    """
-    moved = set()
-    for p in HISTORY_CACHE.glob("*.csv"):
-        if p.stat().st_mtime > VOL_SLEEVE_RUN.timestamp():
-            moved.add(p.stem.split("_")[0])
-    if not moved:
-        print("\n  No cached contract has changed since the reference run — the gap")
-        print("  is NOT a cache effect. Treat it as re-implementation drift.")
-        return
-
-    def cell(rs):
-        if not rs:
-            return 0, float("nan"), 0.0
-        return (len(rs), mean([r["R"] for r in rs]),
-                sum(r["R_dol"] for r in rs if r["R_dol"] is not None))
-
-    hit = [r for r in rows if r["ticker"] in moved]
-    rest = [r for r in rows if r["ticker"] not in moved]
-    sub("R4 attribution — which tickers' inputs moved")
-    print(f"  contracts rescraped since {VOL_SLEEVE_RUN:%Y-%m-%d %H:%M} for "
-          f"{len(moved)} ticker(s): {', '.join(sorted(moved))}")
-    for label, rs in (("moved tickers", hit), ("untouched tickers", rest)):
-        n, m, d = cell(rs)
-        print(f"  {label:<20} n={n:<5} meanR {m:>+7.3f}  ${d:>10,.0f}")
-    n_r, _, d_r = cell(rest)
-    print(f"\n  untouched cell must equal expected-minus-moved for the gap to be")
-    print(f"  fully explained by the cache: untouched n={n_r} ${d_r:,.0f}")
-    print(f"  If that reconciles, the re-implementation is faithful and the input")
-    print(f"  moved. If it does not, the residual is real drift.")
+  This is re-implementation drift and nothing else. Both sides were built in
+  this process from the same book and the same strike index, and the checkpoint
+  store is keyed on its cache generation, so the cache, the era and the export
+  cannot account for a difference. The divergence is between `build_universe` /
+  `evaluate` here and the inline construction in `vol_sleeve.synthesize`; the
+  per-key lines above name where. Do NOT reconcile by widening a tolerance or by
+  storing whatever this run printed — that is how R4 got into its previous
+  state.""")
+    return ok
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1488,18 +1514,16 @@ def main(argv=None) -> int:
 
     store = Store()
     if a.redo:
-        # The snapshot cell is always redone with the arm: it is the gate, and a
-        # stale snapshot row is the one thing that could hide a real drift.
-        drop_set = set(structures) | {SNAPSHOT_STRUCTURE}
+        # R4's cell is always redone with the arm: it is the gate, and a stale
+        # stored row is the one thing that could hide a real drift.
+        drop_set = set(structures) | {"calendar"}
         n = store.drop(lambda r: r["structure"] in drop_set)
         print(f"--redo: dropped {n} store rows for {', '.join(sorted(drop_set))}")
-
-    added, snapshot_note = manifest_additions()
 
     hdr("PROVENANCE — inputs, store, and the frozen pieces this rests on")
     n_cache, newest = cache_fingerprint()
     print(f"  option cache       {n_cache:,} contracts, newest {newest}")
-    print(f"  sweep manifest     {snapshot_note}")
+    print("                     (provenance only — no gate is keyed to it)")
     print(f"  checkpoint store   {store.describe()}")
     print(f"  exit profiles      " + "   ".join(
         f"{k}={profile_hash(v)} {v}" for k, v in PROFILES.items()))
@@ -1528,17 +1552,12 @@ def main(argv=None) -> int:
     print("  Results are checkpointed to the store keyed (structure, ticker, date,")
     print("  expiry, profile_hash); an interrupted run resumes.")
 
-    # R4's cell, on the PRE-SCRAPE grid, under its own structure label.
-    if added:
-        r4_structure = SNAPSHOT_STRUCTURE
-        print(f"\n  R4 snapshot cell: rebuilding on the pre-scrape grid "
-              f"({len(added):,} swept contracts withheld from leg SELECTION)")
-        evaluate(universe, snapshot_index(idx, added), (SNAPSHOT_STRUCTURE,),
-                 {"DEBIT_PROD": PROFILES["DEBIT_PROD"]}, store)
-    else:
-        r4_structure = "calendar"
-        print("\n  no sweep manifest — R4 runs on the full cache (pre-amendment "
-              "behaviour)")
+    # R4's side A, on the LIVE index — the same one vol_sleeve's side B reads.
+    # ARM S does not otherwise build "calendar", so this is load-bearing there;
+    # under ARM H the store dedups it against the full evaluate just below.
+    print("\n  R4 side A: building the calendar cell on the live strike index")
+    evaluate(universe, idx, ("calendar",),
+             {"DEBIT_PROD": PROFILES["DEBIT_PROD"]}, store)
 
     if a.arm == "H":
         print()
@@ -1547,8 +1566,7 @@ def main(argv=None) -> int:
             if str(k).startswith("calendar_"):
                 print(f"  {k:<34} {sdiag[k]}")
 
-    r4_ok, loose_rows = r4_calendar_cell(store, r4_structure, snapshot_note)
-    if not r4_ok:
+    if not r4_calendar_cell(store, book, idx):
         return 1
     if a.gates_only:
         hdr("GATES ONLY — R2 and R4 pass (R1/R3 print); the H arm was not run")

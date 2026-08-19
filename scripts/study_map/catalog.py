@@ -215,8 +215,10 @@ STUDIES: dict[str, Study] = {
         family="structure", state="open",
         question="Re-derive that one survivor under a pre-registered pick rule and a strict "
                  "fill rule.",
-        verdict="Every gate passes and R4 reproduces exactly — then H2 power-stops at n=6. "
-                "Blocked on new dates, not refuted.",
+        verdict="Gates pass — R4 now compares two same-run builds instead of a 2026-08-12 "
+                "checksum, so cache growth can no longer fail it. On v4 H0 FILL is NOT MET "
+                "(12/31 deployed dates, 1/3 worst-decile) and H2 stays NOT EVALUABLE. "
+                "Blocked on dates, not refuted.",
     ),
 
     # ④ deployment

@@ -254,8 +254,18 @@ def path_stats(t: Trade) -> tuple[float | None, float | None, float | None, int]
     return pls[-1], max(pls), min(pls), len(pls)
 
 
-def synthesize(book: list[dict], idx, require_recon: bool = True) -> tuple[list[dict], dict]:
-    """One record per (date, ticker, expiry, structure). Plus a diagnostics dict."""
+def synthesize(book: list[dict], idx, require_recon: bool = True,
+               structures: tuple[str, ...] | None = None) -> tuple[list[dict], dict]:
+    """One record per (date, ticker, expiry, structure). Plus a diagnostics dict.
+
+    `structures` narrows the build to a subset of `STRUCTURES` (default: all of
+    them, this study's own behaviour). It exists so `calendar_hedge`'s R4 can
+    rebuild the calendar cell through THIS function — the reference side of a
+    same-run comparison — without paying for the straddle and strangle cells it
+    does not compare. Narrowing changes no row: the structure loop is
+    independent per structure, and only the `diag` counters it never emits go
+    missing.
+    """
     diag = Counter()
     seen_recon: dict[tuple, bool] = {}
 
@@ -285,7 +295,7 @@ def synthesize(book: list[dict], idx, require_recon: bool = True) -> tuple[list[
         signal_date = date.fromisoformat(d)
         for expiry, info in by_exp.items():
             spot, src = info["spot"], info["rec"]
-            for structure in STRUCTURES:
+            for structure in (STRUCTURES if structures is None else structures):
                 legs = build_legs(structure, idx, ticker, expiry, spot)
                 if legs is None:
                     diag[f"{structure}_no_grid"] += 1
