@@ -135,6 +135,14 @@ STUDIES: dict[str, Study] = {
                 "bump; passive re-run when the book grows.",
     ),
 
+    "emission_timing": Study(
+        family="selection", state="open",
+        question="Does entry TIMING carry risk the columns never saw: the same (ticker, "
+                 "structure) re-emitted across consecutive analysis dates (am I late?), and "
+                 "a fill delayed 1-3 sessions past the signal (does the edge decay?)?",
+        verdict="First run 2026-08-19 (era v3, 795/118): ARM P NULL — repeats vs firsts +0.054, CI [-0.115,+0.224] spans zero, 2025 wrong-signed; the positive lean (every LOO fold +) is a labelled post-hoc watch for NEW dates only. ARM L LAG-TOLERANT — the publishable finding: no lag in {1,2,3} sessions separates from the day-0 close fill under the conjunction. The signal does not decay within three sessions; a missed same-day fill is not a lost trade.",
+    ),
+
     # ② management
     "exit_mechanism_study": Study(
         family="management", state="shipped",
@@ -209,6 +217,14 @@ STUDIES: dict[str, Study] = {
                 "not a tradeable signal.",
     ),
 
+    "staged_exit": Study(
+        family="management", state="open",
+        question="Does a time-STAGED exit — evaluate ONCE at fixed session X on P&L vs the "
+                 "original entry, then exit / tighten / arm a trail — work where the "
+                 "reactive drawdown-from-peak rules of Attempts 1/2/10 did not?",
+        verdict="First run 2026-08-19 (era v3, 795/118): NULL both arms of the grid — 60 of 96 cells UNDERPOWERED at the pre-declared floor, and every one of the 36 powered cells fails the date-clustered CI outright (no CANDIDATE, no REACTIVE-AGAIN even reached). Continuation shares of 49-79% on the early exits show the reactive mechanism still present in scheduled form: time-staging bought no immunity. The Attempt-1/2/10 null extends to staged switches; thread closed on these dates.",
+    ),
+
     # ③ structure
     "bear_rewrap": Study(
         family="structure", state="null",
@@ -233,6 +249,23 @@ STUDIES: dict[str, Study] = {
                 "checksum, so cache growth can no longer fail it. On v4 H0 FILL is NOT MET "
                 "(12/31 deployed dates, 1/3 worst-decile) and H2 stays NOT EVALUABLE. "
                 "Blocked on dates, not refuted.",
+    ),
+
+    "financed_spread": Study(
+        family="structure", state="open",
+        question="Does financing a book debit vertical with a credit position pay — an "
+                 "opposite-delta credit spread, a naked short leg, or a same-direction "
+                 "credit vertical?",
+        verdict="Two runs 2026-08-19 (era v3). Same-expiry financing (F0-F3): all seven "
+                "cells NULL, naked short significantly HARMFUL, E3 positive everywhere. "
+                "Post-scrape F4 diagonal (short-dated, delta-targeted, beyond the wing): "
+                "F4-d20 HOLD is the study's one CANDIDATE — dR +0.176 CI[+0.015,+0.354], "
+                "every LOO fold +, all windows incl. ex-BOTH, all years, both tiers, and "
+                "E3 -0.134 (the only cell that diversifies). The operator's own close-at-"
+                "50%/$100 management NULLs the same cell (+0.05/+0.02) — holding the leg "
+                "to ITS expiry is where the edge lives; d10 far-OTM re-wraps and loses. "
+                "Built on 117/570 rows / 74 dates. NOT a ship — queued for an "
+                "independent-window confirmation.",
     ),
 
     # ④ deployment
@@ -265,6 +298,15 @@ STUDIES: dict[str, Study] = {
                 "arm reaches 11 affected dates (PRIMARY) against a floor of 25 declared "
                 "before the count was knowable. Census only: no arm confirmed, none refuted, "
                 "no O4 band drawn, and NO re-run on these dates.",
+    ),
+
+    "portfolio_delta": Study(
+        family="deployment", state="open",
+        question="Is there an optimal PORTFOLIO net delta to keep? account_sim showed "
+                 "delta-notional binds before cash; this asks whether the level itself is "
+                 "a lever — dose-response, a ceiling band, and a delta-TARGETED hedge "
+                 "sleeve, against a seeded random-admission null band.",
+        verdict="First run 2026-08-19 (era v3): NOISE on the primary population, and LONG-ONLY-BY-CONSTRUCTION confirmed as the operating fact — 219/220 deployed picks positive delta, 0 net-short sessions, on the PRIMARY population every delta-target hedge arm UNDERPOWERED at the moved-dates floor. On the SECONDARY (carries nothing alone) five arms are powered and H* 1.50 is the one arm anywhere whose CI excludes zero (+0.084) — it fails 2024 sign and the ARM N band, so nothing clears the conjunction. Net delta is not a free lever of this book; no band value read off P&L per the firewall.",
     ),
 }
 
@@ -308,6 +350,11 @@ INFRA: dict[str, str] = {
                           "share volume), relative-volume z, Amihud. Split-guarded, "
                           "rescaled tickers withheld from the window features. Built for "
                           "volume_signal (NULL) and kept for future pre-registered use.",
+    "lib/greeks.py": "Per-leg greeks read from the option-history cache at a given day, "
+                     "signed and qty-scaled, with net-position sums that are all-or-nothing "
+                     "per greek (a missing leg makes the greek None, never 0 and never a "
+                     "partial sum). Built for financed_spread's exposure reads and "
+                     "portfolio_delta's G-DELTA cross-check.",
     "lib/macro_calendar.py": "Scheduled US macro events (FOMC decisions, minutes, CPI, NFP, "
                          "PCE) as as-of features, read from the hand-authored "
                          "config/macro-events.yml. next_event is strictly-after and "

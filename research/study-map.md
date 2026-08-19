@@ -87,6 +87,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `ml_combination.py` | Does any learned combination (structure × regime × geometry × enrichment) beat the score-free ladder out of sample? | **NULL** — 0 of 15 model × strategy cells. Re-open only on new **columns**, never new models. |
 | `v4_bridge.py` | v4 dropped two prompt factors. Does the v3-derived ladder still apply to what v4 *emits*? | Written before the data existed. Waiting on v4 rows. |
 | `macro_event_study.py` | Do scheduled macro events (FOMC decisions, minutes, CPI, NFP, PCE) show up in the book — in entry IV (`vrp`), in outcomes (R/E), or in exits? Distance keys off the **entry session**, pre-open vs post-open decides day 0. | Era v3 (795/118): ONE powered cell — NFP AFTER w≤5 — null on `vrp` and R; every FOMC/minutes/CPI/PCE cell power-stops. Context: NFP = VIX build-then-bleed + post-print SPY relief; FOMC = nothing (no pre-FOMC drift). ARM X's raw trigger **died under the survival control** → `macro_event_exit` DE-QUEUED. Nothing ships; no v5 bump; passive re-run as the book grows. |
+| `emission_timing.py` | Same signal, later entry: do repeat emissions of a persisting (ticker, structure) underperform first emissions, and does a fill delayed 1–3 sessions past the signal decay the edge — conditioned on the pre-signal price vector? | First run 2026-08-19 (era v3): ARM P **NULL** (+0.054, CI spans zero; positive lean = labelled watch for new dates). ARM L **LAG-TOLERANT** — the publishable finding: no lag in {1,2,3} sessions separates from the day-0 close fill. The signal does not decay within three sessions. |
 
 ## ② MANAGEMENT — "when do I get out?" ← where the edge is
 
@@ -100,6 +101,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `bear_giveback.py` | 82% of bear rows go green then give it back. Can a breakeven ratchet capture it, and does the underlying path explain it? | `be_after` grid does **NOT** ship beyond what's already live; the give-back pattern is in the **underlying**, not the mark. |
 | `next_day_move.py` | Move the give-back question to day 0 (knowable at the close): cut positions the stock didn't confirm? | ARM C doesn't clear the confound → **no rule**. Sensitivity is structural. |
 | `volume_signal.py` | Share volume — the one column on disk no study had read. Does unusual-O/S (flow contracts / share volume) condition exits, or anything? | **NULL** — no R separation on non-bear debit, and the one frozen exit variant is negative out-of-fold (LOO share 1%). Column closed; no version bump. Bear's monotone os_ratio read is a post-hoc carry-forward only. |
+| `staged_exit.py` | Evaluate ONCE at a fixed session X on P&L vs the ORIGINAL entry — exit, tighten the stop, or arm a trail — where the reactive drawdown-from-peak rules of Attempts 1/2/10 failed. | First run 2026-08-19 (era v3): **NULL** — 60/96 cells UNDERPOWERED, all 36 powered cells fail the CI outright; continuation shares 49–79% show time-staging bought no immunity from the reactive mechanism. The Attempt-1/2/10 null extends to scheduled switches. |
 
 ## ③ STRUCTURE — "am I expressing the signal in the wrong wrapper?"
 
@@ -108,6 +110,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `bear_rewrap.py` | A bear *spread* sells the lower put — so it gives away the vol expansion that makes a bear position pay. Drop the short leg? | Wrapper is worth **+0.085** and it **does not hold in 2026**. Nothing ships; re-runnable as dates land. |
 | `vol_sleeve.py` | Synthesize straddle / strangle / calendar on the dates the engine already signalled. Is there a vol sleeve? | **CLOSED** — the straddle clears its gate then dies out of sample, and it *doubles* existing exposure (wrong-signed correlation). Only the **calendar** survives. |
 | `calendar_hedge.py` | Re-derive that one survivor under a pre-registered pick rule and a strict fill rule. | Gates all pass (R4 reproduces exactly), but H2 **power-stops at n=6**. Blocked on new dates, not refuted. |
+| `financed_spread.py` | Does wrapping a book debit vertical in a financing credit — an opposite-delta credit spread, a naked short leg, or a same-direction credit vertical — improve outcomes without re-wrapping the same exposure? | Two runs 2026-08-19 (era v3). Same-expiry shapes: all seven cells **NULL**, naked short significantly harmful, every shape re-wraps the sleeve. Post-scrape **F4-d20 hold is the one CANDIDATE** (ΔR +0.176, CI excl. zero, all seven criteria incl. E3 −0.134 — the only diversifying cell); the operator's close-at-50%/$100 management NULLs the same rows, and d10 far-OTM re-wraps. NOT a ship — queued for independent-window confirmation. |
 
 ## ④ DEPLOYMENT — "can I actually run this?"
 
@@ -116,6 +119,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `bear_deploy.py` | Bear selection is unfixable — but is bear worth holding as a **hedge**? Four estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, D4 conditional pick. | **D2 MET** (bear pays on the deployed book's worst dates, corr −0.13). **D4 ADOPTED** (pick bear by \|delta\| *descending*). D1/D3 not met. Bear = a hedge, not a selection. |
 | `account_sim.py` | The ladder assumes infinite capital. Does a real **$25,000** account — paying for positions, holding reserve, respecting a delta cap — still produce a book? | Caps survive; the **window** doesn't. **Delta-notional binds, not cash.** Feasibility only, nothing ships. |
 | `selection_order.py` | `account_sim`'s *rejected* picks outperformed its taken ones. Does a different **blind entry-side order** of the same candidate set spend the scarce delta budget better — or was that read an artifact? | **POWER-STOPPED** at G0. Each re-ordering changes only 7–14% of the deployed book, so the best-powered arm reaches 11 affected dates vs a floor of **25** declared before the count was knowable. Census only — nothing confirmed, nothing refuted, no O4 band drawn. |
+| `portfolio_delta.py` | Is the book's net delta LEVEL a lever? Dose-response by exposure band, a ceiling-band admission, and a delta-TARGETED hedge sleeve, all against a seeded random-admission null band. | First run 2026-08-19 (era v3): **NOISE**, and long-only-by-construction confirmed (219/220 positive delta, 0 net-short sessions); every delta-target hedge arm UNDERPOWERED on the primary population (on the secondary — which carries nothing alone — H* 1.50 is the one arm anywhere whose CI excludes zero, and it fails the year-sign and null-band criteria). Net delta is not a free lever of this book. |
 
 ---
 
@@ -131,6 +135,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `underlying_features.py` | As-of-entry price-*state* columns (rv20, Parkinson, semivar, ATR%, efficiency ratio, VRP, beta). This family is the ML re-open — none of it existed when B1 searched 496 subsets. |
 | `volume_features.py` | As-of-entry *volume* columns (unusual-O/S, relative-volume z, Amihud), split-guarded, rescaled tickers withheld from the window features. Built for `volume_signal` (NULL), kept for future pre-registered use. |
 | `macro_calendar.py` | Scheduled macro events (FOMC, minutes, CPI, NFP, PCE) as as-of features, read from the hand-authored `config/macro-events.yml`. `next_event` is strictly-after and refuses past each type's `verified_through`; unscheduled events excluded from forward reads only. Built for `macro_event_study`. |
+| `greeks.py` | Per-leg greeks from the option-history cache at a given day, signed and qty-scaled; net sums are all-or-nothing per greek (a missing leg makes the greek `None`, never 0). Built for `financed_spread`'s exposure reads and `portfolio_delta`'s G-DELTA cross-check. |
 
 ---
 

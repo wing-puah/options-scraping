@@ -87,6 +87,9 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested p
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
 python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
 python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
+python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches
+python3 scripts/backup_research_caches.py pull            # rehydrate them on a fresh checkout BEFORE any study/backtest run
+                                                          # (additive — never clobbers newer local files; --force = full restore)
 
 # Backtest tuning studies (research tier — reports, not production)
 python3 -m scripts.backtest_study list                # available studies

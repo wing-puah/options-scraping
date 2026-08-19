@@ -27,3 +27,8 @@ here — see [`../replication-protocol.md`](../replication-protocol.md).
 | [`vol_sleeve.md`](vol_sleeve.md) | `vol_sleeve` |
 | [`volume_signal.md`](volume_signal.md) | `volume_signal` |
 | [`v4_bridge.md`](v4_bridge.md) | `v4_bridge` (module: `scripts/backtest_study/f1_selection/v4_bridge.py`) |
+| [`selection_order.md`](selection_order.md) | `selection_order` (module: `scripts/backtest_study/f4_deployment/selection_order.py`) |
+| [`financed_spread.md`](financed_spread.md) | `financed_spread` |
+| [`staged_exit.md`](staged_exit.md) | `staged_exit` |
+| [`portfolio_delta.md`](portfolio_delta.md) | `portfolio_delta` |
+| [`emission_timing.md`](emission_timing.md) | `emission_timing` |

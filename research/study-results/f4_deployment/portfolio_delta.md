@@ -1,0 +1,30 @@
+# portfolio_delta — per-era record
+
+**Question.** Is there an optimal PORTFOLIO net delta to keep? account_sim showed delta-notional binds before cash; this asks whether the level itself is a lever — dose-response, a ceiling band, and a delta-TARGETED hedge sleeve, against a seeded random-admission null band.
+
+Append-only. One section per (export era, git sha); newest last. The excerpts are quoted verbatim from the study's own report — see [README.md](../README.md) for why this folder exists.
+
+
+## era v3 · inputs cd647ce · sha bfcd512 — recorded 2026-08-19
+<!-- key era=v3 sha=bfcd512 inputs=cd647ce -->
+
+population  1,926 results · 4,533 proxy · 11,836 analysis · 807 spy_vix_daily_full  (inputs dated 2026-08-15 19:03 … 2026-08-19 11:10)
+run         2026-08-19 17:13:34 · git bfcd512 (main, working tree dirty) · exit 0 · 15.5s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [1.0,2.0)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 1 of 220   per-date net/equity range [+0.00, +2.49]
+  >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
+  QUALIFICATION on the label above (printed because the catch-all fired, not
+  because the wording matched): B ceiling 1.00 DID clear criterion (7)
+  — it sits above ARM N's 95th percentile — and then failed the rest of the
+  conjunction. NOISE is carrying it as the catch-all rather than a fifth label
+  being invented after the number was seen. Read the per-arm checklist above:
+  it is the whole result, and nothing on it is adoption-eligible.
+```
+
