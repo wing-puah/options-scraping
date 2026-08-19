@@ -120,6 +120,15 @@ STUDIES: dict[str, Study] = {
         verdict="Written before the data existed. It refuses to compare a book against "
                 "itself, so it aborts until a real v4 export lands.",
     ),
+    "macro_event_study": Study(
+        family="selection", state="open",
+        question="Do scheduled macro events — FOMC decisions, minutes, CPI, NFP, PCE — show "
+                 "up in the book: in entry IV (vrp), in outcomes (R/E), or in exits?",
+        verdict="Registered 2026-08-19, not yet run. G0 prints the power census first; on "
+                "the scoping counts the tight FOMC cells are expected to power-stop, and "
+                "the readable answer to \"does IV run up / crush\" is the ~800-session "
+                "VIX arm, which is context, never a verdict.",
+    ),
 
     # ② management
     "exit_mechanism_study": Study(
@@ -294,6 +303,14 @@ INFRA: dict[str, str] = {
                           "share volume), relative-volume z, Amihud. Split-guarded, "
                           "rescaled tickers withheld from the window features. Built for "
                           "volume_signal (NULL) and kept for future pre-registered use.",
+    "lib/macro_calendar.py": "Scheduled US macro events (FOMC decisions, minutes, CPI, NFP, "
+                         "PCE) as as-of features, read from the hand-authored "
+                         "config/macro-events.yml. next_event is strictly-after and "
+                         "refuses to answer past each type's verified_through; "
+                         "unscheduled events are excluded from forward-looking reads "
+                         "only. Event distance keys off the ENTRY session, with "
+                         "pre-open vs post-open deciding day-0. Built for "
+                         "macro_event_study.",
 }
 
 # ── the traps, kept where the map is read ─────────────────────────────────────

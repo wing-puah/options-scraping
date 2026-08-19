@@ -1,0 +1,227 @@
+# config/macro-events.yml
+# Scheduled US macro releases the study tier conditions on. HAND-AUTHORED from
+# the official published schedules (transcribed 2026-08-19 via live fetches of
+# the pages below; BLS pages read through a text-rendering proxy of the same
+# URLs). Every date is public record. NOT read by production - nothing under
+# scripts/backtest/, scripts/journal/ or repo lib/ imports this file.
+#
+# Loader + semantics: scripts/backtest_study/lib/macro_calendar.py.
+# release_et is Eastern; pre-open (< 09:30) prints are in the next-open entry
+# fill, post-open ones are not. The 2025 government-shutdown gaps are REAL
+# (no Oct-2025-reference CPI/NFP; Sep-2025 releases delayed; PCE Oct+Nov 2025
+# combined) - do not "fix" them to the usual cadence.
+# Known omission: an "August 22 (notation vote)" line appears under 2025 on the
+# FOMC calendar page with no policy action detail; not transcribed (it is not
+# a scheduled release and its content could not be verified).
+meta:
+  compiled: 2026-08-19
+  sources:
+    fomc: "federalreserve.gov/monetarypolicy/fomccalendars.htm - decision = last day of each meeting, statement 14:00 ET"
+    fomc_minutes: "same page - released 14:00 ET, ~3 weeks after the decision; only released dates are entered"
+    cpi: "bls.gov/schedule/news_release/cpi.htm + bls.gov/schedule/<YYYY>/home.htm archives - 08:30 ET"
+    nfp: "bls.gov/schedule/news_release/empsit.htm + per-year archives - Employment Situation, 08:30 ET"
+    pce: "bea.gov/news/schedule + per-release pages bea.gov/news/<YYYY>/personal-income-and-outlays-* - Personal Income & Outlays, 08:30 ET unless noted"
+  # Per type, the last date the OFFICIAL schedule is published through. A
+  # forward query past this returns None rather than "no event ahead".
+  # fomc_minutes releases are not scheduled in advance, so its horizon is the
+  # compile date; the others end with their last published schedule entry.
+  verified_through:
+    fomc: 2027-12-31
+    fomc_minutes: 2026-08-19
+    cpi: 2026-12-31
+    nfp: 2026-12-31
+    pce: 2026-12-31
+events:
+  # -- FOMC decisions (statement 14:00 ET, last day of the meeting) ----------
+  - {date: 2023-06-14, type: fomc, release_et: "14:00", label: "Jun 2023 decision"}
+  - {date: 2023-07-26, type: fomc, release_et: "14:00", label: "Jul 2023 decision"}
+  - {date: 2023-09-20, type: fomc, release_et: "14:00", label: "Sep 2023 decision"}
+  - {date: 2023-11-01, type: fomc, release_et: "14:00", label: "Oct-Nov 2023 decision"}
+  - {date: 2023-12-13, type: fomc, release_et: "14:00", label: "Dec 2023 decision"}
+  - {date: 2024-01-31, type: fomc, release_et: "14:00", label: "Jan 2024 decision"}
+  - {date: 2024-03-20, type: fomc, release_et: "14:00", label: "Mar 2024 decision"}
+  - {date: 2024-05-01, type: fomc, release_et: "14:00", label: "Apr-May 2024 decision"}
+  - {date: 2024-06-12, type: fomc, release_et: "14:00", label: "Jun 2024 decision"}
+  - {date: 2024-07-31, type: fomc, release_et: "14:00", label: "Jul 2024 decision"}
+  - {date: 2024-09-18, type: fomc, release_et: "14:00", label: "Sep 2024 decision"}
+  - {date: 2024-11-07, type: fomc, release_et: "14:00", label: "Nov 2024 decision"}
+  - {date: 2024-12-18, type: fomc, release_et: "14:00", label: "Dec 2024 decision"}
+  - {date: 2025-01-29, type: fomc, release_et: "14:00", label: "Jan 2025 decision"}
+  - {date: 2025-03-19, type: fomc, release_et: "14:00", label: "Mar 2025 decision"}
+  - {date: 2025-05-07, type: fomc, release_et: "14:00", label: "May 2025 decision"}
+  - {date: 2025-06-18, type: fomc, release_et: "14:00", label: "Jun 2025 decision"}
+  - {date: 2025-07-30, type: fomc, release_et: "14:00", label: "Jul 2025 decision"}
+  - {date: 2025-09-17, type: fomc, release_et: "14:00", label: "Sep 2025 decision"}
+  - {date: 2025-10-29, type: fomc, release_et: "14:00", label: "Oct 2025 decision"}
+  - {date: 2025-12-10, type: fomc, release_et: "14:00", label: "Dec 2025 decision"}
+  - {date: 2026-01-28, type: fomc, release_et: "14:00", label: "Jan 2026 decision"}
+  - {date: 2026-03-18, type: fomc, release_et: "14:00", label: "Mar 2026 decision"}
+  - {date: 2026-04-29, type: fomc, release_et: "14:00", label: "Apr 2026 decision"}
+  - {date: 2026-06-17, type: fomc, release_et: "14:00", label: "Jun 2026 decision"}
+  - {date: 2026-07-29, type: fomc, release_et: "14:00", label: "Jul 2026 decision"}
+  - {date: 2026-09-16, type: fomc, release_et: "14:00", label: "Sep 2026 decision"}
+  - {date: 2026-10-28, type: fomc, release_et: "14:00", label: "Oct 2026 decision"}
+  - {date: 2026-12-09, type: fomc, release_et: "14:00", label: "Dec 2026 decision"}
+  - {date: 2027-01-27, type: fomc, release_et: "14:00", label: "Jan 2027 decision"}
+  - {date: 2027-03-17, type: fomc, release_et: "14:00", label: "Mar 2027 decision"}
+  - {date: 2027-04-28, type: fomc, release_et: "14:00", label: "Apr 2027 decision"}
+  - {date: 2027-06-09, type: fomc, release_et: "14:00", label: "Jun 2027 decision"}
+  - {date: 2027-07-28, type: fomc, release_et: "14:00", label: "Jul 2027 decision"}
+  - {date: 2027-09-15, type: fomc, release_et: "14:00", label: "Sep 2027 decision"}
+  - {date: 2027-10-27, type: fomc, release_et: "14:00", label: "Oct 2027 decision"}
+  - {date: 2027-12-08, type: fomc, release_et: "14:00", label: "Dec 2027 decision"}
+  # -- FOMC minutes (released 14:00 ET; label names the MEETING covered) ----
+  - {date: 2023-07-05, type: fomc_minutes, release_et: "14:00", label: "Jun 2023 minutes"}
+  - {date: 2023-08-16, type: fomc_minutes, release_et: "14:00", label: "Jul 2023 minutes"}
+  - {date: 2023-10-11, type: fomc_minutes, release_et: "14:00", label: "Sep 2023 minutes"}
+  - {date: 2023-11-21, type: fomc_minutes, release_et: "14:00", label: "Oct-Nov 2023 minutes"}
+  - {date: 2024-01-03, type: fomc_minutes, release_et: "14:00", label: "Dec 2023 minutes"}
+  - {date: 2024-02-21, type: fomc_minutes, release_et: "14:00", label: "Jan 2024 minutes"}
+  - {date: 2024-04-10, type: fomc_minutes, release_et: "14:00", label: "Mar 2024 minutes"}
+  - {date: 2024-05-22, type: fomc_minutes, release_et: "14:00", label: "Apr-May 2024 minutes"}
+  - {date: 2024-07-03, type: fomc_minutes, release_et: "14:00", label: "Jun 2024 minutes"}
+  - {date: 2024-08-21, type: fomc_minutes, release_et: "14:00", label: "Jul 2024 minutes"}
+  - {date: 2024-10-09, type: fomc_minutes, release_et: "14:00", label: "Sep 2024 minutes"}
+  - {date: 2024-11-26, type: fomc_minutes, release_et: "14:00", label: "Nov 2024 minutes"}
+  - {date: 2025-01-08, type: fomc_minutes, release_et: "14:00", label: "Dec 2024 minutes"}
+  - {date: 2025-02-19, type: fomc_minutes, release_et: "14:00", label: "Jan 2025 minutes"}
+  - {date: 2025-04-09, type: fomc_minutes, release_et: "14:00", label: "Mar 2025 minutes"}
+  - {date: 2025-05-28, type: fomc_minutes, release_et: "14:00", label: "May 2025 minutes"}
+  - {date: 2025-07-09, type: fomc_minutes, release_et: "14:00", label: "Jun 2025 minutes"}
+  - {date: 2025-08-20, type: fomc_minutes, release_et: "14:00", label: "Jul 2025 minutes"}
+  - {date: 2025-10-08, type: fomc_minutes, release_et: "14:00", label: "Sep 2025 minutes"}
+  - {date: 2025-11-19, type: fomc_minutes, release_et: "14:00", label: "Oct 2025 minutes"}
+  - {date: 2025-12-30, type: fomc_minutes, release_et: "14:00", label: "Dec 2025 minutes"}
+  - {date: 2026-02-18, type: fomc_minutes, release_et: "14:00", label: "Jan 2026 minutes"}
+  - {date: 2026-04-08, type: fomc_minutes, release_et: "14:00", label: "Mar 2026 minutes"}
+  - {date: 2026-05-20, type: fomc_minutes, release_et: "14:00", label: "Apr 2026 minutes"}
+  - {date: 2026-07-08, type: fomc_minutes, release_et: "14:00", label: "Jun 2026 minutes"}
+  # -- CPI (BLS, 08:30 ET) ---------------------------------------------------
+  - {date: 2023-06-13, type: cpi, release_et: "08:30", label: "May 2023 CPI"}
+  - {date: 2023-07-12, type: cpi, release_et: "08:30", label: "Jun 2023 CPI"}
+  - {date: 2023-08-10, type: cpi, release_et: "08:30", label: "Jul 2023 CPI"}
+  - {date: 2023-09-13, type: cpi, release_et: "08:30", label: "Aug 2023 CPI"}
+  - {date: 2023-10-12, type: cpi, release_et: "08:30", label: "Sep 2023 CPI"}
+  - {date: 2023-11-14, type: cpi, release_et: "08:30", label: "Oct 2023 CPI"}
+  - {date: 2023-12-12, type: cpi, release_et: "08:30", label: "Nov 2023 CPI"}
+  - {date: 2024-01-11, type: cpi, release_et: "08:30", label: "Dec 2023 CPI"}
+  - {date: 2024-02-13, type: cpi, release_et: "08:30", label: "Jan 2024 CPI"}
+  - {date: 2024-03-12, type: cpi, release_et: "08:30", label: "Feb 2024 CPI"}
+  - {date: 2024-04-10, type: cpi, release_et: "08:30", label: "Mar 2024 CPI"}
+  - {date: 2024-05-15, type: cpi, release_et: "08:30", label: "Apr 2024 CPI"}
+  - {date: 2024-06-12, type: cpi, release_et: "08:30", label: "May 2024 CPI"}
+  - {date: 2024-07-11, type: cpi, release_et: "08:30", label: "Jun 2024 CPI"}
+  - {date: 2024-08-14, type: cpi, release_et: "08:30", label: "Jul 2024 CPI"}
+  - {date: 2024-09-11, type: cpi, release_et: "08:30", label: "Aug 2024 CPI"}
+  - {date: 2024-10-10, type: cpi, release_et: "08:30", label: "Sep 2024 CPI"}
+  - {date: 2024-11-13, type: cpi, release_et: "08:30", label: "Oct 2024 CPI"}
+  - {date: 2024-12-11, type: cpi, release_et: "08:30", label: "Nov 2024 CPI"}
+  - {date: 2025-01-15, type: cpi, release_et: "08:30", label: "Dec 2024 CPI"}
+  - {date: 2025-02-12, type: cpi, release_et: "08:30", label: "Jan 2025 CPI"}
+  - {date: 2025-03-12, type: cpi, release_et: "08:30", label: "Feb 2025 CPI"}
+  - {date: 2025-04-10, type: cpi, release_et: "08:30", label: "Mar 2025 CPI"}
+  - {date: 2025-05-13, type: cpi, release_et: "08:30", label: "Apr 2025 CPI"}
+  - {date: 2025-06-11, type: cpi, release_et: "08:30", label: "May 2025 CPI"}
+  - {date: 2025-07-15, type: cpi, release_et: "08:30", label: "Jun 2025 CPI"}
+  - {date: 2025-08-12, type: cpi, release_et: "08:30", label: "Jul 2025 CPI"}
+  - {date: 2025-09-11, type: cpi, release_et: "08:30", label: "Aug 2025 CPI"}
+  - {date: 2025-10-24, type: cpi, release_et: "08:30", label: "Sep 2025 (delayed; shutdown) CPI"}
+  - {date: 2025-12-18, type: cpi, release_et: "08:30", label: "Nov 2025 (no Oct 2025 release; shutdown) CPI"}
+  - {date: 2026-01-13, type: cpi, release_et: "08:30", label: "Dec 2025 CPI"}
+  - {date: 2026-02-13, type: cpi, release_et: "08:30", label: "Jan 2026 CPI"}
+  - {date: 2026-03-11, type: cpi, release_et: "08:30", label: "Feb 2026 CPI"}
+  - {date: 2026-04-10, type: cpi, release_et: "08:30", label: "Mar 2026 CPI"}
+  - {date: 2026-05-12, type: cpi, release_et: "08:30", label: "Apr 2026 CPI"}
+  - {date: 2026-06-10, type: cpi, release_et: "08:30", label: "May 2026 CPI"}
+  - {date: 2026-07-14, type: cpi, release_et: "08:30", label: "Jun 2026 CPI"}
+  - {date: 2026-08-12, type: cpi, release_et: "08:30", label: "Jul 2026 CPI"}
+  - {date: 2026-09-11, type: cpi, release_et: "08:30", label: "Aug 2026 CPI"}
+  - {date: 2026-10-14, type: cpi, release_et: "08:30", label: "Sep 2026 CPI"}
+  - {date: 2026-11-10, type: cpi, release_et: "08:30", label: "Oct 2026 CPI"}
+  - {date: 2026-12-10, type: cpi, release_et: "08:30", label: "Nov 2026 CPI"}
+  # -- Employment Situation / NFP (BLS, 08:30 ET) -----------------------------
+  - {date: 2023-06-02, type: nfp, release_et: "08:30", label: "May 2023 employment situation"}
+  - {date: 2023-07-07, type: nfp, release_et: "08:30", label: "Jun 2023 employment situation"}
+  - {date: 2023-08-04, type: nfp, release_et: "08:30", label: "Jul 2023 employment situation"}
+  - {date: 2023-09-01, type: nfp, release_et: "08:30", label: "Aug 2023 employment situation"}
+  - {date: 2023-10-06, type: nfp, release_et: "08:30", label: "Sep 2023 employment situation"}
+  - {date: 2023-11-03, type: nfp, release_et: "08:30", label: "Oct 2023 employment situation"}
+  - {date: 2023-12-08, type: nfp, release_et: "08:30", label: "Nov 2023 employment situation"}
+  - {date: 2024-01-05, type: nfp, release_et: "08:30", label: "Dec 2023 employment situation"}
+  - {date: 2024-02-02, type: nfp, release_et: "08:30", label: "Jan 2024 employment situation"}
+  - {date: 2024-03-08, type: nfp, release_et: "08:30", label: "Feb 2024 employment situation"}
+  - {date: 2024-04-05, type: nfp, release_et: "08:30", label: "Mar 2024 employment situation"}
+  - {date: 2024-05-03, type: nfp, release_et: "08:30", label: "Apr 2024 employment situation"}
+  - {date: 2024-06-07, type: nfp, release_et: "08:30", label: "May 2024 employment situation"}
+  - {date: 2024-07-05, type: nfp, release_et: "08:30", label: "Jun 2024 employment situation"}
+  - {date: 2024-08-02, type: nfp, release_et: "08:30", label: "Jul 2024 employment situation"}
+  - {date: 2024-09-06, type: nfp, release_et: "08:30", label: "Aug 2024 employment situation"}
+  - {date: 2024-10-04, type: nfp, release_et: "08:30", label: "Sep 2024 employment situation"}
+  - {date: 2024-11-01, type: nfp, release_et: "08:30", label: "Oct 2024 employment situation"}
+  - {date: 2024-12-06, type: nfp, release_et: "08:30", label: "Nov 2024 employment situation"}
+  - {date: 2025-01-10, type: nfp, release_et: "08:30", label: "Dec 2024 employment situation"}
+  - {date: 2025-02-07, type: nfp, release_et: "08:30", label: "Jan 2025 employment situation"}
+  - {date: 2025-03-07, type: nfp, release_et: "08:30", label: "Feb 2025 employment situation"}
+  - {date: 2025-04-04, type: nfp, release_et: "08:30", label: "Mar 2025 employment situation"}
+  - {date: 2025-05-02, type: nfp, release_et: "08:30", label: "Apr 2025 employment situation"}
+  - {date: 2025-06-06, type: nfp, release_et: "08:30", label: "May 2025 employment situation"}
+  - {date: 2025-07-03, type: nfp, release_et: "08:30", label: "Jun 2025 employment situation"}
+  - {date: 2025-08-01, type: nfp, release_et: "08:30", label: "Jul 2025 employment situation"}
+  - {date: 2025-09-05, type: nfp, release_et: "08:30", label: "Aug 2025 employment situation"}
+  - {date: 2025-11-20, type: nfp, release_et: "08:30", label: "Sep 2025 (delayed; shutdown) employment situation"}
+  - {date: 2025-12-16, type: nfp, release_et: "08:30", label: "Nov 2025 (no Oct 2025 release; shutdown) employment situation"}
+  - {date: 2026-01-09, type: nfp, release_et: "08:30", label: "Dec 2025 employment situation"}
+  - {date: 2026-02-11, type: nfp, release_et: "08:30", label: "Jan 2026 employment situation"}
+  - {date: 2026-03-06, type: nfp, release_et: "08:30", label: "Feb 2026 employment situation"}
+  - {date: 2026-04-03, type: nfp, release_et: "08:30", label: "Mar 2026 employment situation"}
+  - {date: 2026-05-08, type: nfp, release_et: "08:30", label: "Apr 2026 employment situation"}
+  - {date: 2026-06-05, type: nfp, release_et: "08:30", label: "May 2026 employment situation"}
+  - {date: 2026-07-02, type: nfp, release_et: "08:30", label: "Jun 2026 employment situation"}
+  - {date: 2026-08-07, type: nfp, release_et: "08:30", label: "Jul 2026 employment situation"}
+  - {date: 2026-09-04, type: nfp, release_et: "08:30", label: "Aug 2026 employment situation"}
+  - {date: 2026-10-02, type: nfp, release_et: "08:30", label: "Sep 2026 employment situation"}
+  - {date: 2026-11-06, type: nfp, release_et: "08:30", label: "Oct 2026 employment situation"}
+  - {date: 2026-12-04, type: nfp, release_et: "08:30", label: "Nov 2026 employment situation"}
+  # -- Personal Income & Outlays / PCE (BEA) ----------------------------------
+  - {date: 2023-06-30, type: pce, release_et: "08:30", label: "May 2023 personal income & outlays"}
+  - {date: 2023-07-28, type: pce, release_et: "08:30", label: "Jun 2023 personal income & outlays"}
+  - {date: 2023-08-31, type: pce, release_et: "08:30", label: "Jul 2023 personal income & outlays"}
+  - {date: 2023-09-29, type: pce, release_et: "08:30", label: "Aug 2023 personal income & outlays"}
+  - {date: 2023-10-27, type: pce, release_et: "08:30", label: "Sep 2023 personal income & outlays"}
+  - {date: 2023-11-30, type: pce, release_et: "08:30", label: "Oct 2023 personal income & outlays"}
+  - {date: 2023-12-22, type: pce, release_et: "08:30", label: "Nov 2023 personal income & outlays"}
+  - {date: 2024-01-26, type: pce, release_et: "08:30", label: "Dec 2023 personal income & outlays"}
+  - {date: 2024-02-29, type: pce, release_et: "08:30", label: "Jan 2024 personal income & outlays"}
+  - {date: 2024-03-29, type: pce, release_et: "08:30", label: "Feb 2024 personal income & outlays"}
+  - {date: 2024-04-26, type: pce, release_et: "08:30", label: "Mar 2024 personal income & outlays"}
+  - {date: 2024-05-31, type: pce, release_et: "08:30", label: "Apr 2024 personal income & outlays"}
+  - {date: 2024-06-28, type: pce, release_et: "08:30", label: "May 2024 personal income & outlays"}
+  - {date: 2024-07-26, type: pce, release_et: "08:30", label: "Jun 2024 personal income & outlays"}
+  - {date: 2024-08-30, type: pce, release_et: "08:30", label: "Jul 2024 personal income & outlays"}
+  - {date: 2024-09-27, type: pce, release_et: "08:30", label: "Aug 2024 personal income & outlays"}
+  - {date: 2024-10-31, type: pce, release_et: "08:30", label: "Sep 2024 personal income & outlays"}
+  - {date: 2024-11-27, type: pce, release_et: "10:00", label: "Oct 2024 (10:00 ET per BEA page) personal income & outlays"}
+  - {date: 2024-12-20, type: pce, release_et: "08:30", label: "Nov 2024 personal income & outlays"}
+  - {date: 2025-01-31, type: pce, release_et: "08:30", label: "Dec 2024 personal income & outlays"}
+  - {date: 2025-02-28, type: pce, release_et: "08:30", label: "Jan 2025 personal income & outlays"}
+  - {date: 2025-03-28, type: pce, release_et: "08:30", label: "Feb 2025 personal income & outlays"}
+  - {date: 2025-04-30, type: pce, release_et: "10:00", label: "Mar 2025 (10:00 ET per BEA page) personal income & outlays"}
+  - {date: 2025-05-30, type: pce, release_et: "08:30", label: "Apr 2025 personal income & outlays"}
+  - {date: 2025-06-27, type: pce, release_et: "08:30", label: "May 2025 personal income & outlays"}
+  - {date: 2025-07-31, type: pce, release_et: "08:30", label: "Jun 2025 personal income & outlays"}
+  - {date: 2025-08-29, type: pce, release_et: "08:30", label: "Jul 2025 personal income & outlays"}
+  - {date: 2025-09-26, type: pce, release_et: "08:30", label: "Aug 2025 personal income & outlays"}
+  - {date: 2025-12-05, type: pce, release_et: "10:00", label: "Sep 2025 (delayed; shutdown; 10:00 ET) personal income & outlays"}
+  - {date: 2026-01-22, type: pce, release_et: "10:00", label: "Oct & Nov 2025 combined (shutdown; 10:00 ET) personal income & outlays"}
+  - {date: 2026-02-20, type: pce, release_et: "08:30", label: "Dec 2025 personal income & outlays"}
+  - {date: 2026-03-13, type: pce, release_et: "08:30", label: "Jan 2026 personal income & outlays"}
+  - {date: 2026-04-09, type: pce, release_et: "08:30", label: "Feb 2026 personal income & outlays"}
+  - {date: 2026-04-30, type: pce, release_et: "08:30", label: "Mar 2026 personal income & outlays"}
+  - {date: 2026-05-28, type: pce, release_et: "08:30", label: "Apr 2026 personal income & outlays"}
+  - {date: 2026-06-25, type: pce, release_et: "08:30", label: "May 2026 personal income & outlays"}
+  - {date: 2026-07-30, type: pce, release_et: "08:30", label: "Jun 2026 personal income & outlays"}
+  - {date: 2026-08-26, type: pce, release_et: "08:30", label: "Jul 2026 personal income & outlays"}
+  - {date: 2026-09-30, type: pce, release_et: "08:30", label: "Aug 2026 personal income & outlays"}
+  - {date: 2026-10-29, type: pce, release_et: "08:30", label: "Sep 2026 personal income & outlays"}
+  - {date: 2026-11-25, type: pce, release_et: "08:30", label: "Oct 2026 personal income & outlays"}
+  - {date: 2026-12-23, type: pce, release_et: "08:30", label: "Nov 2026 personal income & outlays"}

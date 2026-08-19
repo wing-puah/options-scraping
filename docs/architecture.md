@@ -248,6 +248,10 @@ in the family folders concluded.
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry
   a smaller denominator — always print `coverage()`).
 - `lib/protocol.py` — purged walk-forward, date-clustered CIs, LOO.
+- `lib/macro_calendar.py` — scheduled macro events (FOMC/minutes/CPI/NFP/PCE) as as-of
+  features, from the hand-authored `config/macro-events.yml`; `next_event` is strictly-after
+  and refuses past each type's `verified_through` (an unpublished schedule is never "nothing
+  ahead"). Event distance keys off the ENTRY session; pre-open vs post-open decides day 0.
 - `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
 
 ### account_sim

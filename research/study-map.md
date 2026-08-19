@@ -86,6 +86,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `bear_arm.py` | B1 — is there *any* bear subset defined at decision time that isn't negative? B2 — is the exit just mis-tuned? | **B1 NO** (0 of 496 subsets). **B2 YES** → `be_after: 0.50` shipped. |
 | `ml_combination.py` | Does any learned combination (structure × regime × geometry × enrichment) beat the score-free ladder out of sample? | **NULL** — 0 of 15 model × strategy cells. Re-open only on new **columns**, never new models. |
 | `v4_bridge.py` | v4 dropped two prompt factors. Does the v3-derived ladder still apply to what v4 *emits*? | Written before the data existed. Waiting on v4 rows. |
+| `macro_event_study.py` | Do scheduled macro events (FOMC decisions, minutes, CPI, NFP, PCE) show up in the book — in entry IV (`vrp`), in outcomes (R/E), or in exits? Distance keys off the **entry session**, pre-open vs post-open decides day 0. | Registered 2026-08-19, not yet run. G0 power census first; tight FOMC cells expected to power-stop, and the well-powered "does IV run up/crush" answer is the VIX arm — context, never a verdict. |
 
 ## ② MANAGEMENT — "when do I get out?" ← where the edge is
 
@@ -129,6 +130,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `underlying.py` | Daily stock bars — real OHLC, falling back to close-only `Price~`. The widening `harness.py` is frozen out of. |
 | `underlying_features.py` | As-of-entry price-*state* columns (rv20, Parkinson, semivar, ATR%, efficiency ratio, VRP, beta). This family is the ML re-open — none of it existed when B1 searched 496 subsets. |
 | `volume_features.py` | As-of-entry *volume* columns (unusual-O/S, relative-volume z, Amihud), split-guarded, rescaled tickers withheld from the window features. Built for `volume_signal` (NULL), kept for future pre-registered use. |
+| `macro_calendar.py` | Scheduled macro events (FOMC, minutes, CPI, NFP, PCE) as as-of features, read from the hand-authored `config/macro-events.yml`. `next_event` is strictly-after and refuses past each type's `verified_through`; unscheduled events excluded from forward reads only. Built for `macro_event_study`. |
 
 ---
 
