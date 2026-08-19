@@ -86,7 +86,7 @@ management. Every selection study returns a null; two exit studies shipped.
 | `bear_arm.py` | B1 — is there *any* bear subset defined at decision time that isn't negative? B2 — is the exit just mis-tuned? | **B1 NO** (0 of 496 subsets). **B2 YES** → `be_after: 0.50` shipped. |
 | `ml_combination.py` | Does any learned combination (structure × regime × geometry × enrichment) beat the score-free ladder out of sample? | **NULL** — 0 of 15 model × strategy cells. Re-open only on new **columns**, never new models. |
 | `v4_bridge.py` | v4 dropped two prompt factors. Does the v3-derived ladder still apply to what v4 *emits*? | Written before the data existed. Waiting on v4 rows. |
-| `macro_event_study.py` | Do scheduled macro events (FOMC decisions, minutes, CPI, NFP, PCE) show up in the book — in entry IV (`vrp`), in outcomes (R/E), or in exits? Distance keys off the **entry session**, pre-open vs post-open decides day 0. | Registered 2026-08-19, not yet run. G0 power census first; tight FOMC cells expected to power-stop, and the well-powered "does IV run up/crush" answer is the VIX arm — context, never a verdict. |
+| `macro_event_study.py` | Do scheduled macro events (FOMC decisions, minutes, CPI, NFP, PCE) show up in the book — in entry IV (`vrp`), in outcomes (R/E), or in exits? Distance keys off the **entry session**, pre-open vs post-open decides day 0. | First run era v3 (795/118): ONE powered cell — NFP AFTER w≤5 — null on `vrp` and R; every FOMC/minutes/CPI/PCE cell power-stops. VIX arm: NFP build-then-bleed, FOMC nothing. **ARM X trigger FIRED** → `macro_event_exit` (f2) queued. Nothing ships; no v5 bump. |
 
 ## ② MANAGEMENT — "when do I get out?" ← where the edge is
 

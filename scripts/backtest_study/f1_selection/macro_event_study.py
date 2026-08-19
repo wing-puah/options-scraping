@@ -48,8 +48,11 @@ from scripts.backtest_study.lib import underlying_features as UF  # noqa: E402
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
 from scripts.backtest_study.lib.underlying import load_bars  # noqa: E402
 
-# The runner promotes -latest.txt on these codes instead of deleting it.
-DESIGNED_REFUSAL_EXIT_CODES = frozenset({4})  # calendar does not cover the book
+# The runner promotes -latest.txt on these codes instead of deleting it. It
+# finds this by AST parse, so it must stay a PLAIN SET LITERAL — a
+# frozenset(...) call is invisible to ast.literal_eval and the refusal would
+# be misfiled as a failure (found the hard way on the first exit-4 test).
+DESIGNED_REFUSAL_EXIT_CODES = {4}  # calendar does not cover the book
 
 # The repo's standing date-level power floor (selection_order.MIN_AFFECTED_DATES,
 # declared there 2026-08-13 before any macro count was knowable). Kept as a
@@ -138,7 +141,10 @@ def boot_diff_by_date(rows_a, rows_b, key, n=2000, seed=BOOT_SEED):
     for rows, by in ((rows_a, by_a), (rows_b, by_b)):
         for r in rows:
             v = r.get(key)
-            if v is not None:
+            # NaN != NaN: iv_spread/iv_pct are pandas-sourced and carry NaN,
+            # not None — the same trap underlying_features.terciles() fixed on
+            # 2026-08-12. `is not None` alone lets NaN poison every mean.
+            if v is not None and v == v:
                 by.setdefault(r["date"], []).append(v)
     if not by_a or not by_b:
         return None

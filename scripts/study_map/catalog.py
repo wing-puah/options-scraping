@@ -124,10 +124,12 @@ STUDIES: dict[str, Study] = {
         family="selection", state="open",
         question="Do scheduled macro events — FOMC decisions, minutes, CPI, NFP, PCE — show "
                  "up in the book: in entry IV (vrp), in outcomes (R/E), or in exits?",
-        verdict="Registered 2026-08-19, not yet run. G0 prints the power census first; on "
-                "the scoping counts the tight FOMC cells are expected to power-stop, and "
-                "the readable answer to \"does IV run up / crush\" is the ~800-session "
-                "VIX arm, which is context, never a verdict.",
+        verdict="First run (era v3, 795/118): the side-split census leaves ONE powered "
+                "cell — NFP AFTER w<=5 — and it is null on vrp (+0.022, CI spans 0) and "
+                "R (-0.144, CI spans 0); every FOMC/minutes/CPI/PCE cell power-stops. "
+                "VIX context arm: NFP shows build-then-bleed, FOMC shows nothing. ARM X "
+                "trigger FIRED (monotone R by event position in hold) -> macro_event_exit "
+                "queued with its own pre-registration. Nothing ships; no v5 bump.",
     ),
 
     # ② management

@@ -1722,3 +1722,69 @@ runs to completion for the first time since the cache grew: exit 0, **H0 FILL NO
 MET** (was MET on v3), **H2 NOT EVALUABLE**, H2-under-hold NOT EVALUABLE. That is
 the thin v4 book, not a refutation — the hedge programme was already
 power-stopped. Blocked on dates, as before.
+
+## 2026-08-19 — `macro_event_study` first run (era v3): tight event windows are UNDERPOWERED on this book; NFP is the only readable cell (null on vrp/R); ARM X trigger FIRED
+
+New layer, built study-first (no pipeline/prompt change — a macro input into the
+analysis prompt would be a v5 bump, and nothing here authorises it).
+Pre-registration: `research/pre-registrations/macro_event_study.md`, committed at
+325964e BEFORE the study was built. Infrastructure: `config/macro-events.yml`
+(188 events, FOMC decisions/minutes + CPI + NFP + PCE, 2023-06 → 2027-12,
+hand-transcribed 2026-08-19 from the official Fed/BLS/BEA schedules — the 2025
+shutdown gaps are REAL and pinned by test: no Oct-2025-reference CPI/NFP, Sep-2025
+releases delayed, PCE Oct+Nov 2025 combined, three 10:00 ET PCE deviations) and
+`scripts/backtest_study/lib/macro_calendar.py` (strictly-after `next_event`,
+`verified_through` refusal, unscheduled events excluded from forward reads only;
+distance keys off the ENTRY session, `pre_open` decides day 0).
+
+**Population: pooled real+tweak, era v3 — 795 rows / 118 dates (2024-06-17..
+2026-04-07), bs excluded.**
+
+- **G0 (the headline): the book cannot power tight event windows.** Splitting
+  sides (before/after — the hypotheses are directional) leaves ONE cell at the
+  pre-registered 25-affected-dates floor: **NFP AFTER w<=5 (25 dates / 162
+  rows)**. Every FOMC, minutes, CPI and PCE proximity cell power-stops (best:
+  FOMC BEFORE w<=5 at 15 dates). The pre-registration predicted the FOMC stops
+  from the scoping counts; the side-split cost — roughly halving each window's
+  dates — is the part the scoping estimate missed. Census confirmed the other
+  pre-declaration: 795/795 rows carry >=1 macro event inside the DTE window
+  (`n_*_in_dte` is a constant, not a feature), 716/795 inside the realized hold.
+- **ARM I (H1 PRIMARY): null where readable.** vrp NFP-AFTER vs control +0.022
+  CI[-0.019,+0.060]. Secondary watches, NOT claims: ticker-demeaned iv_entry
+  +0.031 CI[+0.013,+0.051] and iv_pct +0.154 CI[+0.084,+0.220] both star, but
+  the pre-registered REGIME-PROXY re-cut is power-stopped at every mech_vol
+  label (8/14/3 dates), so EVENT-PRICES-IV cannot be evaluated — and iv_pct has
+  been killed twice as a composition proxy. Verdict inputs: POWER-STOPPED
+  everywhere except one null cell.
+- **ARM P (H2): null.** R NFP-AFTER -0.144 CI[-0.331,+0.056]; every
+  within-structure cell power-stops (bear_put 23d is the closest). The year-2026
+  cut alone stars (-0.339) — a cut, not a headline, logged as such.
+- **ARM V (H3, CONTEXT ONLY — index vol, never a verdict):** NFP shows the
+  textbook build-then-bleed: dVIX +0.493 CI[+0.005,+1.169] at t-1, mean VIX
+  peaks 18.9 the session after the print, then -1.069 CI[-2.336,-0.303] at t+3.
+  FOMC shows NO significant pattern anywhere in t-5..t+5 — consistent with
+  2023-2026 decisions being mostly telegraphed. 7 of 55 cells star against
+  ~2.75 expected by chance; only the NFP pair is a coherent shape.
+- **ARM X (H4, census): TRIGGER FIRED.** Mean R by position of the first event
+  inside the hold is monotone — EARLY +0.014 (541 rows) / MID +0.042 (121) /
+  LATE +0.122 (54) — across 118 affected dates. Per the pre-registration this
+  queues **`macro_event_exit` (f2_management) with its own pre-registration**,
+  and nothing else: the pattern is endogenous on its face (an event landing
+  LATE in a hold means the position already survived that long).
+
+Traps hit and fixed during the run (both now in code comments):
+(1) `iv_spread`/`iv_pct` are pandas-sourced and carry **NaN, not None** — the
+same trap `underlying_features.terciles()` fixed on 08-12; the study's
+bootstrap now filters `v == v`. (2) `DESIGNED_REFUSAL_EXIT_CODES` must be a
+PLAIN SET LITERAL — run.py finds it by `ast.literal_eval`, and a
+`frozenset({4})` call is invisible, which silently demoted the tested exit-4
+coverage refusal from DESIGNED REFUSAL to failure (deleting -latest.txt).
+Negative test now verified: a truncated calendar (via `STUDY_MACRO_CALENDAR`,
+test-only env) refuses exit 4 and the report is promoted, not deleted.
+
+**Nothing ships. The macro layer's readable answer so far:** on THIS book,
+entry proximity to scheduled macro events is mostly unmeasurable (the analysis
+dates cluster away from event days), and where measurable (NFP) it moves
+neither entry vrp nor outcomes. The live pipeline does not pay the v5 version
+bump on this evidence. Re-run when new dates land; the calendar extends to
+2027 so the layer is ready for the deploy card if evidence ever earns it.

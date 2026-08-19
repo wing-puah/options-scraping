@@ -45,6 +45,7 @@ Pure functions over one YAML file. No model imports, no production imports.
 """
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass
 from datetime import date
@@ -57,7 +58,11 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-CALENDAR_YML = ROOT / "config" / "macro-events.yml"
+# STUDY_MACRO_CALENDAR exists for the exit-4 refusal test (point a run at a
+# truncated tmp copy) — the same env-override shape as STUDY_ERA. Production
+# of this tier is the tracked file below; never set the env var in a real run.
+CALENDAR_YML = Path(os.environ.get("STUDY_MACRO_CALENDAR",
+                                   ROOT / "config" / "macro-events.yml"))
 EVENT_TYPES = ("fomc", "fomc_minutes", "cpi", "nfp", "pce")
 OPEN_ET = "09:30"
 
@@ -96,8 +101,8 @@ class MacroCalendar:
     # -- construction ------------------------------------------------------
 
     @classmethod
-    def from_yaml(cls, path: Path = CALENDAR_YML) -> "MacroCalendar":
-        return _load(str(path))
+    def from_yaml(cls, path: Path | None = None) -> "MacroCalendar":
+        return _load(str(path if path is not None else CALENDAR_YML))
 
     @classmethod
     def parse(cls, raw: dict, path: Path | None = None) -> "MacroCalendar":
