@@ -127,9 +127,12 @@ STUDIES: dict[str, Study] = {
         verdict="First run (era v3, 795/118): the side-split census leaves ONE powered "
                 "cell — NFP AFTER w<=5 — and it is null on vrp (+0.022, CI spans 0) and "
                 "R (-0.144, CI spans 0); every FOMC/minutes/CPI/PCE cell power-stops. "
-                "VIX context arm: NFP shows build-then-bleed, FOMC shows nothing. ARM X "
-                "trigger FIRED (monotone R by event position in hold) -> macro_event_exit "
-                "queued with its own pre-registration. Nothing ships; no v5 bump.",
+                "Context arms: NFP shows VIX build-then-bleed with post-print SPY relief; "
+                "FOMC shows nothing (no pre-FOMC drift at n=26). ARM X's raw trigger fired "
+                "and DIED under the amendment-2 survival control (in holds >=20 sessions "
+                "the LATE bucket is empty; within fixed length EARLY wins) -> "
+                "macro_event_exit DE-QUEUED as SURVIVAL-ARTIFACT. Nothing ships; no v5 "
+                "bump; passive re-run when the book grows.",
     ),
 
     # ② management

@@ -68,6 +68,9 @@ DEMEAN_MIN_APPEARANCES = 5
 BOOT_SEED = 20260819
 REL_SESSIONS = 5          # ARM V: event-relative sessions t-5..t+5
 TRIGGER_BUCKETS = ("EARLY", "MID", "LATE")   # ARM X hold-position terciles
+# Amendment 2: one trading month — long enough that EARLY/MID/LATE are all
+# mechanically reachable inside the hold. May not move after results are seen.
+SURVIVAL_MIN_HOLD = 20
 
 
 def hdr(t):
@@ -487,35 +490,77 @@ def arm_x(recs: list[dict], cal: MC.MacroCalendar) -> None:
                   f"mean R {statistics.fmean(r['R'] for r in rows):+.3f}")
 
     sub("hold-position terciles (feeds the pre-declared macro_event_exit trigger)")
-    buckets = {b: [] for b in TRIGGER_BUCKETS}
+    positioned = []          # (rec, position fraction of the FIRST event)
     for r in spans:
         t = r["t"]
-        # position of the FIRST event inside the hold, as a fraction of it
-        evs = cal.events_between(
-            r["entry_session"], t.grid[min(int(r["days_held"]), len(t.grid)) - 1])
+        exit_d = t.grid[min(int(r["days_held"]), len(t.grid)) - 1]
+        evs = cal.events_between(r["entry_session"], exit_d)
         if not evs:
             continue
-        f = (evs[0].date - r["entry_session"]).days / max(
-            1, (t.grid[min(int(r["days_held"]), len(t.grid)) - 1]
-                - r["entry_session"]).days)
-        b = "EARLY" if f < 1 / 3 else ("MID" if f < 2 / 3 else "LATE")
-        buckets[b].append(r)
-    means = {}
-    for b in TRIGGER_BUCKETS:
-        rows = buckets[b]
-        if rows:
-            means[b] = statistics.fmean(r["R"] for r in rows)
-            print(f"  first event {b:<6} in hold: {len(rows):>4} rows / "
-                  f"{n_dates(rows):>3} dates  mean R {means[b]:+.3f}")
-    affected = n_dates([r for rows in buckets.values() for r in rows])
+        f = ((evs[0].date - r["entry_session"]).days
+             / max(1, (exit_d - r["entry_session"]).days))
+        positioned.append((r, f))
+
+    def position_table(pairs, indent="  "):
+        """EARLY/MID/LATE mean-R rows; returns (means, affected dates)."""
+        bkt = {b: [] for b in TRIGGER_BUCKETS}
+        for r, f in pairs:
+            bkt["EARLY" if f < 1 / 3 else "MID" if f < 2 / 3 else "LATE"].append(r)
+        means = {}
+        for b in TRIGGER_BUCKETS:
+            if bkt[b]:
+                means[b] = statistics.fmean(r["R"] for r in bkt[b])
+                print(f"{indent}first event {b:<6} in hold: {len(bkt[b]):>4} rows"
+                      f" / {n_dates(bkt[b]):>3} dates  mean R {means[b]:+.3f}")
+        return means, n_dates([r for rows in bkt.values() for r in rows])
+
+    means, affected = position_table(positioned)
     mono = (len(means) == 3
             and (means["EARLY"] <= means["MID"] <= means["LATE"]
                  or means["EARLY"] >= means["MID"] >= means["LATE"]))
     fired = mono and affected >= MIN_EVENT_DATES
-    msg = ("FIRED — queue macro_event_exit (f2) with its own pre-registration"
+    msg = ("FIRED — see the amendment-2 survival control below"
            if fired else "not fired")
-    print(f"\n  TRIGGER (monotone R across hold-position terciles AND >= "
+    print(f"\n  RAW TRIGGER (monotone R across hold-position terciles AND >= "
           f"{MIN_EVENT_DATES} affected dates [{affected}]): {msg}")
+
+    sub("X-C1 — survival control: same table, holds >= "
+        f"{SURVIVAL_MIN_HOLD} sessions only (amendment 2)")
+    long_pairs = [(r, f) for r, f in positioned
+                  if int(r["days_held"]) >= SURVIVAL_MIN_HOLD]
+    print(f"  subset: {len(long_pairs)} of {len(positioned)} spanning rows "
+          "(event position is mechanically coupled to hold length; a real "
+          "effect must survive fixing the length)")
+    c1_means, c1_affected = position_table(long_pairs)
+    c1_mono = (len(c1_means) == 3
+               and (c1_means["EARLY"] <= c1_means["MID"] <= c1_means["LATE"]
+                    or c1_means["EARLY"] >= c1_means["MID"] >= c1_means["LATE"]))
+    same_dir = (c1_mono and len(means) == 3
+                and ((c1_means["LATE"] - c1_means["EARLY"])
+                     * (means["LATE"] - means["EARLY"])) > 0)
+    if c1_affected < MIN_EVENT_DATES:
+        verdict = ("POWER-STOPPED — control unreadable; macro_event_exit stays "
+                   "queued but BLOCKED on data")
+    elif fired and same_dir:
+        verdict = "TRIGGER STANDS — macro_event_exit stays queued"
+    else:
+        verdict = ("SURVIVAL-ARTIFACT — macro_event_exit DE-QUEUED; re-arms "
+                   "only on a future CONTROLLED trigger")
+    print(f"\n  X-C1 verdict ({c1_affected} affected dates vs floor "
+          f"{MIN_EVENT_DATES}): {verdict}")
+
+    sub("X-C2 — position x hold-length terciles (census; boundaries in-sample)")
+    dhs = sorted(int(r["days_held"]) for r, _ in positioned)
+    t1, t2 = dhs[len(dhs) // 3], dhs[2 * len(dhs) // 3]
+    print(f"  days_held tercile boundaries: <= {t1} < mid <= {t2} < long")
+    for label, keep in (
+            (f"SHORT (<= {t1}d)", lambda d: d <= t1),
+            (f"MID   ({t1}-{t2}d)", lambda d: t1 < d <= t2),
+            (f"LONG  (> {t2}d)", lambda d: d > t2)):
+        sel = [(r, f) for r, f in positioned if keep(int(r["days_held"]))]
+        print(f"  {label}: {len(sel)} rows")
+        if sel:
+            position_table(sel, indent="    ")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

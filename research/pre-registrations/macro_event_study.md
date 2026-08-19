@@ -140,3 +140,37 @@ release lands on or first after):
   sessions either side, fixed here before computing).
 No book join, no new proximity windows, no change to any gate, floor, or
 readable cell. The five event types and the t−5..t+5 range are unchanged.
+
+## 2026-08-19 — AMENDMENT 2 (after the first run + review): survival control on the EXIT-TRIGGER
+
+Written AFTER the trigger fired and BEFORE the controlled numbers were
+computed. The fired trigger (R monotone in the FIRST event's position within
+the hold, 118 affected dates) has an obvious artifact mechanism: a hold only
+CONTAINS a late event if the position already survived that long, and event
+position is mechanically coupled to hold length. This amendment declares the
+control and the consequence, so the follow-up cannot be queued (or killed) on
+an artifact either way.
+
+**Control, fixed here.**
+- **X-C1 (long-hold subset):** rows whose realized hold spans >=1 event AND
+  `days_held >= 20` sessions. Within that subset, recompute the EARLY/MID/LATE
+  (first-event position tercile) mean-R table.
+- **X-C2 (within hold-length terciles):** split spanning rows by `days_held`
+  terciles (boundaries computed on the spanning population, disclosed
+  in-sample); print the 3x3 position-by-length census.
+- N=20 is one trading month, chosen for one reason: it is long enough that
+  EARLY/MID/LATE are all mechanically reachable inside the hold. It may not
+  move after the numbers are seen.
+
+**Consequence, worded now.**
+- **TRIGGER STANDS** only if X-C1 is monotone in the same direction with >=
+  `MIN_EVENT_DATES` (25) affected dates. `macro_event_exit` stays queued.
+- **SURVIVAL-ARTIFACT** — X-C1 is non-monotone, or flat within every X-C2
+  length tercile: the trigger is reclassified as an artifact of hold length,
+  and `macro_event_exit` is DE-QUEUED. It re-arms only if a future run fires
+  the CONTROLLED trigger (X-C1), never the raw one.
+- **POWER-STOPPED** — X-C1 has < 25 affected dates: the control is
+  unreadable, the follow-up stays queued but BLOCKED on data, and no exit
+  study may be built until the controlled read exists.
+Everything stays census-labelled; no gate, floor, window, or readable cell of
+ARMs I/P/V changes.

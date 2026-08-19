@@ -1842,3 +1842,35 @@ one leg populated (2026-05-25: VIX close, empty SPY) — ARM V now requires BOTH
 closes to parse before a date counts as a session; a one-legged session
 poisons the return chain. Still CONTEXT: none of this touches a gate, floor,
 readable cell, or the book itself. Nothing ships.
+
+### 2026-08-19 addendum 3 — survival control kills the ARM X trigger; `macro_event_exit` DE-QUEUED; study goes passive
+
+Amendment 2 (pre-declared before computing: X-C1 = same position table within
+holds >= 20 sessions, X-C2 = position x hold-length terciles, consequence
+grammar fixed in the pre-registration) came back unambiguous:
+
+- **X-C1: the LATE bucket is EMPTY in long holds** (369 EARLY / 20 MID / 0
+  LATE of 389 rows, 111 affected dates). With an event every ~2 weeks, a
+  20+-session hold's first event lands early almost surely — the coupling is
+  mechanical, exactly as suspected. Non-monotone by construction →
+  **SURVIVAL-ARTIFACT** per the pre-declared grammar.
+- **X-C2 shows what the raw trigger was actually reading**: within SHORT
+  holds EARLY is the BEST bucket (+0.154 vs LATE +0.127, non-monotone);
+  within MID holds EARLY wins (+0.147); LONG holds are negative everywhere
+  (-0.184/-0.412). The raw EARLY +0.014 / MID +0.042 / LATE +0.122 monotone
+  was composition: 50 of 54 LATE-position rows are SHORT holds (winners
+  taking profit near an event they were about to span), while EARLY absorbs
+  every long grinding loser. Exit-rule composition, not an event effect.
+- **Consequence taken: `macro_event_exit` (f2) is DE-QUEUED.** It re-arms
+  only if a future run fires the CONTROLLED trigger (X-C1), never the raw
+  one. No new exit study will be built on this book's macro layer.
+
+**Study disposition (operator: "do what you have to do"):** macro_event_study
+goes PASSIVE — re-run at the next evaluation gate / when the enrich-queue
+expansion lands (one command, `--era` as appropriate; G0 says whether any cell
+crossed the floor), calendar gets an annual top-up (2028 dates), and no
+active session is spent on this layer absent a powered cell. The v5 prompt
+bump stays unpaid. Reusable lesson, again: a monotone table whose bucketing
+variable is mechanically coupled to hold length is a composition read until
+proven otherwise — condition on the coupling variable BEFORE queueing
+follow-ups.
