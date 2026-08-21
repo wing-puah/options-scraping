@@ -57,6 +57,12 @@ from fetch_counterpart_iv import (
     _done_keys as _done_cp_keys,
     _load_sidecar,
 )
+from fetch_price_catalyst import (
+    _distinct_tickers as _distinct_price_tickers,
+    _done_tickers as _done_price_tickers,
+    _ensure_columns as _ensure_price_columns,
+)
+from lib.price_catalyst import PRICE_CATALYST_MARKER_COLUMN
 
 log = logging.getLogger("update_enrich_logs")
 
@@ -154,6 +160,50 @@ def _iv_fields(rows: list[dict]) -> dict:
         "iv_enriched_tickers": enriched,
         "iv_enrichment_pct": pct,
         "iv_last_enriched_on": last_enriched_on,
+    }
+
+
+def _price_fields(rows: list[dict]) -> dict:
+    """Price/earnings enrichment status (fetch_price_catalyst.py) for the same rows.
+
+    Mirrors _oi_fields/_iv_fields. Note `_done_price_tickers` counts a ticker
+    done only when the marker is set AND price_d is actually filled — a Barchart
+    hiccup still stamps the marker, so the marker alone is not proof of success.
+    That distinction is the whole point of checking this stage: it is exactly the
+    "ran but produced nothing" failure a green workflow hides.
+
+    Not written to the EnrichLog tab (see COLUMNS) — this exists for
+    scripts/check_pipeline.py, which reads coverage live rather than trusting a
+    tab that only refreshes when someone runs this script by hand.
+    """
+    _ensure_price_columns(rows)
+    tickers = _distinct_price_tickers(rows)
+    done = _done_price_tickers(rows)
+
+    last_enriched_on = max(
+        (r[PRICE_CATALYST_MARKER_COLUMN] for r in rows
+         if str(r.get(PRICE_CATALYST_MARKER_COLUMN, "")).strip()),
+        default="",
+    )
+
+    total = len(tickers)
+    enriched = len(done)
+    pct = f"{enriched / total * 100:.0f}%" if total else ""
+    if total == 0:
+        status = "no-tickers"
+    elif enriched >= total:
+        status = "complete"
+    elif enriched:
+        status = "partial"
+    else:
+        status = "none"
+
+    return {
+        "price_status": status,
+        "price_total_tickers": total,
+        "price_enriched_tickers": enriched,
+        "price_enrichment_pct": pct,
+        "price_last_enriched_on": last_enriched_on,
     }
 
 

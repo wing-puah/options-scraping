@@ -1,0 +1,66 @@
+name: Pipeline Health
+
+# The watchdog. Every other workflow here writes to Drive or Sheets and notifies
+# nobody; GitHub only emails when a SCHEDULED WORKFLOW FAILS, which misses the
+# failure modes that actually bite — chiefly that enrich-oi / fetch-counterpart-iv
+# / backfill-mech-cell have no cron at all and fire only on a SUCCESSFUL Compile
+# Flow. If Compile Flow dies, those three never run, and a job that never ran
+# emails nobody.
+#
+# So this job asserts the EVIDENCE in Drive/Sheets rather than any exit status,
+# and fails when it is missing. Its failure IS the alert.
+
+on:
+  schedule:
+    # 03:00 UTC, Tue-Sat. The chain starts at 22:30 UTC and the enrich jobs carry
+    # 120-minute timeouts, so the worst case lands ~00:30 UTC; 03:00 leaves
+    # margin. Tue-Sat because each run audits the previous weekday's chain.
+    - cron: '0 3 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: 'Check as of this date (YYYY-MM-DD). Blank = today.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The checker reads the newest commit's age to warn before GitHub's
+          # 60-day no-commit rule disables every schedule in this repo —
+          # including this one. Depth 1 is enough for `git log -1`.
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        # The FULL set, not requirements-compile.txt: the enrichment-coverage
+        # helpers live beside the enrichers, so importing them transitively pulls
+        # playwright (lib/barchart) and scipy (backtest.helpers) even though this
+        # job never scrapes. The pip packages are enough to satisfy the imports —
+        # deliberately NO `playwright install`, since no browser is ever launched.
+        run: pip install -r requirements.txt
+
+      - name: Check the collection pipeline
+        # No continue-on-error, no `|| true`. The exit code is the alert.
+        run: python scripts/check_pipeline.py ${{ inputs.as_of && format('--as-of {0}', inputs.as_of) || '' }}
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          # GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT is deliberately absent: Sheets
+          # authenticates with the same OAuth2 token as Drive
+          # (lib/sheets_client.py::_get_client), and no Python in this repo reads
+          # a service-account variable.

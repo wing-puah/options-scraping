@@ -76,6 +76,11 @@ backfill-mech-cell: mech-regime
 
 # Repair an analysis tab whose header drifted behind config.ROW_COLUMNS (appends
 # are positional, so a short header mislabels every column after the gap).
+# ── pipeline health ─────────────────────────────────────────────────────────────
+.PHONY: check-pipeline
+check-pipeline:
+	$(PY) scripts/check_pipeline.py $(ARGS)
+
 .PHONY: align-headers
 align-headers:
 	$(PY) scripts/align_tab_headers.py $(ARGS)

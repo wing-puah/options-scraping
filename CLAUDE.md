@@ -74,6 +74,8 @@ python3 scripts/collector/fetch_counterpart_iv.py     # matched-pair leg settlem
 python3 scripts/collector/fetch_price_catalyst.py     # price/earnings-catalyst columns
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
+python3 scripts/check_pipeline.py                     # WATCHDOG: did every collection stage run?
+                                                      # exit!=0 = the GitHub failure email; --as-of to replay
 
 # Full analysis pipeline: fetch → headless engine (claude) → write Sheets
 python3 -m scripts.analysis_pipeline                  # latest date → AnalysisClaude

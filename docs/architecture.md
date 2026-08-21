@@ -187,6 +187,115 @@ scripts/                    ← entry points, each maps to a workflow step
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
 
+## Pipeline health check — the collection-tier watchdog
+
+`scripts/check_pipeline.py` + `.github/workflows/pipeline-health.yml` (cron `0 3 * * 2-6`).
+Answers one question: **did every collection stage actually run, and produce enough?**
+
+### Why it exists
+
+GitHub emails the repo owner when a SCHEDULED WORKFLOW FAILS. That covers a job that ran and
+crashed, and nothing else. The gaps it leaves:
+
+- `enrich-oi.yml`, `fetch-counterpart-iv.yml` and `backfill-mech-cell.yml` have **no cron**.
+  All three fire on `workflow_run` off Compile Flow, gated on its success. If Compile Flow
+  fails or is skipped they never run — and **a job that never ran emails nobody.**
+- GitHub silently DROPS scheduled runs under load.
+- GitHub DISABLES every schedule in a repo after 60 days with no commits.
+- A step exits 0 having done nothing (auth quietly returning empty).
+
+So the checker asserts the EVIDENCE in Drive/Sheets, never an exit status. A gap exits
+non-zero, and that failure is the alert. No `continue-on-error`, no `|| true`.
+
+### The two traps it is built around
+
+**The stale-calendar trap.** The obvious "was this a trading session?" source is
+`spy-vix-daily.csv` — but Compile Flow WRITES that file. A dead pipeline leaves a stale
+calendar, so a checker reading it concludes "no session, nothing expected, all clear"
+*precisely when everything is broken*. `sessions_from_yfinance()` therefore queries SPY live
+and never reads pipeline output; a failed fetch is `EXIT_UNGROUNDED` (3), never a pass. This
+also keeps the repo's no-holiday-table rule (§Daily trade journal, `journal/lib/analysis.py`):
+a live SPY bar IS the calendar, and asking SPY alone sidesteps that CSV's known one-legged
+holiday rows.
+
+**The GC trap.** `gc_flow.py --all` runs inside Compile Flow and TRASHES raw snapshots once
+they are verified present in the compiled file. For any past session `snapshots == 0` is the
+HEALTHY steady state, so the `flow_present` check accepts a compiled file in their place.
+Counting snapshots would fail on every historical date.
+
+### Structure
+
+Pure verdict logic, I/O in a thin shell — the `align_tab_headers.py::plan()` split, so every
+false-alarm case is a plain unit test in `tests/test_check_pipeline.py` with nothing mocked.
+
+- `evaluate(state, stages, sessions) -> [Finding]` — pure; no I/O, no clock.
+- `summarise(findings, ...) -> (exit_code, report)` — pure.
+- `silence_gap(state, sessions)` — how many newest sessions hold no flow data at all.
+- `collect_state(client, stages, sessions)` — all Drive/Sheets I/O; one bounded
+  `flow_corpus()` sweep plus one download per (session, prefix).
+
+Coverage is computed live by importing `update_enrich_logs.py`'s `_oi_fields` / `_iv_fields` /
+`_price_fields` / `_check_cp`. It deliberately does **not** read the `EnrichLog` tab: nothing
+schedules `update_enrich_logs.py`, so that tab is only as fresh as the last manual run —
+trusting it would be the stale-state false-all-clear bug all over again. `_price_fields()` was
+added for this caller and is **not** written to `EnrichLog` (leaving that tab's schema, and
+its hand-anchored spill formula, untouched).
+
+### Config — `config/pipeline-health.yml`
+
+One block per stage: `kind`, `lag_sessions`, `min_complete` (decimal fraction), `prefixes`.
+Plus `lookback_sessions`, `max_silence_sessions`, `commit_age_warn_days` and
+`chain_complete_utc_hour`.
+
+`chain_complete_utc_hour` (23) handles the IN-FLIGHT session. Compile Flow fires at 22:30 UTC
+on the session it compiles, so before that hour the current day's downstream evidence
+legitimately does not exist. `settled_sessions()` drops it, and lag then counts back from the
+newest SETTLED session — if today is in flight, yesterday's OI is not due either, because it
+needs today's open interest. This costs CI nothing (the watchdog runs at 03:00 UTC, when the
+newest session is already the previous UTC date); it exists so a hand-run check during market
+hours stays quiet instead of teaching the operator to ignore it.
+
+`lag_sessions` is the false-alarm defence — the newest N sessions of a stage report `not-due`,
+never `MISSING`. **`enrich_oi` has `lag_sessions: 1`** because it is structurally D+1: the OI
+*change* for session D needs D+1's open interest, so `enrich_oi.py` holds the newest compiled
+date back until its next trading day lands. Lag is counted in SESSIONS, not calendar days, so
+a Monday check walks back to Friday rather than into the weekend.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | every due stage left its evidence |
+| 1 | gaps — **this is the email** |
+| 2 | bad config or arguments |
+| 3 | could not ground the verdict (yfinance/Drive unreachable) — never a pass |
+
+Failures also emit `::error` annotations, capped at `MAX_ANNOTATIONS` (GitHub renders only 10
+per step) with an explicit line naming how many were dropped — a silent truncation would read
+as "that was all of it", which is the exact lie this script exists to catch.
+
+### The 60-day trap, and its accepted limit
+
+The checker fails when the newest commit is older than `commit_age_warn_days` (45), giving
+~2 weeks of warning before GitHub's 60-day rule disables every schedule here. Actions activity
+does NOT reset that clock; only commits do. **Stated limit:** this warns *before* the cutoff
+but cannot help *after* it — once the schedules are disabled, this workflow is disabled too.
+Recovery is re-enabling them in the Actions tab. An external dead-man's-switch is the only
+thing that would survive that, and it was deliberately not built (new secret, new third-party
+dependency).
+
+### Secrets
+
+`GOOGLE_OAUTH_TOKEN_JSON_CONTENT`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SPREADSHEET_ID`. **Not**
+`GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT` — Sheets authenticates with the same OAuth2 token as
+Drive (`lib/sheets_client.py::_get_client`), and no Python in this repo reads a
+service-account variable, despite several older workflows still passing one.
+
+The workflow installs the FULL `requirements.txt`, not `requirements-compile.txt`: importing
+the coverage helpers transitively pulls `playwright` (via `lib/barchart`) and `scipy` (via
+`backtest.helpers`) even though this job never scrapes. The pip packages satisfy the imports;
+there is deliberately no `playwright install`, since no browser is ever launched.
+
 ## Research tier — backtest tuning studies
 
 Never imported by production, never scheduled. Reports land in `backtests/study_output/`

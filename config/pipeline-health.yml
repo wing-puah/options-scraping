@@ -1,0 +1,92 @@
+# Expectations for scripts/check_pipeline.py — the collection-tier watchdog.
+#
+# MACHINE-READ ONLY (config/ holds no documentation). The checker asserts, for
+# every recent trading session, that each stage below left the evidence it is
+# supposed to leave. A failing assertion exits non-zero, which is what makes
+# GitHub email the repo owner: a scheduled workflow that FAILS notifies, a
+# scheduled workflow that never ran does not.
+#
+# Tuning lives here rather than in the script so a threshold can be moved
+# without touching the verdict logic (which is pure and unit-tested).
+#
+# `min_complete` is a DECIMAL FRACTION (0.95 = 95%), per the repo-wide
+# convention for stored percentages.
+
+# How far back to sweep. The whole window is checked on every run, so a gap the
+# operator does not act on the same day keeps being reported until it is fixed
+# or falls out of the window.
+lookback_sessions: 10
+
+# If the newest session holding ANY flow data is this many sessions behind the
+# newest real session, report PIPELINE SILENT as the headline instead of a pile
+# of per-stage gaps — the difference between "one enricher is behind" and
+# "nothing has run for a week".
+max_silence_sessions: 3
+
+# GitHub disables scheduled workflows after 60 days with no repo COMMITS, which
+# would silently disable this watchdog too. Fail at 45 days for ~2 weeks of
+# warning. Actions activity does NOT reset that clock; only commits do.
+commit_age_warn_days: 45
+
+# Compile Flow fires at 22:30 UTC on the session it compiles, and the enrich
+# chain follows. Before this UTC hour, the CURRENT day's session is still in
+# flight and none of its downstream evidence exists yet — demanding it would be
+# a false alarm. Costs nothing in CI (the watchdog runs at 03:00 UTC, by which
+# point the newest session is already the previous UTC date); it exists so a
+# hand-run check during market hours stays quiet.
+chain_complete_utc_hour: 23
+
+stages:
+  # `lag_sessions` is the false-alarm defence: sessions of grace before a gap
+  # counts as a failure. The newest N sessions of a stage with lag N report
+  # not-due, never missing.
+  #
+  # `kind` selects which fact in the collected state the stage is judged on.
+
+  - name: scrape
+    kind: flow_present
+    lag_sessions: 0
+    prefixes: [etfs-flow, stocks-flow]
+    # NOT a snapshot count. gc_flow.py --all runs inside Compile Flow and
+    # TRASHES raw snapshots once verified present in the compiled file, so for
+    # any past session `snapshots == 0` is the HEALTHY steady state. Evidence is
+    # therefore: snapshots present, OR a compiled file standing in for them.
+
+  - name: compile
+    kind: compiled_present
+    lag_sessions: 0
+    prefixes: [etfs-flow, stocks-flow]
+
+  - name: enrich_oi
+    kind: enrichment
+    field: oi
+    lag_sessions: 1
+    min_complete: 0.95
+    prefixes: [etfs-flow, stocks-flow]
+    # Structurally D+1: open-interest CHANGE for session D needs D+1's open
+    # interest, so enrich_oi.py holds the newest compiled date back until its
+    # next trading day lands (see that script's run summary). "Yesterday's OI is
+    # incomplete" is NORMAL and must never alarm.
+
+  - name: iv_percentile
+    kind: enrichment
+    field: iv
+    lag_sessions: 0
+    min_complete: 0.90
+    prefixes: [etfs-flow, stocks-flow]
+
+  - name: price_catalyst
+    kind: enrichment
+    field: price
+    lag_sessions: 0
+    min_complete: 0.90
+    prefixes: [etfs-flow, stocks-flow]
+
+  - name: counterpart_iv
+    kind: counterpart
+    lag_sessions: 0
+    min_complete: 0.90
+
+  - name: baseline
+    kind: baseline_row
+    lag_sessions: 0
