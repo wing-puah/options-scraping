@@ -209,7 +209,7 @@ def settled_sessions(sessions: list[str], now_utc: datetime,
     own UTC date: right now, mid-session, none of its downstream evidence exists
     yet and demanding it would be a false alarm.
 
-    This costs nothing in CI — the watchdog runs at 03:00 UTC, when the newest
+    This costs nothing in CI — the watchdog runs at 01:45 UTC, when the newest
     trading session is already the previous UTC date — but it is what stops a
     hand-run check during market hours from crying wolf, which is how an
     operator learns to ignore the alarm.

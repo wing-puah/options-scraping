@@ -189,7 +189,7 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ## Pipeline health check — the collection-tier watchdog
 
-`scripts/check_pipeline.py` + `.github/workflows/pipeline-health.yml` (cron `0 3 * * 2-6`).
+`scripts/check_pipeline.py` + `.github/workflows/pipeline-health.yml` (cron `45 1 * * 2-6`).
 Answers one question: **did every collection stage actually run, and produce enough?**
 
 ### Why it exists
@@ -251,7 +251,7 @@ Plus `lookback_sessions`, `max_silence_sessions`, `commit_age_warn_days` and
 on the session it compiles, so before that hour the current day's downstream evidence
 legitimately does not exist. `settled_sessions()` drops it, and lag then counts back from the
 newest SETTLED session — if today is in flight, yesterday's OI is not due either, because it
-needs today's open interest. This costs CI nothing (the watchdog runs at 03:00 UTC, when the
+needs today's open interest. This costs CI nothing (the watchdog runs at 01:45 UTC, when the
 newest session is already the previous UTC date); it exists so a hand-run check during market
 hours stays quiet instead of teaching the operator to ignore it.
 

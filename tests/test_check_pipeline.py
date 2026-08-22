@@ -241,10 +241,10 @@ def test_session_settles_once_the_chain_has_run():
 
 
 def test_ci_run_time_settles_the_newest_session():
-    """The watchdog runs at 03:00 UTC, by which point the newest trading session
+    """The watchdog runs at 01:45 UTC, by which point the newest trading session
     is already the previous UTC date — so the in-flight rule costs CI nothing."""
     next_day = "2026-08-21"
-    assert settled_sessions(SESSIONS, _utc(next_day, 3), 23) == SESSIONS
+    assert settled_sessions(SESSIONS, _utc(next_day, 1), 23) == SESSIONS
 
 
 def test_in_flight_session_is_not_due_not_missing():

@@ -12,10 +12,12 @@ name: Pipeline Health
 
 on:
   schedule:
-    # 03:00 UTC, Tue-Sat. The chain starts at 22:30 UTC and the enrich jobs carry
-    # 120-minute timeouts, so the worst case lands ~00:30 UTC; 03:00 leaves
-    # margin. Tue-Sat because each run audits the previous weekday's chain.
-    - cron: '0 3 * * 2-6'
+    # 01:45 UTC (09:45 SGT), Tue-Sat. Compile Flow starts 22:30 UTC with a
+    # 10-minute timeout, and the enrich jobs it triggers carry 120-minute ones,
+    # so the worst case lands ~00:40 UTC; 01:45 is ~1h after that, with a few
+    # minutes' slack for workflow_run dispatch latency. Tue-Sat because each run
+    # audits the previous weekday's chain.
+    - cron: '45 1 * * 2-6'
   workflow_dispatch:
     inputs:
       as_of:

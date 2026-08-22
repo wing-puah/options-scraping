@@ -31,7 +31,7 @@ commit_age_warn_days: 45
 # Compile Flow fires at 22:30 UTC on the session it compiles, and the enrich
 # chain follows. Before this UTC hour, the CURRENT day's session is still in
 # flight and none of its downstream evidence exists yet — demanding it would be
-# a false alarm. Costs nothing in CI (the watchdog runs at 03:00 UTC, by which
+# a false alarm. Costs nothing in CI (the watchdog runs at 01:45 UTC, by which
 # point the newest session is already the previous UTC date); it exists so a
 # hand-run check during market hours stays quiet.
 chain_complete_utc_hour: 23
