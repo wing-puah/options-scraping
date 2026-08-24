@@ -82,8 +82,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               written with a missing/stale SPY/VIX table. Writes ONLY that
                               column (add_or_update_column). A stored label that no longer
                               reproduces is KEPT and logged as DRIFT (exit 2), never silently
-                              replaced, unless --force. Needs a fresh table (`make mech-regime`;
-                              the make target does this). Daily after compile via Actions
+                              replaced, unless --force. Needs a fresh table — `make mech-regime`
+                              refreshes it. Daily after compile via Actions
   align_tab_headers.py      — realign an analysis tab's header row with config.ROW_COLUMNS
                               (append_rows writes POSITIONALLY, so a short header mislabels
                               every later column). Repairs only when drifted columns are empty
@@ -461,8 +461,8 @@ hand-written — a study with no entry FAILS the test suite) + what its last run
 (`summary.py`, quoted verbatim from the reports, never paraphrased; an excerpt with no
 VERDICT block is labelled as the report's tail) + the newest current.md sections
 (`tuning.py`). Rebuilt automatically after every study run and review; `make study-map` /
-`make study-map-open` to force. `python3 -m scripts.study_map --check` prints per-study
-last-run status.
+`make study-map-open` to force. `python3 -m scripts.study_map --check` (or `make
+study-check`) prints per-study last-run status, no HTML.
 
 **`scripts/study_charts/`** — renders a study's result as self-contained HTML; adds no
 conclusion.
@@ -769,7 +769,7 @@ python3 scripts/build_baseline.py --backfill --dry-run
 
 # Enrichments — all share: bare = latest date · --date · --backfill (idempotent) ·
 # --dry-run · --force (clear columns/sidecar and re-scrape)
-python3 scripts/collector/fetch_iv_percentile.py      # one-shot backfill: make fetch-iv-percentile-all
+python3 scripts/collector/fetch_iv_percentile.py      # one-shot backfill: make iv-percentile ARGS="--backfill"
 python3 scripts/collector/enrich_oi.py                # latest ENRICHABLE date (needs D+1)
 python3 scripts/collector/fetch_counterpart_iv.py
 python3 scripts/collector/fetch_price_catalyst.py     # make price-catalyst
@@ -807,8 +807,9 @@ python3 -m scripts.backtest_study run account_sim -- --compounding
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 python3 -m scripts.backtest_study run account_sim -- --live-select [--live-select-no-llm]
 python3 -m scripts.study_review account_sim            # --skip-run reuses report; --dry-run no LLM
-python3 -m scripts.study_map --check
-make study-map-open · make study-docs · make study-chart-regime-open · make study-chart-compounding-open
+python3 -m scripts.study_map --check                  # or: make study-check
+make study-map-open · make study-docs · make study-check
+make study-chart CHART=regime OPEN=1 · make study-chart CHART=compounding OPEN=1 · make study-chart ARM=structure
 python3 -m scripts.study_charts.account_sim [--standalone --open] [--positions <csv>] [--no-docs]
 python3 -m scripts.study_charts.regime
 python3 -m scripts.study_charts.compounding

@@ -120,7 +120,7 @@ time-to-recover.
 
 ### The regime breakdown page
 
-`python3 -m scripts.study_charts.regime` (or `make study-chart-regime`) draws a
+`python3 -m scripts.study_charts.regime` (or `make study-chart CHART=regime`) draws a
 second page over the same run, `site/account-sim-regime.html`: which structures
 the account actually deployed under each of the two regime readings the book
 carries — the mechanical cell from `lib/mech_regime.py`, which selects the exit
@@ -142,7 +142,7 @@ edge the study never tested.
 
 ### The compounding arm's page
 
-`python3 -m scripts.study_charts.compounding` (or `make study-chart-compounding`)
+`python3 -m scripts.study_charts.compounding` (or `make study-chart CHART=compounding`)
 draws `site/account-sim-compounding.html`, the same readout for the **compounding
 sensitivity** arm rather than the frozen book, plus the `EQUITY MARKS` re-mark
 series, which exists only on that arm. It reads that arm's own artifacts

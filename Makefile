@@ -130,13 +130,26 @@ baseline:
 studies:
 	$(PY) -m scripts.backtest_study list
 
+# RECORD=1 appends this run's report to research/study-results/ afterward, iff
+# the run succeeds — bare `scripts.study_results` (records every study with a
+# report, same as `make study-record` with no ARGS), chained here so a study
+# run and its record don't need two commands. ARGS is NOT forwarded to this
+# step: it belongs to the study invocation above (a study name, --dry-run,
+# --era, …), none of which `scripts.study_results` understands. Idempotent on
+# era+git-sha (see study-record below), so safe to over-run.
 .PHONY: study
 study:
 	$(PY) -m scripts.backtest_study run $(ARGS)
+ifneq ($(strip $(RECORD)),)
+	$(PY) -m scripts.study_results
+endif
 
 .PHONY: study-all
 study-all:
 	$(PY) -m scripts.backtest_study run --all $(ARGS)
+ifneq ($(strip $(RECORD)),)
+	$(PY) -m scripts.study_results
+endif
 
 # ── study map ──────────────────────────────────────────────────────────────────
 # The readable one-pager: what each study asks, what it concluded, and what its
@@ -149,6 +162,12 @@ study-map:
 .PHONY: study-map-open
 study-map-open:
 	$(PY) -m scripts.study_map --open
+
+# Per-study last-run status, no HTML — the check the map's data feeds but
+# never itself gates on.
+.PHONY: study-check
+study-check:
+	$(PY) -m scripts.study_map --check
 
 # ── study record (per-era, TRACKED) ────────────────────────────────────────────
 # backtests/study_output/ is gitignored scratch — a re-run overwrites it, and on
@@ -227,71 +246,76 @@ study-review:
 # Renders a study's EXISTING result as one self-contained HTML page; it never
 # computes a new conclusion — every CSV-recomputed figure is reconciled against
 # the report, and a mismatch exits non-zero. Run the study FIRST.
+#
+# All three CHART values render arms/cuts of the SAME account_sim study run —
+# they never compute a second one:
+#   CHART=account_sim (default)  the frozen, path-independent book →
+#                                 site/account-sim-charts.html
+#   CHART=regime                 the same run, re-grouped by the two market
+#                                 regime readings the book carries — a cut the
+#                                 study does NOT pre-register; the study prints
+#                                 that cut itself, flagged, and this reconciles
+#                                 against it → site/account-sim-regime.html
+#   CHART=compounding            the POST-HOC compounding arm (sizing re-marked
+#                                 to realized equity at fixed intervals), not
+#                                 the pre-registered book, so it gets a page of
+#                                 its own → site/account-sim-compounding.html;
+#                                 cli.site_dest refuses either arm on the
+#                                 other's page
+#
 # Each run writes TWO files: the scratch HTML FRAGMENT under
-# backtests/study_output/ (what the Artifact publisher wants) and the standalone
-# site/account-sim-charts.html — generated output, rebuilt by `make study-docs`,
-# that opens on a double-click the way site/study-map.html does. ARGS="--no-site"
-# writes only the scratch one.
-# The report is auto-paired to the positions CSV's arm on BOTH arm axes
-# (--structure-universe and --compounding), so chart another arm by pointing
-# --positions at its own export. The structure arm writes ONLY the scratch
-# fragment: its page reads the same as the frozen book's chart for chart, so a
-# second page would just cost a reader a diff. The compounding arm has a page of
-# its own (below), and no arm may be written onto another arm's page.
+# backtests/study_output/ (what the Artifact publisher wants) and the
+# standalone site/*.html page, generated output rebuilt by `make study-docs`,
+# that opens on a double-click the way site/study-map.html does. OPEN=1 adds
+# --standalone --open (wraps it as a full page and opens it in a browser);
+# ARGS="--no-site" writes only the scratch one.
+#
+# ARM points --positions at another arm's export instead of the default
+# account_sim-positions-latest.csv: ARM=structure or ARM=compounding. The
+# structure arm writes ONLY the scratch fragment, by design — its page reads
+# the same as the frozen book's chart, so a second page would just cost a
+# reader a diff; OPEN=1 still works to look at it standalone.
+#
+#   make study-chart                        account_sim readout
+#   make study-chart CHART=regime OPEN=1    regime cut, opened in a browser
+#   make study-chart ARM=structure          structure-universe arm (fragment only)
+#   make study-chart ARGS="--out /tmp/page.html"   (also --report, --positions, --capital, --no-site)
+VALID_CHARTS := account_sim regime compounding
+CHART ?= account_sim
+ARM ?=
+OPEN ?=
 .PHONY: study-chart
 study-chart:
-	$(PY) -m scripts.study_charts.account_sim $(ARGS)
+	$(if $(filter $(CHART),$(VALID_CHARTS)),,$(error study-chart: CHART=$(CHART) is not valid -- must be one of: $(VALID_CHARTS)))
+	$(PY) -m scripts.study_charts.$(CHART) \
+	  $(if $(ARM),--positions backtests/study_output/account_sim-positions-$(ARM)-latest.csv) \
+	  $(if $(OPEN),--standalone --open) \
+	  $(ARGS)
 
-.PHONY: study-chart-open
-study-chart-open:
-	$(PY) -m scripts.study_charts.account_sim --standalone --open $(ARGS)
-
-# Fragment only, by design — see the note above. Add ARGS="--standalone --open"
-# to look at it.
-.PHONY: study-chart-structure
-study-chart-structure:
-	$(PY) -m scripts.study_charts.account_sim \
-	  --positions backtests/study_output/account_sim-positions-structure-latest.csv $(ARGS)
-
-# The regime page: the same account_sim run, re-grouped by the two regime
-# readings the book carries. It draws a cut the study does NOT pre-register —
-# the study prints that cut itself, flagged, and this reconciles against it.
-.PHONY: study-chart-regime
-study-chart-regime:
-	$(PY) -m scripts.study_charts.regime $(ARGS)
-
-.PHONY: study-chart-regime-open
-study-chart-regime-open:
-	$(PY) -m scripts.study_charts.regime --standalone --open $(ARGS)
-
-# The compounding arm's own page. That arm is a POST-HOC sensitivity (sizing
-# re-marked to realized equity), not the pre-registered book, so it gets a page
-# of its own — site/account-sim-compounding.html — and cli.site_dest refuses
-# either arm on the other's page. Run the compounding arm of the study first.
-.PHONY: study-chart-compounding
-study-chart-compounding:
-	$(PY) -m scripts.study_charts.compounding $(ARGS)
-
-.PHONY: study-chart-compounding-open
-study-chart-compounding-open:
-	$(PY) -m scripts.study_charts.compounding --standalone --open $(ARGS)
+# Internal helper for study-docs: render one chart page, but only if its input
+# export exists — a missing arm export is a SKIP, never a failure; a render
+# that fails once its input exists still fails the target loudly.
+# CHART = the study_charts module name; POS = the positions CSV it needs.
+.PHONY: _chart-if
+_chart-if:
+	@if [ -f "$(POS)" ]; then \
+	  $(PY) -m scripts.study_charts.$(CHART) || exit $$?; \
+	else \
+	  echo "skipped scripts.study_charts.$(CHART) — $(POS) not present (run the study first)"; \
+	fi
 
 # Every generated site page in one command: the study map, the account_sim
 # readout, the regime breakdown, the compounding arm. None runs a study — they
 # only read what the last run left behind. site/ is generated output; this is
-# the command that rebuilds it.
+# the command that rebuilds it. The account_sim and regime pages need
+# account_sim-positions-latest.csv; the compounding page needs its own arm's
+# export — each is skipped (not failed) if its input is not present yet.
 .PHONY: study-docs
 study-docs:
 	$(PY) -m scripts.study_map
-	$(PY) -m scripts.study_charts.account_sim
-	$(PY) -m scripts.study_charts.regime
-	@# The compounding arm is opt-in: skip its page rather than fail the whole
-	@# rebuild when that arm has not been run in this checkout.
-	@if [ -f backtests/study_output/account_sim-positions-compounding-latest.csv ]; then \
-	  $(PY) -m scripts.study_charts.compounding; \
-	else \
-	  echo "skipped scripts.study_charts.compounding — no compounding arm export yet"; \
-	fi
+	@$(MAKE) _chart-if CHART=account_sim POS=backtests/study_output/account_sim-positions-latest.csv
+	@$(MAKE) _chart-if CHART=regime POS=backtests/study_output/account_sim-positions-latest.csv
+	@$(MAKE) _chart-if CHART=compounding POS=backtests/study_output/account_sim-positions-compounding-latest.csv
 
 # ── Daily trade journal (PRODUCTION) ─────────────────────────────────────────
 # Fetches the Flex statement with IBKR_FLEX_TOKEN — no gateway, no login — and
@@ -383,19 +407,32 @@ help:
 	@echo "  make chart-all     chart results.csv + proxy_results.csv together (no re-run)"
 	@echo ""
 	@echo "  make studies       list available backtest tuning studies"
-	@echo "  make study ARGS=\"account_sim\"  run one study → backtests/study_output/<name>-latest.txt"
+	@echo ""
+	@echo "  make study ARGS=\"account_sim\"  RUN one study → backtests/study_output/<name>-latest.txt"
 	@echo "  make study ARGS=\"account_sim --dry-run\"  (also --cache-only, --redo, --date)"
-	@echo "  make study-all     run every study with its default args"
+	@echo "  make study-all     RUN every study with its default args"
 	@echo "  make study-all ARGS=\"--era v3\"  run them against a PAST export era"
 	@echo "                     (default: the bare exports, i.e. the live tabs now;"
 	@echo "                      a study refuses if the era on disk is not the one asked for)"
+	@echo "  make study RECORD=1 / make study-all RECORD=1  also RECORD the run afterward (see below)"
 	@echo ""
-	@echo "  make study-map     rebuild site/study-map.html (what each study asks + its last run)"
-	@echo "  make study-map-open  rebuild it and open it in a browser"
-	@echo ""
-	@echo "  make study-record  append each study's current report to research/study-results/ (tracked, append-only)"
+	@echo "  make study-record  RECORD each study's current report to research/study-results/ (tracked, append-only)"
 	@echo "  make study-record ARGS=\"--dry-run\"  show what it would append, write nothing"
 	@echo "  make study-record ARGS=\"--study bear_arm\"  record one study"
+	@echo ""
+	@echo "  make study-review  REVIEW: run account_sim, then two-analyst replication grading + digest"
+	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
+	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
+	@echo ""
+	@echo "  make study-map      MAP: rebuild site/study-map.html (what each study asks + its last run)"
+	@echo "  make study-map-open   rebuild it and open it in a browser"
+	@echo "  make study-check    per-study last-run status, no HTML"
+	@echo ""
+	@echo "  make study-chart    CHART: render account_sim's result → study_output fragment + site/account-sim-charts.html"
+	@echo "  make study-chart CHART=regime OPEN=1     regime cut, opened in a browser (CHART: account_sim|regime|compounding)"
+	@echo "  make study-chart ARM=structure            chart the --structure-universe arm's export (fragment only)"
+	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-site)"
+	@echo "  make study-docs     DOCS: rebuild every generated site page (map + chart pages, skipping any not yet run)"
 	@echo ""
 	@echo "  make clean        delete every regenerable file (scratch + study output)"
 	@echo "  make clean-dry    preview it, delete nothing"
@@ -404,20 +441,6 @@ help:
 	@echo ""
 	@echo "  make clean-studies clear backtests/study_output/, keeping each -latest.txt"
 	@echo "  make clean-studies ARGS=\"--all\"  wipe it (add --force to drop cited/gate-marked reports, --dry-run to preview)"
-	@echo ""
-	@echo "  make study-review  run account_sim, then two-analyst replication grading + digest"
-	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
-	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
-	@echo ""
-	@echo "  make study-chart   render the account_sim result → study_output fragment + site/account-sim-charts.html"
-	@echo "  make study-chart-open   same, wrapped as a full page and opened in a browser"
-	@echo "  make study-chart-structure  chart the --structure-universe arm's export (fragment only)"
-	@echo "  make study-chart-regime  render the deployed book by market regime → site/account-sim-regime.html"
-	@echo "  make study-chart-regime-open  same, wrapped as a full page and opened in a browser"
-	@echo "  make study-chart-compounding  render the POST-HOC compounding arm → site/account-sim-compounding.html"
-	@echo "  make study-chart-compounding-open  same, wrapped as a full page and opened in a browser"
-	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-site)"
-	@echo "  make study-docs    rebuild every generated site page (map + readout + regime + compounding)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo "  make dashboard     start web dashboard"
