@@ -257,12 +257,20 @@ operator behavior to track: naked-leg substitution where a spread was emitted
 
 ### 2.6 Rollback triggers — accumulating, check at gates, never read silence as "not met"
 Table in `deployment-evidence.md` §"Open pre-registered rollback triggers":
-BEAR_HE trail (≥25 new affected dates), bear-debit `be_after` (≥60 new
-arming rows), bull_put band re-read on the next independent window.
+BEAR_HE trail (≥25 new affected dates), bull_put band re-read on the next
+independent window. **First census + evaluations ran 2026-08-24**
+(`research/pre-registrations/rollback_triggers.md`; census now printed by
+every relevant study run): bear-debit `be_after` FIRED → REVERTED; LVOL
+tef-null CLEARED the corrected gate but HELD by the operator pending
+genuinely new dates; BEAR_HE 1/25 affected dates; credit sl-none 0/15 fresh
+rows.
 
 ### 2.7 Parked / blocked long-term
 - **Credit exit knobs** — unvalidated; needs a credit-heavy window (every
-  historical winner is the Mar-TSLA cluster).
+  historical winner is the Mar-TSLA cluster). 2026-08-24: the v4 credit book
+  (73 rows) now CALIBRATES exactly (single-basis era) and the corrected
+  baseline is in place, but 58/70 bull_puts are 2024 rows — operator kept the
+  thread parked; census + `sl 1x` comparator print on every credit run.
 - **Long-dated blind spot** — h ≥ 180 unpriceable with real data; bs proxy
   tier is OFF (`proxy.bs_fallback: false`); blocked on real long-dated
   history.

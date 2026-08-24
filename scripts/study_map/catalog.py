@@ -180,18 +180,20 @@ STUDIES: dict[str, Study] = {
         question="Does entry TIMING carry risk the columns never saw: the same (ticker, "
                  "structure) re-emitted across consecutive analysis dates (am I late?), and "
                  "a fill delayed 1-3 sessions past the signal (does the edge decay?)?",
-        verdict="ARM P MOVED on v4 (2026-08-24, 567 rows / 87 dates): what was a NULL on era "
-                "v3 (+0.054, CI [-0.115,+0.224] spanning zero) is now a signed effect the "
-                "other way — `n=73 pairs / 73 dates   mean delta -0.2050   "
-                "CI[-0.3792,-0.0306] EXCLUDES 0  ** CANDIDATE`, reported as `ARM P: "
-                "STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP) — proposes a candidate INTAKE "
-                "rule (prefer first emissions), queued for an independent-window "
-                "confirmation before it may reach deployment-rules.md`. A sign flip between "
-                "eras on 73 pairs is exactly what the confirmation window is for; nothing "
-                "changes in docs/ until it survives one. ARM L is unmoved and remains the "
-                "publishable finding: `ARM L: LAG-TOLERANT` — L=1/2/3 all include zero "
-                "against L=0. The signal does not decay within three sessions; a missed "
-                "same-day fill is not a lost trade.",
+        verdict="ARM P's v4 read is OFF-BASIS and carries nothing (two-analyst review, "
+                "2026-08-24): the registration pins PRIMARY to `--era v3` (795 rows / 118 "
+                "dates) and declares v4 SECONDARY — and the 08-19 watch said re-test on NEW "
+                "dates only. The v4 re-run (`n=73 pairs / 73 dates   mean delta -0.2050   "
+                "CI[-0.3792,-0.0306] EXCLUDES 0  ** CANDIDATE`) is therefore recorded as an "
+                "off-basis OBSERVATION — a sign flip against the v3 null (+0.054, CI "
+                "spanning zero) on overlapping dates, which if anything argues the effect "
+                "is era-composition, not timing. Both analysts also flagged that the "
+                "report's `ex_2026_feb_apr` cut is a silent no-op (this book ends "
+                "2025-08-19). No intake rule is proposed; the v3 verdict stands. ARM L is "
+                "unmoved and remains the publishable finding: `ARM L: LAG-TOLERANT` — "
+                "L=1/2/3 all include zero against L=0, though the review noted the "
+                "report's own two tercile L=3 cells print `** CANDIDATE` against that "
+                "headline (internal contradiction, same off-basis caveat).",
     ),
 
     # ② management
@@ -361,10 +363,14 @@ STUDIES: dict[str, Study] = {
                 "whose portfolio checks both land: `P1 worst-decile: n= 10  meanR +0.902  "
                 "CI [+0.275, +1.498]  $+12,004   -> MET` with `P2 correlation with deployed "
                 "sleeve: -0.275 over 54 shared dates   -> MET`. It takes the bear sleeve from "
-                "`meanR -0.168` to `meanR -0.003`. n=96 rows / 61 folds on the same dates the "
-                "book was fitted on, and it is a wrapper swap on a population "
-                "bear_position_study says to VETO — a candidate for an independent window, "
-                "not a ship. Nothing changes in config/backtest.yml.",
+                "`meanR -0.168` to `meanR -0.003`. TWO caveats gate the celebration: n=96 "
+                "rows / 61 folds sit on the same dates the book was fitted on, and — the "
+                "sharper one — this book contains NO 2026 dates (ends 2025-08-19), so the "
+                "\"both years\" and ex-2026-window criteria are vacuous, and 2026-alone is "
+                "exactly the cut that killed long_put in the original run. A wrapper swap "
+                "on a population bear_position_study says to VETO — a candidate for an "
+                "independent window that actually contains 2026, not a ship. Nothing "
+                "changes in config/backtest.yml.",
     ),
     "vol_sleeve": Study(
         family="structure", state="null",

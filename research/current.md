@@ -2663,3 +2663,62 @@ parameterized `study-chart CHART=account_sim|regime|compounding [ARM=structure]
 [OPEN=1]` replacing seven targets, `study-check`, `RECORD=1` chaining,
 `tests/test_makefile_targets.py` pinning every documented target), and
 `lib/gex_snapshot.py` retired (`f3a7b2e`, zero importers, operator-confirmed).
+
+### Same-day addendum — two-analyst review pass: the ARM P "candidate" is OFF-BASIS, and a new standing hazard
+
+`study_review` ran on the two verdict-movers (`emission_timing`,
+`financed_spread`; analyst A + B in parallel, validator, digest — artifacts in
+`backtests/study_output/*-review-*-latest.md`). The pass earned its cost twice
+over:
+
+**CORRECTION — `emission_timing` ARM P is retracted from mover status.** Both
+analysts, independently: the registration pins PRIMARY to `--era v3` (795 rows
+/ 118 dates) and declares the v4 basis SECONDARY ("carries nothing… never
+pooled"), and the report ran bare-era (v4) with no `--era v3` anywhere in its
+command line. The 08-19 log had additionally marked ARM P a post-hoc watch for
+NEW DATES ONLY. So the "STALE-ENTRY-PENALTY (CANDIDATE)" printed above is an
+off-basis observation on overlapping dates — if anything, a sign flip between
+eras on the same dates argues era-composition, not timing. The v3 NULL stands;
+the catalog verdict is corrected. Analyst A also caught an internal
+contradiction the study should fix: the ARM L headline says LAG-TOLERANT while
+the report's own two tercile L=3 cells print `** CANDIDATE`.
+
+**NEW STANDING HAZARD — the v4 book contains NO 2026 dates (BacktestResults
+signal_dates end 2025-08-19), so every 2026-keyed robustness cut is a silent
+no-op on it.** Analyst B proved it mechanically: all 17 `ex_2026_feb_apr`
+values in `financed_spread` (and every one in `emission_timing`) are
+numerically identical to their `ALL` column. Consequences: "positive every
+calendar year" on v4 means 2024+2025 only; window-cut conjunctions collapse
+from three cuts to two; and **`bear_rewrap`'s long_diag "passes all five" is
+partly vacuous — 2026-alone is exactly the cut that killed `long_put` in the
+original run, and this book cannot ask it.** Catalog caveated. Any v4
+conjunction pass that cites year-stability inherits this until 2026 dates
+land in the results export.
+
+**Both underlying reports also violated their registrations in smaller ways**,
+now on record: `financed_spread` prints `$` on substitution cell lines
+("Dollars are never quoted on a substitution" — its own registration; queue a
+report-format fix), and `emission_timing`'s G0/G3 headers both claim to run
+first. Validator scope call left to this session: analyst A graded the
+harness gates (G1/G2/G3) MET as code properties, B graded everything NOT
+EVALUABLE on the wrong basis — resolved here as A's reading for CODE claims
+(the gates are tested in `tests/`), B's for POPULATION claims (no criterion
+verdict from an off-basis run is quotable).
+
+**Disagreement log** (protocol requirement): `emission_timing` — G1/G2/G3
+MET (A) vs NOT EVALUABLE (B), resolved as scoped above; A-only catches: the
+ARM L internal contradiction, the G0/G3 header contradiction; B-only catch:
+the `ex_2026` no-op. `financed_spread` — E2 MET (A) vs NOT EVALUABLE (B),
+resolved for B (E2 is descriptive, "nothing is gated on it" — A answered a
+non-evaluable item); B-only catches: the `$`-on-substitution violation, the
+`ex_2026` no-op; A missed both, neither analyst wrong on any number
+(validator source-checked every quoted figure; all matched).
+
+**QUEUE updates from the pass:** (a) graded v3-registered studies re-run on
+era v4 print criteria against the wrong PRIMARY — for a GRADED read, run
+`--era v3`, or amend the registration with a dated v4-basis section first;
+(b) `financed_spread` F4-d20 carry-question resolved as CARRY, UNCHANGED:
+UNDERPOWERED on v4 (20 rows / 19 dates) is a census, not a refutation — the
+graded v3 candidate still waits on its independent-window confirmation;
+(c) fix the `financed_spread` $-print and `emission_timing` header/headline
+contradictions (report-format, no numbers move).
