@@ -154,6 +154,12 @@ STUDY_ARMS = {
             args=("--compounding",),
             charts=("scripts.study_charts.compounding",)),
     ),
+    # The credit side was invisible to `run --all` until 2026-08-24 — the study
+    # requires --side, the runner passed none, and only the debit default ever
+    # ran. Filed under its own stem so it can never clobber the debit report.
+    "exit_mechanism_study": (
+        Arm(suffix="credit", args=("--side", "credit")),
+    ),
 }
 
 # Arms the CALLER asks for by flag, which rename the report stem instead of
@@ -717,6 +723,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  python3 -m scripts.study_review {names[0]} --skip-run"
               "   (graded: analyst A/B + validator + digest)")
         print("  or paste the report above into Claude and ask for a write-up.")
+        print("  next: make study-record  (append this run's report to research/study-results/)")
     print("=" * 78)
     failed = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if rc and not refused]
     refusals = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if refused]
