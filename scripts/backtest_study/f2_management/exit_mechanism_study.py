@@ -28,8 +28,10 @@ Run from the repo root:
 """
 import argparse
 import csv
+import statistics
 import sys
 from collections import Counter, defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -41,6 +43,7 @@ from scripts.backtest_study.lib.harness import (  # noqa: E402
     MAX_LOSS_ABS, PATH_CAP_DAYS, Trade, _pct, _to_float, replay,
 )
 from scripts.backtest_study.lib.replay_basis import classify, unreachable_reasons  # noqa: E402
+from scripts.backtest_study.lib import triggers  # noqa: E402
 
 # --- the two books, and why only ONE of them is era-resolved ----------------
 # MAIN is the CURRENT book, resolved through `lib/era.py` so `STUDY_ERA` selects
@@ -264,6 +267,57 @@ CREDIT_VARIANTS: list[tuple[str, dict]] = [
 ]
 
 
+# ─── Credit rollback-trigger census (research/pre-registrations/rollback_triggers.md) ──
+
+ATTEMPT13_SHIP = date(2026, 7, 13)
+
+
+def credit_rollback_census(trades: list[Trade]) -> None:
+    """Attempt-13 rollback trigger (research log 2026-07-13): "sl-none loses
+    to sl-1x on the next >=15-row fresh bull_put window." Fresh = bull_put
+    rows signal-dated AFTER the Attempt-13 ship date. Census-first
+    (pre-registration §Census-first rule): prints n rows, the floor, and
+    MET/UNDERPOWERED before anything else. Below the floor there is NO
+    tuning read — the standing comparator stays the "sl 1x (pre-Attempt-13)"
+    grid line printed below by the variant table (pre-registration §Trigger 4
+    scope: CENSUS + COMPARATOR ONLY)."""
+    title = ('CREDIT ROLLBACK-TRIGGER CENSUS (Attempt 13 — "sl-none loses to sl-1x '
+             'on the next >=15-row fresh bull_put window")')
+    print("\n" + "=" * 100 + f"\n{title}\n" + "=" * 100)
+
+    bull_put = [t for t in trades if t.structure == "bull_put_spread"]
+    fresh = [t for t in bull_put if t.signal_date > ATTEMPT13_SHIP]
+    print(f"  credit rows: {len(trades)}   bull_put rows: {len(bull_put)}   "
+          f"fresh bull_put rows (signal_date > {ATTEMPT13_SHIP}): {len(fresh)}")
+    fresh_dates = sorted({t.signal_date for t in fresh})
+    print(triggers.census_line("credit sl-none vs sl-1x (fresh bull_put)",
+                               len(fresh), len(fresh_dates), floor_rows=15))
+
+    variant = {**CREDIT_PROD, "sl": 1.00}
+    aff_rows, aff_dates = triggers.affected(trades, CREDIT_PROD, variant)
+    by_year = Counter(t.signal_date.year for t in aff_rows)
+    print(f"  affected rows (all credit rows, sl-none vs sl-1x): {len(aff_rows)}   "
+          f"affected dates: {len(aff_dates)}   by year: "
+          + ("  ".join(f"{y}={n}" for y, n in sorted(by_year.items())) if by_year else "(none)"))
+
+    if len(fresh) < 15:
+        print("  UNDERPOWERED on the fresh window — NO tuning read. The 'sl 1x "
+              "(pre-Attempt-13)' variant line in the grid below is the standing "
+              "comparator; census recorded (pre-registration §decisions, trigger 4 "
+              "scope: CENSUS + COMPARATOR ONLY). Thread stays parked.")
+        return
+
+    prod_reps = {id(t): replay(t, **CREDIT_PROD) for t in fresh}
+    var_reps = {id(t): replay(t, **variant) for t in fresh}
+    prod_dol = sum(t.dollars(prod_reps[id(t)]["pnl_pct"]) for t in fresh)
+    var_dol = sum(t.dollars(var_reps[id(t)]["pnl_pct"]) for t in fresh)
+    prod_mean_r = statistics.fmean(prod_reps[id(t)]["pnl_pct"] for t in fresh)
+    var_mean_r = statistics.fmean(var_reps[id(t)]["pnl_pct"] for t in fresh)
+    print(f"  fresh window (n={len(fresh)}): sl-none(PROD) ${prod_dol:+,.0f} "
+          f"meanR={prod_mean_r:+.4f}  vs  sl-1x ${var_dol:+,.0f} meanR={var_mean_r:+.4f}"
+          f"   Δ$={var_dol - prod_dol:+,.0f}  ΔmeanR={var_mean_r - prod_mean_r:+.4f}")
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -312,6 +366,9 @@ def main() -> None:
         # path both sides claim the same rules for — every variant Δ below
         # would be built on that disagreement. Same stop `harness_gate` makes.
         sys.exit(1)
+
+    if side == "credit":
+        credit_rollback_census(trades)
 
     v1_trades = []
     if side == "debit" and not args.no_v1 and V1_CSV.exists():

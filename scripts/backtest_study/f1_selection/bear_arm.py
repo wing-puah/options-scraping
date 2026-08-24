@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
+from scripts.backtest_study.lib import triggers  # noqa: E402
 
 BEAR_STRUCTURES = ("bear_put_spread", "bear_call_spread", "long_put")
 
@@ -430,6 +431,67 @@ def main() -> int:
     survivors, _ = b1_selection(bear)
     b2_exit(bear, other, "debit")
     b2_exit(bear, other, "credit")
+
+    hdr("ROLLBACK-TRIGGER CENSUS — bear-debit be_after 0.50 (shipped 2026-08-11)")
+    print("  \"ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows "
+          "that actually arm the ratchet, i.e. reach peak P&L >= +0.50): revert "
+          "`enabled` to false if the total gain vs PROD on those rows is <= 0, OR if "
+          "the mean R delta on the affected rows is < 0, OR if any single year of the "
+          "pooled book flips negative.\" (config/backtest.yml structure_exit comment)")
+    bear_debit = [r for r in bear if not r.get("credit")]
+    bear_debit_trades = [r["t"] for r in bear_debit]
+    prod_cfg = DEBIT_GRID[0][1]
+    variant = {**prod_cfg, "be_after": 0.50}
+    print(f"  bear-debit rows: {len(bear_debit_trades)}")
+
+    arming = triggers.arming_rows(bear_debit_trades, 0.50)
+    arming_dates = sorted({t.signal_date for t in arming})
+    aff_rows, aff_dates = triggers.affected(arming, prod_cfg, variant)
+    print(triggers.census_line("bear-debit be_after 0.50 (arming rows)",
+                               len(arming), len(arming_dates), floor_rows=60))
+    print(f"  affected rows (among arming, outcome changes under be_after 0.50): "
+          f"{len(aff_rows)} of {len(arming)}   affected dates: {len(aff_dates)}")
+
+    if len(arming) >= 60:
+        gain_a = sum(t.dollars(replay(t, **variant)["pnl_pct"])
+                     - t.dollars(replay(t, **prod_cfg)["pnl_pct"]) for t in arming)
+        r_deltas_b = [replay(t, **variant)["pnl_pct"] - replay(t, **prod_cfg)["pnl_pct"]
+                      for t in aff_rows]
+        mean_r_b = statistics.fmean(r_deltas_b) if r_deltas_b else 0.0
+
+        year_deltas: dict[int, list[float]] = {}
+        for t in bear_debit_trades:
+            d = replay(t, **variant)["pnl_pct"] - replay(t, **prod_cfg)["pnl_pct"]
+            year_deltas.setdefault(t.signal_date.year, []).append(d)
+        year_means = {y: statistics.fmean(v) for y, v in sorted(year_deltas.items())}
+
+        a_fired = gain_a <= 0
+        b_fired = mean_r_b < 0
+        neg_years = [y for y, mn in year_means.items() if mn < 0]
+        c_fired = bool(neg_years)
+
+        print(f"    (a) total $ gain vs PROD, arming rows (n={len(arming)}): "
+              f"${gain_a:+,.2f}   [{'FIRE' if a_fired else 'PASS'}] revert if <= 0")
+        print(f"    (b) mean-R delta, affected rows (n={len(aff_rows)}): "
+              f"{mean_r_b:+.4f}   [{'FIRE' if b_fired else 'PASS'}] revert if < 0")
+        print("    (c) per-year mean-R delta, ALL bear-debit rows: "
+              + "  ".join(f"{y}:{mn:+.4f}" for y, mn in year_means.items())
+              + f"   [{'FIRE' if c_fired else 'PASS'}] revert if any year < 0"
+              + (f"  (negative: {neg_years})" if neg_years else ""))
+
+        if a_fired or b_fired or c_fired:
+            print("\n    REVERT CONDITION FIRED — surface to operator; production "
+                  "config change required.")
+        else:
+            print("\n    HOLD (no revert condition fired)")
+    else:
+        print(f"    NOT EVALUABLE on this book ({len(arming)} of 60 arming rows) — "
+              f"the census above is the recorded result (pre-registration "
+              f"§Census-first rule).")
+
+    print("\n  CORRELATED-WINDOW RE-READ: v4 = new plays on the same historical "
+          "signal dates as the v3 fitting book; a PASS holds the rule but promotes "
+          "nothing (pre-registration §decisions).")
 
     hdr("VERDICT (pre-registered rules, ml-plan.md §Kickoff addendum)")
     print(f"  B1 KEEP-CONDITIONED: {'candidate(s) found' if survivors else 'NOT met'}"

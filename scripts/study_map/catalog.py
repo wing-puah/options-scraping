@@ -350,6 +350,14 @@ INFRA: dict[str, str] = {
                            "from exit_switch_mech_study so its harness gate, "
                            "exit_mechanism_study's calibrate() and book.py's debit_calib "
                            "cannot drift. Interprets lib/harness.py's output; never replays.",
+    "lib/triggers.py": "The rollback-trigger power census: is_affected/affected (outcome-"
+                       "triple disagreement), peak_pnl/arming_rows (trigger 3's literal "
+                       "'reach peak >= threshold'), and census_line (n rows/dates, the "
+                       "registered floor, FLOOR MET/UNDERPOWERED). Built 2026-08-24 for "
+                       "research/pre-registrations/rollback_triggers.md; never ships or "
+                       "reverts a rule itself — exit_switch_mech_study STEP 3(f), "
+                       "bear_arm's be_after census, and exit_mechanism_study --side credit "
+                       "own that.",
     "lib/live_select.py": "The `account_sim --live-select` arm: research tier importing "
                       "PRODUCTION, so the simulated decision is the live decision. Runs "
                       "scripts/journal/recommend.py's rank() + judge() over history in "

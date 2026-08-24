@@ -93,6 +93,7 @@ from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
     _REASON_REQUIRES, NEAR_MISS_TOL, calib as _calib_full, classify as _classify,
     unreachable_reasons,
 )
+from scripts.backtest_study.lib import triggers  # noqa: E402
 
 # ── frozen exit-grid variants keyed per mech/model cell (from DEBIT_VARIANTS) ──
 V_TRAIL = {**DEBIT_PROD, "trig": 0.50, "trail": 0.50}          # BEAR + H/E-VOL
@@ -804,6 +805,45 @@ def main():
     # restore frozen labels
     relabel_mech_cell(recs, labeler)
 
+    # ── Step 3(f): rollback-trigger power census ──
+    hdr("STEP 3(f) — ROLLBACK-TRIGGER POWER CENSUS "
+        "(pre-registered research/pre-registrations/rollback_triggers.md)")
+    print("Sources: config/backtest.yml regime_exit comment (BEAR_HE trail / LVOL "
+          "tef-null rollback triggers, quoted verbatim there); "
+          "research/deployment-evidence.md §\"Open pre-registered rollback triggers\"; "
+          "research/pre-registrations/rollback_triggers.md (population, \"affected\", "
+          "the census-first rule, and the estimators are pinned there, not re-derived "
+          "here).")
+    TRIGGER_CELLS = (("BEAR_HE", "trail .50/.50", 25), ("LVOL", "tef null", 25))
+    trigger_census = {}
+    for cell, cell_label, floor in TRIGGER_CELLS:
+        sub(f"{cell} — {cell_label}")
+        cell_trades = [r["t"] for r in recs if r["mech_cell"] == cell]
+        rows, dates = triggers.affected(cell_trades, DEBIT_PROD, CELL_VARIANT[cell])
+        print(triggers.census_line(f"{cell} {cell_label}", len(rows), len(dates),
+                                   floor_dates=floor))
+        entry = dict(cell=cell, rows=rows, dates=dates, met=len(dates) >= floor)
+        if entry["met"]:
+            date_strs = {d.isoformat() for d in dates}
+            per_date_delta = {
+                d: sum(r["pnl_var"][cell] - r["pnl_prod"] for r in recs
+                       if r["mech_cell"] == cell and r["date"] == d)
+                for d in date_strs
+            }
+            vals = list(per_date_delta.values())
+            entry["median"] = statistics.median(vals)
+            entry["total"] = sum(vals)
+            entry["per_date_delta"] = per_date_delta
+            print(f"    per-affected-date summed pnl_pct delta (variant - PROD): "
+                  f"median={entry['median']:+.4f}  total={entry['total']:+.4f}  "
+                  f"(n={len(vals)} affected dates)")
+        else:
+            print(f"    NOT EVALUABLE on this book: {len(dates)} of {floor} affected "
+                  f"dates — the census above IS the recorded result (pre-registration "
+                  f"§Census-first rule: 'a trigger whose floor is not met gets NO "
+                  f"reading').")
+        trigger_census[cell] = entry
+
     # ── Ship gate ──
     hdr("SHIP-GATE EVALUATION (pre-registered) — MECH-KEYED SWITCH")
     pooled_loo = results[("POOLED", "mech")]["pct"]
@@ -833,6 +873,45 @@ def main():
 
     verdict = "COMES OFF THE GATE" if all(checks.values()) else "STAYS GATED"
     print(f"\n    VERDICT: mech-keyed per-regime exit switch {verdict}.")
+
+    # ── Ship gate (corrected, pre-registered) — first evaluation of the ──────
+    # rollback triggers this study governs. Does NOT touch the six-criteria
+    # block above (that gate answers a different question — whether the
+    # mech-keyed switch as a whole comes off ITS gate).
+    hdr("SHIP-GATE (corrected, pre-registered) — evaluated only at the floor")
+    print("Sources: config/backtest.yml regime_exit comment (the rollback-trigger "
+          "text, quoted verbatim in STEP 3(f) above); "
+          "research/deployment-evidence.md §\"Open pre-registered rollback triggers\"; "
+          "research/pre-registrations/rollback_triggers.md.")
+    for cell, cell_label, floor in TRIGGER_CELLS:
+        entry = trigger_census[cell]
+        sub(f"{cell} — {cell_label}")
+        if not entry["met"]:
+            print(f"    UNDERPOWERED ({len(entry['dates'])} of {floor} affected "
+                  f"dates) — no reading.")
+            continue
+        date_strs = {d.isoformat() for d in entry["dates"]}
+        cell_early = sum(r["pnl_var"][cell] - r["pnl_prod"] for r in recs
+                         if r["mech_cell"] == cell and r["date"] in date_strs
+                         and r["date"] < med_date)
+        cell_late = sum(r["pnl_var"][cell] - r["pnl_prod"] for r in recs
+                        if r["mech_cell"] == cell and r["date"] in date_strs
+                        and r["date"] >= med_date)
+        checks_c = {
+            "median among affected dates > 0": entry["median"] > 0,
+            "total (affected dates) > 0": entry["total"] > 0,
+            "both time halves positive (restricted to this cell's affected rows)":
+                cell_early > 0 and cell_late > 0,
+            "no perturbation flip (STEP 3(e); flips_found is whole-book "
+            "mech-switch-vs-PROD, not cell-restricted)": len(flips_found) == 0,
+        }
+        for k, v in checks_c.items():
+            print(f"    [{'PASS' if v else 'FAIL'}]  {k}")
+        print(f"    affected-date halves (restricted to this cell's affected rows, "
+              f"split at the pooled median date {med_date}): "
+              f"early Δ={cell_early:+.4f}  late Δ={cell_late:+.4f}")
+        cell_verdict = "CLEARED" if all(checks_c.values()) else "STAYS GATED"
+        print(f"    VERDICT: {cell} ({cell_label}) {cell_verdict}.")
 
     print("\n" + "=" * 100 + "\nEND OF REPORT\n" + "=" * 100)
 

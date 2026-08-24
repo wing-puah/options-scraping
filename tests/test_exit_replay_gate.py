@@ -283,7 +283,7 @@ def test_bear_position_study_R_is_replayed_not_stored(tmp_path, monkeypatch):
 # ══════════════════════════════════════════════════════════════════════════════
 
 from scripts.backtest_study.f2_management import exit_mechanism_study as ems  # noqa: E402
-from scripts.backtest_study.lib import book, harness, replay_basis  # noqa: E402
+from scripts.backtest_study.lib import book, harness, replay_basis, triggers  # noqa: E402
 
 
 def _be_stop_row(**extra):
@@ -346,3 +346,78 @@ def test_shared_classifier_is_the_only_implementation():
     assert m._classify is replay_basis.classify
     assert ems.replay is harness.replay
     assert ems.Trade is harness.Trade
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# lib/triggers.py — the rollback-trigger power census
+# (research/pre-registrations/rollback_triggers.md)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_TRAIL_CFG = {**m.DEBIT_PROD, "trig": 0.50, "trail": 0.50}
+
+
+def test_is_affected_true_when_configs_disagree():
+    """The default fixture (docstring on `_row`): DEBIT_PROD rides to a
+    time_exit at +0.20, the trail profile fires trailing_stop at +0.25 —
+    different outcome triples, so the row is affected."""
+    t = Trade(_row())
+    assert triggers.is_affected(t, m.DEBIT_PROD, _TRAIL_CFG) is True
+
+
+def test_is_affected_false_against_itself():
+    t = Trade(_row())
+    assert triggers.is_affected(t, m.DEBIT_PROD, m.DEBIT_PROD) is False
+
+
+def test_affected_returns_rows_and_sorted_signal_dates():
+    t1 = Trade(_row(ticker="AAA"))
+    t2 = Trade(_row(ticker="BBB"))
+    rows, dates = triggers.affected([t1, t2], m.DEBIT_PROD, _TRAIL_CFG)
+    assert {t.ticker for t in rows} == {"AAA", "BBB"}
+    assert dates == [SIGNAL]
+
+
+def test_peak_pnl_is_080_on_the_default_fixture():
+    """`_row`'s docstring pins the peak at +0.80 (day 2, mark 1.80 on entry
+    1.00) — above trig/trail 0.50, below pt 0.90."""
+    t = Trade(_row())
+    assert triggers.peak_pnl(t) == pytest.approx(0.80)
+
+
+def test_arming_rows_thresholds_at_050_not_090():
+    t = Trade(_row())
+    assert triggers.arming_rows([t], 0.50) == [t]
+    assert triggers.arming_rows([t], 0.90) == []
+
+
+def test_peak_pnl_is_negative_inf_with_no_priced_marks():
+    row = _row()
+    row["daily_price_csv"] = ",".join([""] * GRID_LEN)  # every mark unpriced
+    t = Trade(row)
+    assert triggers.peak_pnl(t) == float("-inf")
+    assert triggers.arming_rows([t], 0.0) == []
+
+
+def test_census_line_underpowered_below_floor():
+    line = triggers.census_line("x", n_rows=3, n_dates=3, floor_dates=25)
+    assert line.endswith("UNDERPOWERED")
+    assert "POWER STOP" not in line
+
+
+def test_census_line_floor_met_at_the_boundary():
+    """AT the floor counts as met, not just above it."""
+    line = triggers.census_line("x", n_rows=25, n_dates=25, floor_dates=25)
+    assert line.endswith("FLOOR MET")
+    assert "POWER STOP" not in line
+
+
+def test_census_line_rows_floor_variant():
+    below = triggers.census_line("x", n_rows=59, n_dates=59, floor_rows=60)
+    at = triggers.census_line("x", n_rows=60, n_dates=60, floor_rows=60)
+    assert below.endswith("UNDERPOWERED")
+    assert at.endswith("FLOOR MET")
+
+
+def test_census_line_requires_a_floor():
+    with pytest.raises(ValueError):
+        triggers.census_line("x", n_rows=1, n_dates=1)

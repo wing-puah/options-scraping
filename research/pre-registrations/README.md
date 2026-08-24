@@ -33,3 +33,4 @@ here — see [`../replication-protocol.md`](../replication-protocol.md).
 | [`portfolio_delta.md`](portfolio_delta.md) | `portfolio_delta` |
 | [`emission_timing.md`](emission_timing.md) | `emission_timing` |
 | [`concurrency_correlation.md`](concurrency_correlation.md) | `concurrency_correlation` — **registered 2026-08-22, module NOT yet written.** The plan exists before the code on purpose; see the file's own "dead ends" table for the v3 cuts it must not re-find. |
+| [`rollback_triggers.md`](rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` |
