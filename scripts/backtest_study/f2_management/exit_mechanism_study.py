@@ -30,18 +30,17 @@ import argparse
 import csv
 import sys
 from collections import Counter, defaultdict
-from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
-from lib.parsing import to_float as _to_float  # noqa: E402
-from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
-from scripts.backtest.helpers import _weekday_grid  # noqa: E402
-from scripts.backtest.legs import parse_legs  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
+from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD  # noqa: E402
+from scripts.backtest_study.lib.harness import (  # noqa: E402
+    MAX_LOSS_ABS, PATH_CAP_DAYS, Trade, _pct, _to_float, replay,
+)
+from scripts.backtest_study.lib.replay_basis import classify, unreachable_reasons  # noqa: E402
 
 # --- the two books, and why only ONE of them is era-resolved ----------------
 # MAIN is the CURRENT book, resolved through `lib/era.py` so `STUDY_ERA` selects
@@ -78,91 +77,18 @@ MAIN_CSV = era.resolve_paths()["results"]
 # still far too thin to read.
 V1_CSV = ROOT / "backtests" / "v1_20260625_results.csv"
 
-PATH_CAP_DAYS = 120          # config/backtest.yml simulation.path_cap_days
-MAX_LOSS_ABS = 50000 * 0.02  # portfolio_value × risk_per_trade_pct (dollar_stop)
-
-# Production exit profiles — source of truth is config/backtest.yml
-# (simulation: block for debit, simulation.credit: override for credit).
-# Attempt 10 (2026-07-04): debit trailing_stop_trigger/trailing_stop_pct removed
-# from production (see research.md); backtests/results.csv was
-# regenerated without it, so trig/trail must stay None here to calibrate.
-DEBIT_PROD = dict(pt=0.90, sl=0.75, trig=None, trail=None, tef=0.75)
-CREDIT_PROD = dict(pt=0.65, sl=1.00, trig=None, trail=None, tef=None)
-
-
-def _pct(s):
-    """Normalize a pct field: v1 file stores '39.07%', current file plain decimals."""
-    s = str(s or "").strip()
-    if not s:
-        return None
-    if s.endswith("%"):
-        return float(s.rstrip("%")) / 100
-    return float(s)
-
-
-class Trade:
-    def __init__(self, row: dict, load_underlying: bool = False):
-        self.row = row
-        self.signal_date = date.fromisoformat(row["signal_date"])
-        self.ticker = row["ticker"]
-        self.structure = row["structure"]
-        self.entry_net = float(row["entry_option_price"])
-        self.denom = abs(self.entry_net)
-        self.contracts = int(row["contracts"])
-        self.dte_entry = int(row["dte_entry"])
-        self.legs = parse_legs(row["legs"])
-        self.short_legs = [l for l in self.legs if l.qty < 0]
-
-        nearest_dte = min((l.expiration - self.signal_date).days for l in self.legs)
-        end = self.signal_date + timedelta(days=min(nearest_dte, PATH_CAP_DAYS))
-        self.grid = _weekday_grid(self.signal_date, end)
-        self.cap_reached_expiry = nearest_dte <= PATH_CAP_DAYS
-
-        self.marks = [None if t == "" else float(t)
-                      for t in row["daily_price_csv"].split(",")]
-        assert len(self.marks) == len(self.grid), \
-            f"{self.ticker} {self.signal_date}: {len(self.marks)} marks vs {len(self.grid)} grid days"
-
-        self.underlying = self._load_underlying() if load_underlying else {}
-
-    def _load_underlying(self) -> dict[date, float]:
-        """Underlying Price~ per date from the short leg(s)' cached history CSVs."""
-        out: dict[date, float] = {}
-        for leg in self.short_legs:
-            p = cache_path(HISTORY_CACHE, leg.ticker, leg.expiration, leg.strike, leg.opt_type)
-            if not p.exists():
-                continue
-            details = parse_history_details(p.read_text(), require_mark=False)
-            for d, r in details.items():
-                v = _to_float(r.get("Price~"))
-                if v is not None and d not in out:
-                    out[d] = v
-        return out
-
-    def pnl_of(self, mark: float) -> float:
-        return (mark - self.entry_net) / self.denom
-
-    def dollars(self, pl: float) -> float:
-        return pl * self.denom * 100 * self.contracts
-
-    # ── underlying breach thresholds (credit variants) ──
-    def breach_thresholds(self, buffer: float) -> list[tuple[str, float]]:
-        """[(direction, level)]. Verticals: short strike ± buffer. Straddles /
-        strangles (short call AND short put): breakeven basis per Attempt 9
-        lesson — strike-basis fires day 1 when the short strike is ~ATM."""
-        credit = self.denom
-        types = {l.opt_type for l in self.short_legs}
-        straddle_like = types == {"Call", "Put"}
-        out = []
-        for leg in self.short_legs:
-            if straddle_like:
-                lvl = leg.strike + credit if leg.opt_type == "Call" else leg.strike - credit
-            else:
-                lvl = leg.strike * (1 + buffer) if leg.opt_type == "Call" \
-                    else leg.strike * (1 - buffer)
-            out.append(("above" if leg.opt_type == "Call" else "below", lvl))
-        return out
-
+# --- replay engine + production profiles: IMPORTED, no longer defined here ---
+# The engine (Trade / replay / _pct and the PATH_CAP_DAYS / MAX_LOSS_ABS
+# clamps) lives in lib/harness.py — the FROZEN port of what used to be defined
+# in this file — pinned by tests/test_harness_replay.py's fixture, so this
+# study and every study that imports the engine THROUGH this module
+# (bear_position_study, exit_switch_*, the retired combined/underlying pair)
+# now replay under the pinned implementation. The production profiles come
+# from lib/book.py, the single source of truth: until 2026-08-24 this file
+# carried its own CREDIT_PROD with the PRE-Attempt-13 sl=1.00 — a stop removed
+# from production 2026-07-13 — so every credit variant Δ was measured against
+# a retired rule, and the variant then named "sl none" WAS production. The
+# re-exports are deliberate; downstream import sites stay stable.
 
 def load_trades(path: Path, side: str, load_underlying: bool = False) -> list[Trade]:
     out = []
@@ -177,86 +103,53 @@ def load_trades(path: Path, side: str, load_underlying: bool = False) -> list[Tr
     return out
 
 
-# ─── Replay engine ─────────────────────────────────────────────────────────────
-
-def replay(t: Trade, pt=None, sl=None, trig=None, trail=None, tef=None,
-           be_after=None, und_buffer=None) -> dict:
-    """Mirror of _summarize_path's exit scan (simulate.py:139-171) plus two
-    experimental rules:
-      be_after    — breakeven ratchet: once peak pnl >= be_after, the stop level
-                    tightens from -sl to 0 (exit reason 'be_stop').
-      und_buffer  — credit-side underlying close-breach stop (short strike ±
-                    buffer; breakeven basis for straddles), checked AHEAD of the
-                    mark stops the way Attempt 9's '+ mark stops kept' variant
-                    ran (exit reason 'underlying_stop').
-    Priority: profit_target → trailing_stop → underlying_stop → dollar_stop →
-    stop_loss/be_stop → time_exit. dollar_stop/expiry always on, like production.
-    """
-    te_day = int(t.dte_entry * tef) if tef else None
-    ths = t.breach_thresholds(und_buffer) if und_buffer is not None else []
-    peak = -1e18
-    trailing_active = False
-    for i, (day, m) in enumerate(zip(t.grid, t.marks), start=1):
-        if m is None:
-            continue
-        d = (day - t.signal_date).days
-        # round away 1-ulp float noise from the 4-decimal CSV round-trip: e.g.
-        # (0.3500-1.4)/1.4 = -0.7499999999999999, which misses the sl=0.75
-        # boundary production hit when computing from the unrounded scrape.
-        pl = round(t.pnl_of(m), 10)
-        peak = max(peak, pl)
-        if trig is not None and peak >= trig:
-            trailing_active = True
-
-        if pt is not None and pl >= pt:
-            return dict(exit_reason="profit_target", days_held=i, pnl_pct=pl)
-        if trailing_active and trail is not None and pl <= peak - trail:
-            return dict(exit_reason="trailing_stop", days_held=i, pnl_pct=pl)
-        if ths:
-            s = t.underlying.get(day)
-            if s is not None and any(
-                    (dr == "above" and s > lvl) or (dr == "below" and s < lvl)
-                    for dr, lvl in ths):
-                return dict(exit_reason="underlying_stop", days_held=i, pnl_pct=pl)
-        if t.dollars(pl) <= -MAX_LOSS_ABS:
-            return dict(exit_reason="dollar_stop", days_held=i, pnl_pct=pl)
-        if be_after is not None and peak >= be_after and pl <= 0:
-            return dict(exit_reason="be_stop", days_held=i, pnl_pct=pl)
-        if sl is not None and pl <= -sl:
-            return dict(exit_reason="stop_loss", days_held=i, pnl_pct=pl)
-        if te_day is not None and d >= te_day:
-            return dict(exit_reason="time_exit", days_held=i, pnl_pct=pl)
-
-    priced = [(i, m) for i, m in enumerate(t.marks, start=1) if m is not None]
-    i, m = priced[-1]
-    return dict(exit_reason="expired" if t.cap_reached_expiry else "cap_open",
-                days_held=i, pnl_pct=t.pnl_of(m))
-
-
 # ─── Calibration gate ──────────────────────────────────────────────────────────
 
 def calibrate(trades: list[Trade], prod: dict, label: str) -> bool:
+    """Classify every row's stored outcome against a replay under `prod`:
+    exact / near-rounding-tie / superseded-basis / HARD. One classifier for
+    the whole tier — lib/replay_basis.py, the same four buckets as
+    exit_switch_mech_study's harness_gate and book.py's debit_calib.
+
+    Superseded rows are EXPECTED on the current book: they are the shipped
+    per-row overrides' own output (regime_exit BEAR_HE trail 2026-07-22,
+    structure_exit bear-debit be_after 2026-08-11) which the flat profile here
+    cannot emit. They are kept — every variant table re-replays all rows under
+    each variant, so no stored outcome leaks into a comparison. Only a HARD
+    row (reachable reason, wrong outcome) makes the variant numbers
+    untrustworthy; the return value is "no HARD rows" and main() stops on it.
+    """
     print("=" * 100)
     # "the main book" rather than "results.csv": the input is era-resolved now,
     # and a header naming a file the run did not read is how a report gets
     # attributed to the wrong population.
     print(f"CALIBRATION ({label}): production rules replayed vs the main book's actuals")
     print("=" * 100)
-    ok = 0
+    unreachable = unreachable_reasons(prod)
+    tally = Counter()
+    sup_rows, hard_rows = [], []
     for t in trades:
-        rep = replay(t, **prod)
-        want = (t.row["exit_reason"], int(float(t.row["days_held"])),
-                round(_pct(t.row["realized_pnl_pct"]), 4))
-        got = (rep["exit_reason"], rep["days_held"], round(rep["pnl_pct"], 4))
-        match = want == got
-        ok += match
-        if not match:
-            print(f"  FAIL {t.signal_date} {t.ticker:5s} {t.structure:18s} "
-                  f"want={want} got={got}")
-    print(f"  → {ok}/{len(trades)} matched")
-    if ok != len(trades):
+        kind, want, got = classify(t, prod, unreachable)
+        tally[kind] += 1
+        if kind == "superseded":
+            sup_rows.append((t, want, got))
+        elif kind == "hard":
+            hard_rows.append((t, want, got))
+    print(f"  → {tally['exact']} exact, {tally['near']} near-rounding-tie, "
+          f"{tally['superseded']} superseded-basis, {tally['hard']} HARD "
+          f"of {len(trades)}")
+    if sup_rows:
+        print(f"  superseded-basis rows (stored under a shipped override; "
+              f"unreachable under this profile: {sorted(unreachable)}):")
+        for t, want, got in sup_rows:
+            print(f"    {t.signal_date} {t.ticker:5s} {t.structure:18s} "
+                  f"stored={want} replay={got}")
+    for t, want, got in hard_rows:
+        print(f"  HARD {t.signal_date} {t.ticker:5s} {t.structure:18s} "
+              f"want={want} got={got}")
+    if hard_rows:
         print("  CALIBRATION FAILED — variant numbers below are NOT trustworthy.")
-    return ok == len(trades)
+    return not hard_rows
 
 
 # ─── Evaluation / reporting ────────────────────────────────────────────────────
@@ -346,13 +239,19 @@ DEBIT_VARIANTS: list[tuple[str, dict]] = [
 ]
 
 CREDIT_VARIANTS: list[tuple[str, dict]] = [
-    ("PROD pt.65 sl 1x", CREDIT_PROD),
+    ("PROD pt.65 sl none", CREDIT_PROD),
+    # rollback comparator — the PRE-Attempt-13 stop, removed from production
+    # 2026-07-13. Kept as a variant so the Attempt-13 rollback trigger
+    # ("sl-none loses to sl-1x on the next >=15-row fresh bull_put window",
+    # research/deployment-evidence.md) gets its comparison printed by every
+    # run. Until 2026-08-24 this dict WAS the baseline here (stale copy).
+    ("sl 1x (pre-Attempt-13)", {**CREDIT_PROD, "sl": 1.00}),
     # profit-target lever (Attempt 8/9: both TSLA peaked at 0.59x)
     ("pt .50", {**CREDIT_PROD, "pt": 0.50}),
     ("pt .55", {**CREDIT_PROD, "pt": 0.55}),
-    # stop lever
-    ("sl none (dollar stop only)", {**CREDIT_PROD, "sl": None}),
-    ("pt .50 sl none", {**CREDIT_PROD, "pt": 0.50, "sl": None}),
+    # "sl none (dollar stop only)" and "pt .50 sl none" — REMOVED 2026-08-24:
+    # with the corrected baseline (sl=None) they duplicated PROD and "pt .50"
+    # row-for-row.
     ("sl 1.5x", {**CREDIT_PROD, "sl": 1.50}),
     # wide trail once >=0.5x credit captured (Attempt 8 'possible knob')
     ("trail .50 trig .50", {**CREDIT_PROD, "trig": 0.50, "trail": 0.50}),
@@ -408,7 +307,11 @@ def main() -> None:
         for t in thin:
             print(f"  WARN underlying coverage <50%: {t.signal_date} {t.ticker}")
 
-    calibrate(trades, prod, side)
+    if not calibrate(trades, prod, side):
+        # A HARD row means the harness and the stored book disagree about a
+        # path both sides claim the same rules for — every variant Δ below
+        # would be built on that disagreement. Same stop `harness_gate` makes.
+        sys.exit(1)
 
     v1_trades = []
     if side == "debit" and not args.no_v1 and V1_CSV.exists():

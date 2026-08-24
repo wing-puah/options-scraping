@@ -119,8 +119,10 @@ this export**; both that file and `simulate.py` now carry the warning.
       `align_tab_headers.py` to cover the two backtest tabs against
       `core._KEY_ORDER`, fix the header, then re-verify the values against
       entry-price sign before any study reads the column.
-- [ ] **Minor follow-up:** `book.py`'s `diag["debit_calib"]` still counts those
-      12 as `hard`, using the old vocabulary. Harmless there (it never gates and
+- [x] **Minor follow-up (DONE 2026-08-24):** `book.py`'s `diag["debit_calib"]`
+      now tallies the four-way split (`superseded` key added; classifier shared
+      via `lib/replay_basis.py`) and the three print sites show it. It used to
+      count those 12 as `hard`, using the old vocabulary. Harmless there (it never gates and
       always keeps real debit rows) but misleading in the three reports that
       print it (`account_sim.py:1062`, `calendar_hedge.py:634`,
       `volume_signal.py:97`). Aligning it to the four-way split changes no

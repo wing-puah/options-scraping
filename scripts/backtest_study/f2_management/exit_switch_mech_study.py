@@ -83,12 +83,16 @@ sys.path.insert(0, str(ROOT))
 from scripts.backtest_study.f2_management.exit_mechanism_study import Trade, replay, _pct, _to_float  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 
-# ── production exit profiles (source of truth: config/backtest.yml + Attempt 13) ──
-# NOTE: exit_mechanism_study.CREDIT_PROD still carries the pre-Attempt-13 sl=1.00.
-# Attempt 13 (2026-07-13, see MEMORY) removed the credit stop -> sl=None. Credit is
-# never varied by this switch, but we state the current PROD explicitly for honesty.
-DEBIT_PROD = dict(pt=0.90, sl=0.75, trig=None, trail=None, tef=0.75)
-CREDIT_PROD = dict(pt=0.65, sl=None, trig=None, trail=None, tef=None)
+# ── production exit profiles — imported from lib/book.py, the single source of
+# truth (config/backtest.yml is the config-side authority; book.py mirrors it).
+# The stale local copies this replaced — and exit_mechanism_study's
+# pre-Attempt-13 CREDIT_PROD sl=1.00 the old NOTE here warned about — are gone
+# as of 2026-08-24; every study now reads the same two dicts.
+from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD  # noqa: E402
+from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
+    _REASON_REQUIRES, NEAR_MISS_TOL, calib as _calib_full, classify as _classify,
+    unreachable_reasons,
+)
 
 # ── frozen exit-grid variants keyed per mech/model cell (from DEBIT_VARIANTS) ──
 V_TRAIL = {**DEBIT_PROD, "trig": 0.50, "trail": 0.50}          # BEAR + H/E-VOL
@@ -138,7 +142,6 @@ BR_PATH = _ERA_PATHS["results"]
 BP_PATH = _ERA_PATHS["proxy"]
 SPY_VIX_FULL = ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 
-NEAR_MISS_TOL = 0.0001
 
 
 def hdr(t):
@@ -259,72 +262,12 @@ def norm_play(s):
 
 
 # ── the replay-basis classifier ─────────────────────────────────────────────
-# `replay()` can only ever emit an exit reason whose governing knob is set in
-# the profile it is called with (harness.py:119-170). So the set of exit reasons
-# a profile CANNOT produce is a mechanical property of the profile, not a guess:
-# a stored row whose exit_reason falls in that set was, by construction, written
-# under a different exit configuration. That is what `superseded-basis` means
-# below, and it is why the classification needs no date heuristic and no
-# `exit_basis` column (see the note on that column in `_classify`).
-_REASON_REQUIRES = {
-    "profit_target": ("pt",),
-    "trailing_stop": ("trig", "trail"),
-    "underlying_stop": ("und_buffer",),
-    "be_stop": ("be_after",),
-    "stop_loss": ("sl",),
-    "time_exit": ("tef",),
-    # dollar_stop / expired / cap_open are unconditional in replay() — always reachable.
-}
-
-
-def unreachable_reasons(prod):
-    """Exit reasons `replay(**prod)` can never emit, because the knob that
-    produces them is unset. Under DEBIT_PROD (pt/sl/tef, no trail) this is
-    {trailing_stop, underlying_stop, be_stop}."""
-    return {reason for reason, knobs in _REASON_REQUIRES.items()
-            if any(prod.get(k) is None for k in knobs)}
-
-
-def _calib(t, prod):
-    rp = replay(t, **prod)
-    want = (t.row["exit_reason"], int(float(t.row["days_held"])), round(_pct(t.row["realized_pnl_pct"]), 4))
-    got = (rp["exit_reason"], rp["days_held"], round(rp["pnl_pct"], 4))
-    exact = want == got
-    near = (want[0] == got[0] and want[1] == got[1] and abs(want[2] - got[2]) <= NEAR_MISS_TOL + 1e-9)
-    return exact, near, want, got
-
-
-def _classify(t, prod, unreachable):
-    """'exact' | 'near' | 'superseded' | 'hard', plus (want, got).
-
-    superseded — the row replays fine; its STORED outcome was produced by an
-      exit rule this profile does not contain, so the disagreement is a config
-      difference, not a pricing failure. On this book that is the
-      `regime_exit.cells.BEAR_HE` trail shipped 2026-07-22 (`31cb935`) and, on
-      older rows, the pre-Attempt-10 global trail.
-    hard — a genuine mismatch with no config explanation: the harness and the
-      stored row disagree about a path both sides claim the same rules for.
-      This is the only bucket that stops a study.
-
-    NOT keyed on the `exit_basis` column. That column exists in `_KEY_ORDER`
-    (`scripts/backtest/core.py:61`) but reaches the export UNLABELLED and
-    MISALIGNED — measured 2026-08-14: 7 of 13 `CREDIT`-tagged rows have a
-    POSITIVE entry price (impossible per `simulate.py:_exit_basis`), no
-    `BEAR_HE`-tagged row has a `trailing_stop` exit, and all 12 rows that
-    provably ran the BEAR_HE trail are blank. The Sheets tab header was never
-    given the column, so the values land in a nameless trailing field — exactly
-    the hazard CLAUDE.md warns about. Re-key on it only after
-    `scripts/align_tab_headers.py` has fixed the header AND the values have been
-    re-verified against entry-price sign.
-    """
-    exact, near, want, got = _calib(t, prod)
-    if exact:
-        return "exact", want, got
-    if near:
-        return "near", want, got
-    if want[0] in unreachable:
-        return "superseded", want, got
-    return "hard", want, got
+# MOVED 2026-08-24 to scripts/backtest_study/lib/replay_basis.py (verbatim, so
+# exit_mechanism_study.calibrate() and lib/book.py share it). Re-imported above
+# under the original names — tests/test_exit_replay_gate.py exercises the
+# contract through this module — and `_calib` below keeps this file's original
+# 4-tuple shape.
+_calib = _calib_full
 
 
 def load_debit_trades(check_era: bool = True):

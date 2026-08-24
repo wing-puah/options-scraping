@@ -669,3 +669,15 @@ def test_main_lists_every_failed_study_with_its_own_exit_code_and_still_returns_
     err = capsys.readouterr().err
     assert "*** STUDY FAILURES: study_a (exit 1)" in err
     assert "study_b" not in err
+
+
+def test_input_inventory_counts_csv_rows_not_lines(tmp_path, monkeypatch):
+    """daily_price_csv carries embedded newlines; a line count overstated every
+    provenance header ~4x (the wc -l hazard, current.md 2026-08-14 method
+    note). The inventory must count CSV ROWS."""
+    f = tmp_path / "book.csv"
+    f.write_text('a,daily_price_csv\n1,"x\ny\nz"\n2,"p\nq"\n')  # 2 data rows, 6 lines
+    monkeypatch.setattr(study_runner, "ROOT", tmp_path)
+    monkeypatch.setattr(study_runner, "_input_csvs", lambda era: ["book.csv"])
+    (line,) = study_runner._input_inventory("current")
+    assert line.strip().startswith("2 rows"), line

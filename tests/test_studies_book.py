@@ -223,7 +223,8 @@ def test_real_debit_row_kept_even_on_hard_calibration_mismatch(paths):
     records, diag = _load(paths)
     assert len(records) == 1
     assert records[0]["calibrated"] is False
-    assert diag["debit_calib"] == {"n": 1, "exact": 0, "near": 0, "hard": 1}
+    assert diag["debit_calib"] == {"n": 1, "exact": 0, "near": 0,
+                                  "superseded": 0, "hard": 1}
 
 
 # ── numeric parse: missing stays None, never 0 ──────────────────────────────

@@ -120,6 +120,9 @@ sys.path.insert(0, str(ROOT))
 from lib.mech_regime import MechLabeler  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade, _pct, _to_float, replay  # noqa: E402
+from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
+    NEAR_MISS_TOL, calib as _calib_full, classify as _classify, unreachable_reasons,
+)
 
 # Resolved for the era this PROCESS was asked for (`STUDY_ERA`, default
 # `current`). Import-time resolution is correct because the runner sets the env
@@ -137,7 +140,10 @@ MECH_TABLE_CSV = ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 DEBIT_PROD = dict(pt=0.90, sl=0.75, trig=None, trail=None, tef=0.75)
 CREDIT_PROD = dict(pt=0.65, sl=None, trig=None, trail=None, tef=None)
 
-NEAR_MISS_TOL = 0.0001
+# Exit reasons DEBIT_PROD can never emit — the superseded-basis test set
+# (see lib/replay_basis.py). Computed once; the profile above is a constant.
+_UNREACHABLE_DEBIT = unreachable_reasons(DEBIT_PROD)
+
 
 # Ported verbatim from scripts/backtest_study/f2_management/exit_switch_mech_study.py (2026-08-11): the
 # join-key join used to flag rows written after the Attempt-13c prompt change.
@@ -194,16 +200,11 @@ def ladder_tier(rec: dict) -> str:
 
 
 def _calib(t: Trade, prod: dict) -> tuple[bool, bool]:
-    """(exact, near) — does replaying `t` under `prod` reproduce the row's
-    stored (exit_reason, days_held, realized_pnl_pct)? Ported from
-    exit_switch_mech_study.py's `_calib`."""
-    rp = replay(t, **prod)
-    want = (t.row["exit_reason"], int(float(t.row["days_held"])),
-            round(_pct(t.row["realized_pnl_pct"]), 4))
-    got = (rp["exit_reason"], rp["days_held"], round(rp["pnl_pct"], 4))
-    exact = want == got
-    near = (want[0] == got[0] and want[1] == got[1]
-            and abs(want[2] - got[2]) <= NEAR_MISS_TOL + 1e-9)
+    """(exact, near) — thin wrapper over lib/replay_basis.calib, the ONE
+    classifier implementation (shared with exit_switch_mech_study's gate and
+    exit_mechanism_study's calibrate). Kept for callers that read the
+    two-bool shape."""
+    exact, near, _want, _got = _calib_full(t, prod)
     return exact, near
 
 
@@ -416,7 +417,7 @@ def load_book(results_csv: str | Path | None = None,
         "n_proxy_admitted_non_exact": 0,
         "n_credit_ungated": 0,
         "require_proxy_calibration": require_proxy_calibration,
-        "debit_calib": {"n": 0, "exact": 0, "near": 0, "hard": 0},
+        "debit_calib": {"n": 0, "exact": 0, "near": 0, "superseded": 0, "hard": 0},
         "include_bs": include_bs,
     }
 
@@ -479,10 +480,10 @@ def load_book(results_csv: str | Path | None = None,
             calibrated = False
             diag["n_credit_ungated"] += 1
         else:
-            exact, near = _calib(t, DEBIT_PROD)
-            calibrated = exact
+            kind, _want, _got = _classify(t, DEBIT_PROD, _UNREACHABLE_DEBIT)
+            calibrated = kind == "exact"
             diag["debit_calib"]["n"] += 1
-            diag["debit_calib"]["exact" if exact else ("near" if near else "hard")] += 1
+            diag["debit_calib"][kind] += 1
         diag["counts_by_source"]["real"] += 1
         records.append(_build_record(t, "real", calibrated, ac_lookup, mech_labeler))
 

@@ -1119,7 +1119,8 @@ def print_book_calibration(diag, picked) -> None:
     hdr("BOOK CALIBRATION — descriptive provenance, NOT a gate")
     dc = diag["debit_calib"]
     print(f"  debit_calib      n={dc['n']}  exact={dc['exact']}  "
-          f"near={dc['near']}  hard={dc['hard']}")
+          f"near={dc['near']}  superseded={dc.get('superseded', 0)}  "
+          f"hard={dc['hard']}")
     print(f"  n_credit_ungated {diag['n_credit_ungated']}  (admitted WITHOUT the "
           f"exact-replay gate — book.py's credit caveat)")
     b1_n = len(picked)

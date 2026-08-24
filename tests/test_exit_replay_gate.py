@@ -17,6 +17,7 @@ All fixtures are tiny synthetic CSVs in tmp_path — nothing here touches the
 gitignored backtests/to_evaluate/ exports or the network.
 """
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -271,3 +272,77 @@ def test_bear_position_study_R_is_replayed_not_stored(tmp_path, monkeypatch):
     assert rec["R"] == pytest.approx(replayed)
     assert rec["R"] != pytest.approx(stored), \
         "R fell back to the stored column — the contamination is back"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# exit_mechanism_study.calibrate — repaired 2026-08-24 to the same classify
+# semantics (it used to assert flat exact-replay and print a false
+# "CALIBRATION FAILED" on every shipped-override row), and its profiles are now
+# the shared lib/book.py dicts (its local CREDIT_PROD had carried the
+# pre-Attempt-13 sl=1.00 for six weeks after production removed that stop).
+# ══════════════════════════════════════════════════════════════════════════════
+
+from scripts.backtest_study.f2_management import exit_mechanism_study as ems  # noqa: E402
+from scripts.backtest_study.lib import book, harness, replay_basis  # noqa: E402
+
+
+def _be_stop_row(**extra):
+    """A row whose STORED outcome is the shipped bear-debit be_after ratchet:
+    peak +0.80 (arms at 0.50), then a mark at breakeven -> be_stop. Under flat
+    DEBIT_PROD the same path rides to the time exit."""
+    row = _row(marks=[1.00, 1.80, 0.95] + [1.20] * (GRID_LEN - 3), **extra)
+    return _stamp(row, **{**m.DEBIT_PROD, "be_after": 0.50})
+
+
+def test_exit_mechanism_calibrate_classifies_a_superseded_row(capsys):
+    trades = [harness.Trade(_be_stop_row())]
+    assert trades[0].row["exit_reason"] == "be_stop"  # fixture sanity
+    ok = ems.calibrate(trades, ems.DEBIT_PROD, "debit")
+    out = capsys.readouterr().out
+    assert ok is True
+    assert "1 superseded-basis" in out and "0 HARD" in out
+    assert "NOT trustworthy" not in out
+
+
+def test_exit_mechanism_calibrate_still_stops_on_a_hard_row(capsys):
+    row = _stamp(_row(), **m.DEBIT_PROD)
+    row["realized_pnl_pct"] = str(float(row["realized_pnl_pct"]) + 0.5)  # reachable reason, wrong outcome
+    ok = ems.calibrate([harness.Trade(row)], ems.DEBIT_PROD, "debit")
+    out = capsys.readouterr().out
+    assert ok is False
+    assert "1 HARD" in out and "NOT trustworthy" in out
+
+
+def test_exit_mechanism_main_exits_1_on_hard(monkeypatch, capsys):
+    row = _stamp(_row(), **m.DEBIT_PROD)
+    row["realized_pnl_pct"] = str(float(row["realized_pnl_pct"]) + 0.5)
+    monkeypatch.setattr(ems, "load_trades",
+                        lambda path, side, load_underlying=False: [harness.Trade(row)])
+    monkeypatch.setattr(ems.era, "require_dates", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["exit_mechanism_study", "--side", "debit", "--no-v1"])
+    with pytest.raises(SystemExit) as ei:
+        ems.main()
+    assert ei.value.code == 1
+
+
+def test_credit_prod_is_the_shipped_profile():
+    """The stale local copy (sl=1.00, pre-Attempt-13) must never come back:
+    one dict, owned by lib/book.py, matching config/backtest.yml."""
+    assert ems.CREDIT_PROD is book.CREDIT_PROD
+    assert ems.DEBIT_PROD is book.DEBIT_PROD
+    assert ems.CREDIT_PROD["sl"] is None
+    import yaml
+    cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "config" / "backtest.yml").read_text())
+    credit = cfg["simulation"]["credit"]
+    assert credit["stop_loss"] is None
+    assert credit["profit_target"] == ems.CREDIT_PROD["pt"]
+
+
+def test_shared_classifier_is_the_only_implementation():
+    """exit_switch_mech_study and exit_mechanism_study must resolve to the SAME
+    objects — lib/replay_basis.py's classifier over lib/harness.py's engine —
+    so the buckets cannot drift between the studies and book.py."""
+    assert m.unreachable_reasons is replay_basis.unreachable_reasons
+    assert m._classify is replay_basis.classify
+    assert ems.replay is harness.replay
+    assert ems.Trade is harness.Trade

@@ -86,6 +86,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import csv
 import importlib
 import os
 import subprocess
@@ -323,8 +324,11 @@ def _input_inventory(era: str) -> list[str]:
         if not p.exists():
             rows.append(f"  MISSING  {rel}")
             continue
-        with p.open() as fh:
-            n = sum(1 for _ in fh) - 1  # minus header
+        with p.open(newline="") as fh:
+            # CSV ROWS minus header — never a line count: daily_price_csv
+            # carries embedded newlines that inflate line counts ~4x (the
+            # `wc -l` hazard, current.md §2026-08-14 method note).
+            n = max(0, sum(1 for _ in csv.reader(fh)) - 1)
         mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         # Format is load-bearing: `study_charts.report.parse_provenance` matches
         # `\s+([\d,]+) rows\s+(\S+ \S+)\s+(.+)` against these lines, and

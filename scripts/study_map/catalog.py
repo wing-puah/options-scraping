@@ -345,6 +345,11 @@ INFRA: dict[str, str] = {
                   "SILENTLY. Changing the exit mechanism means copying this file.",
     "lib/book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
                    "default — they are priced FROM the model that scores them.",
+    "lib/replay_basis.py": "ONE classifier for stored-row-vs-replay disagreement: exact / "
+                           "near-rounding-tie / superseded-basis / HARD. Extracted 2026-08-24 "
+                           "from exit_switch_mech_study so its harness gate, "
+                           "exit_mechanism_study's calibrate() and book.py's debit_calib "
+                           "cannot drift. Interprets lib/harness.py's output; never replays.",
     "lib/live_select.py": "The `account_sim --live-select` arm: research tier importing "
                       "PRODUCTION, so the simulated decision is the live decision. Runs "
                       "scripts/journal/recommend.py's rank() + judge() over history in "

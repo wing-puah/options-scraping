@@ -665,7 +665,8 @@ def r1_book(book: list[dict], diag: dict) -> bool:
     print("  by source: " + "  ".join(f"{k}={v}" for k, v in
                                       sorted(Counter(r["source"] for r in book).items())))
     print(f"  debit_calib      n={dc['n']}  exact={dc['exact']}  "
-          f"near-rounding-tie={dc['near']}  hard={dc['hard']}")
+          f"near-rounding-tie={dc['near']}  superseded-basis={dc.get('superseded', 0)}  "
+          f"hard={dc['hard']}")
     print(f"  n_credit_ungated {diag['n_credit_ungated']}   "
           f"(admitted WITHOUT the exact-replay gate — see book.py docstring)")
     print(f"  proxy debit rows excluded (non-exact) {diag['n_proxy_excluded_non_exact']}")
