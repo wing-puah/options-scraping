@@ -2722,3 +2722,60 @@ UNDERPOWERED on v4 (20 rows / 19 dates) is a census, not a refutation — the
 graded v3 candidate still waits on its independent-window confirmation;
 (c) fix the `financed_spread` $-print and `emission_timing` header/headline
 contradictions (report-format, no numbers move).
+
+
+## 2026-08-24 (late) — `bear_deploy` registered and graded: pick line PULLED, sleeve relabelled operator policy, far-OTM prohibition retained
+
+The 08-24 suite refresh left `bear_deploy` REVERSED (D1–D4 all NOT MET) with
+no way to grade it — its original registration is `ml-plan.md` §addendum 2
+(2026-08-11), which predates `research/pre-registrations/`, so `study_review`
+had no file to hand the analysts. Written today, before grading and before any
+card edit: `research/pre-registrations/bear_deploy.md` — the original D-rules
+quoted verbatim, plus a v4 re-read section pinning the decisive read, the
+binding basis (R under the SHIPPED PROD exit, since `be_after 0.50` was
+reverted this morning), RE-1…RE-4 card-edit decision rules, and the operator
+pre-commitment (stated 2026-08-24: *"i still want bear positions as hedge"*)
+that the §4 sleeve is policy and EXEMPT from data-driven removal. The file's
+honesty note names the three already-seen runs — this registration pins
+decision rules, not blindness; only its forward trigger (≥20 multi-candidate
+bear dates on post-2026-08-11 signals) is blind.
+
+**Graded** (`study_review bear_deploy`, analysts opus ×2, validator sonnet;
+fresh run 19:15 reproduced the 18:23 verdicts exactly — same inputs `46cc19b`):
+
+- **D1–D4 all NOT MET — unanimous, every quoted number source-checked.** D4:
+  0 of 10 rankers adopted (~0.5 expected by chance).
+- **RE-1 FAIL → the §4 pick line is PULLED.** `|delta| high first` (the
+  shipped "closer-to-money" rule) gain −0.004, CI [−0.166, +0.166], LOO min
+  −0.045. §4 now reads "pick is operator discretion"; a null does not flip
+  the preference, and no new ranker may be adopted from this correlated
+  window (`iv_spread high first` +0.148 and `iv_pct high first` +0.110 are
+  the eye-catchers the window rule exists for — CIs span zero anyway).
+- **RE-2 MET → far-OTM prohibition RETAINED** with a v3-era citation:
+  `|delta| low first` gain +0.017, CI [−0.133, +0.168] spans zero — v4 does
+  not contradict the prohibition.
+- **RE-3: size line unchanged** (policy-held; D3 has never been MET at any
+  size — the one analyst disagreement, MET vs NOT EVALUABLE on how to grade a
+  policy-fixed line, is vocabulary, not numbers; both confirmed the same D3
+  figures).
+- **RE-4 → sleeve relabelled OPERATOR POLICY** in §4: D2 NOT MET (tail R on
+  worst-decile dates negative, correlation −0.087, tail positive in 0/2
+  years) and within-era UNSTABLE (D2/D3 flipped MET → NOT MET between 08-22
+  and 08-24 on +50 rows / +9 dates).
+
+**Report defects the review surfaced** (analyst A catches, validator-confirmed;
+queued, no numbers move): (a) D3's DEVIATION prose hardcodes "−0.345 vs day
+average" for the widest-max_loss picker — a v3-era figure sitting in the
+STUDY'S OWN PROSE while the same report's D4 table prints −0.083; the
+never-hardcode rule, in prose form; (b) D2's pass rule evaluates worst-DECILE
+dates but its ≥2-years reproduction check evaluates worst-QUARTILE dates —
+two different cuts feeding one criterion, silently; (c) the D4 table doesn't
+name its basis (Rb) in its header, which is what let the binding-basis gate
+go NOT EVALUABLE. All three are report-format/prose fixes in
+`bear_deploy.py`, none touch a computed number.
+
+Card edits applied to `docs/deployment-rules.md` §4 exactly per the
+registration. Artifacts: `backtests/study_output/bear_deploy-review-{analyst-a,
+analyst-b,validator}-latest.md` + `bear_deploy-digest-latest.md`. The
+study-results record for era v4 · inputs 46cc19b (18:23 run) stands — the
+19:15 grading run reproduced it bit-for-bit, no new append.

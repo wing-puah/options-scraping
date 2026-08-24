@@ -71,12 +71,21 @@ play outright (until 2026-08-13 bear rows merely landed in Tier C, which a thin
 day could still deploy). This section only applies to a position you take
 deliberately for drawdown protection.
 
-- **Pick:** rank the day's bear candidates by **`|delta|` DESCENDING** and take
-  the closer-to-money one.
+- **Pick:** no ranking preference is supported on v4 — the pick is operator
+  discretion. The v3-adopted "closer-to-money first" (`|delta|` descending)
+  rule read −0.004 vs the day average on the 2026-08-24 v4 re-read (CI
+  [−0.166, +0.166], a null — pulled per `research/pre-registrations/bear_deploy.md`
+  RE-1; the v3 evidence stays recorded in `research/deployment-evidence.md`).
 - **Size:** **≤ ½ a normal position.** Treat it as insurance, not a trade.
-- **Do not** rank the sleeve by `score_total`, and **do not** buy the cheap
-  far-OTM put — those are the two worst rankers tested.
-- The sleeve loses money on balance. That is the price of the protection.
+  (Policy, not evidence — D3 sizing has never been MET at any size, v3 or v4.)
+- **Do not** rank the sleeve by `score_total` (§6), and **do not** buy the
+  cheap far-OTM put — v3-era evidence, not contradicted on v4
+  (`|delta| low first` gain +0.017, CI [−0.133, +0.168] spans zero; RE-2 retained).
+- The sleeve is held as **operator policy** (stated 2026-08-24), not on v4
+  evidence: the hedge-contribution criterion (D2) is NOT MET on the v4 re-read
+  and within-era unstable (it flipped MET → NOT MET between the 08-22 and
+  08-24 runs). The sleeve loses money on balance. That is the price of the
+  protection.
 
 ## 5. Exit management
 
