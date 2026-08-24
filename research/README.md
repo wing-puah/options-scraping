@@ -57,14 +57,19 @@ study, then grades the resulting report with analyst A + B and a validator,
 then writes a plain-language digest. Four outputs land in
 `backtests/study_output/`: `<study>-review-analyst-a-latest.md`,
 `<study>-review-analyst-b-latest.md`, `<study>-review-validator-latest.md`,
-and `<study>-digest-latest.md`. `--skip-run` reuses the existing
-`<study>-latest.txt` instead of re-running the study; `--dry-run` exercises
-the pipeline with placeholder outputs and makes no `claude` calls. See
+and `<study>-digest-latest.md`. The digest is also rendered to
+`site/<study>-digest.html` (hyphenated) and linked from that study's card on
+the map. `--skip-run` reuses the existing `<study>-latest.txt` instead of
+re-running the study; `--dry-run` exercises the pipeline with placeholder
+outputs and makes no `claude` calls. See
 [`replication-protocol.md`](replication-protocol.md) § Automated invocation
 for the full flag list and how this relates to the manual, interactive path.
 
 Reading a study report cold? Start with [`glossary.md`](glossary.md) for
-metric definitions.
+metric definitions. For "which study's `ARM P` is this?" — labels are
+study-local and four studies use that one — look it up in
+[`arm-index.md`](arm-index.md) — every study's own labels sit together
+under its heading.
 
 ## The map page
 

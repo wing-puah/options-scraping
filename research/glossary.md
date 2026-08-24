@@ -219,6 +219,25 @@ positions."
 
 ## 9. Verdict grammar
 
+- **ARM** — one independently-verdicted question inside a study. A study
+  may earn one verdict PER ARM (`macro_event_study` earns ARM I and ARM P
+  separately), which is why one report can read NULL on one arm and
+  LAG-TOLERANT on another. **Arm labels are STUDY-LOCAL and are NOT
+  defined here** — each is defined in its own study's file under
+  [`pre-registrations/`](pre-registrations/) or module, and the same
+  letter means four different things: `ARM P` is *persistence* in
+  `emission_timing`, *P&L outcomes* in `macro_event_study`, the `be_after`
+  *production baseline* in `bear_giveback`, and *portfolio contribution*
+  in `bear_rewrap`. **Look one up in
+  [`arm-index.md`](arm-index.md)** — organised by study, so everything a
+  study owns sits under its own heading; a repo grep mostly returns one
+  study citing another's arm. Always resolve an arm against the study that printed it,
+  and name that study when quoting one (`emission_timing ARM P`, never a
+  bare `ARM P`).
+  Not to be confused with the config-variant "arms" of `account_sim`
+  (**ARM R vs D**, **F1 vs F2** in §7) or its `--compounding` /
+  `--structure-universe` / `--live-select` CLI arms, which are alternative
+  RUNS of one study rather than separate questions.
 - **Gates (hard fail)** — checked first; if even one fails the run stops
   and prints nothing further (`account_sim.run_gates`). A non-zero exit
   here means the gate did its job, not that something needs fixing.
@@ -278,6 +297,10 @@ positions."
   `iv_pct`) that ride along on analysis/backtest rows.
 - [`replication-protocol.md`](replication-protocol.md) — the full
   MET/NOT MET/NOT EVALUABLE grading protocol referenced in §9–10.
+- [`arm-index.md`](arm-index.md) — every ARM label in the repo (§9), its
+  owning study and what it varies, organised by study.
+- [`pre-registrations/`](pre-registrations/) — one file per study; the full,
+  immutable definition of that study's arms, hypotheses and criteria.
 - [`README.md`](README.md) — how to run a study and where its write-up
   lands.
 - [`docs/deployment-rules.md`](../docs/deployment-rules.md) — the operator

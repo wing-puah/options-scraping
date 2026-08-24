@@ -16,7 +16,7 @@ navigate; put new prose where its reader will look for it.
 | `config/` | MACHINE-READ ONLY — `*.yml`, plus `config/prompts/` for prose the code inlines into an LLM prompt (`analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/`) | yes |
 | `docs/` | How the system works and how to run it — `architecture.md`, `deployment-rules.md` (the operator card), and the column dictionaries | yes |
 | `research/` | What we learned and how — the tuning log (`current.md` + `archive/`), `pre-registrations/`, `study-results/` (append-only per-study, per-ERA record of what each study last printed;
-foldered `f1_selection/`…`f4_deployment/` to mirror `scripts/backtest_study/`), `deployment-evidence.md`, `study-map.md`, `glossary.md` | yes |
+foldered `f1_selection/`…`f4_deployment/` to mirror `scripts/backtest_study/`), `deployment-evidence.md`, `study-map.md`, `glossary.md`, `arm-index.md` (every arm/gate/criterion label, grouped by study) | yes |
 | `site/` | GENERATED HTML — study map, study-chart pages, journal pages. Rebuilt by `make study-docs` | **no** (gitignored) |
 
 Pinned at the repo root and not movable: `CLAUDE.md` and `GEMINI.md` — agent config, which the

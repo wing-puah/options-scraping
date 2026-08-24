@@ -25,6 +25,12 @@ ROOT = Path(__file__).resolve().parents[2]
 ASSETS = Path(__file__).resolve().parent / "assets"
 TITLE = "Backtest Study Map"
 
+
+def site_name(study: str) -> str:
+    """site/ filename for a study's rendered digest page (hyphenated, matching
+    the existing account-sim-*.html naming)."""
+    return study.replace("_", "-") + "-digest.html"
+
 _KIND_NOTE = {
     "verdict": "quoted from the report's own VERDICT block",
     "refusal": "BY DESIGN — the study declared this exit code as a pre-registered "
@@ -194,8 +200,9 @@ def _run_block(run: summary.RunSummary) -> str:
                        'sha does not fully identify the code that produced this.</p>')
     if run.digest_title:
         caveats.append(
-            '<p class="caveat">Graded write-up on disk: '
-            f'<code>{_e(run.digest_path.name)}</code> — “{_e(run.digest_title)}”.</p>')
+            '<p class="caveat">Plain-language digest: '
+            f'<a href="{_e(site_name(run.name))}">{_e(run.digest_title)}</a> '
+            f'(rendered from <code>{_e(run.digest_path.name)}</code>).</p>')
 
     links = []
     if run.report:
@@ -279,7 +286,8 @@ def _review_artifacts(study: str) -> list[tuple[str, str, float]]:
     for label, pat in _REVIEW_FILES:
         p = STUDY_OUTPUT / pat.format(s=study)
         if p.is_file():
-            out.append((label, f"../backtests/study_output/{p.name}", p.stat().st_mtime))
+            href = site_name(study) if label == "digest" else f"../backtests/study_output/{p.name}"
+            out.append((label, href, p.stat().st_mtime))
     return out
 
 

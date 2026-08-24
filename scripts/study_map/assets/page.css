@@ -497,4 +497,106 @@ footer code { color: var(--ink-soft); }
 .queue-fyi ul { list-style: none; margin: 0; padding: 0; }
 .queue-fyi li { padding: 3px 0; font-size: 0.85rem; color: var(--ink-soft); }
 .queue-fyi li a { color: var(--accent-dim); text-decoration: none; }
+
+/* ── digest page ──────────────────────────────────────────────────────────── */
+/* A rendered study-review write-up (scripts/study_map/digest.py) — a reading
+ * page, not an instrument panel, so it keeps the same look with a narrower
+ * measure and plainer typographic rhythm. */
+.digest-page { gap: 18px; }
+.digest-back, .digest-src {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.digest-back a { color: var(--accent); }
+.digest-page h1 {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 6px 0 0;
+}
+.digest-page h2 { font-size: 19px; color: var(--ink); margin: 8px 0 0; }
+.digest-page h3 { font-size: 16px; color: var(--ink); margin: 6px 0 0; }
+.digest-page h4 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
+}
+.digest-page p {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+.digest-page ul, .digest-page ol {
+  max-width: 72ch;
+  margin: 0;
+  padding-left: 1.4em;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.digest-page li { margin: 4px 0; }
+.digest-page blockquote {
+  margin: 0;
+  padding: 2px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--ink-soft);
+}
+.digest-page blockquote p { max-width: none; }
+.digest-page pre, .digest-page code {
+  font-family: var(--mono);
+}
+.digest-page pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre;
+}
+.digest-page :not(pre) > code {
+  background: var(--sunk);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.digest-page hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
+.digest-page table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+.digest-page th, .digest-page td {
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+.digest-page tr:last-child td { border-bottom: none; }
+.digest-page th {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 600;
+  background: var(--sunk);
+}
+.digest-page td { color: var(--ink-soft); }
 .queue-fyi li a:hover { text-decoration: underline; }

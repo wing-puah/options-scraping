@@ -2779,3 +2779,53 @@ registration. Artifacts: `backtests/study_output/bear_deploy-review-{analyst-a,
 analyst-b,validator}-latest.md` + `bear_deploy-digest-latest.md`. The
 study-results record for era v4 · inputs 46cc19b (18:23 run) stands — the
 19:15 grading run reproduced it bit-for-bit, no new append.
+
+---
+
+## 2026-08-24 (docs) — ARM labels are STUDY-LOCAL and STAY single letters; `research/arm-index.md` indexes every one, BY STUDY
+
+**The problem, stated precisely.** It is not that arms are letters — it is that
+looking one up costs a repo-wide grep. `ARM P` has FOUR owners: `emission_timing`
+(persistence — repeat vs first emission), `macro_event_study` (H2 outcomes by
+event proximity), `bear_giveback` (the `be_after` production baseline) and
+`bear_rewrap` (portfolio contribution, P1/P2). `grep "ARM P"` returns ~200 hits
+across `scripts/`, `research/` and `backtests/study_output/`, and the majority
+are not definitions at all — they are one study CITING another's arm without
+naming it: `emission_timing`'s `ARM C` mentions all mean `next_day_move`'s;
+`financed_spread` and `selection_order` cite `calendar_hedge`'s `ARM S`;
+`concurrency_correlation` cites `portfolio_delta`'s `ARM B`/`ARM D` while its
+own arms are C/K/CK/D0/N. Resolving a cited letter against the file you are
+reading gives the WRONG arm.
+
+**Renaming was considered and rejected.** Letters stay. A pre-registration is
+immutable; `scripts/study_review/`'s analysts grade against the label strings
+the reports printed; `current.md`, `archive/`, `study-results/` and the
+committed `*-review-*.md` gradings all quote them. The audit chain is worth more
+than label prettiness, and the actual need was lookup speed, not new names.
+
+**What shipped:**
+
+1. **`research/arm-index.md`** (new) — every arm label with its owning study,
+   grouped BY STUDY in the four family folders' order (①–④, then studies still
+   queued with no module yet) with an up-front collisions note, so everything
+   a study owns reads in one place. Covers the `ARM <letter>` arms, the
+   non-`ARM`-form arms (`selection_order` O0–O4/O1b, `financed_spread` F0–F4
+   and its F1/F2 collision with `account_sim`'s unrelated 1-contract-floor
+   F1/F2), and the labels that only look like arms (G* gates, `calendar_hedge`'s
+   H0–H5 criteria vs `macro_event_study`'s H1–H4 hypotheses, `bear_deploy`'s
+   D1–D5).
+2. **`tests/test_arm_index.py`** — every `ARM <label>` token in a live study
+   module or pre-registration must be in the index (a newly registered arm
+   cannot skip it), and the four `ARM P` owners are pinned; descriptions are
+   NOT tested — operator's own words.
+3. **Digest pages** — `scripts.study_map.build` now renders each
+   `backtests/study_output/<study>-digest-latest.md` to
+   `site/<study>-digest.html` (hyphenated) and the study's card on
+   `site/study-map.html` links it — the plain-language write-up was
+   previously stranded in a gitignored directory no reader visits.
+4. **Doc touch-ups** — `glossary.md` §9 ARM entry + §11 see-alsos,
+   `pre-registrations/README.md`'s "Arm labels" section (the one forward
+   rule: qualify every citation with its study), `research/README.md`'s
+   pointer, and the `CLAUDE.md` `research/` row — none mention any lookup
+   tooling; the index is for reading, and the reader's surfaces are
+   `site/study-map.html` and `research/`.

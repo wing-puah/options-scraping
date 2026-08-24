@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from scripts.backtest_study import run as study_runner
-from scripts.study_map import build, catalog, render, summary, tuning
+from scripts.study_map import build, catalog, digest, render, summary, tuning
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -567,3 +567,39 @@ def test_built_page_is_a_document():
     if not build.DEST.exists():
         pytest.skip("no site/study-map.html — run `make study-map`")
     assert "<title>" in build.DEST.read_text()
+
+
+# ── digest pages ──────────────────────────────────────────────────────────────
+def test_digest_site_name_is_hyphenated():
+    assert render.site_name("account_sim") == "account-sim-digest.html"
+
+
+def test_digest_write_all_skips_studies_with_no_digest(tmp_path):
+    written = digest.write_all(tmp_path / "out", tmp_path / "site")
+    assert written == []
+    site_dir = tmp_path / "site"
+    assert not list(site_dir.glob("*.html")) if site_dir.exists() else True
+
+
+def test_digest_strips_a_whole_file_wrapping_fence(tmp_path):
+    name = next(iter(catalog.STUDIES))
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    md_path = out_dir / f"{name}-digest-latest.md"
+    md_path.write_text(
+        "```markdown\n"
+        "# Heading\n\n"
+        "A normal paragraph of prose.\n"
+        "```\n")
+    out = digest.page(name, md_path)
+    assert "<h1>Heading</h1>" in out
+    assert "```" not in out
+
+
+def test_digest_page_is_linked_from_its_study_card(tmp_path):
+    name = next(iter(catalog.STUDIES))
+    out_dir = tmp_path
+    write_report(out_dir, name, VERDICT_BODY)
+    (out_dir / f"{name}-digest-latest.md").write_text("# A Digest Title\n\nSome prose.\n")
+    fragment = build.build_fragment(out_dir=out_dir, log_path=tmp_path / "absent.md")
+    assert f'href="{render.site_name(name)}"' in fragment

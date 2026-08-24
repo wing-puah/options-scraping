@@ -17,6 +17,16 @@ to the two independent analyst agents (`research-analyst` × 2 +
 `research-validator`), who grade the study's run against what was committed to
 here — see [`../replication-protocol.md`](../replication-protocol.md).
 
+## Arm labels
+
+An **ARM** is one independently-verdicted question inside a study; a study may
+earn one verdict per arm. Arm labels are **study-local** — nothing defines them
+globally, and single letters are deliberately kept: renaming one would break
+the audit chain `scripts/study_review/` grades against. **Qualify every
+citation with its study** — `emission_timing ARM P`, never a bare `ARM P` —
+and look any label up in [`../arm-index.md`](../arm-index.md), where everything
+a study owns sits under its own heading.
+
 ## Files
 
 | File | Study |

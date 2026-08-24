@@ -2,14 +2,16 @@
 
 `site/study-map.html` is generated output and `site/` is gitignored, so a fresh
 checkout has no page until something builds one — `make study-map`, or any
-study run (the runner refreshes it). Regenerating is cheap and side-effect free:
-it only ever reads.
+study run (the runner refreshes it). Regenerating is cheap: it only ever reads
+`backtests/study_output/` and `research/current.md` — the one write is the map
+page itself and, alongside it, one rendered digest page per study that has a
+plain-language write-up on disk (see `digest.py`).
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from . import catalog, render, summary, tuning
+from . import catalog, digest, render, summary, tuning
 
 ROOT = Path(__file__).resolve().parents[2]
 DEST = ROOT / "site" / "study-map.html"
@@ -28,6 +30,7 @@ def write(dest: Path = DEST, out_dir: Path = summary.OUT_DIR,
     fragment = build_fragment(out_dir, log_path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(render.wrap_standalone(fragment) if standalone else fragment)
+    digest.write_all(out_dir, dest.parent)
     return dest
 
 

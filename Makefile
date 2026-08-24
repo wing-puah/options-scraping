@@ -305,9 +305,12 @@ _chart-if:
 	fi
 
 # Every generated site page in one command: the study map, the account_sim
-# readout, the regime breakdown, the compounding arm. None runs a study — they
-# only read what the last run left behind. site/ is generated output; this is
-# the command that rebuilds it. The account_sim and regime pages need
+# readout, the regime breakdown, the compounding arm, and a plain-language
+# digest page for any study that has one
+# (`backtests/study_output/<study>-digest-latest.md` → `site/<study>-digest.html`,
+# hyphenated), skipped when absent. None runs a study — they only read what the
+# last run left behind. site/ is generated output; this is the command that
+# rebuilds it. The account_sim and regime pages need
 # account_sim-positions-latest.csv; the compounding page needs its own arm's
 # export — each is skipped (not failed) if its input is not present yet.
 .PHONY: study-docs
