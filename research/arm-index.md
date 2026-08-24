@@ -23,6 +23,9 @@ a bare `ARM P`.
 - **`H`** — two arms (`account_sim`, `calendar_hedge`); `H1`–`H4` hypotheses
   in `macro_event_study`; `H0`–`H5` criteria in `calendar_hedge`, which
   *also* has its own `ARM H` — unrelated to its criteria of the same letter.
+- **`B1` / `B2`** — `bear_arm`'s two criteria (selection conditioning, exit
+  fit) vs `ml_combination`'s two regression baselines. Same document
+  registered both on 2026-08-11, and they mean nothing alike.
 - **`F1` / `F2`** — `financed_spread`'s financing structures vs
   `account_sim`'s 1-contract-floor question. Unrelated.
 - **`C` `N` `R`** — two arms each, different studies.
@@ -44,6 +47,15 @@ DEFINES a label starts with the backticked label; cross-references to other
 studies' labels appear mid-prose only.
 
 ### ① Selection — what to trade
+
+#### `bear_arm` — [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/f1_selection/bear_arm.md), `f1_selection/bear_arm.py`
+
+- `B1` `B2` (criterion) — Bear criteria, NOT arms and NOT `ml_combination`'s
+  baselines of the same letters below: `B1` is selection conditioning ("is
+  there a bear subset, definable at decision time, that is not negative"),
+  `B2` is exit fit (is PROD mis-tuned for bear rows). `B2` shipped
+  `be_after: 0.50` in 2026-08-11 and its own rollback trigger reverted it on
+  2026-08-24.
 
 #### `emission_timing` — [`pre-registrations/f1_selection/emission_timing.md`](pre-registrations/f1_selection/emission_timing.md)
 
@@ -68,6 +80,18 @@ studies' labels appear mid-prose only.
   to `ARM V`. CONTEXT ONLY, same standing as the VIX table.
 - `ARM X` (arm) — Exit census (H4) — `exit_reason` mix and R. ENDOGENOUS by
   construction, DESCRIPTIVE, no verdict.
+
+#### `ml_combination` — [`pre-registrations/f1_selection/ml_combination.md`](pre-registrations/f1_selection/ml_combination.md), `f1_selection/ml_combination.py`
+
+- `B0` (baseline) — The benchmark: the shipped score-free ladder's top-3/day
+  A-then-B replay, out-of-fold. Everything else is scored against it.
+- `B1` `B2` (baseline) — COLLIDES with `bear_arm`'s criteria above and means
+  something unrelated: `B1` is logistic regression on E>0 with structure ×
+  market-direction × vol only ("does the model rediscover the ladder?"), `B2`
+  elastic-net on E with the full feature set ("is there anything linear left").
+- `M1` `M2` `M3` (model) — Gradient boosting on E, the same on binary E>0, and
+  a single depth-3 tree. Only `M3` may ship, "because only it reduces to a
+  human checklist"; a black-box score may at most tie-break within a tier.
 
 ### ② Management — when to get out
 

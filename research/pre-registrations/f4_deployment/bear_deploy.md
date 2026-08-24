@@ -3,7 +3,12 @@
 Module: `scripts/backtest_study/f4_deployment/bear_deploy.py`. The study's
 original pre-registration is `research/ml-plan.md` §addendum 2 (2026-08-11,
 written before the study was built or run). It predates this folder, so the
-study had no file here and could not go through `study_review`. This file
+study had no file here and could not go through `study_review`; that document
+was removed on 2026-08-24 once its three studies had files of their own (its
+text is in git, `git show 42b5e46:research/ml-plan.md`), and its other two arms
+live in
+[`../f1_selection/ml_combination.md`](../f1_selection/ml_combination.md) and
+[`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md). This file
 (1) carries the original D-rules verbatim so a run can be graded, and
 (2) registers the 2026-08-24 v4 re-read: what happens to the
 `docs/deployment-rules.md` §4 hedge-sleeve lines now that the v4 verdicts
@@ -11,16 +16,19 @@ reversed.
 
 ## Original pre-registered rules (quoted from ml-plan.md §addendum 2)
 
-- **D1 — joint selection × exit.** Re-screen the identical pre-declared clause
-  vocabulary on R replayed under `be_after: 0.50`. *SHIPS iff:* n ≥ 40, mean
-  R ≥ 0, date-clustered CI lower bound > 0, positive in ≥ 2 years, both
-  ex-window cuts ≥ 0, ≤ 2 clauses; survivor count read against the ~5%
-  false-positive expectation.
+- **D1 — joint selection × exit.** "B1 screened on E under the PROD exit; B2
+  then changed the exit. The pair was never evaluated together. Re-screen the
+  identical pre-declared clause vocabulary on **R replayed under
+  `be_after: 0.50`** — what a deployed bear position actually returns.
+  *SHIPS iff:* n ≥ 40, mean R ≥ 0, date-clustered CI lower bound > 0, positive
+  in ≥ 2 years, both ex-window cuts ≥ 0, ≤ 2 clauses. Survivor count is read
+  against the ~5%-of-tested false-positive expectation, as in B1."
 - **D2 — hedge contribution.** *A hedge is REAL iff:* bear-sleeve mean R on
   the deployed book's worst-decile dates is > 0 AND the date-level sleeve
   correlation is < 0, both reproducing in ≥ 2 years.
-- **D3 — sizing.** Sweep f ∈ {0, ¼, ½, 1}. *DEPLOYABLE AT f iff:* combined
-  max drawdown and worst-date loss both no worse than f = 0, judged on dollars.
+- **D3 — sizing.** "Sweep an added bear sleeve at fraction f ∈ {0, ¼, ½, 1} of
+  standard size. *DEPLOYABLE AT f iff:* the combined book's max drawdown and
+  worst-date loss are both no worse than f = 0, judged on dollars."
 - **D4 — conditional pick.** Within-date paired, dates with ≥ 2 bear
   candidates. *ADOPTED iff:* mean within-date rank gain over the day's bear
   average has a date-clustered CI excluding zero AND every leave-one-date-out
@@ -28,6 +36,23 @@ reversed.
 - "Nothing in this arm may change production config; a MET criterion produces
   a recommendation only." And: "The operator's instruction stands — bear
   positions are to remain deployable."
+
+**Pre-registered expectation** (the original's anti-HARKing paragraph, quoted):
+
+> D1 modal outcome NULL (the exit shifts the mean ~+0.04; the level problem is
+> ~0.5 deep). D2 is the arm most likely to return something, and is also the
+> only one that would justify deploying a negative-expectancy structure. D4 is
+> a genuine coin-flip.
+
+**Inherited caveats**, quoted:
+
+> Standalone pricing still cannot see margin, assignment, or the operator's
+> real position sizing; D2 approximates a hedge as equal-weighted concurrent
+> dollars, which is a *proxy* for, not a measurement of, a held hedge.
+
+(The caveat's second half — bear rows are 88% `bear_put_spread` and only 6 are
+naked `long_put`, so conclusions are about bear *spreads* — is carried in
+[`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md) and binds here too.)
 
 ## 2026-08-24 v4 re-read — registered before grading and before any card edit
 
@@ -98,7 +123,22 @@ re-read then too if ≥ 20 deployed/bear overlapping new dates exist (its
 internal floor). On that read — and only then — adoption of a pick rule is
 permitted again.
 
-### Ship criteria
+### Build notes
+
+*Not part of the registration — implementation, not commitment.*
+
+- **D1's window check was fixed 2026-08-24 to match what is registered here.**
+  "Both ex-window cuts ≥ 0" was implemented as
+  `all(v >= 0 for v in cuts.values() if v == v)`; an ex-window cut with no rows
+  computes as nan, the nan was filtered out of the `all()`, and the check
+  passed VACUOUSLY — on precisely the subsets that lie entirely inside a
+  dominant window, which is the population ground rule 4 exists to reject.
+  `bear_arm`'s B1, the criterion D1 mirrors, already failed closed. Now
+  `cuts_pass()`, pinned by `tests/test_studies_bear_deploy.py`. **No recorded
+  verdict changes**: D1 has returned 0 survivors on every run, so nothing was
+  ever admitted through the vacuous branch.
+
+## Ship criteria
 
 None. This registration ships no rule and touches no config. Its outcomes
 are the RE-1…RE-4 edits to `docs/deployment-rules.md` §4 exactly as

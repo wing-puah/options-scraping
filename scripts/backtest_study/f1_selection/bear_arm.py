@@ -1,4 +1,10 @@
-"""BEAR arm — pre-registered in research/ml-plan.md §Kickoff addendum.
+"""BEAR arm — pre-registered 2026-08-11.
+
+Registration: research/pre-registrations/f1_selection/bear_arm.md, where
+`study_review` reads it. It was written as the §Kickoff addendum of
+research/ml-plan.md, which covered three studies and was split into per-study
+files (and deleted) on 2026-08-24; the criteria are quoted there verbatim, and
+the original text is in git.
 
 Operator instruction (2026-08-11): bear positions are NOT to be removed
 wholesale — they are wanted for choppy tape — and the exit config may simply be
@@ -11,8 +17,8 @@ demote/keep to **when**, and split into two questions:
       (E<0 with R<E means the exit is leaking; E<0 with R>E means the exit is
       already rescuing what selection got wrong. Both are reported.)
 
-Decision rules were fixed BEFORE this ran; see ml-plan.md. Nothing here changes
-config.
+Decision rules were fixed BEFORE this ran; see the pre-registration above.
+Nothing here changes config.
 
 CAVEAT AMENDED 2026-08-11 (same day): this module's "the book prices each play
 standalone and cannot price a hedge" was too strong. 84 bear dates also carry a
@@ -43,7 +49,7 @@ from scripts.backtest_study.lib import triggers  # noqa: E402
 
 BEAR_STRUCTURES = ("bear_put_spread", "bear_call_spread", "long_put")
 
-# Pre-registered decision rule (ml-plan.md §Kickoff addendum, B1).
+# Pre-registered decision rule (pre-registrations/f1_selection/bear_arm.md, B1).
 MIN_N = 40
 CI_FLOOR = -0.05
 MIN_POSITIVE_YEARS = 2
@@ -411,7 +417,8 @@ def main() -> int:
     bear = [r for r in rows if r["structure"] in BEAR_STRUCTURES]
     other = [r for r in rows if r["structure"] not in BEAR_STRUCTURES]
 
-    hdr("BEAR ARM — pre-registered 2026-08-11 (ml-plan.md §Kickoff addendum)")
+    hdr("BEAR ARM — pre-registered 2026-08-11 "
+        "(pre-registrations/f1_selection/bear_arm.md)")
     print(f"  book: {len(rows)} priced rows (real+tweak), {len(bear)} bear, "
           f"{len({r['date'] for r in bear})} bear dates")
     print(f"  bear by source: "
@@ -493,7 +500,7 @@ def main() -> int:
           "signal dates as the v3 fitting book; a PASS holds the rule but promotes "
           "nothing (pre-registration §decisions).")
 
-    hdr("VERDICT (pre-registered rules, ml-plan.md §Kickoff addendum)")
+    hdr("VERDICT (pre-registered rules, pre-registrations/f1_selection/bear_arm.md)")
     print(f"  B1 KEEP-CONDITIONED: {'candidate(s) found' if survivors else 'NOT met'}"
           f" — {len(survivors)} subset(s) passed all criteria")
     print("  B2 EXIT FIX: see the per-side criteria lines above")

@@ -1,10 +1,16 @@
-"""ML combination search — pre-registered in research/ml-plan.md.
+"""ML combination search — pre-registered 2026-08-11.
+
+Registration: research/pre-registrations/f1_selection/ml_combination.md, where
+`study_review` reads it. It was written in research/ml-plan.md, which covered
+three studies and was split into per-study files (and deleted) on 2026-08-24;
+the criteria are quoted there verbatim, and the original text is in git.
 
 Question: does ANY learned combination of structure x regime x entry geometry x
 enrichment beat the shipped score-free ladder out-of-sample? The benchmark is
 the ladder's top-3/day A-then-B replay; the ship criteria were written before
-this file ran and live in ml-plan.md §Phase 5. Only a human-readable rule (the
-depth-3 tree, M3) is allowed to ship; a black-box score can at most tie-break.
+this file ran and live in the registration §"Bar for a candidate" (its Phase
+5). Only a human-readable rule (the depth-3 tree, M3) is allowed to ship; a
+black-box score can at most tie-break.
 
 Protocol lives in `protocol.py` (purged walk-forward, date-clustered CIs, replay,
 window cuts) — read that module's docstring before changing anything here. Data
@@ -16,8 +22,8 @@ test block, and (exit 3) on an export set that is not the era asked for. Both ar
 the correct answer on a young era, not a failure — see `MIN_BOOK_DATES` and
 `lib/era.py`.
 
-DEVIATION from the plan, recorded here and in ml-plan.md: the gradient-boosting
-model is sklearn's HistGradientBoosting rather than LightGBM/XGBoost. Same
+DEVIATION from the plan, recorded here and in the registration: the
+gradient-boosting model is sklearn's HistGradientBoosting rather than LightGBM/XGBoost. Same
 algorithm family (histogram GBM with the same depth/leaf/L2 controls), no libomp
 system dependency. Nothing else in the protocol changed.
 
@@ -82,7 +88,7 @@ MIN_TRAIN_DATES = 30
 # era too young to conclude from" was a traceback.
 MIN_BOOK_DATES = math.ceil(MIN_TRAIN_DATES / BLOCK) * BLOCK + 1
 
-# ── feature groups (ablation units; see ml-plan.md Phase 4) ──────────────────
+# ── feature groups (ablation units; see the registration, Phase 4) ───────────
 CAT_LADDER = ["structure", "model_dir", "model_vol"]
 CAT_REGIME = ["mech_cell", "mech_direction", "mech_vol", "stock_dir", "stock_vol",
               "horizon_bucket"]
@@ -573,7 +579,8 @@ def phase4_attribution(df, X, y_e):
 
 
 def phase5_decision(res1, res2):
-    hdr("PHASE 5 — pre-registered ship decision (ml-plan.md, written before the run)")
+    hdr("PHASE 5 — ship decision, pre-registered BEFORE the run "
+        "(pre-registrations/f1_selection/ml_combination.md)")
     m3 = res2["M3"]
     lo, hi = m3["ci"]
     beats = lo > 0

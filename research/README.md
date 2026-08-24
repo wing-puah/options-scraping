@@ -168,7 +168,6 @@ its own banner and the arms never share an artifact.
 | [`study-map.md`](study-map.md) | **Start here.** One-page map of `scripts/backtest_study/` — what each study asks and what it concluded. Rendered, with each study's last run quoted onto it, as [`site/study-map.html`](../site/study-map.html) (`make study-map-open`). |
 | [`../docs/deployment-rules.md`](../docs/deployment-rules.md) | The operator card — what to deploy, what to veto, how to exit. Instructions only. |
 | [`deployment-evidence.md`](deployment-evidence.md) | Why each of those rules exists: derivation, validation tables, caveats, and the **open pre-registered rollback triggers**. |
-| [`ml-plan.md`](ml-plan.md) | The ML combination-search plan (RUN 2026-08-11, null result). |
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst independent-replication protocol (`research-analyst` × 2 + `research-validator`) for grading study reports and exploring train splits. |
 | [`pre-registrations/`](pre-registrations/) | One immutable file per study: the plan written *before* the run. Kept out of `current.md` so it survives pruning. |
 | [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export ERA, quoted verbatim. Foldered `f1_selection/` → `f4_deployment/`, mirroring `scripts/backtest_study/`. Written by `make study-record` from the gitignored reports, so a result survives the scratch being overwritten — which is exactly what cost ~15 reports on 2026-08-15. `current.md` holds the reasoning; this holds the index. |

@@ -100,7 +100,9 @@ deploy) — a user decision, deliberately not taken here.
 
 ### 5. Next study: ML combination search — plan written, NOT run
 
-Pre-written plan at [`ml-plan.md`](../ml-plan.md): learn which structure ×
+Pre-written plan, then `ml-plan.md`, now
+[`pre-registrations/f1_selection/ml_combination.md`](../pre-registrations/f1_selection/ml_combination.md):
+learn which structure ×
 regime × entry-geometry × enrichment combination best predicts play outcome,
 benchmark = the shipped score-free ladder's top-3/day replay, purged
 walk-forward CV clustered by date, real+tweak training only, pre-registered
@@ -222,7 +224,10 @@ correct.
 
 ## 2026-08-11 — ML combination search RUN: NULL RESULT; and the bear arm finds an EXIT fix, not a selection one
 
-Both arms of [`ml-plan.md`](../ml-plan.md) executed against the same 08-11 exports.
+Both arms of `ml-plan.md` — now
+[`ml_combination.md`](../pre-registrations/f1_selection/ml_combination.md) and
+[`bear_arm.md`](../pre-registrations/f1_selection/bear_arm.md) — executed
+against the same 08-11 exports.
 Code is now TRACKED under `scripts/backtest_study/` (`book.py` loader, `harness.py`
 replay port, `protocol.py` validation, `ml_combination.py`, `bear_arm.py`);
 outputs in `backtests/study_output/`. Book: **795 priced rows,
@@ -376,7 +381,9 @@ book cannot price". **That was too strong** — 84 of the bear dates also carry 
 deployed ladder sleeve, so the concurrent book exists and the portfolio question
 is answerable on it. The operator's instruction (bear positions stay deployable)
 made the gap worth closing. Pre-registered as
-[`ml-plan.md` §addendum 2](../ml-plan.md) BEFORE running; code
+`ml-plan.md` §addendum 2 — now
+[`pre-registrations/f4_deployment/bear_deploy.md`](../pre-registrations/f4_deployment/bear_deploy.md)
+— BEFORE running; code
 `scripts/backtest_study/bear_deploy.py`, which at the time wrote a plain
 `bear_deploy.txt` (pre-runner `tee` output; no report is retained).
 Same 795-row book, same protocol, no new columns.

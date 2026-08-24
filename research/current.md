@@ -2854,3 +2854,85 @@ macro_event_study analysts A/B + digest. Verdicts survive in this log's
 2026-08-19 disagreement-log entry (all ACCEPTED as written); reports intact.
 Follow-up candidates: make --dry-run write to a scratch stem, and regrade via
 `study_review <s> --skip-run` only if the full artifacts are wanted again.
+
+## 2026-08-24 (docs) — `ml-plan.md` split into three per-study pre-registrations and DELETED
+
+The last pre-registration living outside `research/pre-registrations/`. It was
+written 2026-08-11 as one document covering THREE studies, before that folder
+existed, so `study_review` — which globs `<family>/<study>.md` — could not find
+it: `bear_deploy` got a carried-over file on 08-24, while `ml_combination` and
+`bear_arm` remained ungradable except by hand-passing `--pre-reg`.
+
+Split (editorial only — every gate, bar, arm and verdict carried across as a
+VERBATIM quote, nothing reworded): `pre-registrations/f1_selection/ml_combination.md`
+(ground rules 1–7, Phases 0–5, the ship decision, the kickoff's three settled
+choices) and `pre-registrations/f1_selection/bear_arm.md` (§Kickoff addendum,
+B1 selection + B2 exit, the standalone-vs-hedge caveat). `f4_deployment/bear_deploy.md`
+already held §addendum 2's D-rules. `ml-plan.md` itself is DELETED rather than
+left as a pointer — two copies of one commitment is how they drift; its text is
+in git at `42b5e46`. Links in `archive/09` retargeted to the successor files
+(historical prose keeps the old NAME, as history); `research/README.md` row
+dropped, root README row repointed; the three module docstrings, comments and
+`hdr()` citation lines now name the registration path they are graded against.
+
+`arm-index.md` gained both studies, and with them a real collision: `bear_arm`'s
+`B1`/`B2` are CRITERIA (selection conditioning, exit fit) while
+`ml_combination`'s `B1`/`B2` are regression BASELINES — same document registered
+both on the same day, meaning nothing alike. `B0`/`M1`/`M2`/`M3` indexed too.
+
+Both new files are status `run`, not `graded`: no `-review-*` artifacts exist
+for either. They are now gradable, but a bare `study_review` would re-run
+against the CURRENT era while the recorded verdicts are v3 — reproducing them
+needs `--era v3`, and the criteria are era-agnostic by construction (CIs, cuts
+and sign stability, never a stored figure). Both files say so in Build notes.
+
+SEPARATE FINDING, not fixed here: `tests/test_arm_index.py:54` uses
+`PREREGS.glob("*.md")`, not `rglob`. Since the family-folder reorg every
+registration sits in `fN_*/`, so the arm-index coverage test has been checking
+ZERO pre-registrations — it silently only sees study modules. The index entries
+above were added by hand; the one-word test fix is its own change.
+
+## 2026-08-24 (fix) — `bear_deploy` D1's window check was FAIL-OPEN on an empty ex-window cut
+
+Found while answering "what causes a wrong compute if everything is
+deterministic". The answer is: a deterministic bug returns the same wrong
+number every run and produces an internally consistent report, which is exactly
+what a report-reading grader passes.
+
+The same pre-registered criterion, two encodings that disagreed:
+
+    bear_arm.py    B1: all(c is not None and c["mean"] >= 0 ...)   empty cut -> FAILS
+    bear_deploy.py D1: all(v >= 0 for v in cuts.values() if v == v) empty cut -> WAIVED
+
+`fmean([])` returns nan, and the `if v == v` filter dropped it OUT of the
+`all()`, so "both ex-window cuts ≥ 0" was satisfied by a cut that contained no
+rows. A cut empties exactly when the subset lies WHOLLY inside Mar–Apr 2025 or
+Feb–Apr 2026 — the window-dominance case ground rule 4 exists to reject. The
+guard failed open on the population it was written to kill. D1 registers itself
+as re-screening "the identical pre-declared clause vocabulary" as B1, so the
+two were supposed to be comparable; they were not.
+
+Fixed: `cuts_pass()` in `bear_deploy.py`, `all(v == v and v >= 0 ...)`, pinned
+by `tests/test_studies_bear_deploy.py` (6 cases, including the end-to-end shape
+— rows dated 2025-03/2025-04 producing the empty cut — and a test asserting B1
+and D1 agree, so neither drifts again). NO recorded verdict changes: D1 has
+returned 0 survivors on every run, so nothing was ever admitted through the
+vacuous branch. Had one been, the report would have printed `mar_apr_2025:nan`
+beside a PASS — visible, but only to a reader who knows nan means "waived".
+
+Audited the three other `v == v` uses in `backtest_study/`: `emission_timing`
+(NaN excluded BEFORE the tercile cut, excluded rows printed as their own cell),
+`ml_combination:557` (display filter on a within-structure correlation) and
+`portfolio_delta:843` / `account_sim:933` (a display sort with an explicit
+empty branch, and a mean helper). All legitimate; the gate was the only
+fail-open one.
+
+STANDING LIMIT this exposes, for the record: `research/replication-protocol.md`
+grades the printed REPORT, never the raw data — `.claude/agents/research-analyst.md`
+forbids re-deriving a number that is not printed, and only `account_sim` is
+handed a positions CSV (which neither analyst has ever used; both A/B tables
+are headed "read from report"). So the protocol catches mislabelling, silent
+non-evaluation, internal contradiction, era/basis mismatch and stale prose — it
+demonstrably has, four times — but CANNOT catch a wrong-but-stable computation
+that is correctly labelled from correct inputs. That class needs a test, which
+is what this entry adds. Call it an audit, not a replication.

@@ -86,7 +86,9 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 
 | File | Study | Status |
 |---|---|---|
+| [`f1_selection/bear_arm.md`](f1_selection/bear_arm.md) | `bear_arm` — B1/B2 carried over from `ml-plan.md` §Kickoff addendum (2026-08-11); B2's shipped exit was later reverted by its rollback trigger | run |
 | [`f1_selection/macro_event_study.md`](f1_selection/macro_event_study.md) | `macro_event_study` | graded |
+| [`f1_selection/ml_combination.md`](f1_selection/ml_combination.md) | `ml_combination` — ground rules + Phases 0–5 carried over from `ml-plan.md` (2026-08-11) | run |
 | [`f1_selection/v4_bridge.md`](f1_selection/v4_bridge.md) | `v4_bridge` | run |
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
 

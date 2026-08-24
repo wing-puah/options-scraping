@@ -1,4 +1,10 @@
-"""DEPLOY arm — pre-registered in research/ml-plan.md §addendum 2.
+"""DEPLOY arm — pre-registered 2026-08-11.
+
+Registration: research/pre-registrations/f4_deployment/bear_deploy.md, where
+`study_review` reads it. It was written as §addendum 2 of research/ml-plan.md,
+which covered three studies and was split into per-study files (and deleted) on
+2026-08-24; the D-rules are quoted there verbatim, and the original text is in
+git.
 
 The 2026-08-11 bear arm (`bear_arm.py`) answered "is bear selection fixable"
 (no) and "is the bear exit mis-tuned" (yes, `be_after: 0.50`), then closed with
@@ -6,7 +12,7 @@ the caveat that the operator's chop hedge is "a portfolio decision the book
 cannot price". This module tests that caveat instead of accepting it: 107 of
 the 111 bear dates also carry non-bear rows, so the concurrent book exists.
 
-Four estimands, each with its own pre-registered rule (see the plan):
+Four estimands, each with its own pre-registered rule (see the registration):
 
   D1  joint selection x exit — B1 screened E under the PROD exit and B2 then
       changed the exit; the pair was never evaluated together.
@@ -19,7 +25,7 @@ Four estimands, each with its own pre-registered rule (see the plan):
       paired, so the day is its own control and the level problem that sinks
       every B1 subset does not apply.
 
-Nothing here changes config. Read the caveats at the end of the plan addendum
+Nothing here changes config. Read the caveats at the end of the registration
 before quoting any conclusion.
 
 Run:
@@ -43,7 +49,7 @@ from scripts.backtest_study.f1_selection.bear_arm import BEAR_STRUCTURES, clause
 from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
 
-# The exit B2 recommended (ml-plan §addendum, B2 MET). Bear-KEYED: it is only
+# The exit B2 recommended (bear_arm's B2, MET 2026-08-11). Bear-KEYED: it is only
 # ever applied to bear debit rows here, never to the rest of the book.
 BEAR_DEBIT_EXIT = {**DEBIT_PROD, "be_after": 0.50}
 
@@ -87,6 +93,24 @@ def sub(t):
 def fmean(vals):
     vals = [v for v in vals if v is not None]
     return statistics.fmean(vals) if vals else float("nan")
+
+
+def cuts_pass(cuts) -> bool:
+    """The pre-registered "both ex-window cuts >= 0", FAIL-CLOSED on an empty cut.
+
+    An ex-window cut is EMPTY exactly when the subset lies entirely inside the
+    dominant window — which is the case ground rule 4 exists to reject. `fmean`
+    returns nan for that, and until 2026-08-24 this gate read
+    `all(v >= 0 for v in cuts.values() if v == v)`: the nan was filtered OUT of
+    the `all()`, so the window check passed vacuously on precisely the subsets
+    it was written to kill. `bear_arm.py`'s B1 — the criterion D1 mirrors, on
+    the same clause vocabulary — already fails closed, because its `stat()`
+    returns None on no rows and the gate tests `c is not None`. The two
+    encodings now agree; `tests/test_studies_bear_deploy.py` pins that.
+
+    No recorded verdict changes: D1 has returned 0 survivors on every run.
+    """
+    return all(v == v and v >= 0 for v in cuts.values())
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -139,7 +163,7 @@ def d1_joint(bear_rows):
             _, pos_years, means = P.sign_stable(rows, key="Rb")
             cuts = {n_: fmean([r["Rb"] for r in rs])
                     for n_, rs in P.window_cuts(rows).items() if n_ != "ALL"}
-            cuts_ok = all(v >= 0 for v in cuts.values() if v == v)
+            cuts_ok = cuts_pass(cuts)
             passes = (mean_rb >= 0 and lo > 0 and pos_years >= MIN_POSITIVE_YEARS
                       and cuts_ok)
             results.append(dict(label=" AND ".join(c[0] for c in combo), n=len(rows),
@@ -541,7 +565,8 @@ def main() -> int:
     bear = apply_bear_exit([r for r in rows if r["structure"] in BEAR_STRUCTURES])
     deployed = P.top_k_per_day(rows, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
 
-    hdr("DEPLOY ARM — pre-registered 2026-08-11 (ml-plan.md §addendum 2)")
+    hdr("DEPLOY ARM — pre-registered 2026-08-11 "
+        "(pre-registrations/f4_deployment/bear_deploy.md)")
     print(f"  book {len(rows)} priced rows / {len({r['date'] for r in rows})} dates")
     print(f"  bear {len(bear)} rows / {len({r['date'] for r in bear})} dates")
     print(f"  deployed ladder sleeve {len(deployed)} rows / "
@@ -559,7 +584,7 @@ def main() -> int:
     d3 = d3_sizing(deployed, bear, d4_adopted)
     d5 = d5_conditional_sleeve(deployed, bear, d4_adopted)
 
-    hdr("VERDICT (pre-registered rules, ml-plan.md §addendum 2)")
+    hdr("VERDICT (pre-registered rules, pre-registrations/f4_deployment/bear_deploy.md)")
     print(f"  D1 joint selection x exit : "
           f"{'candidate(s) found — ' + str(len(d1_survivors)) if d1_survivors else 'NOT MET'}")
     print(f"  D2 hedge is real          : "

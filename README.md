@@ -27,7 +27,7 @@ Prose lives in exactly two tracked places — `docs/` (how the system works, how
 | What does this study metric mean?                             | `research/glossary.md`                                                                 |
 | Where were we, what's next?                                   | `research/next-steps.md` (handoff), `research/analysis-roadmap.md` (design rationale)  |
 | What does the whole analysis→study chain look like at a glance? | `research/pipeline-map.md`                                                            |
-| What was the ML combination search, and what came of it?      | `research/ml-plan.md` — written and executed 2026-08-11                                |
+| What was the ML combination search, and what came of it?      | `research/pre-registrations/f1_selection/ml_combination.md` — pre-registered and executed 2026-08-11, NULL RESULT |
 | Was this old backtest-engine TODO ever done?                  | `research/backlog.md` — the 2026-06 list, triaged 2026-08-15 (mostly superseded or refuted; **not** the live queue) |
 | What is the model actually prompted with?                     | `config/prompts/` — `analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/` |
 | What settings can I change?                                   | `config/*.yml` (backtest, account-sim, positions) and `scripts/analysis_pipeline/config.py` |
