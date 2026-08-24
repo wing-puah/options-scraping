@@ -807,11 +807,11 @@ def main():
 
     # ── Step 3(f): rollback-trigger power census ──
     hdr("STEP 3(f) — ROLLBACK-TRIGGER POWER CENSUS "
-        "(pre-registered research/pre-registrations/rollback_triggers.md)")
+        "(pre-registered research/pre-registrations/f2_management/rollback_triggers.md)")
     print("Sources: config/backtest.yml regime_exit comment (BEAR_HE trail / LVOL "
           "tef-null rollback triggers, quoted verbatim there); "
           "research/deployment-evidence.md §\"Open pre-registered rollback triggers\"; "
-          "research/pre-registrations/rollback_triggers.md (population, \"affected\", "
+          "research/pre-registrations/f2_management/rollback_triggers.md (population, \"affected\", "
           "the census-first rule, and the estimators are pinned there, not re-derived "
           "here).")
     TRIGGER_CELLS = (("BEAR_HE", "trail .50/.50", 25), ("LVOL", "tef null", 25))
@@ -882,7 +882,7 @@ def main():
     print("Sources: config/backtest.yml regime_exit comment (the rollback-trigger "
           "text, quoted verbatim in STEP 3(f) above); "
           "research/deployment-evidence.md §\"Open pre-registered rollback triggers\"; "
-          "research/pre-registrations/rollback_triggers.md.")
+          "research/pre-registrations/f2_management/rollback_triggers.md.")
     for cell, cell_label, floor in TRIGGER_CELLS:
         entry = trigger_census[cell]
         sub(f"{cell} — {cell_label}")

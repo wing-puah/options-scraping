@@ -638,7 +638,7 @@ def _book_concentration(book, deploy: list[Candidate],
     without a single rule firing.
 
     ADVISORY, and deliberately so: no concurrency or clustering rule has been
-    backtested (`research/pre-registrations/concurrency_correlation.md` is the
+    backtested (`research/pre-registrations/f4_deployment/concurrency_correlation.md` is the
     open pre-registration). This prints the census the operator would otherwise
     have to assemble by hand; it filters nothing and must not be described as
     a gate until that study returns.

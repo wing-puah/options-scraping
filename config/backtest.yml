@@ -226,7 +226,7 @@ simulation:
   # REVERTED 2026-08-24: the pre-registered rollback trigger above was
   # evaluated at its floor for the first time (92 arming rows / 53 dates on
   # the v4 exports — a CORRELATED-WINDOW re-read, registered as such in
-  # research/pre-registrations/rollback_triggers.md) and condition three
+  # research/pre-registrations/f2_management/rollback_triggers.md) and condition three
   # FIRED: per-year mean-R delta 2024 +0.022 / 2025 -0.034. Total gain vs
   # PROD had also collapsed to +$58 (vs -$54.4k -> -$38.0k on the v3 book it
   # shipped on). Operator decision 2026-08-24: revert. The block and its

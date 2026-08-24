@@ -3,7 +3,7 @@
 Automates Mode 1 (replication grading) of
 `research/replication-protocol.md`: run a `scripts.backtest_study`
 report, grade it against its
-`research/pre-registrations/<study>.md` pre-registration with
+`research/pre-registrations/<family>/<study>.md` pre-registration with
 two isolated headless Analyst A/B calls plus a validator, then write a
 plain-language digest. Run it as a module:
 

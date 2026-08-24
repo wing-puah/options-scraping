@@ -30,7 +30,10 @@ GLOSSARY_MD = TUNING_DIR / "glossary.md"
 # A pre-registration is an immutable artifact with its own lifecycle, so it gets
 # its own file and is read whole — no heading matching anywhere.
 PRE_REG_DIR = TUNING_DIR / "pre-registrations"
-PRE_REG_PATTERN = "{study}.md"
+# Registrations live one level down, under the same family folders as
+# scripts/backtest_study/ (f1_selection … f4_deployment) — load_pre_registration()
+# globs for this, so a study's file is found regardless of which family holds it.
+PRE_REG_PATTERN = "*/{study}.md"
 
 # Persona files whose bodies are inlined verbatim into the headless prompts.
 # Their YAML frontmatter `model:` field (when present) is the primary source

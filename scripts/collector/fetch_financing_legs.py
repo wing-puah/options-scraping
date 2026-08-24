@@ -4,7 +4,7 @@ study needs and doesn't have yet.
 
 WHY THIS EXISTS
 ---------------
-`research/pre-registrations/financed_spread.md` tests whether wrapping a book
+`research/pre-registrations/f3_structure/financed_spread.md` tests whether wrapping a book
 debit vertical in a FINANCING credit position (opposite-delta credit spread,
 naked short leg, same-direction credit vertical — arms F1/F2/F3) improves the
 outcome. Those financing legs are, almost always, contracts the book never

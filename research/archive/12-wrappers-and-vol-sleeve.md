@@ -162,7 +162,7 @@ quote it.
 
 ---
 
-## 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION → [`pre-registrations/vol_sleeve.md`](../pre-registrations/vol_sleeve.md)
+## 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION → [`pre-registrations/f3_structure/vol_sleeve.md`](../pre-registrations/f3_structure/vol_sleeve.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.

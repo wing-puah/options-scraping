@@ -45,7 +45,7 @@ studies' labels appear mid-prose only.
 
 ### ① Selection — what to trade
 
-#### `emission_timing` — [`pre-registrations/emission_timing.md`](pre-registrations/emission_timing.md)
+#### `emission_timing` — [`pre-registrations/f1_selection/emission_timing.md`](pre-registrations/f1_selection/emission_timing.md)
 
 - `ARM L` (arm) — Fill lag — does an entry filled 1, 2 or 3 sessions after
   the signal lose the edge?
@@ -53,7 +53,7 @@ studies' labels appear mid-prose only.
   ticker+structure) perform worse than the first emission? One of `ARM P`'s
   four owners repo-wide (see Collisions, above).
 
-#### `macro_event_study` — [`pre-registrations/macro_event_study.md`](pre-registrations/macro_event_study.md)
+#### `macro_event_study` — [`pre-registrations/f1_selection/macro_event_study.md`](pre-registrations/f1_selection/macro_event_study.md)
 
 - `H1` `H2` `H3` `H4` (hypothesis) — pre-registered claims, each mapped to
   an arm under a DIFFERENT letter: H1→`ARM I`, H2→`ARM P`, H3→`ARM V`,
@@ -93,7 +93,7 @@ studies' labels appear mid-prose only.
 - `ARM R` (arm) — The rule — a pre-registered day-0 cut, graded against
   shipped production.
 
-#### `staged_exit` — [`pre-registrations/staged_exit.md`](pre-registrations/staged_exit.md)
+#### `staged_exit` — [`pre-registrations/f2_management/staged_exit.md`](pre-registrations/f2_management/staged_exit.md)
 
 - `ARM E` (arm) — Terminal "exit now" — pure composition around the FROZEN
   `harness.replay`, no fork or copy.
@@ -113,7 +113,7 @@ studies' labels appear mid-prose only.
     confused with `calendar_hedge`'s own `P1` below, which is unrelated.
 - `ARM W` (arm) — The wrapper, replayed on the shipped production exit.
 
-#### `calendar_hedge` — [`pre-registrations/calendar_hedge.md`](pre-registrations/calendar_hedge.md) + `f3_structure/calendar_hedge.py`
+#### `calendar_hedge` — [`pre-registrations/f3_structure/calendar_hedge.md`](pre-registrations/f3_structure/calendar_hedge.md) + `f3_structure/calendar_hedge.py`
 
 - `ARM H` (arm) — The hedge programme (`calendar_hedge`'s own `P1` sleeve,
   below) — runs first; `ARM S` runs only behind it. This study also uses
@@ -132,7 +132,7 @@ studies' labels appear mid-prose only.
   `P1`/`P2` above (which are that study's `ARM P` halves) — same letter,
   unrelated meaning.
 
-#### `financed_spread` — [`pre-registrations/financed_spread.md`](pre-registrations/financed_spread.md)
+#### `financed_spread` — [`pre-registrations/f3_structure/financed_spread.md`](pre-registrations/f3_structure/financed_spread.md)
 
 - `F0` `F1` `F2` `F3` `F4` (arm) — Financing structures. `F0` strike-aligned
   control (machinery pilot, runs first); `F1` opposite-delta credit spread;
@@ -142,7 +142,7 @@ studies' labels appear mid-prose only.
 
 ### ④ Deployment — can I run it
 
-#### `account_sim` — [`pre-registrations/account_sim.md`](pre-registrations/account_sim.md), `f4_deployment/account_sim.py`
+#### `account_sim` — [`pre-registrations/f4_deployment/account_sim.md`](pre-registrations/f4_deployment/account_sim.md), `f4_deployment/account_sim.py`
 
 - `ARM D` (arm) — Downsize on admission failure (vs `ARM R` reject) — take
   the largest contract count that still fits.
@@ -158,13 +158,13 @@ studies' labels appear mid-prose only.
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
 
-#### `bear_deploy` — `f4_deployment/bear_deploy.py`, [`pre-registrations/bear_deploy.md`](pre-registrations/bear_deploy.md)
+#### `bear_deploy` — `f4_deployment/bear_deploy.py`, [`pre-registrations/f4_deployment/bear_deploy.md`](pre-registrations/f4_deployment/bear_deploy.md)
 
 - `D1` `D2` `D3` `D4` `D5` (criterion) — Deployment criteria, NOT `ARM D` —
   `D1` is joint selection × exit, and the four that follow it. Mirrored by
   `calendar_hedge`'s `H1`–`H5` above.
 
-#### `portfolio_delta` — [`pre-registrations/portfolio_delta.md`](pre-registrations/portfolio_delta.md)
+#### `portfolio_delta` — [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)
 
 - `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.
 - `ARM D` (arm) — Dose-response (DESCRIPTIVE PRIMARY) — mean R by the open
@@ -175,7 +175,7 @@ studies' labels appear mid-prose only.
   COLLIDES with `concurrency_correlation`'s own `ARM N` below — same role,
   different study.
 
-#### `selection_order` — [`pre-registrations/selection_order.md`](pre-registrations/selection_order.md)
+#### `selection_order` — [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)
 
 - `O0` `O1` `O1b` `O2` `O3` `O4` (arm) — Ordering arms. `O0` = production
   `ladder_rank` baseline; `O1` delta-notional ascending; `O2` reserved-$
@@ -185,7 +185,7 @@ studies' labels appear mid-prose only.
 
 ### Queued — pre-registered, no module yet
 
-#### `concurrency_correlation` — [`pre-registrations/concurrency_correlation.md`](pre-registrations/concurrency_correlation.md)
+#### `concurrency_correlation` — [`pre-registrations/f4_deployment/concurrency_correlation.md`](pre-registrations/f4_deployment/concurrency_correlation.md)
 
 Registered 2026-08-22; the module is not written yet, so it has no
 `scripts/backtest_study/` family folder to cite — this is the plan as

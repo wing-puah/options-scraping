@@ -31,7 +31,7 @@ You operate in one of two modes, named in your task prompt.
 ## Mode 1 — Replication grading
 
 **Inputs:** one study's pre-registration file, read whole, under
-`research/pre-registrations/<study>.md` (starting with a
+`research/pre-registrations/<family>/<study>.md` (starting with a
 `## <date> — <study>: PRE-REGISTRATION` heading — see
 `pre-registrations/README.md`) and one stamped report under
 `backtests/study_output/<name>-<stamp>.txt` (or `-latest.txt`).

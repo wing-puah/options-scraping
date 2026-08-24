@@ -121,7 +121,7 @@ def _study_from_report_path(report_path: Path) -> str:
 
 
 def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
-    """Read `pre-registrations/<study>.md` whole and return (heading, body).
+    """Read `pre-registrations/<family>/<study>.md` whole and return (heading, body).
 
     The pre-registration is what the analysts grade the run AGAINST, so the one
     property that matters is that it is still there and still says what it said.
@@ -140,17 +140,36 @@ def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
     `override` is an explicit path, for grading against a pre-registration that
     is not the study's own file (a renamed study, or an archived copy).
     """
-    path = Path(override) if override else config.PRE_REG_DIR / config.PRE_REG_PATTERN.format(study=study)
-    if not path.is_file():
-        available = sorted(p.stem for p in config.PRE_REG_DIR.glob("*.md") if p.stem != "README")
+    def _not_found(looked_at: str) -> SystemExit:
+        available = sorted(
+            str(p.relative_to(config.PRE_REG_DIR)) for p in config.PRE_REG_DIR.glob("*/*.md")
+            if p.stem != "README")
         listed = "\n".join(f"  - {s}" for s in available) or "  (none found)"
-        raise SystemExit(
-            f"No pre-registration for study {study!r} at {path}.\n"
+        return SystemExit(
+            f"No pre-registration for study {study!r} at {looked_at}.\n"
             f"Studies with a pre-registration on file:\n{listed}\n"
             "Write one before grading a run, or pass --pre-reg <path> to point at "
             "a different file. A pre-registration is written BEFORE the study is "
             "run; grading a run against a plan reconstructed afterwards is not a "
             "replication check.")
+
+    if override:
+        path = Path(override)
+        if not path.is_file():
+            raise _not_found(str(path))
+    else:
+        matches = sorted(config.PRE_REG_DIR.glob(config.PRE_REG_PATTERN.format(study=study)))
+        if len(matches) > 1:
+            listed = "\n".join(f"  - {p.relative_to(config.PRE_REG_DIR)}" for p in matches)
+            raise SystemExit(
+                f"Ambiguous pre-registration for study {study!r} — found in more "
+                f"than one family folder:\n{listed}\n"
+                "Pass --pre-reg <path> to disambiguate.")
+        if not matches:
+            # No flat-path fallback on purpose: a stray copy left at the old flat
+            # location must land here, not silently shadow a family-foldered file.
+            raise _not_found(str(config.PRE_REG_DIR / config.PRE_REG_PATTERN.format(study=study)))
+        path = matches[0]
 
     text = path.read_text().strip()
     if not text:
@@ -390,7 +409,7 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(e.g. --run-args '--side debit').")
     parser.add_argument("--pre-reg", default=None,
                         help="Path to the pre-registration file to grade against. Default: "
-                             "research/pre-registrations/<study>.md.")
+                             "research/pre-registrations/<family>/<study>.md.")
     parser.add_argument("--positions-csv", default=None,
                         help="Path to a positions CSV to inline. Default: "
                              "backtests/study_output/<study>-positions-latest.csv if present.")

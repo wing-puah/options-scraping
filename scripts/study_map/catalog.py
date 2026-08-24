@@ -443,7 +443,7 @@ STUDIES: dict[str, Study] = {
         attention="2026-08-24 grading PULLED the §4 closer-to-money pick line and "
                   "relabelled the hedge sleeve operator-policy — read the digest and "
                   "validator memo, and confirm the operator pre-commitment wording in "
-                  "research/pre-registrations/bear_deploy.md says what you meant.",
+                  "research/pre-registrations/f4_deployment/bear_deploy.md says what you meant.",
         question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
                  "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
                  "D4 conditional pick.",
@@ -563,7 +563,7 @@ INFRA: dict[str, str] = {
                        "triple disagreement), peak_pnl/arming_rows (trigger 3's literal "
                        "'reach peak >= threshold'), and census_line (n rows/dates, the "
                        "registered floor, FLOOR MET/UNDERPOWERED). Built 2026-08-24 for "
-                       "research/pre-registrations/rollback_triggers.md; never ships or "
+                       "research/pre-registrations/f2_management/rollback_triggers.md; never ships or "
                        "reverts a rule itself — exit_switch_mech_study STEP 3(f), "
                        "bear_arm's be_after census, and exit_mechanism_study --side credit "
                        "own that.",

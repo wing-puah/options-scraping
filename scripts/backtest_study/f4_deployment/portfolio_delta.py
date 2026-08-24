@@ -1,7 +1,7 @@
 """Portfolio net-delta study: is there a net delta level the deployed book should hold?
 
 PRE-REGISTERED 2026-08-19, BEFORE this file was written, in
-`research/pre-registrations/portfolio_delta.md`. Read that first; nothing here
+`research/pre-registrations/f4_deployment/portfolio_delta.md`. Read that first; nothing here
 may drift from it. In brief:
 
   Question  `account_sim` meters exposure with a MAGNITUDE cap on

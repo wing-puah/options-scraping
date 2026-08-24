@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ---------------
-`research/pre-registrations/staged_exit.md` registers this test BEFORE the fork
+`research/pre-registrations/f2_management/staged_exit.md` registers this test BEFORE the fork
 existed, and makes it a precondition rather than a nicety:
 
     "G-FORK (registered here, before the copy exists). With `stage1 == stage2`

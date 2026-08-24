@@ -177,7 +177,7 @@ What has NEVER been measured is the SIZE and INTERNAL SIMILARITY of the open
 book: `account_sim` computes `n_open` and no report joins it to an outcome, and
 every "correlation" figure in the repo is sleeve-vs-book rather than two
 concurrently held plays against each other. Plan:
-`research/pre-registrations/concurrency_correlation.md` — ARM N null band,
+`research/pre-registrations/f4_deployment/concurrency_correlation.md` — ARM N null band,
 ARM D0 descriptive, ARM C concurrency ceiling, ARM K clustering ceiling, ARM CK
 only if both clear alone. **Read its dead-end table before writing any code**:
 two v3 day-level cuts (Tier-A supply, model BULL+L-VOL) looked strong on v3 and
@@ -259,7 +259,7 @@ operator behavior to track: naked-leg substitution where a spread was emitted
 Table in `deployment-evidence.md` §"Open pre-registered rollback triggers":
 BEAR_HE trail (≥25 new affected dates), bull_put band re-read on the next
 independent window. **First census + evaluations ran 2026-08-24**
-(`research/pre-registrations/rollback_triggers.md`; census now printed by
+(`research/pre-registrations/f2_management/rollback_triggers.md`; census now printed by
 every relevant study run): bear-debit `be_after` FIRED → REVERTED; LVOL
 tef-null CLEARED the corrected gate but HELD by the operator pending
 genuinely new dates; BEAR_HE 1/25 affected dates; credit sl-none 0/15 fresh

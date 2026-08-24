@@ -1,6 +1,6 @@
 """Time-staged exit: by session X, if the position is +/-Y against ENTRY, act; else continue shipped.
 
-PRE-REGISTERED 2026-08-19 in `research/pre-registrations/staged_exit.md`, BEFORE
+PRE-REGISTERED 2026-08-19 in `research/pre-registrations/f2_management/staged_exit.md`, BEFORE
 this file was written. That document is BINDING; nothing here may drift from it.
 Read it first. In brief:
 

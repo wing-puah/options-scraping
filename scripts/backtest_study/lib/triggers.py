@@ -5,7 +5,7 @@ Four shipped rules each carry a pre-registered forward ROLLBACK TRIGGER
 (config/backtest.yml's `regime_exit`/`structure_exit` comments; Attempt 13,
 research log 2026-07-13) that has never been evaluated — nothing in the repo
 computed "affected dates" before this module. What each function means is
-pinned in `research/pre-registrations/rollback_triggers.md` (read that file
+pinned in `research/pre-registrations/f2_management/rollback_triggers.md` (read that file
 first); the running commitments themselves are recorded in
 `research/deployment-evidence.md` §"Open pre-registered rollback triggers".
 

@@ -350,7 +350,7 @@ def test_shared_classifier_is_the_only_implementation():
 
 # ══════════════════════════════════════════════════════════════════════════════
 # lib/triggers.py — the rollback-trigger power census
-# (research/pre-registrations/rollback_triggers.md)
+# (research/pre-registrations/f2_management/rollback_triggers.md)
 # ══════════════════════════════════════════════════════════════════════════════
 
 _TRAIL_CFG = {**m.DEBIT_PROD, "trig": 0.50, "trail": 0.50}

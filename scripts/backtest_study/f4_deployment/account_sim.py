@@ -1106,7 +1106,7 @@ def write_positions_csv(path, populations: dict, arm: str = "RF1") -> int:
 # section of its own, and it renders no verdict — a printed number with no PASS
 # next to it is what it always should have been. The gates are now G2..G5, and
 # they were deliberately NOT renumbered: G2-G5 name specific checks in the
-# pre-registration (research/pre-registrations/account_sim.md) and in every
+# pre-registration (research/pre-registrations/f4_deployment/account_sim.md) and in every
 # recorded verdict, and sliding them down one would silently re-point that prose.
 
 def print_book_calibration(diag, picked) -> None:
@@ -1797,7 +1797,7 @@ def print_equity_marks(sim: Sim, label: str, st: Settings) -> None:
     hdr(f"[{label}] EQUITY MARKS (post-hoc, NOT pre-registered — FRICTION MODEL)")
     ceiling = _ceiling_str(sim.cfg.budget_ceiling)
     print(f"""  COMPOUNDING IS NOT PRE-REGISTERED. The pre-registration
-  (research/pre-registrations/account_sim.md) fixes
+  (research/pre-registrations/f4_deployment/account_sim.md) fixes
   STARTING_CAPITAL at a constant base and calls a compounding-equity run "a
   labelled sensitivity only"; A1-A6 were registered against a path-INDEPENDENT
   simulation. Every criterion, verdict and cap-grid cell in this run is
@@ -1988,7 +1988,7 @@ COMPOUND_A2_A5_WARNING = """     WARNING: under compounding, A2/A5 are ratios ag
      effect with a divergent equity path and cannot be read as either
      attrition or stability. Both criteria were pre-registered against a
      path-INDEPENDENT simulation
-     (research/pre-registrations/account_sim.md) and DO NOT
+     (research/pre-registrations/f4_deployment/account_sim.md) and DO NOT
      TRANSFER to this arm; they must not carry weight here."""
 
 
@@ -2087,7 +2087,7 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
 # silent redefinition; moves NO threshold, NO measured number, and NO
 # meaning of A1-A6).
 #
-# The pre-registration (research/pre-registrations/account_sim.md)
+# The pre-registration (research/pre-registrations/f4_deployment/account_sim.md)
 # names three verdicts and does not cover every outcome: FEASIBLE =
 # A1^A2^A3^A5^A6; FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing;
 # NOT FEASIBLE AT $X = A1 fails. Flagged since 2026-08-13: "A1 holds, A5 and

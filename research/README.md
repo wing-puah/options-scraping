@@ -223,7 +223,7 @@ disagree, the log wins.
 | 2026-08-11 addendum — `mech_cell` BACKFILLED across the analysis tabs | [archive/09](archive/09-v3-closeout.md) |
 | 2026-08-11 — ML combination search RUN: NULL RESULT; bear `be_after` finding | [archive/09](archive/09-v3-closeout.md) |
 | 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [archive/09](archive/09-v3-closeout.md) |
-| 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION | [pre-registrations/v4_bridge.md](pre-registrations/v4_bridge.md) |
+| 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION | [pre-registrations/f1_selection/v4_bridge.md](pre-registrations/f1_selection/v4_bridge.md) |
 | 2026-08-11 — v3 CLOSE-OUT: three findings SHIPPED, production delta measured | [archive/09](archive/09-v3-closeout.md) |
 | 2026-08-12 — deployment rules split: operator card vs evidence | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
 | 2026-08-12 — v4 bridge: RECORDED DEVIATION from the pre-registration | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
@@ -236,22 +236,22 @@ disagree, the log wins.
 | 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [archive/11](archive/11-exit-conditioning.md) |
 | 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [archive/11](archive/11-exit-conditioning.md) |
 | 2026-08-12 — `bear_rewrap`: the WRAPPER is worth +0.085 but does not hold up | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |
-| 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/vol_sleeve.md](pre-registrations/vol_sleeve.md) |
+| 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/f3_structure/vol_sleeve.md](pre-registrations/f3_structure/vol_sleeve.md) |
 | 2026-08-12 — `vol_sleeve` RUN: the sleeve DOUBLES DOWN; the calendar is the only survivor | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |
-| 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/account_sim.md](pre-registrations/account_sim.md) |
+| 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/f4_deployment/account_sim.md](pre-registrations/f4_deployment/account_sim.md) |
 | 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
-| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/calendar_hedge.md](pre-registrations/calendar_hedge.md) |
+| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/f3_structure/calendar_hedge.md](pre-registrations/f3_structure/calendar_hedge.md) |
 | 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 3.00x) | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `account_sim` made CONFIG-DRIVEN (`config/account-sim.yml`) | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x | [archive/13](archive/13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — method-config audit: −25 veto RETIRED, OIConfirm dropped, codex engine retired | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
 | 2026-08-13 — bear_put demotion mechanism CHOSEN: card veto §1.4, hedge sleeve carved out | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
-| 2026-08-13 — `volume_signal`: PRE-REGISTRATION | [pre-registrations/volume_signal.md](pre-registrations/volume_signal.md) |
+| 2026-08-13 — `volume_signal`: PRE-REGISTRATION | [pre-registrations/f2_management/volume_signal.md](pre-registrations/f2_management/volume_signal.md) |
 | 2026-08-13 — `volume_signal` RUN: NULL — the volume column is closed | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
 | 2026-08-13 — `account_sim` COMPOUNDING arm: costs money on this book; A2/A5 do not transfer | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
-| 2026-08-14 — `selection_order`: PRE-REGISTRATION (six ordering arms, O4 random control, G0 power pre-check) | [pre-registrations/selection_order.md](pre-registrations/selection_order.md) |
+| 2026-08-14 — `selection_order`: PRE-REGISTRATION (six ordering arms, O4 random control, G0 power pre-check) | [pre-registrations/f4_deployment/selection_order.md](pre-registrations/f4_deployment/selection_order.md) |
 | 2026-08-14 — `selection_order` RUN: POWER-STOPPED at G0 — 7–14% of the book moves, nothing read, nothing refuted | [current.md](current.md) |
 | 2026-08-14 — study-suite triage: DEBIT_PROD exact-replay gate unsatisfiable; `bear_position_study` R partly contaminated | [current.md](current.md) |
 | 2026-08-15 — structure-name defect FIXED: `bear put debit spread` backtested as a single long option; v4 re-run, v3 frozen | [current.md](current.md) |

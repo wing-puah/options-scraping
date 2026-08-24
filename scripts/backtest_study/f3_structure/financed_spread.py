@@ -69,7 +69,7 @@ Read-only. Touches no config, writes no tab, scrapes nothing. Run:
 
     python -m scripts.backtest_study run financed_spread --era v3
 
-Binding spec: research/pre-registrations/financed_spread.md (written before this
+Binding spec: research/pre-registrations/f3_structure/financed_spread.md (written before this
 module existed). Where this module deviates from it, it says so on the page —
 see G2's naked-short-put note.
 """

@@ -267,7 +267,7 @@ CREDIT_VARIANTS: list[tuple[str, dict]] = [
 ]
 
 
-# ─── Credit rollback-trigger census (research/pre-registrations/rollback_triggers.md) ──
+# ─── Credit rollback-trigger census (research/pre-registrations/f2_management/rollback_triggers.md) ──
 
 ATTEMPT13_SHIP = date(2026, 7, 13)
 

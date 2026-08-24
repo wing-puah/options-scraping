@@ -1,7 +1,7 @@
 """Selection-ORDER study: does a different blind entry ORDER spend the delta budget better?
 
 PRE-REGISTERED 2026-08-14, BEFORE this file was written, in
-`research/pre-registrations/selection_order.md`. Read that first;
+`research/pre-registrations/f4_deployment/selection_order.md`. Read that first;
 nothing here may drift from it. In brief:
 
   Question  `account_sim` showed the binding constraint is delta exposure, not
@@ -361,7 +361,7 @@ def gate_g0(label, sims, base, cont) -> dict:
 # verdict.
 #
 # G1 KEEPS ITS ID and its surviving half. The gates were NOT renumbered: G1..G5
-# name specific checks in research/pre-registrations/selection_order.md and in
+# name specific checks in research/pre-registrations/f4_deployment/selection_order.md and in
 # every recorded verdict, and sliding them would silently re-point that prose.
 
 def print_book_calibration(picked) -> None:

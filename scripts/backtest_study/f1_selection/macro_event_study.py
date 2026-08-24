@@ -1,6 +1,6 @@
 """Do scheduled macro events (FOMC, minutes, CPI, NFP, PCE) show up in the book?
 
-PRE-REGISTERED 2026-08-19 in research/pre-registrations/macro_event_study.md
+PRE-REGISTERED 2026-08-19 in research/pre-registrations/f1_selection/macro_event_study.md
 BEFORE this file was written. Read that file first; nothing here may drift
 from it. In brief:
 

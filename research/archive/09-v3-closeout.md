@@ -509,7 +509,7 @@ which is the Mar–Apr-2025 failure mode for the third time in this log.
 
 ---
 
-## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION → [`pre-registrations/v4_bridge.md`](../pre-registrations/v4_bridge.md)
+## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION → [`pre-registrations/f1_selection/v4_bridge.md`](../pre-registrations/f1_selection/v4_bridge.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.

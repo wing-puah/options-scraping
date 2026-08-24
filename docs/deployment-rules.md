@@ -74,7 +74,7 @@ deliberately for drawdown protection.
 - **Pick:** no ranking preference is supported on v4 — the pick is operator
   discretion. The v3-adopted "closer-to-money first" (`|delta|` descending)
   rule read −0.004 vs the day average on the 2026-08-24 v4 re-read (CI
-  [−0.166, +0.166], a null — pulled per `research/pre-registrations/bear_deploy.md`
+  [−0.166, +0.166], a null — pulled per `research/pre-registrations/f4_deployment/bear_deploy.md`
   RE-1; the v3 evidence stays recorded in `research/deployment-evidence.md`).
 - **Size:** **≤ ½ a normal position.** Treat it as insurance, not a trade.
   (Policy, not evidence — D3 sizing has never been MET at any size, v3 or v4.)

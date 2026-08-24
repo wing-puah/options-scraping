@@ -118,7 +118,7 @@ disk.** The `-latest.txt` that carried this run was overwritten on 2026-08-15
 the file that stood here reproduced none of the figures below; the prose in this
 section, and the replication grading folded in at the end of it, are the record.
 Pre-registration:
-[`pre-registrations/volume_signal.md`](../pre-registrations/volume_signal.md);
+[`pre-registrations/f2_management/volume_signal.md`](../pre-registrations/f2_management/volume_signal.md);
 inputs are the 08-11 exports (795 pooled rows real+tweak, bs excluded).
 
 ### Gates

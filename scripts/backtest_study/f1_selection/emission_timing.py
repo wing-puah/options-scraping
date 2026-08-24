@@ -1,6 +1,6 @@
 """Does entry TIMING degrade a play — re-emission (ARM P) or fill lag (ARM L)?
 
-PRE-REGISTERED 2026-08-19 in research/pre-registrations/emission_timing.md
+PRE-REGISTERED 2026-08-19 in research/pre-registrations/f1_selection/emission_timing.md
 BEFORE this file was written. Read that file first; nothing here may drift from
 it. In brief:
 

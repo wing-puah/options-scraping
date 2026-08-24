@@ -1254,14 +1254,14 @@ exit code 0 after 3.8s
 </details>
 ---
 
-## 2026-08-13 — `account_sim`: PRE-REGISTRATION → [`pre-registrations/account_sim.md`](../pre-registrations/account_sim.md)
+## 2026-08-13 — `account_sim`: PRE-REGISTRATION → [`pre-registrations/f4_deployment/account_sim.md`](../pre-registrations/f4_deployment/account_sim.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 
-## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION → [`pre-registrations/calendar_hedge.md`](../pre-registrations/calendar_hedge.md)
+## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION → [`pre-registrations/f3_structure/calendar_hedge.md`](../pre-registrations/f3_structure/calendar_hedge.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.

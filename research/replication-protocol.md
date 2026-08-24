@@ -74,7 +74,7 @@ what order, and what it does with the result.
 
 Mode 1, replication grading. Two placeholders: `<pre-registration section>`
 (the study's file under `research/pre-registrations/`, e.g.
-`pre-registrations/calendar_hedge.md`, read whole — see
+`pre-registrations/f3_structure/calendar_hedge.md`, read whole — see
 [`pre-registrations/README.md`](pre-registrations/README.md)) and
 `<report path>` (e.g. `backtests/study_output/<name>-latest.txt`).
 
@@ -162,7 +162,7 @@ Outputs land in `backtests/study_output/`:
 `--skip-run` (reuse the existing `-latest.txt` instead of re-running the
 study), `--run-args "…"` (forwarded to `backtest_study run`),
 `--pre-reg PATH` (grade against a pre-registration file other than the
-study's own `research/pre-registrations/<study>.md` — e.g. a
+study's own `research/pre-registrations/<family>/<study>.md` — e.g. a
 renamed study or an archived copy), `--positions-csv PATH` / `--no-positions-csv`
 (override or suppress the third artifact), `--model M`, `--skip-digest`,
 `--dry-run` (exercises the pipeline with placeholder outputs, no `claude`

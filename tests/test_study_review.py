@@ -126,8 +126,8 @@ def test_read_persona_no_frontmatter_returns_whole_file(tmp_path):
 
 def test_load_pre_registration_reads_per_study_file(tmp_path, monkeypatch):
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "foo_study.md").write_text(
+    (pre_reg_dir / "f1_selection").mkdir(parents=True)
+    (pre_reg_dir / "f1_selection" / "foo_study.md").write_text(
         "## 2026-08-13 — `foo_study`: PRE-REGISTRATION (written BEFORE)\n\n"
         "Criterion 1: something measurable.\n"
         "Criterion 2: something else.\n"
@@ -143,8 +143,8 @@ def test_load_pre_registration_reads_per_study_file(tmp_path, monkeypatch):
 
 def test_load_pre_registration_no_leading_heading_uses_filename_as_label(tmp_path, monkeypatch):
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "foo_study.md").write_text("Just a plan, no heading line.\n")
+    (pre_reg_dir / "f2_management").mkdir(parents=True)
+    (pre_reg_dir / "f2_management" / "foo_study.md").write_text("Just a plan, no heading line.\n")
     monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     heading, body = load_pre_registration("foo_study", None)
@@ -154,9 +154,13 @@ def test_load_pre_registration_no_leading_heading_uses_filename_as_label(tmp_pat
 
 def test_load_pre_registration_missing_file_raises_systemexit_listing_available(tmp_path, monkeypatch):
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "other_study.md").write_text("## other_study: PRE-REGISTRATION\n\nBody.\n")
+    (pre_reg_dir / "f2_management").mkdir(parents=True)
+    (pre_reg_dir / "f2_management" / "other_study.md").write_text(
+        "## other_study: PRE-REGISTRATION\n\nBody.\n")
+    # Top-level README (folder index) and a per-family README must both stay
+    # out of the "available studies" listing.
     (pre_reg_dir / "README.md").write_text("Not a study — must be excluded from the listing.\n")
+    (pre_reg_dir / "f2_management" / "README.md").write_text("Also not a study.\n")
     monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -169,8 +173,8 @@ def test_load_pre_registration_missing_file_raises_systemexit_listing_available(
 
 def test_load_pre_registration_empty_file_raises_systemexit(tmp_path, monkeypatch):
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "foo_study.md").write_text("   \n")
+    (pre_reg_dir / "f3_structure").mkdir(parents=True)
+    (pre_reg_dir / "f3_structure" / "foo_study.md").write_text("   \n")
     monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -194,12 +198,43 @@ def test_load_pre_registration_override_path_bypasses_pre_reg_dir(tmp_path, monk
 
 def test_load_pre_registration_override_missing_file_raises_systemexit(tmp_path, monkeypatch):
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "foo_study.md").write_text("## foo_study: PRE-REGISTRATION\n\nBody.\n")
+    (pre_reg_dir / "f4_deployment").mkdir(parents=True)
+    (pre_reg_dir / "f4_deployment" / "foo_study.md").write_text(
+        "## foo_study: PRE-REGISTRATION\n\nBody.\n")
     monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
 
     with pytest.raises(SystemExit):
         load_pre_registration("foo_study", str(tmp_path / "does-not-exist.md"))
+
+
+def test_load_pre_registration_ambiguous_across_families_raises_systemexit(tmp_path, monkeypatch):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    (pre_reg_dir / "f1_selection").mkdir(parents=True)
+    (pre_reg_dir / "f2_management").mkdir(parents=True)
+    (pre_reg_dir / "f1_selection" / "dup_study.md").write_text("## dup A\n\nBody A.\n")
+    (pre_reg_dir / "f2_management" / "dup_study.md").write_text("## dup B\n\nBody B.\n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    with pytest.raises(SystemExit) as exc_info:
+        load_pre_registration("dup_study", None)
+    msg = str(exc_info.value)
+    assert "f1_selection/dup_study.md" in msg
+    assert "f2_management/dup_study.md" in msg
+    assert "--pre-reg" in msg
+
+
+def test_load_pre_registration_flat_file_is_not_resolved(tmp_path, monkeypatch):
+    # A stray copy at the old flat location must NOT be found — there is
+    # deliberately no flat-path fallback, so it errors instead of silently
+    # shadowing the family-foldered file.
+    pre_reg_dir = tmp_path / "pre-registrations"
+    (pre_reg_dir / "f1_selection").mkdir(parents=True)
+    (pre_reg_dir / "flat_study.md").write_text("## flat_study: PRE-REGISTRATION\n\nBody.\n")
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    with pytest.raises(SystemExit) as exc_info:
+        load_pre_registration("flat_study", None)
+    assert "No pre-registration" in str(exc_info.value)
 
 
 # ─────────────────────────────── prompt builders ────────────────────────────
@@ -363,8 +398,8 @@ def test_main_dry_run_writes_placeholders_and_never_calls_subprocess(tmp_path, m
     (study_output_dir / "somestudy-latest.txt").write_text("REPORT CONTENT HERE")
 
     pre_reg_dir = tmp_path / "pre-registrations"
-    pre_reg_dir.mkdir()
-    (pre_reg_dir / "somestudy.md").write_text(
+    (pre_reg_dir / "f4_deployment").mkdir(parents=True)
+    (pre_reg_dir / "f4_deployment" / "somestudy.md").write_text(
         "## 2026-08-13 — `somestudy`: PRE-REGISTRATION (written BEFORE)\n\n"
         "Gate 1: some criterion.\n"
     )

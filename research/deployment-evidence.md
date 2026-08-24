@@ -112,7 +112,7 @@ shipped ahead of its gate deliberately.
 ### The bear-debit breakeven ratchet (shipped 2026-08-11 — REVERTED 2026-08-24)
 
 **REVERTED 2026-08-24.** First floor evaluation of the pre-registered rollback
-trigger (below, and `research/pre-registrations/rollback_triggers.md` — a
+trigger (below, and `research/pre-registrations/f2_management/rollback_triggers.md` — a
 correlated-window re-read on the v4 exports, registered as such before the
 numbers were read): 92 arming rows / 53 dates ≥ the 60-row floor; total gain
 vs PROD **+$58** (pass, but ~zero), mean-R on affected rows +0.0071 (pass),
@@ -439,7 +439,7 @@ Progress toward the first two accumulates from live fills plus new backtest
 rows. **Never read silence as "not met"** — check the numbers.
 
 **First census + evaluations (2026-08-24, v4 exports, correlated-window
-re-read — `research/pre-registrations/rollback_triggers.md`):**
+re-read — `research/pre-registrations/f2_management/rollback_triggers.md`):**
 
 | Trigger | Census | Outcome |
 |---|---|---|

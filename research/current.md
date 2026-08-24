@@ -291,7 +291,7 @@ Prior state follows.
 **State of play (2026-08-14, `selection_order` PRE-REGISTERED).** The one
 follow-up `account_sim` left as pre-registerable — the delta-cap **ordering**
 question — is **PRE-REGISTERED, not built and not run**:
-[`pre-registrations/selection_order.md`](pre-registrations/selection_order.md).
+[`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md).
 Six frozen arms, each only a different `rank_fn` into
 `protocol.ordered_by_day`, with tier membership, universe, sizing, caps and
 exits held exactly as `account_sim` runs them — this is an ORDERING study, not
@@ -1582,7 +1582,7 @@ No violations found. Both analysts: opened with the verbatim provenance header; 
 </details>
 ---
 
-## 2026-08-14 — `selection_order`: PRE-REGISTRATION → [`pre-registrations/selection_order.md`](pre-registrations/selection_order.md)
+## 2026-08-14 — `selection_order`: PRE-REGISTRATION → [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)
 
 **Status: PRE-REGISTERED ONLY. Not built, not run, nothing shipped.**
 
@@ -1727,7 +1727,7 @@ power-stopped. Blocked on dates, as before.
 
 New layer, built study-first (no pipeline/prompt change — a macro input into the
 analysis prompt would be a v5 bump, and nothing here authorises it).
-Pre-registration: `research/pre-registrations/macro_event_study.md`, committed at
+Pre-registration: `research/pre-registrations/f1_selection/macro_event_study.md`, committed at
 325964e BEFORE the study was built. Infrastructure: `config/macro-events.yml`
 (188 events, FOMC decisions/minutes + CPI + NFP + PCE, 2023-06 → 2027-12,
 hand-transcribed 2026-08-19 from the official Fed/BLS/BEA schedules — the 2025
@@ -1881,7 +1881,7 @@ follow-ups.
 
 **Nothing ships, nothing is queued. No CANDIDATE and no REACTIVE-AGAIN was
 reached, because no cell got past criterion 1.**
-Pre-registration: `research/pre-registrations/staged_exit.md`, written before
+Pre-registration: `research/pre-registrations/f2_management/staged_exit.md`, written before
 the module existed. Report: `backtests/study_output/staged_exit-latest.txt`
 (run 2026-08-19 17:10:09, git bfcd512, exit 0 after 43.3s).
 
@@ -1955,7 +1955,7 @@ first honest test of whether the continuation share is a v3 selection artifact.
 
 **The headline is ARM L, and it is a finding rather than a null: a missed
 same-day fill is not a lost trade.**
-Pre-registration: `research/pre-registrations/emission_timing.md`, written
+Pre-registration: `research/pre-registrations/f1_selection/emission_timing.md`, written
 before the module existed. Report:
 `backtests/study_output/emission_timing-latest.txt` (run 2026-08-19 17:10:53,
 git bfcd512, exit 0 after 15.0s).
@@ -2060,7 +2060,7 @@ what it says.
 
 **Financing a book debit vertical at a strike offset does not improve it, and
 one shape actively destroys it.** Pre-registration:
-`research/pre-registrations/financed_spread.md`. Report:
+`research/pre-registrations/f3_structure/financed_spread.md`. Report:
 `backtests/study_output/financed_spread-latest.txt` (run 2026-08-19 17:11:08,
 git bfcd512, exit 0 after 144.8s).
 
@@ -2183,7 +2183,7 @@ original token for traceability; new code prints UNDERPOWERED.
 
 **No band, ceiling or delta target is adoption-eligible, and the operating
 constraint the study set out to test turns out to be a constraint on the study
-itself.** Pre-registration: `research/pre-registrations/portfolio_delta.md`.
+itself.** Pre-registration: `research/pre-registrations/f4_deployment/portfolio_delta.md`.
 Report: `backtests/study_output/portfolio_delta-latest.txt` (run 2026-08-19
 17:13, git bfcd512, exit 0 after 15.5s). THE FIREWALL is printed at the top of
 the report and holds: nothing ships from this study under any outcome.
@@ -2530,7 +2530,7 @@ long/short/unpriced split, a warning when every priced position points the same
 way, and a warning naming a budgeted pick whose ticker is already open). It
 filters nothing and says so — no concurrency rule has been backtested.
 
-**Registered, not run.** `research/pre-registrations/concurrency_correlation.md`
+**Registered, not run.** `research/pre-registrations/f4_deployment/concurrency_correlation.md`
 — ARM N null band, ARM D0 descriptive, ARM C concurrency ceiling {5,8,12,20},
 ARM K clustering ceiling {2,3,5} on direction / direction+sector / underlying,
 ARM CK only if C and K clear independently. X4 (both eras, same sign, within
@@ -2569,7 +2569,7 @@ in the runner itself. `run.py` now counts CSV rows; every report recorded in
 
 **Rollback-trigger census — the four shipped-rule forward triggers evaluated
 for the FIRST time** (they were prose only; nothing computed "affected dates").
-Pre-registered before the runs in `research/pre-registrations/rollback_triggers.md`;
+Pre-registered before the runs in `research/pre-registrations/f2_management/rollback_triggers.md`;
 one definition of affected/arming in `scripts/backtest_study/lib/triggers.py`;
 all census blocks additive. v4 is a CORRELATED-WINDOW re-read (new plays from a
 new prompt version on the same historical signal dates) — registered as such,
@@ -2730,7 +2730,7 @@ The 08-24 suite refresh left `bear_deploy` REVERSED (D1–D4 all NOT MET) with
 no way to grade it — its original registration is `ml-plan.md` §addendum 2
 (2026-08-11), which predates `research/pre-registrations/`, so `study_review`
 had no file to hand the analysts. Written today, before grading and before any
-card edit: `research/pre-registrations/bear_deploy.md` — the original D-rules
+card edit: `research/pre-registrations/f4_deployment/bear_deploy.md` — the original D-rules
 quoted verbatim, plus a v4 re-read section pinning the decisive read, the
 binding basis (R under the SHIPPED PROD exit, since `be_after 0.50` was
 reverted this morning), RE-1…RE-4 card-edit decision rules, and the operator

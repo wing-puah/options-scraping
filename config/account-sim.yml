@@ -60,7 +60,7 @@ caps:
 #
 # A FRICTION MODEL, NOT a tuned parameter, and NOT pre-registered: the A1-A6
 # criteria were registered against a path-INDEPENDENT sim (see
-# research/pre-registrations/account_sim.md, which calls a
+# research/pre-registrations/f4_deployment/account_sim.md, which calls a
 # compounding-equity run "a labelled sensitivity only"). Neither the mark
 # interval nor the budget ceiling may be adopted on the basis of P&L, and A2/A5
 # DO NOT TRANSFER to the arm (their B2 benchmark compounds too, so the ratio
