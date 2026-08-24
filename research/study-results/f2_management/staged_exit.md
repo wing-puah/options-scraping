@@ -52,3 +52,27 @@ VERDICT SUMMARY — every cell in the frozen grid
   E    10  R >= +0.25   exit now                        90         54  -
 ```
 
+
+## era v4 · inputs 46cc19b · sha c841a01 — recorded 2026-08-24
+<!-- key era=v4 sha=c841a01 inputs=46cc19b -->
+
+population  280 results · 627 proxy · 1,146 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-24 17:09 … 2026-08-24 18:08)
+run         2026-08-24 18:21:03 · git c841a01 (main, working tree dirty) · exit 0 · 12.8s
+command     python -m scripts.backtest_study.f2_management.staged_exit
+excerpt     verdict
+
+```
+VERDICT SUMMARY — every cell in the frozen grid
+  arm   X  condition    action                    aff rows  aff dates  verdict
+  E     5  R >= +0.50   exit now                        24         20  UNDERPOWERED
+  E     5  R >= +0.25   exit now                        88         55  -
+  E     5  R <= -0.25   exit now                       106         56  -
+  E     5  R <= -0.50   exit now                        41         27  UNDERPOWERED
+  E     5  $ >= +250    exit now                        79         54  -
+  E     5  $ >= +500    exit now                        30         25  UNDERPOWERED
+  E     5  $ <= -250    exit now                       111         60  -
+  E     5  $ <= -500    exit now                        39         26  UNDERPOWERED
+  E    10  R >= +0.50   exit now                        32         28  UNDERPOWERED
+  E    10  R >= +0.25   exit now                        98         59  -
+```
+

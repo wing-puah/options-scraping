@@ -41,3 +41,22 @@ DECISION (pre-registered rule, addendum 13)
     VERDICT: DEMOTE TO VETO
 ```
 
+
+## era v4 · inputs 46cc19b · sha c841a01 — recorded 2026-08-24
+<!-- key era=v4 sha=c841a01 inputs=46cc19b -->
+
+population  280 results · 627 proxy · 1,146 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-24 17:09 … 2026-08-24 18:08)
+run         2026-08-24 18:20:19 · git c841a01 (main, working tree dirty) · exit 0 · 8.3s
+command     python -m scripts.backtest_study.f1_selection.bear_position_study
+excerpt     verdict
+
+```
+DECISION (pre-registered rule, addendum 13)
+    DEMOTE requires all three:
+      [PASS]  ex-window mean E < 0            (-0.288)
+      [PASS]  bootstrap 95% CI upper < 0      ([-0.473, -0.076])
+      [PASS]  both time halves negative       (early -0.495, late -0.033)
+    CONSTRAIN candidates (n>=30, both halves positive, EX-W): NONE
+    VERDICT: DEMOTE TO VETO
+```
+

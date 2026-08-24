@@ -46,3 +46,21 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
 ```
 
+
+## era v4 · inputs 46cc19b · sha c841a01 — recorded 2026-08-24
+<!-- key era=v4 sha=c841a01 inputs=46cc19b -->
+
+population  280 results · 627 proxy · 1,146 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-24 17:09 … 2026-08-24 18:08)
+run         2026-08-24 18:23:13 · git c841a01 (main, working tree dirty) · exit 0 · 6.9s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [1.0,2.0), [2.0,inf)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 0 of 181   per-date net/equity range [+0.00, +2.50]
+  >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
+```
+

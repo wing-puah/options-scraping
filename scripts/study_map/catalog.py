@@ -35,8 +35,9 @@ FAMILIES: dict[str, dict[str, str]] = {
         "index": "①",
         "title": "Selection",
         "question": "which plays are worth taking?",
-        "note": "Mostly null. 0 of 496 bear subsets, 0 of 15 ML cells. "
-                "Selection is not tunable from the columns we have.",
+        "note": "Mostly null. 0 of 496 bear subsets, 0 of 15 ML cells. Selection is "
+                "not tunable from the columns we have — the one live candidate "
+                "(emission_timing's stale-entry penalty) is about WHEN, not which.",
     },
     "management": {
         "index": "②",
@@ -48,8 +49,8 @@ FAMILIES: dict[str, dict[str, str]] = {
         "index": "③",
         "title": "Structure",
         "question": "am I expressing the signal in the wrong wrapper?",
-        "note": "One +0.085 effect that does not hold out of sample, and one "
-                "survivor that is underpowered rather than refuted.",
+        "note": "Two unconfirmed candidates and no ship. The v4 refresh promoted a "
+                "bear diagonal and demoted the financed diagonal to underpowered.",
     },
     "deployment": {
         "index": "④",
@@ -96,29 +97,59 @@ STUDIES: dict[str, Study] = {
         family="selection", state="null",
         question="Pre-registered cuts on bear_put: is it a SELECTION problem (E<0) or an "
                  "EXIT problem (E>0 with R<0)?",
-        verdict="DEMOTE criteria all fire at n=164. Implementation left to the operator; "
-                "the finding is that the structure does not earn its emission share.",
+        verdict="`VERDICT: DEMOTE TO VETO` — re-confirmed on the refreshed v4 export "
+                "(2026-08-24). All three criteria fire on the ex-window bear_put population, "
+                "now n=177: `[PASS]  ex-window mean E < 0            (-0.288)`, "
+                "`[PASS]  bootstrap 95% CI upper < 0      ([-0.473, -0.076])`, "
+                "`[PASS]  both time halves negative       (early -0.495, late -0.033)`, and "
+                "`CONSTRAIN candidates (n>=30, both halves positive, EX-W): NONE`. Slightly "
+                "more negative than the 2026-08-22 read (-0.269). Implementation left to the "
+                "operator; the finding is that the structure does not earn its emission share.",
     ),
     "bear_arm": Study(
         family="selection", state="shipped",
         question="B1 — is there any bear subset, definable at decision time, that is not "
                  "negative? B2 — or is the exit simply mis-tuned?",
-        verdict="B1 NO: 0 of 496 subsets pass. B2 YES: `be_after: 0.50` keyed to bear debit "
-                "clears every pre-registered criterion and shipped.",
+        verdict="B1 NO: `combinations evaluated: 496  (with n>=40: 132)` / "
+                "`survivors of the full pre-registered rule: 0` — unchanged on v4. B2 shipped "
+                "`be_after: 0.50` keyed to bear debit in 2026-08-11, and on 2026-08-24 its "
+                "own pre-registered ROLLBACK TRIGGER reached the floor and FIRED: "
+                "`CENSUS [bear-debit be_after 0.50 (arming rows)]: n_rows=92  n_dates=53  "
+                "floor=60 rows  -> FLOOR MET`, then `(c) per-year mean-R delta, ALL "
+                "bear-debit rows: 2024:+0.0217  2025:-0.0335   [FIRE] revert if any year < 0` "
+                "against passes on (a) `$+58.00` and (b) `+0.0071`. One of three conditions "
+                "is enough — `structure_exit.enabled` REVERTED to false (commit 1e36dba). "
+                "B2's own grid stays null besides: `best non-PROD variant: BE ratchet @.20  "
+                "Δ=+0.043 CI[-0.021, +0.106] LOO min gain +0.036` / `pre-registered EXIT FIX "
+                "criteria (CI excludes zero AND every LOO fold positive): NOT met`.",
     ),
     "ml_combination": Study(
         family="selection", state="null",
         question="Does any learned combination of structure × regime × geometry × enrichment "
                  "beat the score-free ladder out of sample?",
-        verdict="NULL — 0 of 15 model × strategy cells. Re-open on new COLUMNS only, never "
-                "on new models; the ladder is at the ceiling of this feature set.",
+        verdict="NULL — 0 of 15 model × strategy cells. `VERDICT: NULL RESULT — the ladder "
+                "is at/near the ceiling of this data`. On the refreshed v4 export the gap "
+                "WIDENED against the models rather than closing: `M3 out-of-fold paired R "
+                "gain vs B0: -0.103 CI95 [-0.239, +0.023]  -> CI excludes zero: False` "
+                "(2026-08-22 read -0.012), and every other construct is negative too — "
+                "`B1  gain -0.045`, `B2  gain -0.097`, `M1  gain -0.078`, `M2  gain -0.004`. "
+                "Re-open on new COLUMNS only, never on new models; the ladder is at the "
+                "ceiling of this feature set.",
     ),
     "v4_bridge": Study(
         family="selection", state="open",
         question="v4 dropped two prompt factors. Does the v3-derived ladder still apply to "
                  "what v4 actually emits?",
-        verdict="Written before the data existed. It refuses to compare a book against "
-                "itself, so it aborts until a real v4 export lands.",
+        verdict="It no longer aborts — a real v4 export landed, and the answer is "
+                "`VERDICT: LADDER UNVALIDATED ON v4`, standing since 2026-08-22 and "
+                "re-confirmed 2026-08-24 on `1465 plays / 142 dates` of v3 against "
+                "`1050 plays / 96 dates` of v4. Four of the five pre-registered tests shift: "
+                "`Shifted: 1. structure mix, 3. plays per day, 4. bear share, 5. ladder tier "
+                "mix`; only credit share holds (`two-proportion z = -1.43, p = 0.1521   "
+                "within noise`). Bear share standardised 36.0% -> 34.8% but raw 44.4% -> "
+                "34.8%, and VETO collapses `149 (10.2%)` -> `14 ( 1.3%)`. Per the "
+                "pre-registration: keep deploying under the v3 rules and do NOT re-derive "
+                "the ladder on v4 rows yet.",
     ),
     "macro_event_study": Study(
         family="selection", state="open",
@@ -132,7 +163,16 @@ STUDIES: dict[str, Study] = {
                 "and DIED under the amendment-2 survival control (in holds >=20 sessions "
                 "the LATE bucket is empty; within fixed length EARLY wins) -> "
                 "macro_event_exit DE-QUEUED as SURVIVAL-ARTIFACT. Nothing ships; no v5 "
-                "bump; passive re-run when the book grows.",
+                "bump; passive re-run when the book grows. Re-run on v4 (2026-08-24, 567 "
+                "rows / 87 dates) reaches the same place from a different book: every event "
+                "type still prints `ARM VERDICT INPUT: UNDERPOWERED — no cell cleared the "
+                "floor.`, the tercile trigger is `not fired`, and the survival control "
+                "holds — `X-C1 verdict (86 affected dates vs floor 25): SURVIVAL-ARTIFACT — "
+                "macro_event_exit DE-QUEUED; re-arms only on a future CONTROLLED trigger`. "
+                "The exit census is the one thing that grew: `hold spans >=1 macro event: "
+                "501 rows / 87 dates  mean R +0.093  mean days_held 34.0` against "
+                "`hold spans none: 66 rows / 44 dates  mean R +0.250  mean days_held 3.2` — "
+                "a survival read, not an event effect.",
     ),
 
     "emission_timing": Study(
@@ -140,7 +180,18 @@ STUDIES: dict[str, Study] = {
         question="Does entry TIMING carry risk the columns never saw: the same (ticker, "
                  "structure) re-emitted across consecutive analysis dates (am I late?), and "
                  "a fill delayed 1-3 sessions past the signal (does the edge decay?)?",
-        verdict="First run 2026-08-19 (era v3, 795/118): ARM P NULL — repeats vs firsts +0.054, CI [-0.115,+0.224] spans zero, 2025 wrong-signed; the positive lean (every LOO fold +) is a labelled post-hoc watch for NEW dates only. ARM L LAG-TOLERANT — the publishable finding: no lag in {1,2,3} sessions separates from the day-0 close fill under the conjunction. The signal does not decay within three sessions; a missed same-day fill is not a lost trade.",
+        verdict="ARM P MOVED on v4 (2026-08-24, 567 rows / 87 dates): what was a NULL on era "
+                "v3 (+0.054, CI [-0.115,+0.224] spanning zero) is now a signed effect the "
+                "other way — `n=73 pairs / 73 dates   mean delta -0.2050   "
+                "CI[-0.3792,-0.0306] EXCLUDES 0  ** CANDIDATE`, reported as `ARM P: "
+                "STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP) — proposes a candidate INTAKE "
+                "rule (prefer first emissions), queued for an independent-window "
+                "confirmation before it may reach deployment-rules.md`. A sign flip between "
+                "eras on 73 pairs is exactly what the confirmation window is for; nothing "
+                "changes in docs/ until it survives one. ARM L is unmoved and remains the "
+                "publishable finding: `ARM L: LAG-TOLERANT` — L=1/2/3 all include zero "
+                "against L=0. The signal does not decay within three sessions; a missed "
+                "same-day fill is not a lost trade.",
     ),
 
     # ② management
@@ -149,7 +200,26 @@ STUDIES: dict[str, Study] = {
         question="The original grid: replay stored daily marks under alternative exit rules, "
                  "real-priced rows only.",
         verdict="SHIPPED the production debit profile — profit target 0.90, stop 0.75, time "
-                "exit at 0.75 of DTE, no trailing stop (Attempt 10).",
+                "exit at 0.75 of DTE, no trailing stop (Attempt 10). CALIBRATION REPAIRED "
+                "2026-08-24: it classifies via lib/replay_basis.py instead of printing a "
+                "false failure on rows stored under a shipped override — debit now reads "
+                "`191 exact, 0 near-rounding-tie, 16 superseded-basis, 0 HARD of 207` (all "
+                "16 are be_stop/trailing_stop bear_put rows). A `--side credit` ARM runs in "
+                "`--all` on its own stem (exit_mechanism_study-credit-latest.txt) against "
+                "the SHIPPED profile (sl=None), not the stale pre-Attempt-13 sl=1.00: "
+                "`73 exact, 0 near-rounding-tie, 0 superseded-basis, 0 HARD of 73`, and "
+                "Attempt 13 re-confirms hard — `PROD pt.65 sl none  total=$    +2593` vs "
+                "`sl 1x (pre-Attempt-13)  total=$     -876  $/ct=   -2067  win= 50/73  "
+                "med=$  +153  Δ=$   -3468  Δ-LOO=$   -3853`. "
+                "Its Attempt-13 rollback trigger is a census only: `fresh bull_put rows "
+                "(signal_date > 2026-07-13): 0` -> UNDERPOWERED, thread parked. On the thin "
+                "v4 debit book PROD itself is `total=$     -959` and no REACTIVE variant "
+                "beats it out of fold — the trailing grid is negative everywhere "
+                "(`trail .25 trig .50` at `Δ=$   -4152  Δ-LOO=$   -6332`), and the two variants with a "
+                "positive Δ-LOO are both target/ratchet, not reactive: `pt .75 no trail` at `"
+                "Δ=$   +4354  Δ-LOO=$   +1734` and `BE ratchet @.75, no trail` at `Δ=$   "
+                "+1950  Δ-LOO=$    +806`. In-sample on 207 rows, selected on the same file "
+                "they are scored on — an observation, not a candidate.",
     ),
     "combined_exit_study": Study(
         family="management", state="reference",
@@ -182,22 +252,53 @@ STUDIES: dict[str, Study] = {
         family="management", state="shipped",
         question="A per-regime exit switch keyed on the mechanical regime — is it stable "
                  "where the model-keyed version failed leave-one-out?",
-        verdict="BEAR_HE cell SHIPPED (trail 0.50 at trigger 0.50). The L-VOL and RANGE/BULL "
-                "cells stay gated and commented out in config/backtest.yml.",
+        verdict="BEAR_HE cell SHIPPED (trail 0.50 at trigger 0.50). The ORIGINAL whole-book "
+                "gate still fails on one of six and so `VERDICT: mech-keyed per-regime exit "
+                "switch STAYS GATED.` — `[FAIL]  LOO median > 0 (pooled)` against passes on "
+                "nonneg 82.76%, total +5.6986, both halves (+3.9892 / +2.4829), post-13c, "
+                "and `SIGN FLIPS vs frozen: NONE`. What is new on 2026-08-24 is STEP 3(f), "
+                "the pre-registered rollback-trigger power census, and the corrected "
+                "gate evaluated only at the floor. BEAR_HE has no reading: "
+                "`CENSUS [BEAR_HE trail .50/.50]: n_rows=1  n_dates=1  floor=25 dates  -> "
+                "UNDERPOWERED`. LVOL does, and it passes all four: `CENSUS [LVOL tef null]: "
+                "n_rows=40  n_dates=31  floor=25 dates  -> FLOOR MET` / `per-affected-date "
+                "summed pnl_pct delta (variant - PROD): median=+0.0230  total=+5.6986  "
+                "(n=31 affected dates)` -> `VERDICT: LVOL (tef null) CLEARED.` The operator "
+                "HELD the ship: v4 is new plays on the SAME historical signal dates the "
+                "cell was gated on, so clearing here is a re-read of the fitting window, "
+                "not a fresh confirmation. LVOL and RANGE/BULL stay commented out in "
+                "config/backtest.yml pending genuinely new dates.",
     ),
     "exit_switch_structure_study": Study(
         family="management", state="reference",
         question="Q1 — does a bear_put-keyed trail pass the same ship gate? Q2 — is BEAR_HE "
                  "secretly just a composition proxy for that structure effect?",
         verdict="The guard on the shipped rule. It exists to catch the composition trap that "
-                "killed oi_confirm_pct and iv_pct.",
+                "killed oi_confirm_pct and iv_pct, and on v4 (2026-08-24, n=415 debit / 87 "
+                "dates) it still holds the line both ways. Q1: `VERDICT: structure-keyed "
+                "bear_put trail STAYS GATED.` on five of six — `structure-keyed [pnl_pct] "
+                "dates=  87  median=  +0.0000  total=    -5.2794  >0= 0.00%` against the "
+                "mech comparator's `total=    +5.6986  >0=18.39%`, plus a failed time-half "
+                "split (early +2.8541, late -3.7462). Q2: the shipped key is NOT a "
+                "composition proxy — `shipped BEAR_HE clause  Δ=+0.7735   on its complement "
+                "(non-bear_put) Δ=+0.0000   retained 0%` vs `structure bear_put trail "
+                "Δ=-0.8920   on its complement (outside BEAR_HE) Δ=-1.6656   retained 187%`. "
+                "The structure key keeps its (negative) effect off BEAR_HE; the mech key's "
+                "gain lives entirely inside its own cell.",
     ),
     "bear_giveback": Study(
         family="management", state="null",
         question="82% of bear rows go green and then give it back. Can a breakeven ratchet "
                  "capture that, and does the underlying path explain it?",
-        verdict="The `be_after` grid does NOT ship beyond what is already live. The give-back "
-                "pattern lives in the UNDERLYING, not in the mark.",
+        verdict="The `be_after` grid does NOT ship, and as of 2026-08-24 there is nothing "
+                "live for it to add to: bear_arm's rollback trigger fired and "
+                "`structure_exit.enabled` went back to false, so the SHIPPED baseline this "
+                "study grades against is on its way out. Nothing in the grid clears the "
+                "report's own `**` bar against it either. The give-back pattern lives in the "
+                "UNDERLYING, not in the mark, and the days-to-peak gradient is where to see "
+                "it: `peak within 3d               n=  18  give-back  89%  meanR -0.374` "
+                "against `peak >20d                    n=  83  give-back  51%  meanR "
+                "+0.203`.",
     ),
     "volume_signal": Study(
         family="management", state="null",
@@ -214,7 +315,17 @@ STUDIES: dict[str, Study] = {
         question="Move the give-back question to day 0, where it is knowable at the close: "
                  "cut positions the stock did not confirm?",
         verdict="ARM C does not clear the confound, so no rule. The sensitivity is structural, "
-                "not a tradeable signal.",
+                "not a tradeable signal. Read the two arms together on v4 (2026-08-24): "
+                "whole-book, every day-0 cut LOSES to SHIPPED (`cut when wrong sign  "
+                "+0.010   -0.101        [-0.159, -0.041]`); BEAR-KEYED, all three cuts carry "
+                "`**` and clear criteria 3-6 as well (`cut when wrong sign  -0.047   +0.134  "
+                "[+0.045, +0.228]   +0.120`, both years and both pricing tiers positive, "
+                "leak guard `non-bear changed    0`). That is not a new exit knob — it is "
+                "bear_position_study's standing DEMOTE TO VETO arriving through a second "
+                "door: the cut only pays where it removes bear rows, and inside ARM C's "
+                "day-0-P&L bands the ordering flattens or reverses (`day-0 P&L -25% to 0         221            "
+                "+0.034        +0.050    -0.016`, `day-0 P&L 0 to +25%         177  "
+                "          +0.070        +0.218    -0.148`).",
     ),
 
     "staged_exit": Study(
@@ -222,7 +333,15 @@ STUDIES: dict[str, Study] = {
         question="Does a time-STAGED exit — evaluate ONCE at fixed session X on P&L vs the "
                  "original entry, then exit / tighten / arm a trail — work where the "
                  "reactive drawdown-from-peak rules of Attempts 1/2/10 did not?",
-        verdict="First run 2026-08-19 (era v3, 795/118): NULL both arms of the grid — 60 of 96 cells UNDERPOWERED at the pre-declared floor, and every one of the 36 powered cells fails the date-clustered CI outright (no CANDIDATE, no REACTIVE-AGAIN even reached). Continuation shares of 49-79% on the early exits show the reactive mechanism still present in scheduled form: time-staging bought no immunity. The Attempt-1/2/10 null extends to staged switches; thread closed on these dates.",
+        verdict="NULL both arms of the grid, on era v3 (2026-08-19, 795/118) and again on v4 "
+                "(2026-08-24, 567 rows / 87 dates). The v4 run is if anything thinner: "
+                "`24 of 96 cells clear the floor; 72 are UNDERPOWERED.` — `tally: "
+                "{'UNDERPOWERED': 72, '-': 24}` — and not one powered cell reaches "
+                "CANDIDATE, REACTIVE-AGAIN or NULL; every one is a bare `-`. The guards "
+                "hold (`G1: PASS — 0 rows changed outside the population, in every cell.`, "
+                "`G-FORK: PASS — 0 disagreements.`), so this is a power result, not a "
+                "plumbing one. The Attempt-1/2/10 null extends to staged switches; thread "
+                "closed on these dates.",
     ),
 
     # ③ structure
@@ -230,8 +349,22 @@ STUDIES: dict[str, Study] = {
         family="structure", state="null",
         question="A bear SPREAD sells the lower put, giving away the vol expansion that makes "
                  "a bear position pay. What if the short leg goes?",
-        verdict="The wrapper is worth +0.085 and it does NOT hold in 2026. Nothing ships; "
-                "re-runnable as dates land.",
+        verdict="The original read — the wrapper is worth +0.085 and does NOT hold in 2026 — "
+                "is now the smaller half of the story. On v4 (2026-08-24, 196 bear debit "
+                "rows) the two naive re-wraps stay dead (`long_put` at `[FAIL] CI excludes zero          dR -0.044 CI "
+                "[-0.156, "
+                "+0.058]`, `wider` at `[FAIL] CI excludes zero          dR "
+                "-0.030 CI [-0.147, +0.078]`, five [FAIL]s each), "
+                "but the DIAGONAL passes everything: `[PASS] CI excludes zero          dR "
+                "+0.353 CI [+0.121, +0.613]`, `MIN +0.275 over 61 folds (share+ 100%)`, both "
+                "ex-window cuts, both years, both pricing tiers — and it is the only cut "
+                "whose portfolio checks both land: `P1 worst-decile: n= 10  meanR +0.902  "
+                "CI [+0.275, +1.498]  $+12,004   -> MET` with `P2 correlation with deployed "
+                "sleeve: -0.275 over 54 shared dates   -> MET`. It takes the bear sleeve from "
+                "`meanR -0.168` to `meanR -0.003`. n=96 rows / 61 folds on the same dates the "
+                "book was fitted on, and it is a wrapper swap on a population "
+                "bear_position_study says to VETO — a candidate for an independent window, "
+                "not a ship. Nothing changes in config/backtest.yml.",
     ),
     "vol_sleeve": Study(
         family="structure", state="null",
@@ -239,16 +372,31 @@ STUDIES: dict[str, Study] = {
                  "signalled. Is there a vol sleeve in here?",
         verdict="CLOSED. The straddle clears its gate then dies ex-window, and its correlation "
                 "with the deployed book is the WRONG SIGN — it re-wraps the same exposure. "
-                "Only the calendar survives.",
+                "Only the calendar survives. v4 (2026-08-24) says the same in the same "
+                "shape: `Q1 NON-NULL cells: straddle/ALL, straddle/>90, calendar/ALL` but "
+                "`Q2 IS NULL — the sleeve is neither reliably anti-correlated with the "
+                "deployed book nor reliably positive on its worst dates.` The sign check is "
+                "the whole argument — straddle `corr(daily mean R)   +0.312   CI95 [+0.091, "
+                "+0.493]` and strangle `+0.320   CI95 [+0.093, +0.502]` against calendar "
+                "`-0.344   CI95 [-0.545, -0.078]`, on straddle `meanR -0.066  $   "
+                "-68,837` vs calendar `n=  50  win   56%  PF  1.33  meanR +0.461  "
+                "$     6,292`. The "
+                "calendar's worst-decile numbers are printed as POST-HOC, not as the gate, "
+                "and go on to calendar_hedge.",
     ),
     "calendar_hedge": Study(
         family="structure", state="open",
         question="Re-derive that one survivor under a pre-registered pick rule and a strict "
                  "fill rule.",
-        verdict="Gates pass — R4 now compares two same-run builds instead of a 2026-08-12 "
-                "checksum, so cache growth can no longer fail it. On v4 H0 FILL is NOT MET "
-                "(12/31 deployed dates, 1/3 worst-decile) and H2 stays NOT EVALUABLE. "
-                "Blocked on dates, not refuted.",
+        verdict="Gates pass — `R4 PASS — the two constructions agree row for row`; R4 now "
+                "compares two same-run builds instead of a 2026-08-12 checksum, so cache "
+                "growth can no longer fail it. On the refreshed v4 book (2026-08-24, 181 "
+                "deployed positions over 77 dates) the fill rate is still the binding "
+                "constraint: `P1 fillable on deployed dates          29 / 77   =  37.7%   "
+                "FAIL` and `P1 fillable on worst-decile dates       2 / 7    =  28.6%   "
+                "FAIL` -> `H0 FILL           NOT MET`, with `H2 = NOT EVALUABLE — the "
+                "primary gate cannot be read on this window.` and H3 `NOT MET at any size` "
+                "against the ladder+bear baseline. Blocked on dates, not refuted.",
     ),
 
     "financed_spread": Study(
@@ -256,16 +404,18 @@ STUDIES: dict[str, Study] = {
         question="Does financing a book debit vertical with a credit position pay — an "
                  "opposite-delta credit spread, a naked short leg, or a same-direction "
                  "credit vertical?",
-        verdict="Two runs 2026-08-19 (era v3). Same-expiry financing (F0-F3): all seven "
-                "cells NULL, naked short significantly HARMFUL, E3 positive everywhere. "
-                "Post-scrape F4 diagonal (short-dated, delta-targeted, beyond the wing): "
-                "F4-d20 HOLD is the study's one CANDIDATE — dR +0.176 CI[+0.015,+0.354], "
-                "every LOO fold +, all windows incl. ex-BOTH, all years, both tiers, and "
-                "E3 -0.134 (the only cell that diversifies). The operator's own close-at-"
-                "50%/$100 management NULLs the same cell (+0.05/+0.02) — holding the leg "
-                "to ITS expiry is where the edge lives; d10 far-OTM re-wraps and loses. "
-                "Built on 117/570 rows / 74 dates. NOT a ship — queued for an "
-                "independent-window confirmation.",
+        verdict="On era v3 (2026-08-19) same-expiry financing (F0-F3) came back all NULL, "
+                "naked short significantly HARMFUL, and the post-scrape F4 diagonal held "
+                "the study's one CANDIDATE — F4-d20 HOLD at dR +0.176 CI[+0.015,+0.354]. "
+                "The refreshed v4 book (2026-08-24, 567 rows / 87 dates, `kept 387  (bull "
+                "195 / bear 192)`) does NOT reproduce it and does not refute it either: "
+                "`F1 off1          NULL` … `F3 off2          NULL`, `F4-d10 hold      "
+                "NULL`, and the whole d20 family drops below the floor — `F4-d20 hold      "
+                "UNDERPOWERED`, `n=20 rows / 19 dates — under the G0 floor, no criterion "
+                "evaluated.` The candidate is therefore UNCONFIRMED on v4 rather than "
+                "carried forward; the independent-window confirmation it was queued for "
+                "has not yet been run on a book that can hold it. (`UNDERPOWERED` is what "
+                "reports before 2026-08-22 called POWER-STOPPED — same token.)",
     ),
 
     # ④ deployment
@@ -274,26 +424,46 @@ STUDIES: dict[str, Study] = {
         question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
                  "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
                  "D4 conditional pick.",
-        verdict="D2 MET — bear pays on the deployed book's worst dates, correlation −0.13. "
-                "D4 ADOPTED — pick bear by |delta| DESCENDING. D1 and D3 not met. Bear is a "
-                "hedge, not a selection.",
+        verdict="Bear is a hedge, not a selection — that half is unmoved (D1: `survivors of "
+                "the pre-registered D1 rule: 0`). But the hedge case itself REVERSED on the "
+                "refreshed v4 export (2026-08-24), and every estimand now reads NOT MET: "
+                "`D2 hedge is real          : NOT MET`, `D3 always-on sizing       : NOT MET "
+                "at any size`, `D4 conditional pick       : NOT MET`, `D5 gated sleeve "
+                "(POST-HOC): no gate survives`. D2 fails on the year check alone — "
+                "`bear R on deployed worst-decile dates: +0.033 (row-level CI "
+                "[-0.375, +0.531], n=18) — needs > 0: YES` and "
+                "`sleeve correlation -0.087 — needs < 0: YES` still pass, then "
+                "`tail positive in 0/2 evaluable years — needs >= 2: NO`. D4 loses the "
+                "shipped ranker outright — `|delta| high first             62   -0.119   "
+                "-0.115   -0.004 [-0.166, +0.166]    -0.045`, i.e. the |delta|-DESCENDING "
+                "pick is now indistinguishable from taking the day's average bear, and "
+                "`rankers tested: 10  adopted: 0  (~0.5 expected by chance)`. That rule sits "
+                "in docs/deployment-rules.md on v3 evidence; v4 does not carry it, and "
+                "`none — the hedge cannot be timed by any gate tested, at either size.` "
+                "Needs a replication pass before the rule is re-affirmed or pulled.",
     ),
     "account_sim": Study(
         family="deployment", state="open",
         question="The ladder assumes infinite capital. Does a real $25,000 account — paying "
                  "for positions, holding reserve, respecting a delta cap — still produce a book?",
         verdict="The caps survive; the WINDOW does not. Delta-notional binds before cash does. "
-                "Feasibility only — nothing ships from this study under any outcome. On v3 the "
-                "cap ordering read adverse — rejected picks out-earning the ones taken; on the "
-                "current v4 era (517 rows / 78 dates, 168 deployed picks) this REVERSES: "
-                "PRIMARY dense episodes print 'taken n= 72 meanR +0.338' against 'rejected "
-                "[net_delta] n= 25 meanR +0.134 delta vs taken -0.205' and 'rejected "
-                "[per_pos_delta] n= 25 meanR +0.130 delta vs taken -0.208' — taken beats "
-                "rejected in 7 of the 8 frozen/compounding x PRIMARY/SECONDARY cells; only "
-                "one n=9 compounding-SECONDARY cell (net_delta, delta vs taken +0.022) still "
-                "favours rejected. The run also prints a POST-HOC compounding arm "
-                "(account_sim-compounding-latest.txt, its own page): on this book compounding "
-                "COSTS money and the verdict is unmoved; A2/A5 do not transfer to it.",
+                "Feasibility only — nothing ships from this study under any outcome. "
+                "`>>> FEASIBLE <<<` on A1-A6, unchanged since 2026-08-22. On v3 the cap "
+                "ordering read adverse — rejected picks out-earning the ones taken; on the "
+                "refreshed v4 era (2026-08-24: 567 rows / 87 dates, 181 deployed picks, "
+                "`total: 2 episodes, 51 dates, 119 deployed picks` in the primary) this "
+                "REVERSES and now does so in ALL EIGHT frozen/compounding x "
+                "PRIMARY/SECONDARY cells — the n=9 compounding-SECONDARY holdout is gone. "
+                "PRIMARY frozen prints `  taken                n=  78  meanR +0.355` against "
+                "`  rejected [net_delta     ] n=  39  meanR +0.186  delta vs taken -0.170` "
+                "and `  rejected [per_pos_delta ] n=  34  meanR +0.107  delta vs taken "
+                "-0.248`; the compounding arm's per-position cell is the widest of the eight "
+                "at `delta vs taken -0.413`. The POST-HOC compounding arm "
+                "(account_sim-compounding-latest.txt, its own page) is also FEASIBLE and "
+                "still costs money — `B2  compounded max-loss sizing (from $25,000), "
+                "unconstrained  n= 119  dates= 51  $     9,464  meanR +0.235` against the "
+                "frozen arm's `$     9,863  meanR +0.246` — and its A2/A5 stay ratios "
+                "against a moving benchmark, which the report itself flags.",
     ),
     "selection_order": Study(
         family="deployment", state="open",
@@ -303,15 +473,18 @@ STUDIES: dict[str, Study] = {
                  "question stands on its own: does a different BLIND entry-side ORDER of the "
                  "same candidate set spend the scarce delta budget better — or was that read "
                  "an artifact?",
-        verdict="UNDERPOWERED at G0, on the pre-registered threshold, on BOTH eras. On the "
-                "current v4 book: `arms powered (G0):  none`, `Best-powered arm reached 17 "
-                "affected dates against a threshold of 25.` — a floor declared before the "
-                "count was knowable. Each re-ordering `changes only 15%-24% of O0's taken "
-                "positions` (PRIMARY; 11-21% SECONDARY), which is why no arm reaches the "
-                "floor. Census only: no arm confirmed, none refuted, no O4 band drawn, and "
-                "NO re-run on these dates. The earlier `7-14%` figure quoted here was a "
-                "hardcoded prose literal in the study, corrected 2026-08-22 to print the "
-                "run's own measured census.",
+        verdict="UNDERPOWERED at G0, on the pre-registered threshold, on BOTH eras and on "
+                "every refresh so far. On the 2026-08-24 v4 book: `arms powered (G0):  "
+                "none`, `arms clearing all seven: none`, `Best-powered arm reached 20 "
+                "affected dates against a threshold of 25.` — up from 17 on 2026-08-22 and "
+                "still short of a floor declared before the count was knowable. Each "
+                "re-ordering `changes only 18%-27% of O0's taken positions` (PRIMARY: O1 "
+                "24%, O2 18%, O3 21%, O1b 27%; 12-22% SECONDARY, where O1b alone reaches "
+                "`ok` at 26 dates), because on most contested dates the caps exclude the "
+                "same picks whatever the order. Census only: no arm confirmed, none "
+                "refuted, no O4 band drawn, and NO re-run on these dates. The earlier "
+                "`7-14%` figure quoted here was a hardcoded prose literal in the study, "
+                "corrected 2026-08-22 to print the run's own measured census.",
     ),
 
     "portfolio_delta": Study(
@@ -320,7 +493,20 @@ STUDIES: dict[str, Study] = {
                  "delta-notional binds before cash; this asks whether the level itself is "
                  "a lever — dose-response, a ceiling band, and a delta-TARGETED hedge "
                  "sleeve, against a seeded random-admission null band.",
-        verdict="First run 2026-08-19 (era v3): NOISE on the primary population, and LONG-ONLY-BY-CONSTRUCTION confirmed as the operating fact — 219/220 deployed picks positive delta, 0 net-short sessions, on the PRIMARY population every delta-target hedge arm UNDERPOWERED at the moved-dates floor. On the SECONDARY (carries nothing alone) five arms are powered and H* 1.50 is the one arm anywhere whose CI excludes zero (+0.084) — it fails 2024 sign and the ARM N band, so nothing clears the conjunction. Net delta is not a free lever of this book; no band value read off P&L per the firewall.",
+        verdict="NOISE on the primary population — era v3 (2026-08-19) and again on v4 "
+                "(2026-08-24, 567 rows / 87 dates, 181 deployed picks): `>>> NOISE — no arm "
+                "exceeds ARM N's 95th percentile and ARM D's bands do not separate within "
+                "their cells. Recorded; thread closed for these dates. <<<` "
+                "LONG-ONLY-BY-CONSTRUCTION is the operating fact and got sharper, not "
+                "softer: `census: long-only book: True   negative-delta picks 0 of 181   "
+                "per-date net/equity range [+0.00, +2.50]` — not one short-delta pick in the "
+                "whole book. Exactly one arm clears the moved-dates floor, and it fails five "
+                "of the seven parts: `arms powered (G-INVENTORY): B ceiling 1.00` / "
+                "`=> B ceiling 1.00: FAILS c1, c2, c4, c5, c7` on a paired mean gain of "
+                "`+0.0071 R   CI95 [-0.2258, +0.2070]` sitting at `pct 94%` of the ARM N "
+                "null band. Every H* delta-target hedge arm is UNDERPOWERED (9/14/15 moved "
+                "dates against 25) and none is read. Net delta is not a free lever of this "
+                "book; no band value read off P&L per the firewall.",
     ),
 }
 

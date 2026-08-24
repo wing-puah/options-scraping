@@ -51,3 +51,27 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   re-registration on a materially larger book, nothing more.
 ```
 
+
+## era v4 · inputs 46cc19b · sha c841a01 — recorded 2026-08-24
+<!-- key era=v4 sha=c841a01 inputs=46cc19b -->
+
+population  280 results · 627 proxy · 1,146 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-24 17:09 … 2026-08-24 18:08)
+run         2026-08-24 18:23:20 · git c841a01 (main, working tree dirty) · exit 0 · 2.1s
+command     python -m scripts.backtest_study.f4_deployment.selection_order
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G0):  none
+  arms clearing all seven: none
+  Best-powered arm reached 20 affected dates against a threshold of 25.
+  CENSUS OBSERVATION, explicitly NOT a verdict upgrade: the reason the arms are
+  under-powered is itself informative — each one changes only 18%-27% of O0's
+  taken positions (this run's measured range across the 4 ordering
+  arms), because on most contested dates the caps exclude the same picks
+  whatever the order. That
+  texture is what CAP-BOUND-NOT-ORDER-BOUND describes. It may NOT be recorded
+  as that verdict: the label requires arms that CLEAR G0, and reading a
+  blocked arm's shape as a conclusion is exactly the move the power floor
+```
+

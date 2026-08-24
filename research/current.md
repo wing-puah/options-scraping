@@ -2554,3 +2554,112 @@ taken +0.338 vs rejected +0.134 / +0.130); only one n=9 cell still favours
 rejected. Corrected in the `account_sim` verdict, the `selection_order` verdict
 and question, and `selection_order.py`'s docstring, which cited it as live
 motivation.
+
+
+## 2026-08-24 — v4 refresh evaluated: first rollback-trigger census (be_after REVERTED, LVOL cleared-but-held), the credit book calibrates for the first time, `exit_mechanism_study` repaired
+
+Bare exports refreshed 2026-08-24 17:09; full suite re-run (25 reports, era v4,
+git `c841a01`, exit 0, all recorded via `study-record`). Pooled book **567 rows
+(real+tweak) / 87 dates** — up from 517/78 on 08-22. The provenance headers'
+apparent shrink (results "1,212 rows" → "280 rows") is NOT a population change:
+every header before today was a LINE count over `daily_price_csv`'s embedded
+newlines — the exact `wc -l` hazard the 08-14 method note warned about, sitting
+in the runner itself. `run.py` now counts CSV rows; every report recorded in
+`research/study-results/` before 2026-08-24 overstates its input counts ~4×.
+
+**Rollback-trigger census — the four shipped-rule forward triggers evaluated
+for the FIRST time** (they were prose only; nothing computed "affected dates").
+Pre-registered before the runs in `research/pre-registrations/rollback_triggers.md`;
+one definition of affected/arming in `scripts/backtest_study/lib/triggers.py`;
+all census blocks additive. v4 is a CORRELATED-WINDOW re-read (new plays from a
+new prompt version on the same historical signal dates) — registered as such,
+with the operator's act-only-if-decisive reading committed before any number
+was read.
+
+| Trigger | Census | Outcome |
+|---|---|---|
+| bear-debit `be_after 0.50` | 92 arming rows / 53 dates ≥ floor 60 | condition three **FIRED** → **REVERTED** |
+| LVOL tef-null (corrected gate) | 31 affected dates ≥ floor 25 | all four criteria PASS — **CLEARED, operator HELD the ship** |
+| BEAR_HE trail | 1 affected date of 25 | decisively UNDERPOWERED — census is the result |
+| credit sl-none | 0 fresh bull_put rows of 15 | UNDERPOWERED — comparator now printed by every credit run |
+
+- **be_after REVERTED** (`structure_exit.enabled: false`, commit `1e36dba`).
+  The trigger's three conditions on the arming rows: (a) total gain vs PROD
+  **+$58** — pass, but ~zero against the −$54.4k → −$38.0k the rule shipped on;
+  (b) mean-R on affected rows +0.0071 — pass; (c) per-year mean-R delta
+  2024 +0.022 / **2025 −0.034 → FIRE**. Operator decision per the registration:
+  revert. Block and evidence kept verbatim in config; re-entry only through a
+  fresh registration. `docs/deployment-rules.md` loses the ratchet row.
+- **LVOL tef-null cleared its corrected gate** (median among affected dates
+  +0.023 > 0, total +5.70 > 0, halves +3.99/+1.71, no perturbation flip) — the
+  first time the 07-22 corrected gate has been computable at all. Operator HELD:
+  no urgency asymmetry (unlike BEAR_HE's bear-leg protection) justifies an
+  in-window ship. Re-gate when the affected-date count includes genuinely new
+  dates. The original six-criterion gate still reads 5/6 (`LOO median > 0`
+  fails by construction) — `STAYS GATED` on that axis, unchanged.
+
+**`exit_mechanism_study` repaired — its v4 "CALIBRATION FAILED" was false, and
+its credit baseline was a retired rule** (commit `038cdc6`). The 08-22 banner's
+14 mismatches were exactly the shipped overrides' own output (13 `be_stop` +
+1 `trailing_stop`) — the failure mode diagnosed 08-14 and repaired in the three
+gate-sharing studies, which this study never received. `calibrate()` now
+classifies via the shared `lib/replay_basis.py` (extracted verbatim from
+`exit_switch_mech_study`): debit **191 exact / 0 near / 16 superseded-basis /
+0 HARD of 207**, banner reserved for HARD, `main()` stops on it. The worse
+find: its local `CREDIT_PROD` still carried the pre-Attempt-13 `sl=1.00` —
+every credit Δ since 07-13 was measured against a stop production had removed,
+and the variant named "sl none" WAS production. Profiles now import from
+`lib/book.py`, test-pinned against `config/backtest.yml`. The study's duplicated
+replay engine (byte-identical to frozen `lib/harness.py`) is deleted in favour
+of the import, so the whole f2 import chain sits under the pinned fixture. A
+new `-credit` ARM joins `run --all`: **73/73 exact** — the v4 credit book is
+single-basis and calibrates against shipped PROD for the first time
+(`book.py`'s standing "no single credit PROD" caveat is not true of this era).
+
+**Debit variant grid = the reactive null, re-confirmed on 207 rows.** Best
+trail variant `trail .25 trig .75` Δ=+$1,679 but **Δ-LOO −$501** (one trade);
+every other trail negative on both. Two non-reactive in-sample positives worth
+recording as observations, NOT candidates (selected on the file they score):
+`pt .75 no trail` Δ=+$4,354 / Δ-LOO +$1,734 — the second era in which a lower
+profit target has looked good on debit — and `BE ratchet @.75` Δ-LOO +$806.
+Credit side: `sl 1x (pre-Attempt-13)` Δ=−$3,468 / Δ-LOO −$3,853 vs PROD —
+Attempt 13 re-confirmed hard, though on the correlated window, not the fresh
+one the trigger names.
+
+**Suite movers** (catalog verdicts refreshed for 20 studies, quoted verbatim):
+- **`bear_deploy` REVERSED on v4**: D2 (hedge is real), D3, D4 all NOT MET —
+  the shipped "take the closer-to-money bear" pick reads −0.004 vs the day
+  average (CI [−0.166,+0.166]). That line sits in `docs/deployment-rules.md`
+  on v3 evidence and now has no v4 support. No prereg file exists, so it
+  cannot go through `study_review` as-is. **QUEUED (operator): register a
+  re-read before re-affirming or pulling the card line.** Not acted on today.
+- **`bear_rewrap` promoted `long_diag`**: all five criteria pass on v4
+  (dR +0.353 CI [+0.121,+0.613], LOO min +0.275 over 61 folds, worst-decile
+  meanR +0.902 CI [+0.275,+1.498] → P1 MET, P2 MET; bear sleeve −0.168 →
+  −0.003). First full-conjunction pass for a bear wrapper — on a population
+  `bear_position_study` still DEMOTEs on E (−0.288 at n=177, re-confirmed
+  today). Candidate for independent-window confirmation, NOT shipped.
+- **`emission_timing` ARM P sign-flipped**: v3 +0.054 (CI spans 0, null) →
+  v4 **−0.205 CI [−0.379,−0.031] EXCLUDES 0**, reported as
+  `STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP)`. Two-analyst review run today
+  (Disagreement log below).
+- **`financed_spread` F4-d20**: the graded v3 candidate is UNDERPOWERED on v4
+  (20 rows / 19 dates, under the G0 floor — no criterion evaluated). Review
+  run today to decide carry/re-scope/shelve (Disagreement log below).
+- `ml_combination` NULL again, gap wider (M3 out-of-fold −0.103 vs B0).
+  `account_sim` FEASIBLE, and the v3 "rejected out-earn taken" reversal is now
+  complete in all 8 cells. `staged_exit` null again, thinner (24/96 powered).
+  `v4_bridge` unchanged (`LADDER UNVALIDATED ON v4`) — its catalog entry was
+  two runs stale and factually wrong (claimed the study still aborts); fixed.
+- `exit_switch_structure_study` STAYS GATED (1/6); new Q2 retention detail:
+  the shipped BEAR_HE clause retains 0% of its gain outside its cell, the
+  rejected bear_put trail 187% — the composition guard is doing its job.
+
+**Infra shipped today** (all committed): the calibration repair + shared
+classifier (`038cdc6`), `lib/triggers.py` + census blocks (`e54b4cd`), the
+credit ARM + `make study-record` footer (`c841a01`), the be_after revert
+(`1e36dba`), the Makefile study-surface consolidation (`d9f2853` — ONE
+parameterized `study-chart CHART=account_sim|regime|compounding [ARM=structure]
+[OPEN=1]` replacing seven targets, `study-check`, `RECORD=1` chaining,
+`tests/test_makefile_targets.py` pinning every documented target), and
+`lib/gex_snapshot.py` retired (`f3a7b2e`, zero importers, operator-confirmed).
