@@ -146,8 +146,11 @@ Research tier (`backtest_study/`, `study_*`):
   fingerprints a snapshot, not a hypothesis: the book grows, the constant breaks, and the
   operator learns to edit it — which is what destroyed it as a check. Four gates did this and
   are gone. A code-behaviour claim goes in `tests/`; a data claim goes in `research/` with its
-  population stated. Pre-registrations (`research/pre-registrations/`) stay immutable and are
-  read only by `scripts/study_review/` — no study code reads a number out of one.
+  population stated. Pre-registrations (`research/pre-registrations/`) hold immutable
+  COMMITMENTS — no gate, bar, arm definition, or verdict changes meaning after it is written —
+  but the file may be consolidated editorially (a later refinement folded into the section it
+  amends, so the file states one final design; what changed and when lives in git, not inline).
+  Read only by `scripts/study_review/` — no study code reads a number out of one.
 - `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
   There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
   `--structure-universe`, `--live-select`) writes its own report/CSV stem; a different

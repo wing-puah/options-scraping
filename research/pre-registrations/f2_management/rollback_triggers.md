@@ -1,11 +1,11 @@
-# Rollback-trigger power census + first evaluation — pre-registration
+## rollback_triggers — power census and first evaluation
 
-**Registered 2026-08-24, before any run on the 2026-08-24 17:09 export refresh.**
+_Registered 2026-08-24, before any run on the 2026-08-24 17:09 export refresh._
 Modules: additive census blocks in `exit_switch_mech_study` (STEP 3(f)),
 `bear_arm` (be_after census), `exit_mechanism_study --side credit`
 (Attempt-13 comparator census), all built on `scripts/backtest_study/lib/triggers.py`.
 
-## What this registers
+### Question
 
 The four shipped-rule forward triggers have existed only as prose — nothing in
 the repo computed "affected dates", so they have never been evaluated
@@ -15,7 +15,7 @@ census and commits to how the FIRST evaluation is read. The trigger texts
 below are quoted verbatim from their original registrations and are the
 immutable commitment; this file only pins what those texts left unspecified.
 
-## The four triggers (verbatim)
+### The four triggers (verbatim)
 
 1. **BEAR_HE trail** (config/backtest.yml `regime_exit` comment, shipped
    2026-07-22): "ROLLBACK TRIGGER (pre-registered, evaluate at ≥25 affected
@@ -36,7 +36,7 @@ immutable commitment; this file only pins what those texts left unspecified.
    trigger: sl-none loses to sl-1× on the next ≥15-row fresh bull_put
    window."
 
-## Pinned specifications (what the texts left unspecified)
+### Population and basis, fixed here
 
 - **Population**: the era-resolved current exports, real + strike_expiry_tweak
   proxy rows, `include_bs=False` everywhere (the 2026-08-11 standing hazard).
@@ -58,7 +58,7 @@ immutable commitment; this file only pins what those texts left unspecified.
   rows, per-year mean-R delta sign on the pooled bear-debit book; trigger 4 —
   $ and mean-R comparison sl-none vs sl-1× on the fresh window.
 
-## Decisions taken before reading any number (operator, 2026-08-24)
+### Verdicts, worded now
 
 - **Trigger 3 status: CORRELATED-WINDOW RE-READ.** The v4 book's arming rows
   are new plays from a new prompt version, but they sit on the SAME historical
@@ -76,7 +76,9 @@ immutable commitment; this file only pins what those texts left unspecified.
   thread on. The `sl 1x (pre-Attempt-13)` grid line and the census are
   printed; NO tuning read is taken and the thread stays parked.
 
-## Ship criteria
+These are decisions taken before reading any number (operator, 2026-08-24).
+
+### Ship criteria
 
 None. This registration ships no rule. Its outcomes are: (a) a recorded
 census per trigger, (b) for trigger 3 only, a revert/hold decision under the

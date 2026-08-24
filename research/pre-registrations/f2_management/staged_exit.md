@@ -1,4 +1,6 @@
-## 2026-08-19 — `staged_exit`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## staged_exit
+
+_Registered 2026-08-19._
 
 **Question.** Does a TIME-STAGED exit switch beat the shipped profile? The rule
 under test is the operator's own shape: *"by session X, if the position is
@@ -43,7 +45,21 @@ different study.
   **513 rows / 114 dates survive past session 5; 415 / 110 past session 10;
   333 / 109 past session 15; 265 / 102 past session 20.** Every X in the frozen
   grid clears the 25-date floor on the whole book — the floor will bite on
-  sub-cells, not on the headline.
+  sub-cells, not on the headline. **Wording note (2026-08-19, at build
+  time):** these disclosed figures reproduce EXACTLY on the DEBIT slice of the
+  book (593 of 795 rows) — they were measured there and mislabelled as the
+  whole book. The registered POPULATION WORDING is unrestricted (credits
+  included, priced under CREDIT_PROD), and that wording governs: the build
+  implements it and G0 prints debit and credit columns side by side with a
+  reconciliation paragraph (whole-book survivors: 702/118, 583/117, 473/116,
+  385/111). No population, threshold, or criterion changed — only the label on
+  a disclosed number. Two consequences follow, both implied by the registered
+  grid applied to the registered population: ARM T's "tighten stop to −0.40"
+  INTRODUCES a stop on credit rows (whose shipped profile is sl-none since
+  Attempt 13) — that is the registered action, disclosed next to the
+  credit-ungated caveat; and the trail action is near-inert on this book (all
+  32 trail cells power-stop at the pre-declared floor), so ARM T's transfer
+  test is effectively carried by the tighten-stop action.
 - Comparison is ALWAYS paired against the **SHIPPED book** — the production
   profiles via `bear_giveback.prod_profile_for`, including the bear-keyed
   variants — **never against a clean `DEBIT_PROD` baseline.** Comparing against
@@ -72,7 +88,7 @@ not modified.
   disagreement fails the run.** A forked replay that has drifted from the frozen
   engine is not a finding about exits; it is a finding about the fork.
 
-### Frozen grid — declared now, not swept after a result is seen
+Frozen grid — declared now, not swept after a result is seen:
 
 | dimension | values |
 |---|---|
@@ -117,7 +133,7 @@ what is quoted in every conclusion.
   any other number.** This is the measurement that separates this study from
   Attempt 1, and it is registered as binding before any cell is computed.
 
-### Bar to call a cell a CANDIDATE — the full conjunction, all of it
+### Bar for a candidate — the full conjunction, all of it
 
 1. paired ΔR > 0 vs the SHIPPED book with **date-clustered bootstrap CI
    excluding zero** (`BOOT_N = 10000`, α = .05);
@@ -176,21 +192,3 @@ and the ones that power-stop.
   `research/study-map.md` prose mention (test-enforced).
 - Every report prints `debit_calib`, `n_credit_ungated` and the credit-ungated
   caveat. No annualised figure, Sharpe, or time-to-recover anywhere.
-
-### Wording correction (2026-08-19, at build time — labelled, not a re-registration)
-
-The "plan-time measurement (disclosed)" survivor counts (513/114 past session
-5, 415/110, 333/109, 265/102) reproduce EXACTLY on the DEBIT slice of the book
-(593 of 795 rows) — they were measured there and mislabelled as the whole
-book. The registered POPULATION WORDING is unrestricted (credits included,
-priced under CREDIT_PROD), and that wording governs: the build implements it
-and G0 prints debit and credit columns side by side with a reconciliation
-paragraph (whole-book survivors: 702/118, 583/117, 473/116, 385/111). No
-population, threshold, or criterion changed — only the label on a disclosed
-number. Two consequences the report states in place, both implied by the
-registered grid applied to the registered population: ARM T's "tighten stop to
-−0.40" INTRODUCES a stop on credit rows (whose shipped profile is sl-none
-since Attempt 13) — that is the registered action, disclosed next to the
-credit-ungated caveat; and the trail action is near-inert on this book (all 32
-trail cells power-stop at the pre-declared floor), so ARM T's transfer test is
-effectively carried by the tighten-stop action.

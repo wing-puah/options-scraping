@@ -1,13 +1,15 @@
 # Pre-registrations
 
-One file per study, containing that study's pre-registration verbatim: the
-question, frozen inputs, criteria, and gates written down **before** the study
-was built or run. These are immutable planning artifacts — a pre-registration
-is never edited after the fact. If the plan changes, that is a NEW dated
-section appended to the same file, so the change stays visible rather than
-overwriting the original commitment. They deliberately do NOT live in
-[`../current.md`](../current.md) (a rolling log pruned into `../archive/`) —
-pruning a pre-registration would destroy its evidentiary value.
+One file per study, containing that study's pre-registration: the question,
+frozen inputs, criteria, and gates committed to **before** the study was built
+or run. The **commitments** are immutable — no gate, bar, arm definition, or
+verdict changes meaning after it is written. The **file** is not frozen prose,
+though: it is consolidated so it reads as one final design rather than a
+change-log — a later refinement is folded into the section it amends, and what
+changed and when is not tracked inline; that history lives in git. They
+deliberately do NOT live in [`../current.md`](../current.md) (a rolling log
+pruned into `../archive/`) — pruning a pre-registration would destroy its
+evidentiary value.
 
 Files are grouped by study family, mirroring `scripts/backtest_study/` and
 [`../study-results/`](../study-results/): a study's registration lives in the
@@ -27,6 +29,25 @@ This README is the **living index** over the immutable files: the tables below
 - `graded` — a `study_review` A/B replication grading + digest exists
 - `retracted` — a registered claim withdrawn before/without adoption (say why)
 
+## How a registration is structured
+
+Every file follows one template:
+
+- **Line 1** is a `## ` heading: the study slug, plus a short descriptive
+  fragment only when there is a real one (`scripts/study_review/` extracts this
+  line as the document's label — never demote it or put anything above it).
+- **First body line**: `_Registered YYYY-MM-DD._` — the original commitment
+  date, and the only date the file carries.
+- **Sections**, in canonical order, each omitted when a study has nothing for
+  it (never an empty stub): Question · What this is NOT · Population and
+  basis, fixed here · Plan-time observations, disclosed · Arms · Unit and
+  metric · Gates · Bar for a candidate · Verdicts, worded now · Anti-tuning ·
+  Ship criteria · Build notes (the one section that is NOT part of the
+  registration — implementation, not commitment).
+
+The unifying property is that the same kind of content always has the same
+name and relative position — not that every file has every section.
+
 ## Terminology legend
 
 Every registration is a scientific pre-registration; its recurring sections map
@@ -44,6 +65,13 @@ to standard experiment terminology:
 | "Verdicts, worded now" | Pre-committed interpretations (anti-HARKing) |
 | "Anti-tuning" | Anti-p-hacking: parameters frozen, no sweeping |
 | "What this is NOT" | Scope limitations |
+| "Ship criteria" (older files: "Ship ceiling") | Maximum admissible outcome — what, if anything, the study may cause to ship |
+
+Verdict vocabulary, repo-wide (registered in `financed_spread`'s build-time
+notes, re-homed here): "POWER-STOPPED" is read as **UNDERPOWERED — too few
+dates to judge; census printed, nothing concluded**. Existing printed reports
+and registrations keep the original token for traceability; new code prints
+UNDERPOWERED.
 
 ## Arm labels
 

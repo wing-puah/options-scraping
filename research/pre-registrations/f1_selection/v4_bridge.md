@@ -1,4 +1,6 @@
-## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION (written BEFORE the run)
+## v4_bridge — v4 emission-composition bridge
+
+_Registered 2026-08-11._
 
 **Status: pre-registered, NOT run.** Everything below is fixed in advance. If
 the numbers land differently from what the operator hopes, the decision rule

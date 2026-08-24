@@ -1,6 +1,6 @@
-# macro_event_study — pre-registration
+## macro_event_study
 
-## 2026-08-19 — `macro_event_study`: PRE-REGISTRATION (written BEFORE the study was built or run)
+_Registered 2026-08-19._
 
 **Question.** Do scheduled US macro events — FOMC decisions, FOMC minutes, CPI,
 NFP, PCE — show up in this book: in the IV the plays are entered at (ARM I), in
@@ -11,7 +11,7 @@ therefore a v5 version bump with new tabs; that is explicitly deferred and no
 result here may authorise it. No pipeline column, no BaselineDaily change, no
 prompt change, no harness edit.
 
-**Data, fixed here.**
+**Population and basis, fixed here.**
 - Calendar: `config/macro-events.yml`, hand-authored from the official Fed /
   BLS / BEA schedules cited in its `meta.sources`. Five types
   (`fomc, fomc_minutes, cpi, nfp, pce`), 2023-06-01 onward, per-type
@@ -35,7 +35,7 @@ prompt change, no harness edit.
   at compile time (`meta.compiled`). A date announced after the fact would be
   a look-ahead the file cannot detect. Proximity windows are CALENDAR days.
 
-**Scoping estimate, DISCLOSED.** Before this registration was written, a
+**Plan-time observations, disclosed.** Before this registration was written, a
 read-only count was run against the v3 exports using RECALLED FOMC dates and a
 first-Friday NFP proxy. It found: 1,088 of 1,118 pooled rows have an FOMC
 decision inside `min(dte, 120)`; book dates within ±1 / ±3 / ±5 calendar days
@@ -54,7 +54,7 @@ rather than after the run:
    power-stopped, and that expectation is recorded here so a stop cannot later
    be read as a surprise, or the floor be lowered to clear it.
 
-**Hypotheses.**
+**Arms.**
 - **H1 (PRIMARY — IV, ARM I).** Entry `vrp` is higher on entry sessions within
   k days BEFORE an event than on control sessions (no event of that type
   within ±5), and lower within k days AFTER (run-up / crush). Primary metric
@@ -73,6 +73,17 @@ rather than after the run:
   day t−5..t+5 over EVERY session in the book span (~500 sessions from
   `backtests/mech_regime/spy_vix_daily_full.csv`). Index vol, not the book's
   single-name IV: CONTEXT ONLY. No verdict may rest on it.
+  - **ARM V-price (H3 extension, CONTEXT ONLY — same standing as the VIX
+    table: no verdict may rest on it).** From the same
+    `spy_vix_daily_full.csv` series and the SAME event anchors as the VIX
+    table (session 0 = the session the release lands on or first after):
+    per event-relative session t−5..t+5, mean SPY close-to-close return (%)
+    with the same by-event bootstrap CI; per type, two pre-declared
+    cumulative windows — PRE drift t−3→t0 close and POST drift t0→t+3 close
+    (the pre-FOMC-drift literature window; three sessions either side, fixed
+    here before computing). No book join, no new proximity windows, no
+    change to any gate, floor, or readable cell. The five event types and
+    the t−5..t+5 range are unchanged.
 - **H4 (exit, ARM X — DESCRIPTIVE, no verdict).** `exit_reason` mix and R for
   rows whose realized hold spans an event vs not, and exit position relative
   to the nearest event. ENDOGENOUS by construction; census only. Its sole
@@ -103,7 +114,7 @@ rather than after the run:
   "after" (the print is in the entry fill); a post-open day-0 event buckets as
   "before" (the position sits in front of it).
 
-**Verdict grammar, worded now.**
+**Verdicts, worded now.**
 - **EVENT-PRICES-IV** — H1 clears its floor, holds sign in both window cuts
   and in every year, and survives the `mech_vol` re-cut. A characterisation of
   the book, not a rule. Queues an independent-window confirmation; ships
@@ -113,64 +124,33 @@ rather than after the run:
   Census only; nothing read, nothing refuted, no verdict drawn from that arm.
 - **NULL** — cells are powered and no arm separates. The macro-event layer is
   CLOSED for this book and the live pipeline never pays the version bump.
-- **EXIT-TRIGGER (H4, conditional).** If and only if ARM X shows a monotone R
-  pattern in event position within the hold across ≥ `MIN_EVENT_DATES`
-  affected dates, a SEPARATE study `macro_event_exit` (f2_management) is
-  queued with its own pre-registration. No exit variant is replayed in THIS
-  study.
+- **EXIT-TRIGGER (H4, conditional).** ARM X's raw monotone-R-in-event-position
+  read has an obvious artifact mechanism: a hold only CONTAINS a late event if
+  the position already survived that long, so event position is mechanically
+  coupled to hold length. The trigger is therefore read only under a survival
+  control, fixed here:
+  - **X-C1 (long-hold subset):** rows whose realized hold spans >=1 event AND
+    `days_held >= 20` sessions (one trading month — long enough that
+    EARLY/MID/LATE, the first-event-position tercile, are all mechanically
+    reachable inside the hold; the boundary does not move once chosen).
+    Within that subset, recompute the EARLY/MID/LATE mean-R table.
+  - **X-C2 (within hold-length terciles):** split spanning rows by
+    `days_held` terciles (boundaries computed on the spanning population,
+    disclosed in-sample); print the 3x3 position-by-length census.
+
+  **TRIGGER STANDS** only if X-C1 is monotone in the same direction with >=
+  `MIN_EVENT_DATES` (25) affected dates — a SEPARATE study `macro_event_exit`
+  (f2_management) is queued with its own pre-registration. No exit variant is
+  replayed in THIS study.
+  **SURVIVAL-ARTIFACT** — X-C1 is non-monotone, or flat within every X-C2
+  length tercile: the trigger is reclassified as an artifact of hold length,
+  and `macro_event_exit` is NOT queued. It re-arms only if a future run fires
+  the CONTROLLED trigger (X-C1), never the raw one.
+  **POWER-STOPPED** — X-C1 has < 25 affected dates: the control is
+  unreadable, the follow-up stays queued but BLOCKED on data, and no exit
+  study may be built until the controlled read exists.
+  Everything stays census-labelled; no gate, floor, window, or readable cell
+  of ARMs I/P/V changes.
 
 A study may earn one verdict per arm (e.g. ARM I REGIME-PROXY + ARM P
 POWER-STOPPED); the catalog verdict summarises them without averaging.
-
-## 2026-08-19 — AMENDMENT 1 (after the first run): ARM V gains an SPY-PRICE companion table
-
-Written AFTER the first run and its replication review; the VIX results had
-been seen when this was added, the SPY-return numbers had NOT. Operator asked
-"how about the relationship with index price?" — the honest home for that is
-the same context arm, not a scratch read.
-
-**ARM V-price (H3 extension, CONTEXT ONLY — same standing as the VIX table:
-no verdict may rest on it).** From the same `spy_vix_daily_full.csv` series
-and the SAME event anchors as the VIX table (session 0 = the session the
-release lands on or first after):
-- per event-relative session t−5..t+5: mean SPY close-to-close return (%),
-  with the same by-event bootstrap CI;
-- per type, two pre-declared cumulative windows: PRE drift t−3→t0 close and
-  POST drift t0→t+3 close (the pre-FOMC-drift literature window; three
-  sessions either side, fixed here before computing).
-No book join, no new proximity windows, no change to any gate, floor, or
-readable cell. The five event types and the t−5..t+5 range are unchanged.
-
-## 2026-08-19 — AMENDMENT 2 (after the first run + review): survival control on the EXIT-TRIGGER
-
-Written AFTER the trigger fired and BEFORE the controlled numbers were
-computed. The fired trigger (R monotone in the FIRST event's position within
-the hold, 118 affected dates) has an obvious artifact mechanism: a hold only
-CONTAINS a late event if the position already survived that long, and event
-position is mechanically coupled to hold length. This amendment declares the
-control and the consequence, so the follow-up cannot be queued (or killed) on
-an artifact either way.
-
-**Control, fixed here.**
-- **X-C1 (long-hold subset):** rows whose realized hold spans >=1 event AND
-  `days_held >= 20` sessions. Within that subset, recompute the EARLY/MID/LATE
-  (first-event position tercile) mean-R table.
-- **X-C2 (within hold-length terciles):** split spanning rows by `days_held`
-  terciles (boundaries computed on the spanning population, disclosed
-  in-sample); print the 3x3 position-by-length census.
-- N=20 is one trading month, chosen for one reason: it is long enough that
-  EARLY/MID/LATE are all mechanically reachable inside the hold. It may not
-  move after the numbers are seen.
-
-**Consequence, worded now.**
-- **TRIGGER STANDS** only if X-C1 is monotone in the same direction with >=
-  `MIN_EVENT_DATES` (25) affected dates. `macro_event_exit` stays queued.
-- **SURVIVAL-ARTIFACT** — X-C1 is non-monotone, or flat within every X-C2
-  length tercile: the trigger is reclassified as an artifact of hold length,
-  and `macro_event_exit` is DE-QUEUED. It re-arms only if a future run fires
-  the CONTROLLED trigger (X-C1), never the raw one.
-- **POWER-STOPPED** — X-C1 has < 25 affected dates: the control is
-  unreadable, the follow-up stays queued but BLOCKED on data, and no exit
-  study may be built until the controlled read exists.
-Everything stays census-labelled; no gate, floor, window, or readable cell of
-ARMs I/P/V changes.

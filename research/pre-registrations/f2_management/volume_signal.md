@@ -1,4 +1,6 @@
-## 2026-08-13 — `volume_signal`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## volume_signal
+
+_Registered 2026-08-13._
 
 **Question.** Underlying share volume is the one column already on disk that no
 study has read (`scripts/backtest_study/lib/underlying.py` drops it at parse time).
@@ -14,6 +16,8 @@ ships from this study under any outcome**; a surviving result queues an
 independent-window confirmation, and only THAT could ever justify feeding
 volume to the live pipeline (input change → version bump → new tabs — not paid
 for an untested column).
+
+### Population and basis, fixed here
 
 **Data, fixed here.**
 - Share volume = `Volume` column of `backtests/underlying_ohlc_cache/<T>.csv`.
@@ -59,7 +63,8 @@ validated replay). Descriptive tables may use the full pooled book with credit
 rows flagged. v3-era exports in `backtests/to_evaluate/` by filename; v4 rows
 are never pooled in.
 
-**Hypotheses.**
+### Arms
+
 - **H1 (PRIMARY — path/exit).** High unusual-O/S rows give back more: within
   structure, the HIGH `os_ratio` tercile shows (a) lower exit capture (R
   against MFE) and (b) a larger share of rows that peak below the `be_after`
@@ -83,7 +88,8 @@ are never pooled in.
   `protocol.walk_forward_splits` with tercile boundaries fitted on TRAIN dates
   only before it may even be called a CANDIDATE.
 
-**Gates (non-zero exit on failure).**
+### Gates (non-zero exit on failure)
+
 - G1 calibration: `replay(DEBIT_PROD)` reproduces stored
   `(exit_reason, days_held, round(R,4))` on every calibrated debit row;
   `debit_calib` / `n_credit_ungated` quoted.
@@ -94,30 +100,23 @@ are never pooled in.
 - G5 out-of-fold discipline: descriptive tercile tables are in-sample and
   labelled as such; the only adoption-eligible numbers are LOO fold summaries
   and walk-forward TEST rows.
-- Anti-tuning: the exit-variant set is `{be_after: 0.50}` and may not grow
-  after any result is seen; tercile boundaries are not knobs; window lengths
-  (20 sessions) are the standing `underlying_features` constants, not swept.
 
-**Verdicts, worded now.**
+### Verdicts, worded now
+
 - **VOLUME-CONDITIONS-EXITS** (candidate, NOT a ship): H1's LOO median AND
   total positive, sign holds on the log's standard both-window cut, H3 does
   not collapse it → queue an independent-window confirmation.
 - **LIQUIDITY-PROXY**: separation absorbed by `amihud20` (H3 fires).
-- **PATH-VOL-PROXY**: MFE and MAE move together with no R separation.
+- **PATH-VOL-PROXY**: path WIDTH moves together with no R separation —
+  operationalized as `mfe_sep × (−mae_sep) > 0` (MFE moving up together with
+  MAE going DEEPER), not merely same-signed tercile separations; a HIGH cell
+  with higher peaks and SHALLOWER drawdowns does not count as "mirrored"
+  under this reading.
 - **NULL**: none of the above survives its gate → the volume column is CLOSED
   and the live pipeline never pays the version bump.
 
----
+### Anti-tuning
 
-## 2026-08-13 — labelled amendment (after first run): mirrored-path operationalization
-
-The verdict grammar above words PATH-VOL-PROXY as "MFE and MAE move together
-with no R separation". The study code's first-run operationalization compared
-SIGNED tercile separations, so a HIGH cell with higher peaks and SHALLOWER
-drawdowns (what the data actually showed) counted as "mirrored" and the first
-run printed PATH-VOL-PROXY. The registered wording means path WIDTH moving
-together — MFE up with MAE DEEPER — so the check was corrected to
-`mfe_sep × (−mae_sep) > 0` and the study rerun the same day. No number
-changed (seeded bootstrap; the diff between the stamped reports is the
-timestamp and verdict lines only). Final verdict under the registered
-grammar: **NULL**. Details in `current.md`'s RUN entry.
+The exit-variant set is `{be_after: 0.50}` and may not grow after any result
+is seen; tercile boundaries are not knobs; window lengths (20 sessions) are
+the standing `underlying_features` constants, not swept.

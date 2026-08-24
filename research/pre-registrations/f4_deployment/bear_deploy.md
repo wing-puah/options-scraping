@@ -1,4 +1,4 @@
-## bear_deploy — original D-rules (2026-08-11) + v4 re-read registration (2026-08-24)
+## bear_deploy — original D-rules (2026-08-11, quoted from research/ml-plan.md §addendum 2) + v4 re-read (registered 2026-08-24)
 
 Module: `scripts/backtest_study/f4_deployment/bear_deploy.py`. The study's
 original pre-registration is `research/ml-plan.md` §addendum 2 (2026-08-11,

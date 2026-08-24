@@ -2829,3 +2829,28 @@ than label prettiness, and the actual need was lookup speed, not new names.
    pointer, and the `CLAUDE.md` `research/` row — none mention any lookup
    tooling; the index is for reading, and the reader's surfaces are
    `site/study-map.html` and `research/`.
+
+## 2026-08-24 — Pre-registrations consolidated to one template; study_review dry-run clobbered two reviews' artifacts
+
+All 14 files under `research/pre-registrations/` reformatted to a single
+template (editorial only — no gate, bar, arm, or verdict changed meaning):
+`## <slug>` heading + `_Registered <date>._` line, canonical section names,
+and every dated AMENDMENT / wording-correction section folded into the section
+it amends (superseded rules removed as live text; git history carries what
+changed and when). README gained the template spec + two legend rows
+(Ship criteria; POWER-STOPPED→UNDERPOWERED, re-homed from financed_spread);
+CLAUDE.md's immutability sentence now reads commitments-immutable /
+file-consolidatable. `load_pre_registration` verified on the amended studies;
+the macro_event_study and rollback_triggers filename-fallback extractions are
+incidentally fixed.
+
+INCIDENT: the verification step `study_review <s> --skip-run --dry-run`
+OVERWRITES the `-review-*/-digest-latest.md` artifacts with 51-byte
+placeholders (--dry-run does not guard those writes). Recovered byte-exact
+from session transcripts: `financed_spread-digest-latest.md`,
+`macro_event_study-review-validator-latest.md`. LOST (now carrying dated
+loss notes in place): financed_spread analysts A/B + validator,
+macro_event_study analysts A/B + digest. Verdicts survive in this log's
+2026-08-19 disagreement-log entry (all ACCEPTED as written); reports intact.
+Follow-up candidates: make --dry-run write to a scratch stem, and regrade via
+`study_review <s> --skip-run` only if the full artifacts are wanted again.

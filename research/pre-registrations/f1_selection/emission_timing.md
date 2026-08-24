@@ -1,4 +1,6 @@
-## 2026-08-19 — `emission_timing`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## emission_timing
+
+_Registered 2026-08-19._
 
 **Admissibility, stated FIRST.** Selection is CLOSED in this repo — structure ×
 regime × entry geometry settled, `score_total` decision-irrelevant, the ML
@@ -56,8 +58,11 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
   and a repeat emission.** The estimand is the paired **Δ(mean R), repeat minus
   first, computed inside each date**, aggregated by `boot_ci_paired_by_date`.
 - **Frozen sub-cuts, declared now:**
-  1. **consecutive-date repeats** (disclosed plan-time count: **150 rows**)
-     vs **gapped** repeats — a repeat the next session is a different object
+  1. **consecutive-date repeats** — frozen definition: "previous emission fell
+     on the immediately preceding date present in the era book" (the book is
+     the session calendar; the repo has no holiday calendar) — **151 rows**
+     (the stricter calendar-next-weekday diagnostic, 106, prints alongside)
+     — vs **gapped** repeats: a repeat the next session is a different object
      from a repeat three weeks later;
   2. repeats split by whether the **underlying had already moved the play's way**
      since the first emission (`underlying.load_bars`; SRC_OHLC / SRC_TILDE split
@@ -68,11 +73,17 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
 
 ### ARM L — signal-to-fill lag
 
-- A synthetic `Trade` is constructed per lag **L ∈ {0, 1, 2, 3}**:
-  `signal_date` ← `grid[L]`; entry ← `marks[L]`; `dte` reduced by the elapsed
-  sessions; `daily_price_csv` ← `marks[L:]`, **right-padded with blanks** to the
-  recomputed grid length; contracts **re-sized by the production formula** at the
-  lagged entry price.
+- A synthetic `Trade` is constructed per lag **L ∈ {0, 1, 2, 3}**, anchored at
+  `grid[L-1]` (the harness grid is weekdays AFTER `signal_date`, so `grid[0]`
+  is already the fill session; anchoring at `grid[L-1]` — the ORIGINAL
+  `signal_date` at L=0 — lines up `entry ← marks[L]`,
+  `daily_price_csv ← marks[L:]`, and the padding, and makes L=0 reproduce the
+  stored trade exactly except for the fill price, which is what "L=0 is the
+  baseline" requires): `signal_date` ← `grid[L-1]`; entry ← `marks[L]`;
+  `dte_entry` reduced by the calendar days the anchor moved (0 at L=0);
+  `daily_price_csv` ← `marks[L:]`, **right-padded with blanks** to the
+  recomputed grid length; contracts **re-sized by the production formula** at
+  the lagged entry price. Pinned by tests.
 - **The padding decision is registered, with its measurement (disclosed):
   262 / 795 rows are 120-day cap-truncated.** Right-padding is
   behaviour-neutral — the shipped profiles cannot fire on a blank mark — whereas
@@ -91,13 +102,18 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
   study may be read as evidence about intraday entry timing.
 - Coverage (disclosed plan-time measurement): **794 / 795 rows price at lag 1;
   795 / 795 at lags 2 and 3.**
+- **Degenerate entries.** Lag priceability excludes `marks[L] == 0.0` (R
+  denominator explosion) in addition to `None` — 5 rows, counted as
+  `degenerate_zero_entry`, never silently dropped.
 
 ### Conditioning — the pre-signal price_vector
 
 - The lag ladder is ALSO reported **within pre-signal `price_vector`
-  terciles**. Plan-time measurement (disclosed): **785 / 795 rows populated**;
-  the **10 missing rows are their own cell**, reported, never imputed and never
-  folded into a tercile.
+  terciles**. The disclosed plan-time 785/795 measured JOIN failure only (10
+  rows); a further 63 rows join but carry a blank `price_vector` cell, so the
+  true conditioned population is **722 / 795 rows populated**. All 73 form
+  the **MISSING cell**, reported, never imputed and never folded into a
+  tercile — it power-stops at 16 dates.
 - Terciles are cut on the **FULL book** and **FROZEN** before any lag result is
   read — not re-cut per lag, which would make the cells move under the
   comparison.
@@ -191,35 +207,8 @@ annualised figure, Sharpe, or time-to-recover anywhere.
   `research/study-map.md` prose mention (test-enforced).
 - Every report prints `debit_calib`, `n_credit_ungated` and the credit-ungated
   caveat.
-
-### Wording corrections (2026-08-19, at build time — labelled, not a re-registration)
-
-Four statements the build exposed as imprecise, corrected BEFORE the study has
-run; no threshold, arm, or criterion changed.
-
-1. **ARM L anchoring.** "signal_date ← grid[L]" is off by one: the harness grid
-   is weekdays AFTER signal_date, so grid[0] is already the fill session.
-   Anchoring at grid[L] would desynchronise marks and grid on every
-   non-truncated row (a G1 construction failure by design). The synthetic is
-   anchored at grid[L-1] (the ORIGINAL signal_date at L=0), which lines up
-   entry ← marks[L], daily_price_csv ← marks[L:], and the padding — and makes
-   L=0 reproduce the stored trade exactly except for the fill price, which is
-   what "L=0 is the baseline" requires. dte_entry is reduced by the calendar
-   days the anchor moved (0 at L=0). Pinned by tests.
-2. **price_vector coverage.** The disclosed 785/795 measured JOIN failure only
-   (10 rows). A further 63 rows join but carry a blank price_vector cell, so
-   the true conditioned population is 722/795; all 73 form the MISSING cell
-   (its own printed cell, never imputed), which power-stops at 16 dates.
-3. **Consecutive repeats.** Disclosed as 150; the frozen definition —
-   "previous emission fell on the immediately preceding date present in the
-   era book" (the book is the session calendar; the repo has no holiday
-   calendar) — counts 151. The stricter calendar-next-weekday diagnostic (106)
-   prints alongside.
-4. **Degenerate entries.** Lag priceability excludes marks[L] == 0.0 (R
-   denominator explosion) in addition to None — 5 rows, counted as
-   `degenerate_zero_entry`, never silently dropped.
-
-Sizing note recorded for the grader: contracts are re-sized by the production
-formula at EVERY lag including L=0, because the harness dollar_stop fires on a
-contract-dependent dollar threshold — holding the stored count would drift the
-stop's effective R with the lag and make the ladder a sizing artifact.
+- Sizing note recorded for the grader: contracts are re-sized by the
+  production formula at EVERY lag including L=0, because the harness
+  `dollar_stop` fires on a contract-dependent dollar threshold — holding the
+  stored count would drift the stop's effective R with the lag and make the
+  ladder a sizing artifact.

@@ -1,4 +1,6 @@
-## 2026-08-19 — `portfolio_delta`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## portfolio_delta
+
+_Registered 2026-08-19._
 
 **Why this is a NEW study and not an `account_sim` arm.** Three reasons, all
 structural. (1) `account_sim`'s registration contains an explicit firewall —
@@ -95,24 +97,6 @@ as within-date paired differences vs the shipped walk (`boot_ci_paired_by_date`,
 **R is what is quoted**, because every arm that changes admission or sizing
 changes composition.
 
-### THE FIREWALL — verbatim discipline, imported from `account_sim`
-
-**No band value, ceiling value or delta target may be adopted, recommended, or
-carried into a conclusion on the basis of its P&L.** The grid is monotone by
-construction in the same way `account_sim`'s cap grid is, and reading a winner
-off it would be reading the construction.
-
-The ONLY admissible readings from this study are:
-
-1. **ARM D's dose-response SHAPE** — is the relationship between open-book delta
-   and the outcome of positions opened at that level monotone, flat, or
-   non-monotone;
-2. **whether any arm exceeds ARM N's 95th percentile** — a binary, not a ranking;
-3. **the inventory census** — what the book actually is, and what it can and
-   cannot be moved to.
-
-Anything else in the output is descriptive and is labelled NOT A CRITERION.
-
 ### Gates (non-zero exit on failure, in order)
 
 - **G-DELTA — source gate.** The row's stored signed net `delta` is PRIMARY, and
@@ -172,6 +156,39 @@ independent window — **nothing ships from this study under any outcome.**
 - **POWER-STOPPED** — G-INVENTORY fails for an arm → census published for it,
   nothing read, no re-run on these dates.
 
+The registered labels leave one combination unnamed: an arm that clears
+criterion (7) (beats ARM N's 95th percentile) while failing the rest of the
+conjunction matches none of the four labels above. Per the account_sim
+2026-08-14 lesson (fix the grammar BEFORE a run, never after a number), that
+case resolves to **NOISE with a printed QUALIFICATION block naming the
+arms**, rather than a fifth label. No criterion or threshold moves as a
+result.
+
+Also recorded: the disclosed per-date net-delta figures (median 0.33, max
+1.17) were measured on THAT DAY'S PICKS at 1 contract; the study's
+G-INVENTORY census measures the OPEN BOOK at session open under production
+sizing (median +1.70, max +2.49 on the primary population). Different
+quantities by definition, both printed with their definitions; the long-only
+fact (0 net-short sessions) holds under both.
+
+### THE FIREWALL — verbatim discipline, imported from `account_sim`
+
+**No band value, ceiling value or delta target may be adopted, recommended, or
+carried into a conclusion on the basis of its P&L.** The grid is monotone by
+construction in the same way `account_sim`'s cap grid is, and reading a winner
+off it would be reading the construction.
+
+The ONLY admissible readings from this study are:
+
+1. **ARM D's dose-response SHAPE** — is the relationship between open-book delta
+   and the outcome of positions opened at that level monotone, flat, or
+   non-monotone;
+2. **whether any arm exceeds ARM N's 95th percentile** — a binary, not a ranking;
+3. **the inventory census** — what the book actually is, and what it can and
+   cannot be moved to.
+
+Anything else in the output is descriptive and is labelled NOT A CRITERION.
+
 ### Anti-tuning
 
 Bands frozen at four, ceilings at five, targets at three, ARM N at 200 seeded
@@ -204,20 +221,3 @@ if the numbers look good.
 - `lib/harness.py` untouched. A `scripts/study_map/catalog.py` entry with a
   hand-written VERDICT is REQUIRED (a study with no entry fails the test suite),
   plus a `research/study-map.md` prose mention (test-enforced).
-
-### Verdict-grammar note (2026-08-19, at build time — labelled, not a re-registration)
-
-The registered labels leave one combination unnamed: an arm that clears
-criterion (7) (beats ARM N's 95th percentile) while failing the rest of the
-conjunction matches none of NOISE / DELTA-DOSE-RESPONSE /
-LONG-ONLY-BY-CONSTRUCTION / POWER-STOPPED. Per the account_sim 2026-08-14
-lesson (fix the grammar BEFORE a run, never after a number), the build assigns
-that case to **NOISE with a printed QUALIFICATION block naming the arms**,
-rather than inventing a fifth label. No criterion or threshold changed.
-
-Also recorded: the disclosed per-date net-delta figures (median 0.33, max
-1.17) were measured on THAT DAY'S PICKS at 1 contract; the study's
-G-INVENTORY census measures the OPEN BOOK at session open under production
-sizing (median +1.70, max +2.49 on the primary population). Different
-quantities by definition, both printed with their definitions; the long-only
-fact (0 net-short sessions) holds under both.

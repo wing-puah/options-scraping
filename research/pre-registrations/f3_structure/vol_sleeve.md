@@ -1,4 +1,6 @@
-## 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION (written BEFORE the run)
+## vol_sleeve
+
+_Registered 2026-08-12._
 
 **Operator framing**, carried over from the `bear_rewrap` entry: *"bearish or
 volatility plays should be added to diversify."* The bear arm answered its half

@@ -1,4 +1,6 @@
-## 2026-08-19 — `financed_spread`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## financed_spread
+
+_Registered 2026-08-19._
 
 **Question.** Holding the signal, the entry day and the exit rules fixed, does
 wrapping a book debit vertical in a FINANCING credit position improve the
@@ -32,7 +34,9 @@ not a diversifier, and is recorded as such regardless of its ΔR (E3).
   ALL legs, financing legs included, are cached). Baseline and financed variant
   fill on the SAME day or the row is excluded and counted.
 
-### Arms — four shapes × two strike offsets, frozen, no additions
+### Arms
+
+**F0–F3 — four shapes × two strike offsets, frozen, no additions.**
 
 For a bull_call debit (mirror for bear_put): "beyond the outer strike, OTM
 direction" = calls ABOVE the highest leg strike; "the other side of spot" =
@@ -53,7 +57,80 @@ F0 is registered as the machinery pilot: it is buildable on essentially the
 whole population before any scrape, it collapses algebraically to a
 doubled-delta synthetic forward capped at ±(K2−K1), and it is a legitimate
 answer to "same-direction financing." F0 runs FIRST; its report is published
-whether or not the scrape ever completes.
+whether or not the scrape ever completes. F0 sits at the debit's OWN strikes,
+so its offset axis is degenerate: four shapes × two strike offsets yields SEVEN
+cells, not eight — F0 is one cell, printed as `F0 own` in the G0 table.
+
+**F4 — diagonal financing (registered 2026-08-19, after the F0–F3 run and
+before F4 was built or run).**
+
+The 2026-08-19 run returned NULL on all seven same-expiry strike-offset cells
+and closed them. The operator's intended financing is a DIFFERENT structure the
+original arms never priced, registered here as a new commitment (the
+macro_event_study precedent): a SHORT-DATED, DELTA-TARGETED naked
+short leg — premium sold "not to be reached", expiring while the debit thesis
+is still developing. Nothing in this arm reopens F0–F3 on these dates.
+
+**F4 construction, frozen:**
+- One short leg, the debit's own option type, ALWAYS strictly beyond the
+  debit's furthest OTM leg (calls above the highest strike for a bull_call;
+  puts below the lowest for a bear_put).
+- **Expiry:** the nearest expiry in the ticker's cached expiry set that is
+  ≥ 7 calendar days after entry AND ≤ ½ of the debit's DTE at entry. No expiry
+  in that window → row excluded and counted (`no_near_expiry`).
+- **Delta target, two cells:** |Δ| ∈ {0.10, 0.20} (F4-d10, F4-d20), measured
+  from the scraped entry-day Delta. Candidate strikes = the 4 nearest
+  cached-ladder strikes strictly beyond the outer leg (never an invented
+  strike), scraped at the chosen near expiry; the pick is the candidate whose
+  entry-day |Δ| is closest to target. Closest candidate off-target by > 0.10
+  in |Δ| → row excluded and counted (`target_unreachable`).
+- **Single tranche:** sold once at entry; after the near expiry the position
+  is the plain debit. No roll. A rolling campaign is a separate future
+  registration.
+- **Sizing/exits:** as the original registration — production sizing (naked
+  short ⇒ the 1-contract unbounded convention), exits by sign of the synthetic
+  net, `--fixed-contracts` control printed. The single-expiry
+  `_defined_risk_bounds` clamp is INAPPLICABLE to a two-expiry synthetic; F4
+  marks are clamped only on the post-near-expiry segment (where the position
+  is the plain debit again) — G2's F4 clause is "unclamped while the short
+  leg lives", with the segment boundary printed.
+- **Gates and criteria:** identical to the original registration — G0 floor
+  ≥25 dates / ≥60 rows per cell, G1 reconstruction on the baseline, G3 sizing
+  census, E1/E2/E3 exposure reads (E1 geometry check for F4: |net delta| must
+  DECREASE), and the same 7-part conjunction including E3 ≤ 0.
+- **Scrape:** a new category in fetch_financing_legs.py's manifest
+  (`fin_diag_<type>`), same resumable semantics; the target census prints in
+  --dry-run before any fetch.
+
+**F4 management (applies to the mgmt cells).** Operator's actual practice,
+registered verbatim before any F4 number exists: the financing leg is NOT held
+to expiry — it is bought back once it has earned 50% of the credit, "or at
+least $100", and stopped at 2× credit against.
+- **Profit take, two parallel trigger bases** (the staged_exit twin-cut
+  precedent; neither has precedence, both report side by side):
+  `mgmt-pt50` — buy back at the first session whose mark ≤ 0.5 × entry credit;
+  `mgmt-$100` — buy back at the first session where (credit − mark) × 100 ×
+  contracts ≥ $100 for the tranche (at the simulated contract count; under the
+  1-contract naked convention this is per-contract).
+- **Loss stop, both mgmt bases:** buy back at the first session whose mark ≥
+  2 × entry credit.
+- **Residual:** a leg still open at its near expiry is bought back at its
+  LAST REAL MARK — never dropped to zero. This is the operative residual
+  costing for ALL F4 cells, INCLUDING the hold-to-expiry comparison cells (the
+  smoke sample carried 5/18 rows > $0.05 into the near expiry). A
+  forgiven-value count — what those residuals would cost if they were instead
+  dropped to zero — still prints as a COMPARISON figure only; it is not a
+  costing rule.
+- All triggers evaluate on the leg's own cached daily marks; a missing mark on
+  a trigger day defers to the next priced session (the harness carry
+  convention). After any buyback the position is the plain debit.
+
+**F4 cells:** {d10, d20} × {mgmt-pt50, mgmt-$100, hold} = six cells, same
+underlying rows (no power cost per cell). Gates, E-reads, and the 7-part
+conjunction are unchanged; the hold cells serve to attribute any effect to the
+management rule vs the structure. No trigger value may be tuned after a number
+is seen; 0.50, $100, and 2× are the operator's stated practice and are frozen
+here.
 
 ### Pricing, sizing, exits — pinned
 
@@ -108,13 +185,18 @@ NOTE); $ prints only inside the sizing census.
 - **G1 — reconstruction.** `reconstructs()` on every candidate row (entry
   ±$0.005, per-day mark ±$0.01, ≥95% of priced days agree). Failures excluded
   from every cell and counted by reason; pass rate quoted.
-- **G2 — clamp attribution.** F2 must be 100% UNclamped (`_defined_risk_bounds`
-  → None on a naked short); F0/F1/F3 must be ~100% clamped. A mismatch means
-  the leg set is wrong and fails the run.
+- **G2 — clamp attribution.** F2's "100% UNclamped" requirement
+  (`_defined_risk_bounds` → None on a naked short) is evaluated on the
+  naked-short-CALL subset: a naked short PUT (F2 on a bear_put base) is
+  structurally bounded at S=0, so the clamp there is correct geometry, not a
+  wrong leg set, and the put-side clamp count prints beside it with this
+  reason stated. Build smoke check: 0 clamped calls on the sampled rows (PASS
+  as corrected). F0/F1/F3 must be ~100% clamped. A mismatch means the leg set
+  is wrong and fails the run.
 - **G3 — sizing census.** Contract-count distribution per shape; count of rows
   at the 1-contract unbounded fallback.
 
-### Bar to call a shape a CANDIDATE — the full conjunction
+### Bar for a candidate — the full conjunction
 
 1. paired ΔR > 0, date-clustered bootstrap CI (BOOT_N=10000) excluding zero;
 2. **every** LOO fold positive (read `min_gain`);
@@ -144,8 +226,14 @@ and are marked NOT A CRITERION — 118 dates cannot power a worst-decile read
 Shapes frozen at four, offsets at two. Exit profiles, sizing formula, caps and
 the candidate population are NOT swept. Every shape × offset cell is reported
 regardless of outcome. The scrape target derivation (2 strikes beyond each
-side, observed ladder only) is fixed before any fetch; plan-time census
-(disclosed): 2,522 target contracts, 925 already cached, 1,597 to fetch.
+side, observed ladder only) is fixed before any fetch. The plan-time census
+(disclosed) estimated 2,522 target contracts, 925 already cached, 1,597 to
+fetch; that figure exceeded the rule's own 4-per-group cap and was an estimate
+by a looser derivation. The RULE (the 2 nearest cached-ladder strikes strictly
+beyond each side) is what was registered and is what the collector implements,
+and the collector's implemented target-derivation census reads **1,775 targets
+/ 607 cached / 1,168 missing** (93 tickers, 462 groups). No target was added or
+removed after any outcome was seen.
 
 ### Build notes (not part of the registration)
 
@@ -160,127 +248,18 @@ side, observed ladder only) is fixed before any fetch; plan-time census
   the cache; missing leg → None, never 0) serves E1/E2 here and G-DELTA in
   `portfolio_delta`.
 - `harness.py` untouched. Catalog + study-map entries required.
-
-### Wording corrections (2026-08-19, at build time — labelled, not a re-registration)
-
-Two registration bugs the build exposed, in the `selection_order` §Wording-
-correction tradition: each is a statement the geometry makes unsatisfiable as
-written, corrected here BEFORE the study has run, with no threshold, criterion,
-or arm changed.
-
-1. **G2 on F2.** "F2 must be 100% UNclamped" is true only of a naked short
-   CALL (bull_call base). A naked short PUT (F2 on a bear_put base) is
-   structurally bounded at S=0, so `_defined_risk_bounds` correctly clamps it —
-   geometry, not a wrong leg set. G2's F2 clause is evaluated on the
-   naked-short-CALL subset; the put-side clamp count prints beside it with this
-   reason stated. Build smoke check: 0 clamped calls on the sampled rows (PASS
-   as corrected).
-2. **F0's offset axis is degenerate.** F0 sits at the debit's OWN strikes, so
-   "four shapes × two strike offsets" yields seven cells, not eight — F0 is one
-   cell. The G0 table prints it as `F0 own`.
-
-Also recorded here for the census trail: the collector's implemented
-target-derivation census reads **1,775 targets / 607 cached / 1,168 missing**
-(93 tickers, 462 groups) against the plan-time estimate of 2,522/925/1,597.
-The plan-time figure exceeded the rule's own 4-per-group cap and was an
-estimate by a looser derivation; the RULE (2 nearest cached-ladder strikes
-strictly beyond each side) is what was registered and is what the collector
-implements. No target was added or removed after any outcome was seen.
-
-## 2026-08-19 — AMENDMENT 1: ARM F4, diagonal financing (dated pre-registration,
-## written AFTER the F0–F3 run and BEFORE F4 is built or run)
-
-The 2026-08-19 run returned NULL on all seven same-expiry strike-offset cells
-and closed them. The operator's intended financing is a DIFFERENT structure the
-original arms never priced, registered here as a new commitment (the
-macro_event_study amendment precedent): a SHORT-DATED, DELTA-TARGETED naked
-short leg — premium sold "not to be reached", expiring while the debit thesis
-is still developing. Nothing in this amendment reopens F0–F3 on these dates.
-
-**F4 construction, frozen:**
-- One short leg, the debit's own option type, ALWAYS strictly beyond the
-  debit's furthest OTM leg (calls above the highest strike for a bull_call;
-  puts below the lowest for a bear_put).
-- **Expiry:** the nearest expiry in the ticker's cached expiry set that is
-  ≥ 7 calendar days after entry AND ≤ ½ of the debit's DTE at entry. No expiry
-  in that window → row excluded and counted (`no_near_expiry`).
-- **Delta target, two cells:** |Δ| ∈ {0.10, 0.20} (F4-d10, F4-d20), measured
-  from the scraped entry-day Delta. Candidate strikes = the 4 nearest
-  cached-ladder strikes strictly beyond the outer leg (never an invented
-  strike), scraped at the chosen near expiry; the pick is the candidate whose
-  entry-day |Δ| is closest to target. Closest candidate off-target by > 0.10
-  in |Δ| → row excluded and counted (`target_unreachable`).
-- **Single tranche:** sold once at entry; after the near expiry the position
-  is the plain debit (the short leg's mark contribution ends at its own
-  expiry). No roll. A rolling campaign is a separate future registration.
-- **Sizing/exits:** as the original registration — production sizing (naked
-  short ⇒ the 1-contract unbounded convention), exits by sign of the synthetic
-  net, `--fixed-contracts` control printed. The single-expiry
-  `_defined_risk_bounds` clamp is INAPPLICABLE to a two-expiry synthetic; F4
-  marks are clamped only on the post-near-expiry segment (where the position
-  is the plain debit again) — G2's F4 clause is "unclamped while the short
-  leg lives", with the segment boundary printed.
-- **Gates and criteria:** identical to the original registration — G0 floor
-  ≥25 dates / ≥60 rows per cell, G1 reconstruction on the baseline, G3 sizing
-  census, E1/E2/E3 exposure reads (E1 geometry check for F4: |net delta| must
-  DECREASE), and the same 7-part conjunction including E3 ≤ 0.
-- **Scrape:** a new category in fetch_financing_legs.py's manifest
-  (`fin_diag_<type>`), same resumable semantics; the target census prints in
-  --dry-run before any fetch.
-
-**Terminology note (applies to all future write-ups and new code):**
-"POWER-STOPPED" is hereby read as **UNDERPOWERED — too few dates to judge;
-census printed, nothing concluded**. Existing printed reports and the
-registrations above keep the original token for traceability; new code prints
-UNDERPOWERED.
-
-## 2026-08-19 — AMENDMENT 2: F4 management cells (dated pre-registration, written
-## BEFORE the F4 scrape and BEFORE any F4 cell has run)
-
-Operator's actual practice, registered verbatim before any F4 number exists:
-the financing leg is NOT held to expiry — it is bought back once it has earned
-50% of the credit, "or at least $100", and stopped at 2× credit against.
-
-**F4 management (applies to the new mgmt cells):**
-- **Profit take, two parallel trigger bases** (the staged_exit twin-cut
-  precedent; neither has precedence, both report side by side):
-  `mgmt-pt50` — buy back at the first session whose mark ≤ 0.5 × entry credit;
-  `mgmt-$100` — buy back at the first session where (credit − mark) × 100 ×
-  contracts ≥ $100 for the tranche (at the simulated contract count; under the
-  1-contract naked convention this is per-contract).
-- **Loss stop, both mgmt bases:** buy back at the first session whose mark ≥
-  2 × entry credit.
-- **Residual:** a leg still open at its near expiry is bought back at its
-  LAST REAL MARK — never dropped to zero. This costing change applies to ALL
-  F4 cells INCLUDING the hold-to-expiry comparison cells, superseding
-  amendment 1's drop-to-zero (which forgave assignment; the smoke sample
-  carried 5/18 rows > $0.05 into the near expiry). The forgiven-value count
-  still prints for comparability with the amendment-1 wording.
-- All triggers evaluate on the leg's own cached daily marks; a missing mark on
-  a trigger day defers to the next priced session (the harness carry
-  convention). After any buyback the position is the plain debit.
-
-**Cells:** {d10, d20} × {mgmt-pt50, mgmt-$100, hold} = six cells, same
-underlying rows (no power cost per cell). Gates, E-reads, and the 7-part
-conjunction are unchanged from the original registration and amendment 1; the
-hold cells serve to attribute any effect to the management rule vs the
-structure. No trigger value may be tuned after a number is seen; 0.50, $100,
-and 2× are the operator's stated practice and are frozen here.
-
-### Build notes to amendment 2 (2026-08-19 — labelled, not part of the registration)
-
 - **Zero-greek sentinel guard.** Barchart writes sessions whose IV and every
   greek are literally 0 while the mark is real; read literally, a deep-ITM put
   quoted "0.00 delta" and sat inside the d10 tolerance. The candidate picker
   skips rows quoting no IV (`skip_greeks_absent`, counted on the page), and
   `lib/greeks.py` now returns None on such rows (regression-tested) — the
-  None-never-0 invariant applied to the greek block. Amendment-1 smoke counts
-  predate this guard.
+  None-never-0 invariant applied to the greek block. The earlier F4 smoke
+  counts predate this guard.
 - **Trigger scan starts the session AFTER the fill** — a trigger on the fill
   session would read an Open-vs-mark spread rather than decay. Build decision,
   stated on the page and pinned by a test.
 - Known residual caveats, printed per cell: a stale last real mark on an
-  illiquid leg is the buyback price the amendment's wording implies (not a
+  illiquid leg is the buyback price the registered wording implies (not a
   price the market printed at expiry); a near expiry beyond the debit's
   120-day path cap leaves the leg open for the whole path
   (`open_at_grid_end`, 0 rows on the smoke sample); mean vs MEDIAN buyback

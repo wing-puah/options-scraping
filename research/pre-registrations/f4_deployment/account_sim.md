@@ -1,4 +1,6 @@
-## 2026-08-13 — `account_sim`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## account_sim
+
+_Registered 2026-08-13._
 
 **Question.** Does the shipped ladder's paper edge survive a **$25,000** account
 with real opening constraints? This is a FEASIBILITY study, not an edge search.
@@ -8,7 +10,7 @@ shipped profiles via `bear_giveback.prod_profile_for`). No column may be added
 to selection and no exit knob may be moved. The only new machinery is an
 account ledger. **Nothing ships from this study under any outcome.**
 
-**Plan-time observations (disclosed).** These distributions were measured on the
+**Plan-time observations, disclosed.** These distributions were measured on the
 pooled book (795 rows real+tweak, 08-11 exports) while DESIGNING this study; the
 cap values below are informed by them and that is stated rather than hidden.
 Ladder picks: 220 over 90 dates (218 with usable max_loss). At $25k / 2%
@@ -21,7 +23,7 @@ added. Reserved-capital/equity: median 0.27, p90 0.83, max 1.80. Concurrent
 open positions: median 8, p90 29, max 48. The 118 signal dates cluster hard
 (2026-03: 124 rows; nine months have ≤4 dates) — not a trading calendar.
 
-**Constants, fixed here.**
+**Population and basis, fixed here.**
 - `STARTING_CAPITAL = 25_000`, fixed base (matching production's fixed
   `portfolio_value`); a compounding-equity run is a labelled sensitivity only.
 - `RISK_PER_TRADE_PCT = 0.02` → $500; `contracts = max(1, int(500 /
@@ -61,7 +63,7 @@ open positions: median 8, p90 29, max 48. The 118 signal dates cluster hard
 - ARM H: the SHIPPED bear hedge sleeve (1/day, `|delta|` descending, ≤½ size)
   added to the constrained run — the only way net-vs-gross becomes measurable.
 
-**Cap grid, and the anti-tuning rule.** Per-position ∈ {0.15, 0.25, 0.40, ∞} ×
+**Anti-tuning.** Per-position ∈ {0.15, 0.25, 0.40, ∞} ×
 net ∈ {1.00, 1.50, 2.50, ∞}. The HEADLINE is the single pre-registered
 (0.25, 1.50) cell, quoted first and alone. **No cap value may be adopted,
 recommended, or carried into a conclusion on the basis of its P&L in this
@@ -81,7 +83,7 @@ report printed on the same exports (**220 positions / 90 dates / $63,553**).
 B2 = same ladder, unconstrained, $25k max-loss sizing. B1→B2 isolates
 granularity; B2→constrained isolates the caps.
 
-**Criteria.**
+**Bar for a candidate.**
 - A1 EDGE SURVIVAL — constrained mean R over taken positions > 0, 95%
   date-clustered CI excluding zero, positive every year present.
 - A2 ATTRITION — constrained total $ ≥ 60% of B2 on the same dates.
@@ -95,12 +97,6 @@ granularity; B2→constrained isolates the caps.
 - A6 CREDIT SENSITIVITY — A1 must also hold on the debit-only subset (credit
   rows are admitted ungated by `book.py`).
 
-**Verdicts, worded now.** FEASIBLE = A1∧A2∧A3∧A5∧A6. FEASIBLE-BUT-DEGRADED =
-A1∧A3 with A2 failing. NOT FEASIBLE AT $25k = A1 fails. On NOT FEASIBLE, and
-only after the primary verdict prints, the report prints the smallest capital
-in {25k, 35k, 50k} at which A1∧A2 pass — an operator note under the same
-anti-tuning rule.
-
 **Gates (non-zero exit on failure).** G1 book calibration quoted
 (`debit_calib`, `n_credit_ungated`). G2 replay identity: every deployed pick
 re-replayed at stored contracts, scale=1, must match stored
@@ -108,3 +104,9 @@ re-replayed at stored contracts, scale=1, must match stored
 self-check: at every session `cash + Σreserved == 25,000 + Σrealized-to-date`.
 G4 selection identity: the unconstrained pick set equals `top_k_per_day(...)`
 by set equality (proves no silent re-selection).
+
+**Verdicts, worded now.** FEASIBLE = A1∧A2∧A3∧A5∧A6. FEASIBLE-BUT-DEGRADED =
+A1∧A3 with A2 failing. NOT FEASIBLE AT $25k = A1 fails. On NOT FEASIBLE, and
+only after the primary verdict prints, the report prints the smallest capital
+in {25k, 35k, 50k} at which A1∧A2 pass — an operator note under the same
+anti-tuning rule.

@@ -1,4 +1,6 @@
-## 2026-08-22 — `concurrency_correlation`: PRE-REGISTRATION (written BEFORE the study was built or run)
+## concurrency_correlation
+
+_Registered 2026-08-22._
 
 **Question.** Does the SIZE and INTERNAL SIMILARITY of the open book degrade
 per-position outcome, independently of which plays were selected? Two effects,
@@ -28,7 +30,7 @@ against each other.
 
 ---
 
-### Plan-time observations (disclosed)
+### Plan-time observations, disclosed
 
 Measured on 2026-08-22 while designing this study. The arms and grids below are
 informed by them and that is stated rather than hidden. Nothing here is a
@@ -100,7 +102,7 @@ delta ceiling, that is a null result, not a finding.**
 
 ---
 
-### Constants, fixed here
+### Population and basis, fixed here
 
 - **Population.** The pooled book from `lib/book.py::load_book()`, era-scoped
   (`lib/era.py`), `include_bs=False`. PRIMARY = dense episodes
@@ -150,7 +152,7 @@ delta ceiling, that is a null result, not a finding.**
   criteria independently. A conjunction that clears while neither component
   does is a fitting artefact and is refused.
 
-### Criteria (all must hold; a failure is a failure, not a footnote)
+### Bar for a candidate (all must hold; a failure is a failure, not a footnote)
 
 - **X1 POWER FLOOR.** An arm is read only if it changes ≥ 25 dates and ≥
   `MIN_N_TO_READ` positions. Below either, the arm prints **UNDERPOWERED** —
@@ -211,7 +213,7 @@ monotonicity, and the grid is a shape, not a menu.
   prose is computed from the run. A measured quantity frozen into a string
   literal FAILS review.
 
-### What this study cannot answer
+### What this is NOT
 
 The picks displaced by the 3/day cap carry no counterfactual in `account_sim`
 (`day3_cap skips carry no counterfactual replay`). This study sidesteps that by
