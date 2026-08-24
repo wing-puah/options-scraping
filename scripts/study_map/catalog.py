@@ -75,6 +75,15 @@ class Study:
     question: str
     verdict: str
     retired: str | None = None
+    # Hand-written operator-attention flag, like `verdict`: one line saying why
+    # the OPERATOR should personally read this study's review artifacts NOW
+    # (a card line changed, a candidate was retracted, a decision is pending).
+    # Set it during the recording pass that created the need; clear it back to
+    # None once the operator has read/decided. The map's "Reading queue"
+    # renders every flagged study under "read first"; unflagged studies whose
+    # digest exists on disk render as "good to know" with dates only. The flag
+    # is a POINTER to artifacts, never a conclusion of its own.
+    attention: str | None = None
 
 
 # ── the twenty studies ────────────────────────────────────────────────────────
@@ -177,6 +186,10 @@ STUDIES: dict[str, Study] = {
 
     "emission_timing": Study(
         family="selection", state="open",
+        attention="2026-08-24 review RETRACTED the ARM P stale-entry candidate as "
+                  "off-basis — the digest + validator memo carry the why, and the same "
+                  "pass queued a wrong-PRIMARY warning that touches every v3-registered "
+                  "study graded on a v4 run.",
         question="Does entry TIMING carry risk the columns never saw: the same (ticker, "
                  "structure) re-emitted across consecutive analysis dates (am I late?), and "
                  "a fill delayed 1-3 sessions past the signal (does the edge decay?)?",
@@ -427,6 +440,10 @@ STUDIES: dict[str, Study] = {
     # ④ deployment
     "bear_deploy": Study(
         family="deployment", state="shipped",
+        attention="2026-08-24 grading PULLED the §4 closer-to-money pick line and "
+                  "relabelled the hedge sleeve operator-policy — read the digest and "
+                  "validator memo, and confirm the operator pre-commitment wording in "
+                  "research/pre-registrations/bear_deploy.md says what you meant.",
         question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
                  "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
                  "D4 conditional pick.",

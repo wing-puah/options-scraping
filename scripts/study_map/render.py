@@ -261,6 +261,90 @@ def _family(key: str, studies: list[tuple[str, catalog.Study]],
   </section>"""
 
 
+# ── reading queue ─────────────────────────────────────────────────────────────
+STUDY_OUTPUT = ROOT / "backtests" / "study_output"
+
+# The review artifacts a study_review pass leaves behind, in reading order.
+_REVIEW_FILES = (
+    ("digest", "{s}-digest-latest.md"),
+    ("validator", "{s}-review-validator-latest.md"),
+    ("analyst A", "{s}-review-analyst-a-latest.md"),
+    ("analyst B", "{s}-review-analyst-b-latest.md"),
+)
+
+
+def _review_artifacts(study: str) -> list[tuple[str, str, float]]:
+    """(label, href relative to site/, mtime) for each review file on disk."""
+    out = []
+    for label, pat in _REVIEW_FILES:
+        p = STUDY_OUTPUT / pat.format(s=study)
+        if p.is_file():
+            out.append((label, f"../backtests/study_output/{p.name}", p.stat().st_mtime))
+    return out
+
+
+def _art_links(arts: list[tuple[str, str, float]]) -> str:
+    return " · ".join(f'<a href="{_e(href)}">{_e(label)}</a>' for label, href, _ in arts)
+
+
+def _queue() -> str:
+    """The operator's reading queue.
+
+    The split is two sources with different authority, same as the rest of the
+    page: the READ-FIRST flags are hand-written (`catalog.Study.attention` —
+    set during the recording pass that created the need, cleared once the
+    operator has read/decided); the artifact lists and their dates are read
+    mechanically off `backtests/study_output/`. Nothing here summarises a
+    review — the flag says why to open the artifacts, never what they found.
+    """
+    first, fyi = [], []
+    for name, study in catalog.STUDIES.items():
+        arts = _review_artifacts(name)
+        if study.attention:
+            first.append((name, study, arts))
+        elif arts:
+            fyi.append((name, study, arts))
+    if not first and not fyi:
+        return ""
+    newest = lambda arts: max((m for _, _, m in arts), default=0.0)  # noqa: E731
+    day = lambda ts: datetime.fromtimestamp(ts).strftime("%Y-%m-%d")  # noqa: E731
+
+    first_html = "\n".join(
+        f"""      <article class="queue-item">
+        <div class="queue-head"><h3>{_e(n)}</h3>
+          <span class="queue-date">{_e(day(newest(a)) if a else "no review artifacts yet")}</span></div>
+        <p class="queue-why">{_rich(s.attention)}</p>
+        <p class="queue-links">{_art_links(a) or "review artifacts not on disk — run study_review"}</p>
+      </article>"""
+        for n, s, a in sorted(first, key=lambda t: -newest(t[2])))
+    fyi_html = "\n".join(
+        f'        <li><span class="queue-date">{_e(day(newest(a)))}</span> '
+        f"<strong>{_e(n)}</strong> — {_art_links(a)}</li>"
+        for n, _, a in sorted(fyi, key=lambda t: -newest(t[2])))
+    fyi_block = (f"""    <div class="queue-fyi">
+      <h3>Good to know — reviewed, nothing pending</h3>
+      <ul>
+{fyi_html}
+      </ul>
+    </div>""" if fyi else "")
+
+    return f"""  <section id="queue">
+    <div class="section-head">
+      <h2>Reading queue</h2>
+      <p>What needs the operator's eyes now, and what is merely fresh. The
+        <em>read first</em> flags are hand-written in <code>catalog.py</code> — set when a
+        recording pass changes a card line, retracts a candidate, or leaves a decision
+        pending; cleared once read. Artifact lists and dates are read off
+        <code>backtests/study_output/</code>. The flag says <em>why to open</em> the
+        artifacts, never what they found.</p>
+    </div>
+    <div class="queue-first">
+{first_html if first_html else "      <p>Nothing flagged — no pending operator reading.</p>"}
+    </div>
+{fyi_block}
+  </section>"""
+
+
 # ── other sections ────────────────────────────────────────────────────────────
 def _scoreboard(runs: dict[str, summary.RunSummary]) -> str:
     cells = [
@@ -381,6 +465,8 @@ def build(runs: dict[str, summary.RunSummary],
   </header>
 
 {_scoreboard(runs)}
+
+{_queue()}
 
   <section id="shape">
     <div class="section-head">

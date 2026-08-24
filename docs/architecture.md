@@ -464,6 +464,15 @@ VERDICT block is labelled as the report's tail) + the newest current.md sections
 `make study-map-open` to force. `python3 -m scripts.study_map --check` (or `make
 study-check`) prints per-study last-run status, no HTML.
 
+The page opens with a **Reading queue** for the operator: `catalog.Study.attention` is a
+hand-written one-liner (same authority tier as `verdict`) saying why the operator should
+personally open a study's review artifacts NOW — set during the recording pass that changed
+a card line, retracted a candidate, or left a decision pending; cleared back to `None` once
+the operator has read/decided. Flagged studies render under "read first"; unflagged studies
+whose `study_review` artifacts (digest/validator/analyst memos) exist in
+`backtests/study_output/` render as "good to know" with mtime dates only. The flag points at
+artifacts, never summarises them — the render layer stays conclusion-free.
+
 **`scripts/study_charts/`** — renders a study's result as self-contained HTML; adds no
 conclusion.
 

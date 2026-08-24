@@ -472,3 +472,29 @@ footer code { color: var(--ink-soft); }
   .run-state { margin-left: 0; width: 100%; }
   .family-head .count { margin-left: 0; }
 }
+
+/* ── reading queue ─────────────────────────────────────────────────────────
+ * Read-first uses the OPEN semantic colour (attention pending), never a new
+ * hue; good-to-know stays structural. Flags are hand-written in catalog.py. */
+.queue-first { display: flex; flex-direction: column; gap: 10px; }
+.queue-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--open);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+.queue-head { display: flex; align-items: baseline; gap: 10px; }
+.queue-head h3 { margin: 0; font-family: var(--mono); font-size: 0.95rem; }
+.queue-date { color: var(--faint); font-family: var(--mono); font-size: 0.78rem; }
+.queue-why { margin: 6px 0 4px; color: var(--ink-soft); font-size: 0.9rem; line-height: 1.45; }
+.queue-links { margin: 0; font-family: var(--mono); font-size: 0.8rem; }
+.queue-links a { color: var(--accent); text-decoration: none; }
+.queue-links a:hover { text-decoration: underline; }
+.queue-fyi { margin-top: 14px; }
+.queue-fyi h3 { color: var(--ink-soft); font-size: 0.85rem; text-transform: uppercase;
+  letter-spacing: 0.04em; margin: 0 0 6px; }
+.queue-fyi ul { list-style: none; margin: 0; padding: 0; }
+.queue-fyi li { padding: 3px 0; font-size: 0.85rem; color: var(--ink-soft); }
+.queue-fyi li a { color: var(--accent-dim); text-decoration: none; }
+.queue-fyi li a:hover { text-decoration: underline; }
