@@ -88,17 +88,18 @@ governs selection in §1–2.
 | --------------------------------------------------------------- | ---------------------- | ------------------------------------------ | ------------------------------------------- | ------------------------- |
 | Debit — normal                                                  | 90% of premium paid    | −75%                                       | none                                        | 75% of DTE elapsed        |
 | Debit — signal date is mech **BEAR + H-VOL or E-VOL**           | 90%                    | −75%                                       | **arm at +50%, then trail 50pts from peak** | 75% of DTE                |
-| **Bear** debit (`bear_put_spread` / `long_put`), any other date | 90%                    | **move to breakeven once peak P&L ≥ +50%** | none                                        | 75% of DTE                |
 | Credit (`bull_put_spread`)                                      | 65% of credit captured | **none** — risk is defined by wing width   | none                                        | none (ride toward expiry) |
 
 Two clauses that keep the table consistent:
 
 - **Credits are never regime-switched.** A `bull_put_spread` keeps row 4 in every
   regime.
-- **The BEAR_HE trail replaces the breakeven ratchet, never stacks with it.** On
-  a mech BEAR + H/E-VOL signal date you trail from the peak (row 2); everywhere
-  else a bear debit ratchets to breakeven (row 3). The trail arms at the same
-  +50% peak and its floor is already at or above breakeven, so nothing is lost.
+- **The bear-debit breakeven ratchet was REVERTED 2026-08-24.** Its rollback
+  trigger fired at the first floor evaluation (2025 mean-R delta negative,
+  total gain vs PROD +$58 on the v4 re-read) — a bear debit now runs the
+  normal debit row everywhere except a mech BEAR + H/E-VOL date, where the
+  trail row applies. Evidence: `research/deployment-evidence.md` §"The
+  bear-debit breakeven ratchet".
 
 ## 6. What not to use
 

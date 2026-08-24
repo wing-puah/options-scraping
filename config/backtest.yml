@@ -223,8 +223,18 @@ simulation:
   # ladder Tier C or VETO (299 C / 71 VETO), so this only bites on positions the
   # operator takes deliberately as a hedge (docs/deployment-rules.md
   # §"Bear positions — hedge sleeve").
+  # REVERTED 2026-08-24: the pre-registered rollback trigger above was
+  # evaluated at its floor for the first time (92 arming rows / 53 dates on
+  # the v4 exports — a CORRELATED-WINDOW re-read, registered as such in
+  # research/pre-registrations/rollback_triggers.md) and condition three
+  # FIRED: per-year mean-R delta 2024 +0.022 / 2025 -0.034. Total gain vs
+  # PROD had also collapsed to +$58 (vs -$54.4k -> -$38.0k on the v3 book it
+  # shipped on). Operator decision 2026-08-24: revert. The block and its
+  # evidence comment are kept verbatim so the rule can re-earn its way in on
+  # genuinely new data — flip `enabled` back only through a fresh
+  # registration. Full record: research/current.md §2026-08-24.
   structure_exit:
-    enabled: true
+    enabled: false
     cells:
       bear_debit:          # bear_put_spread / long_put, entry_net >= 0
         be_after: 0.50

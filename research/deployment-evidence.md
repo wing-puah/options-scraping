@@ -109,7 +109,18 @@ be re-tested on new BEAR/H-VOL data. Historical escape routes are closed
 (Barchart options-flow doesn't reach back past ~2024-02 — addendum 6), so it
 shipped ahead of its gate deliberately.
 
-### The bear-debit breakeven ratchet (shipped 2026-08-11)
+### The bear-debit breakeven ratchet (shipped 2026-08-11 — REVERTED 2026-08-24)
+
+**REVERTED 2026-08-24.** First floor evaluation of the pre-registered rollback
+trigger (below, and `research/pre-registrations/rollback_triggers.md` — a
+correlated-window re-read on the v4 exports, registered as such before the
+numbers were read): 92 arming rows / 53 dates ≥ the 60-row floor; total gain
+vs PROD **+$58** (pass, but ~zero), mean-R on affected rows +0.0071 (pass),
+per-year mean-R delta **2024 +0.022 / 2025 −0.034 → condition three FIRED**.
+Operator decision: revert `simulation.structure_exit.enabled → false`. The
+original shipping evidence below is kept verbatim as the record of what the
+rule looked like on v3.
+
 
 **This is not an edge. It reduces a loss.** On 332 bear debit rows (real+tweak,
 `bear_put_spread` + `long_put`), on the study's basis: mean R **−0.133 → −0.092**
@@ -214,7 +225,7 @@ same rows. Every future exit study should quote both baselines.**
 |---|---|
 | Debit, normal | `simulation:` — `profit_target: 0.90`, `stop_loss: 0.75`, `time_exit_dte_fraction: 0.75`, no trail |
 | Debit, mech BEAR + H/E-VOL | `simulation.regime_exit.cells.BEAR_HE` — `trailing_stop_trigger: 0.50`, `trailing_stop_pct: 0.50`, `be_after: null` |
-| Bear debit, other dates | `simulation.structure_exit.cells.bear_debit` — `be_after: 0.50` |
+| Bear debit, other dates | (reverted 2026-08-24 — falls back to the normal debit row; the `structure_exit` block is kept in config with `enabled: false`) |
 | Credit | `simulation.credit` — `profit_target: 0.65`, `stop_loss: null`, `time_exit_dte_fraction: null` |
 
 The `exit_basis` column on a result row records which of these actually governed
@@ -426,6 +437,16 @@ shipped-on-one-study to **cleared**; failing reverts it.
 
 Progress toward the first two accumulates from live fills plus new backtest
 rows. **Never read silence as "not met"** — check the numbers.
+
+**First census + evaluations (2026-08-24, v4 exports, correlated-window
+re-read — `research/pre-registrations/rollback_triggers.md`):**
+
+| Trigger | Census | Outcome |
+|---|---|---|
+| BEAR_HE trail | **1** affected date of 25 | UNDERPOWERED — no reading; census is the recorded result |
+| LVOL tef-null (corrected gate) | **31** affected dates ≥ 25 | all four criteria PASS (median +0.023, total +5.70, both halves +, no flip) — **CLEARED on the correlated window; operator HELD the ship** pending genuinely new dates |
+| Bear-debit `be_after` | **92** arming rows ≥ 60 | condition three FIRED (2025 −0.034) → **REVERTED** |
+| Credit sl-none | **0** fresh bull_put rows of 15 | UNDERPOWERED — `sl 1x (pre-Attempt-13)` comparator now printed by every credit run |
 
 ---
 
