@@ -46,6 +46,12 @@ rollback triggers behind them live in
 Tie-break **within** a tier: higher `score_total`. That is a deterministic
 ordering only — it carries no signal (see §6).
 
+Survivors past the third are printed as a **Reserve** list, one line each. A
+reserve REPLACES a budgeted pick that turns out to be untradeable at order
+entry; it is never a fourth position. Taking one as an addition puts the day
+over budget — which is how a 1–3/day rule coexisted with a book that grew from
+3 open legs to 19 between May and August 2026.
+
 Tier membership is **structure × model regime × entry geometry**. Nothing else.
 
 ## 3. Check at order entry in IBKR — not on the analysis row

@@ -36,7 +36,7 @@ removed (see "Closed threads" below).
   halves. A > B > C > VETO never inverts.
 - Post-13c only: A vs C MWU **p = .0001**, B vs C **p < .0001**. A vs B is
   ordered but not separated (+0.50 vs +0.40, p = .98) — **watch item, still open**.
-- Post-13c capped replay: top-1/day **76% win / +0.35 mean**; top-3/day **69%
+- Post-13c capped replay: top-1/day **76% win / +0.41 mean**; top-3/day **69%
   win, $30.3k from 97 rows** — better than the with-score-clauses ladder
   ($19.1k, 61% win) on the same dates.
 - 2026-07-19 book (607 rows, the derivation sample): top-1/day +0.82, top-3

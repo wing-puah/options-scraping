@@ -49,7 +49,7 @@ FAMILIES: dict[str, dict[str, str]] = {
         "title": "Structure",
         "question": "am I expressing the signal in the wrong wrapper?",
         "note": "One +0.085 effect that does not hold out of sample, and one "
-                "survivor that is power-stopped rather than refuted.",
+                "survivor that is underpowered rather than refuted.",
     },
     "deployment": {
         "index": "④",
@@ -126,7 +126,7 @@ STUDIES: dict[str, Study] = {
                  "up in the book: in entry IV (vrp), in outcomes (R/E), or in exits?",
         verdict="First run (era v3, 795/118): the side-split census leaves ONE powered "
                 "cell — NFP AFTER w<=5 — and it is null on vrp (+0.022, CI spans 0) and "
-                "R (-0.144, CI spans 0); every FOMC/minutes/CPI/PCE cell power-stops. "
+                "R (-0.144, CI spans 0); every FOMC/minutes/CPI/PCE cell is underpowered. "
                 "Context arms: NFP shows VIX build-then-bleed with post-print SPY relief; "
                 "FOMC shows nothing (no pre-FOMC drift at n=26). ARM X's raw trigger fired "
                 "and DIED under the amendment-2 survival control (in holds >=20 sessions "
@@ -283,21 +283,35 @@ STUDIES: dict[str, Study] = {
         question="The ladder assumes infinite capital. Does a real $25,000 account — paying "
                  "for positions, holding reserve, respecting a delta cap — still produce a book?",
         verdict="The caps survive; the WINDOW does not. Delta-notional binds before cash does. "
-                "Feasibility only — nothing ships from this study under any outcome. The run "
-                "also prints a POST-HOC compounding arm (account_sim-compounding-latest.txt, "
-                "its own page): on this book compounding COSTS money and the verdict is "
-                "unmoved; A2/A5 do not transfer to it.",
+                "Feasibility only — nothing ships from this study under any outcome. On v3 the "
+                "cap ordering read adverse — rejected picks out-earning the ones taken; on the "
+                "current v4 era (517 rows / 78 dates, 168 deployed picks) this REVERSES: "
+                "PRIMARY dense episodes print 'taken n= 72 meanR +0.338' against 'rejected "
+                "[net_delta] n= 25 meanR +0.134 delta vs taken -0.205' and 'rejected "
+                "[per_pos_delta] n= 25 meanR +0.130 delta vs taken -0.208' — taken beats "
+                "rejected in 7 of the 8 frozen/compounding x PRIMARY/SECONDARY cells; only "
+                "one n=9 compounding-SECONDARY cell (net_delta, delta vs taken +0.022) still "
+                "favours rejected. The run also prints a POST-HOC compounding arm "
+                "(account_sim-compounding-latest.txt, its own page): on this book compounding "
+                "COSTS money and the verdict is unmoved; A2/A5 do not transfer to it.",
     ),
     "selection_order": Study(
         family="deployment", state="open",
-        question="account_sim's rejected picks outperformed its taken ones. Does a different "
-                 "BLIND entry-side ORDER of the same candidate set spend the scarce delta "
-                 "budget better — or was that read an artifact?",
-        verdict="POWER-STOPPED at G0, on the pre-registered threshold. Each of the four "
-                "re-orderings changes only 7-14% of the deployed book, so the best-powered "
-                "arm reaches 11 affected dates (PRIMARY) against a floor of 25 declared "
-                "before the count was knowable. Census only: no arm confirmed, none refuted, "
-                "no O4 band drawn, and NO re-run on these dates.",
+        question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "
+                 "REVERSES on v4 (see the account_sim entry), so the premise this study was "
+                 "registered under no longer holds on the current era. The pre-registered "
+                 "question stands on its own: does a different BLIND entry-side ORDER of the "
+                 "same candidate set spend the scarce delta budget better — or was that read "
+                 "an artifact?",
+        verdict="UNDERPOWERED at G0, on the pre-registered threshold, on BOTH eras. On the "
+                "current v4 book: `arms powered (G0):  none`, `Best-powered arm reached 17 "
+                "affected dates against a threshold of 25.` — a floor declared before the "
+                "count was knowable. Each re-ordering `changes only 15%-24% of O0's taken "
+                "positions` (PRIMARY; 11-21% SECONDARY), which is why no arm reaches the "
+                "floor. Census only: no arm confirmed, none refuted, no O4 band drawn, and "
+                "NO re-run on these dates. The earlier `7-14%` figure quoted here was a "
+                "hardcoded prose literal in the study, corrected 2026-08-22 to print the "
+                "run's own measured census.",
     ),
 
     "portfolio_delta": Study(

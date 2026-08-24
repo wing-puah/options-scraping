@@ -22,3 +22,22 @@ DECISION (pre-registered rule, addendum 13)
     CONSTRAIN candidates (n>=30, both halves positive, EX-W): ['|delta| 0.30-0.45']
     VERDICT: DEMOTE TO VETO
 ```
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 18:09:55 · git d47e227 (main, working tree dirty) · exit 0 · 13.2s
+command     python -m scripts.backtest_study.f1_selection.bear_position_study
+excerpt     verdict
+
+```
+DECISION (pre-registered rule, addendum 13)
+    DEMOTE requires all three:
+      [PASS]  ex-window mean E < 0            (-0.269)
+      [PASS]  bootstrap 95% CI upper < 0      ([-0.465, -0.037])
+      [PASS]  both time halves negative       (early -0.448, late -0.037)
+    CONSTRAIN candidates (n>=30, both halves positive, EX-W): NONE
+    VERDICT: DEMOTE TO VETO
+```
+

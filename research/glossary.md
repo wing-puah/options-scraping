@@ -225,10 +225,14 @@ positions."
 - **Criteria (MET / NOT MET)** — pre-registered numeric thresholds checked
   once gates pass; each gets a plain verdict against its stated bar — no
   rounding the bar to fit the result.
-- **NOT EVALUABLE** — a POWER STOP, not a failure: a cell's sample size
-  fell below a pre-registered floor (e.g. `calendar_hedge.
-  POWER_STOP_MIN_N = 10`), so its CI literally can't be read. Its own state
+- **NOT EVALUABLE** — **UNDERPOWERED**, not a failure: a cell's sample size
+  fell below a pre-registered power floor (e.g. `calendar_hedge.
+  MIN_N_TO_READ = 10`), so its CI literally can't be read. Its own state
   so a thin-n subset never silently gets counted as a negative finding.
+  Reports, registrations and log entries dated before 2026-08-22 call this
+  same state a **POWER STOP** / **POWER-STOPPED**; the wording was retired
+  that day, the meaning is unchanged, and the older documents are quoted as
+  they printed rather than rewritten.
 - **FEASIBLE variants** (`account_sim.print_verdict`) — **FEASIBLE** (every
   criterion holds), **FEASIBLE-BUT-DEGRADED** (edge + no-blowup hold but
   attrition doesn't), **NOT FEASIBLE AT $25k** (edge itself fails), or a

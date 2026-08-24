@@ -47,7 +47,7 @@ shipped BEAR_HE values, a TRANSFER test, not a new knob); else-branch always
 "continue shipped profile". Nothing here is swept and no cell may be added
 after a number is seen. Every cell is reported regardless of outcome.
 
-Verdicts: CANDIDATE / REACTIVE-AGAIN / NULL / POWER-STOPPED. Nothing ships from
+Verdicts: CANDIDATE / REACTIVE-AGAIN / NULL / UNDERPOWERED. Nothing ships from
 a research-tier study. Read-only; touches no config. Run:
 
     python -m scripts.backtest_study run staged_exit --era v3
@@ -400,7 +400,7 @@ def g0(recs: list[dict], cells: dict) -> dict:
     """Print the census; return `{cell_key: powered}`."""
     hdr("G0 — POWER CENSUS (runs FIRST and blocks every read below)")
     print(f"""  Floor, declared in the registration before any count was known:
-  a cell with < {MIN_AFFECTED_DATES} affected DATES or < {MIN_AFFECTED_ROWS} affected ROWS is POWER-STOPPED —
+  a cell with < {MIN_AFFECTED_DATES} affected DATES or < {MIN_AFFECTED_ROWS} affected ROWS is UNDERPOWERED —
   printed with its n, no criterion evaluated on it, no re-run on these dates.
 
   ARM T counts below are produced by the fork validated at G-FORK above; a
@@ -445,10 +445,10 @@ def g0(recs: list[dict], cells: dict) -> dict:
         ok = n_dates >= MIN_AFFECTED_DATES and n_rows >= MIN_AFFECTED_ROWS
         powered[key] = ok
         print(f"  {arm:<4}{x:>3}  {cond_label(cond):<12} {act_label:<24} "
-              f"{n_rows:>9} {n_dates:>10}  {'powered' if ok else 'POWER-STOPPED'}")
+              f"{n_rows:>9} {n_dates:>10}  {'powered' if ok else 'UNDERPOWERED'}")
     n_ok = sum(1 for v in powered.values() if v)
     print(f"\n  {n_ok} of {len(powered)} cells clear the floor; "
-          f"{len(powered) - n_ok} are POWER-STOPPED.")
+          f"{len(powered) - n_ok} are UNDERPOWERED.")
     return powered
 
 
@@ -514,7 +514,7 @@ def g2_continuation(cell: dict) -> dict:
     n = len(early)
     share = (n_cont / n) if n else None
     # No early exits at all cannot be a continuation sale, and is not a pass by
-    # merit either — such a cell is power-stopped long before this is read.
+    # merit either — such a cell is underpowered long before this is read.
     passed = True if share is None else share <= CONTINUATION_MAJORITY
     return dict(n_early=n, n_continuation=n_cont, share=share, passed=passed)
 
@@ -750,9 +750,9 @@ def main(argv=None) -> int:
             print(f"  population {cell['n_pop_rows']} rows / {cell['n_pop_dates']} dates"
                   f"   affected {cell['n_affected_rows']} rows / "
                   f"{cell['n_affected_dates']} dates")
-            print(f"  VERDICT: POWER-STOPPED  (floor {MIN_AFFECTED_DATES} dates / "
+            print(f"  VERDICT: UNDERPOWERED  (floor {MIN_AFFECTED_DATES} dates / "
                   f"{MIN_AFFECTED_ROWS} rows; nothing read, no re-run on these dates)")
-            verdicts[key] = "POWER-STOPPED"
+            verdicts[key] = "UNDERPOWERED"
             continue
         ev = evaluate_cell(cell)
         print_cell(key, cell, ev)
@@ -770,7 +770,7 @@ def main(argv=None) -> int:
     print(f"\n  tally: {dict(tally)}")
     print("  Nothing ships from a research-tier study. A CANDIDATE is queued for an\n"
           "  independent-window confirmation; REACTIVE-AGAIN closes the thread for\n"
-          "  these dates; NULL is recorded as a window artifact; POWER-STOPPED\n"
+          "  these dates; NULL is recorded as a window artifact; UNDERPOWERED\n"
           "  publishes its census and is not re-run on these dates.")
     print("\n  No annualised figure, Sharpe, or time-to-recover is printed anywhere\n"
           "  above, by design. R is the unit of every conclusion; the dollar cut is a\n"

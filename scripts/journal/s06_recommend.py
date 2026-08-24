@@ -626,6 +626,60 @@ def _render_judgment_line(c: Candidate) -> str:
     return line
 
 
+def _book_concentration(book, deploy: list[Candidate],
+                        book_evaluable: bool) -> list[str]:
+    """The card's read of the BOOK it is adding to, not of the plays.
+
+    Every other line on this card judges ONE play. This one judges the pile:
+    how many positions are already open, how many point the same way, and how
+    many of today's picks land on a ticker that is already on. The deploy
+    budget caps the FLOW (new positions per day); nothing in this pipeline caps
+    the STOCK, and the live record went from 3 open legs to 19 in three months
+    without a single rule firing.
+
+    ADVISORY, and deliberately so: no concurrency or clustering rule has been
+    backtested (`research/pre-registrations/concurrency_correlation.md` is the
+    open pre-registration). This prints the census the operator would otherwise
+    have to assemble by hand; it filters nothing and must not be described as
+    a gate until that study returns.
+    """
+    if not book_evaluable or book is None:
+        return ["**Book concentration:** not evaluated — no broker pull for this "
+                "session. This is UNKNOWN, not clear."]
+
+    open_pos = list(book.positions) + list(book.unpriced)
+    if not open_pos:
+        return ["**Book concentration:** no open positions."]
+
+    tickers = {p.ticker for p in open_pos}
+    longs = sum(1 for p in open_pos if p.delta_notional is not None
+                and p.delta_notional > 0)
+    shorts = sum(1 for p in open_pos if p.delta_notional is not None
+                 and p.delta_notional < 0)
+    unknown = sum(1 for p in open_pos if p.delta_notional is None)
+    overlap = sorted({c.ticker for c in deploy if c.deploy} & tickers)
+
+    out = [f"**Book concentration:** {len(open_pos)} open position(s) across "
+           f"{len(tickers)} ticker(s) — {longs} long-delta, {shorts} short-delta"
+           + (f", {unknown} unpriced (direction unknown)" if unknown else "") + "."]
+    # Symmetric on purpose. An all-SHORT book is the same failure as an
+    # all-LONG one — N positions that rise and fall together — and the v4
+    # book being long-only by construction (`NEGATIVE 0`, `net-SHORT sessions
+    # 0`) is a fact about the ladder today, not a reason to only ever warn in
+    # one direction. A hedge sleeve or a future bear rule flips the sign.
+    same_dir = longs if shorts == 0 else shorts if longs == 0 else 0
+    if same_dir > 1:
+        way = "long" if shorts == 0 else "short"
+        out.append(f"> Every priced position points the same way. {same_dir} "
+                   f"{way} positions in one direction is closer to one position "
+                   f"sized {same_dir}x than to {same_dir} independent bets.")
+    if overlap:
+        out.append(f"> Today's deploy set adds to {', '.join(overlap)}, already "
+                   "open. Check this is intended concentration, not an accident "
+                   "of the same ticker re-qualifying.")
+    return out
+
+
 def _render_deploy_candidate(i: int, c: Candidate) -> str:
     tag = "[DEPLOY]" if c.deploy else "[RESERVE]"
     lines = [
@@ -642,6 +696,19 @@ def _render_deploy_candidate(i: int, c: Candidate) -> str:
         _render_judgment_line(c),
     ]
     return "\n".join(lines)
+
+
+def _render_reserve_candidate(i: int, c: Candidate) -> str:
+    """One line per reserve. Deliberately terse.
+
+    A reserve is a REPLACEMENT for a budgeted pick that turns out to be
+    untradeable, never an addition to the three. Rendering it with the same
+    detail block as a deploy pick made eight fully-specified plays look like
+    eight approved ones, which is how a 1-3/day budget became 19 open legs.
+    """
+    return (f"{i}. **{c.ticker}** — {c.structure} — Tier {c.tier} "
+            f"[score_total: {_fmt_score(c.score_total)}]"
+            + ("  ⚠ duplicate exposure" if c.duplicate_exposure else ""))
 
 
 def _render_hedge_candidate(i: int, c: Candidate) -> str:
@@ -669,7 +736,7 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
            *, date: str, source: str = "", net_liq: float | None = None,
            as_of: str = "", staleness_days: int | None = None,
            stale_note: str = "", book_evaluable: bool = True,
-           book_note: str = "") -> str:
+           book_note: str = "", book=None) -> str:
     """Render the full markdown deploy card.
 
     Stands on its own with `judgment=None` (the `--no-llm` path) — the
@@ -680,6 +747,13 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
     pre-existing card byte-for-byte. `scripts/backtest_study/lib/live_select.py`
     imports this module directly (the one sanctioned research->production
     import), so a required parameter here would break the research tier.
+
+    `book` is the open BookRisk the card is adding to, used ONLY by
+    `_book_concentration` for its advisory census. Omitting it degrades that
+    one block to "not evaluated" — the block is still PRESENT, saying it could
+    not be checked, because a silently absent exposure read is exactly the
+    thing the empty-book warning above exists to prevent. Nothing else on the
+    card moves.
     """
     deploy = [c for c in candidates if c.role == "deploy"]
     hedge = [c for c in candidates if c.role == "hedge"]
@@ -737,14 +811,39 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
                      "this date; the ladder was applied per-row. Check the analysis book.")
         lines.append("")
 
-    lines.append("## Deploy set (§0 budget: 1-3/day, Tier A before Tier B)")
+    lines.extend(_book_concentration(book, deploy, book_evaluable))
     lines.append("")
-    if not deploy:
+
+    # The budget is a CUT, not a label. `rank()` still returns every survivor
+    # (nothing is dropped from the record), but the card renders the budgeted
+    # picks and the reserves as two different kinds of thing, because they are:
+    # three plays to deploy, and a substitution list. Rendering all of them
+    # identically is what let a 1-3/day rule coexist with a book that grew to
+    # 19 open legs.
+    budgeted = [c for c in deploy if c.deploy]
+    reserve = [c for c in deploy if not c.deploy]
+
+    lines.append(f"## Deploy set — {len(budgeted)} of {DEPLOY_BUDGET} (§0 budget: "
+                 "1-3/day, Tier A before Tier B)")
+    lines.append("")
+    if not budgeted:
         lines.append("_No Tier A/B candidates survived §1 today._")
     else:
-        for i, c in enumerate(deploy, 1):
+        for i, c in enumerate(budgeted, 1):
             lines.append(_render_deploy_candidate(i, c))
             lines.append("")
+
+    if reserve:
+        lines.append(f"### Reserve — {len(reserve)} NOT for deployment")
+        lines.append("")
+        lines.append("These cleared §1-§3 but sit past the §0 budget. A reserve "
+                     "REPLACES a budgeted pick that turns out to be untradeable; "
+                     "it is never a fourth position. Taking one as an addition "
+                     "puts the day over budget.")
+        lines.append("")
+        for i, c in enumerate(reserve, 1):
+            lines.append(_render_reserve_candidate(i, c))
+        lines.append("")
 
     lines.append("## Hedge sleeve (§4, optional — ranked by |delta| desc, never score_total)")
     lines.append("")

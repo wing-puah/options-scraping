@@ -198,21 +198,15 @@ MIN_SHARED_DATES = 8
 
 # The verdict vocabulary, worded in the registration. Nothing else may be printed
 # as a verdict.
-VERDICTS = ("CANDIDATE", "RE-WRAP", "NULL", "POWER-STOPPED", "UNDERPOWERED",
-            "AWAITING SCRAPE")
+VERDICTS = ("CANDIDATE", "RE-WRAP", "NULL", "UNDERPOWERED", "AWAITING SCRAPE")
 
-
-def underpowered_token(shape: str) -> str:
-    """The under-the-floor token for a shape.
-
-    Amendment 1's terminology note: "POWER-STOPPED" is read as UNDERPOWERED —
-    too few dates to judge, census printed, nothing concluded — and NEW code
-    prints UNDERPOWERED. The F0-F3 printing deliberately keeps the original
-    token: the published reports, the study-map excerpt and the registrations
-    above all quote it, and renaming it there would break that trail for a
-    change in wording only.
-    """
-    return "UNDERPOWERED" if shape == "F4" else "POWER-STOPPED"
+# The under-the-floor token: too few dates to judge — census printed, nothing
+# concluded. Amendment 1 introduced it for F4 alone, while F0-F3 kept the older
+# "POWER-STOPPED" wording their already-published reports quoted. The repo
+# retired that wording on 2026-08-22, so every shape prints this one token now;
+# a report dated before then says POWER-STOPPED and means exactly this. Reports
+# and registrations already on disk are NOT rewritten — they quote what ran.
+UNDERPOWERED = "UNDERPOWERED"
 
 
 # ── the one helper bear_rewrap does not have ─────────────────────────────────
@@ -1016,18 +1010,18 @@ def ex_both_cut(rows: list[dict]) -> list[dict]:
 # ── G0 — POWER, prints FIRST ─────────────────────────────────────────────────
 
 def gate_g0(built: dict, awaiting: bool = False) -> dict[tuple[str, int], bool]:
-    hdr("G0 — POWER. Runs and prints FIRST; a stopped cell is never read.")
+    hdr("G0 — POWER. Runs and prints FIRST; an underpowered cell is never read.")
     print(f"""  Pre-registered floor, declared before any cell was built:
   a shape x offset cell with < {MIN_DATES} dates OR < {MIN_ROWS} rows is
-  POWER-STOPPED — its n is printed and NO criterion is evaluated on it. This
-  is not a soft warning: a stopped cell has no verdict other than
-  POWER-STOPPED, and nothing below quotes its mean.""")
+  UNDERPOWERED — its n is printed and NO criterion is evaluated on it. This
+  is not a soft warning: an underpowered cell has no verdict other than
+  UNDERPOWERED, and nothing below quotes its mean.""")
     print("""
-  Amendment 1's terminology note applies to the NEW arm only: F4 prints
-  UNDERPOWERED (too few dates to judge — census printed, nothing concluded)
-  where F0-F3 keep the original POWER-STOPPED token their published reports
-  and study-map excerpt already quote. AWAITING SCRAPE is neither: it means
-  the contracts are not in the cache yet.""")
+  UNDERPOWERED reads as Amendment 1 worded it: too few dates to judge — the
+  census is printed and nothing is concluded. Every shape prints that one
+  token; reports published before 2026-08-22 say POWER-STOPPED and mean the
+  same thing. AWAITING SCRAPE is neither: it means the contracts are not in
+  the cache yet.""")
     print(f"\n  {'cell':<16} {'built':>7} {'dates':>7}  {'status':<16} shape")
     out: dict[tuple[str, int], bool] = {}
     seen: set[str] = set()
@@ -1038,7 +1032,7 @@ def gate_g0(built: dict, awaiting: bool = False) -> dict[tuple[str, int], bool]:
         if cell[0] == "F4" and awaiting:
             status = "AWAITING SCRAPE"
         else:
-            status = "POWERED" if ok else underpowered_token(cell[0])
+            status = "POWERED" if ok else UNDERPOWERED
         desc = SHAPE_DESC[cell[0]] if cell[0] not in seen else ""
         seen.add(cell[0])
         print(f"  {cell_label(cell):<16} {len(rows):>7} {n_dates(rows):>7}  "
@@ -1386,7 +1380,7 @@ def report_cells(built: dict, power: dict, awaiting: bool = False) -> None:
                       "no CI, no criterion,\n  and NOT a null result.")
             continue
         if not power[cell]:
-            sub(f"{cell_label(cell)} — {underpowered_token(cell[0])}")
+            sub(f"{cell_label(cell)} — {UNDERPOWERED}")
             print(f"  n={len(rows)} rows / {n_dates(rows)} dates "
                   f"(floor {MIN_ROWS} rows / {MIN_DATES} dates). "
                   "No mean, no CI, no criterion.")
@@ -1536,7 +1530,7 @@ def report_e3(built: dict, power: dict, sleeve: dict[str, float]) -> dict:
             if c is not None:
                 parts.append(f"{y} {c:+.3f}")
         flag = ("" if power[cell]
-                else f"  ({underpowered_token(cell[0])} — not read)")
+                else f"  ({UNDERPOWERED} — not read)")
         cs = f"{corr:>+8.3f}" if corr is not None else f"{'n/a':>8}"
         print(f"  {cell_label(cell):<16} {cs} {n:>7}   " + "  ".join(parts) + flag)
     return out
@@ -1552,10 +1546,10 @@ def evaluate(cell: tuple[str, int], rows: list[dict], powered_ok: bool,
     if awaiting and cell[0] == "F4" and not rows:
         return "AWAITING SCRAPE", []
     if not powered_ok or not rows:
-        return underpowered_token(cell[0]), []
+        return UNDERPOWERED, []
     pr = paired_rows(rows, r_key=r_key)
     if not pr:
-        return underpowered_token(cell[0]), []
+        return UNDERPOWERED, []
 
     checks: list[tuple[str, bool | None, str]] = []
 
@@ -1626,9 +1620,8 @@ def report_criteria(built: dict, power: dict, e3: dict, r_key: str = "R",
     RE-WRAP        clears 1-6, fails 7 — the financing does not diversify
     NULL           clears the CI but fails LOO / ex-BOTH / sign stability, or
                    never cleared it — window artifact, recorded
-    POWER-STOPPED  G0 stopped the cell; census published, no re-run (F0-F3)
-    UNDERPOWERED   the same state under amendment 1's wording — too few dates
-                   to judge; census printed, nothing concluded (F4)
+    UNDERPOWERED   G0 floored the cell — too few dates to judge; the census is
+                   published, nothing is concluded, and there is no re-run
     AWAITING SCRAPE  the cell's contracts are not cached yet. Not a null, not
                    an underpowered cell: nothing was priced at all.""")
     verdicts: dict[tuple[str, int], str] = {}
@@ -1678,7 +1671,7 @@ def report_descriptive(built: dict, power: dict, sleeve: dict[str, float]) -> No
         rows = [r for r in (built["cells"].get(cell) or []) if r["date"] in worst]
         if not rows:
             continue
-        tag = "" if power[cell] else "  (cell POWER-STOPPED)"
+        tag = "" if power[cell] else "  (cell UNDERPOWERED)"
         print(f"  {cell_label(cell):<16} n={len(rows):>4}  "
               f"meanR {_mean([r['R'] for r in rows]):+.3f}  "
               f"dR {_mean([r['R'] - r['base_R'] for r in rows]):+.3f}"
@@ -1808,7 +1801,7 @@ def main(argv=None) -> int:
         hdr("VERDICTS")
         for cell in built["active"]:
             default = ("AWAITING SCRAPE" if (cell[0] == "F4" and awaiting)
-                       else underpowered_token(cell[0]))
+                       else UNDERPOWERED)
             print(f"  {cell_label(cell):<16} {verdicts.get(cell, default)}")
         print("\n  CANDIDATE is not a ship. Nothing ships from a research-tier "
               "study.")

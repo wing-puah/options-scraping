@@ -27,7 +27,7 @@ skipped on 08-13.)
 
 ## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
 
-**Done. Verdict POWER-STOPPED. Do not re-run it on these dates.**
+**Done. Verdict UNDERPOWERED. Do not re-run it on these dates.**
 `scripts/backtest_study/f4_deployment/selection_order.py` exists, all six arms ran, gates
 G1–G5 pass, and G0 stopped every arm: each re-ordering changes only 7–14% of
 the deployed book, so the best-powered arm reaches **11 affected dates on
@@ -166,6 +166,27 @@ test: the refusal path must never swallow a real failure.
 
 ## 2. Open queue, in rough priority order
 
+### 2.0 `concurrency_correlation` — PRE-REGISTERED 2026-08-22, module NOT written
+The operator's read ("the more that is being deployed, the less it seems to be
+working") does NOT resolve to depth into the ranked list — within-day rank is
+flat on BOTH eras (v3 ranks 1/2/3/4-5/6+ = +0.178/+0.527/+0.445/+0.281/+0.323;
+v4 = +0.155/+0.372/+0.269/+0.263/+0.257), so a tighter top-N is not the answer.
+What has NEVER been measured is the SIZE and INTERNAL SIMILARITY of the open
+book: `account_sim` computes `n_open` and no report joins it to an outcome, and
+every "correlation" figure in the repo is sleeve-vs-book rather than two
+concurrently held plays against each other. Plan:
+`research/pre-registrations/concurrency_correlation.md` — ARM N null band,
+ARM D0 descriptive, ARM C concurrency ceiling, ARM K clustering ceiling, ARM CK
+only if both clear alone. **Read its dead-end table before writing any code**:
+two v3 day-level cuts (Tier-A supply, model BULL+L-VOL) looked strong on v3 and
+vanish on v4, and X7 refuses any arm that turns out to be a delta ceiling in
+disguise — `portfolio_delta`'s ARM B and ARM D already failed that axis.
+Shipped alongside it, production tier: the deploy card now renders the §0
+budget as a CUT (reserves collapse to one line each, explicitly not a fourth
+position) and prints an ADVISORY book-concentration census. `rank()` is
+unchanged — nothing is dropped from the record.
+
+
 ### 2.1 Underlying-volume signal study — DONE 2026-08-13, NULL
 Pre-registered and RUN the same day (`volume_signal`; entry + amendment note
 in `current.md`). **NULL — the volume column is closed, no version bump.**
@@ -212,9 +233,9 @@ defect** (§0c(C)) — do not "fix" it by pointing `--v4-csv` at a v3 export.
 The whole hedge programme (calendar / put calendar / diagonal / sweep
 structures) terminates at one wall: 9 worst-decile dates cannot power a
 worst-decile criterion under a 1/day sleeve (all 30 ARM S cells
-power-stopped; H2 power-stopped at n=6). Carry-forwards recorded in
+underpowered; H2 underpowered at n=6). Carry-forwards recorded in
 `current.md`: RANGE+C/L-VOL calendar cell (n=15, post-hoc) and the H2 clause
-amendment (power stop should suspend only (b)). Nothing to run until the
+amendment (the power floor should suspend only (b)). Nothing to run until the
 book has materially more dates.
 
 ### 2.4 Bear sub-0.50 give-back — CANDIDATE, blocked on a harness mechanism

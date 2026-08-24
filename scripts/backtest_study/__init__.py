@@ -18,7 +18,7 @@ order a play moves through the system.
                         Where the edge actually is. Both shipped exit rules.
     f3_structure/    ③ am I expressing the signal in the wrong wrapper?
                         One effect that does not hold out of sample, one
-                        survivor that is power-stopped rather than refuted.
+                        survivor that is underpowered rather than refuted.
     f4_deployment/   ④ can I actually run this?
                         Feasibility, not edge. Nothing ships from here.
 

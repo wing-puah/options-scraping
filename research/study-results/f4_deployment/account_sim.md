@@ -27,3 +27,23 @@ VERDICT (PRIMARY dense episodes population — the primary)
   FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing; NOT FEASIBLE AT $25,000 = A1 fails)
   did not name this combination and previously printed "NO VERDICT MATCHES"
 ```
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 18:16:43 · git d47e227 (main, working tree dirty) · exit 0 · 3.4s
+command     python -m scripts.backtest_study.f4_deployment.account_sim
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes population — the primary)
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  MET
+  A6  MET
+  >>> FEASIBLE <<<
+```
+

@@ -21,3 +21,17 @@ G2 — SIZING CENSUS (contracts per lag; NO dollar figure is quoted across lags,
     POWER-STOPPED (floor 25 dates) — census only, no criterion evaluated.
 ```
 
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 20:18:04 · git d47e227 (main, working tree dirty) · exit 0 · 10.9s
+command     python -m scripts.backtest_study.f1_selection.emission_timing
+excerpt     matched
+
+```
+G3 — NO-DAY-0-MOVE ASSERTION (runs first; it is a guard, not a report)
+G2 — SIZING CENSUS (contracts per lag; NO dollar figure is quoted across lags, anywhere)
+```
+

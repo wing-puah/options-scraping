@@ -26,7 +26,7 @@ stands. Gate G3 enforces that by assertion, not by intention.
 
 Gates, in order: G0 POWER (>= MIN_AFFECTED_DATES affected DATES per cell, the
 per-tercile lag cells checked INDIVIDUALLY; a cell under the floor is
-POWER-STOPPED, printed with its n, and no criterion is evaluated on it) ->
+UNDERPOWERED, printed with its n, and no criterion is evaluated on it) ->
 G1 CONSTRUCTION (every synthetic satisfies len(marks) == len(grid); ANY
 construction failure FAILS the run non-zero; the padded-row count prints) ->
 G2 SIZING CENSUS (contract distribution per lag; NO dollar figure is quoted
@@ -36,7 +36,7 @@ sessions on or before the SIGNAL date).
 
 Verdicts, worded in the registration: STALE-ENTRY-PENALTY (candidate intake
 rule, queued for an independent window — never a ship) / LAG-TOLERANT
-(publishable operational finding) / LAG-SENSITIVE / NULL / POWER-STOPPED.
+(publishable operational finding) / LAG-SENSITIVE / NULL / UNDERPOWERED.
 
 R is quoted, never dollars, across lags or ordinals. No annualised figure,
 Sharpe, or time-to-recover anywhere. Worst-decile cells are FORBIDDEN as
@@ -304,12 +304,12 @@ def conjunction(label: str, paired: list[dict], tier_paired: dict[str, list],
       5. right-signed on BOTH pricing tiers (real and tweak)
       6. >= `min_dates` affected dates, re-checked on the evaluated set
 
-    Failing any one is failing. Returns None when the cell is POWER-STOPPED.
+    Failing any one is failing. Returns None when the cell is UNDERPOWERED.
     """
     nd = n_dates(paired)
     if nd < min_dates:
         print(f"  {label:<44} n={len(paired):>4} pairs / {nd:>3}d  "
-              f"POWER-STOPPED (floor {min_dates}) — census only, no criterion read")
+              f"UNDERPOWERED (floor {min_dates}) — census only, no criterion read")
         return None
     point = statistics.fmean(p["d"] for p in paired)
     sgn = 1 if point > 0 else -1
@@ -560,7 +560,7 @@ def g0(recs: list[dict], em: dict, cuts) -> dict:
           f"(selection_order.MIN_AFFECTED_DATES; pre-registered).")
     print("  The per-tercile lag cells must clear the floor INDIVIDUALLY — a "
           "pooled pass does\n  not license a tercile read. A cell under the "
-          "floor is POWER-STOPPED: its n prints and\n  NO criterion is "
+          "floor is UNDERPOWERED: its n prints and\n  NO criterion is "
           "evaluated on it.")
 
     sub("ARM P — emission ordinal census")
@@ -582,7 +582,7 @@ def g0(recs: list[dict], em: dict, cuts) -> dict:
     nd_p = n_dates(paired)
     print(f"  dates carrying BOTH a first and a repeat emission: {nd_p} of "
           f"{len({r['date'] for r in recs})}  "
-          f"{'POWERED' if nd_p >= MIN_AFFECTED_DATES else 'POWER-STOPPED'}")
+          f"{'POWERED' if nd_p >= MIN_AFFECTED_DATES else 'UNDERPOWERED'}")
 
     sub("ARM L — lag priceability census (before any Trade is built)")
     for L in LAGS:
@@ -593,7 +593,7 @@ def g0(recs: list[dict], em: dict, cuts) -> dict:
     sub("ARM L — pre-signal price_vector terciles (cut on the FULL book, FROZEN)")
     if cuts is None:
         print("  price_vector too sparse to cut terciles — every tercile cell is "
-              "POWER-STOPPED.")
+              "UNDERPOWERED.")
     else:
         print(f"  cut points: T1 <= {cuts[0]:+.4f} < T2 <= {cuts[1]:+.4f} < T3")
     tc = Counter(tercile_of(r, cuts) for r in recs)
@@ -603,7 +603,7 @@ def g0(recs: list[dict], em: dict, cuts) -> dict:
         nd = n_dates(rows)
         powered[name] = nd >= MIN_AFFECTED_DATES
         print(f"  {name:<9} n={tc.get(name, 0):>4} / {nd:>3} dates  "
-              f"{'POWERED' if powered[name] else 'POWER-STOPPED (census only)'}")
+              f"{'POWERED' if powered[name] else 'UNDERPOWERED (census only)'}")
     print("  MISSING is its own cell by registration — never imputed, never "
           "folded into a tercile.")
     powered["_ARM_P"] = nd_p >= MIN_AFFECTED_DATES
@@ -693,9 +693,9 @@ def arm_p(recs: list[dict], powered: dict) -> dict:
               f"(descriptive; the paired test below is the estimand)")
 
     if not powered["_ARM_P"]:
-        print("\n  ARM P VERDICT INPUT: POWER-STOPPED — fewer than "
+        print("\n  ARM P VERDICT INPUT: UNDERPOWERED — fewer than "
               f"{MIN_AFFECTED_DATES} dates carry both sides.")
-        return dict(verdict="POWER-STOPPED", headline=None)
+        return dict(verdict="UNDERPOWERED", headline=None)
 
     sub("HEADLINE — every repeat (ordinal >= 2) vs every first, within date")
 
@@ -840,7 +840,7 @@ def arm_l(recs, synths, common, powered, cuts) -> dict:
         rows = [r for r in common if tercile_of(r, cuts) == name]
         print(f"\n  {name}: {len(rows)} rows / {n_dates(rows)} dates")
         if not powered.get(name):
-            print(f"    POWER-STOPPED (floor {MIN_AFFECTED_DATES} dates) — census "
+            print(f"    UNDERPOWERED (floor {MIN_AFFECTED_DATES} dates) — census "
                   f"only, no criterion evaluated.")
             for L in LAGS:
                 if rows:
@@ -864,8 +864,8 @@ def verdicts(p_out: dict, l_out: dict) -> None:
     hdr("VERDICTS (worded in the pre-registration; nothing here is a ship)")
 
     head = p_out.get("headline")
-    if p_out.get("verdict") == "POWER-STOPPED" or head is None:
-        p_verdict = ("POWER-STOPPED — census published, nothing read, no re-run "
+    if p_out.get("verdict") == "UNDERPOWERED" or head is None:
+        p_verdict = ("UNDERPOWERED — census published, nothing read, no re-run "
                      "on these dates")
     elif head["candidate"] and head["point"] < 0:
         p_verdict = ("STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP) — proposes a "
@@ -887,7 +887,7 @@ def verdicts(p_out: dict, l_out: dict) -> None:
     pooled = l_out.get("pooled") or {}
     read = {L: v for L, v in pooled.items() if v is not None}
     if not read:
-        l_verdict = "POWER-STOPPED — no lag cell cleared the date floor"
+        l_verdict = "UNDERPOWERED — no lag cell cleared the date floor"
     elif any(v["candidate"] for v in read.values()):
         worse = all(v["point"] <= 0 for v in read.values() if v["candidate"])
         l_verdict = (("STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP) — a lag "
@@ -919,7 +919,7 @@ def verdicts(p_out: dict, l_out: dict) -> None:
 
     stopped = [k for k, v in (l_out.get("per_tercile") or {}).items() if v is None]
     if stopped:
-        print(f"  tercile cells POWER-STOPPED: {sorted(set(k[0] for k in stopped))} "
+        print(f"  tercile cells UNDERPOWERED: {sorted(set(k[0] for k in stopped))} "
               f"— census published, nothing read.")
     print("\n  Worst-decile reads are FORBIDDEN as criteria by the registration "
           "(the 2026-08-13\n  nine-date decile wall) and are not computed "

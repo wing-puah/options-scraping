@@ -28,3 +28,21 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   it is the whole result, and nothing on it is adoption-eligible.
 ```
 
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 20:17:52 · git d47e227 (main, working tree dirty) · exit 0 · 10.8s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [1.0,2.0)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 0 of 168   per-date net/equity range [+0.00, +2.43]
+  >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
+```
+

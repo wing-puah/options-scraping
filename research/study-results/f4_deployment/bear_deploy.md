@@ -21,3 +21,21 @@ VERDICT (pre-registered rules, ml-plan.md §addendum 2)
   D4 conditional pick       : adopted — |delta| high first
   D5 gated sleeve (POST-HOC): 4 candidate gate(s)
 ```
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 18:13:59 · git d47e227 (main, working tree dirty) · exit 0 · 10.4s
+command     python -m scripts.backtest_study.f4_deployment.bear_deploy
+excerpt     verdict
+
+```
+VERDICT (pre-registered rules, ml-plan.md §addendum 2)
+  D1 joint selection x exit : NOT MET
+  D2 hedge is real          : MET
+  D3 always-on sizing       : MET
+  D4 conditional pick       : NOT MET
+  D5 gated sleeve (POST-HOC): 2 candidate gate(s)
+```
+

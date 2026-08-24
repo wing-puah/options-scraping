@@ -19,7 +19,7 @@ an unsizable candidate can still be picked by the day's rule, and it
 contributes $0 wherever ARM H sums or correlates dollars (same treatment as
 "no pick that day"), disclosed in the census rather than excluded from it.
 
-The whole ARM H programme is power-stopped on this book (next-steps.md
+The whole ARM H programme is underpowered on this book (next-steps.md
 §2.3), so none of this changes any conclusion — only the sizing floor's own
 behaviour and what the census discloses about it.
 """

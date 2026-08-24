@@ -2361,3 +2361,196 @@ precondition as its own row where B folded it into each cell's criterion 7 —
 same fact, two presentations. Main-session decision: **CANDIDATE grading
 ACCEPTED.** Status unchanged: not a ship; queued for the independent-window
 confirmation the registration requires.
+
+## 2026-08-22 — "POWER STOP" RETIRED in favour of **UNDERPOWERED**, and `ml_combination`'s v4 debut FIXED: it died on two columns the v4 bump had already dropped
+
+**Terminology.** The under-the-floor state is now printed as **UNDERPOWERED**
+everywhere code prints it, and the mechanism that produces it is a **power
+floor** — vocabulary five modules (`book.py`, `macro_event_study`,
+`mech_regime_recut`, `bear_position_study`, `regime_gap_reread`) were already
+using. `calendar_hedge.POWER_STOP_MIN_N` is now `MIN_N_TO_READ`, which says
+what the constant does: below it, the cell is not read.
+
+This finishes a migration `financed_spread` amendment 1 had started for F4
+alone while F0–F3 kept the older token "their published reports already
+quote". `underpowered_token(shape)` is gone with the split it encoded; the
+module exports a single `UNDERPOWERED` constant, and `VERDICTS` no longer
+carries the same state twice.
+
+**What was deliberately NOT rewritten.** Every verbatim record — this log,
+`research/study-results/`, `research/pre-registrations/`, `research/archive/`,
+the dated index rows in `README.md` — still says POWER STOP / POWER-STOPPED,
+because those quote reports that literally printed that word. Rewriting them
+would have falsified the quote for a change in wording only. `glossary.md`
+carries the mapping: same state, retired name, older documents quoted as they
+printed. Living prose (`glossary.md`, `next-steps.md`, `study-map.md`,
+`catalog.py`) moved to the new wording.
+
+Seven studies re-run to confirm the change is only wording: `calendar_hedge`,
+`selection_order`, `financed_spread`, `staged_exit`, `portfolio_delta`,
+`emission_timing`, `macro_event_study` — all exit 0, no verdict changed, no
+number changed. 2,120 tests pass.
+
+**`ml_combination` on v4: the first genuine casualty of the v4 column drop.**
+The study had NO `-latest.txt` at all after the 2026-08-22 18:08 suite run —
+it crashed, and the runner correctly refuses to promote a failed report, so
+its absence was silent. The crash:
+
+```
+ValueError: window shape cannot be larger than input array shape
+  sklearn HistGradientBoostingRegressor._bin_data -> sliding_window_view(distinct_values, 2)
+  ml_combination.py:424  phase2_models -> M1
+```
+
+`NUM_SCORES` names `score_flow` and `score_dealer`. Those were dropped at the
+v4 bump — `lib/era.py::V3_ONLY_COLS` already treats their absence as the
+DEFINITION of the era — and they arrive 100.0% blank on every v4 row. The
+study's own Phase-0 census printed exactly that (`score_dealer 100.0%`,
+`score_flow 100.0%`) and the median imputer said so too (`Skipping features
+without any observed values: [57 58]`); the elastic net tolerated the all-NaN
+columns, HistGBM's binner did not — zero distinct values, and a 2-wide window
+over zero values raises.
+
+Not a thin-era refusal: the era is fine (78 book dates, 517 rows, 4 test
+blocks). An era-blind feature list, in the one study that hardcodes the two
+columns the era is detected BY.
+
+Fix: `design_matrix` drops columns with no observed value ONCE, on the whole
+book — never per fold, so every fold and the permutation-importance pass keep
+the same columns, and emptiness is a property of the export rather than of any
+label. The Phase-0 census builds the undropped matrix so it can still NAME
+what it dropped, and now prints `era-absent features (2, ...): score_dealer,
+score_flow` above the missingness table. The fold-local case (a merely-sparse
+column absent from ONE training fold) is REFUSED with a diagnosis rather than
+patched: dropping per fold would leave the ablation and importance numbers
+built on feature sets that are not the same set, which is what this study
+compares.
+
+`ml_combination` now exits 0 on era v4. Its first v4 numbers are NOT read here
+— B0 $34,744 / meanR +0.257 over 168 positions is the benchmark, and the
+model arms are for the write-up, not for this note.
+
+**Carry-forward, not run today: the `analyze_bt_queue.sh` backfill has 20
+dates stuck as permanently-skipped partials.** Five of them (2025-02-07,
+2025-05-19, 2025-06-05, 2025-08-01, 2025-08-19) ALREADY have their analysis
+rows in the tab — 11–13 each — so `RETRY_PARTIAL=1` on queue b would duplicate
+them, which the tab has no dedup to catch. The other fifteen wrote nothing and
+are safe to retry. Verified today: 87 dates in the export, one run timestamp
+per date, no duplicates yet.
+
+## 2026-08-22 (late) — operator read "more deployed = works less": the ladder's DEPTH is not the problem, the book's SIZE is unmeasured. v3 day-level cuts DIED on v4; `concurrency_correlation` pre-registered
+
+Operator observation, unprompted: *"the more that is being deployed, the less
+it seems to be working."* Three passes — an inventory of what actually gates a
+deployment today, a sweep of the existing record, and fresh cuts on both eras.
+Populations named per figure; nothing here is a shipped rule.
+
+**What gates a deployment today (inventory).** BINDING: the three §1 vetoes,
+the §1.4 bear-debit redirect to the hedge sleeve, the A/B/C tier bucket (Tier C
+is rejected), the §3 bull_put geometry (nominally binding, practically
+unverified — `short_leg_delta` is not a `ROW_COLUMNS` column), and the
+freshness/lookahead bound. ADVISORY ONLY: `DEPLOY_BUDGET = 3` (a LABEL — `rank()`
+returns every survivor and `render()` printed all of them), the 0.25/2.50
+exposure caps, duplicate-ticker exposure, and `judge()`. **No gate anywhere
+counts concurrent open positions, and no gate raises the bar for the Nth play
+of a day over the 1st.**
+
+**Depth into the survivor list is FLAT, on both eras.** Deployed-order replay
+of Tier A/B survivors, mean R by within-day rank:
+
+| rank | v3 (795 rows / 118 dates) | v4 (517 rows / 78 dates) |
+|---|---|---|
+| 1 | +0.178 | +0.155 |
+| 2 | +0.527 | +0.372 |
+| 3 | +0.445 | +0.269 |
+| 4-5 | +0.281 | +0.263 |
+| 6+ | +0.323 | +0.257 |
+
+Cumulative top-K on v3 plateaus at +0.364 (K=3) and is still +0.344 at K=8.
+This does NOT contradict the recorded `top-1 +0.82 / top-3 +0.45 / all +0.14`
+(607-row pooled book, 2026-07-19): that measures depth into the whole EMISSION
+list, whose tail is Tier C and VETO, both negative every year (n=587 / n=145).
+The tier gate does the work; the count cap inside the survivors does almost
+none. **A tighter top-N is not the missing gate.**
+
+**DEAD END, recorded so it is not re-found: two v3 day-level cuts that do not
+survive the v4 bump.** Deployed top-3, mean R:
+
+| cut | v3 | v4 |
+|---|---|---|
+| day had Tier A supply | +0.475 (n=137, 57 dates) | +0.247 (n=56, 27 dates) |
+| Tier-B-only day | +0.182 (n=83, 33 dates) CI[-0.005,+0.369] | +0.257 (n=112, 45 dates) |
+| model BULL + L-VOL | -0.050 (n=43, 15 dates) | +0.224 (n=102, 40 dates) |
+| all other regimes | +0.465 (n=177, 75 dates) | +0.299 (n=66, 32 dates) |
+
+On v3 the BULL+L-VOL cell held its sign in EVERY robustness cut (both halves,
+2024 and 2025, real and tweak pricing, pre- and post-13c; date-clustered
+p=0.0042), and all 15 such dates carried ZERO Tier A supply while emitting 4.87
+Tier B per date against 1.24 elsewhere — i.e. the days with no A-tier flooded
+the card with B-tier. It was a clean story and it is gone on v4: the gap is
++0.257 vs +0.247, and B-only days are now the MAJORITY (45 of 72 dates, vs 24%
+on v3) because Tier A share collapsed across the bump (v3 131 A / 166 B; v4
+58 A / 172 B). This is `v4_bridge`'s `LADDER UNVALIDATED ON v4 — ladder tier
+mix shifted, chi2 p = 0.0000` claiming a victim. **No gate was built on it.**
+
+**What the record already had, and what it never measured.** Established: tier
+depth is monotone and C/VETO are negative every year; taking every emitted play
+makes +$14.0k over three years against +$76k for the top-3 replay — the value
+is in the triage, not the generation. Directional and independent:
+`archive/08`'s discretionary book (468 closed trades) shows P&L per trade
+falling monotonically with same-day trade count — 1/day +$119 · 2-3/day +$25 ·
+4-6/day +$9 · 7+/day -$18 — with win rate FLAT at 51-59%, which is dilution
+rather than worse reads on busy days. Already refuted: `portfolio_delta` ARM B
+(128 -> 68 positions, paired gain -0.0164 R, FAIL) and ARM D (NON-MONOTONE /
+FLAT, verdict NOISE) — both cut on DELTA CEILINGS. **Never studied at all:
+concurrency vs outcome (census only — v3 median 8 concurrent, p90 29, max 48;
+`account_sim` computes `n_open` and no report joins it to anything), and
+correlation between concurrently held plays (every "correlation" in the repo is
+sleeve-vs-book).**
+
+**The live book, for context, not as evidence.** Open legs 3 -> 19 since May;
+opening orders per week stepped rather than drifted, breaking the week of
+2026-07-27 (19 in that week). Win rate rose over the ramp; average win / average
+loss collapsed 1.53 -> 0.25. One TSM close is 48.8% of gross wins in the record
+— strip it and the before/after profit factor is 0.76 vs 0.59, same direction,
+much weaker. Both persisted deploy cards (08-14, 08-17) emitted 8 candidates,
+100% Tier B, 100% `bull_call_spread`, in a BULL regime, with SNDK/MU/AMD on
+both. The v4 book is long-only by construction (`positive 168 / NEGATIVE 0`,
+`net-SHORT sessions 0`).
+
+**Shipped today (production tier).** `render()` now treats the budget as a CUT
+rather than a label: budgeted picks keep the full block, reserves collapse to
+one line each under `### Reserve — N NOT for deployment` with prose saying a
+reserve REPLACES an untradeable pick and is never a fourth position. `rank()`
+is UNCHANGED — every survivor is still returned and still persisted, so the
+record loses nothing; this is presentational, and it is presentational because
+the card showed eight fully-specified plays under a 1-3/day rule. Also added:
+an ADVISORY `**Book concentration:**` block (open positions, distinct tickers,
+long/short/unpriced split, a warning when every priced position points the same
+way, and a warning naming a budgeted pick whose ticker is already open). It
+filters nothing and says so — no concurrency rule has been backtested.
+
+**Registered, not run.** `research/pre-registrations/concurrency_correlation.md`
+— ARM N null band, ARM D0 descriptive, ARM C concurrency ceiling {5,8,12,20},
+ARM K clustering ceiling {2,3,5} on direction / direction+sector / underlying,
+ARM CK only if C and K clear independently. X4 (both eras, same sign, within
+0.15 R) is expected to be the binding criterion, and X7 refuses any arm that is
+a delta ceiling in disguise — ARM B and ARM D already failed that axis. The
+module is NOT written; the plan exists before the code on purpose, and it
+carries the dead-end table above so the study cannot re-find those cuts and
+call them new.
+
+**Three stale figures corrected.** (1) `deployment-evidence.md:39` quoted
+`top-1/day 76% win / +0.35 mean`; the log says `+0.41` and by that file's own
+precedence rule the log wins. (2) `selection_order.py` printed `changes only
+7-14% of O0's taken positions` as a HARDCODED prose literal — the measured
+census is 15%-24% (PRIMARY) / 11%-21% (SECONDARY); it now interpolates the
+run's own `g0[n]["share"]` values, and the study-map verdict quoting the old
+number was rewritten against the current report. Verdict, gates and every
+numeric table are byte-identical to the pre-edit run. (3) The v3 claim that
+`account_sim`'s rejected picks out-earn its taken ones REVERSES on v4 — the
+sign flips in 7 of 8 frozen/compounding x PRIMARY/SECONDARY cells (PRIMARY:
+taken +0.338 vs rejected +0.134 / +0.130); only one n=9 cell still favours
+rejected. Corrected in the `account_sim` verdict, the `selection_order` verdict
+and question, and `selection_order.py`'s docstring, which cited it as live
+motivation.

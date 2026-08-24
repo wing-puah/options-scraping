@@ -386,12 +386,12 @@ def arm_contrasts(recs, powered, key, title, within_structure=False):
                                            sctrl, key)
                         else:
                             print(f"      {s:<26} n={len(srows):>4}/"
-                                  f"{n_dates(srows):>3}d  POWER-STOPPED")
+                                  f"{n_dates(srows):>3}d  UNDERPOWERED")
         if not printed_type:
-            print(f"\n  {t}: every proximity cell POWER-STOPPED "
+            print(f"\n  {t}: every proximity cell UNDERPOWERED "
                   "(census in G0; not read)")
     if not read_any:
-        print("\n  ARM VERDICT INPUT: POWER-STOPPED — no cell cleared the floor.")
+        print("\n  ARM VERDICT INPUT: UNDERPOWERED — no cell cleared the floor.")
     return read_any
 
 
@@ -413,7 +413,7 @@ def mech_vol_recut(recs, powered, key):
                                        mrows, mctrl, key)
                     else:
                         print(f"    {t} {side} w<={w} | {mv:<6} "
-                              f"n={len(mrows)}/{n_dates(mrows)}d POWER-STOPPED")
+                              f"n={len(mrows)}/{n_dates(mrows)}d UNDERPOWERED")
 
 
 def cuts_on_headlines(recs, powered, key):
@@ -539,7 +539,7 @@ def arm_x(recs: list[dict], cal: MC.MacroCalendar) -> None:
                 and ((c1_means["LATE"] - c1_means["EARLY"])
                      * (means["LATE"] - means["EARLY"])) > 0)
     if c1_affected < MIN_EVENT_DATES:
-        verdict = ("POWER-STOPPED — control unreadable; macro_event_exit stays "
+        verdict = ("UNDERPOWERED — control unreadable; macro_event_exit stays "
                    "queued but BLOCKED on data")
     elif fired and same_dir:
         verdict = "TRIGGER STANDS — macro_event_exit stays queued"

@@ -444,7 +444,8 @@ def cmd_recommend(args) -> int:
     print(rec.render(candidates, rejected, judged,
                      date=session, source=ac_source, net_liq=net_liq,
                      as_of=as_of, staleness_days=staleness, stale_note=stale_note,
-                     book_evaluable=prov["evaluable"], book_note=prov["note"]))
+                     book_evaluable=prov["evaluable"], book_note=prov["note"],
+                     book=book_risk))
 
     if args.no_persist:
         return 0

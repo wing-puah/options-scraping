@@ -199,10 +199,24 @@ def feature_columns(groups=None):
     return cats, nums, bools
 
 
-def design_matrix(df: pd.DataFrame, groups=None) -> pd.DataFrame:
+def design_matrix(df: pd.DataFrame, groups=None,
+                  drop_empty: bool = True) -> pd.DataFrame:
     """One-hot + numeric matrix. Categories are taken from the WHOLE book on
     purpose: a level absent from a training fold becomes an all-zero column, and
-    the encoding uses no label information, so this is not leakage."""
+    the encoding uses no label information, so this is not leakage.
+
+    `drop_empty` removes every column with NO observed value anywhere in the
+    book — a column the ERA does not carry rather than one that is merely
+    sparse. `NUM_SCORES` names `score_flow` and `score_dealer`, which the v4
+    bump dropped (`lib/era.py::V3_ONLY_COLS`); they are kept in the list so a
+    pooled v3 export still gets them, and they arrive 100% blank on v4. The
+    drop happens ONCE on the whole book, never per fold, so every fold and the
+    permutation-importance pass see the same columns. Emptiness is a property
+    of the export, not of any label, so this is not leakage either.
+
+    `drop_empty=False` is for the Phase-0 census, which has to see a column
+    before it can report it as absent.
+    """
     cats, nums, bools = feature_columns(groups)
     parts = []
     if cats:
@@ -212,23 +226,35 @@ def design_matrix(df: pd.DataFrame, groups=None) -> pd.DataFrame:
     if nums:
         parts.append(df[nums].astype(float))
     X = pd.concat(parts, axis=1) if parts else pd.DataFrame(index=df.index)
-    return X
+    return X.loc[:, ~X.isna().all()] if drop_empty else X
 
 
 def leakage_audit(df: pd.DataFrame) -> None:
     """Fail loudly if a label ever reaches the matrix (Phase-0 gate)."""
     labels = {"E", "R", "E_dol", "R_dol", "mfe", "mae", "y_bin", "exit_reason",
               "days_held", "tier"}
-    X = design_matrix(df)
+    X = design_matrix(df, drop_empty=False)
     bad = labels & set(X.columns)
     assert not bad, f"label leaked into the design matrix: {bad}"
-    print(f"  leakage audit: OK — {X.shape[1]} feature columns, none label-derived")
+    n_used = int((~X.isna().all()).sum())
+    print(f"  leakage audit: OK — {X.shape[1]} feature columns "
+          f"({n_used} carried by this era), none label-derived")
     miss = X.isna().mean().sort_values(ascending=False)
-    hi = miss[miss > 0.05]
-    if len(hi):
-        print("  missingness > 5% (imputed with an indicator, never row-dropped):")
-        for c, v in hi.items():
-            print(f"    {c:24s} {v:6.1%}")
+    empty = sorted(miss[miss >= 1.0].index)
+    if empty:
+        # A column the ERA does not carry, not a column that happens to be
+        # sparse. `score_flow` / `score_dealer` are the standing case: dropped
+        # at the v4 bump (`lib/era.py::V3_ONLY_COLS`) and 100% blank on every
+        # v4 row, while `NUM_SCORES` still names them so a pooled v3 export
+        # keeps them. Say so here rather than let a model meet them: an
+        # all-NaN column has no median to impute and no split to bin, which is
+        # how the v4 debut of this study died inside HistGBM's binner.
+        print(f"  era-absent features ({len(empty)}, no observed value on this "
+              f"book — excluded from every fit, present only so a pooled v3 "
+              f"export still carries them): {', '.join(empty)}")
+    print("  missingness > 5% (imputed with an indicator, never row-dropped):")
+    for c, v in miss[(miss > 0.05) & (miss < 1.0)].items():
+        print(f"    {c:24s} {v:6.1%}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -237,10 +263,38 @@ def leakage_audit(df: pd.DataFrame) -> None:
 
 def _fit_predict(make_model, Xtr, ytr, Xte, linear: bool):
     """Fit one fold. Linear models need imputation + scaling; the tree family
-    takes NaN natively, so imputing for it would only blur a real 'missing'."""
+    takes NaN natively, so imputing for it would only blur a real 'missing'.
+
+    A column with NO observed value in the TRAINING fold is dropped from both
+    sides of the fold. That is not a modelling choice — such a column carries
+    no information by construction, has no median for the imputer, and gives
+    HistGBM's binner zero distinct values to slide a 2-wide window over, which
+    raises `ValueError: window shape cannot be larger than input array shape`.
+    The mask is computed on the training fold's FEATURES only, never on `ytr`,
+    so it cannot leak a label; `Xte` is masked with the same columns so the
+    fitted model sees the shape it was trained on.
+
+    Era-wide empties (`score_flow` / `score_dealer` on v4) are already gone:
+    `design_matrix` drops them ONCE, on the whole book, so every fold carries
+    the same columns and the permutation-importance pass can still index `X`
+    by test rows. What is left here is the fold-local case — a column merely
+    sparse book-wide that happens to be entirely absent from ONE training fold
+    — and that is refused rather than patched: dropping it for one fold only
+    would leave the ablation and importance numbers built on feature sets that
+    are not the same set, which is exactly what this study compares.
+    """
     from sklearn.impute import SimpleImputer
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
+    empty = np.isnan(np.asarray(Xtr, dtype=float)).all(axis=0)
+    if empty.any():
+        raise ValueError(
+            f"{int(empty.sum())} feature column(s) (index "
+            f"{list(np.flatnonzero(empty))}) have no observed value in this "
+            f"training fold, though they are populated somewhere in the book. "
+            f"A model cannot impute or bin them. Widen the fold, or move the "
+            f"column into a group this arm does not use — do NOT drop it per "
+            f"fold, which would make the folds incomparable.")
     model = make_model()
     if linear:
         model = make_pipeline(SimpleImputer(strategy="median", add_indicator=True),

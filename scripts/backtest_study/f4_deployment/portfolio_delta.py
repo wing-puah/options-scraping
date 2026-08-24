@@ -28,7 +28,7 @@ may drift from it. In brief:
             ARM H* are within-date paired differences vs the shipped walk.
   Gates     G-DELTA (delta source) -> G-EQUIV (the fork reproduces
             `account_sim.simulate()` exactly) -> G-INVENTORY (census + the
-            >= 25 moved-dates power stop) -> imported G3 (ledger identity) and
+            >= 25 moved-dates power floor) -> imported G3 (ledger identity) and
             G5 (outcome blindness) on every arm that admits positions -> no
             annualised figure anywhere.
   Firewall  NO band value, ceiling value or delta target may be adopted,
@@ -99,7 +99,7 @@ DRAWS = 200
 SEED = 20260819
 BAND_ALPHA = 0.05          # band = [p5, p95]; the criterion reads "> p95"
 
-# G-INVENTORY's power stop. Declared before the count was knowable.
+# G-INVENTORY's power floor. Declared before the count was knowable.
 MIN_MOVED_DATES = 25
 
 # G-DELTA's pre-declared thresholds.
@@ -783,7 +783,7 @@ def gate_no_annualised() -> bool:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# G-INVENTORY — the census, printed FIRST, and the power stop
+# G-INVENTORY — the census, printed FIRST, and the power floor
 # ════════════════════════════════════════════════════════════════════════════
 
 def print_inventory_census(picked, bands_by_pop: dict, primary: str, st) -> dict:
@@ -873,17 +873,17 @@ def gate_inventory_power(label: str, shipped_bands: dict,
     """The PRE-DECLARED power rule, per arm.
 
     An arm that cannot move >= MIN_MOVED_DATES deployed DATES into a DIFFERENT
-    band than the shipped walk puts them in is POWER-STOPPED: its cells are not
+    band than the shipped walk puts them in is UNDERPOWERED: its cells are not
     read and no criterion is evaluated on it. Declared before the counts were
     known, which is the whole point — the long-only constraint makes this the
     likely outcome for ARM B.
     """
-    hdr(f"[{label}] G-INVENTORY — the POWER STOP (pre-declared, "
+    hdr(f"[{label}] G-INVENTORY — the POWER FLOOR (pre-declared, "
         f">= {MIN_MOVED_DATES} moved dates)")
     print(f"""  For each arm: how many deployed DATES the arm puts in a DIFFERENT
   session-open band than the shipped walk does. A date one arm reaches and the
   other does not counts as MOVED (band vs no band is a difference). Under
-  {MIN_MOVED_DATES} moved dates the arm is POWER-STOPPED — census published, nothing read,
+  {MIN_MOVED_DATES} moved dates the arm is UNDERPOWERED — census published, nothing read,
   no criterion evaluated, and no re-run on these dates.""")
     print(f"\n  {'arm':<30}{'moved dates':>12}{'of':>6}   status")
     out = {}
@@ -897,10 +897,10 @@ def gate_inventory_power(label: str, shipped_bands: dict,
         powered = len(moved) >= MIN_MOVED_DATES
         out[arm] = dict(moved=moved, n_moved=len(moved), powered=powered)
         print(f"  {arm:<30}{len(moved):>12}{len(all_dates):>6}   "
-              f"{'ok' if powered else 'POWER-STOPPED'}")
+              f"{'ok' if powered else 'UNDERPOWERED'}")
     cleared = [a for a, v in out.items() if v["powered"]]
     print(f"\n  arms cleared for reading: "
-          f"{', '.join(cleared) if cleared else 'NONE — every arm power-stopped'}")
+          f"{', '.join(cleared) if cleared else 'NONE — every arm underpowered'}")
     return out
 
 
@@ -1129,7 +1129,7 @@ def evaluate_arm(name: str, arm_sim, base_sim, dates, moved: set, band: dict,
 def build_books(recs, dates_allowed, label: str, st, cache: dict) -> dict:
     """Every arm's book for one population. Computes NOTHING readable.
 
-    Split out from the reporting so the census and G-INVENTORY's power stop can
+    Split out from the reporting so the census and G-INVENTORY's power floor can
     print BEFORE any outcome number, which is what the registration means by
     the census coming first.
     """
@@ -1206,7 +1206,7 @@ def report_population(label: str, book: dict, st, cache: dict) -> dict:
     if not powered:
         sub(f"[{label}] ARM N — NOT RUN  (seed {SEED}, {DRAWS} draws, not taken)")
         print(f"""  The null band exists to serve criterion (7). Every arm is
-  POWER-STOPPED at G-INVENTORY, so there is no criterion to serve and the {DRAWS}
+  UNDERPOWERED at G-INVENTORY, so there is no criterion to serve and the {DRAWS}
   draws are not taken. The seed is stated anyway ({SEED}) so the arm is
   reproducible by anyone re-running it on a book that can be moved.""")
         return dict(arm_d=d, g_inventory=g_inv, band={}, band_hedge={},
@@ -1227,7 +1227,7 @@ def report_population(label: str, book: dict, st, cache: dict) -> dict:
     results = {}
     for name, arm in book["arms"].items():
         if not g_inv[name]["powered"]:
-            sub(f"[{label}] {name} — POWER-STOPPED at "
+            sub(f"[{label}] {name} — UNDERPOWERED at "
                 f"{g_inv[name]['n_moved']} moved dates")
             print(f"  Not read. No criterion is evaluated on this arm "
                   f"(threshold {MIN_MOVED_DATES}, declared before the count was "
@@ -1247,16 +1247,16 @@ def report_population(label: str, book: dict, st, cache: dict) -> dict:
 # ════════════════════════════════════════════════════════════════════════════
 #
 # The registration words four verdicts: LONG-ONLY-BY-CONSTRUCTION,
-# DELTA-DOSE-RESPONSE, NOISE, POWER-STOPPED. They are not disjoint by
+# DELTA-DOSE-RESPONSE, NOISE, UNDERPOWERED. They are not disjoint by
 # construction — a book can be long-only AND show a readable dose response — so
 # the PRECEDENCE below is fixed here, before any number was seen, and companion
 # findings are printed alongside the headline rather than being dropped:
 #
-#   1. every arm power-stopped AND the census shows a long-only book
+#   1. every arm underpowered AND the census shows a long-only book
 #      -> LONG-ONLY-BY-CONSTRUCTION  (the registration's LIKELY verdict, and it
 #         is a result rather than a null: "target a portfolio delta" is not an
 #         available lever on this book, and the sleeve is the only dial)
-#   2. every arm power-stopped, book NOT long-only  -> POWER-STOPPED
+#   2. every arm underpowered, book NOT long-only  -> UNDERPOWERED
 #   3. ARM D readable and monotone                  -> DELTA-DOSE-RESPONSE
 #   4. otherwise                                    -> NOISE
 #
@@ -1300,7 +1300,7 @@ def print_verdict(out: dict, census: dict, label: str) -> str:
              "sleeve. 'Target a portfolio delta' is NOT an available lever on "
              "this book; the sleeve is the only dial.")
     elif not powered:
-        v = (f"POWER-STOPPED — every arm moved fewer than {MIN_MOVED_DATES} deployed dates "
+        v = (f"UNDERPOWERED — every arm moved fewer than {MIN_MOVED_DATES} deployed dates "
              f"into a different band. Census published, nothing read, and NO "
              f"re-run on these dates.")
     elif d["monotone"] and len(d["readable"]) >= MIN_READABLE_BANDS:
@@ -1381,7 +1381,7 @@ def main(argv=None) -> int:
     era.require_dates(diag["n_dates"], diag["era"],
                       what="a book whose deployed dates can carry a "
                            "session-open exposure band at all; G-INVENTORY's "
-                           "25-moved-date power stop is a tighter test on top")
+                           "25-moved-date power floor is a tighter test on top")
 
     picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
                              eligible_fn=P.ladder_eligible)
@@ -1462,7 +1462,7 @@ def main(argv=None) -> int:
   take_floor, downsize and the exit profiles are NOT swept — they come from
   {A.DEFAULT_CONFIG.name} at their committed values for every arm. Compounding OFF.
   No new selection column. Every arm and every cell is reported regardless of
-  outcome, including the ones that lose and the ones that power-stop, and no
+  outcome, including the ones that lose and the ones that come up underpowered, and no
   threshold was moved after a number was seen.
 
   Random-control seed: {SEED} (fixed; draw i uses SEED + i over {DRAWS} draws). Stated

@@ -454,7 +454,7 @@ def test_designed_refusal_exit_codes_is_a_plain_module_level_set_literal():
 
 def test_the_frozen_grids_are_the_registered_ones():
     """Anti-tuning, as a test: bands at four, ceilings at five, targets at
-    three, ARM N at 200 seeded draws, power stop at 25 dates, cells at 20."""
+    three, ARM N at 200 seeded draws, power floor at 25 dates, cells at 20."""
     assert len(PD.BANDS) == 4
     assert PD.CEILINGS == (1.0, 1.5, 2.0, 2.5, float("inf"))
     assert PD.HEDGE_TARGETS == (1.0, 1.5, 2.0)

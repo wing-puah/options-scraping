@@ -43,3 +43,23 @@ VERDICT
   a candidate. Nothing here changes config/backtest.yml.
 ```
 
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 20:13:26 · git d47e227 (main, working tree dirty) · exit 0 · 7.7s
+command     python -m scripts.backtest_study.f3_structure.calendar_hedge
+excerpt     verdict
+
+```
+VERDICT
+  H0 FILL           NOT MET
+  H2 (primary)      NOT EVALUABLE
+  H2 under hold     NOT EVALUABLE   (sensitivity — may not change the verdict)
+  Ship ceiling per the pre-registration: an optional second hedge sleeve
+  in docs/deployment-rules.md §4, requiring H0 MET and H0b not flipping
+  the verdict and H2 MET and H3 deployable at f >= 0.25. Anything less is
+  a candidate. Nothing here changes config/backtest.yml.
+```
+

@@ -2,7 +2,7 @@
 
 Pre-registered in `research/current.md` §2026-08-13 "`calendar_hedge`:
 PRE-REGISTRATION", written BEFORE this file was built or run. The pick rules, the
-gates, the criteria, the power stop and the two baselines are fixed there;
+gates, the criteria, the power floor and the two baselines are fixed there;
 nothing here may be reworded after seeing a table.
 
 WHAT THIS RE-DERIVES, AND WHY IT WILL BE A DIFFERENT NUMBER
@@ -124,7 +124,7 @@ WORST_QUARTILE = 0.25
 HEDGE_SIZE = 0.5                     # <= 1/2 position, the shipped sleeve convention
 SIZE_FRACTIONS = (0.0, 0.25, 0.50, 1.0)
 H0_FILL_MIN = 0.60                   # both denominators
-POWER_STOP_MIN_N = 10                # H2(b) is NOT EVALUABLE below this
+MIN_N_TO_READ = 10                # H2(b) is NOT EVALUABLE below this
 FRESH_STALE_MAX = 3                  # H0b
 FRESH_REAL_MIN = 0.5                 # H0b
 
@@ -372,7 +372,7 @@ def _typed(row: dict) -> dict:
     # $0 — same treatment as "no pick that day"). Do NOT filter these rows out
     # of the candidate universe: that flips H0 (a recorded gate) by conflating
     # "fillable but unsizable" with "unfillable". The whole ARM H programme is
-    # POWER-STOPPED on this book (next-steps.md §2.3), so this changes no
+    # UNDERPOWERED on this book (next-steps.md §2.3), so this changes no
     # conclusion — only which $0 rows disclose as unsizable in the census.
     raw_ct = int(HEDGE_SIZE * out["contracts"]) if out["contracts"] else None
     hedge_ct = raw_ct if raw_ct and raw_ct >= 1 else None
@@ -944,7 +944,7 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
     print("  D2's rule verbatim: (a) date-level correlation < 0, (b) mean sleeve R")
     print("  on the deployed book's worst-decile dates > 0 with a date-clustered CI")
     print("  excluding zero, (c) worst-quartile tail positive in >= 2 evaluable")
-    print("  years. All three. POWER STOP: fewer than 10 positions in the")
+    print("  years. All three. UNDERPOWERED: fewer than 10 positions in the")
     print("  worst-decile cell and (b) is NOT EVALUABLE — not 'failed'.")
 
     # (a) correlation of the two DAILY DOLLAR series over every deployed date,
@@ -975,11 +975,11 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
     dep_tail = sum(dep[d]["dollars"] for d in worst_dates)
     print(f"  worst decile = {len(worst_dates)} dates, deployed ${dep_tail:,.0f}")
     b_met = None
-    if len(tail) < POWER_STOP_MIN_N:
+    if len(tail) < MIN_N_TO_READ:
         print(f"  sleeve positions on those dates: n={len(tail)}  "
               f"meanR {mean([r['R'] for r in tail]):+.3f}  "
               f"$ (1/2) {sum(r['H_dol'] for r in tail if r['H_dol'] is not None):+,.0f}")
-        print(f"  POWER STOP — n < {POWER_STOP_MIN_N}. The CI is NOT read and (b) is")
+        print(f"  UNDERPOWERED — n < {MIN_N_TO_READ}. The CI is NOT read and (b) is")
         print("  recorded NOT EVALUABLE, not failed. This was the pre-registered")
         print("  expectation for a 1/day rule; the honest conclusion is 'needs new dates'.")
     else:
@@ -1015,7 +1015,7 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
     sub("H2 verdict")
     if b_met is None:
         verdict = "NOT EVALUABLE"
-        print(f"  (a) {'MET' if a_met else 'not met'}   (b) NOT EVALUABLE (power stop)"
+        print(f"  (a) {'MET' if a_met else 'not met'}   (b) NOT EVALUABLE (power floor)"
               f"   (c) {'MET' if c_met else 'not met'}")
         print("  H2 = NOT EVALUABLE — the primary gate cannot be read on this window.")
     else:
@@ -1054,7 +1054,7 @@ def h0b_freshness(fillable_by_date: dict, rule, dep: dict, dep_dates: list[str],
     print(f"  meanR {mean([r['R'] for r in sleeve]):+.3f}  CI {fmt_ci(ci)}  n={len(sleeve)}"
           f"   meanE {mean([r['E'] for r in sleeve]):+.3f}")
     print(f"  worst-decile cell: n={len(tail)}  meanR {mean([r['R'] for r in tail]):+.3f}"
-          + ("   (below the power stop — no CI read)" if len(tail) < POWER_STOP_MIN_N else
+          + ("   (below the power floor — no CI read)" if len(tail) < MIN_N_TO_READ else
              f"   CI {fmt_ci(P.boot_ci_by_date(tail, key='R'))}"))
 
 
@@ -1455,10 +1455,10 @@ def arm_s(universe: dict, idx, store: Store, book: list[dict], dep: dict,
             fill = len(sleeve) / len(dep_dates) if dep_dates else 0.0
             tail = [picks[d] for d in worst_dates if d in picks]
             n_cells += 1
-            if len(tail) < POWER_STOP_MIN_N:
+            if len(tail) < MIN_N_TO_READ:
                 n_power += 1
                 verdict = "NOT EVALUABLE (power)"
-                ci_s = "     not read (power stop)"
+                ci_s = "     not read (power floor)"
             else:
                 ci = P.boot_ci_by_date(tail, key="R", alpha=alpha)
                 ci_s = f"{fmt_ci(ci):>26}"
@@ -1484,8 +1484,8 @@ def arm_s(universe: dict, idx, store: Store, book: list[dict], dep: dict,
         print("  Status: CARRY-TO-NEXT-WINDOW. Not a finding, not a ship.")
     else:
         print(f"  NO cell clears the corrected bar. {n_power} of {n_cells} cells")
-        print("  are POWER-STOPPED on the worst-decile cell (n < "
-              f"{POWER_STOP_MIN_N}) — the same")
+        print("  are UNDERPOWERED on the worst-decile cell (n < "
+              f"{MIN_N_TO_READ}) — the same")
         print("  stop that made the H arm's H2 NOT EVALUABLE, and for the same")
         print("  reason: a 1/day rule over 9 worst-decile dates cannot fill a cell")
         print("  large enough to read. This is a POWER outcome, not evidence")
@@ -1535,7 +1535,7 @@ def main(argv=None) -> int:
     # Refuse a thin era HERE — before `_strike_index()` and `build_universe()`,
     # which are the expensive parts, and before any gate can mistake "there was
     # nothing to test" for "the test failed". This study has no larger date floor
-    # of its own (POWER_STOP_MIN_N is a ROW count, applied to H2 downstream), so
+    # of its own (MIN_N_TO_READ is a ROW count, applied to H2 downstream), so
     # it takes the shared power floor.
     era.require_dates(bdiag["n_dates"], bdiag["era"],
                       what="the deployed-date universe and its worst decile")

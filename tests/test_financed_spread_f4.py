@@ -251,9 +251,16 @@ def test_f4_is_the_six_registered_cells_on_the_same_rows():
         "F4-d10 pt50", "F4-d10 $100", "F4-d10 hold"]
 
 
-def test_f4_cells_print_the_amendment_2_terminology():
-    assert FS.underpowered_token("F4") == "UNDERPOWERED"
-    assert FS.underpowered_token("F1") == "POWER-STOPPED"
+def test_every_shape_prints_one_under_the_floor_token():
+    """Amendment 1 split F4's wording from F0-F3's; the split is gone.
+
+    The repo retired "POWER-STOPPED" on 2026-08-22, so there is a single token
+    and no shape-dependent branch left to get wrong. Reports on disk from
+    before that date still say POWER-STOPPED and are not rewritten.
+    """
+    assert FS.UNDERPOWERED == "UNDERPOWERED"
+    assert FS.UNDERPOWERED in FS.VERDICTS
+    assert not hasattr(FS, "underpowered_token")
 
 
 def test_the_frozen_trigger_values_are_the_operators_stated_practice():

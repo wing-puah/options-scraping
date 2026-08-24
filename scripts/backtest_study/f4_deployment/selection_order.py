@@ -7,7 +7,12 @@ nothing here may drift from it. In brief:
   Question  `account_sim` showed the binding constraint is delta exposure, not
             cash, and that the picks the net cap EXCLUDES outperform the ones it
             admits (+0.624 rejected vs +0.290 taken at 0.25x/2.50x). That read
-            is post-hoc. This study asks the pre-registered version of it: does a
+            is post-hoc, it was measured on the v3 era, and it DOES NOT SURVIVE
+            THE v4 BUMP -- re-run 2026-08-22, the sign flips in 7 of 8 printed
+            comparisons (v4 PRIMARY: taken +0.338 vs rejected +0.134/+0.130).
+            The v3 figures stay as the motivation this study was REGISTERED
+            under, not as a live claim. The pre-registered question is asked
+            anyway, on both eras: does a
             different, BLIND, entry-side ordering of the SAME candidate set spend
             the scarce delta budget better?
   Not this  It is NOT a selection study. Tier membership, the candidate universe,
@@ -24,7 +29,7 @@ nothing here may drift from it. In brief:
   Metric    Within-date paired difference vs O0 in mean R over the day's taken
             positions. Dollars print alongside as a sanity check only. QUOTE R.
   Gates     G0 power pre-check (runs FIRST, blocks everything; <25 affected dates
-            -> POWER-STOPPED), G1 plumbing, G2 blindness, G3 attribution,
+            -> UNDERPOWERED), G1 plumbing, G2 blindness, G3 attribution,
             G4 no annualised figure, G5 out-of-fold discipline. Gate IDS ARE
             FROZEN: G1's book-line checksum was removed 2026-08-15 and the line
             is now printed descriptively, but nothing was renumbered — the ids
@@ -80,7 +85,7 @@ DRAWS = 200
 SEED = 20260814
 BAND_ALPHA = 0.05          # band = [p5, p95]; criterion 7 is "> p95"
 
-# G0's power stop. Declared before the count was knowable — that is the point.
+# G0's power floor. Declared before the count was knowable — that is the point.
 MIN_AFFECTED_DATES = 25
 
 # The exclusion buckets that make a date CONTESTED. `unsizable` is deliberately
@@ -279,7 +284,7 @@ def gate_g0(label, sims, base, cont) -> dict:
   across arms BY CONSTRUCTION and are excluded from the paired test — including
   them is the zero-inflation that failed exit_switch_mech's LOO median gate.
 
-  An arm under {MIN_AFFECTED_DATES} AFFECTED dates is POWER-STOPPED: its cells are not read
+  An arm under {MIN_AFFECTED_DATES} AFFECTED dates is UNDERPOWERED: its cells are not read
   and no criterion is evaluated on it. This threshold was declared in the
   pre-registration BEFORE the count was knowable, which is the whole point.""")
     base_dates = {p.rec["date"] for p in base.signal_pos} | {
@@ -319,10 +324,10 @@ def gate_g0(label, sims, base, cont) -> dict:
         out[name] = dict(affected=affected, n_affected=len(affected),
                          changed=changed, share=share, powered=ok)
         print(f"  {name:<5} {len(affected):>15} {changed:>14} {share:>11.0%}   "
-              f"{'ok' if ok else 'POWER-STOPPED'}")
+              f"{'ok' if ok else 'UNDERPOWERED'}")
     powered = [n for n in TEST_ARMS if out[n]["powered"]]
     print(f"\n  arms cleared for reading: "
-          f"{', '.join(powered) if powered else 'NONE — every arm power-stopped'}")
+          f"{', '.join(powered) if powered else 'NONE — every arm underpowered'}")
     return out
 
 
@@ -534,7 +539,7 @@ def gate_g5(out: dict) -> bool:
     """Out-of-fold discipline — reported under EVERY outcome, including a stop.
 
     A gate that only prints when it has something to say is a gate a reader
-    cannot check. Under a power stop it is vacuously satisfied — and saying so
+    cannot check. Under a power floor it is vacuously satisfied — and saying so
     on the page is the point, because "no G5 line appeared" and "G5 passed" look
     identical from the outside otherwise.
     """
@@ -545,7 +550,7 @@ def gate_g5(out: dict) -> bool:
     for label, res in out.items():
         powered = [n for n in TEST_ARMS if res["g0"][n]["powered"]]
         if not powered:
-            print(f"\n  [{label}] every arm POWER-STOPPED at G0, so NO outcome "
+            print(f"\n  [{label}] every arm UNDERPOWERED at G0, so NO outcome "
                   f"number was printed at all —")
             print("    no arm mean R, no paired gain, no band, no LOO fold, no "
                   "TEST row. There is nothing")
@@ -748,21 +753,26 @@ def print_verdict(results: dict, g0: dict, band: dict, label: str) -> str:
     print(f"  arms clearing all seven: {', '.join(winners) if winners else 'none'}")
 
     if not powered:
-        v = ("POWER-STOPPED — every arm fell under "
+        v = ("UNDERPOWERED — every arm fell under "
              f"{MIN_AFFECTED_DATES} affected dates. Census only; nothing read, "
              "and NO re-run on these dates.")
         worst = max(g0[n]["n_affected"] for n in TEST_ARMS)
         print(f"\n  Best-powered arm reached {worst} affected dates against a "
               f"threshold of {MIN_AFFECTED_DATES}.")
-        print("""
+        shares = [g0[n]["share"] for n in TEST_ARMS if g0[n]["share"] == g0[n]["share"]]
+        share_range = (f"{min(shares):.0%}-{max(shares):.0%}" if shares
+                       else "an unmeasurable share of")
+        print(f"""
   CENSUS OBSERVATION, explicitly NOT a verdict upgrade: the reason the arms are
-  under-powered is itself informative — each one changes only 7-14% of O0's
-  taken positions, because on most contested dates the caps exclude the same
-  picks whatever the order. That texture is what CAP-BOUND-NOT-ORDER-BOUND
-  describes. It may NOT be recorded as that verdict: the label requires arms
-  that CLEAR G0, and reading a blocked arm's shape as a conclusion is exactly
-  the move the power stop exists to prevent. It is a carry-forward for a
-  re-registration on a materially larger book, nothing more.""")
+  under-powered is itself informative — each one changes only {share_range} of O0's
+  taken positions (this run's measured range across the {len(TEST_ARMS)} ordering
+  arms), because on most contested dates the caps exclude the same picks
+  whatever the order. That
+  texture is what CAP-BOUND-NOT-ORDER-BOUND describes. It may NOT be recorded
+  as that verdict: the label requires arms that CLEAR G0, and reading a
+  blocked arm's shape as a conclusion is exactly the move the power floor
+  exists to prevent. It is a carry-forward for a re-registration on a
+  materially larger book, nothing more.""")
     elif winners:
         v = (f"ORDERING-MATTERS — {', '.join(winners)} clears all seven. CANDIDATE, "
              "NOT a ship: queues an independent-window confirmation, after which "
@@ -796,7 +806,7 @@ def print_verdict(results: dict, g0: dict, band: dict, label: str) -> str:
 def arm_table(label: str, sims: dict, read_outcomes: bool) -> None:
     """The arms' books. Outcome columns appear ONLY if G0 cleared an arm.
 
-    Under a power stop the registration is explicit — "its cells are not read"
+    Under a power floor the registration is explicit — "its cells are not read"
     — and an arm's mean R IS its cell. So the table degrades to a CENSUS
     (positions and dates, both knowable at entry) and the outcome columns are
     withheld rather than printed with a caveat next to them. A number that is
@@ -804,7 +814,7 @@ def arm_table(label: str, sims: dict, read_outcomes: bool) -> None:
     """
     sub(f"[{label}] the five deterministic arms — "
         + ("book summary (G5: IN-SAMPLE)" if read_outcomes
-           else "CENSUS ONLY (G0 power stop: no outcome column is printed)"))
+           else "CENSUS ONLY (G0 power floor: no outcome column is printed)"))
     head = f"  {'arm':<5} {'positions':>9} {'dates':>6} "
     print(head + (f"{'meanR':>8} {'$':>11}   ordering" if read_outcomes
                   else "  ordering"))
@@ -849,11 +859,11 @@ def report_population(label: str, book: dict, st, cache) -> dict:
     if not powered:
         # G0 "runs FIRST and blocks everything". With no arm cleared there is
         # nothing for the band to be a control FOR, so the 200 draws are not
-        # run either: an O4 distribution printed under a total power stop is an
+        # run either: an O4 distribution printed under a total power floor is an
         # unregistered number with no criterion attached to it.
         sub(f"[{label}] O4 — NOT RUN  (seed {SEED}, {DRAWS} draws, not taken)")
         print("  The null band exists to serve criterion (7). Every arm is "
-              "power-stopped, so there is no\n  criterion to serve and the "
+              "underpowered, so there is no\n  criterion to serve and the "
               f"{DRAWS} draws are not taken. The seed is stated anyway "
               f"({SEED}) so the\n  arm is reproducible by anyone re-running it "
               "on a larger book.")
@@ -864,7 +874,7 @@ def report_population(label: str, book: dict, st, cache) -> dict:
     results = {}
     for name in TEST_ARMS:
         if not g0[name]["powered"]:
-            sub(f"[{label}] {name} — POWER-STOPPED at "
+            sub(f"[{label}] {name} — UNDERPOWERED at "
                 f"{g0[name]['n_affected']} affected dates")
             print(f"  Not read. No criterion is evaluated on this arm "
                   f"(threshold {MIN_AFFECTED_DATES}, declared before the count "
@@ -912,7 +922,7 @@ def main(argv=None) -> int:
     recs, diag = load_book(include_bs=False)
     # Refuse a thin era HERE, with the numbers, rather than letting it surface as
     # a gate verdict several hundred lines of report later. This study's own
-    # declared floor (MIN_AFFECTED_DATES = 25) is a G0 power stop over CONTESTED
+    # declared floor (MIN_AFFECTED_DATES = 25) is a G0 power floor over CONTESTED
     # dates, a SUBSET of book dates — it cannot substitute for a floor on the
     # book itself, and it is smaller than the shared one anyway, so the shared
     # power floor is what binds.
@@ -920,7 +930,7 @@ def main(argv=None) -> int:
           f"{diag['date_range'][0]} .. {diag['date_range'][1]}")
     era.require_dates(diag["n_dates"], diag["era"],
                       what="a book the six arms can be contested on at all; G0's "
-                           "25-contested-date power stop is a tighter test on top")
+                           "25-contested-date power floor is a tighter test on top")
 
     picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
                              eligible_fn=P.ladder_eligible)
@@ -996,7 +1006,7 @@ def main(argv=None) -> int:
         print(f"  {k}: {'PASS' if gates[k] else 'FAIL'}")
     any_powered = any(out[primary]["g0"][n]["powered"] for n in TEST_ARMS)
     print("  G0: at least one arm cleared" if any_powered
-          else "  G0: POWER STOP FIRED on every arm")
+          else "  G0: POWER FLOOR FIRED on every arm")
     if not all(gates.values()):
         print("\nGATE FAILURE — exit 1.")
         return 1

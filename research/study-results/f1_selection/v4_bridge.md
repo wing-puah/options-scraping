@@ -23,3 +23,16 @@ GATE NOT MET — v4 has 14 of 20 required dates.
   Interim posture (also pre-registered): deploy under the v3
   rules in docs/deployment-rules.md, unchanged.
 ```
+
+## era v4 · inputs dd4c8aa · sha d47e227 — recorded 2026-08-22
+<!-- key era=v4 sha=d47e227 inputs=dd4c8aa -->
+
+population  1,212 results · 2,967 proxy · 8,470 analysis · 810 spy_vix_daily_full  (inputs dated 2026-08-22 10:37 … 2026-08-22 18:08)
+run         2026-08-22 18:10:32 · git d47e227 (main, working tree dirty) · exit 0 · 1.5s
+command     python -m scripts.backtest_study.f1_selection.v4_bridge
+excerpt     matched
+
+```
+VERDICT: LADDER UNVALIDATED ON v4
+```
+

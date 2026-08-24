@@ -416,3 +416,186 @@ def test_render_carries_the_stale_override_banner():
     card = render([], [], None, date=DATE, as_of="2026-08-30",
                   staleness_days=16, stale_note="**--allow-stale**: reconstruction")
     assert "--allow-stale" in card
+
+
+# --------------------------------------------------------------------------
+# Part C — reserves: candidates past the §0 budget render compact, not the
+# full deploy block. The split is render()-only; rank() must still return
+# every survivor untouched.
+# --------------------------------------------------------------------------
+def _candidate(ticker, *, deploy=True, role="deploy", tier="A",
+              score_total=None, duplicate_exposure=False) -> Candidate:
+    return Candidate(
+        ticker=ticker, play=f"play text for {ticker}", structure="bull_call_spread",
+        market_regime="RANGE + E-VOL", tier=tier, tier_partial=False, tier_reason="r",
+        score_total=score_total, horizon="", trigger=f"trigger for {ticker}",
+        invalidation=f"invalidation for {ticker}", alternative_interpretation="",
+        role=role, reasons=["structure=bull_call_spread"],
+        duplicate_exposure=duplicate_exposure, deploy=deploy)
+
+
+def test_reserve_candidates_render_compact_not_the_full_deploy_block():
+    plays = [
+        _row("AAA", "Bull call spread 100/110, ~50 DTE", score_total=100,
+            trigger="TRIGGER-AAA", invalidation="INVALID-AAA"),
+        _row("BBB", "Bull call spread 100/110, ~50 DTE", score_total=90,
+            trigger="TRIGGER-BBB", invalidation="INVALID-BBB"),
+        _row("CCC", "Bull call spread 100/110, ~50 DTE", score_total=80,
+            trigger="TRIGGER-CCC", invalidation="INVALID-CCC"),
+        _row("DDD", "Bull call spread 100/110, ~50 DTE", score_total=70,
+            trigger="TRIGGER-DDD", invalidation="INVALID-DDD"),
+    ]
+    ac_df = _ac_df("RANGE + E-VOL", plays)
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    deploy = [c for c in candidates if c.role == "deploy"]
+    assert [c.deploy for c in deploy] == [True, True, True, False]  # DDD is the reserve
+
+    card = render(candidates, rejected, None, date=DATE)
+    assert "### Reserve" in card
+    before, after = card.split("### Reserve", 1)
+
+    # DDD's ticker is named in the compact reserve section, but none of its
+    # detail lines (trigger/invalidation) appear anywhere on the card.
+    assert "DDD" in after
+    assert "DDD" not in before
+    assert "TRIGGER-DDD" not in card
+    assert "INVALID-DDD" not in card
+
+    # The three budgeted picks keep their full detail block, ABOVE the
+    # reserve section.
+    for tag in ("TRIGGER-AAA", "INVALID-AAA", "TRIGGER-BBB", "INVALID-BBB",
+               "TRIGGER-CCC", "INVALID-CCC"):
+        assert tag in before
+
+
+def test_rank_still_returns_every_survivor_reserve_data_not_dropped():
+    """The reserve/deploy split is presentational (render()-only). rank()
+    itself must still return every survivor with its data intact -- nothing
+    is dropped from the candidate list or from what s07_recwriter would
+    persist off it."""
+    plays = [
+        _row("AAA", "Bull call spread 100/110, ~50 DTE", score_total=100,
+            trigger="TRIGGER-AAA", invalidation="INVALID-AAA"),
+        _row("BBB", "Bull call spread 100/110, ~50 DTE", score_total=90,
+            trigger="TRIGGER-BBB", invalidation="INVALID-BBB"),
+        _row("CCC", "Bull call spread 100/110, ~50 DTE", score_total=80,
+            trigger="TRIGGER-CCC", invalidation="INVALID-CCC"),
+        _row("DDD", "Bull call spread 100/110, ~50 DTE", score_total=70,
+            trigger="TRIGGER-DDD", invalidation="INVALID-DDD"),
+    ]
+    ac_df = _ac_df("RANGE + E-VOL", plays)
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    deploy = [c for c in candidates if c.role == "deploy"]
+    assert len(deploy) == 4
+    assert rejected == []
+    ddd = next(c for c in deploy if c.ticker == "DDD")
+    assert ddd.deploy is False
+    assert ddd.tier == "A"
+    assert ddd.trigger == "TRIGGER-DDD"
+    assert ddd.invalidation == "INVALID-DDD"
+
+
+def test_reserve_section_absent_when_there_are_no_reserves():
+    plays = [
+        _row("AAA", "Bull call spread 100/110, ~50 DTE"),
+        _row("BBB", "Bull call spread 100/110, ~50 DTE"),
+    ]
+    ac_df = _ac_df("RANGE + E-VOL", plays)
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    assert all(c.deploy for c in candidates if c.role == "deploy")
+    card = render(candidates, rejected, None, date=DATE)
+    assert "### Reserve" not in card
+    assert "REPLACES a budgeted pick" not in card
+
+
+def test_reserve_section_prose_present_when_reserves_exist():
+    plays = [_row(f"T{i}", "Bull call spread 100/110, ~50 DTE") for i in range(4)]
+    ac_df = _ac_df("RANGE + E-VOL", plays)
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    card = render(candidates, rejected, None, date=DATE)
+    assert "### Reserve — 1 NOT for deployment" in card
+    assert "REPLACES a budgeted pick" in card
+    assert "never a fourth position" in card
+
+
+def test_render_works_with_book_omitted_entirely():
+    """scripts/backtest_study/lib/live_select.py imports render() directly and
+    never passes book= -- the live_select import path must keep working."""
+    ac_df = _ac_df("RANGE + E-VOL", [_row("AAA", "Bull call spread 100/110, ~50 DTE")])
+    candidates, rejected = rank(ac_df, DATE, _empty_book(), None)
+    card = render(candidates, rejected, None, date=DATE)  # no book kwarg at all
+    assert card.startswith(f"# Deploy card — {DATE}")
+    assert "## Deploy set" in card
+    assert "AAA" in card
+
+
+# --------------------------------------------------------------------------
+# Part C — _book_concentration: the advisory book census
+# --------------------------------------------------------------------------
+def _position(ticker, delta_notional=None, key=None):
+    from journal.config import PositionRisk
+    return PositionRisk(conid_key=key or ticker, ticker=ticker, structure="open",
+                        contracts=1, delta_notional=delta_notional)
+
+
+def _book_with(positions=None, unpriced=None) -> BookRisk:
+    return BookRisk(positions=positions or [], unpriced=unpriced or [])
+
+
+def test_book_concentration_not_evaluated_says_unknown_not_clear():
+    """Mirrors test_render_states_plainly_when_the_book_was_not_evaluable's
+    assertion style for the SAME invariant applied to this new block: an
+    unevaluated book must read as unknown, never as clear."""
+    book = _book_with([_position("AAA", 1000.0)])
+    card = render([], [], None, date=DATE, book_evaluable=False, book=book)
+    assert "**Book concentration:** not evaluated" in card
+    assert "UNKNOWN, not clear" in card
+    # The book itself must not leak through an "unevaluated" block.
+    assert "AAA" not in card
+
+
+def test_book_concentration_not_evaluated_when_book_is_none_even_if_evaluable_true():
+    card = render([], [], None, date=DATE, book_evaluable=True, book=None)
+    assert "**Book concentration:** not evaluated" in card
+
+
+def test_book_concentration_warns_when_every_priced_position_is_long():
+    book = _book_with([_position("AAA", 1000.0), _position("BBB", 500.0)])
+    card = render([], [], None, date=DATE, book=book)
+    assert "Every priced position points the same way" in card
+
+
+def test_book_concentration_no_warning_on_a_mixed_book():
+    book = _book_with([_position("AAA", 1000.0), _position("BBB", -500.0)])
+    card = render([], [], None, date=DATE, book=book)
+    assert "Every priced position points the same way" not in card
+
+
+def test_book_concentration_no_warning_with_only_one_position():
+    book = _book_with([_position("AAA", 1000.0)])
+    card = render([], [], None, date=DATE, book=book)
+    assert "Every priced position points the same way" not in card
+
+
+def test_book_concentration_warns_on_an_all_short_book_too():
+    """The same-direction warning is SYMMETRIC. An all-short book is the same
+    failure as an all-long one -- N positions that rise and fall together --
+    and the check was one-sided when first written. The v4 book being
+    long-only by construction is a fact about today's ladder, not a licence to
+    warn in one direction only; a hedge sleeve flips the sign."""
+    book = _book_with([_position("AAA", -1000.0), _position("BBB", -500.0)])
+    card = render([], [], None, date=DATE, book=book)
+    assert "Every priced position points the same way" in card
+    assert "2 short positions in one direction" in card
+
+
+def test_book_concentration_flags_an_already_open_ticker_for_a_budgeted_pick():
+    book = _book_with([_position("AAA", 1000.0)])
+    card = render([_candidate("AAA", deploy=True)], [], None, date=DATE, book=book)
+    assert "Today's deploy set adds to AAA, already" in card
+
+
+def test_book_concentration_does_not_flag_overlap_for_a_reserve_pick():
+    book = _book_with([_position("AAA", 1000.0)])
+    card = render([_candidate("AAA", deploy=False)], [], None, date=DATE, book=book)
+    assert "Today's deploy set adds to" not in card
