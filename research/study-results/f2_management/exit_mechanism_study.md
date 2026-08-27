@@ -63,3 +63,23 @@ excerpt     tail
          +1712  2025-02-04 GLD   bull_call_spread   time_exit($-108 d24) → profit_target($+1603 d27)
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 23:00:00 · git 25f3e27 (main, working tree dirty) · exit 0 · 5.1s
+command     python -m scripts.backtest_study.f2_management.exit_mechanism_study --side debit
+excerpt     tail
+
+```
+    per-month Δ vs prod: 2024-01:+570  2024-02:-300  2024-03:-263  2024-04:-680  2024-05:-688  2024-06:+453  2024-07:-45  2024-08:-751  2024-09:-1641…
+    biggest movers (46 rows changed):
+         -1292  2024-03-15 ADBE  bear_put_spread    time_exit($+548 d31) → time_exit($-744 d36)
+         -1102  2024-04-11 AAPL  bear_put_spread    time_exit($+111 d15) → stop_loss($-991 d16)
+          -770  2025-10-17 TSLA  bear_put_spread    time_exit($-402 d31) → dollar_stop($-1171 d34)
+          +570  2024-01-29 PDD   bear_put_spread    time_exit($+261 d25) → time_exit($+831 d28)
+         +1230  2024-03-13 IWM   bear_put_spread    time_exit($-492 d19) → time_exit($+738 d22)
+         +1712  2025-02-04 GLD   bull_call_spread   time_exit($-108 d24) → profit_target($+1603 d27)
+```
+

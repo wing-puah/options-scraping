@@ -2936,3 +2936,202 @@ non-evaluation, internal contradiction, era/basis mismatch and stale prose — i
 demonstrably has, four times — but CANNOT catch a wrong-but-stable computation
 that is correctly labelled from correct inputs. That class needs a test, which
 is what this entry adds. Call it an audit, not a replication.
+
+## 2026-08-27 — full-suite re-run on refreshed exports (140-date backfilled book); one HARD row blocks the debit exit family
+
+Exports refreshed 20:34 (485 real / 1,111 proxy / 1,893 analysis; 140 signal
+dates 2024-01-10 → 2025-11-04). The growth 87 → 140 dates since 08-24 is
+BACKFILL: 49 dates / 172 real rows sit BEFORE the v3 window start
+(2024-06-17); there are still ZERO 2026 signal dates, so every
+`ex_2026_feb_apr` cut and "positive every year" clause remains a silent no-op
+(confirmed cell-by-cell: ex-window n == ALL n across f2/f3 grids). Suite run
+`make study-all` + four-family analyst pass (per-study detail below is the
+analysts' read of the printed reports; no study code changed this session).
+
+**BLOCKER — one row stops four studies.** `exit_mechanism_study --side debit`,
+`exit_switch_mech_study`, `exit_switch_structure_study`, `bear_position_study`
+all exit 1 on the same pre-registered harness gate:
+`HARD 2024-08-15 HYG bear_put want=('dollar_stop',18,-0.775) got=('stop_loss',17,-0.75)`.
+Diagnosed to the ULP: production computes `entry_net = 0.29 − 0.09 =
+0.19999999999999998` → day-17 pl `−0.7499999999999999` → sl does NOT fire,
+dollar_stop fires day 18 (−$1,023, stored). The harness rebuilds
+`entry_net = float(export "0.2")` → day-17 pl `−0.7500000000000001` → sl
+fires a day early. Both engines agree on every daily dollar figure; the
+disagreement is worth $0 and one booking day. The row is old (identical in
+v1 export), absent from v2/v3, re-admitted by the 2026-08-25 23:37 re-backtest.
+Fix is a BASIS question (reconstruct entry_net from `entry_leg_detail`, or
+widen `replay_basis.classify`'s near-tie to adjacent-day boundary ties), NOT a
+harness edit — harness.py stays frozen. Until decided, the debit exit family
+has no current report. Credit arm is clean for the second time: 113/113 exact.
+
+**Two report defects found (both need a fix before recording/re-run):**
+- `mech_regime_recut.py:52` reads `spy_vix_daily.csv` (starts 2024-06-03)
+  while everything else — and its own provenance header — uses
+  `spy_vix_daily_full.csv` (starts 2023-06-01). Result: 440/1031 rows
+  (60 dates, 2024-01-10→08-02 = exactly the backfill) carry
+  `mech_direction=NaN`; every mech agreement/veto number this run excludes
+  H1-2024. One-line path fix, then re-run.
+- `portfolio_delta` prints verdict `NOISE` while its own checklist line reads
+  "arms clearing the whole bar: B ceiling 1.00, B ceiling 1.50" — the same
+  verdict-grammar hole account_sim closed on 08-14, now on the study that
+  produced its FIRST full-bar candidate: B ceiling 1.50 clears all seven on
+  BOTH populations (paired +0.0894 R CI[+0.0255,+0.1656] primary / +0.0872
+  CI[+0.0283,+0.1526] secondary, LOO 100%, ARM-N pct 100%). Costs dollars
+  (−$3.5k, composition) and criterion-3 windows are vacuous on PRIMARY, so it
+  cleared six live criteria + one free. Fix the grammar, then treat as
+  candidate-for-independent-window, per registration.
+
+**Trigger census reversals (correlated-window caveat applies to all):**
+- `be_after 0.50` rollback trigger UN-FIRES on the grown book: 165 arming
+  rows / 96 dates, total +$3,521, affected mean-R +0.0987, per-year 2024
+  +0.0148 / 2025 +0.0046 → HOLD. The 08-24 revert fired on 2025 −0.034 at 92
+  rows. Nothing un-reverts without a fresh registration — but a 60-row floor
+  on a still-backfilling book produced a trigger decision that did not
+  survive the next export. Also: `bear_arm.py:442` header still says
+  "shipped 2026-08-11" and prints HOLD with no knowledge that
+  `structure_exit.enabled: false` — misleading to a report-only reader.
+- `bear_deploy` reversal HOLDS (2nd run): D2/D3/D4 all NOT MET; the shipped
+  closer-to-money pick measures −0.014 [−0.146,+0.119] vs day average, its
+  mirror +0.030. account_sim ARM H still cites "bear_deploy D4-adopted" —
+  stale, remove before it propagates. New: D5 now shows 8 post-hoc gates,
+  led by model-RANGE (+$9,622, both years positive) — independent window only.
+- Attempt-13 credit rollback: 0 fresh bull_put rows (no 2026 dates) —
+  UNDERPOWERED, parked; correlated comparator still favours sl-none
+  (Δ −$2,294 vs sl-1×).
+
+**Verdict movers elsewhere:** `account_sim --compounding` flips FEASIBLE →
+NOT FEASIBLE AT $25k (A3 maxDD 25.7% vs 25% limit; A1 holds +0.359
+[+0.245,+0.464]) — first run where the amended grammar names the combination;
+under compounding the binding constraint moves off delta onto the 3/day cap
+(56/126 primary). Base arm unchanged FEASIBLE (+0.342 [+0.221,+0.456], delta
+binds, cash never does; its SECONDARY A3 fails at 35.7% with no verdict line —
+grammar gap of its own). `selection_order` CLOSES its thread: all four arms
+powered for the first time (29–45 affected dates), none clear, O0 sits inside
+the O4 null band both populations → ORDERING-IS-NOISE recorded; the
+"rejected-picks-outperform" premise also inverts in account_sim's own census
+(per_pos_delta rejects +0.039 vs taken +0.342). `volume_signal` verdict moves
+NULL → PATH-VOL-PROXY (r_sep sign-flipped to −0.0106, MFE/MAE now mirrored);
+its one frozen exit variant is dead (−0.0036, 0% of 144 LOO folds). Best
+readable bear cell yet: bear debit HIGH rvolz20 −0.421 [−0.561,−0.259] n=93,
+reproduced in walk-forward TEST (−0.404 n=51). `staged_exit`: 40 powered
+cells, 0 clear criterion 1, continuation failure 45–79% everywhere — the
+reactive-exit null now extends to scheduled switches at 2× the sample.
+`next_day_move` ARM R bear-debit carries ** on all three cuts for the first
+time (flat band +0.110 [+0.006,+0.208] LOOmin +0.099) and stays unpromotable
+by its own registration: criterion 4 unevaluable (no 2026), criterion 5
+tweak-carried (real +0.002 vs tweak +0.193), ARM C control flattens → NO RULE.
+`bear_rewrap` long_diag holds 5/5 on R (+0.216 [+0.051,+0.388], LOO min
++0.177) but its P1 worst-decile pass REVERSED (08-24 n=10 +0.902 → n=12
++0.186 CI spans 0) — re-label wrapper-fix, not hedge; long_put falls to 0/5,
+closed. `financed_spread` F4-d20 still UNDERPOWERED (32 rows/29 dates vs
+60/25) — dates cleared, rows didn't; blocker is CACHE coverage (621/2,040
+candidate contracts, target_unreachable 152) → unblock is a
+fetch_financing_legs d20 scrape, not more dates; and the v3 candidate's edge
+was 4× concentrated in 2026, which this era cannot test. New near-miss:
+F1 off2 6/7 (fails CI only, +0.053 [−0.027,+0.144]); F2 naked short
+significantly harmful both offsets — close. `calendar_hedge` went backwards:
+strict-fill worst-decile n 9 → 3 (12-date decile recomputed on the grown
+book), overall fill 51.2% vs 60% gate — now a FILL-REALISM question, and the
+survivor is fragile (89% of calendar $R in 5 dates, 38% in 2025-01-27;
+>90-DTE carries 84%; hedge property vanishes under hold-to-expiry). ml_combination
+NULL again (M3 −0.028 [−0.139,+0.081]); top features are calendar (dte/dow/
+month_num) and M3's real-tier-only read is +0.036 vs B0 +0.320 — pooled gain
+is tweak-tier. M2-as-tie-break is one bootstrap draw from arming Phase 5
+(+0.042 [−0.005,+0.094]) — watch, off-basis. `v4_bridge`: all five tests
+shift; v4 emission now LARGER than v3 (1,733 plays/157 dates) with tier mix
+chi2 212 (B 13.7→27.6%, VETO 10.2→1.2%, A 15.4→9.9%) — the deploy card's
+candidate pool is structurally different from the evidence population. And
+regime_gap_reread §5d: the bear_put×iv_spread→MAE relation behind the Tier-C
+rule is GONE at comparable n on v4 (v3 ρ −0.215 p<.0001 n=380 → v4 ρ −0.055
+p=.33 n=322) — the strongest single non-replication this run; §1/§4b of that
+report are dead weight on v4 (n=0 by construction; hardcoded date list
+matches 0 rows).
+
+NOT DONE, deliberately: `make study-record` — two reports above are
+known-defective (mech SPY file, portfolio_delta grammar) and the record is
+append-only verbatim; record after the fixes, or record now and re-record the
+fixed runs under their new sha (operator call). emission_timing's v4 candidate
+churn (4→3 candidates, membership swapped, ARM P headline flipped CANDIDATE→
+FAIL between two v4 runs three days apart) re-confirms the 08-24 OFF-BASIS
+retraction — v3 NULL stands, do not act on v4 ARM P cells.
+
+Infra (same session, outside the suite): `make chart-evaluate` charts the
+to_evaluate tab exports (full book, not the per-run scratch) into
+backtests/charts/to_evaluate/; chart_backtest.py distribution panels
+(MFE/MAE strip-box, $ histograms, spaghetti y-axes, paths MFE/MAE scatters)
+now display-trim at the pooled 0.5–99.5 pct with clipped points drawn at the
+axis edge and a per-panel count note — stats stay full-sample.
+
+## 2026-08-27 (fix) — the two defective reports repaired and re-run; era recorded
+
+1. `mech_regime_recut.py` now reads `spy_vix_daily_full.csv` (was the trimmed
+   `spy_vix_daily.csv`, which starts 2024-06-03 and left 440/1031 rows —
+   the whole H1-2024 backfill — with `mech_direction=NaN`). Corrected run:
+   labels on 1021/1031 rows (the residual 10 predate the 50-SMA lookback).
+   Verdict UNCHANGED — OR-VETO REJECTED — but the evidence is now much
+   thinner than the truncated run implied: the newly-vetoed-by-OR subset is
+   n=34 mean +0.0057 / total +0.19 R (truncated file said n=27 +0.1335), and
+   the EARLY-half cut of that subset is negative (n=7, −0.4874). "The model's
+   disagreements with the mech read are systematically right" now rests on a
+   subset that is net-flat, not net-positive; worth a re-read at the next
+   genuinely-new window. Row/date agreement rates now computed on the full
+   book: direction 0.7346 / vol 0.7062 (row), 0.7379 / 0.6966 (date).
+2. `portfolio_delta` verdict grammar completed per a dated registration
+   amendment (research/pre-registrations/f4_deployment/portfolio_delta.md
+   §Amendment 2026-08-27): the full-§Bar-pass combination — worded in §Bar
+   since registration but never mapped to a label — is now
+   **CANDIDATE-FOR-INDEPENDENT-WINDOW**, precedence below LONG-ONLY/
+   UNDERPOWERED (unreachable there) and above DELTA-DOSE-RESPONSE/NOISE. No
+   criterion, threshold, or arm definition moved; the c7-only case still
+   resolves NOISE + QUALIFICATION. Re-run prints: "CANDIDATE-FOR-INDEPENDENT-
+   WINDOW — B ceiling 1.00, B ceiling 1.50 clear the full adoption-eligibility
+   conjunction" (B 1.00 is PRIMARY-only per the checklist; B 1.50 clears on
+   both populations). Nothing ships; queued for an independent window.
+
+Full pytest green (2,226). `make study-record` run after the fixes: 21
+studies appended under era v4 · sha 25f3e27 · inputs 44c76b5 (the 6 absent =
+4 HYG-blocked + 2 retired). The HYG basis decision (current.md §2026-08-27
+BLOCKER) remains open — the debit exit family still has no current report.
+
+## 2026-08-27 (fix 2) — HYG boundary-tie: classifier widened, debit exit family unblocked
+
+The §2026-08-27 BLOCKER is resolved. Root cause restated precisely: harness
+`replay()` rounds pnl to 10dp so that a threshold tie production FIRED
+(Attempt 13's XLF class) fires in replay too — but rounding collapses BOTH
+sides of the boundary onto it, so when production's unrounded pnl landed one
+ulp on the SURVIVING side (HYG 2024-08-15: raw −0.7499999999999999 vs
+sl 0.75), the replay fires a day early under EVERY entry basis — the entry-
+leg reconstruction idea does NOT fix it (leg-basis pl −0.74999…99 also
+rounds onto −0.75). So the fix is in the CLASSIFIER, not the basis and not
+the frozen harness: `lib/replay_basis.py` gains a fifth class,
+`boundary_tie` — a hard-looking row earns it iff the stored outcome
+reproduces IN FULL (reason, day, pnl) once pt/sl is nudged TIE_EPS = 1e-9 in
+the non-firing direction. 1e-9 sits 20x above the ~5e-11 rounding-tie scale
+and 1000x below the smallest genuine mark-tick pnl gap (~1e-6), so the nudge
+can only un-fire an exact tie; a stop 4 ticks past the boundary stays hard
+(test-pinned). harness.py untouched. Consumers updated: exit_mechanism_study
+tally/print, exit_switch_mech_study gate (boundary-tie rows EXCLUDED from
+the calibrated-row cent check, like superseded — their flat replay books a
+different day), book.py debit_calib seed/print; proxy admission unchanged
+(exact-only). Tests: 5 new in test_exit_replay_gate.py (34 pass), full suite
+2,230 green.
+
+Re-runs, all four calibrate 356 exact / 1 near / 14 superseded /
+1 boundary-tie / 0 HARD of 372 (credit arm 113/113):
+- `exit_mechanism_study` (debit): reactive null AGAIN on the 140-date book —
+  PROD +$32,765; best trail (.40/.75) +$34,697 ≈ noise-level Δ, most trails
+  below PROD. Credit arm unchanged (pt .50 tease still single-trade-carried).
+- `exit_switch_mech_study`: mech-keyed switch STAYS GATED; LVOL tef-null
+  STAYS GATED (criteria pass again on the correlated window; ship still held
+  for genuinely new dates per 08-24).
+- `exit_switch_structure_study`: structure-keyed bear_put trail STAYS GATED.
+- `bear_position_study`: **DEMOTE TO VETO — all three pre-registered
+  criteria fire** (ex-window mean E −0.284; bootstrap CI [−0.413, −0.140]
+  upper < 0; both halves negative −0.446/−0.087; CONSTRAIN candidates NONE).
+  Same caveat as every graded read this week: registered on v3, bare-v4 run,
+  correlated window — and the bear_put demotion IMPLEMENTATION (intake veto
+  vs ladder VETO vs C-never-deploy) remains the queued OPERATOR decision
+  from 2026-08-11; this run strengthens the case, it does not take the
+  decision.
+All four recorded (era v4 · sha 25f3e27 — total 25 studies on record for
+this era; only the 2 retired lack reports).

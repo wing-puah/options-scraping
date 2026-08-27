@@ -75,3 +75,19 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   blocked arm's shape as a conclusion is exactly the move the power floor
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 20:43:13 · git 25f3e27 (main, working tree dirty) · exit 0 · 4.5s
+command     python -m scripts.backtest_study.f4_deployment.selection_order
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G0):  O1, O2, O3, O1b
+  arms clearing all seven: none
+  VERDICT: ORDERING-IS-NOISE — no arm separates from the O4 band. The adverse-ordering read from account_sim was an ARTIFACT of which picks the cap h…
+```
+

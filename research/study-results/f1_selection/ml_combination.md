@@ -75,3 +75,27 @@ PHASE 5 — pre-registered ship decision (ml-plan.md, written before the run)
 Dataset written to /Users/wing/claude_playground/options-trading/backtests/study_output/dataset.csv
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 20:37:13 · git 25f3e27 (main, working tree dirty) · exit 0 · 24.1s
+command     python -m scripts.backtest_study.f1_selection.ml_combination
+excerpt     verdict
+
+```
+PHASE 5 — ship decision, pre-registered BEFORE the run (pre-registrations/f1_selection/ml_combination.md)
+  M3 out-of-fold paired R gain vs B0: -0.028 CI95 [-0.139, +0.081]  -> CI excludes zero: False
+  positive in >=2 of 3 years: True  ({'2024': 0.29991927710843375, '2025': 0.10605722891566265})
+  survives both ex-window cuts: True
+  B1  gain -0.037 CI [-0.159, +0.086]
+  B2  gain -0.058 CI [-0.180, +0.064]
+  M1  gain -0.013 CI [-0.140, +0.110]
+  M2  gain -0.010 CI [-0.125, +0.101]
+  VERDICT: NULL RESULT — the ladder is at/near the ceiling of this data
+  (ADOPT-AS-TIE-BREAK requires a within-tier ordering gain at the same CI standard —
+   evaluate only if a model's gain CI excludes zero while M3's does not.)
+Dataset written to /Users/wing/claude_playground/options-trading/backtests/study_output/dataset.csv
+```
+

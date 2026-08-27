@@ -48,3 +48,18 @@ VERDICT (pre-registered rules, ml-plan.md §Kickoff addendum)
   B2 EXIT FIX: see the per-side criteria lines above
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 20:36:22 · git 25f3e27 (main, working tree dirty) · exit 0 · 18.5s
+command     python -m scripts.backtest_study.f1_selection.bear_arm
+excerpt     verdict
+
+```
+VERDICT (pre-registered rules, pre-registrations/f1_selection/bear_arm.md)
+  B1 KEEP-CONDITIONED: NOT met — 0 subset(s) passed all criteria
+  B2 EXIT FIX: see the per-side criteria lines above
+```
+

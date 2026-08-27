@@ -63,3 +63,23 @@ excerpt     tail
   iv_pct bottom tercile (<0.42)    14  +1.068   +0.253            [-0.457, +2.910]
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 20:42:21 · git 25f3e27 (main, working tree dirty) · exit 0 · 18.9s
+command     python -m scripts.backtest_study.f3_structure.vol_sleeve
+excerpt     tail
+
+```
+  vrp < 0 (implied cheap)          97  -0.092   +0.002            [-0.352, +0.143]
+  earnings inside DTE              75  -0.022   -0.045            [-0.237, +0.274]
+  iv_pct bottom tercile (<0.36)    71  -0.090   -0.014            [-0.370, +0.242]
+--- calendar  (n=117) -------------------------------------------------------
+  condition                         n   meanE  vs rest  diff CI95 (date-clustered)
+  vrp < 0 (implied cheap)          36  +0.450   +0.272            [-0.212, +0.547]
+  earnings inside DTE              44  +0.556   +0.189            [-0.150, +1.093]
+  iv_pct bottom tercile (<0.32)    36  +0.580   +0.214            [-0.173, +1.182]
+```
+

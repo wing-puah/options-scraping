@@ -148,3 +148,27 @@ ARM X — EXIT CENSUS (H4: ENDOGENOUS — a fast exit is why some holds contain 
     profit_target            35
 ```
 
+
+## era v4 · inputs 44c76b5 · sha 25f3e27 — recorded 2026-08-27
+<!-- key era=v4 sha=25f3e27 inputs=44c76b5 -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 813 spy_vix_daily_full  (inputs dated 2026-08-27 11:31 … 2026-08-27 20:34)
+run         2026-08-27 20:36:54 · git 25f3e27 (main, working tree dirty) · exit 0 · 17.8s
+command     python -m scripts.backtest_study.f1_selection.macro_event_study
+excerpt     verdict
+
+```
+ARM X — EXIT CENSUS (H4: ENDOGENOUS — a fast exit is why some holds contain no event. Census only; no verdict)
+  hold spans >=1 macro event: 897 rows / 144 dates  mean R +0.080  mean days_held 35.7
+    profit_target           376
+    stop_loss               179
+    dollar_stop             124
+    cap_open                 99
+    time_exit                92
+    expired                  16
+    be_stop                  10
+    trailing_stop             1
+  hold spans none: 99 rows / 76 dates  mean R +0.224  mean days_held 2.8
+    profit_target            52
+```
+
