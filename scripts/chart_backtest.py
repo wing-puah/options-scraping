@@ -85,6 +85,33 @@ C_BAR = "#5b8db8"
 GRID = "#dddddd"
 
 
+def _trim_limits(vals, lo_q=0.005, hi_q=0.995, pad_frac=0.04):
+    """Display-only axis trim: a handful of extreme $ outliers (a single
+    ~$30k MFE, a single ~-$20k MAE) otherwise stretch an axis so the bulk of
+    the distribution renders as a thin stripe. This ONLY picks a drawing
+    range — every computed statistic (median, quartiles, whiskers, means, n
+    counts, win rates) must keep using the untrimmed series; callers clip
+    plotted point/bin positions into the returned range, never the values
+    quantiles/medians are computed from.
+
+    Returns (lo, hi, n_below, n_above) — the padded axis range and how many
+    of the pooled, non-null values fall outside [lo, hi] before padding —
+    or None when there's nothing to trim (empty input or a degenerate
+    zero-span range).
+    """
+    s = pd.Series(vals).dropna()
+    if s.empty:
+        return None
+    lo = s.quantile(lo_q)
+    hi = s.quantile(hi_q)
+    if lo == hi:
+        return None
+    n_below = int((s < lo).sum())
+    n_above = int((s > hi).sum())
+    pad = (hi - lo) * pad_frac
+    return lo - pad, hi + pad, n_below, n_above
+
+
 def _parse_path(cell) -> list[float]:
     """Split a daily_price_csv cell ('8.0,11.0,,16.0') into floats, dropping
     empty (no-data) days."""
@@ -565,9 +592,23 @@ def _draw_mfe_mae_scatter(ax, df: pd.DataFrame, letter: str, segment: str) -> No
     mfe = pd.to_numeric(df[mfe_col], errors="coerce")
     mae = pd.to_numeric(df[mae_col], errors="coerce")
     win = df["realized_pnl"] > 0
-    ax.scatter(mae[win], mfe[win], s=30, color=C_BULL, alpha=0.6,
+
+    # Display-only trim: a few extreme excursions (e.g. a ~$30k MFE, a
+    # ~-$20k MAE) otherwise stretch both axes so the bulk of trades render
+    # as a thin cluster near the origin. Trimmed independently per axis over
+    # ALL plotted points (win + loss pooled); points are drawn clipped into
+    # the trimmed box. There's no fitted/median/reference line on this
+    # panel to keep full-scale — only the drawn positions change.
+    x_trim = _trim_limits(mae.dropna())
+    y_trim = _trim_limits(mfe.dropna())
+    lo_x, hi_x = x_trim[:2] if x_trim else (-np.inf, np.inf)
+    lo_y, hi_y = y_trim[:2] if y_trim else (-np.inf, np.inf)
+    mae_plot = mae.clip(lo_x, hi_x) if x_trim else mae
+    mfe_plot = mfe.clip(lo_y, hi_y) if y_trim else mfe
+
+    ax.scatter(mae_plot[win], mfe_plot[win], s=30, color=C_BULL, alpha=0.6,
                edgecolor="white", linewidth=0.5, label="realized win")
-    ax.scatter(mae[~win], mfe[~win], s=30, color=C_RANGE, alpha=0.6,
+    ax.scatter(mae_plot[~win], mfe_plot[~win], s=30, color=C_RANGE, alpha=0.6,
                edgecolor="white", linewidth=0.5, label="realized loss")
     ax.axhline(0, color="#999", lw=0.8)
     ax.axvline(0, color="#999", lw=0.8)
@@ -579,6 +620,17 @@ def _draw_mfe_mae_scatter(ax, df: pd.DataFrame, letter: str, segment: str) -> No
     ax.set_ylabel(ylabel)
     ax.legend(fontsize=8)
     ax.grid(color=GRID)
+    if x_trim:
+        ax.set_xlim(lo_x, hi_x)
+    if y_trim:
+        ax.set_ylim(lo_y, hi_y)
+    if x_trim or y_trim:
+        out_of_box = ((mae < lo_x) | (mae > hi_x) | (mfe < lo_y) | (mfe > hi_y)).fillna(False)
+        n_clipped = int(out_of_box.sum())
+        if n_clipped:
+            ax.text(0.99, 0.02,
+                    f"{n_clipped} pts beyond axis, drawn at edge (0.5–99.5 pct trim)",
+                    transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
 
 
 def _draw_exit_mix(ax, df: pd.DataFrame, letter: str, segment: str) -> None:
@@ -879,15 +931,28 @@ def _draw_occupancy_panels(axes, df: pd.DataFrame,
     mfe = pd.to_numeric(df.get("mfe_abs"), errors="coerce")
     mfe_valid = mfe.dropna()
     if len(mfe_valid):
-        bins = np.linspace(min(mfe_valid.min(), 0), mfe_valid.max(), 25)
-        ax.hist(mfe[win_all].dropna(), bins=bins, color=C_BULL, alpha=0.6,
+        # Display-only trim: bin range (and plotted values) clipped so a rare
+        # huge MFE doesn't stretch the axis; bin COUNTS and the median line
+        # stay full-sample.
+        trim = _trim_limits(mfe_valid)
+        if trim:
+            bin_lo, bin_hi, n_below, n_above = trim
+            bin_lo = min(bin_lo, 0)
+        else:
+            bin_lo, bin_hi, n_below, n_above = min(mfe_valid.min(), 0), mfe_valid.max(), 0, 0
+        bins = np.linspace(bin_lo, bin_hi, 25)
+        ax.hist(mfe[win_all].dropna().clip(bin_lo, bin_hi), bins=bins, color=C_BULL, alpha=0.6,
                 edgecolor="white", label=f"eventual win (n={int(win_all.sum())})")
-        ax.hist(mfe[~win_all].dropna(), bins=bins, color=C_RANGE, alpha=0.6,
+        ax.hist(mfe[~win_all].dropna().clip(bin_lo, bin_hi), bins=bins, color=C_RANGE, alpha=0.6,
                 edgecolor="white", label=f"eventual loss (n={int((~win_all).sum())})")
         med = mfe_valid.median()
         ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median ${med:,.0f}")
         ax.axvline(0, color="#999", lw=0.8)
         ax.legend(fontsize=8)
+        if n_below + n_above:
+            ax.text(0.99, 0.02,
+                    f"{n_below + n_above} pts beyond axis, drawn at edge (0.5–99.5 pct trim)",
+                    transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
     ax.set_title(f"{letters[1]} · MFE $ distribution (best mark per trade)", fontweight="bold")
     ax.set_xlabel("MFE ($)")
     ax.set_ylabel("Trades")
@@ -1300,19 +1365,25 @@ def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
     def _draw(ax, groups, title, letter):
         """groups: list of (label, color, mask_series)"""
         ax.axhline(0, color="#999", lw=0.8)
+        pooled_vals = []   # every drawn point within HORIZON, across groups
+        mean_bounds = []   # every group-mean line's values — never clipped out
+        drawn_paths = []   # trades actually plotted in this panel
         for label, color, mask in groups:
             subset_paths = [p for p, m in zip(df["dollar_pnl_path"], mask) if m and p]
             if not subset_paths:
                 continue
+            drawn_paths.extend(subset_paths)
             # individual paths
             for p in subset_paths:
                 y = p[:HORIZON]
+                pooled_vals.extend(y)
                 ax.plot(range(1, len(y) + 1), y,
                         color=color, lw=0.6, alpha=0.12)
             # group mean
             mean_len = min(HORIZON, max(len(p) for p in subset_paths))
             mean_y = [np.nanmean([p[i] for p in subset_paths if len(p) > i])
                       for i in range(mean_len)]
+            mean_bounds.extend(mean_y)
             ax.plot(range(1, mean_len + 1), mean_y,
                     color=color, lw=2.2, label=f"{label} (n={len(subset_paths)})")
         ax.set_title(f"{letter} · {title}", fontweight="bold")
@@ -1322,6 +1393,25 @@ def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
         ax.set_xlim(1, HORIZON)
         ax.legend(fontsize=8)
         ax.grid(color=GRID)
+
+        # Display-only y-axis trim: a few $ outlier paths otherwise stretch
+        # the axis so the bulk of the spaghetti renders as a thin band.
+        # Wider quantiles than the strip/histogram trims, and always widened
+        # to cover every group-mean line — a mean line must never be
+        # clipped out of view.
+        trim = _trim_limits(pooled_vals, lo_q=0.002, hi_q=0.998) if pooled_vals else None
+        if trim:
+            lo, hi, _, _ = trim
+            if mean_bounds:
+                lo = min(lo, min(mean_bounds))
+                hi = max(hi, max(mean_bounds))
+            ax.set_ylim(lo, hi)
+            n_exceed = sum(1 for p in drawn_paths
+                           if min(p[:HORIZON]) < lo or max(p[:HORIZON]) > hi)
+            if n_exceed:
+                ax.text(0.99, 0.02,
+                        f"{n_exceed} trades' path leaves window (0.2–99.8 pct trim)",
+                        transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
 
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle(
@@ -1408,27 +1498,41 @@ def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
             groups = [(lb, lut[lb][0], lut[lb][1]) for lb in label_order if lb in lut]
         else:
             groups = sorted(groups, key=lambda g: g[2].median(), reverse=sort_desc)
+        # Display-only axis trim, pooled across this panel's groups. Every
+        # stat below (q1/med/q3/whislo/whishi, the "med $… n=…" text) is
+        # computed from `vals`, the untrimmed per-group series — only the
+        # drawn point/box/whisker positions and the axis range are clipped.
+        trim = _trim_limits(pd.concat([v for _, _, v in groups])) if groups else None
         for i, (_, color, vals) in enumerate(groups):
             y = np.full(len(vals), i)
             jitter = rng.uniform(-0.25, 0.25, len(vals))
-            ax.scatter(vals, y + jitter, color=color, alpha=0.45, s=22,
+            plot_vals = vals.clip(*trim[:2]) if trim else vals
+            ax.scatter(plot_vals, y + jitter, color=color, alpha=0.45, s=22,
                        edgecolor="white", linewidth=0.4, zorder=3)
             q1, med, q3 = vals.quantile([0.25, 0.5, 0.75])
             iqr = q3 - q1
             whislo = max(vals.min(), q1 - 1.5 * iqr)
             whishi = min(vals.max(), q3 + 1.5 * iqr)
-            ax.broken_barh([(q1, q3 - q1)], (i - 0.18, 0.36),
+            if trim:
+                lo, hi = trim[:2]
+                draw_lo, draw_hi = np.clip([q1, q3], lo, hi)
+                draw_med = np.clip(med, lo, hi)
+                draw_whislo, draw_whishi = np.clip([whislo, whishi], lo, hi)
+            else:
+                draw_lo, draw_hi, draw_med = q1, q3, med
+                draw_whislo, draw_whishi = whislo, whishi
+            ax.broken_barh([(draw_lo, draw_hi - draw_lo)], (i - 0.18, 0.36),
                            facecolors=color, alpha=0.35, zorder=2)
-            ax.plot([med, med], [i - 0.25, i + 0.25], color=color, lw=2.5, zorder=4)
-            ax.plot([whislo, q1], [i, i], color=color, lw=1, zorder=2)
-            ax.plot([q3, whishi], [i, i], color=color, lw=1, zorder=2)
+            ax.plot([draw_med, draw_med], [i - 0.25, i + 0.25], color=color, lw=2.5, zorder=4)
+            ax.plot([draw_whislo, draw_lo], [i, i], color=color, lw=1, zorder=2)
+            ax.plot([draw_hi, draw_whishi], [i, i], color=color, lw=1, zorder=2)
             if sort_desc:
                 ax.annotate(f"med ${med:+,.0f}  n={len(vals)}",
-                            (whishi, i), textcoords="offset points", xytext=(5, 0),
+                            (draw_whishi, i), textcoords="offset points", xytext=(5, 0),
                             va="center", fontsize=7.5, color="#333")
             else:
                 ax.annotate(f"med ${med:+,.0f}  n={len(vals)}",
-                            (whislo, i), textcoords="offset points", xytext=(-5, 0),
+                            (draw_whislo, i), textcoords="offset points", xytext=(-5, 0),
                             va="center", ha="right", fontsize=7.5, color="#333")
         ax.axvline(0, color="#999", lw=0.8, ls="--")
         ax.set_yticks(range(len(groups)))
@@ -1436,6 +1540,13 @@ def build_mfe_mae_dist(df: pd.DataFrame, out: Path) -> Path:
         ax.set_xlabel(xlabel)
         ax.set_title(f"{letter} · {title}", fontweight="bold")
         ax.grid(axis="x", color=GRID)
+        if trim:
+            lo, hi, n_below, n_above = trim
+            ax.set_xlim(lo, hi)
+            if n_below + n_above:
+                ax.text(0.99, 0.02,
+                        f"{n_below + n_above} pts beyond axis, drawn at edge (0.5–99.5 pct trim)",
+                        transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
 
     fig, axes = plt.subplots(4, 2, figsize=(18, 26))
     fig.suptitle(
@@ -1542,15 +1653,28 @@ def _draw_mae_recovery_panels(axes, df: pd.DataFrame, letters=("A", "B", "C", "D
     ax = ax_A
     mae_valid = mae.dropna()
     if len(mae_valid):
-        bins = np.linspace(mae_valid.min(), max(mae_valid.max(), 0), 25)
-        ax.hist(mae[win].dropna(), bins=bins, color=C_BULL, alpha=0.6,
+        # Display-only trim: bin range (and plotted values) clipped so a rare
+        # huge MAE doesn't stretch the axis; bin COUNTS and the median line
+        # stay full-sample.
+        trim = _trim_limits(mae_valid)
+        if trim:
+            bin_lo, bin_hi, n_below, n_above = trim
+            bin_hi = max(bin_hi, 0)
+        else:
+            bin_lo, bin_hi, n_below, n_above = mae_valid.min(), max(mae_valid.max(), 0), 0, 0
+        bins = np.linspace(bin_lo, bin_hi, 25)
+        ax.hist(mae[win].dropna().clip(bin_lo, bin_hi), bins=bins, color=C_BULL, alpha=0.6,
                 edgecolor="white", label=f"eventual win (n={int(win.sum())})")
-        ax.hist(mae[~win].dropna(), bins=bins, color=C_RANGE, alpha=0.6,
+        ax.hist(mae[~win].dropna().clip(bin_lo, bin_hi), bins=bins, color=C_RANGE, alpha=0.6,
                 edgecolor="white", label=f"eventual loss (n={int((~win).sum())})")
         med = mae_valid.median()
         ax.axvline(med, color="#333", lw=1.5, ls="--", label=f"median ${med:,.0f}")
         ax.axvline(0, color="#999", lw=0.8)
         ax.legend(fontsize=8)
+        if n_below + n_above:
+            ax.text(0.99, 0.02,
+                    f"{n_below + n_above} pts beyond axis, drawn at edge (0.5–99.5 pct trim)",
+                    transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
     ax.set_title(f"{letters[0]} · MAE $ distribution (worst mark per trade)", fontweight="bold")
     ax.set_xlabel("MAE ($)")
     ax.set_ylabel("Trades")

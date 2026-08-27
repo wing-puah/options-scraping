@@ -118,6 +118,19 @@ chart:
 chart-all:
 	$(PY) scripts/chart_backtest.py --csv backtests/results.csv --csv backtests/proxy_results.csv $(ARGS)
 
+# ── chart the full-book tab exports in backtests/to_evaluate/ ───────────────────
+# backtests/results.csv + proxy_results.csv are PER-RUN scratch (each run
+# rewrites them with only its own increment) — the complete book lives in the
+# Sheets tab exports under backtests/to_evaluate/. This charts THOSE (the bare
+# exports = the current era), into their own dir so a later per-run chart
+# never overwrites a full-book read.
+.PHONY: chart-evaluate
+chart-evaluate:
+	$(PY) scripts/chart_backtest.py \
+	  --csv "backtests/to_evaluate/analysis - BacktestResults.csv" \
+	  --csv "backtests/to_evaluate/analysis - BacktestProxy.csv" \
+	  --out backtests/charts/to_evaluate $(ARGS)
+
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
 baseline:
@@ -408,6 +421,8 @@ help:
 	@echo "  make chart ARGS=\"--csv backtests/results.csv --csv backtests/proxy_results.csv\"  combine multiple CSVs"
 	@echo ""
 	@echo "  make chart-all     chart results.csv + proxy_results.csv together (no re-run)"
+	@echo ""
+	@echo "  make chart-evaluate   chart the full-book tab exports in backtests/to_evaluate/ → backtests/charts/to_evaluate/"
 	@echo ""
 	@echo "  make studies       list available backtest tuning studies"
 	@echo ""
