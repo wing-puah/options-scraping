@@ -326,8 +326,8 @@ def load_debit_trades(check_era: bool = True):
     real_keys = {(t.signal_date.isoformat(), t.ticker, t.structure) for t in real}
 
     # real-book calibration (the harness-validation gate)
-    ok = nm = sup = hard = 0
-    hard_rows, sup_rows = [], []
+    ok = nm = sup = tie = hard = 0
+    hard_rows, sup_rows, tie_rows = [], [], []
     stored = rep = stored_all = rep_all = 0.0
     for t in real:
         kind, want, got = _classify(t, DEBIT_PROD, unreachable)
@@ -341,6 +341,12 @@ def load_debit_trades(check_era: bool = True):
         elif kind == "superseded":
             sup += 1
             sup_rows.append((t, want, got))
+        elif kind == "boundary_tie":
+            # excluded from the calibrated-row cent check below, like
+            # superseded: the flat replay books a different (reason, day), so
+            # its dollars are EXPECTED to differ from the stored row's.
+            tie += 1
+            tie_rows.append((t, want, got))
         else:
             hard += 1
             hard_rows.append((t, want, got))
@@ -349,8 +355,10 @@ def load_debit_trades(check_era: bool = True):
         if kind in ("exact", "near"):
             stored += stored_dol
             rep += rep_dol
-    diag["real_calib"] = dict(n=len(real), ok=ok, near=nm, superseded=sup, hard=hard,
+    diag["real_calib"] = dict(n=len(real), ok=ok, near=nm, superseded=sup,
+                              boundary_tie=tie, hard=hard,
                               hard_rows=hard_rows, superseded_rows=sup_rows,
+                              boundary_rows=tie_rows,
                               stored=stored, replay=rep,
                               stored_all=stored_all, replay_all=rep_all)
 
@@ -432,7 +440,16 @@ def harness_gate(diag, study=""):
     rc = diag["real_calib"]
     tag = f" ({study})" if study else ""
     print(f"    row calibration{tag}: {rc['ok']}/{rc['n']} exact, {rc['near']} rounding-tie, "
-          f"{rc['superseded']} superseded-basis, {rc['hard']} HARD")
+          f"{rc['superseded']} superseded-basis, "
+          f"{rc.get('boundary_tie', 0)} boundary-tie, {rc['hard']} HARD")
+    if rc.get("boundary_tie"):
+        print("    boundary-tie rows (1-ulp pt/sl tie; production's unrounded pnl "
+              "survived the boundary the rounded replay fires on — reproduces in "
+              "full under a TIE_EPS threshold nudge; excluded from the cent check "
+              "below like superseded rows):")
+        for t, want, got in rc["boundary_rows"]:
+            print(f"      BOUNDARY-TIE {t.signal_date} {t.ticker:6} {t.structure:18} "
+                  f"stored={want} replay={got}")
     print(f"    calibrated-row replay ${rc['replay']:,.2f} vs stored ${rc['stored']:,.2f}"
           f"   diff ${rc['replay'] - rc['stored']:,.2f}")
     if rc["superseded"]:

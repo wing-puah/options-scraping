@@ -130,21 +130,31 @@ def calibrate(trades: list[Trade], prod: dict, label: str) -> bool:
     print("=" * 100)
     unreachable = unreachable_reasons(prod)
     tally = Counter()
-    sup_rows, hard_rows = [], []
+    sup_rows, tie_rows, hard_rows = [], [], []
     for t in trades:
         kind, want, got = classify(t, prod, unreachable)
         tally[kind] += 1
         if kind == "superseded":
             sup_rows.append((t, want, got))
+        elif kind == "boundary_tie":
+            tie_rows.append((t, want, got))
         elif kind == "hard":
             hard_rows.append((t, want, got))
     print(f"  → {tally['exact']} exact, {tally['near']} near-rounding-tie, "
-          f"{tally['superseded']} superseded-basis, {tally['hard']} HARD "
+          f"{tally['superseded']} superseded-basis, "
+          f"{tally['boundary_tie']} boundary-tie, {tally['hard']} HARD "
           f"of {len(trades)}")
     if sup_rows:
         print(f"  superseded-basis rows (stored under a shipped override; "
               f"unreachable under this profile: {sorted(unreachable)}):")
         for t, want, got in sup_rows:
+            print(f"    {t.signal_date} {t.ticker:5s} {t.structure:18s} "
+                  f"stored={want} replay={got}")
+    if tie_rows:
+        print("  boundary-tie rows (1-ulp pt/sl tie; production's unrounded "
+              "pnl survived the boundary the rounded replay fires on — "
+              "reproduces in full under a TIE_EPS threshold nudge):")
+        for t, want, got in tie_rows:
             print(f"    {t.signal_date} {t.ticker:5s} {t.structure:18s} "
                   f"stored={want} replay={got}")
     for t, want, got in hard_rows:

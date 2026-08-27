@@ -153,6 +153,45 @@ def test_superseded_beats_near_only_on_reason():
     assert _classify(row) == "superseded"
 
 
+# ── boundary_tie: the 2024-08-15 HYG class (added 2026-08-27) ────────────────
+
+def _tie_row():
+    """The HYG shape, synthetically: entry 0.2 × 66 contracts, a mark (0.05)
+    whose pnl is a 1-ulp rounding tie with sl=0.75, then a mark (0.045) where
+    production's dollar_stop fired a day later. `round(pl, 10)` makes the
+    replay fire stop_loss ON the tie day under any entry basis; production's
+    unrounded pnl (−0.7499…9) survived it. Stored outcome stamped by hand —
+    `_stamp` would stamp the replay's own (wrong-side) answer."""
+    marks = [0.20, 0.05, 0.045] + [0.20] * (GRID_LEN - 3)
+    row = _row(ticker="TIE", entry=0.2, contracts=66, marks=marks)
+    row["exit_reason"] = "dollar_stop"
+    row["days_held"] = "3"
+    row["realized_pnl_pct"] = "-0.775"
+    row["realized_pnl_abs"] = str(round(-0.775 * 0.2 * 100 * 66, 2))
+    return row
+
+
+def test_classify_boundary_tie():
+    assert _classify(_tie_row()) == "boundary_tie"
+
+
+def test_boundary_tie_requires_full_reproduction():
+    """The TIE_EPS nudge may only un-fire the tie day — the stored outcome must
+    then reproduce in full, or the row is still hard."""
+    row = _tie_row()
+    row["days_held"] = "5"
+    assert _classify(row) == "hard"
+
+
+def test_boundary_tie_does_not_rescue_genuine_misses():
+    """A stop that fires 4 mark-ticks past the boundary is a genuine stop, not
+    a tie — the 1e-9 nudge must not un-fire it."""
+    row = _tie_row()
+    marks = [0.20, 0.0496, 0.045] + [0.20] * (GRID_LEN - 3)
+    row["daily_price_csv"] = ",".join(f"{x:.4f}" for x in marks)
+    assert _classify(row) == "hard"
+
+
 # ── the gate itself ──────────────────────────────────────────────────────────
 
 def _write_book(tmp_path, monkeypatch, real_rows, proxy_rows=()):
@@ -217,6 +256,26 @@ def test_gate_dollar_check_ignores_superseded_rows(tmp_path, monkeypatch):
     rc = diag["real_calib"]
     assert rc["replay"] == pytest.approx(rc["stored"], abs=0.01)
     assert abs(rc["replay_all"] - rc["stored_all"]) > 0.01
+
+
+def test_gate_passes_boundary_tie_and_excludes_it_from_cent_check(tmp_path, monkeypatch, capsys):
+    """A boundary-tie row must not stop the gate, and — like superseded rows —
+    must stay out of the calibrated-row dollar reconciliation (its flat replay
+    books a different day, so its dollars are expected to differ)."""
+    good = _stamp(_row(ticker="GOOD"), **m.DEBIT_PROD)
+    trades, diag = _write_book(tmp_path, monkeypatch, [good, _tie_row()])
+
+    rc = diag["real_calib"]
+    assert (rc["ok"], rc["boundary_tie"], rc["hard"]) == (1, 1, 0)
+    assert {t.ticker for t in trades} == {"GOOD", "TIE"}, "boundary-tie row was dropped"
+    by = {t.ticker: t for t in trades}
+    assert by["TIE"].calibrated is False
+
+    m.harness_gate(diag)   # must not raise SystemExit
+    out = capsys.readouterr().out
+    assert "1 boundary-tie" in out
+    assert "PASS" in out
+    assert rc["replay"] == pytest.approx(rc["stored"], abs=0.01)
 
 
 def test_gate_still_stops_on_a_true_hard_row(tmp_path, monkeypatch):

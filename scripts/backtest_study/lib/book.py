@@ -417,7 +417,8 @@ def load_book(results_csv: str | Path | None = None,
         "n_proxy_admitted_non_exact": 0,
         "n_credit_ungated": 0,
         "require_proxy_calibration": require_proxy_calibration,
-        "debit_calib": {"n": 0, "exact": 0, "near": 0, "superseded": 0, "hard": 0},
+        "debit_calib": {"n": 0, "exact": 0, "near": 0, "superseded": 0,
+                        "boundary_tie": 0, "hard": 0},
         "include_bs": include_bs,
     }
 
@@ -547,7 +548,7 @@ def _print_validate(records: list[dict], diag: dict) -> None:
           f"construction failures={diag['n_trade_construction_failed']}")
     dc = diag["debit_calib"]
     print(f"debit calibration: {dc['exact']}/{dc['n']} exact, {dc['near']} near-rounding-tie, "
-          f"{dc['hard']} hard")
+          f"{dc['boundary_tie']} boundary-tie, {dc['hard']} hard")
     print(f"proxy debit rows excluded (non-exact calibration)={diag['n_proxy_excluded_non_exact']}")
     print(f"credit rows admitted UNGATED (calibrated=False)={diag['n_credit_ungated']}")
     if diag.get("mech_table_warning"):
