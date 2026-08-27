@@ -1257,23 +1257,32 @@ def report_population(label: str, book: dict, st, cache: dict) -> dict:
 #         is a result rather than a null: "target a portfolio delta" is not an
 #         available lever on this book, and the sleeve is the only dial)
 #   2. every arm underpowered, book NOT long-only  -> UNDERPOWERED
-#   3. ARM D readable and monotone                  -> DELTA-DOSE-RESPONSE
-#   4. otherwise                                    -> NOISE
+#   3. any arm passes the FULL §Bar conjunction    -> CANDIDATE-FOR-INDEPENDENT-WINDOW
+#   4. ARM D readable and monotone                  -> DELTA-DOSE-RESPONSE
+#   5. otherwise                                    -> NOISE
 #
-# 1 outranks 3 deliberately: if nothing can move the book, the dose-response is
+# 1 outranks 4 deliberately: if nothing can move the book, the dose-response is
 # a description of a book with one available state, and leading with it would
 # invite exactly the adoption the firewall forbids. ARM D's shape is still
 # printed in full and is carried as a companion finding.
+#
+# 3 is the registration's 2026-08-27 amendment (grammar completion, no
+# criterion moved): the full-pass combination was worded in §Bar from the
+# start ("even a full pass is a CANDIDATE queued for an independent window")
+# but never mapped to a label, so the 2026-08-27 run's first full-bar pass
+# fell through to NOISE — a headline the same report's checklist line
+# contradicted. Unreachable under 1/2 (a pass requires a powered arm).
 #
 # NOISE is doing double duty as the CATCH-ALL, and that is stated on the page
 # rather than hidden in the precedence. Its registered wording is "no arm
 # exceeds ARM N's 95th percentile AND ARM D's bands are flat within their
 # cells"; a run where an arm DID clear criterion (7) and then failed the rest of
 # the conjunction matches neither that wording nor any of the other three
-# labels. Rather than invent a fifth label after seeing a number, the catch-all
-# fires and a QUALIFICATION naming those arms is printed underneath it — the
-# same discipline account_sim's 2026-08-14 verdict-grammar amendment used: the
-# checklist above is the whole result, the label only states what it means.
+# original labels. Rather than invent a label after seeing a number, the
+# catch-all fires and a QUALIFICATION naming those arms is printed underneath
+# it — the same discipline account_sim's 2026-08-14 verdict-grammar amendment
+# used: the checklist above is the whole result, the label only states what it
+# means.
 
 def print_verdict(out: dict, census: dict, label: str) -> str:
     hdr(f"VERDICT ({label} — grammar worded in the pre-registration)")
@@ -1303,6 +1312,14 @@ def print_verdict(out: dict, census: dict, label: str) -> str:
         v = (f"UNDERPOWERED — every arm moved fewer than {MIN_MOVED_DATES} deployed dates "
              f"into a different band. Census published, nothing read, and NO "
              f"re-run on these dates.")
+    elif winners:
+        v = (f"CANDIDATE-FOR-INDEPENDENT-WINDOW — "
+             f"{', '.join(winners)} clear{'s' if len(winners) == 1 else ''} "
+             f"the full adoption-eligibility conjunction. Queued for an "
+             f"independent window and NOTHING ELSE — nothing ships from this "
+             f"study under any outcome, and no ceiling or target value may be "
+             f"adopted on its P&L. (Label per the registration's 2026-08-27 "
+             f"grammar-completion amendment.)")
     elif d["monotone"] and len(d["readable"]) >= MIN_READABLE_BANDS:
         v = ("DELTA-DOSE-RESPONSE — ARM D shows a monotone, n-sufficient "
              "relationship between open-book delta at session open and the "
@@ -1331,11 +1348,6 @@ def print_verdict(out: dict, census: dict, label: str) -> str:
   effectively one reachable exposure state, which is why the headline is the
   constraint and not the shape. Reading a band value off them would be reading
   the construction — see THE FIREWALL.""")
-    if winners:
-        print("""
-  An arm cleared the whole bar. That makes it a CANDIDATE queued for an
-  independent window and NOTHING ELSE — nothing ships from this study under any
-  outcome, and no ceiling or target value may be adopted on its P&L.""")
     return v
 
 

@@ -49,7 +49,11 @@ _ERA_PATHS = era.resolve_paths(_ERA)
 AC_PATH = _ERA_PATHS["analysis"]
 BR_PATH = _ERA_PATHS["results"]
 BP_PATH = _ERA_PATHS["proxy"]
-SPY_VIX_PATH = f"{ROOT}/backtests/mech_regime/spy_vix_daily.csv"
+# _full, not the trimmed spy_vix_daily.csv: the trimmed file starts 2024-06-03,
+# which leaves every backfilled H1-2024 signal date with mech_direction=NaN
+# (440/1031 rows on the 2026-08-27 book) — and the run-header provenance names
+# the _full file, which is what lib/book.py and exit_switch_mech_study read.
+SPY_VIX_PATH = f"{ROOT}/backtests/mech_regime/spy_vix_daily_full.csv"
 
 # Refuses (exit 3) when what is on disk is not the era asked for, or when the
 # three exports disagree with EACH OTHER — a half-finished re-export, which is

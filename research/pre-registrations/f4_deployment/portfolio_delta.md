@@ -164,6 +164,27 @@ case resolves to **NOISE with a printed QUALIFICATION block naming the
 arms**, rather than a fifth label. No criterion or threshold moves as a
 result.
 
+**Amendment 2026-08-27 (grammar completion — no criterion, threshold, or arm
+definition moves).** The 2026-08-27 run produced the first arm to clear the
+FULL §Bar conjunction on both populations, and the mapping above resolved it
+to the NOISE catch-all — printing a headline ("no arm exceeds ARM N's 95th
+percentile") that the same report's checklist line contradicts. That
+combination was already worded in §Bar ("Even a full pass is a CANDIDATE
+queued for an independent window — nothing ships from this study under any
+outcome"); this amendment only wires that existing wording into the verdict
+grammar as its own label:
+
+- **CANDIDATE-FOR-INDEPENDENT-WINDOW** — at least one arm clears the full
+  adoption-eligibility conjunction of §Bar. The arm is queued for an
+  independent window and NOTHING ELSE; nothing ships from this study under
+  any outcome, and no ceiling or target value may be adopted on its P&L.
+
+Precedence: fires only when a full-conjunction pass exists; sits below
+LONG-ONLY-BY-CONSTRUCTION and UNDERPOWERED (unreachable there — a pass
+requires a powered arm) and above DELTA-DOSE-RESPONSE and NOISE. The
+criterion-(7)-only case continues to resolve to NOISE + QUALIFICATION,
+unchanged.
+
 Also recorded: the disclosed per-date net-delta figures (median 0.33, max
 1.17) were measured on THAT DAY'S PICKS at 1 contract; the study's
 G-INVENTORY census measures the OPEN BOOK at session open under production
