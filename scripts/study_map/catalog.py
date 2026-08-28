@@ -531,6 +531,23 @@ STUDIES: dict[str, Study] = {
                 "dates against 25) and none is read. Net delta is not a free lever of this "
                 "book; no band value read off P&L per the firewall.",
     ),
+
+    "hedge_timing": Study(
+        family="deployment", state="open",
+        question="The bear hedge sleeve is deployed on discretionary triggers — chop, a SPY "
+                 "gap-up, a 4-5-day SPY down-run. Does any of them, made mechanical, pick a "
+                 "day on which the hedge earns more than the SAME day's ladder-eligible long?",
+        verdict="NOT YET RUN. Registered 2026-08-28 "
+                "(research/pre-registrations/f4_deployment/hedge_timing.md) and committed "
+                "before the first run on purpose, so registration-before-run is visible in "
+                "git. One outcome is already fixed by the registration rather than by a "
+                "number: the operator's OWN trigger — a strict 4-5-session SPY down-run — "
+                "carries the verdict UNDERPOWERED in advance, because such a run occurs on "
+                "~11 of the era's ~457 trading days and this book samples 2 of them. No "
+                "direction will ever be quoted from n=2; the powered substitute (>=3 lower "
+                "closes of the last 5) is a DIFFERENT, weaker hypothesis and may not be "
+                "cited for the streak rule. Nothing ships from this study under any outcome.",
+    ),
 }
 
 # ── infrastructure ────────────────────────────────────────────────────────────

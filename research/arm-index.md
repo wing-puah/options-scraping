@@ -22,7 +22,10 @@ a bare `ARM P`.
   and `bear_deploy`'s `D1`–`D5`, which are criteria, not `ARM D`.
 - **`H`** — two arms (`account_sim`, `calendar_hedge`); `H1`–`H4` hypotheses
   in `macro_event_study`; `H0`–`H5` criteria in `calendar_hedge`, which
-  *also* has its own `ARM H` — unrelated to its criteria of the same letter.
+  *also* has its own `ARM H` — unrelated to its criteria of the same letter;
+  and `H0`–`H4` arms in `hedge_timing`, which are neither of those — there
+  they are the census plus four hypotheses, each run once per trigger family
+  and suffixed with it (`ARM H3-CHOP`).
 - **`B1` / `B2`** — `bear_arm`'s two criteria (selection conditioning, exit
   fit) vs `ml_combination`'s two regression baselines. Same document
   registered both on 2026-08-11, and they mean nothing alike.
@@ -187,6 +190,35 @@ studies' labels appear mid-prose only.
 - `D1` `D2` `D3` `D4` `D5` (criterion) — Deployment criteria, NOT `ARM D` —
   `D1` is joint selection × exit, and the four that follow it. Mirrored by
   `calendar_hedge`'s `H1`–`H5` above.
+
+#### `hedge_timing` — `f4_deployment/hedge_timing.py`, [`pre-registrations/f4_deployment/hedge_timing.md`](pre-registrations/f4_deployment/hedge_timing.md)
+
+Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
+`ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
+The bare `H0`–`H4` below are the arms themselves; the suffix names which
+trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
+`H0`–`H5` (criteria) and NOT `macro_event_study`'s `H1`–`H4` (hypotheses).
+
+- `ARM H0` (arm) — POWER CENSUS. Runs first and returns BEFORE any outcome
+  column is read: trigger dates, bear-carrying dates, bear rows, H3-paired
+  dates, and the same four on non-trigger dates. Every arm below early-returns
+  UNDERPOWERED off it without computing a statistic.
+- `ARM H1` (arm) — Between-date separation of bear R, trigger vs non-trigger,
+  date-clustered. NOT the primary: a date either fires or does not, so no
+  within-date pairing exists and a positive is confounded with "the market
+  fell". Printed as `ARM H1-CHOP` `ARM H1-GAP` `ARM H1-DECLINE`.
+- `ARM H2` (arm) — Beta control: the SAME separation on the DEPLOYED LADDER.
+  `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1 delta|, opposite-signed) turns a
+  positive into MARKET-TIMING-PROXY. Printed as `ARM H2-CHOP` `ARM H2-GAP`
+  `ARM H2-DECLINE`.
+- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`bear_deploy` D4's
+  method): date-mean bear R minus date-mean tier-A/B long R, headline = the
+  DIFFERENCE of that paired mean on trigger vs non-trigger dates. Printed as
+  `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE`.
+- `ARM H4` (arm) — Do-nothing baseline in DOLLARS (the only arm that may quote
+  `$`): sleeve policies over the deployed ladder's daily dollars, judged by
+  `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
+  `ARM H4-DECLINE`.
 
 #### `portfolio_delta` — [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)
 
