@@ -450,6 +450,26 @@ re-read — `research/pre-registrations/f2_management/rollback_triggers.md`):**
 
 ---
 
+## Hedge-timing triggers (2026-08-28 — one drafted-and-held prohibition, one closed question, one untestable habit)
+
+`hedge_timing` (f4, registered 2026-08-28, era v4 decisive + v3 replication,
+graded) tested the operator's three discretionary hedge-deploy triggers.
+Nothing shipped — the study's registration forbids shipping from this
+correlated window under every outcome.
+
+| Trigger | Verdict (v4) | What it means for §4 |
+|---|---|---|
+| **GAP-UP** (SPY open ≥ prior close ×1.003) | **CONTRARY** on H3 (paired excess −0.408, CI [−0.749, −0.057], every LOO fold, both years, all cuts) AND on H4 (gating −$5,893, drawdown unimproved) | A §4 prohibition is **DRAFTED AND HELD** (operator pre-chose draft-and-hold): *"Do not open the hedge on a gap-up day — the same-day A/B long out-earned the bear by 0.67 R on those days, an excess of +0.41 R over ordinary days, and gating the sleeve on them bought no drawdown protection."* v3 read: H3 underpowered by one date, H4 directionally consistent (−$6,293, negative all three years incl. 2026). Accepting or rejecting the draft is the operator's decision. |
+| **CHOP** (eff_ratio bottom tercile) | NULL / NULL / UNSTABLE | No support, no contradiction. Timing stays discretion. |
+| **DECLINE ≥3-of-5** (powered substitute) | NULL on all three arms | Per the pre-registered asymmetric rule, this NULL speaks AGAINST the strict 4–5-day habit: even the broad construct cannot separate hedge value. |
+| **DECLINE strict 4–5 days** (the operator's actual rule) | UNDERPOWERED, fixed in advance (2 book dates) | **Untestable at this emission density** (~3,000 more trading days to a floor). The habit stays discretionary because it cannot be evidenced, not because it passed. |
+
+**Forward trigger (blind, from the registration):** re-run when ≥25 book dates
+carry a live strict N≥4 SPY down-run, or when ≥25 signal dates exist after
+2025-11-04.
+
+---
+
 ## Caveats on the ladder as a whole
 
 - **Tier A partly encodes the RANGE/E-VOL cell that drove the book's profit.**

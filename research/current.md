@@ -3135,3 +3135,74 @@ Re-runs, all four calibrate 356 exact / 1 near / 14 superseded /
   decision.
 All four recorded (era v4 · sha 25f3e27 — total 25 studies on record for
 this era; only the 2 retired lack reports).
+
+## 2026-08-28 — hedge_timing (f4, NEW): the operator's hedge triggers tested; GAP-UP comes back CONTRARY, the 4–5-day streak is UNTESTABLE
+
+Registered, built, run (v4 decisive + pre-declared v3 replication), two-analyst
+graded and recorded same day (era v4 · sha 1fe4923; v3 run recorded beside it).
+Question: the operator hedges (bear debit) on (a) chop, (b) SPY gap-ups,
+(c) 4–5 straight SPY down days — do those triggers identify days the hedge
+earns more than the same day's ladder-eligible long? Registration:
+`research/pre-registrations/f4_deployment/hedge_timing.md` (one headline per
+family, H3 within-date paired primary, total verdict grammar, floors ≥25
+dates/≥60 rows, nothing ships from this correlated window under any outcome).
+
+- **Census finding first (counts only, fixed at registration): the operator's
+  actual streak trigger is NOT TESTABLE on this book.** A strict 4–5-session
+  SPY down-run exists on 2 of the 145 v4 book dates (11 of the era's ~457
+  trading days; the book samples 140). DECLINE-UNDERPOWERED was fixed in
+  advance and no direction was quoted. Reaching a 25-date floor at current
+  emission density needs ~3,000 more trading days — the 4–5-day habit stays
+  discretionary because it cannot be evidenced here, not because it passed.
+- **GAP (open ≥ prior close ×1.003): CONTRARY on BOTH verdicted money arms.**
+  H3 (primary, within-date paired): on gap-up days bear-minus-long dR is
+  −0.670 vs −0.262 on non-trigger days — headline difference **−0.408, CI95
+  [−0.749, −0.057]**, every LOO fold negative, both years, all three window
+  cuts (ex-BOTH ≡ ex_2025_mar_apr on v4, stated on the page). H4: gating the
+  sleeve on gap-ups costs **−$5,893** (f=0.5, LOO min −$6,759, both years
+  negative) while max DD and worst date are IDENTICAL to never hedging — the
+  gap-up hedges never landed on a drawdown date. Caveat carried from H2: the
+  ladder long is (n.s.) BETTER on gap-up days (+0.155), so part of the spread
+  is "longs pay more on gap-ups" — for the hedge-or-long decision that is
+  exactly the quantity that matters, but it is not a pure hedge-decay claim.
+- **CHOP (eff_ratio bottom tercile): NULL** on H1/H3; H4 UNSTABLE (sign +$800
+  but year signs split). The "I hedge when it's choppy" habit finds no support
+  and no contradiction — chop days are indistinguishable.
+- **DECLINE-BROAD (≥3 of last 5 down, the powered substitute): NULL on all
+  three arms.** Per the pre-registered asymmetric reading rule this NULL IS
+  informative about the strict rule: if even the broad construct cannot
+  separate hedge value, the 4–5-day version is not worth waiting ~3,000
+  trading days for. (A positive here could never have endorsed the strict
+  rule; the null direction is the one allowed to speak.)
+- **TIMING-CANDIDATE survivors: 0 of 9 headline tests** (~0.45 expected by
+  chance). h2_mirrors fired only on H1-GAP (re-read NULL).
+- **v3 replication (partially correlated, disclosed):** H3-GAP UNDERPOWERED
+  by ONE date (24 paired vs floor 25 — no direction quoted); H4-GAP NULL by
+  the grammar but directionally consistent (gating −$6,293, max DD worse,
+  negative in all three years INCLUDING 2026 −$2,640 — the year v4 cannot
+  see). Nothing contradicts the v4 CONTRARY; nothing independently confirms
+  it either.
+- **Registered outcome applied: the §4 prohibition is DRAFTED AND HELD** (the
+  operator pre-chose draft-and-hold over auto-apply). Draft, verbatim, for
+  the operator to accept or reject:
+  > **Do not open the hedge on a gap-up day** (SPY open ≥ prior close
+  > ×1.003). On those days the same-day A/B long out-earned the bear by
+  > 0.67 R — an excess of +0.41 R (CI [+0.06, +0.75]) over ordinary days —
+  > and gating the sleeve on them cost −$5.9k with zero drawdown benefit.
+  > If the sleeve is to be fed that week, feed it on a non-gap day.
+  NOT applied to docs/deployment-rules.md; recorded in
+  `research/deployment-evidence.md` §Hedge-timing triggers with its forward
+  trigger (re-run at ≥25 strict-streak book dates, or ≥25 post-2025-11-04
+  dates).
+- Review pass: first grading surfaced that H4's criterion vector was not
+  printed (UNSTABLE vs CONTRARY unauditable from the page) — printer now
+  emits the mapped vector under every H4 verdict (`criteria unharmed= sign=
+  loo_all_same_sign= years_ok= cuts_ok=`), tokens unchanged, both eras re-run
+  and re-recorded at the fixed sha; second grading clean (one analyst tally
+  mis-transcription, resolved by recount, MET held).
+- Same day, production tier (not a study): §5's "75% of DTE" now prints as an
+  absolute exit-by date — per open position in the journal §4 (⚠ OVERDUE past
+  the book date) and as a projected range on the deploy card
+  (exit_by_earliest/exit_by_latest, hash-excluded). deployment-rules §5 gained
+  the date formulation; the fraction is read from config/backtest.yml at
+  render time so card, report and table cannot drift.
