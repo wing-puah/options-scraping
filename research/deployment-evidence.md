@@ -468,6 +468,13 @@ correlated window under every outcome.
 carry a live strict N≥4 SPY down-run, or when ≥25 signal dates exist after
 2025-11-04.
 
+**Open question, queued by the operator (2026-08-28): can any hedge mechanism
+reduce MAX DRAWDOWN at all?** H4's tables say the current sleeve cannot: max
+DD is untouched by every gated policy on v4 and made WORSE by always-on
+hedging on v3 (−$7,609 → −$18,278 at f=1.0). A dedicated study — mechanism,
+not timing — is deliberately deferred; it must design around the known
+worst-decile power wall (~9 dates).
+
 ---
 
 ## Caveats on the ladder as a whole

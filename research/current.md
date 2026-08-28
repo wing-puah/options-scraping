@@ -3200,6 +3200,18 @@ dates/≥60 rows, nothing ships from this correlated window under any outcome).
   loo_all_same_sign= years_ok= cuts_ok=`), tokens unchanged, both eras re-run
   and re-recorded at the fixed sha; second grading clean (one analyst tally
   mis-transcription, resolved by recount, MET held).
+- **QUEUED (operator, 2026-08-28): the hedge programme's next question is
+  MAX DRAWDOWN, not timing.** H4 showed no tested sleeve policy reduces it:
+  v4 baseline max DD −$10,968 is IDENTICAL under every gated policy (the
+  hedges never land on the drawdown dates), and on the v3 book always-on
+  hedging actively WORSENS it (−$7,609 → −$11,366 at f=0.5, −$18,278 at
+  f=1.0). A future study should ask what mechanism (structure, sizing,
+  trigger, or something outside this sleeve) actually cuts max drawdown —
+  deliberately NOT designed now. Known wall to design around: the 2026-08-13
+  finding that ~9 worst-decile dates cannot power a worst-decile criterion
+  on this book (calendar_hedge died on exactly that), so the study needs
+  either a drawdown measure that is not worst-decile-shaped or genuinely
+  new dates.
 - Same day, production tier (not a study): §5's "75% of DTE" now prints as an
   absolute exit-by date — per open position in the journal §4 (⚠ OVERDUE past
   the book date) and as a projected range on the deploy card
