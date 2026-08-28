@@ -802,6 +802,17 @@ def _print_h4(res):
     print("    years  " + "  ".join(f"{y}:${v:+,.0f}" for y, v in res["year_totals"].items()))
     print("    DISCLOSED: this reuses D5's estimator on new gates; a pass here ALONE")
     print("    can never ship, because D5's own gate family failed year-stability.")
+    # The mapped criterion vector, printed so the token is auditable from the
+    # page — UNSTABLE vs CONTRARY on similar-looking dollar rows otherwise
+    # reads as arbitrary (the first study_review pass flagged exactly that).
+    c = res["crit"]
+    print("    criteria  unharmed={} sign={} loo_all_same_sign={} years_ok={} "
+          "cuts_ok={}".format(
+              "T" if c["ci_excludes_zero"] else "F",
+              "+" if c["positive"] else "-",
+              "T" if c["loo_all_same_sign"] else "F",
+              "T" if c["years_ok"] else "F",
+              "T" if c["cuts_ok"] else "F"))
     print(f"    VERDICT {res['arm']}: {res['verdict']}")
 
 
