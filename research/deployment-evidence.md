@@ -475,6 +475,19 @@ hedging on v3 (−$7,609 → −$18,278 at f=1.0). A dedicated study — mechani
 not timing — is deliberately deferred; it must design around the known
 worst-decile power wall (~9 dates).
 
+**Scope note on the operator's actual practice (2026-08-28):** the operator
+hedges on EXPOSURE — a concentrated correlated book (semis → SMH, tech →
+QQQ), a specific perceived risk, plus the analysis flagging hedge flow —
+not on a calendar trigger. `hedge_timing` did not test that hypothesis: no
+arm conditioned on book concentration or a hedge-flow signal, and the
+instrument was the book's bear row, not a sector proxy. Exposure-conditional
+hedging is therefore UNTESTED (neither supported nor contradicted here), and
+the drafted GAP prohibition, if accepted, prohibits the gap AS the reason to
+hedge — it does not speak to hedging concentrated exposure on a day that
+happens to gap. The queued drawdown study is where that practice gets
+tested: trigger = concentration × hedge-flow signal, counterfactual =
+unhedged concentrated book, outcome = drawdown.
+
 ---
 
 ## Caveats on the ladder as a whole

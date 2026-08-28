@@ -3212,6 +3212,24 @@ dates/≥60 rows, nothing ships from this correlated window under any outcome).
   on this book (calendar_hedge died on exactly that), so the study needs
   either a drawdown measure that is not worst-decile-shaped or genuinely
   new dates.
+- **Operator context on that queue (added 2026-08-28, same day):** the
+  operator's actual hedge practice is EXPOSURE-conditional, not
+  calendar-timed — "I hedge when I hold a lot of correlated positions
+  (semis → SMH, tech → QQQ), I see a specific risk, AND the analysis says
+  people are hedging. Not hedging for the sake of hedging." `hedge_timing`
+  tested none of that: its triggers were pure market-state (chop / gap /
+  streak) with no book-concentration or hedge-flow-signal conditioning, and
+  its instrument was the book's own bear row, not a sector proxy. So the
+  operator's practice is UNTESTED — neither validated nor contradicted —
+  and the drafted GAP prohibition speaks only to the gap-as-reason, not to
+  hedging concentrated exposure on a day that happens to gap. The queued
+  mechanism study should therefore frame the trigger as book state (per-
+  sector delta concentration from the s03 risk tables) × analysis
+  hedge-flow signal, instrument as the sector proxy, counterfactual as the
+  UNHEDGED concentrated book (not "open a long instead"), and outcome as
+  drawdown. Data feasibility (does the study book carry a portfolio whose
+  concentration can be replayed, and are hedge-flow signal tags recoverable
+  per date?) is a design-time question, deliberately not answered now.
 - Same day, production tier (not a study): §5's "75% of DTE" now prints as an
   absolute exit-by date — per open position in the journal §4 (⚠ OVERDUE past
   the book date) and as a projected range on the deploy card
