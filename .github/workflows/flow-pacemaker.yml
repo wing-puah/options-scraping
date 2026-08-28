@@ -1,0 +1,119 @@
+name: Flow Pacemaker
+
+# MANUAL FALLBACK for when GitHub's cron scheduler stops starting scrape.yml.
+#
+# Background (2026-08-28): scheduled runs drifted 3-12h late and the hourly flow
+# crons were dropped entirely — 08-27 compiled to 501 rows (a single snapshot)
+# against the usual 1200-1800. workflow_dispatch runs are NOT deprioritised the
+# way schedule runs are, so this workflow is started BY HAND once and then paces
+# itself: each job sleeps to the next scrape time and runs the scraper in-process,
+# instead of asking the scheduler to start a fresh job every hour.
+#
+# Two chained jobs on purpose. A GitHub-hosted job is hard-killed at 6h, and one
+# job covering 16:40->22:05 would sit at ~92% of that ceiling — too little margin
+# to leave unattended. Chained jobs each get their own 6h budget, so neither half
+# runs much over 3h. Job B carries `if: always()` so a crash in A still leaves the
+# close scrape covered; worst case you lose half the snapshots, not the night.
+#
+# This does NOT replace scrape.yml's crons — it is additive and dispatch-only.
+# Compile is deliberately NOT included: compile-flow.yml takes a `date` input and
+# gc_flow.py --all sweeps past dates, so a missed compile self-heals the next day.
+
+on:
+  workflow_dispatch:
+    inputs:
+      early_times:
+        description: 'Job A flow scrape times, UTC HHMM, space-separated'
+        required: false
+        default: '1730 1830 1930'
+        type: string
+      late_times:
+        description: 'Job B flow scrape times, UTC HHMM, space-separated'
+        required: false
+        default: '2030 2130'
+        type: string
+      unusual_time:
+        description: 'Job B unusual scrape time, UTC HHMM. Blank = skip.'
+        required: false
+        default: '2200'
+        type: string
+
+jobs:
+  early:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      # Unconditional: gating this on a cache hit leaves the browser missing when
+      # the cache is warm but incomplete.
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+
+      - name: Pace the early flow scrapes
+        env:
+          TIMES: ${{ inputs.early_times }}
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+        run: bash .github/scripts/pace_scrapes.sh
+
+  late:
+    needs: early
+    # Run even if the early half crashed or was cancelled — the 22:00 unusual
+    # scrape is the single most valuable capture of the day.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+
+      - name: Pace the late flow scrapes and the close scrape
+        env:
+          TIMES: ${{ inputs.late_times }}
+          UNUSUAL_TIME: ${{ inputs.unusual_time }}
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+        run: bash .github/scripts/pace_scrapes.sh
