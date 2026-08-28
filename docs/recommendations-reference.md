@@ -145,6 +145,8 @@ the AnalysisClaude row.
 | `invalidation` | When to abandon the thesis. | not present on the row |
 | `alternative_interpretation` | The `Alt:` block `_play_headline` removed, recovered by `s06_recommend.py::_extract_alt`. There is no dedicated sheet column — `analysis_pipeline/core.py::analysis_to_rows` folds it into the play cell, and this is that operation's inverse. | the play cell had no `Alt:` line |
 | `delta` | Per-contract delta, if the analysis row carried one. | **normally** — `delta` is not in `ROW_COLUMNS`, so `_optional_float` returns `None` and nothing invents one. §3 reads delta at IBKR order entry. |
+| `exit_by_earliest` | The §5 time-exit deadline projected at the conservative (earliest) end of the play's DTE range, assuming entry the next weekday after `as_of_date`: `entry + int(dte_lo × time_exit_dte_fraction)` calendar days (`lib/exit_rules.py`, stamped by `s06_recommend.py::annotate_exit_by`). A later "did I exit by the card's date?" check compares against THIS end. Display/record only — filters nothing. Sits at the schema's tail (append-at-end); excluded from the `rec_id` hash because it derives entirely from hashed fields. | credit structures (no §5 time exit), unknown structure side, no parseable DTE in the play, the rule disabled in config, or a `live_select` historical replay (never projected into the past) |
+| `exit_by_latest` | The same projection at the far end of the DTE range. Equal to `exit_by_earliest` when the play states a single DTE. | same as `exit_by_earliest` |
 
 > **`score_total` does not compare across prompt versions.** v3 ran 0–100; v4 runs 0–50 (0–55
 > for VOLATILITY-intent plays) after `score_flow`/`score_dealer` were dropped. A card built on

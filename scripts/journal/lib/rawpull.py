@@ -32,7 +32,14 @@ Schema (v1):
                commission, net_amount, realized_pnl, trade_time (ISO-8601 UTC),
                order_id, open_close ("O"/"C"/"?")}
     Position  {conid, position (signed contracts), avg_cost, mkt_price,
-               unrealized_pnl}
+               unrealized_pnl,
+               entry_date}   # OPTIONAL ("YYYY-MM-DD" or null). Date of the
+                             # fill that opened the currently-held position,
+                             # derivable only when its whole life is inside the
+                             # export window. Readers use .get("entry_date");
+                             # ABSENT (an older pull) and null both mean
+                             # unknown. Additive on v1 — no version bump, so
+                             # every existing pull stays replayable.
     Contract  {symbol (underlying), sec_type, strike, expiry ("YYYY-MM-DD"),
                right ("C"/"P"), multiplier}
     Greek     {delta, gamma, theta, vega, iv, source ("ibkr"/"unavailable")}

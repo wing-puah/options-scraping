@@ -12,13 +12,16 @@ DIFFERENT STRUCTURES on the same date, not two regimes on the same date.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pandas as pd
 import pytest
 
-from journal.lib import analysis
-from journal.s06_recommend import (Candidate, Rejected, StaleAnalysis, check_freshness,
-                               judge, rank, render)
+from journal.lib import analysis, exit_rules
+from journal.s06_recommend import (Candidate, Rejected, StaleAnalysis, annotate_exit_by,
+                               check_freshness, judge, rank, render)
 from journal.s03_risk import BookRisk
+from scripts.live_loop import mapping as live_mapping
 
 DATE = "2026-08-14"
 
@@ -599,3 +602,79 @@ def test_book_concentration_does_not_flag_overlap_for_a_reserve_pick():
     book = _book_with([_position("AAA", 1000.0)])
     card = render([_candidate("AAA", deploy=False)], [], None, date=DATE, book=book)
     assert "Today's deploy set adds to" not in card
+
+
+# --------------------------------------------------------------------------
+# mapping.play_dte_range() — the DTE-range parser feeding the exit-by
+# projection. `play_dte`'s SCALAR (midpoint) form is used elsewhere for the §3
+# tier gate; this range form exists so annotate_exit_by() never collapses
+# "45-60 DTE" to a fabricated midpoint date.
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("text,expected", [
+    ("Bull call spread 100/110, 45–60 DTE", (45.0, 60.0)),  # en-dash
+    ("Bull call spread 100/110, 45-60 DTE", (45.0, 60.0)),       # hyphen
+    ("Long call 100, ~60 DTE", (60.0, 60.0)),                    # scalar-with-tilde
+])
+def test_play_dte_range_parses_the_play_text(text, expected):
+    assert live_mapping.play_dte_range(text, None) == expected
+
+
+def test_play_dte_range_falls_back_to_a_numeric_horizon_with_no_dte_in_the_text():
+    assert live_mapping.play_dte_range("Bull call spread 100/110", 45) == (45.0, 45.0)
+
+
+def test_play_dte_range_is_none_with_no_dte_text_and_a_junk_horizon():
+    assert live_mapping.play_dte_range("Bull call spread 100/110", "not-a-number") is None
+
+
+# --------------------------------------------------------------------------
+# annotate_exit_by() — the deploy card's §5 projection
+# --------------------------------------------------------------------------
+def _exit_by_candidate(ticker, play, structure, *, role="deploy", horizon="") -> Candidate:
+    return Candidate(
+        ticker=ticker, play=play, structure=structure, market_regime="RANGE + E-VOL",
+        tier="A", tier_partial=False, tier_reason="r", score_total=None, horizon=horizon,
+        trigger="t", invalidation="i", alternative_interpretation="", role=role,
+        deploy=True)
+
+
+def test_annotate_exit_by_projects_a_debit_candidates_dte_range(monkeypatch):
+    monkeypatch.setattr(exit_rules, "time_exit_fraction", lambda *a, **kw: 0.75)
+    c = _exit_by_candidate("AAA", "Bull call spread 100/110, 45–60 DTE",
+                           "bull_call_spread")
+    entry = date(2026, 8, 17)
+    annotate_exit_by([c], entry_date=entry)
+    assert c.exit_by_earliest == entry + timedelta(days=int(45 * 0.75))
+    assert c.exit_by_latest == entry + timedelta(days=int(60 * 0.75))
+    assert c.exit_by_earliest.isoformat() in c.exit_by_note
+    assert c.exit_by_latest.isoformat() in c.exit_by_note
+
+
+def test_annotate_exit_by_credit_candidate_gets_no_projection(monkeypatch):
+    monkeypatch.setattr(exit_rules, "time_exit_fraction", lambda *a, **kw: 0.75)
+    c = _exit_by_candidate("BBB", "Bull put spread 90/80, 45-59 DTE", "bull_put_spread")
+    annotate_exit_by([c], entry_date=date(2026, 8, 17))
+    assert c.exit_by_earliest is None
+    assert c.exit_by_latest is None
+    assert c.exit_by_note == "none — credits ride toward expiry (§5)"
+
+
+def test_annotate_exit_by_unparseable_play_and_horizon_is_not_projected(monkeypatch):
+    monkeypatch.setattr(exit_rules, "time_exit_fraction", lambda *a, **kw: 0.75)
+    c = _exit_by_candidate("CCC", "Bull call spread 100/110", "bull_call_spread",
+                           horizon="not-a-number")
+    annotate_exit_by([c], entry_date=date(2026, 8, 17))
+    assert c.exit_by_earliest is None
+    assert c.exit_by_latest is None
+    assert c.exit_by_note == "not projected — the play text carries no DTE"
+
+
+def test_rendered_card_shows_exit_by_for_both_deploy_and_hedge_candidates(monkeypatch):
+    monkeypatch.setattr(exit_rules, "time_exit_fraction", lambda *a, **kw: 0.75)
+    deploy_c = _exit_by_candidate("AAA", "Bull call spread 100/110, 45–60 DTE",
+                                  "bull_call_spread", role="deploy")
+    hedge_c = _exit_by_candidate("HHH", "Bear put spread 100/90, ~50 DTE",
+                                 "bear_put_spread", role="hedge")
+    annotate_exit_by([deploy_c, hedge_c], entry_date=date(2026, 8, 17))
+    card = render([deploy_c, hedge_c], [], None, date=DATE)
+    assert card.count("exit by:") == 2

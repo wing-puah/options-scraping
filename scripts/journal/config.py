@@ -149,6 +149,11 @@ NON_ATTEMPT_CONFIDENCES = ("OVERLAY",)
 # --------------------------------------------------------------------------
 ACCOUNT_SIM_YML = ROOT / "config" / "account-sim.yml"
 
+# The §5 time-exit fraction is read from the backtest config at run time
+# (lib/exit_rules.py) so the journal's printed exit-by dates can never drift
+# from the rule the research tier actually replays.
+BACKTEST_YML = ROOT / "config" / "backtest.yml"
+
 # The caps come from config/account-sim.yml (`caps.per_position` 0.25,
 # `caps.net` 2.50, as fractions of equity). That study calls them "a friction
 # model, NOT a tuned parameter", which is exactly why they transfer to live use:
@@ -313,6 +318,12 @@ class PositionRisk:
     iv: float | None = None
     delta_source: str = DELTA_SOURCE_UNAVAILABLE
     dte: float | None = None
+    # §5 time-exit display fields (lib/exit_rules.py) — DISPLAY-ONLY. None means
+    # unknown/not applicable, never "no deadline yet"; nothing downstream may
+    # read a risk verdict off them.
+    entry_date: date | None = None         # earliest opening fill across legs
+    exit_by: date | None = None            # entry + 0.75×(expiry−entry), debits only
+    entry_date_mixed: bool = False         # legs opened on different dates
 
     @property
     def priced(self) -> bool:
@@ -463,12 +474,22 @@ RECOMMENDATION_COLUMNS = [
     "net_liq",
     "stale_override",
     "notes",
+    # --- projections (append-at-end; the tab header must gain these too) --
+    # Play-shaped fields sitting after the provenance block because the tab is
+    # positional and the schema only ever grows at the end. Both derive purely
+    # from fields already hashed above (as_of_date + play/horizon), hence their
+    # place in REC_IDENTITY_EXCLUDED below.
+    "exit_by_earliest",    # §5 projected time-exit deadline, conservative end
+    "exit_by_latest",      # same projection at the far end of the DTE range
 ]
 
-# Excluded from the content hash that forms `rec_id`. These three are the row's
-# IDENTITY and its WALL CLOCK, not its content: including them would make every
-# re-run look like a new recommendation and defeat the dedup entirely.
-REC_IDENTITY_EXCLUDED = ("rec_id", "generation", "generated_at_utc")
+# Excluded from the content hash that forms `rec_id`: the row's IDENTITY, its
+# WALL CLOCK, and fields derived ENTIRELY from hashed ones. Including the first
+# two would make every re-run look like a new recommendation; the derived
+# fields cannot move unless a hashed field moves, so hashing them would only
+# force a one-time generation bump on every already-recorded card.
+REC_IDENTITY_EXCLUDED = ("rec_id", "generation", "generated_at_utc",
+                         "exit_by_earliest", "exit_by_latest")
 
 # `rec_id` alone is globally unique (it ends in a content hash). session_date and
 # ticker are in the key for readability when inspecting the _meta fingerprint —

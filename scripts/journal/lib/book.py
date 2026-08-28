@@ -128,6 +128,14 @@ def open_positions(raw: dict, greeks: dict[int, Greeks],
     legs = _legs_from_positions(raw)
     prices = raw.get("underlying_prices") or {}
 
+    # Per-leg entry dates for the §5 exit-by display. Optional v1 field: an
+    # older pull simply has none, and every position renders an em dash.
+    entry_dates: dict[int, date | None] = {}
+    for p in raw.get("positions") or []:
+        ed = p.get("entry_date")
+        entry_dates[int(p["conid"])] = (
+            datetime.strptime(str(ed)[:10], "%Y-%m-%d").date() if ed else None)
+
     groups: dict[tuple[str, date], list[Leg]] = defaultdict(list)
     for lg in legs:
         groups[(lg.symbol, lg.expiry)].append(lg)
@@ -151,11 +159,22 @@ def open_positions(raw: dict, greeks: dict[int, Greeks],
     for (symbol, expiry), grp in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
         grp.sort(key=lambda lg: (lg.right, lg.strike))
         conid_key = "|".join(str(c) for c in sorted(lg.conid for lg in grp))
+        # Group entry date, all-or-nothing like the delta: one unknown leg makes
+        # the whole group unknown (a spread dated off one leg is a wrong date,
+        # not a partial one). Legs opened on different dates take the EARLIEST —
+        # the §5 clock starts when the position first went on — and are flagged
+        # so the report can say so.
+        leg_dates = [entry_dates.get(lg.conid) for lg in grp]
+        if any(d is None for d in leg_dates):
+            group_entry, mixed = None, False
+        else:
+            group_entry, mixed = min(leg_dates), len(set(leg_dates)) > 1
         positions.append(mark_position(
             conid_key=conid_key, ticker=symbol, structure=_structure_label(grp),
             contracts=_contracts(grp), legs=grp, greeks=greeks,
             underlying_price=prices.get(symbol),
             dte=float((expiry - as_of).days),
+            entry_date=group_entry, expiry=expiry, entry_date_mixed=mixed,
         ))
 
     missing_spot = sorted({p.ticker for p in positions if p.underlying_price is None})

@@ -99,8 +99,17 @@ governs selection in §1–2.
 | Debit — signal date is mech **BEAR + H-VOL or E-VOL**           | 90%                    | −75%                                       | **arm at +50%, then trail 50pts from peak** | 75% of DTE                |
 | Credit (`bull_put_spread`)                                      | 65% of credit captured | **none** — risk is defined by wing width   | none                                        | none (ride toward expiry) |
 
-Two clauses that keep the table consistent:
+Three clauses that keep the table consistent:
 
+- **The debit time exit has a date.** "75% of DTE elapsed" means: **exit on or
+  before `entry date + 0.75 × (expiry − entry date)`** — i.e. when 25% of the
+  option's life remains, counted in calendar days and rounded down. You never
+  need to compute it: the daily journal (§4 of its report) prints that date for
+  every open debit position, and the deploy card projects it for every
+  candidate (a range, since at card time only the play's DTE range is known).
+  Card, report and this table all read the same
+  `config/backtest.yml::time_exit_dte_fraction`, so they cannot drift apart.
+  Credits carry no time exit and get no date (row 4).
 - **Credits are never regime-switched.** A `bull_put_spread` keeps row 4 in every
   regime.
 - **The bear-debit breakeven ratchet was REVERTED 2026-08-24.** Its rollback

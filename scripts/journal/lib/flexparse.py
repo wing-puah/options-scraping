@@ -921,6 +921,36 @@ def _position_last_fill(rows: list[dict]) -> date | None:
     return max(dates) if dates else None
 
 
+def _position_entry_date(rows: list[dict], held_qty: float) -> date | None:
+    """Date of the fill that OPENED the currently-held position, or None.
+
+    Walks the conid's fills in time order accumulating signed quantity and
+    returns the date the running position last left zero (or flipped sign) into
+    the held direction without returning to zero afterward.
+
+    None whenever the walk cannot be the position's true history: no rows, a
+    flat holding, or a final running quantity that disagrees with `held_qty` —
+    the latter means the position's life started before the export window
+    (exactly the condition `_provenance_warnings` flags), and a date read off a
+    partial history would be a guess, not a record. On the netted book the
+    equality holds by construction; on a declared book it is the test.
+    """
+    if not rows or abs(held_qty) < 1e-9:
+        return None
+    running = 0.0
+    entry: date | None = None
+    for r in sorted(rows, key=lambda r: str(r.get("DateTime") or "")):
+        prev = running
+        running += _signed_qty(r)
+        if abs(running) < 1e-9:
+            entry = None
+        elif prev * running <= 0:  # left zero, or flipped sign without touching it
+            entry = _row_date(r.get("DateTime"))
+    if entry is None or abs(running - held_qty) > 1e-9:
+        return None
+    return entry
+
+
 def _coverage_gap_warnings(coverage: list[tuple[date, date]], positions: list[dict],
                            by_conid: dict[int, list[dict]],
                            contracts: dict[str, dict]) -> list[str]:
@@ -1328,6 +1358,16 @@ def parse(sources, *, trade_date: str | None = None,
         gap_notes = _coverage_gap_warnings(coverage, positions, by_conid, contracts)
         warnings = window_notes + gap_notes + provenance_notes
         book_reconstructed = True
+
+    # Entry date per open position, derived from the fills the exports hold.
+    # Additive OPTIONAL field on the v1 Position shape (no SCHEMA_VERSION bump:
+    # readers use .get("entry_date"), absence means unknown, and a bump would
+    # make every existing pull in journal/raw/ unreplayable). None — rendered as
+    # an em dash — whenever the fills cannot prove the entry, never a guess.
+    for pos in positions:
+        entry = _position_entry_date(by_conid.get(int(pos["conid"]), []),
+                                     float(pos.get("position") or 0))
+        pos["entry_date"] = entry.isoformat() if entry else None
 
     for warning in warnings:
         log.warning("%s", warning)

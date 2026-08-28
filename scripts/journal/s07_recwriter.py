@@ -120,6 +120,10 @@ def _candidate_row(c, i: int, ctx: RecContext, judged: bool) -> dict:
         "demote_reasons": "; ".join(c.demote_reasons or []),
         "hedge_pick": c.hedge_pick,
         "judge_lookahead_risk": JUDGE_LOOKAHEAD_NOTE if judged else "",
+        # §5 projection (annotate_exit_by). Derived purely from hashed fields,
+        # so both sit in REC_IDENTITY_EXCLUDED — adding them bumped nothing.
+        "exit_by_earliest": c.exit_by_earliest.isoformat() if c.exit_by_earliest else "",
+        "exit_by_latest": c.exit_by_latest.isoformat() if c.exit_by_latest else "",
     }
 
 
@@ -270,6 +274,38 @@ def read_csv_rec_ids(path: Path | None = None) -> set[str]:
     return {r.get("rec_id", "") for r in read_csv_rows(path) if r.get("rec_id")}
 
 
+def _reconcile_csv_header(p: Path) -> None:
+    """Bring an existing file's header up to the current schema, safely.
+
+    DictWriter writes its header only on FIRST use, so appending to a file
+    written under an older (shorter) schema would put extra values under a
+    header that does not name them — DictReader then buries them in `restkey`
+    and the new columns silently vanish on read-back. The append-at-end
+    contract makes the fix mechanical: a header that is a strict PREFIX of
+    `RECOMMENDATION_COLUMNS` gets the file rewritten once with the full header,
+    new columns blank-filled. Anything else is not ours to guess at — raise.
+    """
+    with open(p, newline="", encoding="utf-8") as fh:
+        header = next(csv.reader(fh), None)
+    if header is None or header == RECOMMENDATION_COLUMNS:
+        return
+    if header != RECOMMENDATION_COLUMNS[:len(header)]:
+        raise ValueError(
+            f"{p} header matches neither RECOMMENDATION_COLUMNS nor a prefix of "
+            "it — refusing to append into an unrecognised schema")
+    with open(p, newline="", encoding="utf-8") as fh:
+        old_rows = list(csv.DictReader(fh))
+    tmp = p.with_name(p.name + ".widen-tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=RECOMMENDATION_COLUMNS)
+        w.writeheader()
+        for r in old_rows:
+            w.writerow({c: r.get(c, "") for c in RECOMMENDATION_COLUMNS})
+    tmp.replace(p)
+    log.info("Widened %s header from %d to %d columns (append-at-end schema growth)",
+             p, len(header), len(RECOMMENDATION_COLUMNS))
+
+
 def append_csv(rows: list[dict], path: Path | None = None) -> int:
     """Append rows, writing the header on first use. Returns rows written."""
     if not rows:
@@ -277,6 +313,8 @@ def append_csv(rows: list[dict], path: Path | None = None) -> int:
     p = _csv_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     exists = p.exists() and p.stat().st_size > 0
+    if exists:
+        _reconcile_csv_header(p)
     with open(p, "a", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=RECOMMENDATION_COLUMNS)
         if not exists:
@@ -397,6 +435,11 @@ def write(candidates, rejected, ctx: RecContext, *,
         sheets_client.ensure_tab(RECOMMENDATIONS_TAB,
                                  min_cols=len(RECOMMENDATION_COLUMNS),
                                  spreadsheet_id=spreadsheet_id)
+        # And the header LABELS, not just the grid width: append_rows writes
+        # positionally, so a schema column appended after the tab was created
+        # would otherwise land unlabelled in every new row.
+        sheets_client.ensure_header(RECOMMENDATIONS_TAB, RECOMMENDATION_COLUMNS,
+                                    spreadsheet_id=spreadsheet_id)
         already = read_sheet_rec_ids(spreadsheet_id)
         to_send = [r for r in fresh if r["rec_id"] not in already]
         if to_send:

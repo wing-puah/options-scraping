@@ -46,11 +46,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import date
 
 import yaml
 
 from .config import (ACCOUNT_SIM_YML, DELTA_SOURCE_UNAVAILABLE,
                      OPTION_MULTIPLIER, Greeks, Leg, PositionRisk)
+from .lib import exit_rules
 
 log = logging.getLogger(__name__)
 
@@ -185,9 +187,23 @@ def delta_source(legs: list[Leg], greeks: dict[int, Greeks]) -> str:
 def mark_position(conid_key: str, ticker: str, structure: str, contracts: int,
                   legs: list[Leg], greeks: dict[int, Greeks],
                   underlying_price: float | None,
-                  dte: float | None = None) -> PositionRisk:
-    """Build one PositionRisk. Leaves delta fields None when unpriceable."""
+                  dte: float | None = None,
+                  entry_date: date | None = None,
+                  expiry: date | None = None,
+                  entry_date_mixed: bool = False) -> PositionRisk:
+    """Build one PositionRisk. Leaves delta fields None when unpriceable.
+
+    `entry_date`/`expiry` feed the §5 exit-by DISPLAY field only (see
+    lib/exit_rules.py): computed for debit structures alone — credits carry no
+    time exit — and left None whenever any input is unknown, all-or-nothing
+    like the delta.
+    """
     pdelta = position_delta(legs, greeks)
+
+    exit_by = None
+    if exit_rules.is_debit(structure) is True:
+        exit_by = exit_rules.exit_by_date(entry_date, expiry,
+                                          exit_rules.time_exit_fraction())
     iv = next((greeks[lg.conid].iv for lg in legs
                if lg.conid in greeks and greeks[lg.conid].iv is not None), None)
 
@@ -207,6 +223,8 @@ def mark_position(conid_key: str, ticker: str, structure: str, contracts: int,
         underlying_price=underlying_price,
         short_leg_delta=short_leg_delta(legs, greeks),
         iv=iv, delta_source=source, dte=dte,
+        entry_date=entry_date, exit_by=exit_by,
+        entry_date_mixed=entry_date_mixed,
     )
 
 

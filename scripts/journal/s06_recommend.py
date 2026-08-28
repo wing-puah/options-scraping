@@ -35,6 +35,7 @@ import re
 import subprocess
 import tempfile
 from dataclasses import dataclass, field, replace
+from datetime import date
 
 import pandas as pd
 
@@ -110,6 +111,15 @@ class Candidate:
     headroom_ok: bool | None = None
     headroom_note: str = ""
     deploy: bool = False      # top-DEPLOY_BUDGET flag, role="deploy" only
+
+    # --- §5 exit-by projection (annotate_exit_by() only; display-only) ----
+    # Set by neither rank() nor judge(): `cmd_recommend` stamps these after
+    # ranking, from the as-of date it alone knows. A historical live_select
+    # replay never calls it, so they stay None there — correct, since a
+    # projection into the past is meaningless.
+    exit_by_earliest: date | None = None
+    exit_by_latest: date | None = None
+    exit_by_note: str = ""
 
     # --- judgment annotations (judge() only; rank() never sets these) -----
     trigger_verdict: str | None = None
@@ -680,6 +690,51 @@ def _book_concentration(book, deploy: list[Candidate],
     return out
 
 
+def annotate_exit_by(candidates: list[Candidate], *, entry_date: date) -> None:
+    """Stamp the §5 projected time-exit deadline onto each candidate.
+
+    DISPLAY-ONLY, like every exit_rules figure: it re-sorts nothing, filters
+    nothing, and a blank projection blocks nothing. `entry_date` is the session
+    the fill would happen in (deployment-rules.md §0: the next trading day) —
+    only `cmd_recommend` knows the as-of date, so only it calls this; rank()'s
+    and render()'s signatures stay frozen for live_select's sake.
+
+    The exact expiry is unknowable at card time (the analysis emits a DTE
+    RANGE and the strike/expiry are chosen at order entry), so the projection
+    is a range too — collapsing it to a midpoint date would print fabricated
+    precision.
+    """
+    from .lib import exit_rules
+
+    tef = exit_rules.time_exit_fraction()
+    for c in candidates:
+        side = exit_rules.is_debit(c.structure)
+        if side is False:
+            c.exit_by_note = "none — credits ride toward expiry (§5)"
+            continue
+        if side is None:
+            c.exit_by_note = "not projected — structure side unknown"
+            continue
+        if tef is None:
+            c.exit_by_note = ("not projected — the §5 time exit is disabled "
+                              "in config/backtest.yml")
+            continue
+        rng = mapping.play_dte_range(c.play, c.horizon)
+        proj = (exit_rules.projected_exit_by(entry_date, rng[0], rng[1], tef)
+                if rng else None)
+        if proj is None:
+            c.exit_by_note = "not projected — the play text carries no DTE"
+            continue
+        c.exit_by_earliest, c.exit_by_latest = proj
+        entered = f"entered {entry_date.isoformat()}"
+        if proj[0] == proj[1]:
+            c.exit_by_note = (f"{proj[0].isoformat()} "
+                              f"(~{rng[0]:.0f} DTE, {entered})")
+        else:
+            c.exit_by_note = (f"{proj[0].isoformat()} … {proj[1].isoformat()} "
+                              f"({rng[0]:.0f}–{rng[1]:.0f} DTE, {entered})")
+
+
 def _render_deploy_candidate(i: int, c: Candidate) -> str:
     tag = "[DEPLOY]" if c.deploy else "[RESERVE]"
     lines = [
@@ -690,6 +745,7 @@ def _render_deploy_candidate(i: int, c: Candidate) -> str:
         f"  invalidation: {_wrap_note(c.invalidation)}",
         f"  alternative interpretation: {_wrap_note(c.alternative_interpretation)}",
         f"  score_total: {_fmt_score(c.score_total)} (tie-break only, §6 — never a promotion signal)",
+        f"  exit by: {c.exit_by_note or '—'}",
         f"  duplicate exposure: {_fmt_bool(c.duplicate_exposure)}",
         f"  cap headroom: {_fmt_bool(c.headroom_ok)} — {c.headroom_note}",
         f"  reasons: {_render_reasons(c)}",
@@ -719,6 +775,7 @@ def _render_hedge_candidate(i: int, c: Candidate) -> str:
         f"  play: {_play_headline(c.play)}",
         f"  trigger: {_wrap_note(c.trigger)}",
         f"  alternative interpretation: {_wrap_note(c.alternative_interpretation)}",
+        f"  exit by: {c.exit_by_note or '—'}",
         f"  duplicate exposure: {_fmt_bool(c.duplicate_exposure)}",
         f"  cap headroom: {_fmt_bool(c.headroom_ok)} — {c.headroom_note}",
         "  size: ≤ ½ a normal position (§4) — insurance, not a trade",

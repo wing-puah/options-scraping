@@ -129,3 +129,42 @@ def test_positions_on_different_symbols_never_merge():
         {"NVDA": 175.0, "AMD": 160.0})
     pos, _ = book.open_positions(raw, {1: _g(1, 0.6), 2: _g(2, 0.5)}, as_of=AS_OF)
     assert {p.ticker for p in pos} == {"NVDA", "AMD"}
+
+
+# --------------------------------------------------------------------------
+# §5 entry_date grouping — feeds mark_position()'s exit-by projection
+# --------------------------------------------------------------------------
+def test_two_legs_sharing_an_entry_date_are_not_flagged_mixed():
+    raw = _raw(
+        [{"conid": 1, "position": 1, "avg_cost": 700.0, "entry_date": "2026-08-01"},
+         {"conid": 2, "position": -1, "avg_cost": 300.0, "entry_date": "2026-08-01"}],
+        {"1": _c("NVDA", 170.0, "2026-10-16"), "2": _c("NVDA", 180.0, "2026-10-16")},
+        {"NVDA": 175.0})
+    pos, _ = book.open_positions(raw, {1: _g(1, 0.6), 2: _g(2, 0.35)}, as_of=AS_OF)
+    assert pos[0].entry_date == date(2026, 8, 1)
+    assert pos[0].entry_date_mixed is False
+
+
+def test_two_legs_opened_on_different_dates_use_the_earliest_and_flag_mixed():
+    raw = _raw(
+        [{"conid": 1, "position": 1, "avg_cost": 700.0, "entry_date": "2026-08-05"},
+         {"conid": 2, "position": -1, "avg_cost": 300.0, "entry_date": "2026-08-01"}],
+        {"1": _c("NVDA", 170.0, "2026-10-16"), "2": _c("NVDA", 180.0, "2026-10-16")},
+        {"NVDA": 175.0})
+    pos, _ = book.open_positions(raw, {1: _g(1, 0.6), 2: _g(2, 0.35)}, as_of=AS_OF)
+    assert pos[0].entry_date == date(2026, 8, 1)      # the EARLIEST leg
+    assert pos[0].entry_date_mixed is True
+
+
+def test_one_leg_with_no_entry_date_makes_the_whole_group_unknown_not_mixed():
+    """All-or-nothing like the delta: a spread dated off one leg is a wrong
+    date, not a partial one, and it is not "mixed" — mixed means BOTH dates
+    are known and disagree."""
+    raw = _raw(
+        [{"conid": 1, "position": 1, "avg_cost": 700.0, "entry_date": "2026-08-01"},
+         {"conid": 2, "position": -1, "avg_cost": 300.0}],  # no entry_date at all
+        {"1": _c("NVDA", 170.0, "2026-10-16"), "2": _c("NVDA", 180.0, "2026-10-16")},
+        {"NVDA": 175.0})
+    pos, _ = book.open_positions(raw, {1: _g(1, 0.6), 2: _g(2, 0.35)}, as_of=AS_OF)
+    assert pos[0].entry_date is None
+    assert pos[0].entry_date_mixed is False

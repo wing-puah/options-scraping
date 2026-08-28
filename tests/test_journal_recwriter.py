@@ -7,7 +7,8 @@ journal/recommendations.csv.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import csv
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -164,6 +165,34 @@ def test_a_changed_verdict_changes_the_identity():
     assert a["rec_id"] != b["rec_id"]
 
 
+def test_content_hash_ignores_the_exit_by_projection():
+    """`exit_by_earliest`/`exit_by_latest` derive entirely from already-hashed
+    fields (as_of_date + play/horizon), so REC_IDENTITY_EXCLUDED keeps them out
+    of the hash on purpose — otherwise every already-recorded card would take a
+    one-time generation bump the day this projection shipped."""
+    base = rw.to_rows([_cand()], [], _ctx())[0]
+    base_hash = rw.content_hash(base)
+
+    changed = dict(base, exit_by_earliest="2026-09-01", exit_by_latest="2026-09-20")
+    assert rw.content_hash(changed) == base_hash
+
+    removed = dict(base)
+    del removed["exit_by_earliest"]
+    del removed["exit_by_latest"]
+    assert rw.content_hash(removed) == base_hash
+
+
+def test_a_changed_exit_by_projection_does_not_bump_the_generation(tmp_path):
+    p = tmp_path / "rec.csv"
+    _write([_cand()], [], _ctx(), p)
+    second = _write(
+        [_cand(exit_by_earliest=date(2026, 9, 1), exit_by_latest=date(2026, 9, 20))],
+        [], _ctx(generated_at=T2), p)
+    assert second["csv_written"] == 0
+    assert second["skipped_duplicate"] == 1
+    assert [r["generation"] for r in rw.read_csv_rows(p)] == ["1"]
+
+
 def test_rec_id_is_readable_at_the_front():
     row = rw.to_rows([_cand()], [], _ctx())[0]
     assert row["rec_id"].startswith(f"{SESSION}|{AS_OF}|deploy|NVDA|bull_call_spread|")
@@ -209,6 +238,49 @@ def test_generations_are_counted_per_play_not_per_file(tmp_path):
     assert gens == {("AAA", "1"), ("AAA", "2"), ("BBB", "1"), ("BBB", "2")}
 
 
+# --------------------------------------------------------------------------
+# _reconcile_csv_header() / append_csv() — append-at-end schema growth
+# --------------------------------------------------------------------------
+def test_append_csv_widens_a_strict_prefix_header_and_blank_fills_old_rows(tmp_path):
+    """A CSV written under an older (shorter) schema — here, missing the two
+    exit-by columns appended at the end — must be rewritten with the CURRENT
+    header before anything is appended, or DictReader would bury the new
+    column's values in `restkey` on read-back."""
+    p = tmp_path / "rec.csv"
+    old_header = RECOMMENDATION_COLUMNS[:-2]
+    with open(p, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=old_header)
+        w.writeheader()
+        w.writerow({c: "old" for c in old_header})
+
+    new_row = rw.to_rows([_cand("BBB")], [], _ctx(generated_at=T2))[0]
+    written = rw.append_csv([new_row], p)
+    assert written == 1
+
+    with open(p, newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    assert len(rows) == 2
+    for row in rows:
+        assert set(row) == set(RECOMMENDATION_COLUMNS)
+    # the pre-existing row's new (append-at-end) columns are blank-filled...
+    assert rows[0]["exit_by_earliest"] == ""
+    assert rows[0]["exit_by_latest"] == ""
+    # ...and the newly appended row's real values survive the rewrite.
+    assert rows[1]["ticker"] == "BBB"
+
+
+def test_append_csv_refuses_a_header_matching_neither_the_schema_nor_a_prefix_of_it(tmp_path):
+    p = tmp_path / "rec.csv"
+    with open(p, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=["not", "our", "schema"])
+        w.writeheader()
+        w.writerow({"not": "a", "our": "b", "schema": "c"})
+
+    new_row = rw.to_rows([_cand("BBB")], [], _ctx())[0]
+    with pytest.raises(ValueError, match="unrecognised schema"):
+        rw.append_csv([new_row], p)
+
+
 def test_write_refuses_rows_that_cannot_be_deduplicated(tmp_path, monkeypatch):
     monkeypatch.setattr(rw, "rec_id", lambda row: "")
     with pytest.raises(ValueError, match="rec_id"):
@@ -250,6 +322,10 @@ class _FakeSheets:
     def ensure_tab(self, tab, min_cols=0, spreadsheet_id=None):
         self.calls.append(("ensure_tab", tab, min_cols))
 
+    def ensure_header(self, tab, schema, spreadsheet_id=None):
+        self.calls.append(("ensure_header", tab, list(schema)))
+        return "ok"
+
     def get_all_rows(self, tab, spreadsheet_id=None):
         self.calls.append(("get_all_rows", tab, None))
         return []
@@ -287,6 +363,16 @@ def test_the_tab_is_sized_to_the_schema_before_anything_reads_it(tmp_path, fake_
 def test_rows_reach_sheets_in_contract_order(tmp_path, fake_sheets):
     rw.write([_cand()], [], _ctx(), csv_path=tmp_path / "rec.csv")
     assert list(fake_sheets.sent[0]) == RECOMMENDATION_COLUMNS
+
+
+def test_ensure_header_runs_after_ensure_tab_and_before_append_rows(tmp_path, fake_sheets):
+    """The header LABELS must be sized after the tab's WIDTH but before any row
+    is appended positionally — otherwise a schema column appended after the
+    tab was first created would land unlabelled in every new row."""
+    rw.write([_cand()], [], _ctx(), csv_path=tmp_path / "rec.csv")
+    names = [c[0] for c in fake_sheets.calls]
+    assert "ensure_header" in names
+    assert names.index("ensure_tab") < names.index("ensure_header") < names.index("append_rows")
 
 
 def test_a_sheets_failure_is_reported_but_never_loses_the_local_row(tmp_path, monkeypatch):

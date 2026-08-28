@@ -34,11 +34,13 @@ in config.py) — every formatter below checks `is None`, never truthiness.
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 
 from .config import (REPORTS_DIR, MATCH_CONFIDENCES, NON_ATTEMPT_CONFIDENCES,
                      PositionEvent)
 from .s03_risk import BookRisk
+from .lib import exit_rules
 
 EM_DASH = "—"
 
@@ -76,6 +78,11 @@ def iv_fmt(v: float | None, digits: int = 2) -> str:
 
 def num(v: float | None, digits: int = 1) -> str:
     return EM_DASH if v is None else f"{v:.{digits}f}"
+
+
+def isodate(v) -> str:
+    """A date cell. None means unknown/not applicable — em dash, never a guess."""
+    return EM_DASH if v is None else v.isoformat()
 
 
 def cell(s: str | None) -> str:
@@ -233,17 +240,39 @@ def build(events: list[PositionEvent], book: BookRisk, meta: dict) -> str:
         emit("")
     else:
         emit("| Ticker | Structure | Contracts | DTE | Position Delta | "
-             "Delta-Notional | % NetLiq | Underlying Px | IV |")
+             "Delta-Notional | % NetLiq | Underlying Px | IV | Exit by |")
         emit("|--------|-----------|-----------|-----|-----------------|"
-             "-----------------|----------|----------------|-----|")
+             "-----------------|----------|----------------|-----|---------|")
+        try:
+            report_day = dt.date.fromisoformat(str(date))
+        except ValueError:
+            report_day = None
         for p in sorted(all_positions, key=lambda p: (p.ticker, p.structure)):
             pnl = _pct_net_liq(p.delta_notional, p.pct_net_liq, net_liq)
+            exit_cell = isodate(p.exit_by) + ("\\*" if p.entry_date_mixed
+                                              and p.exit_by is not None else "")
+            if (p.exit_by is not None and report_day is not None
+                    and p.exit_by < report_day):
+                exit_cell += " ⚠ OVERDUE"
             emit(f"| {p.ticker} | {p.structure} | {p.contracts} | {num(p.dte, 1)} | "
                  f"{delta3(p.position_delta)} | {money(p.delta_notional, signed=True)} | "
-                 f"{pct(pnl)} | {money(p.underlying_price)} | {iv_fmt(p.iv)} |")
+                 f"{pct(pnl)} | {money(p.underlying_price)} | {iv_fmt(p.iv)} | "
+                 f"{exit_cell} |")
         emit("")
         emit(f"**{len(all_positions)} open position(s)** "
              f"({len(book.positions)} priced, {len(book.unpriced)} excluded — see §5).")
+        emit("")
+        tef = exit_rules.time_exit_fraction()
+        if tef is None:
+            emit("> `Exit by`: the §5 debit time exit is DISABLED in "
+                 "config/backtest.yml (`time_exit_dte_fraction: null`) — no "
+                 "dates are computed.")
+        else:
+            emit(f"> `Exit by` = entry + {tef:.0%} of the entry-to-expiry span "
+                 "(`deployment-rules.md` §5), a DEADLINE — exit on or before it. "
+                 "Blank on a credit spread (credits carry no time exit) and blank "
+                 "where the entry date is not provable from any export we hold. "
+                 "\\* = the legs were opened on different dates; the earliest is used.")
         emit("")
 
     # ================= 5. EXPOSURE =================
@@ -351,6 +380,10 @@ def _not_covered(book: BookRisk, meta: dict) -> list[str]:
     no_spot = [p for p in book.unpriced
                if p.position_delta is not None and p.underlying_price is None]
 
+    all_positions = list(book.positions) + list(book.unpriced)
+    no_entry_date = [p for p in all_positions if p.entry_date is None]
+    mixed_entry = [p for p in all_positions if p.entry_date_mixed]
+
     # What "skipped_non_option" names depends on which book this pull carries.
     # A reconstructed book only ever saw FILLS, so a non-option name there is a
     # trade this pipeline does not model. A DECLARED book is a statement of
@@ -376,6 +409,10 @@ def _not_covered(book: BookRisk, meta: dict) -> list[str]:
         _tally_line(non_option_label, meta.get("skipped_non_option")),
         _tally_line("Positions with no delta", no_delta, pos),
         _tally_line("Symbols with no spot price", no_spot, pos),
+        _tally_line("Open positions with no entry date (§4 exit-by not "
+                    "computable)", no_entry_date, pos),
+        _tally_line("Open positions whose legs were opened on different dates",
+                    mixed_entry, pos),
         # The two EXPLAINED buckets are named by contract only. Their full
         # sentences all say the same thing — "the export's window is shorter
         # than the position's life" — so printing 28 copies of it here would

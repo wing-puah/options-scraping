@@ -7,6 +7,7 @@ weighted towards those, not towards the happy path.
 """
 
 import io
+from datetime import date
 
 import pytest
 
@@ -935,3 +936,84 @@ def test_an_expired_netted_contract_is_not_diffed_against_the_declared_book():
     # reclassified into a quieter bucket, it must not be diffed at all.
     assert raw["book_diagnostics"] == {
         "not_cross_checkable": [], "coverage_explained": [], "unexplained": []}
+
+
+# --------------------------------------------------------------------------
+# _position_entry_date() — the fill that OPENED the currently-held position
+# --------------------------------------------------------------------------
+def _fill_row(dt, side, qty):
+    """A minimal raw fill row — only the fields `_signed_qty`/`_row_date` read."""
+    return {"DateTime": dt, "Buy/Sell": side, "Quantity": qty}
+
+
+def test_position_entry_date_a_clean_open_is_that_fills_date():
+    rows = [_fill_row("2026-08-10;093000", "BUY", "2")]
+    assert flexparse._position_entry_date(rows, 2) == date(2026, 8, 10)
+
+
+def test_position_entry_date_a_scale_in_keeps_the_first_date():
+    rows = [_fill_row("2026-08-10;093000", "BUY", "1"),
+            _fill_row("2026-08-12;093000", "BUY", "1")]
+    assert flexparse._position_entry_date(rows, 2) == date(2026, 8, 10)
+
+
+def test_position_entry_date_a_round_trip_uses_the_reopen_date():
+    """Opened, fully closed, then reopened larger — the clock restarts at the
+    reopen, not the original open the close already ended."""
+    rows = [_fill_row("2026-08-01;093000", "BUY", "1"),
+            _fill_row("2026-08-05;093000", "SELL", "1"),
+            _fill_row("2026-08-10;093000", "BUY", "2")]
+    assert flexparse._position_entry_date(rows, 2) == date(2026, 8, 10)
+
+
+def test_position_entry_date_is_none_when_the_first_row_is_already_a_close():
+    """The rows net to +1 but the broker declares 3 held — the position's life
+    started before this export's window, so the walk cannot be trusted."""
+    rows = [_fill_row("2026-08-10;093000", "BUY", "1")]
+    assert flexparse._position_entry_date(rows, 3) is None
+
+
+def test_position_entry_date_is_none_for_empty_rows():
+    assert flexparse._position_entry_date([], 2) is None
+
+
+def test_position_entry_date_is_none_for_a_zero_held_qty():
+    rows = [_fill_row("2026-08-10;093000", "BUY", "1")]
+    assert flexparse._position_entry_date(rows, 0) is None
+
+
+def test_position_entry_date_a_sign_flip_without_touching_zero_uses_the_flip_date():
+    """SELL 1 then BUY 3 never crosses through zero on a separate row — the
+    running quantity flips sign directly, and that flip IS the new entry."""
+    rows = [_fill_row("2026-08-01;093000", "SELL", "1"),
+            _fill_row("2026-08-10;093000", "BUY", "3")]
+    assert flexparse._position_entry_date(rows, 2) == date(2026, 8, 10)
+
+
+# --------------------------------------------------------------------------
+# parse() stamps entry_date on every open position, netted AND declared
+# --------------------------------------------------------------------------
+def test_parse_stamps_entry_date_on_the_netted_path():
+    raw = flexparse.parse(csv_text(row(tid="1", conid="100", side="BUY", qty="2",
+                                       dt="2026-08-10;093000")))
+    assert raw["positions"][0]["entry_date"] == "2026-08-10"
+
+
+def test_parse_stamps_entry_date_on_the_declared_path_from_the_trade_fills():
+    trades = csv_text(row(tid="1", conid="100", side="BUY", qty="2",
+                          dt="2026-08-10;093000"))
+    positions = positions_csv_text(position_row(conid="100", qty="2"))
+    raw = flexparse.parse(trades, positions_source=positions)
+    assert raw["book_reconstructed"] is False
+    assert raw["positions"][0]["entry_date"] == "2026-08-10"
+
+
+def test_parse_declared_path_entry_date_is_none_when_the_trades_export_cannot_prove_it():
+    """The declared book states a position the accompanying trades export never
+    saw fully open (net qty from fills disagrees with the declared holding) —
+    entry_date must render unknown, not a guess off a partial history."""
+    trades = csv_text(row(tid="1", conid="100", side="BUY", qty="1",
+                          dt="2026-08-10;093000"))
+    positions = positions_csv_text(position_row(conid="100", qty="3"))
+    raw = flexparse.parse(trades, positions_source=positions)
+    assert raw["positions"][0]["entry_date"] is None

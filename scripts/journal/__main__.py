@@ -40,7 +40,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import date, timedelta
 
 from dotenv import load_dotenv
 
@@ -391,6 +391,15 @@ def cmd_pull(args) -> int:
     return 0
 
 
+def _next_weekday(d: date) -> date:
+    """The next Mon–Fri session strictly after `d` — §0's 'next trading day'
+    to the precision this repo keeps (weekday-only; no holiday calendar)."""
+    nxt = d + timedelta(days=1)
+    while nxt.weekday() >= 5:
+        nxt += timedelta(days=1)
+    return nxt
+
+
 def cmd_recommend(args) -> int:
     from . import s06_recommend as rec
     from . import s07_recwriter as recwriter
@@ -424,6 +433,13 @@ def cmd_recommend(args) -> int:
     book_risk, net_liq, prov = _book_context(session)
 
     candidates, rejected = rec.rank(ac_df, session, book_risk, net_liq)
+
+    # §5 exit-by projection, assuming entry at the next session's open (§0).
+    # Stamped here — not in rank() — because only this command knows the as-of
+    # date; live_select's historical replays therefore never carry one, which
+    # is correct (a projection into the past is meaningless). Weekday-only, as
+    # every "next trading day" in this repo is: there is no holiday calendar.
+    rec.annotate_exit_by(candidates, entry_date=_next_weekday(date.fromisoformat(as_of)))
 
     judged = None
     judge_status = "not_run"

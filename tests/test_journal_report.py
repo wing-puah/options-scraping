@@ -266,6 +266,110 @@ def test_an_absent_cross_check_says_not_measured_rather_than_zero():
     assert section6.count("not recorded for this run") >= 3
 
 
+# --------------------------------------------------------------------------
+# §4/§6 — the §5 exit-by column (lib/exit_rules.py)
+# --------------------------------------------------------------------------
+def _open_book_row(text: str, ticker: str) -> str:
+    """The single `| ticker | ... |` line for `ticker` in §4's table."""
+    lines = [ln for ln in text.splitlines() if ln.startswith(f"| {ticker} |")]
+    assert len(lines) == 1, f"expected exactly one §4 row for {ticker}, got {lines}"
+    return lines[0]
+
+
+def test_a_debit_position_with_an_entry_date_renders_its_exit_by_date():
+    p = _risk(entry_date=date(2026, 6, 1), exit_by=date(2026, 8, 15))
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta())
+    row = _open_book_row(text, "NVDA")
+    assert row.rstrip().endswith("2026-08-15 |")
+
+
+def test_a_credit_or_unknown_entry_position_renders_an_em_dash_exit_by():
+    """`mark_position` never computes `exit_by` for a credit (or an unknown
+    entry date) — the report must not fabricate one either."""
+    p = _risk(entry_date=None, exit_by=None)
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta())
+    row = _open_book_row(text, "NVDA")
+    assert row.rstrip().endswith(f"{report.EM_DASH} |")
+
+
+def test_a_mixed_entry_date_position_flags_its_exit_by_date_with_an_asterisk():
+    p = _risk(entry_date=date(2026, 6, 1), exit_by=date(2026, 8, 15),
+              entry_date_mixed=True)
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta())
+    row = _open_book_row(text, "NVDA")
+    assert row.rstrip().endswith("2026-08-15\\* |")
+
+
+def test_section6_tallies_positions_with_no_entry_date():
+    p = _risk(entry_date=None, exit_by=None)
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta())
+    section6 = text.split("## 6. Not covered")[1]
+    assert ("Open positions with no entry date (§4 exit-by not computable) "
+            "(1):** NVDA bull_call_spread.") in section6
+
+
+def test_section6_tallies_positions_with_mixed_entry_dates():
+    p = _risk(entry_date=date(2026, 6, 1), exit_by=date(2026, 8, 15),
+              entry_date_mixed=True)
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta())
+    section6 = text.split("## 6. Not covered")[1]
+    assert ("Open positions whose legs were opened on different dates "
+            "(1):** NVDA bull_call_spread.") in section6
+
+
+def test_an_overdue_exit_by_date_is_flagged_against_the_report_date():
+    """Judged against the BOOK/REPORT date (meta['date']), never wall-clock
+    'today' — a page rebuilt long after the fact must read the same as it did
+    on the day it was generated."""
+    overdue = _risk(conid_key="k1", ticker="NVDA",
+                    entry_date=date(2026, 5, 1), exit_by=date(2026, 8, 1))
+    not_yet_due = _risk(conid_key="k2", ticker="AMD", structure="bull_call_spread",
+                        entry_date=date(2026, 8, 1), exit_by=date(2026, 8, 20))
+    book = BookRisk(positions=[overdue, not_yet_due], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta(date="2026-08-14"))
+    assert _open_book_row(text, "NVDA").rstrip().endswith("2026-08-01 ⚠ OVERDUE |")
+    assert "⚠ OVERDUE" not in _open_book_row(text, "AMD")
+
+
+def test_an_unparseable_meta_date_never_flags_overdue():
+    overdue_looking = _risk(entry_date=date(2026, 5, 1), exit_by=date(2026, 8, 1))
+    book = BookRisk(positions=[overdue_looking], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+    text = report.build([], book, _meta(date=""))
+    assert "OVERDUE" not in _open_book_row(text, "NVDA")
+
+
+def test_exit_by_column_does_not_enter_the_reconciled_set(tmp_path):
+    """CRITICAL PIN. `s04b_page.compute_figures()` must never gain an
+    `exit_by*` key — it is a per-position display field, not a reconciled
+    headline figure, and `reconcile()` would demand it be regex-extractable
+    from the markdown report on every future page build. The page must also
+    still build successfully with the new §4 column present."""
+    events = [_event()]
+    p = _risk(entry_date=date(2026, 6, 1), exit_by=date(2026, 8, 15))
+    book = BookRisk(positions=[p], unpriced=[], caps=_caps(),
+                    net_delta_notional=5000.0, gross_delta_notional=5000.0, breaches=[])
+
+    computed = page.compute_figures(events, book)
+    assert not any("exit_by" in key for key in computed)
+
+    out_path = tmp_path / "journal-2026-08-14.html"
+    returned = page.build(events, book, _meta(), out_path)
+    assert returned == out_path
+    assert out_path.exists()
+
+
 def test_missing_caps_states_they_were_not_loaded():
     book = BookRisk(positions=[], unpriced=[], caps=None,
                     net_delta_notional=0.0, gross_delta_notional=0.0, breaches=[])

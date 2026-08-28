@@ -109,6 +109,40 @@ def ensure_tab(tab: str, min_cols: int = 0,
         ws.resize(rows=ws.row_count, cols=min_cols)
 
 
+def ensure_header(tab: str, schema: list[str],
+                  spreadsheet_id: str | None = None) -> str:
+    """Bring `tab`'s row-1 header up to `schema`, widening a strict prefix.
+
+    Returns "ok" | "widened" | "mismatch". `append_rows` writes POSITIONALLY
+    and only writes a header onto an EMPTY tab, while `ensure_tab` widens the
+    GRID but never writes new header LABELS — so a column appended to a schema
+    lands on an existing tab as an unlabelled trailing column in every new row.
+    The append-at-end contract makes the fix mechanical: a header that is a
+    strict PREFIX of the schema gains the missing labels in place. Anything
+    else comes back "mismatch" (never raises — relabelling an unrecognised
+    header would risk mislabelling real data; the caller surfaces it).
+    """
+    ss = _get_spreadsheet(spreadsheet_id)
+    ws = _ensure_tab(ss, tab, min_cols=len(schema))
+    if ws.col_count < len(schema):
+        ws.resize(rows=ws.row_count, cols=len(schema))
+    header = ws.row_values(1)
+    schema = list(schema)
+    if not header or header == schema:
+        # An empty tab needs no fix: append_rows writes the full header itself.
+        return "ok"
+    if header == schema[:len(header)]:
+        ws.update(f"A1:{_col_letter(len(schema))}1", [schema],
+                  value_input_option="RAW")
+        log.info("Widened tab '%s' header from %d to %d columns",
+                 tab, len(header), len(schema))
+        return "widened"
+    log.warning("Tab '%s' header matches neither its schema nor a prefix of it "
+                "— left untouched; align it by hand before trusting new columns",
+                tab)
+    return "mismatch"
+
+
 def get_all_rows(tab: str, spreadsheet_id: str | None = None) -> list[dict]:
     log.info("Reading all rows from tab '%s'", tab)
     ss = _get_spreadsheet(spreadsheet_id)

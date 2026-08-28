@@ -302,6 +302,33 @@ def play_dte(play_text: str, horizon):
         return np.nan
 
 
+def play_dte_range(play_text: str, horizon):
+    """`(lo, hi)` DTE from the play text, or None when nothing parses.
+
+    Same three patterns as `play_dte`, kept SEPARATE on purpose: `play_dte`'s
+    scalar (midpoint) contract feeds the §3 tier geometry gate and its callers
+    depend on it. This range form exists for the deploy card's exit-by
+    projection, where collapsing "45–60 DTE" to 52.5 would print a fabricated
+    date. A scalar play returns (v, v).
+    """
+    t = str(play_text)
+    m = re.search(r"(\d{1,3})\s*[-–]\s*(\d{1,3})\s*DTE", t)
+    if m:
+        lo, hi = sorted((int(m.group(1)), int(m.group(2))))
+        return float(lo), float(hi)
+    m = re.search(r"~?\s*(\d{1,3})\s*DTE", t)
+    if m:
+        v = float(m.group(1))
+        return v, v
+    try:
+        v = float(horizon)
+    except (TypeError, ValueError):
+        return None
+    if v != v:  # NaN horizon
+        return None
+    return v, v
+
+
 SIDE = {"bull_call_spread": "debit", "bear_put_spread": "debit", "long_call": "debit",
         "long_put": "debit", "bull_put_spread": "credit", "bear_call_spread": "credit",
         "short_put": "credit", "short_call": "credit"}

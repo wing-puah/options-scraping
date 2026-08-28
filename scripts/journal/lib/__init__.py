@@ -11,6 +11,8 @@ Anything shared, or subordinate to one step, lives here instead:
     flexparse.py  IBKR Flex export -> rawpull, plus the flat-book guards  (step1)
     greeks.py     Barchart EOD greeks for the open book, which Flex lacks  (step1)
     book.py       group the broker's flat legs into logical positions      (step3)
+    exit_rules.py the §5 time exit as an absolute calendar date, display-only
+                  (step3 marks it, step6's card projects it)
     analysis.py   load the AnalysisClaude book             (step2 AND step6 share it)
     prompt.py     prompt text + response parsing for the judgment pass     (step6)
 
