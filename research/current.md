@@ -3236,3 +3236,97 @@ dates/≥60 rows, nothing ships from this correlated window under any outcome).
   (exit_by_earliest/exit_by_latest, hash-excluded). deployment-rules §5 gained
   the date formulation; the fraction is read from config/backtest.yml at
   render time so card, report and table cannot drift.
+
+---
+
+## 2026-08-29 — feasibility pass for the queued max-drawdown hedge study (DESIGN NOTES, NOT a pre-registration)
+
+**Nothing here is a commitment.** No arm, gate, bar or verdict below is binding;
+the pre-registration that follows is where any of it becomes immutable. This
+entry exists so the design-time facts are on the record before the design is
+frozen, and so a later reader can see which questions were answered from disk
+rather than assumed. It answers the feasibility question the 2026-08-28 scope
+note deliberately left open: *does the study book carry a portfolio whose
+concentration can be replayed, and are hedge-flow signal tags recoverable per
+date?*
+
+### What is on disk (v4 `current` era, exports of 2026-08-27 20:34)
+
+| Question | Answer from disk |
+|---|---|
+| Is there a replayable PORTFOLIO, not just a row list? | **Yes.** `analysis - BacktestResults.csv` = 485 rows / 140 dates / 2024-01-10 → 2025-11-04. Reconstructing open intervals as `[signal_date, signal_date + days_held]` gives a median of **20 concurrently open positions**, p90 35, max 48. Concentration is a real quantity on this book, not a degenerate one. |
+| Is signed book direction derivable? | **Yes, unambiguously, from `delta` alone** — it is already the net signed per-contract position delta (bull_call +0.212, bear_put −0.238, long_put −0.809 as group means). `structure` text does not need parsing. Exposure = `delta × contracts × 100 × entry_underlying`. |
+| Is the book long-only? | **Yes, still** — consistent with `portfolio_delta`'s finding of 0 net-short sessions. The hedge is therefore the only downward dial, exactly as that study concluded. |
+| Is the book dense enough for an equity PATH? | **Yes, and this has changed since 2026-08-19.** That day `account_sim` found ZERO dense episodes on a 34-date v4 book and its PRIMARY population was empty. The 140-date book now yields **5 dense episodes (49, 23, 18, 12, 11 dates) covering 113 of 140 dates**, median gap 3 sessions, p90 3, max 21. The book still samples only **30.4%** of the 457 trading sessions in its span. An `account_sim`-hosted study will run; it was not runnable ten days ago. |
+| Is a sector-proxy hedge PRICEABLE, or would it be Black-Scholes? | **Real quotes exist.** `backtests/option_history_cache/` carries **SPY 1,504 / IWM 1,558 / QQQ 1,405 / SMH 868** contract files, plus XLE 650 and XLF 459. Underlying bars exist for SPY, QQQ, SMH, IWM, XLF, XLE. **No XLK, SOXX, XBI, OIH, DIA or VXX** in either cache. So the operator's own two proxies (semis → SMH, tech → QQQ) are both priceable from real history, which `calendar_hedge` was not able to say of its legs. Per-date, per-strike fill coverage is NOT established by file counts and remains a gate the study must measure, not assume. |
+| Are hedge-flow signal tags recoverable per date? | **Only as prose, and the naive reading is useless.** There is no hedge column: `AnalysisClaude` is `date,ticker,regime,signal,play,horizon,trigger,invalidation,…`. A date-level "the analysis mentions hedging" match fires on **157 of 158 dates** — non-discriminating, and it would have been an easy trap to fall into. Two non-degenerate readings exist: (a) a **numeric** `hedge-pressure NN/100` embedded in the `regime` prose, which parses on **103 of 158 dates (65%)**, is **constant within a date** (0 dates carry two values), and spans 15–83 with median 35; (b) **row-level vocabulary density** — the share of a date's ticker rows whose `signal`/`play` carry hedge language (`hedge` 17.9%/27.7% of rows, `protect` 25.1%/25.2%, `insurance` 6.1%/16.6%, `collar` 3.3%/17.2%). Either needs its extraction rule fixed in the pre-registration before it is computed. |
+
+### Two design-time findings that were not sought and matter more than the above
+
+**1. The existing drawdown measure structurally cannot see a hedge.**
+`account_sim.equity_curve()` buckets P&L by `exit_sess` — it books a position's
+entire result on the day it closes, and its own `print_equity()` says so:
+*"Open positions are not marked to market, so this understates intra-position
+drawdown."* Every hedge verdict in the programme to date — `bear_deploy` D3,
+`calendar_hedge` H3, `hedge_timing` H4, including the −$10,968 figure the
+operator queued this study against — is measured on that realized-on-close
+curve. A hedge's entire function is to cushion the mark-to-market path between
+entry and exit, which is the one thing this curve does not contain. The
+observation that "the hedges never land on the drawdown dates" may therefore be
+partly a statement about the MEASURE rather than about the hedges: on a
+close-bucketed curve, a drawdown "date" is an exit-clustering artefact.
+**This is testable and the data is present** — `daily_pnl_csv` is populated on
+**485 of 485** rows, so a genuine mark-to-market book equity curve can be built
+for the entire book. Whether the primary outcome should move to that curve is
+the first question put to the operator, not decided here.
+
+**2. The v4 analysis prose carries irreducible model-recall lookahead risk.**
+**All 1,893 `AnalysisClaude` rows have `created_datetime` in 2026-08** — every
+row, including those for signal dates in January 2024. The v4 book being a
+backfill is already on the record, but the consequence recorded so far has been
+about DENSITY and power (the 2026-08-19 empty-PRIMARY entry). The consequence
+for a study keyed to the model's WORDS is different in kind: the `hedge-pressure
+35/100` written against 2024-03-20 was produced in 2026-08 by a model whose
+training cutoff overlaps that date, so it may be recall rather than a read of
+that day's tape. This is the same hazard `s06_recommend.judge()` and
+`live_select.py` already document for their judge layers, arriving here through
+the analysis prose instead. It cannot be engineered away by bounding inputs —
+only segregated and reported. The practical consequence for design: any
+prose-derived trigger needs a **mechanical, prose-free counterpart arm**
+(book concentration alone, computed only from positions) so the study can state
+how much of any effect survives without the model's words. Note this does not
+bear on the flow inputs, which were point-in-time.
+
+### Candidate hypotheses (UNCOMMITTED — wording is not final)
+
+Framed per the 2026-08-28 scope note: trigger = book state × hedge-flow signal,
+instrument = sector proxy, counterfactual = the unhedged concentrated book,
+outcome = drawdown. Designed around the ~9-date worst-decile power wall by
+using **path-shaped** drawdown statistics computed over every session of the
+book (max DD, and a drawdown measure with a denominator — e.g. an Ulcer-style
+index or time-under-water) rather than a worst-decile tail cell.
+
+- **H-M (measurement, prerequisite).** Does the book's drawdown profile differ
+  materially on a mark-to-market curve versus the realized-on-close curve every
+  prior hedge verdict used? If it does not, the measurement concern is closed
+  and the programme's null results stand as read.
+- **H-C (concentration predicts).** Does high per-sector signed delta
+  concentration in the OPEN book predict worse subsequent book drawdown? This
+  is the precondition: if concentration carries no information, no
+  concentration-gated hedge can work, and the study should stop here and say so.
+- **H-S (the prose adds).** Does the analysis hedge-flow signal add
+  discrimination over concentration alone — and does any effect survive the
+  prose-free arm required by finding 2 above?
+- **H-X (the mechanism).** Does a sector-proxy hedge, sized at fraction f and
+  gated on H-C (and H-C × H-S), reduce book drawdown versus the SAME unhedged
+  concentrated book — not versus a book that opened a long instead?
+- **H-I (the instrument matters).** Is a sector proxy different from the book's
+  own bear row, which `bear_deploy` D3 and `hedge_timing` H4 have both found
+  cannot cut max drawdown?
+
+Open design questions put to the operator before any of this is frozen:
+the primary drawdown curve (mark-to-market vs realized-on-close), the
+hedge-flow extraction rule, the hedge instrument's form, and the ship posture.
+The sector map (which ticker belongs to SMH vs QQQ vs the residual) must also
+be fixed in the pre-registration before it is computed, since no sector column
+exists on any export.
