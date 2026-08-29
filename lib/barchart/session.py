@@ -25,6 +25,7 @@ class BarchartSession:
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
     _COOKIE_MAX_AGE = 8 * 3600  # seconds
+    _LOGIN_MARKER_TIMEOUT = 10000  # ms to wait for the logged-in header marker
 
     def __init__(
         self,
@@ -69,15 +70,29 @@ class BarchartSession:
             log.debug("Loading cached Barchart cookies")
             await self._context.add_cookies(json.loads(self._cookies_path.read_text()))
             await self._goto_with_retry(f"{self._BASE}/options/unusual-activity/stocks")
-            if await self._page.query_selector(
-                "[data-ng-controller='AccountDropdownCtrl'], .user-account, [class*='account']"
-            ):
+            # Wait for the marker rather than querying the instant domcontentloaded
+            # fires — the header renders late, and a bare query_selector here reports
+            # a live session as expired.
+            try:
+                await self._page.wait_for_selector(
+                    "[data-ng-controller='AccountDropdownCtrl'], .user-account, [class*='account']",
+                    timeout=self._LOGIN_MARKER_TIMEOUT,
+                )
                 log.info("Reusing cached Barchart session")
                 return True
-            log.info("Cached session expired — re-logging in")
+            except Exception:
+                log.info("Cached session expired — re-logging in")
 
         log.info("Logging in to Barchart")
         await self._goto_with_retry(f"{self._BASE}/login")
+        if "/login" not in self._page.url:
+            # Barchart bounces an already-authenticated visitor off /login, so the form
+            # never renders and the fill below would time out the whole run. The marker
+            # check above was simply wrong about this session.
+            log.info("Already authenticated — /login redirected to '%s'", self._page.url)
+            self._cookies_path.parent.mkdir(parents=True, exist_ok=True)
+            self._cookies_path.write_text(json.dumps(await self._context.cookies()))
+            return True
         await self._page.fill("input[name='email']", self._email)
         await self._page.fill("input[name='password']", self._password)
         await self._page.click("button[type='submit']")
@@ -116,6 +131,32 @@ class BarchartSession:
                     await asyncio.sleep(delay)
                 else:
                     raise
+
+    # Headers we must NOT copy from the captured request onto a re-issued one.
+    # `cookie` would pin a snapshot of the session into `_history_feed` and go stale
+    # over a long run — the browser context supplies the live one; `accept-encoding`
+    # is Playwright's to negotiate, since it decodes the body for us.
+    _SKIP_HEADERS = frozenset({"cookie", "accept-encoding", "content-length", "host"})
+
+    @classmethod
+    def _passthrough_headers(cls, headers: dict) -> dict:
+        """Headers to replay when re-issuing a feed request the page itself fired.
+
+        Copy everything the browser sent apart from :attr:`_SKIP_HEADERS` and HTTP/2
+        pseudo-headers (`:authority`, `:method`, …), which Playwright rejects.
+
+        This used to be an allowlist of ("x-xsrf-token", "referer"). Barchart stopped
+        sending `x-xsrf-token` on the core-api feeds and now gates them on the
+        `sec-fetch-*` metadata instead, so the allowlist reduced to a lone `referer`
+        and every re-issued feed came back 403 ({"error":"Forbidden"}) — silently, as
+        a skipped contract. Verified 2026-08-29: referer alone → 403, referer plus the
+        sec-fetch trio → 200. Replaying the full header set keeps working whichever
+        header they gate on next, so do NOT narrow this back to an allowlist.
+        """
+        return {
+            k: v for k, v in headers.items()
+            if not k.startswith(":") and k.lower() not in cls._SKIP_HEADERS
+        }
 
     async def _get_with_retry(self, url: str, headers: dict, timeout_ms: int,
                               max_retries: int = 3, base_delay: float = 10.0):
@@ -176,7 +217,7 @@ class BarchartSession:
 
         headers = await req.all_headers()
         api_url = self._augment_history_url(req.url)
-        pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+        pass_headers = self._passthrough_headers(headers)
         # Remember this authenticated feed so fetch_history_fast can re-issue it for
         # other contracts without navigating to each one's page.
         self._history_feed = (api_url, pass_headers)
@@ -278,7 +319,7 @@ class BarchartSession:
 
         headers = await req.all_headers()
         api_url = self._augment_iv_history_url(req.url, start, end)
-        pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+        pass_headers = self._passthrough_headers(headers)
 
         try:
             resp = await self._get_with_retry(api_url, pass_headers, timeout_ms)
@@ -323,7 +364,7 @@ class BarchartSession:
             return None
 
         headers = await req.all_headers()
-        pass_headers = {k: headers[k] for k in ("x-xsrf-token", "referer") if k in headers}
+        pass_headers = self._passthrough_headers(headers)
 
         try:
             resp = await self._get_with_retry(req.url, pass_headers, timeout_ms)
