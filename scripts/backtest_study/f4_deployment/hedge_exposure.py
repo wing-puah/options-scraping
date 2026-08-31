@@ -1697,9 +1697,9 @@ def main() -> int:
   population clause of the pre-registration is self-contradictory and the
   choice between its two readings decides what is powered, so a study-level
   verdict here would be a choice dressed as a finding. No word from the
-  registration's verdict vocabulary is emitted, nothing is recorded in
-  research/study-results/, and the catalog entry stays unconcluded until the
-  operator ratifies one reading.
+  registration's verdict vocabulary is emitted, the research/study-results/
+  record for this run carries a BLANK verdict field, and the catalog entry
+  stays unconcluded until the operator ratifies one reading.
 
   ARM P IS INERT AS REGISTERED and the registration's binding prose rule is
   UNREACHABLE BY CONSTRUCTION (ERRATUM 2). ARM P has not been redefined into
