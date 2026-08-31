@@ -3330,3 +3330,123 @@ hedge-flow extraction rule, the hedge instrument's form, and the ship posture.
 The sector map (which ticker belongs to SMH vs QQQ vs the residual) must also
 be fixed in the pre-registration before it is computed, since no sector column
 exists on any export.
+
+---
+
+## 2026-08-31 — hedge_exposure: built, run, and deliberately verdict-less
+
+`scripts/backtest_study/f4_deployment/hedge_exposure.py` plus four new libs
+(`lib/sectors.py`, `lib/mtm_curve.py`, `lib/hedge_instrument.py`,
+`lib/concentration.py`) now implement the pre-registration committed in
+`665956d`. It runs clean (exit 0, 30s) on era v4. **It emits no study-level
+verdict, by design.** Two errata, recorded in `research/hedge-exposure-errata.md`
+rather than by editing the immutable commitment, are why.
+
+**ERRATUM 1 — the population clause contradicts itself.** The registration
+commits BOTH `load_book(include_bs=False)` AND "485 rows / 140 signal dates".
+The literal call returns **996 records / 145 dates** (real 485 + tweak 511). The
+two readings do not merely differ in size, they decide the study: under `real`,
+3 of 9 cells clear G-POWER; under the literal call, **0 of 9** do. Choosing one
+after seeing that is a choice dressed as a finding, so the study runs BOTH,
+prints both, and concludes from neither. The operator ratifies a reading or the
+study stays open.
+
+**ERRATUM 2 — ARM P is degenerate as worded.** "ARM C restricted to exactly the
+sessions ARM CS would hedge on, minus the prose condition" is ARM CS's own
+session set; the arms carry byte-identical hedges and differ only in what is
+claimed to justify them (the report measures this and prints YES). ARM P is the
+study's ONLY control on the irreducible prose lookahead — every AnalysisClaude
+row was written in 2026-08, including rows for 2024 sessions — so that control
+**does not exist**, and the registration's binding prose rule ("no verdict may
+rest on ARM CS alone") is unreachable by construction. Declared INERT AS
+REGISTERED and deliberately NOT redefined; a corrected control (ARM C on
+concentration-matched sessions carrying NO hedge-pressure signal) needs its own
+registration.
+
+### The gate that would have lied
+
+**G-MTM was tautological on first build** and passed 485/485 at $0.0000 — both
+sides of the reconciliation came from one `replay_sized()` call, so it compared
+the replay to itself. Rebuilt to take `days_held` from the row and dollars from
+the STORED `realized_pnl_abs`. Against the stored outcome the replay differs on
+**12 `days_held` and 13 `exit_reason`**, and $33,696 stored vs $34,644 replayed
+(gap +$947 on a $33.7k book, sum of per-row |difference| $8,727). That
+divergence is now printed. A gate that cannot fail is not a gate — worth
+checking the others in this pattern.
+
+### H-M answered, and it does not say what the design memo said
+
+The unhedged book on both curves (551-session weekday grid):
+
+| curve | total | maxDD | ulcer | TUW | worst session |
+|---|---|---|---|---|---|
+| mark-to-market | $33,696 | **−$21,890** | 16.61% | 92.9% | −$9,730 |
+| realized-on-close | $33,696 | **−$22,592** | 16.14% | 90.9% | −$8,136 |
+
+The curves differ materially — but **on max drawdown the close-bucketed curve
+reports the LARGER number**, not the smaller one. The design-time argument that
+"the close-bucketed measure is structurally blind to hedging" is not carried by
+this evidence and should not be repeated. What the MTM curve actually adds is
+path and tail: it is worse on Ulcer (+0.47pt), worse on time-under-water
+(+2.0pt), and its worst single session is 20% deeper. So the prior hedge
+verdicts (`bear_deploy` D3, `calendar_hedge` H3, `hedge_timing` H4) are not
+invalidated by the measurement choice on the metric they were read on.
+
+### What the book is, measured
+
+504 open sessions, 2024-01-10 … 2026-01-16. Concentration by signed delta per
+cluster: median 0.301, p75 0.398, p90 0.572 — so the τ grid {0.30, 0.35, 0.40}
+straddles the median as intended. **Four of eleven clusters have no tradeable
+hedge** (CRYPTO/IBIT, ENERGY/XLE, FINL/XLF, INTL/EEM — 10.2% of exposure);
+per `concurrency_correlation`'s commitment they keep their identity, are carried
+at f=0, and count against the fill gate rather than being folded into BROAD.
+XLE is withheld by the repo's own `underlying.rescaled_tickers()` convention
+(0.50 median relative difference over 267 overlaps), not by a new bug.
+
+Two structural facts that limit what this book can ever answer:
+
+- **The book barely does the practice being tested.** 62.7% of exposure is
+  DIRECT (a put on an ETF the book already holds), not constituent-to-proxy.
+  The constituent stratum is UNDERPOWERED at every τ — 8 / 3 / 0 sessions —
+  exactly as the registration predicted at plan time. The asymmetric reading
+  rule binds: a DIRECT result may never be cited for the constituent practice.
+- **The f grid is largely unreachable on a $500 risk budget.** A proxy put's
+  debit is typically several hundred dollars, so `risk_contracts()` returns 1
+  and `int(0.25 × 1) = int(0.50 × 1) = 0`. Those cells carry no hedge at all
+  (162 skips at τ 0.30 f 0.25) and are reported as such rather than floored
+  to one contract.
+
+`hedge-pressure NN/100` parses on 103/158 dates (65%), 0 multivalued dates,
+span 15–83, median 35, ≥50 on only 20 — which is why every ARM CS cell is
+power-stopped at 4–7 episodes.
+
+### The result, such as it is
+
+Population `real`: 3 powered cells, **all NULL**, 6 UNDERPOWERED. Population
+`all`: 9 UNDERPOWERED. No cell clears a single clause of the 7-clause bar; the
+largest ARM C improvement is +$1,012 of max drawdown at τ 0.30 f 1.00, bought
+with $16,949 of debit and −$1,952 of total return, and it fails clause 2 (Ulcer
+CI includes zero) and clause 3 (below ARM N's p95) outright. ARM B — the book's
+own bear row instead of a put — is negative at every f=1.00 cell, consistent
+with D3 and H4 on a curve those verdicts did not use.
+
+Two bar corrections landed before any outcome was read: a CONTRARY previously
+needed **zero** clauses while a positive needed seven (now a mirrored 6-clause
+set, and a cell-level CONTRARY no longer escalates); and the bootstrap was a
+month-SHUFFLE that concatenated resampled months in drawn order and then
+computed PATH-DEPENDENT statistics on the reordered series, making month order
+part of the statistic. Now a chronological moving-block bootstrap (22-session
+blocks). The withdrawn estimator is still printed per cell: **clause 2's outcome
+is unchanged in all 3 powered cells**, so the fix did not manufacture the null.
+
+**Not independently audited.** Both verify agents in the fix workflow died on
+the account's weekly rate limit, so the seven fixes are self-reported by the
+agent that made them plus a hand spot-check. Full suite green (2513 passed),
+flake8 clean. No A/B replication grading has been run.
+
+Open: ratify a population reading, then `python3 -m scripts.study_review
+hedge_exposure --skip-run`. Six further defects are recorded but NOT fixed in
+`research/hedge-exposure-errata.md` — ARM CS's one-session lookahead, the
+calendar-vs-trading reading of `days_held`, G-FILL's cache-conditioned
+denominator, ARM B's stop mismatch, baseline non-comparability, and that ARM M
+is weaker than the design memo argued.
