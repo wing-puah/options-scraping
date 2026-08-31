@@ -8,13 +8,15 @@ When the open book is CONCENTRATED in one correlated cluster, does adding a
 long put on that cluster's proxy reduce the book's **mark-to-market drawdown**,
 versus carrying the same concentrated book unhedged?
 
-This is the mechanism study queued by the operator on 2026-08-28 ("the hedge
-programme's next question is MAX DRAWDOWN, not timing"), scoped by the same
-day's note that the operator's actual practice is exposure-conditional:
+The operator queued this mechanism study on 2026-08-28 ("the hedge
+programme's next question is MAX DRAWDOWN, not timing"). The same day's note
+scopes it to their actual practice, which is exposure-conditional:
 *"I hedge when I hold a lot of correlated positions (semis → SMH, tech → QQQ),
 I see a specific risk, AND the analysis says people are hedging."*
 
 ## What this is NOT
+
+Scope limits, fixed here.
 
 - **Not a timing study.** `hedge_timing` tested market-state triggers (chop /
   gap / streak) and returned 0 of 9 candidates. No arm here is keyed to a
@@ -39,14 +41,17 @@ I see a specific risk, AND the analysis says people are hedging."*
   counterfactual is fixed by the operator's scope note as the unhedged
   concentrated book, explicitly *not* "open a long instead". Different unit
   (session vs position), different outcome (book drawdown vs R), different
-  remedy. **Neither study's result may be cited as evidence for the other's**,
-  and if both run, a concentration effect found here does not license a ceiling
+  remedy. **Neither study's result may be cited as evidence for the other's.**
+  If both run, a concentration effect found here does not license a ceiling
   there, nor the reverse.
 - **Not a claim about long-dated hedging.** The book is ≤60-DTE by accident of
   the ladder; hedge expiries are bounded to 20–120 DTE and nothing here speaks
   beyond that.
 
 ## Population and basis, fixed here
+
+The frozen inputs: the era, the book, the session universe, the equity curve
+the drawdown is measured on, the sizing, and the sector map.
 
 - **Era `v4` (`current`), and only v4.** `load_book(include_bs=False)` — real
   and `strike_expiry_tweak` pricing, proxy calibration gate ON, no
@@ -78,15 +83,17 @@ I see a specific risk, AND the analysis says people are hedging."*
   - `INTL` → **EEM**: EEM EFA FXI KWEB EWZ BABA PDD SE
   - `SMALL` → **IWM**: IWM
   - `BROAD` → **SPY**: every ticker not named above
-- **Four clusters are UNHEDGEABLE — they keep their identity in the
-  concentration measure but no hedge can be placed for them.** `XLF` fails the
-  fill gate (15.0% band / 40.7% nearest); `XLE` is on
-  `underlying.rescaled_tickers()` at a 0.5000 median relative difference over
-  267 overlaps, so the repo's own convention withholds it; `IBIT` (22.9%) and
-  `EEM` (41.4% band) fail the fill gate. Together ENERGY, FINL, CRYPTO and INTL
-  are 10.2% of book exposure. **They are NOT folded into BROAD/SPY.** Folding
-  would inflate BROAD's measured concentration with exposure that SPY does not
-  actually track, corrupting the trigger itself; and it would contradict
+- **Four clusters are UNHEDGEABLE.** They keep their identity in the
+  concentration measure, but no hedge can be placed for them:
+  - `XLF` fails the fill gate (15.0% band / 40.7% nearest).
+  - `IBIT` (22.9%) and `EEM` (41.4% band) fail the fill gate.
+  - `XLE` is on `underlying.rescaled_tickers()` at a 0.5000 median relative
+    difference over 267 overlaps, so the repo's own convention withholds it.
+
+  Together ENERGY, FINL, CRYPTO and INTL are 10.2% of book exposure.
+  **They are NOT folded into BROAD/SPY.** Folding would inflate BROAD's
+  measured concentration with exposure that SPY does not actually track,
+  corrupting the trigger itself. It would also contradict
   `concurrency_correlation`'s standing commitment that an unmapped ticker "is
   its own bucket — never folded into a named sector". A session whose top
   cluster is unhedgeable is **carried at f=0 and counted against the fill
@@ -97,8 +104,8 @@ I see a specific risk, AND the analysis says people are hedging."*
   ticker→sector map for its ARM K. Two maps would let two studies disagree
   about what "same sector" means, which is the failure mode
   `mapping.CONFIDENCES` and `ladder_tier()` exist to prevent. The map above is
-  written to `scripts/backtest_study/lib/sectors.py` as the single encoding;
-  whichever study is built second imports it rather than restating it.
+  written to `scripts/backtest_study/lib/sectors.py` as the single encoding.
+  Whichever study is built second imports it rather than restating it.
 
 ## Plan-time observations, disclosed
 
@@ -281,8 +288,8 @@ A cell is a CANDIDATE only if ALL of:
    to the same delta, so it carries the pure exposure-reduction effect and none
    of the convexity a put adds. A put arm that merely matches ARM R is
    reported as **A RESTATEMENT OF DELTA REDUCTION** and does not clear the bar
-   — the same control `concurrency_correlation`'s X7 applies to its ceilings,
-   and the reason `portfolio_delta`'s already-failed delta arms are not
+   — the same control `concurrency_correlation`'s X7 applies to its ceilings.
+   It is also why `portfolio_delta`'s already-failed delta arms are not
    re-litigated here.
 
 ## Verdicts, worded now

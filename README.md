@@ -20,15 +20,14 @@ Prose lives in exactly two tracked places — `docs/` (how the system works, how
 | What does this Barchart flow column mean?                     | `docs/barchart-reference.md` — vendor help text, verbatim                              |
 | What are the per-ticker rollup columns the LLM reads?         | `docs/rollup-reference.md`                                                             |
 | How is the conviction score computed?                         | `docs/conviction-score.md` — full spec (the model-facing condensed copy is `config/prompts/conviction-score-legend.md`) |
-| What did we try, and what happened?                           | `research/current.md` (newest), `research/archive/01..14` (older volumes)              |
+| What did we try, and what happened?                           | `research/current.md` (newest), `research/archive/01..17` (older volumes)              |
 | What does each backtest study ask?                            | `research/study-map.md`; the pre-run commitments are `research/pre-registrations/`     |
 | What did study X actually print, on which population?         | `research/study-results/<family>/<study>.md` — append-only, one section per (era, sha) |
 | How is a study result graded before it's believed?            | `research/replication-protocol.md` — the two-analyst A/B procedure                     |
 | What does this study metric mean?                             | `research/glossary.md`                                                                 |
 | Where were we, what's next?                                   | `research/next-steps.md` (handoff), `research/analysis-roadmap.md` (design rationale)  |
-| What does the whole analysis→study chain look like at a glance? | `research/pipeline-map.md`                                                            |
 | What was the ML combination search, and what came of it?      | `research/pre-registrations/f1_selection/ml_combination.md` — pre-registered and executed 2026-08-11, NULL RESULT |
-| Was this old backtest-engine TODO ever done?                  | `research/backlog.md` — the 2026-06 list, triaged 2026-08-15 (mostly superseded or refuted; **not** the live queue) |
+| Was this old backtest-engine TODO ever done?                  | `research/archive/00-backtest-engine-backlog-2026-06.md` — the 2026-06 list, triaged 2026-08-15, archived 2026-08-31 (mostly superseded or refuted; **not** the live queue) |
 | What is the model actually prompted with?                     | `config/prompts/` — `analysis-framework.md`, `conviction-score-legend.md`, `analysis-methods/` |
 | What settings can I change?                                   | `config/*.yml` (backtest, account-sim, positions) and `scripts/analysis_pipeline/config.py` |
 | Where are the generated pages (study map, charts, journal)?   | `site/` — generated, gitignored; rebuild with `make study-docs`                        |

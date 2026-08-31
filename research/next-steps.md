@@ -1,64 +1,42 @@
 # Next steps — session handoff
 
-Written 2026-08-13 so a fresh session can pick up without re-deriving state.
-Read this + the top state-of-play paragraphs of [`current.md`](current.md);
-everything here has its evidence trail there or in
-[`deployment-evidence.md`](deployment-evidence.md).
+Written 2026-08-31, so a fresh session can pick up without re-deriving state.
+Read this plus the **State of play (2026-08-31)** block at the top of
+[`current.md`](current.md) — that block is the authoritative summary; this file
+is the queue. Evidence trails live in [`current.md`](current.md),
+[`archive/`](archive/) and [`deployment-evidence.md`](deployment-evidence.md).
 
 ## 0. Repo state — READ FIRST
 
-*(Rewritten 2026-08-14. The 08-13 §0 described work that has since merged.)*
-
-Everything through 2026-08-13 is **MERGED to `main`** — method-config audit,
-bear_put demotion §1.4, and the `volume_signal` study with its infra and tests
-(merges `66cd01a`, `6ce3330`; latest `c5fc85b` adds the study-run chart
-re-render and its tests).
-
-Suite state **re-measured 2026-08-14 after the study-suite repair: 1,149 passed,
-0 errors.** The two long-standing `test_underlying_features.py` beta
-`cache_clear` teardown errors are **CLOSED** — `_market`'s finalizer cleared the
-cache while the monkeypatched lambda was still installed (`monkeypatch` is a
-dependency of that fixture, so it tears down *after*); undo first, then clear.
-The tests always passed, but the synthetic SPY series was leaking into later
-tests through the `lru_cache`. (Was 1,093/2 earlier on 08-14; 896 passed / 1
-skipped on 08-13.)
-
-`backtest_study run --all` **exits 0** as of 2026-08-14 — see §0c.
-
-## 0b. `selection_order` — BUILT, RUN, CLOSED on this book (2026-08-14)
-
-**Done. Verdict UNDERPOWERED. Do not re-run it on these dates.**
-`scripts/backtest_study/f4_deployment/selection_order.py` exists, all six arms ran, gates
-G1–G5 pass, and G0 stopped every arm: each re-ordering changes only 7–14% of
-the deployed book, so the best-powered arm reaches **11 affected dates on
-PRIMARY** (20 at best on SECONDARY) against the pre-registered floor of **25**. No
-arm was confirmed, none refuted, and the O4 band was never drawn. The full
-entry is in [`current.md`](current.md), which also carries the report itself —
-run 2026-08-14 12:55:17, git 9c53244, folded in verbatim because the report is
-not retained on disk.
-
-What this does and does not settle: `account_sim`'s adverse-ordering read is
-**not refuted** — this book cannot adjudicate it. The census texture (the caps
-excluding the same picks whatever the order) is the shape of
-`CAP-BOUND-NOT-ORDER-BOUND`, but that label requires arms that CLEAR G0, so it
-is a **carry-forward, not a verdict**.
-
-The one registration bug the build exposed is **FIXED 2026-08-14**: criterion
-(4)'s "positive in all three years" was unsatisfiable on a PRIMARY spanning two
-calendar years. Only the WORDING was wrong — the implementation already did
-"every year present positive" with an inline disclosure — so the printed string
-and the pre-registration now read "positive in every calendar year present in the
-arm's population", under a dated wording-correction note. Implementation
-untouched, study not re-run.
-
-Both of the carried 30-minute follow-ups are **DONE 2026-08-14**: the
-`account_sim` verdict-grammar hole is closed (grammar is now total, enforced by a
-test over all 32 criterion combinations; PRIMARY prints `FEASIBILITY NOT
-CONFIRMED`, and the SECONDARY A3 blowup at 25.1% DD has its own label), and ARM
-H's sizing floor now skips when half-size is under one contract instead of
-rounding up to a full one. Details in [`current.md`](current.md).
+- **Era `v4` is current.** The book is the **140-date backfilled** one; the
+  studies run on exports of **2026-08-27 20:34** (485 real results / 1,111
+  proxy / 1,893 analysis rows; signal dates 2024-01-10 → 2025-11-04). There are
+  still **zero 2026 signal dates**, so every `ex_2026_*` window cut and
+  "positive in every year" clause is a silent no-op
+  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27).
+- **Tests green as last recorded: 2,560 passed** (2026-08-31, end of the
+  `hedge_exposure` thread — [`current.md`](current.md)). The last full study-suite
+  re-run was **2026-08-27**: 25 studies recorded for era v4, only the 2 retired
+  studies lack reports; the HYG boundary-tie that had blocked the four debit
+  exit studies is fixed
+  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27 fix 2).
+- **The live thread is the hedge programme.** `hedge_exposure` is run, graded and
+  ratified, and it ships nothing — see §1 and §2.1.
+- **Where the old §0/§0b/§1 went.** The 2026-08-14 study-suite repair, era-scoping
+  and `selection_order` story is now
+  [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md); the
+  2026-08-13 decisions (bear_put demotion → card veto §1.4, OIConfirm out of the
+  Score, −25 IVspr veto retired, codex retired) are in
+  [archive/14](archive/14-volume-signal-demotion-and-audit.md) and archive/15.
+  Do not re-derive either here.
 
 ## 0c. Study suite — was 6 FAILING, **ALL RESOLVED 2026-08-14**; `run --all` exits 0
+
+*Historical diagnosis from 2026-08-14, resolved that day. Kept verbatim because
+code and tests cite it as "next-steps.md §0c(A)" / "§0c(B)"
+(`scripts/study_map/catalog.py`, `scripts/backtest_study/f2_management/{combined,underlying}_exit_study.py`,
+`tests/test_backtest_study_run.py`, `tests/test_exit_replay_gate.py`,
+`tests/test_study_map.py`). Nothing below is a live task.*
 
 The six failures were **three unrelated causes**. All three are fixed; the full
 write-up is in [`current.md`](current.md) §2026-08-14 (two entries: the gate
@@ -160,140 +138,251 @@ export. `study_map` was taught the same two words (it was still printing
 refusal-capable study still classifies as `failure`**, and that is pinned by a
 test: the refusal path must never swallow a real failure.
 
-## 1. Decisions made 2026-08-13 (done, no action)
+## 1. Closed since the last handoff
 
-- bear_put demotion = **card veto §1.4**, hedge sleeve preserved. Intake veto
-  explicitly rejected (would empty the sleeve's candidate pool).
-- OIConfirm out of the Score, in-v4; −25 IVspr veto retired; codex retired.
+One line each. None of these needs re-opening; follow the pointer if you need
+the detail.
+
+- **`hedge_exposure`** (2026-08-31) — run, graded, population **`all` ratified**
+  (996 rows / 145 dates). Two verdicts over two objects: the mechanism question
+  is **UNDERPOWERED** (all nine τ×f cells fail G-POWER, no direction quoted) and
+  ARM M is **MEASUREMENT-ONLY** (the close-bucketed curve understates this
+  book's max drawdown by 40.2%). Ships nothing. →
+  [`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION +
+  §Post-ratification notes, and [`current.md`](current.md) 2026-08-31.
+- **`hedge_timing`** (2026-08-28) — GAP-UP came back **CONTRARY** on both money
+  arms; §4 prohibition **drafted and HELD** for the operator to accept or reject.
+  Chop and the broad decline NULL; the strict 4–5-day streak untestable (2 book
+  dates). → [`deployment-evidence.md`](deployment-evidence.md) §Hedge-timing
+  triggers.
+- **`bear_deploy`** (2026-08-24) — graded; the §4 **pick line is PULLED** (pick
+  is now operator discretion), the far-OTM prohibition **retained**, the sleeve
+  relabelled **operator policy**. → archive/17.
+- **`selection_order`** (2026-08-14) — UNDERPOWERED at G0; do not re-run on
+  these dates. → archive/15.
+- **`volume_signal`** (2026-08-13) — NULL; the volume column is closed, no
+  version bump. → archive/14.
 
 ## 2. Open queue, in rough priority order
 
-### 2.0 `concurrency_correlation` — PRE-REGISTERED 2026-08-22, module NOT written
-The operator's read ("the more that is being deployed, the less it seems to be
-working") does NOT resolve to depth into the ranked list — within-day rank is
-flat on BOTH eras (v3 ranks 1/2/3/4-5/6+ = +0.178/+0.527/+0.445/+0.281/+0.323;
-v4 = +0.155/+0.372/+0.269/+0.263/+0.257), so a tighter top-N is not the answer.
-What has NEVER been measured is the SIZE and INTERNAL SIMILARITY of the open
-book: `account_sim` computes `n_open` and no report joins it to an outcome, and
-every "correlation" figure in the repo is sleeve-vs-book rather than two
-concurrently held plays against each other. Plan:
-`research/pre-registrations/f4_deployment/concurrency_correlation.md` — ARM N null band,
-ARM D0 descriptive, ARM C concurrency ceiling, ARM K clustering ceiling, ARM CK
-only if both clear alone. **Read its dead-end table before writing any code**:
-two v3 day-level cuts (Tier-A supply, model BULL+L-VOL) looked strong on v3 and
-vanish on v4, and X7 refuses any arm that turns out to be a delta ceiling in
-disguise — `portfolio_delta`'s ARM B and ARM D already failed that axis.
-Shipped alongside it, production tier: the deploy card now renders the §0
-budget as a CUT (reserves collapse to one line each, explicitly not a fourth
-position) and prints an ADVISORY book-concentration census. `rank()` is
-unchanged — nothing is dropped from the record.
+The numbers are **stable labels**, not a ranking — `calendar_hedge.py` cites
+§2.3 and the archived backlog cites §2.4 and §2.7, so they keep their meaning.
+The order below is roughly the order to pick things up.
 
+### 2.0 `concurrency_correlation` — PRE-REGISTERED 2026-08-22, module STILL NOT WRITTEN
 
-### 2.1 Underlying-volume signal study — DONE 2026-08-13, NULL
-Pre-registered and RUN the same day (`volume_signal`; entry + amendment note
-in `current.md`). **NULL — the volume column is closed, no version bump.**
-No R separation on non-bear debit; the frozen exit variant negative
-out-of-fold. Infra kept (`Bar.v`, `volume_features.py`). Post-hoc
-carry-forwards recorded (bear os_ratio monotonicity → only conceivable home
-is the §4 hedge-sleeve pick rule, own pre-registration required; credit
-monotonicity on ungated replays). Original plan follows for the record.
+The highest-value unbuilt thing in the repo. The operator's read ("the more that
+is being deployed, the less it seems to be working") does **not** resolve to
+depth into the ranked list — within-day rank is flat on both eras, so a tighter
+top-N is not the answer. What has never been measured is the **size and internal
+similarity of the open book**: `account_sim` computes `n_open` and no report
+joins it to an outcome.
 
-#### (original plan, superseded)
-Operator asked for it (2026-08-13). Satisfies the ML-search reopen condition
-("new COLUMNS only"). **The data is already on disk**: the Barchart history
-CSV schema (`lib/barchart/options.py` docstring) carries `Volume`, and
-`fetch_underlying_ohlc.py` uses the same feed — every file in
-`backtests/underlying_ohlc_cache/` has it. The study loader just ignores it
-(`scripts/backtest_study/lib/underlying.py`, `Bar` has no volume field).
+- Plan: `research/pre-registrations/f4_deployment/concurrency_correlation.md`
+  (ARM N null band, ARM D0 descriptive, ARM C concurrency ceiling, ARM K
+  clustering ceiling, ARM CK only if both clear alone).
+- **Read its dead-end table before writing any code** — two v3 day-level cuts
+  looked strong on v3 and vanish on v4, and X7 refuses any arm that turns out to
+  be a delta ceiling in disguise.
+- Evidence: [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
+  §2026-08-22 (late).
 
-Plan sketch (pre-register before running, per house rules):
-- Extend `Bar` + `_load_ohlc_cache` with volume; **no volume on the `Price~`
-  tilde fallback path** — coverage = OHLC-cache tickers only, same smaller
-  denominator the rv20/beta columns carry; always print `coverage()`.
-- Headline feature: **O/S ratio** (option volume from the flow scrape /
-  underlying share volume — Johnson & So 2012, informed-trading signal;
-  literature grounding is a standing requirement). Secondary: relative-volume
-  z-score at signal date (Gervais/Kaniel/Mingelgrin; Lee & Swaminathan),
-  Amihud illiquidity as a $-move damper.
-- **Primary hypothesis = exit/path conditioning, not selection** (selection is
-  structure×regime and the column sweep killed everything else; bear was
-  diagnosed as an exit problem). Any selection read must be **within
-  structure from the first look** (closed-threads rule — `cpir`/`oi_confirm`/
-  `iv_pct` all looked predictive pooled and vanished within structure).
-- Route through `scripts/backtest_study/` + `protocol.py` walk-forward; log in
-  `current.md`. Only a surviving result justifies feeding volume to the live
-  pipeline (that is an input change → version bump → new tabs; do not pay
-  that for an untested column).
+### 2.1 The max-drawdown hedge question — still OPEN after `hedge_exposure`
 
-### 2.2 v4 composition bridge — WAITING ON DATA, do not force
-`scripts/backtest_study/f1_selection/v4_bridge.py`, gate `MIN_V4_DATES = 20`; v4 accrues
-~1 date/day. Until it fires, deploy under the v3-derived rules unchanged.
-Do not lower the gate. Its **exit 3 in `--all` is the designed refusal, not a
-defect** (§0c(C)) — do not "fix" it by pointing `--v4-csv` at a v3 export.
+**Status: open, and `hedge_exposure` did not answer it.** Every cell was
+power-stopped on the ratified population, so nothing says a hedge works and
+nothing says it doesn't.
+
+What would move it, in order:
+
+1. **The dilution finding needs an operator answer** (errata post-ratification
+   note 3). Admitting `tweak` rows did two separable things — it made the PRICES
+   representative of real execution (the argued part) and it made the BOOK bigger
+   and more diversified (the unargued part). Median any-cluster concentration
+   falls 0.301 → 0.209 and τ=0.30 triggers fall 256 → 91 sessions, which is why
+   every cell is power-stopped. If only a subset of proposed plays is taken in
+   practice, the ratified book understates concentration.
+2. **A third reading would need its own registration** — real + tweak prices with
+   an admission/concurrency model over which plays are held at once. It is
+   neither of the two readings the current registration names, so it cannot be
+   run under it.
+3. **ARM P stays inert** (ERRATUM 2). A corrected prose control — ARM C on
+   concentration-matched sessions carrying no hedge-pressure signal — also needs
+   its own registration.
+
+Design material already on disk: the 2026-08-29 feasibility pass in
+[`current.md`](current.md) (what the book can and cannot support, the sector-proxy
+pricing survey, the prose-lookahead hazard) and the H-M/H-C/H-S/H-X/H-I candidate
+hypotheses there — all explicitly **uncommitted**.
+
+### 2.2 v4 composition bridge — RUNS now; the answer is "ladder unvalidated on v4"
+
+**Status changed since the last handoff.** `v4_bridge` no longer refuses: it ran
+on 2026-08-24 and again 2026-08-27 and prints `VERDICT: LADDER UNVALIDATED ON v4`
+(`research/study-results/f1_selection/v4_bridge.md`). Four of the five
+pre-registered tests shift (structure mix, plays per day, bear share, ladder tier
+mix); only credit share holds.
+
+Per the pre-registration: **keep deploying under the v3-derived rules and do NOT
+re-derive the ladder on v4 rows yet.** What still waits on data is genuinely new
+(non-backfill, post-2025-11-04) dates. Do not lower `MIN_V4_DATES` and do not
+point `--v4-csv` at a v3 export — its exit 3 was always the designed refusal
+(§0c(C)), not a defect.
 
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
-The whole hedge programme (calendar / put calendar / diagonal / sweep
-structures) terminates at one wall: 9 worst-decile dates cannot power a
-worst-decile criterion under a 1/day sleeve (all 30 ARM S cells
-underpowered; H2 underpowered at n=6). Carry-forwards recorded in
-`current.md`: RANGE+C/L-VOL calendar cell (n=15, post-hoc) and the H2 clause
-amendment (the power floor should suspend only (b)). Nothing to run until the
-book has materially more dates.
 
-### 2.4 Bear sub-0.50 give-back — CANDIDATE, blocked on a harness mechanism
-124 bear-debit rows peaked between +1% and +50% and lost −$77.2k entirely
-below the ratchet's arming threshold. A lower `be_after` is a candidate, NOT
-a finding — the census does not price the cost on winners that dip through
-entry (that cost is what made the same config lose on non-bear debits).
-Per the 08-12 open-queue audit it is blocked on a harness mechanism; the
-flat-band cut waits for new bear rows.
+Unchanged. The whole calendar/put-calendar/diagonal hedge programme terminates at
+one wall: 9 worst-decile dates cannot power a worst-decile criterion under a
+1/day sleeve (all 30 `calendar_hedge` ARM S cells underpowered; H2 underpowered
+at n=6). Carry-forwards recorded in the log: the RANGE+C/L-VOL calendar cell
+(n=15, post-hoc) and the H2 clause amendment (the power floor should suspend only
+clause (b)). On the v4 book the study has not got past its own gates either
+(H0 FILL NOT MET, H2 NOT EVALUABLE), so **H3 has never been evaluated at all**.
 
-### 2.5 Live walk-forward — the actual evidence source now
-v3 tuning is closed; live fills are the evidence source. `SUBSTITUTED` match
-category shipped 08-11. Open: Stage 1/2 fill-mapping and the live-vs-tier
-feedback eval (does realized live P&L order A > B > C?). Also the standing
-operator behavior to track: naked-leg substitution where a spread was emitted
-(untested instrument — see the hedge-sleeve limits list).
+New qualification, 2026-08-31: `calendar_hedge` H3 is "`bear_deploy` D3 verbatim",
+and D3's drawdown leg is read on the close-bucketed curve that `hedge_exposure`
+ARM M found wanting — see [`deployment-evidence.md`](deployment-evidence.md)
+§"The curve D3 was read on understates drawdown". Prospective only; no verdict
+moves. Nothing to run until the book has materially more dates.
 
-### 2.6 Rollback triggers — accumulating, check at gates, never read silence as "not met"
-Table in `deployment-evidence.md` §"Open pre-registered rollback triggers":
-BEAR_HE trail (≥25 new affected dates), bull_put band re-read on the next
-independent window. **First census + evaluations ran 2026-08-24**
-(`research/pre-registrations/f2_management/rollback_triggers.md`; census now printed by
-every relevant study run): bear-debit `be_after` FIRED → REVERTED; LVOL
-tef-null CLEARED the corrected gate but HELD by the operator pending
-genuinely new dates; BEAR_HE 1/25 affected dates; credit sl-none 0/15 fresh
-rows.
+### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
+
+`bear_giveback` ran and the `be_after` grid does **not** ship. The shipped
+ratchet (`structure_exit.enabled`) was **REVERTED 2026-08-24** when its rollback
+trigger fired, so there is no live baseline for the grid to add to either. Where
+the study says the pattern actually lives: in the **underlying**, not the mark —
+`peak within 3d` n=18, give-back 89%, meanR −0.374 against `peak >20d` n=83,
+give-back 51%, meanR +0.203 (`scripts/study_map/catalog.py`, `bear_giveback`).
+
+Live wrinkle: on the grown 140-date book the same trigger **un-fires** (165
+arming rows, per-year deltas positive → HOLD). **Nothing un-reverts without a
+fresh registration** — and the lesson recorded alongside it is that a 60-row
+floor on a still-backfilling book produced a trigger decision that did not
+survive the next export (archive/17 §2026-08-27).
+
+### 2.5 Live walk-forward — still the intended evidence source, no recorded movement
+
+v3 tuning is closed and live fills are meant to be the evidence source. The
+`SUBSTITUTED` match category shipped 2026-08-11. Open: Stage 1/2 fill-mapping and
+the live-vs-tier feedback eval (does realized live P&L order A > B > C?). Also
+worth tracking: the operator substituting a naked leg where a spread was emitted
+— an untested instrument.
+
+⚠️ No log entry since 2026-08-13 records progress here. That is silence, not
+evidence of no progress — check the live-loop artifacts before re-planning it.
+
+### 2.6 Rollback triggers — accumulating; check at gates, never read silence as "not met"
+
+The table is in [`deployment-evidence.md`](deployment-evidence.md) §"Open
+pre-registered rollback triggers". First census + evaluations ran 2026-08-24
+(`research/pre-registrations/f2_management/rollback_triggers.md`; the census now
+prints on every relevant study run):
+
+| Trigger | Census (2026-08-24) | Outcome |
+|---|---|---|
+| bear-debit `be_after 0.50` | 92 arming rows / 53 dates ≥ floor 60 | **FIRED → REVERTED** (un-fires on the 08-27 book; see §2.4) |
+| LVOL tef-null (corrected gate) | 31 affected dates ≥ 25 | all four criteria pass — CLEARED, operator **HELD** the ship pending genuinely new dates |
+| BEAR_HE trail | 1 affected date of 25 | UNDERPOWERED — the census is the result |
+| credit sl-none | 0 fresh bull_put rows of 15 | UNDERPOWERED — `sl 1x` comparator now printed by every credit run |
+
+Two stale report strings to fix before they propagate (found 2026-08-27, not yet
+done): `bear_arm.py:442` still prints the census header as "shipped 2026-08-11"
+with no knowledge that `structure_exit.enabled` is now `false`, and
+`account_sim.py:1940` still cites "bear_deploy D4-adopted" for a pick line that
+was pulled.
 
 ### 2.7 Parked / blocked long-term
+
 - **Credit exit knobs** — unvalidated; needs a credit-heavy window (every
-  historical winner is the Mar-TSLA cluster). 2026-08-24: the v4 credit book
-  (73 rows) now CALIBRATES exactly (single-basis era) and the corrected
-  baseline is in place, but 58/70 bull_puts are 2024 rows — operator kept the
-  thread parked; census + `sl 1x` comparator print on every credit run.
-- **Long-dated blind spot** — h ≥ 180 unpriceable with real data; bs proxy
-  tier is OFF (`proxy.bs_fallback: false`); blocked on real long-dated
-  history.
-- **Per-regime exit switch** — still gated (candidate: pt 1.10+ in
-  E-VOL/RANGE).
-- **Prompt/infra**: pipeline `core.py` refactor deferred; PostToolUse hook
-  never runs pytest. (The worktree pytest wart is FIXED 2026-08-13:
-  `test_live_loop.py` self-skips when the snapshot data is absent.)
-  The delegation-nudge PreToolUse hook is FIXED 2026-08-14: `is_read_bash` was
-  blind to `source .venv/bin/activate && <read>` and `echo "==="; <read>` — the
-  two dominant idioms here — so it undercounted ~60% and first fired at true-read
-  14. It now skips setup/banner segments, and thresholds tightened to
-  `FIRST=4 / REPEAT=3`. Still **advisory by design**: `systemMessage` only, no
-  `permissionDecision`, so it can nudge but never enforce delegation.
+  historical winner is the Mar-TSLA cluster). The v4 credit book calibrates
+  exactly (single-basis era, 113/113 exact as of 08-27) and the corrected
+  baseline is in place, but there are no 2026 dates, so the Attempt-13 trigger
+  has **0 fresh bull_put rows**. Operator kept the thread parked; census +
+  `sl 1x` comparator print on every credit run.
+- **Long-dated blind spot** — h ≥ 180 is unpriceable with real data and the BS
+  proxy tier is OFF (`proxy.bs_fallback: false`). Blocked on real long-dated
+  history; never read BS proxy rows as evidence for long-dated.
+- **Per-regime exit switch** — STAYS GATED on the 140-date book
+  (`exit_switch_mech_study`, `exit_switch_structure_study`, 2026-08-27).
+- **`portfolio_delta` ARM B ceiling 1.50** — clears the full adoption
+  conjunction on both populations but costs dollars and comes off a correlated
+  window; labelled **CANDIDATE-FOR-INDEPENDENT-WINDOW**, queued, nothing ships
+  (archive/17 §2026-08-27 fix).
+- **`analyze_bt_queue.sh` backfill partials** — 20 dates stuck as
+  permanently-skipped partials. **Five of them already have analysis rows in the
+  tab**, so `RETRY_PARTIAL=1` on queue b would duplicate them and the tab has no
+  dedup to catch it; the other fifteen wrote nothing and are safe to retry
+  (archive/17 §2026-08-22).
+- **Prompt/infra** — the `analysis_pipeline/core.py` refactor is deferred; the
+  PostToolUse hook still never runs pytest. The delegation-nudge PreToolUse hook
+  is advisory by design (`systemMessage` only, no `permissionDecision`).
+
+### 2.8 Exit engine ignores per-play `invalidation` conditions — the last live item from the archived backlog
+
+Carried here so archiving the backlog loses nothing. The old
+`research/backlog.md` is now
+[archive/00](archive/00-backtest-engine-backlog-2026-06.md); its triage closed
+every item except this one.
+
+**The gap:** the backtest exits on fixed horizons, profit targets, stops and
+trails, and otherwise holds to expiry. Each analysis row carries an
+`invalidation` string (e.g. *"AAPL close < 290"*, *"SMH reclaims 570"*), and
+`backtest/shared/analysis_io.py` reads it — but only as a passthrough field.
+Nothing parses it and no exit fires on it, so `invalidation_exit` is the one
+terminal status that never ships.
+
+**What implementing it means:** parse the condition, evaluate it against daily
+underlying closes, exit at that day's spread mark, add the `invalidation_exit`
+status. Two cautions, both from the archive:
+
+- The strings are free-form model output. A parser that silently fails to match
+  must record **that**, not fall through to "condition never met" — the latter
+  understates exits and flatters the book.
+- `scripts/backtest_study/lib/harness.py` is the **frozen** replay engine. A new
+  exit reason belongs in the backtest engine, not there.
+
+Do not quote any P&L figure from that archive: it is all on the superseded
+pre-2026-07-06 entry basis, and the v1 exports store `pnl_pct` as `"1.64%"`
+strings.
 
 ## 3. Standing rules the next session must not re-litigate
 
-- `score_total` is decision-irrelevant (tie-break only); selection =
+**Selection and scoring**
+
+- `score_total` is decision-irrelevant (tie-break only). Selection is
   structure × regime × entry geometry.
-- ML/selection search closed — re-open on **new columns only**, tested within
-  structure from the first look.
-- `bear_call_spread` intake-vetoed; bear debit §1.4 selection-vetoed, hedge
-  sleeve §4 only.
-- v3/v4 rows never pooled; v4 score scale 0–50 (0–55 VOLATILITY), not
-  comparable to v3.
-- Real+tweak pricing tiers only; filter legacy `bs` rows by `proxy_method`.
+- The ML/selection search is **closed**. Re-open on **new columns only**, tested
+  within structure from the first look.
+- `bear_call_spread` is intake-vetoed; bear debit is selection-vetoed at card
+  §1.4 and lives in the §4 hedge sleeve only.
+
+**Populations and pricing**
+
+- **v3 and v4 rows are never pooled.** The v4 score scale is 0–50 (0–55 for
+  VOLATILITY) and is not comparable to v3's 0–100.
+- **Real + tweak pricing tiers only**; filter legacy `bs` rows by `proxy_method`.
+- **Studies are ERA-scoped and the bare export filename does not name a
+  population** — `lib/era.py` is the single encoding; run a past era with
+  `--era v3` (archive/15).
+- **Never key a study on the `exit_basis` column.** It reaches the export
+  unlabelled and scrambled — classify by unreachable exit reasons instead
+  (§0c(A), archive/15).
+- **`hedge_exposure`'s registration describes the `real` stratum, not the
+  ratified book.** Its plan-time exposure table, concentration quantiles and
+  504-session universe reproduce on `real` alone; they are not disclosures about
+  the ratified 996-row population
+  ([`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION).
+
+**Vocabulary and process**
+
+- **ARM labels are study-local.** Always qualify a citation with its study —
+  `emission_timing ARM P`, never a bare `ARM P` (four studies own an ARM P).
+  Look any label up in [`arm-index.md`](arm-index.md) (archive/17 §2026-08-24 docs).
+- **Never read silence as "trigger not met."** Rollback triggers are evaluated at
+  their gates, with numbers ([`deployment-evidence.md`](deployment-evidence.md)).
+- **`study_review … --dry-run` CLOBBERS artifacts.** It overwrites the
+  `-review-*` / `-digest-latest.md` files with 51-byte placeholders; two reviews
+  were lost this way. Never use it as a read-only check (archive/17 §2026-08-24).
+- **Never hardcode a figure off one export** — and the rule covers report
+  *prose*, not just code: `bear_deploy` D3's write-up hardcoded a v3-era figure
+  while its own table printed a different one (archive/17 §2026-08-24 late).

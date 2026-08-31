@@ -1,39 +1,51 @@
-## emission_timing
+## emission_timing — does entry timing relative to the signal degrade a play?
 
 _Registered 2026-08-19._
 
 **Admissibility, stated FIRST.** Selection is CLOSED in this repo — structure ×
 regime × entry geometry settled, `score_total` decision-irrelevant, the ML
 search null across 15 cells — and it reopens on **NEW COLUMNS ONLY.** This study
-is admissible because it introduces exactly that: the **emission ordinal** (is
-this the first time this (ticker, structure) has been emitted, or a repeat?) and
-the **pre-signal price_vector** (where the underlying had already travelled
-BEFORE the signal). Both are new, both are computable from the era book and the
-cached bars, and both are **observable at entry** — an operator could read
-either at the moment of the decision.
+is admissible because it introduces exactly that, two of them:
 
-What is NOT admissible, and is not re-tested here under any arm: **the day-0
-underlying move.** `next_day_move` ARM C already tested it and that result
-stands; re-testing it under a new study name would be a second look at a closed
-question. **Gate G3 enforces this by assertion**, not by intention — no arm may
-construct a feature from the signal day's own underlying move, and the run fails
-if one does.
+- the **emission ordinal** — is this the first time this (ticker, structure) has
+  been emitted, or a repeat?
+- the **pre-signal price_vector** — where the underlying had already travelled
+  BEFORE the signal.
 
-**Question.** Two arms, one theme — does the TIMING of an entry relative to the
-signal degrade it? **ARM P (persistence):** does a re-emitted play perform worse
-(the signal is stale, the move already happened) or better (confirmation)?
-**ARM L (fill lag):** does an entry filled 1, 2 or 3 sessions after the signal
-lose the edge? These are entry-timing questions, not selection-rule questions:
-no arm changes which structures are eligible or how they are exited.
+Both are new, both are computable from the era book and the cached bars, and
+both are **observable at entry**: an operator could read either at the moment of
+the decision.
 
-**What this is NOT.** Not an exit study (shipped profiles throughout, replayed
-by the FROZEN `harness.replay`). Not a sizing study (contracts re-sized by the
-production formula so the lag is not confounded with size, and G2 forbids
-quoting dollars across lags). Not a re-test of the day-0 move (G3).
+## Question
 
----
+Does the TIMING of an entry relative to the signal degrade it? Two arms, one
+theme.
 
-### Population and basis, fixed here
+- **ARM P (persistence):** does a re-emitted play perform worse (the signal is
+  stale, the move already happened) or better (confirmation)?
+- **ARM L (fill lag):** does an entry filled 1, 2 or 3 sessions after the signal
+  lose the edge?
+
+These are entry-timing questions, not selection-rule questions: no arm changes
+which structures are eligible or how they are exited.
+
+## What this is NOT
+
+- **Not a re-test of the day-0 underlying move.** That column is not admissible
+  and is not re-tested here under any arm. `next_day_move` ARM C already tested
+  it and that result stands; re-testing it under a new study name would be a
+  second look at a closed question. **Gate G3 enforces this by assertion**, not
+  by intention — no arm may construct a feature from the signal day's own
+  underlying move, and the run fails if one does.
+- **Not an exit study** — shipped profiles throughout, replayed by the FROZEN
+  `harness.replay`.
+- **Not a sizing study** — contracts are re-sized by the production formula so
+  the lag is not confounded with size, and G2 forbids quoting dollars across
+  lags.
+
+## Population and basis, fixed here
+
+One era carries the study; the other is reported and carries nothing.
 
 - Era: PRIMARY `--era v3` — `load_book(include_bs=False)`, proxy calibration
   gate ON, the 795-row / 118-date basis. SECONDARY = `current` (v4), reported
@@ -43,47 +55,52 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
   **SRC_OHLC / SRC_TILDE split is PRINTED and the two sources are never pooled
   silently** — a tilde-sourced move is a different measurement from a real bar.
 
+## Arms
+
+Two arms, one theme, plus a conditioning cut on the lag ladder.
+
 ### ARM P — emission persistence
 
 - **First emission** = the earliest date per **(ticker, structure)** in the era
-  book. Ordinal is capped at **{1st, 2nd, 3rd, 4th+}**. Plan-time counts
+  book. The ordinal is capped at **{1st, 2nd, 3rd, 4th+}**. Plan-time counts
   (disclosed, measured while designing): **210 / 100 / 78 / 407.**
 - **Join convention, frozen:** `book.py`'s `created_datetime`-sorted keep-first
   rule. Same-day duplicate emissions therefore collapse to one and **cannot fake
   a repeat** — without this, a single session's duplicate rows would manufacture
   the entire effect.
-- **WITHIN-DATE PAIRED test** — the `bear_deploy` D4 method, because it cancels
-  the date's own return level, which is the dominant nuisance variable in this
-  book. Plan-time measurement (disclosed): **82 of 118 dates carry BOTH a first
-  and a repeat emission.** The estimand is the paired **Δ(mean R), repeat minus
-  first, computed inside each date**, aggregated by `boot_ci_paired_by_date`.
-- **Frozen sub-cuts, declared now:**
-  1. **consecutive-date repeats** — frozen definition: "previous emission fell
-     on the immediately preceding date present in the era book" (the book is
-     the session calendar; the repo has no holiday calendar) — **151 rows**
-     (the stricter calendar-next-weekday diagnostic, 106, prints alongside)
-     — vs **gapped** repeats: a repeat the next session is a different object
-     from a repeat three weeks later;
-  2. repeats split by whether the **underlying had already moved the play's way**
-     since the first emission (`underlying.load_bars`; SRC_OHLC / SRC_TILDE split
-     printed, never pooled). This is the "the move already happened" hypothesis
-     stated as a measurable cut instead of a narrative.
-
-  No third cut is added after any number is seen.
+- **The test is WITHIN-DATE PAIRED** — the `bear_deploy` D4 method, because it
+  cancels the date's own return level, which is the dominant nuisance variable
+  in this book. Plan-time measurement (disclosed): **82 of 118 dates carry BOTH
+  a first and a repeat emission.** The estimand is the paired **Δ(mean R),
+  repeat minus first, computed inside each date**, aggregated by
+  `boot_ci_paired_by_date`.
+- **Two frozen sub-cuts, declared now. No third cut is added after any number is
+  seen.**
+  1. **Consecutive-date repeats vs gapped ones** — a repeat the next session is
+     a different object from a repeat three weeks later. Frozen definition of
+     consecutive: "previous emission fell on the immediately preceding date
+     present in the era book" (the book is the session calendar; the repo has no
+     holiday calendar) — **151 rows**; the stricter calendar-next-weekday
+     diagnostic, 106, prints alongside.
+  2. **Repeats split by whether the underlying had already moved the play's
+     way** since the first emission (`underlying.load_bars`; SRC_OHLC /
+     SRC_TILDE split printed, never pooled). This is the "the move already
+     happened" hypothesis stated as a measurable cut instead of a narrative.
 
 ### ARM L — signal-to-fill lag
 
 - A synthetic `Trade` is constructed per lag **L ∈ {0, 1, 2, 3}**, anchored at
-  `grid[L-1]` (the harness grid is weekdays AFTER `signal_date`, so `grid[0]`
-  is already the fill session; anchoring at `grid[L-1]` — the ORIGINAL
+  `grid[L-1]`: `signal_date` ← `grid[L-1]`; entry ← `marks[L]`; `dte_entry`
+  reduced by the calendar days the anchor moved (0 at L=0); `daily_price_csv` ←
+  `marks[L:]`, **right-padded with blanks** to the recomputed grid length;
+  contracts **re-sized by the production formula** at the lagged entry price.
+  Pinned by tests.
+- **Why that anchor:** the harness grid is weekdays AFTER `signal_date`, so
+  `grid[0]` is already the fill session. Anchoring at `grid[L-1]` — the ORIGINAL
   `signal_date` at L=0 — lines up `entry ← marks[L]`,
   `daily_price_csv ← marks[L:]`, and the padding, and makes L=0 reproduce the
   stored trade exactly except for the fill price, which is what "L=0 is the
-  baseline" requires): `signal_date` ← `grid[L-1]`; entry ← `marks[L]`;
-  `dte_entry` reduced by the calendar days the anchor moved (0 at L=0);
-  `daily_price_csv` ← `marks[L:]`, **right-padded with blanks** to the
-  recomputed grid length; contracts **re-sized by the production formula** at
-  the lagged entry price. Pinned by tests.
+  baseline" requires.
 - **The padding decision is registered, with its measurement (disclosed):
   262 / 795 rows are 120-day cap-truncated.** Right-padding is
   behaviour-neutral — the shipped profiles cannot fire on a blank mark — whereas
@@ -108,12 +125,13 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
 
 ### Conditioning — the pre-signal price_vector
 
-- The lag ladder is ALSO reported **within pre-signal `price_vector`
-  terciles**. The disclosed plan-time 785/795 measured JOIN failure only (10
-  rows); a further 63 rows join but carry a blank `price_vector` cell, so the
-  true conditioned population is **722 / 795 rows populated**. All 73 form
-  the **MISSING cell**, reported, never imputed and never folded into a
-  tercile — it power-stops at 16 dates.
+The lag ladder is ALSO reported **within pre-signal `price_vector` terciles**.
+
+- Coverage, disclosed: the plan-time 785/795 measured JOIN failure only (10
+  rows). A further 63 rows join but carry a blank `price_vector` cell, so the
+  true conditioned population is **722 / 795 rows populated**. All 73 unpopulated
+  rows form the **MISSING cell**, reported, never imputed and never folded into
+  a tercile — it power-stops at 16 dates.
 - Terciles are cut on the **FULL book** and **FROZEN** before any lag result is
   read — not re-cut per lag, which would make the cells move under the
   comparison.
@@ -121,15 +139,20 @@ quoting dollars across lags). Not a re-test of the day-0 move (G3).
   into a tercile edge silently. The filter is `v == v` on the raw value, applied
   before the cut, and the excluded count prints.
 
-### Unit and metric
+## Unit and metric
 
-Unit = the signal **DATE** (date-clustered everything). ARM P = within-date
-paired Δ(mean R), repeat − first. ARM L = within-row paired ΔR vs the L = 0
-baseline, aggregated by date. Both via `boot_ci_paired_by_date`,
-`BOOT_N = 10000`, α = .05. **R is quoted, never dollars**, across lags or
-ordinals — contract counts differ by construction once the entry price moves.
+The unit is the signal **DATE** — everything is date-clustered.
 
-### Gates (non-zero exit on failure, in order)
+- ARM P = within-date paired Δ(mean R), repeat − first.
+- ARM L = within-row paired ΔR vs the L = 0 baseline, aggregated by date.
+- Both run through `boot_ci_paired_by_date`, `BOOT_N = 10000`, α = .05.
+
+**R is quoted, never dollars**, across lags or ordinals — contract counts differ
+by construction once the entry price moves.
+
+## Gates
+
+Each gate exits non-zero on failure, and they run in this order.
 
 - **G0 — POWER, runs FIRST and blocks everything.** ≥ **25 affected DATES** per
   cell. **The per-tercile lag cells must clear the floor INDIVIDUALLY** — a
@@ -147,7 +170,10 @@ ordinals — contract counts differ by construction once the entry price moves.
   read the signal day's own underlying move. The run fails if one does.
   `next_day_move` ARM C stands and is not re-tested.
 
-### Bar to call a cell a CANDIDATE — the full conjunction, all of it
+## Bar for a candidate
+
+Calling a cell a CANDIDATE takes the full conjunction, all of it — failing any
+one is failing:
 
 1. paired ΔR with **date-clustered bootstrap CI excluding zero**
    (`BOOT_N = 10000`, α = .05);
@@ -160,12 +186,11 @@ ordinals — contract counts differ by construction once the entry price moves.
 5. right-signed on **BOTH pricing tiers** (real and tweak);
 6. ≥ 25 affected dates (G0's floor, re-checked on the evaluated set).
 
-Failing any one is failing. Worst-decile cells print **DESCRIPTIVELY** with
-their n and are marked **NOT A CRITERION** — 118 dates cannot power a
-worst-decile read (the 2026-08-13 nine-date decile wall), and no criterion here
-requires one.
+Worst-decile cells print **DESCRIPTIVELY** with their n and are marked **NOT A
+CRITERION** — 118 dates cannot power a worst-decile read (the 2026-08-13
+nine-date decile wall), and no criterion here requires one.
 
-### Verdicts, worded now
+## Verdicts, worded now
 
 - **STALE-ENTRY-PENALTY** (candidate, NOT a ship): repeats and/or lagged fills
   are reliably worse under the full conjunction → proposes a candidate INTAKE
@@ -183,17 +208,23 @@ requires one.
 - **POWER-STOPPED**: G0 fails for a cell → census published for it, nothing
   read, no re-run on these dates.
 
-### Anti-tuning
+## Anti-tuning
 
-Lags frozen at four values, ordinals at four buckets, terciles at three cut on
-the full book, sub-cuts at two. The exit profiles, sizing formula, structure
-universe and candidate population are NOT swept, and no new selection column
-beyond the two named at the top is introduced. No threshold is moved and no cell
-is added after any number is seen. **Every cell is reported regardless of
-outcome**, including the ones that lose and the ones that power-stop. No
-annualised figure, Sharpe, or time-to-recover anywhere.
+Everything that could be swept is frozen:
 
-### Build notes (not part of the registration)
+- lags at four values, ordinals at four buckets, terciles at three cut on the
+  full book, sub-cuts at two;
+- the exit profiles, sizing formula, structure universe and candidate population
+  are NOT swept;
+- no new selection column beyond the two named at the top is introduced.
+
+No threshold is moved and no cell is added after any number is seen. **Every
+cell is reported regardless of outcome**, including the ones that lose and the
+ones that power-stop. No annualised figure, Sharpe, or time-to-recover anywhere.
+
+## Build notes
+
+*Not part of the registration — implementation record.*
 
 - Module `scripts/backtest_study/f1_selection/emission_timing.py`; run via
   `python -m scripts.backtest_study run emission_timing --era v3`; report to

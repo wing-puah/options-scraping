@@ -1,42 +1,75 @@
-## financed_spread
+## financed_spread — does financing a debit vertical with a credit leg improve it?
 
 _Registered 2026-08-19._
 
-**Question.** Holding the signal, the entry day and the exit rules fixed, does
-wrapping a book debit vertical in a FINANCING credit position improve the
-outcome? The operator's hypothesis is the classic one: sell premium against the
-debit to cheapen the entry — either on the opposite side of spot (opposite-delta
-credit), as a naked short leg, or as a same-direction credit vertical. This is a
-STRUCTURE question (f3), the `bear_rewrap` shape: same signal, same dates, same
-exits, different wrapper.
+## Question
 
-**What this is NOT.** It is not a selection study — no arm changes WHICH signals
-are taken. It is not an exit study — every synthetic replays under the shipped
-profiles. And it is not a sizing study, which is why sizing is pinned to the
-production formula per variant with a fixed-contracts control printed alongside
-(§Sizing). The `vol_sleeve` lesson is registered up front: synthesizing on the
-engine's own signal dates can re-wrap the SAME exposure; a wrapper that clears
-every R gate but correlates positively with the deployed sleeve is a RE-WRAP,
-not a diversifier, and is recorded as such regardless of its ΔR (E3).
+Holding the signal, the entry day and the exit rules fixed, does wrapping a
+book debit vertical in a FINANCING credit position improve the outcome?
 
----
+The operator's hypothesis is the classic one: sell premium against the debit to
+cheapen the entry. The premium can be sold on the opposite side of spot
+(opposite-delta credit), as a naked short leg, or as a same-direction credit
+vertical. This is a STRUCTURE question (f3), the `bear_rewrap` shape: same
+signal, same dates, same exits, different wrapper.
 
-### Population and basis, fixed here
+## What this is NOT
 
-- Era: PRIMARY `--era v3` — `load_book(include_bs=False)`, proxy calibration
-  gate ON, the 795-row / 118-date basis. SECONDARY = `current`, reported,
-  carries nothing (34 backfill dates; most cells will power-stop). Never pooled.
-- Population: two-leg single-expiry debit verticals only. Plan-time measurement
+- **Not a selection study.** No arm changes WHICH signals are taken.
+- **Not an exit study.** Every synthetic replays under the shipped profiles.
+- **Not a sizing study.** That is why sizing is pinned to the production
+  formula per variant, with a fixed-contracts control printed alongside (see
+  Pricing, sizing, exits — pinned, below).
+- **Not a diversification claim taken on faith.** The `vol_sleeve` lesson is
+  registered up front: synthesizing on the engine's own signal dates can
+  re-wrap the SAME exposure. A wrapper that clears every R gate but correlates
+  positively with the deployed sleeve is a RE-WRAP, not a diversifier, and is
+  recorded as such regardless of its ΔR (E3).
+
+## Population and basis, fixed here
+
+- **Era.** PRIMARY `--era v3` — `load_book(include_bs=False)`, proxy
+  calibration gate ON, the 795-row / 118-date basis. SECONDARY = `current`,
+  reported, carries nothing (34 backfill dates; most cells will power-stop).
+  Never pooled.
+- **Rows.** Two-leg single-expiry debit verticals only. Plan-time measurement
   (disclosed): 780/795 rows are two-leg; 0 rows are multi-expiry, so every
   financing leg shares the debit's expiry and `_defined_risk_bounds` stays
   applicable to bounded shapes.
-- Entry day: the baseline row's own entry day (`entry_date_for` — first grid day
-  ALL legs, financing legs included, are cached). Baseline and financed variant
-  fill on the SAME day or the row is excluded and counted.
+- **Entry day.** The baseline row's own entry day (`entry_date_for` — the first
+  grid day on which ALL legs, financing legs included, are cached). Baseline
+  and financed variant fill on the SAME day, or the row is excluded and
+  counted.
 
-### Arms
+### Pricing, sizing, exits — pinned
 
-**F0–F3 — four shapes × two strike offsets, frozen, no additions.**
+- **Pricing:** the `bear_rewrap` path verbatim by import (`leg_details`,
+  `leg_series`, `entry_price_of`, `net_entry`, `net_marks` with the
+  `_defined_risk_bounds` clamp, `synth_trade`, `reconstructs`). New financing
+  legs are fetched into the SAME cache under the SAME filename convention.
+- **Degenerate-premium guard:** a synthetic with |entry_net| < 0.10 is EXCLUDED
+  and counted (Trade.denom = |entry_net|; a near-zero financed net makes R
+  explode, and shrinking the debit is this structure's whole purpose).
+- **Sizing:** the production `_size_contracts` logic ported verbatim —
+  debit-signed nets on the premium×0.75 formula, credit-signed nets on
+  structural max loss, UNBOUNDED (F2) at 1 contract per the production
+  convention. A `--fixed-contracts` control (contracts held at the baseline's
+  count) prints alongside, so the sizing sensitivity is visible rather than
+  assumed away.
+- **Exits:** assigned by the SIGN of the synthetic net entry — debit-signed →
+  the shipped debit profile (incl. the bear-keyed `be_after 0.50` where the
+  baseline row carries it), credit-signed → `CREDIT_PROD`. The debit/credit
+  flip share is reported PER SHAPE: a shape that flips half its rows to the
+  credit profile is changing the exit rule as well as the wrapper, and that
+  must be visible before any ΔR is read.
+
+## Arms
+
+Four same-expiry shapes (F0–F3) were registered first and are frozen with no
+additions; F4 was registered later, after the F0–F3 run, as a different
+structure the original arms never priced.
+
+### F0–F3 — four shapes × two strike offsets
 
 For a bull_call debit (mirror for bear_put): "beyond the outer strike, OTM
 direction" = calls ABOVE the highest leg strike; "the other side of spot" =
@@ -50,10 +83,10 @@ OBSERVED cached strike ladder — never an invented increment.
 | **F2** naked short leg | short only, first cached strike beyond the outer strike | UNBOUNDED |
 | **F3** same-direction financed vertical | credit spread on the other side of spot (bull_call + bull_put credit; bear_put + bear_call credit) | defined |
 
-Strike-offset sensitivity frozen at TWO settings: offset 1 (nearest cached
+Strike-offset sensitivity is frozen at TWO settings: offset 1 (nearest cached
 strike beyond) and offset 2 (one further out). No third.
 
-F0 is registered as the machinery pilot: it is buildable on essentially the
+F0 is registered as the machinery pilot. It is buildable on essentially the
 whole population before any scrape, it collapses algebraically to a
 doubled-delta synthetic forward capped at ±(K2−K1), and it is a legitimate
 answer to "same-direction financing." F0 runs FIRST; its report is published
@@ -61,17 +94,18 @@ whether or not the scrape ever completes. F0 sits at the debit's OWN strikes,
 so its offset axis is degenerate: four shapes × two strike offsets yields SEVEN
 cells, not eight — F0 is one cell, printed as `F0 own` in the G0 table.
 
-**F4 — diagonal financing (registered 2026-08-19, after the F0–F3 run and
-before F4 was built or run).**
+### F4 — diagonal financing
 
-The 2026-08-19 run returned NULL on all seven same-expiry strike-offset cells
-and closed them. The operator's intended financing is a DIFFERENT structure the
+Registered 2026-08-19, after the F0–F3 run and before F4 was built or run. The
+2026-08-19 run returned NULL on all seven same-expiry strike-offset cells and
+closed them. The operator's intended financing is a DIFFERENT structure the
 original arms never priced, registered here as a new commitment (the
-macro_event_study precedent): a SHORT-DATED, DELTA-TARGETED naked
-short leg — premium sold "not to be reached", expiring while the debit thesis
-is still developing. Nothing in this arm reopens F0–F3 on these dates.
+macro_event_study precedent): a SHORT-DATED, DELTA-TARGETED naked short leg —
+premium sold "not to be reached", expiring while the debit thesis is still
+developing. Nothing in this arm reopens F0–F3 on these dates.
 
-**F4 construction, frozen:**
+F4 construction, frozen:
+
 - One short leg, the debit's own option type, ALWAYS strictly beyond the
   debit's furthest OTM leg (calls above the highest strike for a bull_call;
   puts below the lowest for a bear_put).
@@ -102,10 +136,13 @@ is still developing. Nothing in this arm reopens F0–F3 on these dates.
   (`fin_diag_<type>`), same resumable semantics; the target census prints in
   --dry-run before any fetch.
 
-**F4 management (applies to the mgmt cells).** Operator's actual practice,
+### F4 management
+
+This applies to the mgmt cells. It is the operator's actual practice,
 registered verbatim before any F4 number exists: the financing leg is NOT held
 to expiry — it is bought back once it has earned 50% of the credit, "or at
 least $100", and stopped at 2× credit against.
+
 - **Profit take, two parallel trigger bases** (the staged_exit twin-cut
   precedent; neither has precedence, both report side by side):
   `mgmt-pt50` — buy back at the first session whose mark ≤ 0.5 × entry credit;
@@ -125,35 +162,15 @@ least $100", and stopped at 2× credit against.
   a trigger day defers to the next priced session (the harness carry
   convention). After any buyback the position is the plain debit.
 
-**F4 cells:** {d10, d20} × {mgmt-pt50, mgmt-$100, hold} = six cells, same
-underlying rows (no power cost per cell). Gates, E-reads, and the 7-part
-conjunction are unchanged; the hold cells serve to attribute any effect to the
-management rule vs the structure. No trigger value may be tuned after a number
-is seen; 0.50, $100, and 2× are the operator's stated practice and are frozen
-here.
+### F4 cells
 
-### Pricing, sizing, exits — pinned
+{d10, d20} × {mgmt-pt50, mgmt-$100, hold} = six cells, on the same underlying
+rows (no power cost per cell). Gates, E-reads and the 7-part conjunction are
+unchanged. The hold cells serve to attribute any effect to the management rule
+vs the structure. No trigger value may be tuned after a number is seen; 0.50,
+$100, and 2× are the operator's stated practice and are frozen here.
 
-- Pricing: the `bear_rewrap` path verbatim by import (`leg_details`,
-  `leg_series`, `entry_price_of`, `net_entry`, `net_marks` with the
-  `_defined_risk_bounds` clamp, `synth_trade`, `reconstructs`). New financing
-  legs are fetched into the SAME cache under the SAME filename convention.
-- Degenerate-premium guard: a synthetic with |entry_net| < 0.10 is EXCLUDED and
-  counted (Trade.denom = |entry_net|; a near-zero financed net makes R explode,
-  and shrinking the debit is this structure's whole purpose).
-- Sizing: the production `_size_contracts` logic ported verbatim — debit-signed
-  nets on the premium×0.75 formula, credit-signed nets on structural max loss,
-  UNBOUNDED (F2) at 1 contract per the production convention. A
-  `--fixed-contracts` control (contracts held at the baseline's count) prints
-  alongside so the sizing sensitivity is visible, not assumed away.
-- Exits: assigned by the SIGN of the synthetic net entry — debit-signed → the
-  shipped debit profile (incl. the bear-keyed `be_after 0.50` where the
-  baseline row carries it), credit-signed → `CREDIT_PROD`. The debit/credit
-  flip share is reported PER SHAPE: a shape that flips half its rows to the
-  credit profile is changing the exit rule as well as the wrapper, and that
-  must be visible before any ΔR is read.
-
-### Unit and metric
+## Unit and metric
 
 Unit = the signal DATE (date-clustered everything). Metric = **within-row
 paired ΔR** (financed minus baseline) on rows BOTH variants price, aggregated
@@ -161,7 +178,9 @@ by date, `boot_ci_paired_by_date`. **Dollars are never quoted on a
 substitution** — contract counts differ by construction (the `bear_rewrap`
 NOTE); $ prints only inside the sizing census.
 
-### Exposure reads (pre-registered alongside ΔR, per shape)
+### Exposure reads
+
+Three exposure reads are pre-registered alongside ΔR, per shape.
 
 - **E1 — Δ(net delta)** at the common entry day from cached per-leg `Delta`.
   Geometry check: F1 must reduce |net delta|, F0/F3 must increase it. A shape
@@ -174,7 +193,9 @@ NOTE); $ prints only inside the sizing census.
   mean R, per year, ≥8 shared dates required. Registered reading: **positive
   correlation = RE-WRAP verdict regardless of ΔR.**
 
-### Gates (non-zero exit on failure, in order)
+## Gates
+
+Four gates, evaluated in this order; failure exits non-zero.
 
 - **G0 — POWER, runs FIRST.** Per shape × offset: constructible rows and dates.
   **< 25 dates OR < 60 rows → that cell is POWER-STOPPED**, printed with n,
@@ -183,8 +204,8 @@ NOTE); $ prints only inside the sizing census.
   398/795 have ≥2 cached puts below their lowest, so F1/F3 may clear G0 even
   before the scrape; F0 clears on the whole population.
 - **G1 — reconstruction.** `reconstructs()` on every candidate row (entry
-  ±$0.005, per-day mark ±$0.01, ≥95% of priced days agree). Failures excluded
-  from every cell and counted by reason; pass rate quoted.
+  ±$0.005, per-day mark ±$0.01, ≥95% of priced days agree). Failures are
+  excluded from every cell and counted by reason; the pass rate is quoted.
 - **G2 — clamp attribution.** F2's "100% UNclamped" requirement
   (`_defined_risk_bounds` → None on a naked short) is evaluated on the
   naked-short-CALL subset: a naked short PUT (F2 on a bear_put base) is
@@ -196,7 +217,9 @@ NOTE); $ prints only inside the sizing census.
 - **G3 — sizing census.** Contract-count distribution per shape; count of rows
   at the 1-contract unbounded fallback.
 
-### Bar for a candidate — the full conjunction
+## Bar for a candidate
+
+A candidate must clear the full conjunction — all seven:
 
 1. paired ΔR > 0, date-clustered bootstrap CI (BOOT_N=10000) excluding zero;
 2. **every** LOO fold positive (read `min_gain`);
@@ -210,7 +233,7 @@ Failing any one is failing. Worst-decile cells print DESCRIPTIVELY with their n
 and are marked NOT A CRITERION — 118 dates cannot power a worst-decile read
 (the 2026-08-13 hedge-programme wall), and no criterion here requires one.
 
-### Verdicts, worded now
+## Verdicts, worded now
 
 - **CANDIDATE** (not a ship): a shape clears all seven → queues an
   independent-window confirmation. Nothing ships from a research-tier study.
@@ -221,21 +244,24 @@ and are marked NOT A CRITERION — 118 dates cannot power a worst-decile read
 - **POWER-STOPPED**: G0 fails after the scrape → census published, no re-run
   on these dates.
 
-### Anti-tuning
+## Anti-tuning
 
-Shapes frozen at four, offsets at two. Exit profiles, sizing formula, caps and
-the candidate population are NOT swept. Every shape × offset cell is reported
-regardless of outcome. The scrape target derivation (2 strikes beyond each
-side, observed ladder only) is fixed before any fetch. The plan-time census
-(disclosed) estimated 2,522 target contracts, 925 already cached, 1,597 to
-fetch; that figure exceeded the rule's own 4-per-group cap and was an estimate
-by a looser derivation. The RULE (the 2 nearest cached-ladder strikes strictly
-beyond each side) is what was registered and is what the collector implements,
-and the collector's implemented target-derivation census reads **1,775 targets
-/ 607 cached / 1,168 missing** (93 tickers, 462 groups). No target was added or
-removed after any outcome was seen.
+Shapes are frozen at four, offsets at two. Exit profiles, the sizing formula,
+caps and the candidate population are NOT swept. Every shape × offset cell is
+reported regardless of outcome. The scrape target derivation (2 strikes beyond
+each side, observed ladder only) is fixed before any fetch.
 
-### Build notes (not part of the registration)
+The plan-time census (disclosed) estimated 2,522 target contracts, 925 already
+cached, 1,597 to fetch. That figure exceeded the rule's own 4-per-group cap and
+was an estimate by a looser derivation. The RULE (the 2 nearest cached-ladder
+strikes strictly beyond each side) is what was registered and is what the
+collector implements, and the collector's implemented target-derivation census
+reads **1,775 targets / 607 cached / 1,168 missing** (93 tickers, 462 groups).
+No target was added or removed after any outcome was seen.
+
+## Build notes
+
+*Not part of the registration — implementation and operational record.*
 
 - Module `scripts/backtest_study/f3_structure/financed_spread.py`; run via
   `python -m scripts.backtest_study run financed_spread --era v3`.

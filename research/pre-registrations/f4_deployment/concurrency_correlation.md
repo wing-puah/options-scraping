@@ -1,16 +1,30 @@
-## concurrency_correlation
+## concurrency_correlation — does the size and internal similarity of the open book degrade outcome?
 
 _Registered 2026-08-22._
 
-**Question.** Does the SIZE and INTERNAL SIMILARITY of the open book degrade
-per-position outcome, independently of which plays were selected? Two effects,
-deliberately separated:
+## Question
+
+Does the SIZE and INTERNAL SIMILARITY of the open book degrade per-position
+outcome, independently of which plays were selected? Two effects, deliberately
+separated:
 
 - **Concurrency** — does a position opened while N others are already open do
   worse as N rises?
 - **Correlation** — does a position opened alongside others pointing the same
   way (same direction, same sector, same underlying) do worse than one opened
   into an unlike book?
+
+### Why this study exists
+
+`DEPLOY_BUDGET`/`max_positions_per_day = 3` caps the FLOW of new positions per
+day. Nothing anywhere caps the STOCK of open ones, and no study has ever
+measured the stock against outcome. `account_sim` computes `n_open` per session
+and prints it in the UTILISATION tables; no report joins it to any outcome
+table. No same-ticker, same-sector or same-direction clustering measure exists
+anywhere in the repo — every recorded "correlation" figure is sleeve-vs-book,
+never two concurrently held plays against each other.
+
+## What this is NOT
 
 This is an EXPOSURE study, not a selection study. The ladder is FROZEN
 (`protocol.top_k_per_day(book, ladder_rank, k=3, ladder_eligible)` — the
@@ -19,18 +33,46 @@ column may be added to selection, no exit knob may be moved, and no tier rule
 may be touched.** The only new machinery is a book-state annotation computed at
 each position's ENTRY session.
 
-**Why this study exists.** `DEPLOY_BUDGET`/`max_positions_per_day = 3` caps the
-FLOW of new positions per day. Nothing anywhere caps the STOCK of open ones,
-and no study has ever measured the stock against outcome. `account_sim`
-computes `n_open` per session and prints it in the UTILISATION tables; no
-report joins it to any outcome table. No same-ticker, same-sector or
-same-direction clustering measure exists anywhere in the repo — every recorded
-"correlation" figure is sleeve-vs-book, never two concurrently held plays
-against each other.
+Two further limits on what the study can say:
 
----
+- **It says nothing about CAPITAL feasibility.** The picks displaced by the
+  3/day cap carry no counterfactual in `account_sim`
+  (`day3_cap skips carry no counterfactual replay`). This study sidesteps that
+  by replaying the full survivor book rather than the account walk — but its
+  arms must therefore never be compared against `account_sim`'s dollar totals.
+- **It cannot separate concurrency from calendar clustering.** The signal dates
+  cluster hard (118 v3 dates with nine months at ≤4 dates), so a
+  high-concurrency session is often also a dense-episode session. ARM D0
+  reports the cross-tab; no criterion rests on it.
 
-### Plan-time observations, disclosed
+## Population and basis, fixed here
+
+- **Population.** The pooled book from `lib/book.py::load_book()`, era-scoped
+  (`lib/era.py`), `include_bs=False`. PRIMARY = dense episodes
+  (`episode_max_gap = 5`, `episode_min_dates = 10`); SECONDARY = the full
+  sparse book. Both eras must be run and both reported.
+- **Deployed set.** `top_k_per_day(..., k=3)` — the shipped card. This study
+  never re-selects.
+- **Book state is computed at ENTRY, from ENTRY-DATED information only.** A
+  position's annotation uses positions open at the START of its entry session,
+  before that session's own picks are admitted. No look-ahead: a position may
+  never be annotated with anything about its own outcome, its own exit, or any
+  later session. This mirrors `portfolio_delta` ARM D's banding rule and is
+  gated (G2).
+- **Open-position accounting.** A position is open on session *s* if
+  `entry_date <= s < exit_date`. Positions are counted at the POSITION level,
+  not the leg level, so the figure is comparable to `account_sim`'s `n_open`
+  and NOT to the live leg counts quoted below.
+- **Direction** = sign of the position's delta-notional, from the same field
+  `s03_risk` uses. A position with no delta is UNKNOWN and is excluded from
+  every direction total, never counted as zero (the missing-greek invariant).
+- **Sector** = a static ticker→sector map committed with the study. It must be
+  written from a source outside this book (no clustering may be induced from
+  outcomes), committed in full, and quoted in the report's census. Tickers with
+  no mapping are `UNMAPPED` and are their own bucket — never folded into a
+  named sector.
+
+## Plan-time observations, disclosed
 
 Measured on 2026-08-22 while designing this study. The arms and grids below are
 informed by them and that is stated rather than hidden. Nothing here is a
@@ -100,36 +142,7 @@ similarity between concurrently held positions, which is why those axes remain
 open rather than already refuted. **If this study's arms merely re-express a
 delta ceiling, that is a null result, not a finding.**
 
----
-
-### Population and basis, fixed here
-
-- **Population.** The pooled book from `lib/book.py::load_book()`, era-scoped
-  (`lib/era.py`), `include_bs=False`. PRIMARY = dense episodes
-  (`episode_max_gap = 5`, `episode_min_dates = 10`); SECONDARY = the full
-  sparse book. Both eras must be run and both reported.
-- **Deployed set.** `top_k_per_day(..., k=3)` — the shipped card. This study
-  never re-selects.
-- **Book state is computed at ENTRY, from ENTRY-DATED information only.** A
-  position's annotation uses positions open at the START of its entry session,
-  before that session's own picks are admitted. No look-ahead: a position may
-  never be annotated with anything about its own outcome, its own exit, or any
-  later session. This mirrors `portfolio_delta` ARM D's banding rule and is
-  gated (G2).
-- **Open-position accounting.** A position is open on session *s* if
-  `entry_date <= s < exit_date`. Positions are counted at the POSITION level,
-  not the leg level, so the figure is comparable to `account_sim`'s `n_open`
-  and NOT to the live leg counts quoted above.
-- **Direction** = sign of the position's delta-notional, from the same field
-  `s03_risk` uses. A position with no delta is UNKNOWN and is excluded from
-  every direction total, never counted as zero (the missing-greek invariant).
-- **Sector** = a static ticker→sector map committed with the study. It must be
-  written from a source outside this book (no clustering may be induced from
-  outcomes), committed in full, and quoted in the report's census. Tickers with
-  no mapping are `UNMAPPED` and are their own bucket — never folded into a
-  named sector.
-
-### Arms
+## Arms
 
 - **ARM N — NULL CONTROL (required).** Random book-state labels drawn to match
   each real arm's affected-position count, ≥1,000 draws, date-clustered. Every
@@ -152,7 +165,30 @@ delta ceiling, that is a null result, not a finding.**
   criteria independently. A conjunction that clears while neither component
   does is a fitting artefact and is refused.
 
-### Bar for a candidate (all must hold; a failure is a failure, not a footnote)
+## Gates
+
+Each gate exits non-zero on failure.
+
+- **G1 ERA IDENTITY.** The report header names the era it ran on and the
+  export fingerprint; a mismatch or a thin era refuses (`lib/era.py`, exits 2
+  and 3). No study-local snapshot pin is permitted to dodge this.
+- **G2 NO LOOK-AHEAD.** Every position's book-state annotation is recomputed
+  from entry-dated information only and re-verified against an independent
+  recomputation; any position whose annotation reads a field dated after its
+  entry session FAILS the run.
+- **G3 SELECTION IDENTITY.** The unmodified pick set equals
+  `top_k_per_day(...)` by set equality, proving no silent re-selection.
+- **G4 REFUSAL ATTRIBUTION.** Every refused pick attributes to exactly ONE
+  binding arm rule and the counts sum exactly; a mismatch FAILS the run.
+- **G5 NO NEW STATISTIC.** No annualised figure, no Sharpe, no
+  time-to-recover, per the standing research-tier rule.
+- **G6 NO HARDCODED CENSUS.** Every count, percentage and range printed in
+  prose is computed from the run. A measured quantity frozen into a string
+  literal FAILS review.
+
+## Bar for a candidate
+
+All of X1–X8 must hold. A failure is a failure, not a footnote.
 
 - **X1 POWER FLOOR.** An arm is read only if it changes ≥ 25 dates and ≥
   `MIN_N_TO_READ` positions. Below either, the arm prints **UNDERPOWERED** —
@@ -178,7 +214,7 @@ delta ceiling, that is a null result, not a finding.**
   pooled with `bs_options_hist` rows, per the standing DTE≥180 contamination
   hazard.
 
-### Verdicts, worded now
+## Verdicts, worded now
 
 - **ADOPT** — one arm clears X1–X8 on both eras. The report proposes the
   ceiling as a card rule; the operator decides.
@@ -189,38 +225,9 @@ delta ceiling, that is a null result, not a finding.**
 - **UNDERPOWERED** — no arm clears X1. Census printed, nothing concluded.
 - **RESTATEMENT** — clears X2/X3 but fails X7.
 
+## Anti-tuning
+
 **Nothing ships from this study on the basis of a dollar total.** No ceiling
 value may be adopted, recommended, or carried into a conclusion because it made
 more money in the grid. The only admissible reading of the grid is qualitative
 monotonicity, and the grid is a shape, not a menu.
-
-### Gates (non-zero exit on failure)
-
-- **G1 ERA IDENTITY.** The report header names the era it ran on and the
-  export fingerprint; a mismatch or a thin era refuses (`lib/era.py`, exits 2
-  and 3). No study-local snapshot pin is permitted to dodge this.
-- **G2 NO LOOK-AHEAD.** Every position's book-state annotation is recomputed
-  from entry-dated information only and re-verified against an independent
-  recomputation; any position whose annotation reads a field dated after its
-  entry session FAILS the run.
-- **G3 SELECTION IDENTITY.** The unmodified pick set equals
-  `top_k_per_day(...)` by set equality, proving no silent re-selection.
-- **G4 REFUSAL ATTRIBUTION.** Every refused pick attributes to exactly ONE
-  binding arm rule and the counts sum exactly; a mismatch FAILS the run.
-- **G5 NO NEW STATISTIC.** No annualised figure, no Sharpe, no
-  time-to-recover, per the standing research-tier rule.
-- **G6 NO HARDCODED CENSUS.** Every count, percentage and range printed in
-  prose is computed from the run. A measured quantity frozen into a string
-  literal FAILS review.
-
-### What this is NOT
-
-The picks displaced by the 3/day cap carry no counterfactual in `account_sim`
-(`day3_cap skips carry no counterfactual replay`). This study sidesteps that by
-replaying the full survivor book rather than the account walk — but it
-therefore says nothing about CAPITAL feasibility, and its arms must never be
-compared against `account_sim`'s dollar totals. It also cannot separate
-concurrency from calendar clustering: the signal dates cluster hard (118 v3
-dates with nine months at ≤4 dates), so a high-concurrency session is often
-also a dense-episode session. ARM D0 reports the cross-tab; no criterion rests
-on it.

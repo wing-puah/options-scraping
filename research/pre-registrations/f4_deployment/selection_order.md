@@ -1,32 +1,41 @@
-## selection_order
+## selection_order — does a different entry-side order of the same candidates spend the delta budget better?
 
 _Registered 2026-08-14._
 
-**Question.** `account_sim` established that the binding constraint is delta
-exposure, not cash (`cash` binds ZERO times at both cap settings), and that the
-picks the net cap excludes outperform the picks it admits: meanR **+0.624
-rejected vs +0.290 taken** at 0.25x/2.50x, **+0.431 vs +0.278** at 0.25x/1.50x.
-Loosening the cap roughly DOUBLED the gap (+0.153 → +0.333), which is why no cap
-value may be read off P&L — the grid is monotone 4/4 by construction. What is
-readable is the **ordering**: the ladder-rank walk spends a scarce delta budget
-on earlier-ranked picks that underperform the ones it then excludes. This study
-asks whether a different, blind, entry-side ORDER of the same candidate set
-spends that budget better.
+## Question
+
+`account_sim` left one readable thread, and this study pulls it: does a
+different, blind, entry-side ORDER of the same candidate set spend the binding
+delta budget better?
+
+Three things `account_sim` established set it up:
+
+- The binding constraint is delta exposure, not cash (`cash` binds ZERO times
+  at both cap settings).
+- The picks the net cap excludes outperform the picks it admits: meanR
+  **+0.624 rejected vs +0.290 taken** at 0.25x/2.50x, **+0.431 vs +0.278** at
+  0.25x/1.50x.
+- Loosening the cap roughly DOUBLED the gap (+0.153 → +0.333), which is why no
+  cap value may be read off P&L — the grid is monotone 4/4 by construction.
+
+What is readable is the **ordering**: the ladder-rank walk spends a scarce
+delta budget on earlier-ranked picks that underperform the ones it then
+excludes.
 
 `account_sim`'s own follow-up (2) named this the pre-registerable item, and
 recorded the adverse-ordering read there as **post-hoc**. This registration is
 what makes a test of it admissible.
 
-**What this is NOT.** It is not a selection study. Selection is closed —
-structure × regime × entry geometry, `score_total` decision-irrelevant, the ML
-search null across 15 cells, reopen on **new COLUMNS only**. Tier MEMBERSHIP,
-the candidate universe, sizing, caps and exits are all frozen exactly as
-`account_sim` runs them. The only thing any arm changes is the sequence in which
-an already-eligible day's candidates are offered to the ledger.
+## What this is NOT
 
----
+It is not a selection study. Selection is closed — structure × regime × entry
+geometry, `score_total` decision-irrelevant, the ML search null across 15
+cells, reopen on **new COLUMNS only**. Tier MEMBERSHIP, the candidate universe,
+sizing, caps and exits are all frozen exactly as `account_sim` runs them. The
+only thing any arm changes is the sequence in which an already-eligible day's
+candidates are offered to the ledger.
 
-### Population and basis, fixed here
+## Population and basis, fixed here
 
 - Book: `load_book(include_bs=False)`, proxy calibration gate ON — the frozen
   795-row / 118-date basis. v4 rows never pooled in. `--structure-universe` is
@@ -40,7 +49,9 @@ an already-eligible day's candidates are offered to the ledger.
   signal picks and cannot displace one, so it is orthogonal to ordering and would
   only add variance.
 
-### Arms — frozen at six, no additions after any result is seen
+## Arms
+
+The arms are frozen at six; none may be added after any result is seen.
 
 Each arm is a `rank_fn` passed to `protocol.ordered_by_day`; higher sorts first.
 Every arm reads **entry-side fields only** (`delta`, `entry_underlying`,
@@ -61,7 +72,7 @@ explicit: **an arm must beat the random band, not merely beat O0.** If O0 itself
 sits inside the band, the adverse-ordering observation is an artifact of which
 picks the cap happened to exclude, and the thread closes.
 
-### Unit and metric
+## Unit and metric
 
 Unit of observation = **a contested date** — a session with ≥2 eligible
 candidates and ≥1 exclusion in `{day3_cap, net_delta, per_pos_delta}`. Uncontested
@@ -75,7 +86,9 @@ Dollars print alongside and are a sanity check only: an ordering change alters
 which positions get sized, so $ is composition-dependent in the same way a
 structure substitution is. **Quote R.**
 
-### Gates (non-zero exit on failure)
+## Gates
+
+Each gate exits non-zero on failure.
 
 - **G0 — POWER PRE-CHECK, runs FIRST and blocks everything.** Print the contested-date
   census and, per arm, the number of dates whose pick set differs from O0.
@@ -98,10 +111,12 @@ structure substitution is. **Quote R.**
   adoption-eligible numbers are LOO folds and `protocol.walk_forward_splits`
   TEST rows.
 
-### Bar for a candidate — an arm; the full conjunction, all of it
+## Bar for a candidate
 
-Registered as the corrected gate from 2026-07-22, plus the `bear_deploy` D4
-standard that is the only precedent here that ever passed:
+The unit judged here is an arm, and it must clear the whole conjunction below —
+every item, not most of them. It is registered as the corrected gate from
+2026-07-22, plus the `bear_deploy` D4 standard that is the only precedent here
+that ever passed:
 
 1. paired mean gain vs O0 > 0 with **date-clustered bootstrap CI excluding zero**
    (`BOOT_N = 10000`);
@@ -118,7 +133,7 @@ standard that is the only precedent here that ever passed:
 Failing any one is failing. No post-hoc relaxation, no arm added, no threshold
 moved after a number is seen.
 
-### Verdicts, worded now
+## Verdicts, worded now
 
 - **ORDERING-MATTERS** (candidate, NOT a ship): an arm clears all seven. Queues an
   independent-window confirmation; the ordering may then be proposed for
@@ -131,7 +146,7 @@ moved after a number is seen.
 - **POWER-STOPPED**: G0 fails → census only, nothing read, no re-run on these
   dates.
 
-### Anti-tuning
+## Anti-tuning
 
 Arms frozen at six. Caps, capital, risk %, positions/day, `take_floor`,
 `downsize` and the exit profile are NOT swept — they come from config and are
@@ -139,15 +154,20 @@ held at their committed values for every arm. No new columns. Random-control
 seed fixed and printed. Every arm's result is reported regardless of outcome,
 including the ones that lose.
 
-### Standing caveat that must appear in the report
+## Ship criteria
 
-The ladder is itself in-sample (fitted on this book), so an ordering evaluated on
-the same book is second-order in-sample. The only mitigations are that these are
-**mechanical entry-side rules with no fitted thresholds**, and that adoption
-requires out-of-fold survival. That caveat does not disappear if the numbers look
-good, and it is why nothing ships from this study under any outcome.
+Nothing ships from this study, and the report must carry the reason.
 
-### Build notes (not part of the registration)
+**Standing caveat that must appear in the report.** The ladder is itself
+in-sample (fitted on this book), so an ordering evaluated on the same book is
+second-order in-sample. The only mitigations are that these are **mechanical
+entry-side rules with no fitted thresholds**, and that adoption requires
+out-of-fold survival. That caveat does not disappear if the numbers look good,
+and it is why nothing ships from this study under any outcome.
+
+## Build notes
+
+*Not part of the registration — implementation, not commitment.*
 
 - Module `scripts/backtest_study/f4_deployment/selection_order.py`; run via
   `python -m scripts.backtest_study run selection_order`; report to

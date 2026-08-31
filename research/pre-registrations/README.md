@@ -38,12 +38,21 @@ Every file follows one template:
   line as the document's label — never demote it or put anything above it).
 - **First body line**: `_Registered YYYY-MM-DD._` — the original commitment
   date, and the only date the file carries.
-- **Sections**, in canonical order, each omitted when a study has nothing for
-  it (never an empty stub): Question · What this is NOT · Population and
-  basis, fixed here · Plan-time observations, disclosed · Arms · Unit and
-  metric · Gates · Bar for a candidate · Verdicts, worded now · Anti-tuning ·
-  Ship criteria · Build notes (the one section that is NOT part of the
-  registration — implementation, not commitment).
+- **Sections**, each a `## ` heading (the same level as line 1 — see
+  [`f1_selection/bear_arm.md`](f1_selection/bear_arm.md) for the reference
+  shape), in canonical order, each omitted when a study has nothing for it
+  (never an empty stub): Question · What this is NOT · Population and basis,
+  fixed here · Plan-time observations, disclosed · Arms · Unit and metric ·
+  Gates · Bar for a candidate · Verdicts, worded now · Anti-tuning · Ship
+  criteria · Build notes (the one section that is NOT part of the
+  registration — implementation, not commitment). `### ` sub-headings are
+  free inside a section (one per ARM, per gate group, …). Qualifiers that used
+  to live in headings ("in order", "frozen at two") sit in the section's first
+  sentence instead.
+- **Wording** is plain English. The files were re-edited for readability on
+  2026-08-31 with every number, ARM label, gate id, verdict token and
+  quotation held verbatim (a mechanical diff enforced it); what a registration
+  COMMITS did not change, only how it reads.
 
 The unifying property is that the same kind of content always has the same
 name and relative position — not that every file has every section.
@@ -118,4 +127,4 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 | [`f4_deployment/bear_deploy.md`](f4_deployment/bear_deploy.md) | `bear_deploy` — original D-rules carried over from `ml-plan.md` §addendum 2 + the 2026-08-24 v4 re-read (card-line decision rules; sleeve itself operator-policy, exempt) | graded |
 | [`f4_deployment/concurrency_correlation.md`](f4_deployment/concurrency_correlation.md) | `concurrency_correlation` — **module NOT yet written** (registered 2026-08-22; the plan exists before the code on purpose — see the file's own "dead ends" table for the v3 cuts it must not re-find) | registered |
 | [`f4_deployment/hedge_timing.md`](f4_deployment/hedge_timing.md) | `hedge_timing` — registered 2026-08-28, run and graded same day (era v4 + v3 replication). Does a mechanical trigger — chop, SPY gap-up, a 4–5-day down-run — pick a day the bear hedge beats the same day's ladder-eligible long? GAP-UP came back CONTRARY (hedge worse than the long, both money arms) — §4 prohibition drafted and HELD; chop and the broad decline NULL; the strict streak UNDERPOWERED as fixed in advance (2 book dates). | graded |
-| [`f4_deployment/hedge_exposure.md`](f4_deployment/hedge_exposure.md) | `hedge_exposure` — **module NOT yet written** (registered 2026-08-29). The operator's queued max-drawdown mechanism question, scoped to their actual practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? Path-shaped metrics (max DD, Ulcer, time-under-water over 504 open sessions) deliberately replace the worst-decile shape that killed `calendar_hedge`. Discloses at plan time that the constituent stratum — the operator's literal practice — is expected to be POWER-STOPPED at 16–24 sessions. | registered |
+| [`f4_deployment/hedge_exposure.md`](f4_deployment/hedge_exposure.md) | `hedge_exposure` — registered 2026-08-29, built, run and graded 2026-08-31 (era v4). The operator's queued max-drawdown question, scoped to their practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? The registration's population clause was self-contradictory; the operator ratified `all` (996 rows / 145 dates) — see [`../hedge-exposure-errata.md`](../hedge-exposure-errata.md). Result: the mechanism question is UNDERPOWERED (all nine cells), ARM M is MEASUREMENT-ONLY (the close-bucketed curve understates this book's max drawdown by 40.2%). Nothing ships; the question stays open. | graded |

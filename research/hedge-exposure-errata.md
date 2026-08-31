@@ -1,5 +1,24 @@
 # `hedge_exposure` — errata and fix plan
 
+> **STATUS (2026-08-31): every item in this file is CLOSED.** ERRATUM 1 was
+> resolved by the operator's ratification (§RATIFICATION below — population
+> `all`); ERRATUM 2 stands as a permanent status (ARM P is inert as registered
+> and has NOT been redefined); fix plans F1–F7 and F8–F16 are all applied (the
+> 2026-08-31 entries in `current.md` record the pass); and the
+> post-ratification decision to record ARM M's 40.2% understatement in
+> `deployment-evidence.md` is done.
+>
+> **Why the file stays.** The registration is immutable and self-contradictory
+> without this file. `scripts/study_review` inlines it as grading authority
+> (`config.ERRATA_PATTERN`), `hedge_exposure.py::RATIFICATION_SOURCE` names it,
+> and `tests/test_studies_hedge_exposure.py` / `tests/test_study_review.py`
+> assert on it. Do not move, rename or delete it.
+>
+> **What is binding now:** §RATIFICATION and §Post-ratification notes. The
+> sections above them are the record of how the defects were found and fixed;
+> the paragraph "No result from this study may be recorded until…" just below
+> was superseded by the ratification and is kept as history.
+
 _Opened 2026-08-29, after the first build and its three-lens audit._
 
 The pre-registration

@@ -2,14 +2,15 @@
 
 _Registered 2026-08-11._
 
-Module: `scripts/backtest_study/f1_selection/ml_combination.py`. This study's
-pre-registration was written on 2026-08-11 in `research/ml-plan.md` — before
-this folder existed, before the module was written, and before any code ran.
-It therefore had no file here and could not go through `study_review`. This
-file carries the commitments over so a run can be graded; every criterion
-below is **quoted**, not restated. `research/ml-plan.md` itself was removed on
-2026-08-24 once its three studies had files of their own — its original text
-is in git (`git show 42b5e46:research/ml-plan.md`).
+Module: `scripts/backtest_study/f1_selection/ml_combination.py`.
+
+The plan was written on 2026-08-11 in `research/ml-plan.md` — before this
+folder existed, before the module was written, and before any code ran. It
+therefore had no file here and could not go through `study_review`. This file
+carries the commitments over so a run can be graded; every criterion below is
+**quoted**, not restated. `research/ml-plan.md` itself was removed on
+2026-08-24 once its three studies had files of their own — its original text is
+in git (`git show 42b5e46:research/ml-plan.md`).
 
 The same document registered two other arms, each now its own file:
 [`bear_arm.md`](bear_arm.md) (the BEAR arm, B1/B2) and
@@ -24,20 +25,24 @@ DEPLOY arm, D1–D5).
 
 ## What this is NOT
 
-- Not a licence to ship a score. **Ship form**, quoted: "only human-readable
+Three scope limits, all fixed before the search began.
+
+- **Not a licence to ship a score.** Ship form, quoted: "only human-readable
   rules ship (deployment-rules.md is an operator checklist). A black-box score
   never gates deployment; at most it tie-breaks within a tier, clearly
   labelled with its validation window."
-- Not a deep-learning study. Ground rule 5: "At ~800 usable rows / ~118 dates,
-  the model class is regularized linear, shallow trees, and gradient boosting
-  with heavy regularization. Anything bigger fits the windows, not the market."
-- Not an exit study. Only `M3` — the single depth-3 tree — has an output that
-  may ship, "because only it reduces to a human checklist".
+- **Not a deep-learning study.** Ground rule 5: "At ~800 usable rows / ~118
+  dates, the model class is regularized linear, shallow trees, and gradient
+  boosting with heavy regularization. Anything bigger fits the windows, not the
+  market."
+- **Not an exit study.** Only `M3` — the single depth-3 tree — has an output
+  that may ship, "because only it reduces to a human checklist".
 
 ## Population and basis, fixed here
 
 One row per priced play from the deduped pooled book (dedup key
-`date|ticker|structure|play`, within-tab then proxy-minus-real).
+`date|ticker|structure|play`, within-tab then proxy-minus-real). Three ground
+rules bind how that book may be read.
 
 - **Ground rule 2 — everything date-clustered.** "Rows within a signal_date
   share the tape; the effective sample is ~118 dates, not ~1,100 rows. All CV
@@ -68,7 +73,7 @@ in full:
 > - Calendar: day-of-week, month (regularized hard; these are confound
 >   detectors, not features to ship).
 
-**Settled at kickoff, before any code ran:**
+Three further choices were **settled at kickoff, before any code ran:**
 
 1. "**2026 rows train.** They enter the expanding walk-forward (so they are
    only ever *tested* out-of-fold), rather than being held out wholesale …
@@ -81,6 +86,8 @@ in full:
 
 ## Plan-time observations, disclosed
 
+The plan discloses, up front, the failure modes this study could repeat:
+
 > The tuning history (current.md + archive/) already burned every failure mode
 > this study is exposed to: post-hoc slicing generating three verdicts in one
 > session (addenda 11–14), composition proxies masquerading as signal
@@ -89,14 +96,15 @@ in full:
 > monotone on noise (07-19 vs 07-21). ML amplifies all four if the protocol is
 > loose.
 
-The Phase-4 ablation's expected answer is disclosed up front: "The 07-21
+The Phase-4 ablation's expected answer is disclosed too: "The 07-21
 column sweep predicts: little — only delta+dte on bull_put and iv_spread on
 bear_put were decision-relevant."
 
 ## Arms
 
-Labels are study-local. `B1`/`B2` here are **baselines**, not `bear_arm`'s
-selection/exit criteria of the same letters — see
+Six arms: three baselines and three models, of which only `M3` can ship.
+Labels are study-local — `B1`/`B2` here are **baselines**, not `bear_arm`'s
+selection/exit criteria of the same letters; see
 [`../../arm-index.md`](../../arm-index.md).
 
 - `B0` (baseline, the benchmark) — "ladder replay out-of-fold".
@@ -120,6 +128,9 @@ does not ship, whatever its AUC."
 
 ## Unit and metric
 
+The selection measure is E; R is for evaluation only, and every metric is cut
+three ways.
+
 - **Labels:** "primary **E** (`pnl_at_cap_pct`, exit-free — the selection
   measure per addendum 13); secondary **R** (PROD exits) and binary E>0.
   Optional auxiliary: MFE-asymmetry class, for interpretation only."
@@ -137,6 +148,8 @@ GroupKFold(signal_date) for variance estimates only."
 
 ## Gates
 
+Four checks, each of which can stop a result from being called signal.
+
 - **Leakage audit — gate to Phase 1.** "for each feature, verify it is
   available at deployment time. oi_confirm_pct is D+1-enriched and live
   analysis runs after enrich_oi lands, so it is legitimate; anything computed
@@ -147,11 +160,11 @@ GroupKFold(signal_date) for variance estimates only."
 - **Window-dominance checks are mandatory** (ground rule 4). "Every headline
   reported ALL / ex-Mar–Apr-2025 / ex-Feb–Apr-2026. A learned rule whose gain
   concentrates >70% in one window is recorded, not shipped."
-- **"Composition-proxy test (rule 7)."** — the original's own label; it is the
-  SIXTH item in the ground-rules list, and "rule 7" is how the document names
-  it, including in the Phase-4 cross-reference. "Any feature the model ranks
-  highly must be re-tested *within* structure before being named as signal —
-  the oi_confirm/iv_pct trap."
+- **"Composition-proxy test (rule 7)."** — the original's own label. "Any
+  feature the model ranks highly must be re-tested *within* structure before
+  being named as signal — the oi_confirm/iv_pct trap." It is the SIXTH item in
+  the ground-rules list, but "rule 7" is how the document names it, including
+  in the Phase-4 cross-reference.
 - **Stability** (Phase 4). "refit per year, compare feature rankings; a
   combination that reorders every refit is window fit."
 
@@ -197,9 +210,9 @@ Phase 5, "written now, evaluated once, no re-cuts":
 
 ## Ship criteria
 
-Only `M3`, and only as a human-readable checklist, per **Ship form** above. A
-model score may at most tie-break within a tier, labelled with its validation
-window; it may never gate deployment.
+Only `M3` may ship, and only as a human-readable checklist, per **Ship form**
+above. A model score may at most tie-break within a tier, labelled with its
+validation window; it may never gate deployment.
 
 ## Build notes
 
@@ -209,11 +222,12 @@ window; it may never gate deployment.
   block, and the module docstring): "sklearn HistGradientBoosting in place of
   LightGBM/XGBoost, and an added 'abstain' replay variant so the ladder's
   right to trade nothing is not an unfair advantage."
-- **Artifacts + hygiene, as registered:** code under
-  `scripts/backtest_study/` — TRACKED, not `backtests/`; the loader
+- **Artifacts + hygiene, as registered:** code lives under
+  `scripts/backtest_study/` — TRACKED, not `backtests/`; outputs go to
+  `backtests/study_output/`. The loader
   (`scripts/backtest_study/lib/book.py`) is a port of the same
   dedup/calibration as `exit_switch_mech_study.py` "so setup differences can't
-  explain answer differences"; outputs to `backtests/study_output/`.
+  explain answer differences".
 - **Era.** Registered and first run on the **v3** book (2026-08-11, Phase 5
   NULL RESULT). The same code has since been re-read on era **v4**
   (2026-08-22, 2026-08-24 — the gap widened against the models, `M3` paired R

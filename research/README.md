@@ -171,7 +171,7 @@ its own banner and the arms never share an artifact.
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst independent-replication protocol (`research-analyst` × 2 + `research-validator`) for grading study reports and exploring train splits. |
 | [`pre-registrations/`](pre-registrations/) | One immutable file per study: the plan written *before* the run. Kept out of `current.md` so it survives pruning. |
 | [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export ERA, quoted verbatim. Foldered `f1_selection/` → `f4_deployment/`, mirroring `scripts/backtest_study/`. Written by `make study-record` from the gitignored reports, so a result survives the scratch being overwritten — which is exactly what cost ~15 reports on 2026-08-15. `current.md` holds the reasoning; this holds the index. |
-| [`backlog.md`](backlog.md) | The 2026-06 backtest-engine backlog, **triaged 2026-08-15**. Historical: one item is still open (per-play `invalidation` exits), the rest is fixed, superseded, or *refuted* — including the structure read, which inverted. Not the live queue; that is [`next-steps.md`](next-steps.md) §2. |
+| [`archive/00-backtest-engine-backlog-2026-06.md`](archive/00-backtest-engine-backlog-2026-06.md) | The 2026-06 backtest-engine backlog, **triaged 2026-08-15**, archived 2026-08-31. Historical: one item is still open (per-play `invalidation` exits), the rest is fixed, superseded, or *refuted* — including the structure read, which inverted. Not the live queue; that is [`next-steps.md`](next-steps.md) §2. |
 
 The evidence file is a *summary of* this log, not a second source — when the two
 disagree, the log wins.
@@ -251,10 +251,29 @@ disagree, the log wins.
 | 2026-08-13 — `volume_signal` RUN: NULL — the volume column is closed | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
 | 2026-08-13 — `account_sim` COMPOUNDING arm: costs money on this book; A2/A5 do not transfer | [archive/14](archive/14-volume-signal-demotion-and-audit.md) |
 | 2026-08-14 — `selection_order`: PRE-REGISTRATION (six ordering arms, O4 random control, G0 power pre-check) | [pre-registrations/f4_deployment/selection_order.md](pre-registrations/f4_deployment/selection_order.md) |
-| 2026-08-14 — `selection_order` RUN: POWER-STOPPED at G0 — 7–14% of the book moves, nothing read, nothing refuted | [current.md](current.md) |
-| 2026-08-14 — study-suite triage: DEBIT_PROD exact-replay gate unsatisfiable; `bear_position_study` R partly contaminated | [current.md](current.md) |
-| 2026-08-15 — structure-name defect FIXED: `bear put debit spread` backtested as a single long option; v4 re-run, v3 frozen | [current.md](current.md) |
-| 2026-08-14 — three carried follow-ups closed: verdict grammar TOTAL, ARM H sizing floor skips, criterion (4) reworded | [current.md](current.md) |
-| 2026-08-14 — `run --all` GREEN: two dead studies RETIRED, designed refusal now a runner status | [current.md](current.md) |
-| 2026-08-14 — study-suite triage FIXED: gate classifies instead of asserting; `exit_basis` column UNUSABLE | [current.md](current.md) |
-| 2026-08-15 — `account_sim --live-select` ARM ADDED: shipped selector run under history; 150 unpriceable candidates, 37 below-top-3 slots, §1.3 veto gap | [current.md](current.md) |
+| 2026-08-14 — `selection_order` RUN: POWER-STOPPED at G0 — 7–14% of the book moves, nothing read, nothing refuted | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-14 — study-suite triage: DEBIT_PROD exact-replay gate unsatisfiable; `bear_position_study` R partly contaminated | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-15 — structure-name defect FIXED: `bear put debit spread` backtested as a single long option; v4 re-run, v3 frozen | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-14 — three carried follow-ups closed: verdict grammar TOTAL, ARM H sizing floor skips, criterion (4) reworded | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-14 — `run --all` GREEN: two dead studies RETIRED, designed refusal now a runner status | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-14 — study-suite triage FIXED: gate classifies instead of asserting; `exit_basis` column UNUSABLE | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-15 — `account_sim --live-select` ARM ADDED: shipped selector run under history; 150 unpriceable candidates, 37 below-top-3 slots, §1.3 veto gap | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-15 — `enrich_queue_pilot` COMPLETE: kill switch NOT fired (deployed yield 9/10); queues a/b GO | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) |
+| 2026-08-19 — `account_sim` on v4: the date floor is not a density floor | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `calendar_hedge` R4: a gate keyed to a snapshot is not a gate | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `macro_event_study` first run (v3): tight windows UNDERPOWERED; NFP only readable cell; ARM X trigger fired, then killed by the survival control | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `staged_exit` first run (v3): reactive-exit null EXTENDS to scheduled switches; 0 of 36 powered cells clears the CI | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `emission_timing` first run (v3): ARM L LAG-TOLERANT (no decay within three sessions); ARM P NULL | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `financed_spread` first run (v3): all seven cells NULL; naked short HARMFUL; post-scrape run’s one CANDIDATE (F4-d20 HOLD) | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — `portfolio_delta` first run (v3): NOISE on the primary; ladder is LONG-ONLY BY CONSTRUCTION | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-19 — Disagreement logs, four-study + `financed_spread` replication reviews | [archive/16](archive/16-first-runs-on-v3.md) |
+| 2026-08-22 — "POWER STOP" RETIRED for UNDERPOWERED; `ml_combination` v4 debut FIXED | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-22 — `concurrency_correlation`: PRE-REGISTRATION (ladder DEPTH is not the problem, book SIZE is unmeasured) | [pre-registrations/f4_deployment/concurrency_correlation.md](pre-registrations/f4_deployment/concurrency_correlation.md) · [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-24 — v4 refresh evaluated: first rollback-trigger census (`be_after` REVERTED), credit book calibrates, `exit_mechanism_study` repaired; ARM P "candidate" OFF-BASIS | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-24 — `bear_deploy` registered and graded: pick line PULLED, sleeve = operator policy, far-OTM prohibition retained; D1 window check made fail-closed | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-24 — docs: ARM labels STUDY-LOCAL (`arm-index.md`); pre-registrations consolidated to one template; `ml-plan.md` split and deleted | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-27 — full-suite re-run on the 140-date book; one HARD row blocks the debit exit family; two fixes (reports repaired, HYG boundary-tie widened) unblock it | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) |
+| 2026-08-28 — `hedge_timing` (f4, NEW): GAP-UP CONTRARY, §4 prohibition drafted and HELD; chop / broad decline NULL; strict streak UNTESTABLE | [current.md](current.md) |
+| 2026-08-29 — feasibility pass for the queued max-drawdown hedge study (design notes, not a registration) | [current.md](current.md) |
+| 2026-08-31 — `hedge_exposure`: built, run, verdict-less by design; two errata; independent audit F8–F16; RATIFIED population `all` → UNDERPOWERED + MEASUREMENT-ONLY (curve understates max DD by 40.2%) | [current.md](current.md) |
+| 2026-08-31 — `study_review` inlines a study’s errata as authority; ARM M’s understatement recorded against D3 / H3 / H4 | [current.md](current.md) |
