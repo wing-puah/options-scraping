@@ -48,6 +48,16 @@ from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f1_selection.bear_arm import BEAR_STRUCTURES, clause_vocabulary  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
+# The ONE drawdown implementation in the research tier lives in `lib/`, beside
+# the other path statistics (Ulcer, time-under-water) that speak the same
+# per-session-change shape. It used to be defined HERE and imported UPWARDS by
+# `lib/mtm_curve.py` — a lib module executing an f4 study on import, the
+# inversion `lib/greeks.py`, `lib/sectors.py` and `lib/hedge_instrument.py`
+# each state and honour the opposite of. Re-exported under this module's name
+# so every existing `from ...bear_deploy import max_drawdown` still resolves to
+# the SAME function object, which is what keeps D3's dollar-drawdown criterion
+# one implementation rather than two.
+from scripts.backtest_study.lib.mtm_curve import max_drawdown  # noqa: E402,F401
 
 # The exit B2 recommended (bear_arm's B2, MET 2026-08-11). Bear-KEYED: it is only
 # ever applied to bear debit rows here, never to the rest of the book.
@@ -288,15 +298,9 @@ def d2_hedge(deployed, bear_rows):
 # D3 — sizing
 # ════════════════════════════════════════════════════════════════════════════
 
-def max_drawdown(series):
-    """Max peak-to-trough drawdown of a cumulative dollar curve."""
-    peak, mdd = 0.0, 0.0
-    cum = 0.0
-    for v in series:
-        cum += v
-        peak = max(peak, cum)
-        mdd = min(mdd, cum - peak)
-    return mdd
+# `max_drawdown` is imported at the top of this module from
+# `lib/mtm_curve.py`, which now owns it. It is re-exported here unchanged, so
+# D3's criterion below and every caller elsewhere run the identical function.
 
 
 def _sleeve_dollars(bear_rows, picker, gate=None):

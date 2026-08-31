@@ -97,7 +97,12 @@ def test_every_arm_label_is_indexed(source: Path) -> None:
 
 
 def test_index_covers_the_known_collisions() -> None:
-    """The four `ARM P` owners are the reason this file exists — pin them."""
+    """The `ARM P` owners are the reason this file exists — pin them.
+
+    Five now: `hedge_exposure` registered its own `ARM P` (the prose-free
+    counterpart to `ARM CS`) on 2026-08-29. The pin is updated when a study
+    genuinely claims the label, never to make a collision go quiet.
+    """
     text = INDEX.read_text(encoding="utf-8")
     owners = {
         study
@@ -109,4 +114,5 @@ def test_index_covers_the_known_collisions() -> None:
         "macro_event_study",
         "bear_giveback",
         "bear_rewrap",
+        "hedge_exposure",
     }, f"ARM P owners drifted: {sorted(owners)}"

@@ -220,6 +220,43 @@ trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
   `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
   `ARM H4-DECLINE`.
 
+#### `hedge_exposure` — [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md), `f4_deployment/hedge_exposure.py`
+
+Grid: 3 τ × 3 f = 9 cells per arm, fixed at registration and never expanded.
+`ARM C` here is NOT `concurrency_correlation`'s `ARM C` (a concurrency
+ceiling) and `ARM N` is the third `ARM N` in this family — same random-null
+role, different study.
+
+- `ARM M` (arm) — MEASUREMENT. The SAME unhedged book on both equity curves,
+  mark-to-market (from `daily_pnl_csv`) versus realized-on-close
+  (`account_sim.equity_curve`). Runs first, gates nothing, and is the only arm
+  that returned a finding.
+- `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
+  cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
+  sized at f ∈ {0.25, 0.50, 1.00} of a standard position's risk. Carries no
+  prose.
+- `ARM CS` (arm) — `ARM C` plus the analysis prose's `hedge-pressure ≥ 50`.
+  PROSE-CONDITIONED; a date with no parse is NO SIGNAL.
+- `ARM P` (arm) — The prose-free counterpart on exactly `ARM CS`'s session set.
+  Written `**ARM P**` in `lib/hedge_instrument.py`, so the emphasis markers
+  travel with the token: `P**` is this same arm.
+- `ARM N` (arm) — Random-admission null, 200 seeds, matched on episode COUNT,
+  episode LENGTHS and PROXY mix. An arm must beat its 95th percentile, not
+  merely beat the unhedged book. COLLIDES with `portfolio_delta`'s and
+  `concurrency_correlation`'s own `ARM N` — same role, different study.
+- `ARM B` (arm) — Instrument comparison: the book's own bear row instead of the
+  put. It cannot remove the §4 sleeve, which is operator policy.
+- `ARM R` (arm) — Always-fillable reference: a delta-equivalent SHORT in the
+  proxy underlying. Clause 7's control — a put arm that merely matches it is
+  A RESTATEMENT OF DELTA REDUCTION. NOT `account_sim`'s `ARM R` (reject on
+  admission failure). Written `**ARM R**` in `lib/hedge_instrument.py`, so
+  `R**` is this same arm.
+- `ARM RF` (arm) — Not pre-registered: `ARM R`'s fill-INDEPENDENT floor, sized
+  off fraction f of the concentrated cluster's own signed delta notional rather
+  than off `ARM C`'s put. It exists because the registration's `ARM R` is
+  delta-matched to a put and so depends on the option cache it was introduced
+  to be free of. Reference only; no verdict is read from it.
+
 #### `portfolio_delta` — [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)
 
 - `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.

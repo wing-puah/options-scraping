@@ -552,6 +552,40 @@ STUDIES: dict[str, Study] = {
                 "consistent incl. 2026 (-$2,640). Nothing ships; forward trigger: >=25 "
                 "strict-streak dates or >=25 post-2025-11-04 dates.",
     ),
+    "hedge_exposure": Study(
+        family="deployment", state="open",
+        question="When the open book is CONCENTRATED in one correlated cluster, does adding "
+                 "a long put on that cluster's proxy reduce the book's MARK-TO-MARKET "
+                 "drawdown, versus carrying the same concentrated book unhedged?",
+        verdict="UNCONCLUDED — no verdict is recorded, on purpose. The first run "
+                "(2026-08-29) printed one, and a three-lens audit the same day found the "
+                "defects behind it; they are written up in "
+                "research/hedge-exposure-errata.md and the fixes are applied. Two of them "
+                "are why this line says nothing. ERRATUM 1: the registration's population "
+                "clause names two DIFFERENT books — the literal "
+                "load_book(include_bs=False) call and the row/date count only the raw "
+                "BacktestResults stratum matches — and the choice decides how many cells "
+                "are powered at all, so a verdict would be a choice dressed as a finding. "
+                "The study now prints gates, cell shape and cell-level words under BOTH "
+                "populations, with every count computed at run time, and emits no "
+                "study-level verdict; the operator ratifies a reading before anything is "
+                "recorded here or in research/study-results/. ERRATUM 2: ARM P is "
+                "DEGENERATE AS WORDED — restricting ARM C to ARM CS's sessions and then "
+                "dropping the prose condition yields ARM CS's sessions — so the study's "
+                "only control on the disclosed model-recall lookahead does not exist and "
+                "the binding prose rule is unreachable by construction. ARM P is declared "
+                "INERT AS REGISTERED and has NOT been redefined, which would be a post-hoc "
+                "arm. Also fixed and not yet read from: CONTRARY now carries the "
+                "positive bar's clause set sign-inverted (it previously needed none); "
+                "G-MTM reconciles the marked exit against the row's STORED "
+                "realized_pnl_abs instead of against the same replay it took the exit "
+                "index from; the month-shuffle bootstrap is replaced by a chronological "
+                "moving block; ARM RF is labelled UNREGISTERED — ADDED AFTER COMMIT "
+                "wherever it prints. Nothing ships, and nothing is claimed.",
+        attention="Population clause needs an operator ruling: the study reports both "
+                  "readings and concludes from neither until one is ratified. See "
+                  "research/hedge-exposure-errata.md, ERRATUM 1.",
+    ),
 }
 
 # ── infrastructure ────────────────────────────────────────────────────────────
@@ -594,6 +628,32 @@ INFRA: dict[str, str] = {
                       "place of lib/book.py's port of the ladder, and reports selection "
                       "coverage, ladder divergence, and the judge layer's bounded effect. "
                       "Carries no verdict — it is not a study.",
+    "lib/sectors.py": "The ticker -> correlated-cluster map, the repo's SINGLE encoding: "
+                   "11 clusters, one proxy each, residual BROAD -> SPY, and four clusters "
+                   "(ENERGY/FINL/CRYPTO/INTL) marked UNHEDGEABLE with the reason carried as "
+                   "DATA so a caller branches on the map rather than on a cluster name. "
+                   "Transcribed verbatim from hedge_exposure's committed constant and shared "
+                   "with concurrency_correlation's ARM K, which imports it rather than "
+                   "restating it — two maps would let two studies disagree about what 'same "
+                   "sector' means.",
+    "lib/concentration.py": "The concentration trigger layer for hedge_exposure: per-session "
+                   "open-book occupancy, each cluster's signed delta notional, the "
+                   "largest-cluster share that IS the independent variable, the "
+                   "DIRECT/CONSTITUENT stratum, the hedge-pressure parse, and the census "
+                   "G-CENSUS prints. A missing greek is None and the position leaves BOTH "
+                   "numerator and denominator — deliberately unlike account_sim.signed_dn's "
+                   "0.0, which here would shrink the denominator and move the trigger.",
+    "lib/mtm_curve.py": "The MARK-TO-MARKET book equity curve, built from daily_pnl_csv, "
+                   "beside the close-bucketed one account_sim already produces — plus the "
+                   "per-position G-MTM reconciliation between them and the path statistics "
+                   "(max drawdown via bear_deploy's own function, Ulcer, time-under-water). "
+                   "Both bases come back from one call so a caller cannot mix them.",
+    "lib/hedge_instrument.py": "Hedge instrument selection and pricing for hedge_exposure: "
+                   "the proxy put under the two committed fill rules (band 25-75 DTE / "
+                   "+/-5%, nearest-available anchored at 45 DTE within 20-120), the "
+                   "delta-equivalent underlying short, and the G-FILL coverage report. "
+                   "Returns None rather than a fabricated fill; the rescaled-ticker "
+                   "exclusion is a rescaled_tickers() call, not a name list.",
     "lib/protocol.py": "The four defences every conclusion rests on: date clustering, purging "
                    "plus a 120-day embargo, same-dates comparison, and window-dominance "
                    "re-cuts.",
