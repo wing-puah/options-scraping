@@ -3516,3 +3516,75 @@ dollars above it. Every discretionary choice — 20 of them — is now in one
 consolidated NOT PRE-REGISTERED block naming the clause it feeds.
 
 Suite 2543 passed. Still no study-level verdict, still nothing shipped.
+
+### 2026-08-31 — RATIFIED: population `all`, and the verdict that follows
+
+**Operator ratification (recorded in `research/hedge-exposure-errata.md`):
+the population is `all` — the literal `load_book(include_bs=False)` call,
+996 rows / 145 signal dates (real 485 + tweak 511). `real` is retained as a
+reported stratum, not a co-primary.**
+
+The operator's argument, which is better than the one this log was leaning
+toward: a `tweak` row is a `strike_expiry_tweak` substitution carrying a REAL
+Barchart price for a nearby strike/expiry (model-priced `bs` rows stay
+excluded). And the substitution is not merely harmless, it is REPRESENTATIVE —
+the operator does not follow a proposed leg's strike and expiry precisely at
+execution, so a book admitting that substitution is the closer model of their
+real trading. Excluding 511 real-priced rows would need a positive reason and
+there is none. The counter-argument (the registration's plan-time disclosures
+reproduce on `real` alone) survives as a stated LIMITATION rather than a
+decision rule: those disclosures describe the `real` stratum, not the ratified
+book, and must not be read as disclosures about it.
+
+**VERDICT — the mechanism question: UNDERPOWERED.** Every cell of the τ × f
+grid fails G-POWER on the ratified population, under POOLED, DIRECT and
+CONSTITUENT alike. No direction is quoted from any of them. The queued
+max-drawdown question stays OPEN.
+
+**VERDICT — ARM M: MEASUREMENT-ONLY, and it is the sharper result.** On the
+ratified book the same unhedged book measures maxDD **−$32,571 mark-to-market
+against −$23,239 close-bucketed** — the close-bucketed curve **understates max
+drawdown by 40.2%**. The registration's own wording for MEASUREMENT-ONLY is
+that it "would mean the programme's prior nulls were measured on a blind
+instrument without a hedge mechanism yet being found." That is what ARM M now
+shows. `bear_deploy` D3, `calendar_hedge` H3 and `hedge_timing` H4 all STAND,
+but each was read on that curve, so their measurement basis is a known
+limitation of theirs.
+
+Both words are emitted because the registration defines them over different
+objects and orders neither; ARM M is not power-gated, so it is powered exactly
+when the cells are not.
+
+#### The finding that most deserves a second look: the bigger book DILUTES
+
+| | `real` (485) | `all` (996, ratified) |
+|---|---|---|
+| any-cluster concentration, median | 0.301 | **0.209** |
+| p75 / p90 | 0.398 / 0.572 | 0.268 / 0.400 |
+| τ=0.30 triggers | 256 sessions / 32 episodes | **91 / 18** |
+
+Doubling the book HALVES the triggers. Adding 511 positions spreads exposure
+across more clusters, so no single cluster reaches τ as often — that, not a
+shortage of dates, is why every cell is power-stopped. It also falsifies the
+registration's disclosed power prediction, which expected only the CONSTITUENT
+stratum to be power-stopped "so a later underpowered result reads as predicted,
+not as a disappointment." POOLED and DIRECT are power-stopped too.
+
+**This does not reopen the ratification** — the pricing argument is sound and
+untouched. But admitting `tweak` rows does two separable things: it makes the
+PRICES representative of real execution, and it makes the BOOK bigger and more
+diversified. Only the first was argued. The second is right only if every
+proposed play would in fact have been held concurrently; if a subset is taken in
+practice, the ratified book understates concentration and this study measures a
+more diversified book than the operator runs. A third reading — tweak PRICES
+with an admission/concurrency model over what is held at once — is neither
+reading the registration names and would need its own registration.
+
+Two further reading notes, both in the errata: MEASUREMENT-ONLY's plain reading
+over-claims here, because "no hedge cell clears the bar" is true VACUOUSLY (no
+cell was evaluated at all, rather than nine being judged and failing); and the
+registration's Ship criteria has no branch for UNDERPOWERED + MEASUREMENT-ONLY,
+so whether the ARM M finding is recorded in `research/deployment-evidence.md`
+against D3/H3/H4 is an operator decision it does not make.
+
+Suite 2550. Nothing ships; no rule moves; the §4 sleeve is untouched.

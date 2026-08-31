@@ -52,3 +52,26 @@ RESULT — NO STUDY-LEVEL VERDICT IS EMITTED
     powered POOLED cells 0   POOLED cell words: UNDERPOWERED 9
 ```
 
+
+## era v4 · inputs ef2016f · sha 7965db6 — recorded 2026-08-31
+<!-- key era=v4 sha=7965db6 inputs=ef2016f -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 815 spy_vix_daily_full  (inputs dated 2026-08-27 20:34 … 2026-08-29 14:01)
+run         2026-08-31 14:52:01 · git 7965db6 (main, working tree dirty) · exit 0 · 60.0s
+command     python -m scripts.backtest_study.f4_deployment.hedge_exposure
+excerpt     verdict
+
+```
+CELL TALLY — population all   (no verdict is read from it)
+  POOLED (not a stratum — the pooled trigger):
+    UNDERPOWERED       9 cell(s)
+  DIRECT:
+    UNDERPOWERED       9 cell(s)
+  CONSTITUENT:
+    UNDERPOWERED       9 cell(s)
+  Cell-level words only. The registration's study-level verdicts
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  MEASUREMENT-ONLY) are emitted ONCE, in the closing section, and only off the
+  RATIFIED population — never from this tally and never per population.
+```
+
