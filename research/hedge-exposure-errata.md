@@ -291,3 +291,77 @@ folded into BROAD" guarantee covers NAMED tickers only. 2024-01-10 is in the
 504-session trigger universe but not on the 551-session MTM axis, so the two axes
 are not nested (immaterial — it is an episode's opening session, which contributes
 zero by construction).
+
+---
+
+# RATIFICATION — operator, 2026-08-31
+
+**ERRATUM 1 is resolved. The ratified population is `all`: the literal
+`load_book(include_bs=False)` call, 996 rows / 145 signal dates
+(real 485 + tweak 511).**
+
+**The operator's reasoning, recorded because it is the substantive argument and
+it is not the one this file made.** A `tweak` row is a `strike_expiry_tweak`
+substitution from `BacktestProxy` — a nearby strike/expiry standing in for a
+contract the real backtest could not price. Those are REAL prices scraped from
+Barchart, not model prices (`bs_options_hist` rows remain excluded by
+`include_bs=False`, per the 2026-08-11 decision that they are replay-
+contaminating). And the substitution is not only harmless here, it is
+REPRESENTATIVE: the operator does not follow the proposed leg's strike and
+expiry precisely at execution. A book that admits a nearby-strike substitution
+is therefore a CLOSER model of the operator's real trading than one that
+requires an exact contract match. Excluding those 511 rows would need a positive
+reason, and there is none on the table.
+
+This supersedes the argument this file previously leaned toward — that the
+registration's plan-time disclosures (the exposure table, the concentration
+quantiles, the 504-session universe) reproduce on `real` alone and so `real`
+must be the disclosed population. That remains TRUE and is now a stated
+limitation rather than a decision rule: **the registration's plan-time
+observations describe the `real` stratum, not the ratified population.** A
+reader must not take them as disclosures about the 996-row book. The
+concentration quantiles, exposure shares and session universe under `all` are
+printed by the run itself and are the figures that describe it.
+
+**`real` is retained as a reported stratum, not a co-primary.** Both readings
+print, as they have since F3; the verdict is read off `all`.
+
+**Consequences, fixed by this decision and not chosen after seeing them.**
+
+1. **The mechanism question is UNDERPOWERED.** All nine cells fail G-POWER
+   under `all`. No direction is quoted from any of them, ever.
+2. **ARM M returns MEASUREMENT-ONLY, and it is the sharper result.** Under
+   `all` the two curves differ by far more than under `real`:
+
+   | population | MTM maxDD | close maxDD | gap |
+   |---|---|---|---|
+   | `real` (stratum) | −$21,890 | −$22,592 | MTM better by $702 (3.1%) |
+   | **`all` (ratified)** | **−$32,571** | **−$23,239** | **MTM worse by $9,332 (40.2%)** |
+
+   The registration's own wording for MEASUREMENT-ONLY says it "would mean the
+   programme's prior nulls were measured on a blind instrument without a hedge
+   mechanism yet being found." On the ratified population that is exactly what
+   ARM M shows: the close-bucketed curve understates this book's max drawdown
+   by 40%.
+
+**Both words are emitted, because they answer different questions and the
+registration defines them over different objects.** UNDERPOWERED is defined by
+G-POWER failing (the hedge cells); MEASUREMENT-ONLY is defined by ARM M
+differing materially while no cell clears the bar (the measurement). ARM M is
+not power-gated — it is the whole book over its full session axis and it gates
+nothing — so it is powered when the cells are not. Emitting only UNDERPOWERED
+would suppress a result the registration explicitly calls "a real, reportable
+outcome"; emitting only MEASUREMENT-ONLY would imply the cells were read. The
+registration does not order the two, and neither is weakened by the other.
+
+**What this does NOT do.** It ships nothing. It does not close the queued
+max-drawdown question — UNDERPOWERED leaves it open. It does not remove or
+amend the §4 sleeve, which is operator policy. It does not overturn
+`bear_deploy` D3, `calendar_hedge` H3 or `hedge_timing` H4: those verdicts
+stand, but the MEASUREMENT-ONLY result means their curve understates drawdown
+on this book, so the basis on which they were read is now a known limitation of
+theirs and should be recorded against them.
+
+The prose rule is unreachable (ERRATUM 2, ARM P inert), and ARM CS is
+power-stopped at every τ under both readings, so PROSE-CONDITIONED,
+LOOKAHEAD-UNRESOLVED does not arise.
