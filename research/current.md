@@ -3630,3 +3630,73 @@ validator could check the ratification against its authority — all three
 disclosed the gap themselves and graded the report's own quoted RATIFICATION
 text instead. For a study whose population, two errata and verdict all rest on a
 file the graders cannot see, that is a real hole in the protocol.
+
+## 2026-08-31 (fix) — `study_review` now inlines a study's ERRATA file as authority
+
+The gap logged at the end of the entry above is closed. `study_review` inlined
+the pre-registration and the report; it did not inline
+`research/hedge-exposure-errata.md`, so both analysts and the validator graded a
+ratification against the report's own quoted account of it. For a study whose
+population, both errata and final verdict all rest on that file, the graders
+were working blind to the document that decides them.
+
+**What changed.** `scripts/study_review/` discovers `research/<study>-errata.md`
+by convention (`_` in the study name also tried as `-`, so `hedge_exposure` →
+`hedge-exposure-errata.md`) and inlines it for the analysts AND the validator,
+positioned directly after the pre-registration and before the report — the two
+authority documents in hand before the artifact being graded. The block is
+framed explicitly: the errata is authority, not commentary; any ratification,
+population choice or closed erratum the report claims is graded against the
+errata text rather than the report's account of it; and it never RELAXES a
+commitment — every gate, bar, arm and verdict it does not explicitly resolve is
+still graded against the registration as written. `--errata PATH` overrides
+discovery, `--no-errata` reproduces a pre-errata grading run. A missing errata
+is the normal case (stderr warning, run continues); an EMPTY errata file is
+FATAL, because a run that appears to have graded against one and did not is
+worse than one that plainly had none.
+
+**The manual path had the same hole and is fixed too.**
+`research/replication-protocol.md`'s rule 2 now names the errata as part of the
+authority, and the worked-example prompts for analyst A, analyst B and the
+validator all name `<errata path>`. The hand-spawned `research-analyst` agents
+do have file access — the failure was that nothing told them the file existed.
+
+Not re-graded: `hedge_exposure`'s existing review artifacts stand as they are.
+The verdict they support (UNDERPOWERED + MEASUREMENT-ONLY on the ratified `all`
+population) does not change, and a re-grade with the errata visible would cost
+three model calls to confirm a conclusion the errata itself dictates. The next
+`hedge_exposure` grading gets the file automatically.
+
+## 2026-08-31 (recorded) — ARM M's 40.2% understatement written against D3 / H3 / H4
+
+The operator decision the registration could not make (errata post-ratification
+note 4) is made: **record it.** `research/deployment-evidence.md` gains
+§"The curve D3 was read on understates drawdown (2026-08-31, `hedge_exposure`
+ARM M)" directly after D3, plus a bullet in D3's "Remaining limits — quote these
+with the rule" list and a measurement-basis note in the hedge-timing section.
+
+**What is recorded.** The same unhedged book on both curves: on the ratified
+`all` book, MTM maxDD −$32,571 against close-bucketed −$23,239 — the
+close-bucketed curve understates by $9,332 (40.2%); on the `real` stratum the
+gap runs the other way and is small (+$702, 3.1%). All three rules are judged on
+a series of daily REALIZED dollars bucketed to each position's close — D3 in
+`_sweep`'s `daily`, `calendar_hedge` H3 as "D3 verbatim", `hedge_timing` ARM H4
+by D3's criterion verbatim — so all three inherit the basis ARM M found wanting.
+
+**What is deliberately NOT recorded.** No verdict moves and no figure of theirs
+is restated. ARM M measured `hedge_exposure`'s own 996-row concentrated book on
+its own session axis, not D3's bear-sleeve book or H4's deployed-ladder dollars,
+so **40.2% is not a correction factor to apply to them** — what transfers is the
+basis, not the number. The write-up says so explicitly, because the tempting
+misreading is to subtract 40% from D3's $571 improvement and call the rule dead.
+
+Two label traps are called out in place, since this section is where a reader
+meets all of them at once: `hedge_timing`'s ARM H3 (paired R, no dollars) is not
+`calendar_hedge`'s H3 (sizing, D3 verbatim), and `calendar_hedge` H3 has never
+been evaluated at all (v4: H0 FILL NOT MET, H2 NOT EVALUABLE) — the
+qualification there is prospective.
+
+`catalog.py`'s `attention` flag for `hedge_exposure` is updated rather than
+cleared: this item is done, and what remains for the operator is errata note 3 —
+admitting `tweak` rows made the prices representative AND the book more
+diversified, and only the first was argued. Suite 2560.

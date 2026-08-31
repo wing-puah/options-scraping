@@ -17,6 +17,7 @@ from study_review.core import (
     build_analyst_prompt,
     build_validator_prompt,
     invoke_claude_text,
+    load_errata,
     load_pre_registration,
     read_persona,
     run_with_retries,
@@ -246,7 +247,7 @@ def _report_path():
 def test_build_analyst_prompt_contains_required_artifacts():
     prompt = build_analyst_prompt(
         "A", "PERSONA BODY MARKER", "HEADING MARKER", "SECTION BODY MARKER",
-        _report_path(), "REPORT TEXT MARKER", "TICKER,QTY\nSPY,10\n")
+        None, _report_path(), "REPORT TEXT MARKER", "TICKER,QTY\nSPY,10\n")
     assert "PERSONA BODY MARKER" in prompt
     assert "HEADING MARKER" in prompt
     assert "SECTION BODY MARKER" in prompt
@@ -261,14 +262,14 @@ def test_build_analyst_prompt_contains_required_artifacts():
 def test_build_analyst_prompt_omits_positions_block_when_none():
     prompt = build_analyst_prompt(
         "A", "PERSONA", "HEADING", "SECTION BODY",
-        _report_path(), "REPORT TEXT", None)
+        None, _report_path(), "REPORT TEXT", None)
     assert "## Positions CSV" not in prompt
 
 
 def test_build_analyst_prompt_a_and_b_differ_only_by_role():
     kwargs = dict(
         persona_body="PERSONA", section_heading="HEADING", section_body="SECTION BODY",
-        report_path=_report_path(), report_text="REPORT TEXT",
+        errata=None, report_path=_report_path(), report_text="REPORT TEXT",
         positions_csv_text="TICKER,QTY\nSPY,10\n")
     prompt_a = build_analyst_prompt("A", **kwargs)
     prompt_b = build_analyst_prompt("B", **kwargs)
@@ -278,7 +279,7 @@ def test_build_analyst_prompt_a_and_b_differ_only_by_role():
 
 def test_build_validator_prompt_contains_both_analyst_outputs():
     prompt = build_validator_prompt(
-        "VALIDATOR PERSONA", "HEADING", "SECTION BODY", _report_path(), "REPORT TEXT",
+        "VALIDATOR PERSONA", "HEADING", "SECTION BODY", None, _report_path(), "REPORT TEXT",
         None, "ANALYST A VERDICT TABLE", "ANALYST B VERDICT TABLE")
     assert "ANALYST A VERDICT TABLE" in prompt
     assert "ANALYST B VERDICT TABLE" in prompt
@@ -286,6 +287,92 @@ def test_build_validator_prompt_contains_both_analyst_outputs():
     assert "## Analyst B output" in prompt
     assert "source-check" in prompt.lower()
     assert "## Isolated session" in prompt
+
+
+def test_build_analyst_prompt_inlines_errata_as_authority():
+    """The hole this closes: without the errata block, a grader can only check a
+    ratification against the report's own quoted account of it."""
+    errata = (core.config.ROOT / "research" / "foo-study-errata.md", "ERRATUM 1 MARKER")
+    prompt = build_analyst_prompt(
+        "A", "PERSONA", "HEADING", "SECTION BODY", errata,
+        _report_path(), "REPORT TEXT", None)
+    assert "## Errata and fix plan (research/foo-study-errata.md)" in prompt
+    assert "ERRATUM 1 MARKER" in prompt
+    assert "AUTHORITY" in prompt
+    # authority order: registration, then errata, then the artifact being graded
+    assert prompt.index("## Pre-registration") < prompt.index("## Errata and fix plan")
+    assert prompt.index("## Errata and fix plan") < prompt.index("## Study report")
+
+
+def test_build_analyst_prompt_omits_errata_block_when_none():
+    prompt = build_analyst_prompt(
+        "A", "PERSONA", "HEADING", "SECTION BODY", None,
+        _report_path(), "REPORT TEXT", None)
+    assert "## Errata" not in prompt
+
+
+def test_build_validator_prompt_inlines_errata():
+    errata = (core.config.ROOT / "research" / "foo-study-errata.md", "ERRATUM 1 MARKER")
+    prompt = build_validator_prompt(
+        "VALIDATOR PERSONA", "HEADING", "SECTION BODY", errata, _report_path(),
+        "REPORT TEXT", None, "A OUTPUT", "B OUTPUT")
+    assert "ERRATUM 1 MARKER" in prompt
+    assert "## Errata and fix plan" in prompt
+
+
+# ──────────────────────────────── load_errata ───────────────────────────────
+
+def test_load_errata_finds_the_hyphenated_file_for_an_underscored_study(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    (tmp_path / "hedge-exposure-errata.md").write_text("# errata body\n")
+    path, text = load_errata("hedge_exposure", None, skip=False)
+    assert path.name == "hedge-exposure-errata.md"
+    assert text == "# errata body"
+
+
+def test_load_errata_missing_is_non_fatal(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    assert load_errata("account_sim", None, skip=False) is None
+    assert "no errata file" in capsys.readouterr().err
+
+
+def test_load_errata_skip_flag_returns_none_even_when_a_file_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    (tmp_path / "foo_study-errata.md").write_text("body")
+    assert load_errata("foo_study", None, skip=True) is None
+
+
+def test_load_errata_empty_file_raises_systemexit(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    (tmp_path / "foo_study-errata.md").write_text("   \n")
+    with pytest.raises(SystemExit) as excinfo:
+        load_errata("foo_study", None, skip=False)
+    assert "empty" in str(excinfo.value)
+
+
+def test_load_errata_ambiguous_underscore_and_hyphen_copies_raise(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    (tmp_path / "foo_study-errata.md").write_text("one")
+    (tmp_path / "foo-study-errata.md").write_text("two")
+    with pytest.raises(SystemExit) as excinfo:
+        load_errata("foo_study", None, skip=False)
+    assert "Ambiguous errata" in str(excinfo.value)
+
+
+def test_load_errata_override_path_is_used_verbatim(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    override = tmp_path / "elsewhere.md"
+    override.write_text("OVERRIDE BODY")
+    path, text = load_errata("foo_study", str(override), skip=False)
+    assert path == override
+    assert text == "OVERRIDE BODY"
+
+
+def test_load_errata_override_missing_file_raises_systemexit(tmp_path, monkeypatch):
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
+    with pytest.raises(SystemExit) as excinfo:
+        load_errata("foo_study", str(tmp_path / "nope.md"), skip=False)
+    assert "--errata" in str(excinfo.value)
 
 
 # ────────────────────────────── invoke_claude_text ──────────────────────────
@@ -411,6 +498,7 @@ def test_main_dry_run_writes_placeholders_and_never_calls_subprocess(tmp_path, m
 
     monkeypatch.setattr(core.config, "STUDY_OUTPUT_DIR", study_output_dir)
     monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+    monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
     monkeypatch.setattr(core.config, "ANALYST_PERSONA_FILE", analyst_persona)
     monkeypatch.setattr(core.config, "VALIDATOR_PERSONA_FILE", validator_persona)
     monkeypatch.setattr(core.config, "GLOSSARY_MD", tmp_path / "glossary-does-not-exist.md")

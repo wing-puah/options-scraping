@@ -429,3 +429,11 @@ finding is recorded in `research/deployment-evidence.md` against `bear_deploy`
 D3, `calendar_hedge` H3 and `hedge_timing` H4 is an operator decision the
 registration does not make.** Flagged in `catalog.py`'s `attention` field,
 not acted on.
+
+**Decided 2026-08-31 (operator): RECORD IT.** It is written into
+`research/deployment-evidence.md` as §"The curve D3 was read on understates
+drawdown", cross-referenced from the D3 limits list and from the hedge-timing
+section, and carried as a qualification of the measurement basis only — all
+three verdicts stand, no figure of theirs is restated, and the 40.2% is
+explicitly NOT a correction factor transferable to their books. The `attention`
+flag is updated accordingly.

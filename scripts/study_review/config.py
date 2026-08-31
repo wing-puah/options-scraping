@@ -35,6 +35,21 @@ PRE_REG_DIR = TUNING_DIR / "pre-registrations"
 # globs for this, so a study's file is found regardless of which family holds it.
 PRE_REG_PATTERN = "*/{study}.md"
 
+# An ERRATA file records defects found in a pre-registration AFTER it was
+# committed. A registration is IMMUTABLE, so a self-contradictory clause, a
+# degenerate arm definition, or an operator's ratification of a population is
+# recorded beside it rather than edited into it. That means a grader shown only
+# the registration is blind to the document that DECIDES those clauses — which
+# is exactly what happened grading `hedge_exposure` on 2026-08-31, where the
+# population, both errata and the final verdict all rest on the errata file and
+# all three graders had to disclose they could not see it. When one exists it is
+# inlined for the analysts and the validator alongside the registration.
+# Discovery is by convention: research/<study>-errata.md, with `_` in the study
+# name also tried as `-` (hedge_exposure -> hedge-exposure-errata.md). Most
+# studies have none; that is the normal, non-fatal case.
+ERRATA_DIR = TUNING_DIR
+ERRATA_PATTERN = "{study}-errata.md"
+
 # Persona files whose bodies are inlined verbatim into the headless prompts.
 # Their YAML frontmatter `model:` field (when present) is the primary source
 # for that role's model — see read_persona() / core.main()'s resolution order.

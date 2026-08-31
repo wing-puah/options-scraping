@@ -323,6 +323,56 @@ f = 0.50 drawdown improves by $571 but the worst date degrades from −3,212 to
 −3,298. The rule fails on a rounding-scale margin; it is reported as failed, not
 waved through.
 
+### The curve D3 was read on understates drawdown (2026-08-31, `hedge_exposure` ARM M)
+
+ARM M put the SAME unhedged book on both equity curves — mark-to-market from
+`daily_pnl_csv` against the realized-on-close curve `account_sim.equity_curve`
+already produces — and they do not agree:
+
+| population | MTM max DD | close-bucketed max DD | gap |
+|---|---|---|---|
+| `real` stratum (485 rows) | −$21,890 | −$22,592 | MTM **better** by $702 (3.1%) |
+| **`all`, the ratified book (996 rows)** | **−$32,571** | **−$23,239** | **close UNDERSTATES by $9,332 (40.2%)** |
+
+Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
+**UNDERPOWERED** — every cell of the τ × f grid is power-stopped on the ratified
+population — so nothing there says a hedge works, and no direction is quoted
+from any cell. See [`current.md`](current.md) 2026-08-31 and
+[`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION.
+
+**Why it lands on D3.** D3 is judged on a series of daily REALIZED dollars
+bucketed to the date each position closed (`_sweep`'s `daily` in
+`f4_deployment/bear_deploy.py`), never on a path that marks open positions. Two
+other rules read that same criterion off that same kind of curve:
+
+- **`calendar_hedge` H3** — "D3 verbatim" by its own registration (the largest
+  f whose max drawdown AND worst single date are both no worse than f = 0). It
+  sits inside a ship ceiling never reached (v4: H0 FILL NOT MET, H2 NOT
+  EVALUABLE), so nothing here changes a verdict — it qualifies the basis on
+  which H3 *would* be judged.
+- **`hedge_timing` ARM H4** — judged by D3's criterion verbatim, and the dollars
+  column behind the GAP-UP row in §"Hedge-timing triggers" below ("gating
+  −$5,893, drawdown unimproved"). NOT the same label as that study's ARM H3,
+  which is a paired-R arm quoting no dollars — see
+  [`arm-index.md`](arm-index.md) on the H-label collisions.
+
+**What this does NOT do.** All three verdicts STAND, and no number in this file
+is restated. ARM M measured `hedge_exposure`'s own 996-row concentrated book on
+its own session axis — NOT D3's bear-sleeve book, NOT H4's deployed-ladder
+dollars — so **40.2% is not a correction factor to apply to their figures**, and
+the `real` stratum shows the gap can run the other way and be small. What
+transfers is the basis, not the number.
+
+**What it does.** Quote it with the rule. The drawdown leg of D3 / `calendar_hedge`
+H3 / `hedge_timing` H4 is measured on an instrument that, on a book measured the
+same way, missed 40% of the drawdown. D3's own margins are $571 of drawdown
+improvement and an $86 formal failure on the worst date — margins a measurement
+basis carrying a double-digit-percent question mark cannot support in either
+direction. Any future re-read that wants to CONCLUDE about drawdown should
+compute the mark-to-market curve (`backtest_study/lib/mtm_curve.py` returns both
+bases from one call, so a caller cannot mix them) rather than re-reading the
+close-bucketed one.
+
 ### Remaining limits — quote these with the rule, they are not footnotes
 
 - The **worst-decile row-level CI includes zero** ([−0.113, +0.639], n=28). The
@@ -340,6 +390,11 @@ waved through.
   Mar–Apr-2025 failure pattern. D5 was also **post-hoc** — chosen after seeing
   D2. **PROVISIONAL, not a rule**; re-read on the next independent window before
   gating the sleeve on anything.
+- **The drawdown leg is measured on the close-bucketed curve**, which
+  `hedge_exposure`'s ARM M found understates max drawdown by **40.2%** on its own
+  ratified book (§"The curve D3 was read on understates drawdown" above). D3
+  stands; its measurement basis is qualified, and the same qualification travels
+  to `calendar_hedge` H3 and `hedge_timing` ARM H4.
 - **This rule barely fires by design.** Every bear row in the book is ladder
   **Tier C (299) or VETO (71)**; none is Tier A or B, so the shipped ladder never
   deploys one. The sleeve only bites on bear positions the operator takes
@@ -474,6 +529,17 @@ DD is untouched by every gated policy on v4 and made WORSE by always-on
 hedging on v3 (−$7,609 → −$18,278 at f=1.0). A dedicated study — mechanism,
 not timing — is deliberately deferred; it must design around the known
 worst-decile power wall (~9 dates).
+
+**Measurement basis (recorded 2026-08-31):** ARM H4's dollars — including the
+"gating −$5,893, drawdown unimproved" read behind the drafted GAP-UP prohibition
+— come off the close-bucketed realized curve, judged by `bear_deploy` D3's
+criterion verbatim. `hedge_exposure`'s ARM M shows that curve understating max
+drawdown by 40.2% on its own ratified book, so H4's verdicts STAND on a
+qualified basis; see §"The curve D3 was read on understates drawdown" above for
+what does and does not transfer. Label note: that is ARM H4, the do-nothing
+DOLLARS arm. The `H3` in the table above is `hedge_timing`'s paired-R arm and is
+NOT `calendar_hedge`'s `H3` sizing criterion, which is the other rule the
+measurement finding touches.
 
 **Scope note on the operator's actual practice (2026-08-28):** the operator
 hedges on EXPOSURE — a concentrated correlated book (semis → SMH, tech →

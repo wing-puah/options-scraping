@@ -443,6 +443,21 @@ Other arms:
 (`--skip-run` reuses `<name>-latest.txt`; `--dry-run` exercises the pipeline, no LLM).
 Outputs `<name>-review-{analyst-a,analyst-b,validator}-latest.md` + `<name>-digest-latest.md`.
 
+The analysts and the validator are ISOLATED — no filesystem, no tools — so they grade only
+what the prompt inlines. Three artifacts go in: the pre-registration
+(`research/pre-registrations/<family>/<name>.md`, read whole), the ERRATA file
+(`research/<name>-errata.md`, `_` also tried as `-`) when one exists, and the report, in that
+order. The errata is inlined as AUTHORITY, not commentary: a registration is immutable, so a
+defect found in it after commit — a self-contradictory clause, a degenerate arm, an operator's
+ratification of a population — is recorded there instead of being edited in, and a grader
+shown only the registration is blind to the document that decides those clauses. That gap was
+real: the 2026-08-31 `hedge_exposure` grading had all three graders disclose they could not
+see the errata and grade the report's own quoted RATIFICATION text instead. The block says
+explicitly that the errata never RELAXES a commitment — anything it does not resolve is still
+graded against the registration as written. `--errata <path>` overrides discovery; `--no-errata`
+skips it (only to reproduce a pre-errata grading run); a missing errata is the normal case and
+warns on stderr, while an EMPTY one is fatal, so a run cannot look like it graded against one.
+
 **`scripts/study_results.py`** — the per-ERA record: `make study-record` reads each
 `<name>-latest.txt` and appends a section to `research/study-results/<family>/<name>.md`,
 tracked and append-only, keyed on `(era, git sha)` so an unchanged re-run appends nothing.
@@ -816,6 +831,8 @@ python3 -m scripts.backtest_study run account_sim -- --compounding
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 python3 -m scripts.backtest_study run account_sim -- --live-select [--live-select-no-llm]
 python3 -m scripts.study_review account_sim            # --skip-run reuses report; --dry-run no LLM
+python3 -m scripts.study_review hedge_exposure        # auto-inlines research/hedge-exposure-errata.md
+                                                      # --errata <path> · --no-errata to override
 python3 -m scripts.study_map --check                  # or: make study-check
 make study-map-open · make study-docs · make study-check
 make study-chart CHART=regime OPEN=1 · make study-chart CHART=compounding OPEN=1 · make study-chart ARM=structure

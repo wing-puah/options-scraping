@@ -585,11 +585,17 @@ STUDIES: dict[str, Study] = {
                 "quantiles, 504-session universe) describe the `real` stratum and are NOT "
                 "disclosures about the ratified book — the figures that describe it are the "
                 "ones the run prints.",
-        attention="ARM M is MEASUREMENT-ONLY: the close-bucketed curve every prior hedge "
-                  "verdict was read on understates THIS book's max drawdown by 40.2%. "
-                  "Record that as a known limitation against bear_deploy D3, "
-                  "calendar_hedge H3 and hedge_timing H4 — none of them is overturned, but "
-                  "the basis they were read on is now qualified.",
+        attention="ARM M's MEASUREMENT-ONLY finding is now RECORDED (2026-08-31): "
+                  "research/deployment-evidence.md gained a section qualifying the "
+                  "measurement basis of bear_deploy D3, calendar_hedge H3 and hedge_timing "
+                  "ARM H4 — none overturned, no figure of theirs restated, and 40.2% is not "
+                  "a correction factor transferable to their books. What is STILL an open "
+                  "operator question is post-ratification note 3 in "
+                  "research/hedge-exposure-errata.md: admitting `tweak` rows made the prices "
+                  "representative AND the book more diversified, and only the first was "
+                  "argued — if in practice a subset of proposed plays is held, this study "
+                  "measures a less concentrated book than the operator runs. That reading "
+                  "would need its own registration.",
     ),
 }
 

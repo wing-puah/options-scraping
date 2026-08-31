@@ -2,7 +2,7 @@
 Core logic for the study-review two-analyst replication harness.
 
     resolve report  → run/locate scripts.backtest_study's <study>-latest.txt   (deterministic)
-    load artifacts  → pre-registration section, positions CSV, personas       (deterministic)
+    load artifacts  → pre-registration, errata, positions CSV, personas       (deterministic)
     grade           → Analyst A + Analyst B headless calls, in PARALLEL       (LLM, isolated)
     validate        → validator headless call, reading both analyst outputs  (LLM, isolated)
     digest          → plain-language write-up headless call                  (LLM, isolated)
@@ -208,25 +208,107 @@ def _rel(path: Path) -> str:
         return str(path)
 
 
+def load_errata(study: str, override: str | None, skip: bool) -> tuple[Path, str] | None:
+    """Read `research/<study>-errata.md` verbatim when one exists, else None.
+
+    A pre-registration is IMMUTABLE, so a defect found in it after commit — a
+    self-contradictory clause, a degenerate arm, an operator's ratification of a
+    population — is recorded in an errata file beside it instead of being edited
+    in. The graders therefore cannot check the report's compliance with any of
+    those resolutions from the registration alone: they see the report's own
+    quoted account of a ratification and nothing to grade it against. Inlining
+    the errata closes that hole. It never RELAXES a commitment — the prompt block
+    says so explicitly — it only supplies the document that decides the clauses
+    the registration got wrong.
+
+    Discovery is by convention (`config.ERRATA_PATTERN`), trying the study name
+    as written and with `_` as `-`. Most studies have no errata, which is the
+    normal, non-fatal case: warn on stderr and continue. An EMPTY errata file is
+    fatal, because a run that appears to have graded against one and did not is
+    worse than one that plainly had none.
+    """
+    if skip:
+        print("study_review: --no-errata passed — skipping the errata file", file=sys.stderr)
+        return None
+    if override:
+        path = Path(override)
+        if not path.is_file():
+            raise SystemExit(
+                f"No errata file at {path} (passed with --errata). Drop the flag to "
+                f"auto-discover {config.ERRATA_PATTERN.format(study=study)} under "
+                f"{_rel(config.ERRATA_DIR)}/, or fix the path.")
+        candidates = [path]
+    else:
+        names = {config.ERRATA_PATTERN.format(study=study),
+                 config.ERRATA_PATTERN.format(study=study.replace("_", "-"))}
+        candidates = sorted(
+            p for p in (config.ERRATA_DIR / name for name in sorted(names)) if p.is_file())
+    if not candidates:
+        print(
+            f"study_review: no errata file for {study} in {_rel(config.ERRATA_DIR)}/ — "
+            "continuing without one (most studies have none)", file=sys.stderr)
+        return None
+    if len(candidates) > 1:
+        listed = "\n".join(f"  - {_rel(c)}" for c in candidates)
+        raise SystemExit(
+            f"Ambiguous errata for study {study!r} — more than one file matches:\n{listed}\n"
+            "Pass --errata <path> to name the one to grade against, or delete the stale copy.")
+    path = candidates[0]
+    text = path.read_text().strip()
+    if not text:
+        raise SystemExit(
+            f"Errata file {_rel(path)} is empty. An empty errata is not the same as no "
+            "errata — delete the file if there is nothing to record, so a run cannot look "
+            "like it graded against one when it did not.")
+    return path, text
+
+
+def _errata_block(errata: tuple[Path, str] | None) -> str | None:
+    """The errata artifact block, framed as AUTHORITY rather than commentary."""
+    if errata is None:
+        return None
+    path, text = errata
+    return (
+        f"## Errata and fix plan ({_rel(path)})\n\n"
+        "READ THIS AS PART OF THE AUTHORITY YOU GRADE AGAINST, NOT AS COMMENTARY. A "
+        "pre-registration is immutable, so a defect found in it after it was committed "
+        "— a self-contradictory clause, a degenerate arm, an operator's ratification of "
+        "a population — is recorded here instead of being edited into the registration "
+        "above. Where the two touch the same clause, THIS file states how the build "
+        "resolved it, and any claim the report makes about following a resolution (a "
+        "ratification, a population choice, a closed erratum) is graded against this "
+        "text rather than against the report's own account of it. It never relaxes a "
+        "commitment: every gate, bar, arm definition and verdict this file does not "
+        f"explicitly resolve is still graded against the registration as written.\n\n{text}")
+
+
 _NO_FILE_ACCESS_NOTE = (
     "## Isolated session — no file or tool access\n\n"
     "This is a headless, isolated session: you have NO filesystem access and NO "
     "tools beyond generating text. Work ONLY from the artifacts inlined below in "
     "this prompt. Where your persona instructions above reference a file by path "
     "(e.g. a report under backtests/study_output/, a file under "
-    "research/pre-registrations/), treat the matching inlined "
+    "research/pre-registrations/, an errata file under research/), treat the matching inlined "
     "block below as that file's content — there is nothing else to open."
 )
 
 
-def _artifact_blocks(section_heading: str, section_body: str, report_path: Path,
+def _artifact_blocks(section_heading: str, section_body: str,
+                     errata: tuple[Path, str] | None, report_path: Path,
                      report_text: str, positions_csv_text: str | None) -> list[str]:
-    """Artifact blocks shared by the analyst and validator prompts."""
+    """Artifact blocks shared by the analyst and validator prompts.
+
+    The errata block sits directly after the pre-registration and before the
+    report on purpose: together they are the authority, and the grader should
+    have both in hand before reading the artifact being graded."""
     blocks = [
         f'## Pre-registration ("{section_heading}", from '
         f"research/pre-registrations/)\n\n{section_body}",
-        f"## Study report ({_rel(report_path)})\n\n{report_text}",
     ]
+    errata_block = _errata_block(errata)
+    if errata_block:
+        blocks.append(errata_block)
+    blocks.append(f"## Study report ({_rel(report_path)})\n\n{report_text}")
     if positions_csv_text:
         study = _study_from_report_path(report_path)
         blocks.append(
@@ -236,7 +318,7 @@ def _artifact_blocks(section_heading: str, section_body: str, report_path: Path,
 
 
 def build_analyst_prompt(role: str, persona_body: str, section_heading: str, section_body: str,
-                         report_path: Path, report_text: str,
+                         errata: tuple[Path, str] | None, report_path: Path, report_text: str,
                          positions_csv_text: str | None) -> str:
     """Assemble one analyst's (A or B) full prompt. A and B prompts are
     byte-identical except for the role letter substituted into "You are
@@ -245,12 +327,14 @@ def build_analyst_prompt(role: str, persona_body: str, section_heading: str, sec
         persona_body.strip(),
         _NO_FILE_ACCESS_NOTE,
         f"You are Analyst {role}.",
-        *_artifact_blocks(section_heading, section_body, report_path, report_text, positions_csv_text),
+        *_artifact_blocks(section_heading, section_body, errata, report_path, report_text,
+                          positions_csv_text),
     ]
     return "\n\n".join(parts)
 
 
 def build_validator_prompt(persona_body: str, section_heading: str, section_body: str,
+                           errata: tuple[Path, str] | None,
                            report_path: Path, report_text: str, positions_csv_text: str | None,
                            analyst_a_output: str, analyst_b_output: str) -> str:
     """Assemble the validator's prompt: same artifacts as the analysts, plus
@@ -263,7 +347,8 @@ def build_validator_prompt(persona_body: str, section_heading: str, section_body
             " In particular: wherever your instructions say to \"source-check\" a "
             "quoted number, that means re-checking it against the inlined artifact "
             "blocks in THIS prompt, not opening the report or CSV yourself."),
-        *_artifact_blocks(section_heading, section_body, report_path, report_text, positions_csv_text),
+        *_artifact_blocks(section_heading, section_body, errata, report_path, report_text,
+                          positions_csv_text),
         f"## Analyst A output\n\n{analyst_a_output}",
         f"## Analyst B output\n\n{analyst_b_output}",
     ]
@@ -410,6 +495,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pre-reg", default=None,
                         help="Path to the pre-registration file to grade against. Default: "
                              "research/pre-registrations/<family>/<study>.md.")
+    parser.add_argument("--errata", default=None,
+                        help="Path to an errata file to inline alongside the "
+                             "pre-registration. Default: research/<study>-errata.md "
+                             "(`_` also tried as `-`) if present. An errata records "
+                             "defects found in the immutable registration after commit, "
+                             "so it is authority, not commentary.")
+    parser.add_argument("--no-errata", action="store_true",
+                        help="Skip inlining an errata file even if one is found. Use only "
+                             "to reproduce a grading run made before the errata existed.")
     parser.add_argument("--positions-csv", default=None,
                         help="Path to a positions CSV to inline. Default: "
                              "backtests/study_output/<study>-positions-latest.csv if present.")
@@ -440,6 +534,10 @@ def main(argv: list[str] | None = None) -> None:
     section_heading, section_body = load_pre_registration(study, args.pre_reg)
     log.info("Pre-registration section: %s", section_heading)
 
+    errata = load_errata(study, args.errata, args.no_errata)
+    if errata is not None:
+        log.info("Errata: %s (%d chars, inlined as authority)", _rel(errata[0]), len(errata[1]))
+
     positions_csv_text = load_positions_csv(study, args.positions_csv, args.no_positions_csv)
 
     analyst_persona_model, analyst_persona_body = read_persona(config.ANALYST_PERSONA_FILE)
@@ -451,9 +549,9 @@ def main(argv: list[str] | None = None) -> None:
     log.info("Models — analyst=%s validator=%s digest=%s", analyst_model, validator_model, digest_model)
 
     prompt_a = build_analyst_prompt("A", analyst_persona_body, section_heading, section_body,
-                                    report_path, report_text, positions_csv_text)
+                                    errata, report_path, report_text, positions_csv_text)
     prompt_b = build_analyst_prompt("B", analyst_persona_body, section_heading, section_body,
-                                    report_path, report_text, positions_csv_text)
+                                    errata, report_path, report_text, positions_csv_text)
 
     config.STUDY_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     a_path = config.STUDY_OUTPUT_DIR / f"{study}-review-analyst-a-latest.md"
@@ -503,8 +601,8 @@ def main(argv: list[str] | None = None) -> None:
         analyst_b_output = results["B"]
 
     prompt_validator = build_validator_prompt(
-        validator_persona_body, section_heading, section_body, report_path, report_text,
-        positions_csv_text, analyst_a_output, analyst_b_output)
+        validator_persona_body, section_heading, section_body, errata, report_path,
+        report_text, positions_csv_text, analyst_a_output, analyst_b_output)
 
     if args.dry_run:
         validator_output = _placeholder(prompt_validator)

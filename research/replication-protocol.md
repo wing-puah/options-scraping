@@ -59,6 +59,17 @@ what order, and what it does with the result.
    when the study exports one (today only `account_sim`) — passed identically
    to both analysts alongside the report. No agent gets extra context the
    other lacks.
+
+   **The ERRATA file is part of the AUTHORITY, and must be named whenever one
+   exists.** A pre-registration is immutable, so a defect found in it after
+   commit — a self-contradictory clause, a degenerate arm, an operator's
+   ratification of a population — is recorded in `research/<study>-errata.md`
+   instead of being edited in. Name the registration without it and the graders
+   are blind to the document that decides those clauses: on 2026-08-31 both
+   analysts and the validator graded `hedge_exposure` against the report's own
+   quoted RATIFICATION text and each disclosed the gap themselves. The errata
+   never RELAXES a commitment — anything it does not explicitly resolve is still
+   graded against the registration as written.
 3. **Fixed verdict schema, no prose.** Analysts output a table:
    `MET`/`NOT MET`/`NOT EVALUABLE` per criterion, the exact number, one
    sentence on what would flip it. No recommendations, no synthesis — that
@@ -72,11 +83,14 @@ what order, and what it does with the result.
 
 ## Worked example invocation
 
-Mode 1, replication grading. Two placeholders: `<pre-registration section>`
+Mode 1, replication grading. Three placeholders: `<pre-registration section>`
 (the study's file under `research/pre-registrations/`, e.g.
 `pre-registrations/f3_structure/calendar_hedge.md`, read whole — see
-[`pre-registrations/README.md`](pre-registrations/README.md)) and
-`<report path>` (e.g. `backtests/study_output/<name>-latest.txt`).
+[`pre-registrations/README.md`](pre-registrations/README.md)),
+`<report path>` (e.g. `backtests/study_output/<name>-latest.txt`), and
+`<errata path>` (`research/<study>-errata.md`, e.g.
+`research/hedge-exposure-errata.md`) — drop the errata sentence from the prompt
+only when no such file exists.
 
 **Step 1 — spawn A and B in one message, identical prompts:**
 
@@ -85,19 +99,29 @@ Agent({
   description: "Replication grading — analyst A",
   subagent_type: "research-analyst",
   prompt: "Mode 1 (replication grading). Read the pre-registration at
-    research/<pre-registration section> whole, and the report
-    at <report path>. Grade every gate and criterion the pre-registration
-    lists against that report only. You are analyst A; you will not see
-    analyst B's output. Follow the schema in your system prompt exactly."
+    research/<pre-registration section> whole, the errata at <errata path>
+    whole, and the report at <report path>. The errata is AUTHORITY, not
+    commentary: it records defects found in the immutable registration after
+    commit and how each was resolved, so grade any ratification or resolution
+    the report claims against the errata itself, never against the report's own
+    account of it — and grade anything the errata does not resolve against the
+    registration exactly as written. Grade every gate and criterion the
+    pre-registration lists against that report only. You are analyst A; you will
+    not see analyst B's output. Follow the schema in your system prompt exactly."
 })
 Agent({
   description: "Replication grading — analyst B",
   subagent_type: "research-analyst",
   prompt: "Mode 1 (replication grading). Read the pre-registration at
-    research/<pre-registration section> whole, and the report
-    at <report path>. Grade every gate and criterion the pre-registration
-    lists against that report only. You are analyst B; you will not see
-    analyst A's output. Follow the schema in your system prompt exactly."
+    research/<pre-registration section> whole, the errata at <errata path>
+    whole, and the report at <report path>. The errata is AUTHORITY, not
+    commentary: it records defects found in the immutable registration after
+    commit and how each was resolved, so grade any ratification or resolution
+    the report claims against the errata itself, never against the report's own
+    account of it — and grade anything the errata does not resolve against the
+    registration exactly as written. Grade every gate and criterion the
+    pre-registration lists against that report only. You are analyst B; you will
+    not see analyst A's output. Follow the schema in your system prompt exactly."
 })
 ```
 
@@ -112,7 +136,8 @@ Agent({
   subagent_type: "research-validator",
   prompt: "Validate the two analyst outputs below against the same
     pre-registration (research/<pre-registration section>,
-    read whole) and report (<report path>).
+    read whole), the same errata (<errata path>, read whole — it is authority,
+    not commentary) and the same report (<report path>).
 
     ANALYST A OUTPUT:
     <paste A's full output>
@@ -143,7 +168,9 @@ is the deterministic, headless path through Mode 1, modeled on
 validator}.md` rather than spawned as Agent-tool subagents — for analyst A and
 B in parallel, then the validator, then a plain-language digest grounded in
 `research/glossary.md`. Inputs to the analysts are the same as
-the worked example above: the pre-registration section, the stamped report,
+the worked example above: the pre-registration section, the errata file when
+one exists (`research/<study>-errata.md`, `_` also tried as `-`, inlined
+directly after the registration and labelled as authority), the stamped report,
 and (when present) the study's positions CSV, all inlined into the prompt
 text.
 
@@ -163,7 +190,11 @@ Outputs land in `backtests/study_output/`:
 study), `--run-args "…"` (forwarded to `backtest_study run`),
 `--pre-reg PATH` (grade against a pre-registration file other than the
 study's own `research/pre-registrations/<family>/<study>.md` — e.g. a
-renamed study or an archived copy), `--positions-csv PATH` / `--no-positions-csv`
+renamed study or an archived copy), `--errata PATH` / `--no-errata`
+(point at an errata file elsewhere, or reproduce a grading run made before the
+errata existed; a missing errata is the normal case and only warns, an EMPTY
+one is fatal so a run cannot look like it graded against one),
+`--positions-csv PATH` / `--no-positions-csv`
 (override or suppress the third artifact), `--model M`, `--skip-digest`,
 `--dry-run` (exercises the pipeline with placeholder outputs, no `claude`
 calls).
