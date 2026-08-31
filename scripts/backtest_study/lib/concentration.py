@@ -697,7 +697,15 @@ def census(recs, taus=TAU_GRID, holding: str = HOLDING_CALENDAR,
            sessions: frozenset[date] | None = None,
            contracts_fn=None, analysis_csv=None) -> dict:
     """Everything G-CENSUS prints, as data. Reads no outcome column except
-    `days_held`, and only through the occupancy layer."""
+    `days_held`, and only through the occupancy layer.
+
+    That INPUT property is what G-CENSUS is for, and it is the only thing the
+    report may claim for it. It is NOT a claim about print order — the study
+    module reconciles the curve (G-MTM) and measures the two curves (ARM M)
+    above this census, so outcome-derived dollars are on the page first — and
+    G-CENSUS has NO FAILING PATH: it is a discipline, not a gate. The gate that
+    refuses on lookahead is G-BLIND (`blind_trigger_check`).
+    """
     occ = open_book_by_session(recs, holding, sessions)
     series = concentration_series(recs, occ, contracts_fn=contracts_fn)
     hp, hp_diag = hedge_pressure_by_date(analysis_csv)
@@ -744,7 +752,13 @@ def census_lines(c: dict) -> list[str]:
     """`census()` rendered for a report. Quotes its own numbers, adds none."""
     occ, hd = c["occupancy"], c["holding_disagreement"]
     L = [
-        "CONCENTRATION CENSUS (G-CENSUS) — computed from entry-dated fields",
+        "CONCENTRATION CENSUS (G-CENSUS) — INPUTS are entry-dated fields "
+        "only",
+        "  (ticker / delta / contracts / entry_underlying, plus days_held "
+        "through the",
+        "   occupancy layer alone, which is the replay fixture and not a "
+        "trigger input.",
+        "   G-CENSUS is a DISCIPLINE, not a check: it has no failing path.)",
         f"  book: {occ['n_rows']} rows / {occ['n_signal_dates']} signal dates",
         f"  sessions open ({occ['holding']} reading of days_held): "
         f"{occ['n_sessions']}  {occ['session_range'][0]} .. {occ['session_range'][1]}",

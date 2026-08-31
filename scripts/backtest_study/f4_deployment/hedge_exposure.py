@@ -27,16 +27,21 @@ Arms:
           `equity_curve` basis). Runs first, gates nothing.
   ARM C   Concentration-gated proxy put. Hedge while concentration >= tau,
           tau in {0.30, 0.35, 0.40}, sized at fraction f in {0.25, 0.50, 1.00}
-          of a standard position's risk. Carries no prose.
+          of a standard position's risk. The concentrated cluster and its proxy
+          are re-picked EACH SESSION; an unhedgeable session is carried at f=0
+          and stays in the denominator. Carries no prose.
   ARM CS  ARM C additionally requiring `hedge-pressure >= 50` in the analysis
           prose. PROSE-CONDITIONED.
   ARM P   ARM C on exactly ARM CS's session set, minus the prose condition —
           which is ARM CS's session set. INERT AS REGISTERED (ERRATUM 2), left
           literal rather than redefined, and the registration's binding prose
           rule is therefore unreachable by construction.
-  ARM N   Random-admission null, 200 seeds, matched on episode COUNT, episode
-          LENGTHS and PROXY mix. An arm must beat its 95th percentile; a
-          CONTRARY must fall below its 5th.
+  ARM N   Random-admission null, 200 seeds. Clause 3 is read from the RICH
+          match — episode COUNT, episode LENGTHS and the per-session PROXY
+          SEQUENCE — which is conservative but is NOT what the registration
+          commits; the REGISTERED match (count and date-clustering only) is
+          computed and printed beside it as the registered estimator. An arm
+          must beat the 95th percentile; a CONTRARY must fall below the 5th.
   ARM B   Instrument comparison — the book's own bear row instead of the put.
   ARM R   Always-fillable reference — a delta-equivalent SHORT in the proxy
           underlying. Clause 7's control: a put that merely matches it is A
@@ -50,6 +55,18 @@ POPULATION: the registration's own population clause names two different books
 (ERRATUM 1 in `research/hedge-exposure-errata.md`). Both are run, both are
 printed with every count computed at run time, and NO study-level verdict is
 emitted from either until the operator ratifies a reading.
+
+STRATIFICATION IS COMPUTATION, not a count table: the registration's binding
+asymmetric reading rule ("Results are always stratified DIRECT versus
+CONSTITUENT") means every cell carries a full clause set — path metrics,
+bootstrap CI, ARM N band, all seven clauses — under DIRECT, under CONSTITUENT
+and POOLED, each power-gated on its own episode count and the pooled row
+labelled POOLED. A DIRECT result may never be cited for the constituent
+practice.
+
+Every choice this module made that the registration does NOT commit is listed
+in ONE place in the report, under NOT PRE-REGISTERED, with the clause each one
+feeds.
 
 Unit: the session. Primary metric: max drawdown in DOLLARS on the
 mark-to-market curve. Co-primary, path-shaped: Ulcer index and time-under-water.
@@ -153,6 +170,31 @@ ARM_RF_LABEL = "UNREGISTERED — ADDED AFTER COMMIT"
 
 # Metric keys. `max_dd` is the PRIMARY; ulcer/tuw are the co-primaries clause 2
 # is read on. Improvement is always signed so that POSITIVE means BETTER.
+#: The stratum labels every cell is evaluated under (errata F9). The
+#: registration's asymmetric reading rule is BINDING — "Results are always
+#: stratified DIRECT versus CONSTITUENT" — so a stratum is a unit of
+#: COMPUTATION here, not a row in a count table. The pooled row is labelled.
+STRATUM_POOLED = "POOLED"
+STRATA = (STRATUM_POOLED, S.DIRECT, S.CONSTITUENT)
+
+#: ARM N's two matchings. RICH is what clause 3 is read from (it reproduces the
+#: per-session proxy sequence as well as the count and the date-clustering, so
+#: the null is harder to beat — the conservative direction); REGISTERED is the
+#: match the pre-registration actually commits to, "matched in COUNT and in
+#: date-clustering", printed beside it as the registered estimator. Same
+#: treatment F5 gave the withdrawn bootstrap.
+MATCH_RICH = "count+clustering+proxy_sequence"
+MATCH_REGISTERED = "count+clustering"
+
+#: The trailing hold-window session carries whatever is already open one more
+#: day and NEVER opens a hedge. A sentinel rather than None, because None
+#: already means "this session's top cluster is UNHEDGEABLE".
+CARRY = "__carry__"
+
+#: Stamped on every stat row belonging to a cell the study has already
+#: power-stopped (errata F11). "UNDERPOWERED — no direction is quoted, ever."
+UNPOWERED_NOTE = "UNDERPOWERED CELL — no direction is quoted from this row"
+
 METRIC_MAXDD = "max_dd"
 METRIC_ULCER = "ulcer"
 METRIC_TUW = "tuw"
@@ -316,9 +358,15 @@ class Segment:
 
 @dataclass
 class Leg:
-    """One episode's hedge — its segments and the dated dollar changes."""
+    """One episode's hedge — its segments and the dated dollar changes.
+
+    `proxies` is a TUPLE since errata F8: the concentrated cluster is re-picked
+    each SESSION, so one episode may carry a put on SMH for four sessions and
+    then on QQQ for three. It holds the distinct proxies the episode actually
+    carried, in the order they were first opened.
+    """
     episode: tuple[_date, ...]
-    proxy: str
+    proxies: tuple[str, ...] = ()
     segments: list[Segment] = field(default_factory=list)
     daily: dict[_date, float] = field(default_factory=dict)
     cost: float = 0.0
@@ -378,41 +426,136 @@ def hold_window(episode, universe) -> list[_date]:
     return ep
 
 
-def plan_episode(proxy: str, episode, f: float, budget: float,
-                 rule: str, diag: dict, universe=None) -> Leg:
-    """Select (and roll) the proxy put across one trigger episode.
+def session_proxy(sc) -> str | None:
+    """That session's own hedgeable top proxy, or None.
 
-    A session with no fillable contract, or whose size rounds below one
-    contract, is carried at f=0 — the hedge simply is not on that day, and the
-    next session tries again. Nothing is fabricated and nothing is dropped.
+    None covers both "no cluster carries any priced exposure" and "the top
+    cluster is one of the four the registration fixes as UNHEDGEABLE". Neither
+    is a hedge, and the registration treats both the same way: the session is
+    carried at f=0 and stays in the denominator.
     """
-    window = episode if universe is None else hold_window(episode, universe)
-    leg = Leg(episode=tuple(window), proxy=proxy)
-    cur_pick: HI.PutPick | None = None
-    cur_c = 0
-    cur_days: list[_date] = []
-    for day in window:
-        if cur_pick is not None and day > cur_pick.expiry:
-            leg.segments.append(Segment(cur_pick, cur_c,
-                                        tuple(cur_days + [day]), True))
-            diag["rolls"] += 1
-            cur_pick, cur_c, cur_days = None, 0, []
-        if cur_pick is None:
-            pick = HI.select_put(proxy, day, rule)
-            if pick is None:
-                diag["sessions_no_fill"] += 1
-                continue
-            c = _contracts_for(pick.entry_mark * HI.SHARES_PER_CONTRACT, f, budget)
-            if c < 1:
-                diag["sessions_sub_one"] += 1
-                continue
-            cur_pick, cur_c, cur_days = pick, c, [day]
-            leg.cost += HI.entry_cost(pick, c)
-            diag["opens"] += 1
+    if sc is None or sc.top_proxy is None or not sc.top_hedgeable:
+        return None
+    return sc.top_proxy
+
+
+def episode_shape(episode, by_session) -> tuple[str | None, ...]:
+    """The per-SESSION proxy sequence of one trigger episode.
+
+    This is what ARM N's matching reproduces under `MATCH_RICH`, so the null
+    carries the same rotation the arm does.
+    """
+    return tuple(session_proxy(by_session.get(s)) for s in episode)
+
+
+def episode_plan(episode, by_session, universe
+                 ) -> tuple[list[_date], list[str | None]]:
+    """`(window, proxies)` — the hold window and the proxy to carry each session.
+
+    ERRATA F8. The registration hedges "on ANY session where concentration >=
+    tau ... a long put on the concentrated cluster's proxy" — PER SESSION. This
+    module used to read `by_session[ep[0]]` once and carry THAT cluster's proxy
+    for the whole episode, which was wrong in two directions at once: an
+    episode whose top cluster rotated mid-run carried a put on a cluster that
+    was no longer the concentrated one (measured at tau 0.30: 8 of 32 episodes,
+    37 session-days), and an episode whose FIRST session was unhedgeable was
+    DROPPED WHOLE (2 of 32 episodes, 15 triggered sessions) although its later
+    sessions were hedgeable.
+
+    Per session, therefore:
+
+      * a session whose top cluster is UNHEDGEABLE, or carries no proxy at all,
+        yields None. The hedge is carried at f=0 on that SESSION, the session
+        stays in the denominator, and the episode is never dropped —
+        `calendar_hedge`'s standing principle, which this module already
+        applies to an unfillable session.
+      * the trailing hold-window session yields `CARRY`: it marks whatever is
+        open one more day and opens nothing.
+    """
+    window = hold_window(episode, universe)
+    proxies: list[str | None] = list(episode_shape(episode, by_session))
+    proxies += [CARRY] * (len(window) - len(proxies))
+    return window, proxies
+
+
+def proxy_runs(window, proxies) -> list[tuple[str, list[_date], int]]:
+    """`window` cut into maximal runs carrying the SAME proxy.
+
+    Each run is `(proxy, days, n_active)`. `days[:n_active]` are the sessions on
+    which that proxy IS the session's own top proxy — the only sessions a hedge
+    may be OPENED on. One further session is appended when there is one: the
+    session the run is closed on, so its last day's move is booked at that day's
+    mark rather than silently dropped. That session belongs to the NEXT run as
+    its opening day when the proxy rotated, which is the same overlap a roll
+    already has (the settlement day is the new segment's entry day).
+    """
+    runs: list[tuple[str, list[_date], int]] = []
+    i, n = 0, len(window)
+    while i < n:
+        p = proxies[i]
+        if p is None or p == CARRY:
+            i += 1
             continue
-        cur_days.append(day)
-    if cur_pick is not None:
-        leg.segments.append(Segment(cur_pick, cur_c, tuple(cur_days), False))
+        j = i
+        while j < n and proxies[j] == p:
+            j += 1
+        days = list(window[i:j])
+        n_active = len(days)
+        if j < n:
+            days.append(window[j])
+        runs.append((p, days, n_active))
+        i = j
+    return runs
+
+
+def plan_episode(window, proxies, f: float, budget: float, rule: str,
+                 diag: dict) -> Leg:
+    """Select, ROTATE and roll the proxy put across one trigger episode's window.
+
+    `proxies` is aligned with `window` (see `episode_plan`). A session with no
+    fillable contract, whose size rounds below one contract, or whose top
+    cluster is unhedgeable is carried at f=0 — the hedge simply is not on that
+    day, and the next session tries again. Nothing is fabricated and nothing is
+    dropped.
+    """
+    leg = Leg(episode=tuple(window))
+    held: list[str] = []
+    diag["sessions_unhedgeable"] += sum(1 for p in proxies if p is None)
+    runs = proxy_runs(window, proxies)
+    for r, (proxy, days, n_active) in enumerate(runs):
+        if r:
+            diag["rotations"] += 1
+        cur_pick: HI.PutPick | None = None
+        cur_c = 0
+        cur_days: list[_date] = []
+        for k, day in enumerate(days):
+            if cur_pick is not None and day > cur_pick.expiry:
+                leg.segments.append(Segment(cur_pick, cur_c,
+                                            tuple(cur_days + [day]), True))
+                diag["rolls"] += 1
+                cur_pick, cur_c, cur_days = None, 0, []
+            if cur_pick is None:
+                if k >= n_active:
+                    continue        # a close-only session never opens a hedge
+                pick = HI.select_put(proxy, day, rule)
+                if pick is None:
+                    diag["sessions_no_fill"] += 1
+                    continue
+                c = _contracts_for(pick.entry_mark * HI.SHARES_PER_CONTRACT,
+                                   f, budget)
+                if c < 1:
+                    diag["sessions_sub_one"] += 1
+                    continue
+                cur_pick, cur_c, cur_days = pick, c, [day]
+                leg.cost += HI.entry_cost(pick, c)
+                diag["opens"] += 1
+                if proxy not in held:
+                    held.append(proxy)
+                continue
+            cur_days.append(day)
+        if cur_pick is not None:
+            leg.segments.append(Segment(cur_pick, cur_c, tuple(cur_days), False))
+    leg.proxies = tuple(held)
     if leg.segments:
         leg.label = leg.segments[0].pick.label()
     return leg
@@ -461,8 +604,8 @@ def price_delta_short(leg: Leg, diag: dict) -> dict[_date, float]:
     return out
 
 
-def price_cluster_short(proxy: str, episode, cluster_net: float, f: float,
-                        diag: dict, universe=None) -> dict[_date, float]:
+def price_cluster_short(episode, by_session, universe, f: float,
+                        diag: dict) -> dict[_date, float]:
     """ARM RF — the fill-INDEPENDENT floor: short fraction f of the
     concentrated cluster's own signed delta notional in the proxy underlying.
 
@@ -472,21 +615,34 @@ def price_cluster_short(proxy: str, episode, cluster_net: float, f: float,
     keeps the study from terminating on fill coverage (`calendar_hedge`'s end).
     The sign is the caller's: a POSITIVE cluster net (a long book) is stood
     against by carrying `-f x net`.
+
+    Re-picked EACH SESSION since errata F8, on exactly the runs `plan_episode`
+    hedges: one short per run of same-proxy sessions, sized off the cluster's
+    own net at the session the run OPENS on. An episode whose first session is
+    unhedgeable is no longer dropped; it carries nothing until a hedgeable
+    session arrives.
     """
-    window = list(episode) if universe is None else hold_window(episode, universe)
-    pos = HI.short_for_delta_notional(proxy, window[0], -f * cluster_net)
-    if pos is None:
-        diag["no_bar"] += 1
-        return {}
-    levels = HI.short_pnl_path(pos, window)
+    window, proxies = episode_plan(episode, by_session, universe)
     out: dict[_date, float] = {}
-    prev = 0.0
-    for day in window:
-        lvl = levels.get(day)
-        if lvl is None:
+    for proxy, days, _n_active in proxy_runs(window, proxies):
+        sc = by_session.get(days[0])
+        cl = (next((c for c in sc.clusters if c.name == sc.top_cluster), None)
+              if sc is not None else None)
+        if cl is None:
+            diag["no_cluster"] += 1
             continue
-        out[day] = out.get(day, 0.0) + (lvl - prev)
-        prev = lvl
+        pos = HI.short_for_delta_notional(proxy, days[0], -f * cl.net)
+        if pos is None:
+            diag["no_bar"] += 1
+            continue
+        levels = HI.short_pnl_path(pos, days)
+        prev = 0.0
+        for day in days:
+            lvl = levels.get(day)
+            if lvl is None:
+                continue
+            out[day] = out.get(day, 0.0) + (lvl - prev)
+            prev = lvl
     return out
 
 
@@ -681,6 +837,10 @@ class Cell:
     n_episodes: int
     n_book_dates: int
     powered: bool
+    stratum: str = STRATUM_POOLED
+    triggered: list = field(default_factory=list)
+    eps: list = field(default_factory=list)
+    ep_hedges: list = field(default_factory=list)
     legs: list = field(default_factory=list)
     hedge: dict = field(default_factory=dict)
     diag: dict = field(default_factory=dict)
@@ -689,24 +849,48 @@ class Cell:
     clauses: dict = field(default_factory=dict)
 
 
+def new_diag() -> dict:
+    """The planning diagnostic every arm shares.
+
+    One shape, so a column of the cell-shape table never means two different
+    things in two arms.
+    """
+    return dict(rolls=0, opens=0, rotations=0, sessions_no_fill=0,
+                sessions_sub_one=0, sessions_unhedgeable=0,
+                episodes_all_unhedgeable=0)
+
+
+def episode_leg(episode, by_session, universe, f: float, budget: float,
+                rule: str, diag: dict) -> Leg:
+    """One trigger episode planned with its cluster re-picked EACH SESSION."""
+    window, proxies = episode_plan(episode, by_session, universe)
+    if not any(p is not None and p != CARRY for p in proxies):
+        diag["episodes_all_unhedgeable"] += 1
+    return plan_episode(window, proxies, f, budget, rule, diag)
+
+
 def build_cell(arm: str, tau: float, f: float, rule: str, triggered,
-               eps, by_session, budget: float, universe) -> Cell:
-    diag = dict(rolls=0, opens=0, sessions_no_fill=0, sessions_sub_one=0,
-                unhedgeable_episodes=0, unhedgeable_sessions=0)
-    counts = dict(sessions=len(triggered), episodes=len(eps))
-    cell = Cell(arm=arm, tau=tau, f=f, rule=rule,
-                n_sessions=counts["sessions"], n_episodes=counts["episodes"],
-                n_book_dates=0, powered=counts["episodes"] >= MIN_TRIGGER_DATES,
-                diag=diag)
+               eps, by_session, budget: float, universe,
+               stratum: str = STRATUM_POOLED) -> Cell:
+    """One arm x tau x f x stratum cell, planned but not yet evaluated.
+
+    NO EPISODE IS DROPPED (errata F8). Every triggered episode is planned; the
+    sessions inside it that carry no hedgeable cluster are carried at f=0 and
+    counted on the diagnostic. `ep_hedges` is kept PER EPISODE, aligned with
+    `eps`, because clause 6's leave-one-DATE-out folds re-plan only the episode
+    the removed date sits in.
+    """
+    diag = new_diag()
+    cell = Cell(arm=arm, tau=tau, f=f, rule=rule, stratum=stratum,
+                n_sessions=len(triggered), n_episodes=len(eps),
+                n_book_dates=0, powered=len(eps) >= MIN_TRIGGER_DATES,
+                diag=diag, triggered=list(triggered), eps=list(eps))
     for ep in eps:
-        sc = by_session[ep[0]]
-        if sc.top_proxy is None or not sc.top_hedgeable:
-            diag["unhedgeable_episodes"] += 1
-            diag["unhedgeable_sessions"] += len(ep)
-            continue
-        cell.legs.append(plan_episode(sc.top_proxy, ep, f, budget, rule, diag,
-                                      universe))
-    cell.hedge = merge(price_put(leg) for leg in cell.legs)
+        leg = episode_leg(ep, by_session, universe, f, budget, rule, diag)
+        cell.ep_hedges.append(price_put(leg))
+        if leg.segments:
+            cell.legs.append(leg)
+    cell.hedge = merge(cell.ep_hedges)
     return cell
 
 
@@ -792,8 +976,51 @@ def cell_verdict(res: dict) -> str:
     return "NULL"
 
 
+def leave_one_date_out(cell: Cell, by_session, universe, axis, base_daily,
+                       capital: float, base: M.PathStats, metrics,
+                       f: float, budget: float, rule: str) -> dict:
+    """Clause 6, folded over TRIGGER DATES — errata F10.
+
+    A FOLD IS ONE TRIGGER DATE. It used to be one placed LEG: at tau 0.30 that
+    made 29 folds out of 32 episodes and 256 trigger dates, so an episode that
+    placed nothing was not a fold at all and the clause was leave-one-LEG-out
+    while the registration words it leave-one-date-out.
+
+    Removing a date removes it from the TRIGGER, so the episode containing it
+    is re-planned as the (up to two) contiguous sub-episodes that survive —
+    which is what dropping one session out of a run actually leaves. Every
+    other episode's priced hedge is reused unchanged, so a fold costs one
+    episode's re-plan and not the cell's.
+
+    Returns `{metric: [improvement per fold]}`, aligned with
+    `cell.triggered`.
+    """
+    out = {m: [] for m in metrics}
+    where = {}
+    for i, ep in enumerate(cell.eps):
+        for s in ep:
+            where[s] = i
+    diag = new_diag()
+    for d in cell.triggered:
+        i = where.get(d)
+        parts = [h for j, h in enumerate(cell.ep_hedges) if j != i]
+        if i is not None:
+            ep = cell.eps[i]
+            for piece in (tuple(s for s in ep if s < d),
+                          tuple(s for s in ep if s > d)):
+                if piece:
+                    parts.append(price_put(episode_leg(
+                        piece, by_session, universe, f, budget, rule, diag)))
+        hd = hedged_daily(axis, base_daily, merge(parts))
+        st = M.path_stats(curve_of(axis, hd), capital)
+        for m in metrics:
+            out[m].append(improvement(base, st, m))
+    return out
+
+
 def evaluate_bar(cell: Cell, axis, base_daily, capital, arm_n,
-                 arm_r_improvement, boot_n: int) -> dict:
+                 arm_r_improvement, boot_n: int, loo_all: dict,
+                 arm_n_registered=None) -> dict:
     """Every clause of the registration's bar, computed and reported in full,
     plus the mirrored negative bar `evaluate_contrary` reads.
 
@@ -854,24 +1081,21 @@ def evaluate_bar(cell: Cell, axis, base_daily, capital, arm_n,
         keep = {s for s in axis if _ym(s) not in months}
         cut_stats[name] = (stats_on(axis, base_daily, capital, keep),
                            stats_on(axis, hd, capital, keep))
-    fold_stats = []
-    for i in range(len(cell.legs)):
-        h = merge(price_put(leg) for j, leg in enumerate(cell.legs) if j != i)
-        fold_stats.append(M.path_stats(
-            curve_of(axis, hedged_daily(axis, base_daily, h)), capital))
-
     per_year_all = {m: {y: improvement(b, h, m) for y, (b, h) in year_stats.items()}
                     for m in CO_PRIMARIES}
     cuts_all = {m: {k: improvement(b, h, m) for k, (b, h) in cut_stats.items()}
                 for m in CO_PRIMARIES}
-    loo_all = {m: [improvement(base, h, m) for h in fold_stats]
-               for m in CO_PRIMARIES}
 
-    # 3 — beats ARM N's 95th percentile on that same metric.
+    # 3 — beats ARM N's 95th percentile on that same metric. Clause 3 is read
+    # from the RICH match; the REGISTERED match is carried beside it as a
+    # printed diagnostic, never as the clause (errata F14).
     p05, p95 = arm_n.get(metric, (None, None))
     out["arm_n_p95"] = p95
     out["arm_n_p05"] = p05
     out["c3"] = _finite(p95) and point > p95
+    reg = (arm_n_registered or {}).get(metric, (None, None))
+    out["arm_n_reg_p05"], out["arm_n_reg_p95"] = reg
+    out["c3_registered"] = _finite(reg[1]) and point > reg[1]
 
     # 4 — positive in >= 2 of the book's years.
     per_year = per_year_all[metric]
@@ -910,37 +1134,61 @@ def evaluate_bar(cell: Cell, axis, base_daily, capital, arm_n,
 
 def arm_n_band(eps, by_session, universe, axis, base_daily, capital, f: float,
                budget: float, rule: str, metrics, n_seeds: int = N_SEEDS,
-               seed: int = SEED) -> dict:
-    """Matched random hedging: same episode COUNT, same episode LENGTHS, same
-    PROXY mix, random start sessions. `portfolio_delta`'s ARM N, applied to a
-    path metric — an arm must beat this band's 95th percentile, not merely beat
-    the unhedged book.
+               seed: int = SEED, match: str = MATCH_RICH) -> dict:
+    """Matched random hedging. `portfolio_delta`'s ARM N applied to a path
+    metric — an arm must beat this band's 95th percentile, not merely beat the
+    unhedged book.
+
+    TWO MATCHINGS, both run and both printed (errata F14):
+
+      `MATCH_RICH`        same episode COUNT, same episode LENGTHS and the same
+                          PER-SESSION PROXY SEQUENCE, at uniform random starts.
+                          A richer match makes the null HARDER to beat, so it
+                          is the conservative choice and it is what clause 3 is
+                          read from. It is NOT what the registration commits,
+                          which is why it is labelled wherever it prints.
+      `MATCH_REGISTERED`  the registration's own words — "matched in COUNT and
+                          in date-clustering" — and nothing more: the same
+                          number of episodes at the same lengths and the same
+                          contiguity, but each episode's proxy drawn UNIFORMLY
+                          from the proxies the triggered set actually carried
+                          rather than matched to it. Printed beside the rich
+                          band as the registered estimator, the way F5 kept the
+                          withdrawn bootstrap visible beside the chronological
+                          one.
+
+    The per-session rule of errata F8 applies to the null too: a matched
+    episode carries the same rotation, and a session the arm carried at f=0
+    because its cluster was unhedgeable is carried at f=0 in the null as well.
+    Otherwise the null would stop being a null for the arm it is a null for.
 
     Returns `{metric: (p05, p95)}`. BOTH tails are needed: the 95th is clause
-    3's bar for a positive, and the 5th is clause 3''s bar for a CONTRARY, so
-    a negative is held against the same null as a positive (errata F1)."""
-    shape = []
-    for ep in eps:
-        sc = by_session[ep[0]]
-        if sc.top_proxy is None or not sc.top_hedgeable:
-            continue
-        shape.append((len(ep), sc.top_proxy))
+    3's bar for a positive and the 5th is the mirrored clause for a CONTRARY,
+    so a negative is held against the same null as a positive (errata F1).
+    """
+    shapes = [episode_shape(ep, by_session) for ep in eps]
+    shapes = [s for s in shapes if any(p is not None for p in s)]
+    pool = sorted({p for s in shapes for p in s if p is not None})
     uni = list(universe)
     draws: dict[str, list[float]] = {m: [] for m in metrics}
-    if not shape or len(uni) < 2:
+    if not shapes or not pool or len(uni) < 2:
         return {m: (float("nan"), float("nan")) for m in metrics}
     rng = random.Random(seed)
+    base = M.path_stats(curve_of(axis, base_daily), capital)
     for _ in range(n_seeds):
         legs = []
-        diag = dict(rolls=0, opens=0, sessions_no_fill=0, sessions_sub_one=0)
-        for length, proxy in shape:
+        diag = new_diag()
+        for shape in shapes:
+            length = len(shape)
             if length > len(uni):
                 continue
             start = rng.randrange(0, len(uni) - length + 1)
-            legs.append(plan_episode(proxy, uni[start:start + length], f,
-                                     budget, rule, diag, uni))
+            window = hold_window(uni[start:start + length], uni)
+            seq = ([rng.choice(pool)] * length if match == MATCH_REGISTERED
+                   else list(shape))
+            proxies = seq + [CARRY] * (len(window) - length)
+            legs.append(plan_episode(window, proxies, f, budget, rule, diag))
         hd = hedged_daily(axis, base_daily, merge(price_put(leg) for leg in legs))
-        base = M.path_stats(curve_of(axis, base_daily), capital)
         hedged = M.path_stats(curve_of(axis, hd), capital)
         for m in metrics:
             draws[m].append(improvement(base, hedged, m))
@@ -962,6 +1210,211 @@ def print_stats_row(label: str, st: M.PathStats, base: M.PathStats | None = None
     print(f"  {label:<34s} total ${st.total:>10,.0f}  maxDD ${st.max_dd:>10,.0f}"
           f"  ulcer {st.ulcer:6.2f}%  TUW {st.tuw:5.1%}"
           f"  worst ${st.worst_session:>9,.0f}{d}{tail}")
+
+
+def power_note(powered: bool) -> str:
+    """`UNPOWERED_NOTE` when the cell this row belongs to is power-stopped.
+
+    Errata F11. Signed dMaxDD / dUlcer / dTUW were tabulated for cells the
+    study had ALREADY power-stopped — ARM C at tau 0.35/0.40, every ARM CS
+    cell, the whole ARM R / ARM RF / ARM B tables and the nearest-fill
+    sensitivity. No clause, verdict or prose read them, and each cell's own
+    section restated the rule, but the registration's words are "UNDERPOWERED
+    — no direction is quoted, ever", and a signed number in a table IS a
+    direction in print. Every such row now carries the stamp.
+    """
+    return "" if powered else UNPOWERED_NOTE
+
+
+def note(*parts: str) -> str:
+    """Join the labels a stat row carries. Empty parts drop out."""
+    return " · ".join(p for p in parts if p)
+
+
+def print_clauses(res: dict, cell: Cell, args) -> tuple[int, int]:
+    """One evaluated cell's full clause set. Returns (clause2 flip, clause3 flip).
+
+    A "flip" is a clause whose PASS/FAIL differs between the estimator the
+    clause is READ from and the one printed beside it as a diagnostic — the
+    withdrawn month-shuffle bootstrap for clause 2 (errata F5), the
+    registration's own ARM N match for clause 3 (errata F14).
+    """
+    m = res["metric"]
+    pt = res["ci"][m][0]
+    print(f"  metric read: {m}")
+    print(f"  1 maxDD/worst-session no worse   {'PASS' if res['c1'] else 'FAIL'}"
+          f"   dMaxDD ${res['hedged'].max_dd - res['base'].max_dd:+,.0f}"
+          f"   dWorst ${res['hedged'].worst_session - res['base'].worst_session:+,.0f}")
+    for mm in CO_PRIMARIES:
+        p2, l2, h2 = res["ci"][mm]
+        print(f"  2 {mm:<6s} improvement {p2:+.4f}   CI[{l2:+.4f}, {h2:+.4f}]"
+              f"   {'excludes 0' if (_finite(l2) and (l2 > 0 or h2 < 0)) else 'includes 0'}")
+    print(f"  2 verdict                        {'PASS' if res['c2'] else 'FAIL'}")
+    for mm in CO_PRIMARIES:
+        p2, l2, h2 = res["ci_withdrawn"][mm]
+        print(f"    withdrawn month-shuffle {mm:<6s} {p2:+.4f}   "
+              f"CI[{l2:+.4f}, {h2:+.4f}]  (diagnostic; no clause read from it)")
+    flip2 = int(res["c2"] != res["c2_withdrawn"])
+    print(f"    clause 2 under the withdrawn estimator: "
+          f"{'PASS' if res['c2_withdrawn'] else 'FAIL'} — "
+          f"{'SAME as the chronological one' if not flip2 else 'DIFFERENT'}")
+    print(f"  3 beats ARM N p95                {'PASS' if res['c3'] else 'FAIL'}"
+          f"   arm {pt:+.4f} vs null p95 {_num(res['arm_n_p95'])}"
+          f"   [{args.seeds} seeds, RICH match: count + episode lengths + "
+          f"per-session proxy sequence — NOT the registered match]")
+    flip3 = int(res["c3"] != res["c3_registered"])
+    print(f"    registered match (COUNT + date-clustering only): "
+          f"null p95 {_num(res['arm_n_reg_p95'])} — clause 3 would "
+          f"{'PASS' if res['c3_registered'] else 'FAIL'}, "
+          f"{'SAME as the rich match' if not flip3 else 'DIFFERENT'} "
+          f"(diagnostic; the clause is read from the rich match)")
+    print(f"  4 years positive                 {'PASS' if res['c4'] else 'FAIL'}"
+          f"   " + "  ".join(f"{y}:{v:+.4f}" for y, v in res["per_year"].items()))
+    print(f"  5 ex-window cuts                 {'PASS' if res['c5'] else 'FAIL'}"
+          f"   " + "  ".join(f"{k}:{v:+.4f}" for k, v in res["cuts"].items()))
+    loo = res["loo"]
+    print(f"  6 leave-one-date-out             {'PASS' if res['c6'] else 'FAIL'}"
+          f"   {sum(1 for v in loo if v > 0)}/{len(loo)} folds keep the sign"
+          + (f"   worst {min(loo):+.4f}" if loo else ""))
+    print(f"      A FOLD IS ONE TRIGGER DATE (errata F10): {len(loo)} folds for "
+          f"{cell.n_sessions} triggered\n      sessions in {cell.n_episodes} "
+          f"episodes. The episode holding the removed date is re-planned as "
+          f"the\n      (up to two) sub-episodes that survive. It used to be one "
+          f"placed LEG, so an\n      episode that placed nothing was not a fold "
+          f"at all.")
+    print(f"  7 exceeds ARM R (not delta in disguise)  "
+          f"{'PASS' if res['c7'] else 'FAIL'}   ARM R {_num(res['arm_r'])}")
+    neg = res["contrary"]
+    print(f"  CONTRARY mirror                  "
+          f"{'MET' if neg['contrary'] else 'not met'}   "
+          f"1' maxDD worse {'Y' if neg['n1'] else 'n'}"
+          f"  2' CI below 0 {'Y' if neg['n2'] else 'n'}"
+          f"  3' under ARM N p05 {'Y' if neg['n3'] else 'n'}"
+          f"  4' years {'Y' if neg['n4'] else 'n'}"
+          f"  5' cuts {'Y' if neg['n5'] else 'n'}"
+          f"  6' folds {'Y' if neg['n6'] else 'n'}"
+          + (f"   (metric {neg['metric']}, ARM N p05 {_num(neg['arm_n_p05'])})"
+             if neg["metric"] else "   (no co-primary CI lies below zero)"))
+    return flip2, flip3
+
+
+def print_not_preregistered(args, budget: float) -> None:
+    """The ONE place every discretionary choice in this module is listed.
+
+    Errata F14. These were disclosed before — but scattered, each beside the
+    section it affected, so a reader had to reassemble them from six places and
+    five of them were not disclosed at all. Every choice this module made that
+    the registration does NOT commit is listed here, with what it is and which
+    clause of the bar it feeds. A choice that feeds a clause and is not on this
+    list is a defect.
+
+    None of these may be read as findings, and none of them is tuned: they are
+    fixed in code, stated here, and not revisited after an outcome.
+    """
+    hdr("NOT PRE-REGISTERED — every discretionary choice in this module, in "
+        "one place")
+    print(f"""  The pre-registration
+  (research/pre-registrations/f4_deployment/hedge_exposure.md) fixes the sector
+  map, the tau grid, the f grid, the hedge-pressure cut, the two fill rules,
+  the DTE windows, the >=60% fill gate, the >=25 trigger-date floor, the
+  Bonferroni denominator of 9, the seven clauses of the bar and the verdict
+  vocabulary. NONE of those appears below. What appears below is everything
+  ELSE this module had to decide in order to run at all.
+
+  THE POPULATION AND THE ORDER OF SECTIONS
+  1  SESSION CALENDAR — the trading sessions are the dates in the SPY OHLC
+     cache. It defines the {C.MIN_TRIGGER_DATES}-date floor's denominator, the session
+     universe, and therefore every episode and every clause. Weekdays alone
+     over-count by market holidays; the registration names a session universe
+     but no calendar.   Feeds: G-POWER and, through the episodes, ALL SEVEN
+     CLAUSES.
+  2  G-POWER CLUSTERING = EPISODES — the registration asks for ">= {C.MIN_TRIGGER_DATES} trigger
+     DATES (date-clustered, not sessions)" but every session already IS one
+     date, so the clustering is undefined. All three readings are printed in
+     the census; the floor is read against EPISODES, the strictest.
+     Feeds: which cells are evaluated at all.
+  3  BOTH READINGS OF THE POPULATION CLAUSE are run and neither concluded from
+     — ERRATUM 1 of research/hedge-exposure-errata.md, not a free choice.
+
+  THE HEDGE ITSELF
+  4  ROLLING — a 25-75 DTE put cannot span a long episode, so it is settled at
+     expiry intrinsic and re-opened. The alternative is an unpriced hedge, not
+     a longer one.   Feeds: ALL SEVEN CLAUSES.
+  5  HOLDING WINDOW — the hedge is carried to the close of the session AFTER
+     the episode ends. Without it a one-session episode opens and closes on the
+     same mark and contributes exactly zero.   Feeds: ALL SEVEN CLAUSES.
+  6  PER-SESSION RE-PICK, and how a rotation is executed (errata F8) — the
+     registration says "a long put on the concentrated cluster's proxy" per
+     triggered session, but not what to do when the top cluster CHANGES
+     mid-episode. This module closes the run at that session's own mark and
+     opens the new proxy on the same session; a session whose top cluster is
+     UNHEDGEABLE closes the run and carries nothing, staying in the
+     denominator.   Feeds: ALL SEVEN CLAUSES.
+  7  SIZING — contracts = int(f x risk_contracts(put debit, ${budget:,.0f})); a hedge
+     that rounds below one contract is SKIPPED, never floored to 1. The
+     registration names the floor-to-1 DEFECT and says to inherit-fix it but
+     does not say which fix.   Feeds: ALL SEVEN CLAUSES.
+  8  SETTLE_LOOKBACK_DAYS = {SETTLE_LOOKBACK_DAYS} — an expiry settlement is marked against that
+     expiry date's close, walked back up to {SETTLE_LOOKBACK_DAYS} calendar days for a holiday or
+     half-session gap. The report elsewhere says only "against that day's
+     close".   Feeds: ALL SEVEN CLAUSES.
+  9  BAND-RULE TIE-BREAK — inside the committed band the contract is ranked by
+     |DTE-45|, then |K-S|, then (expiry, strike) so the pick is deterministic
+     on a grown cache. The registration fixes the band's WINDOWS and no
+     tie-break.   Feeds: which contract fills, hence ALL SEVEN CLAUSES.
+ 10  NO ADMISSION LEDGER — the hedge is not routed through
+     account_sim.admission(); the whole book at its own contract counts has no
+     ledger to admit against. The cash and exposure footprint is REPORTED
+     (peak debit per cell), not enforced.   Feeds: ALL SEVEN CLAUSES.
+
+  THE MEASUREMENT AND THE INFERENCE
+ 11  DIRECT_MAJORITY = {C.DIRECT_MAJORITY:.2f} — a session is DIRECT when at least this share of
+     its TOP cluster's gross exposure sits in the proxy instrument itself. The
+     registration names the two strata and does not define the cut; the raw
+     share is carried on every session so a reader can re-cut it.
+     Feeds: the stratification, hence every per-stratum clause set.
+ 12  STRATIFICATION, as computed (errata F9) — a session's stratum is its TOP
+     cluster's; POOLED is reported as a third row and labelled, not as a
+     stratum; G-FILL is read on the POOLED triggered set and the strata inherit
+     that decision.   Feeds: which stratum each clause set belongs to.
+ 13  THE READ METRIC — when neither co-primary's CI excludes zero the report
+     falls back to ULCER so a number is printed rather than a blank, and
+     CO_PRIMARIES order breaks a tie toward ulcer. The registration says "at
+     least one co-primary" and names no tie-break.   Feeds: clauses 3, 4, 5, 6
+     and 7, all of which are read on the chosen metric.
+ 14  BOOTSTRAP — {args.boot} paired resamples, a CHRONOLOGICAL moving block whose length
+     is the median calendar-month cluster floored at {BOOT_BLOCK_MIN} sessions, at a fixed
+     seed. The registration asks for "date-clustered resampling" and names no
+     estimator. The withdrawn month-shuffle estimator (errata F5) is printed
+     beside it and no clause is read from it.   Feeds: clause 2.
+ 15  ARM N'S MATCH (errata F14) — clause 3 is read from a RICH match: episode
+     COUNT, episode LENGTHS and the PER-SESSION PROXY SEQUENCE, at uniform
+     random starts. The registration commits only "matched in COUNT and in
+     date-clustering". A richer match makes the null HARDER to beat, so it is
+     conservative — but it is not what was committed, so the REGISTERED match
+     (count and date-clustering, with each episode's proxy drawn uniformly from
+     the proxies the triggered set carried) is computed and printed beside it
+     as the registered estimator, and the report says whether clause 3's
+     outcome differs between them.   Feeds: clause 3.
+ 16  A FOLD IS ONE TRIGGER DATE (errata F10) — the episode holding the removed
+     date is re-planned as the up-to-two sub-episodes that survive. It used to
+     be one placed LEG.   Feeds: clause 6.
+
+  THINGS THAT FEED NO CLAUSE, LISTED SO THE LIST IS COMPLETE
+ 17  ARM RF — {ARM_RF_LABEL}. This module's own
+     fill-independent floor. Every one of its rows carries that label and NO
+     clause of the bar is read from it.
+ 18  ARM M'S "MATERIALLY DIFFERENT" THRESHOLDS — $1 / 0.1 ulcer point / 1 TUW
+     point. ARM M gates nothing and no clause reads it; the GAP itself is
+     printed beside the boolean because a boolean off a $1 cut is not a
+     measurement.
+ 19  G-FILL'S DENOMINATOR IS CACHE-CONDITIONED — the instrument universe comes
+     from the option history cache, i.e. contracts the BOOK traded, so the band
+     rates measure cache coverage rather than market liquidity and would move
+     on a re-scrape.   Feeds: G-FILL, and nothing else.
+ 20  ARM P IS LEFT LITERAL — ERRATUM 2. Not a choice this module made free of
+     the registration: the registration's own definition is degenerate, and
+     redefining it would be a post-hoc arm.""")
 
 
 def cache_state() -> str:
@@ -1008,10 +1461,21 @@ def check_mtm(bc: M.BookCurves) -> int:
           f"worst mismatch ${bc.worst_mismatch:.4f}")
     print(f"  stale marks carried forward inside an open window: "
           f"{bc.n_carried_forward}")
-    if bc.reconciles:
+    print(f"  degraded (no stored outcome — fell back to pos.dollars): "
+          f"{bc.n_degraded}")
+    if bc.reconciles and not bc.n_degraded:
         print("  G-MTM PASS — daily_pnl_csv at the STORED exit index, times the "
               "row's contracts,\n  equals the row's STORED realized_pnl_abs. Two "
               "independent columns; neither\n  side is a replay of the other.")
+        return 0
+    if bc.reconciles:
+        print(f"  G-MTM PASS — but NOT on two independent columns for every "
+              f"position. {bc.n_degraded}\n  position(s) carried neither a "
+              f"stored realized_pnl_abs nor a stored R_dol, so the\n  marked "
+              f"exit was compared against this module's OWN pos.dollars — the "
+              f"self-\n  comparison shape errata F2 removed, reopened per "
+              f"position. Nothing may be\n  read from those rows as a "
+              f"reconciliation.")
         return 0
     print(f"\n  G-MTM FAILED — {len(bc.mismatches)} position(s) disagree:")
     for m in bc.mismatches[:20]:
@@ -1052,7 +1516,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     out: dict = dict(name=name, n_rows=len(recs),
                      n_dates=len({r["date"] for r in recs}),
                      refusal=0, counts={}, curves_differ=None,
-                     clause2_survives=None, n_powered=0)
+                     curve_gaps=None, clause2_survives=None,
+                     clause3_survives=None, n_powered=0, strata={})
 
     hdr(f"POPULATION {name} — {POP_LABELS[name]}")
     dates = sorted({r["date"] for r in recs})
@@ -1090,16 +1555,28 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     print()
     print_stats_row("mark-to-market (the basis)", mtm_stats)
     print_stats_row("realized-on-close (comparability)", rea_stats)
-    curves_differ = (abs(mtm_stats.max_dd - rea_stats.max_dd) > 1.0
-                     or abs(mtm_stats.ulcer - rea_stats.ulcer) > 0.1
-                     or abs(mtm_stats.tuw - rea_stats.tuw) > 0.01)
+    gaps = dict(max_dd=mtm_stats.max_dd - rea_stats.max_dd,
+                ulcer=mtm_stats.ulcer - rea_stats.ulcer,
+                tuw=mtm_stats.tuw - rea_stats.tuw)
+    curves_differ = (abs(gaps["max_dd"]) > 1.0 or abs(gaps["ulcer"]) > 0.1
+                     or abs(gaps["tuw"]) > 0.01)
     out["curves_differ"] = curves_differ
+    out["curve_gaps"] = gaps
     print(f"\n  sessions {mtm_stats.n_sessions} (the curve's own weekday-grid axis; "
           f"the census below\n  reports the calendar reading the registration "
           f"disclosed)")
+    rel = (abs(gaps["max_dd"] / rea_stats.max_dd) * 100.0
+           if rea_stats.max_dd else float("nan"))
+    print(f"  THE GAP, printed rather than asserted: maxDD "
+          f"${gaps['max_dd']:+,.0f} ({rel:.1f}% of the realized-on-close "
+          f"drawdown)   ulcer {gaps['ulcer']:+.2f} pts   "
+          f"TUW {gaps['tuw'] * 100:+.1f} pts")
     print(f"  curves differ materially: {'YES' if curves_differ else 'no'}  "
-          f"(thresholds $1 / 0.1 ulcer pt / 1 TUW pt — this module's, not "
-          f"pre-registered)")
+          f"(thresholds $1 / 0.1 ulcer pt / 1 TUW pt — this module's, NOT "
+          f"pre-registered.\n  A boolean off a $1 cut on a "
+          f"${abs(rea_stats.max_dd):,.0f} drawdown says far less than the gap "
+          f"above, which is\n  the figure to read: the two curves differ by "
+          f"about that much, and no more.)")
     print("""  This is a MEASUREMENT. The registration words a MEASUREMENT-ONLY
   verdict for it, and this run does not reach for that word: no study-level
   verdict is emitted under either population until one is ratified.""")
@@ -1120,7 +1597,22 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
           "is entry-dated.")
 
     # ── G-CENSUS (before any outcome column is read) ─────────────────────────
-    hdr("G-CENSUS — the power census, printed before any outcome column is read")
+    hdr("G-CENSUS — the power census; its INPUTS are entry-dated fields only")
+    print("""  WHAT IS TRUE, stated as such (errata F13). Every number in this census is
+  computed from ENTRY-DATED fields — ticker, delta, contracts,
+  entry_underlying — plus `days_held` through the OCCUPANCY layer alone, which
+  is the replay fixture of a book that already happened and is not a trigger
+  input. That is the property the gate is for.
+
+  WHAT IS NOT TRUE is the header this section used to carry. It claimed the
+  census "prints before any outcome column is read", and the code contradicts
+  it: G-MTM, the replay divergence and ARM M all print outcome-derived dollars
+  ABOVE this line, and G-MTM must read the stored outcome by construction. The
+  claim was about PRINT ORDER; the property worth having is about INPUTS.
+
+  G-CENSUS HAS NO FAILING PATH. It is a DISCIPLINE, not a check: the census is
+  computed and printed so the trigger's shape is visible before any arm is
+  read. The gate that can refuse on lookahead is G-BLIND, above.""")
     census = C.census(recs)
     for line in C.census_lines(census):
         print(line)
@@ -1144,7 +1636,20 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     print("""  An unfillable session is CARRIED AT f=0 and stays in the denominator, per
   calendar_hedge's standing principle that a hedge unavailable exactly when
   needed is not a hedge. An UNHEDGEABLE cluster keeps its proxy identity and
-  counts against the gate; it is never folded into BROAD/SPY.""")
+  counts against the gate; it is never folded into BROAD/SPY.
+
+  THE GATE AND THE ARMS NOW FILL THE SAME OBJECT (errata F15, closed by F8).
+  These (session, proxy) pairs are built from each session's OWN top proxy. The
+  arms used to fill the proxy picked at the EPISODE'S FIRST session and carry
+  it for the whole episode, so the gate measured one population and the arms
+  filled another — at tau 0.30, an 81.6% gate against 85.5% actual live-hedge
+  session coverage at f=1.00. Since F8 re-picks per session, the two are one
+  object and the gate is a gate on what the arms actually do.
+
+  DISCLOSED: this denominator is CACHE-CONDITIONED. The instrument universe is
+  built from the option history cache, i.e. contracts the BOOK traded, so these
+  rates measure CACHE COVERAGE, not market liquidity, and would move on a
+  re-scrape. The cache state is recorded in the header.""")
     fill: dict[float, dict] = {}
     for tau in TAU_GRID:
         trig = C.triggered_sessions(series, tau)
@@ -1172,11 +1677,19 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
         "Bonferroni alpha = 0.05/9)")
     longest = max(len(e) for e in C.episodes(
         C.triggered_sessions(series, TAU_GRID[0]), universe))
-    print(f"""  A hedge is opened on the first session of a trigger EPISODE, held while
-  concentration stays >= tau, and ROLLED when the put expires inside the
-  episode (settled at expiry intrinsic against that day's close). Rolling is
-  not pre-registered: episodes run to {longest} sessions and a 25-75 DTE put
-  cannot span that, so the alternative would be an unpriced hedge, not a
+    print(f"""  THE CLUSTER AND ITS PROXY ARE RE-PICKED EACH SESSION (errata F8). A hedge is
+  opened on a triggered session against THAT session's concentrated cluster,
+  carried while that cluster stays on top, CLOSED and re-opened on the new
+  proxy when the top cluster rotates, and ROLLED when the put expires inside
+  the episode (settled at expiry intrinsic against that day's close). A session
+  whose top cluster is one of the four UNHEDGEABLE ones is carried at f=0 and
+  STAYS IN THE DENOMINATOR — never a dropped episode, per calendar_hedge's
+  standing principle. Until 2026-08-31 this module read the cluster ONCE, at
+  the episode's first session, and dropped whole any episode whose first
+  session was unhedgeable.
+
+  Rolling is not pre-registered: episodes run to {longest} sessions and a 25-75 DTE
+  put cannot span that, so the alternative would be an unpriced hedge, not a
   longer one.
 
   HOLDING WINDOW, not pre-registered: the hedge is carried to the close of the
@@ -1190,6 +1703,10 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
   SKIPPED (account_sim ARM H's convention, which dropped 61 of 132 candidates
   there) and its session is carried at f=0. It is NOT floored to 1 — that
   defect is what the registration told this module to inherit-fix.
+
+  All three of those, and every other choice this module made that the
+  registration does not commit, are listed together in the NOT PRE-REGISTERED
+  section above, with the clause each one feeds.
 
   alpha = {ALPHA:.5f} two-sided; CI percentiles {100 * ALPHA / 2:.2f} / {100 * (1 - ALPHA / 2):.2f}.""")
 
@@ -1209,30 +1726,31 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             arm_r[(tau, f)] = dict(
                 hedge=merge(price_delta_short(leg, rdiag) for leg in cell.legs),
                 diag=rdiag)
-            fdiag = dict(no_bar=0)
-            rf = []
-            for ep in eps:
-                sc = by_session[ep[0]]
-                if sc.top_proxy is None or not sc.top_hedgeable:
-                    continue
-                cl = next((c for c in sc.clusters if c.name == sc.top_cluster),
-                          None)
-                if cl is None:
-                    continue
-                rf.append(price_cluster_short(sc.top_proxy, ep, cl.net, f,
-                                              fdiag, universe))
+            fdiag = dict(no_bar=0, no_cluster=0)
+            rf = [price_cluster_short(ep, by_session, universe, f, fdiag)
+                  for ep in eps]
             arm_rf[(tau, f)] = dict(hedge=merge(rf), diag=fdiag)
 
     sub("cell shape (no outcome read yet)")
-    print("   tau     f   episodes  book_dates  legs  opens  rolls  no-fill  "
-          "sub-1c  unhedgeable-ep    debit$   peak$  peak/cap")
+    print("""  Since errata F8 the concentrated cluster and its proxy are re-picked EACH
+  SESSION inside an episode. `rotate` counts the mid-episode proxy changes that
+  produces; `unhedg-sess` counts the sessions carried at f=0 because that
+  session's top cluster is one of the four the registration fixes as
+  UNHEDGEABLE, and those sessions STAY in the denominator. `all-unhedg-ep`
+  counts episodes with no hedgeable session at all — which is the only way an
+  episode now contributes nothing. No episode is dropped for the state of its
+  FIRST session.""")
+    print("\n   tau     f   episodes  book_dates  legs  opens  rolls  rotate  "
+          "no-fill  sub-1c  unhedg-sess  all-unhedg-ep    debit$   peak$  peak/cap")
     for (tau, f), cell in cells.items():
         d = cell.diag
         pk = peak_debit(cell.legs)
         print(f"  {tau:.2f}  {f:.2f}   {cell.n_episodes:8d}  "
               f"{cell.n_book_dates:10d}  {len(cell.legs):4d}  {d['opens']:5d}  "
-              f"{d['rolls']:5d}  {d['sessions_no_fill']:7d}  "
-              f"{d['sessions_sub_one']:6d}  {d['unhedgeable_episodes']:14d}  "
+              f"{d['rolls']:5d}  {d['rotations']:6d}  "
+              f"{d['sessions_no_fill']:7d}  "
+              f"{d['sessions_sub_one']:6d}  {d['sessions_unhedgeable']:11d}  "
+              f"{d['episodes_all_unhedgeable']:13d}  "
               f"{sum(leg.cost for leg in cell.legs):9,.0f}  {pk:6,.0f}  "
               f"{pk / capital:7.1%}")
     print(f"""
@@ -1253,7 +1771,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
         hd = hedged_daily(axis, base_daily, cell.hedge)
         stt = M.path_stats(curve_of(axis, hd), capital)
         cell.stats = stt
-        print_stats_row(f"ARM C tau {tau:.2f} f {f:.2f}", stt, mtm_stats)
+        print_stats_row(f"ARM C tau {tau:.2f} f {f:.2f}", stt, mtm_stats,
+                        note=power_note(cell.powered))
 
     sub("ARM R — always-fillable reference (delta-matched short in the proxy)")
     print(f"""  {ARM_R_CAVEAT}
@@ -1267,7 +1786,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             stt = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily, h)),
                                capital)
             print_stats_row(f"ARM R tau {tau:.2f} f {f:.2f} (delta-matched)",
-                            stt, mtm_stats)
+                            stt, mtm_stats,
+                            note=power_note(cells[(tau, f)].powered))
 
     sub(f"ARM RF — {ARM_RF_LABEL}")
     print(f"""  {ARM_RF_LABEL}. ARM RF is NOT in
@@ -1286,7 +1806,9 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             stt = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily, h)),
                                capital)
             print_stats_row(f"ARM RF tau {tau:.2f} f {f:.2f} (cluster short)",
-                            stt, mtm_stats, note=ARM_RF_LABEL)
+                            stt, mtm_stats,
+                            note=note(ARM_RF_LABEL,
+                                      power_note(cells[(tau, f)].powered)))
 
     # ── ARM B ───────────────────────────────────────────────────────────────
     hdr("ARM B — instrument comparison: the book's own bear row instead of the put")
@@ -1334,7 +1856,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             continue
         stt = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily,
                                                        d["hedge"])), capital)
-        print_stats_row(f"ARM B tau {tau:.2f} f {f:.2f}", stt, mtm_stats)
+        print_stats_row(f"ARM B tau {tau:.2f} f {f:.2f}", stt, mtm_stats,
+                        note=power_note(cells[(tau, f)].powered))
 
     # ── ARM CS / ARM P ──────────────────────────────────────────────────────
     hdr("ARM CS — concentration x hedge-flow signal   ·   ARM P — INERT AS "
@@ -1392,7 +1915,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             continue
         stt = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily,
                                                        cs.hedge)), capital)
-        print_stats_row(f"ARM CS tau {tau:.2f} f {f:.2f}", stt, mtm_stats)
+        print_stats_row(f"ARM CS tau {tau:.2f} f {f:.2f}", stt, mtm_stats,
+                        note=power_note(cs.powered))
 
     # ── the bar ─────────────────────────────────────────────────────────────
     hdr("BAR FOR A CANDIDATE — all seven clauses, per powered cell")
@@ -1422,99 +1946,126 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
 
     verdict_cells = []
     clause2_flips = 0
-    for (tau, f), cell in cells.items():
-        band_ok = fill[tau][args.rule].passes()
-        sub(f"cell tau {tau:.2f}  f {f:.2f}")
-        if not band_ok:
-            cell.verdict = "NOT EVALUABLE"
-            print(f"  G-FILL {fill[tau][args.rule].rate:.1%} < {FILL_GATE:.0%} "
-                  f"— NOT EVALUABLE (not failed). Only ARM R is read.")
-            verdict_cells.append(cell)
-            continue
-        if not cell.powered:
-            cell.verdict = "UNDERPOWERED"
-            print(f"  {cell.n_episodes} trigger dates (episodes) < "
-                  f"{MIN_TRIGGER_DATES} — UNDERPOWERED. No direction is quoted. "
-                  f"UNDERPOWERED is not a lean.")
-            verdict_cells.append(cell)
-            continue
-        if not cell.legs:
-            cell.verdict = "NO HEDGE PLACED"
-            print(f"  no hedge was placed in this cell — every episode was "
-                  f"unhedgeable, unfilled, or sized below one contract "
-                  f"(sub-1c {cell.diag['sessions_sub_one']}). "
-                  f"Nothing to evaluate; not evidence about hedging.")
-            verdict_cells.append(cell)
-            continue
-        eps = C.episodes(C.triggered_sessions(series, tau), universe)
-        band = arm_n_band(eps, by_session, universe, axis, base_daily, capital,
-                          f, budget, args.rule, CO_PRIMARIES,
-                          n_seeds=args.seeds)
-        rimp = {}
-        rh = arm_r[(tau, f)]["hedge"]
-        if rh:
-            rst = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily, rh)),
-                               capital)
-            rimp = {m: improvement(mtm_stats, rst, m) for m in CO_PRIMARIES}
-        res = evaluate_bar(cell, axis, base_daily, capital, band, rimp,
-                           args.boot)
-        results[(tau, f)] = res
-        cell.clauses = res
-        out["n_powered"] += 1
-        m = res["metric"]
-        pt = res["ci"][m][0]
-        print(f"  metric read: {m}")
-        print(f"  1 maxDD/worst-session no worse   {'PASS' if res['c1'] else 'FAIL'}"
-              f"   dMaxDD ${res['hedged'].max_dd - res['base'].max_dd:+,.0f}"
-              f"   dWorst ${res['hedged'].worst_session - res['base'].worst_session:+,.0f}")
-        for mm in CO_PRIMARIES:
-            p2, l2, h2 = res["ci"][mm]
-            print(f"  2 {mm:<6s} improvement {p2:+.4f}   CI[{l2:+.4f}, {h2:+.4f}]"
-                  f"   {'excludes 0' if (_finite(l2) and (l2 > 0 or h2 < 0)) else 'includes 0'}")
-        print(f"  2 verdict                        {'PASS' if res['c2'] else 'FAIL'}")
-        for mm in CO_PRIMARIES:
-            p2, l2, h2 = res["ci_withdrawn"][mm]
-            print(f"    withdrawn month-shuffle {mm:<6s} {p2:+.4f}   "
-                  f"CI[{l2:+.4f}, {h2:+.4f}]  (diagnostic; no clause read from it)")
-        if res["c2"] != res["c2_withdrawn"]:
-            clause2_flips += 1
-        print(f"    clause 2 under the withdrawn estimator: "
-              f"{'PASS' if res['c2_withdrawn'] else 'FAIL'} — "
-              f"{'SAME as the chronological one' if res['c2'] == res['c2_withdrawn'] else 'DIFFERENT'}")
-        print(f"  3 beats ARM N p95                {'PASS' if res['c3'] else 'FAIL'}"
-              f"   arm {pt:+.4f} vs null p95 {_num(res['arm_n_p95'])}")
-        print(f"  4 years positive                 {'PASS' if res['c4'] else 'FAIL'}"
-              f"   " + "  ".join(f"{y}:{v:+.4f}" for y, v in res["per_year"].items()))
-        print(f"  5 ex-window cuts                 {'PASS' if res['c5'] else 'FAIL'}"
-              f"   " + "  ".join(f"{k}:{v:+.4f}" for k, v in res["cuts"].items()))
-        loo = res["loo"]
-        print(f"  6 leave-one-date-out             {'PASS' if res['c6'] else 'FAIL'}"
-              f"   {sum(1 for v in loo if v > 0)}/{len(loo)} folds keep the sign"
-              + (f"   worst {min(loo):+.4f}" if loo else ""))
-        print(f"  7 exceeds ARM R (not delta in disguise)  "
-              f"{'PASS' if res['c7'] else 'FAIL'}   ARM R {_num(res['arm_r'])}")
-        neg = res["contrary"]
-        print(f"  CONTRARY mirror                  "
-              f"{'MET' if neg['contrary'] else 'not met'}   "
-              f"1' maxDD worse {'Y' if neg['n1'] else 'n'}"
-              f"  2' CI below 0 {'Y' if neg['n2'] else 'n'}"
-              f"  3' under ARM N p05 {'Y' if neg['n3'] else 'n'}"
-              f"  4' years {'Y' if neg['n4'] else 'n'}"
-              f"  5' cuts {'Y' if neg['n5'] else 'n'}"
-              f"  6' folds {'Y' if neg['n6'] else 'n'}"
-              + (f"   (metric {neg['metric']}, ARM N p05 {_num(neg['arm_n_p05'])})"
-                 if neg["metric"] else "   (no co-primary CI lies below zero)"))
-        cell.verdict = cell_verdict(res)
-        print(f"  => {cell.verdict}")
-        verdict_cells.append(cell)
+    clause3_flips = 0
+    n_stratum_cells = 0
 
-    if out["n_powered"]:
+    def stratum_cell(strat: str, tau: float, f: float) -> Cell:
+        """This (tau, f) cell restricted to one stratum — or the pooled cell."""
+        if strat == STRATUM_POOLED:
+            return cells[(tau, f)]
+        trig = C.triggered_sessions(series, tau, stratum=strat)
+        eps = C.episodes(trig, universe)
+        c = build_cell("C", tau, f, args.rule, trig, eps, by_session, budget,
+                       universe, stratum=strat)
+        c.n_book_dates = C.trigger_date_counts(trig, series, recs)["book_dates"]
+        return c
+
+    print("""
+  STRATIFIED — errata F9. The registration's asymmetric reading rule is BINDING
+  ("Results are always stratified DIRECT versus CONSTITUENT"), and until now it
+  was printed as a SESSION/EPISODE COUNT TABLE and nothing more: every clause,
+  CI and ARM N band ran on the pooled trigger. So a MECHANISM-FOUND would have
+  had no stratum to attach to, which is exactly what the asymmetric rule exists
+  to prevent. Every cell below is therefore computed THREE times — POOLED,
+  DIRECT and CONSTITUENT — each with its own path metrics, its own bootstrap
+  CI, its own ARM N band and its own full clause set.
+
+  POOLED IS NOT A STRATUM. A pooled result may not be read as a result about
+  either practice; a DIRECT result — a put on an ETF the book already HOLDS —
+  may NEVER be cited as evidence for the operator's constituent-to-sector-proxy
+  practice, and a NULL in DIRECT is not evidence against it.
+
+  G-POWER is applied PER STRATUM: a stratum below the floor prints UNDERPOWERED
+  and no direction is quoted from it. G-FILL is a study-level gate on the arm's
+  fill feasibility, read on the POOLED triggered set at each tau; the strata
+  inherit that decision rather than re-deriving it.""")
+
+    for (tau, f) in cells:
+        sub(f"cell tau {tau:.2f}  f {f:.2f}")
+        band_ok = fill[tau][args.rule].passes()
+        for strat in STRATA:
+            scell = stratum_cell(strat, tau, f)
+            head = (f"[{strat:<11s}] triggered sessions {scell.n_sessions:4d}"
+                    f"   episodes {scell.n_episodes:3d}"
+                    f"   episodes that placed a hedge {len(scell.legs):3d}")
+            print(f"\n  {head}")
+            if not band_ok:
+                scell.verdict = "NOT EVALUABLE"
+                print(f"  G-FILL {fill[tau][args.rule].rate:.1%} < "
+                      f"{FILL_GATE:.0%} — NOT EVALUABLE (not failed). Only "
+                      f"ARM R is read.")
+            elif not scell.powered:
+                scell.verdict = "UNDERPOWERED"
+                print(f"  {scell.n_episodes} trigger dates (episodes) < "
+                      f"{MIN_TRIGGER_DATES} — UNDERPOWERED. No direction is "
+                      f"quoted. UNDERPOWERED is not a lean.")
+            elif not scell.legs:
+                scell.verdict = "NO HEDGE PLACED"
+                print(f"  no hedge was placed in this stratum — every episode "
+                      f"was unhedgeable, unfilled, or sized below one contract "
+                      f"(sub-1c {scell.diag['sessions_sub_one']}, unhedgeable "
+                      f"sessions {scell.diag['sessions_unhedgeable']}). "
+                      f"Nothing to evaluate; not evidence about hedging.")
+            else:
+                n_stratum_cells += 1
+                band = arm_n_band(scell.eps, by_session, universe, axis,
+                                  base_daily, capital, f, budget, args.rule,
+                                  CO_PRIMARIES, n_seeds=args.seeds,
+                                  match=MATCH_RICH)
+                band_reg = arm_n_band(scell.eps, by_session, universe, axis,
+                                      base_daily, capital, f, budget,
+                                      args.rule, CO_PRIMARIES,
+                                      n_seeds=args.seeds,
+                                      match=MATCH_REGISTERED)
+                rdiag = dict(no_entry_delta=0)
+                rh = (arm_r[(tau, f)]["hedge"] if strat == STRATUM_POOLED
+                      else merge(price_delta_short(leg, rdiag)
+                                 for leg in scell.legs))
+                rimp = {}
+                if rh:
+                    rst = M.path_stats(
+                        curve_of(axis, hedged_daily(axis, base_daily, rh)),
+                        capital)
+                    rimp = {m: improvement(mtm_stats, rst, m)
+                            for m in CO_PRIMARIES}
+                folds = leave_one_date_out(
+                    scell, by_session, universe, axis, base_daily, capital,
+                    M.path_stats(curve_of(axis, base_daily), capital),
+                    CO_PRIMARIES, f, budget, args.rule)
+                res = evaluate_bar(scell, axis, base_daily, capital, band,
+                                   rimp, args.boot, folds,
+                                   arm_n_registered=band_reg)
+                scell.clauses = res
+                scell.verdict = cell_verdict(res)
+                flips = print_clauses(res, scell, args)
+                clause2_flips += flips[0]
+                clause3_flips += flips[1]
+            print(f"  => {strat}: {scell.verdict}")
+            if strat == STRATUM_POOLED:
+                cells[(tau, f)].verdict = scell.verdict
+                if scell.clauses:
+                    results[(tau, f)] = scell.clauses
+                    out["n_powered"] += 1
+                verdict_cells.append(scell)
+            else:
+                out["strata"].setdefault(strat, defaultdict(int))
+                out["strata"][strat][scell.verdict] += 1
+
+    if n_stratum_cells:
         out["clause2_survives"] = (clause2_flips == 0)
+        out["clause3_survives"] = (clause3_flips == 0)
         print(f"""
-  CLAUSE 2 UNDER THE ESTIMATOR CHANGE (errata F5): {out['n_powered']} powered cell(s);
-  clause 2's PASS/FAIL differs between the chronological moving block and the
-  withdrawn month-shuffle in {clause2_flips} of them. Clause 2's outcome therefore
-  {'SURVIVES' if clause2_flips == 0 else 'DOES NOT SURVIVE'} the replacement.""")
+  CLAUSE 2 UNDER THE ESTIMATOR CHANGE (errata F5): {n_stratum_cells} evaluated cell(s)
+  across all strata; clause 2's PASS/FAIL differs between the chronological
+  moving block and the withdrawn month-shuffle in {clause2_flips} of them. Clause 2's
+  outcome therefore {'SURVIVES' if clause2_flips == 0 else 'DOES NOT SURVIVE'} the replacement.
+
+  CLAUSE 3 UNDER THE ARM N MATCH (errata F14): clause 3 is read from the RICH
+  match (count + episode lengths + per-session proxy sequence), which is NOT
+  what the registration commits. Under the REGISTERED match — count and
+  date-clustering only — clause 3's PASS/FAIL differs in {clause3_flips} of the {n_stratum_cells}
+  evaluated cell(s). Clause 3's outcome therefore
+  {'SURVIVES' if clause3_flips == 0 else 'DOES NOT SURVIVE'} the match this module chose over the committed one.""")
 
     # ── sensitivity: the nearest-available rule ─────────────────────────────
     other = HI.RULE_NEAREST if args.rule == HI.RULE_BAND else HI.RULE_BAND
@@ -1536,7 +2087,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
             stt = M.path_stats(curve_of(axis, hedged_daily(axis, base_daily,
                                                            c2.hedge)), capital)
             print_stats_row(f"ARM C[{other}] tau {tau:.2f} f {f:.2f}", stt,
-                            mtm_stats)
+                            mtm_stats, note=power_note(c2.powered))
 
     # ── the asymmetric reading rule ─────────────────────────────────────────
     hdr("DIRECT vs CONSTITUENT — the binding asymmetric reading rule")
@@ -1548,7 +2099,16 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
   The book is not shaped like the practice being tested — most of its exposure
   is DIRECT — and the pre-registration disclosed at plan time that the
   constituent stratum would be power-stopped. The census above confirms it at
-  every tau.""")
+  every tau.
+
+  THIS IS NO LONGER ONLY A COUNT TABLE (errata F9). Until 2026-08-31 the
+  stratification existed here and NOWHERE else: every clause, CI and ARM N band
+  ran on the pooled trigger, so the binding rule had a table to point at and no
+  stratum to attach a result to. Every cell in the bar section above now
+  carries a FULL CLAUSE SET per stratum — POOLED, DIRECT and CONSTITUENT —
+  each with its own path metrics, bootstrap CI and null band, and each
+  power-gated on its own episode count. The table below is the shape those
+  clause sets were computed on.""")
     print("\n   tau  stratum        sessions  episodes  power")
     for tau in TAU_GRID:
         for strat in (S.DIRECT, S.CONSTITUENT):
@@ -1568,9 +2128,16 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     counts: dict[str, int] = defaultdict(int)
     for cell in verdict_cells:
         counts[cell.verdict] += 1
+    print(f"  {STRATUM_POOLED} (not a stratum — the pooled trigger):")
     for k in sorted(counts):
-        print(f"  {k:<18s} {counts[k]} cell(s)")
+        print(f"    {k:<18s} {counts[k]} cell(s)")
+    for strat in STRATA[1:]:
+        tal = out["strata"].get(strat, {})
+        print(f"  {strat}:")
+        for k in sorted(tal):
+            print(f"    {k:<18s} {tal[k]} cell(s)")
     out["counts"] = dict(counts)
+    out["strata"] = {s: dict(v) for s, v in out["strata"].items()}
     out["gate_ok"] = dict(gate_ok)
     print("""
   Cell-level words only. The registration's study-level verdicts
@@ -1670,6 +2237,8 @@ def main() -> int:
     print("  (diagnostic only — UNHEDGEABLE is a committed constant and is "
           "never recomputed from it)")
 
+    print_not_preregistered(args, budget)
+
     summaries = []
     for w in wanted:
         recs, pdiag = books[w]
@@ -1686,12 +2255,24 @@ def main() -> int:
         if s["refusal"]:
             print(f"    REFUSED at a gate, exit {s['refusal']} — no cells read")
             continue
-        print(f"    powered cells {s['n_powered']}   cell words: {tally}")
-        print(f"    ARM M curves differ materially: "
-              f"{'YES' if s['curves_differ'] else 'no'}")
+        print(f"    powered POOLED cells {s['n_powered']}   "
+              f"POOLED cell words: {tally}")
+        for strat in STRATA[1:]:
+            tal = ("  ".join(f"{k} {v}" for k, v in
+                             sorted(s["strata"].get(strat, {}).items()))
+                   or "none")
+            print(f"    {strat} cell words: {tal}")
+        g = s.get("curve_gaps") or {}
+        print(f"    ARM M curve gap: maxDD ${g.get('max_dd', 0.0):+,.0f}   "
+              f"ulcer {g.get('ulcer', 0.0):+.2f} pts   "
+              f"TUW {g.get('tuw', 0.0) * 100:+.1f} pts   "
+              f"(differ materially: {'YES' if s['curves_differ'] else 'no'})")
         if s["clause2_survives"] is not None:
             print(f"    clause 2's outcome survives the F5 estimator change: "
                   f"{'YES' if s['clause2_survives'] else 'NO'}")
+        if s.get("clause3_survives") is not None:
+            print(f"    clause 3's outcome survives the registered ARM N "
+                  f"match: {'YES' if s['clause3_survives'] else 'NO'}")
     print("""
   Both populations are reported. NEITHER is concluded from. Per ERRATUM 1 the
   population clause of the pre-registration is self-contradictory and the

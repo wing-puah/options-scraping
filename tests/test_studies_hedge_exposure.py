@@ -44,6 +44,30 @@ each of which was a way the module printed a clean report while being wrong:
     statistic's sampling distribution.
   * F7 — `max_drawdown` lives in `lib/`, and `bear_deploy` imports it from
     there. A `lib/` module must not execute an f4 study on import.
+
+The 2026-08-31 independent audit (same errata file, fix plan F8-F16) added the
+family below — operationalizations the registration left undefined, which fed
+the bar and which the report did not disclose:
+
+  * F8 — the concentrated cluster and its proxy are re-picked EACH SESSION. The
+    module used to read the episode's FIRST session once, carry that proxy
+    through a rotation, and DROP WHOLE any episode whose first session was
+    unhedgeable. An unhedgeable SESSION is carried at f=0 and stays in the
+    denominator; the same rule applies to ARM RF and to ARM N's shape.
+  * F9 — DIRECT/CONSTITUENT is COMPUTATION. Every clause, CI and ARM N band is
+    computed per stratum as well as pooled, each power-gated on its own episode
+    count, with the pooled row labelled POOLED.
+  * F10 — a fold is one trigger DATE, not one placed LEG.
+  * F11 — a stat row belonging to a power-stopped cell is stamped. A signed
+    dMaxDD in a table is a direction in print.
+  * F13 — G-CENSUS claims a property of its INPUTS, which is true, rather than
+    a print order the code contradicts. It has no failing path.
+  * F14 — every discretionary choice is listed in ONE block with the clause it
+    feeds, and ARM N's registered match is printed beside the richer one.
+  * F15 — G-FILL's denominator and the object the arms fill are the same
+    object, which is what F8 made true.
+  * F16 — the ARM RF label test keys on the ROW LABEL, not on there being
+    exactly one `note=` kwarg module-wide.
 """
 from __future__ import annotations
 
@@ -216,7 +240,7 @@ def test_hold_window_does_not_run_off_the_end_of_the_universe() -> None:
 
 def test_peak_debit_is_zero_for_a_cell_that_placed_nothing() -> None:
     assert HE.peak_debit([]) == 0.0
-    assert HE.peak_debit([HE.Leg(episode=(), proxy="SPY")]) == 0.0
+    assert HE.peak_debit([HE.Leg(episode=(), proxies=("SPY",))]) == 0.0
 
 
 def test_merge_sums_overlapping_sessions() -> None:
@@ -531,19 +555,57 @@ def test_the_cell_words_are_the_only_thing_a_cell_can_be_called() -> None:
 # F4 — ARM RF is labelled, ARM R's committed caveat is quoted
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _label_text(call: ast.Call) -> str:
+    """The LITERAL text of a `print_stats_row` label, f-string holes elided.
+
+    `f"ARM RF tau {tau:.2f} f {f:.2f}"` reads as `ARM RF tau  f `, which is
+    enough to say which arm the row belongs to and nothing more.
+    """
+    arg = call.args[0]
+    if isinstance(arg, ast.Constant):
+        return str(arg.value)
+    if isinstance(arg, ast.JoinedStr):
+        return "".join(v.value for v in arg.values
+                       if isinstance(v, ast.Constant))
+    return ast.unparse(arg)
+
+
+def _stat_rows() -> list[ast.Call]:
+    tree = ast.parse(MODULE.read_text(encoding="utf-8"))
+    return [n for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and ast.unparse(n.func) == "print_stats_row" and n.args]
+
+
+def _notes(call: ast.Call) -> list[str]:
+    return [ast.unparse(kw.value) for kw in call.keywords if kw.arg == "note"]
+
+
 def test_arm_rf_carries_its_unregistered_label_on_every_row() -> None:
     """`study_review` and every paste-the-report path read the REPORT, not
     `research/arm-index.md`, and ARM RF prints the largest positive numbers in
-    it while not appearing in the registration at all."""
+    it while not appearing in the registration at all.
+
+    ERRATA F16: this used to assert that exactly ONE `note=` kwarg existed in
+    the whole module, so a SECOND, UNLABELLED ARM RF row would have left it
+    green — and F11 then gave many rows a `note=` for a different reason, which
+    would have broken it for no reason at all. It is now keyed on the ROW
+    LABEL: every row whose label says ARM RF carries `ARM_RF_LABEL`, and no
+    other row claims it.
+    """
     assert HE.ARM_RF_LABEL == "UNREGISTERED — ADDED AFTER COMMIT"
-    src = MODULE.read_text(encoding="utf-8")
-    tree = ast.parse(src)
-    notes = [ast.unparse(kw.value) for node in ast.walk(tree)
-             if isinstance(node, ast.Call)
-             and ast.unparse(node.func) == "print_stats_row"
-             for kw in node.keywords if kw.arg == "note"]
-    assert notes == ["ARM_RF_LABEL"], (
-        "every ARM RF row, and only ARM RF rows, carry the label")
+    rows = _stat_rows()
+    rf = [c for c in rows if _label_text(c).startswith("ARM RF")]
+    assert rf, "no ARM RF row is printed at all — the assertion below is vacuous"
+    for call in rf:
+        notes = _notes(call)
+        assert notes and any("ARM_RF_LABEL" in n for n in notes), (
+            f"ARM RF row {_label_text(call)!r} prints without the label")
+    for call in rows:
+        if _label_text(call).startswith("ARM RF"):
+            continue
+        assert not any("ARM_RF_LABEL" in n for n in _notes(call)), (
+            f"row {_label_text(call)!r} claims ARM RF's label and is not ARM RF")
 
 
 def test_print_stats_row_appends_the_note_it_is_given(capsys) -> None:
@@ -665,3 +727,376 @@ def test_the_drawdown_is_still_the_same_arithmetic_it_always_was() -> None:
     assert M.max_drawdown([-10.0, -5.0]) == pytest.approx(-15.0)
     assert M.max_drawdown([100.0, -40.0, 10.0]) == pytest.approx(-40.0)
     assert M.max_drawdown([10.0, 20.0]) == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F8 — the cluster and its proxy are re-picked EACH SESSION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _sc(day: date, proxy: str | None, hedgeable: bool = True,
+        cluster: str = "SEMIS", net: float = 1_000.0) -> C.SessionConcentration:
+    """One session's concentration reading, shaped only enough to plan on."""
+    cl = C.ClusterExposure(name=cluster, proxy=proxy or "SPY",
+                           hedgeable=hedgeable, n=1, net=net, gross=abs(net),
+                           direct_gross=0.0, constituent_net=net)
+    return C.SessionConcentration(
+        session=day, n_open=1, n_priced=1, n_unpriced=0, book_gross=abs(net),
+        concentration=1.0, top_cluster=cluster, top_proxy=proxy,
+        top_hedgeable=hedgeable, top_direct_share=0.0, stratum=None,
+        constituent_concentration=1.0, constituent_top_cluster=cluster,
+        clusters=(cl,))
+
+
+def _pick(ticker: str, day: date) -> HI.PutPick:
+    return HI.PutPick(ticker=ticker, session=day,
+                      expiry=day + timedelta(days=45), strike=100.0,
+                      rule=HI.RULE_BAND, entry_mark=1.0, spot=100.0)
+
+
+def test_session_proxy_is_none_for_an_unhedgeable_or_absent_session() -> None:
+    """An UNHEDGEABLE cluster and a session with no reading are the same thing
+    to the planner: no hedge. Neither is a reason to drop the episode."""
+    day = _universe(1)[0]
+    assert HE.session_proxy(_sc(day, "SMH")) == "SMH"
+    assert HE.session_proxy(_sc(day, "IBIT", hedgeable=False)) is None
+    assert HE.session_proxy(_sc(day, None)) is None
+    assert HE.session_proxy(None) is None
+
+
+def test_the_proxy_is_re_picked_every_session_of_an_episode() -> None:
+    """The registration hedges "on ANY session where concentration >= tau ... a
+    long put on the concentrated cluster's proxy" — per SESSION. This module
+    used to read `by_session[ep[0]]` once and carry it for the whole episode."""
+    uni = _universe(6)
+    by = {uni[0]: _sc(uni[0], "SMH"), uni[1]: _sc(uni[1], "SMH"),
+          uni[2]: _sc(uni[2], "QQQ")}
+    window, proxies = HE.episode_plan(uni[0:3], by, uni)
+    assert proxies[:3] == ["SMH", "SMH", "QQQ"]
+    assert window[:3] == uni[0:3]
+
+
+def test_an_unhedgeable_session_is_carried_at_f0_inside_the_episode() -> None:
+    uni = _universe(6)
+    by = {uni[0]: _sc(uni[0], "SMH"),
+          uni[1]: _sc(uni[1], "IBIT", hedgeable=False),
+          uni[2]: _sc(uni[2], "SMH")}
+    _window, proxies = HE.episode_plan(uni[0:3], by, uni)
+    assert proxies[:3] == ["SMH", None, "SMH"]
+
+
+def test_an_unhedgeable_first_session_no_longer_drops_the_episode() -> None:
+    """Measured at tau 0.30 before the fix: 2 of 32 episodes — 15 triggered
+    sessions — were dropped whole because only their FIRST session was
+    unhedgeable."""
+    uni = _universe(6)
+    by = {uni[0]: _sc(uni[0], "XLF", hedgeable=False),
+          uni[1]: _sc(uni[1], "SMH"), uni[2]: _sc(uni[2], "SMH")}
+    _window, proxies = HE.episode_plan(uni[0:3], by, uni)
+    assert proxies[0] is None
+    assert proxies[1:3] == ["SMH", "SMH"], "the rest of the episode still hedges"
+
+
+def test_the_hold_window_tail_is_carry_and_never_opens_a_hedge() -> None:
+    uni = _universe(6)
+    by = {uni[0]: _sc(uni[0], "SMH")}
+    window, proxies = HE.episode_plan(uni[0:1], by, uni)
+    assert len(window) == 2 and proxies == ["SMH", HE.CARRY]
+
+
+def test_proxy_runs_closes_a_run_on_the_session_it_rotates() -> None:
+    """A rotation books the old put's move THROUGH the switching session, and
+    that session is the new put's entry day — the same overlap a roll has."""
+    uni = _universe(4)
+    runs = HE.proxy_runs(uni, ["SMH", "SMH", "QQQ", HE.CARRY])
+    assert [(p, len(d), n) for p, d, n in runs] == [("SMH", 3, 2), ("QQQ", 2, 1)]
+    assert runs[0][1][-1] == uni[2] == runs[1][1][0]
+
+
+def test_proxy_runs_ends_a_run_on_an_unhedgeable_session() -> None:
+    uni = _universe(4)
+    runs = HE.proxy_runs(uni, ["SMH", None, "SMH", HE.CARRY])
+    assert [(p, n) for p, _d, n in runs] == [("SMH", 1), ("SMH", 1)]
+    assert runs[0][1] == [uni[0], uni[1]]
+
+
+def test_plan_episode_never_opens_a_hedge_on_a_close_only_session(monkeypatch) -> None:
+    """The session a run is CLOSED on marks the position out; it must not also
+    open a fresh one on a proxy that is no longer the concentrated cluster."""
+    uni = _universe(4)
+    asked: list[tuple] = []
+
+    def fake(ticker, day, rule):
+        asked.append((ticker, day))
+        return None
+
+    monkeypatch.setattr(HI, "select_put", fake)
+    HE.plan_episode(uni, ["SMH", "SMH", "QQQ", HE.CARRY], 1.0, 500.0,
+                    HI.RULE_BAND, HE.new_diag())
+    assert asked == [("SMH", uni[0]), ("SMH", uni[1]), ("QQQ", uni[2])]
+
+
+def test_plan_episode_counts_the_unhedgeable_sessions_it_carried(monkeypatch) -> None:
+    uni = _universe(4)
+    monkeypatch.setattr(HI, "select_put", lambda *a, **k: None)
+    diag = HE.new_diag()
+    HE.plan_episode(uni, ["SMH", None, None, HE.CARRY], 1.0, 500.0,
+                    HI.RULE_BAND, diag)
+    assert diag["sessions_unhedgeable"] == 2
+    assert diag["rotations"] == 0
+
+
+def test_a_rotation_is_counted_as_one(monkeypatch) -> None:
+    uni = _universe(4)
+    monkeypatch.setattr(HI, "select_put", lambda *a, **k: None)
+    diag = HE.new_diag()
+    HE.plan_episode(uni, ["SMH", "QQQ", "SMH", HE.CARRY], 1.0, 500.0,
+                    HI.RULE_BAND, diag)
+    assert diag["rotations"] == 2
+
+
+def test_an_episode_with_no_hedgeable_session_is_counted_not_dropped(monkeypatch) -> None:
+    uni = _universe(4)
+    by = {d: _sc(d, "IBIT", hedgeable=False) for d in uni}
+    monkeypatch.setattr(HI, "select_put", lambda *a, **k: None)
+    diag = HE.new_diag()
+    leg = HE.episode_leg(uni[0:2], by, uni, 1.0, 500.0, HI.RULE_BAND, diag)
+    assert diag["episodes_all_unhedgeable"] == 1
+    assert leg.segments == []
+
+
+def test_a_rotation_places_a_second_instrument(monkeypatch) -> None:
+    uni = _universe(4)
+    monkeypatch.setattr(HI, "select_put", lambda tk, day, rule: _pick(tk, day))
+    leg = HE.plan_episode(uni, ["SMH", "SMH", "QQQ", HE.CARRY], 1.0, 500.0,
+                          HI.RULE_BAND, HE.new_diag())
+    assert [s.pick.ticker for s in leg.segments] == ["SMH", "QQQ"]
+    assert leg.proxies == ("SMH", "QQQ")
+
+
+def test_episode_shape_is_the_per_session_proxy_sequence() -> None:
+    """ARM N reproduces THIS under the rich match, so the null carries the same
+    rotation — and the same f=0 sessions — the arm does."""
+    uni = _universe(3)
+    by = {uni[0]: _sc(uni[0], "SMH"),
+          uni[1]: _sc(uni[1], "XLE", hedgeable=False),
+          uni[2]: _sc(uni[2], "QQQ")}
+    assert HE.episode_shape(uni, by) == ("SMH", None, "QQQ")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F9 — DIRECT/CONSTITUENT is COMPUTATION, not a count table
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_pooled_is_labelled_and_is_not_a_stratum() -> None:
+    from scripts.backtest_study.lib import sectors as S
+
+    assert HE.STRATUM_POOLED == "POOLED"
+    assert HE.STRATA == (HE.STRATUM_POOLED, S.DIRECT, S.CONSTITUENT)
+
+
+def test_every_clause_is_computed_inside_the_stratified_loop() -> None:
+    """The binding rule says results are ALWAYS stratified. Before errata F9 the
+    stratification was a session/episode COUNT TABLE and every clause, CI and
+    ARM N band ran on the pooled trigger — so a MECHANISM-FOUND would have had
+    no stratum to attach to. Nothing that computes a clause may sit outside the
+    per-stratum loop."""
+    tree = ast.parse(MODULE.read_text(encoding="utf-8"))
+    loops = [n for n in ast.walk(tree) if isinstance(n, ast.For)
+             and isinstance(n.target, ast.Name) and n.target.id == "strat"
+             and ast.unparse(n.iter) == "STRATA"]
+    assert len(loops) == 1
+    inside = {ast.unparse(c.func) for c in ast.walk(loops[0])
+              if isinstance(c, ast.Call)}
+    for fn in ("evaluate_bar", "arm_n_band", "leave_one_date_out",
+               "print_clauses"):
+        assert fn in inside, f"{fn} is computed outside the stratified loop"
+    outside = [c for c in ast.walk(tree) if isinstance(c, ast.Call)
+               and ast.unparse(c.func) in ("evaluate_bar", "print_clauses")
+               and c not in list(ast.walk(loops[0]))]
+    assert not outside
+
+
+def test_build_cell_carries_the_stratum_it_was_built_for() -> None:
+    cell = HE.build_cell("C", 0.30, 1.0, HI.RULE_BAND, [], [], {}, 500.0, [],
+                         stratum=C.sectors.DIRECT)
+    assert cell.stratum == C.sectors.DIRECT
+    assert HE.build_cell("C", 0.30, 1.0, HI.RULE_BAND, [], [], {}, 500.0,
+                         []).stratum == HE.STRATUM_POOLED
+
+
+def test_an_underpowered_stratum_still_quotes_no_direction() -> None:
+    src = MODULE.read_text(encoding="utf-8")
+    assert "UNDERPOWERED. No direction is " in src
+    assert "UNDERPOWERED is not a lean" in src
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F10 — a fold is one trigger DATE, not one placed LEG
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _flat_cell(uni) -> HE.Cell:
+    return HE.Cell(arm="C", tau=0.30, f=1.0, rule=HI.RULE_BAND, n_sessions=3,
+                   n_episodes=1, n_book_dates=0, powered=True,
+                   triggered=[uni[0], uni[1], uni[2]],
+                   eps=[(uni[0], uni[1], uni[2])],
+                   ep_hedges=[{uni[0]: 0.0, uni[1]: -40.0, uni[2]: 10.0}])
+
+
+def test_a_fold_is_one_trigger_date_not_one_placed_leg(monkeypatch) -> None:
+    """Folds used to be placed LEGS: 29 of them at tau 0.30, against 32
+    episodes and 256 trigger dates, so an episode that placed nothing was not a
+    fold at all. The registration words the clause leave-one-DATE-out."""
+    uni = _universe(6)
+    cell = _flat_cell(uni)
+    assert not cell.legs, "this cell placed no leg at all"
+    monkeypatch.setattr(HI, "select_put", lambda *a, **k: None)
+    base_daily = [10.0, -30.0, 20.0, 5.0, -10.0, 4.0]
+    base = M.path_stats(HE.curve_of(uni, base_daily), 25_000.0)
+    folds = HE.leave_one_date_out(cell, {}, uni, uni, base_daily, 25_000.0,
+                                  base, HE.CO_PRIMARIES, 1.0, 500.0,
+                                  HI.RULE_BAND)
+    for m in HE.CO_PRIMARIES:
+        assert len(folds[m]) == len(cell.triggered) == 3
+
+
+def test_removing_an_interior_date_replans_the_episode_as_two(monkeypatch) -> None:
+    """Dropping one session out of a contiguous run leaves TWO runs, and that
+    is what the fold must re-plan — not the whole cell, and not nothing."""
+    uni = _universe(6)
+    cell = _flat_cell(uni)
+    seen: list[tuple] = []
+    real = HE.episode_leg
+
+    def spy(ep, *a, **k):
+        seen.append(tuple(ep))
+        return real(ep, *a, **k)
+
+    monkeypatch.setattr(HI, "select_put", lambda *a, **k: None)
+    monkeypatch.setattr(HE, "episode_leg", spy)
+    base_daily = [0.0] * 6
+    base = M.path_stats(HE.curve_of(uni, base_daily), 25_000.0)
+    HE.leave_one_date_out(cell, {}, uni, uni, base_daily, 25_000.0, base,
+                          HE.CO_PRIMARIES, 1.0, 500.0, HI.RULE_BAND)
+    assert seen == [(uni[1], uni[2]),                    # drop the first date
+                    (uni[0],), (uni[2],),                # drop the middle one
+                    (uni[0], uni[1])]                    # drop the last
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F11 — an underpowered cell's stat rows are stamped
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_power_note_stamps_only_a_power_stopped_row() -> None:
+    assert HE.power_note(True) == ""
+    assert HE.power_note(False) == HE.UNPOWERED_NOTE
+    assert "no direction" in HE.UNPOWERED_NOTE.lower()
+
+
+def test_the_note_joiner_drops_empty_parts() -> None:
+    assert HE.note("a", "", "b") == "a · b"
+    assert HE.note("", "") == ""
+
+
+def test_every_arm_row_is_stamped_with_its_cells_power() -> None:
+    """"UNDERPOWERED — no direction is quoted, ever." A signed dMaxDD / dUlcer /
+    dTUW in a table IS a direction in print, and they were tabulated for cells
+    the study had already power-stopped."""
+    rows = [c for c in _stat_rows() if _label_text(c).startswith("ARM ")]
+    assert len(rows) >= 6
+    for call in rows:
+        notes = _notes(call)
+        assert notes and any("power_note" in n for n in notes), (
+            f"row {_label_text(call)!r} prints a direction with no power stamp")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F13 — G-CENSUS claims a property of its INPUTS, not of print order
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_g_census_no_longer_claims_a_print_order_the_code_contradicts() -> None:
+    src = MODULE.read_text(encoding="utf-8")
+    assert "printed before any outcome column is read" not in src
+    assert "G-CENSUS HAS NO FAILING PATH" in src
+    assert "INPUTS are entry-dated fields only" in src
+
+
+def test_the_census_lines_say_the_same_thing() -> None:
+    src = (ROOT / "scripts" / "backtest_study" / "lib"
+           / "concentration.py").read_text(encoding="utf-8")
+    assert "INPUTS are entry-dated fields" in src
+    assert "no failing path" in src.lower()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F14 — every unregistered choice, in ONE place
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_the_not_preregistered_block_lists_every_discretionary_choice(capsys) -> None:
+    """A reader should find every discretionary choice in one place. They were
+    disclosed before — scattered across six sections, and five of them not at
+    all."""
+    import types
+
+    HE.print_not_preregistered(
+        types.SimpleNamespace(boot=2000, seeds=200, rule=HI.RULE_BAND), 500.0)
+    out = capsys.readouterr().out
+    for phrase in ("NOT PRE-REGISTERED",
+                   "SESSION CALENDAR",
+                   "G-POWER CLUSTERING",
+                   "ROLLING",
+                   "HOLDING WINDOW",
+                   "PER-SESSION RE-PICK",
+                   "SIZING",
+                   "SETTLE_LOOKBACK_DAYS",
+                   "BAND-RULE TIE-BREAK",
+                   "NO ADMISSION LEDGER",
+                   "DIRECT_MAJORITY",
+                   "STRATIFICATION",
+                   "THE READ METRIC",
+                   "BOOTSTRAP",
+                   "ARM N'S MATCH",
+                   "A FOLD IS ONE TRIGGER DATE",
+                   "ARM RF",
+                   "ARM M'S",
+                   "CACHE-CONDITIONED",
+                   "ARM P IS LEFT LITERAL"):
+        assert phrase in out, f"{phrase!r} is not in the consolidated block"
+    for clause in ("Feeds: clause 2", "Feeds: clause 3", "Feeds: clause 6"):
+        assert clause in out
+
+
+def test_arm_n_carries_the_registered_match_beside_the_rich_one() -> None:
+    """F5's precedent: the withdrawn estimator stays visible beside the one the
+    clause is read from. The registration commits COUNT and date-clustering;
+    this module matches the per-session proxy sequence too."""
+    assert HE.MATCH_RICH != HE.MATCH_REGISTERED
+    for match in (HE.MATCH_RICH, HE.MATCH_REGISTERED):
+        band = HE.arm_n_band([], {}, [], [], [], 25_000.0, 1.0, 500.0,
+                             HI.RULE_BAND, HE.CO_PRIMARIES, match=match)
+        for m in HE.CO_PRIMARIES:
+            assert all(math.isnan(v) for v in band[m])
+
+
+def test_clause_three_is_read_from_the_rich_match_and_the_other_is_printed() -> None:
+    src = MODULE.read_text(encoding="utf-8")
+    assert 'out["c3"] = _finite(p95) and point > p95' in src
+    assert 'out["c3_registered"]' in src
+    assert "no clause is read from" in src or "the clause is read from" in src
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F15 — G-FILL's denominator and the arms fill the same object
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_the_gate_pairs_and_the_arms_read_the_same_session_proxy() -> None:
+    """The gate is built from each session's own top proxy; since F8 so are the
+    arms. Before F8 the arms filled the EPISODE-FIRST proxy, so the gate
+    measured one population (81.6% at tau 0.30) and the arms filled another
+    (85.5%)."""
+    day = _universe(1)[0]
+    sc = _sc(day, "SMH")
+    assert HE.session_proxy(sc) == sc.top_proxy
+    assert HE.session_proxy(_sc(day, "IBIT", hedgeable=False)) is None
+    src = MODULE.read_text(encoding="utf-8")
+    assert "THE GATE AND THE ARMS NOW FILL THE SAME OBJECT" in src
+    assert "CACHE-CONDITIONED" in src
