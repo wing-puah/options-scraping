@@ -21,7 +21,8 @@ is the queue. Evidence trails live in [`current.md`](current.md),
   exit studies is fixed
   ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27 fix 2).
 - **The live thread is the hedge programme.** `hedge_exposure` is run, graded and
-  ratified, and it ships nothing — see §1 and §2.1.
+  ratified, and it ships nothing; its follow-up `hedge_concentration` is
+  REGISTERED (2026-08-31) with the module still to write — see §1 and §2.1.
 - **Where the old §0/§0b/§1 went.** The 2026-08-14 study-suite repair, era-scoping
   and `selection_order` story is now
   [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md); the
@@ -187,33 +188,52 @@ joins it to an outcome.
 - Evidence: [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
   §2026-08-22 (late).
 
-### 2.1 The max-drawdown hedge question — still OPEN after `hedge_exposure`
+### 2.1 The max-drawdown hedge question — REGISTERED as `hedge_concentration`; module to write
 
-**Status: open, and `hedge_exposure` did not answer it.** Every cell was
-power-stopped on the ratified population, so nothing says a hedge works and
-nothing says it doesn't.
+**Status: open, with a registered exit.** `hedge_exposure` did not answer it —
+every cell was power-stopped on the ratified population — and the reason is
+now settled, not pending an operator answer: the dilution finding (errata
+post-ratification note 3) was resolved from disk on 2026-08-31. The operator's
+card admits at most 3 positions/day (`config/account-sim.yml`), `account_sim`
+takes **221 of 458** ladder-eligible rows from the ratified population, and
+`hedge_exposure` held all 996. The study measured a book roughly twice as
+diversified as the one the operator runs.
 
-What would move it, in order:
+**What was done:** the "third reading" is registered as
+[`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)
+— ratified prices, but the ADMITTED book. Its plan-time census (inputs only)
+found the admitted book concentrated almost always (median any-cluster
+0.464 vs 0.209; MEGATECH or SEMIS on top 87% of sessions; 93% CONSTITUENT),
+so a τ×f hedge grid cannot be powered on it (episodes peak at 20 < 25). The
+registration therefore puts the PRECONDITION first — H-C from the 2026-08-29
+feasibility pass, now ARM K: does open-book concentration PREDICT forward
+mark-to-market drawdown? That is powerable on 498 sessions, and its Ship
+criteria give **every** outcome a branch that moves this item: NULL /
+GROSS-NOT-CONCENTRATION close the question in `deployment-evidence.md`;
+FOUND + Stage 2 UNDERPOWERED re-labels it BLOCKED ON NEW DATES like §2.3;
+FOUND + MECHANISM-FOUND drafts-and-holds a §4 amendment.
 
-1. **The dilution finding needs an operator answer** (errata post-ratification
-   note 3). Admitting `tweak` rows did two separable things — it made the PRICES
-   representative of real execution (the argued part) and it made the BOOK bigger
-   and more diversified (the unargued part). Median any-cluster concentration
-   falls 0.301 → 0.209 and τ=0.30 triggers fall 256 → 91 sessions, which is why
-   every cell is power-stopped. If only a subset of proposed plays is taken in
-   practice, the ratified book understates concentration.
-2. **A third reading would need its own registration** — real + tweak prices with
-   an admission/concurrency model over which plays are held at once. It is
-   neither of the two readings the current registration names, so it cannot be
-   run under it.
-3. **ARM P stays inert** (ERRATUM 2). A corrected prose control — ARM C on
-   concentration-matched sessions carrying no hedge-pressure signal — also needs
-   its own registration.
+**What is left, in order:**
 
-Design material already on disk: the 2026-08-29 feasibility pass in
-[`current.md`](current.md) (what the book can and cannot support, the sector-proxy
-pricing survey, the prose-lookahead hazard) and the H-M/H-C/H-S/H-X/H-I candidate
-hypotheses there — all explicitly **uncommitted**.
+1. **Write `scripts/backtest_study/f4_deployment/hedge_concentration.py`** per
+   the registration's Build notes (reuse `account_sim.simulate` /
+   `positions_rows` / `book_signature`, `lib/concentration`, `lib/mtm_curve`,
+   `lib/hedge_instrument`; new `lib/` helpers for the block bootstrap, the
+   circular-shift null and the forward-drawdown series). Add the `catalog.py`
+   entry and the `study-map.md` line when the module exists.
+2. **Run it, then `study_review hedge_concentration`** (never with
+   `--dry-run`). Act on the Ship-criteria branch the verdict names and update
+   this section accordingly.
+3. **Deferred, not dropped — the prose control.** `hedge_exposure` ARM P stays
+   inert (ERRATUM 2) and the corrected control — ARM C on concentration-matched
+   sessions carrying NO hedge-pressure signal, matched on count — is NOT in
+   `hedge_concentration`: the admitted book carries only 19 prose-conditioned
+   sessions / 17 episodes at the loosest τ, so it would be another arm that
+   can never bite. Register it only when the book has materially more parsed
+   dates.
+
+Design material on disk: the 2026-08-29 feasibility pass in
+[`current.md`](current.md) and the census entry there dated 2026-08-31 (late).
 
 ### 2.2 v4 composition bridge — RUNS now; the answer is "ladder unvalidated on v4"
 

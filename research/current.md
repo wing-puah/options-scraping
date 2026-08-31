@@ -41,8 +41,10 @@ era v4 (the 140-date backfilled book; exports of 2026-08-27). Where it stands:
 
 **Open queue** (detail in [`next-steps.md`](next-steps.md)): `concurrency_correlation`
 is pre-registered and its module is still unwritten; the max-drawdown hedge
-question is open, not closed; the v4 composition bridge waits on data; rollback
-triggers are checked at gates, never read from silence.
+question is open but now has a registered exit — `hedge_concentration`
+(2026-08-31 late, module unwritten) puts the precondition first on the
+ADMITTED book, and every outcome moves §2.1; the v4 composition bridge waits
+on data; rollback triggers are checked at gates, never read from silence.
 
 **Standing hazards carried forward** (each has its full entry in an archive):
 the `exit_basis` export column is unlabelled and scrambled — never key a study
@@ -619,3 +621,100 @@ qualification there is prospective.
 cleared: this item is done, and what remains for the operator is errata note 3 —
 admitting `tweak` rows made the prices representative AND the book more
 diversified, and only the first was argued. Suite 2560.
+
+## 2026-08-31 (late) — the dilution question answered from disk; `hedge_concentration` REGISTERED (module unwritten)
+
+`next-steps.md` §2.1 asked for an operator answer to the dilution finding
+(errata post-ratification note 3): does the operator hold every proposed play
+concurrently, or a subset? The answer was on disk and did not need asking. The
+deploy card admits at most 3 positions/day (`config/account-sim.yml`
+`max_positions_per_day: 3`); on the 2026-08-27 exports `account_sim` takes
+**221 of 458** ladder-eligible rows from the ratified population; and
+`hedge_exposure.book_positions()` held **all 996** — its own report says the
+figure "is not `account_sim`'s admitted-subset figure and the two are not
+comparable". So the operator holds a subset, and `hedge_exposure` measured a
+book about twice as diversified as the one being hedged. That closes the
+operator question and makes the "third reading" — ratified PRICES on the
+ADMITTED book — the right register.
+
+**Verified first:** `account_sim`'s own loader is `load_book(include_bs=
+args.include_bs)` with the flag defaulting False (`account_sim.py:2298-2301,
+2384`) — byte-for-byte the call `hedge_exposure` ratified, identical at
+runtime (996 rows both ways). The admitted book is the ratified population
+thinned by admission and nothing else.
+
+### Plan-time census of the admitted book (INPUT fields only)
+
+Computed from positions, delta, contracts, entry underlying, signal date,
+`days_held` for occupancy and the `regime` prose; no P&L, R, `daily_pnl_csv`,
+drawdown or equity column was read. ARM H OFF, no `--live-select`.
+
+| | admitted book (ratified pop.) | `hedge_exposure` `all` | `hedge_exposure` `real` |
+|---|---|---|---|
+| positions held | 221 / 110 dates | 996 / 145 | 485 / 140 |
+| session universe | 498 | — | 504 |
+| concurrently open, median / p90 / max | 15 / 21 / 25 | ~20 median | 20 / 35 / 48 |
+| any-cluster concentration, median / p75 / p90 | **0.464 / 0.572 / 0.678** | 0.209 / 0.268 / 0.400 | 0.301 / 0.398 / 0.572 |
+| top cluster = MEGATECH / SEMIS | 53.6% / 33.7% of sessions | — | — |
+| top-cluster stratum CONSTITUENT | **93.4%** | — | 37.3% of exposure |
+| gross / equity, median / p90 | 1.86× / 2.45× | — | — |
+
+Trigger census, any-cluster (episodes = maximal consecutive runs,
+`lib/concentration.py::episodes`): τ 0.30 → 477 sessions / 9 episodes;
+0.35 → 438 / 12; 0.40 → 372 / **20**; 0.50 → 227 / 13. Episode lengths at
+τ=0.30: 236, 123, 66, 21, 19, 8, 2, 1, 1.
+
+**Three things this says, none of which was expected:**
+
+1. **Thinning the book to what admission holds more than DOUBLES its typical
+   concentration** (0.209 → 0.464). The dilution ran the other way from the
+   every-row book, and further than the `real` stratum. The admitted book is
+   the operator's described practice almost literally — MEGATECH or SEMIS on
+   top 87% of sessions, 93% constituent — where `hedge_exposure`'s book was
+   62.7% DIRECT.
+2. **Concentration is a persistent STATE on this book, not an event.** At
+   `hedge_exposure`'s τ levels the admitted book is "concentrated" 75–96% of
+   the time, so a concentration-gated hedge there is nearly an always-on
+   hedge. And because tightening τ splits long runs rather than creating new
+   ones, the episode count peaks at 20 (τ=0.40) and FALLS beyond it — no τ
+   reaches the ≥25-episode floor. **A τ×f hedge grid cannot be powered on the
+   admitted book either**, for the opposite reason to the every-row book:
+   there, too few triggers; here, one trigger that never ends.
+3. **The prose is untestable here.** 71 of 110 admitted dates parse a
+   `hedge-pressure`; 11 read ≥50; the prose-conditioned survivor set at
+   τ=0.30 is 19 sessions / 17 episodes.
+
+Also disclosed: Spearman(gross, concentration) = **+0.10** (n=498), so gross
+and concentration are separable on this book and a gross-exposure control is
+a real control; dense episodes of admitted signal dates = **3** (18, 12, 13
+dates), the floor met exactly; and on the `real` stratum alone the admitted
+book has **0** dense episodes — the ratified population is what makes any of
+this powerable.
+
+### What was registered, and why it is shaped this way
+
+[`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md),
+2026-08-31. Given (2), the hedge mechanism cannot be the load-bearing stage,
+so the registration puts the PRECONDITION first — H-C from the 2026-08-29
+feasibility pass, which `hedge_exposure` skipped: **does a session's
+concentration PREDICT the admitted book's forward 20-session mark-to-market
+drawdown?** (ARM K: tercile contrast + Spearman ρ, block-bootstrapped over
+20-session blocks; ARM KN a circular-shift null preserving both series'
+autocorrelation; ARM KG the gross-exposure control — clause 4 refuses a
+"concentration" effect that vanishes within gross terciles.) It is powerable
+on 498 sessions. Stage 2 — the τ×f proxy-put grid, τ ∈ {0.45, 0.55, 0.65}
+set at the census's median/p75/p90 so the loosest trigger means "more
+concentrated than usual", through `account_sim.admission()` in the ARM H
+pattern — runs ONLY on PRECONDITION-FOUND and is disclosed at plan time as
+expected UNDERPOWERED. No prose arm is registered (reason (3); the corrected
+ARM P control is deferred in `next-steps.md` §2.1, not dropped).
+
+The clause `hedge_exposure` lacked is written this time: **every outcome has
+a Ship-criteria branch that moves §2.1** — PRECONDITION-NULL or
+GROSS-NOT-CONCENTRATION close the queued question in
+`deployment-evidence.md`; FOUND + Stage 2 UNDERPOWERED/NOT EVALUABLE
+re-labels it BLOCKED ON NEW DATES with the shortfall printed; FOUND +
+MECHANISM-FOUND drafts-and-holds a §4 amendment. Nothing ships without
+sign-off under any branch. Module not yet written; README index says
+`registered`; `arm-index.md` carries the new letters (`ARM K` collides with
+`concurrency_correlation`'s ceiling — qualify every citation).

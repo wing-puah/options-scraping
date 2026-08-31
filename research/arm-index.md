@@ -303,6 +303,36 @@ pre-registered, not a run.
   regardless of its own CI. COLLIDES with `portfolio_delta`'s own `ARM N`
   above — same role, different study.
 
+#### `hedge_concentration` — [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)
+
+Registered 2026-08-31; the module is not written yet — this is the plan as
+pre-registered, not a run. The book is the ADMITTED subset `account_sim`
+takes from `hedge_exposure`'s ratified population. Stage 1 gates Stage 2.
+
+- `ARM M` (arm) — Measurement: the unhedged admitted book on both curves,
+  mark-to-market versus realized-on-close. Reported every run, never a
+  verdict. Same role as `hedge_exposure`'s `ARM M`, on the admitted book.
+- `ARM K` (arm) — The precondition: does a session's any-cluster
+  concentration PREDICT the book's forward 20-session mark-to-market
+  drawdown? Tercile contrast + Spearman ρ, block-bootstrapped. COLLIDES with
+  `concurrency_correlation`'s `ARM K` (a clustering CEILING) — qualify every
+  citation.
+- `ARM KG` (arm) — `ARM K` re-read within terciles of gross/equity; the
+  "not a gross-exposure effect in disguise" control (bar clause 4).
+- `ARM KN` (arm) — `ARM K`'s time-structure null: the concentration series
+  circularly shifted against the fixed drawdown series, 1,000 draws; `ARM K`
+  must beat its 5th percentile.
+- `ARM K10` (arm) — `ARM K` at H = 10; a disclosed sensitivity, never
+  concluded from.
+- `ARM C` (arm) — Stage 2 only: concentration-gated proxy put, τ ∈ {0.45,
+  0.55, 0.65} × f ∈ {0.25, 0.50, 1.00}, admitted through
+  `account_sim.admission()` in the ARM H pattern. NOT `concurrency_correlation`'s
+  `ARM C`. No prose arm exists in this study.
+- `ARM N` (arm) — Stage 2 random-admission null, 200 seeds, matched on
+  episode count, lengths and proxy mix. The fourth `ARM N` in this family.
+- `ARM R` (arm) — Stage 2 always-fillable reference: delta-equivalent SHORT
+  in the proxy underlying; clause 7's control. NOT `account_sim`'s `ARM R`.
+
 ## Not labels
 
 `ARM SELECTION` `ARM UNIVERSE` `ARM VERDICT` — printed report text or code
