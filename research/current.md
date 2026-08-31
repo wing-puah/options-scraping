@@ -3588,3 +3588,45 @@ so whether the ARM M finding is recorded in `research/deployment-evidence.md`
 against D3/H3/H4 is an operator decision it does not make.
 
 Suite 2550. Nothing ships; no rule moves; the §4 sleeve is untouched.
+
+#### A/B replication grading (Mode 1) — clean, with one graded gate NOT MET
+
+`python3 -m scripts.study_review hedge_exposure --skip-run`. Two isolated
+analyst sessions plus a validator. **A and B reached identical verdicts on every
+criterion both evaluated** — a high-agreement pair with one isolated slip.
+
+| | graded |
+|---|---|
+| G-ERA · G-FILL · G-BLIND · G-MTM | **MET** |
+| G-POWER | **NOT MET** (largest cell 18 episodes < 25) |
+| **G-CENSUS** | **NOT MET** |
+| bar clauses 1–7 | **NOT EVALUABLE** (0 powered cells on the ratified population) |
+| asymmetric DIRECT/CONSTITUENT rule | **MET** — full per-stratum clause sets present |
+| binding prose rule | NOT EVALUABLE (ARM P byte-identical to ARM CS; all ARM CS cells underpowered) |
+| anti-tuning: 9-cell grid at α=0.05/9 · no second grid · no annualised/Sharpe/time-to-recover · cache state in header | **MET** |
+
+**G-CENSUS grades NOT MET, and that is F13 working as intended.** The
+registration words the gate as "the census prints before any outcome column is
+read". F13 replaced that false claim in the report with the true one (the
+census's INPUTS are entry-dated; G-MTM and ARM M print above it). Both analysts
+then graded the gate NOT MET *against the registration's wording* — which is the
+correct grade, and only reachable because the report stopped asserting something
+untrue. A gate the study cannot honestly claim is better recorded as not met.
+
+The one violation: analyst A's prose says the powered `real`-stratum cells fail
+"(all clauses FAIL)". Clause 1 actually **PASSED** in 3 of those 6 cells (POOLED
+τ0.30 f1.00 `dMaxDD +$318`; DIRECT τ0.30 f0.50 `+$16` and f1.00 `+$36`). The
+cell-level NULLs A cites are right, the stated reason is not. B did not make the
+error and its coverage was broader. Nothing verdict-bearing rests on it — the
+`real` stratum carries no verdict.
+
+Also confirmed by the validator: **ARM R shows `dMaxDD +0` in all nine ratified
+cells** — the always-fillable delta-matched reference moves the drawdown not at
+all on this book.
+
+**Infrastructure gap worth fixing:** `study_review` inlines the pre-registration
+but NOT `research/hedge-exposure-errata.md`, so neither analyst nor the
+validator could check the ratification against its authority — all three
+disclosed the gap themselves and graded the report's own quoted RATIFICATION
+text instead. For a study whose population, two errata and verdict all rest on a
+file the graders cannot see, that is a real hole in the protocol.
