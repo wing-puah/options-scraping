@@ -41,10 +41,13 @@ era v4 (the 140-date backfilled book; exports of 2026-08-27). Where it stands:
 
 **Open queue** (detail in [`next-steps.md`](next-steps.md)): `concurrency_correlation`
 is pre-registered and its module is still unwritten; the max-drawdown hedge
-question is open but now has a registered exit — `hedge_concentration`
-(2026-08-31 late, module unwritten) puts the precondition first on the
-ADMITTED book, and every outcome moves §2.1; the v4 composition bridge waits
-on data; rollback triggers are checked at gates, never read from silence.
+question has its answer on the ADMITTED book — `hedge_concentration` (built
+and run 2026-08-31 night) returned **PRECONDITION-NULL, powered**: how
+concentrated the operator's book is says nothing about its next 20 sessions of
+drawdown, so a concentration-gated hedge has no trigger to stand on; it awaits
+`study_review` grading before §2.1 is closed in `deployment-evidence.md`; the
+v4 composition bridge waits on data; rollback triggers are checked at gates,
+never read from silence.
 
 **Standing hazards carried forward** (each has its full entry in an archive):
 the `exit_basis` export column is unlabelled and scrambled — never key a study
@@ -718,3 +721,117 @@ MECHANISM-FOUND drafts-and-holds a §4 amendment. Nothing ships without
 sign-off under any branch. Module not yet written; README index says
 `registered`; `arm-index.md` carries the new letters (`ARM K` collides with
 `concurrency_correlation`'s ceiling — qualify every citation).
+
+## 2026-08-31 (night) — `hedge_concentration` BUILT and RUN: PRECONDITION-NULL, and it is a POWERED null
+
+The module registered earlier today is written, tested and run once on the
+2026-08-27 exports. Report: `backtests/study_output/hedge_concentration-latest.txt`
+(era v4, sha 9834563, exit 0, 23 s); per-era record:
+[`study-results/f4_deployment/hedge_concentration.md`](study-results/f4_deployment/hedge_concentration.md).
+Not yet graded — `study_review hedge_concentration` is the next step, and the
+Ship-criteria branch is NOT acted on until it is.
+
+### What was built
+
+- `scripts/backtest_study/f4_deployment/hedge_concentration.py` (1,852 lines,
+  62 tests in `tests/test_studies_hedge_concentration.py`). Stage 2 — the τ×f
+  proxy-put grid through `account_sim.admission()`, ARM N, ARM R, the seven
+  clauses, DIRECT/CONSTITUENT/POOLED — is fully implemented and was correctly
+  NOT entered.
+- `lib/forward_drawdown.py` (new): the forward-drawdown series, rank-tercile
+  contrast, Spearman, non-overlapping block bootstrap and circular-shift null;
+  H and every seed are parameters. `lib/concentration.py` gained
+  `occupancy_from_positions` / `contracts_by_position` so the trigger layer
+  reads the SIM's `[entry_sess, exit_sess]` and sized contracts — extended by
+  parameter, `session_concentration` untouched.
+- `lib/mtm_curve.book_curves(target=)`: **the admitted book cannot be
+  reconciled against the stored row.** `account_sim` re-sizes and re-exits what
+  it admits — on this run 101 of 221 positions at a different contract count,
+  35 with a different exit day — so `realized_pnl_abs` describes a different
+  position by construction (136 mismatches against it, correctly). G-MTM is
+  read on `TARGET_POSITION`: `daily_pnl_csv` at the replay's exit index × the
+  replay's contracts, versus the dollars the FROZEN harness booked — two
+  separate computations, 221/221 within $0.01/contract, and the report says
+  plainly it is not `hedge_exposure`'s two-stored-columns check. The default
+  target is unchanged, so `hedge_exposure` is untouched.
+
+### What the run printed
+
+Gates: G-ERA v4; **G-ADMIT PASS** (this module's book reproduces
+`account_sim.simulate()` — `signatures: 221 vs 221, differing 0`); **G-MTM
+PASS** (position target, worst mismatch $0.0000); **G-BLIND PASS** (498
+sessions, every x value and triggered set identical under `BlindRec`);
+**G-POWER-K PASS** — `usable sessions per concentration tercile [162, 166,
+152] floor 60 EACH` and `dense episodes 3 floor 3`, met exactly as the
+registration's census said it would be.
+
+The census reproduced the plan-time figures from the module's own run
+(admitted 221 / 110 dates; skipped per_pos_delta 92 · net_delta 81 · day3_cap
+64, partition EXACT; any-cluster median 0.4643; MEGATECH 53.6% / SEMIS 33.7%;
+CONSTITUENT 93.4%; Spearman(gross, concentration) +0.10). Registered τ grid:
+0.45 → 278 sessions / 14 episodes, 0.55 → 155 / 18, 0.65 → 60 / 11 — every
+cell UNDERPOWERED, as disclosed.
+
+ARM M on the admitted book (a measurement, never a verdict here): MTM maxDD
+**−$11,348** vs realized-on-close −$8,920 — `THE GAP … maxDD $-2,428 (27.2% of
+the realized-on-close drawdown) ulcer +2.49 pts TUW +15.2 pts`. Same direction
+as `hedge_exposure`'s 40.2% on the every-row book, smaller; and this IS the
+book `bear_deploy` D3 was read on, so its understatement is now measured
+directly rather than inferred from a different book.
+
+**Stage 1, ARM K (H = 20, 480 usable sessions, block 20):**
+
+| read | point | block-bootstrap CI95 | ARM KN null p05 |
+|---|---|---|---|
+| tercile contrast (high − low) | **−$692** | [−$2,000, +$420] includes 0 | −$818 — not beaten |
+| Spearman ρ | **−0.149** | [−0.383, +0.098] includes 0 | −0.217 — not beaten |
+
+Mean forward drawdown by tercile: low −$1,552 · mid −$1,435 · high −$2,244.
+ARM KG (gross-exposure control): contrast −$453 / −$1,940 / +$412 across gross
+terciles — sign kept in 2 of 3, clause 4 PASS. Per dense episode: −$213,
+−$451, **+$559** — clause 5 FAIL. Ex-window cuts: −$773 / −$692, clause 6
+PASS. ARM K10 (sensitivity, no verdict): contrast −$413 CI [−$1,232, +$279],
+ρ −0.148 CI [−0.326, +0.045] — the same picture at half the horizon.
+
+Clauses: 1 FAIL · 2 FAIL · 3 FAIL · 4 PASS · 5 FAIL · 6 PASS →
+`VERDICT — Stage 1 (ARM K, the precondition): PRECONDITION-NULL`;
+`VERDICT — Stage 2 (ARM C, the mechanism): NOT RUN (Stage 1 PRECONDITION-NULL)`;
+`SHIP-CRITERIA BRANCH: record in research/deployment-evidence.md as closing the
+queued max-drawdown question for concentration-gated hedging; next-steps.md
+§2.1 closed`.
+
+### How to read it
+
+- **It is the null the two-stage design was built to be able to return.**
+  `hedge_exposure` could not power one hedge cell; Stage 1 does not depend on
+  triggers and cleared its power gate. The point estimates lean the registered
+  way (the concentrated tercile draws down ~$700 more over 20 sessions) and
+  that lean sits INSIDE what rotating the concentration series against the
+  curve produces by time structure alone. No direction is quoted from it.
+- **The two clauses that pass are the controls.** KG keeping the sign in two
+  gross terciles and the ex-window cuts keeping it say the (null) result is
+  not a gross-exposure effect in disguise and not one window's artefact. That
+  makes it a cleaner null, not a weaker one — GROSS-NOT-CONCENTRATION did not
+  fire either.
+- **Clause 5 is the substantive failure**: the 2025 dense episode has the
+  OPPOSITE sign (+$559). Concentration predicted drawdown in the two 2024
+  episodes and anti-predicted it in 2025 — exactly the instability a
+  pre-committed every-episode clause exists to catch.
+- **What it does not say.** Nothing about hedging in general, nothing about
+  the §4 bear sleeve, nothing about `hedge_exposure`'s every-row book (its
+  UNDERPOWERED stands over a different object), and nothing about
+  `concurrency_correlation`'s per-position question. It says: on the book the
+  operator runs, a concentration reading is not a drawdown forecast.
+- **Twenty discretionary choices are disclosed in one block** (NOT
+  PRE-REGISTERED in the report), each with the clause it feeds — the G-MTM
+  target, the sim-window occupancy, forward windows computed on the full
+  curve before any cut, episode membership by date span, `window_cuts` applied
+  per session, the overlay-ledger semantics Stage 2 would have used. The
+  grading pass should read that block against the registration first.
+
+### Next
+
+`python -m scripts.study_review hedge_concentration` (never `--dry-run`). On
+a clean grade and the operator's sign-off, the branch is recorded in
+`deployment-evidence.md` and §2.1 closes; a grading defect reopens the module,
+not the registration.

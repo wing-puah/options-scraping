@@ -253,6 +253,58 @@ def open_book_by_session(recs, holding: str = HOLDING_CALENDAR,
     return {s: tuple(idxs) for s, idxs in sorted(out.items())}
 
 
+def occupancy_from_positions(positions, sessions: frozenset[date] | None = None
+                             ) -> dict[date, tuple[int, ...]]:
+    """`{session: (index into `positions`, ...)}` over `[entry_sess, exit_sess]`.
+
+    The occupancy of a SIMULATED book, where the span is the simulator's own
+    `[entry_sess, exit_sess]` rather than the one `exit_bound()` derives from
+    the ROW's stored `days_held`. `account_sim.simulate()` re-sizes and
+    RE-EXITS what it admits — a position it downsized or replayed to a
+    different exit day is open over a different window than its row says — so
+    `open_book_by_session` would describe a book that was not held.
+
+    Extended BY PARAMETER, not by copy: the caller pairs this with
+    `contracts_by_position()` and passes both to `concentration_series()`,
+    which is unchanged. `positions` is duck-typed on `account_sim.Pos`
+    (`.entry_sess`, `.exit_sess`); indices are into `positions`, so the caller
+    passes `[p.rec for p in positions]` as the record list and the two line up.
+
+    Same inclusive rule and same session calendar as `open_book_by_session`:
+    every real trading session in `[entry_sess, exit_sess]`.
+    """
+    cal = trading_sessions() if sessions is None else sessions
+    out: dict[date, list[int]] = defaultdict(list)
+    for i, p in enumerate(positions):
+        d = p.entry_sess
+        while d <= p.exit_sess:
+            if d in cal:
+                out[d].append(i)
+            d += timedelta(days=1)
+    return {s: tuple(idxs) for s, idxs in sorted(out.items())}
+
+
+def contracts_by_position(positions):
+    """A `contracts_fn` returning the SIM's sized contract count per record.
+
+    `default_contracts()` reads `Trade.contracts` — the book row's own size,
+    which is not what an admission model held. This closes over the positions
+    by record IDENTITY (`id(rec)`), not by (date, ticker), because a caller may
+    legitimately hold two positions on records that compare equal, and because
+    the blinded re-run pairs each sighted position with a DIFFERENT record
+    object carrying the same contracts.
+
+    Raises `KeyError` on a record that is not one of `positions`' — better than
+    silently falling back to the row's own count, which would move the trigger.
+    """
+    by_id = {id(p.rec): int(p.contracts) for p in positions}
+
+    def contracts_fn(rec) -> int:
+        return by_id[id(rec)]
+
+    return contracts_fn
+
+
 def occupancy_diag(recs, holding: str = HOLDING_CALENDAR,
                    sessions: frozenset[date] | None = None) -> dict:
     """Shape of the occupancy map, for the report header."""

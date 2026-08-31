@@ -21,8 +21,9 @@ is the queue. Evidence trails live in [`current.md`](current.md),
   exit studies is fixed
   ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27 fix 2).
 - **The live thread is the hedge programme.** `hedge_exposure` is run, graded and
-  ratified, and it ships nothing; its follow-up `hedge_concentration` is
-  REGISTERED (2026-08-31) with the module still to write — see §1 and §2.1.
+  ratified, and it ships nothing; its follow-up `hedge_concentration` was
+  registered, built and RUN on 2026-08-31 — **PRECONDITION-NULL, a powered
+  null** — and awaits `study_review` grading before §2.1 closes. See §1 and §2.1.
 - **Where the old §0/§0b/§1 went.** The 2026-08-14 study-suite repair, era-scoping
   and `selection_order` story is now
   [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md); the
@@ -188,9 +189,19 @@ joins it to an outcome.
 - Evidence: [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
   §2026-08-22 (late).
 
-### 2.1 The max-drawdown hedge question — REGISTERED as `hedge_concentration`; module to write
+### 2.1 The max-drawdown hedge question — `hedge_concentration` RUN: PRECONDITION-NULL (powered); GRADING PENDING
 
-**Status: open, with a registered exit.** `hedge_exposure` did not answer it —
+**Status: answered on the admitted book, not yet graded.** The module was
+written and run on 2026-08-31 (era v4, sha 9834563, exit 0): Stage 1 cleared
+G-POWER-K (`[162, 166, 152]` usable sessions per tercile, 3 dense episodes)
+and returned **PRECONDITION-NULL** — contrast −$692, CI95 [−$2,000, +$420];
+ρ −0.149, CI95 [−0.383, +0.098]; neither beats the circular-shift null's 5th
+percentile; the 2025 dense episode carries the opposite sign. Stage 2 was not
+entered. The report's own branch line: *record in `deployment-evidence.md` as
+closing the queued max-drawdown question for concentration-gated hedging;
+§2.1 closed.* Full read: [`current.md`](current.md) 2026-08-31 (night).
+
+**Background.** `hedge_exposure` did not answer it —
 every cell was power-stopped on the ratified population — and the reason is
 now settled, not pending an operator answer: the dilution finding (errata
 post-ratification note 3) was resolved from disk on 2026-08-31. The operator's
@@ -215,15 +226,16 @@ FOUND + MECHANISM-FOUND drafts-and-holds a §4 amendment.
 
 **What is left, in order:**
 
-1. **Write `scripts/backtest_study/f4_deployment/hedge_concentration.py`** per
-   the registration's Build notes (reuse `account_sim.simulate` /
-   `positions_rows` / `book_signature`, `lib/concentration`, `lib/mtm_curve`,
-   `lib/hedge_instrument`; new `lib/` helpers for the block bootstrap, the
-   circular-shift null and the forward-drawdown series). Add the `catalog.py`
-   entry and the `study-map.md` line when the module exists.
-2. **Run it, then `study_review hedge_concentration`** (never with
-   `--dry-run`). Act on the Ship-criteria branch the verdict names and update
-   this section accordingly.
+1. ~~Write the module.~~ DONE 2026-08-31 — `hedge_concentration.py`, 62 tests,
+   `catalog.py` entry, `study-map.md` row, `study-results` record; new
+   `lib/forward_drawdown.py`; `lib/mtm_curve.book_curves(target=)` (the
+   admitted book reconciles against the replay's own dollars, 221/221, and
+   cannot against the stored row — 101 re-sized, 35 re-exited).
+2. **`python -m scripts.study_review hedge_concentration`** (never with
+   `--dry-run`). The graders should read the report's NOT PRE-REGISTERED
+   block (20 choices) against the registration first. On a clean grade AND
+   operator sign-off: record the branch in `deployment-evidence.md` and close
+   this section. A grading defect reopens the module, never the registration.
 3. **Deferred, not dropped — the prose control.** `hedge_exposure` ARM P stays
    inert (ERRATUM 2) and the corrected control — ARM C on concentration-matched
    sessions carrying NO hedge-pressure signal, matched on count — is NOT in

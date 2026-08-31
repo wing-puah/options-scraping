@@ -347,3 +347,37 @@ def test_realized_basis_is_byte_identical_to_account_sim_equity_curve():
     assert mtm.total == pytest.approx(rea.total, abs=1e-6)
     assert any(abs(a - b) > 1.0
                for a, b in zip(bc.mtm.levels, bc.realized.levels))
+
+
+# ── the G-MTM target (hedge_concentration's admitted book) ───────────────────
+
+def test_a_resized_position_mismatches_the_stored_row_but_reconciles_to_itself():
+    """`account_sim` re-sizes and re-exits a row through the harness, so the
+    stored `realized_pnl_abs` describes a DIFFERENT position by construction.
+    Under the default target that is a mismatch (correctly — the stored
+    column is not this position's outcome); under `TARGET_POSITION` the
+    marked exit is checked against the replay's own booked dollars."""
+    # the row was booked at 1 contract; the sim holds 3
+    p = _pos([-10.0, 250.0], contracts=3, dollars=750.0)
+    p.rec["t"].row["realized_pnl_abs"] = 250.0
+    stored = M.book_curves([p])
+    assert not stored.reconciles and stored.target == M.TARGET_STORED
+    assert stored.mismatches[0].booked == 250.0
+    own = M.book_curves([p], target=M.TARGET_POSITION)
+    assert own.reconciles and own.n_degraded == 0
+    assert own.target == M.TARGET_POSITION
+
+
+def test_target_position_still_catches_a_marked_exit_that_disagrees():
+    p = _pos([-10.0, 250.0], contracts=1, dollars=999.0)
+    bc = M.book_curves([p], target=M.TARGET_POSITION)
+    assert not bc.reconciles
+    assert bc.mismatches[0].booked == 999.0
+    assert bc.mismatches[0].diff == pytest.approx(250.0 - 999.0)
+
+
+def test_an_unknown_target_is_refused_and_the_default_is_the_stored_row():
+    with pytest.raises(ValueError):
+        M.book_curves([_pos([1.0])], target="replay")
+    assert M.book_curves([_pos([1.0])]).target == M.TARGET_STORED
+    assert M.TARGETS == (M.TARGET_STORED, M.TARGET_POSITION)

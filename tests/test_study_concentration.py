@@ -354,3 +354,103 @@ def test_exposure_table_counts_unpriced_rows_without_pricing_them():
     recs = [_rec("NVDA", None), _rec("NVDA", 0.5)]
     row = C.exposure_table(recs)[0]
     assert row["rows"] == 2 and row["unpriced"] == 1
+
+
+# ── occupancy from a SIMULATED book (hedge_concentration) ───────────────────
+#
+# `account_sim.simulate()` re-sizes and RE-EXITS what it admits, so the ROW's
+# stored `days_held` describes a different position than the one that was held.
+# These two helpers are the "extend by parameter, not by copy" the
+# hedge_concentration registration asks for: the caller supplies the SIM's own
+# window and the SIM's own contract counts, and `session_concentration` — the
+# measure itself — is untouched.
+
+class _Pos:
+    """The bits of `account_sim.Pos` the occupancy layer touches."""
+
+    def __init__(self, rec, contracts, entry_sess, exit_sess):
+        self.rec = rec
+        self.contracts = contracts
+        self.entry_sess = entry_sess
+        self.exit_sess = exit_sess
+
+
+def test_occupancy_from_positions_is_the_inclusive_sim_window():
+    rec = _rec("NVDA", 0.5, day="2025-01-06", days_held=1)
+    pos = [_Pos(rec, 3, date(2025, 1, 7), date(2025, 1, 9))]
+    occ = C.occupancy_from_positions(pos, CAL)
+    assert sorted(occ) == [date(2025, 1, 7), date(2025, 1, 8), date(2025, 1, 9)]
+    assert all(v == (0,) for v in occ.values())
+
+
+def test_occupancy_from_positions_ignores_the_rows_stored_days_held():
+    """The whole point: a position the sim re-exited is open over the SIM's
+    window, not the one `exit_bound()` derives from the row."""
+    rec = _rec("NVDA", 0.5, day="2025-01-06", days_held=30)
+    pos = [_Pos(rec, 1, date(2025, 1, 7), date(2025, 1, 8))]
+    assert sorted(C.occupancy_from_positions(pos, CAL)) == [
+        date(2025, 1, 7), date(2025, 1, 8)]
+
+
+def test_occupancy_from_positions_skips_non_sessions():
+    rec = _rec("NVDA", 0.5, day="2025-01-06")
+    pos = [_Pos(rec, 1, date(2025, 1, 9), date(2025, 1, 13))]
+    got = sorted(C.occupancy_from_positions(pos, CAL))
+    assert date(2025, 1, 11) not in got and date(2025, 1, 12) not in got
+    assert got == [date(2025, 1, 9), date(2025, 1, 10), date(2025, 1, 13)]
+
+
+def test_occupancy_from_positions_indexes_into_positions():
+    a = _rec("NVDA", 0.5, day="2025-01-06")
+    b = _rec("HYG", -0.25, day="2025-01-06")
+    pos = [_Pos(a, 1, date(2025, 1, 7), date(2025, 1, 7)),
+           _Pos(b, 1, date(2025, 1, 7), date(2025, 1, 8))]
+    occ = C.occupancy_from_positions(pos, CAL)
+    assert occ[date(2025, 1, 7)] == (0, 1)
+    assert occ[date(2025, 1, 8)] == (1,)
+
+
+def test_contracts_by_position_returns_the_sims_size_not_the_rows():
+    rec = _rec("NVDA", 0.5, contracts=1)
+    fn = C.contracts_by_position([_Pos(rec, 7, date(2025, 1, 7),
+                                       date(2025, 1, 8))])
+    assert C.default_contracts(rec) == 1
+    assert fn(rec) == 7
+
+
+def test_contracts_by_position_keys_on_record_IDENTITY():
+    """Two equal-looking records are two positions; a (date, ticker) key would
+    conflate them, and the blinded re-run pairs each position with a DIFFERENT
+    record object carrying the same contracts."""
+    a = _rec("NVDA", 0.5, contracts=1)
+    b = _rec("NVDA", 0.5, contracts=1)
+    fn = C.contracts_by_position([_Pos(a, 2, date(2025, 1, 7), date(2025, 1, 7)),
+                                  _Pos(b, 5, date(2025, 1, 7), date(2025, 1, 7))])
+    assert fn(a) == 2 and fn(b) == 5
+
+
+def test_contracts_by_position_raises_on_a_foreign_record():
+    """Better than silently falling back to the row's own count, which would
+    move the trigger without saying so."""
+    mine = _rec("NVDA", 0.5)
+    fn = C.contracts_by_position([_Pos(mine, 3, date(2025, 1, 7),
+                                       date(2025, 1, 7))])
+    with pytest.raises(KeyError):
+        fn(_rec("NVDA", 0.5))
+
+
+def test_the_series_runs_over_the_sim_window_at_the_sim_contracts():
+    """End to end: the two helpers feed `concentration_series` unchanged."""
+    a = _rec("NVDA", 0.5, contracts=1)          # SEMIS
+    b = _rec("TLT", 0.5, contracts=1)           # RATES
+    pos = [_Pos(a, 3, date(2025, 1, 7), date(2025, 1, 7)),
+           _Pos(b, 1, date(2025, 1, 7), date(2025, 1, 7))]
+    recs = [p.rec for p in pos]
+    series = C.concentration_series(
+        recs, occupancy=C.occupancy_from_positions(pos, CAL),
+        contracts_fn=C.contracts_by_position(pos))
+    assert [sc.session for sc in series] == [date(2025, 1, 7)]
+    # 3 contracts of NVDA against 1 of TLT: the sim's sizing decides the top
+    # cluster, and the row's own `contracts` (1 each) would have tied.
+    assert series[0].top_cluster == "SEMIS"
+    assert series[0].concentration == pytest.approx(0.75)

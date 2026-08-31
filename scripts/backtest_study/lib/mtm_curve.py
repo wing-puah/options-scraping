@@ -101,6 +101,24 @@ TOL_DOLLARS = 0.01
 MTM = "mark_to_market"
 REALIZED = "realized_on_close"
 
+# G-MTM reconciliation TARGETS — what the marked exit is checked against.
+#   TARGET_STORED   the row's own stored `realized_pnl_abs` (fallback `R_dol`),
+#                   at the ROW's contract count and stored exit. The default,
+#                   and the only meaningful target for a book held at the row's
+#                   own size (hedge_exposure; errata F2).
+#   TARGET_POSITION the position's own `dollars` — for a book whose positions
+#                   were RE-SIZED and RE-EXITED by a replay (account_sim's
+#                   admitted book), where the stored column describes a
+#                   different contract count and possibly a different exit day
+#                   by construction. The check is still between two separate
+#                   computations — `daily_pnl_csv` at the replay's exit index
+#                   times the replay's contracts, versus the dollars the FROZEN
+#                   harness booked — but it is not the two-stored-columns check
+#                   and a report must not call it that.
+TARGET_STORED = "stored_row"
+TARGET_POSITION = "position_dollars"
+TARGETS = (TARGET_STORED, TARGET_POSITION)
+
 # Below the running peak by more than this (dollars) counts as under water.
 # Guards float noise on a curve that is flat at its peak.
 _UNDERWATER_EPS = 1e-9
@@ -181,6 +199,7 @@ class BookCurves:
     n_carried_forward: int
     n_degraded: int = 0
     mismatches: list[Mismatch] = field(default_factory=list)
+    target: str = TARGET_STORED
 
     @property
     def reconciles(self) -> bool:
@@ -311,7 +330,8 @@ def position_marks(pos) -> tuple[list[date], list[float], int]:
 # Book curves + G-MTM
 # ════════════════════════════════════════════════════════════════════════════
 
-def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
+def book_curves(positions, *, tolerance: float = TOL_DOLLARS,
+                target: str = TARGET_STORED) -> BookCurves:
     """Both equity curves for `positions`, on one shared session axis.
 
     The axis is the SESSION UNIVERSE the pre-registration fixes: every session
@@ -330,13 +350,21 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
 
     `tolerance` is the G-MTM allowance in DOLLARS, defaulting to
     `TOL_DOLLARS` (= $0.01, the write resolution of `daily_pnl_csv`).
+
+    `target` names what the marked exit is reconciled AGAINST — see `TARGETS`.
+    The default is the row's stored column; `TARGET_POSITION` is for a book
+    the caller re-sized and re-exited through the harness, where the stored
+    column describes a different position. `n_degraded` is only meaningful
+    under `TARGET_STORED` and is always 0 under `TARGET_POSITION`.
     """
+    if target not in TARGETS:
+        raise ValueError(f"unknown G-MTM target {target!r} — one of {TARGETS}")
     positions = list(positions)
     if not positions:
         empty = Curve(MTM, [], [], []), Curve(REALIZED, [], [], [])
         return BookCurves(mtm=empty[0], realized=empty[1], tolerance=tolerance,
                           n_positions=0, n_reconciled=0, n_carried_forward=0,
-                          n_degraded=0, mismatches=[])
+                          n_degraded=0, mismatches=[], target=target)
 
     marks: list[tuple[object, list[date], list[float]]] = []
     carried_total = 0
@@ -368,12 +396,15 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
         # independent to check against, and the gate degrades to the caller's
         # own figure for THIS position — counted in `n_degraded` so that is
         # visible rather than silently reopening the self-comparison shape.
-        target = stored_realized(p)
-        if target is None:
-            n_degraded += 1
-            target = booked
-        diff = (None if (target is None or mtm_at_exit is None)
-                else mtm_at_exit - target)
+        if target == TARGET_POSITION:
+            want = booked
+        else:
+            want = stored_realized(p)
+            if want is None:
+                n_degraded += 1
+                want = booked
+        diff = (None if (want is None or mtm_at_exit is None)
+                else mtm_at_exit - want)
         if diff is not None and abs(diff) <= tolerance_for(p.contracts, tolerance):
             n_reconciled += 1
         else:
@@ -384,7 +415,7 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
                 entry_sess=sess[0] if sess else None,
                 exit_sess=sess[-1] if sess else None,
                 days_held=p.days_held, mtm_at_exit=mtm_at_exit,
-                booked=target, diff=diff))
+                booked=want, diff=diff))
 
         # --- accumulate both bases -----------------------------------------
         # `_carry_gaps` adds this position's mark to EVERY axis session in
@@ -405,7 +436,7 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
         realized=Curve(REALIZED, sessions, realized_daily, realized_levels),
         tolerance=tolerance, n_positions=len(positions),
         n_reconciled=n_reconciled, n_carried_forward=carried_total,
-        n_degraded=n_degraded, mismatches=mismatches)
+        n_degraded=n_degraded, mismatches=mismatches, target=target)
 
 
 def _carry_gaps(levels: list[float], index: dict, sess: list[date],

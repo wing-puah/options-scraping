@@ -305,9 +305,11 @@ pre-registered, not a run.
 
 #### `hedge_concentration` — [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)
 
-Registered 2026-08-31; the module is not written yet — this is the plan as
-pre-registered, not a run. The book is the ADMITTED subset `account_sim`
-takes from `hedge_exposure`'s ratified population. Stage 1 gates Stage 2.
+Registered 2026-08-31 and first run the same day. The book is the ADMITTED
+subset `account_sim` takes from `hedge_exposure`'s ratified population. Stage 1
+gates Stage 2, and on the first run it did not open it: Stage 1 is
+PRECONDITION-NULL on a POWERED read, so `ARM C` / `ARM N` / `ARM R` were NOT
+evaluated and no cell of the τ×f grid carries a number.
 
 - `ARM M` (arm) — Measurement: the unhedged admitted book on both curves,
   mark-to-market versus realized-on-close. Reported every run, never a

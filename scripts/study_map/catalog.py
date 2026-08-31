@@ -597,6 +597,56 @@ STUDIES: dict[str, Study] = {
                   "measures a less concentrated book than the operator runs. That reading "
                   "would need its own registration.",
     ),
+    "hedge_concentration": Study(
+        family="deployment", state="open",
+        question="On the ADMITTED book — the positions account_sim actually takes under the "
+                 "operator's top-3-per-day rule and exposure caps — does a session's cluster "
+                 "concentration PREDICT the book's subsequent mark-to-market drawdown, and "
+                 "only then does a proxy put on that cluster cut it?",
+        verdict="RUN 2026-08-31 (era v4, sha 9834563, exit 0, 24s). "
+                "`VERDICT — Stage 1 (ARM K, the precondition): PRECONDITION-NULL` and "
+                "`VERDICT — Stage 2 (ARM C, the mechanism): NOT RUN (Stage 1 "
+                "PRECONDITION-NULL)`. This is a POWERED null, not an underpowered one — "
+                "`usable sessions per concentration tercile   [162, 166, 152]   floor 60 "
+                "EACH   PASS` / `dense episodes of admitted signal dates     3   floor 3   "
+                "PASS` / `G-POWER-K: PASS` — which is what the whole two-stage design was "
+                "for: `hedge_exposure` could not power a single hedge cell, and Stage 1 does "
+                "not depend on triggers at all. The precondition every prior hedge verdict "
+                "assumed is ABSENT on the book the operator runs: `CONTRAST (high - low)   "
+                "$-691.92   CI95 [$-2,000.07, $419.99]   includes 0` and `SPEARMAN rho        "
+                "    -0.1487   CI95 [-0.3829, +0.0978]   includes 0`, and the contrast does "
+                "not clear the time-structure null either — `contrast       point -691.9172   "
+                "null p05 -818.0281 ... beats p05 (more negative): no`. Four of six clauses "
+                "fail (1, 2, 3, 5); the two that PASS are the controls — ARM KG keeps the "
+                "sign in 2 of 3 gross terciles and both ex-window cuts retain it — so this "
+                "is not a gross-exposure effect in disguise either, it is no effect. "
+                "Directionally the sign is the registered one (concentrated sessions draw "
+                "down more) and it is INSIDE the null band; nothing may be read from it. "
+                "Population and admission, every count from the run: 996 ratified rows / 145 "
+                "dates -> 458 ladder-eligible -> `ADMITTED (taken + taken_downsized)  221 / "
+                "110 dates 2024-01-10 .. 2025-10-30`, skipped per_pos_delta 92 · net_delta 81 "
+                "· day3_cap 64, partition EXACT. G-ADMIT PASS (signatures 221 vs 221, "
+                "differing 0), G-MTM PASS on TARGET_POSITION (221/221, worst $0.0000) with "
+                "the stored-target disclosure beside it (136 mismatches BECAUSE the sim "
+                "re-sized 101 and re-exited 35), G-BLIND PASS. ARM M, a measurement and never "
+                "a verdict here: `THE GAP ... maxDD $-2,428 (27.2% of the realized-on-close "
+                "drawdown)   ulcer +2.49 pts   TUW +15.2 pts` on the admitted book — the same "
+                "direction hedge_exposure found on the every-row book, smaller. Stage 2 was "
+                "NOT run and no cell was evaluated; its census is on the record (episodes peak "
+                "at 18 of 25 needed), as the registration predicted. SHIP-CRITERIA BRANCH, "
+                "quoted: `record in research/deployment-evidence.md as closing the queued "
+                "max-drawdown question for concentration-gated hedging; next-steps.md §2.1 "
+                "closed`. Nothing ships. This does not overturn hedge_exposure — that study's "
+                "UNDERPOWERED describes the every-row book — and it is not evidence about "
+                "concurrency_correlation's clustering ceiling in either direction.",
+        attention="The queued max-drawdown question for CONCENTRATION-GATED hedging is now "
+                  "answerable and the answer is no: on the admitted book, how concentrated it "
+                  "is says nothing about how far it draws down next, so a concentration gate "
+                  "has no trigger to stand on. That is the operator's to record in "
+                  "research/deployment-evidence.md and to close next-steps.md §2.1 with — "
+                  "this study writes neither. It says NOTHING about hedging in general and "
+                  "does not touch the §4 bear sleeve, which is operator policy.",
+    ),
 }
 
 # ── infrastructure ────────────────────────────────────────────────────────────
@@ -660,6 +710,18 @@ INFRA: dict[str, str] = {
                    "(max drawdown — this module's own function, which bear_deploy imports "
                    "back — Ulcer, time-under-water). Both bases come back from one call so "
                    "a caller cannot mix them.",
+    "lib/forward_drawdown.py": "The Stage-1 statistics for a \"does book state PREDICT "
+                   "forward drawdown\" read: the forward-drawdown series (min of "
+                   "levels[t]-levels[s] over the next H sessions, None where no full window "
+                   "exists), the rank-tercile contrast, Spearman rho, a bootstrap over "
+                   "NON-OVERLAPPING blocks of H rows, and a circular-shift time-structure "
+                   "null. Built 2026-08-31 for hedge_concentration's ARM K / KG / KN / K10. "
+                   "The forward windows OVERLAP by construction, which is what the block "
+                   "bootstrap and the shift null exist for — a row resample would treat H "
+                   "nearly-identical outcomes as H independent ones, and a shuffle would "
+                   "destroy the autocorrelation the null has to preserve. H, the group count, "
+                   "the draw counts and every seed are PARAMETERS; nothing here knows what a "
+                   "session, a cluster or a hedge is, and it carries no verdict.",
     "lib/hedge_instrument.py": "Hedge instrument selection and pricing for hedge_exposure: "
                    "the proxy put under the two committed fill rules (band 25-75 DTE / "
                    "+/-5%, nearest-available anchored at 45 DTE within 20-120), the "
