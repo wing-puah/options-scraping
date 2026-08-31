@@ -229,8 +229,9 @@ role, different study.
 
 - `ARM M` (arm) — MEASUREMENT. The SAME unhedged book on both equity curves,
   mark-to-market (from `daily_pnl_csv`) versus realized-on-close
-  (`account_sim.equity_curve`). Runs first, gates nothing, and is the only arm
-  that returned a finding.
+  (`account_sim.equity_curve`). Runs first and gates nothing. No arm in this
+  study returns a finding or a verdict in this run — every cell is NULL or
+  UNDERPOWERED; see `research/hedge-exposure-errata.md`.
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
   cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
   sized at f ∈ {0.25, 0.50, 1.00} of a standard position's risk. Carries no

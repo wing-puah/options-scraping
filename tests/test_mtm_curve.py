@@ -21,20 +21,24 @@ from scripts.backtest_study.lib import mtm_curve as M  # noqa: E402
 # ── fakes ────────────────────────────────────────────────────────────────────
 
 class _FakeTrade:
-    """The two attributes `position_marks` reads off a `harness.Trade`."""
+    """The three attributes `position_marks`/`stored_booked` read off a
+    `harness.Trade`. `realized_pnl_abs` is G-MTM's STORED reconciliation
+    target — omitted (`None`) only for the degraded-path fixture."""
 
-    def __init__(self, grid, pnl_csv):
+    def __init__(self, grid, pnl_csv, realized_pnl_abs=None):
         self.grid = grid
         self.row = {"daily_pnl_csv": pnl_csv}
+        if realized_pnl_abs is not None:
+            self.row["realized_pnl_abs"] = realized_pnl_abs
 
 
 class _FakePos:
     """Duck-typed on `account_sim.Pos` — the fields this module touches."""
 
     def __init__(self, grid, pnl_csv, contracts, days_held, dollars,
-                 ticker="XYZ", d="2025-01-02"):
-        self.rec = {"t": _FakeTrade(grid, pnl_csv), "ticker": ticker,
-                    "date": d, "structure": "long_call"}
+                 ticker="XYZ", d="2025-01-02", realized_pnl_abs=None):
+        self.rec = {"t": _FakeTrade(grid, pnl_csv, realized_pnl_abs),
+                    "ticker": ticker, "date": d, "structure": "long_call"}
         self.contracts = contracts
         self.days_held = days_held
         self.dollars = dollars
@@ -51,19 +55,27 @@ def _grid(start: str, n: int):
 
 
 def _pos(pnl, contracts=1, days_held=None, dollars=None, start="2025-01-06",
-         ticker="XYZ", d="2025-01-03", extra_grid=0):
+         ticker="XYZ", d="2025-01-03", extra_grid=0, stored=True):
     """A position whose per-contract cumulative MTM path is `pnl`.
 
     `extra_grid` lengthens the grid past the exit the way a real row does (the
     price path runs to expiry or the 120-day cap, well past `days_held`).
+
+    `stored=True` (the default) gives the fake record its own
+    `realized_pnl_abs` — the row's STORED column, equal to `dollars` — so
+    G-MTM reconciles two independent values rather than falling back to
+    `pos.dollars` for both sides. Pass `stored=False` to build the degraded
+    fixture on purpose (a record with no stored outcome at all).
     """
     days_held = days_held if days_held is not None else len(pnl)
     tail = [0.0] * extra_grid
     toks = ",".join("" if v is None else f"{v:.2f}" for v in list(pnl) + tail)
     if dollars is None:
         dollars = pnl[days_held - 1] * contracts
+    realized_pnl_abs = dollars if stored else None
     return _FakePos(_grid(start, len(pnl) + extra_grid), toks, contracts,
-                    days_held, dollars, ticker=ticker, d=d)
+                    days_held, dollars, ticker=ticker, d=d,
+                    realized_pnl_abs=realized_pnl_abs)
 
 
 # ── the reason the module exists: open positions are marked ──────────────────
@@ -177,6 +189,32 @@ def test_g_mtm_passes_when_the_marked_exit_equals_the_booked_dollars():
     assert bc.reconciles
     assert (bc.n_reconciled, bc.n_positions) == (1, 1)
     assert bc.worst_mismatch == 0.0
+    # The default fixture carries its own `realized_pnl_abs` (errata F12's
+    # fix), so the gate compared it against a genuinely independent stored
+    # column — not the degraded self-comparison fallback.
+    assert bc.n_degraded == 0
+
+
+def test_g_mtm_degrades_to_self_comparison_when_no_stored_outcome_exists():
+    """A record with neither `realized_pnl_abs` nor `R_dol` has nothing
+    independent to reconcile against, so the gate falls back to the caller's
+    own `pos.dollars` for THAT position — the shape errata F2 removed,
+    reopened per-position (errata F12). It must be counted, not silent."""
+    degraded = _pos([10.0, 20.0], ticker="AAA", stored=False)
+    normal = _pos([5.0, 40.0], ticker="BBB")
+    bc = M.book_curves([degraded, normal])
+    assert bc.n_degraded == 1
+    # The degraded position still "reconciles" — it is being checked against
+    # itself — which is exactly why the count, not just `.reconciles`, is
+    # what a caller must inspect before claiming two independent columns.
+    assert bc.reconciles
+    assert bc.n_reconciled == 2
+
+
+def test_g_mtm_degraded_count_is_zero_when_every_position_has_a_stored_column():
+    bc = M.book_curves([_pos([1.0, 2.0], ticker="AAA"),
+                        _pos([3.0, -4.0], ticker="BBB")])
+    assert bc.n_degraded == 0
 
 
 def test_g_mtm_returns_the_offending_position_not_just_a_flag():
@@ -249,6 +287,7 @@ def test_an_empty_book_returns_empty_curves_rather_than_raising():
     bc = M.book_curves([])
     assert len(bc.mtm) == len(bc.realized) == 0
     assert bc.reconciles and bc.n_positions == 0
+    assert bc.n_degraded == 0
     assert M.path_stats(bc.mtm, 25_000).n_sessions == 0
 
 

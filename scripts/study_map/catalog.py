@@ -646,8 +646,9 @@ INFRA: dict[str, str] = {
     "lib/mtm_curve.py": "The MARK-TO-MARKET book equity curve, built from daily_pnl_csv, "
                    "beside the close-bucketed one account_sim already produces — plus the "
                    "per-position G-MTM reconciliation between them and the path statistics "
-                   "(max drawdown via bear_deploy's own function, Ulcer, time-under-water). "
-                   "Both bases come back from one call so a caller cannot mix them.",
+                   "(max drawdown — this module's own function, which bear_deploy imports "
+                   "back — Ulcer, time-under-water). Both bases come back from one call so "
+                   "a caller cannot mix them.",
     "lib/hedge_instrument.py": "Hedge instrument selection and pricing for hedge_exposure: "
                    "the proxy put under the two committed fill rules (band 25-75 DTE / "
                    "+/-5%, nearest-available anchored at 45 DTE within 20-120), the "

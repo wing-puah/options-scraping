@@ -64,6 +64,13 @@ against `realized_pnl_abs` — so a wrong exit index, a wrong contract scaling o
 a row whose columns genuinely disagree makes it FAIL. `pos.dollars` is still
 what the curve carries after the exit; it is no longer what the gate checks.
 
+A record carrying NEITHER `realized_pnl_abs` nor `R_dol` has nothing
+independent to check against, so the gate falls back to `pos.dollars` for
+that position ALONE — the self-comparison shape F2 removed, reopened
+per-position. `BookCurves.n_degraded` counts how many positions took that
+path; a caller printing "two independent columns" must not say so while it
+is non-zero.
+
 The tolerance is an ARGUMENT (`tolerance=`, default `TOL_DOLLARS`), never a
 constant buried in a comparison, so a caller that loosens it has to say so in
 its own report. It is applied PER CONTRACT (`tolerance_for`), because
@@ -157,6 +164,14 @@ class BookCurves:
     Returned together on purpose: the pre-registration reads every verdict off
     `mtm` and keeps `realized` only for comparability with prior hedge
     verdicts, so handing back one without the other invites mixing them.
+
+    `n_degraded` counts positions whose record carried NEITHER
+    `realized_pnl_abs` nor `R_dol` (`stored_realized(p) is None`), so G-MTM
+    fell back to comparing the marked exit against the caller's own
+    `pos.dollars` for that position — the self-comparison shape errata F2
+    removed, reopened per-position whenever a record has no independent
+    stored outcome to check against. A caller reporting "two independent
+    columns" must not say so while this is non-zero.
     """
     mtm: Curve
     realized: Curve
@@ -164,6 +179,7 @@ class BookCurves:
     n_positions: int
     n_reconciled: int
     n_carried_forward: int
+    n_degraded: int = 0
     mismatches: list[Mismatch] = field(default_factory=list)
 
     @property
@@ -320,7 +336,7 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
         empty = Curve(MTM, [], [], []), Curve(REALIZED, [], [], [])
         return BookCurves(mtm=empty[0], realized=empty[1], tolerance=tolerance,
                           n_positions=0, n_reconciled=0, n_carried_forward=0,
-                          mismatches=[])
+                          n_degraded=0, mismatches=[])
 
     marks: list[tuple[object, list[date], list[float]]] = []
     carried_total = 0
@@ -339,6 +355,7 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
     realized_levels = [0.0] * n
     mismatches: list[Mismatch] = []
     n_reconciled = 0
+    n_degraded = 0
 
     for p, sess, dol in marks:
         booked = float(p.dollars) if p.dollars is not None else None
@@ -349,9 +366,11 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
         # comparing against `p.dollars` let a caller check one replay against
         # itself. A record carrying NEITHER stored column has nothing
         # independent to check against, and the gate degrades to the caller's
-        # own figure — stated here, not hidden, and it is the fixture case.
+        # own figure for THIS position — counted in `n_degraded` so that is
+        # visible rather than silently reopening the self-comparison shape.
         target = stored_realized(p)
         if target is None:
+            n_degraded += 1
             target = booked
         diff = (None if (target is None or mtm_at_exit is None)
                 else mtm_at_exit - target)
@@ -386,7 +405,7 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS) -> BookCurves:
         realized=Curve(REALIZED, sessions, realized_daily, realized_levels),
         tolerance=tolerance, n_positions=len(positions),
         n_reconciled=n_reconciled, n_carried_forward=carried_total,
-        mismatches=mismatches)
+        n_degraded=n_degraded, mismatches=mismatches)
 
 
 def _carry_gaps(levels: list[float], index: dict, sess: list[date],
@@ -487,9 +506,10 @@ def time_under_water(levels) -> float:
 def path_stats(curve: Curve, capital: float) -> PathStats:
     """The study's primary + co-primary metrics for one curve.
 
-    `max_dd` reuses `bear_deploy.max_drawdown` on the per-session changes —
-    never re-derived here, because `bear_deploy` D3's dollar-drawdown criterion
-    is carried verbatim into this study's bar.
+    `max_dd` is this module's own `max_drawdown` (see its docstring) on the
+    per-session changes — `bear_deploy` imports that function back from here,
+    so `bear_deploy` D3's dollar-drawdown criterion and this study's bar stay
+    the same function object rather than two implementations.
     """
     if not curve.sessions:
         return PathStats(basis=curve.basis, n_sessions=0, total=0.0, max_dd=0.0,
