@@ -52,9 +52,17 @@ Arms:
           row of it carries that label and no clause is read from it.
 
 POPULATION: the registration's own population clause names two different books
-(ERRATUM 1 in `research/hedge-exposure-errata.md`). Both are run, both are
-printed with every count computed at run time, and NO study-level verdict is
-emitted from either until the operator ratifies a reading.
+(ERRATUM 1 in `research/hedge-exposure-errata.md`). The OPERATOR ratified one
+on 2026-08-31 — the literal `load_book(include_bs=False)` call — and the
+RATIFICATION section of that errata, not this module, is the authority for it.
+Both readings are still run and printed with every count computed at run time;
+`real` is reported as a STRATUM, never a co-primary, and the study-level
+verdict is read off the ratified population alone.
+
+RESULT: UNDERPOWERED over the mechanism question (every cell fails G-POWER on
+the ratified population) AND MEASUREMENT-ONLY over ARM M (which is not
+power-gated, so it is readable when the cells are not). Two words over two
+different objects; the registration defines both and orders neither.
 
 STRATIFICATION IS COMPUTATION, not a count table: the registration's binding
 asymmetric reading rule ("Results are always stratified DIRECT versus
@@ -157,6 +165,28 @@ POP_LABELS = {
     POP_REAL: "the raw BacktestResults stratum (real pricing only)",
     POP_ALL: "the literal load_book(include_bs=False) call (real + tweak)",
 }
+
+# ── the ratified reading (OPERATOR, 2026-08-31) ─────────────────────────────
+# ERRATUM 1's deadlock was resolved by the operator, NOT by this module, and
+# both the decision and its reasoning are recorded in the errata's RATIFICATION
+# section. This module cites that decision; it does not make it, and it may not
+# re-decide it if a later run's shape changes.
+RATIFIED_POPULATION = POP_ALL
+RATIFICATION_SOURCE = ("research/hedge-exposure-errata.md — RATIFICATION, "
+                       "operator, 2026-08-31")
+
+#: The two words emitted, each over a DIFFERENT object. UNDERPOWERED is defined
+#: by G-POWER failing and is read over the hedge cells; MEASUREMENT-ONLY is
+#: defined by ARM M's two curves differing materially while no cell clears the
+#: bar, and ARM M is not power-gated — it is the whole book over its full
+#: session axis and it gates nothing — so it is powered when the cells are not.
+#: The registration defines both and orders neither; emitting one alone would
+#: misreport, so both are emitted, each attached to what it is defined over.
+RATIFIED_VERDICTS = ("UNDERPOWERED", "MEASUREMENT-ONLY")
+
+#: Every study-level verdict line is stamped with this prefix so the report has
+#: exactly one machine-checkable place a verdict word can be emitted from.
+VERDICT_STAMP = "VERDICT"
 
 # ARM R's caveat is COMMITTED prose, quoted verbatim from the registration and
 # printed immediately above ARM R's own rows.
@@ -1516,7 +1546,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     out: dict = dict(name=name, n_rows=len(recs),
                      n_dates=len({r["date"] for r in recs}),
                      refusal=0, counts={}, curves_differ=None,
-                     curve_gaps=None, clause2_survives=None,
+                     curve_gaps=None, curve_max_dd=None,
+                     clause2_survives=None,
                      clause3_survives=None, n_powered=0, strata={})
 
     hdr(f"POPULATION {name} — {POP_LABELS[name]}")
@@ -1562,6 +1593,8 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
                      or abs(gaps["tuw"]) > 0.01)
     out["curves_differ"] = curves_differ
     out["curve_gaps"] = gaps
+    out["curve_max_dd"] = dict(mtm=mtm_stats.max_dd,
+                               realized=rea_stats.max_dd)
     print(f"\n  sessions {mtm_stats.n_sessions} (the curve's own weekday-grid axis; "
           f"the census below\n  reports the calendar reading the registration "
           f"disclosed)")
@@ -1577,9 +1610,13 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
           f"${abs(rea_stats.max_dd):,.0f} drawdown says far less than the gap "
           f"above, which is\n  the figure to read: the two curves differ by "
           f"about that much, and no more.)")
-    print("""  This is a MEASUREMENT. The registration words a MEASUREMENT-ONLY
-  verdict for it, and this run does not reach for that word: no study-level
-  verdict is emitted under either population until one is ratified.""")
+    role = ("the RATIFIED population" if name == RATIFIED_POPULATION
+            else "a REPORTED STRATUM, not a co-primary")
+    print(f"""  This is a MEASUREMENT. The registration words a MEASUREMENT-ONLY
+  verdict for it. ARM M is NOT power-gated — it is the whole book over its full
+  session axis and it gates nothing — so it is readable when every hedge cell
+  is power-stopped. The word is emitted ONCE, in the closing section, and only
+  off the ratified population; this population (`{name}`) is {role}.""")
 
     # ── G-BLIND ─────────────────────────────────────────────────────────────
     hdr("G-BLIND — the trigger must be computable with outcome fields stripped")
@@ -2142,9 +2179,179 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     print("""
   Cell-level words only. The registration's study-level verdicts
   (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
-  MEASUREMENT-ONLY) are NOT emitted by this run under either population — see
-  the closing section.""")
+  MEASUREMENT-ONLY) are emitted ONCE, in the closing section, and only off the
+  RATIFIED population — never from this tally and never per population.""")
     return out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+
+def print_result(summaries: list[dict]) -> None:
+    """The closing section: the RATIFIED study-level result.
+
+    Emits the two words the operator's 2026-08-31 ratification fixes, each
+    attached to the object the registration defines it over. Extracted from
+    `main` so the wording is exercisable by a test instead of being reachable
+    only through a full study run.
+
+    This function CITES a recorded decision; it does not make one. If a later
+    run's shape stops matching what was ratified, it says so and stops — it
+    never re-decides the population or reaches for a different word.
+    """
+    by_name = {s["name"]: s for s in summaries}
+    rat = by_name.get(RATIFIED_POPULATION)
+
+    hdr("RESULT — UNDERPOWERED (the mechanism question) and MEASUREMENT-ONLY "
+        "(ARM M)")
+    print(f"""  RATIFIED POPULATION `{RATIFIED_POPULATION}` — {POP_LABELS[RATIFIED_POPULATION]}.
+  AUTHORITY: {RATIFICATION_SOURCE}.
+
+  ERRATUM 1's deadlock — the registration's population clause names two
+  different books, and which one is read decides how many cells are powered at
+  all — is RESOLVED. It was resolved by the OPERATOR, on the record, and this
+  section cites that decision rather than making one: a `strike_expiry_tweak`
+  row carries a REAL Barchart price for a nearby strike or expiry (model-priced
+  `bs_options_hist` rows stay excluded), and a book that admits that
+  substitution is the CLOSER model of an operator who does not follow a
+  proposed leg's strike and expiry precisely at execution. The full reasoning
+  is at the authority above and is not restated here as though this module had
+  found it.
+
+  `real` is retained as a REPORTED STRATUM. It is NOT a co-primary, and no
+  verdict below is read from it.""")
+
+    for s in summaries:
+        role = ("RATIFIED — the verdict is read from this population"
+                if s["name"] == RATIFIED_POPULATION
+                else "REPORTED STRATUM — not a co-primary; no verdict is read "
+                     "from it")
+        tally = ("  ".join(f"{k} {v}" for k, v in sorted(s["counts"].items()))
+                 or "none")
+        print(f"\n  population {s['name']} — {POP_LABELS[s['name']]}")
+        print(f"    {role}")
+        print(f"    {s['n_rows']} rows / {s['n_dates']} signal dates")
+        if s["refusal"]:
+            print(f"    REFUSED at a gate, exit {s['refusal']} — no cells read")
+            continue
+        print(f"    powered POOLED cells {s['n_powered']}   "
+              f"POOLED cell words: {tally}")
+        for strat in STRATA[1:]:
+            tal = ("  ".join(f"{k} {v}" for k, v in
+                             sorted(s["strata"].get(strat, {}).items()))
+                   or "none")
+            print(f"    {strat} cell words: {tal}")
+        g = s.get("curve_gaps") or {}
+        print(f"    ARM M curve gap: maxDD ${g.get('max_dd', 0.0):+,.0f}   "
+              f"ulcer {g.get('ulcer', 0.0):+.2f} pts   "
+              f"TUW {g.get('tuw', 0.0) * 100:+.1f} pts   "
+              f"(differ materially: {'YES' if s['curves_differ'] else 'no'})")
+        if s["clause2_survives"] is not None:
+            print(f"    clause 2's outcome survives the F5 estimator change: "
+                  f"{'YES' if s['clause2_survives'] else 'NO'}")
+        if s.get("clause3_survives") is not None:
+            print(f"    clause 3's outcome survives the registered ARM N "
+                  f"match: {'YES' if s['clause3_survives'] else 'NO'}")
+
+    if rat is None or rat["refusal"]:
+        print(f"""
+  NO VERDICT IS EMITTED. The ratified population `{RATIFIED_POPULATION}` did
+  not complete — it was not run, or it refused at a gate — so neither ratified
+  word has an object to attach to. The `real` stratum above may NOT stand in
+  for it.""")
+        return
+
+    # every cell word this population produced, pooled row and strata together
+    words: dict[str, int] = dict(rat["counts"])
+    for tal in rat["strata"].values():
+        for k, v in tal.items():
+            words[k] = words.get(k, 0) + v
+    all_unpowered = set(words) == {"UNDERPOWERED"}
+    no_candidate = not words.get("CANDIDATE")
+
+    cm = rat.get("curve_max_dd") or {}
+    mtm_dd = float(cm.get("mtm") or 0.0)
+    rea_dd = float(cm.get("realized") or 0.0)
+    gap = mtm_dd - rea_dd
+    pct = abs(gap) / abs(rea_dd) * 100.0 if rea_dd else float("nan")
+    verb = "UNDERSTATES" if mtm_dd < rea_dd else "OVERSTATES"
+
+    def _ok(flag: bool) -> str:
+        return "ok" if flag else "CHANGED — back to the operator"
+
+    print(f"""
+  THE CONDITIONS THE RATIFICATION FIXES, RECOMPUTED ON THIS RUN — each from
+  this run's own export, none of them stored:
+    every cell fails G-POWER, in every stratum ......... {_ok(all_unpowered)}
+    ARM M's two curves differ materially .............. {_ok(bool(rat['curves_differ']))}
+    no cell clears the bar (no CANDIDATE, any stratum) . {_ok(no_candidate)}
+  A CHANGED line means this run is no longer the shape the operator ratified,
+  and the words below would have to go back to the operator. They are not this
+  module's to re-decide.
+
+  {VERDICT_STAMP} — the mechanism question, over the hedge cells: {RATIFIED_VERDICTS[0]}
+    Every cell of the registered tau x f grid fails G-POWER on the ratified
+    population, under POOLED, DIRECT and CONSTITUENT alike. NO DIRECTION IS
+    QUOTED FROM ANY OF THEM, EVER — the power stamp on each stat row above says
+    the same thing row by row. UNDERPOWERED IS NOT A LEAN: it is not a NULL,
+    and it is not evidence that the mechanism is absent.
+
+  {VERDICT_STAMP} — ARM M, the measurement, which is not power-gated: {RATIFIED_VERDICTS[1]}
+    On the ratified population the SAME unhedged book measures maxDD ${mtm_dd:,.0f}
+    mark-to-market against ${rea_dd:,.0f} close-bucketed — a gap of ${gap:+,.0f},
+    i.e. the close-bucketed curve {verb} this book's max drawdown by {pct:.1f}%.
+    That is what the registration words MEASUREMENT-ONLY for: the two curves
+    differ materially while no hedge cell clears the bar. ARM M is the whole
+    book over its full session axis and it gates nothing, so it is powered
+    exactly when the cells are not.
+
+  BOTH WORDS ARE EMITTED, over DIFFERENT objects. UNDERPOWERED is defined by
+  G-POWER failing and belongs to the hedge cells; MEASUREMENT-ONLY is defined
+  by ARM M and belongs to the measurement. The registration defines both, and
+  orders neither. Emitting only UNDERPOWERED would suppress a result the
+  registration itself calls "a real, reportable outcome"; emitting only
+  MEASUREMENT-ONLY would imply the cells had been read. There is no third word
+  and no compound label.""")
+
+    print(f"""
+  WHAT THIS RESULT DOES NOT DO.
+    It ships NOTHING.
+    It does NOT close the queued max-drawdown question. UNDERPOWERED leaves it
+      OPEN: the registration retires that question on a NULL or a CONTRARY, and
+      neither was reached.
+    It does NOT overturn bear_deploy D3, calendar_hedge H3 or hedge_timing H4.
+      Those verdicts STAND. But MEASUREMENT-ONLY says they were read on the
+      close-bucketed curve, which on THIS book {verb.lower()} max drawdown by
+      {pct:.1f}%, so the basis they were read on is now a KNOWN LIMITATION of
+      theirs and should be recorded against them.
+    It does NOT remove or amend the §4 bear sleeve, which is operator policy
+      and is not removed by any outcome here.
+
+  LIMITATION CARRIED FROM THE RATIFICATION, binding on how this report is read.
+  The registration's PLAN-TIME OBSERVATIONS — the exposure table, the
+  concentration quantiles, the fill-coverage table and the session universe —
+  describe the `real` STRATUM. They reproduce on that stratum and on no other
+  reading, and they are NOT disclosures about the ratified population. A reader
+  must not take them as such. The figures that describe the ratified population
+  are the ones THIS RUN prints: its census, its quantiles, its session universe
+  and its G-FILL coverage, every one computed at run time.""")
+
+    print("""
+  ARM P IS INERT AS REGISTERED and the registration's binding prose rule is
+  UNREACHABLE BY CONSTRUCTION (ERRATUM 2). ARM P has not been redefined into
+  something informative — that would be a post-hoc arm. ARM CS is power-stopped
+  at every tau under both readings, so PROSE-CONDITIONED, LOOKAHEAD-UNRESOLVED
+  does not arise either.
+
+  ARM RF IS UNREGISTERED — ADDED AFTER COMMIT, and no clause of the bar is read
+  from it.
+
+  NOTHING SHIPS FROM THIS STUDY WITHOUT OPERATOR SIGN-OFF. A MECHANISM-FOUND
+  verdict would have produced a DRAFTED amendment to docs/deployment-rules.md
+  §4 held in research/, never an edit; a NULL or CONTRARY verdict would have
+  shipped nothing and closed the queued max-drawdown question in
+  research/deployment-evidence.md. Neither was reached, so neither happens —
+  the question stays open and no rule moves. The §4 sleeve is operator policy
+  and is not removed by any outcome.""")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2191,7 +2398,7 @@ def main() -> int:
   option cache: {cache_state()}
   primary fill rule: {args.rule}   (nearest-available printed as the registered sensitivity)
 
-  POPULATION — REPORTED BOTH WAYS, CONCLUDED FROM NEITHER.
+  POPULATION — RATIFIED: `{RATIFIED_POPULATION}`.
   The pre-registration's "Population and basis" clause is self-contradictory
   (recorded as ERRATUM 1 in research/hedge-exposure-errata.md, because a
   committed file never changes meaning after it is written). It names
@@ -2201,12 +2408,13 @@ def main() -> int:
 {shapes}
 
   The choice is LOAD-BEARING, not cosmetic — it decides how many cells are
-  powered and therefore what could enter the evidence base at all. So this run
-  prints the gates, the cell shape and the cell-level words under BOTH
-  readings, with every count computed at run time, and emits NO study-level
-  verdict. Nothing is written to study_map/catalog.py, research/study-map.md or
-  research/study-results/ until the operator ratifies a reading. The earlier
-  unilateral default to the real stratum is WITHDRAWN.
+  powered and therefore what could enter the evidence base at all — so it was
+  never this module's to make. The OPERATOR made it: the ratified population is
+  the LITERAL load_book(include_bs=False) call, and `real` is retained as a
+  REPORTED STRATUM, not a co-primary. Both readings still print, with every
+  count computed at run time; the study-level verdict is read off the ratified
+  one alone. The authority, with the reasoning, is
+  {RATIFICATION_SOURCE}.
 
   BASIS — the whole book at its OWN contract counts, on its OWN STORED
   outcome (days_held and realized_pnl_abs off the row, not off a replay; see
@@ -2245,56 +2453,8 @@ def main() -> int:
         summaries.append(run_population(w, recs, pdiag, args, capital, budget,
                                         cache))
 
-    # ── the closing section: no study-level verdict ─────────────────────────
-    hdr("RESULT — NO STUDY-LEVEL VERDICT IS EMITTED")
-    for s in summaries:
-        tally = ("  ".join(f"{k} {v}" for k, v in sorted(s["counts"].items()))
-                 or "none")
-        print(f"\n  population {s['name']} — {POP_LABELS[s['name']]}")
-        print(f"    {s['n_rows']} rows / {s['n_dates']} signal dates")
-        if s["refusal"]:
-            print(f"    REFUSED at a gate, exit {s['refusal']} — no cells read")
-            continue
-        print(f"    powered POOLED cells {s['n_powered']}   "
-              f"POOLED cell words: {tally}")
-        for strat in STRATA[1:]:
-            tal = ("  ".join(f"{k} {v}" for k, v in
-                             sorted(s["strata"].get(strat, {}).items()))
-                   or "none")
-            print(f"    {strat} cell words: {tal}")
-        g = s.get("curve_gaps") or {}
-        print(f"    ARM M curve gap: maxDD ${g.get('max_dd', 0.0):+,.0f}   "
-              f"ulcer {g.get('ulcer', 0.0):+.2f} pts   "
-              f"TUW {g.get('tuw', 0.0) * 100:+.1f} pts   "
-              f"(differ materially: {'YES' if s['curves_differ'] else 'no'})")
-        if s["clause2_survives"] is not None:
-            print(f"    clause 2's outcome survives the F5 estimator change: "
-                  f"{'YES' if s['clause2_survives'] else 'NO'}")
-        if s.get("clause3_survives") is not None:
-            print(f"    clause 3's outcome survives the registered ARM N "
-                  f"match: {'YES' if s['clause3_survives'] else 'NO'}")
-    print("""
-  Both populations are reported. NEITHER is concluded from. Per ERRATUM 1 the
-  population clause of the pre-registration is self-contradictory and the
-  choice between its two readings decides what is powered, so a study-level
-  verdict here would be a choice dressed as a finding. No word from the
-  registration's verdict vocabulary is emitted, the research/study-results/
-  record for this run carries a BLANK verdict field, and the catalog entry
-  stays unconcluded until the operator ratifies one reading.
-
-  ARM P IS INERT AS REGISTERED and the registration's binding prose rule is
-  UNREACHABLE BY CONSTRUCTION (ERRATUM 2). ARM P has not been redefined into
-  something informative — that would be a post-hoc arm.
-
-  ARM RF IS UNREGISTERED — ADDED AFTER COMMIT, and no clause of the bar is read
-  from it.
-
-  NOTHING SHIPS FROM THIS STUDY WITHOUT OPERATOR SIGN-OFF. A MECHANISM-FOUND
-  verdict would produce a DRAFTED amendment to docs/deployment-rules.md §4 held
-  in research/, never an edit; a NULL or CONTRARY verdict would ship nothing and
-  be recorded in research/deployment-evidence.md as closing the queued
-  max-drawdown question. Neither is claimed here. The §4 sleeve is operator
-  policy and is not removed by any outcome.""")
+    # ── the closing section: the RATIFIED study-level result ─────────────────
+    print_result(summaries)
 
     refusal = next((s["refusal"] for s in summaries if s["refusal"]), 0)
     return refusal

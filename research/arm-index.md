@@ -229,9 +229,13 @@ role, different study.
 
 - `ARM M` (arm) — MEASUREMENT. The SAME unhedged book on both equity curves,
   mark-to-market (from `daily_pnl_csv`) versus realized-on-close
-  (`account_sim.equity_curve`). Runs first and gates nothing. No arm in this
-  study returns a finding or a verdict in this run — every cell is NULL or
-  UNDERPOWERED; see `research/hedge-exposure-errata.md`.
+  (`account_sim.equity_curve`). Runs first and gates nothing. It is NOT
+  power-gated, so it is readable when the hedge cells are not: on the
+  population the operator ratified 2026-08-31 it carries the study's
+  **MEASUREMENT-ONLY** verdict — the two curves differ materially while no
+  hedge cell clears the bar. Every hedge CELL is UNDERPOWERED there, so the
+  mechanism question is **UNDERPOWERED** and no direction is quoted from any
+  of them. See `research/hedge-exposure-errata.md`, RATIFICATION.
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
   cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
   sized at f ∈ {0.25, 0.50, 1.00} of a standard position's risk. Carries no

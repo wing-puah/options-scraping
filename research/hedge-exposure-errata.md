@@ -365,3 +365,67 @@ theirs and should be recorded against them.
 The prose rule is unreachable (ERRATUM 2, ARM P inert), and ARM CS is
 power-stopped at every τ under both readings, so PROSE-CONDITIONED,
 LOOKAHEAD-UNRESOLVED does not arise.
+
+## Post-ratification notes, 2026-08-31
+
+Four things the ratified run surfaced. None reopens the decision; all bear on
+how the result is read.
+
+**1. The earlier "ARM M is weaker than the design memo argued" bullet above is
+superseded, and a reader hitting it first will draw the wrong conclusion.** That
+bullet was measured on the `real` stratum (+$702, MTM slightly BETTER on max
+drawdown) and says the design memo's claim "should not be repeated without it."
+On the RATIFIED population the sign flips: −$9,332, MTM materially WORSE, the
+close-bucketed curve understating by 40.2%. **Read that bullet as a statement
+about the `real` stratum only.** The ratified finding is the one in the
+RATIFICATION section.
+
+**2. MEASUREMENT-ONLY's plain reading over-claims here.** The registration words
+it "ARM M shows the two curves differ materially, but no hedge cell clears the
+bar." On the ratified population no cell was EVALUATED at all — every one is
+power-stopped — so "no hedge cell clears the bar" is true VACUOUSLY, not because
+nine cells were judged and failed. The clause is satisfied as written and the
+word is emitted, but the registration does not distinguish "failed the bar" from
+"never reachable", and this run is the second kind. The closing section attaches
+the two verdicts to different objects rather than smoothing this over.
+
+**3. The bigger book DILUTES concentration, so the ratified reading has FEWER
+triggers, not more.** Counter-intuitive and worth stating anywhere this result
+is summarised:
+
+| | `real` (485 rows) | `all` (996 rows, ratified) |
+|---|---|---|
+| any-cluster concentration, median | 0.301 | **0.209** |
+| p75 / p90 | 0.398 / 0.572 | 0.268 / 0.400 |
+| τ=0.30 triggers | 256 sessions / 32 episodes | **91 sessions / 18 episodes** |
+
+Doubling the book spreads exposure across more clusters, so no single cluster
+reaches τ as often. That — not a shortage of dates — is why every cell is
+power-stopped on the ratified population. It also **falsifies the
+registration's disclosed power prediction in a direction it did not
+anticipate**: it predicted only the CONSTITUENT stratum would be power-stopped,
+"so a later underpowered result reads as predicted, not as a disappointment."
+POOLED and DIRECT are power-stopped too.
+
+**This is worth putting back to the operator, and is NOT a reason to revisit the
+ratification.** The pricing argument for admitting `tweak` rows is sound and
+untouched. But admitting them does two separable things: it makes the PRICES
+more representative of real execution, and it makes the BOOK bigger and more
+diversified. The second is only right if every proposed play would in fact have
+been held concurrently. If in practice a subset is taken, the ratified book
+understates concentration and the study is measuring a more diversified book
+than the operator runs. A third reading — real + tweak prices, but an admission
+or concurrency model over which plays are held at once — is neither of the two
+the registration names and would need its own registration.
+
+**4. The Ship criteria clause has no branch for this outcome.** It specifies
+MECHANISM-FOUND (a drafted §4 amendment held in `research/`) and NULL/CONTRARY
+(recorded in `research/deployment-evidence.md` as closing the queued
+max-drawdown question). UNDERPOWERED + MEASUREMENT-ONLY falls through both. The
+report's inference — the question stays OPEN and nothing is written to
+`deployment-evidence.md` — follows from "UNDERPOWERED is not a lean", but it is
+an inference, not a registered instruction. **Whether the MEASUREMENT-ONLY
+finding is recorded in `research/deployment-evidence.md` against `bear_deploy`
+D3, `calendar_hedge` H3 and `hedge_timing` H4 is an operator decision the
+registration does not make.** Flagged in `catalog.py`'s `attention` field,
+not acted on.

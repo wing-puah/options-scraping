@@ -35,8 +35,15 @@ each of which was a way the module printed a clean report while being wrong:
   * F2 — G-MTM must reconcile the marked exit against the row's STORED booked
     dollars. It used to compare one replay against itself and could not fail;
     the test below forces a mismatch and asserts the refusal.
-  * F3 — both readings of the population clause are reported and NO
-    study-level verdict is emitted; no count is asserted in code.
+  * F3 — both readings of the population clause are reported and no count is
+    asserted in code. The operator RATIFIED one on 2026-08-31, so the study
+    now emits the two words that ratification fixes — UNDERPOWERED over the
+    hedge cells and MEASUREMENT-ONLY over ARM M — and nothing else. The tests
+    below pin the SHAPE of that: which population the words are read off,
+    that `real` is labelled a stratum and never a co-primary, that no other
+    verdict word is stamped, and that a run which stops matching the ratified
+    shape says so instead of re-deciding. No dollar figure is pinned; the
+    literal-count ban stays.
   * F4 — ARM RF is labelled UNREGISTERED wherever it prints, and ARM R's
     committed caveat is quoted verbatim.
   * F5 — the bootstrap resamples CHRONOLOGICALLY. Path statistics are
@@ -73,6 +80,7 @@ from __future__ import annotations
 
 import ast
 import math
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -499,7 +507,8 @@ def test_book_positions_take_their_exit_and_dollars_from_the_stored_row() -> Non
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# F3 — both populations, no study-level verdict, no asserted count
+# F3 + the 2026-08-31 RATIFICATION — both populations reported, the verdict
+# read off the ratified one, no asserted count
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_both_readings_of_the_population_clause_are_declared() -> None:
@@ -525,14 +534,164 @@ def test_the_default_run_reports_both_populations() -> None:
     assert defaults.get("--sources") == "POP_BOTH"
 
 
-def test_no_study_level_verdict_variable_exists_anywhere() -> None:
-    """The old module assigned a study-level `verdict` and printed it. The
-    errata REMOVES that: cells still carry a word (`cell.verdict`, an
-    attribute), the study does not."""
-    tree = ast.parse(MODULE.read_text(encoding="utf-8"))
-    assigned = {t.id for node in ast.walk(tree) if isinstance(node, ast.Assign)
-                for t in node.targets if isinstance(t, ast.Name)}
-    assert "verdict" not in assigned
+#: A study-level verdict may be emitted from EXACTLY ONE shape of line, so
+#: "which words did this report emit" is a decidable question rather than a
+#: grep over prose that legitimately names the other verdicts (the ship
+#: criteria describe what a MECHANISM-FOUND or a NULL would have done).
+_STAMP = re.compile(r"^\s*" + re.escape(HE.VERDICT_STAMP)
+                    + r"\b.*?:\s*([A-Z][A-Z -]*[A-Z])\s*$")
+
+
+def _pop_summary(name, *, counts, strata, curves_differ=True, mtm=-30000.0,
+                 rea=-20000.0, refusal=0, n_powered=0) -> dict:
+    """One `run_population` summary, shaped exactly as that function returns."""
+    return dict(name=name, n_rows=7, n_dates=3, refusal=refusal,
+                counts=dict(counts),
+                strata={k: dict(v) for k, v in strata.items()},
+                curves_differ=curves_differ,
+                curve_gaps=dict(max_dd=mtm - rea, ulcer=1.5, tuw=0.02),
+                curve_max_dd=dict(mtm=mtm, realized=rea),
+                clause2_survives=None, clause3_survives=None,
+                n_powered=n_powered)
+
+
+def _all_underpowered(name, **kw) -> dict:
+    """The shape the operator ratified on: every cell power-stopped."""
+    nine = {"UNDERPOWERED": len(HE.TAU_GRID) * len(HE.F_GRID)}
+    return _pop_summary(name, counts=nine,
+                        strata={HE.STRATA[1]: nine, HE.STRATA[2]: nine}, **kw)
+
+
+def _read(capsys) -> tuple[str, list[str]]:
+    out = capsys.readouterr().out
+    stamped = [m.group(1) for m in
+               (_STAMP.match(ln) for ln in out.splitlines()) if m]
+    return out, stamped
+
+
+def test_the_ratified_population_is_the_literal_load_book_call() -> None:
+    """ERRATUM 1's deadlock was resolved by the OPERATOR, not by this module.
+    The constant records WHICH reading and the source records WHO decided, so
+    a later reader sees the verdict resting on a recorded decision."""
+    assert HE.RATIFIED_POPULATION == HE.POP_ALL
+    assert HE.RATIFIED_POPULATION in HE.POP_LABELS
+    assert "hedge-exposure-errata.md" in HE.RATIFICATION_SOURCE
+    assert "2026-08-31" in HE.RATIFICATION_SOURCE
+
+
+def test_the_ratified_words_are_registered_verdicts_and_there_are_two() -> None:
+    """Two words over two different objects — G-POWER failing over the hedge
+    cells, ARM M over the measurement. No third word, no compound label."""
+    assert HE.RATIFIED_VERDICTS == ("UNDERPOWERED", "MEASUREMENT-ONLY")
+    assert set(HE.RATIFIED_VERDICTS) <= set(HE.VERDICTS)
+
+
+def test_the_closing_section_emits_exactly_the_two_ratified_words(capsys) -> None:
+    """Replaces the F3-era test that forbade a study-level verdict outright.
+    A verdict IS emitted now — and only the ratified pair, each once."""
+    HE.print_result([_all_underpowered(HE.POP_REAL),
+                     _all_underpowered(HE.POP_ALL)])
+    out, stamped = _read(capsys)
+    assert stamped == list(HE.RATIFIED_VERDICTS)
+    for word in HE.VERDICTS:
+        if word not in HE.RATIFIED_VERDICTS:
+            assert word not in stamped, f"{word} emitted as a study verdict"
+    assert HE.RATIFICATION_SOURCE in out
+
+
+def test_the_verdict_is_read_off_the_ratified_population_not_the_stratum(capsys) -> None:
+    """`real` is given the shape that WOULD read differently — powered cells,
+    NULLs, and an MTM curve that is BETTER than the close-bucketed one. The
+    emitted words and the quoted curve must still be the ratified
+    population's."""
+    other = {"NULL": 3, "UNDERPOWERED": 6}
+    real = _pop_summary(HE.POP_REAL, counts=other,
+                        strata={HE.STRATA[1]: other,
+                                HE.STRATA[2]: {"UNDERPOWERED": 9}},
+                        mtm=-1000.0, rea=-1200.0, n_powered=3)
+    ratified = _all_underpowered(HE.POP_ALL, mtm=-30000.0, rea=-20000.0)
+    HE.print_result([real, ratified])
+    out, stamped = _read(capsys)
+
+    assert stamped == list(HE.RATIFIED_VERDICTS)
+    tail = out.split(HE.RATIFIED_VERDICTS[1], 1)[1]
+    assert "-30,000" in tail and "-20,000" in tail
+    assert "-1,000" not in tail and "-1,200" not in tail
+    pct = abs(-30000.0 - -20000.0) / 20000.0 * 100.0
+    assert f"{pct:.1f}%" in tail
+    assert "UNDERSTATES" in tail
+
+
+def test_real_is_labelled_a_reported_stratum_and_never_a_co_primary(capsys) -> None:
+    HE.print_result([_all_underpowered(HE.POP_REAL),
+                     _all_underpowered(HE.POP_ALL)])
+    out, _ = _read(capsys)
+    lines = out.splitlines()
+    roles = {}
+    for n, ln in enumerate(lines):
+        for pop in (HE.POP_REAL, HE.POP_ALL):
+            if ln.strip().startswith(f"population {pop} "):
+                roles[pop] = lines[n + 1]
+    assert "REPORTED STRATUM" in roles[HE.POP_REAL]
+    assert "not a co-primary" in roles[HE.POP_REAL]
+    assert "no verdict is read from it" in roles[HE.POP_REAL]
+    assert "RATIFIED" in roles[HE.POP_ALL]
+    assert "the verdict is read from this population" in roles[HE.POP_ALL]
+    assert "co-primary" not in roles[HE.POP_ALL]
+
+
+def test_no_verdict_is_emitted_if_the_ratified_population_did_not_run(capsys) -> None:
+    """The stratum may never stand in for the population the verdict is
+    defined over — not when it is absent, and not when it refused."""
+    HE.print_result([_all_underpowered(HE.POP_REAL)])
+    out, stamped = _read(capsys)
+    assert stamped == []
+    assert "NO VERDICT IS EMITTED" in out
+
+    HE.print_result([_all_underpowered(HE.POP_ALL, refusal=HE.EXIT_MTM_RECONCILE)])
+    out, stamped = _read(capsys)
+    assert stamped == []
+    assert "NO VERDICT IS EMITTED" in out
+
+
+def test_a_run_that_stops_matching_the_ratified_shape_says_so(capsys) -> None:
+    """The module cites a decision; it never re-decides one. A cell clearing
+    the bar, or curves that stop differing, is a CHANGED line and a pointer
+    back to the operator — not a different word."""
+    nine = {"CANDIDATE": 1, "UNDERPOWERED": 8}
+    changed = _pop_summary(HE.POP_ALL, counts=nine,
+                           strata={HE.STRATA[1]: nine, HE.STRATA[2]: nine},
+                           curves_differ=False, n_powered=1)
+    HE.print_result([changed])
+    out, stamped = _read(capsys)
+    assert stamped == list(HE.RATIFIED_VERDICTS)
+    assert out.count("CHANGED — back to the operator") == 3
+
+
+def test_the_closing_section_keeps_every_standing_disclosure(capsys) -> None:
+    """Everything the pre-ratification closing said correctly survives it."""
+    HE.print_result([_all_underpowered(HE.POP_REAL),
+                     _all_underpowered(HE.POP_ALL)])
+    out, _ = _read(capsys)
+    for phrase in (
+            # carried forward unchanged
+            "ARM P IS INERT AS REGISTERED",
+            "UNREACHABLE BY CONSTRUCTION",
+            "ARM RF IS UNREGISTERED — ADDED AFTER COMMIT",
+            "NOTHING SHIPS FROM THIS STUDY WITHOUT OPERATOR SIGN-OFF",
+            "§4 sleeve is operator policy",
+            # what the verdict does NOT do
+            "does NOT close the queued max-drawdown question",
+            "bear_deploy D3, calendar_hedge H3 or hedge_timing H4",
+            "KNOWN LIMITATION",
+            # the ratification's own limitation
+            "PLAN-TIME OBSERVATIONS",
+            "are NOT disclosures about the ratified population",
+            # the power rule
+            "NO DIRECTION IS\n    QUOTED FROM ANY OF THEM, EVER",
+            "UNDERPOWERED IS NOT A LEAN",
+    ):
+        assert phrase in out, phrase
 
 
 def test_no_population_count_is_hardcoded_in_the_module() -> None:
@@ -540,7 +699,8 @@ def test_no_population_count_is_hardcoded_in_the_module() -> None:
     it: the asserted "485 / 140" string had to go. Every count in the report is
     computed at run time from the export named in the header."""
     src = MODULE.read_text(encoding="utf-8")
-    for token in ("485", "996", "140 signal dates", "145 dates"):
+    for token in ("485", "996", "140 signal dates", "145 dates",
+                  "32,571", "23,239", "9,332", "40.2"):
         assert token not in src, f"hardcoded population figure {token!r}"
 
 
