@@ -3450,3 +3450,69 @@ hedge_exposure --skip-run`. Six further defects are recorded but NOT fixed in
 calendar-vs-trading reading of `days_held`, G-FILL's cache-conditioned
 denominator, ARM B's stop mismatch, baseline non-comparability, and that ARM M
 is weaker than the design memo argued.
+
+### 2026-08-31, same day — independent audit, F8–F16, and a correction to H-M
+
+The two verify lenses that died on a rate limit during the F1–F7 pass have now
+run. Both confirm F1–F7 landed, the sector map is verbatim to the registration
+ticker by ticker, lookahead discipline is clean (trigger, sizing, stratification
+and fill read entry-dated fields only), no study-level verdict word is emitted,
+and the four unhedgeable clusters are handled as both registrations commit.
+
+They also found nine defects, all of one family: **operationalizations the
+registration left undefined, which the report did not disclose, and which fed
+the bar.** Fix plan F8–F16 is in `research/hedge-exposure-errata.md`; all are
+now applied. Two mattered:
+
+- **F8 — the hedge was fixed at the episode's FIRST session.** The registration
+  says hedge on ANY session where concentration ≥ τ, on THAT cluster's proxy.
+  At τ=0.30 the misread held a put on the wrong cluster for 37 session-days
+  across 8 episodes, and dropped 2 episodes whole because only their first
+  session was unhedgeable. Now re-picked per session, with an unhedgeable
+  SESSION carried at f=0 in the denominator.
+- **F9 — "results are always stratified" was printed, not computed.** Every
+  clause ran on the pooled trigger; stratification existed only as a count
+  table. The one powered cell is 199/256 DIRECT, and its NULL was a pooled
+  number no reader could attach to a stratum. Now every metric, CI, ARM N band
+  and clause runs per stratum, each power-gated on its own episode count.
+
+**F8 moved every figure in the `real` population and changed nothing that
+matters.** ARM C τ=0.30 f=1.00 dMaxDD +$1,012 → **+$318**; τ=0.40 f=1.00 −$447
+→ −$17; ARM RF's headline +$3,202 → +$2,620. No cell word changed sign — still
+NULL (3, pooled and DIRECT) or UNDERPOWERED under both populations, CONSTITUENT
+underpowered in all 9 cells. Clause 6, now folding over trigger DATES rather
+than placed legs, reports 0/256 where it used to report 2/29.
+
+#### Correction: H-M's answer depends on which population you ratify
+
+The 2026-08-31 entry above says the mark-to-market curve is *slightly better* on
+max drawdown and that the design memo's "close-bucketing is blind to hedging"
+claim is not carried. **That is true of the `real` population only.** Both
+populations, same book, same code:
+
+| population | MTM maxDD | close maxDD | gap |
+|---|---|---|---|
+| `real` (485 rows) | −$21,890 | −$22,592 | MTM **better** by $702 (3.1%) |
+| `all` (996 rows) | −$32,571 | −$23,239 | MTM **worse** by $9,332 (40.2%) |
+
+Under `all`, the close-bucketed curve understates max drawdown by 40% — which
+is exactly the design memo's claim. Under `real` it overstates it slightly. So
+the memo's argument is neither carried nor refuted: **the population clause
+ERRATUM 1 flagged decides it**, alongside deciding what is powered. That is now
+two independent things riding on a ratification the registration cannot supply,
+and it is the strongest argument yet for settling the reading before anything
+else is built on this study.
+
+The earlier entry's sentence — "the prior hedge verdicts are not invalidated by
+the measurement choice on the metric they were read on" — should be read as
+holding under `real` and being **untested under `all`**.
+
+Also fixed: G-MTM could still degrade to comparing a replay against itself when
+a record carried no stored column, and the whole G-MTM test block was running on
+that path; it now counts degraded rows and withholds the "two independent
+columns" claim unless the count is zero (it is). G-CENSUS's header claimed to
+print before any outcome column was read while three sections printed outcome
+dollars above it. Every discretionary choice — 20 of them — is now in one
+consolidated NOT PRE-REGISTERED block naming the clause it feeds.
+
+Suite 2543 passed. Still no study-level verdict, still nothing shipped.
