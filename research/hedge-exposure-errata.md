@@ -41,10 +41,19 @@ enters the evidence base.
 **Resolution (operator, 2026-08-29): report BOTH, conclude from NEITHER until
 one is ratified.** The study prints gates, cell shape and verdicts under both
 populations in one report, labels each with its row/date counts computed at run
-time, and emits no study-level verdict — and nothing is written to
+time, and emits no study-level verdict — and no VERDICT is written to
 `catalog.py`, `study-map.md` or `research/study-results/` — until the operator
 ratifies a reading. The earlier unilateral default to `--sources real` is
 withdrawn.
+
+**Amended 2026-08-31.** The clause above originally said nothing would be
+*written* to `research/study-results/` at all. That folder is the append-only
+archive of what each study last PRINTED, not a verdict store, and withholding
+the run from it would have left no tracked record that this study ran at all.
+The 2026-08-31 run IS recorded there; its excerpt quotes the
+`NO STUDY-LEVEL VERDICT IS EMITTED` banner verbatim and its verdict field is
+BLANK. `catalog.py` (`state="open"`) and `study-map.md` remain UNCONCLUDED,
+which is what the clause was protecting.
 
 ## ERRATUM 2 — ARM P is degenerate as worded
 
@@ -163,3 +172,122 @@ direction. `bear_deploy`'s own results must be unchanged — verify by re-runnin
   drawdown. The 2026-08-29 design-notes claim that the close-bucketed measure is
   structurally blind to hedging is NOT carried by this evidence and should not
   be repeated without it.
+
+---
+
+# Independent audit, 2026-08-31 — fix plan F8–F16
+
+Two independent audits ran after the F1–F7 pass (the two that were meant to run
+during it died on a rate limit). Both confirm F1–F7 landed. Both confirm the
+sector map is verbatim to the registration, that lookahead discipline is clean
+(trigger, sizing, stratification and fill read entry-dated fields only), that no
+study-level verdict word is emitted, and that the four unhedgeable clusters are
+handled as both registrations commit.
+
+The findings below are one family: **operationalizations the registration left
+undefined, which the report does not disclose, and which feed the bar.** NONE of
+them changed this run's outcome — every cell is NULL or UNDERPOWERED — but two
+would decide a positive.
+
+**F8 — the hedge instrument is fixed at the episode's FIRST session.**
+`build_cell` reads `by_session[ep[0]]` and carries that cluster's proxy for the
+whole episode; an episode whose FIRST session is unhedgeable is dropped whole.
+The registration says "hedge on ANY session where concentration >= τ … a long
+put on the concentrated cluster's proxy" — per session. Measured at τ=0.30:
+**8 of 32 episodes rotate their top cluster mid-episode** (37 session-days
+carried a put on a cluster that was not that session's top), and **2 of 32
+episodes — 15 triggered sessions — are dropped although only their first session
+was unhedgeable.** Same rule in ARM RF and in ARM N's shape.
+*Fix:* re-pick the cluster and proxy each session within an episode; an
+unhedgeable SESSION is carried at f=0 and stays in the denominator (the standing
+`calendar_hedge` principle), never a dropped episode. Feeds all 7 clauses.
+
+**F9 — the binding DIRECT/CONSTITUENT rule is printed, not enforced.**
+All 9 cells and all 7 clauses run on the pooled all-strata trigger. Stratification
+exists ONLY as a session/episode count table — no path metric, CI, ARM N band or
+clause is ever computed per stratum. The registration: "Results are always
+stratified DIRECT versus CONSTITUENT." The one powered τ=0.30 cell is 199/256
+DIRECT; its NULL is a pooled number the report never labels as pooled.
+*Fix:* compute and print every cell's path metrics and clause set per stratum as
+well as pooled, and label the pooled row POOLED. A MECHANISM-FOUND under the
+current build would have had no stratum to attach to — which is exactly what the
+asymmetric reading rule exists to prevent.
+
+**F10 — clause 6 is leave-one-LEG-out, not leave-one-DATE-out.** Folds are placed
+legs (29 at τ=0.30, not 32 episodes and not 256 dates), so an episode that placed
+nothing is not a fold. The registration words it as leave-one-date-out.
+*Fix:* fold over trigger DATES. The report must also say what a fold is where it
+prints "0/29 folds".
+
+**F11 — directions are printed from UNDERPOWERED cells.** Signed `dMaxDD` /
+`dUlcer` / `dTUW` are tabulated for cells the study has already power-stopped
+(ARM C τ0.35/0.40 f1.00, every ARM CS cell, the ARM R/RF/B tables, the nearest-fill
+sensitivity). The registration: "UNDERPOWERED — no direction is quoted, ever."
+Mitigating: no clause, verdict or prose reads them, and each cell's own section
+restates the rule. It is still a lean in print.
+*Fix:* stamp every stat row belonging to an underpowered cell.
+
+**F12 — G-MTM's degraded path is reachable and untested-around.**
+`mtm_curve.book_curves` falls back to the caller's own `pos.dollars` when a record
+carries neither `realized_pnl_abs` nor `R_dol` — the exact shape F2 removed. It is
+safe today only because `book_positions` also fills `dollars` from `stored_booked`,
+so both go None and the row fails closed; nothing enforces that. Worse, the G-MTM
+block in `tests/test_mtm_curve.py` runs entirely on this fallback (its fake
+position has no stored column), so the suite's most visible G-MTM tests exercise
+the degraded comparison.
+*Fix:* count degraded rows on `BookCurves` and print the count in `check_mtm`; the
+report may not claim "two independent columns" while that count is non-zero.
+
+**F13 — G-CENSUS's stated property is false as printed.** Its header claims the
+census prints "before any outcome column is read", but G-MTM, `print_divergence`
+and ARM M all print outcome-derived dollars above it. The census is COMPUTED from
+entry-dated fields only — that part is true — and G-MTM must read stored outcomes
+by construction.
+*Fix:* say what is true (the census's INPUTS are entry-dated; the reconciliation
+and the measurement print above it), rather than a claim about print order that
+the code contradicts. G-CENSUS also has no failing path — it is a discipline, not
+a check, and should say so.
+
+**F14 — further unregistered choices feeding a clause, all undisclosed.** Add
+each to the report's consolidated "not pre-registered" block:
+- the session calendar is the SPY OHLC cache's dates — it defines the 504-session
+  universe and therefore every episode and G-POWER;
+- ARM N matches on count **plus episode lengths plus proxy mix** with uniform
+  random starts; the registration commits only "COUNT and date-clustering". A
+  richer match makes the null harder to beat, so it is conservative — but it is
+  not what was committed. Keep it, label it, and print the committed-match null
+  beside it as the registered estimator;
+- the read metric silently defaults to ULCER when neither co-primary's CI excludes
+  zero, and `CO_PRIMARIES` order breaks ties toward ulcer;
+- `SETTLE_LOOKBACK_DAYS = 7` walk-back for the settlement spot, reported only as
+  "against that day's close";
+- `DIRECT_MAJORITY = 0.50`, which the code itself flags as not pre-registered and
+  which the report never mentions.
+
+**F15 — G-FILL's denominator is a different object from what the arms fill.** The
+gate pairs are built from the per-session top proxy; the arms fill the
+episode-first proxy (F8). At τ=0.30: gate 81.6% vs actual live-hedge session
+coverage 85.5% at f=1.00. F8 makes the two the same object; if F8 is not taken,
+this needs a disclosure line. (Distinct from the cache-conditioned denominator
+already recorded above.)
+
+**F16 — stale prose.** `research/arm-index.md` still says ARM M "is the only arm
+that returned a finding" — no arm returned a finding in this run; that sentence
+outlived the withdrawn first run. `mtm_curve.path_stats`'s docstring and
+`study_map/catalog.py`'s INFRA note still say max drawdown comes from
+`bear_deploy`, which F7 inverted. ARM M asserts "curves differ materially: YES"
+off a **$1** threshold on a $21,890 drawdown — print the gap, not a boolean.
+`tests/test_studies_hedge_exposure.py`'s ARM RF label test keys on there being
+exactly one `note=` kwarg module-wide, so a second unlabelled ARM RF row would
+leave it green; key it on the row label instead.
+
+**Recorded, NOT fixed:** G-BLIND could not have caught a leak through
+`realized_pnl_abs`/`daily_pnl_csv` (`account_sim`'s blinder does not strip them);
+traced by hand — `session_concentration` reads only ticker/delta/contracts/
+entry_underlying, so there is no leak, but the gate is weaker than it reads.
+Tickers named in NO cluster (XLE itself, EWJ, ASHR, JD, XLU…) resolve to BROAD/SPY
+as positions: faithful to the committed map's literal residual, but the "never
+folded into BROAD" guarantee covers NAMED tickers only. 2024-01-10 is in the
+504-session trigger universe but not on the 551-session MTM axis, so the two axes
+are not nested (immaterial — it is an episode's opening session, which contributes
+zero by construction).
