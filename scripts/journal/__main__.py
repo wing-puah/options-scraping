@@ -41,6 +41,7 @@ import argparse
 import logging
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -49,9 +50,10 @@ from lib.ibkr.flex import FlexError
 from . import s03_risk as risk
 from . import s04a_report as report
 from . import s05_writer as writer
+from . import s05b_bookwriter as bookwriter
 from .lib import analysis, book, flexparse, rawpull
 from .config import (FLEX_INPUT_DIR, FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV,
-                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR)
+                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR, BookContext)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -342,6 +344,32 @@ def cmd_run(args) -> int:
         # Not fatal: the local CSV already holds every row.
         log.warning("Sheets copy did not update (%s) — rows are safe locally",
                     summary["sheets_error"])
+
+    # The open book, recorded as its own snapshot. Separate from the trades
+    # write above and never fatal to it: a day on which nothing was traded still
+    # has a book worth marking, and a failure here must not cost the fills.
+    book_summary = bookwriter.write(
+        book_risk,
+        BookContext(
+            as_of_date=session,
+            net_liq=raw.get("net_liquidation"),
+            # The pull this book was marked from. `_path` is stamped only by a
+            # saving run, so a replay (--from-raw) names the file it replayed
+            # and a dry run leaves the cell blank rather than claiming a file
+            # that was never written.
+            book_source=Path(raw.get("_path") or args.from_raw or "").name,
+            book_reconstructed=bool(meta["book_reconstructed"]),
+            notes="; ".join(meta["book_notes"]),
+        ),
+        dry_run=args.dry_run, skip_sheets=args.no_sheets)
+    log.info("Open-book write: %s", book_summary)
+    if book_summary.get("sheets_error"):
+        log.warning("OpenBook tab did not update (%s) — rows are safe locally",
+                    book_summary["sheets_error"])
+    if book_summary["attention"] or book_summary["watch"]:
+        log.info("Open book: %d position(s) need ATTENTION, %d on WATCH — see the "
+                 "OpenBook tab's status column",
+                 book_summary["attention"], book_summary["watch"])
     return 0
 
 

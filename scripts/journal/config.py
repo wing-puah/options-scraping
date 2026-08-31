@@ -11,6 +11,8 @@ is a chain of independently-runnable steps that hand each other these records:
     s04a_report.py    -> journal/reports/<date>.md
     s04b_page.py      -> site/journal-<date>.html
     s05_writer.py     -> Sheets TradeJournal tab + journal/trades.csv
+    s05b_bookwriter.py the open book -> Sheets OpenBook tab
+                      + journal/open_book.csv
     s06_recommend.py  latest analysis + open book -> the deploy card
     s07_recwriter.py  the deploy card -> Sheets Recommendations tab
                       + journal/recommendations.csv
@@ -52,6 +54,7 @@ RAW_DIR = JOURNAL_DIR / "raw"          # immutable broker pulls, write-once
 REPORTS_DIR = JOURNAL_DIR / "reports"  # <date>.md
 TRADES_CSV = JOURNAL_DIR / "trades.csv"
 RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
+OPEN_BOOK_CSV = JOURNAL_DIR / "open_book.csv"
 SITE_DIR = ROOT / "site"               # generated HTML, also gitignored
 
 # Fallback analysis source when Sheets is unreachable — the same exports
@@ -72,6 +75,14 @@ TRADE_JOURNAL_SPREADSHEET_ENV = "TRADE_JOURNAL_SPREADSHEET_ID"
 # two describe one loop (what was recommended, what was actually traded) and
 # separating their workbooks would mean sharing one without the other.
 RECOMMENDATIONS_TAB = "Recommendations"
+
+# The OPEN BOOK's own record, again in the SAME workbook: TradeJournal says what
+# you traded, Recommendations what was proposed, OpenBook what you are HOLDING
+# right now and which of those holdings wants attention. The third tab exists
+# because the first two answer neither question — a journal row describes a
+# trade at the moment it happened and is never revisited, so nothing in it tells
+# you that a position opened five weeks ago is now past its §5 exit date.
+OPEN_BOOK_TAB = "OpenBook"
 
 # How many analysis sessions the dashboard's recommendations panel shows.
 PAGE_RECENT_REC_SESSIONS = 3
@@ -177,6 +188,52 @@ DELTA_SOURCE_UNAVAILABLE = "unavailable"
 DELTA_SOURCES_REAL = frozenset({DELTA_SOURCE_IBKR, DELTA_SOURCE_BARCHART})
 
 OPTION_MULTIPLIER = 100.0  # signed_dn = delta * 100 * contracts * underlying
+
+# --------------------------------------------------------------------------
+# Open-book triage — what "amiss" means, in one place
+# --------------------------------------------------------------------------
+# The OpenBook tab exists to be SCANNED, so every row carries a `status` and a
+# `flags` cell derived from the numbers beside it. The derivation is here rather
+# than in the writer so the vocabulary is greppable and a reader of the tab can
+# find the definition of a token they are looking at.
+#
+# THESE ARE ATTENTION THRESHOLDS, NOT RULES. Nothing downstream reads a verdict
+# off a flag: the caps still bind in s03_risk.py, the §5 deadline is still
+# computed in lib/exit_rules.py, and colouring a row WATCH neither loosens nor
+# tightens either. Changing a number below changes what gets NOTICED, never
+# what is true — which is why they are allowed to be round numbers with no
+# backtest behind them, unlike anything in docs/deployment-rules.md.
+EXIT_DUE_SOON_DAYS = 5        # §5 deadline this close (or closer) → WATCH
+EXPIRING_SOON_DTE = 7         # contract expiry this close → WATCH
+CAP_NEAR_UTILISATION = 0.80   # this share of a cap used → WATCH
+
+# Severity per flag. ATTENTION = something is wrong or unknown NOW; WATCH = it
+# will be soon, or the picture is incomplete; INFO = worth knowing while reading
+# the row, but not a problem (it must never move `status`).
+BOOK_FLAG_SEVERITY = {
+    # --- ATTENTION -------------------------------------------------------
+    "EXPIRED": "ATTENTION",              # dte < 0: still in the book past expiry
+    "EXIT_OVERDUE": "ATTENTION",         # §5 deadline is in the past
+    "UNPRICED_NO_DELTA": "ATTENTION",    # excluded from every exposure total
+    "UNPRICED_NO_SPOT": "ATTENTION",     # delta known, cannot be valued
+    "TICKER_CAP_BREACH": "ATTENTION",
+    "NET_CAP_BREACH": "ATTENTION",
+    # --- WATCH -----------------------------------------------------------
+    "EXIT_DUE_SOON": "WATCH",
+    "EXPIRING_SOON": "WATCH",
+    "TICKER_CAP_NEAR": "WATCH",
+    "NET_CAP_NEAR": "WATCH",
+    "CAPS_NOT_EVALUABLE": "WATCH",       # no NetLiquidation — no cap context
+    "MIXED_ENTRY_DATES": "WATCH",        # §5 clock started at the earliest leg
+    "UNCLASSIFIED_STRUCTURE": "WATCH",   # the classifier could not name it
+    # --- INFO ------------------------------------------------------------
+    "SPLIT_EXPIRY": "INFO",              # a calendar/diagonal shown as two rows
+    "EXIT_DATE_UNKNOWN": "INFO",         # debit whose entry date is unprovable
+}
+
+# Worst-first, and the order `status` is resolved in.
+BOOK_STATUSES = ("ATTENTION", "WATCH", "OK")
+
 
 # --------------------------------------------------------------------------
 # Judgment call (the ONLY LLM surface in this pipeline)
@@ -365,6 +422,26 @@ class RecContext:
     generated_at: datetime | None = None   # injectable so tests are deterministic
 
 
+@dataclass(frozen=True)
+class BookContext:
+    """Everything an open-book snapshot knows about ITSELF, not about a position.
+
+    The mirror of `RecContext`, for the same reason: a row that states its own
+    provenance can be judged a year later without the pull it came from. The
+    load-bearing fields are `book_reconstructed` (a netted book can be SHORT a
+    position entered before the export window — its absence is not evidence of
+    a flat book) and `net_liq` (absent, the caps cannot be evaluated at all and
+    every row says so rather than showing a utilisation against a guess).
+    """
+
+    as_of_date: str                     # the date the book is marked AT
+    net_liq: float | None = None
+    book_source: str = ""               # raw pull basename
+    book_reconstructed: bool = True     # False = the broker's declared book
+    snapshot_at: datetime | None = None  # injectable so tests are deterministic
+    notes: str = ""
+
+
 # --------------------------------------------------------------------------
 # Sheets / CSV column order — CHANGE IN ONE PLACE ONLY
 # --------------------------------------------------------------------------
@@ -504,3 +581,70 @@ REC_DEDUP_KEY_COLS = ["session_date", "ticker", "rec_id"]
 # scripts/backtest_study/lib/live_select.py documents for its own judge layer.
 JUDGE_LOOKAHEAD_NOTE = ("model cutoff may postdate session_date — verdicts on "
                         "historical sessions are not evidence")
+
+
+# --------------------------------------------------------------------------
+# Open book — what you are holding, and what wants attention
+# --------------------------------------------------------------------------
+# One row per OPEN POSITION per snapshot. Same append-at-end header rule as
+# JOURNAL_COLUMNS and RECOMMENDATION_COLUMNS: a column added here means the
+# OpenBook tab HEADER must gain it too, or new rows write an unlabelled
+# trailing column.
+#
+# COLUMN ORDER IS THE POINT. The tab is read left to right on a phone, so the
+# order is "what do I need to know about this position", nearest first:
+# `status` and `flags` (what is amiss), then the position's exposure and its
+# deadline — `delta_notional` and `exit_by` are the two numbers the operator
+# acts on — then the ticker total the cap actually binds on, then the detail
+# behind the mark, and the identity/provenance columns LAST. Nothing that is a
+# fact about the whole BOOK rather than this position is written: the net cap,
+# the book counts, NetLiquidation and the pull's caveats live in the report
+# and the page, and reach this tab only as a flag on the rows they concern
+# (NET_CAP_*, CAPS_NOT_EVALUABLE, SPLIT_EXPIRY). Repeating them on every row
+# was the original layout, and it made the tab unreadable.
+OPEN_BOOK_COLUMNS = [
+    # --- when, and what is wrong ---------------------------------------
+    "as_of_date",           # the session the book is marked AT
+    "status",               # ATTENTION | WATCH | OK — worst flag on the row
+    "flags",                # "; "-joined tokens; BOOK_FLAG_SEVERITY defines them
+    # --- the position: exposure and deadline first ----------------------
+    "ticker",
+    "structure",
+    "delta_notional",       # signed dollars; BLANK when unpriced, never 0
+    "pct_net_liq",
+    "exit_by",              # §5 deadline, debits only (lib/exit_rules.py)
+    "days_to_exit_by",      # negative = overdue
+    "expiry",
+    "dte",
+    # --- what the cap binds on: the TICKER's signed total -----------------
+    "ticker_delta_notional",
+    "ticker_cap_utilisation",   # |ticker total| / per-position cap; >1 = breach
+    # --- the detail behind the mark --------------------------------------
+    "contracts",
+    "legs",                 # canonical grammar, same as JOURNAL_COLUMNS.legs
+    "entry_date",
+    "position_delta",
+    "underlying_price",
+    "short_leg_delta",
+    "iv",
+    "priced",               # False = the delta cells above are blank on purpose
+    "delta_source",
+    # --- identity and provenance, last -----------------------------------
+    "book_id",              # readable prefix + content hash of the row
+    "generation",           # nth distinct mark of this position on this date
+    "conid_key",            # sorted leg conids — the stable position identity
+    "book_source",          # raw pull basename
+    "snapshot_utc",
+]
+
+# Excluded from the content hash that forms `book_id`: the row's IDENTITY and
+# its WALL CLOCK, exactly as REC_IDENTITY_EXCLUDED excludes them. Everything
+# else is hashed — including the marks, which is deliberate: a re-run on the
+# same day with the same greeks appends nothing, while a genuinely re-marked
+# book appends a new generation instead of overwriting the earlier mark.
+BOOK_IDENTITY_EXCLUDED = ("book_id", "generation", "snapshot_utc")
+
+# `book_id` alone is globally unique (it ends in a content hash). as_of_date and
+# ticker are in the key for readability when inspecting the _meta fingerprint —
+# the same reason date/ticker are in DEDUP_KEY_COLS.
+BOOK_DEDUP_KEY_COLS = ["as_of_date", "ticker", "book_id"]

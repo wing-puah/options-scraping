@@ -243,10 +243,13 @@ scripts/                    ← entry points, each maps to a workflow step
   journal/                  — PRODUCTION daily loop. The listing IS the flow: files are named
                               sNN_<step>.py and run in that order (`s` only because a module
                               name may not start with a digit). config.py = data contract (now
-                              incl. RECOMMENDATION_COLUMNS + RecContext); s01_pull.py = the only
-                              networked module; s06_recommend.py = the ranker + the ONLY model
-                              call, time-bounded (check_freshness, latest_date_on_or_before);
-                              s07_recwriter.py = persists the deploy card to the Recommendations
+                              incl. RECOMMENDATION_COLUMNS + RecContext, OPEN_BOOK_COLUMNS +
+                              BookContext); s01_pull.py = the only networked module;
+                              s05b_bookwriter.py = persists the OPEN BOOK to the OpenBook tab +
+                              journal/open_book.csv, append-only/generational, every row leading
+                              with a triage status + flags; s06_recommend.py = the ranker + the
+                              ONLY model call, time-bounded (check_freshness,
+                              latest_date_on_or_before); s07_recwriter.py = persists the deploy card to the Recommendations
                               tab + journal/recommendations.csv, append-only/generational
     journal/lib/            — journal-only helpers the steps lean on, NOT the repo-root lib/:
                               rawpull.py (the pull schema), flexparse.py (Flex → rawpull + the
@@ -286,6 +289,13 @@ scripts/                    ← entry points, each maps to a workflow step
   appends a new row at `generation = n+1` rather than overwriting the earlier one. Written to
   `journal/recommendations.csv` first (its failure is fatal); a Sheets failure is reported but
   never loses the row.
+- **OpenBook** — the held book, in the SAME workbook as TradeJournal and Recommendations (one
+  loop, three halves: recommended, traded, HELD). One row per open position per marked session,
+  schema = `OPEN_BOOK_COLUMNS`; append-only and GENERATIONAL on a content hash, like
+  Recommendations. Rows lead with `status` (ATTENTION/WATCH/OK) + `flags` so the tab can be
+  SORTED to find what is amiss — overdue §5 exits, unpriced positions, breached caps. Flags are
+  ATTENTION, NEVER VERDICTS: nothing reads one, the caps still bind in `s03_risk.py`. Columns and
+  the full flag vocabulary: `docs/open-book-reference.md`.
 - **\_meta** — dedup hashes (`sheets_client.py`).
 
 **Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or
@@ -393,7 +403,8 @@ play proposals, invalidation — output JSON keys: `regime`, `signals`, `themes`
   `analysis-framework.md` (`analysis_pipeline/config.py::FRAMEWORK_FILE`),
   `conviction-score-legend.md` (`fetch.py::_SCORE_LEGEND_DOC`), `analysis-methods/claude.md`
   (`EngineConfig.method_file`). Moving one of these breaks the pipeline — they are code inputs.
-- `docs/barchart-reference.md` / `docs/backtest-reference.md` — column definitions
+- `docs/barchart-reference.md` / `docs/backtest-reference.md` / `docs/open-book-reference.md` /
+  `docs/recommendations-reference.md` — column definitions
 
 ## Testing
 

@@ -527,6 +527,7 @@ scripts/journal/
   s04a_report.py    -> journal/reports/<date>.md
   s04b_page.py      -> site/journal-<date>.html
   s05_writer.py     -> TradeJournal tab + journal/trades.csv
+  s05b_bookwriter.py -> OpenBook tab + journal/open_book.csv   (the held book, triaged)
   s06_recommend.py  analysis + open book -> the deploy card   (the ONE model call)
   s07_recwriter.py  -> Recommendations tab + journal/recommendations.csv
   lib/              journal-only helpers the steps lean on — NOT the repo-root lib/
@@ -764,6 +765,40 @@ on. `book_evaluable=False` resolves the blank-vs-false seam at serialisation:
 `duplicate_exposure`/`headroom_ok` write as an empty cell, never `False`, when the book that
 would have proven them wasn't available — the same missing/zero discipline the greeks get,
 applied one layer up.
+
+**Open-book record** (`s05b_bookwriter.py`) — one row per OPEN POSITION per marked session,
+flattened to `OPEN_BOOK_COLUMNS` (column-by-column definitions, and the full flag vocabulary:
+[`open-book-reference.md`](open-book-reference.md)) and written to the OpenBook tab in
+`TRADE_JOURNAL_SPREADSHEET_ID` and `journal/open_book.csv`. It answers the question the other
+two tabs structurally cannot: TradeJournal describes a trade at the instant it happened and is
+never revisited, so nothing in it says that a position opened five weeks ago is now past its §5
+exit date, sitting on an unpriced leg, or carrying the ticker that just breached its cap. Until
+this step that only existed in `journal/reports/<date>.md` and the generated page — both local.
+
+Same CSV-first/CSV-fatal, Sheets-non-fatal split as the other two writers, and the same
+deliberate NON-sharing of their helpers, for the reason `s07_recwriter.py` states. Rows lead
+with `status` (ATTENTION / WATCH / OK) and `flags`, derived by `flags_for()` from the numbers
+beside them; the vocabulary and its three thresholds live in `config.BOOK_FLAG_SEVERITY` /
+`EXIT_DUE_SOON_DAYS` / `EXPIRING_SOON_DTE` / `CAP_NEAR_UTILISATION`. FLAGS ARE ATTENTION, NEVER
+VERDICTS — nothing downstream reads one, the caps still bind in `s03_risk.py` and the §5
+deadline is still computed in `lib/exit_rules.py`, which is why those thresholds are allowed to
+be round numbers with nothing fitted behind them.
+
+`book_id` ends in a sha256 of the row's content, covering only the 27 `OPEN_BOOK_COLUMNS` —
+identity and wall clock still excluded (`book_id`, `generation`, `snapshot_utc`) — so re-marking
+an unchanged POSITION appends nothing while a genuinely re-marked one appends its own row at
+`generation = n+1`. That is narrower than it used to be: the book-level facts (the net cap
+block, the book counts, NetLiquidation, whether the book was reconstructed, the pull's notes)
+were dropped from the row rather than hashed, so a position moving no longer re-appends the
+WHOLE book the way it did when every row carried those totals identically — only the position
+that actually changed appends a new generation. A net-cap flag flipping on a row still changes
+that row's hash and re-appends it. Read the current book as "largest `as_of_date`, then largest
+`generation` per position" (`latest_snapshot()` does exactly that, bounded by `on_or_before` the
+same way `recwriter.recent_rows()` is — this read rule is unchanged by the trim). The
+missing/zero discipline holds at this seam too: an unpriced position is written with BLANK delta
+cells and `priced=False`, never a zero — `_net_delta_notional()` also recomputes the net when
+`__main__._build_book` skipped `assess()` for want of NetLiquidation, so a 0.0 dataclass default
+can never be recorded as a flat book.
 
 **Privacy** — `/journal/` is gitignored in full (raw pulls carry account identifiers,
 trades.csv carries live sizes and P&L; the TradeJournal tab is the only copy that leaves the
