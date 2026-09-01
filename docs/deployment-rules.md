@@ -112,12 +112,12 @@ Three clauses that keep the table consistent:
   Credits carry no time exit and get no date (row 4).
 - **Credits are never regime-switched.** A `bull_put_spread` keeps row 4 in every
   regime.
-- **The bear-debit breakeven ratchet was REVERTED 2026-08-24.** Its rollback
-  trigger fired at the first floor evaluation (2025 mean-R delta negative,
+- **The bear-debit peak-triggered breakeven stop was REVERTED 2026-08-24.** Its
+  rollback trigger fired at the first floor evaluation (2025 mean-R delta negative,
   total gain vs PROD +$58 on the v4 re-read) — a bear debit now runs the
   normal debit row everywhere except a mech BEAR + H/E-VOL date, where the
   trail row applies. Evidence: `research/deployment-evidence.md` §"The
-  bear-debit breakeven ratchet".
+  bear-debit peak-triggered breakeven stop".
 
 ## 6. What not to use
 

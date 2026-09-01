@@ -757,14 +757,14 @@ def test_summarize_path_daily_pnl_is_per_contract_not_position_scaled():
     assert out["realized_pnl_abs"] == 3000.0  # 1.0 × 10 × 100 × 3 contracts (scaled)
 
 
-# ── be_after: the breakeven ratchet (bear debits, 2026-08-11) ─────────────────
+# ── be_after: the peak-triggered breakeven stop (bear debits, 2026-08-11) ───────
 #
 # Its POSITION in the exit ladder is load-bearing: dollar_stop → be_stop →
 # stop_loss, ported from the frozen study harness (backtest_study/lib/harness.py).
 # Move it and the shipped rule stops reproducing the study it was derived from.
 
 def _ratchet_path():
-    """Runs to +0.60 (arms the ratchet at 0.50), then back through breakeven."""
+    """Runs to +0.60 (arms the breakeven stop at 0.50), then back through breakeven."""
     return [(date(2026, 6, 2), 1, 16.0, "barchart"),   # pl +0.60
             (date(2026, 6, 3), 2, 9.5, "barchart")]    # pl −0.05
 
@@ -791,7 +791,7 @@ def test_be_stop_does_not_arm_below_the_threshold():
 
 
 def test_be_stop_precedes_stop_loss_in_the_ladder():
-    """A day that trips BOTH must report be_stop — the ratchet is checked
+    """A day that trips BOTH must report be_stop — the breakeven stop is checked
     first, so the position exits at breakeven rather than riding to −75%."""
     gm = [(date(2026, 6, 2), 1, 16.0, "barchart"),   # pl +0.60, arms
           (date(2026, 6, 3), 2, 2.0, "barchart")]    # pl −0.80: be_stop AND stop_loss
@@ -800,7 +800,7 @@ def test_be_stop_precedes_stop_loss_in_the_ladder():
 
 
 def test_be_stop_yields_to_dollar_stop():
-    """dollar_stop is the portfolio-level backstop and outranks the ratchet."""
+    """dollar_stop is the portfolio-level backstop and outranks the breakeven stop."""
     gm = [(date(2026, 6, 2), 1, 16.0, "barchart"),
           (date(2026, 6, 3), 2, 2.0, "barchart")]
     out = bt._summarize_path(gm, 10.0, 0.90, 0.75, 1, False,

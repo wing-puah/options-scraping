@@ -90,7 +90,7 @@ Mechanism test — **frozen variant set of exactly ONE**: `be_after: 0.50`
 applied to NON-bear debit rows in the HIGH tercile only, versus PROD,
 leave-one-date-out (out-of-fold, `exit_switch` house pattern). Bear debit rows
 are EXCLUDED from the variant arm, because they already carry the shipped
-ratchet and re-testing it here would double-count the 08-11 result; their
+breakeven stop and re-testing it here would double-count the 08-11 result; their
 sub-arming give-back census BY TERCILE still prints, for the blocked §2.4
 thread. Standing asymmetry rule applies: an MFE/MAE-mirrored read is a
 path-vol artifact, not a finding.

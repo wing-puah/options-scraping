@@ -109,7 +109,7 @@ be re-tested on new BEAR/H-VOL data. Historical escape routes are closed
 (Barchart options-flow doesn't reach back past ~2024-02 — addendum 6), so it
 shipped ahead of its gate deliberately.
 
-### The bear-debit breakeven ratchet (shipped 2026-08-11 — REVERTED 2026-08-24)
+### The bear-debit peak-triggered breakeven stop (shipped 2026-08-11 — REVERTED 2026-08-24)
 
 **REVERTED 2026-08-24.** First floor evaluation of the pre-registered rollback
 trigger (below, and `research/pre-registrations/f2_management/rollback_triggers.md` — a
@@ -125,7 +125,7 @@ rule looked like on v3.
 **This is not an edge. It reduces a loss.** On 332 bear debit rows (real+tweak,
 `bear_put_spread` + `long_put`), on the study's basis: mean R **−0.133 → −0.092**
 (~**31% less bleed**), **−$54.4k → −$38.0k**. Bear selection stays negative
-afterwards; the ratchet only stops giving back a peak that was already there.
+afterwards; the breakeven stop only stops giving back a peak that was already there.
 
 Evidence (`bear_arm` study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
 not retained on disk — the figures here are the record): paired date-clustered CI
@@ -145,8 +145,8 @@ only config whose 2026-alone CI excludes zero, and its pooled CI is the tightest
 
 **It is bear-KEYED, and the keying is the finding.** The identical config on the
 NON-bear debit book measures **+0.234 → +0.209 — a loss of 0.026**. Applying a
-breakeven ratchet to bull_calls actively destroys value: those positions
-routinely dip back through entry on the way to the 0.90 target, and the ratchet
+peak-triggered breakeven stop to bull_calls actively destroys value: those positions
+routinely dip back through entry on the way to the 0.90 target, and the breakeven stop
 sells them there. Credits get nothing — no reproducible credit-side change, and
 the only bear credit structure (`bear_call_spread`) has been intake-vetoed with
 0 emissions since Attempt 13. On the credit side (bear_call, n=38), `pt .50`
@@ -157,7 +157,7 @@ apply it to.
 Leak guard **PASSED**: non-bear debits (n=261) 0 rows changed; credits (n=202)
 0 rows changed. Now enforced by tests.
 
-**Known reach limitation — the ratchet does not address most bear give-back.**
+**Known reach limitation — the breakeven stop does not address most bear give-back.**
 Measured 2026-08-12 (scratch cut, `current.md` §"bear MFE give-back"): 82% of
 bear debit rows go into profit at some point and 56% of those finish ≤ 0, but
 **124 rows peaked between +1% and +50% and lost −$77.2k entirely below the +0.50
@@ -165,22 +165,23 @@ arming threshold**. `stop_loss` and `dollar_stop` rows carry mean MFE +0.217 and
 +0.287 — 178 positions were up 20–30% and stopped out anyway. A lower threshold
 is a **candidate, not a finding**: the census of peaks does not price the cost on
 winners that dip back through entry, and that cost is what made the identical
-config lose value on the non-bear debit book. Do not read the shipped ratchet as
+config lose value on the non-bear debit book. Do not read the shipped breakeven stop as
 covering this.
 
-### Why the trail suppresses the ratchet (interaction check A3)
+### Why the trail suppresses the breakeven stop (interaction check A3)
 
-The ratchet was measured against a no-trail profile, but a bear debit opened on a
+The breakeven stop was measured against a no-trail profile, but a bear debit opened on a
 BEAR_HE date also gets the 0.50/0.50 trail — a stack the frozen grid never
 evaluated. One confirming config was run:
 
 **"BE @.50 + trail .50 trig .50" scores Δ+0.036 with zero `be_stop` exits,
-bit-identical to the trail alone**, and below the ratchet alone (+0.041). The
+bit-identical to the trail alone**, and below the breakeven stop alone (+0.041). The
 cause is structural, not sampling: the trail arms at peak ≥ 0.50 and its floor
-(peak − 0.50) is then ≥ 0 — at or above the ratchet's threshold — and the trail
-is checked first. The ratchet is **strictly dominated** inside BEAR_HE.
+(peak − 0.50) is then ≥ 0 — at or above the breakeven stop's threshold — and
+the trail
+is checked first. The breakeven stop is **strictly dominated** inside BEAR_HE.
 
-So the ratchet is suppressed there, at **zero measured cost**: suppress vs stack
+So the breakeven stop is suppressed there, at **zero measured cost**: suppress vs stack
 over the 224 BEAR_HE bear-debit rows differ on **0 rows**. Each rule stays inside
 the envelope it was measured in.
 
@@ -216,7 +217,7 @@ same rows. Every future exit study should quote both baselines.**
 - Implementation: `simulation.regime_exit` / `simulation.structure_exit` in
   `config/backtest.yml`; labels from `lib/mech_regime.py`. Merge order is
   **base → structure → regime**, which is what lets the regime cell switch the
-  ratchet off.
+  breakeven stop off.
 
 **The card's exit table, as config values** — each row maps to a block in
 `config/backtest.yml`:
@@ -297,7 +298,7 @@ Rank by **`|delta|` DESCENDING** (closer-to-money). Within-date paired gain
 **+0.232**, CI **[+0.091, +0.370]**, **every LOO fold positive** (min +0.204),
 positive in all three years (2024 +0.285 / 2025 +0.312 / 2026 +0.083), across 93
 dates with ≥2 bear candidates. It **holds on the SHIPPED exit** too (+0.159, CI
-[+0.028, +0.280]) — not an artifact of the new ratchet.
+[+0.028, +0.280]) — not an artifact of the new breakeven stop.
 
 The worst things you can do, from the same ten-ranker test:
 
@@ -487,7 +488,7 @@ shipped-on-one-study to **cleared**; failing reverts it.
 | Rule | Re-evaluate at | Revert if | Implementation to revert |
 |---|---|---|---|
 | **BEAR_HE trail** (07-22) | ≥25 affected BEAR + H/E-VOL dates of **new** data | the cell's total gain vs PROD is ≤ 0, **or** the affected-date median gain is < 0 | `simulation.regime_exit.cells.BEAR_HE` → no trail |
-| **Bear-debit `be_after: 0.50`** (08-11) | ≥60 **new** bear-debit rows that actually **arm** the ratchet (peak P&L ≥ +0.50) | total gain vs PROD on those rows is ≤ 0, **or** the mean-R delta on affected rows is < 0, **or** any single year of the pooled book flips negative | `simulation.structure_exit.enabled` → `false` |
+| **Bear-debit `be_after: 0.50`** (08-11) | ≥60 **new** bear-debit rows that actually **arm** the breakeven stop (peak P&L ≥ +0.50) | total gain vs PROD on those rows is ≤ 0, **or** the mean-R delta on affected rows is < 0, **or** any single year of the pooled book flips negative | `simulation.structure_exit.enabled` → `false` |
 | **bull_put delta/DTE band** | the next independent window (the ≤0.20 cap and 45–59 preference are the thin-n parts) | — PROVISIONAL, re-read rather than a hard revert | the band clause in the card's §3 |
 
 Progress toward the first two accumulates from live fills plus new backtest

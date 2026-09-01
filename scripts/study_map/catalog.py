@@ -303,7 +303,7 @@ STUDIES: dict[str, Study] = {
     ),
     "bear_giveback": Study(
         family="management", state="null",
-        question="82% of bear rows go green and then give it back. Can a breakeven ratchet "
+        question="82% of bear rows go green and then give it back. Can a peak-triggered breakeven stop "
                  "capture that, and does the underlying path explain it?",
         verdict="The `be_after` grid does NOT ship, and as of 2026-08-24 there is nothing "
                 "live for it to add to: bear_arm's rollback trigger fired and "

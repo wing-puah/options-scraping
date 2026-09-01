@@ -112,7 +112,7 @@ DEFAULT_CONFIG = ROOT / "config" / "account-sim.yml"
 # not a tuned parameter — see `mark_key` and the report's EQUITY MARKS banner.
 MARK_INTERVALS = ("month", "quarter", "year")
 
-# The shipped breakeven-ratchet threshold for bear debit structures. It is part
+# The shipped peak-triggered breakeven-stop threshold for bear debit structures. It is part
 # of the FROZEN exit policy, not a knob of this study: `bear_giveback.py`'s ARM P
 # measured it and the deployment ladder shipped 0.50. It is named here only so
 # `profile_for` and the CONFIGURATION section quote one value rather than two.
@@ -1370,8 +1370,8 @@ def _exit_phrase(prof: dict) -> str:
     """A profile dict as a field list, in `harness.replay`'s own priority order.
 
     That order is profit_target -> trailing_stop -> ... -> be_stop -> stop_loss
-    -> time_exit (`harness.replay`), so the breakeven ratchet is listed AHEAD of
-    the stop: on a row carrying both, the ratchet is what fires. Printing them
+    -> time_exit (`harness.replay`), so the peak-triggered breakeven stop is listed AHEAD of
+    the stop: on a row carrying both, the breakeven stop is what fires. Printing them
     the other way round would imply the -75% stop is tested first, which is a
     false claim about a frozen engine.
 
@@ -1386,7 +1386,7 @@ def _exit_phrase(prof: dict) -> str:
     elif prof.get("trail") is not None:
         parts.append(f"trail {prof['trail']:.0%}")
     if prof.get("be_after") is not None:
-        parts.append(f"breakeven ratchet once peak {prof['be_after']:+.0%}")
+        parts.append(f"peak-triggered breakeven stop once peak {prof['be_after']:+.0%}")
     if prof.get("sl") is not None:
         parts.append(f"stop {-prof['sl']:+.0%}")
     if prof.get("tef") is not None:

@@ -133,11 +133,11 @@ def _exit_basis(sim_cfg: dict, entry_net: float, signal_date=None,
                     regime merges LAST; on BEAR_HE it nulls `be_after`, so the
                     cell genuinely is the governing profile.
       BEAR_DEBIT  — structure_exit's bear_debit cell armed the `be_after`
-                    ratchet and no regime cell overrode it (2026-08-11).
+                    breakeven stop and no regime cell overrode it (2026-08-11).
       PROD        — base config only.
 
     BEAR_DEBIT exists so that `exit_basis == "PROD"` keeps meaning "base config
-    only" for every row. Without it a bear debit that ran the ratchet would
+    only" for every row. Without it a bear debit that ran the breakeven stop would
     report PROD and be pooled with rows that did not — the exact ambiguity this
     column was added to prevent.
     """
@@ -168,8 +168,8 @@ def _effective_sim_cfg(sim_cfg: dict, entry_net: float, signal_date=None,
 
     Regime is merged LAST deliberately. It is how the BEAR_HE cell suppresses
     `be_after` with an explicit `null`: on a BEAR_HE date the 0.50/0.50 trail
-    already dominates the breakeven ratchet (the trail's floor, peak−0.50, is
-    ≥ 0 exactly when the ratchet arms at peak ≥ 0.50, and the trail is checked
+    already dominates the peak-triggered breakeven stop (the trail's floor, peak−0.50, is
+    ≥ 0 exactly when the breakeven stop arms at peak ≥ 0.50, and the trail is checked
     first), so stacking them is a measured no-op and each rule stays inside the
     envelope it was measured in. See the A3 confirmation in
     `backtests/study_output/bear_arm-latest.txt` ("BE @.50 + trail .50 trig .50").
@@ -259,7 +259,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
       2. trailing_stop  — trails from peak once trailing_stop_trigger is reached OR
                           profit_target activates it (whichever comes first)
       3. dollar_stop    — hard per-trade $ loss cap from portfolio sizing
-      4. be_stop        — breakeven ratchet: once peak P&L reaches be_after, the
+      4. be_stop        — peak-triggered breakeven stop: once peak P&L reaches be_after, the
                           stop tightens from -stop_loss to 0 (disabled when None)
       5. stop_loss      — hard % loss floor
       6. loss_days_exit — N consecutive trading days in loss

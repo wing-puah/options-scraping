@@ -120,8 +120,9 @@ def replay(t: Trade, pt=None, sl=None, trig=None, trail=None, tef=None,
            be_after=None, und_buffer=None) -> dict:
     """Mirror of _summarize_path's exit scan (simulate.py:139-171) plus two
     experimental rules:
-      be_after    — breakeven ratchet: once peak pnl >= be_after, the stop level
-                    tightens from -sl to 0 (exit reason 'be_stop').
+      be_after    — peak-triggered breakeven stop: once the RUNNING peak pnl
+                    >= be_after, the stop level tightens from -sl to 0
+                    (exit reason 'be_stop').
       und_buffer  — credit-side underlying close-breach stop (short strike ±
                     buffer; breakeven basis for straddles), checked AHEAD of the
                     mark stops the way Attempt 9's '+ mark stops kept' variant

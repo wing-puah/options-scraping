@@ -147,9 +147,11 @@ terminal states always run regardless of exit config).
   one when the short strike is already near the money).
 - **dollar_stop** — dollar loss hit `MAX_LOSS_ABS` ($1,000, a $50k book's
   2% risk budget) — checked on every trade regardless of exit profile.
-- **be_stop** — breakeven ratchet: once peak P&L reached `be_after`, the
-  stop tightens from `-sl` to `0`, so a former winner can't slide through
-  breakeven into a loss.
+- **be_stop** — peak-P&L-triggered breakeven stop: once the position's
+  RUNNING peak P&L reached `be_after`, the stop tightens from `-sl` to `0`,
+  so a former winner can't slide through breakeven into a loss. "Peak" is the
+  max-so-far of `(mark − entry) / |entry|` on the daily mark grid — causal,
+  not the completed path's MFE — so the rule is implementable live.
 - **stop_loss** — P&L fell to `-sl`.
 - **time_exit** — held `dte_entry × tef` days with nothing else triggering.
 - **expired** — held to the nearest leg's expiration, nothing triggered.
@@ -204,7 +206,7 @@ combinations are named cells at all; everything else is `NONE`.
   on top".
 - **DEBIT_PROD** — the same profile named as a study BASELINE. A delta
   measured against it **overstates production impact** wherever a regime cell
-  already converts the same rows: the 08-11 bear-debit ratchet scored
+  already converts the same rows: the 08-11 bear-debit breakeven stop scored
   +0.041 meanR / +$16.4k against `DEBIT_PROD` but +0.015 / +$5.9k against live
   production, which had shipped the BEAR_HE trail since 07-22
   (`deployment-evidence.md`). An exit study should quote BOTH baselines.

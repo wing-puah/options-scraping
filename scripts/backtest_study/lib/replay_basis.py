@@ -103,7 +103,7 @@ def classify(t: Trade, prod: dict, unreachable: set[str], replay_fn=replay):
       exit rule this profile does not contain, so the disagreement is a config
       difference, not a pricing failure. On this book that is the
       `regime_exit.cells.BEAR_HE` trail shipped 2026-07-22 (`31cb935`), the
-      `structure_exit.bear_debit.be_after` ratchet shipped 2026-08-11, and, on
+      `structure_exit.bear_debit.be_after` breakeven stop shipped 2026-08-11, and, on
       older rows, the pre-Attempt-10 global trail.
     boundary_tie — the flat replay fires a pt/sl threshold on a day whose pnl
       is a 1-ulp rounding tie with it, while production's unrounded pnl

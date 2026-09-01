@@ -1143,8 +1143,8 @@ def test_configuration_echo_prints_the_exit_policy_the_replay_will_apply(capsys)
     assert f"stop {-debit['sl']:+.0%}" in text
     assert f"time exit at {debit['tef']:.0%} of DTE" in text
     assert f"take profit {credit['pt']:+.0%}" in text
-    # the bear-debit ratchet and the BEAR_HE trail are separate rows
-    assert f"breakeven ratchet once peak {account_sim.SHIPPED_BE_AFTER:+.0%}" in text
+    # the bear-debit breakeven stop and the BEAR_HE trail are separate rows
+    assert f"peak-triggered breakeven stop once peak {account_sim.SHIPPED_BE_AFTER:+.0%}" in text
     assert "trail 50% once +50% is touched" in text
 
 

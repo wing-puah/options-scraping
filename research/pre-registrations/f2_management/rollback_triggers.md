@@ -60,7 +60,7 @@ texts left unspecified.
    → then ship trail .50/.50 in mech BEAR+H/E + tef-null in mech L-VOL."
 3. **Bear-debit `be_after: 0.50`** (config/backtest.yml `structure_exit`
    comment, shipped 2026-08-11): "ROLLBACK TRIGGER (pre-registered, evaluate
-   at >=60 NEW bear-debit rows that actually arm the ratchet, i.e. reach peak
+   at >=60 NEW bear-debit rows that actually arm the breakeven stop, i.e. reach peak
    P&L >= +0.50): revert `enabled` to false if the total gain vs PROD on
    those rows is <= 0, OR if the mean R delta on the affected rows is < 0,
    OR if any single year of the pooled book flips negative."

@@ -231,7 +231,7 @@ disagree, the log wins.
 | 2026-08-12 — Stage 1 live-vs-tier eval on July | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
 | 2026-08-12 — deployment reference stats added to the operator card | [archive/10](archive/10-post-closeout-ops-and-live-evals.md) |
 | 2026-08-12 — edge status after close-out: real, narrow, NOT selection-tunable | [archive/11](archive/11-exit-conditioning.md) |
-| 2026-08-12 — bear MFE give-back below the ratchet threshold (candidate, not run) | [archive/11](archive/11-exit-conditioning.md) |
+| 2026-08-12 — bear MFE give-back below the breakeven-stop threshold (candidate, not run) | [archive/11](archive/11-exit-conditioning.md) |
 | 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [archive/11](archive/11-exit-conditioning.md) |
 | 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [archive/11](archive/11-exit-conditioning.md) |
 | 2026-08-12 — `bear_rewrap`: the WRAPPER is worth +0.085 but does not hold up | [archive/12](archive/12-wrappers-and-vol-sleeve.md) |

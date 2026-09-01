@@ -1,6 +1,6 @@
 # bear_giveback — per-era record
 
-**Question.** 82% of bear rows go green and then give it back. Can a breakeven ratchet capture that, and does the underlying path explain it?
+**Question.** 82% of bear rows go green and then give it back. Can a peak-triggered breakeven stop capture that, and does the underlying path explain it?
 
 Append-only. One section per (export era, git sha); newest last. The excerpts are quoted verbatim from the study's own report — see [README.md](../README.md) for why this folder exists.
 

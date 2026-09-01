@@ -241,7 +241,7 @@ DEBIT_VARIANTS: list[tuple[str, dict]] = [
     # profit-target sweep with a loose trail kept as reversal protection
     ("pt 1.10 trail .50 trig .75", {**DEBIT_PROD, "pt": 1.10, "trig": 0.75, "trail": 0.50}),
     ("pt 1.25 trail .50 trig .75", {**DEBIT_PROD, "pt": 1.25, "trig": 0.75, "trail": 0.50}),
-    # breakeven ratchet (stop tightens to 0 once peak >= threshold)
+    # peak-triggered breakeven stop (stop tightens to 0 once peak >= threshold)
     ("BE ratchet @.50, no trail", {**DEBIT_PROD, "trig": None, "trail": None, "be_after": 0.50}),
     ("BE ratchet @.75, no trail", {**DEBIT_PROD, "trig": None, "trail": None, "be_after": 0.75}),
     ("BE ratchet @.50 + trail .50 trig .75",

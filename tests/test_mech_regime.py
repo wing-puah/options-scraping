@@ -182,7 +182,7 @@ def test_exit_basis_in_both_key_orders():
 #
 # The NARROWNESS is the finding. `be_after: 0.50` on the non-bear debit book
 # measured +0.234 → +0.209 — a LOSS — so every test below that asserts the
-# ratchet is ABSENT is guarding a measured result, not a style preference.
+# breakeven stop is ABSENT is guarding a measured result, not a style preference.
 
 @pytest.fixture
 def struct_cfg(bear_cfg):
@@ -225,7 +225,7 @@ def test_credit_never_gets_the_ratchet(struct_cfg):
 
 def test_bear_he_suppresses_the_ratchet(struct_cfg):
     """A3, 2026-08-11: on a BEAR_HE date the 0.50/0.50 trail dominates the
-    ratchet (0 be_stop exits when stacked), so regime merges LAST and nulls it.
+    breakeven stop (0 be_stop exits when stacked), so regime merges LAST and nulls it.
     Each rule then stays inside the envelope it was measured in."""
     eff = _effective_sim_cfg(struct_cfg, entry_net=2.50,
                              signal_date="2024-03-20",

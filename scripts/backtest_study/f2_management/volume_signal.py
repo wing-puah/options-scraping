@@ -198,7 +198,7 @@ def keyed_profile(rec: dict, bounds, keyed: bool) -> dict:
     The key — non-bear debit AND os_ratio HIGH — is evaluated HERE, inside the
     profile builder, so the leak guard below is a real test (next_day_move
     pattern). On BEAR_HE dates the shipped merge nulls be_after for bear rows;
-    for the non-bear rows this variant touches, the ratchet STACKS on the trail
+    for the non-bear rows this variant touches, the breakeven stop STACKS on the trail
     — disclosed, and the single frozen choice, not a grid.
     """
     cfg = prod_profile_for(rec, 0.50, True)

@@ -280,7 +280,7 @@ moves. Nothing to run until the book has materially more dates.
 ### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
 
 `bear_giveback` ran and the `be_after` grid does **not** ship. The shipped
-ratchet (`structure_exit.enabled`) was **REVERTED 2026-08-24** when its rollback
+breakeven stop (`structure_exit.enabled`) was **REVERTED 2026-08-24** when its rollback
 trigger fired, so there is no live baseline for the grid to add to either. Where
 the study says the pattern actually lives: in the **underlying**, not the mark —
 `peak within 3d` n=18, give-back 89%, meanR −0.374 against `peak >20d` n=83,

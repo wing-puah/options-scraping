@@ -441,7 +441,7 @@ def main() -> int:
 
     hdr("ROLLBACK-TRIGGER CENSUS — bear-debit be_after 0.50 (shipped 2026-08-11)")
     print("  \"ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows "
-          "that actually arm the ratchet, i.e. reach peak P&L >= +0.50): revert "
+          "that actually arm the breakeven stop, i.e. reach peak P&L >= +0.50): revert "
           "`enabled` to false if the total gain vs PROD on those rows is <= 0, OR if "
           "the mean R delta on the affected rows is < 0, OR if any single year of the "
           "pooled book flips negative.\" (config/backtest.yml structure_exit comment)")

@@ -346,7 +346,7 @@ from scripts.backtest_study.lib import book, harness, replay_basis, triggers  # 
 
 
 def _be_stop_row(**extra):
-    """A row whose STORED outcome is the shipped bear-debit be_after ratchet:
+    """A row whose STORED outcome is the shipped bear-debit be_after breakeven stop:
     peak +0.80 (arms at 0.50), then a mark at breakeven -> be_stop. Under flat
     DEBIT_PROD the same path rides to the time exit."""
     row = _row(marks=[1.00, 1.80, 0.95] + [1.20] * (GRID_LEN - 3), **extra)

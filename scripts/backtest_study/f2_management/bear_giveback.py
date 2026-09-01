@@ -14,9 +14,9 @@ and give me deploy-time numbers to look at".
 
           It also re-opens A3, which was decided for @.50 ONLY. Inside BEAR_HE
           the trail arms at peak >= 0.50 and its floor (peak - 0.50) is then
-          >= 0, which is what made @.50 strictly dominated there. A ratchet at
+          >= 0, which is what made @.50 strictly dominated there. A breakeven stop at
           0.30 arms at peak >= 0.30 — on rows peaking in [0.30, 0.50) the trail
-          NEVER arms and the ratchet would. So the suppression decision does not
+          NEVER arms and the breakeven stop would. So the suppression decision does not
           automatically carry down, and both variants are measured.
 
   ARM U — does the underlying price path explain the give-back? Every feature is
@@ -55,7 +55,7 @@ BEAR_DEBIT = ("bear_put_spread", "long_put")
 # --- the SHIPPED production profiles, transcribed from config/backtest.yml -----
 # base debit
 PROD_BASE = dict(DEBIT_PROD)
-# regime_exit.cells.BEAR_HE  (trail on, ratchet explicitly nulled)
+# regime_exit.cells.BEAR_HE  (trail on, breakeven stop explicitly nulled)
 PROD_BEAR_HE = {**DEBIT_PROD, "trig": 0.50, "trail": 0.50, "be_after": None}
 # structure_exit.cells.bear_debit  (applies on every NON-BEAR_HE date)
 PROD_BEAR_DEBIT = {**DEBIT_PROD, "be_after": 0.50}
@@ -154,8 +154,8 @@ def arm_p(bear: list[dict], nonbear_debit: list[dict], credits: list[dict]) -> N
   merge so the delta quoted is the one the book would actually have earned.
 
   A3 IS RE-OPENED HERE, deliberately: it was decided for @.50, where the
-  BEAR_HE trail strictly dominates the ratchet. At a lower threshold the
-  ratchet arms on rows the trail never reaches, so 'suppress' and 'stack'
+  BEAR_HE trail strictly dominates the breakeven stop. At a lower threshold the
+  breakeven stop arms on rows the trail never reaches, so 'suppress' and 'stack'
   are genuinely different books and both are measured.""")
 
     variants = [("SHIPPED  be .50, suppressed in BEAR_HE", 0.50, True)]

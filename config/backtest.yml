@@ -101,7 +101,8 @@ simulation:
   # (realized +19.8% avg vs +117.8% post-exit max avg; 13 tickers / 5 months, not one
   # event). Removing the trail: +$11,570 on the tuning window, survives leave-one-out
   # (+$9,362) and biggest-cluster removal (+$7,480); v1 comparison set agrees (+$5.5k).
-  # Wider trails / higher triggers / breakeven ratchets all tested worse than no trail.
+  # Wider trails / higher triggers / peak-triggered breakeven stops all tested
+  # worse than no trail.
   # profit_target=0.90 kept: the pt sweep 0.70–1.00 without a trail is a plateau with
   # no supported gradient. See backtest-tuning/archive/02-credit-debit-split-attempts-8-12.md §Attempt 10.
   trailing_stop_trigger: null                    # Attempt 10: no trailing stop on debits
@@ -158,7 +159,7 @@ simulation:
       BEAR_HE:                      # mech BEAR + (H-VOL or E-VOL)
         trailing_stop_trigger: 0.50 # activate the trail once up 50% of premium
         trailing_stop_pct: 0.50     # then trail 50pts from peak
-        be_after: null              # SUPPRESSES the bear-debit breakeven ratchet
+        be_after: null              # SUPPRESSES the bear-debit breakeven stop
                                     # below on BEAR_HE dates — see the A3 note in
                                     # the structure_exit block. regime_exit merges
                                     # AFTER structure_exit, which is what makes an
@@ -166,12 +167,12 @@ simulation:
       # LVOL:  { time_exit_dte_fraction: null }   # NOT shipped — still gated
       # RB_EVOL: dead, do not re-add
 
-  # ── Structure-keyed exit override: bear debit breakeven ratchet ───────────────
+  # ── Structure-keyed exit override: bear-debit breakeven stop ──────────────────
   # SHIPPED 2026-08-11 (bear_arm study, backtests/study_output/bear_arm-latest.txt).
   #
-  # `be_after: X` = a BREAKEVEN RATCHET. Once the position's peak P&L reaches
-  # +X × premium, the stop tightens from -stop_loss to 0: the next mark at or
-  # below breakeven closes it (exit reason `be_stop`). It sits between
+  # `be_after: X` = a PEAK-TRIGGERED BREAKEVEN STOP. Once the position's peak
+  # P&L reaches +X × premium, the stop tightens from -stop_loss to 0: the next
+  # mark at or below breakeven closes it (exit reason `be_stop`). It sits between
   # dollar_stop and stop_loss in the exit ladder — that precedence mirrors the
   # frozen study harness and every recorded number depends on it.
   #
@@ -197,26 +198,27 @@ simulation:
   # date would get both — never evaluated by the frozen grid. One confirming
   # config was added to bear_arm.py's DEBIT_GRID and run: "BE @.50 + trail .50
   # trig .50" scores Δ+0.036 with ZERO be_stop exits — bit-identical to "trail
-  # .50 trig .50" alone, and BELOW BE alone (+0.041). The ratchet is strictly
+  # .50 trig .50" alone, and BELOW BE alone (+0.041). The breakeven stop is strictly
   # dominated there: the trail arms at peak >= 0.50 and its floor (peak - 0.50)
-  # is then >= 0, i.e. at or above the ratchet's, and the trail is checked
+  # is then >= 0, i.e. at or above the breakeven stop's, and the trail is checked
   # first. So be_after is SUPPRESSED inside BEAR_HE (the explicit null above).
   # Suppression is free on this book and keeps each rule inside the envelope it
   # was measured in.
   #
   # SCOPE OF THAT DOMINATION (clarified 2026-08-12, comment-only): it is a
-  # property of the 0.50 THRESHOLD, not of the ratchet mechanism. The trail's
-  # floor only sits above the ratchet's for rows peaking >= 0.50; a ratchet
-  # below that arms on BEAR_HE rows the trail never reaches. Measured: swapping
+  # property of the 0.50 THRESHOLD, not of the breakeven-stop mechanism. The trail's
+  # floor only sits above the breakeven stop's for rows peaking >= 0.50; a
+  # breakeven stop below that arms on BEAR_HE rows the trail never reaches.
+  # Measured: swapping
   # 0.50 -> 0.30 with suppression KEPT changes 13 rows (+0.009 vs shipped,
   # CI [-0.006, +0.024]); STACKING 0.30 inside BEAR_HE changes 43 and is worth
   # +0.026, CI [-0.003, +0.056], with 2024 carrying it (+0.097/+0.009/+0.007).
   # Both fail the pre-registered bar against SHIPPED production, so nothing
   # changed here — but do not re-derive "the trail always dominates the
-  # ratchet" from the paragraph above. See current.md §"the be_after grid RUN".
+  # breakeven stop" from the paragraph above. See current.md §"the be_after grid RUN".
   #
   # ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows that
-  # actually arm the ratchet, i.e. reach peak P&L >= +0.50): revert `enabled` to
+  # actually arm the breakeven stop, i.e. reach peak P&L >= +0.50): revert `enabled` to
   # false if the total gain vs PROD on those rows is <= 0, OR if the mean R
   # delta on the affected rows is < 0, OR if any single year of the pooled book
   # flips negative. Note the deployment context — every bear row in the book is
