@@ -67,6 +67,18 @@ what's shipped lives in `deployment-rules.md`.
   under 1" — only `min_gain` catches the single fold that flips when its
   carrying date drops. This check killed the per-regime exit switch
   candidate twice (`current.md`).
+- **MWU (Mann–Whitney U / Wilcoxon rank-sum)** — nonparametric two-sample
+  test of whether one group's values systematically OUTRANK another's —
+  effectively `P(random row from A > random row from C) ≠ 0.5`. It uses ranks
+  only and never touches either mean. **Why rank-based here:** R is floored
+  by the stop, zero-inflated and long-tailed, so a t-test's p would be driven
+  by a handful of outsized winners. **Read it with the CI95 caveat above:**
+  MWU assumes independent observations and rows sharing a `signal_date` are
+  not, so it overstates significance on this book — it is the OLDER evidence
+  style here, superseded by the date-clustered bootstrap and LOO. Treat a
+  surviving MWU p as supporting evidence, not the standard. A HIGH p is still
+  informative: the ladder's `A vs B p = .98` (`deployment-evidence.md`) says
+  those two tiers are ordered but NOT separated — a watch item, still open.
 - **sign-stability** — `protocol.sign_stable`: mean of a key per year;
   checks every year has the same sign. A sign that flips across years is
   treated as a window artifact until proven otherwise (the 2026-08-08
@@ -143,6 +155,65 @@ terminal states always run regardless of exit config).
 - **expired** — held to the nearest leg's expiration, nothing triggered.
 - **cap_open** — still open at the `path_cap_days` boundary; recorded P&L
   is the mark on the last priced day, not a closed trade's outcome.
+
+### Exit basis & mechanical regime cells
+
+A different axis from the vocabulary above: not *why* a position closed, but
+WHICH exit profile was in force when it did.
+
+**Mechanical regime cells** (`lib/mech_regime.py` — FROZEN spec; changing a
+threshold invalidates every gate decision resting on it):
+
+- **mech_cell** — the stored per-row label naming that signal date's regime
+  cell, computed from SPY/^VIX closes ON OR BEFORE the signal date only, so
+  it is causal and safe to key a trade decision on. Two axes: direction is
+  **BEAR** (SPY < 50-day SMA AND 20-day return < 0), **BULL** (SPY > SMA AND
+  return > 0), else **RANGE**; vol is **E-VOL** (VIX ≥ 30 OR 5-day VIX change
+  ≥ +25%), **H-VOL** (VIX ≥ 20), else **L-VOL**. **Exit conditioning ONLY** —
+  the model's own regime label from the analysis remains the basis for
+  SELECTION gates. The two label sources win on opposite jobs (`current.md`
+  §2026-07-22 addendum 4), so neither substitutes for the other.
+- **BEAR_HE** — BEAR direction AND vol in {H-VOL, E-VOL}; "HE" = H-VOL *or*
+  E-VOL. The only cell that ships an exit override (trail 0.50 / trigger
+  0.50, shipped 2026-07-22).
+- **LVOL** — vol == L-VOL, ANY direction.
+- **RB_EVOL** — direction in {RANGE, BULL} AND vol == E-VOL; "RB" =
+  RANGE-or-BULL. A vol spike without a downtrend.
+- **NONE** / **NO_DATA** — the two sentinels: `NONE` = labelled fine, but the
+  regime maps to no override cell; `NO_DATA` = could not label at all (table
+  missing, or it ends before the date). Explicit names rather than a blank,
+  because blank is indistinguishable from "row written before this column
+  existed" — both failure modes get named.
+
+`MechLabeler.cell()` tests those three IN THE ORDER LISTED, so **BEAR +
+L-VOL lands in `BEAR_HE`, never `LVOL`** — and only 3 of the 9 direction × vol
+combinations are named cells at all; everything else is `NONE`.
+
+**Which profile governed the row** (`docs/backtest-reference.md`; written by
+`simulate.py::_exit_basis`):
+
+- **exit_basis** — the exit profile that actually governed a result row:
+  `{CREDIT, <regime cell>, BEAR_DEBIT, PROD}`, plus `NONE` for proxy rows
+  where no exit rules run. Config merges base → structure → regime, and the
+  column is reported in **merge-precedence order** (`CREDIT` → regime cell →
+  `BEAR_DEBIT` → `PROD`), so the label always names the profile that won.
+- **PROD** — the base `simulation:` block governed the row and nothing
+  overrode it: `profit_target` 0.90 / `stop_loss` 0.75 /
+  `time_exit_dte_fraction` 0.75, no trail. That precedence order is what
+  keeps `PROD` meaning **base config only**, never "base plus whatever merged
+  on top".
+- **DEBIT_PROD** — the same profile named as a study BASELINE. A delta
+  measured against it **overstates production impact** wherever a regime cell
+  already converts the same rows: the 08-11 bear-debit ratchet scored
+  +0.041 meanR / +$16.4k against `DEBIT_PROD` but +0.015 / +$5.9k against live
+  production, which had shipped the BEAR_HE trail since 07-22
+  (`deployment-evidence.md`). An exit study should quote BOTH baselines.
+- ⚠️ **Do not read `exit_basis` off the current export** (measured
+  2026-08-14): the tab header never gained the name, so the values land in an
+  unlabelled trailing column and are scrambled relative to their rows. The
+  writer is correct; the append path is not. Identify a row's basis
+  mechanically from unreachable exit reasons instead — full diagnosis in
+  `docs/backtest-reference.md`.
 
 ## 7. Sizing & exposure (`account_sim.py`)
 
@@ -292,6 +363,9 @@ positions."
 - [`docs/backtest-reference.md`](../docs/backtest-reference.md) — raw column
   definitions for `BacktestResults`/`BacktestProxy` (`realized_pnl_pct`,
   `mfe_pct`, `exit_basis`, etc. on the underlying row).
+- [`lib/mech_regime.py`](../lib/mech_regime.py) — the FROZEN spec behind the
+  mechanical regime cells (§6): thresholds, cell precedence, and the
+  `NONE`/`NO_DATA` sentinels.
 - [`docs/rollup-reference.md`](../docs/rollup-reference.md) — per-ticker
   flow-rollup columns (`oi_confirm_pct`, `cpir`, `iv_spread`, `iv_skew`,
   `iv_pct`) that ride along on analysis/backtest rows.
