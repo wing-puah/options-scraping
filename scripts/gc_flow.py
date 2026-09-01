@@ -21,6 +21,7 @@ Usage:
   python3 scripts/gc_flow.py                 # today (ET)
   python3 scripts/gc_flow.py --date 2026-06-09
   python3 scripts/gc_flow.py --all           # sweep every date that has a compiled file
+  python3 scripts/gc_flow.py --last 3        # bounded sweep: the 3 most recent compiled dates
   python3 scripts/gc_flow.py --all --dry-run # report what would be trashed, trash nothing
 """
 import argparse
@@ -126,15 +127,25 @@ def main() -> None:
     parser.add_argument("--date", help="Trading date to collect (YYYY-MM-DD). Default: today (ET).")
     parser.add_argument("--all", action="store_true",
                         help="Sweep every date that has a compiled file, not just one day.")
+    parser.add_argument("--last", type=int, metavar="N",
+                        help="Bounded sweep: only the N most recent dates that have a compiled "
+                             "file. Older dates were collected on earlier runs, so re-checking "
+                             "them costs Drive round-trips and trashes nothing.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Report what would be trashed without trashing anything.")
     args = parser.parse_args()
 
+    if args.last is not None and args.last < 1:
+        parser.error("--last must be at least 1")
+
     client = get_drive_client()
 
-    if args.all:
+    if args.all or args.last is not None:
         dates = sorted({d for prefix in FLOW_PREFIXES for d in _dates_with_compiled(client, prefix)})
         log.info("Sweep: %d date(s) with a compiled file", len(dates))
+        if args.last is not None:
+            dates = dates[-args.last:]
+            log.info("Bounded to the %d most recent: %s", len(dates), ", ".join(dates))
     else:
         dates = [args.date or trading_day()]
     log.info("GC flow%s — %d date(s)", " (dry-run)" if args.dry_run else "", len(dates))

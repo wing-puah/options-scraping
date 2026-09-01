@@ -17,7 +17,8 @@ name: Flow Pacemaker
 #
 # This does NOT replace scrape.yml's crons — it is additive and dispatch-only.
 # Compile is deliberately NOT included: compile-flow.yml takes a `date` input and
-# gc_flow.py --all sweeps past dates, so a missed compile self-heals the next day.
+# gc_flow.py --last 3 sweeps the 3 most recent compiled dates, so a missed compile
+# self-heals on the next daily pass.
 
 on:
   workflow_dispatch:

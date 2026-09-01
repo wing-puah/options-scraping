@@ -3,8 +3,10 @@ name: Compile Flow
 # Runs once a day, after the Options Scraper's 22:00 UTC unusual download, by
 # which time all of the day's hourly flow snapshots are in Drive. Two steps:
 #   1. compile_flow.py — dedup the day's snapshots into one compiled CSV per type.
-#   2. gc_flow.py --all — trash raw snapshots that are verified-present in their
-#      compiled file (sweeps any past date too, so a missed run self-heals).
+#   2. gc_flow.py --last 3 — trash raw snapshots that are verified-present in
+#      their compiled file, over the 3 most recent compiled dates (so a missed
+#      run still self-heals the next day, without re-listing months of Drive
+#      history that was collected long ago).
 
 on:
   schedule:
@@ -49,8 +51,10 @@ jobs:
 
       - name: Garbage-collect compiled raw snapshots
         # Independently re-verifies each date's compile before trashing its raws.
-        # --all sweeps every compiled date, so a previously-missed cleanup heals.
-        run: python scripts/gc_flow.py --all
+        # Bounded to the 3 most recent compiled dates: enough that a missed run
+        # heals on the next daily pass, while --all re-checked every date back to
+        # the start of the corpus and trashed nothing for almost all of them.
+        run: python scripts/gc_flow.py --last 3
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}

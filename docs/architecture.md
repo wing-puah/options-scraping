@@ -218,7 +218,7 @@ also keeps the repo's no-holiday-table rule (§Daily trade journal, `journal/lib
 a live SPY bar IS the calendar, and asking SPY alone sidesteps that CSV's known one-legged
 holiday rows.
 
-**The GC trap.** `gc_flow.py --all` runs inside Compile Flow and TRASHES raw snapshots once
+**The GC trap.** `gc_flow.py --last 3` runs inside Compile Flow and TRASHES raw snapshots once
 they are verified present in the compiled file. For any past session `snapshots == 0` is the
 HEALTHY steady state, so the `flow_present` check accepts a compiled file in their place.
 Counting snapshots would fail on every historical date.
@@ -818,6 +818,7 @@ python3 scripts/compile_flow.py --date 2026-06-09 --dry-run   # report dup count
 
 # Garbage-collect raw snapshots once verified-present in their compiled file (→ Drive trash)
 python3 scripts/gc_flow.py                            # today (ET)
+python3 scripts/gc_flow.py --last 3                  # the 3 most recent compiled dates (what CI runs)
 python3 scripts/gc_flow.py --all                     # sweep every compiled date
 python3 scripts/gc_flow.py --all --dry-run           # report what would be trashed
 
