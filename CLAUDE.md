@@ -94,6 +94,9 @@ python3 scripts/backup_research_caches.py pull            # rehydrate them on a 
                                                           # (additive — never clobbers newer local files; --force = full restore)
 
 # Backtest tuning studies (research tier — reports, not production)
+python3 scripts/export_tabs.py                        # re-pull the Sheets tabs → backtests/to_evaluate/
+                                                      # (overwrites; staged + era-checked before install,
+                                                      #  --dry-run/--list/--tabs A,B)
 python3 -m scripts.backtest_study list                # available studies
 python3 -m scripts.backtest_study run <name>          # → backtests/study_output/<name>-latest.txt
 python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see docs/architecture.md §account_sim

@@ -5,7 +5,8 @@ Push/pull dated snapshots of the irreplaceable local research caches under
 WHY: CLAUDE.md's "backtests/ is NOT uniformly disposable" sharp edge lists
 exactly what this backs up — `option_history_cache/` (~337MB / ~20k scraped
 option-history files, the real short-leg prices every study depends on),
-`to_evaluate/` (hand-exported Sheets CSVs no script regenerates), and
+`to_evaluate/` (the Sheets CSV exports; `make export-tabs` re-pulls the tabs
+that still exist, but not a deleted one nor the hand-written date lists), and
 `live_loop/` (point-in-time broker snapshots that cannot be refetched for a
 past date). None of it has git history, none of it lives anywhere but the
 local checkout, and Barchart's lookback window means a lapsed local copy may

@@ -23,7 +23,14 @@ _DEFAULT_TOKEN = Path(__file__).parent.parent / "credentials" / "drive_token.jso
 log = logging.getLogger(__name__)
 
 
-def _get_client() -> gspread.Client:
+def load_credentials() -> Credentials:
+    """The one OAuth2 credential load for Sheets/Drive, refreshed if stale.
+
+    Public because gspread is not the only client that needs these creds: the
+    CSV export endpoint (`scripts/export_tabs.py`) is a plain authorised GET,
+    and reaching into a gspread Client for its session breaks across gspread
+    majors. One credential path, two transports.
+    """
     token_content = os.getenv("GOOGLE_OAUTH_TOKEN_JSON_CONTENT")
     if token_content:
         log.debug("Authorising Sheets via OAuth2 token (env content)")
@@ -44,7 +51,11 @@ def _get_client() -> gspread.Client:
             token_path.write_text(creds.to_json(), encoding="utf-8")
             log.info("OAuth token refreshed and saved")
 
-    return gspread.authorize(creds)
+    return creds
+
+
+def _get_client() -> gspread.Client:
+    return gspread.authorize(load_credentials())
 
 
 def _get_spreadsheet(spreadsheet_id: str | None = None) -> gspread.Spreadsheet:

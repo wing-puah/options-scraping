@@ -131,6 +131,26 @@ chart-evaluate:
 	  --csv "backtests/to_evaluate/analysis - BacktestProxy.csv" \
 	  --out backtests/charts/to_evaluate $(ARGS)
 
+# ── export tabs → backtests/to_evaluate/ ───────────────────────────────────────
+# Pull the analysis workbook's tabs down as the CSV exports every study reads
+# (lib/era.py resolves "analysis - <Tab>.csv" under backtests/to_evaluate/).
+# Overwrites a file of the same name — the bare exports mean "whatever the live
+# tabs hold NOW", which is the whole point of re-pulling them.
+#
+# Downloads to a temp dir first and installs only once every tab succeeded AND
+# the set agrees about its prompt-version era, so a failed or mid-rename pull
+# can never leave the half-finished mix `era.enforce()` refuses (exit 3). A
+# legitimate era change is reported loudly, not blocked — re-run the study
+# suite afterwards, since the old reports now describe a different population.
+#
+#   make export-tabs                          the three era exports
+#   make export-tabs ARGS="--dry-run"         fetch + report, install nothing
+#   make export-tabs ARGS="--list"            tab names in the workbook
+#   make export-tabs ARGS="--tabs v3_AnalysisClaude,v3_BacktestResults"
+.PHONY: export-tabs
+export-tabs:
+	$(PY) scripts/export_tabs.py $(ARGS)
+
 # ── baseline ───────────────────────────────────────────────────────────────────
 .PHONY: baseline
 baseline:
@@ -456,6 +476,9 @@ help:
 	@echo ""
 	@echo "  make clean-studies clear backtests/study_output/, keeping each -latest.txt"
 	@echo "  make clean-studies ARGS=\"--all\"  wipe it (add --force to drop cited/gate-marked reports, --dry-run to preview)"
+	@echo ""
+	@echo "  make export-tabs   pull the Sheets tabs → backtests/to_evaluate/ (overwrites same-named exports)"
+	@echo "  make export-tabs ARGS=\"--dry-run\"  fetch + report, install nothing (also --list, --tabs A,B)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo ""

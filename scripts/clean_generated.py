@@ -83,9 +83,12 @@ ROOT = Path(__file__).resolve().parents[1]
 #                     files — the real short-leg prices the backtest depends on.
 #                     Held out of the cleaner ENTIRELY, not merely behind
 #                     --caches: there is no flag that deletes it.
-#   backtests/to_evaluate/  NOT a cache. Hand-exported Sheets CSVs that every
-#                     study loader reads by filename; no script regenerates them.
-#                     An input that happens to live under a scratch directory.
+#   backtests/to_evaluate/  NOT a cache. The Sheets CSV exports every study
+#                     loader reads by filename. `make export-tabs` re-pulls the
+#                     LIVE tabs, but a frozen era's tab may since have been
+#                     deleted upstream, and the hand-written *.md date lists
+#                     here have no source at all. An input that happens to live
+#                     under a scratch directory.
 #   backtests/live_loop/    point-in-time IBKR snapshots. The repo calls the tree
 #                     disposable, but a snapshot for a past date cannot be
 #                     refetched — which is why the test suite copied its fixture
