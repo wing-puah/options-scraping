@@ -80,7 +80,7 @@ python3 scripts/check_pipeline.py                     # WATCHDOG: did every coll
 # Full analysis pipeline: fetch → headless engine (claude) → write Sheets
 python3 -m scripts.analysis_pipeline                  # latest date → AnalysisClaude
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific tab
-python3 -m scripts.analysis_pipeline --fetch-only     # fetch + audit CSV only, no LLM
+python3 -m scripts.analysis_pipeline --skip-llm       # fetch + audit CSV only, no LLM
 
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml            # add --dry-run to preview
@@ -120,8 +120,6 @@ python3 -m scripts.journal recommend --no-persist                      # print o
 # still skips the judge() annotation pass. Other: --date, --net-liq, --from-raw/--from-flex/
 # --from-flex-positions
 
-# Dashboard
-cd web && npm run dev   # http://localhost:3000
 ```
 
 ### Sharp edges per tier
@@ -205,13 +203,13 @@ Google Drive (OAuth2 personal account)      {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD
     ▼
 python3 -m scripts.analysis_pipeline (headless LLM step) ──► AnalysisClaude tab
     ▼
-Google Sheets (service account) ──► Next.js Dashboard (web/)
+Google Sheets (same OAuth2 token) ──► read in the Sheets UI or the generated site/ pages
 ```
 
-**Two separate Google auth systems:** Drive = OAuth2 personal account
-(`GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`, token at
-`credentials/drive_token.json`); Sheets = service account
-(`GOOGLE_SERVICE_ACCOUNT_JSON` or `..._CONTENT`).
+**One Google auth path:** Drive AND Sheets both use the personal OAuth2 token
+(`GOOGLE_OAUTH_CLIENT_JSON` + `GOOGLE_OAUTH_TOKEN_JSON`, token at `credentials/drive_token.json`;
+CI passes it inline as `GOOGLE_OAUTH_TOKEN_JSON_CONTENT`). There is no service account —
+`GOOGLE_SERVICE_ACCOUNT_JSON*` is read by no code in this repo.
 
 ## File layout
 
@@ -234,7 +232,8 @@ lib/                        ← shared modules, imported by scripts, never run d
 
 scripts/                    ← entry points, each maps to a workflow step
   collector/                — scrape_flow, enrich_oi, fetch_iv_percentile, fetch_counterpart_iv,
-                              fetch_price_catalyst, fetch_underlying_ohlc, fetch_counterpart_history
+                              fetch_price_catalyst, fetch_mech_regime, fetch_underlying_ohlc,
+                              fetch_counterpart_history, fetch_sweep_legs, fetch_financing_legs
   compile_flow.py / gc_flow.py / build_baseline.py / backfill_mech_cell.py / align_tab_headers.py
   analysis_pipeline/        — fetch → headless engine → Sheets; the sole entry point for
                               producing an analysis; config.py = ALL user-tunable settings

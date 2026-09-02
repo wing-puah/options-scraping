@@ -420,7 +420,6 @@ def d5_conditional_sleeve(deployed, bear_rows, d4_adopted):
 
     print(f"\n  {'gate':26s} {'days':>5s} {'f':>5s} {'total $':>11s} {'ΔDD':>10s} "
           f"{'Δworst':>10s} {'Δtotal':>11s}")
-    base_dates = sorted(set(dep))
     keep = []
     for gname, gate in gates.items():
         sleeve = _sleeve_dollars(bear_rows, picker, gate=gate)

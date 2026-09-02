@@ -9,7 +9,7 @@ full history in one response (no pagination), rows shaped
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 
 from lib.parsing import to_float
 

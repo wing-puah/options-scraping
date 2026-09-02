@@ -231,9 +231,6 @@ BOOK_FLAG_SEVERITY = {
     "EXIT_DATE_UNKNOWN": "INFO",         # debit whose entry date is unprovable
 }
 
-# Worst-first, and the order `status` is resolved in.
-BOOK_STATUSES = ("ATTENTION", "WATCH", "OK")
-
 
 # --------------------------------------------------------------------------
 # Judgment call (the ONLY LLM surface in this pipeline)

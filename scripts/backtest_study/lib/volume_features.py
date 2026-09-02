@@ -50,10 +50,6 @@ AUDIT_DIR = ROOT / "audit"
 
 VOLUME_KEYS = ("os_ratio", "rvolz20", "amihud20")
 
-# Features built on a trailing window — the two a split can poison, and the two
-# withheld on rescaled tickers.
-WINDOW_KEYS = ("rvolz20", "amihud20")
-
 
 # ── option-volume join ───────────────────────────────────────────────────────
 

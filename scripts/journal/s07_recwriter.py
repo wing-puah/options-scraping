@@ -270,10 +270,6 @@ def read_csv_rows(path: Path | None = None) -> list[dict]:
         return []
 
 
-def read_csv_rec_ids(path: Path | None = None) -> set[str]:
-    return {r.get("rec_id", "") for r in read_csv_rows(path) if r.get("rec_id")}
-
-
 def _reconcile_csv_header(p: Path) -> None:
     """Bring an existing file's header up to the current schema, safely.
 

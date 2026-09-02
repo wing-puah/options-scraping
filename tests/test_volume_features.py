@@ -23,7 +23,7 @@ import pytest
 from scripts.backtest_study.lib import underlying as und
 from scripts.backtest_study.lib import volume_features as VF
 from scripts.backtest_study.f2_management import volume_signal as VS
-from scripts.backtest_study.lib.underlying import Bar, SRC_OHLC, SRC_TILDE
+from scripts.backtest_study.lib.underlying import Bar, SRC_OHLC
 
 START = date(2024, 1, 1)
 

@@ -217,7 +217,7 @@ TARGETS: tuple[Target, ...] = (
         name="audit",
         globs=("audit/*.csv",),
         what="per-date analysis rollup CSVs; feed backtest scoring context",
-        regen="python3 -m scripts.analysis_pipeline --fetch-only --date <date>  (per date, reads Drive)",
+        regen="python3 -m scripts.analysis_pipeline --skip-llm --date <date>  (per date, reads Drive)",
         expensive=True,
     ),
     Target(

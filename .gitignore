@@ -9,9 +9,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
-web/.env.local
-web/node_modules/
-web/.next/
 # Everything under backtests/ is disposable scratch — CSV exports, caches, and
 # study reports (backtests/study_output/) — and gets deleted periodically. The
 # study CODE that used to need a gitignore exemption here now lives in

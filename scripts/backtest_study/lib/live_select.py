@@ -541,8 +541,7 @@ CAUSE_DELTA = "§3 delta/DTE availability"
 CAUSE_OTHER = "other"
 
 
-def divergence_cause(structure: str, book_tier: str, map_tier: str,
-                     map_reason: str) -> str:
+def divergence_cause(structure: str, map_tier: str, map_reason: str) -> str:
     if map_tier == "VETO" and "credit play in RANGE" in map_reason:
         return CAUSE_CREDIT_VETO
     if structure in recommend._HEDGE_ONLY_STRUCTURES:
@@ -575,7 +574,7 @@ def ladder_divergence(recs, *, entry_check: str) -> list[dict]:
         rows.append(dict(date=r["date"], ticker=r["ticker"], structure=structure,
                          source=r["source"], book_tier=bt, map_tier=map_tier,
                          partial=partial, reason=reason,
-                         cause=divergence_cause(structure, bt, map_tier, reason)))
+                         cause=divergence_cause(structure, map_tier, reason)))
     return rows
 
 
@@ -888,7 +887,7 @@ def print_judgment(rankers, cache: JudgmentCache | None, use_llm: bool) -> dict:
   to measure it.""")
         return {}
 
-    skip_ranker, ignore_ranker = rankers
+    skip_ranker, _ = rankers
     judged = sum(1 for t in skip_ranker.traces.values() if t.judged)
     collided = {d: t.collisions for d, t in skip_ranker.traces.items() if t.collisions}
     demoted = sum(len(t.demoted) for t in skip_ranker.traces.values())

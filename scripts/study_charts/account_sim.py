@@ -33,7 +33,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.study_charts import cli, render  # noqa: E402
 from scripts.study_charts.cli import (  # noqa: E402,F401  (kept importable: callers and tests use these)
-    DEFAULT_POSITIONS, SITE_DIR, OUT_DIR, is_structure_arm, pick_report,
+    SITE_DIR, is_structure_arm, pick_report,
 )
 
 SITE_NAME = "account-sim-charts.html"

@@ -66,7 +66,3 @@ def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
              len(candidates), tab, len(market_regime))
     return candidates, market_regime
-
-
-# Legacy alias — some callers/tests still spell this with the old private name.
-_load_analysis = load_analysis

@@ -32,10 +32,6 @@ from lib.sheets_client import append_rows, get_all_rows
 
 log = logging.getLogger("build_baseline")
 
-# The two premium-flow sections the baseline is computed from. The unusual-
-# activity sections do not contribute (see lib/baseline.py).
-_FLOW_PREFIXES = ("stocks-flow", "etfs-flow")
-
 
 def _drive_dates(client) -> list[str]:
     """Every trading date with stocks-flow data in Drive, oldest → newest."""

@@ -496,8 +496,6 @@ def main():
     # ================= STEP D — SLIPPAGE =================
     emit("## 4. Entry slippage vs modeled next-open (Step D)")
     emit("")
-    br_dates = set(br["signal_date"].unique())
-    bp_dates = set(bp["signal_date"].unique())
     emit(f"BacktestResults signal_date span: {br['signal_date'].min()} → "
          f"{br['signal_date'].max()}. BacktestProxy span: {bp['signal_date'].min()} → "
          f"{bp['signal_date'].max()}.")

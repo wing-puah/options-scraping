@@ -423,45 +423,6 @@ def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
         return {}
 
 
-def analyze_date(date_str: str, *, engine: str, model: str | None, tab: str,
-                 days: int, top_n: int, raw_n: int, framework_md: str, method_md: str,
-                 write: bool, focus_tickers: list[str] | None = None) -> dict | None:
-    """Run fetch → analyze → (write) for a single date. Returns the analysis dict.
-
-    ``focus_tickers`` narrows the per-ticker flow tables and the play coverage to
-    those names (callers route the write to config.TICKER_SPECIFIC_TAB via `tab`).
-    """
-    log.info("Fetching data for %s (days=%d)", date_str, days)
-    audit_path = config.ROOT / "audit" / f"{date_str}-rollup.csv"
-    data_md = fetch_data(
-        date_str=date_str, top_n=top_n, raw_n=raw_n, days=days,
-        focus_tickers=focus_tickers, audit_csv_path=audit_path,
-    )
-    if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
-        log.info("No data for %s — skipping", date_str)
-        return None
-
-    window = _last_n_trading_days(date_str, days)
-    window_start, window_end = window[0], window[-1]
-
-    prompt = build_prompt(framework_md, method_md, data_md, date_str, focus_tickers)
-    analysis = run_engine(engine, prompt, model)
-    _warn_if_below_targets(analysis)
-    play_scores = _compute_play_scores(analysis, date_str)
-
-    rows = analysis_to_rows(analysis, date_str, window_start, window_end,
-                            rollup_metrics=_load_rollup_metrics(audit_path),
-                            play_scores=play_scores,
-                            mech_cell=_mech_cell(date_str))
-    if write:
-        sheets_client.append_rows(tab, rows)
-        log.info("Wrote %d row(s) for %s to %s", len(rows), date_str, tab)
-    else:
-        log.info("--dry-run: %d row(s) for %s NOT written to %s",
-                 len(rows), date_str, tab)
-    return analysis
-
-
 def _print_report(date_str: str, analysis: dict, *, tab: str, written: bool) -> None:
     print(f"\n=== {date_str} ===")
     print(f"Regime: {_join(analysis.get('regime'))}")

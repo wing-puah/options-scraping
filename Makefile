@@ -369,8 +369,6 @@ journal-page-open:
 .PHONY: help
 help:
 	@echo ""
-	@echo "  make venv          create/refresh virtual env"
-	@echo ""
 	@echo "  make scrape        scrape flow + unusual activity (live)"
 	@echo "  make scrape ARGS=\"--start 2026-02-01 --end 2026-02-28\"  historical range"
 	@echo "  make scrape-flow   scrape flow only"
@@ -409,7 +407,6 @@ help:
 	@echo "  make align-headers        realign analysis tab headers with ROW_COLUMNS (ARGS=\"--dry-run\")"
 	@echo ""
 	@echo "  make backtest      run backtest (pulls the regime table first)"
-	@echo "  make backtest-dry  dry-run backtest"
 	@echo ""
 	@echo "  make backtest-proxy   proxy-backtest untested plays → BacktestProxy tab"
 	@echo "  make backtest-proxy ARGS=\"--date 2026-04-21\"  (or --dry-run, --cache-only)"
@@ -461,9 +458,6 @@ help:
 	@echo "  make clean-studies ARGS=\"--all\"  wipe it (add --force to drop cited/gate-marked reports, --dry-run to preview)"
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
-	@echo "  make dashboard     start web dashboard"
-	@echo ""
-	@echo "  make daily         scrape + compile + analyze (full day)"
 	@echo ""
 	@echo "  make journal       fetch today's IBKR fills (Flex) → reconcile vs analysis → report + Sheets"
 	@echo "  make journal-dry   same, but write nothing (shows the rows it would append)"

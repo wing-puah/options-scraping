@@ -50,14 +50,12 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import numpy as np
-
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from scripts.backtest_study.f2_management.exit_mechanism_study import replay  # noqa: E402
 from scripts.backtest_study.f2_management.exit_switch_mech_study import (  # noqa: E402
-    DEBIT_PROD, V_TRAIL, V_TEFNULL, V_PT110, SWITCH_CELLS, CELL_VARIANT,
+    DEBIT_PROD, V_TRAIL, V_TEFNULL, V_PT110,
     MechLabeler, compute_mech_table, ensure_spy_vix, build_post13c_lookup,
     load_debit_trades, harness_gate, cell_of, model_direction, model_vol,
     norm_play, POST13C_CUTOFF, hdr, sub,

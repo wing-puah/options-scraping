@@ -577,11 +577,6 @@ def trigger_date_counts(triggered, series, recs) -> dict:
     }
 
 
-def n_trigger_dates(triggered, series, recs) -> int:
-    """The count G-POWER is read against: episodes, the strictest reading."""
-    return trigger_date_counts(triggered, series, recs)["episodes"]
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # The hedge-flow signal (ARM CS)
 # ════════════════════════════════════════════════════════════════════════════

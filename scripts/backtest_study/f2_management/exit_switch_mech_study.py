@@ -80,7 +80,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.f2_management.exit_mechanism_study import Trade, replay, _pct, _to_float  # noqa: E402
+from scripts.backtest_study.f2_management.exit_mechanism_study import Trade, replay, _to_float  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 
 # ── production exit profiles — imported from lib/book.py, the single source of

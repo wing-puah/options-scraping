@@ -150,7 +150,7 @@ MECH_REGIME_CSV = "backtests/mech_regime/spy_vix_daily_full.csv"
 # Analysis-row key -> `score` sub-field (framework Step-5 factor). As of v4 the
 # model emits exactly ONE component — vol; score_price/score_catalyst are computed
 # by the pipeline (lib.price_catalyst.compute_play_scores), not the model — see
-# analyze_date()/_score_cells(). analysis_to_rows sums those three into
+# _compute_play_scores(). analysis_to_rows sums those three into
 # `score_total` (0–50; 0–55 for VOLATILITY intent).
 #
 # `flow` and `dealer` were dropped in v4 (2026-08-11): the ML combination study

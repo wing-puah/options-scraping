@@ -880,7 +880,6 @@ def _draw_occupancy_panels(axes, df: pd.DataFrame,
 
     maxlen = max(len(p) for p in paths)
     horizon = min(maxlen, 63)  # ~3 months of sessions, matches build_paths
-    days = np.arange(1, horizon + 1)
     n_total = len(paths)
     dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
     win_all = df["realized_pnl"] > 0
@@ -1063,28 +1062,6 @@ def _draw_occupancy_panels(axes, df: pd.DataFrame,
     ax.grid(axis="y", color=GRID)
 
     return n_total
-
-
-def build_occupancy(df: pd.DataFrame, out: Path) -> Path | None:
-    """Hold-timing page: when trades are in profit, when the move is captured,
-    and how fast profit is given back after the peak. See _draw_occupancy_panels
-    for the individual panel descriptions."""
-    fig, axes = plt.subplots(2, 3, figsize=(21, 11))
-    n_total = _draw_occupancy_panels(axes, df)
-    if n_total is None:
-        plt.close(fig)
-        return None
-    fig.suptitle(
-        f"Hold-timing analysis — {n_total} trades with a daily path",
-        fontsize=16, fontweight="bold", y=0.995,
-    )
-
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    out.mkdir(parents=True, exist_ok=True)
-    path = out / "backtest_occupancy.png"
-    fig.savefig(path, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    return path
 
 
 def build_time(df: pd.DataFrame, out: Path) -> Path:
@@ -1770,27 +1747,6 @@ def _draw_mae_recovery_panels(axes, df: pd.DataFrame, letters=("A", "B", "C", "D
     ax.grid(axis="y", color=GRID)
 
     return len(valid)
-
-
-def build_mae_recovery(df: pd.DataFrame, out: Path) -> Path | None:
-    """MAE-focused page: how bad the worst point gets, and what happens after
-    it. See _draw_mae_recovery_panels for the individual panel descriptions."""
-    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
-    n = _draw_mae_recovery_panels(axes, df)
-    if n is None:
-        plt.close(fig)
-        return None
-    fig.suptitle(
-        f"MAE analysis — distribution and recovery after the worst point ({n} trades)",
-        fontsize=16, fontweight="bold", y=0.995,
-    )
-
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    out.mkdir(parents=True, exist_ok=True)
-    path = out / "backtest_mae_recovery.png"
-    fig.savefig(path, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    return path
 
 
 def build_occupancy_mae(df: pd.DataFrame, out: Path) -> Path | None:

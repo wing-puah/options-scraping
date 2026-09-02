@@ -5,7 +5,6 @@ from datetime import date, timedelta
 from lib.baseline import (
     BASELINE_COLUMNS,
     MIN_WINDOW_ROWS,
-    STALENESS_DAYS,
     WINDOW_ROWS,
     baseline_context_md,
     compute_daily_baseline,

@@ -5,7 +5,6 @@ import io
 import pytest
 
 from lib.flow_summary import (
-    FLOW_CSV_COLUMNS,
     _classify_sentiment,
     _flow_ticker_rows,
     _voloi_by_symbol,

@@ -469,20 +469,6 @@ def positions_of(sim, include_hedge: bool) -> list:
     return sim.taken if include_hedge else sim.signal_pos
 
 
-def date_mean_r(sim, include_hedge: bool) -> dict:
-    by: dict = defaultdict(list)
-    for p in positions_of(sim, include_hedge):
-        by[p.rec["date"]].append(p.R)
-    return {d: statistics.fmean(v) for d, v in by.items()}
-
-
-def date_dollars(sim, include_hedge: bool) -> dict:
-    by: dict = defaultdict(float)
-    for p in positions_of(sim, include_hedge):
-        by[p.rec["date"]] += p.dollars
-    return dict(by)
-
-
 def paired_rows(arm, base, dates, include_hedge: bool,
                 source: str | None = None) -> tuple[list[dict], int]:
     """One row per date in `dates` where BOTH books hold a position.

@@ -81,7 +81,6 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import math
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -556,7 +555,7 @@ def evaluate(universe: dict, idx, structures: tuple[str, ...], profiles: dict,
         signal_date = date.fromisoformat(d)
         for expiry in sorted(by_exp):
             info = by_exp[expiry]
-            spot, src = info["spot"], info["rec"]
+            spot = info["spot"]
             exp_s = expiry.isoformat()
             for structure in structures:
                 groups += 1
@@ -643,14 +642,6 @@ def fmt_ci(ci) -> str:
 def mean(vals) -> float:
     vals = [v for v in vals if v is not None]
     return statistics.fmean(vals) if vals else float("nan")
-
-
-def daily_dollars(rows: list[dict], key: str) -> dict[str, float]:
-    out: dict[str, float] = defaultdict(float)
-    for r in rows:
-        if r.get(key) is not None:
-            out[str(r["date"])] += float(r[key])
-    return dict(out)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

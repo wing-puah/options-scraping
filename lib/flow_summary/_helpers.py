@@ -113,7 +113,6 @@ _FLOW_IV        = "IV"
 _FLOW_DELTA     = "Delta"
 _FLOW_OI        = "Open Int"
 _FLOW_OPENFLAG  = "*"
-_FLOW_CODE      = "Code"
 _FLOW_TIME      = "Time"
 
 # Columns dropped from raw trade rows — low signal for LLM analysis.

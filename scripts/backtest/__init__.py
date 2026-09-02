@@ -8,18 +8,18 @@ from .helpers import (  # noqa: F401
     _parse_analysis_date, _defined_risk_bounds, _payoff_floor, _max_loss_per_unit,
 )
 from .simulate import (  # noqa: F401
-    _simulate, _summarize_path, _iron_condor_strikes,
+    _simulate, _summarize_path,
     _size_contracts, _effective_sim_cfg,
 )
 from .legs import (  # noqa: F401
     Leg, parse_legs, format_legs, merge_legs, legs_from_structure,
-    straddle_legs, strangle_legs, butterfly_legs, condor_legs, iron_condor_legs,
+    iron_condor_legs,
 )
 from .shared import classify_and_build  # noqa: F401
 from .proxy import (  # noqa: F401
-    _PROXY_KEY_ORDER, _identity_key, _play_prefix,
+    _PROXY_KEY_ORDER, _identity_key,
     _load_tested_keys, _load_proxy_keys, _find_untested,
-    _cache_contracts, _snap_leg, _best_donor, _skip_reason,
+    _cache_contracts, _skip_reason,
     _method1, _method2, _method3, _evaluate,
     _infer_strike_step, _strike_step,
 )

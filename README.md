@@ -84,7 +84,7 @@ personal-account token — `lib/drive_client.py` and `lib/sheets_client.py` each
   the baseline, the backtest tabs and the trade journal.
 
 > There is no service account. `GOOGLE_SERVICE_ACCOUNT_JSON` / `..._CONTENT` are read by no
-> code in this repo; the workflows that still export the secret are passing a dead variable.
+> code in this repo, and no workflow exports the secret any more.
 > If Sheets auth fails, refresh the OAuth token — do not go looking for a service-account key.
 
 ## Quick Start
@@ -173,7 +173,7 @@ the in-script market-hours guard exits cleanly if run before the open.
 
 > **There is no `web/` dashboard.** Earlier revisions of this README documented a Next.js app
 > at `web/` served on `localhost:3000`. That directory is not in the repo and not in git
-> history; the only stale trace left is three `web/*` lines in `.gitignore`. Read results out
+> history, and nothing in the tree references it any more. Read results out
 > of the Sheets tabs, or out of the generated pages in `site/`.
 
 > **There is no `/options` skill.** This repo used to double as a Claude Code skill
@@ -215,7 +215,7 @@ python3 scripts/align_tab_headers.py --dry-run        # check tab headers agains
 # Full analysis pipeline: fetch → headless engine → write Sheets
 python3 -m scripts.analysis_pipeline --date 2026-04-21
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific
-python3 -m scripts.analysis_pipeline --fetch-only     # fetch + audit CSV only, no LLM
+python3 -m scripts.analysis_pipeline --skip-llm       # fetch + audit CSV only, no LLM
 ```
 
 The analysis pipeline runs its LLM step in an isolated headless session, so the framework and

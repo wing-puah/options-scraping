@@ -1526,7 +1526,7 @@ def report_e3(built: dict, power: dict, sleeve: dict[str, float]) -> dict:
         out[cell] = (corr, n)
         parts = []
         for y, rs in P.by_year(rows).items():
-            c, ny = cell_corr(rs, sleeve)
+            c, _ = cell_corr(rs, sleeve)
             if c is not None:
                 parts.append(f"{y} {c:+.3f}")
         flag = ("" if power[cell]

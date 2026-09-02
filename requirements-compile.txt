@@ -1,7 +1,7 @@
 # Minimal deps for the Compile Flow workflow (compile_flow.py + gc_flow.py +
 # build_baseline.py + fetch_mech_regime.py). These scripts touch Drive, pandas,
 # Sheets (gspread for the baseline step) and yfinance (SPY/VIX regime table) —
-# no Playwright/scipy/openai — so the daily compile job installs this slim set
+# no Playwright/scipy — so the daily compile job installs this slim set
 # instead of the full requirements.txt.
 # Keep versions in sync with requirements.txt.
 python-dotenv>=1.0

@@ -2421,8 +2421,8 @@ def main(argv=None) -> int:
             return 2
 
     if args.structure_universe:
-        recs_wide, diag_wide = load_book(include_bs=args.include_bs,
-                                         require_proxy_calibration=False)
+        recs_wide, _ = load_book(include_bs=args.include_bs,
+                                 require_proxy_calibration=False)
         picked_wide = P.top_k_per_day(recs_wide, P.ladder_rank,
                                       k=st.max_per_day,
                                       eligible_fn=P.ladder_eligible)

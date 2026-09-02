@@ -72,7 +72,7 @@ if str(ROOT) not in sys.path:
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: E402
-from scripts.backtest.legs import Leg, parse_legs  # noqa: E402
+from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )

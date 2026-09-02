@@ -43,7 +43,7 @@ from __future__ import annotations
 import argparse
 import statistics
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -57,7 +57,7 @@ from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
 from scripts.backtest_study.lib.underlying import (  # noqa: E402
-    SRC_OHLC, entry_day, load_bars, move_windows, rescaled_tickers, sigma_1d,
+    SRC_OHLC, load_bars, move_windows, rescaled_tickers, sigma_1d,
 )
 
 # --- PRE-DECLARED, fixed before the first run --------------------------------

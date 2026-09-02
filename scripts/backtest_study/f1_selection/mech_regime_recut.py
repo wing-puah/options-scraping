@@ -75,7 +75,6 @@ NUMERIC_COLS = [
 ]
 
 MAR2026_DATES = ["2026-03-06", "2026-03-12", "2026-03-20", "2026-03-27"]
-APR2025_DATES = None  # filled with a date-range predicate below
 
 
 # ---------------------------------------------------------------------------
@@ -430,16 +429,16 @@ def run_veto_cut(df, label):
 hdr("(b) VETO COMPARISON — direction=BEAR AND vol in {H-VOL,E-VOL}")
 
 subhdr_ctx = "pooled (all tiers)"
-masks_pooled = run_veto_cut(pooled, f"(b) {subhdr_ctx}")
+run_veto_cut(pooled, f"(b) {subhdr_ctx}")
 
 subhdr_ctx = "post-13c only"
-masks_p13 = run_veto_cut(post13c_df, f"(b) {subhdr_ctx}")
+run_veto_cut(post13c_df, f"(b) {subhdr_ctx}")
 
 subhdr_ctx = "pooled, tier split: real"
-masks_real = run_veto_cut(pooled[pooled["tier"] == "real"], f"(b) {subhdr_ctx}")
+run_veto_cut(pooled[pooled["tier"] == "real"], f"(b) {subhdr_ctx}")
 
 subhdr_ctx = "pooled, tier split: model"
-masks_model_tier = run_veto_cut(pooled[pooled["tier"] == "model"], f"(b) {subhdr_ctx}")
+run_veto_cut(pooled[pooled["tier"] == "model"], f"(b) {subhdr_ctx}")
 
 # Mar-2026 catch table
 subhdr("(b) Mar-2026 signal dates — how much realized loss does each veto catch?")

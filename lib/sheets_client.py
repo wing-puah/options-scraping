@@ -307,16 +307,6 @@ def add_or_update_column(tab: str, header_name: str, values: list) -> None:
     log.info("Column '%s' written to tab '%s' (col %s)", header_name, tab, col)
 
 
-def get_meta(tab: str, spreadsheet_id: str | None = None) -> dict:
-    ss = _get_spreadsheet(spreadsheet_id)
-    ws = _ensure_tab(ss, "_meta")
-    records = ws.get_all_records()
-    for row in records:
-        if row.get("tab_name") == tab:
-            return row
-    return {}
-
-
 def set_meta(tab: str, fingerprint: str = "", last_row_time: str = "",
              spreadsheet_id: str | None = None) -> None:
     ss = _get_spreadsheet(spreadsheet_id)

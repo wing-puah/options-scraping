@@ -109,7 +109,6 @@ class RunSummary:
     run_at: str = ""
     command: str = ""
     git: str = ""
-    python: str = ""
     # Which export era the run read. Empty on any report written before the era
     # line existed (2026-08-15) — rendered as "?" rather than assumed, because
     # an old report genuinely does not record it, and that silence is exactly

@@ -39,7 +39,6 @@ import argparse
 import statistics
 import sys
 from collections import Counter, defaultdict
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -55,10 +54,6 @@ BEAR_DEBIT = ("bear_put_spread", "long_put")
 # --- the SHIPPED production profiles, transcribed from config/backtest.yml -----
 # base debit
 PROD_BASE = dict(DEBIT_PROD)
-# regime_exit.cells.BEAR_HE  (trail on, breakeven stop explicitly nulled)
-PROD_BEAR_HE = {**DEBIT_PROD, "trig": 0.50, "trail": 0.50, "be_after": None}
-# structure_exit.cells.bear_debit  (applies on every NON-BEAR_HE date)
-PROD_BEAR_DEBIT = {**DEBIT_PROD, "be_after": 0.50}
 
 # ARM U pre-declared buckets. Fixed before looking at any output.
 DAYS_TO_MFE_BUCKETS = [(0, 3, "peak within 3d"), (3, 8, "peak 4-8d"),

@@ -17,10 +17,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 STUDY_OUTPUT_DIR = ROOT / "backtests" / "study_output"
 TUNING_DIR = ROOT / "research"
-# No longer read by load_pre_registration() (see PRE_REG_DIR below) — kept as
-# a path constant in case a future write-up step wants to append/reference
-# current.md directly. Not currently imported by anything outside this file.
-CURRENT_MD = TUNING_DIR / "current.md"
 GLOSSARY_MD = TUNING_DIR / "glossary.md"
 
 # One file per study, holding that study's pre-registration verbatim. This is

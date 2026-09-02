@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -10,7 +9,6 @@ from lib.drive_client import (
     classify_flow_name,
     file_name,
     snapshot_files,
-    trading_day,
 )
 
 ET = ZoneInfo("America/New_York")

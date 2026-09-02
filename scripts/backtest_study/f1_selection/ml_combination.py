@@ -98,7 +98,6 @@ NUM_ENRICH = ["iv_spread", "iv_skew", "iv_pct", "oi_confirm_pct", "cpir",
 NUM_SCORES = ["score_total", "score_flow", "score_dealer", "score_price",
               "score_vol", "score_catalyst"]
 NUM_CALENDAR = ["dow", "month_num"]
-BOOL_FEATS = ["credit", "risk_off", "hedge_pressure", "post13c_flag"]
 
 GROUPS = {
     "ladder": (CAT_LADDER, [], []),

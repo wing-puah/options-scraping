@@ -34,7 +34,6 @@ from lib.flow_summary._helpers import (
     _FINANCING_DELTA,
     _FLOW_DELTA,
     _FLOW_DTE,
-    _FLOW_EXPIRY,
     _FLOW_IV,
     _FLOW_OI,
     _FLOW_OPENFLAG,

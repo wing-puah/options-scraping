@@ -494,11 +494,11 @@ conclusion.
 - `report.py` — strict parser for the fixed-width report (a changed section raises, never a
   half-drawn chart). `series.py` — positions-CSV series + `reconcile()`, which must agree
   with the report or the build fails. `cli.py` — the shared pipeline: arm auto-pairing on
-  BOTH axes (structure and compounding), reconcile-or-write-nothing, docs copy rules.
+  BOTH axes (structure and compounding), reconcile-or-write-nothing, site copy rules.
   `assets/kit.js` = shared chart primitives, `assets/page.css` = tokens.
 - Each run writes the study_output FRAGMENT (no doctype — what the Artifact publisher wants;
-  `--standalone` wraps it) and a standalone `docs/<page>.html` (`--no-docs` skips). `docs/`
-  is generated output and gitignored in full.
+  `--standalone` wraps it) and a standalone `site/<page>.html` (`--no-site` skips; `--no-docs`
+  survives as an alias). `site/` is generated output and gitignored in full.
 - Pages: `account_sim.py` (feasibility readout; capital read from the report, not hardcoded);
   `regime.py` (deployed book by market regime — mech_cell vs the model's market_regime, plus
   what the caps skipped per cell; account_sim pre-registers NO regime cut, so the study
@@ -506,7 +506,7 @@ conclusion.
   regime table to the page without adding it to the study first); `compounding.py` (the
   compounding arm's readout + its EQUITY MARKS series; post-hoc, not pre-registered, and the
   page says so). The structure arm writes ONLY the fragment (chart-identical to the frozen
-  book's page); an explicit `--docs` on it is refused.
+  book's page); an explicit `--site` on it is refused.
 - Do not add a statistic the study refuses to print: no annualised figure, no Sharpe, no
   time-to-recover.
 
@@ -702,7 +702,7 @@ positions, and that leg exists to cut the ticker's directional exposure. A posit
 is all-or-nothing across legs: a spread priced on one leg would report the naked long's
 delta, since the unpriced leg is precisely the hedge.
 
-**Output** — `journal/reports/<date>.md` and `docs/journal-<date>.html`. The page recomputes
+**Output** — `journal/reports/<date>.md` and `site/journal-<date>.html`. The page recomputes
 each figure from the records and reconciles against the report, writing nothing on a
 mismatch (`s03_risk.py::assess` and `s04b_page.py::_breach_count` are two DELIBERATE
 implementations of the cap rule — change both by hand, never share a helper). The charts are Cap utilisation
@@ -841,7 +841,7 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD,SPY  #
 python3 -m scripts.analysis_pipeline --start 2026-04-14 --end 2026-04-18 --days 5
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analyze, no write
 python3 -m scripts.analysis_pipeline --model claude-opus-5         # override engine model
-python3 -m scripts.analysis_pipeline --fetch-only                  # fetch + audit CSV only, no LLM
+python3 -m scripts.analysis_pipeline --skip-llm                    # fetch + audit CSV only, no LLM
 
 # Scrape historical data to Google Drive
 python3 scripts/collector/scrape_flow.py --date 2026-04-21
@@ -872,7 +872,7 @@ python3 -m scripts.study_review hedge_exposure        # auto-inlines research/he
 python3 -m scripts.study_map --check                  # or: make study-check
 make study-map-open · make study-docs · make study-check
 make study-chart CHART=regime OPEN=1 · make study-chart CHART=compounding OPEN=1 · make study-chart ARM=structure
-python3 -m scripts.study_charts.account_sim [--standalone --open] [--positions <csv>] [--no-docs]
+python3 -m scripts.study_charts.account_sim [--standalone --open] [--positions <csv>] [--no-site]
 python3 -m scripts.study_charts.regime
 python3 -m scripts.study_charts.compounding
 
