@@ -51,10 +51,11 @@ Arms:
           sized off the concentrated cluster's own net delta notional. Every
           row of it carries that label and no clause is read from it.
 
-POPULATION: the registration's own population clause names two different books
-(ERRATUM 1 in `research/hedge-exposure-errata.md`). The OPERATOR ratified one
-on 2026-08-31 — the literal `load_book(include_bs=False)` call — and the
-RATIFICATION section of that errata, not this module, is the authority for it.
+POPULATION: the registration's population clause originally named two
+different books (ERRATUM 1). The OPERATOR ratified one on 2026-08-31 — the
+literal `load_book(include_bs=False)` call — and the "Population and basis"
+section of the pre-registration itself (consolidated 2026-09-02), not this
+module, is the authority for it.
 Both readings are still run and printed with every count computed at run time;
 `real` is reported as a STRATUM, never a co-primary, and the study-level
 verdict is read off the ratified population alone.
@@ -168,12 +169,14 @@ POP_LABELS = {
 
 # ── the ratified reading (OPERATOR, 2026-08-31) ─────────────────────────────
 # ERRATUM 1's deadlock was resolved by the operator, NOT by this module, and
-# both the decision and its reasoning are recorded in the errata's RATIFICATION
-# section. This module cites that decision; it does not make it, and it may not
-# re-decide it if a later run's shape changes.
+# both the decision and its reasoning are recorded in the pre-registration's
+# own Population and basis section (consolidated there 2026-09-02; formerly a
+# separate errata file, now deleted). This module cites that decision; it does
+# not make it, and it may not re-decide it if a later run's shape changes.
 RATIFIED_POPULATION = POP_ALL
-RATIFICATION_SOURCE = ("research/hedge-exposure-errata.md — RATIFICATION, "
-                       "operator, 2026-08-31")
+RATIFICATION_SOURCE = ("research/pre-registrations/f4_deployment/"
+                       "hedge_exposure.md §Population and basis — "
+                       "RATIFICATION, operator, 2026-08-31")
 
 #: The two words emitted, each over a DIFFERENT object. UNDERPOWERED is defined
 #: by G-POWER failing and is read over the hedge cells; MEASUREMENT-ONLY is
@@ -1364,7 +1367,8 @@ def print_not_preregistered(args, budget: float) -> None:
      the census; the floor is read against EPISODES, the strictest.
      Feeds: which cells are evaluated at all.
   3  BOTH READINGS OF THE POPULATION CLAUSE are run and neither concluded from
-     — ERRATUM 1 of research/hedge-exposure-errata.md, not a free choice.
+     — ERRATUM 1, resolved by the operator's ratification recorded in the
+     pre-registration's Population and basis section, not a free choice.
 
   THE HEDGE ITSELF
   4  ROLLING — a 25-75 DTE put cannot span a long episode, so it is settled at
@@ -2399,11 +2403,12 @@ def main() -> int:
   primary fill rule: {args.rule}   (nearest-available printed as the registered sensitivity)
 
   POPULATION — RATIFIED: `{RATIFIED_POPULATION}`.
-  The pre-registration's "Population and basis" clause is self-contradictory
-  (recorded as ERRATUM 1 in research/hedge-exposure-errata.md, because a
-  committed file never changes meaning after it is written). It names
-  `load_book(include_bs=False)` AND states a row/date count that only the raw
-  BacktestResults stratum matches. On disk those are different books:
+  The pre-registration's "Population and basis" clause originally named two
+  different books at once (ERRATUM 1) — `load_book(include_bs=False)` AND a
+  row/date count that only the raw BacktestResults stratum matches. The
+  operator's ratification of `all`, and the reasoning behind it, is now
+  consolidated into that same clause. On disk the two readings remain
+  different books:
 
 {shapes}
 

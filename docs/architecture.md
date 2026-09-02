@@ -867,8 +867,9 @@ python3 -m scripts.backtest_study run account_sim -- --compounding
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 python3 -m scripts.backtest_study run account_sim -- --live-select [--live-select-no-llm]
 python3 -m scripts.study_review account_sim            # --skip-run reuses report; --dry-run no LLM
-python3 -m scripts.study_review hedge_exposure        # auto-inlines research/hedge-exposure-errata.md
-                                                      # --errata <path> · --no-errata to override
+python3 -m scripts.study_review <study>                # auto-inlines research/<study>-errata.md if one
+                                                      # exists (`_`->`-` tried); --errata <path> ·
+                                                      # --no-errata to override
 python3 -m scripts.study_map --check                  # or: make study-check
 make study-map-open · make study-docs · make study-check
 make study-chart CHART=regime OPEN=1 · make study-chart CHART=compounding OPEN=1 · make study-chart ARM=structure

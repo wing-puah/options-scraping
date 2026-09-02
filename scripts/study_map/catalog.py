@@ -560,8 +560,9 @@ STUDIES: dict[str, Study] = {
         verdict="UNDERPOWERED (the mechanism question) and MEASUREMENT-ONLY (ARM M) — "
                 "two words over two different objects, both emitted, neither ordered "
                 "ahead of the other. The population deadlock recorded as ERRATUM 1 was "
-                "RATIFIED by the operator on 2026-08-31 (research/hedge-exposure-errata.md, "
-                "RATIFICATION): the population is the literal load_book(include_bs=False) "
+                "RATIFIED by the operator on 2026-08-31 (research/pre-registrations/"
+                "f4_deployment/hedge_exposure.md, Population and basis, consolidated there "
+                "2026-09-02): the population is the literal load_book(include_bs=False) "
                 "call, because a strike_expiry_tweak row is a REAL Barchart price for a "
                 "nearby strike and an operator who does not follow a proposed leg exactly "
                 "is modelled better by a book that admits the substitution. `real` is kept "
@@ -589,13 +590,14 @@ STUDIES: dict[str, Study] = {
                   "research/deployment-evidence.md gained a section qualifying the "
                   "measurement basis of bear_deploy D3, calendar_hedge H3 and hedge_timing "
                   "ARM H4 — none overturned, no figure of theirs restated, and 40.2% is not "
-                  "a correction factor transferable to their books. What is STILL an open "
-                  "operator question is post-ratification note 3 in "
-                  "research/hedge-exposure-errata.md: admitting `tweak` rows made the prices "
-                  "representative AND the book more diversified, and only the first was "
-                  "argued — if in practice a subset of proposed plays is held, this study "
-                  "measures a less concentrated book than the operator runs. That reading "
-                  "would need its own registration.",
+                  "a correction factor transferable to their books. The dilution question "
+                  "raised against the ratified population (admitting `tweak` rows made the "
+                  "prices representative AND the book more diversified, and only the first "
+                  "was argued) was ANSWERED FROM DISK the same day, not left open: "
+                  "research/current.md 2026-08-31 (late) shows the deploy card admits only "
+                  "221 of 458 ladder-eligible rows (at most 3 per day), so hedge_exposure's 996-row book is "
+                  "about twice as diversified as what the operator actually holds, which "
+                  "registered hedge_concentration to measure the admitted book directly.",
     ),
     "hedge_concentration": Study(
         family="deployment", state="open",

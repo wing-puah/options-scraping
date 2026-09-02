@@ -24,9 +24,12 @@ era v4 (the 140-date backfilled book; exports of 2026-08-27). Where it stands:
   `hedge_timing` H4 as a limitation of their measurement basis — all three
   verdicts stand. ARM P is inert as registered (ERRATUM 2) and has NOT been
   redefined. The queued max-drawdown question stays **OPEN**. All of it is in
-  the entries below and in `hedge-exposure-errata.md` (every item there is
-  closed; the file stays because `study_review` and `hedge_exposure.py` read it
-  as the ratification authority).
+  the entries below. `hedge-exposure-errata.md` recorded ERRATUM 1/2 and the
+  RATIFICATION; on 2026-09-02 that content was folded into the pre-
+  registration's own §Population and basis (`research/pre-registrations/
+  f4_deployment/hedge_exposure.md`) and the errata file was deleted —
+  `study_review` and `hedge_exposure.py` now cite the registration directly,
+  and `tests/test_studies_hedge_exposure.py` pins the two from drifting apart.
 - **`hedge_timing` — GAP-UP came back CONTRARY** (the hedge did worse than the
   same day's ladder-eligible long, both money arms); the §4 prohibition was
   drafted and HELD, chop and the broad decline are NULL, the strict 4–5-day

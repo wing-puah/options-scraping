@@ -20,6 +20,7 @@ Prose lives in exactly two tracked places — `docs/` (how the system works, how
 | What does this Barchart flow column mean?                     | `docs/barchart-reference.md` — vendor help text, verbatim                              |
 | What are the per-ticker rollup columns the LLM reads?         | `docs/rollup-reference.md`                                                             |
 | How is the conviction score computed?                         | `docs/conviction-score.md` — full spec (the model-facing condensed copy is `config/prompts/conviction-score-legend.md`) |
+| Where do things stand, in one page — what shipped, what was rejected, what is open? | `research/overview.md` — a dated SUMMARY of `next-steps.md` + `current.md` + `study-map.md`; those win when they disagree |
 | What did we try, and what happened?                           | `research/current.md` (newest), `research/archive/01..17` (older volumes)              |
 | What does each backtest study ask?                            | `research/study-map.md`; the pre-run commitments are `research/pre-registrations/`     |
 | What did study X actually print, on which population?         | `research/study-results/<family>/<study>.md` — append-only, one section per (era, sha) |

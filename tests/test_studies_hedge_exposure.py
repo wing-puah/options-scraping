@@ -575,8 +575,37 @@ def test_the_ratified_population_is_the_literal_load_book_call() -> None:
     a later reader sees the verdict resting on a recorded decision."""
     assert HE.RATIFIED_POPULATION == HE.POP_ALL
     assert HE.RATIFIED_POPULATION in HE.POP_LABELS
-    assert "hedge-exposure-errata.md" in HE.RATIFICATION_SOURCE
+    assert "hedge_exposure.md" in HE.RATIFICATION_SOURCE
+    assert "Population and basis" in HE.RATIFICATION_SOURCE
     assert "2026-08-31" in HE.RATIFICATION_SOURCE
+
+
+def test_the_registration_carries_the_ratified_population_in_its_own_text() -> None:
+    """The former `hedge-exposure-errata.md` was folded into the
+    pre-registration's "Population and basis" section on 2026-09-02 (that file
+    is deleted). This is the guard against the two drifting apart again: the
+    CODE constant (asserted above) and the REGISTRATION text must both name
+    `all` — 996 rows / 145 dates — as the population, with `real` (485/140)
+    demoted to a reported stratum, never restated as the conclusion."""
+    reg_path = (ROOT / "research" / "pre-registrations" / "f4_deployment"
+                / "hedge_exposure.md")
+    text = reg_path.read_text(encoding="utf-8")
+    start = text.index("## Population and basis")
+    end = text.index("\n## ", start + 1)
+    section = text[start:end]
+
+    assert "include_bs=False" in section
+    assert "996 rows" in section
+    assert "145" in section
+
+    # 485/140 may appear only as the demoted `real` stratum, never presented
+    # as the population itself — "stratum" must sit near the "485 rows" figure
+    # (the first bare "485", inside "real 485 + tweak 511", is not it).
+    idx = section.index("485 rows")
+    window = section[max(0, idx - 100):idx + 200]
+    assert "stratum" in window.lower(), (
+        "485 rows appears without being framed as the reported stratum — "
+        "check the population clause has not drifted back toward ERRATUM 1")
 
 
 def test_the_ratified_words_are_registered_verdicts_and_there_are_two() -> None:

@@ -1276,7 +1276,8 @@ def main() -> int:
   Stage 2 primary fill rule: {args.rule}
 
   POPULATION — the RATIFIED one, by the literal call `load_book(include_bs=False)`
-  (research/hedge-exposure-errata.md, RATIFICATION, operator 2026-08-31).
+  (research/pre-registrations/f4_deployment/hedge_exposure.md §Population and
+  basis — RATIFICATION, operator 2026-08-31).
   `account_sim`'s own default loader makes byte-for-byte the same call, so the
   candidate set here IS the population hedge_exposure ratified:
     rows {len(recs)}   signal dates {len(dates)}   {dates[0] if dates else 'n/a'} .. {dates[-1] if dates else 'n/a'}

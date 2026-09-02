@@ -58,7 +58,23 @@ the drawdown is measured on, the sizing, and the sector map.
   `bs_options_hist` rows. Era mismatch refuses (exit 3); a thin era refuses
   (exit 2). v3 is NOT pooled and NOT replicated here: `hedge_timing` disclosed
   its v3 window as PARTIALLY CORRELATED and forbade pooling, and that holds.
-- **Book**: 485 rows / 140 signal dates / 2024-01-10 .. 2025-11-04.
+- **Book, RATIFIED (operator, 2026-08-31; consolidated into this file
+  2026-09-02):** the population is `all` — the literal
+  `load_book(include_bs=False)` call, **996 rows / 145 signal dates /
+  2024-01-10 .. 2025-11-04** (real 485 + `strike_expiry_tweak` 511). The
+  operator's reason: a `tweak` row is a real Barchart price for a nearby
+  strike/expiry, and the operator does not follow a proposed leg's strike and
+  expiry exactly at execution, so a book admitting that substitution is the
+  closer model of their actual trading. `real` alone — **485 rows / 140
+  signal dates** — is retained as a REPORTED STRATUM only; it is never the
+  concluding population.
+
+  This clause originally named both readings as if they were one population;
+  they are not. The plan-time disclosures below this list — the exposure
+  table, the concentration quantiles and the 504-session universe — were
+  computed on the `real` stratum alone and describe it, not the ratified
+  996-row book; the figures that describe the ratified population are the
+  ones the study's own run prints.
 - **Session universe**: the 504 trading sessions on which at least one position
   is open, derived from `[signal_date, signal_date + days_held]`. This is the
   unit the drawdown path is computed on and is ~3.6× the signal-date count.
@@ -220,7 +236,12 @@ precisely what the curve omits.
   ~third of parsed dates). Prose-conditioned.
 - **ARM P — prose-free counterpart.** ARM C restricted to exactly the sessions
   ARM CS would hedge on, minus the prose condition — isolating how much of any
-  ARM CS effect is the prose rather than the concentration underneath it.
+  ARM CS effect is the prose rather than the concentration underneath it. As
+  registered, this session set is algebraically identical to ARM CS's own
+  (restricting to CS's sessions and then removing the prose condition still
+  yields CS's sessions), so the arm is **INERT AS REGISTERED**: it has not
+  been redefined into something informative, since that would be a post-hoc
+  arm outside this registration's scope.
 - **ARM N — random-admission null, 200 seeds.** Hedges on a random set of
   sessions matched in COUNT and in date-clustering to the triggered set.
   Following `portfolio_delta`'s ARM N: **an arm must beat ARM N's 95th

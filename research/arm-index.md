@@ -235,7 +235,8 @@ role, different study.
   **MEASUREMENT-ONLY** verdict — the two curves differ materially while no
   hedge cell clears the bar. Every hedge CELL is UNDERPOWERED there, so the
   mechanism question is **UNDERPOWERED** and no direction is quoted from any
-  of them. See `research/hedge-exposure-errata.md`, RATIFICATION.
+  of them. See `research/pre-registrations/f4_deployment/hedge_exposure.md`
+  §Population and basis (RATIFICATION consolidated there 2026-09-02).
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
   cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
   sized at f ∈ {0.25, 0.50, 1.00} of a standard position's risk. Carries no

@@ -341,7 +341,8 @@ Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
 **UNDERPOWERED** — every cell of the τ × f grid is power-stopped on the ratified
 population — so nothing there says a hedge works, and no direction is quoted
 from any cell. See [`current.md`](current.md) 2026-08-31 and
-[`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION.
+[`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
+§Population and basis (RATIFICATION consolidated there 2026-09-02).
 
 **Why it lands on D3.** D3 is judged on a series of daily REALIZED dollars
 bucketed to the date each position closed (`_sweep`'s `daily` in

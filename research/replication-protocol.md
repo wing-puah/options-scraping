@@ -88,9 +88,9 @@ Mode 1, replication grading. Three placeholders: `<pre-registration section>`
 `pre-registrations/f3_structure/calendar_hedge.md`, read whole — see
 [`pre-registrations/README.md`](pre-registrations/README.md)),
 `<report path>` (e.g. `backtests/study_output/<name>-latest.txt`), and
-`<errata path>` (`research/<study>-errata.md`, e.g.
-`research/hedge-exposure-errata.md`) — drop the errata sentence from the prompt
-only when no such file exists.
+`<errata path>` (`research/<study>-errata.md`, `_` in the study name also
+tried as `-`) — drop the errata sentence from the prompt only when no such
+file exists, which is the normal case; most studies have none.
 
 **Step 1 — spawn A and B in one message, identical prompts:**
 

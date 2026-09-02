@@ -165,6 +165,7 @@ its own banner and the arms never share an artifact.
 
 | Document | What it holds |
 |---|---|
+| [`overview.md`](overview.md) | **Lost track? Start here.** One page, dated: what shipped, what was tried and did not survive (verdicts quoted verbatim), and the open queue. A summary of `next-steps.md` + `current.md` + `study-map.md` — when they disagree, they win. |
 | [`study-map.md`](study-map.md) | **Start here.** One-page map of `scripts/backtest_study/` — what each study asks and what it concluded. Rendered, with each study's last run quoted onto it, as [`site/study-map.html`](../site/study-map.html) (`make study-map-open`). |
 | [`../docs/deployment-rules.md`](../docs/deployment-rules.md) | The operator card — what to deploy, what to veto, how to exit. Instructions only. |
 | [`deployment-evidence.md`](deployment-evidence.md) | Why each of those rules exists: derivation, validation tables, caveats, and the **open pre-registered rollback triggers**. |

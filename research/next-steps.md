@@ -173,8 +173,9 @@ the detail.
   is **UNDERPOWERED** (all nine τ×f cells fail G-POWER, no direction quoted) and
   ARM M is **MEASUREMENT-ONLY** (the close-bucketed curve understates this
   book's max drawdown by 40.2%). Ships nothing. →
-  [`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION +
-  §Post-ratification notes, and [`current.md`](current.md) 2026-08-31.
+  [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
+  §Population and basis (RATIFICATION consolidated there 2026-09-02), and
+  [`current.md`](current.md) 2026-08-31.
 - **`hedge_timing`** (2026-08-28) — GAP-UP came back **CONTRARY** on both money
   arms; §4 prohibition **drafted and HELD** for the operator to accept or reject.
   Chop and the broad decline NULL; the strict 4–5-day streak untestable (2 book
@@ -431,7 +432,8 @@ strings.
   ratified book.** Its plan-time exposure table, concentration quantiles and
   504-session universe reproduce on `real` alone; they are not disclosures about
   the ratified 996-row population
-  ([`hedge-exposure-errata.md`](hedge-exposure-errata.md) §RATIFICATION).
+  ([`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
+  §Population and basis).
 
 **Vocabulary and process**
 
