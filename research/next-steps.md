@@ -426,6 +426,7 @@ strings.
   writer fix before it carries anything. To ask whether a row *replays* under a
   profile, still classify by unreachable exit reasons — `lib/replay_basis.py`,
   which works on every era (§0c(A), archive/15).
+  **Audited since 2026-09-02** — `scripts/backtest_study/lib/basis_audit.py` runs on every `load_book()` and prints a coherence line (currently `485 coherent, 0 sign_conflict, 0 cell_conflict, 0 unreachable_reason`). It REPORTS and never gates: gating the book on a LABEL would block the exit-profile studies the column exists to serve, and would block them hardest on v3, where the label is known-bad and the ROWS are fine. Stratify on the record's `basis_trusted`; do not assume, and do not re-derive by hand.
 - **`hedge_exposure`'s registration describes the `real` stratum, not the
   ratified book.** Its plan-time exposure table, concentration quantiles and
   504-session universe reproduce on `real` alone; they are not disclosures about

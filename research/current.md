@@ -903,3 +903,64 @@ testing" — the latter has to come from the replay, not a stored label.
 **Tests: 2,723 passed.** 8 new — 3 pinning that a proxy row carries its basis
 (priced tier `PROD`, direction-only `NONE`, `unevaluable` blank; the first two
 fail without the fix, verified), 5 pinning the per-tab schema routing.
+
+## 2026-09-02 — exit_basis is now AUDITED, not trusted: three one-directional checks, reporting only
+
+Follow-on to the entry above. Keeping the column meant making it checkable, since
+the point of keeping it was that a future study will STRATIFY on it — and would
+otherwise do so on an unverified label.
+
+`scripts/backtest_study/lib/basis_audit.py` runs on every `load_book()` call.
+Population: the pooled v4 book, 996 rows (485 real + 511 proxy), era `v4`,
+145 dates, 2024-01-10 → 2025-11-04.
+
+    exit_basis coherence: 485 coherent, 511 unlabelled, 0 sign_conflict,
+                          0 cell_conflict, 0 unreachable_reason, 0 unknown_basis of 996
+
+The 511 unlabelled are the BacktestProxy rows, blank until the proxy is re-run
+(the writer fix shipped the same day). All 485 real rows are coherent under all
+three checks.
+
+**It reports; it never gates.** `_exit_basis` is a pure labeller that feeds
+nothing, so an incoherent label cannot move a simulated number — only mislead a
+stratification. Refusing a book on it would block the exit-profile-combination
+work the column exists to enable, and would block it hardest on v3, where the
+label is known-bad and the rows are fine. That is the opposite of
+`lib/replay_basis.py`, which DOES gate: a HARD row there means the harness and
+the stored row disagree about a path both claim the same rules for, which does
+make the variant numbers untrustworthy.
+
+**The three checks, and why two of them are one-directional.**
+
+| Check | Direction | Keyed on |
+|---|---|---|
+| `sign_conflict` | both | `CREDIT` ⇔ `entry_net < 0` — `_exit_basis`'s unconditional first branch, so provable from the row alone with no config |
+| `cell_conflict` | one | a regime label vs `MechLabeler.cell()`, re-derived from the SPY/VIX table — a source that never went near the sheet |
+| `unreachable_reason` | one | stored `exit_reason` ∈ `unreachable_reasons(claimed profile)` |
+
+One-directionality is the substance, not a hedge: **a basis can be ARMED without
+GOVERNING.** On this book 112 rows are labelled non-PROD but only 14 carry an
+outcome `DEBIT_PROD` could not have produced; the other 98 exited on
+`stop_loss` 34 / `profit_target` 31 / `dollar_stop` 23 / `time_exit` 8 /
+`cap_open` 2 — reasons the base profile emits perfectly well. A bidirectional
+check would call all 98 incoherent and silently shrink every stratified cut.
+Likewise a row whose date IS `BEAR_HE` but which was simulated before the
+2026-07-22 override correctly reports `PROD`.
+
+**Retrospective: it would have caught the v3 corruption loudly.** Reading v3's
+nameless 47th column positionally as `exit_basis` over its 406 rows gives
+`43 coherent, 338 unlabelled, 22 sign_conflict, 3 unreachable_reason` — e.g.
+`BEAR_HE` on a `dollar_stop` row with `entry = −5.40`, `CREDIT` on a
+`trailing_stop` row with `entry = +0.82`. As WIRED it sees none of that, because
+the column is unnamed there and every row audits as *unlabelled*: an unreadable
+label is not a wrong one, and v3 studies are untouched.
+
+**The profile table is HISTORICAL, deliberately.** `BASIS_KNOBS` is not a read of
+`config/backtest.yml`: `simulation.structure_exit.enabled` is `false` as of today
+while 95 v4 rows carry `BEAR_DEBIT` from when it shipped 2026-08-11, so a live
+read would call all 95 incoherent. Only knob PRESENCE is consulted
+(`unreachable_reasons` tests `is None`), so re-tuning a threshold does not date
+the table — adding or removing a RULE does, and then the new basis needs an entry.
+
+26 tests in `tests/test_basis_audit.py`; suite 2750 pass. A study that stratifies
+by exit profile filters on the record's `basis_trusted`.

@@ -670,6 +670,14 @@ INFRA: dict[str, str] = {
                   "SILENTLY. Changing the exit mechanism means copying this file.",
     "lib/book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
                    "default — they are priced FROM the model that scores them.",
+    "lib/basis_audit.py": "Coherence audit for the exit_basis COLUMN — reports, never "
+                          "gates. Three one-directional checks (CREDIT<=>negative entry, "
+                          "regime label vs the SPY/VIX cell re-derivation, stored exit "
+                          "reason reachable under the claimed profile); an armed basis that "
+                          "did not govern is NOT a conflict. Unreadable eras audit as "
+                          "unlabelled, so v3 studies are untouched. Built 2026-09-02 so a "
+                          "study can stratify by exit profile without trusting the label "
+                          "blind. Contrast lib/replay_basis.py, which does gate.",
     "lib/replay_basis.py": "ONE classifier for stored-row-vs-replay disagreement: exact / "
                            "near-rounding-tie / superseded-basis / HARD. Extracted 2026-08-24 "
                            "from exit_switch_mech_study so its harness gate, "

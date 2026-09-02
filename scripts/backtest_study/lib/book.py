@@ -119,9 +119,10 @@ sys.path.insert(0, str(ROOT))
 
 from lib.mech_regime import MechLabeler  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
-from scripts.backtest_study.lib.harness import Trade, _pct, _to_float, replay  # noqa: E402
+from scripts.backtest_study.lib.harness import Trade, _to_float  # noqa: E402
+from scripts.backtest_study.lib import basis_audit  # noqa: E402
 from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
-    NEAR_MISS_TOL, calib as _calib_full, classify as _classify, unreachable_reasons,
+    calib as _calib_full, classify as _classify, unreachable_reasons,
 )
 
 # Resolved for the era this PROCESS was asked for (`STUDY_ERA`, default
@@ -132,7 +133,6 @@ from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
 _ERA_PATHS = era_mod.resolve_paths()
 DEFAULT_RESULTS_CSV = _ERA_PATHS["results"]
 DEFAULT_PROXY_CSV = _ERA_PATHS["proxy"]
-DEFAULT_ANALYSIS_CSV = _ERA_PATHS["analysis"]
 MECH_TABLE_CSV = ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 
 # Production exit profiles (source of truth: config/backtest.yml + Attempt 13,
@@ -306,6 +306,15 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
     else:
         mdir, mvol, mok, cell = None, None, False, None
 
+    # exit_basis rides along RAW, with a verdict beside it — audited, never
+    # gated (lib/basis_audit.py). The cell passed in is the independently
+    # re-derived one or None; NOT the "PROD" fallback below, which would fake
+    # agreement on a date the SPY/VIX table cannot label.
+    stored_basis = row.get("exit_basis") or ""
+    basis_verdict = basis_audit.audit_row(
+        stored_basis, row.get("exit_reason"), t.entry_net,
+        cell if (mok and cell is not None) else None)
+
     rec = dict(
         date=d, month=d[:7], ticker=t.ticker, structure=t.structure,
         source=source, calibrated=calibrated,
@@ -347,6 +356,9 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
         mech_direction=mdir,
         mech_vol=mvol,
         mech_cell=cell if (mok and cell is not None) else "PROD",
+        exit_basis=stored_basis,
+        basis_verdict=basis_verdict,
+        basis_trusted=basis_verdict in basis_audit.TRUSTED,
         model_dir=model_direction(market_regime),
         model_vol=model_vol(market_regime),
         stock_dir=model_direction(regime),
@@ -508,6 +520,12 @@ def load_book(results_csv: str | Path | None = None,
         {"real", "tweak", "bs"} if include_bs else {"real", "tweak"})
     records = [r for r in records if r["source"] in allowed]
 
+    # Tallied AFTER the source filter, so the line describes the book actually
+    # returned. Reporting only: no row is dropped and no exception is raised —
+    # a study that stratifies by exit profile filters on `basis_trusted`
+    # itself, and one that does not is unaffected.
+    diag["basis_coherence"] = Counter(r["basis_verdict"] for r in records)
+
     dates = sorted({r["date"] for r in records})
     diag["date_range"] = (dates[0], dates[-1]) if dates else (None, None)
     diag["n_dates"] = len(dates)
@@ -549,6 +567,7 @@ def _print_validate(records: list[dict], diag: dict) -> None:
     dc = diag["debit_calib"]
     print(f"debit calibration: {dc['exact']}/{dc['n']} exact, {dc['near']} near-rounding-tie, "
           f"{dc['boundary_tie']} boundary-tie, {dc['hard']} hard")
+    print(basis_audit.format_tally(diag["basis_coherence"], len(records)))
     print(f"proxy debit rows excluded (non-exact calibration)={diag['n_proxy_excluded_non_exact']}")
     print(f"credit rows admitted UNGATED (calibrated=False)={diag['n_credit_ungated']}")
     if diag.get("mech_table_warning"):
