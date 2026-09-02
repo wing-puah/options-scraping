@@ -354,3 +354,44 @@ def test_in_progress_day_is_not_labelled(tmp_path):
     assert [r["date"] for r in compute_mech_table(p)][-1] != today
     value, warning = cell_for_date(p, today)
     assert value == "NO_DATA" and "ends" in warning
+
+
+# ── holes in the feed ────────────────────────────────────────────────────────
+
+def test_missing_vix_close_is_no_data_not_a_cell(tmp_path):
+    """A session SPY closed on but ^VIX did not must not store a concrete label.
+
+    yfinance dropped 2026-08-28 from the ^VIX series it had served the day
+    before. `cell()` folds an unknown vol into None, which `cell_for_date` would
+    otherwise write as NONE — a concrete "labelled fine, no override" that
+    contradicts the LVOL written when the feed was whole.
+    """
+    from lib.mech_regime import NO_DATA
+    spy = [500.0] * 50 + [500.0 + i for i in range(1, 11)]
+    vix = [15.0] * 60
+    p = _write_series(tmp_path, spy, vix)
+    text = p.read_text().splitlines()
+    last_date = text[-1].split(",")[0]
+    text[-1] = text[-1].rsplit(",", 1)[0] + ","      # blank the VIX close
+    p.write_text("\n".join(text) + "\n")
+
+    value, warning = cell_for_date(p, last_date)
+    assert value == NO_DATA
+    assert warning and "VIX" in warning
+    # The date is still inside the table, so this is NOT the stale-table path.
+    assert MechLabeler.from_csv(p).covers(last_date)
+
+
+def test_a_complete_row_that_maps_to_no_cell_is_still_none(tmp_path):
+    """The NO_DATA guard must not swallow a legitimate NONE.
+
+    BULL + H-VOL is labelled fine and maps to no exit override — that answer is
+    knowledge, and stays a concrete stored label.
+    """
+    from lib.mech_regime import NO_CELL
+    spy = [500.0] * 50 + [500.0 + 2 * i for i in range(1, 31)]
+    vix = [22.0] * 80          # BULL + H-VOL -> no cell
+    p = _write_series(tmp_path, spy, vix)
+    lab = MechLabeler.from_csv(p)
+    assert lab.label(lab.last_date)[:3] == ("BULL", "H-VOL", True)
+    assert cell_for_date(p, lab.last_date) == (NO_CELL, None)

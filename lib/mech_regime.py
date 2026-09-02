@@ -190,4 +190,16 @@ def cell_for_date(csv_path: str | Path, d: str) -> tuple[str, str | None]:
     if not lab.covers(d):
         return NO_DATA, (f"mech-regime table ends {lab.last_date}, before {d} — "
                          f"refresh with `make mech-regime`")
+    direction, vol, ok, mapped = lab.label(d)
+    if not ok or vol is None:
+        # A row inside the table can still be unlabelable: no 50-SMA runway, or
+        # a close the upstream feed left blank (^VIX has gone missing for a
+        # single session before). `cell()` would fold that into None -> NO_CELL,
+        # which stores a CONCRETE label meaning "labelled fine, no override" —
+        # indistinguishable from the real thing and permanently at odds with the
+        # label written when the feed was whole. Say NO_DATA instead, which is
+        # refillable and heals itself once the table does.
+        missing = "no direction" if not ok else "no VIX close"
+        return NO_DATA, (f"mech-regime row for {d} (as-of {mapped}) is incomplete "
+                         f"({missing}) — no cell written")
     return (lab.cell(d) or NO_CELL), None

@@ -73,6 +73,64 @@ def download() -> int:
     return 0
 
 
+def _parse_table(text: str) -> dict:
+    import csv as _csv
+    from io import StringIO
+    return {r["date"]: r for r in _csv.DictReader(StringIO(text)) if r.get("date")}
+
+
+def _previous_table(download_from_drive: bool) -> dict:
+    """Every close this series has previously held, as {date: {col: value}}.
+
+    The Drive file is the copy of record and is consulted first; the local file
+    is then read to fill in cells Drive is missing, because a gap can already
+    have been uploaded (that is how 2026-08-28 lost its ^VIX close). Returns {}
+    when there is nothing to compare against.
+    """
+    prev: dict = {}
+    if download_from_drive:
+        try:
+            client = get_drive_client()
+            file_id = client.file_exists(DRIVE_NAME, client.root)
+            if file_id:
+                prev = _parse_table(client.download(file_id, DRIVE_NAME))
+        except Exception as e:                          # network/creds — advisory only
+            log.warning("could not read the previous Drive table (%s); "
+                        "refresh proceeds without it", e)
+    if LOCAL_PATH.exists():
+        for d, row in _parse_table(LOCAL_PATH.read_text(encoding="utf-8")).items():
+            keep = prev.setdefault(d, row)
+            for col, v in row.items():
+                if v not in (None, "") and keep.get(col, "") in (None, ""):
+                    keep[col] = v
+    return prev
+
+
+def _heal_blanks(out, previous: dict):
+    """Fill closes yfinance left blank from the copy this run replaces.
+
+    yfinance has dropped a single session out of the ^VIX series it had served
+    the day before (2026-08-28). Written through, that turns a labelled trading
+    day into an unlabelable one and puts every stored `mech_cell` for that date
+    permanently at odds with the table. A refresh may ADD dates and revise
+    values; it may never blank a close the series already had.
+    """
+    if not previous:
+        return out
+    healed = []
+    for col in ("spy_close", "vix_close"):
+        for i in out.index[out[col].isna()]:
+            d = out.at[i, "date"]
+            prior = (previous.get(d) or {}).get(col, "")
+            if prior not in (None, ""):
+                out.at[i, col] = float(prior)
+                healed.append(f"{d} {col}={prior}")
+    if healed:
+        log.warning("upstream dropped %d close(s) it had served before — kept the "
+                    "previous value(s): %s", len(healed), ", ".join(healed))
+    return out
+
+
 def fetch(start: str, end: str, upload: bool) -> int:
     """yfinance → local CSV, then optionally → Drive."""
     try:
@@ -118,11 +176,18 @@ def fetch(start: str, end: str, upload: bool) -> int:
         on="date", how="outer",
     ).sort_values("date").reset_index(drop=True)
 
+    out = _heal_blanks(out, _previous_table(download_from_drive=upload))
+
     LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(LOCAL_PATH, index=False)
     log.info("Saved %d rows to %s (%s .. %s); SPY NaNs=%d VIX NaNs=%d",
              len(out), LOCAL_PATH, out["date"].min(), out["date"].max(),
              out["spy_close"].isna().sum(), out["vix_close"].isna().sum())
+    for d in out.loc[out["spy_close"].notna() & out["vix_close"].isna(), "date"]:
+        # A session SPY closed on but ^VIX did not: unlabelable, and no prior
+        # copy had it either. lib/mech_regime stores NO_DATA for such a date
+        # rather than a concrete cell — this is the warning that says why.
+        log.warning("no ^VIX close for %s — that date cannot be labelled", d)
 
     if upload:
         client = get_drive_client()

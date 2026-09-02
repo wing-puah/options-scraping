@@ -16,7 +16,9 @@ Behaviour: recomputes every row's cell, then
   - KEEPS an existing concrete label that disagrees with the recomputed one and
     logs it as DRIFT (a real label should never change; a disagreement means the
     table or the spec moved, which is a finding, not something to paper over),
-  - `--force` overwrites the drifted cells too.
+  - `--force` overwrites the drifted cells too, and
+  - KEEPS an existing concrete label when the table can no longer answer at all
+    (NO_DATA) — a hole in the feed is not a disagreement.
 
 Only the `mech_cell` column is touched (sheets_client.add_or_update_column), so
 user formulas and every other column are left alone, and the header gains the
@@ -87,7 +89,7 @@ def plan_tab(header: list[str], rows: list[list[str]], csv_path: Path,
              force: bool) -> tuple[list[str], dict]:
     """`(column values in sheet order, stats)` for one tab. Pure — no I/O."""
     stats = dict(rows=len(rows), filled=0, unchanged=0, drift=0, overwritten=0,
-                 no_date=0, no_data=0)
+                 held=0, no_date=0, no_data=0)
     date_i = header.index(DATE_COLUMN)
     cell_i = header.index(COLUMN) if COLUMN in header else None
 
@@ -112,6 +114,15 @@ def plan_tab(header: list[str], rows: list[list[str]], csv_path: Path,
         computed = memo[d]
         if computed == NO_DATA:
             stats["no_data"] += 1
+            if existing and existing not in REFILLABLE:
+                # NO_DATA means "cannot say", not "disagrees": the table lost a
+                # close it once had, or has not reached this date. A label
+                # written when it COULD say is the better answer, so keep it —
+                # and do not call it drift, which would fail the job forever
+                # over a hole in the feed.
+                stats["held"] += 1
+                out.append(existing)
+                continue
 
         if existing == computed:
             stats["unchanged"] += 1
@@ -137,18 +148,18 @@ def backfill_tab(tab: str, csv_path: Path, force: bool, dry_run: bool) -> dict:
     if not header:
         log.info("%s: empty tab, nothing to backfill", tab)
         return dict(rows=0, filled=0, unchanged=0, drift=0, overwritten=0,
-                    no_date=0, no_data=0, skipped=True)
+                    held=0, no_date=0, no_data=0, skipped=True)
     if DATE_COLUMN not in header:
         log.error("%s: no '%s' column in the header — skipped", tab, DATE_COLUMN)
         return dict(rows=len(rows), filled=0, unchanged=0, drift=0, overwritten=0,
-                    no_date=0, no_data=0, skipped=True)
+                    held=0, no_date=0, no_data=0, skipped=True)
 
     values, stats = plan_tab(header, rows, csv_path, force)
     changed = stats["filled"] + stats["overwritten"]
     log.info("%s: %d row(s) — %d to fill, %d already correct, %d drift (%d overwritten), "
-             "%d unlabelled dates, %d NO_DATA",
+             "%d kept over NO_DATA, %d unlabelled dates, %d NO_DATA",
              tab, stats["rows"], stats["filled"], stats["unchanged"], stats["drift"],
-             stats["overwritten"], stats["no_date"], stats["no_data"])
+             stats["overwritten"], stats["held"], stats["no_date"], stats["no_data"])
     if dry_run:
         log.info("%s: dry run — no write", tab)
     elif changed or COLUMN not in header:
@@ -179,13 +190,16 @@ def main() -> int:
         return 1
 
     tabs = args.tabs or DEFAULT_TABS
-    total = dict(rows=0, filled=0, unchanged=0, drift=0, overwritten=0, no_date=0, no_data=0)
+    total = dict(rows=0, filled=0, unchanged=0, drift=0, overwritten=0, held=0,
+                 no_date=0, no_data=0)
     for tab in tabs:
         stats = backfill_tab(tab, csv_path, force=args.force, dry_run=args.dry_run)
         for k in total:
             total[k] += stats.get(k, 0)
-    log.info("Done: %d row(s) across %d tab(s) — %d filled, %d drift (%d overwritten)",
-             total["rows"], len(tabs), total["filled"], total["drift"], total["overwritten"])
+    log.info("Done: %d row(s) across %d tab(s) — %d filled, %d drift (%d overwritten), "
+             "%d kept over NO_DATA",
+             total["rows"], len(tabs), total["filled"], total["drift"],
+             total["overwritten"], total["held"])
     # Drift left in place is a condition a human must look at, so it is visible in
     # the job's exit status rather than only in the log.
     return 2 if (total["drift"] and not args.force) else 0

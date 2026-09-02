@@ -95,3 +95,25 @@ def test_norm_date_accepts_iso_and_us_and_rejects_the_rest():
     assert _norm_date("4/21/2026") == "2026-04-21"
     assert _norm_date("21/04/2026") is None   # ambiguous — never guessed
     assert _norm_date("") is None
+
+
+def test_no_data_never_contradicts_a_stored_label(table):
+    """A hole in the feed keeps the stored label and is not drift.
+
+    The table ends 2024-03-20, so a later date cannot be answered. Failing the
+    job (exit 2) over that would make one missing ^VIX close a permanent red
+    workflow — see lib/mech_regime.cell_for_date.
+    """
+    rows = [["2026-01-02", "NVDA", "p", "LVOL"]]
+    values, stats = plan_tab(HEADER, rows, table, force=False)
+    assert values == ["LVOL"], "a label written when the table could answer wins"
+    assert stats["drift"] == 0 and stats["held"] == 1
+    assert stats["filled"] == 0 and stats["overwritten"] == 0
+
+
+def test_no_data_still_fills_a_blank(table):
+    """Holding a concrete label must not stop blanks getting the sentinel."""
+    values, stats = plan_tab(HEADER, [["2026-01-02", "NVDA", "p", ""]],
+                             table, force=False)
+    assert values == ["NO_DATA"]
+    assert stats["filled"] == 1 and stats["held"] == 0
