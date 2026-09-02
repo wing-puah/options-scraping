@@ -210,12 +210,16 @@ combinations are named cells at all; everything else is `NONE`.
   +0.041 meanR / +$16.4k against `DEBIT_PROD` but +0.015 / +$5.9k against live
   production, which had shipped the BEAR_HE trail since 07-22
   (`deployment-evidence.md`). An exit study should quote BOTH baselines.
-- ⚠️ **Do not read `exit_basis` off the current export** (measured
-  2026-08-14): the tab header never gained the name, so the values land in an
-  unlabelled trailing column and are scrambled relative to their rows. The
-  writer is correct; the append path is not. Identify a row's basis
-  mechanically from unreachable exit reasons instead — full diagnosis in
-  `docs/backtest-reference.md`.
+- ⚠️ **`exit_basis` is trustworthy PER ERA — v4 yes, v3 no.** On v3 and
+  earlier the tab header never gained the name, so the values landed in an
+  unlabelled trailing column, scrambled relative to their rows (measured
+  2026-08-14); those exports are frozen, so it stays unreadable there. On v4
+  the tab was recreated at the version bump and the column is clean — 485/485
+  rows labelled, internally consistent (re-measured 2026-09-02). Stratifying a
+  v4 book by exit profile is what the column is FOR. But to ask whether a row
+  *replays* under a profile, still classify mechanically from unreachable exit
+  reasons (`lib/replay_basis.py`) — that is a different question and works on
+  every era. Full diagnosis in `docs/backtest-reference.md`.
 
 ## 7. Sizing & exposure (`account_sim.py`)
 

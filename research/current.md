@@ -50,8 +50,11 @@ v4 composition bridge waits on data; rollback triggers are checked at gates,
 never read from silence.
 
 **Standing hazards carried forward** (each has its full entry in an archive):
-the `exit_basis` export column is unlabelled and scrambled — never key a study
-on it (archive/15); studies are ERA-scoped and the bare export name is not a
+the `exit_basis` export column is unlabelled and scrambled on **v3 and
+earlier** and those exports are frozen (archive/15) — but it is CLEAN on v4
+(re-measured 2026-09-02: 485/485 labelled and internally consistent), so the
+rule is now era-scoped rather than absolute, and `BacktestProxy` carries it
+only for rows written after the 2026-09-02 writer fix; studies are ERA-scoped and the bare export name is not a
 population (archive/15, `lib/era.py`); ARM labels are study-local — cite
 `emission_timing ARM P`, never a bare `ARM P` (archive/17, `arm-index.md`);
 `study_review --dry-run` overwrites the review/digest artifacts (archive/17);
@@ -835,3 +838,68 @@ queued max-drawdown question for concentration-gated hedging; next-steps.md
 a clean grade and the operator's sign-off, the branch is recorded in
 `deployment-evidence.md` and §2.1 closes; a grading defect reopens the module,
 not the registration.
+
+## 2026-09-02 — `exit_basis` re-measured: the ban was right for v3 and WRONG for v4; the proxy half never wrote at all
+
+**Prompted by** the standing rule "never key a study on `exit_basis`" and the
+question of whether an unused column should just be deleted. It should not — but
+the ban needed narrowing, and re-measuring turned up a separate live bug.
+
+**What the column is.** `{PROD, CREDIT, BEAR_DEBIT, <regime cell>}` in
+merge-precedence order — which of the four exit rule sets governed a result row.
+Pooling rows across bases is exactly the ambiguity it exists to prevent, so it is
+the natural stratifier for any future exit study.
+
+**Three findings, measured on `backtests/to_evaluate/` (era v4, 2026-08-27 export).**
+
+1. **v4 is clean.** Header matches `core._KEY_ORDER` **47/47**; **485/485 rows
+   labelled** — `PROD` 260 / `CREDIT` 113 / `BEAR_DEBIT` 95 / `BEAR_HE` 17. Every
+   2026-08-14 corruption symptom is gone: **0** `CREDIT` rows on a positive entry
+   price (7 of 13 before), `BEAR_HE` does carry a `trailing_stop`, `BEAR_DEBIT`
+   does carry `be_stop`. Cause of the repair: the 2026-08-11 version bump
+   recreated the tabs empty, and `append_rows` writes a header on an empty tab.
+   Nobody fixed it deliberately — the version bump did it as a side effect, which
+   is why it went unnoticed for three weeks.
+2. **v3 and earlier stay unreadable, permanently.** `v3_BacktestResults` has no
+   `exit_basis` header at all — 47 columns ending in a nameless `''` field.
+   `v2_BacktestResults` (46), `v3_BacktestProxy` and `v2_BacktestProxy` (45) do
+   not carry the column. Frozen exports; this never gets repaired. The
+   2026-08-14 measurement was correct **about the export it was taken on**.
+3. **`BacktestProxy` has been blank in every era, and it was not corruption —
+   it was a write bug.** `proxy.py::_evaluate` copied only `_RESULT_COLS` into
+   the row, while `exit_basis` sits in `_BASIS_COLS`. All **1,111** rows blank,
+   including the **461 `underlying_trend`** rows that `proxy.py:536` explicitly
+   sets to `"NONE"`. A study stratifying the proxy book by exit profile would
+   have read it as a single basis, silently.
+
+**Zero readers, and that is the point.** Nothing in `scripts/`, `lib/`, `web/` or
+any study consumes the column today. It was kept — over deletion — because the
+four bases are four different exit rule sets and a future exit study needs to cut
+on them; a write-only column that is *correct* is cheap, and it is the last
+column in both key orders, so it costs nothing positionally either.
+
+**Shipped (no simulated number changes — `_exit_basis` is a labeller, it does not
+feed `_effective_sim_cfg`):**
+
+- `proxy.py::_evaluate` copies `_RESULT_COLS + _BASIS_COLS`. Re-run the proxy
+  before reading the column off that tab; existing rows stay blank.
+- `align_tab_headers.py` resolves a target schema **per tab** (`SCHEMAS` /
+  `schema_for`): analysis → `ROW_COLUMNS`, `BacktestResults` → `_KEY_ORDER`,
+  `BacktestProxy` → `_PROXY_KEY_ORDER`, `vN_` renames mapping to the same
+  schema. It targeted `ROW_COLUMNS` for **every** tab before — that gap is
+  precisely how the column landed nameless on v3. Both tabs now sweep by default;
+  the live v4 headers already agree (47/47, 46/46), so this is a guard against
+  the next key-order change, not a repair. **`next-steps.md` §0c's open operator
+  action is closed by this, and needed no Sheets write.**
+- The ban narrowed from absolute to era-scoped in `simulate.py`,
+  `replay_basis.py`, `docs/backtest-reference.md`, `glossary.md`,
+  `deployment-evidence.md` and `next-steps.md` §0c/§3.
+
+**What did NOT change.** `lib/replay_basis.py` still refuses to key on the
+column, deliberately: it must work on v3, and "which profile was this written
+under" is a different question from "does this row replay under the profile I am
+testing" — the latter has to come from the replay, not a stored label.
+
+**Tests: 2,723 passed.** 8 new — 3 pinning that a proxy row carries its basis
+(priced tier `PROD`, direction-only `NONE`, `unevaluable` blank; the first two
+fail without the fix, verified), 5 pinning the per-tab schema routing.

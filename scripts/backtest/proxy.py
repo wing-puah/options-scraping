@@ -593,7 +593,13 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         if outcome is None:
             continue
         proxy_method, detail, result, used_legs = outcome
-        for k in _RESULT_COLS:
+        # _BASIS_COLS as well as _RESULT_COLS: `exit_basis` is declared in
+        # _PROXY_KEY_ORDER and set by every method (_simulate stamps it on the
+        # priced tiers; _method3 sets "NONE"), but it lived outside this copy
+        # loop until 2026-09-02, so it never reached the row. The whole proxy
+        # tab was blank in that column, in every era — a study stratifying by
+        # exit profile would have silently read the proxy book as one basis.
+        for k in _RESULT_COLS + _BASIS_COLS:
             if k in result and result[k] != "":
                 row[k] = result[k]
         row["created_datetime"] = created_datetime  # methods may blank it

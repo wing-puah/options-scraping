@@ -580,3 +580,56 @@ def test_redo_requires_date_bounds(monkeypatch):
     monkeypatch.setattr("sys.argv", ["proxy", "--redo"])
     with pytest.raises(SystemExit):
         proxy.main()
+
+
+# ── 11. exit_basis reaches the row (regression, 2026-09-02) ──────────────────────
+# `exit_basis` is declared in _PROXY_KEY_ORDER via _BASIS_COLS, but _evaluate's
+# copy loop iterated _RESULT_COLS alone, so no method's value ever reached the
+# row: the whole BacktestProxy tab was blank in that column, in every era. The
+# column names which exit profile governed a row (PROD/CREDIT/BEAR_DEBIT/a
+# regime cell), so a study stratifying by profile would have read the entire
+# proxy book as a single basis. See docs/backtest-reference.md `exit_basis`.
+
+def test_evaluate_stamps_exit_basis_on_a_priced_tier(cache_dir):
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+    ])
+
+    row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-07-06T10:00:00", False)
+
+    assert row["proxy_method"] == "strike_expiry_tweak"
+    # A debit play outside every override cell — the base config governed it.
+    assert row["exit_basis"] == "PROD"
+
+
+def test_evaluate_stamps_none_on_the_direction_only_tier(cache_dir):
+    # Method 3 runs no exit rules at all, so its basis is neither PROD nor a
+    # cell. "NONE" is explicit precisely so it is not confused with blank.
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
+        ("2026-06-02", 260.0, "45.0", "0.50", 9.0, 11.0),
+    ])
+
+    row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-08-11T10:00:00", False)
+
+    assert row["proxy_method"] == "underlying_trend"
+    assert row["exit_basis"] == "NONE"
+
+
+def test_unevaluable_rows_carry_no_basis(cache_dir):
+    # Nothing was simulated, so there is no profile to name. Blank, not "NONE".
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+
+    row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-08-11T10:00:00", False)
+
+    assert row["proxy_method"] == "unevaluable"
+    assert row.get("exit_basis", "") == ""

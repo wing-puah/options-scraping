@@ -1,4 +1,10 @@
-"""Realign an analysis tab's header row with `config.ROW_COLUMNS`.
+"""Realign a tab's header row with the schema its writer appends against.
+
+Two schemas, keyed by tab (`SCHEMAS`): the analysis tabs answer to
+`analysis_pipeline.config.ROW_COLUMNS`, and the two backtest tabs answer to
+`backtest.core._KEY_ORDER` / `backtest.proxy._PROXY_KEY_ORDER`. The backtest
+tabs were NOT covered until 2026-09-02, and that gap is how `exit_basis`
+reached the v3 export as a nameless 47th column (docs/backtest-reference.md).
 
 `sheets_client.append_rows` writes values POSITIONALLY, so a tab whose header
 stopped short of the schema mislabels every column after the gap — and any
@@ -18,6 +24,7 @@ mapping decision a script must not guess at.
 Run:
     python scripts/align_tab_headers.py --dry-run
     python scripts/align_tab_headers.py --tab AnalysisClaude
+    python scripts/align_tab_headers.py --tab BacktestResults --dry-run
 """
 from __future__ import annotations
 
@@ -32,10 +39,32 @@ sys.path.insert(0, str(ROOT))
 from lib import sheets_client  # noqa: E402
 from lib.logger import setup_logging  # noqa: E402
 from scripts.analysis_pipeline import config  # noqa: E402
+from scripts.backtest.core import _KEY_ORDER  # noqa: E402
+from scripts.backtest.proxy import _PROXY_KEY_ORDER  # noqa: E402
 
 log = logging.getLogger("align_tab_headers")
 
-DEFAULT_TABS = [e.tab for e in config.ENGINES.values()] + [config.TICKER_SPECIFIC_TAB]
+_ANALYSIS_TABS = [e.tab for e in config.ENGINES.values()] + [config.TICKER_SPECIFIC_TAB]
+BACKTEST_TABS = ["BacktestResults", "BacktestProxy"]
+DEFAULT_TABS = _ANALYSIS_TABS + BACKTEST_TABS
+
+# Tab -> the column order its writer appends against. A tab absent here falls
+# back to ROW_COLUMNS, which keeps `--tab v3_AnalysisClaude` and friends working
+# without enumerating every versioned rename.
+SCHEMAS: dict[str, list[str]] = {
+    "BacktestResults": list(_KEY_ORDER),
+    "BacktestProxy": list(_PROXY_KEY_ORDER),
+}
+
+
+def schema_for(tab: str) -> list[str]:
+    """The target header for `tab`. Versioned renames (`v3_BacktestResults`) map
+    to the same schema as the tab they were renamed from — the suffix is the
+    prompt version, not a different column set."""
+    for name, target in SCHEMAS.items():
+        if tab == name or tab.endswith(f"_{name}"):
+            return target
+    return list(config.ROW_COLUMNS)
 
 
 def plan(header: list[str], rows: list[list[str]],
@@ -70,7 +99,7 @@ def plan(header: list[str], rows: list[list[str]],
 def align_tab(tab: str, dry_run: bool) -> bool:
     """True when the tab ends up matching the schema (or already did)."""
     header, rows = sheets_client.get_all_values(tab)
-    target = list(config.ROW_COLUMNS)
+    target = schema_for(tab)
     if not header:
         log.info("%s: empty tab — nothing to align", tab)
         return True

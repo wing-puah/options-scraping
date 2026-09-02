@@ -78,27 +78,50 @@ reports "95.7% of rows changed" — that is 4-decimal CSV round-trip noise; at a
 `tests/test_exit_replay_gate.py` pin all of this, including that a **true HARD
 row still exits 1**.
 
-⚠️ **NEW STANDING HAZARD — do NOT key anything on the `exit_basis` column.** This
-section previously recommended identifying superseded rows by that column. It
-exists in `_KEY_ORDER` (`scripts/backtest/core.py:61`) and the writer
-(`simulate.py:_exit_basis`) is correct, but it reaches the export as an
-**unlabelled 47th column** (the Sheets tab header was never given the name) and
-its values are **scrambled relative to their rows**. Measured 2026-08-14: of 67
-`BacktestResults` rows created after the trail shipped — every one of which should
-carry a basis — **65 are blank**, while **55 `BEAR_HE` and 11 `CREDIT` labels sit
-on rows created *before* the column existed**; **7 of 13 `CREDIT`-tagged rows have
-a positive entry price**, which `_exit_basis` cannot produce; and no
-`BEAR_HE`-tagged row has a `trailing_stop` exit. Root cause is the hazard
-CLAUDE.md warns about: `scripts/align_tab_headers.py` checks only the **analysis**
-tabs against `config.ROW_COLUMNS` and does **not** cover
-`BacktestResults`/`BacktestProxy` against `core._KEY_ORDER`.
-`docs/backtest-reference.md`'s "blank = PROD-basis by definition" is **false on
-this export**; both that file and `simulate.py` now carry the warning.
+⚠️ **`exit_basis` — the hazard is now ERA-SCOPED, and the operator action below
+is DONE (2026-09-02).** This section originally recommended identifying
+superseded rows by that column, then banned it outright. The accurate rule:
 
-- [ ] **Operator action (a Sheets write, NOT taken):** extend
-      `align_tab_headers.py` to cover the two backtest tabs against
-      `core._KEY_ORDER`, fix the header, then re-verify the values against
-      entry-price sign before any study reads the column.
+- **v3 and earlier — permanently unreadable.** The writer
+  (`simulate.py::_exit_basis`) was always correct, but the Sheets tab header was
+  never given the name, so values reached the export as an **unlabelled 47th
+  column**, **scrambled relative to their rows**. Measured 2026-08-14: of 67
+  `BacktestResults` rows created after the trail shipped — every one of which
+  should carry a basis — **65 are blank**, while **55 `BEAR_HE` and 11 `CREDIT`
+  labels sit on rows created *before* the column existed**; **7 of 13
+  `CREDIT`-tagged rows have a positive entry price**, which `_exit_basis` cannot
+  produce; and no `BEAR_HE`-tagged row has a `trailing_stop` exit. Those exports
+  are frozen, so this never gets repaired.
+- **v4 — clean.** The 2026-08-11 version bump recreated the tabs empty and
+  `append_rows` wrote a full header. Re-measured 2026-09-02 on the 2026-08-27
+  export: header matches `core._KEY_ORDER` **47/47**, **485/485 rows labelled**
+  (`PROD` 260 / `CREDIT` 113 / `BEAR_DEBIT` 95 / `BEAR_HE` 17), **no** `CREDIT`
+  row on a positive entry price, and the `BEAR_HE` / `BEAR_DEBIT` rows **do**
+  carry the `trailing_stop` / `be_stop` exits that define those cells. A study
+  may stratify a v4 book by exit profile — that is what the column is for.
+- **`BacktestProxy` — blank in every era, for a different reason.** Not
+  corruption: `proxy.py::_evaluate` copied only `_RESULT_COLS` into the row
+  while `exit_basis` sits in `_BASIS_COLS`, so no method's value ever reached
+  the sheet (all 1,111 rows blank, including 461 `underlying_trend` rows that
+  `proxy.py` explicitly sets to `"NONE"`). **Fixed 2026-09-02**; the tab carries
+  a basis only for rows written by a proxy run after that, so re-run before
+  reading it.
+- **Still classify mechanically to ask whether a row REPLAYS.**
+  `lib/replay_basis.py` deliberately does not read the column, and that does not
+  change: the column names the profile a row was WRITTEN under, which is a
+  different question, and the classifier must work on v3 too.
+
+- [x] **Operator action — DONE 2026-09-02, and no Sheets write was needed.**
+      `align_tab_headers.py` now resolves a target schema PER TAB (`SCHEMAS` /
+      `schema_for`): analysis tabs → `config.ROW_COLUMNS`, `BacktestResults` →
+      `core._KEY_ORDER`, `BacktestProxy` → `proxy._PROXY_KEY_ORDER`, with
+      `vN_` renames mapping to the same schema. It targeted `ROW_COLUMNS` for
+      every tab before, which is exactly how the column landed nameless. Both
+      backtest tabs are in `DEFAULT_TABS`, so a bare `--dry-run` sweeps them.
+      The live v4 headers already agree 47/47 and 46/46 — the check is a guard
+      against the next key-order change, not a repair. The values were
+      re-verified against entry-price sign (0 violations). 5 tests in
+      `tests/test_align_tab_headers.py`, 3 in `tests/test_backtest_proxy.py`.
 - [x] **Minor follow-up (DONE 2026-08-24):** `book.py`'s `diag["debit_calib"]`
       now tallies the four-way split (`superseded` key added; classifier shared
       via `lib/replay_basis.py`) and the three print sites show it. It used to
@@ -396,9 +419,13 @@ strings.
 - **Studies are ERA-scoped and the bare export filename does not name a
   population** — `lib/era.py` is the single encoding; run a past era with
   `--era v3` (archive/15).
-- **Never key a study on the `exit_basis` column.** It reaches the export
-  unlabelled and scrambled — classify by unreachable exit reasons instead
-  (§0c(A), archive/15).
+- **`exit_basis` is readable on v4, not on v3 — and never for a REPLAY
+  question.** v3 and earlier reach the export unlabelled and scrambled and are
+  frozen that way; v4 is clean (485/485, verified 2026-09-02) and may be used to
+  stratify by exit profile; `BacktestProxy` needs a re-run after the 2026-09-02
+  writer fix before it carries anything. To ask whether a row *replays* under a
+  profile, still classify by unreachable exit reasons — `lib/replay_basis.py`,
+  which works on every era (§0c(A), archive/15).
 - **`hedge_exposure`'s registration describes the `real` stratum, not the
   ratified book.** Its plan-time exposure table, concentration quantiles and
   504-session universe reproduce on `real` alone; they are not disclosures about

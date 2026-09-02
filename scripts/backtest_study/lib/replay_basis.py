@@ -115,16 +115,22 @@ def classify(t: Trade, prod: dict, unreachable: set[str], replay_fn=replay):
       stored row disagree about a path both sides claim the same rules for.
       This is the only bucket that stops a study.
 
-    NOT keyed on the `exit_basis` column. That column exists in `_KEY_ORDER`
-    (`scripts/backtest/core.py:61`) but reaches the export UNLABELLED and
-    MISALIGNED — measured 2026-08-14: 7 of 13 `CREDIT`-tagged rows have a
-    POSITIVE entry price (impossible per `simulate.py:_exit_basis`), no
-    `BEAR_HE`-tagged row has a `trailing_stop` exit, and all 12 rows that
-    provably ran the BEAR_HE trail are blank. The Sheets tab header was never
-    given the column, so the values land in a nameless trailing field — exactly
-    the hazard CLAUDE.md warns about. Re-key on it only after
-    `scripts/align_tab_headers.py` has fixed the header AND the values have been
-    re-verified against entry-price sign.
+    NOT keyed on the `exit_basis` column, and that stays true now that the
+    column is clean on v4 (see `simulate.py:_exit_basis`). Two reasons, neither
+    of which the v4 repair touches:
+
+    - This classifier must work on EVERY era. On v3 and earlier the column
+      reaches the export unlabelled and scrambled (measured 2026-08-14: 7 of 13
+      `CREDIT` tags on positive-entry-price rows, no `BEAR_HE` tag on a
+      `trailing_stop` exit, all 12 provable-trail rows blank), and those exports
+      are frozen. A column-keyed classifier would silently mis-bucket them.
+    - The column names the profile the row was WRITTEN under. This function asks
+      the different question of whether the row reproduces under the profile
+      being tested — so it must be derived from the replay, not from a stored
+      label that cannot be cross-checked.
+
+    A study that wants to STRATIFY a v4 book by exit profile should read the
+    column; a study that wants to know whether a row replays should not.
     """
     exact, near, want, got = calib(t, prod, replay_fn)
     if exact:

@@ -231,7 +231,9 @@ same rows. Every future exit study should quote both baselines.**
 
 The `exit_basis` column on a result row records which of these actually governed
 it: `{PROD, CREDIT, BEAR_DEBIT, <regime cell>}`, reported in merge-precedence
-order. See `docs/backtest-reference.md`.
+order. Readable on **v4** (485/485 labelled, verified 2026-09-02), not on v3 or
+earlier, and on `BacktestProxy` only for rows written after 2026-09-02. See
+`docs/backtest-reference.md`.
 
 ---
 
