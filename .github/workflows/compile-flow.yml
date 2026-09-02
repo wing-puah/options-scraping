@@ -42,9 +42,29 @@ jobs:
         run: pip install -r requirements-compile.txt
 
       - name: Compile daily flow
-        # Always pass an explicit date: manual input if given, otherwise today UTC
-        # (= yesterday SGT, the user's timezone, since the job runs at 22:30 UTC).
-        run: python scripts/compile_flow.py --date "${{ inputs.date || '$(date -u +%Y-%m-%d)' }}"
+        # NEVER derive the trading day from the runner's clock. GitHub's scheduler
+        # starts this job late by anywhere from minutes to several hours (observed:
+        # the 2026-08-31 22:30 UTC slot ran at 2026-09-01 01:19 UTC, the 09-01 slot
+        # at 09-02 00:21 UTC), so `date -u` had already rolled past midnight and the
+        # job compiled an EMPTY next date, exited 0, and left the real trading day
+        # uncompiled. That silent success is why 09-01 had 22 snapshots and no
+        # compiled file. ET is not a fix either: a >5h delay rolls the ET day too.
+        #
+        # Instead compile a 3-day window and let --skip-existing decide: a date
+        # already compiled is left alone (recompiling would drop enrich-oi's
+        # columns), a date with no snapshots is a no-op, and a missed run heals on
+        # the next pass. Same self-healing shape as `gc_flow.py --last 3` below and
+        # `build_baseline.py --backfill`. A manual dispatch still compiles exactly
+        # the date asked for, unconditionally.
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python scripts/compile_flow.py --date "${{ inputs.date }}"
+          else
+            python scripts/compile_flow.py \
+              --start "$(TZ=America/New_York date -d '3 days ago' +%Y-%m-%d)" \
+              --end   "$(TZ=America/New_York date +%Y-%m-%d)" \
+              --skip-existing
+          fi
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
