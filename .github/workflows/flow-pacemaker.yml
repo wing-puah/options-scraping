@@ -9,11 +9,17 @@ name: Flow Pacemaker
 # itself: each job sleeps to the next scrape time and runs the scraper in-process,
 # instead of asking the scheduler to start a fresh job every hour.
 #
-# Two chained jobs on purpose. A GitHub-hosted job is hard-killed at 6h, and one
-# job covering 16:40->22:05 would sit at ~92% of that ceiling — too little margin
-# to leave unattended. Chained jobs each get their own 6h budget, so neither half
-# runs much over 3h. Job B carries `if: always()` so a crash in A still leaves the
-# close scrape covered; worst case you lose half the snapshots, not the night.
+# The window starts at 15:00 UTC — 23:00 Singapore, the hour the pacemaker is
+# dispatched by hand — and runs hourly to 21:00 UTC, which is the 16:00 ET close
+# in EST and close +1h in EDT (same both-DST-regimes cover as scrape.yml's
+# '30 13-21' cron). The unusual scrape then fires at 22:00 UTC, always >=1h after
+# the close has settled.
+#
+# Two chained jobs are now MANDATORY, not merely prudent. A GitHub-hosted job is
+# hard-killed at 6h and the full 15:00->22:05 window is ~7h, so no single job can
+# hold it; split at 19:00 each half spans ~3h. Job B carries `if: always()` so a
+# crash in A still leaves the close scrape covered; worst case you lose half the
+# snapshots, not the night.
 #
 # This does NOT replace scrape.yml's crons — it is additive and dispatch-only.
 # Compile is deliberately NOT included: compile-flow.yml takes a `date` input and
@@ -24,14 +30,14 @@ on:
   workflow_dispatch:
     inputs:
       early_times:
-        description: 'Job A flow scrape times, UTC HHMM, space-separated'
+        description: 'Job A flow scrape times, UTC HHMM, space-separated (1500 UTC = 2300 SGT)'
         required: false
-        default: '1730 1830 1930'
+        default: '1500 1600 1700 1800'
         type: string
       late_times:
-        description: 'Job B flow scrape times, UTC HHMM, space-separated'
+        description: 'Job B flow scrape times, UTC HHMM, space-separated (2100 UTC = 0500 SGT)'
         required: false
-        default: '2030 2130'
+        default: '1900 2000 2100'
         type: string
       unusual_time:
         description: 'Job B unusual scrape time, UTC HHMM. Blank = skip.'
@@ -41,8 +47,11 @@ on:
 
 jobs:
   early:
+    # 350, not 240: a job dispatched an hour early spends that hour asleep, and a
+    # timeout below the 6h hard kill would cut the last scrape of the leg rather
+    # than the runner doing it. 350 lets the leg use its whole GitHub budget.
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 350
 
     steps:
       - uses: actions/checkout@v5
@@ -81,9 +90,16 @@ jobs:
     needs: early
     # Run even if the early half crashed or was cancelled — the 22:00 unusual
     # scrape is the single most valuable capture of the day.
+    #
+    # Residual limit, unchanged by the widened window: this leg's 6h budget starts
+    # when it starts, so if `early` dies within minutes of dispatch, `late` begins
+    # ~15:05 and is hard-killed ~21:05 — before the 22:00 unusual scrape. Nothing
+    # in a workflow can delay a job's start, so the fix is operational: if `early`
+    # fails early, re-dispatch with early_times blank and let the fresh `late` leg
+    # start its clock later.
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 350
 
     steps:
       - uses: actions/checkout@v5
