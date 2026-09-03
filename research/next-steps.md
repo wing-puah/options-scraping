@@ -327,6 +327,24 @@ worth tracking: the operator substituting a naked leg where a spread was emitted
 ⚠️ No log entry since 2026-08-13 records progress here. That is silence, not
 evidence of no progress — check the live-loop artifacts before re-planning it.
 
+**2026-09-03 — the OPERATOR-READ test belongs here, and it is worth running.**
+`text_features` (2026-09-02) closed the question "does the signal TEXT carry a
+machine-readable edge?": NULL in every arm, both eras — do not re-run it on
+these dates. But the operator reads `signal` qualitatively, with the price
+movement, to decide what is worth trading — so the text's value is realised in
+the operator's PICK, and only the journal can measure that. The test, to
+pre-register before any code (f4, `operator_read`): among LADDER-ELIGIBLE plays
+per date, TAKEN (journal `EXACT`/`STRUCTURE`/`CORE`/`SUBSTITUTED` matches) vs
+NOT TAKEN, paired by date, on R and PF (`protocol.pf_paired_by_date`, never
+without mean R), with the entry-session price move as the declared covariate
+(`next_day_move` already showed day-0 confirmation is a confound, so the read
+must be conditioned on it, not credited with it). Floor: ≥25 dates with ≥2
+eligible plays and ≥1 taken — a census first; the journal may not have it yet.
+A positive result is a statement about the operator's read, not about the
+prompt; a null means the ladder alone is as good as the ladder plus the read.
+Do NOT test this with a stripped-text `prompt_eval` candidate — that would
+remove exactly what the operator reads.
+
 ### 2.6 Rollback triggers — accumulating; check at gates, never read silence as "not met"
 
 The table is in [`deployment-evidence.md`](deployment-evidence.md) §"Open
@@ -375,6 +393,17 @@ was pulled.
 
 ### 2.8 Exit engine ignores per-play `invalidation` conditions — the last live item from the archived backlog
 
+**ANSWERED 2026-09-02 by `exit_from_text` (f2), and the answer is: do not
+build it.** The model's own invalidation level, evaluated as an underlying-close
+stop on the frozen replay, is CONTRARY on `bull_call_spread` / `LVOL` (dR −0.045,
+CI [−0.083, −0.008], every criterion true toward the negative sign) and NULL or
+UNDERPOWERED elsewhere on v4; the only positive cells are v3 `bear_put_spread`
+at a 1–2% buffer — a re-read item when 2026 dates reach v4, never a ship from a
+secondary era. The parser hazard below was honoured (unparseable levels are
+their own reported bucket, 1.1%). `invalidation_exit` stays unshipped on
+evidence, not on backlog. The text below is kept as the record of the original
+gap.
+
 Carried here so archiving the backlog loses nothing. The old
 `research/backlog.md` is now
 [archive/00](archive/00-backtest-engine-backlog-2026-06.md); its triage closed
@@ -400,6 +429,30 @@ status. Two cautions, both from the archive:
 Do not quote any P&L figure from that archive: it is all on the superseded
 pre-2026-07-06 entry basis, and the v1 exports store `pnl_pct` as `"1.64%"`
 strings.
+
+### 2.9 `prompt_eval` — harness built, noise floor running; a candidate needs an OPERATOR hypothesis
+
+Built and committed 2026-09-03 (`01dcb97`); registration
+`pre-registrations/f1_selection/prompt_eval.md`. Date sets declared by rule in
+`backtests/prompt_eval/{variance,backfill}-dates.txt`. The PROD × 3 variance run
+was interrupted by the account session limit and resumed into
+`backtests/prompt_eval/variance-20260903/` (log beside it); when it ends, append
+the noise floor to `current.md`. Then, only with a COMMITTED candidate directory
+holding `analysis-framework.md`, `claude.md` and `CANDIDATE.md`:
+
+```bash
+python -m scripts.backtest_study run prompt_eval -- run --candidate <dir> \
+  --dates backtests/prompt_eval/backfill-dates.txt \
+  --run-dir backtests/prompt_eval/backfill-$(date +%Y%m%d) \
+  --variance-json backtests/prompt_eval/variance-20260903/variance.json   # ~80 opus calls
+python -m scripts.backtest_study run prompt_eval -- accumulate --candidate <dir> \
+  --date YYYY-MM-DD --run-dir backtests/prompt_eval/live                  # each new live date
+```
+
+Fresh `--run-dir` every run (a used one is refused). `text_features` produced
+nothing for `draft` to work from, so the first candidate is the operator's
+hypothesis about what would make the signal more useful TO READ — not a
+data-derived edit and not a text ablation (see §2.5).
 
 ## 3. Standing rules the next session must not re-litigate
 
