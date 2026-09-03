@@ -1081,3 +1081,27 @@ session limit** at 23:36 (`claude exited 1` three times on 2024-02-01, repeat
 run dir seeded with the finished analyses (`variance-20260903/`); the harness
 skips a date whose rows CSV exists, so no model call is repeated. Noise floor
 to be appended when it lands.
+
+**Variance run LANDED 2026-09-03 (PROD × 3 repeats × 5 dates, 15 production
+calls, 11.8 h wall — 8.5 h of it Barchart-throttled proxy scraping).** The
+registered floor is small — `floor = 0.0419 (max |paired ΔR| over 3
+PROD-vs-PROD pairs)` — but the number under it is the finding: **the same prompt
+on the same date does not emit the same book.** Per-date mean R across repeats:
+`2024-11-18 +0.8241 +0.8400 +0.2812 spread 0.5589`, `2025-02-18 -0.7883 -0.7623
++0.1596 spread 0.9479`, `2025-08-19 +0.3228 +0.2809 -0.1411 spread 0.4639`;
+`mean spread 0.4435 max spread 0.9479`. Tier mix of the deployed top-3 moves
+with it (`A=7 B=5 C=17` / `A=3 B=7 C=17` / `A=2 B=10 C=18`); emission counts
+are stable (53/52/55). The pairwise means cancel because per-date swings go
+both ways, which is why the paired-ΔR floor is small while two of the three
+pair CIs span ±0.45. Consequence for `prompt_eval`, stated as an ESTIMATE from
+five dates: with a per-date paired-difference SD around 0.35–0.40, the 40-date
+backfill set can resolve a candidate effect only if |ΔR| on the deployed top-3
+is roughly ≥ 0.12 per row — a tier-sized effect, not a wording-sized one. A
+candidate scored on 40 dates that comes back NULL is therefore ambiguous
+between "no effect" and "effect below the resolution", and the registration's
+LIVE-set precedence is the only route to a finer answer. Second consequence,
+outside `prompt_eval`: **every single-run analysis row in the book carries this
+run-to-run noise** — the ladder's edge (A > B > C) was measured through it and
+survived, which is a point in the ladder's favour, but any per-date claim on
+one analysis run is one draw from a wide distribution. `variance.json` and the
+report live in `backtests/prompt_eval/variance-20260903/`.

@@ -184,10 +184,11 @@ STUDIES: dict[str, Study] = {
     ),
     "prompt_eval": Study(
         family="selection", state="open",
-        attention="2026-09-02 harness built; VARIANCE and BACKFILL date sets declared by "
-                  "rule (backtests/prompt_eval/*-dates.txt); the PROD noise-floor run is "
-                  "the first scored step. Scoring a candidate needs a COMMITTED candidate "
-                  "dir — operator decision after text_features' robustness list is read.",
+        attention="2026-09-03 noise floor LANDED: `floor = 0.0419` on paired dR, but the "
+                  "same prompt on the same date re-emits a different book (per-date "
+                  "mean-R spread across 3 repeats `mean 0.4435 max 0.9479`, tier mix "
+                  "A=7/3/2). Estimate: the 40-date backfill resolves only |dR| >= ~0.12 "
+                  "per row. A candidate still needs a COMMITTED dir — operator decision.",
         question="Does a CANDIDATE analysis prompt beat the shipped one on the same dates "
                  "under the shipped top-3/day ladder — paired dR, profit factor, "
                  "hallucination rate, zero bear_call leaks — with the live dates, not the "
