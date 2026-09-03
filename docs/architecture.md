@@ -766,10 +766,12 @@ on. `book_evaluable=False` resolves the blank-vs-false seam at serialisation:
 would have proven them wasn't available — the same missing/zero discipline the greeks get,
 applied one layer up.
 
-**Open-book record** (`s05b_bookwriter.py`) — one row per OPEN POSITION per marked session,
-flattened to `OPEN_BOOK_COLUMNS` (column-by-column definitions, and the full flag vocabulary:
+**Open-book record** (`s05b_bookwriter.py`) — one row per OPEN POSITION, flattened to
+`OPEN_BOOK_COLUMNS` (column-by-column definitions, and the full flag vocabulary:
 [`open-book-reference.md`](open-book-reference.md)) and written to the OpenBook tab in
-`TRADE_JOURNAL_SPREADSHEET_ID` and `journal/open_book.csv`. It answers the question the other
+`TRADE_JOURNAL_SPREADSHEET_ID` and `journal/open_book.csv`. The two destinations have DIFFERENT
+jobs: the tab is a MIRROR of the current book, replaced wholesale on every run, while the CSV is
+the append-only, generational archive of every mark ever taken. It answers the question the other
 two tabs structurally cannot: TradeJournal describes a trade at the instant it happened and is
 never revisited, so nothing in it says that a position opened five weeks ago is now past its §5
 exit date, sitting on an unpriced leg, or carrying the ticker that just breached its cap. Until
@@ -784,17 +786,36 @@ VERDICTS — nothing downstream reads one, the caps still bind in `s03_risk.py` 
 deadline is still computed in `lib/exit_rules.py`, which is why those thresholds are allowed to
 be round numbers with nothing fitted behind them.
 
-`book_id` ends in a sha256 of the row's content, covering only the 27 `OPEN_BOOK_COLUMNS` —
-identity and wall clock still excluded (`book_id`, `generation`, `snapshot_utc`) — so re-marking
-an unchanged POSITION appends nothing while a genuinely re-marked one appends its own row at
-`generation = n+1`. That is narrower than it used to be: the book-level facts (the net cap
-block, the book counts, NetLiquidation, whether the book was reconstructed, the pull's notes)
-were dropped from the row rather than hashed, so a position moving no longer re-appends the
-WHOLE book the way it did when every row carried those totals identically — only the position
-that actually changed appends a new generation. A net-cap flag flipping on a row still changes
-that row's hash and re-appends it. Read the current book as "largest `as_of_date`, then largest
-`generation` per position" (`latest_snapshot()` does exactly that, bounded by `on_or_before` the
-same way `recwriter.recent_rows()` is — this read rule is unchanged by the trim). The
+**The tab is a mirror (2026-09-03).** It used to be append-only and generational like
+Recommendations, and that was wrong for what it is FOR. The tab's job is to be sorted on
+`status`; appending meant a position closed three weeks ago kept its last ATTENTION row at the
+top of that sort forever, indistinguishable from a live one, and the operator had to filter on
+`as_of_date` and `generation` before the column meant anything. `sheets_client.replace_rows()`
+now rewrites the header and every data row from `OPEN_BOOK_COLUMNS` on each run, so what is on
+the tab is what is held, and a FLAT book CLEARS it rather than leaving yesterday's positions
+standing (a spuriously flat book cannot reach here — `flexparse._refuse_a_contradicted_flat_book`
+already refused it). Nothing reads the tab back first: there is no positional-append hazard
+(the header is written with the rows it labels), so the old `ensure_header` "mismatch" refusal
+and the `vN_OpenBook` rename it prescribed are both gone — a tab on an older layout is simply
+rewritten. `replace_rows` writes the new block at A1 BEFORE clearing what is below and to the
+right of it, so the tab is never momentarily empty; an empty book is a statement, not a gap.
+This is a deliberate DIVERGENCE from `s05_writer.py` and `s07_recwriter.py`, which stay
+append-only because a trade and a card are events, whereas a holding is a state.
+
+**The CSV is the archive.** `book_id` ends in a sha256 of the row's content, covering only the
+27 `OPEN_BOOK_COLUMNS` — identity and wall clock excluded (`book_id`, `generation`,
+`snapshot_utc`) — so re-marking an unchanged POSITION appends nothing while a genuinely
+re-marked one appends its own row at `generation = n+1`. That is narrower than it used to be:
+the book-level facts (the net cap block, the book counts, NetLiquidation, whether the book was
+reconstructed, the pull's notes) were dropped from the row rather than hashed, so a position
+moving no longer re-appends the WHOLE book the way it did when every row carried those totals
+identically — only the position that actually changed appends a new generation. A net-cap flag
+flipping on a row still changes that row's hash and re-appends it. Read the current book out of
+the archive as "largest `as_of_date`, then largest `generation` per position"
+(`latest_snapshot()` does exactly that, bounded by `on_or_before` the same way
+`recwriter.recent_rows()` is) — which is also, by construction, what the tab already shows. The
+CSV is what answers "was this flagged before it went wrong?", and it costs nothing: it is
+written first, its failure is fatal, and it is the copy that survives a Sheets outage. The
 missing/zero discipline holds at this seam too: an unpriced position is written with BLANK delta
 cells and `priced=False`, never a zero — `_net_delta_notional()` also recomputes the net when
 `__main__._build_book` skipped `assess()` for want of NetLiquidation, so a 0.0 dataclass default

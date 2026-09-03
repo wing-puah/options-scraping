@@ -519,24 +519,18 @@ def test_latest_snapshot_on_an_empty_record():
 # Sheets: ordering, and the failure contract
 # --------------------------------------------------------------------------
 class _FakeSheets:
+    """A tab that behaves like the real one: `replace_rows` REPLACES."""
+
     def __init__(self):
         self.calls = []
-        self.sent = []
+        self.tab = []       # what the tab holds now
+        self.columns = []   # the header it holds it under
 
-    def ensure_tab(self, tab, min_cols=0, spreadsheet_id=None):
-        self.calls.append(("ensure_tab", tab, min_cols))
-
-    def ensure_header(self, tab, schema, spreadsheet_id=None):
-        self.calls.append(("ensure_header", tab, list(schema)))
-        return "ok"
-
-    def get_all_rows(self, tab, spreadsheet_id=None):
-        self.calls.append(("get_all_rows", tab, None))
-        return []
-
-    def append_rows(self, tab, rows, raw=False, spreadsheet_id=None):
-        self.calls.append(("append_rows", tab, len(rows)))
-        self.sent.extend(rows)
+    def replace_rows(self, tab, rows, columns, raw=False, spreadsheet_id=None):
+        self.calls.append(("replace_rows", tab, len(rows)))
+        self.columns = list(columns)
+        self.tab = [dict(r) for r in rows]
+        return len(rows)
 
     def set_meta(self, tab, fingerprint="", last_row_time="", spreadsheet_id=None):
         self.calls.append(("set_meta", tab, None))
@@ -553,27 +547,53 @@ def fake_sheets(monkeypatch):
     return fake
 
 
-def test_the_tab_is_sized_to_the_schema_before_anything_reads_it(tmp_path, fake_sheets):
-    bw.write(_book([_pos()]), _ctx(), csv_path=tmp_path / "b.csv")
-    names = [c[0] for c in fake_sheets.calls]
-    assert names.index("ensure_tab") < names.index("get_all_rows")
-    assert [c for c in fake_sheets.calls if c[0] == "ensure_tab"][0][2] == len(OPEN_BOOK_COLUMNS)
+def test_the_tab_holds_exactly_the_current_book_in_contract_order(tmp_path, fake_sheets):
+    bw.write(_book([_pos("NVDA"), _pos("AMD", conid_key="3|4")]), _ctx(),
+             csv_path=tmp_path / "b.csv")
+    assert fake_sheets.columns == OPEN_BOOK_COLUMNS
+    assert list(fake_sheets.tab[0]) == OPEN_BOOK_COLUMNS
+    assert [r["ticker"] for r in fake_sheets.tab] == ["AMD", "NVDA"]
 
 
-def test_ensure_header_runs_after_ensure_tab_and_before_append_rows(tmp_path, fake_sheets):
-    bw.write(_book([_pos()]), _ctx(), csv_path=tmp_path / "b.csv")
-    names = [c[0] for c in fake_sheets.calls]
-    assert names.index("ensure_tab") < names.index("ensure_header") < names.index("append_rows")
+def test_a_position_that_left_the_book_leaves_the_tab_with_it(tmp_path, fake_sheets):
+    """The reason the tab is a mirror. Appending would leave AMD's last
+    ATTENTION row at the top of a status sort forever, indistinguishable from
+    a position still held."""
+    p = tmp_path / "b.csv"
+    bw.write(_book([_pos("NVDA"), _pos("AMD", conid_key="3|4")]), _ctx(), csv_path=p)
+    bw.write(_book([_pos("NVDA")]), _ctx(as_of_date="2026-08-15"), csv_path=p)
+    assert [r["ticker"] for r in fake_sheets.tab] == ["NVDA"]
+    # ...and the archive still remembers AMD was held.
+    assert {r["ticker"] for r in bw.read_csv_rows(p)} == {"AMD", "NVDA"}
 
 
-def test_rows_reach_sheets_in_contract_order(tmp_path, fake_sheets):
-    bw.write(_book([_pos()]), _ctx(), csv_path=tmp_path / "b.csv")
-    assert list(fake_sheets.sent[0]) == OPEN_BOOK_COLUMNS
+def test_a_flat_book_clears_the_tab_rather_than_leaving_yesterdays(tmp_path, fake_sheets):
+    p = tmp_path / "b.csv"
+    bw.write(_book([_pos()]), _ctx(), csv_path=p)
+    summary = bw.write(_book([]), _ctx(as_of_date="2026-08-15"), csv_path=p)
+    assert fake_sheets.tab == []
+    assert summary["sheets_written"] == 0
+    assert summary["positions"] == 0
+    assert [c[0] for c in fake_sheets.calls].count("replace_rows") == 2
+
+
+def test_an_unchanged_rerun_still_refreshes_the_tab_though_the_archive_gains_nothing(
+        tmp_path, fake_sheets):
+    """The archive dedupes on content; the tab does not, because a mirror that
+    skips a run it thinks is unchanged is a mirror that can silently hold a
+    book from a failed earlier write."""
+    p = tmp_path / "b.csv"
+    bw.write(_book([_pos()]), _ctx(), csv_path=p)
+    summary = bw.write(_book([_pos()]), _ctx(snapshot_at=T2), csv_path=p)
+    assert summary["csv_written"] == 0
+    assert summary["skipped_duplicate"] == 1
+    assert summary["sheets_written"] == 1
+    assert [c[0] for c in fake_sheets.calls].count("replace_rows") == 2
 
 
 def test_a_sheets_failure_is_reported_but_never_loses_the_local_row(tmp_path, monkeypatch):
     class Boom(_FakeSheets):
-        def append_rows(self, *a, **kw):
+        def replace_rows(self, *a, **kw):
             raise RuntimeError("sheets is down")
 
     monkeypatch.setattr(bw, "sheets_client", Boom())
@@ -583,26 +603,6 @@ def test_a_sheets_failure_is_reported_but_never_loses_the_local_row(tmp_path, mo
     assert "sheets is down" in summary["sheets_error"]
     assert summary["csv_written"] == 1
     assert len(bw.read_csv_rows(p)) == 1
-
-
-def test_a_tab_still_on_the_old_layout_is_refused_not_written_under_it(tmp_path, monkeypatch):
-    """`append_rows` is positional: 27-column rows under the old 41-column
-    header would file delta_notional under `structure`. Refuse, keep the CSV,
-    and name the fix (rename the tab; the next run recreates it)."""
-    class Mismatch(_FakeSheets):
-        def ensure_header(self, tab, schema, spreadsheet_id=None):
-            self.calls.append(("ensure_header", tab, list(schema)))
-            return "mismatch"
-
-    fake = Mismatch()
-    monkeypatch.setattr(bw, "sheets_client", fake)
-    monkeypatch.setenv("TRADE_JOURNAL_SPREADSHEET_ID", "sheet-id")
-    p = tmp_path / "b.csv"
-    summary = bw.write(_book([_pos()]), _ctx(), csv_path=p)
-    assert summary["sheets_written"] == 0
-    assert "Rename the tab" in summary["sheets_error"]
-    assert not [c for c in fake.calls if c[0] == "append_rows"]
-    assert summary["csv_written"] == 1
 
 
 def test_a_missing_spreadsheet_id_writes_locally_and_says_so(tmp_path, monkeypatch):

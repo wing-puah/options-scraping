@@ -583,10 +583,13 @@ JUDGE_LOOKAHEAD_NOTE = ("model cutoff may postdate session_date — verdicts on 
 # --------------------------------------------------------------------------
 # Open book — what you are holding, and what wants attention
 # --------------------------------------------------------------------------
-# One row per OPEN POSITION per snapshot. Same append-at-end header rule as
-# JOURNAL_COLUMNS and RECOMMENDATION_COLUMNS: a column added here means the
-# OpenBook tab HEADER must gain it too, or new rows write an unlabelled
-# trailing column.
+# One row per OPEN POSITION per snapshot. UNLIKE JOURNAL_COLUMNS and
+# RECOMMENDATION_COLUMNS this schema is NOT bound by the append-at-end header
+# rule: the OpenBook tab is a MIRROR, replaced wholesale each run by
+# `sheets_client.replace_rows`, which writes the header together with the rows
+# it labels — so a column may be added, reordered or dropped here without a
+# tab migration. Only `journal/open_book.csv`, the append-only archive, has to
+# be migrated (`s05b_bookwriter._reconcile_csv_header` does it by NAME).
 #
 # COLUMN ORDER IS THE POINT. The tab is read left to right on a phone, so the
 # order is "what do I need to know about this position", nearest first:
@@ -637,8 +640,9 @@ OPEN_BOOK_COLUMNS = [
 # Excluded from the content hash that forms `book_id`: the row's IDENTITY and
 # its WALL CLOCK, exactly as REC_IDENTITY_EXCLUDED excludes them. Everything
 # else is hashed — including the marks, which is deliberate: a re-run on the
-# same day with the same greeks appends nothing, while a genuinely re-marked
-# book appends a new generation instead of overwriting the earlier mark.
+# same day with the same greeks adds nothing to the ARCHIVE, while a genuinely
+# re-marked book appends a new generation instead of overwriting the earlier
+# mark. The TAB dedupes on nothing; it is replaced whole every run.
 BOOK_IDENTITY_EXCLUDED = ("book_id", "generation", "snapshot_utc")
 
 # `book_id` alone is globally unique (it ends in a content hash). as_of_date and

@@ -28,15 +28,29 @@ generalising them would mean editing the module whose failure loses the day's
 TRADES in order to ship something that is not trades. This module mirrors their
 structure and their discipline and stays independent for the same reason.
 
-APPEND-ONLY AND GENERATIONAL. `book_id` ends in a hash of the row's CONTENT,
-marks included, so re-running the same session with the same greeks appends
-nothing at all. A genuinely re-marked POSITION — new spot, new delta, a cap
-flag that has since flipped — appends its own new row at `generation = n+1` and
-leaves the earlier mark, and every untouched position, alone. The tab is
-therefore a TIME SERIES of the book, not a snapshot that gets overwritten: what
-you believed your exposure was on the morning you acted stays recoverable
-afterwards. Read the current book as "largest as_of_date, then largest
-generation PER POSITION" — `latest_snapshot()`.
+TWO DESTINATIONS, TWO JOBS. The TAB is a MIRROR: every run replaces it with
+the book exactly as marked, so what is on it is what you hold, and a flat book
+CLEARS it. The CSV is the ARCHIVE: append-only and generational, keeping every
+mark ever taken. They differ because their readers differ, and the split is
+what lets each be right.
+
+WHY THE TAB IS NOT THE ARCHIVE. Its whole job is to be SORTED — sort on
+`status`, see what is amiss. Appending defeats exactly that: a position closed
+three weeks ago keeps its last ATTENTION row at the top of that sort forever,
+indistinguishable from a live one, and the operator has to filter by
+`as_of_date` and `generation` before the column means anything. A tab you must
+filter before you can sort is not scannable, and scannable was the point.
+
+WHY THE CSV IS. "Was this flagged before it went wrong?" is a real question and
+only the record can answer it. Keeping it costs nothing: `journal/open_book.csv`
+is already written first, already survives a Sheets outage, and is already the
+copy the writer deduplicates against. `book_id` ends in a hash of the row's
+CONTENT, marks included, so re-running the same session with the same greeks
+appends nothing at all; a genuinely re-marked POSITION — new spot, new delta, a
+cap flag that has since flipped — appends its own row at `generation = n+1` and
+leaves the earlier mark, and every untouched position, alone. Read the current
+book out of it as "largest as_of_date, then largest generation PER POSITION" —
+`latest_snapshot()`, which is also what the tab already shows.
 
 WHAT IS NOT ON THE TAB, ON PURPOSE. The original layout wrote the net-cap block,
 the book counts, NetLiquidation, `book_reconstructed` and the pull's notes on
@@ -516,32 +530,24 @@ def _as_int(v) -> int:
 # --------------------------------------------------------------------------
 # Sheets
 # --------------------------------------------------------------------------
-def read_sheet_book_ids(spreadsheet_id: str) -> set[str]:
-    rows = sheets_client.get_all_rows(OPEN_BOOK_TAB, spreadsheet_id=spreadsheet_id)
-    return {str(r.get("book_id", "")) for r in rows if r.get("book_id")}
-
-
 def write(book, ctx: BookContext, *, dry_run: bool = False,
           skip_sheets: bool = False, csv_path: Path | None = None) -> dict:
-    """Write one marked open book to CSV and Sheets, skipping what is there.
+    """Record one marked open book: APPEND it to the CSV, MIRROR it onto the tab.
 
     Returns a summary dict. The CSV is written before Sheets and its failure is
-    fatal; a Sheets failure is logged and reported but does NOT lose the row,
-    because the local copy already holds it.
+    fatal; a Sheets failure is logged and reported but does NOT lose the mark,
+    because the archive already holds it.
     """
     rows = to_rows(book, ctx)
     summary = {"positions": len(rows), "csv_written": 0, "sheets_written": 0,
                "skipped_duplicate": 0, "sheets_error": None,
                "attention": sum(1 for r in rows if r["status"] == "ATTENTION"),
                "watch": sum(1 for r in rows if r["status"] == "WATCH")}
-    if not rows:
-        log.info("Open book is empty — nothing to record")
-        return summary
 
     missing = [r for r in rows if not r.get("book_id")]
     if missing:
         # Without a book_id a row cannot be deduped, so a re-run would duplicate
-        # it silently. Refuse rather than corrupt the record.
+        # it silently in the archive. Refuse rather than corrupt the record.
         raise ValueError(
             f"{len(missing)} open-book row(s) have no book_id — refusing to "
             "write rows that cannot be deduplicated on a later run")
@@ -553,14 +559,23 @@ def write(book, ctx: BookContext, *, dry_run: bool = False,
     _assign_generations(fresh, existing)
 
     if dry_run:
-        log.info("DRY RUN — would write %d new open-book row(s) (%d already present)",
-                 len(fresh), summary["skipped_duplicate"])
+        log.info("DRY RUN — would archive %d new open-book row(s) (%d already "
+                 "present) and mirror %d row(s) onto the tab",
+                 len(fresh), summary["skipped_duplicate"], len(rows))
         summary["would_write"] = len(fresh)
         return summary
 
+    if not rows:
+        # A flat book adds nothing to the archive, but it is still a fact about
+        # today and the tab must say it: the write below CLEARS the tab rather
+        # than leaving yesterday's positions standing as if still held. A
+        # spuriously flat book never reaches here — flexparse refuses a declared
+        # book of nothing that the fills contradict.
+        log.info("Open book is flat — nothing to archive; clearing the tab")
+
     summary["csv_written"] = append_csv(fresh, csv_path)
 
-    if skip_sheets or not fresh:
+    if skip_sheets:
         return summary
 
     spreadsheet_id = os.getenv(TRADE_JOURNAL_SPREADSHEET_ENV)
@@ -571,38 +586,24 @@ def write(book, ctx: BookContext, *, dry_run: bool = False,
         return summary
 
     try:
-        # Size the tab to the full schema BEFORE anything reads it — see
-        # recwriter.write for why a read-first sequence would otherwise truncate
-        # this schema's trailing columns on every append.
-        sheets_client.ensure_tab(OPEN_BOOK_TAB, min_cols=len(OPEN_BOOK_COLUMNS),
-                                 spreadsheet_id=spreadsheet_id)
-        header = sheets_client.ensure_header(OPEN_BOOK_TAB, OPEN_BOOK_COLUMNS,
-                                             spreadsheet_id=spreadsheet_id)
-        if header == "mismatch":
-            # `append_rows` writes POSITIONALLY. Appending 27-column rows under
-            # a tab whose header is still the old 41-column layout would file
-            # delta_notional under `structure` and exit_by under `contracts` —
-            # silently. Refuse; the rows are safe in the CSV. The fix is the
-            # repo's vN_ convention: rename the old tab and let the next run
-            # recreate it with the current header.
-            raise RuntimeError(
-                f"OpenBook tab header is not the current schema (nor a prefix "
-                f"of it). Rename the tab (e.g. v1_{OPEN_BOOK_TAB}) so the next "
-                f"run recreates it; nothing was appended")
-        already = read_sheet_book_ids(spreadsheet_id)
-        to_send = [r for r in fresh if r["book_id"] not in already]
-        if to_send:
-            # raw=True: the date columns are part of the identity and must not
-            # be locale-parsed into sheet dates.
-            sheets_client.append_rows(OPEN_BOOK_TAB, to_send, raw=True,
-                                      spreadsheet_id=spreadsheet_id)
+        # A MIRROR, not an append. `replace_rows` rewrites the header and every
+        # data row from OPEN_BOOK_COLUMNS, which is why nothing here reads the
+        # tab back first: there is no positional-append hazard to guard against
+        # (the header is written with the rows it labels), no book_id to
+        # dedupe against (a run that changed nothing writes the same content),
+        # and a tab left on an older layout is simply rewritten rather than
+        # refused — the archive, not the tab, is what a shape change must
+        # migrate.
+        summary["sheets_written"] = sheets_client.replace_rows(
+            OPEN_BOOK_TAB, rows, OPEN_BOOK_COLUMNS, raw=True,
+            spreadsheet_id=spreadsheet_id)
+        if rows:
             sheets_client.set_meta(
                 OPEN_BOOK_TAB,
                 fingerprint=sheets_client.compute_batch_fingerprint(
-                    to_send, BOOK_DEDUP_KEY_COLS),
+                    rows, BOOK_DEDUP_KEY_COLS),
                 last_row_time=datetime.now(timezone.utc).isoformat(),
                 spreadsheet_id=spreadsheet_id)
-        summary["sheets_written"] = len(to_send)
     except Exception as exc:  # noqa: BLE001 - report, never lose the local row
         summary["sheets_error"] = str(exc)
         log.exception("Sheets write failed — rows are safe in %s", _csv_path(csv_path))

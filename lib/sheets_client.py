@@ -242,6 +242,51 @@ def append_rows(tab: str, rows: list[dict], raw: bool = False,
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
 
 
+def replace_rows(tab: str, rows: list[dict], columns: list[str], raw: bool = False,
+                 spreadsheet_id: str | None = None) -> int:
+    """Make `tab` hold EXACTLY `rows` under `columns` — a MIRROR, not a record.
+
+    Use this where `append_rows` is wrong: a tab whose job is to show the
+    CURRENT state of something rather than accumulate its history. The header
+    and every data row are rewritten from `columns`, so a stale row cannot
+    survive, a schema change needs no migration, and an empty `rows` clears the
+    tab to its header alone (which is the correct rendering of "nothing here"
+    — never a reason to leave yesterday's rows standing). Returns the number of
+    data rows now on the tab.
+
+    The write ORDER is load-bearing: the new block goes in at A1 FIRST and only
+    the cells BELOW and to the RIGHT of it are cleared afterwards. A
+    clear-then-write leaves the tab empty in the window between the two calls,
+    and an empty book is a statement, not a placeholder.
+
+    raw=True stores values as-is, the same reason `append_rows` offers it: a
+    string date that is part of a row's identity must not be locale-parsed.
+    """
+    log.info("Replacing tab '%s' with %d row(s)", tab, len(rows))
+    ss = _get_spreadsheet(spreadsheet_id)
+    ws = _ensure_tab(ss, tab, min_cols=len(columns))
+    if ws.col_count < len(columns):
+        ws.resize(rows=ws.row_count, cols=len(columns))
+    data = [list(columns)]
+    data += [[_sanitize(r.get(c, "")) for c in columns] for r in rows]
+    if ws.row_count < len(data):
+        ws.add_rows(len(data) - ws.row_count)
+    ws.update("A1", data, value_input_option="RAW" if raw else "USER_ENTERED")
+    stale = []
+    if ws.row_count > len(data):
+        stale.append(f"A{len(data) + 1}:{_col_letter(ws.col_count)}{ws.row_count}")
+    if ws.col_count > len(columns):
+        # Columns to the right of the schema: what a tab written under a WIDER
+        # earlier layout leaves behind. Left alone they stay as a header with
+        # no data under it, which reads as a column this code forgot to fill.
+        stale.append(f"{_col_letter(len(columns) + 1)}1:"
+                     f"{_col_letter(ws.col_count)}{ws.row_count}")
+    if stale:
+        ws.batch_clear(stale)
+    log.info("Tab '%s' now holds %d data row(s)", tab, len(rows))
+    return len(rows)
+
+
 def delete_rows_where(tab: str, match_fn) -> int:
     """Delete every data row of ``tab`` for which ``match_fn(row_dict)`` is true.
 

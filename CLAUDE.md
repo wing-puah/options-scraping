@@ -247,9 +247,10 @@ scripts/                    ← entry points, each maps to a workflow step
                               name may not start with a digit). config.py = data contract (now
                               incl. RECOMMENDATION_COLUMNS + RecContext, OPEN_BOOK_COLUMNS +
                               BookContext); s01_pull.py = the only networked module;
-                              s05b_bookwriter.py = persists the OPEN BOOK to the OpenBook tab +
-                              journal/open_book.csv, append-only/generational, every row leading
-                              with a triage status + flags; s06_recommend.py = the ranker + the
+                              s05b_bookwriter.py = persists the OPEN BOOK — the tab MIRRORS
+                              the current book (replaced each run), journal/open_book.csv is the
+                              append-only/generational archive; every row leads with a triage
+                              status + flags; s06_recommend.py = the ranker + the
                               ONLY model call, time-bounded (check_freshness,
                               latest_date_on_or_before); s07_recwriter.py = persists the deploy card to the Recommendations
                               tab + journal/recommendations.csv, append-only/generational
@@ -292,12 +293,15 @@ scripts/                    ← entry points, each maps to a workflow step
   `journal/recommendations.csv` first (its failure is fatal); a Sheets failure is reported but
   never loses the row.
 - **OpenBook** — the held book, in the SAME workbook as TradeJournal and Recommendations (one
-  loop, three halves: recommended, traded, HELD). One row per open position per marked session,
-  schema = `OPEN_BOOK_COLUMNS`; append-only and GENERATIONAL on a content hash, like
-  Recommendations. Rows lead with `status` (ATTENTION/WATCH/OK) + `flags` so the tab can be
-  SORTED to find what is amiss — overdue §5 exits, unpriced positions, breached caps. Flags are
-  ATTENTION, NEVER VERDICTS: nothing reads one, the caps still bind in `s03_risk.py`. Columns and
-  the full flag vocabulary: `docs/open-book-reference.md`.
+  loop, three halves: recommended, traded, HELD). One row per open position, schema =
+  `OPEN_BOOK_COLUMNS`. UNLIKE the other two tabs it is a MIRROR, not a record: every run
+  REPLACES it with the book as marked, and a flat book clears it. That is because rows lead with
+  `status` (ATTENTION/WATCH/OK) + `flags` so the tab can be SORTED to find what is amiss —
+  overdue §5 exits, unpriced positions, breached caps — and appending puts a closed position's
+  last ATTENTION row at the top of that sort forever. The append-only, GENERATIONAL history
+  lives in `journal/open_book.csv` instead, which is written first and is the copy that survives
+  a Sheets outage. Flags are ATTENTION, NEVER VERDICTS: nothing reads one, the caps still bind in
+  `s03_risk.py`. Columns and the full flag vocabulary: `docs/open-book-reference.md`.
 - **\_meta** — dedup hashes (`sheets_client.py`).
 
 **Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or

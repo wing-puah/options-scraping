@@ -6,8 +6,14 @@ The tab lives in `TRADE_JOURNAL_SPREADSHEET_ID` — the same workbook as
 **TradeJournal** and **Recommendations**, because the three describe one loop:
 what was *recommended*, what was *traded*, and what is *held*. It is written by
 `scripts/journal/s05b_bookwriter.py` on every `python3 -m scripts.journal` run,
-and mirrored to `journal/open_book.csv` (gitignored, written first, and the copy
-that survives a Sheets outage).
+alongside `journal/open_book.csv` (gitignored, written first, and the copy that
+survives a Sheets outage).
+
+**The tab is a MIRROR; the CSV is the ARCHIVE.** Unlike TradeJournal and
+Recommendations, this tab is REPLACED on every run with the book exactly as
+marked — so what is on it is what you hold, and a flat book clears it. The
+append-only, generational history lives in the CSV instead. See
+[How to read it](#how-to-read-it) for why.
 
 Schema: `OPEN_BOOK_COLUMNS` in `scripts/journal/config.py`, 27 columns, ordered
 "what do I need to know about this position" nearest first — the row's own
@@ -19,16 +25,13 @@ lives in `journal/reports/<date>.md` and the generated page, and reaches this
 tab only as a flag on the rows it concerns (`NET_CAP_NEAR`, `NET_CAP_BREACH`,
 `CAPS_NOT_EVALUABLE`, `SPLIT_EXPIRY`, `MIXED_ENTRY_DATES`).
 
-Columns are **append-at-end only** for growth — a new column means the tab
-header must gain it too, or new rows write an unlabelled trailing cell. A
-REORDER or a DROP is different: it migrates `journal/open_book.csv` by column
-name (dropped columns discarded, new ones written blank, every row's
-`book_id` recomputed under the new schema) but does not touch the Sheets tab —
-if the tab's row-1 header is neither the current schema nor a strict prefix of
-it, the writer refuses to append (reported as `sheets_error`, rows still safe
-in the CSV) until the operator renames the old tab (e.g. `v1_OpenBook`) so the
-next run recreates it, the repo's existing `vN_` convention for a shape
-change.
+A schema change migrates the ARCHIVE and simply rewrites the tab. The CSV is
+migrated by column name (dropped columns discarded, new ones written blank,
+every row's `book_id` recomputed under the new schema); the tab needs no
+migration at all, because `replace_rows` writes the header together with the
+rows it labels — there is no positional append to mislabel, so no
+`vN_OpenBook` rename and no refusal. A column added here does still have to be
+added to `OPEN_BOOK_COLUMNS` and defined below, or the test suite fails.
 
 ---
 
@@ -39,13 +42,27 @@ change.
 broker's flat leg list, so a vertical is one row and a calendar/diagonal is two
 (flagged `SPLIT_EXPIRY`).
 
-**The tab is append-only and generational, per POSITION.** Nothing is ever
-overwritten. Marking the same position twice with the same numbers appends
-nothing; a genuinely re-marked position appends its own row at
-`generation = n+1` — and only that position, since `book_id`'s hash now covers
-just this row's own columns rather than book-level totals that were repeated
-on every row. **To see today's book, take the largest `as_of_date`, then the
-largest `generation`, per position (per `conid_key`).**
+**The tab shows the CURRENT book and nothing else.** Every row on it is a
+position you hold right now, as of `as_of_date`. Nothing has to be filtered
+before it can be read: a position that left the book left the tab with it, and
+a flat book leaves the header alone on an empty tab.
+
+This is why. The tab exists to be **sorted on `status`** — that is its only
+job. When it was append-only, a position closed three weeks ago kept its last
+ATTENTION row at the top of that sort forever, indistinguishable from a live
+one, so the sort had to be preceded by a filter on `as_of_date` and
+`generation`. A tab you must filter before you can sort is not scannable.
+
+**The history is in `journal/open_book.csv`,** which IS append-only and
+generational, per position. Marking the same position twice with the same
+numbers appends nothing; a genuinely re-marked position appends its own row at
+`generation = n+1` — and only that position, since `book_id`'s hash covers just
+this row's own columns rather than book-level totals that were once repeated on
+every row. It answers the one question the mirror cannot — *was this flagged
+before it went wrong?* — and to read a past book out of it, take the largest
+`as_of_date` on or before the date you want, then the largest `generation`, per
+position (per `conid_key`). `s05b_bookwriter.latest_snapshot()` does exactly
+that.
 
 **Scanning it:** sort or filter on `status`.
 
@@ -122,8 +139,8 @@ bind against live NetLiquidation.
 
 | Column | Meaning |
 |---|---|
-| `book_id` | `as_of_date\|ticker\|expiry\|structure\|<12 hex>` — readable at the front, a hash of the row's own 27-column content at the back (identity and wall clock excluded: `book_id`, `generation`, `snapshot_utc`). The dedup key: an unchanged re-mark of this position collides with itself and is dropped before the append. |
-| `generation` | Nth distinct mark of this position on this `as_of_date`. Excluded from the hash, so it can never make a duplicate look new. |
+| `book_id` | `as_of_date\|ticker\|expiry\|structure\|<12 hex>` — readable at the front, a hash of the row's own 27-column content at the back (identity and wall clock excluded: `book_id`, `generation`, `snapshot_utc`). The ARCHIVE's dedup key: an unchanged re-mark of this position collides with itself and is dropped before the append to `journal/open_book.csv`. The tab does not dedupe — it is replaced whole. |
+| `generation` | Nth distinct mark of this position on this `as_of_date`, counted in the archive. Excluded from the hash, so it can never make a duplicate look new. On the tab it is always the current mark's number. |
 | `conid_key` | Sorted leg conids — the stable position identity across marks, and the same key `JOURNAL_COLUMNS`-shaped rows are risk-joined on. |
 | `book_source` | Basename of the broker pull this book was marked from. Blank on a dry run. |
 | `snapshot_utc` | Wall clock of the write. Excluded from the hash — a re-run at a different hour is not a new snapshot. |
