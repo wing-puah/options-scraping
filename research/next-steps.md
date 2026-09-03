@@ -449,6 +449,29 @@ python -m scripts.backtest_study run prompt_eval -- accumulate --candidate <dir>
   --date YYYY-MM-DD --run-dir backtests/prompt_eval/live                  # each new live date
 ```
 
+**Resuming the variance run after a sleep/kill (2026-09-03).** The run is a
+detached `nohup` process; a laptop sleep or reboot ends it. Nothing scraped is
+lost (every contract history is in the shared cache) and every finished
+analysis is skipped on relaunch. To pick it up:
+
+```bash
+pgrep -f "prompt_eval variance" || echo ENDED          # is it alive?
+ls backtests/prompt_eval/variance-*/variance.json        # done if this exists
+# if ENDED and no variance.json: seed a FRESH run dir with the finished analyses
+src=backtests/prompt_eval/variance-20260903; dst=backtests/prompt_eval/variance-$(date +%Y%m%d)-b
+mkdir -p $dst && for r in prod-r1 prod-r2 prod-r3; do
+  [ -d $src/$r/analysis ] && mkdir -p $dst/$r && cp -R $src/$r/analysis $dst/$r/; done
+nohup python -m scripts.backtest_study run prompt_eval -- variance \
+  --dates backtests/prompt_eval/variance-dates.txt --repeats 3 --run-dir $dst > $dst.log 2>&1 &
+```
+
+A repeat whose five `<date>-rows.csv` files exist costs no model call; only
+its pricing is redone (fast on a warm cache). The proxy step is slow because
+Barchart throttles the scrape (~80 contracts/hour); its log is written only
+when the step ends. When `variance.json` lands, append the noise floor (mean-R
+spread and emission-count spread across repeats, per date) to `current.md`
+under the 2026-09-02 text-loop entry and commit.
+
 Fresh `--run-dir` every run (a used one is refused). `text_features` produced
 nothing for `draft` to work from, so the first candidate is the operator's
 hypothesis about what would make the signal more useful TO READ — not a
