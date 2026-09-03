@@ -258,3 +258,113 @@ def sign_stable(rows, key="E", min_years: int = 2):
     means = {y: m for y, m in means.items() if m == m}
     pos = sum(1 for m in means.values() if m > 0)
     return (pos == len(means) or pos == 0, pos, means)
+
+
+# ── profit factor ───────────────────────────────────────────────────────────
+#
+# A PF claim must also clear the mean-R criterion — PF alone is gameable by
+# fewer, larger wins. Print PF beside mean R, never alone.
+
+def pf(rows, key: str = "R") -> float | None:
+    """Profit factor: sum of positive `key` / |sum of negative `key`|.
+
+    A PF claim must also clear the mean-R criterion — PF alone is gameable by
+    fewer, larger wins. Print PF beside mean R, never alone.
+
+    Returns **None when there are no negatives**, which is the honest answer:
+    the ratio is undefined, not infinite, and a book with no losers is a book
+    too small (or too filtered) to have a profit factor. `None` values of `key`
+    are skipped, exactly as `boot_ci_by_date` skips them.
+    """
+    vals = [float(r[key]) for r in rows if r.get(key) is not None]
+    losses = -sum(v for v in vals if v < 0)
+    if losses <= 0:
+        return None
+    return sum(v for v in vals if v > 0) / losses
+
+
+def pf_ci_by_date(rows, key: str = "R", n: int = BOOT_N, seed: int = 20260811,
+                  alpha: float = 0.05):
+    """`(point, lo, hi)` — date-clustered bootstrap CI of the profit factor.
+
+    Resamples DATES with replacement keeping each date's rows together, the same
+    unit as `boot_ci_by_date` and for the same reason (rows inside a date share
+    the tape). A resample that draws no losing row has an undefined PF and is
+    DROPPED rather than treated as infinite — with few losers that thins the
+    distribution, so read a CI computed from a small book beside the count of
+    negative rows, not on its own.
+
+    A PF claim must also clear the mean-R criterion — PF alone is gameable by
+    fewer, larger wins. Print PF beside mean R, never alone.
+    """
+    by: dict[str, list[float]] = {}
+    for r in rows:
+        if r.get(key) is None:
+            continue
+        by.setdefault(str(r["date"]), []).append(float(r[key]))
+    point = pf(rows, key)
+    if not by:
+        return (None, float("nan"), float("nan"))
+    dates = list(by)
+    rng = random.Random(seed)
+    vals = []
+    for _ in range(n):
+        pool = []
+        for _ in range(len(dates)):
+            pool.extend(by[rng.choice(dates)])
+        losses = -sum(v for v in pool if v < 0)
+        if losses > 0:
+            vals.append(sum(v for v in pool if v > 0) / losses)
+    if not vals:
+        return (point, float("nan"), float("nan"))
+    vals.sort()
+    m = len(vals)
+    return (point, vals[int(alpha / 2 * m)], vals[min(m - 1, int((1 - alpha / 2) * m))])
+
+
+def pf_paired_by_date(rows_a, rows_b, key: str = "R", n: int = BOOT_N,
+                      seed: int = 20260811, alpha: float = 0.05):
+    """`(point_diff, lo, hi)` — CI of PF(a) - PF(b) under JOINT date resampling.
+
+    The two books are resampled together over the UNION of their dates: a drawn
+    date contributes its `a` rows to `a`'s pool and its `b` rows to `b`'s, so
+    the comparison never becomes a difference in which days each side traded
+    (the same-dates rule in the module docstring). A resample where either side
+    has no losing row is dropped, as in `pf_ci_by_date`.
+
+    A PF claim must also clear the mean-R criterion — PF alone is gameable by
+    fewer, larger wins. Print PF beside mean R, never alone.
+    """
+    def _by(rows):
+        out: dict[str, list[float]] = {}
+        for r in rows:
+            if r.get(key) is None:
+                continue
+            out.setdefault(str(r["date"]), []).append(float(r[key]))
+        return out
+
+    ba, bb = _by(rows_a), _by(rows_b)
+    pa, pb = pf(rows_a, key), pf(rows_b, key)
+    point = (pa - pb) if (pa is not None and pb is not None) else None
+    dates = sorted(set(ba) | set(bb))
+    if not dates:
+        return (point, float("nan"), float("nan"))
+    rng = random.Random(seed)
+    diffs = []
+    for _ in range(n):
+        pool_a, pool_b = [], []
+        for _ in range(len(dates)):
+            d = rng.choice(dates)
+            pool_a.extend(ba.get(d, ()))
+            pool_b.extend(bb.get(d, ()))
+        la = -sum(v for v in pool_a if v < 0)
+        lb = -sum(v for v in pool_b if v < 0)
+        if la <= 0 or lb <= 0:
+            continue
+        diffs.append(sum(v for v in pool_a if v > 0) / la
+                     - sum(v for v in pool_b if v > 0) / lb)
+    if not diffs:
+        return (point, float("nan"), float("nan"))
+    diffs.sort()
+    m = len(diffs)
+    return (point, diffs[int(alpha / 2 * m)], diffs[min(m - 1, int((1 - alpha / 2) * m))])

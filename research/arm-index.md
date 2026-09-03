@@ -68,6 +68,32 @@ studies' labels appear mid-prose only.
   ticker+structure) perform worse than the first emission? One of `ARM P`'s
   four owners repo-wide (see Collisions, above).
 
+#### `text_features` — [`pre-registrations/f1_selection/text_features.md`](pre-registrations/f1_selection/text_features.md), `f1_selection/text_features.py`
+
+- `ARM A` (arm) — Deterministic text features (invalidation `price_only` vs
+  `mixed`, `invalidation_inside_strikes`, `trigger_conditional`,
+  `numeric_specificity`, `thesis_len`, `alt_ratio`) plus the
+  `hallucination_rate` from the citation check, read within structure × tier;
+  `evidence_n` is a REDUNDANCY CONTROL, never a candidate.
+- `ARM B` (arm) — Blind taxonomy labels (thesis type, evidence quality,
+  confidence language, one-sided, invalidation concreteness) from a cheap
+  headless model shown text only — never an outcome, never ticker or date.
+- `ARM C` (arm) — Gate arms: a CANDIDATE from A/B applied as a VETO or a
+  one-step tier demotion under the shipped top-3/day ladder, paired by date.
+  Outputs are two named lists: PROMPT-ROBUSTNESS FINDINGS and ENTRY-GATE
+  CANDIDATES.
+
+#### `prompt_eval` — [`pre-registrations/f1_selection/prompt_eval.md`](pre-registrations/f1_selection/prompt_eval.md), `f1_selection/prompt_eval.py`
+
+- `PROD` / `CANDIDATE` (arm) — The two prompt arms: the committed
+  framework + method files vs a named, committed snapshot; sha256 recorded.
+- `VARIANCE` `BACKFILL` `LIVE` (date set, not an arm) — declared in that
+  order: PROD repeats for the noise floor; ~40 matured signal dates chosen by
+  rule (SECONDARY — both arms share the backfill lookahead); every new live
+  date the candidate is run on (PRIMARY, supersedes BACKFILL at 25 dates).
+- `draft` (mode, not an arm) — a headless model proposes a prompt diff from
+  `text_features`' robustness list; a record, never auto-applied.
+
 #### `macro_event_study` — [`pre-registrations/f1_selection/macro_event_study.md`](pre-registrations/f1_selection/macro_event_study.md)
 
 - `H1` `H2` `H3` `H4` (hypothesis) — pre-registered claims, each mapped to
@@ -127,6 +153,17 @@ studies' labels appear mid-prose only.
 - `ARM T` (arm) — Tighten / arm-trail — `harness.replay` is COPIED into the
   study for this arm (contrast `ARM E`, which composes around the frozen
   one).
+
+#### `exit_from_text` — [`pre-registrations/f2_management/exit_from_text.md`](pre-registrations/f2_management/exit_from_text.md), `f2_management/exit_from_text.py`
+
+- `E1` (arm) — Invalidation-as-stop: exit on the underlying close beyond the
+  model's own stated invalidation level, buffer grid {0, 1%, 2%}, breakeven
+  not strike for straddles; split "level == a strike" vs "level ≠ any strike".
+- `E2` (arm) — Trigger-as-entry-filter: the play is entered only if its
+  price-level trigger was met within N ∈ {1, 3} sessions — a SELECTION effect,
+  quoted on R with the excluded share.
+- `E3` (arm) — Horizon-as-time-exit: the emitted `horizon` DTE bucket as the
+  time exit vs the shipped 0.75 fraction; survival control runs first.
 
 ### ③ Structure — which wrapper
 

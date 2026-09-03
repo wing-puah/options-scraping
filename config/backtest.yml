@@ -22,6 +22,11 @@ analysis:
   # `python3 -m scripts.analysis_pipeline --start … --end …` appends one analysis
   # per date — so there is history to test.
   tab: AnalysisClaude
+  # Local analysis source — a rows CSV in analysis_pipeline ROW_COLUMNS order,
+  # e.g. written by `python3 -m scripts.analysis_pipeline --output-dir <dir>`.
+  # When set it WINS over `tab` and nothing is read from Sheets. Used by
+  # scripts/backtest_study prompt_eval; --analysis-csv is the CLI equivalent.
+  # csv: path/to/rows.csv   # local analysis source (wins over tab); used by scripts/backtest_study prompt_eval
 
 # ── Entry matching ─────────────────────────────────────────────────────────────
 # Each play is matched to the real flow contract it refers to (same symbol +
@@ -373,6 +378,8 @@ output:
 
   # Google Sheets tab (set to null to skip).
   sheet_tab: BacktestResults
+  # sheet_tab: null  # local-only: write the CSV above, never touch Sheets
+  #                  # (unlike --dry-run, which suppresses the local CSV too)
 
 # ── Proxy backtest (python3 -m scripts.backtest.proxy) ───────────────────────────
 # Diffs the analysis tab against BacktestResults to find plays that never produced
@@ -384,6 +391,10 @@ proxy:
   sheet_tab: BacktestProxy               # destination tab (auto-created; idempotent by identity)
   local_csv: backtests/proxy_results.csv # local mirror (archived on each write)
   results_source_tab: BacktestResults    # the "already tested" set to diff against
+  # sheet_tab: null  # local-only: idempotency set read from local_csv, not Sheets
+  # results_source_csv: backtests/prompt_eval/<run>/results.csv   # the "already tested"
+  #                                       # set read from a local CSV instead of
+  #                                       # results_source_tab (missing file = empty)
   max_strike_steps: 6                    # Method-1 snap bound (listed strike increments)
   max_expiry_deviation_days: 14          # Method-1 snap bound (days off the leg's expiry)
   probe_barchart: true                   # scrape Barchart for nearby contracts missing from

@@ -967,3 +967,117 @@ the table — adding or removing a RULE does, and then the new basis needs an en
 
 26 tests in `tests/test_basis_audit.py`; suite 2750 pass. A study that stratifies
 by exit profile filters on the record's `basis_trusted`.
+
+## 2026-09-02 — the text ↔ backtest loop BUILT and first-run: text is the last untested column family, and it NULLS; the model's own stop is CONTRARY on bull calls
+
+Operator asked for a workflow that joins the analysis TEXT, the backtest results
+and (bounded) raw data back into "the training loop" — a more robust prompt, or
+entry/exit criteria with a higher profit factor. Scope decided: MINE + EVALUATE
+(corpus, studies, and a prompt-evaluation harness); shipping a prompt stays a
+manual v5 bump. Budget decided: ~40 backfill dates × 2 arms of production-model
+calls. Plan file: `~/.claude/plans/giggly-dreaming-gizmo.md`.
+
+**Infrastructure (all tracked, all tested; suite 2,947 pass after the catalog
+entries).**
+- `lib/text_corpus.py` — re-attaches the model's prose to every priced row through
+  `book.py`'s OWN join (imported by identity, never re-implemented), inverts the
+  play cell (pinned against `analysis_to_rows`), splits the tagged signal stream,
+  emits the six regex features with NO numeric twin already tested null, and
+  returns the UNPRICED analysis rows by reason. `citation_check` re-fetches a
+  date's raw analysis inputs into `backtests/analysis_inputs_cache/` (never
+  `audit/`). Census: v4 = 1,022 priced / 148 dates against 969 unpriced
+  (`excluded_by_book` 611 · `not_backtested` 194 · `market_row` 164) — **about
+  half of what the model proposes never prices**, which conditions every text
+  claim. `invalidation_type` is 91% "mixed" in both eras (house style "a price
+  level OR a flow reversal"); only a binary price_only-vs-mixed cut is honest.
+- `lib/protocol.py` — `pf` / `pf_ci_by_date` / `pf_paired_by_date`, date-resampled
+  like every other CI; a PF claim must also clear the mean-R criterion and PF is
+  never printed alone (PF is gameable by fewer, larger wins).
+- Pipeline: `python -m scripts.analysis_pipeline --date D --output-dir DIR
+  [--framework-file F --method-file M]` writes the parsed analysis, the ASSEMBLED
+  PROMPT, the RAW RESPONSE and a `ROW_COLUMNS` CSV locally and NEVER reaches
+  `append_rows` — the re-run-doubles-rows trap cannot be hit from this path.
+  Backtest + proxy accept `analysis.csv` and `sheet_tab: null` (derived config;
+  commented examples in `config/backtest.yml`). Tab row count identical before
+  and after the smoke call. `docs/architecture.md` §"Local-only prompt
+  evaluation runs" states both invariants.
+- Three registrations (`f1_selection/text_features.md`,
+  `f2_management/exit_from_text.md`, `f1_selection/prompt_eval.md`), each with a
+  dated build-time "wording corrections" tail, none of which moves a bar.
+
+**`exit_from_text` (f2) — first run, era v4 PRIMARY, 995/1,022 admitted (27
+HARD, classify-not-assert): NO CANDIDATE.** `tally: {'UNDERPOWERED': 276, 'NOT A
+CRITERION (pooled)': 9, 'NULL': 19, 'CONTRARY': 5}`. All five CONTRARY cells are
+E1 invalidation-as-stop on `bull_call_spread` / `LVOL` where the stated level is
+NOT a strike — `STRUCT bull_call_spread buf1%/ne_strike: affected 360 rows / 134
+dates … DeltaR -0.045 … CI95 [-0.083, -0.008] … real -0.064 tweak -0.027`, every
+criterion true toward the NEGATIVE sign: **the model's own invalidation level,
+used as an underlying-close stop, reliably cuts the engine structure's
+winners.** This is the reactive-exit null of Attempts 1/2/10 arriving from the
+text side — a price-level stop the model wrote at analysis time is still a
+price-level stop. E2 (trigger-as-entry-filter) pooled N=3 reads CANDIDATE but is
+`NOT A CRITERION (pooled)` and an INTAKE effect by registration; 11% of triggers
+are conditional-but-unparseable (own bucket). E3 (horizon as time exit)
+`SURVIVAL CONTROL: FAIL`. v3 SECONDARY (702 admitted): three CANDIDATE cells,
+all `bear_put_spread` E1 at buf1%/buf2% in the registered `level != any strike`
+cell (buf1%: 284 rows, 110 affected / 62 dates, dR +0.085 CI [+0.044, +0.126],
+LOO min +0.079, all years/tiers/windows) — consistent with "bear is an EXIT
+problem" (2026-08-11), but v4 cannot see it (no 2026 dates, bear cells
+underpowered). **Re-read item, never a ship from a secondary era.**
+
+**`prompt_eval` (f1) — the loop step, built and smoke-tested.** Sub-commands
+`dates` (sets by RULE) · `variance` (PROD × 3 repeats — `claude -p` has no
+temperature knob, so the noise floor is measured first) · `run` (PROD vs a
+COMMITTED candidate dir on the backfill set, priced through derived local-only
+configs, compared with `boot_ci_paired_by_date` + `pf_paired_by_date` under the
+shipped top-3/day ladder, plus tier mix, emissions/date, unpriceable share,
+hallucination rate, `bear_call_spread` leaks counted off the ANALYSIS rows
+because the proxy blanks `structure` on vetoed rows) · `accumulate` (candidate
+arm on each NEW live date — the PRIMARY evidence; backfill is SECONDARY because
+both arms share the backfill's lookahead: the v4 book itself was backfilled in
+2026-08 with a 2026 model) · `draft` (a headless model proposes a candidate DIR
+from the robustness list; a record, never applied). Refusals: `--tab` anywhere,
+non-null `sheet_tab`, a used run dir (the proxy writer archives its CSV, so a
+second pass truncates the book — fresh `--run-dir` every run). Date sets
+declared: `backtests/prompt_eval/variance-dates.txt` (5) and
+`backfill-dates.txt` (40 of 143 eligible: BEAR×2024 1 / BULL×2024 17 /
+BULL×2025 10 / RANGE×2024 6 / RANGE×2025 6; seed 20260902). **Variance run
+started this evening** → `backtests/prompt_eval/variance-20260902/`; the 80-call
+backfill scoring waits on a COMMITTED candidate — an operator decision, and
+`text_features` (below) produced nothing for `draft` to work from.
+
+**Runner traps met today (not fixed, logged):** `run.py` forwards a `--`
+sentinel verbatim (only `prompt_eval` strips it — pass study flags bare:
+`run text_features --era v3 --labels run`); an argparse usage error exits 2,
+which equals `era.EXIT_THIN_ERA` and is therefore read as a DESIGNED REFUSAL and
+promoted to `-latest.txt` (one such transcript was produced and deleted by
+hand); `-latest.txt` is not era-scoped, so run v3 first and current last.
+
+**`text_features` (f1) — first run, era v4 PRIMARY: NULL everywhere.** 1,022
+priced / 148 dates; ARM B blind labels 1,022/1,022 after the batch-10 top-up
+(batch 25 silently truncated 620/1,804 payloads — coverage, never correctness);
+citation check 148/148 dates, **1.62% of cited flow figures unmatched** (v3
+2.86%) — the prompt is not hallucinating prints. Verdict block: every feature
+`NULL` or `UNDERPOWERED` in ARM A (`invalidation_level NULL cells=15 powered=2`,
+`alt_ratio NULL cells=15 powered=2`, `hallucination_rate UNDERPOWERED cells=15
+powered=0`), ARM B (`thesis_type NULL cells=75 powered=4`) and ARM C
+(`thesis_type NULL arms=10 powered=8`); `PROMPT-ROBUSTNESS FINDINGS … none`,
+`ENTRY-GATE CANDIDATES … none`. v3 SECONDARY: the same, plus one ARM C
+`alt_ratio` VETO that clears the six-point conjunction and BH but LOWERS mean R
+(dR −0.0762, PF up) — routed to `NO PRE-REGISTERED VERDICT MATCHES` by the
+catch-all and resolved here as NOT A CANDIDATE (the registered ENTRY-GATE list
+requires mean R AND PF to rise; a gate that trades mean R for PF is the exact
+gaming the PF rule exists to refuse). **Text was the last untested column
+family, and it nulls like the numeric ones.** The 2026-08-11 "re-open only on
+NEW COLUMNS" clause is now spent: the model's numbers, its prose, and its
+citation faithfulness all fail to separate outcome within structure × tier.
+Selection stays structure × model regime × entry geometry. Nothing for
+`prompt_eval draft` to work from — a candidate prompt, if one is written, will
+be an operator's hypothesis, not a data-derived one.
+
+**Variance run (prompt_eval, PROD × 3 repeats) — interrupted by the account
+session limit** at 23:36 (`claude exited 1` three times on 2024-02-01, repeat
+2) after repeat 1 completed and priced. Resumed 2026-09-03 09:50 into a fresh
+run dir seeded with the finished analyses (`variance-20260903/`); the harness
+skips a date whose rows CSV exists, so no model call is repeated. Noise floor
+to be appended when it lands.

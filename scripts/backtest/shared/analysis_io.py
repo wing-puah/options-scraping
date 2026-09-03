@@ -1,5 +1,7 @@
+import csv
 import logging
 from datetime import date
+from pathlib import Path
 
 from lib import sheets_client
 
@@ -10,9 +12,14 @@ log = logging.getLogger("backtest")
 
 # ─── Analysis loading ──────────────────────────────────────────────────────────
 
-def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[dict], dict]:
-    """Read the analysis tab. Returns (candidate trades, market_regime_by_date)."""
-    rows = sheets_client.get_all_rows(tab)
+def _rows_to_candidates(rows, start: date | None,
+                        end: date | None) -> tuple[list[dict], dict]:
+    """Map raw analysis rows (dicts keyed by ROW_COLUMNS) onto candidate trades.
+
+    Shared by :func:`load_analysis` (Sheets rows) and :func:`load_analysis_csv`
+    (a local rows CSV written by ``scripts.analysis_pipeline --output-dir``), so
+    both sources produce byte-identical candidate dicts.
+    """
     market_regime: dict[str, str] = {}
     candidates: list[dict] = []
 
@@ -63,6 +70,29 @@ def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[
             "score_catalyst": str(row.get("score_catalyst", "")).strip(),
         })
 
+    return candidates, market_regime
+
+
+def load_analysis(tab: str, start: date | None, end: date | None) -> tuple[list[dict], dict]:
+    """Read the analysis tab. Returns (candidate trades, market_regime_by_date)."""
+    candidates, market_regime = _rows_to_candidates(
+        sheets_client.get_all_rows(tab), start, end)
     log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
              len(candidates), tab, len(market_regime))
+    return candidates, market_regime
+
+
+def load_analysis_csv(path, start: date | None, end: date | None) -> tuple[list[dict], dict]:
+    """Read a LOCAL analysis rows CSV (schema = analysis_pipeline ROW_COLUMNS).
+
+    The local counterpart of :func:`load_analysis`: same candidate dicts, no
+    Sheets call. Used by prompt-evaluation runs, where the analysis under test
+    was written to a run directory and must never reach the AnalysisClaude tab.
+    """
+    csv_path = Path(path)
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    candidates, market_regime = _rows_to_candidates(rows, start, end)
+    log.info("Loaded %d candidate plays from '%s' (%d market-regime dates)",
+             len(candidates), csv_path, len(market_regime))
     return candidates, market_regime

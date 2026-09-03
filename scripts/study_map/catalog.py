@@ -160,6 +160,45 @@ STUDIES: dict[str, Study] = {
                 "pre-registration: keep deploying under the v3 rules and do NOT re-derive "
                 "the ladder on v4 rows yet.",
     ),
+    "text_features": Study(
+        family="selection", state="null",
+        question="Does the model's OWN PROSE — the stated invalidation, trigger, "
+                 "specificity, thesis/alt shape, blind-labelled thesis type and confidence, "
+                 "and whether its cited flow figures exist in the feed — separate outcome "
+                 "within structure x tier, or raise mean R AND profit factor as a gate on "
+                 "the shipped ladder?",
+        verdict="First run 2026-09-02, era v4 PRIMARY (1,022 priced / 148 dates; ARM B "
+                "label coverage 1022/1022 after the batch-10 top-up; citation check "
+                "148/148 dates, 1.62% of cited flow figures unmatched): every feature "
+                "`NULL` or `UNDERPOWERED` in all three arms — e.g. `ARM A ... "
+                "invalidation_level NULL cells=15 powered=2 ... alt_ratio NULL cells=15 "
+                "powered=2 ... hallucination_rate UNDERPOWERED cells=15 powered=0`, `ARM B "
+                "... thesis_type NULL cells=75 powered=4`, `ARM C ... thesis_type NULL "
+                "arms=10 powered=8`; `PROMPT-ROBUSTNESS FINDINGS ... none`, `ENTRY-GATE "
+                "CANDIDATES ... none`. v3 SECONDARY (795 rows): the same, plus one ARM C "
+                "`alt_ratio` VETO conjunction pass routed to `NO PRE-REGISTERED VERDICT "
+                "MATCHES` because the gate LOWERS mean R (dR -0.0762) while PF rises. Text "
+                "was the last untested column family and it nulls like the numeric ones; "
+                "the model is not hallucinating prints. Nothing ships, nothing for "
+                "`prompt_eval draft` to work from.",
+    ),
+    "prompt_eval": Study(
+        family="selection", state="open",
+        attention="2026-09-02 harness built; VARIANCE and BACKFILL date sets declared by "
+                  "rule (backtests/prompt_eval/*-dates.txt); the PROD noise-floor run is "
+                  "the first scored step. Scoring a candidate needs a COMMITTED candidate "
+                  "dir — operator decision after text_features' robustness list is read.",
+        question="Does a CANDIDATE analysis prompt beat the shipped one on the same dates "
+                 "under the shipped top-3/day ladder — paired dR, profit factor, "
+                 "hallucination rate, zero bear_call leaks — with the live dates, not the "
+                 "backfill, as the primary evidence?",
+        verdict="Harness only, no candidate scored yet (2026-09-02). It is the loop step: "
+                "analysis re-run with `--output-dir` (never Sheets), priced through a "
+                "derived backtest config with `sheet_tab: null`, compared with "
+                "`boot_ci_paired_by_date` + `pf_paired_by_date`; MET is a v5-bump "
+                "PROPOSAL, never a ship. Smoke on 2025-06-12 (haiku): four local files + "
+                "manifest, tab row count identical before and after.",
+    ),
     "macro_event_study": Study(
         family="selection", state="open",
         question="Do scheduled macro events — FOMC decisions, minutes, CPI, NFP, PCE — show "
@@ -343,6 +382,34 @@ STUDIES: dict[str, Study] = {
                 "          +0.070        +0.218    -0.148`).",
     ),
 
+    "exit_from_text": Study(
+        family="management", state="null",
+        attention="2026-09-02 first run: the v3 replication carries three CANDIDATE cells "
+                  "(bear_put_spread, invalidation-as-stop at 1-2% buffer, level != any "
+                  "strike) that the PRIMARY v4 era cannot see — re-read when 2026 signal "
+                  "dates land on v4; no ship from a SECONDARY era.",
+        question="Do the model's OWN stated invalidation level, trigger condition and "
+                 "horizon make better exits than the shipped mechanical profile — an "
+                 "underlying-close stop at the invalidation level (E1), entering only "
+                 "when the trigger was met (E2, a selection effect), and the emitted "
+                 "horizon as the time exit (E3)?",
+        verdict="First run 2026-09-02, era v4 PRIMARY (995 admitted of 1,022 priced, "
+                "27 HARD): `tally: {'UNDERPOWERED': 276, 'NOT A CRITERION (pooled)': 9, "
+                "'NULL': 19, 'CONTRARY': 5}` — no CANDIDATE. The five CONTRARY cells are "
+                "all E1 on `bull_call_spread` / `LVOL` in the `level != any strike` "
+                "split, e.g. `STRUCT bull_call_spread buf1%/ne_strike`: `affected 360 "
+                "rows / 134 dates ... DeltaR -0.045 ... CI95 [-0.083, -0.008] PASS ... "
+                "tiers: real -0.064 tweak -0.027`, `criteria vector: 1_ci=T 2_loo=T "
+                "3_windows=T 4_years=T 5_tiers=T 6_power=T 7_no_buffer_flip=T` — the "
+                "text-derived stop reliably CUTS the engine structure's winners. E2 pooled "
+                "N=3 reads CANDIDATE but is `NOT A CRITERION (pooled)` and an INTAKE "
+                "effect by registration. E3 `SURVIVAL CONTROL: FAIL`. v3 SECONDARY (702 "
+                "admitted): three CANDIDATEs on `bear_put_spread` E1 at buf1%/buf2% "
+                "(buf1%: 284 rows, 110 affected / 62 dates, dR +0.085 CI [+0.044,+0.126], "
+                "LOO min +0.079) — the registered second cell, not an Attempt-9 "
+                "restatement — plus five CONTRARY on bull_call_spread and E3 "
+                "SURVIVAL-ARTIFACT. Nothing ships; the bear-put stop is a re-read item.",
+    ),
     "staged_exit": Study(
         family="management", state="open",
         question="Does a time-STAGED exit — evaluate ONCE at fixed session X on P&L vs the "
@@ -740,7 +807,24 @@ INFRA: dict[str, str] = {
                    "exclusion is a rescaled_tickers() call, not a name list.",
     "lib/protocol.py": "The four defences every conclusion rests on: date clustering, purging "
                    "plus a 120-day embargo, same-dates comparison, and window-dominance "
-                   "re-cuts.",
+                   "re-cuts. Also the profit-factor helpers (pf / pf_ci_by_date / "
+                   "pf_paired_by_date), which resample dates like every other CI here and "
+                   "return None rather than infinity when a book has no losers — a PF "
+                   "claim must clear the mean-R criterion too, since PF alone is gameable "
+                   "by fewer, larger wins.",
+    "lib/text_corpus.py": "The analysis model's PROSE re-attached to every priced row, "
+                   "reusing book.py's own join helpers by identity so the text cannot "
+                   "disagree with the numbers already joined onto the same row. Parses the "
+                   "play cell back into intent / pattern / structure / thesis / Alt (pinned "
+                   "against analysis_to_rows, the writer), splits the tagged signal stream, "
+                   "and emits ten regex-only features — each of which had to have NO "
+                   "numeric counterpart already tested null, which is why tag counts, "
+                   "catalyst mentions and hedge language are deliberately absent and "
+                   "evidence_n is a redundancy control rather than a candidate. Also "
+                   "returns the UNPRICED analysis rows (market_row / no_play / bs_only / "
+                   "not_backtested / excluded_by_book), because the book is a non-random "
+                   "subset of what the model proposed. Carries no verdict — it is not a "
+                   "study.",
     "lib/underlying.py": "Daily stock bars — real OHLC, falling back to close-only Price~. The "
                          "widening that lib/harness.py is deliberately frozen out of.",
     "lib/underlying_features.py": "As-of-entry price-STATE columns: rv20, Parkinson, semivar, "

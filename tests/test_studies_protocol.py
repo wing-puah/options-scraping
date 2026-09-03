@@ -11,8 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.backtest_study.lib.protocol import (  # noqa: E402
     boot_ci_by_date, boot_ci_paired_by_date, ladder_eligible, ladder_rank,
-    loo_by_date, ordered_by_day, replay_stats, sign_stable, top_k_per_day,
-    walk_forward_splits, window_cuts, year_epoch_split,
+    loo_by_date, ordered_by_day, pf, pf_ci_by_date, pf_paired_by_date,
+    replay_stats, sign_stable, top_k_per_day, walk_forward_splits, window_cuts,
+    year_epoch_split,
 )
 
 
@@ -179,3 +180,54 @@ def test_sign_stability_reports_per_year_means():
     stable, pos, means = sign_stable(rows)
     assert stable is False and pos == 2
     assert set(means) == {"2024", "2025", "2026"}
+
+
+# ── profit factor ───────────────────────────────────────────────────────────
+
+def _r(date, R):
+    return {"date": date, "R": R}
+
+
+def test_pf_is_gross_win_over_gross_loss():
+    rows = [_r("2025-01-02", 3.0), _r("2025-01-02", 1.0), _r("2025-01-03", -2.0)]
+    assert pf(rows) == 2.0
+
+
+def test_pf_skips_none_values_and_reads_the_requested_key():
+    rows = [{"date": "2025-01-02", "E": 4.0}, {"date": "2025-01-02", "E": None},
+            {"date": "2025-01-03", "E": -2.0}]
+    assert pf(rows, key="E") == 2.0
+
+
+def test_pf_is_none_when_there_are_no_losers():
+    """Undefined, not infinite — a book with no losing row has no profit factor."""
+    assert pf([_r("2025-01-02", 1.0), _r("2025-01-03", 2.0)]) is None
+    assert pf([]) is None
+
+
+def test_pf_ci_by_date_brackets_the_point_estimate():
+    rows = [_r(f"2025-01-{d:02d}", v)
+            for d, v in zip(range(2, 22), [3, -1, 2, -2, 4, -1, 1, -3, 5, -1,
+                                           2, -2, 3, -1, 1, -1, 4, -2, 2, -1])]
+    point, lo, hi = pf_ci_by_date(rows, n=400, seed=1)
+    assert point == pf(rows)
+    assert lo <= point <= hi
+    assert lo > 0
+
+
+def test_pf_ci_by_date_resamples_dates_not_rows():
+    """Two rows on ONE date can never be split apart, so the CI is degenerate."""
+    rows = [_r("2025-01-02", 3.0), _r("2025-01-02", -1.0)]
+    point, lo, hi = pf_ci_by_date(rows, n=200, seed=1)
+    assert point == 3.0 and lo == 3.0 and hi == 3.0
+
+
+def test_pf_paired_by_date_keeps_the_sign_of_a_constructed_difference():
+    # Same dates on both sides; a wins by a wide, consistent margin.
+    dates = [f"2025-01-{d:02d}" for d in range(2, 22)]
+    rows_a = [_r(d, v) for d, v in zip(dates, [6, -1] * 10)]
+    rows_b = [_r(d, v) for d, v in zip(dates, [1, -1] * 10)]
+    point, lo, hi = pf_paired_by_date(rows_a, rows_b, n=400, seed=1)
+    assert point == pf(rows_a) - pf(rows_b)
+    assert lo > 0, "a book with 6x the gross win must not straddle zero"
+    assert lo <= point <= hi

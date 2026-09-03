@@ -45,6 +45,7 @@ modules, so it never pulls in ``core.py``'s CLI wiring.
 """
 import argparse
 import asyncio
+import csv
 import logging
 import os
 from datetime import date, datetime
@@ -64,10 +65,10 @@ from .config import HISTORY_CACHE
 from .helpers import _contract_key, _to_float
 from .legs import Leg, format_legs, merge_legs
 from .plays import _choose_anchor
-from .shared.analysis_io import load_analysis
+from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
 from .shared.history import fetch_option_histories
-from .shared.results_io import write_results
+from .shared.results_io import ROOT, write_results
 from .simulate import _simulate
 
 log = logging.getLogger("backtest")
@@ -634,6 +635,25 @@ def _load_proxy_keys(proxy_tab: str) -> set:
     return keys
 
 
+def _keys_from_csv(path) -> set:
+    """Identity keys from a LOCAL results/proxy CSV — the offline counterpart of
+    ``_load_tested_keys``/``_load_proxy_keys``.
+
+    A missing file is an EMPTY set, not an error: on a local-only run the proxy
+    CSV does not exist until the first write, and "nothing evaluated yet" is
+    exactly what an absent file means.
+    """
+    csv_path = Path(path)
+    if not csv_path.is_absolute():
+        csv_path = ROOT / csv_path
+    if not csv_path.exists():
+        log.info("No local CSV at '%s' — treating as empty", csv_path)
+        return set()
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        return {_identity_key(r.get("signal_date", ""), r.get("ticker", ""), r.get("play", ""))
+                for r in csv.DictReader(f)}
+
+
 def _find_untested(candidates: list[dict], tested: set) -> list[dict]:
     """Candidates whose identity key is not in the tested set."""
     out = []
@@ -678,6 +698,9 @@ def main() -> None:
         description="Proxy-backtest untested analysis plays → BacktestProxy tab.")
     parser.add_argument("--config", default="config/backtest.yml")
     parser.add_argument("--tab", help="Analysis tab to read (overrides config)")
+    parser.add_argument("--analysis-csv",
+                        help="Local analysis rows CSV to read instead of a Sheets tab "
+                             "(overrides config analysis.csv, which itself wins over analysis.tab)")
     parser.add_argument("--date", help="Single analysis date YYYY-MM-DD (sets --start/--end)")
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
@@ -698,7 +721,10 @@ def main() -> None:
     proxy_cfg = cfg.get("proxy", {})
     sim_cfg = cfg["simulation"]
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
-    tab = args.tab or cfg.get("analysis", {}).get("tab", "AnalysisClaude")
+    analysis_cfg = cfg.get("analysis", {}) or {}
+    tab = args.tab or analysis_cfg.get("tab", "AnalysisClaude")
+    # A local CSV analysis source WINS over the tab (see scripts/backtest/core.py).
+    analysis_csv = args.analysis_csv or analysis_cfg.get("csv")
     if args.date:
         start = end = date.fromisoformat(args.date)
     else:
@@ -706,21 +732,40 @@ def main() -> None:
         end = date.fromisoformat(args.end) if args.end else None
     allow_probe = proxy_cfg.get("probe_barchart", True) and not args.cache_only
 
-    log.info("Loading analysis plays from tab '%s'", tab)
-    candidates, market_regime = load_analysis(tab, start, end)
+    if analysis_csv:
+        log.info("analysis source: csv %s", analysis_csv)
+        candidates, market_regime = load_analysis_csv(analysis_csv, start, end)
+        source = str(analysis_csv)
+    else:
+        log.info("analysis source: tab %s", tab)
+        candidates, market_regime = load_analysis(tab, start, end)
+        source = tab
     if not candidates:
-        log.warning("No plays found in '%s'", tab)
+        log.warning("No plays found in '%s'", source)
         return
     for c in candidates:
         c["market_regime"] = _regime_prefix(market_regime.get(c["date"], ""))
 
-    tested = _load_tested_keys(proxy_cfg.get("results_source_tab", "BacktestResults"))
+    # "Already tested" set: a local results CSV when one is configured, else the
+    # Sheets tab. results_source_csv wins so a local-only run never reads Sheets.
+    results_source_csv = proxy_cfg.get("results_source_csv")
+    if results_source_csv:
+        tested = _keys_from_csv(results_source_csv)
+        tested_source = str(results_source_csv)
+    else:
+        tested_source = proxy_cfg.get("results_source_tab", "BacktestResults")
+        tested = _load_tested_keys(tested_source)
     untested = _find_untested(candidates, tested)
     log.info("%d/%d analysis plays are untested by '%s'",
-             len(untested), len(candidates), proxy_cfg.get("results_source_tab"))
+             len(untested), len(candidates), tested_source)
 
+    # `sheet_tab: null` = local-only mode: the idempotency set comes from the
+    # local proxy CSV (absent on the first run) instead of the BacktestProxy tab.
     proxy_tab = proxy_cfg.get("sheet_tab", "BacktestProxy")
-    existing = _load_proxy_keys(proxy_tab)
+    if proxy_tab:
+        existing = _load_proxy_keys(proxy_tab)
+    else:
+        existing = _keys_from_csv(proxy_cfg.get("local_csv") or "backtests/proxy_results.csv")
     if args.redo:
         redo_keys = {k for k in (_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
                                  for c in untested) if k in existing}
@@ -741,7 +786,7 @@ def main() -> None:
                       sim_cfg, spread_pct, created, allow_probe)
             for c in untested]
 
-    if redo_keys and not args.dry_run:
+    if redo_keys and proxy_tab and not args.dry_run:
         sheets_client.delete_rows_where(
             proxy_tab,
             lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),

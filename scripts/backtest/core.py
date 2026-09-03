@@ -18,6 +18,7 @@ from lib.logger import setup_logging
 from .plays import build_matched_plays
 from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 from .shared.analysis_io import load_analysis as _load_analysis
+from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
 from .shared.history import fetch_option_histories
 from .shared.results_io import write_results
 
@@ -266,6 +267,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest LLM analysis plays.")
     parser.add_argument("--config", default="config/backtest.yml")
     parser.add_argument("--tab", help="Analysis tab to backtest (overrides config)")
+    parser.add_argument("--analysis-csv",
+                        help="Local analysis rows CSV to backtest instead of a Sheets tab "
+                             "(overrides config analysis.csv, which itself wins over analysis.tab)")
     parser.add_argument("--date", help="Single analysis date YYYY-MM-DD (sets --start and --end)")
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
@@ -278,7 +282,12 @@ def main() -> None:
     with cfg_path.open() as f:
         cfg = yaml.safe_load(f)
 
-    tab = args.tab or cfg.get("analysis", {}).get("tab", "AnalysisClaude")
+    analysis_cfg = cfg.get("analysis", {}) or {}
+    tab = args.tab or analysis_cfg.get("tab", "AnalysisClaude")
+    # A local CSV source WINS over the tab: a prompt-evaluation run points at a
+    # rows CSV written by `analysis_pipeline --output-dir` and must never read
+    # (or, downstream, write) the production tabs.
+    analysis_csv = args.analysis_csv or analysis_cfg.get("csv")
     if args.date:
         start = end = date.fromisoformat(args.date)
     else:
@@ -287,11 +296,17 @@ def main() -> None:
     sim_cfg = cfg["simulation"]
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
 
-    log.info("Loading analysis plays from tab '%s'", tab)
-    candidates, market_regime = _load_analysis(tab, start, end)
+    if analysis_csv:
+        log.info("analysis source: csv %s", analysis_csv)
+        candidates, market_regime = _load_analysis_csv(analysis_csv, start, end)
+        source = str(analysis_csv)
+    else:
+        log.info("analysis source: tab %s", tab)
+        candidates, market_regime = _load_analysis(tab, start, end)
+        source = tab
     if not candidates:
         log.warning("No plays found in '%s' — run `python3 -m scripts.analysis_pipeline` "
-                    "first to populate it", tab)
+                    "first to populate it", source)
         sys.exit(0)
 
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.

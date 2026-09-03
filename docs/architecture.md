@@ -4,7 +4,7 @@ Detailed per-file responsibilities, data contracts, and resume/idempotency seman
 `CLAUDE.md` keeps only the compact map — **read the relevant section here before editing
 `lib/` or `scripts/` code**, and keep this file in sync when responsibilities move.
 
-Sections: File layout · Research tier (studies) · Daily trade journal · Command variants ·
+Sections: File layout · Research tier (studies) · Daily trade journal · Command variants (incl. local-only prompt evaluation runs) ·
 Analysis pipeline data contract.
 
 ## File layout (detailed)
@@ -356,7 +356,18 @@ in the family folders concluded.
   widening harness.py must not get). `lib/underlying_features.py` — as-of-entry price-STATE
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry
   a smaller denominator — always print `coverage()`).
-- `lib/protocol.py` — purged walk-forward, date-clustered CIs, LOO.
+- `lib/protocol.py` — purged walk-forward, date-clustered CIs, LOO; profit-factor helpers
+  (`pf`/`pf_ci_by_date`/`pf_paired_by_date`, date-resampled like every CI here — a PF claim
+  must also clear the mean-R criterion, PF is never printed alone).
+- `lib/text_corpus.py` — the analysis model's PROSE re-attached to every priced row through
+  book.py's own join helpers (imported by identity, never re-implemented): `parse_play`
+  inverts the play cell (pinned against `analysis_to_rows`), `split_signal` the tagged
+  evidence stream, `text_features` emits the regex-only features that have NO numeric
+  counterpart already tested null, `load_corpus` also returns the UNPRICED analysis rows
+  by reason (about half of what the model proposes is never priced), and `citation_check`
+  re-fetches a date's raw analysis inputs into `backtests/analysis_inputs_cache/` (never
+  `audit/`) to score whether cited `[FLOW]` figures exist in the feed. Feeds
+  `text_features`, `exit_from_text` and `prompt_eval`.
 - `lib/macro_calendar.py` — scheduled macro events (FOMC/minutes/CPI/NFP/PCE) as as-of
   features, from the hand-authored `config/macro-events.yml`; `next_event` is strictly-after
   and refuses past each type's `verified_through` (an unpublished schedule is never "nothing
@@ -864,6 +875,13 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analy
 python3 -m scripts.analysis_pipeline --model claude-opus-5         # override engine model
 python3 -m scripts.analysis_pipeline --skip-llm                    # fetch + audit CSV only, no LLM
 
+# Local-only prompt-evaluation runs (never touch Sheets — see the note below)
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir backtests/prompt_eval/run1
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir backtests/prompt_eval/run1 \
+    --framework-file config/prompts/candidate-framework.md \
+    --method-file config/prompts/analysis-methods/candidate.md
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir <dir> --skip-llm  # prompt snapshot only
+
 # Scrape historical data to Google Drive
 python3 scripts/collector/scrape_flow.py --date 2026-04-21
 python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
@@ -874,6 +892,12 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
 python3 -m scripts.backtest.proxy --config config/backtest.yml --dry-run     # no sheet/CSV write
 python3 -m scripts.backtest.proxy --config config/backtest.yml --cache-only  # no Barchart scraping
 python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21 --redo
+
+# Backtest a LOCAL analysis CSV instead of a Sheets tab (config analysis.csv, or the flag)
+python3 -m scripts.backtest --config config/backtest-local.yml \
+    --analysis-csv backtests/prompt_eval/run1/2026-04-21-rows.csv
+python3 -m scripts.backtest.proxy --config config/backtest-local.yml \
+    --analysis-csv backtests/prompt_eval/run1/2026-04-21-rows.csv
 
 # Research-tier caches
 python3 scripts/collector/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run
@@ -920,6 +944,40 @@ python3 scripts/clean_generated.py --caches --yes # + the refetchable network ca
 python3 scripts/clean_generated.py --only logs,site
 python3 scripts/clean_generated.py --force        # ignore the citation pin scan
 ```
+
+### Local-only prompt evaluation runs
+
+A candidate analysis prompt is scored by running the real pipeline on real dates and
+backtesting the result — but neither half may reach Google Sheets. AnalysisClaude has no
+date dedup (a stray append doubles that date's rows, with no undo) and BacktestResults /
+BacktestProxy are the evidence base every shipped rule rests on, so the guard is
+structural rather than a `--dry-run` habit:
+
+- **`--output-dir <dir>` on `scripts.analysis_pipeline` NEVER writes Sheets** —
+  unconditionally, not only under `--dry-run`. The run writes `<date>.json` (the parsed
+  analysis), `<date>-prompt.md` (the assembled prompt verbatim), `<date>-response.json`
+  (the engine's raw final message), `<date>-rows.csv` (exactly the rows `append_rows`
+  would have received, in `ROW_COLUMNS` order) and appends one line to
+  `<dir>/manifest.jsonl` recording the date, engine, model, both prompt files with their
+  short sha256, the argv and the row count. The audit rollup CSV is redirected to
+  `<dir>/audit/` so a candidate run never overwrites the production `audit/` file for the
+  date. `--framework-file` / `--method-file` override the prompt inputs (a path that does
+  not exist exits 2 rather than falling back to the shipped file). `--skip-llm
+  --output-dir` writes the prompt + manifest only — a cheap prompt snapshot for a date.
+- **A derived backtest config with `sheet_tab: null` never writes Sheets** — the local CSV
+  is still written (unlike `--dry-run`, which suppresses that too), and `output.local_csv`
+  / `proxy.local_csv` may be any path, including one inside a run directory. Reading is
+  bounded the same way: `analysis.csv` (or `--analysis-csv`) makes the analysis source a
+  local rows CSV and WINS over `analysis.tab` / `--tab`; on the proxy,
+  `proxy.results_source_csv` supplies the "already tested" set from a local CSV instead of
+  `results_source_tab`, and a null `proxy.sheet_tab` makes the idempotency set come from
+  `proxy.local_csv` (a missing file = nothing evaluated yet). Every one of these keys is
+  documented as a commented example in `config/backtest.yml`; the shipped values are
+  unchanged and still point at the production tabs.
+
+Both halves are pinned by `tests/test_analysis_pipeline_local_output.py`,
+`tests/test_analysis_io_csv.py` and `tests/test_backtest_local_only.py`, which wire the
+`sheets_client` entry points to raise.
 
 ## Cleaning — what `make clean` may delete
 

@@ -28,6 +28,7 @@ from lib.mech_regime import cell_for_date
 from lib.price_catalyst import compute_play_scores, price_catalyst_from_flow_rows
 import argparse
 import csv
+import hashlib
 import json
 import logging
 import subprocess
@@ -98,8 +99,14 @@ def _parse_and_validate(text: str) -> dict:
     return analysis
 
 
-def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
-    """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events."""
+def _invoke_claude(prompt: str, model: str | None, cwd: str) -> tuple[dict, str]:
+    """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events.
+
+    Returns ``(analysis, raw_text)`` — the parsed JSON object AND the model's
+    raw final message. The raw text is returned rather than logged/discarded so
+    a ``--output-dir`` run can archive exactly what the engine said (a prompt
+    evaluation is only auditable if the response is kept alongside the parse).
+    """
     proc = subprocess.run(
         ["claude", "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "opus"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
@@ -117,15 +124,19 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> dict:
         wrapper = parsed
     if wrapper.get("is_error"):
         raise RuntimeError(f"claude reported error: {wrapper.get('result')}")
-    return _parse_and_validate(wrapper.get("result", ""))
+    raw_text = wrapper.get("result", "")
+    return _parse_and_validate(raw_text), raw_text
 
 
 # Maps each engine name in config.ENGINES to the function that invokes its CLI.
 _RUNNERS = {"claude": _invoke_claude}
 
 
-def run_engine(engine: str, prompt: str, model: str | None) -> dict:
+def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
     """Run one headless analysis via the chosen engine, with retries.
+
+    Returns ``(analysis, raw_text)``: the parsed analysis plus the engine's raw
+    final message, so ``--output-dir`` runs can persist the response verbatim.
 
     The engine step is the only LLM touchpoint. The runner executes from a
     throwaway cwd so the project's CLAUDE.md / AGENTS.md and skills never load
@@ -423,6 +434,76 @@ def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
         return {}
 
 
+# ─── Local (non-Sheets) output ─────────────────────────────────────────────────
+# `--output-dir` exists for PROMPT EVALUATION: run a candidate framework/method
+# against a date and keep the whole artefact set locally. It is deliberately a
+# hard fork of the write step, not a flavour of --dry-run: a run that names an
+# output dir NEVER reaches sheets_client.append_rows, so a candidate prompt's
+# rows can never land in AnalysisClaude (which has no date dedup — a stray
+# append doubles that date's rows and there is no undo).
+
+def _file_digest(path: Path) -> str:
+    """Short sha256 of a prompt file, recorded so a run is traceable to its inputs."""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:12]
+    except OSError:
+        return ""
+
+
+def write_local_output(output_dir: Path, date_str: str, analysis: dict | None = None,
+                       prompt_text: str | None = None, raw_response: str | None = None,
+                       rows: list[dict] | None = None,
+                       meta: dict | None = None) -> dict:
+    """Write one date's analysis artefacts under ``output_dir``; append a manifest line.
+
+    Files (each written only when its input was supplied, so a --skip-llm run
+    snapshots the prompt alone):
+      ``<date>.json``          parsed analysis
+      ``<date>-prompt.md``     the assembled prompt, verbatim
+      ``<date>-response.json`` the engine's raw final message (wrapped)
+      ``<date>-rows.csv``      exactly the rows Sheets would have received,
+                               in ROW_COLUMNS order
+
+    Returns the manifest entry that was appended to ``manifest.jsonl``.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[str] = []
+
+    if analysis is not None:
+        path = output_dir / f"{date_str}.json"
+        path.write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+        written.append(path.name)
+    if prompt_text is not None:
+        path = output_dir / f"{date_str}-prompt.md"
+        path.write_text(prompt_text, encoding="utf-8")
+        written.append(path.name)
+    if raw_response is not None:
+        path = output_dir / f"{date_str}-response.json"
+        path.write_text(json.dumps({"date": date_str, "raw": raw_response}, indent=2),
+                        encoding="utf-8")
+        written.append(path.name)
+    if rows is not None:
+        path = output_dir / f"{date_str}-rows.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(ROW_COLUMNS), extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows([{k: r.get(k, "") for k in ROW_COLUMNS} for r in rows])
+        written.append(path.name)
+
+    entry = {
+        "date": date_str,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "n_rows": len(rows) if rows is not None else 0,
+        "files": written,
+        **(meta or {}),
+    }
+    with (output_dir / "manifest.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    log.info("Local output for %s → %s (%s)", date_str, output_dir, ", ".join(written) or "manifest only")
+    return entry
+
+
 def _print_report(date_str: str, analysis: dict, *, tab: str, written: bool) -> None:
     print(f"\n=== {date_str} ===")
     print(f"Regime: {_join(analysis.get('regime'))}")
@@ -472,6 +553,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-llm", action="store_true",
                         help="Fetch data and write audit CSV only — skip LLM analysis entirely. "
                              "Prints the prepared markdown to stdout.")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="Write the analysis LOCALLY (json, prompt, raw response, rows CSV "
+                             "in ROW_COLUMNS order, plus manifest.jsonl) and NEVER write to "
+                             "Sheets — for prompt evaluation. The audit CSV is redirected under "
+                             "<dir>/audit/ too. With --skip-llm, writes the prompt + manifest only.")
+    parser.add_argument("--framework-file", type=Path, default=None,
+                        help=f"Override the analysis framework file (default: {config.FRAMEWORK_FILE}). "
+                             "Must exist. Use with --output-dir to score a candidate prompt.")
+    parser.add_argument("--method-file", type=Path, default=None,
+                        help="Override the engine's method file (default: the engine's own). "
+                             "Must exist. Use with --output-dir to score a candidate prompt.")
     return parser
 
 
@@ -485,14 +577,44 @@ def main(argv: list[str] | None = None) -> None:
     # Ticker-focused runs route to a dedicated tab so they don't mix with the
     # full-market daily runs that backtest.py reads.
     tab = config.TICKER_SPECIFIC_TAB if focus_tickers else cfg.tab
+    # Prompt inputs: the shipped files unless overridden. An override that does
+    # not exist is fatal here rather than silently falling back — a prompt
+    # evaluation scored against the WRONG prompt is worse than no run at all.
+    framework_file = Path(args.framework_file) if args.framework_file else config.FRAMEWORK_FILE
+    method_file = Path(args.method_file) if args.method_file else cfg.method_file
+    for label, path in (("--framework-file", framework_file), ("--method-file", method_file)):
+        if not path.exists():
+            log.error("%s: no such file: %s", label, path)
+            sys.exit(2)
+
     framework_md = ""
     method_md = ""
+    # --skip-llm normally needs no prompt files; with --output-dir it still
+    # assembles (and saves) the prompt, which is the cheap way to snapshot one.
+    if not args.skip_llm or args.output_dir:
+        framework_md = framework_file.read_text()
+        method_md = method_file.read_text()
     if not args.skip_llm:
-        framework_md = config.FRAMEWORK_FILE.read_text()
-        method_md = cfg.method_file.read_text()
         log.info("Engine=%s model=%s tab=%s", args.engine, model or "engine default", tab)
         if focus_tickers:
             log.info("Ticker-focused run: %s → %s", ", ".join(focus_tickers), tab)
+    log.info("Prompt files: framework=%s (sha256:%s) method=%s (sha256:%s)",
+             framework_file, _file_digest(framework_file),
+             method_file, _file_digest(method_file))
+    if args.output_dir:
+        log.info("LOCAL-ONLY run: output → %s; nothing will be written to '%s'",
+                 args.output_dir, tab)
+
+    def _meta() -> dict:
+        return {
+            "engine": args.engine,
+            "model": model or "engine default",
+            "framework_file": str(framework_file),
+            "framework_sha256": _file_digest(framework_file),
+            "method_file": str(method_file),
+            "method_sha256": _file_digest(method_file),
+            "argv": list(argv) if argv is not None else sys.argv[1:],
+        }
 
     client = get_drive_client()
     dates = _dates_to_process(args, client)
@@ -502,7 +624,10 @@ def main(argv: list[str] | None = None) -> None:
 
     done, skipped = [], []
     for d in dates:
-        audit_path = config.ROOT / "audit" / f"{d}-rollup.csv"
+        # A local-only run keeps its audit CSV inside the run dir, so a prompt
+        # evaluation never overwrites the production audit/ rollup for the date.
+        audit_root = (Path(args.output_dir) / "audit") if args.output_dir else (config.ROOT / "audit")
+        audit_path = audit_root / f"{d}-rollup.csv"
         try:
             data_md = fetch_data(
                 date_str=d, top_n=args.top, raw_n=args.raw, days=args.days,
@@ -519,8 +644,14 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         if args.skip_llm:
-            print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
-            print(data_md)
+            if args.output_dir:
+                write_local_output(
+                    args.output_dir, d,
+                    prompt_text=build_prompt(framework_md, method_md, data_md, d, focus_tickers),
+                    meta={**_meta(), "skip_llm": True})
+            else:
+                print(f"\n{'='*60}\n=== {d} — fetched data (audit: {audit_path}) ===\n{'='*60}\n")
+                print(data_md)
             done.append(d)
             continue
 
@@ -528,7 +659,7 @@ def main(argv: list[str] | None = None) -> None:
         window_start, window_end = window[0], window[-1]
         try:
             prompt = build_prompt(framework_md, method_md, data_md, d, focus_tickers)
-            analysis = run_engine(args.engine, prompt, model)
+            analysis, raw_response = run_engine(args.engine, prompt, model)
         except Exception:
             log.exception("Analysis failed for %s", d)
             skipped.append(d)
@@ -540,6 +671,14 @@ def main(argv: list[str] | None = None) -> None:
                                 rollup_metrics=_load_rollup_metrics(audit_path),
                                 play_scores=play_scores,
                                 mech_cell=_mech_cell(d))
+        if args.output_dir:
+            # Hard fork: local artefacts, and NEVER the Sheets append below —
+            # unconditionally, not merely when --dry-run happens to be set.
+            write_local_output(args.output_dir, d, analysis=analysis, prompt_text=prompt,
+                               raw_response=raw_response, rows=rows, meta=_meta())
+            done.append(d)
+            _print_report(d, analysis, tab=str(args.output_dir), written=True)
+            continue
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)
             log.info("Wrote %d row(s) for %s to %s", len(rows), d, tab)

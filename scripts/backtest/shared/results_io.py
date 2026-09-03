@@ -38,6 +38,10 @@ def write_results(results, *, key_order, local_csv=None, sheet_tab=None,
     csv_path = ROOT / local_csv
 
     if not dry_run:
+        # local_csv may point outside backtests/ (a prompt-evaluation run dir),
+        # in which case RESULTS_PATH.mkdir above is not enough. An absolute
+        # local_csv wins over ROOT by pathlib's join semantics.
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
         if csv_path.exists():
             archive = csv_path.with_name(
                 csv_path.stem + "_" + ts + csv_path.suffix)

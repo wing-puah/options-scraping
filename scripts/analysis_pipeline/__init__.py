@@ -19,10 +19,11 @@ from .core import (
     build_prompt,
     main,
     run_engine,
+    write_local_output,
 )
 
 __all__ = [
     "ANALYSIS_PROMPT_CONTRACT", "ENGINES", "EngineConfig", "ROW_COLUMNS",
     "_RUNNERS", "_dates_to_process", "_extract_json", "_strip_output_section",
-    "analysis_to_rows", "build_prompt", "main", "run_engine",
+    "analysis_to_rows", "build_prompt", "main", "run_engine", "write_local_output",
 ]
