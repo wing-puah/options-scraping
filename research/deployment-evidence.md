@@ -377,6 +377,107 @@ compute the mark-to-market curve (`backtest_study/lib/mtm_curve.py` returns both
 bases from one call, so a caller cannot mix them) rather than re-reading the
 close-bucketed one.
 
+### The queued max-drawdown question is CLOSED for concentration-gated hedging (2026-09-04, `hedge_concentration` Stage 1)
+
+`hedge_exposure` left the queued max-drawdown question **open**: every cell of
+its τ × f grid was power-stopped on the ratified 996-row book, so nothing there
+said a concentration hedge works or does not. `hedge_concentration` was
+registered to answer it a different way — put the **PRECONDITION** first, on the
+**ADMITTED** book (what `account_sim` actually takes under the operator's
+top-3-per-day rule and exposure caps, not the twice-as-diversified book
+`hedge_exposure` held), and only enter the mechanism stage if the precondition
+holds.
+
+It does not hold, and this time the null is POWERED.
+
+Run 2026-09-04 (era v4, sha `64689d0`, exit 0; the 2026-08-31 first run agreed
+on a slightly smaller export). Book: 996+ ratified rows → ladder-eligible →
+`ADMITTED (taken + taken_downsized)  225 / 112 dates`. Stage 1, ARM K — does a
+session's cluster concentration PREDICT the book's subsequent mark-to-market
+drawdown?
+
+| | figure |
+|---|---|
+| usable sessions per concentration tercile | `[172, 172, 152]`, floor 60 EACH — **PASS** |
+| dense episodes of admitted signal dates | `3`, floor 3 — **PASS** (met exactly at the floor) |
+| contrast, high − low concentration | `$-767.93   CI95 [$-2,186.47, $349.09]` — includes 0 |
+| Spearman ρ | `-0.1648   CI95 [-0.4021, +0.0809]` — includes 0 |
+| circular-shift null | the contrast does not beat ARM KN's 5th percentile |
+
+Clauses 1, 2, 3 and 5 fail. The two that PASS are the **controls** — ARM KG
+keeps the sign across gross-exposure terciles and both ex-window cuts retain it
+— so it is not a gross-exposure effect wearing a concentration label either. It
+is no effect.
+
+`VERDICT — Stage 1 (ARM K, the precondition): PRECONDITION-NULL`, therefore
+`VERDICT — Stage 2 (ARM C, the mechanism): NOT RUN (Stage 1 PRECONDITION-NULL)`
+and **no hedge cell was evaluated** (the census is on the record: episodes peak
+at 18 against a floor of 25, as the registration predicted before the run).
+
+**Graded 2026-09-04** under
+[`replication-protocol.md`](replication-protocol.md) Mode 1. Analysts A and B
+agreed on all 21 gate/clause rows with no violations and no mis-transcriptions;
+the validator found the pair "unusually clean". Both independently flagged the
+module's two disclosed substitutions rather than glossing them — G-MTM read
+against `TARGET_POSITION` rather than the registration's literal stored-column
+check (the sim re-sized 101 positions and re-exited 35, so the stored target
+cannot reconcile), and G-POWER read against episodes rather than the registered
+trigger-DATE count. Both were disclosed by the module itself, in the report's
+twenty-item NOT PRE-REGISTERED block. A grading defect would have reopened the
+MODULE; none was found, and the registration was never in question.
+
+**What this closes.** The queued max-drawdown question, **for
+concentration-gated hedging**: on the book the operator actually runs, cluster
+concentration does not predict forward drawdown, so a hedge triggered off
+concentration has nothing to trigger on. `next-steps.md` §2.1 is closed.
+
+**What this does NOT close** — read the next section before quoting this one.
+
+### The hedge trigger is dead; the hedge INSTRUMENT is unmeasured (closing note, 2026-09-04)
+
+Three studies have now been run at the bear hedge sleeve, and it is worth being
+exact about which half of it each one touched, because the programme reads as
+uniformly negative and is not.
+
+A hedge is two separate claims: **WHEN to put it on** (the trigger) and
+**WHETHER the thing you put on pays for itself** (the instrument). Everything
+that has been powered is about the trigger.
+
+| study | what it tested | result |
+|---|---|---|
+| `hedge_timing` (2026-08-28) | three mechanical TRIGGERS — chop, SPY gap-up, a 4–5-day down-run | 0 of 9 TIMING-CANDIDATE survivors; GAP-UP **CONTRARY** on both money arms; the operator's own streak rule **UNDERPOWERED** as fixed in advance (2 book dates) |
+| `hedge_exposure` (2026-08-31) | a concentration TRIGGER × hedge fraction grid | every cell power-stopped — **UNDERPOWERED**, no direction quoted |
+| `hedge_concentration` (2026-09-04) | the PRECONDITION under that trigger — does concentration predict drawdown at all? | **PRECONDITION-NULL**, powered |
+
+Read together: **every mechanical rule anyone has proposed for deciding when to
+open the hedge has been tested and none survives**, and the one that came
+closest to a mechanism — concentration — has now been refuted at its
+precondition on a powered sample. The trigger question is settled negative.
+
+The instrument question has **never been powered**. `bear_deploy` D2 (the hedge
+contribution) flipped MET → NOT MET on the v4 refresh and D3 (sizing) was never
+met at any size; `hedge_exposure` could not power one cell; `hedge_concentration`
+never entered Stage 2. Nobody has produced a powered estimate of what carrying
+the sleeve is worth. "Not shown to work" here is the absence of a measurement,
+not a measurement of absence — and the two ex-window cuts and the tail row that
+motivated the sleeve in the first place have not been refuted either, they have
+been left unresolved by studies that stopped at the trigger.
+
+**What that decides.** The §4 sleeve is held as **operator policy**, not on v4
+evidence — that was already recorded when the §4 pick line was pulled after
+`bear_deploy` D2 reversed. This note states the reason it is not a contradiction
+to keep it: the evidence contradicts hedging **on a mechanical trigger**, and
+says nothing either way about hedging **on judgment**. Continuing to hedge on
+judgment is consistent with everything on the record. Stopping is too. What is
+NOT available is a claim that the studies show the hedge does not pay — they do
+not test that, and the drawdown basis they would be tested on is the same
+close-bucketed curve ARM M found understates this book's drawdown by 40%.
+
+**What would move it.** An instrument test, not another trigger test: a powered
+estimate of the sleeve's contribution on a mark-to-market curve
+(`backtest_study/lib/mtm_curve.py`), on dates chosen without a rule. That waits
+on dates, not on design. Do not register a fourth trigger study.
+
 ### Remaining limits — quote these with the rule, they are not footnotes
 
 - The **worst-decile row-level CI includes zero** ([−0.113, +0.639], n=28). The

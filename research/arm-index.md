@@ -349,9 +349,12 @@ role, different study.
 
 #### `concurrency_correlation` — [`pre-registrations/f4_deployment/concurrency_correlation.md`](pre-registrations/f4_deployment/concurrency_correlation.md)
 
-Registered 2026-08-22; the module is not written yet, so it has no
-`scripts/backtest_study/` family folder to cite — this is the plan as
-pre-registered, not a run.
+Registered 2026-08-22; **built and first run 2026-09-04**
+(`scripts/backtest_study/f4_deployment/concurrency_correlation.py`, era v4,
+verdict NOISE). Every arm below is now a run arm, not a plan arm. The three
+`ARM K` relations print as `K <k> / <relation>`, and on a long-only book the
+`same-direction` relation is `ARM C` on a different grid — the run checks this
+and excludes it from `ARM CK` rather than assuming it.
 
 - `ARM C` (arm) — Concurrency ceiling — refuse a pick whose entry session
   already holds ≥ C open positions; grid C ∈ {5, 8, 12, 20}.
@@ -361,7 +364,9 @@ pre-registered, not a run.
   the shape is reported, no band is adopted.
 - `ARM K` (arm) — Clustering ceiling — refuse a pick when the open book
   already holds ≥ K sharing its direction (also run same-direction-and-
-  sector, same-underlying); grid K ∈ {2, 3, 5}.
+  sector, same-underlying); grid K ∈ {2, 3, 5}. COLLIDES with
+  `hedge_concentration`'s `ARM K` (a concentration→drawdown PRECONDITION, an
+  entirely different object) — qualify every citation with its study.
 - `ARM N` (arm) — Null control (required) — random book-state labels
   matched on affected count; an arm inside its [p5, p95] band is NOISE
   regardless of its own CI. COLLIDES with `portfolio_delta`'s own `ARM N`

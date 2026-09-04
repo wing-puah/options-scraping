@@ -208,81 +208,93 @@ The numbers are **stable labels**, not a ranking — `calendar_hedge.py` cites
 §2.3 and the archived backlog cites §2.4 and §2.7, so they keep their meaning.
 The order below is roughly the order to pick things up.
 
-### 2.0 `concurrency_correlation` — PRE-REGISTERED 2026-08-22, module STILL NOT WRITTEN
+### 2.0 `concurrency_correlation` — BUILT AND RUN 2026-09-04: **NOISE** on era v4; X4 pending the v3 companion
 
-The highest-value unbuilt thing in the repo. The operator's read ("the more that
-is being deployed, the less it seems to be working") does **not** resolve to
-depth into the ranked list — within-day rank is flat on both eras, so a tighter
-top-N is not the answer. What has never been measured is the **size and internal
-similarity of the open book**: `account_sim` computes `n_open` and no report
-joins it to an outcome.
+**Status: answered on this era, not yet on both.** The module was written and
+run 2026-09-04 (era v4, exit 0). It is the study for the operator's read that
+"the more that is being deployed, the less it seems to be working" — which does
+NOT resolve to depth into the ranked list (within-day rank is flat on both
+eras). What it measures instead is the SIZE and internal SIMILARITY of the open
+book at each position's entry.
 
-- Plan: `research/pre-registrations/f4_deployment/concurrency_correlation.md`
-  (ARM N null band, ARM D0 descriptive, ARM C concurrency ceiling, ARM K
-  clustering ceiling, ARM CK only if both clear alone).
-- **Read its dead-end table before writing any code** — two v3 day-level cuts
-  looked strong on v3 and vanish on v4, and X7 refuses any arm that turns out to
-  be a delta ceiling in disguise.
-- Evidence: [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
-  §2026-08-22 (late).
+`VERDICT: NOISE` — all 11 powered arms sit inside ARM N's band. Neither the size
+of the open book nor its internal similarity degrades per-position outcome, at
+any ceiling on either grid. PRIMARY = 3 dense episodes / 87 dates / 218
+positions; SECONDARY = the full 129-date book. `K 3 / same-underlying` and
+`K 5 / same-underlying` are UNDERPOWERED (21 and 7 moved dates against the
+pre-declared floor of 25) and print census only. ARM CK NOT RUN — the
+registration runs the conjunction only if ARM C and ARM K each clear alone, and
+neither did.
 
-### 2.1 The max-drawdown hedge question — `hedge_concentration` RUN: PRECONDITION-NULL (powered); GRADING PENDING
+Three things the run established that were not knowable at registration, all
+printed rather than assumed:
 
-**Status: answered on the admitted book, not yet graded.** The module was
-written and run on 2026-08-31 (era v4, sha 9834563, exit 0): Stage 1 cleared
-G-POWER-K (`[162, 166, 152]` usable sessions per tercile, 3 dense episodes)
-and returned **PRECONDITION-NULL** — contrast −$692, CI95 [−$2,000, +$420];
-ρ −0.149, CI95 [−0.383, +0.098]; neither beats the circular-shift null's 5th
-percentile; the 2025 dense episode carries the opposite sign. Stage 2 was not
-entered. The report's own branch line: *record in `deployment-evidence.md` as
-closing the queued max-drawdown question for concentration-gated hedging;
-§2.1 closed.* Full read: [`current.md`](current.md) 2026-08-31 (night).
+- **ARM K / same-direction IS ARM C on a different grid.** The book is long-only
+  by construction (`{1: 321}`, 321 of 321 positions have same-direction count ==
+  open count), so that relation carries no information ARM C does not. The run
+  checks this and excludes the degenerate relation from ARM CK.
+- **X7's delta control barely discriminates on this book.** 110 of 129 dates sit
+  in the `[2.0,inf)` band of |net delta-notional| / capital at session open, so
+  only ONE band is readable — and one readable band is the whole sample
+  re-labelled, not a control. X7 cannot PASS on it, which the report says in
+  those words.
+- **ARM D0's descriptive shape is not flat but is not an arm either.** Mean R
+  falls across the same-direction-and-sector bands (`[0,3)` +0.4533 → `[6,10)`
+  −0.1256 on SECONDARY) and across raw concurrency (`[6,10)` +0.5118 →
+  `[20,inf)` +0.1783). Registered as DESCRIPTIVE ONLY and it stays that way: no
+  band is adopted, and the ceiling arms that would act on the shape are all
+  inside the null band.
 
-**Background.** `hedge_exposure` did not answer it —
-every cell was power-stopped on the ratified population — and the reason is
-now settled, not pending an operator answer: the dilution finding (errata
-post-ratification note 3) was resolved from disk on 2026-08-31. The operator's
-card admits at most 3 positions/day (`config/account-sim.yml`), `account_sim`
-takes **221 of 458** ladder-eligible rows from the ratified population, and
-`hedge_exposure` held all 996. The study measured a book roughly twice as
-diversified as the one the operator runs.
+**What is left:** the **v3 companion run** for X4 (era stability), which one run
+cannot do — `lib/era.py` binds one run to one era and pinning a second era's
+export to dodge that is what the guard exists to prevent. The report prints the
+command and CAPS every arm at CANDIDATE-PENDING-X4 until it is done:
 
-**What was done:** the "third reading" is registered as
-[`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)
-— ratified prices, but the ADMITTED book. Its plan-time census (inputs only)
-found the admitted book concentrated almost always (median any-cluster
-0.464 vs 0.209; MEGATECH or SEMIS on top 87% of sessions; 93% CONSTITUENT),
-so a τ×f hedge grid cannot be powered on it (episodes peak at 20 < 25). The
-registration therefore puts the PRECONDITION first — H-C from the 2026-08-29
-feasibility pass, now ARM K: does open-book concentration PREDICT forward
-mark-to-market drawdown? That is powerable on 498 sessions, and its Ship
-criteria give **every** outcome a branch that moves this item: NULL /
-GROSS-NOT-CONCENTRATION close the question in `deployment-evidence.md`;
-FOUND + Stage 2 UNDERPOWERED re-labels it BLOCKED ON NEW DATES like §2.3;
-FOUND + MECHANISM-FOUND drafts-and-holds a §4 amendment.
+```bash
+python -m scripts.backtest_study run concurrency_correlation --era v3
+```
 
-**What is left, in order:**
+On a NOISE verdict X4 changes nothing that ships (nothing does), so this is a
+completeness item, not a blocker. Grade with `python -m scripts.study_review
+concurrency_correlation` (never `--dry-run`) once the companion exists.
 
-1. ~~Write the module.~~ DONE 2026-08-31 — `hedge_concentration.py`, 62 tests,
-   `catalog.py` entry, `study-map.md` row, `study-results` record; new
-   `lib/forward_drawdown.py`; `lib/mtm_curve.book_curves(target=)` (the
-   admitted book reconciles against the replay's own dollars, 221/221, and
-   cannot against the stored row — 101 re-sized, 35 re-exited).
-2. **`python -m scripts.study_review hedge_concentration`** (never with
-   `--dry-run`). The graders should read the report's NOT PRE-REGISTERED
-   block (20 choices) against the registration first. On a clean grade AND
-   operator sign-off: record the branch in `deployment-evidence.md` and close
-   this section. A grading defect reopens the module, never the registration.
-3. **Deferred, not dropped — the prose control.** `hedge_exposure` ARM P stays
-   inert (ERRATUM 2) and the corrected control — ARM C on concentration-matched
-   sessions carrying NO hedge-pressure signal, matched on count — is NOT in
-   `hedge_concentration`: the admitted book carries only 19 prose-conditioned
-   sessions / 17 episodes at the loosest τ, so it would be another arm that
-   can never bite. Register it only when the book has materially more parsed
-   dates.
+### 2.1 The max-drawdown hedge question — **CLOSED 2026-09-04** (`hedge_concentration` PRECONDITION-NULL, graded)
 
-Design material on disk: the 2026-08-29 feasibility pass in
-[`current.md`](current.md) and the census entry there dated 2026-08-31 (late).
+**Do not re-open this section.** Run 2026-09-04 (era v4, sha `64689d0`, exit 0),
+graded the same day under the two-analyst protocol: A and B agreed on all 21
+gate/clause rows, no violations, no mis-transcriptions, validator called the
+pair "unusually clean". Both flagged the module's two disclosed substitutions
+(G-MTM against `TARGET_POSITION`; G-POWER against episodes) rather than glossing
+them — they were already in the report's twenty-item NOT PRE-REGISTERED block. A
+grading defect would have reopened the MODULE; none was found.
+
+Stage 1 cleared G-POWER-K (`[172, 172, 152]` usable sessions per tercile, floor
+60 each; 3 dense episodes, floor 3 — met exactly at the floor) and returned
+**PRECONDITION-NULL**: contrast `$-767.93` CI95 `[$-2,186.47, $349.09]`, ρ
+`-0.1648` CI95 `[-0.4021, +0.0809]`, neither beating the circular-shift null's
+5th percentile. Clauses 1/2/3/5 fail; the two that PASS are the CONTROLS, so it
+is not a gross-exposure effect in disguise. Stage 2 was not entered.
+
+Recorded in [`deployment-evidence.md`](deployment-evidence.md) §"The queued
+max-drawdown question is CLOSED for concentration-gated hedging" — and, beside
+it, §"The hedge trigger is dead; the hedge INSTRUMENT is unmeasured", which is
+the distinction this closure rests on and must be quoted with it:
+
+> Every mechanical rule for deciding WHEN to open the hedge has now been tested
+> and none survives. WHETHER the sleeve pays has never been powered. The
+> evidence contradicts hedging on a mechanical trigger and says nothing either
+> way about hedging on judgment.
+
+**Do not register a fourth trigger study.** What would move the sleeve is an
+INSTRUMENT test on a mark-to-market curve (`lib/mtm_curve.py`), on dates chosen
+without a rule, and it waits on dates rather than on design.
+
+**Deferred, not dropped — the prose control.** `hedge_exposure` ARM P stays
+inert (ERRATUM 2) and the corrected control — ARM C on concentration-matched
+sessions carrying NO hedge-pressure signal, matched on count — is NOT in
+`hedge_concentration`: the admitted book carries only 19 prose-conditioned
+sessions / 17 episodes at the loosest τ, so it would be another arm that can
+never bite. Register it only when the book has materially more parsed dates.
 
 ### 2.2 v4 composition bridge — RUNS now; the answer is "ladder unvalidated on v4"
 

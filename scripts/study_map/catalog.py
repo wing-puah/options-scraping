@@ -441,14 +441,16 @@ STUDIES: dict[str, Study] = {
                  "original entry, then exit / tighten / arm a trail — work where the "
                  "reactive drawdown-from-peak rules of Attempts 1/2/10 did not?",
         verdict="NULL both arms of the grid, on era v3 (2026-08-19, 795/118) and again on v4 "
-                "(2026-08-24, 567 rows / 87 dates). The v4 run is if anything thinner: "
-                "`24 of 96 cells clear the floor; 72 are UNDERPOWERED.` — `tally: "
-                "{'UNDERPOWERED': 72, '-': 24}` — and not one powered cell reaches "
-                "CANDIDATE, REACTIVE-AGAIN or NULL; every one is a bare `-`. The guards "
-                "hold (`G1: PASS — 0 rows changed outside the population, in every cell.`, "
-                "`G-FORK: PASS — 0 disagreements.`), so this is a power result, not a "
-                "plumbing one. The Attempt-1/2/10 null extends to staged switches; thread "
-                "closed on these dates.",
+                "(2026-08-27, sha 25f3e27, 996 rows / 145 dates). The v4 run is better "
+                "powered than the 08-24 one it supersedes and says the same thing: "
+                "`40 of 96 cells clear the floor; 56 are UNDERPOWERED.` — "
+                "`tally: {'UNDERPOWERED': 56, '-': 40}` — and not ONE powered cell reaches "
+                "CANDIDATE or REACTIVE-AGAIN; every one is a bare `-`. The closest cell "
+                "still fails at criterion 1: ARM E X=15 $<=-500 -> exit now reads "
+                "`shipped meanR +0.023   staged meanR +0.031   DeltaR +0.008` with "
+                "`CI95 (date-clustered, n=10000) [-0.005, +0.020]   FAIL`. The guards "
+                "hold, so this is a power result, not a plumbing one. The Attempt-1/2/10 "
+                "null extends to staged switches; thread closed on these dates."
     ),
 
     # ③ structure
@@ -604,26 +606,59 @@ STUDIES: dict[str, Study] = {
                 "measured census.",
     ),
 
+    "concurrency_correlation": Study(
+        family="deployment", state="open",
+        question="max_positions_per_day caps the FLOW of new positions; nothing caps the "
+                 "STOCK of open ones. Does the SIZE and internal SIMILARITY of the open "
+                 "book degrade per-position outcome, independently of what was selected?",
+        verdict="NOISE (2026-09-04, era v4, first run). `>>> NOISE — all 11 powered arms "
+                "sit inside ARM N's band. Neither the SIZE of the open book nor its "
+                "internal similarity degrades per-position outcome on this era's deployed "
+                "book, at any ceiling on either grid. <<<` PRIMARY = 3 dense episodes / 87 "
+                "dates / 218 positions; SECONDARY = the full 129-date, 321-position book. "
+                "`K 3 / same-underlying` and `K 5 / same-underlying` are UNDERPOWERED (21 "
+                "and 7 moved dates against the pre-declared floor of 25) and print census "
+                "only; ARM CK is NOT RUN because neither ARM C nor ARM K clears alone. "
+                "Three things the run established rather than assumed: (1) the book is "
+                "long-only (`{1: 321}`, 321 of 321 with same-direction count == open "
+                "count), so ARM K / same-direction IS ARM C on a different grid and is "
+                "excluded from the conjunction; (2) X7's delta control barely "
+                "discriminates — 110 of 129 dates sit in `[2.0,inf)`, leaving ONE readable "
+                "band, and one band is the whole sample re-labelled, not a control, so X7 "
+                "cannot PASS on it; (3) ARM D0's DESCRIPTIVE shape is not flat (mean R "
+                "`[0,3)` +0.4533 -> `[6,10)` -0.1256 by same-direction-and-sector count on "
+                "SECONDARY; `[6,10)` +0.5118 -> `[20,inf)` +0.1783 by raw concurrency) but "
+                "it is registered DESCRIPTIVE ONLY and every ceiling arm that would act on "
+                "it is inside the null band. X4 (era stability) is NOT evaluable in a "
+                "single run — `lib/era.py` binds one run to one era — so every arm is "
+                "CAPPED at CANDIDATE-PENDING-X4 and the v3 companion command is printed in "
+                "the report. Nothing ships; on a NOISE verdict the companion is a "
+                "completeness item, not a blocker. Twenty-two NOT PRE-REGISTERED choices "
+                "are disclosed in the report's own block.",
+    ),
+
     "portfolio_delta": Study(
         family="deployment", state="open",
         question="Is there an optimal PORTFOLIO net delta to keep? account_sim showed "
                  "delta-notional binds before cash; this asks whether the level itself is "
                  "a lever — dose-response, a ceiling band, and a delta-TARGETED hedge "
                  "sleeve, against a seeded random-admission null band.",
-        verdict="NOISE on the primary population — era v3 (2026-08-19) and again on v4 "
-                "(2026-08-24, 567 rows / 87 dates, 181 deployed picks): `>>> NOISE — no arm "
-                "exceeds ARM N's 95th percentile and ARM D's bands do not separate within "
-                "their cells. Recorded; thread closed for these dates. <<<` "
-                "LONG-ONLY-BY-CONSTRUCTION is the operating fact and got sharper, not "
-                "softer: `census: long-only book: True   negative-delta picks 0 of 181   "
-                "per-date net/equity range [+0.00, +2.50]` — not one short-delta pick in the "
-                "whole book. Exactly one arm clears the moved-dates floor, and it fails five "
-                "of the seven parts: `arms powered (G-INVENTORY): B ceiling 1.00` / "
-                "`=> B ceiling 1.00: FAILS c1, c2, c4, c5, c7` on a paired mean gain of "
-                "`+0.0071 R   CI95 [-0.2258, +0.2070]` sitting at `pct 94%` of the ARM N "
-                "null band. Every H* delta-target hedge arm is UNDERPOWERED (9/14/15 moved "
-                "dates against 25) and none is read. Net delta is not a free lever of this "
-                "book; no band value read off P&L per the firewall.",
+        verdict="CANDIDATE-FOR-INDEPENDENT-WINDOW as of the 2026-08-27 v4 run (sha "
+                "25f3e27, 996 rows / 145 dates, 317 deployed picks over 127 dates) — "
+                "which REVERSES the NOISE read the 08-19 (v3), 08-22 and 08-24 runs all "
+                "printed, on a materially larger book. Two arms clear the whole "
+                "seven-part conjunction on PRIMARY dense episodes: `B ceiling 1.00` "
+                "`paired mean gain +0.1106 R   CI95 [+0.0135, +0.2262]`, `LOO ... share>0 "
+                "100%  MIN +0.0739`, `moved dates 69`, `ARM N band p95 +0.0433 ...  sits "
+                "at pct 100%`; and `B ceiling 1.50` `+0.0894 R   CI95 [+0.0255, +0.1656]`, "
+                "`MIN +0.0640`, `moved dates 43`, also `pct 100%` — with B ceiling 1.50 "
+                "clearing all seven on the SECONDARY full book too (`+0.0872 R   CI95 "
+                "[+0.0283, +0.1526]`). ARM D still reads `shape: not monotone / not "
+                "readable`. NOTHING SHIPS UNDER ANY OUTCOME and no ceiling value may be "
+                "adopted on its P&L (the registration's firewall): the label queues an "
+                "INDEPENDENT WINDOW and nothing else. LONG-ONLY-BY-CONSTRUCTION got "
+                "sharper, not softer: `census: long-only book: True   negative-delta "
+                "picks 0 of 317   per-date net/equity range [+0.00, +2.49]`.",
     ),
 
     "hedge_timing": Study(

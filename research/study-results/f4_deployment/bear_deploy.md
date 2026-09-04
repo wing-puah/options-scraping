@@ -75,3 +75,21 @@ VERDICT (pre-registered rules, pre-registrations/f4_deployment/bear_deploy.md)
   D5 gated sleeve (POST-HOC): 8 candidate gate(s)
 ```
 
+
+## era v4 · inputs ef2016f · sha 665956d — recorded 2026-09-04
+<!-- key era=v4 sha=665956d inputs=ef2016f -->
+
+population  485 results · 1,111 proxy · 1,893 analysis · 815 spy_vix_daily_full  (inputs dated 2026-08-27 20:34 … 2026-08-29 14:01)
+run         2026-08-29 16:34:03 · git 665956d (main, working tree dirty) · exit 0 · 22.1s
+command     python -m scripts.backtest_study.f4_deployment.bear_deploy
+excerpt     verdict
+
+```
+VERDICT (pre-registered rules, pre-registrations/f4_deployment/bear_deploy.md)
+  D1 joint selection x exit : NOT MET
+  D2 hedge is real          : NOT MET
+  D3 always-on sizing       : NOT MET at any size
+  D4 conditional pick       : NOT MET
+  D5 gated sleeve (POST-HOC): 8 candidate gate(s)
+```
+

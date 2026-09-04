@@ -1212,3 +1212,105 @@ their trigger" observation is true of the backtest and immaterial to the edge;
 the confirmation costs what it buys. Selection stays structure × model regime ×
 entry geometry, and the entry-mechanics thread is closed on these dates.
 Records: `study-results/f1_selection/trigger_entry.md` (v3 + v4).
+
+## 2026-09-04 — `hedge_concentration` GRADED and §2.1 CLOSED; `concurrency_correlation` BUILT and first-run: NOISE
+
+Two items, and the second is the one nobody had built.
+
+**`hedge_concentration` graded; the max-drawdown question is closed.** Re-run
+2026-09-04 (era v4, sha `64689d0`, exit 0) on a slightly larger export than the
+08-31 first run — `ADMITTED (taken + taken_downsized) 225 / 112 dates` — and
+graded the same day under the two-analyst protocol. **A and B agreed on all 21
+gate/clause rows, no violations, no mis-transcriptions**; the validator called
+the pair "unusually clean" and found nothing to adjudicate. Both independently
+disclosed the module's two live substitutions rather than glossing them — G-MTM
+read against `TARGET_POSITION` instead of the registration's literal
+stored-column check (the sim re-sized 101 positions and re-exited 35, so the
+stored target cannot reconcile), and G-POWER read against episodes instead of
+the registered trigger-DATE count. Both were already in the report's twenty-item
+NOT PRE-REGISTERED block, which is what that block is for. The figures moved
+slightly on the larger book and the verdict did not: G-POWER-K PASS
+(`[172, 172, 152]` usable sessions per tercile against a floor of 60 each; 3
+dense episodes against a floor of 3, **met exactly at the floor**), contrast
+`$-767.93 CI95 [$-2,186.47, $349.09]`, ρ `-0.1648 CI95 [-0.4021, +0.0809]`,
+neither beating ARM KN's 5th percentile. Clauses 1/2/3/5 fail; the two that PASS
+are the CONTROLS (ARM KG keeps the sign across gross terciles, both ex-window
+cuts retain it), so it is not a gross-exposure effect in disguise — it is no
+effect. Stage 2 never opened. Recorded in `deployment-evidence.md` and
+`next-steps.md` §2.1 is **closed**.
+
+**The closing note the closure needs.** Written into `deployment-evidence.md`
+beside it, because the hedge programme reads as uniformly negative and is not. A
+hedge is two claims — WHEN to put it on, and WHETHER the thing you put on pays.
+Everything powered is about the **trigger**: `hedge_timing` killed three
+mechanical triggers (0 of 9 survivors, GAP-UP CONTRARY), `hedge_exposure`
+power-stopped every cell of a concentration × fraction grid, and now
+`hedge_concentration` refutes concentration at its **precondition** on a powered
+sample. The **instrument** has never been powered — `bear_deploy` D2 flipped
+MET → NOT MET on the v4 refresh, D3 was never met at any size, and neither
+hedge study reached a cell. So "not shown to work" is the absence of a
+measurement, not a measurement of absence. That is what decides the §4 sleeve:
+the evidence contradicts hedging **on a mechanical trigger** and says nothing
+either way about hedging **on judgment**, so keeping the sleeve as operator
+policy is consistent with the record and so is dropping it. **Do not register a
+fourth trigger study.** What would move it is an instrument test on a
+mark-to-market curve (`lib/mtm_curve.py`), on dates chosen without a rule, and
+that waits on dates rather than on design.
+
+**`concurrency_correlation` built and run — the last registration with no
+module.** Registered 2026-08-22, written 2026-09-04, first run the same day (era
+v4, exit 0). It is the study for the operator's read that "the more that is
+being deployed, the less it seems to be working" — which does NOT resolve to
+depth into the ranked list (within-day rank is flat on both eras). What it
+measures is the SIZE and internal SIMILARITY of the open book at each position's
+entry: `account_sim` computes `n_open` and no report had ever joined it to an
+outcome.
+
+`VERDICT: NOISE` — **all 11 powered arms sit inside ARM N's band**, at any
+ceiling on either grid. PRIMARY 3 dense episodes / 87 dates / 218 positions;
+SECONDARY the full 129-date, 321-position book. `K 3` and `K 5 /
+same-underlying` are UNDERPOWERED (21 and 7 moved dates against the pre-declared
+floor of 25) and print census only. ARM CK is NOT RUN: the registration runs the
+conjunction only if ARM C and ARM K each clear alone, and neither did.
+
+Three things the run established rather than assumed, all printed:
+
+- **`ARM K / same-direction` IS `ARM C` on a different grid.** The book is
+  long-only by construction (`{1: 321}`; 321 of 321 positions have
+  same-direction count == open count), so that relation carries no information
+  ARM C does not. The run *checks* this instead of assuming
+  `portfolio_delta`'s long-only census, and excludes the degenerate relation
+  from ARM CK — a conjunction of an arm with itself is not a conjunction.
+- **X7's delta control barely discriminates on this book.** 110 of 129 dates
+  sit in the `[2.0,inf)` band of |net delta-notional| / capital at session open,
+  leaving exactly ONE readable band — and one readable band is the whole sample
+  re-labelled, not a control. X7 cannot PASS on it and the report says so in
+  those words. That is a limitation of the control, not evidence for any arm.
+- **ARM D0's descriptive shape is not flat.** Mean R falls across
+  same-direction-and-sector count (`[0,3)` +0.4533 → `[6,10)` −0.1256 on
+  SECONDARY) and across raw concurrency (`[6,10)` +0.5118 → `[20,inf)` +0.1783).
+  It is registered DESCRIPTIVE ONLY and stays that way: every ceiling arm that
+  would *act* on the shape is inside the null band, which is exactly the case
+  the ARM N control exists to catch.
+
+One design note worth keeping. The first implementation froze each arm's open
+count at session open, following the registration's annotation clause
+literally. That makes every ceiling a **DAY gate** — it admits all of a day's
+picks or none — under which X2's within-date paired gain is identically
+`+0.0000` on every date the arm keeps. A degenerate estimator, not a null. The
+arms therefore use a count that runs WITHIN the session in ladder order (the
+same walk `account_sim` makes down a day's ranked list), while ARM D0's
+descriptive annotation keeps the registration's session-open rule and G2 checks
+that one. Both read only the session they stand on. Disclosed as choice 3 of 21
+in the report's NOT PRE-REGISTERED block.
+
+X4 (era stability) is **not evaluable in a single run** — `lib/era.py` binds one
+run to one era, and pinning a second era's export to dodge that is what the
+guard exists to prevent — so every arm is CAPPED at CANDIDATE-PENDING-X4 and the
+report prints the `--era v3` companion command. On a NOISE verdict that is a
+completeness item, not a blocker. Gates G1–G6 and X8 all pass (G2 re-derives all
+321 annotations a second way, 0 disagreements; G3 set-equality against
+`top_k_per_day`; G4 attribution sums on every arm).
+
+Records: `study-results/f4_deployment/concurrency_correlation.md`,
+`study-results/f4_deployment/hedge_concentration.md` (both v4).
