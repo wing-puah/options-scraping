@@ -266,3 +266,25 @@ def test_every_shape_prints_one_under_the_floor_token():
 def test_the_frozen_trigger_values_are_the_operators_stated_practice():
     """0.50, $100 and 2x may not be tuned after a number is seen."""
     assert (FS.PT50_FRAC, FS.PROFIT_DOLLARS, FS.LOSS_MULT) == (0.50, 100.0, 2.0)
+
+
+# ── entry pricing mirrors production's THIRD branch (2026-09-04) ────────────
+
+def test_entry_price_carries_the_prior_mark_forward_when_the_entry_day_has_neither_open_nor_mark(cache):
+    """`_simulate._entry_price_leg` falls through to `_price_leg` → `_price_asof`
+    when the entry-day row has no positive Open and no mark (an illiquid leg
+    with bid 0). The study's reconstruction must do the same, or a row that
+    production priced fails `reconstructs` as `entry_unpriced` for no reason
+    but the mirror being incomplete (UTHR 2025-12-17, calendar_hedge R2)."""
+    day0, day1 = ENTRY, ENTRY + timedelta(days=1)
+    cache(SHORT, {day0: 2.875, day1: None})
+    # The entry-day row exists (so `entry_date_for` accepts the day) but
+    # carries no usable price of its own.
+    assert BR.leg_details(SHORT)[day1]["_mark"] is None
+    assert BR.entry_price_of(SHORT, day1) == pytest.approx(2.875)
+
+
+def test_entry_price_is_none_when_no_mark_exists_on_or_before_the_entry_day(cache):
+    day0, day1 = ENTRY, ENTRY + timedelta(days=1)
+    cache(SHORT, {day0: None, day1: None})
+    assert BR.entry_price_of(SHORT, day1) is None

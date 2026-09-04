@@ -1293,12 +1293,26 @@ def main(argv=None) -> int:
           f"invalidation_level={diag['feature_coverage']['invalidation_level']:.1%}  "
           f"trigger_level={diag['feature_coverage']['trigger_level']:.1%}")
     if era == "v4":
-        print("""
-  THE v4 2026 NO-OP, declared in the registration: the v4 results export carries
+        # The registration (2026-09-02) declared this cut a no-op because the v4
+        # export then carried ZERO 2026 signal dates. That is a fact about an
+        # export, not about the era: the 2026-09-04 refresh brought 13 of them.
+        # Say which world this run is in, from the book, never from the prose.
+        dates_2026 = sorted({str(r.get("date", "")) for r in rows
+                             if str(r.get("date", "")).startswith("2026")})
+        if not dates_2026:
+            print("""
+  THE v4 2026 NO-OP, declared in the registration: this v4 results export carries
   ZERO 2026 signal dates, so `ex_2026_feb_apr` == ALL and ex_BOTH ==
   ex_2025_mar_apr, and "positive in every calendar year" reduces to 2024 ^ 2025.
   Every cut prints its n beside ALL's so a reader sees a no-op, not a passed
   test.""")
+        else:
+            print(f"""
+  THE v4 2026 CUT IS LIVE: this export carries {len(dates_2026)} signal dates in 2026
+  ({dates_2026[0]} .. {dates_2026[-1]}), so `ex_2026_feb_apr`, ex_BOTH and the
+  "positive in every calendar year" clause all bite. The registration's no-op
+  declaration described the 2026-09-02 export, not this one. Every cut still
+  prints its n beside ALL's.""")
 
     if a.max_rows is not None:
         rows = rows[:a.max_rows]

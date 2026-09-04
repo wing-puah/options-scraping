@@ -127,7 +127,7 @@ the drawdown is measured on, the sizing, and the sector map.
 
 All of the following were measured from INPUTS before any outcome column was
 touched, and are disclosed here rather than discovered later. The full working
-is in `research/current.md` under 2026-08-29.
+is in `research/archive/18-hedge-programme-exit-basis-and-text-loop.md` under 2026-08-29.
 
 **The book is not shaped like the practice being tested.** 62.7% of book
 exposure is DIRECT — the position is in the proxy ETF itself (CREDIT 92%

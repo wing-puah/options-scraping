@@ -1,25 +1,47 @@
 # Next steps — session handoff
 
-Written 2026-08-31, so a fresh session can pick up without re-deriving state.
-Read this plus the **State of play (2026-08-31)** block at the top of
+Written 2026-08-31, refreshed 2026-09-04, so a fresh session can pick up without
+re-deriving state. Read this plus the **State of play (2026-09-04)** block at the top of
 [`current.md`](current.md) — that block is the authoritative summary; this file
 is the queue. Evidence trails live in [`current.md`](current.md),
 [`archive/`](archive/) and [`deployment-evidence.md`](deployment-evidence.md).
 
 ## 0. Repo state — READ FIRST
 
-- **Era `v4` is current.** The book is the **140-date backfilled** one; the
-  studies run on exports of **2026-08-27 20:34** (485 real results / 1,111
-  proxy / 1,893 analysis rows; signal dates 2024-01-10 → 2025-11-04). There are
-  still **zero 2026 signal dates**, so every `ex_2026_*` window cut and
-  "positive in every year" clause is a silent no-op
-  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27).
-- **Tests green as last recorded: 2,560 passed** (2026-08-31, end of the
-  `hedge_exposure` thread — [`current.md`](current.md)). The last full study-suite
-  re-run was **2026-08-27**: 25 studies recorded for era v4, only the 2 retired
-  studies lack reports; the HYG boundary-tie that had blocked the four debit
-  exit studies is fixed
-  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27 fix 2).
+- **Era `v4` is current.** The book is the **166-date backfilled** one; the
+  studies run on exports of **2026-09-04 20:31** (535 real results / 1,303
+  proxy / 2,212 analysis rows; pooled study book 1,143 rows; signal dates
+  2024-01-10 → 2026-04-16). **The book has 2026 signal dates for the first
+  time** — 13 of them (2026-01-06 → 2026-04-16, 79 pooled rows) plus 8 more
+  Nov/Dec-2025 dates from the neutral-date campaign (queue b, COMPLETE
+  2026-09-04) — so every `ex_2026_*` window cut and "positive in every year"
+  clause is LIVE. It was a silent no-op on every earlier export
+  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27);
+  what it did the first time it bit is in [`current.md`](current.md) 2026-09-04.
+  Two hardcoded date tables are still no-ops by construction — `mech_regime_recut`
+  §(b) and `regime_gap_reread` §0 list 2026-03 dates the export does not hold.
+- **Still unpriceable: the live dates.** `AnalysisClaude` carries 2026-08-11 →
+  2026-09-01 (the daily pipeline) with no backtest rows — their options have
+  not expired. Those are the "genuinely new, non-backfill" dates §2.2 and the
+  rollback triggers wait on; the 2026 dates above are BACKFILL and count as
+  the correlated window.
+- **Four real-priced rows are in the local backtest scratch but NOT in the
+  `BacktestResults` tab** (2025-12-22 TSLA and AMD `bull_call_spread`,
+  2025-09-26 CRWV `bull_call_spread` and HYG `bear_put_spread`), and not in
+  `BacktestProxy` either. The 12-22 SPY row from the same run IS there with the
+  same `created_datetime`, so the append did not simply fail. Not repaired —
+  the four rows have no provenance for why they are absent (a deliberate
+  deletion is as likely as a lost write), and a study population is not
+  patched from scratch files. Operator to decide; if they are to be restored,
+  re-run `make backtest ARGS="--date <D>"` for the two dates, NEVER a bare
+  backtest (no dedup — it would double every row).
+- **Tests green as last recorded: see [`current.md`](current.md) 2026-09-04.**
+  The last full study-suite re-run was **2026-09-04** on the 166-date book:
+  every non-retired study ran, `prompt_eval` refused by design (bare `--all`
+  passes no subcommand), and one gate stop — `calendar_hedge` R2 on one row —
+  was a study-side reconstruction gap (the entry pricer lacked production's
+  carry-forward branch), fixed and re-run the same session
+  ([`current.md`](current.md) 2026-09-04).
 - **The live thread is the hedge programme.** `hedge_exposure` is run, graded and
   ratified, and it ships nothing; its follow-up `hedge_concentration` was
   registered, built and RUN on 2026-08-31 — **PRECONDITION-NULL, a powered
@@ -168,6 +190,12 @@ test: the refusal path must never swallow a real failure.
 One line each. None of these needs re-opening; follow the pointer if you need
 the detail.
 
+- **The neutral-date campaign and the first 2026 refresh** (2026-09-04 late) —
+  queue b COMPLETE, exports refreshed to 166 dates, suite re-run, nothing
+  ships; the per-year clause bit for the first time (see §0 and
+  [`current.md`](current.md) 2026-09-04 late). `concurrency_correlation`
+  closed on both eras (§2.0).
+
 - **`trigger_entry`** (2026-09-04) — trigger-gated entry re-priced at the
   crossing session's close: **LATE-ENTRY** (N=3 −0.014, N=5 −0.026; v3 ×3);
   `exit_from_text` E2's +0.21/−0.05 gap was the day-0 move (ARM C bands
@@ -188,7 +216,7 @@ the detail.
   book's max drawdown by 40.2%). Ships nothing. →
   [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
   §Population and basis (RATIFICATION consolidated there 2026-09-02), and
-  [`current.md`](current.md) 2026-08-31.
+  [`archive/18`](archive/18-hedge-programme-exit-basis-and-text-loop.md) 2026-08-31.
 - **`hedge_timing`** (2026-08-28) — GAP-UP came back **CONTRARY** on both money
   arms; §4 prohibition **drafted and HELD** for the operator to accept or reject.
   Chop and the broad decline NULL; the strict 4–5-day streak untestable (2 book
@@ -208,9 +236,20 @@ The numbers are **stable labels**, not a ranking — `calendar_hedge.py` cites
 §2.3 and the archived backlog cites §2.4 and §2.7, so they keep their meaning.
 The order below is roughly the order to pick things up.
 
-### 2.0 `concurrency_correlation` — BUILT AND RUN 2026-09-04: **NOISE** on era v4; X4 pending the v3 companion
+### 2.0 `concurrency_correlation` — **CLOSED 2026-09-04: NOISE on both eras, X4 settled**
 
-**Status: answered on this era, not yet on both.** The module was written and
+**Status: answered on both eras (late 2026-09-04).** The `--era v3` companion
+ran (795 rows / 118 dates, 8 of 13 arms powered) and prints the same NOISE
+sentence; the v4 re-run on the 166-date book (11 of 13 powered) does too. X4
+read by hand against the registration's own rule ("same sign, both clearing
+X2 and X3, point estimates within 0.15 R"): **no arm clears X2/X3 in either
+era, so no arm is or can be ADOPT-eligible**; of the 8 arms powered in both,
+4 keep sign and 4 flip (C ceiling 5, C ceiling 8, K5/same-direction,
+K3/same-dir-and-sector), two beyond 0.15 R. The verdict is era-stable, the per-arm gains are
+not, and ARM D0's descriptive shape disagrees (v3 flat-to-rising, v4 lower at
+the top). Nothing ships, nothing is queued. Both runs are recorded in
+`study-results/f4_deployment/concurrency_correlation.md`. The text below is
+the record of the v4-only state it was in earlier the same day. The module was written and
 run 2026-09-04 (era v4, exit 0). It is the study for the operator's read that
 "the more that is being deployed, the less it seems to be working" — which does
 NOT resolve to depth into the ranked list (within-day rank is flat on both
@@ -245,7 +284,7 @@ printed rather than assumed:
   band is adopted, and the ceiling arms that would act on the shape are all
   inside the null band.
 
-**What is left:** the **v3 companion run** for X4 (era stability), which one run
+**What was left at that point (now DONE, see the header):** the **v3 companion run** for X4 (era stability), which one run
 cannot do — `lib/era.py` binds one run to one era and pinning a second era's
 export to dodge that is what the guard exists to prevent. The report prints the
 command and CAPS every arm at CANDIDATE-PENDING-X4 until it is done:
@@ -305,14 +344,27 @@ pre-registered tests shift (structure mix, plays per day, bear share, ladder tie
 mix); only credit share holds.
 
 Per the pre-registration: **keep deploying under the v3-derived rules and do NOT
-re-derive the ladder on v4 rows yet.** What still waits on data is genuinely new
-(non-backfill, post-2025-11-04) dates. Do not lower `MIN_V4_DATES` and do not
+re-derive the ladder on v4 rows yet.** On the 166-date book (2026-09-04) the
+gate is long cleared (2,025 plays / 184 dates against `MIN_V4_DATES = 20`) and
+**all five** tests shift, credit share included (`z = -2.10, p = 0.0355`; the
+08-24 run had it holding). What still waits on data is genuinely new
+(non-backfill) dates — the 2026 backfill dates do not qualify, and the live
+2026-08/09 dates are unpriced until their options expire. Do not lower `MIN_V4_DATES` and do not
 point `--v4-csv` at a v3 export — its exit 3 was always the designed refusal
 (§0c(C)), not a defect.
 
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
 
-Unchanged. The whole calendar/put-calendar/diagonal hedge programme terminates at
+**2026-09-04, 166-date book:** VERDICT block byte-identical (H0 FILL NOT MET at
+51.0% / 28.6%; H2 NOT EVALUABLE, (b) n=4), but **H3 flipped back to NOT MET
+at any size** on both baselines — drawdown-bound, baseline max DD widened to
+−12,529 / −15,425. That is three consecutive exports reading NOT MET →
+DEPLOYABLE → NOT MET: record H3 as an unstable measurement on this book, not
+as a verdict either way. H2(c)'s "3/3 years" is carried by ONE 2026 position
+on 2 dates. The first suite pass stopped this study at R2 on one row; that was
+the study-side entry pricer, fixed the same session (`current.md`).
+
+Otherwise unchanged. The whole calendar/put-calendar/diagonal hedge programme terminates at
 one wall: 9 worst-decile dates cannot power a worst-decile criterion under a
 1/day sleeve (all 30 `calendar_hedge` ARM S cells underpowered; H2 underpowered
 at n=6). Carry-forwards recorded in the log: the RANGE+C/L-VOL calendar cell
@@ -335,11 +387,17 @@ the study says the pattern actually lives: in the **underlying**, not the mark �
 `peak within 3d` n=18, give-back 89%, meanR −0.374 against `peak >20d` n=83,
 give-back 51%, meanR +0.203 (`scripts/study_map/catalog.py`, `bear_giveback`).
 
-Live wrinkle: on the grown 140-date book the same trigger **un-fires** (165
-arming rows, per-year deltas positive → HOLD). **Nothing un-reverts without a
-fresh registration** — and the lesson recorded alongside it is that a 60-row
-floor on a still-backfilling book produced a trigger decision that did not
-survive the next export (archive/17 §2026-08-27).
+Live wrinkle: on the 140-date book the same trigger **un-fired** (165 arming
+rows, per-year deltas positive → HOLD), and on the 166-date book (2026-09-04)
+it **fires again**, on the new 2026 column alone (199 arming rows / 110 dates;
+2024 +0.0148 / 2025 +0.0047 / 2026 −0.0431). **Nothing un-reverts without a
+fresh registration** — and the lesson now has three data points: a 60-row
+floor on a still-backfilling book does not produce a stable trigger decision
+(archive/17 §2026-08-27; `deployment-evidence.md` §third census). A new
+first on the same run: `bear_arm` B2's pre-registered EXIT FIX criteria are
+**MET** for the first time (`sl .50 (tighter)` Δ=+0.039 CI[+0.004, +0.071],
+LOO min +0.035, bear-specificity control holds) — a correlated-window
+re-read, so it HOLDS a rule and promotes nothing; noted here, not queued.
 
 ### 2.5 Live walk-forward — still the intended evidence source, no recorded movement
 
@@ -377,41 +435,52 @@ pre-registered rollback triggers". First census + evaluations ran 2026-08-24
 (`research/pre-registrations/f2_management/rollback_triggers.md`; the census now
 prints on every relevant study run):
 
-| Trigger | Census (2026-08-24) | Outcome |
-|---|---|---|
-| bear-debit `be_after 0.50` | 92 arming rows / 53 dates ≥ floor 60 | **FIRED → REVERTED** (un-fires on the 08-27 book; see §2.4) |
-| LVOL tef-null (corrected gate) | 31 affected dates ≥ 25 | all four criteria pass — CLEARED, operator **HELD** the ship pending genuinely new dates |
-| BEAR_HE trail | 1 affected date of 25 | UNDERPOWERED — the census is the result |
-| credit sl-none | 0 fresh bull_put rows of 15 | UNDERPOWERED — `sl 1x` comparator now printed by every credit run |
+| Trigger | Census (2026-08-24) | Census (2026-09-04, 166 dates) | Outcome |
+|---|---|---|---|
+| bear-debit `be_after 0.50` | 92 arming rows / 53 dates ≥ floor 60 | 199 / 110 | **FIRED → REVERTED** 08-24; un-fired 08-27; **fires again 09-04 on 2026 −0.0431** — already reverted, nothing to do (§2.4) |
+| LVOL tef-null (corrected gate) | 31 affected dates ≥ 25 | 73 affected dates | 08-24 CLEARED, operator **HELD**; 08-27 and 09-04 **STAYS GATED** (median −0.0330, late half −0.20) — the hold was right |
+| BEAR_HE trail | 1 affected date of 25 | 1 of 25 | UNDERPOWERED — the census is the result |
+| credit sl-none | 0 fresh bull_put rows of 15 | 0 of 15 | UNDERPOWERED — the fresh window is `signal_date > 2026-07-13`; unreachable by backfill, waits on live dates after July 2026 |
 
-Two stale report strings to fix before they propagate (found 2026-08-27, not yet
-done): `bear_arm.py:442` still prints the census header as "shipped 2026-08-11"
-with no knowledge that `structure_exit.enabled` is now `false`, and
-`account_sim.py:1940` still cites "bear_deploy D4-adopted" for a pick line that
-was pulled.
+The two stale report strings found 2026-08-27 are FIXED (2026-09-04):
+`bear_arm.py`'s census header now says the rule was REVERTED 2026-08-24 and
+`account_sim.py`'s ARM H block says the D4 pick line was PULLED.
 
 ### 2.7 Parked / blocked long-term
 
 - **Credit exit knobs** — unvalidated; needs a credit-heavy window (every
   historical winner is the Mar-TSLA cluster). The v4 credit book calibrates
-  exactly (single-basis era, 113/113 exact as of 08-27) and the corrected
-  baseline is in place, but there are no 2026 dates, so the Attempt-13 trigger
-  has **0 fresh bull_put rows**. Operator kept the thread parked; census +
-  `sl 1x` comparator print on every credit run.
+  exactly (single-basis era, 127/127 exact as of 09-04) and the corrected
+  baseline is in place, but the Attempt-13 "fresh" window starts AFTER
+  2026-07-13 and the book ends 2026-04-16, so the trigger still has **0 fresh
+  bull_put rows** — no backfill can reach it. Operator kept the thread parked;
+  census + `sl 1x` comparator print on every credit run (09-04: sl-none still
+  wins, Δ −$584 / Δ-LOO −$1,306, down from −$3,468 / −$3,853).
 - **Long-dated blind spot** — h ≥ 180 is unpriceable with real data and the BS
   proxy tier is OFF (`proxy.bs_fallback: false`). Blocked on real long-dated
   history; never read BS proxy rows as evidence for long-dated.
-- **Per-regime exit switch** — STAYS GATED on the 140-date book
-  (`exit_switch_mech_study`, `exit_switch_structure_study`, 2026-08-27).
-- **`portfolio_delta` ARM B ceiling 1.50** — clears the full adoption
-  conjunction on both populations but costs dollars and comes off a correlated
-  window; labelled **CANDIDATE-FOR-INDEPENDENT-WINDOW**, queued, nothing ships
-  (archive/17 §2026-08-27 fix).
-- **`analyze_bt_queue.sh` backfill partials** — 20 dates stuck as
-  permanently-skipped partials. **Five of them already have analysis rows in the
-  tab**, so `RETRY_PARTIAL=1` on queue b would duplicate them and the tab has no
-  dedup to catch it; the other fifteen wrote nothing and are safe to retry
-  (archive/17 §2026-08-22).
+- **Per-regime exit switch** — STAYS GATED on the 166-date book
+  (`exit_switch_mech_study`, `exit_switch_structure_study`, 2026-09-04; the
+  structure study's Q2 guard read inverted sign on that book — the structure
+  key now does positive work outside BEAR_HE — but two of six criteria still
+  fail).
+- **`portfolio_delta` ARM B ceiling 1.50** — DROPPED OUT 2026-09-04 (primary
+  CI [−0.0120, +0.1527], secondary 2026 −0.0878); only **B ceiling 1.00**
+  still clears the conjunction — the queued independent window is for that
+  arm alone.
+- **`portfolio_delta` ARM B ceiling 1.00** — clears the full adoption
+  conjunction on the dense-episode population, costs dollars and comes off a
+  correlated window; labelled **CANDIDATE-FOR-INDEPENDENT-WINDOW**, queued,
+  nothing ships (archive/17 §2026-08-27 fix; 1.50 dropped 2026-09-04, above).
+- **Neutral-date campaign — CLOSED 2026-09-04.** Queue b reached
+  `ANALYZE-BT COMPLETE` (2026-09-04T10:48Z); the three dates that failed once
+  on 09-03 (2026-01-20, 01-23, 04-13) were re-run and the 09-04 export shows
+  **no duplicated analysis row on any of the 21 new dates** (counted per
+  `backtests/partial_analyze_dates.md`'s method). 2025-12-26 produced 0
+  analysis rows (no inputs cached for that half-session; the ledger records it
+  done). `scripts/analyze_bt_queue.sh` was deleted per its own header; the
+  `.done` ledger and the hand-written date lists stay in `backtests/`
+  (gitignored, no history — never clean them).
 - **Prompt/infra** — the `analysis_pipeline/core.py` refactor is deferred; the
   PostToolUse hook still never runs pytest. The delegation-nudge PreToolUse hook
   is advisory by design (`systemMessage` only, no `permissionDecision`).
@@ -426,8 +495,11 @@ UNDERPOWERED elsewhere on v4; the only positive cells are v3 `bear_put_spread`
 at a 1–2% buffer — a re-read item when 2026 dates reach v4, never a ship from a
 secondary era. The parser hazard below was honoured (unparseable levels are
 their own reported bucket, 1.1%). `invalidation_exit` stays unshipped on
-evidence, not on backlog. The text below is kept as the record of the original
-gap.
+evidence, not on backlog. **The v3 bear_put re-read is ANSWERED (2026-09-04):**
+on the 166-date v4 book the `bear_put_spread` cells are powered (336 rows) and
+**NULL at every buffer**, with 2026 negative (−0.302 / −0.134 / −0.039); the
+pooled E2 candidate also died on its first 2026 year row. Nothing to re-read.
+The text below is kept as the record of the original gap.
 
 Carried here so archiving the backlog loses nothing. The old
 `research/backlog.md` is now

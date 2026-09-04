@@ -439,7 +439,9 @@ def main() -> int:
     b2_exit(bear, other, "debit")
     b2_exit(bear, other, "credit")
 
-    hdr("ROLLBACK-TRIGGER CENSUS — bear-debit be_after 0.50 (shipped 2026-08-11)")
+    hdr("ROLLBACK-TRIGGER CENSUS — bear-debit be_after 0.50 (shipped 2026-08-11, "
+        "REVERTED 2026-08-24: structure_exit.enabled is false; nothing un-reverts "
+        "without a fresh registration)")
     print("  \"ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows "
           "that actually arm the breakeven stop, i.e. reach peak P&L >= +0.50): revert "
           "`enabled` to false if the total gain vs PROD on those rows is <= 0, OR if "

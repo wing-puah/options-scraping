@@ -63,3 +63,17 @@ G3 — NO-DAY-0-MOVE ASSERTION (runs first; it is a guard, not a report)
 G2 — SIZING CENSUS (contracts per lag; NO dollar figure is quoted across lags, anywhere)
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 20:35:43 · git e59356f (main, working tree clean) · exit 0 · 13.1s
+command     python -m scripts.backtest_study.f1_selection.emission_timing
+excerpt     matched
+
+```
+G3 — NO-DAY-0-MOVE ASSERTION (runs first; it is a guard, not a report)
+G2 — SIZING CENSUS (contracts per lag; NO dollar figure is quoted across lags, anywhere)
+```
+

@@ -83,3 +83,23 @@ excerpt     tail
     iv_spread vs mae_pct | bear_put_spread, pooled          n=  322  rho=-0.0550  p= 0.3250
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 20:36:46 · git e59356f (main, working tree dirty) · exit 0 · 1.1s
+command     python -m scripts.backtest_study.f1_selection.regime_gap_reread
+excerpt     tail
+
+```
+    |delta| vs mfe_pct | side=debit                         n=  877  rho= 0.0804  p= 0.0172
+    |delta| vs mae_pct | side=debit                         n=  877  rho=-0.2038  p= 0.0000
+5c. real-priced bull_put iv_skew vs realized — all rows
+    iv_skew vs realized_pnl_pct | real-priced bull_put_spread, all n=  118  rho= 0.0960  p= 0.3012
+5c. real-priced bull_put iv_skew vs realized — post-13c
+    iv_skew vs realized_pnl_pct | real-priced bull_put_spread, post-13c n=  118  rho= 0.0960  p= 0.3012
+5d. bear_put_spread x iv_spread vs mae_pct — pooled (continuity check of Tier-C rule)
+    iv_spread vs mae_pct | bear_put_spread, pooled          n=  365  rho=-0.0686  p= 0.1912
+```
+

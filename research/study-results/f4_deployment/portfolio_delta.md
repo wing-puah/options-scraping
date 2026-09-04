@@ -82,3 +82,21 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   >>> CANDIDATE-FOR-INDEPENDENT-WINDOW — B ceiling 1.00, B ceiling 1.50 clear the full adoption-eligibility conjunction. Queued for an independent wi…
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 20:46:58 · git e59356f (main, working tree dirty) · exit 0 · 14.7s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00, B ceiling 1.50, B ceiling 2.00, H* target 2.00
+  arms clearing the whole bar:  B ceiling 1.00
+  ARM D readable bands: [0.0,0.5), [1.0,2.0), [2.0,inf)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 0 of 362   per-date net/equity range [+0.00, +2.49]
+  >>> CANDIDATE-FOR-INDEPENDENT-WINDOW — B ceiling 1.00 clears the full adoption-eligibility conjunction. Queued for an independent window and NOTHIN…
+```
+

@@ -340,7 +340,7 @@ already produces — and they do not agree:
 Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
 **UNDERPOWERED** — every cell of the τ × f grid is power-stopped on the ratified
 population — so nothing there says a hedge works, and no direction is quoted
-from any cell. See [`current.md`](current.md) 2026-08-31 and
+from any cell. See [`archive/18`](archive/18-hedge-programme-exit-basis-and-text-loop.md) 2026-08-31 and
 [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
 §Population and basis (RATIFICATION consolidated there 2026-09-02).
 
@@ -608,6 +608,22 @@ re-read — `research/pre-registrations/f2_management/rollback_triggers.md`):**
 | Bear-debit `be_after` | **92** arming rows ≥ 60 | condition three FIRED (2025 −0.034) → **REVERTED** |
 | Credit sl-none | **0** fresh bull_put rows of 15 | UNDERPOWERED — `sl 1x (pre-Attempt-13)` comparator now printed by every credit run |
 
+**Third census (2026-09-04, v4 exports of 2026-09-04 20:31 — 166 signal dates
+2024-01-10 → 2026-04-16, the FIRST book with 2026 dates, so the per-year
+clause has a third column for the first time):**
+
+| Trigger | Census | Outcome |
+|---|---|---|
+| BEAR_HE trail | **1** affected date of 25 | UNDERPOWERED — unchanged; the census is still the recorded result |
+| LVOL tef-null (corrected gate) | **73** affected dates ≥ 25 (100 rows) | **STAYS GATED** — 2 of 4 criteria FAIL (affected-date median **−0.0330**, halves early +10.07 / late −0.20; total +9.86 and no-flip pass). The 08-24 CLEARED (31 dates, median +0.023) did not survive the next two exports; the 08-27 run already read STAYS GATED. The operator's hold was correct. |
+| Bear-debit `be_after` | **199** arming rows / 110 dates ≥ 60 | condition three **FIRED again**, this time on the new 2026 column (2024 +0.0148 / 2025 +0.0047 / **2026 −0.0431**); (a) +$2,535.50 and (b) +0.0600 pass. Three censuses, three answers (08-24 FIRED 92 rows, 08-27 HOLD 165, 09-04 FIRED 199). Operationally nothing changes — `structure_exit.enabled` has been `false` since 08-24 and nothing un-reverts without a fresh registration. |
+| Credit sl-none | **0** fresh bull_put rows of 15 | UNDERPOWERED — the "fresh" window is `signal_date > 2026-07-13` and the book ends 2026-04-16, so this trigger is unreachable by ANY backfill; it waits on live signal dates after July 2026. Comparator: sl-none still beats `sl 1x` (Δ −$584, Δ-LOO −$1,306; was −$3,468 / −$3,853). |
+
+The lesson recorded on 08-27 stands and now has a third data point: a 60-row
+floor on a still-backfilling book does not produce a stable trigger decision.
+The next reading that can carry weight is on GENUINELY new dates, not another
+backfill export.
+
 ---
 
 ## Hedge-timing triggers (2026-08-28 — one drafted-and-held prohibition, one closed question, one untestable habit)
@@ -627,6 +643,20 @@ correlated window under every outcome.
 **Forward trigger (blind, from the registration):** re-run when ≥25 book dates
 carry a live strict N≥4 SPY down-run, or when ≥25 signal dates exist after
 2025-11-04.
+
+**Re-run on the 166-date book (2026-09-04, first export with 2026 dates —
+not the forward trigger; 21 signal dates after 2025-11-04, of which 13 in
+2026):** survivors still 0 of 9 headline tests. The arms MOVED under the
+new per-year column: **H1-GAP NULL → CONTRARY** (−0.245, CI [−0.458, −0.026]),
+**H3-GAP CONTRARY and stronger** (−0.506, CI [−0.844, −0.157], every LOO fold,
+all cuts), **H4-GAP CONTRARY → NULL** (`cuts_ok` fails; best gated policy
+f=0.50 −$6,700), H4-CHOP and H4-DECLINE UNSTABLE → NULL. The drafted §4
+gap-up prohibition therefore now rests on the paired-R arms (H3, mirrored by
+H1) and no longer on the do-nothing-dollars arm H4 — the "gating bought no
+drawdown protection" half of the draft's wording is no longer carried. The
+draft stays HELD; accepting, rewording or rejecting it is the operator's
+decision. The strict 4–5-day streak is still UNDERPOWERED (N=4 samples 4
+dates, N=5 samples 2).
 
 **Open question, queued by the operator (2026-08-28): can any hedge mechanism
 reduce MAX DRAWDOWN at all?** H4's tables say the current sleeve cannot: max

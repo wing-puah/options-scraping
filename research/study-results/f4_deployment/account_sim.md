@@ -87,3 +87,23 @@ VERDICT (PRIMARY dense episodes population — the primary)
   >>> FEASIBLE <<<
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 20:44:42 · git e59356f (main, working tree dirty) · exit 0 · 2.8s
+command     python -m scripts.backtest_study.f4_deployment.account_sim
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes population — the primary)
+  A1  MET
+  A2  MET
+  A3  MET
+  A4  MET
+  A5  MET
+  A6  MET
+  >>> FEASIBLE <<<
+```
+

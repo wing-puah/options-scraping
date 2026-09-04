@@ -75,3 +75,21 @@ excerpt     matched
   P2 correlation with deployed sleeve: -0.285 over 93 shared dates   -> MET
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 21:43:28 · git e59356f (main, working tree dirty) · exit 0 · 126.5s
+command     python -m scripts.backtest_study.f3_structure.bear_rewrap
+excerpt     matched
+
+```
+  P1 worst-decile: n= 32  meanR +0.280  CI [-0.118, +0.681]  $+15,642   -> not met
+  P2 correlation with deployed sleeve: -0.197 over 140 shared dates   -> MET
+  P1 worst-decile: n= 25  meanR +0.093  CI [-0.222, +0.335]  $+1,957   -> not met
+  P2 correlation with deployed sleeve: -0.216 over 123 shared dates   -> MET
+  P1 worst-decile: n= 16  meanR +0.499  CI [+0.202, +0.743]  $+9,681   -> MET
+  P2 correlation with deployed sleeve: -0.326 over 106 shared dates   -> MET
+```
+

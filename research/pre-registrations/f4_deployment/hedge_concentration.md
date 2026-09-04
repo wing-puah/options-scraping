@@ -136,7 +136,7 @@ contracts, entry underlying, signal date, `days_held` for occupancy, and the
 `regime` prose — on the 2026-08-27 20:34 exports, before any outcome column
 (P&L, R, `daily_pnl_csv`, drawdown, equity) was read. They are disclosures
 about that snapshot, not checksums; the module reprints every one of them
-from its own run. Working: `research/current.md` 2026-08-31 (late).
+from its own run. Working: `research/archive/18-hedge-programme-exit-basis-and-text-loop.md` 2026-08-31 (late).
 
 **The loader is the same.** A bare `run account_sim` loads
 `load_book(include_bs=args.include_bs)` with `--include-bs` defaulting to

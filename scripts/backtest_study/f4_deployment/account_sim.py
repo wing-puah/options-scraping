@@ -1937,8 +1937,10 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
                 st: Settings, cache: dict) -> None:
     hdr(f"[{label}] ARM H — the shipped bear sleeve on the constrained run")
     print(f"""  1 bear-debit position per signal date, chosen by |delta| DESCENDING
-  (bear_deploy D4-adopted), sized at int({st.hedge_risk_fraction:g} x risk contracts) with a floor of
-  1, entered AFTER the day's signal picks so it can never displace one. This is
+  (bear_deploy D4 — its §4 pick line was PULLED 2026-08-24, the live pick is operator
+  discretion; the sleeve keeps D4 as its mechanical stand-in), sized at
+  int({st.hedge_risk_fraction:g} x risk contracts) with a floor of 1, entered AFTER the
+  day's signal picks so it can never displace one. This is
   the only way net-vs-gross delta-notional becomes measurable: almost every
   deployed pick is positive-delta, so without a sleeve net == gross.""")
     for name, hedge in (("without sleeve", False), ("with sleeve", True)):

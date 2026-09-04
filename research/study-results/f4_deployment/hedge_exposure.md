@@ -98,3 +98,26 @@ CELL TALLY — population all   (no verdict is read from it)
   RATIFIED population — never from this tally and never per population.
 ```
 
+
+## era v4 · inputs 1b1ba3c · sha e59356f — recorded 2026-09-04
+<!-- key era=v4 sha=e59356f inputs=1b1ba3c -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 819 spy_vix_daily_full  (inputs dated 2026-09-04 11:10 … 2026-09-04 20:31)
+run         2026-09-04 20:45:35 · git e59356f (main, working tree dirty) · exit 0 · 78.7s
+command     python -m scripts.backtest_study.f4_deployment.hedge_exposure
+excerpt     verdict
+
+```
+CELL TALLY — population all   (no verdict is read from it)
+  POOLED (not a stratum — the pooled trigger):
+    UNDERPOWERED       9 cell(s)
+  DIRECT:
+    UNDERPOWERED       9 cell(s)
+  CONSTITUENT:
+    UNDERPOWERED       9 cell(s)
+  Cell-level words only. The registration's study-level verdicts
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  MEASUREMENT-ONLY) are emitted ONCE, in the closing section, and only off the
+  RATIFIED population — never from this tally and never per population.
+```
+

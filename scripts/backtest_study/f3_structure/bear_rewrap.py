@@ -168,23 +168,32 @@ def entry_date_for(legs: list[Leg], grid: list[date]) -> date | None:
 
 
 def entry_price_of(leg: Leg, day: date) -> float | None:
-    """One leg's fill: that day's Open, falling back to its EOD mark.
+    """One leg's fill: that day's Open, else its EOD mark, else the most recent
+    prior mark carried forward.
 
-    Mirrors `_simulate._entry_price_leg` under `entry_timing: next_open` —
-    Open when it is positive (the row tags these `barchart_open`), else the
-    day's mark for a zero-volume open.
+    Mirrors `_simulate._entry_price_leg` under `entry_timing: next_open` in ALL
+    three of its branches — Open when it is positive (the row tags these
+    `barchart_open`), else the day's mark for a zero-volume open, else
+    `_price_leg` under `entry_sources: [barchart]`, which is `_price_asof` over
+    the contract's mark series: the last EOD mark on or before the entry day.
+    Until 2026-09-04 only the first two were mirrored, and one real row
+    (UTHR 2025-12-17 bull_call_spread, short leg bid 0 / no mark on the entry
+    day, priced by production off the prior day's mark) failed `reconstructs`
+    as `entry_unpriced` and stopped `calendar_hedge` at R2 — a gate on the
+    STUDY's fidelity to production, which is exactly what it exists to catch.
     """
     row = leg_details(leg).get(day)
-    if row is None:
-        return None
-    try:
-        op = float(str(row.get("Open", "")).replace(",", "") or 0)
-    except ValueError:
-        op = 0.0
-    if op > 0:
-        return op
-    mark = row.get("_mark")
-    return mark if (mark and mark > 0) else None
+    if row is not None:
+        try:
+            op = float(str(row.get("Open", "")).replace(",", "") or 0)
+        except ValueError:
+            op = 0.0
+        if op > 0:
+            return op
+        mark = row.get("_mark")
+        if mark and mark > 0:
+            return mark
+    return _price_asof({"k": leg_series(leg)}, "k", day, leg.expiration)
 
 
 def net_entry(legs: list[Leg], day: date) -> float | None:

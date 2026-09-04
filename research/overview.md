@@ -1,27 +1,35 @@
 # Research overview
 
-Written 2026-09-02. This is a SUMMARY of [`next-steps.md`](next-steps.md),
+Written 2026-09-02, refreshed 2026-09-04. This is a SUMMARY of [`next-steps.md`](next-steps.md),
 [`current.md`](current.md) and [`study-map.md`](study-map.md) — when any of
 those disagrees with this page, they win and this page is stale.
 
 ## Where things stand
 
-- **Era `v4` is current.** The book is the **140-date backfilled** one; every
-  study below ran on the exports of **2026-08-27 20:34** — 485 real results /
-  1,111 proxy / 1,893 analysis rows, signal dates 2024-01-10 → 2025-11-04
-  ([`next-steps.md`](next-steps.md) §0). `v3` is the **frozen** era every
-  shipped deployment rule was originally derived on; the two are **never
-  pooled**.
-- **There are still zero 2026 signal dates** in the book, so any "ex-2026" or
-  "positive in every year" cut anywhere in this page is a silent no-op
-  ([`next-steps.md`](next-steps.md) §0).
-- **Tests green, last recorded: 2,560 passed** (2026-08-31 —
-  [`current.md`](current.md)).
-- **The live thread is the hedge programme.** `hedge_exposure` is run, graded
-  and ratified, and ships nothing. Its follow-up `hedge_concentration` ran
-  2026-08-31 and came back **PRECONDITION-NULL**, a *powered* null — it still
-  awaits `study_review` grading before the question closes
-  ([`next-steps.md`](next-steps.md) §1, §2.1).
+- **Era `v4` is current.** The book is the **166-date backfilled** one; every
+  study below ran on the exports of **2026-09-04 20:31** — 535 real results /
+  1,303 proxy / 2,212 analysis rows, pooled study book 1,143 rows, signal
+  dates 2024-01-10 → 2026-04-16 ([`next-steps.md`](next-steps.md) §0). `v3`
+  is the **frozen** era every shipped deployment rule was originally derived
+  on; the two are **never pooled**.
+- **The book has 2026 signal dates for the first time** — 13 of them
+  (2026-01-06 → 2026-04-16, 79 pooled rows), so every "ex-2026" and "positive
+  in every year" cut on this page is LIVE. Where it bit on its first run:
+  the bear-debit `be_after` rollback census re-fired on the 2026 column,
+  `next_day_move`'s bear-debit cut and `exit_from_text`'s pooled candidate
+  lost their CIs, `portfolio_delta` kept only one ceiling, and `account_sim`'s
+  full-book population fails two feasibility criteria while the dense-episode
+  population that carries the verdict is still two-year
+  ([`current.md`](current.md) 2026-09-04). These are still BACKFILL dates —
+  the correlated window — not the genuinely new dates the rollback triggers
+  and `v4_bridge` wait on.
+- **Tests green, last recorded:** see [`current.md`](current.md) 2026-09-04.
+- **The hedge programme is closed on triggers, open on the instrument.**
+  `hedge_exposure` ships nothing; `hedge_concentration` is graded
+  **PRECONDITION-NULL** (a *powered* null, unchanged on the 166-date book,
+  ρ now +0.00) and §2.1 is CLOSED; the drafted GAP-UP prohibition is still
+  HELD and now rests on `hedge_timing`'s paired-R arms only (H4 fell to NULL)
+  ([`next-steps.md`](next-steps.md) §1, §2.1; [`deployment-evidence.md`](deployment-evidence.md)).
 - **The v3→v4 transfer of the deployment rules is unvalidated.** `v4_bridge`
   prints `VERDICT: LADDER UNVALIDATED ON v4`
   ([`scripts/study_map/catalog.py`](../scripts/study_map/catalog.py)). Per
@@ -62,11 +70,11 @@ leave-one-out (score a fold the rule was never tuned on).
 
 | Study | Verdict | Why (one clause) |
 |---|---|---|
-| `bear_position_study` | **DEMOTE TO VETO** | all three pre-registered demote criteria fire on n=177, ex-window mean E < 0 |
-| `bear_arm` (B1 half) | **NO** | 0 of 496 pre-defined bear subsets clear the rule (B2 half shipped, then reverted — see above) |
-| `ml_combination` | **NULL RESULT** | 0 of 15 model × strategy cells beat the score-free ladder out of sample |
+| `bear_position_study` | **DEMOTE TO VETO** | all three pre-registered demote criteria fire on n=368 (ex-window mean E −0.222, CI [−0.349, −0.087]); margins narrowed on the 166-date book but none crossed |
+| `bear_arm` (B1 half) | **NO** | 0 of 496 pre-defined bear subsets clear the rule (B2 half shipped, then reverted — see above; on 2026-09-04 B2's exit-fix criteria were MET for the first time by `sl .50`, a correlated-window read that holds a rule and promotes nothing) |
+| `ml_combination` | **NULL RESULT** | 0 of 15 model × strategy cells beat the score-free ladder out of sample; the "≥2 of 3 years" clause is a real three-year test for the first time (2026 −0.251) |
 | `macro_event_study` | **UNDERPOWERED** / ARM X **DE-QUEUED** as `SURVIVAL-ARTIFACT` | every FOMC/minutes/CPI/PCE cell underpowered; the one raw trigger died under the survival control |
-| `emission_timing` (ARM P) | **NULL** | v3-primary read spans zero; the v4 "candidate" read is off-basis (wrong-era comparison) |
+| `emission_timing` (ARM P) | **NULL** | v3-primary read spans zero; on the 166-date book two ARM P sub-cuts that had cleared fail on a 2026 sign flip — candidates 3 → 1 (ARM L only) |
 
 `emission_timing`'s other half, ARM L (`LAG-TOLERANT`), is the one live
 selection candidate — a 1–3 session fill delay does not decay the signal —
@@ -80,29 +88,29 @@ but it has not shipped anything.
 | `underlying_exit_study` | **RETIRED** | its second input is gone the same way; recorded verdict was "nothing shipped" |
 | `bear_giveback` | **NULL** | the `be_after` grid does not ship; the give-back pattern lives in the **underlying**, not the option mark |
 | `volume_signal` | **NULL** | no return separation on non-bear debit; the one frozen exit variant loses out-of-fold |
-| `next_day_move` | **NULL** | ARM C never clears its confound, so no rule; the sensitivity is structural |
-| `staged_exit` | **NULL** | 60 of 96 cells underpowered on v3, thinner still on v4; every powered cell fails its own CI |
+| `next_day_move` | **NULL** | ARM C never clears its confound, so no rule; ARM R's bear-debit day-0 cut lost its `**` on all three cuts on 2026-09-04 (CIs straddle zero, 2026 negative) |
+| `staged_exit` | **NULL** | 51 of 96 cells powered on the 166-date v4 book; zero candidates, and the six cells whose CI excludes zero are all HARMFUL (day-5/day-20 loss cuts, early profit exits) |
 
 ### Structure — "am I expressing the signal in the wrong wrapper?"
 
 | Study | Verdict | Why (one clause) |
 |---|---|---|
-| `bear_rewrap` | **NULL** (naive re-wraps) | the diagonal cut passes every gate, but the book has no 2026 dates — a candidate, not a ship |
-| `vol_sleeve` | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the WRONG SIGN with the deployed book |
-| `calendar_hedge` | **BLOCKED ON NEW DATES** | fill rate 37.7% on deployed dates; H2 underpowered at n=6 |
-| `financed_spread` | **UNCONFIRMED** on v4 | same-expiry shapes all NULL, naked short harmful; the one v3 candidate (F4-d20 hold) drops below the power floor on v4 |
+| `bear_rewrap` | **NULL** (naive re-wraps) | the diagonal cut now fails the year clause on its first 2026 look (4/5; 2026 −0.106) while its portfolio checks are MET for the first time — a candidate, not a ship |
+| `vol_sleeve` | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the WRONG SIGN with the deployed book (still +0.220 on 166 dates; only the calendar is right-signed) |
+| `calendar_hedge` | **BLOCKED ON NEW DATES** | H0 fill 51.0% of deployed dates (gate 60%); H2 not evaluable (n=4); H3 has read NOT MET / DEPLOYABLE / NOT MET on three consecutive exports — an unstable measurement |
+| `financed_spread` | **UNCONFIRMED** on v4 | same-expiry shapes NULL; F3 off1 prints RE-WRAP on 166 dates (6/7, fails only the anti-re-wrap correlation); the v3 candidate F4-d20 hold is still below the rows floor (36 of 60) |
 
 ### Deployment — "can I actually run this?"
 
 | Study | Verdict | Why (one clause) |
 |---|---|---|
-| `account_sim` | `>>> FEASIBLE <<<` (caps) — but the WINDOW does not survive | delta-notional binds before cash does; feasibility only, nothing ships |
-| `selection_order` | **UNDERPOWERED** at G0 | best-powered re-ordering arm reaches 20 affected dates against a floor of 25 |
-| `portfolio_delta` | **NOISE** | no arm exceeds the seeded null band; book is long-only by construction (0 short-delta picks) |
-| `hedge_timing` | GAP-UP came back **CONTRARY** | the hedge underperformed the same day's ladder-eligible long by 0.408 R, CI excludes zero |
+| `account_sim` | `>>> FEASIBLE <<<` (caps) — but the WINDOW does not survive | delta-notional binds before cash does; feasibility only, nothing ships. FEASIBLE is a two-year, dense-episode claim: the full-book population fails A1 (2026 −0.062) and A3 (35.7% drawdown) on the 166-date book |
+| `selection_order` | **ORDERING-IS-NOISE** | G0 powered since 08-27; no arm separates from the O4 null band on 166 dates; the primary population has no 2026 term and the secondary's 2026 cell is n=3 dates |
+| `portfolio_delta` | **CANDIDATE-FOR-INDEPENDENT-WINDOW** (B ceiling 1.00 only) | B 1.00 clears the full conjunction on the dense-episode population; B 1.50 dropped out on 2026-09-04 (primary CI spans zero, secondary 2026 −0.088); nothing ships from a correlated window |
+| `hedge_timing` | GAP-UP came back **CONTRARY** | the hedge underperformed the same day's ladder-eligible long (H3 −0.506 R on 166 dates, CI [−0.844, −0.157]; H1 now mirrors it, H4's dollars fell to NULL); survivors 0 of 9 |
 | `hedge_exposure` | **UNDERPOWERED** (mechanism) + **MEASUREMENT-ONLY** (ARM M) | all nine hedge cells fail the power gate; the close-bucketed curve understates this book's max drawdown by 40.2% |
-| `hedge_concentration` | **PRECONDITION-NULL** | a *powered* null — concentration does not predict the next 20 sessions of drawdown on the admitted book |
-| `bear_deploy` (v4 re-read) | D2/D3/D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4; sleeve now operator policy only |
+| `hedge_concentration` | **PRECONDITION-NULL** | a *powered* null — concentration does not predict the next 20 sessions of drawdown on the admitted book (ρ +0.00 on 166 dates, graded and closed 2026-09-04) |
+| `bear_deploy` (v4 re-read) | D1–D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4; sleeve now operator policy only; post-hoc D5 candidate gates 8 → 2 on the 166-date book |
 
 ### Exit-rule Attempts 1–13 (the original tuning log)
 
@@ -129,21 +137,26 @@ One line each, ✓/❌ copied verbatim from [`README.md`](README.md) §Section i
 Priority order from [`next-steps.md`](next-steps.md) §2. The section numbers
 are stable labels, not a ranking.
 
-1. **`concurrency_correlation`** (§2.0) — pre-registered 2026-08-22, module
-   still **not written**. The highest-value unbuilt thing in the repo: no
-   report yet joins book size/similarity to outcome.
-2. **`hedge_concentration` grading** (§2.1) — RUN, **PRECONDITION-NULL**
-   (powered); needs `python -m scripts.study_review hedge_concentration`
-   (never `--dry-run`) before the max-drawdown hedge question closes.
-3. **v4 composition bridge** (§2.2) — `v4_bridge` runs now and prints
-   `LADDER UNVALIDATED ON v4`; waiting on genuinely new (post-2025-11-04)
-   signal dates before re-deriving anything.
-4. **Calendar-as-hedge** (§2.3) — **BLOCKED ON NEW DATES**; 9 worst-decile
-   dates cannot power a worst-decile criterion under a 1/day sleeve.
+1. **`concurrency_correlation`** (§2.0) — **CLOSED 2026-09-04**: built, run
+   on both eras, **NOISE** on each; X4 settled by hand (verdict era-stable,
+   per-arm gains not; no arm clears X2/X3 in either era, so none is
+   ADOPT-eligible).
+2. **`hedge_concentration` grading** (§2.1) — **CLOSED 2026-09-04**: graded
+   under the two-analyst protocol, **PRECONDITION-NULL** stands (and again
+   on the 166-date book, ρ +0.00). The hedge trigger is dead; the hedge
+   INSTRUMENT is unmeasured.
+3. **v4 composition bridge** (§2.2) — `v4_bridge` prints `LADDER
+   UNVALIDATED ON v4` with all five tests shifting on 166 dates; waiting on
+   genuinely new (non-backfill) signal dates before re-deriving anything —
+   the 2026 backfill dates do not qualify.
+4. **Calendar-as-hedge** (§2.3) — **BLOCKED ON NEW DATES**; H3 has read NOT
+   MET / DEPLOYABLE / NOT MET on three consecutive exports and is recorded
+   as an unstable measurement.
 5. **Bear sub-0.50 give-back** (§2.4) — the `be_after` route is closed
    (reverted, above), but the underlying give-back pattern is not refuted.
-   The trigger that reverted it **un-fires** on the grown 140-date book —
-   nothing un-reverts without a fresh registration.
+   The trigger that reverted it un-fired on the 140-date book and fired
+   again on the 166-date one (on the 2026 column) — three censuses, three
+   answers; nothing un-reverts without a fresh registration.
 6. **Live walk-forward** (§2.5) — still the intended evidence source; no
    recorded progress since 2026-08-13. Silence here is not evidence of no
    progress — check the live-loop artifacts before re-planning.
