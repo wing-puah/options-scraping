@@ -255,12 +255,12 @@ STUDIES: dict[str, Study] = {
                  "at that session's CLOSE, beat the unconditional next-open entry once the "
                  "entry price pays for the confirmation?",
         verdict="First run 2026-09-04, era v4 PRIMARY (995 admitted of 1,022 priced, 27 "
-                "HARD; 853 in scope / 147 dates): `tally: {'NULL': 1, 'PRICED-AWAY': 2}` — "
+                "HARD; 853 in scope / 147 dates): `tally: {'NULL': 1, 'LATE-ENTRY': 2}` — "
                 "no CANDIDATE. The E2 selection census REPRODUCES exactly at shipped "
                 "pricing (`N=3   579 rows/145d +0.212    274 rows/121d -0.048`), and then "
                 "the re-pricing eats it: `ARM T  N=3 ... shipped meanR +0.2038   trigger "
                 "meanR +0.1901   DeltaR -0.0137`, `N=5 ... DeltaR -0.0257`, both with a CI "
-                "spanning zero. That is the registered PRICED-AWAY finding — the trigger "
+                "spanning zero. That is the registered LATE-ENTRY finding — the trigger "
                 "picks a better book, and the confirmation costs at least what it is "
                 "worth. ARM C says where the money went: `day-0 P&L <= -25%  n=53  DeltaR "
                 "+0.6256` against `day-0 P&L > +25%  n=51  DeltaR -0.4187` — waiting only "
@@ -269,7 +269,7 @@ STUDIES: dict[str, Study] = {
                 "sign (`N=1 +0.0145  N=3 -0.0137  N=5 -0.0257`), so criterion 7 fails "
                 "everywhere. ARM D is flat on the shipped card (`N=3 ... paired DeltaR "
                 "0.0019  [-0.0804, +0.0952]`). v3 SECONDARY is unanimous and stronger: "
-                "`tally: {'PRICED-AWAY': 3}` (N=1 -0.0310, N=3 -0.0521, N=5 -0.0723). "
+                "`tally: {'LATE-ENTRY': 3}` (N=1 -0.0310, N=3 -0.0521, N=5 -0.0723). "
                 "Nothing ships; E2 is closed as a shippable intake rule.",
     ),
 

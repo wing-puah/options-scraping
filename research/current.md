@@ -1168,7 +1168,7 @@ ENTERED number (the `next_day_move` ARM C confound). Registered `trigger_entry`
 (f1) to re-price the entry at the crossing session's close; result below.
 
 **2026-09-04 — `trigger_entry` RUN (f1, era v4 PRIMARY sha 018be16 + v3): the
-trigger gate is PRICED-AWAY; E2's gap was the day-0 move.** Registration
+trigger gate is LATE-ENTRY; E2's gap was the day-0 move.** Registration
 `pre-registrations/f1_selection/trigger_entry.md`; the entry is re-priced at the
 crossing session's CLOSE via `emission_timing.synth_trade` through the
 unmodified frozen harness (no fork, no G-FORK), the shipped per-row profile
@@ -1182,8 +1182,8 @@ rows (trigger-priced vs the same rows at the shipped next-open fill):
 ```
   arm  cell        entered  dates    DeltaR  verdict
   T    N=1             511    140    0.0145  NULL
-  T    N=3             573    145   -0.0137  PRICED-AWAY
-  T    N=5             609    146   -0.0257  PRICED-AWAY
+  T    N=3             573    145   -0.0137  LATE-ENTRY
+  T    N=5             609    146   -0.0257  LATE-ENTRY
 ```
 
 N=1 `CI95 [-0.0366, +0.0695]`, fails windows/years/tiers; N=3 `[-0.0649,
@@ -1200,7 +1200,7 @@ slot): shipped 321 picks mean R +0.238 vs N=3 278 picks +0.269, paired ΔR
 k=3 `-0.0754 CI [-0.2527, +0.0416]`; k=1's `-0.4178` is dominated by the tweak
 tier (−0.85) where a handful of near-zero day-0 marks blow up R on the
 synthetic's denominator — it carries no verdict, and must NOT be quoted as "the
-lag costs 0.42R". v3 SECONDARY: `PRICED-AWAY ×3` (N=1 −0.031 / N=3 −0.052 / N=5
+lag costs 0.42R". v3 SECONDARY: `LATE-ENTRY ×3` (N=1 −0.031 / N=3 −0.052 / N=5
 −0.072 on 593 rows / 117 dates; v3 carries 2026, so its year cut binds). G0–G5
 all pass (G3 leak 0 rows; G5: 0/1/4 time_exit rows would move under an
 absolute-from-signal deadline). Five dated wording corrections appended to the

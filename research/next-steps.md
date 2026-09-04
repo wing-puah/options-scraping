@@ -169,7 +169,7 @@ One line each. None of these needs re-opening; follow the pointer if you need
 the detail.
 
 - **`trigger_entry`** (2026-09-04) — trigger-gated entry re-priced at the
-  crossing session's close: **PRICED-AWAY** (N=3 −0.014, N=5 −0.026; v3 ×3);
+  crossing session's close: **LATE-ENTRY** (N=3 −0.014, N=5 −0.026; v3 ×3);
   `exit_from_text` E2's +0.21/−0.05 gap was the day-0 move (ARM C bands
   +0.63 → −0.42). Entry-mechanics thread closed on these dates. →
   [`current.md`](current.md) 2026-09-04,
@@ -525,7 +525,7 @@ command above.
 
 **Selection and scoring**
 
-- **Trigger-gated entry is PRICED-AWAY** (`trigger_entry`, 2026-09-04, v4 + v3).
+- **Trigger-gated entry is LATE-ENTRY** (`trigger_entry`, 2026-09-04, v4 + v3).
   Any "enter only when the trigger fires" proposal must first explain why
   re-pricing at the crossing close would not remove the edge again; E2's census
   gap is the day-0 move, not the text.

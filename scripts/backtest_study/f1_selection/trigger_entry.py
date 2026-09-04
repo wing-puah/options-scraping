@@ -40,7 +40,7 @@ Gates, in the registered order: G0 POWER (blocks every read) -> G1 PARSE CENSUS
 -> G4 SIZING CENSUS -> G5 DEADLINE DIAGNOSTIC.
 
 Verdicts, worded in the registration and EXHAUSTIVE: CANDIDATE /
-CONFOUND-EXPLAINED / PRICED-AWAY / LAG-EXPLAINED / CONTRARY / NULL /
+CONFOUND-EXPLAINED / LATE-ENTRY / LAG-EXPLAINED / CONTRARY / NULL /
 UNDERPOWERED. Nothing ships from a research-tier study. Read-only; touches no
 config. Run:
 
@@ -111,7 +111,7 @@ _BOTH_WINDOW_MONTHS = {m for months in P.DOMINANT_WINDOWS.values() for m in mont
 
 # The registered verdict vocabulary. EXHAUSTIVE — `verdict_for` may return
 # nothing else, and the summary tally is checked against it.
-VERDICTS = ("CANDIDATE", "CONFOUND-EXPLAINED", "PRICED-AWAY", "LAG-EXPLAINED",
+VERDICTS = ("CANDIDATE", "CONFOUND-EXPLAINED", "LATE-ENTRY", "LAG-EXPLAINED",
             "CONTRARY", "NULL", "UNDERPOWERED")
 
 
@@ -334,7 +334,7 @@ def verdict_for(ev: dict, census_reproduces: bool, l_sep: bool) -> str:
 
     EXHAUSTIVE by construction: the final `else` is NULL and no other string is
     reachable. Read §"Verdicts, worded now" before touching the order — it is
-    the order that makes PRICED-AWAY (a null WITH a mechanism) distinct from a
+    the order that makes LATE-ENTRY (a null WITH a mechanism) distinct from a
     bare NULL, and LAG-EXPLAINED distinct from CANDIDATE.
     """
     if not ev.get("powered"):
@@ -343,7 +343,7 @@ def verdict_for(ev: dict, census_reproduces: bool, l_sep: bool) -> str:
                                    "c5_tiers", "c6_power", "c7_no_flip"))
     conj_all = conj_1_7 and ev["c8_bands"]
     if ev["delta"] <= 0 and census_reproduces:
-        return "PRICED-AWAY"
+        return "LATE-ENTRY"
     if ev["c1_ci"] and ev["delta"] < 0:
         return "CONTRARY"
     if ev["delta"] > 0 and conj_1_7 and not ev["c8_bands"]:
@@ -732,7 +732,7 @@ def e2_census(scoped: list[dict], arm_t: dict) -> dict:
   population so the selection claim and the RE-PRICED claim can be read side by
   side. It keeps the next-open entry price, which is exactly why it is NOT A
   CRITERION here: the favourable move that satisfied the trigger is inside the
-  ENTERED number. Nothing in the verdict grammar reads it except PRICED-AWAY,
+  ENTERED number. Nothing in the verdict grammar reads it except LATE-ENTRY,
   which requires it to reproduce.
 
   IT KEYS ON "THE TRIGGER WAS MET", not on "ARM T could build a synthetic for
@@ -1071,9 +1071,10 @@ def main(argv=None) -> int:
   Verdict grammar (registration §"Verdicts, worded now"), EXHAUSTIVE and
   evaluated in this order, first match wins:
     UNDERPOWERED       a floor was not met; census published, nothing read.
-    PRICED-AWAY        DeltaR <= 0 AND the E2-shape census reproduces at shipped
-                       pricing: the selection is real on the tape and the
-                       confirmation costs at least as much as it is worth.
+    LATE-ENTRY         DeltaR <= 0 AND the E2-shape census reproduces at shipped
+                       pricing: the signal works (the trigger sorts winners from
+                       losers) but the confirmed entry comes AFTER the move it
+                       selects on — the confirmation costs what it is worth.
     CONTRARY           CI excludes zero with DeltaR < 0 and no reproducing
                        census: the trigger is actively misleading. Fed to the
                        PROMPT-ROBUSTNESS list.

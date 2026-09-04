@@ -279,10 +279,11 @@ list, and the **criteria vector prints under every verdict**.
 
 1. **UNDERPOWERED** — a floor was not met. Census published, nothing read, no
    re-run on these dates.
-2. **PRICED-AWAY** — ΔR ≤ 0 **and** the E2-shape selection census reproduces at
+2. **LATE-ENTRY** — ΔR ≤ 0 **and** the E2-shape selection census reproduces at
    shipped pricing on this N (ENTERED mean R above the in-scope mean R). The
-   selection is real on the tape and the confirmation costs at least as much as
-   it is worth. This is the registered null-with-a-mechanism, and it closes E2
+   signal works — the trigger does sort winners from losers — but the confirmed
+   entry comes AFTER the move it selects on, so the confirmation costs at least
+   as much as it is worth. This is the registered null-with-a-mechanism, and it closes E2
    as a shippable intake rule.
 3. **CONTRARY** — criterion 1 holds with ΔR < 0 and the census does NOT
    reproduce: the trigger is actively misleading. Fed to the
@@ -400,3 +401,13 @@ of what the run actually ran.*
    G2 evaluates BOTH on every in-scope row × every N and FAILS THE RUN on a
    single disagreement, so there is one definition of "met" and it is
    `exit_from_text`'s. 0 disagreements on both eras.
+
+6. **2026-09-04 (after the first run) — verdict label renamed `PRICED-AWAY` →
+   `LATE-ENTRY`; definition unchanged.** The operator read "priced-away" as
+   ambiguous between "the edge was arbitraged out" and "the entry is late".
+   The registered condition (ΔR ≤ 0 with the census reproducing) is the second
+   reading, so the label now says it: the signal works, the confirmed entry is
+   late. No gate, bar, arm, or verdict CONDITION changed; the study-results
+   record keeps the first run's sections verbatim under the old word, and the
+   re-run appends new sections under the new one.
+
