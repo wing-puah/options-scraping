@@ -581,25 +581,27 @@ STUDIES: dict[str, Study] = {
                 "against a moving benchmark, which the report itself flags.",
     ),
     "selection_order": Study(
-        family="deployment", state="open",
+        family="deployment", state="null",
         question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "
                  "REVERSES on v4 (see the account_sim entry), so the premise this study was "
                  "registered under no longer holds on the current era. The pre-registered "
                  "question stands on its own: does a different BLIND entry-side ORDER of the "
                  "same candidate set spend the scarce delta budget better — or was that read "
                  "an artifact?",
-        verdict="UNDERPOWERED at G0, on the pre-registered threshold, on BOTH eras and on "
-                "every refresh so far. On the 2026-08-24 v4 book: `arms powered (G0):  "
-                "none`, `arms clearing all seven: none`, `Best-powered arm reached 20 "
-                "affected dates against a threshold of 25.` — up from 17 on 2026-08-22 and "
-                "still short of a floor declared before the count was knowable. Each "
-                "re-ordering `changes only 18%-27% of O0's taken positions` (PRIMARY: O1 "
-                "24%, O2 18%, O3 21%, O1b 27%; 12-22% SECONDARY, where O1b alone reaches "
-                "`ok` at 26 dates), because on most contested dates the caps exclude the "
-                "same picks whatever the order. Census only: no arm confirmed, none "
-                "refuted, no O4 band drawn, and NO re-run on these dates. The earlier "
-                "`7-14%` figure quoted here was a hardcoded prose literal in the study, "
-                "corrected 2026-08-22 to print the run's own measured census.",
+        verdict="ORDERING-IS-NOISE on the 2026-08-27 v4 book (140 dates) — thread CLOSED. "
+                "G0 finally clears: `arms powered (G0):  O1, O2, O3, O1b` on the PRIMARY "
+                "population (29 / 26 / 31 / 32 affected dates against the pre-declared "
+                "floor of 25, each moving 15%-22% of O0's taken picks), and then "
+                "`arms clearing all seven: none` — every arm sits inside the O4 "
+                "random-order band (`O4 band p95 +0.0574 (seed 20260814, 200 draws)`; the "
+                "best arm `+0.0394 sits at pct 84%`). `VERDICT: ORDERING-IS-NOISE — no arm "
+                "separates from the O4 band. The adverse-ordering read from account_sim "
+                "was an ARTIFACT of which picks the cap happened to exclude. Record it and "
+                "CLOSE the thread.` Earlier runs (v3, and v4 through 2026-08-24) were "
+                "UNDERPOWERED at G0 — best arm 20 affected dates against 25 — and read "
+                "nothing. The `7-14%` figure those runs quoted was a hardcoded prose "
+                "literal in the study, corrected 2026-08-22 to print the run's own "
+                "measured census.",
     ),
 
     "portfolio_delta": Study(
