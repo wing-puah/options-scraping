@@ -7,6 +7,7 @@ Use as an async context manager; inject into scrapers rather than constructing i
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -26,6 +27,35 @@ class BarchartSession:
     )
     _COOKIE_MAX_AGE = 8 * 3600  # seconds
     _LOGIN_MARKER_TIMEOUT = 10000  # ms to wait for the logged-in header marker
+    # The account menu is rendered into the header on a logged-in page and absent on a
+    # logged-out one, but it sits inside a collapsed dropdown, so it is ATTACHED and
+    # never VISIBLE. Waiting for the default "visible" state therefore timed out on
+    # every live session — see the state="attached" note in _authenticate.
+    _LOGIN_MARKER = (
+        "[data-ng-controller='AccountDropdownCtrl'], .user-account, [class*='account']"
+    )
+    # A fresh login from a GitHub-hosted runner started failing intermittently on
+    # 2026-09-03 — 5 of that day's 10 fresh logins across scrape.yml and
+    # flow-pacemaker.yml, against zero failures in the preceding weeks. The submit is
+    # accepted, no error renders, and the page simply stays on /login. The same
+    # credentials logged in 3/3 from a residential IP the next day, and every
+    # cookie-reuse run that day succeeded, so what is being refused is the login POST
+    # from that IP, not the account.
+    #
+    # Retrying is therefore worth more than failing the run: at the observed per-attempt
+    # rate, 3 tries turn a ~50% failure into ~12%. It is NOT a fix — if the rate keeps
+    # climbing the answer is to stop logging in fresh every run (persist the cookie
+    # jar between CI runs), and the diagnosis logged below is what tells us which.
+    _LOGIN_ATTEMPTS = 3
+    _LOGIN_RETRY_DELAY = 8.0  # seconds, doubled per attempt
+    # Logged, not acted on: these say whether a failure was an explicit challenge or the
+    # silent stay-on-/login we are actually seeing. Retrying is unconditional either way
+    # — an attempt costs seconds, and guessing "this one is hopeless" off page text is
+    # how a transient block turns into a skipped scrape.
+    _CHALLENGE_HINTS = (
+        "captcha", "unusual activity", "too many", "temporarily blocked",
+        "rate limit", "are you a robot", "verify you are human", "access denied",
+    )
 
     def __init__(
         self,
@@ -62,27 +92,77 @@ class BarchartSession:
             await self._playwright.stop()
 
     async def _authenticate(self) -> bool:
+        if await self._try_cached_cookies():
+            return True
+
+        # A fresh login is the failure-prone path (see _LOGIN_ATTEMPTS): retry it on a
+        # clean context rather than failing the whole run on one blocked attempt.
+        outcome = "no login attempt made"
+        for attempt in range(1, self._LOGIN_ATTEMPTS + 1):
+            if attempt > 1:
+                delay = self._LOGIN_RETRY_DELAY * (2 ** (attempt - 2))
+                log.warning(
+                    "Retrying Barchart login in %.0fs (attempt %d/%d)",
+                    delay, attempt, self._LOGIN_ATTEMPTS,
+                )
+                await asyncio.sleep(delay)
+                await self._reset_context()
+
+            outcome = await self._login_once()
+            if outcome is None:
+                return True
+            log.warning("Barchart login attempt %d/%d failed — %s",
+                        attempt, self._LOGIN_ATTEMPTS, outcome)
+
+        log.error(
+            "Login failed: still on login page after submit "
+            "(%d attempts) — last diagnosis: %s",
+            self._LOGIN_ATTEMPTS, outcome,
+        )
+        return False
+
+    async def _try_cached_cookies(self) -> bool:
+        """Load cookies from disk and report whether they carry a live session."""
         cookies_fresh = (
             self._cookies_path.exists()
             and (time.time() - self._cookies_path.stat().st_mtime) < self._COOKIE_MAX_AGE
         )
-        if cookies_fresh:
-            log.debug("Loading cached Barchart cookies")
-            await self._context.add_cookies(json.loads(self._cookies_path.read_text()))
-            await self._goto_with_retry(f"{self._BASE}/options/unusual-activity/stocks")
-            # Wait for the marker rather than querying the instant domcontentloaded
-            # fires — the header renders late, and a bare query_selector here reports
-            # a live session as expired.
-            try:
-                await self._page.wait_for_selector(
-                    "[data-ng-controller='AccountDropdownCtrl'], .user-account, [class*='account']",
-                    timeout=self._LOGIN_MARKER_TIMEOUT,
-                )
-                log.info("Reusing cached Barchart session")
-                return True
-            except Exception:
-                log.info("Cached session expired — re-logging in")
+        if not cookies_fresh:
+            return False
 
+        log.debug("Loading cached Barchart cookies")
+        await self._context.add_cookies(json.loads(self._cookies_path.read_text()))
+        await self._goto_with_retry(f"{self._BASE}/options/unusual-activity/stocks")
+        # Wait for the marker rather than querying the instant domcontentloaded
+        # fires — the header renders late, and a bare query_selector here reports
+        # a live session as expired.
+        #
+        # state="attached", NOT the default "visible": the marker lives inside a
+        # collapsed account dropdown, so on a perfectly live session it is in the DOM
+        # and invisible. Waiting for visibility timed out on EVERY cookie-reuse run —
+        # the log then said "Cached session expired" and the /login navigation below
+        # immediately disproved it with "Already authenticated". That cost 10s and,
+        # worse, made a working cookie path look broken while the real login failures
+        # were happening.
+        try:
+            await self._page.wait_for_selector(
+                self._LOGIN_MARKER, state="attached",
+                timeout=self._LOGIN_MARKER_TIMEOUT,
+            )
+            log.info("Reusing cached Barchart session")
+            return True
+        except Exception:
+            log.info("Cached session expired — re-logging in")
+            return False
+
+    async def _login_once(self) -> str | None:
+        """One fill-and-submit pass. Returns None on success, else a diagnosis string.
+
+        The diagnosis is the whole point of this being a separate method: a bare
+        "still on login page" said nothing about WHY, so a run that failed in CI and
+        succeeded locally was undiagnosable. Report the URL we ended on, any error text
+        the form rendered, and whether the page reads as a bot challenge.
+        """
         log.info("Logging in to Barchart")
         await self._goto_with_retry(f"{self._BASE}/login")
         if "/login" not in self._page.url:
@@ -90,9 +170,9 @@ class BarchartSession:
             # never renders and the fill below would time out the whole run. The marker
             # check above was simply wrong about this session.
             log.info("Already authenticated — /login redirected to '%s'", self._page.url)
-            self._cookies_path.parent.mkdir(parents=True, exist_ok=True)
-            self._cookies_path.write_text(json.dumps(await self._context.cookies()))
-            return True
+            await self._save_cookies()
+            return None
+
         await self._page.fill("input[name='email']", self._email)
         await self._page.fill("input[name='password']", self._password)
         await self._page.click("button[type='submit']")
@@ -106,13 +186,91 @@ class BarchartSession:
             pass
 
         if "/login" in self._page.url:
-            log.error("Login failed: still on login page after submit")
-            return False
+            return await self._diagnose_login_failure()
 
+        await self._save_cookies()
+        log.info("Login successful — session saved")
+        return None
+
+    async def _diagnose_login_failure(self) -> str:
+        """Describe a stuck-on-/login page. Never raises — a diagnosis that blew up
+        would replace the real failure with its own.
+        """
+        parts = [f"url={self._page.url}"]
+        try:
+            text = " ".join((await self._page.inner_text("body")).split())
+        except Exception:
+            text = ""
+
+        hits = [h for h in self._CHALLENGE_HINTS if h in text.lower()]
+        if hits:
+            parts.append(f"challenge hints={hits}")
+
+        form_error = await self._first_error_text()
+        if form_error:
+            parts.append(f"form error={form_error!r}")
+
+        if not hits and not form_error:
+            parts.append(f"no error rendered; body[:200]={text[:200]!r}")
+
+        await self._dump_debug_artifacts()
+        return " | ".join(parts)
+
+    async def _first_error_text(self) -> str:
+        """First non-empty error message the login form is rendering, or ""."""
+        for sel in (".error", "[class*='error']", "[role='alert']"):
+            try:
+                for el in await self._page.query_selector_all(sel):
+                    msg = " ".join((await el.inner_text()).split())
+                    if msg:
+                        return msg
+            except Exception:
+                continue
+        return ""
+
+    async def _dump_debug_artifacts(self) -> None:
+        """Screenshot + HTML of the failed login, when BARCHART_DEBUG_DIR is set.
+
+        Off by default, and deliberately not set by any workflow: the page holds a
+        filled-in email field, so this writes credentials-adjacent content. Set the var
+        on a hand-dispatched debugging run and upload the directory as an artifact.
+        """
+        debug_dir = os.getenv("BARCHART_DEBUG_DIR", "").strip()
+        if not debug_dir:
+            return
+        try:
+            out = Path(debug_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%dT%H%M%S")
+            await self._page.screenshot(path=str(out / f"login-fail-{stamp}.png"),
+                                        full_page=True)
+            (out / f"login-fail-{stamp}.html").write_text(await self._page.content())
+            log.info("Wrote login-failure artifacts to '%s'", out)
+        except Exception as e:
+            log.warning("Could not write login-failure artifacts: %s", safe_err(e))
+
+    async def _reset_context(self) -> None:
+        """Drop the browser context and open a clean one.
+
+        Whatever gets an attempt refused may well be pinned to the context — a
+        challenge or throttle cookie set on the way in. Retrying in the same context
+        would then just replay it, so the retry starts from clean state. NOT verified
+        against the live failure (it does not reproduce off a runner IP); it is the
+        cheap assumption, and costs one browser context per retry if it is wrong.
+        """
+        old = self._context
+        self._context = await self._browser.new_context(user_agent=self._USER_AGENT)
+        self._page = await self._context.new_page()
+        self._history_feed = None
+        if old is not None:
+            try:
+                await old.close()
+            except Exception:
+                pass
+
+    async def _save_cookies(self) -> None:
         self._cookies_path.parent.mkdir(parents=True, exist_ok=True)
         self._cookies_path.write_text(json.dumps(await self._context.cookies()))
-        log.info("Login successful — session saved")
-        return True
 
     async def _goto_with_retry(self, url: str, timeout_ms: int = 30000,
                                 max_retries: int = 2, base_delay: float = 5.0) -> None:
