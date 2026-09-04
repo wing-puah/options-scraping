@@ -65,7 +65,7 @@ def _regime_override(sim_cfg: dict, signal_date) -> tuple[str, dict] | None:
         _MECH_STALE_WARNED.add(d)
         log.warning("regime_exit: signal date %s is past the SPY/VIX table end "
                     "(%s) — labelling as-of %s. Refresh with "
-                    "backtests/mech_regime/fetch_spy_vix.py", d, last, last)
+                    "`make mech-regime`", d, last, last)
     cell = labeler.cell(d)
     if cell is None:
         return None

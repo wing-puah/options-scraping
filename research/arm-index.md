@@ -18,8 +18,14 @@ a bare `ARM P`.
   `bear_giveback`, `bear_rewrap` — plus `P1`/`P2` sub-parts in `bear_rewrap`
   (the arm's own two halves) and `calendar_hedge` (an unrelated `P1`, the
   hedge sleeve itself).
-- **`D`** — three arms (`portfolio_delta`, `next_day_move`, `account_sim`) —
-  and `bear_deploy`'s `D1`–`D5`, which are criteria, not `ARM D`.
+- **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
+  `trigger_entry`) — and `bear_deploy`'s `D1`–`D5`, which are criteria, not
+  `ARM D`.
+- **`T`** — two arms: `staged_exit` (tighten / arm-trail, a fork of the replay
+  engine) and `trigger_entry` (trigger-gated ENTRY). Opposite ends of the
+  system and nothing alike.
+- **`L`** — two arms: `emission_timing` (fill lag) and `trigger_entry` (the
+  unconditional-lag control, deliberately matched to it).
 - **`H`** — two arms (`account_sim`, `calendar_hedge`); `H1`–`H4` hypotheses
   in `macro_event_study`; `H0`–`H5` criteria in `calendar_hedge`, which
   *also* has its own `ARM H` — unrelated to its criteria of the same letter;
@@ -31,7 +37,9 @@ a bare `ARM P`.
   registered both on 2026-08-11, and they mean nothing alike.
 - **`F1` / `F2`** — `financed_spread`'s financing structures vs
   `account_sim`'s 1-contract-floor question. Unrelated.
-- **`C` `N` `R`** — two arms each, different studies.
+- **`C`** — **six** arms (`text_features`, `next_day_move`, `hedge_exposure`,
+  `concurrency_correlation`, `hedge_concentration`, `trigger_entry`). **`N` `R`**
+  — two arms each, different studies.
 - **`S`** — `ARM S` in two studies (`calendar_hedge`, `bear_giveback`) vs
   `calendar_hedge`'s own `S1`–`S6` sub-arms vs the printed prose
   `ARM SELECTION`.
@@ -121,6 +129,24 @@ studies' labels appear mid-prose only.
 - `M1` `M2` `M3` (model) — Gradient boosting on E, the same on binary E>0, and
   a single depth-3 tree. Only `M3` may ship, "because only it reduces to a
   human checklist"; a black-box score may at most tie-break within a tier.
+
+#### `trigger_entry` — [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrations/f1_selection/trigger_entry.md), `f1_selection/trigger_entry.py`
+
+- `ARM T` (arm) — Trigger-gated entry, the HEADLINE: enter only at the CLOSE of
+  the first session k ∈ [1..N] whose underlying close crosses the model's own
+  stated trigger level in the stated direction, re-priced and re-sized through
+  the frozen harness; never crossing within N = NOT ENTERED. N ∈ {1, 3, 5}.
+  Unrelated to `staged_exit`'s `ARM T` (tighten / arm-trail) — see Collisions.
+- `ARM L` (arm) — Unconditional lag CONTROL: every in-scope row filled at a
+  fixed session k ∈ {1, 3}, no gate, so a ΔR the control reproduces is a LAG
+  finding and not a trigger finding. Named after and matched to
+  `emission_timing`'s `ARM L` above, which is a different study's arm.
+- `ARM C` (arm) — Confound CONTROL: `ARM T`'s ΔR stratified by entry-session
+  conformity band, reusing `next_day_move.DAY0_PNL_BANDS` and its `MIN_CELL_N`
+  verbatim. Feeds criterion 8; carries no verdict of its own.
+- `ARM D` (arm) — Deployment READ: the shipped top-3/day ladder with
+  NOT-ENTERED rows made INELIGIBLE (the slot frees to the next-ranked play),
+  trigger-priced against the shipped picks, R only.
 
 ### ② Management — when to get out
 

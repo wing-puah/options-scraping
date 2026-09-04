@@ -168,6 +168,19 @@ test: the refusal path must never swallow a real failure.
 One line each. None of these needs re-opening; follow the pointer if you need
 the detail.
 
+- **`trigger_entry`** (2026-09-04) — trigger-gated entry re-priced at the
+  crossing session's close: **PRICED-AWAY** (N=3 −0.014, N=5 −0.026; v3 ×3);
+  `exit_from_text` E2's +0.21/−0.05 gap was the day-0 move (ARM C bands
+  +0.63 → −0.42). Entry-mechanics thread closed on these dates. →
+  [`current.md`](current.md) 2026-09-04,
+  [`study-results/f1_selection/trigger_entry.md`](study-results/f1_selection/trigger_entry.md).
+- **Text thread as an edge search** (2026-09-04) — `text_features` NULL,
+  `exit_from_text` E1 CONTRARY / E3 fails survival, `prompt_eval` variance floor:
+  no further text study queued; §2.9 survives only as a prompt-STABILITY item.
+  The operator's day-X / ±Y% / ±$Z exit formula is `staged_exit` (0/40 powered
+  cells, day-5 loss cuts significantly harmful) — do not rebuild it, a
+  DTE-remaining anchor included (the 75%-DTE time exit already is one). →
+  [`current.md`](current.md) 2026-09-04.
 - **`hedge_exposure`** (2026-08-31) — run, graded, population **`all` ratified**
   (996 rows / 145 dates). Two verdicts over two objects: the mechanism question
   is **UNDERPOWERED** (all nine τ×f cells fail G-POWER, no direction quoted) and
@@ -432,6 +445,13 @@ strings.
 
 ### 2.9 `prompt_eval` — harness built, noise floor running; a candidate needs an OPERATOR hypothesis
 
+**Status 2026-09-04: a STABILITY item, not an edge item.** The text thread is
+closed as an edge search (§1); the only candidate worth writing is the
+BULL/RANGE written decision rule below, judged on label repeatability first.
+It is a v5 prompt bump if adopted, and nothing in the book says it changes
+P&L — do not pick it up ahead of §2.0–§2.2.
+
+
 Built and committed 2026-09-03 (`01dcb97`); registration
 `pre-registrations/f1_selection/prompt_eval.md`. Date sets declared by rule in
 `backtests/prompt_eval/{variance,backfill}-dates.txt`. The PROD × 3 variance run
@@ -477,10 +497,44 @@ nothing for `draft` to work from, so the first candidate is the operator's
 hypothesis about what would make the signal more useful TO READ — not a
 data-derived edit and not a text ablation (see §2.5).
 
+**2026-09-04 — first candidate hypothesis, and what NOT to write.** The variance
+run's tier-mix swing traces to the DIRECTIONAL regime label flipping between
+BULL and RANGE on the same numbers (2 of 5 dates; see `current.md` 2026-09-04).
+Do not write the "adopt `mech_regime` direction/vol" candidate: mech-only
+selection is refuted on v3 (`mech_regime_recut` addendum 3) and null on v4
+(paired-by-date CI spans zero, only 22/145 dates differ). Write instead a
+candidate that keeps the flow-based read but adds a WRITTEN decision rule for
+BULL/RANGE/BEAR over rollup fields the model already cites (index C/P percentile,
+hedge-pressure score, PxVec), so identical inputs give an identical label. Test
+repeatability BEFORE P&L — it needs no 40 dates:
+
+```bash
+python -m scripts.backtest_study run prompt_eval -- run --candidate <dir> \
+  --dates backtests/prompt_eval/variance-dates.txt --repeats 3 --date-set OTHER \
+  --run-dir backtests/prompt_eval/repeat-$(date +%Y%m%d) \
+  --variance-json backtests/prompt_eval/variance-20260903/variance.json   # ~30 opus calls
+```
+
+Read the CANDIDATE arm's per-date regime labels and tier mix across the three
+repeats against PROD's (`<run>/<arm>-r*/analysis/<date>.json`). If the label
+still flips, the rule is not doing its job and the 40-date score is not worth
+buying. Only a candidate that holds the label steady goes on to the backfill
+command above.
+
 ## 3. Standing rules the next session must not re-litigate
 
 **Selection and scoring**
 
+- **Trigger-gated entry is PRICED-AWAY** (`trigger_entry`, 2026-09-04, v4 + v3).
+  Any "enter only when the trigger fires" proposal must first explain why
+  re-pricing at the crossing close would not remove the edge again; E2's census
+  gap is the day-0 move, not the text.
+- **The day-X / ±Y% / ±$Z exit formula is `staged_exit`, and it is null** —
+  0/40 powered cells, day-5 loss cuts significantly harmful, 50–79%
+  continuation sales. Do not re-register it under another anchor (days-since-
+  entry or DTE-remaining) on these dates.
+- **No further text study.** `text_features` NULL, `exit_from_text` E1
+  CONTRARY, `prompt_eval` variance floor; §2.9 is a stability item only.
 - `score_total` is decision-irrelevant (tie-break only). Selection is
   structure × regime × entry geometry.
 - The ML/selection search is **closed**. Re-open on **new columns only**, tested

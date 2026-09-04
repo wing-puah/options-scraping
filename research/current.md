@@ -1105,3 +1105,110 @@ run-to-run noise** — the ladder's edge (A > B > C) was measured through it and
 survived, which is a point in the ladder's favour, but any per-date claim on
 one analysis run is one draw from a wide distribution. `variance.json` and the
 report live in `backtests/prompt_eval/variance-20260903/`.
+
+**2026-09-04 — the flip traced to the regime label; the "adopt the mechanical
+label" fix is already refuted on v3 and null on v4.** Reading the fifteen
+variance analyses: every run cites identical figures, but the DIRECTIONAL label
+differs on 2 of 5 dates (`2024-02-01`: RANGE+RISK-OFF / BULL+RISK-ON / BULL;
+`2025-08-19`: RANGE+RISK-OFF+HP / BULL+HP / BULL+RISK-ON+HP). The framework
+defines BULL/RANGE in words with no threshold, so a mixed tape (heavy index put
+premium under strong single-stock call premium) is a judgment call re-made on
+every draw. `ladder_tier()` keys on exactly those tokens (BEAR/RANGE/H-VOL/
+L-VOL/E-VOL; sentiment and HP are never read), and `bull_call_spread` is Tier A
+in RANGE and Tier B in BULL — which is the A=7/3/2 tier-mix swing. The obvious
+candidate (hand the model `mech_regime`'s direction/vol as inputs it must adopt)
+was NOT pursued: `mech_regime_recut` addendum 3 (v3, 913 rows) rejected
+mech-only selection robustly (ladder replay +42.6 vs +100.9; the model's
+overrides of the trailing read were net +66.2, right in both halves and under
+all four perturbations), and on v4 (145 dates) the same registered replay
+differs on only 22 dates with a per-date paired diff of `mean +0.061 CI95
+[-0.039, +0.164]` — an UNREGISTERED scratch CI on the registered (e) cut,
+computed for sizing only, not a finding. `mech_regime` says BULL + L-VOL on all
+five variance dates, including the two the model flipped. So the mechanical
+label is stable but not better; the model's label is better-or-equal but not
+stable. The candidate worth writing is the middle one: keep the FLOW-based
+direction read and give it a written decision rule over the rollup fields it
+already cites, so the same numbers yield the same label. Its repeatability is
+the cheap first test (`run --repeats 3` on the variance dates, ~30 calls),
+before any 40-date P&L score. Recorded in `next-steps.md` §2.9.
+
+**2026-09-04 — text thread CLOSED as an edge search; the operator's day-X exit
+formula is already answered by `staged_exit`.** Operator asked for the text
+findings in one place and whether to keep going or move to entries/exits. The
+record, in one paragraph: `text_features` NULL on both eras (no prose feature
+separates outcome within structure × tier; cited-figure mismatch 1.6% v4 /
+2.9% v3, so the prompt does not hallucinate prints); `exit_from_text` E1
+invalidation-as-stop CONTRARY on `bull_call_spread` (dR −0.045 CI [−0.083,
+−0.008]), E3 fails its survival control, E2 a selection census only; the
+`prompt_eval` variance floor (same prompt, same date, different book — per-date
+mean-R spread 0.44 mean / 0.95 max) traced to the BULL/RANGE label flipping on
+identical numbers. The 2026-08-11 "re-open selection only on NEW COLUMNS"
+clause is spent — numbers, prose and citations all null — so **no further text
+study is queued**; §2.9's regime-label decision rule stays queued as a
+prompt-STABILITY fix with no edge claim, and the §2.5 operator-read test waits
+on the journal. Decision: move to entry/exit mechanics. The operator's candidate
+exit — "at X1 days since entry or X2 days to expiry, if up/down by Y% or $Z,
+close" — is the `staged_exit` grid (X ∈ {5,10,15,20} × R ±0.25/±0.50 × $
+±250/±500 × exit-now / tighten / trail), run on v4 2026-08-27 (875 rows / 144
+dates): tally `UNDERPOWERED 56, '-' 40`, i.e. **no powered cell clears any
+criterion**. Every ARM E cell's ΔR is ≤ 0 or inside its CI, and the day-5 loss
+cuts are significantly HARMFUL (`R <= -0.25: dR -0.044 CI [-0.073, -0.016]`;
+`R <= -0.50: -0.029 [-0.050, -0.009]`), with 62–79% of forced exits followed by
+a post-exit max > realized + 0.30 — continuation sales, the Attempt-1/2/10
+failure arriving by the calendar instead of the peak. The only untested
+dimension is a DTE-remaining anchor, and the shipped 75%-DTE time exit already
+IS that anchor, unconditionally; LVOL tef-null clearing its gate (2026-08-24)
+says that at the anchor, holding beat closing. Not rebuilt. What IS untested is
+the operator's other observation — plays are not executed on their TRIGGER:
+production enters every non-vetoed play at the next open (`entry_timing:
+next_open`), and `exit_from_text` E2's census (v4, 853 in-scope / 147 dates)
+reads N=3 ENTERED 579 rows mean R **+0.212** vs NOT ENTERED 274 rows **−0.048**
+— but E2 kept the next-open price, so the favourable early move is inside the
+ENTERED number (the `next_day_move` ARM C confound). Registered `trigger_entry`
+(f1) to re-price the entry at the crossing session's close; result below.
+
+**2026-09-04 — `trigger_entry` RUN (f1, era v4 PRIMARY sha 018be16 + v3): the
+trigger gate is PRICED-AWAY; E2's gap was the day-0 move.** Registration
+`pre-registrations/f1_selection/trigger_entry.md`; the entry is re-priced at the
+crossing session's CLOSE via `emission_timing.synth_trade` through the
+unmodified frozen harness (no fork, no G-FORK), the shipped per-row profile
+replayed from the new anchor. Parse census reproduces E2 exactly (853 in scope
+/ 147 dates; 109 `no_direction`, 11.0%), and the E2-shape census at shipped
+pricing reproduces `exit_from_text`'s published figures to three decimals
+(`N=3 ENTERED 579 rows +0.212 / NOT ENTERED 274 rows -0.048`), so the
+comparison is on E2's own population. Headline, paired by date on the ENTERED
+rows (trigger-priced vs the same rows at the shipped next-open fill):
+
+```
+  arm  cell        entered  dates    DeltaR  verdict
+  T    N=1             511    140    0.0145  NULL
+  T    N=3             573    145   -0.0137  PRICED-AWAY
+  T    N=5             609    146   -0.0257  PRICED-AWAY
+```
+
+N=1 `CI95 [-0.0366, +0.0695]`, fails windows/years/tiers; N=3 `[-0.0649,
++0.0383]`; N=5 `[-0.0739, +0.0254]`, negative in both years and both tiers.
+Criterion 7 (no sign flip across N) fails every cell. **ARM C is the
+mechanism**: within entry-session conformity band the gate's ΔR runs `+0.63 /
++0.03 / -0.12 / -0.42` (N=3, bands ≤−25% / −25–0 / 0–+25% / >+25%, n 53/246/
+223/51) — waiting for the trigger only helps rows whose day-0 mark was already
+DOWN (you buy cheaper), and costs heavily on the already-green ones (you buy
+dearer). That is `next_day_move` ARM C's confound arriving through the trigger
+text, not a text finding. ARM D (ladder top-3/day, NOT-ENTERED rows freeing the
+slot): shipped 321 picks mean R +0.238 vs N=3 278 picks +0.269, paired ΔR
+`+0.0019 CI [-0.0804, +0.0952]` — nothing. ARM L (unconditional lag, control):
+k=3 `-0.0754 CI [-0.2527, +0.0416]`; k=1's `-0.4178` is dominated by the tweak
+tier (−0.85) where a handful of near-zero day-0 marks blow up R on the
+synthetic's denominator — it carries no verdict, and must NOT be quoted as "the
+lag costs 0.42R". v3 SECONDARY: `PRICED-AWAY ×3` (N=1 −0.031 / N=3 −0.052 / N=5
+−0.072 on 593 rows / 117 dates; v3 carries 2026, so its year cut binds). G0–G5
+all pass (G3 leak 0 rows; G5: 0/1/4 time_exit rows would move under an
+absolute-from-signal deadline). Five dated wording corrections appended to the
+registration (census keyed on trigger-met, not on the constructible set — the
+sanity check caught the first attempt printing 573/+0.204; no-day-0-mark rows
+are counted G2 exclusions; tier criterion on tiers present). Conclusion: **a
+trigger-gated entry is not a rule** — the operator's "plays are not executed on
+their trigger" observation is true of the backtest and immaterial to the edge;
+the confirmation costs what it buys. Selection stays structure × model regime ×
+entry geometry, and the entry-mechanics thread is closed on these dates.
+Records: `study-results/f1_selection/trigger_entry.md` (v3 + v4).
