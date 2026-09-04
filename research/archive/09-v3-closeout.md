@@ -1,5 +1,7 @@
 # Archive 09 — 2026-08-11: completed book, ML null result, DEPLOY arm, v3 close-out
 
+_Status: historical (covers 2026-08-11). Superseded / qualified by: [archive/17 §2026-08-24 v4 refresh + §2026-08-24 (late) bear_deploy](17-v4-refresh-bear-deploy-and-vocabulary.md) — the SHIPPED `be_after: 0.50` was REVERTED at its first rollback-trigger census, and the sleeve's `|delta|`-descending pick line was PULLED (D2 hedge contribution NOT MET on v4; the sleeve is now operator policy, not evidence); [archive/14 §2026-08-13](14-volume-signal-demotion-and-audit.md) — this volume's "bear_put DEMOTION thread CLOSED without a demotion mechanism" is explicitly SUPERSEDED by card veto §1.4; [next-steps.md §2.2](../next-steps.md) — `v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`, so the completed-book ladder reproduction is v3-only. The ML null and the `bs_options_hist` drop stand. Live record: [current.md](../current.md)._
+
 Covers 2026-08-11, oldest first: the completed-book analysis (holdout
 coverage FULL, all three bear_put DEMOTE criteria fire), the
 `bs_options_hist` proxy tier measured and shipped OFF, the `mech_cell`

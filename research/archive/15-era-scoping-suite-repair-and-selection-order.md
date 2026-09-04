@@ -1,5 +1,7 @@
 # Archive 15 — 2026-08-14/15: era-scoping, study-suite repair, `selection_order`, `--live-select`
 
+_Status: historical (covers 2026-08-14 → 2026-08-15). Superseded / qualified by: [current.md §2026-09-02 `exit_basis` re-measured](../current.md) — the "`exit_basis` is UNUSABLE" standing hazard is now ERA-SCOPED: correct for the v3-and-earlier exports it was measured on, but v4 is clean (485/485 labelled); [archive/17 §2026-08-22 (late) and §2026-08-27](17-v4-refresh-bear-deploy-and-vocabulary.md) — `selection_order`'s "every arm moves only 7–14% of the book" was a hardcoded prose literal (measured 15–24% PRIMARY / 11–21% SECONDARY), and the thread it left unadjudicable CLOSED on v4 as ORDERING-IS-NOISE. Era scoping, the structure-name fix and the `--live-select` findings stand. Live record: [current.md](../current.md)._
+
 Covers 2026-08-14 and 2026-08-15 — the two days that turned the study suite
 from a set of scripts into an era-scoped, gate-classified system. The
 `selection_order` study was pre-registered, built, run and closed

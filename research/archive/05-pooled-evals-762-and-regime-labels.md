@@ -1,5 +1,7 @@
 # Archive 05 — pooled evaluations at 762 rows, regime-label validation, regime-gap backfill
 
+_Status: historical (covers 2026-07-21 → 07-22). Superseded / qualified by: [next-steps.md §2.2](../next-steps.md) — the ladder validated here at 762 rows is v3-era evidence: `v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`; [deployment-rules.md §1.4](../../docs/deployment-rules.md) — the `bear_put` emission demotion logged here as "not shipped" shipped on 2026-08-13 as a card veto ([archive/14](14-volume-signal-demotion-and-audit.md)); [archive/09 §"v3 CLOSE-OUT"](09-v3-closeout.md) — queue item A was executed in the v4 prompt trim (`score_flow`/`score_dealer` dropped), though its queued null trigger did not fire. The shipped bull_put geometry band and credit sl-none still stand. Live record: [current.md](../current.md)._
+
 Covers 2026-07-21 (the >=800-gate evaluation and its addenda, edge-status
 assessment, mechanical regime-label validation) and the 2026-07-22 regime-gap
 backfill audit that the 25-date gate later closed.

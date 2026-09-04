@@ -1,5 +1,7 @@
 # Archive 16 — 2026-08-19: first runs of the v3-era studies
 
+_Status: historical (covers 2026-08-19; every study read here is era v3). Superseded / qualified by: [archive/17 §2026-08-27](17-v4-refresh-bear-deploy-and-vocabulary.md) — the 140-date v4 re-run moved several of these first reads: `portfolio_delta`'s NOISE became CANDIDATE-FOR-INDEPENDENT-WINDOW, `financed_spread`'s F4-d20 candidate is UNDERPOWERED, and `calendar_hedge`'s fill fell under its own gate; [archive/17 §2026-08-24 addendum](17-v4-refresh-bear-deploy-and-vocabulary.md) — a later v4 `emission_timing` ARM P "candidate" was retracted as OFF-BASIS (the ARM P NULL here stands), and the v4 book carries no 2026 dates, so every ex-2026 robustness cut on it is a silent no-op; [archive/17 §2026-08-24](17-v4-refresh-bear-deploy-and-vocabulary.md) — `account_sim`'s v4 refusal was the thin backfill, not the study: it runs and prints FEASIBLE on the refreshed era. Live record: [current.md](../current.md)._
+
 Covers 2026-08-19, the day the five studies registered that week
 (`macro_event_study`, `staged_exit`, `emission_timing`, `financed_spread`,
 `portfolio_delta`) ran for the first time on era v3, plus two gate lessons

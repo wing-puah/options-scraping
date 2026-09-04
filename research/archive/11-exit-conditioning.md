@@ -1,5 +1,7 @@
 # Archive 11 — 2026-08-12: edge status, bear MFE give-back, be_after grid, day-0 conditioning
 
+_Status: historical (covers 2026-08-12). Superseded / qualified by: [next-steps.md §2.2](../next-steps.md) — `v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`, so the edge-status tier and structure tables are a v3-era read; [archive/15 §2026-08-15 structure-name defect](15-era-scoping-suite-repair-and-selection-order.md) — the live-loop `play_structure` parser returned `unknown` for `bear put debit spread`, so the `EXACT 0 / NONE 15` tally overstates how disjoint the live and emitted books were; [next-steps.md §3](../next-steps.md) — `trigger_entry` (2026-09-04) extends the day-0 entry: trigger-gated entry is LATE-ENTRY, and the census gap is the day-0 move. The three selection nulls stand (later joined by `volume_signal` and `text_features`), and the `be_after` grid's "does not ship" was vindicated when the shipped `be_after 0.50` was reverted 2026-08-24. Live record: [current.md](../current.md)._
+
 Covers the 2026-08-12 exit-conditioning thread: the edge-status
 assessment (real, narrow, NOT selection-tunable), the bear MFE
 give-back quantification below the ratchet threshold, the `be_after`

@@ -1,5 +1,7 @@
 # Archive 02 — Credit/debit split, Attempts 8–12 (2026-07-04 → 07-07)
 
+_Status: historical (covers 2026-07-04 → 07-07). Superseded / qualified by: [archive/03 §Attempt 13](03-evaluations-attempt-13.md) — the credit verdicts here ("keep PROD", nothing ships) were overturned once the credit book was split by structure: `bear_call_spread` intake-vetoed and the credit `stop_loss` removed; [deployment-rules.md §5](../../docs/deployment-rules.md) — the live exit table, in which Attempt 12's gated regime-conditional debit trail ships for mech BEAR + H/E-VOL dates only; [archive/09 §"`bs_options_hist` DROPPED"](09-v3-closeout.md) — the proxy tool's BS pricing tier was measured as effect-diluting and is shipped OFF. Attempt 10 (no debit trail) and the next-open entry basis still stand. Live record: [current.md](../current.md)._
+
 Part of the [backtest tuning log](../README.md). Covers the credit/debit exit
 split, the debit trailing-stop removal, the proxy backtest tool, the next-open
 entry-basis change, and the combined real/proxy grouped exit study.

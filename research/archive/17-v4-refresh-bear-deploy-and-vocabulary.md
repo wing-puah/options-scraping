@@ -1,5 +1,7 @@
 # Archive 17 — 2026-08-22 → 2026-08-27: vocabulary, `concurrency_correlation`, the v4 refresh, `bear_deploy`
 
+_Status: historical (covers 2026-08-22 → 2026-08-27). Superseded / qualified by: [current.md §2026-08-31 `hedge_exposure`](../current.md) — the `bear_deploy` D3 verdict graded here still stands, but it was read on a close-bucketed curve that UNDERSTATES this book's max drawdown by 40.2%, now recorded as a limitation of its measurement basis in [deployment-evidence.md](../deployment-evidence.md). Live record: [current.md](../current.md)._
+
 Covers 2026-08-22 through 2026-08-27. "POWER STOP" was RETIRED in favour of
 UNDERPOWERED and `ml_combination`'s v4 debut fixed. The operator's read that
 "more deployed = works less" was reframed — the ladder's DEPTH is not the

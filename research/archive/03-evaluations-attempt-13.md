@@ -1,5 +1,7 @@
 # Archive 03 — Framework evaluations and Attempt 13 (2026-07-08 → 07-17)
 
+_Status: historical (covers 2026-07-08 → 07-17). Superseded / qualified by: [archive/09 §"v3 CLOSE-OUT"](09-v3-closeout.md) — the 07-17 "keep emitting `score_flow`/`score_dealer`" decision was reversed by the v4 prompt trim, on different evidence (the queued null trigger never fired); [archive/05 §"≥800-GATE EVALUATION"](05-pooled-evals-762-and-regime-labels.md) — the queued ≥800-row re-test ran: the 13c validation CLOSED and Attempt 13's credit rollback trigger was tested and NOT met. Attempt 13's shipped rules (`entry.structure_veto: [bear_call_spread]`, credit `stop_loss: null`) still stand. Live record: [current.md](../current.md)._
+
 Part of the [backtest tuning log](../README.md). Covers the MFE/MAE signal-quality
 study, the v1/v2/v3 three-run evaluation, Attempt 13 (bear_call veto + credit stop
 removal), and the scoring-column keep/drop power check.

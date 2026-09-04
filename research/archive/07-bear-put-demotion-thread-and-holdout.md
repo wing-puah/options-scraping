@@ -1,5 +1,7 @@
 # Archive 07 — bear_put demotion thread (addenda 11–14) and the Feb–Apr 2026 holdout
 
+_Status: historical (covers 2026-07-22 – 2026-08-04). The addendum-14 DEMOTE verdict stands and was re-confirmed, but its mechanism and its numbers moved: [archive/14 §2026-08-13 bear_put demotion mechanism CHOSEN](14-volume-signal-demotion-and-audit.md) — implemented as card veto §1.4 with the §4 hedge sleeve carved out, so bear debit is selection-vetoed, not banned; [archive/15 §2026-08-14 study-suite triage FIXED / §2026-08-15 structure-name defect](15-era-scoping-suite-repair-and-selection-order.md) — `bear_position_study`'s R is now re-replayed rather than read off `realized_pnl_pct` (bear_put mean R −0.1016 → −0.1069; verdict still DEMOTE TO VETO, and E is untouched), and 31 frozen v3 rows carry the `bear put debit spread` mis-pricing defect. Live record: [current.md](../current.md)._
+
 Covers 2026-07-22: addenda 11–14 (bear_put cancellation read, the
 structure-keyed trail, the demotion pre-registration and its DEMOTE
 verdict criteria) and the Feb–Apr 2026 bear-holdout coverage/backfill

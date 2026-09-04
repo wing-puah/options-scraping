@@ -1,5 +1,7 @@
 # Archive 00 — the 2026-06 backtest-engine backlog, triaged 2026-08-15
 
+_Status: historical (covers 2026-06-24/25, triaged 2026-08-15). Superseded / qualified by: [next-steps.md §2](../next-steps.md) — this page is not the live queue, and its one still-open item (per-play `invalidation` exits) is tracked there as §2.8; [archive/02 §"Entry basis changed"](02-credit-debit-split-attempts-8-12.md) — every P&L figure below is on the pre-2026-07-06 signal-day-EOD basis and is not comparable to anything current; [deployment-evidence.md](../deployment-evidence.md) — the 2026-06 structure read inverted at scale (`bull_call` is the engine; `bear_put` was demoted). Live record: [current.md](../current.md)._
+
 _Moved from `research/backlog.md` on 2026-08-31; content unchanged apart from re-based links. Numbered 00 because it predates every dated volume._
 
 **This file is a historical record, not the live queue.** The live queue is

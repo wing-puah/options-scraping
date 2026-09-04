@@ -1,5 +1,7 @@
 # Archive 04 — Pooled evaluations and the deployment ladder (2026-07-18 → 07-20)
 
+_Status: historical (covers 2026-07-18 → 07-20). Superseded / qualified by: [deployment-evidence.md §"Closed threads"](../deployment-evidence.md) — the ladder's two `score_total ≥ 70` membership clauses were removed on 2026-07-21, so the Tier A/B definitions written here are not the shipped ones; [next-steps.md §2.2](../next-steps.md) — `v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`, so the tier ordering and the top-3/day capture figure are v3-era evidence only; [deployment-rules.md §1.4](../../docs/deployment-rules.md) — `bear_put`/`long_put` moved from Tier C to an outright card VETO on 2026-08-13, the §4 hedge sleeve excepted. Live record: [current.md](../current.md)._
+
 Part of the [backtest tuning log](../README.md). Covers the 607-row and 523-row
 pooled reads ahead of the ≥800 gate, the deployment ladder
 (`docs/deployment-rules.md`), and the regime-gap-driven next-25-dates selection.

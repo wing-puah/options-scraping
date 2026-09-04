@@ -1,5 +1,7 @@
 # Archive 08 — pre-engine discretionary book, year-split evaluation
 
+_Status: historical (covers 2026-07-27 – 2026-08-08). Superseded / qualified by: [next-steps.md §2.2](../next-steps.md) — `v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4` (four of five composition tests shift), so "the ladder separation is what reproduces per year" is a v3-era result; [archive/09 §`bs_options_hist` DROPPED](09-v3-closeout.md) — the pooled 2026-08-08 figures still include the bs tier, which attenuates every effect toward zero (no sign flips; no conclusion here reverses). §3's long-dated blind spot is still OPEN and unfixed (`next-steps.md`), and §1's cadence read is quoted as standing in [archive/17 §2026-08-22 (late)](17-v4-refresh-bear-deploy-and-vocabulary.md). Live record: [current.md](../current.md)._
+
 Covers 2026-07-27 (the pre-engine discretionary book and the long-dated
 blind spot) and 2026-08-08 (the year-split evaluation on refreshed
 exports: 2025 as the outlier year).

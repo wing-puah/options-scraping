@@ -9,6 +9,14 @@ period under [`archive/`](archive/). Append new entries to `current.md`; when it
 grows past ~400 lines, move its oldest sections into a new archive file and add a
 row to the index below.
 
+**Every archive volume carries a status line** directly under its title
+(`_Status: historical (covers …). Conclusions stand as of <date>._` or
+`… Superseded / qualified by: [doc §section](../path) — what changed. …`). It exists
+because agents sometimes reach a volume by grep rather than by link, and a confident
+conclusion with no marker reads as current. Add the line when a volume is created,
+and when later work qualifies or refutes something in an older volume, update THAT
+volume's line — the stamp is the only thing in `archive/` that is meant to change.
+
 ## Running a study
 
 Study code lives in `scripts/backtest_study/` (tracked), split into four family

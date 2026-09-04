@@ -1,5 +1,7 @@
 # Archive 12 — 2026-08-12: bear_rewrap, vol_sleeve
 
+_Status: historical (covers 2026-08-12). Superseded / qualified by: [archive/13 §`calendar_hedge` RUN](13-account-sim-and-calendar-hedge.md) — the calendar, the "only survivor" here, was re-derived under a pre-registered pick rule and its hedge claim is UNREADABLE (H2 underpowered at n=6, the one readable correlation wrong-signed), so the worst-decile +0.336 may not be quoted as a hedge property; [archive/17 §2026-08-27](17-v4-refresh-bear-deploy-and-vocabulary.md) — on era v4 the wrapper reads invert: `long_put` falls to 0/5 criteria and is closed, while `long_diag`, called dead here, holds 5/5 on R. Live record: [current.md](../current.md)._
+
 Covers the 2026-08-12 wrapper/vol research: `bear_rewrap` (`long_put`
 clears four of five gates, fails 2026-alone; the wrapper finding),
 the `vol_sleeve` pre-registration pointer, and the `vol_sleeve` RUN

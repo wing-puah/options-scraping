@@ -1,5 +1,7 @@
 # Archive 01 — Baseline through Attempt 7 (exit-rule tuning, 2026-06)
 
+_Status: historical (covers 2026-06). Superseded / qualified by: [archive/02 §Attempt 10](02-credit-debit-split-attempts-8-12.md) — Attempt 7's shipped debit trailing stop was removed on the next window, leaving `profit_target=0.90` as the only surviving piece of Opt C; [archive/02 §"Entry basis changed"](02-credit-debit-split-attempts-8-12.md) — every figure here is on the signal-day-EOD entry basis, replaced by next-day OPEN on 2026-07-06 and not comparable to later reads; [archive/14 §"method-config audit"](14-volume-signal-demotion-and-audit.md) — the ≈−25 `IVspr` BEAR veto is RETIRED outright, though the `FinPenalty` financing gate still ships. Live record: [current.md](../current.md)._
+
 Part of the [backtest tuning log](../README.md). Covers the original 119-trade
 dataset: baseline diagnosis, Attempts 1–7, the early rules of thumb, and the
 Financing & IVSpread signal-quality gates.

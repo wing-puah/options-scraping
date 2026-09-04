@@ -1,5 +1,7 @@
 # Archive 13 — 2026-08-13: account_sim & calendar_hedge — pre-registrations, runs, caps
 
+_Status: historical (covers 2026-08-13). Superseded / qualified by: [archive/17 §2026-08-22 (late) and §2026-08-24](17-v4-refresh-bear-deploy-and-vocabulary.md) — the adverse-ordering read (rejected picks out-earn taken) REVERSES on era v4 in all eight cells and `account_sim` prints FEASIBLE there, and `selection_order` closed the thread on 2026-08-27 as ORDERING-IS-NOISE, i.e. the v3 read was an ARTIFACT; [archive/16 §`calendar_hedge` R4](16-first-runs-on-v3.md) — "R4 EXACT" was a snapshot checksum that could never pass again and is now a same-run comparison; [archive/15 §State of play 2026-08-15](15-era-scoping-suite-repair-and-selection-order.md) — the stored `220 / 90 / $63,553` book-calibration gates quoted throughout (G1, R3) were DELETED as export fingerprints. Live record: [current.md](../current.md)._
+
 Covers the first half of the 2026-08-13 study day: the `account_sim` $25k
 feasibility study (pre-registration pointer; the RUN — caps survive, window
 doesn't, delta binds not cash; the same-day lookahead audit + G5 blindness

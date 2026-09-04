@@ -1,5 +1,7 @@
 # Archive 14 — 2026-08-13: volume_signal, bear_put demotion, method audit, compounding arm
 
+_Status: historical (covers 2026-08-13). Superseded / qualified by: [archive/17 §2026-08-24 (late)](17-v4-refresh-bear-deploy-and-vocabulary.md) — the graded `bear_deploy` v4 re-read PULLED the §4 sleeve pick line (`|delta|` descending, the D4 rule cited here) and relabelled the sleeve OPERATOR POLICY with D2 NOT MET, so of the demotion mechanism chosen here only the §1.4 card veto still rests on evidence ([deployment-rules §4](../../docs/deployment-rules.md)); [archive/17 §2026-08-27](17-v4-refresh-bear-deploy-and-vocabulary.md) — `volume_signal`'s verdict moves NULL → PATH-VOL-PROXY on the 140-date v4 book (nothing ships on either reading). The compounding arm and the method-config audit stand. Live record: [current.md](../current.md)._
+
 Covers the rest of 2026-08-13: the `account_sim` COMPOUNDING arm (costs money
 on this book; A2/A5 do not transfer), the `volume_signal` RUN (NULL — the
 volume column is CLOSED, the live pipeline never pays the version bump), the

@@ -1,5 +1,7 @@
 # Archive 10 — 2026-08-12: rules split, v4 bridge deviation, live loop, live-vs-analysis evals
 
+_Status: historical (covers 2026-08-12). Superseded / qualified by: [next-steps.md §2.2](../next-steps.md) — the v4-bridge deviation recorded here has RESOLVED: the study ran 2026-08-24 and 2026-08-27 and prints `VERDICT: LADDER UNVALIDATED ON v4` (four of five tests shift), so the "interim posture: deploy under v3 rules" is now the standing instruction, not an interim one; [archive/15 §2026-08-15 structure-name defect](15-era-scoping-suite-repair-and-selection-order.md) — the live-loop `play_structure` parser returned `unknown` for `bear put debit spread`, so the Stage-1 mapping tallies quoted here undercount matches (fixed in `lib/structure_names.py`). The rules split, the v1→v2→v3 null and the operator-card reference stats all stand. Live record: [current.md](../current.md)._
+
 Covers the operational 2026-08-12 work: the deployment-rules split
 (operator card vs evidence file), the v4 bridge RECORDED DEVIATION,
 the live loop promoted to tracked code, the v1 → v2 → v3
