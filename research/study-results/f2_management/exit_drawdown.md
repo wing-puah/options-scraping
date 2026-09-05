@@ -49,3 +49,50 @@ VERDICT SUMMARY
   ARM D/throttle   SECONDARY-UNDERPOWERED   (no OOS dates)
 ```
 
+## era v4 · inputs 76cc867 · sha efd9b76 — recorded 2026-09-05
+<!-- key era=v4 sha=efd9b76 inputs=76cc867 -->
+
+population  535 results · 1,303 proxy · 2,212 analysis · 820 spy_vix_daily_full  (inputs dated 2026-09-04 23:34 … 2026-09-05 09:48)
+run         2026-09-05 16:18:31 · git efd9b76 (main, working tree dirty) · exit 0 · 17.4s
+command     python -m scripts.backtest_study.f2_management.exit_drawdown
+excerpt     verdict
+
+```
+VERDICT SUMMARY
+  population: PRIMARY  (PRIMARY — the cut the verdicts are read from)
+  ARM W/wf         UNDERPOWERED
+  ARM W/prod       UNDERPOWERED
+  ARM U/a          UNDERPOWERED
+  ARM U/b          UNDERPOWERED
+  ARM O/oi         UNDERPOWERED
+  ARM O/vol        UNDERPOWERED
+  ARM P/half       UNDERPOWERED
+  ARM D/throttle   SECONDARY-UNDERPOWERED
+  ARM W arm-level token: UNDERPOWERED
+  PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
+```
+
+
+## era v3 · inputs e400b13 · sha efd9b76 — recorded 2026-09-05
+<!-- key era=v3 sha=efd9b76 inputs=e400b13 -->
+
+population  406 results · 796 proxy · 1,607 analysis · 820 spy_vix_daily_full  (inputs dated 2026-08-15 19:03 … 2026-09-05 09:48)
+run         2026-09-05 16:18:23 · git efd9b76 (main, working tree dirty) · exit 0 · 7.0s
+command     python -m scripts.backtest_study.f2_management.exit_drawdown
+excerpt     verdict
+
+```
+VERDICT SUMMARY
+  population: PRIMARY  (PRIMARY — the cut the verdicts are read from)
+  ARM W/wf         UNDERPOWERED   (no OOS dates)
+  ARM W/prod       UNDERPOWERED   (no OOS dates)
+  ARM U/a          UNDERPOWERED   (no OOS dates)
+  ARM U/b          UNDERPOWERED   (no OOS dates)
+  ARM O/oi         UNDERPOWERED   (no OOS dates)
+  ARM O/vol        UNDERPOWERED   (no OOS dates)
+  ARM P/half       UNDERPOWERED   (no OOS dates)
+  ARM D/throttle   SECONDARY-UNDERPOWERED   (no OOS dates)
+  ARM W arm-level token: UNDERPOWERED
+  PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
+```
+

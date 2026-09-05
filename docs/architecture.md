@@ -447,6 +447,108 @@ Other arms:
     walks off one model pass (demote_policy skip vs ignore) and prints the delta; read that
     before reading anything the judge layer touched.
 
+### exit_drawdown and the exit-overlay layer
+
+`scripts/backtest_study/lib/exit_overlays.py` is the shared machinery for judging an exit
+rule on the ACCOUNT curve. It is a **composition around the frozen harness, never a fork**:
+`lib/harness.py::replay` stays the sole exit-scan loop, each overlay rule answers only "on
+which 1-indexed grid session does my rule first fire?", and `compose_earlier()` takes the
+EARLIER of the harness's own exit and the overlays'. Ties go to the harness (an overlay can
+move an exit earlier, never relabel one), then to the caller's declared overlay order; every
+session is clamped into the grid and advanced to the next PRICED session, or dropped.
+`staged_exit.py` needed a profile-SWAP shape instead and paid for it with a verbatim copy of
+the replay loop — earlier-of composition needs no copy, which is why G-FORK can assert
+`replay_sized` field-for-field identity with every rule disabled.
+
+- **Replayer factory.** `make_replayer(spec, **loaders)` returns a callable with
+  `account_sim.replay_sized`'s exact signature, so `simulate(..., replayer=...)` drops it in
+  transparently; `replayer.overlay` carries the spec back for inspection.
+  `make_blockwise_replayer(block_of_date, spec_by_block, default=None, ...)` is the
+  walk-forward form: it dispatches each position's overlay by the block its signal date falls
+  in, which is what lets ONE `simulate()` run the stitched out-of-sample book. It RAISES on an
+  unmapped date unless `default` is given — a burn-in date must never silently fall through to
+  the shipped profile.
+- **Extended memo key.** Every replay cache key here is `replay_sized`'s own
+  `(id(rec), contracts, round(stop, 6), sorted profile items)` EXTENDED with the whole frozen
+  `Overlay` (label included). Under-keying is the 2026-08-13 G5 bug class — one arm being
+  served another arm's cached answer — and the extension is what makes a shared cache safe.
+  It is also why an overlay key is a 5-tuple and `simulate`'s own skipped-counterfactual keys
+  are 4-tuples: they cannot collide.
+- **The OI lag helper.** `lagged_by_session(t, series)` is the ONE encoding of "read lagged one
+  session": the value usable AT session `i` is the one dated `t.grid[i-2]`, the previous grid
+  session, because Barchart publishes Open Int the next morning. Sessions 0 and 1 are `None`.
+  Anything reading an OI path goes through it; G1 (the leak guard) shifts the series a further
+  session and requires that no exit moves EARLIER.
+- **`load_oi` keeps blank and 0 distinct.** A blank `Open Int` cell is `None` — MISSING, skipped
+  exactly as an unpriced mark is — while a literal `0` is `0.0`, a VALID full unwind. Collapsing
+  them would read every missing day as a 100% drop. `default_oi_for(rec)` is the series ARM O
+  actually reads: it applies the >= 20%-blank exclusion AT THE READ BOUNDARY (returning an empty
+  series, which makes `oi_unwind_session` return `None`), so an excluded row replays the shipped
+  profile rather than carrying an exit only the census knew was forbidden. The blank share's
+  denominator is `shipped_hold_sessions(rec)` — `days_held` under the SHIPPED profile, the one
+  hold window ARM O's own exit does not depend on, never the weekday grid out to expiry.
+  `atr_governs()` is the matching single test for ARM U: variant (b) may strip the shipped `sl`
+  only on a row the ATR rule can govern, or the row would run with NEITHER stop.
+
+`scripts/backtest_study/f2_management/exit_drawdown.py` runs that layer. **One invocation
+prints BOTH populations**: `POP_PRIMARY` (dense episodes — the headline, the only cut a verdict
+is read from, because `account_sim`'s FEASIBLE verdict is itself a dense-episode claim) and
+`POP_ALL` (the full book, a DISCLOSED secondary cut carrying no verdict), with `--population`
+overriding to one. Only the headline population's non-zero rc aborts the run, and only its
+tally prints under `VERDICT SUMMARY`. Per population the COMPUTATION order is: POPULATION AND BASIS →
+WALK-FORWARD DESIGN → the machinery gates (G-FORK, G-CAL, G1) → WALK-FORWARD FITS → G-MTM →
+**G-COV** → G0 (power) → CELL RESULTS → in-sample DISCLOSURE. G-COV prints ABOVE every
+conditional number even though ARM P's and ARM D's censuses can only be counted off books that
+do not exist until the fits and sims have run: the body is executed first into a string buffer
+via `redirect_stdout`, G-COV prints live, then the buffer is flushed. So the PRINTED order is
+POPULATION AND BASIS → **G-COV** → everything else in the order above. Emission order changes,
+semantics do not.
+
+The **cells sidecar** is how the two eras exchange clause 5. `cells_artifact_path(era)` is
+`backtests/study_output/exit_drawdown-cells-<era>.json`, written ONLY by a PRIMARY-population
+run, recording `{"era", "population", "written", "cells"}`. A v4 run reads the `v3` file and
+REFUSES it — clause 5 prints VACUOUS with the reason, never a silent substitution — if it
+records another era, or if it records any population but `primary`, because the `all` cut
+carries no verdict and so cannot contradict one. A v3 PRIMARY run with no surviving test block
+still writes its all-UNDERPOWERED cells before returning: an honest named referent beats an
+absent file.
+
+Two `account_sim` hooks exist for this study and are no-ops everywhere else:
+
+- **`simulate(..., replayer=None)`** — `None` reproduces `replay_sized` exactly. A supplied
+  replayer must match `(rec, contracts, stop, profile=None, cache=None) -> dict`
+  (`exit_reason`, `days_held`, `R`, `dollars`, `stop_exact`) and is called at the single
+  position-open site for TAKEN positions only; `sim.skipped` counterfactuals always stay on
+  the shipped profile.
+- **`Cfg.dd_throttle: tuple | None = None`** — `(d, restore_fraction)`. `None` is byte-identical
+  to pre-ARM-D behaviour and never touches `led.capital`. While the realized-equity mark
+  (`cfg.capital + led.realized`, taken after that session's releases) sits `d` or more below its
+  running peak, NEW positions size at HALF the live risk budget and stop; it restores with
+  hysteresis once the mark is back within `d * restore_fraction` of the peak. It is recomputed
+  from the raw budget each session (never carried over halved), is independent of `compound`,
+  and every halved session is appended to `sim.throttle_dates` so a study can reconcile its own
+  re-derivation against it. It is ONE value for a whole simulation — a ledger cannot carry a
+  different `d` per walk-forward block — which is why a walk-forward selection over it must
+  collapse before the stitched book runs.
+
+`run_gates(recs, picked, st, cache, selftest=False)` is a plain in-process function returning
+`{"G2": bool, "G3": bool, ...}`; a study calls it directly and prints its lines rather than
+shelling out. **`--selftest-gates` is the opposite of that check**: it deliberately INVERTS
+every gate's expectations (adds 1 to `days_held` in G2, injects a $1 leak into G3's identity,
+inverts G4's and G5's comparisons) so a healthy build prints `GATES: FAILED`. It is a check on
+the checker; a run of it that PASSES means the gates are broken. Never cite one as evidence a
+host simulation is sound.
+
+Finally, **`scripts/collector/fetch_underlying_ohlc.py --recheck-rescaled`** — OFFLINE, no
+network call, standalone (it refuses every selection/fetch flag). It re-derives the
+split-adjustment flag for every `backtests/underlying_ohlc_cache/<T>.csv` already on disk, via
+the same `split_check` a live fetch uses, and is the ONLY path allowed to rewrite
+`rescaled_tickers.txt` IN FULL. Every other run MERGES: `write_rescaled()` attests only the
+tickers it actually split-checked this run and keeps every other prior line verbatim, and a run
+that checked nothing writes nothing. Before that, a partial `--skip-existing` run rewrote the
+whole file and silently dropped six still-rescaled tickers, so their ABSENCE read as "not
+rescaled" (2026-09-05).
+
 ### Study review, map, charts
 
 **`scripts/study_review/`** — two-analyst replication grading + digest:

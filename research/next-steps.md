@@ -35,6 +35,29 @@ is the queue. Evidence trails live in [`current.md`](current.md),
   patched from scratch files. Operator to decide; if they are to be restored,
   re-run `make backtest ARGS="--date <D>"` for the two dates, NEVER a bare
   backtest (no dedup — it would double every row).
+- **The underlying-OHLC cache now covers ALL 145 current-era book tickers** (68
+  were missing and were fetched 2026-09-05; v3's 103 were already complete). The
+  30 tickers still showing "missing sessions" are NYSE holidays on weekdays, not
+  scrapeable gaps. `backtests/underlying_ohlc_cache/rescaled_tickers.txt` was
+  **rebuilt and now lists 13 tickers** (11 before today, then wrongly 5): a partial
+  `--skip-existing` run used to rewrite that file in full and silently dropped
+  six still-rescaled tickers. `write_rescaled()` now MERGES — a run attests only
+  what it split-checked — and the new standalone offline
+  `fetch_underlying_ohlc.py --recheck-rescaled` is the one path allowed a full
+  rewrite. NVDA (10:1) and GE (the spinoff step) are newly flagged, so every
+  OHLC consumer now withholds absolute dollars / cross-series comparisons on
+  seven more tickers than yesterday (ratios stay valid).
+- **`account_sim`'s baseline LABEL named a reverted rule; its numbers did not
+  move.** `SHIPPED_BE_AFTER = 0.50` was hardcoded, so `profile_for` kept
+  applying the bear-debit break-even stop after the 2026-08-24
+  `structure_exit.enabled: false` revert (BEAR_HE's `regime_exit` is genuinely
+  still on — only `be_after` was stale). **Zero `be_stop` exits in any
+  `account_sim` or `exit_drawdown` baseline book**, so no verdict, cell or
+  baseline-book figure moves (`exit_drawdown` WAS re-run under the pin at
+  `efd9b76`: only its basis line and ARM O's hold-window census changed). Same
+  class as `exit_mechanism_study`'s stale `CREDIT_PROD` (2026-08-24); pinned to
+  the config and test-pinned 2026-09-05; `account_sim` re-run and re-recorded
+  at `d69a802` the same evening, headline unchanged, last stale strings retired.
 - **Tests green as last recorded: see [`current.md`](current.md) 2026-09-04.**
   The last full study-suite re-run was **2026-09-04** on the 166-date book:
   every non-retired study ran, `prompt_eval` refused by design (bare `--all`
@@ -481,6 +504,21 @@ The two stale report strings found 2026-08-27 are FIXED (2026-09-04):
   done). `scripts/analyze_bt_queue.sh` was deleted per its own header; the
   `.done` ledger and the hand-written date lists stay in `backtests/`
   (gitignored, no history — never clean them).
+- **`exit_drawdown`'s design, should any cell ever clear** — every arm is
+  UNDERPOWERED on PRIMARY and the two powered `all` cells are NULL, so nothing
+  is queued today; but a CANDIDATE from this design would still need the
+  **independent window** (the live 2026-08/09 dates once priced), never a re-cut
+  of these dates. Parked on dates, not on design.
+  **One registration OPEN ITEM is still open and did not surface in this run's
+  report:** the registration's ARM P "dollars ban is scoped" resolution asks for
+  an explicit operator ACK, and wording correction (c) of 2026-09-05 records that
+  none was given, so the module DEFAULTS to the alternative reading (ARM P's
+  account-level drawdown quoted as a share of starting capital; `--arm-p-dollars`
+  for the dollar levels). The banner naming that open item prints only inside an
+  ARM P cell comparison, and `exit_drawdown ARM P` was UNDERPOWERED on every cut,
+  so no run has yet displayed it. The verdict is identical either way (clause 1
+  reads the scale-free improvement RATIO); the ack is still owed before any ARM P
+  cell is ever read.
 - **Prompt/infra** — the `analysis_pipeline/core.py` refactor is deferred; the
   PostToolUse hook still never runs pytest. The delegation-nudge PreToolUse hook
   is advisory by design (`systemMessage` only, no `permissionDecision`).
@@ -617,6 +655,12 @@ command above.
   0/40 powered cells, day-5 loss cuts significantly harmful, 50–79%
   continuation sales. Do not re-register it under another anchor (days-since-
   entry or DTE-remaining) on these dates.
+- **Walk-forward exit selection on account-level drawdown (`exit_drawdown`,
+  2026-09-05): UNDERPOWERED on PRIMARY; the only two powered cells are on the
+  no-verdict `all` cut — `exit_drawdown ARM O/vol` NULL and
+  `exit_drawdown ARM D/throttle` SECONDARY-NULL — and the in-family best drifts
+  block to block. Do not re-register `exit_drawdown`'s ARM W/U/O/P/D on these
+  dates.**
 - **No further text study.** `text_features` NULL, `exit_from_text` E1
   CONTRARY, `prompt_eval` variance floor; §2.9 is a stability item only.
 - `score_total` is decision-irrelevant (tie-break only). Selection is
