@@ -603,3 +603,24 @@ def test_digest_page_is_linked_from_its_study_card(tmp_path):
     (out_dir / f"{name}-digest-latest.md").write_text("# A Digest Title\n\nSome prose.\n")
     fragment = build.build_fragment(out_dir=out_dir, log_path=tmp_path / "absent.md")
     assert f'href="{render.site_name(name)}"' in fragment
+
+
+def test_a_negated_verdict_banner_is_not_the_excerpt(tmp_path):
+    """`DISCLOSURE — NO VERDICT IS READ FROM ANYTHING BELOW` contains VERDICT and,
+    when a disclosed secondary cut follows the verdict summary, is the LAST
+    banner. exit_drawdown 2026-09-05: the record quoted in-sample numbers as the
+    study's answer. The picker must skip a title that disclaims itself."""
+    rule = "=" * 78
+    body = "\n".join([
+        rule, "VERDICT SUMMARY", rule,
+        "  ARM W/wf         UNDERPOWERED",
+        "  tally: {'UNDERPOWERED': 7}",
+        rule, "DISCLOSURE, in-sample — NO VERDICT IS READ FROM ANYTHING BELOW", rule,
+        "  ARM W/wf   in-sample best pt 0.60   max DD $-9,418",
+        "",
+    ])
+    write_report(tmp_path, "demo", body, rc=0, secs="1.0")
+    run = summary.summarize("demo", tmp_path)
+    assert run.excerpt_kind == "verdict"
+    assert run.excerpt[0].strip() == "VERDICT SUMMARY"
+    assert not any("in-sample best" in ln for ln in run.excerpt)

@@ -77,6 +77,14 @@ _MISSING_INPUT = re.compile(r"^\s*MISSING\s+(.*)$")
 _CONCLUSION_TITLE = re.compile(
     r"\b(VERDICT|CONCLUSION|DECISION|BOTTOM LINE|WHAT SHIPS|FINAL READ)\b", re.I)
 
+# ...unless the title itself disclaims it. `DISCLOSURE, in-sample — NO VERDICT IS
+# READ FROM ANYTHING BELOW` contains the word VERDICT and is the LAST banner of
+# a report that prints a disclosed secondary cut after its verdict summary;
+# quoting it as the study's answer put in-sample numbers on the record
+# (exit_drawdown, 2026-09-05). A negated title is never a conclusion.
+_NOT_A_CONCLUSION_TITLE = re.compile(
+    r"\bNO\s+(VERDICT|CONCLUSION|DECISION)\b|\bNOT\s+A\s+VERDICT\b", re.I)
+
 # Lines that carry a pre-registered criterion's outcome. Deliberately narrow:
 # a false positive here puts an arbitrary table row on the page under a heading
 # that implies the study meant it.
@@ -245,7 +253,7 @@ def extract(body: list[str], exit_code: int | None,
 
     sections = _banner_sections(body)
     for title, start in reversed(sections):
-        if _CONCLUSION_TITLE.search(title):
+        if _CONCLUSION_TITLE.search(title) and not _NOT_A_CONCLUSION_TITLE.search(title):
             chunk = [title] + _section_body(body, start)
             chunk = [ln for ln in chunk if ln.strip()][:MAX_EXCERPT_LINES]
             if len(chunk) > 1:

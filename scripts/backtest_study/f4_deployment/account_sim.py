@@ -620,7 +620,8 @@ def replay_sized(rec: dict, contracts: int, stop: float,
     the stored contract count and stop `MAX_LOSS_ABS`. Any simulate() whose own
     stop is also $1,000 — a $50k book at 2%, a $25k book at 4% — then asks for
     the same `(rec, contracts, stop)` and, without the profile in the key, gets
-    G2's calibration answer back instead of the SHIPPED be_after-0.50 merge.
+    G2's calibration answer back instead of the SHIPPED per-row merge
+    (`profile_for`, whose be_after comes from config and is None today).
     Found 2026-08-13 by G5, which diverged because blinded records are distinct
     objects and so missed the poisoned entries. Keys at a $500 stop never
     collided, which is why the headline cell was never affected.
@@ -1265,7 +1266,7 @@ def run_gates(recs, picked, st: Settings, cache: dict,
     print("""  The identity code path is run with factor 1 (stop = the harness's own
   $1,000) at the STORED contract count, under DEBIT_PROD — the profile that
   GENERATED the stored rows. It must reproduce (exit_reason, days_held,
-  round(R,4)) exactly. Calibrating against the shipped be_after-0.50 merge
+  round(R,4)) exactly. Calibrating against the shipped per-row merge (profile_for)
   instead would be testing an exit change, not the identity.""")
     n_ok = n_bad = 0
     bad_examples = []
