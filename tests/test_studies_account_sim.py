@@ -536,6 +536,70 @@ def test_compounding_re_marked_caps_admit_a_position_the_frozen_cap_refuses():
     assert book_signature(frozen) != book_signature(compounded)
 
 
+# -- simulate()-level: replayer hook and the ARM D drawdown throttle --------
+
+def test_replayer_omitted_equals_none_equals_replay_sized():
+    """`replayer` is the drop-in `exit_overlays.make_replayer(...)` will use
+    (`exit_drawdown`'s plan). Omitting it, passing `None` explicitly, and
+    passing `replay_sized` itself must all replay identically — none of them
+    override the ONE call site inside `take()`."""
+    day_lists = _two_month_day_lists()
+    cfg = _cfg()
+    omitted = simulate(day_lists, cfg)
+    none_kw = simulate(day_lists, cfg, replayer=None)
+    explicit = simulate(day_lists, cfg, replayer=replay_sized)
+    assert book_signature(omitted) == book_signature(none_kw)
+    assert book_signature(omitted) == book_signature(explicit)
+
+
+def test_dd_throttle_that_fires_halves_the_budget_and_moves_the_book():
+    """The throttle BITES, asserted through `simulate()` itself.
+
+    Everything else about ARM D is covered by a no-op check or by a hand-built
+    `Sim`, so `simulate()`'s sizing branch had no coverage of the case where
+    the rule is ON — the whole suite would pass with `dd_mult` computed and
+    never applied to `budget`/`stop`. `exit_drawdown`'s ThrottleReconcileError
+    cannot catch that either: `throttle_dates` is appended from the SAME state
+    machine that computes `dd_mult`, so a disconnected multiplier leaves the
+    two derivations agreeing while the book runs unthrottled.
+
+    January's position is a fat loser (entry $50, mark $10) and books about
+    -$4,000, putting realized equity ~16% below the $25,000 peak; February's
+    entry is therefore sized at HALF the risk budget. The halving is asserted,
+    not just the recording."""
+    jan, feb = date(2025, 1, 6), date(2025, 2, 3)
+    day_lists = [(jan.isoformat(), [_fat_rec(jan, mark=10.0)]),
+                 (feb.isoformat(), [_fat_rec(feb, mlpc=100.0)])]
+
+    default = simulate(day_lists, _cfg())
+    throttled = simulate(day_lists, _cfg(dd_throttle=(0.05, 0.5)))
+
+    # The throttle fired, and only on the session after the loss was realized.
+    assert default.throttle_dates == []
+    assert throttled.throttle_dates == [feb.isoformat()]
+    # ...it reached the BOOK, not just the record...
+    assert book_signature(default) != book_signature(throttled)
+
+    def _feb(sim):
+        return next(p for p in sim.taken if p.rec["date"] == feb.isoformat())
+
+    # ...and February was sized at HALF the budget, which is the rule itself.
+    assert _feb(default).contracts == risk_contracts(100.0, 500.0) == 5
+    assert _feb(throttled).contracts == risk_contracts(100.0, 250.0) == 2
+    assert not throttled.ledger.violations
+
+
+def test_dd_throttle_none_is_a_no_op():
+    """ARM D's drawdown throttle is a no-op at the default: a `Cfg` that never
+    names `dd_throttle` and one that names it explicitly as `None` must
+    produce a byte-identical book, and neither records compounding marks."""
+    day_lists = _two_month_day_lists()
+    default = simulate(day_lists, _cfg())
+    named_none = simulate(day_lists, _cfg(dd_throttle=None))
+    assert book_signature(default) == book_signature(named_none)
+    assert default.marks == [] and named_none.marks == []
+
+
 # ── population helpers ──────────────────────────────────────────────────────
 
 def test_sessions_between_counts_weekdays_only():

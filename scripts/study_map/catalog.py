@@ -525,6 +525,38 @@ STUDIES: dict[str, Study] = {
                 "structure's winners. E3 still fails its survival control. Nothing ships, and the "
                 "re-read item comes off the queue answered rather than carried.",
     ),
+    "exit_drawdown": Study(
+        family="management", state="open",
+        question="Does any exit rule — chosen WITHOUT look-ahead, on TRAIN dates only — "
+                 "reduce the ACCOUNT-LEVEL mark-to-market drawdown of the deployed "
+                 "account_sim book without giving back its edge? Five arms: W "
+                 "(walk-forward selection over the shipped pt x sl x tef grid, the honesty "
+                 "baseline), U (an underlying ATR stop with ATR14 FROZEN at entry), O (a "
+                 "flow-unwind exit off the entry long leg's own Open Int path, read LAGGED "
+                 "one session, plus one volume-climax variant), P (partial scale-out, "
+                 "exact), and D (a SECONDARY drawdown THROTTLE on sizing, which can never "
+                 "ship from an f2 study).",
+        verdict="REGISTERED 2026-09-05 "
+                "(research/pre-registrations/f2_management/exit_drawdown.md) and BUILT the "
+                "same day; no run is recorded yet, so this entry carries no numbers. What "
+                "makes it admissible after a page of standing exit nulls is stated in the "
+                "registration and is the thing to check when the first report lands: every "
+                "verdict in that record — the three trailing stops, the pt/sl/tef plateau, "
+                "staged_exit, exit_from_text, next_day_move — was reached on a PER-ROW R "
+                "estimand under IN-SAMPLE parameter choice, while this study's headline is "
+                "the maximum drawdown IN DOLLARS of one marked $25,000 ledger "
+                "(lib/mtm_curve.py) whose thresholds were fitted on train dates and applied "
+                "to test dates. hedge_exposure ARM M measured the close-bucketed curve "
+                "UNDERSTATING this book's max drawdown by 40.2%, so a per-row read cannot "
+                "stand in for it in either direction. The registration also names the modal "
+                "expected outcome IN ADVANCE — UNDERPOWERED cells, as staged_exit got on a "
+                "comparable book — and registers the continuation diagnostic as a PASS "
+                "criterion (REACTIVE-AGAIN), so a rule that cuts the curve by selling "
+                "continuations is recorded as the reactive null in new clothes rather than "
+                "as a candidate. ARM W carries its own arm-level token, PROD-ROBUST, which "
+                "is the affirmative reading of a null: the shipped knobs survived "
+                "out-of-sample selection. Nothing ships from this study under any outcome.",
+    ),
     "staged_exit": Study(
         family="management", state="open",
         question="Does a time-STAGED exit — evaluate ONCE at fixed session X on P&L vs the "
@@ -1014,6 +1046,17 @@ INFRA: dict[str, str] = {
                   "series. Every recorded conclusion depends on its exact exit priority, "
                   "clamps and rounding, and a behavioural change would invalidate the log "
                   "SILENTLY. Changing the exit mechanism means copying this file.",
+    "lib/exit_overlays.py": "COMPOSITION wrappers around the frozen harness, for "
+                      "exit_drawdown. Each rule (ATR stop, OI unwind, volume climax) answers "
+                      "only 'which session do I first fire on?' and compose_earlier takes the "
+                      "EARLIER of that and harness.replay's own exit — so no copy of the exit "
+                      "loop exists, unlike staged_exit's fork. Carries load_oi (the repo's "
+                      "only Open Int reader; blank is MISSING, a literal 0 is a full unwind), "
+                      "the ONE encoding of the OI one-session lag, and drop-in replacements "
+                      "for account_sim.replay_sized whose memo key is EXTENDED with the "
+                      "overlay params (the 2026-08-13 G5 bug class). Disabled, it reproduces "
+                      "replay_sized exactly — the G-FORK gate, pinned in tests against the "
+                      "same committed fixture as the frozen engine.",
     "lib/book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
                    "default — they are priced FROM the model that scores them.",
     "lib/basis_audit.py": "Coherence audit for the exit_basis COLUMN — reports, never "

@@ -658,6 +658,17 @@ class Cfg:
     compound: bool = False
     mark_interval: str = "month"
     budget_ceiling: float | None = None
+    # ARM D (exit_drawdown, SECONDARY/sizing) — `(d, restore_fraction)`, e.g.
+    # `(0.10, 0.5)`. While the realized-equity mark (the same basis the
+    # `compound` re-mark uses: `cfg.capital + led.realized`, taken AFTER that
+    # session's `release_before`) is >= `d` below its running peak, NEW
+    # positions size at HALF the risk budget/stop; the throttle lifts once the
+    # mark is back within `d * restore_fraction` of peak (the pre-registered
+    # arm uses `restore_fraction=0.5`, i.e. "within d/2 of peak"). `None` is a
+    # no-op — the default, byte-identical path. Never touches `led.capital`
+    # (G3's identity keeps the starting capital) and is independent of
+    # `compound`: it can throttle a static budget or a re-marked one.
+    dd_throttle: tuple | None = None
 
     @property
     def budget(self) -> float:
@@ -709,6 +720,17 @@ class Sim:
     # (session, marked_equity, budget, per_pos_cap_$, net_cap_$) — one per
     # compounding re-mark; always empty when `cfg.compound` is False.
     marks: list = field(default_factory=list)
+    # ARM D: the signal dates (as `str`) on which the drawdown throttle was
+    # ACTIVE when the session's entries were sized. Always empty when
+    # `cfg.dd_throttle` is None, so the default path is unchanged.
+    #
+    # It is recorded rather than left to be re-derived because the study's own
+    # `exit_drawdown.throttled_entries()` re-derives exactly this set to supply
+    # ARM D's G0 counts, and two hand-written implementations of one state
+    # machine drift silently — ARM D's affected-row/date counts, and therefore
+    # its UNDERPOWERED-vs-evaluated status, would go wrong with nothing to
+    # surface it. The study asserts its re-derivation against this list.
+    throttle_dates: list = field(default_factory=list)
 
     # -- derived views -------------------------------------------------------
     @property
@@ -732,7 +754,7 @@ class Sim:
 
 def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
              selftest_leak: bool = False, cache: dict | None = None,
-             ranker=None) -> Sim:
+             ranker=None, replayer=None) -> Sim:
     """Event-loop the ladder through an account ledger.
 
     `day_lists` is `protocol.ordered_by_day(...)` output, already restricted to
@@ -750,11 +772,34 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     the sizing and the exit replay below are untouched by it — the hook replaces
     who chooses, never what happens to what is chosen.
 
+    `replayer` is the drop-in for `replay_sized` used for every position TAKEN
+    (the one call site that opens a position, inside the nested `take()`
+    closure): omitted or `None` reproduces `replay_sized` exactly, so the
+    default path is byte-identical. It does NOT cover the SKIPPED-row
+    counterfactuals recorded in `sim.skipped` — those stay on the SHIPPED
+    profile by design, since they are a census of what the ladder passed over
+    and are read against the shipped book, never against an arm. (Their memo
+    keys are `replay_sized`'s own 4-tuples and cannot collide with the
+    overlay's 5-tuples, so a shared cache stays correct either way.)
+    It exists so `exit_overlays.make_replayer(...)`/`make_blockwise_replayer(...)`
+    can substitute an overlaid exit (walk-forward knob, ATR stop, OI unwind,
+    partial scale-out) without this module knowing about any of them; the
+    signature it must match is `replayer(rec, contracts, stop, cache=cache) ->
+    dict(exit_reason, days_held, R, dollars, stop_exact)`.
+
     When `cfg.compound` is set, the sizing basis is RE-MARKED to realized equity
     at every `cfg.mark_interval` boundary (see the re-mark comment in the loop).
     That is a post-hoc FRICTION MODEL, not a pre-registered arm; `compound=False`
     is the frozen, path-independent book. The mark never touches the ledger's
     own `capital`, so G3's identity keeps its original starting capital.
+
+    When `cfg.dd_throttle` is set (ARM D, SECONDARY/sizing), the same
+    realized-equity mark is used to track a running peak; while the mark is
+    `>=d` below peak, NEW positions (signal and hedge alike) size at HALF the
+    live risk budget/stop, restoring once the mark is back within
+    `d * restore_fraction` of peak. `dd_throttle=None` is a no-op and leaves
+    this function byte-identical to the pre-ARM-D behaviour; it never touches
+    `led.capital` either.
     """
     if cache is None:
         cache = new_cache()
@@ -776,7 +821,7 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
 
     def take(rec, contracts, stop, downsized=False, hedge=False):
         nonlocal net_open
-        rp = replay_sized(rec, contracts, stop, cache=cache)
+        rp = (replayer or replay_sized)(rec, contracts, stop, cache=cache)
         if not rp["stop_exact"]:
             sim.stop_inexact += 1
         t = rec["t"]
@@ -796,10 +841,19 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     # The live sizing basis. Without compounding these never move, and every
     # expression below reduces to `cfg.capital` / `cfg.budget` / `cfg.stop`.
     marked = float(cfg.capital)
-    budget = cfg.budget
-    stop = cfg.stop
+    raw_budget = cfg.budget
+    raw_stop = cfg.stop
+    budget = raw_budget
+    stop = raw_stop
     period = None
     ruined = False
+    # ARM D drawdown throttle — a running peak of the same realized-equity
+    # mark the compound re-mark uses, and the current on/off state of the
+    # throttle (hysteresis: halve at `d` below peak, restore at `d *
+    # restore_fraction`). Both stay unused (and byte-identical to before)
+    # whenever `cfg.dd_throttle` is `None`.
+    dd_peak = float(cfg.capital)
+    dd_throttled = False
 
     for d, ranked in day_lists:
         entry_sess = ranked[0]["t"].grid[0]
@@ -817,11 +871,37 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
             if key != period:
                 period = key
                 marked = cfg.capital + led.realized
-                budget = sizing_budget(marked, cfg.risk_pct, cfg.budget_ceiling)
-                stop = budget
+                raw_budget = sizing_budget(marked, cfg.risk_pct, cfg.budget_ceiling)
+                raw_stop = raw_budget
                 ruined = marked <= 0
-                sim.marks.append((entry_sess, marked, budget,
+                sim.marks.append((entry_sess, marked, raw_budget,
                                   cfg.per_pos_cap * marked, cfg.net_cap * marked))
+
+        if cfg.dd_throttle is not None:
+            # Same basis as the compound re-mark above (realized-only, taken
+            # AFTER this session's release_before — NOT lookahead), so the
+            # throttle and the compounding arm can be read on the same clock
+            # even though they are independent knobs.
+            dd, restore_fraction = cfg.dd_throttle
+            realized_equity = cfg.capital + led.realized
+            dd_peak = max(dd_peak, realized_equity)
+            if not dd_throttled and realized_equity <= dd_peak * (1.0 - dd):
+                dd_throttled = True
+            elif dd_throttled and realized_equity >= dd_peak * (1.0 - dd * restore_fraction):
+                dd_throttled = False
+
+        # `budget`/`stop` are recomputed from the raw (static-or-compound-
+        # remarked) basis every session, never carried over halved from a
+        # prior day — that is what keeps the throttle's on/off transitions
+        # exact instead of compounding across days it stays on.
+        dd_mult = 0.5 if (cfg.dd_throttle is not None and dd_throttled) else 1.0
+        budget = raw_budget * dd_mult
+        stop = raw_stop * dd_mult
+        if dd_mult != 1.0:
+            # The record `exit_drawdown` reconciles its own re-derivation
+            # against (see `Sim.throttle_dates`). Appended at the point the
+            # halved budget is actually in force for this session's entries.
+            sim.throttle_dates.append(str(d))
 
         if ranker is not None:
             # `entry_sess` is already fixed above and does not move: every record
