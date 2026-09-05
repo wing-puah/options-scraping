@@ -6,6 +6,7 @@ block at the top of [`current.md`](current.md), refreshed 2026-09-04 — that
 block is the authoritative summary; this file is the queue. Evidence trails live in [`current.md`](current.md),
 [`archive/`](archive/) and [`deployment-evidence.md`](deployment-evidence.md).
 
+<a id="s0"></a>
 ## 0. Repo state — READ FIRST
 
 The population, the verdicts and the standing hazards live in
@@ -90,6 +91,7 @@ era-scoping and `selection_order` story is now
 the bear_put demotion to card veto §1.4, OIConfirm out of the Score, the −25
 IVspr veto retired, and codex retired. Do not re-derive either here.
 
+<a id="s0c"></a>
 ## 0c. Study suite — was 6 FAILING, **ALL RESOLVED 2026-08-14**; `run --all` exits 0
 
 *Historical diagnosis from 2026-08-14, resolved that day. Kept verbatim because
@@ -190,21 +192,28 @@ superseded rows by that column, then banned it outright. The accurate rule:
       admission decision and no study's numbers — three print sites. Its
       docstring already carries the correction.
 
-**(B) `combined_exit_study` and `underlying_exit_study` — RETIRED.** Inputs are
-deleted gitignored scratch and were never recoverable. `catalog.py`'s `Study`
-gained a `retired` field (orthogonal to `state`: retirement is about whether a
-study can be RUN, not what it argued) plus `retired_studies()`; `--all` skips
-them with the reason printed, `run <name>` still runs one explicitly after a
-notice, and the study-map page renders a `retired` pill and caveat. **Do not
-repoint them at surviving files** — `results.csv` is 4 rows on 2 dates today
-(Attempt 12 ran on 94 real debit + 22 credit), `results_proxy.csv` was always an
-author transposition of the writer's `proxy_results.csv`, and although
+**(B) `combined_exit_study` and `underlying_exit_study` — RETIRED 2026-08-14,
+DELETED 2026-09-05.** Their inputs were deleted gitignored scratch and were
+never recoverable, so neither could be run again. Both modules are now gone,
+and **the record is [`study-map.md`](study-map.md#management)**, which carries
+each study's question, its verdict, why it cannot run, and the
+[archive/02](archive/02-credit-debit-split-attempts-8-12.md) trail. Nothing
+re-opens either question.
+
+If a future study is ever retired rather than deleted, the mechanism still
+exists: `catalog.py`'s `Study` carries a `retired` field (orthogonal to
+`state` — retirement is about whether a study can be RUN, not what it argued)
+plus `retired_studies()`; `--all` skips such a study with the reason printed,
+`run <name>` still runs it explicitly after a notice, and the study-map page
+renders a `retired` pill and caveat. No study carries the field today, and its
+tests supply their own synthetic subject. **Do not resurrect these two against
+surviving files** — `results.csv` is 4 rows on 2 dates today (Attempt 12 ran on
+94 real debit + 22 credit), `results_proxy.csv` was always an author
+transposition of the writer's `proxy_results.csv`, and although
 `v2_results_nocreditdiff.csv` IS the genuine rename, `underlying_exit_study`'s
-other input has 0 credit rows so it would emit an empty report anyway. Numbers
-off a 4-row wrong-vintage book would read as a fresh confirmation. Porting
-`combined_exit_study` to `book.py` stays a design decision, not a loader swap
-(it imports `Trade`/`replay` from the older `exit_mechanism_study.py`, not the
-frozen `harness.py`). Count rows with `csv.DictReader`, never `wc -l`.
+other input has 0 credit rows, so it would emit an empty report anyway. Numbers
+off a 4-row wrong-vintage book would read as a fresh confirmation. Count rows
+with `csv.DictReader`, never `wc -l`.
 
 **(C) `v4_bridge` exit 3 — now a first-class DESIGNED REFUSAL.** It was never a
 defect: it is the pre-registered refusal to compare a v3 book against itself.
@@ -221,6 +230,7 @@ export. `study_map` was taught the same two words (it was still printing
 refusal-capable study still classifies as `failure`**, and that is pinned by a
 test: the refusal path must never swallow a real failure.
 
+<a id="s1"></a>
 ## 1. Closed since the last handoff
 
 One line each. None of these needs re-opening; follow the pointer if you need
@@ -266,12 +276,14 @@ the detail.
 - **`volume_signal`** (2026-08-13) — NULL; the volume column is closed, no
   version bump. → archive/14.
 
+<a id="s2"></a>
 ## 2. Open queue, in rough priority order
 
 The numbers are **stable labels**, not a ranking — `calendar_hedge.py` cites
 §2.3 and the archived backlog cites §2.4 and §2.7, so they keep their meaning.
 The order below is roughly the order to pick things up.
 
+<a id="s2-0"></a>
 ### 2.0 `concurrency_correlation` — **CLOSED 2026-09-04: NOISE on both eras, X4 settled**
 
 **Status: answered on both eras (late 2026-09-04).** The `--era v3` companion
@@ -333,6 +345,7 @@ On a NOISE verdict X4 changes nothing that ships (nothing does), so this is a
 completeness item, not a blocker. Grade with `python -m scripts.study_review
 concurrency_correlation` (never `--dry-run`) once the companion exists.
 
+<a id="s2-1"></a>
 ### 2.1 The max-drawdown hedge question — **CLOSED 2026-09-04** (`hedge_concentration` PRECONDITION-NULL, graded)
 
 **Do not re-open this section.** Run 2026-09-04 (era v4, sha `64689d0`, exit 0),
@@ -371,6 +384,7 @@ sessions carrying NO hedge-pressure signal, matched on count — is NOT in
 sessions / 17 episodes at the loosest τ, so it would be another arm that can
 never bite. Register it only when the book has materially more parsed dates.
 
+<a id="s2-2"></a>
 ### 2.2 v4 composition bridge — RUNS now; the answer is "ladder unvalidated on v4"
 
 **Status changed since the last handoff.** `v4_bridge` no longer refuses: it ran
@@ -389,6 +403,7 @@ gate is long cleared (2,025 plays / 184 dates against `MIN_V4_DATES = 20`) and
 point `--v4-csv` at a v3 export — its exit 3 was always the designed refusal
 (§0c(C)), not a defect.
 
+<a id="s2-3"></a>
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
 
 **2026-09-04, 166-date book:** VERDICT block byte-identical (H0 FILL NOT MET at
@@ -414,6 +429,7 @@ ARM M found wanting — see [`deployment-evidence.md`](deployment-evidence.md)
 §"The curve D3 was read on understates drawdown". Prospective only; no verdict
 moves. Nothing to run until the book has materially more dates.
 
+<a id="s2-4"></a>
 ### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
 
 `bear_giveback` ran and the `be_after` grid does **not** ship. The shipped
@@ -435,6 +451,7 @@ first on the same run: `bear_arm` B2's pre-registered EXIT FIX criteria are
 LOO min +0.035, bear-specificity control holds) — a correlated-window
 re-read, so it HOLDS a rule and promotes nothing; noted here, not queued.
 
+<a id="s2-5"></a>
 ### 2.5 Live walk-forward — still the intended evidence source, no recorded movement
 
 v3 tuning is closed and live fills are meant to be the evidence source. The
@@ -464,6 +481,7 @@ prompt; a null means the ladder alone is as good as the ladder plus the read.
 Do NOT test this with a stripped-text `prompt_eval` candidate — that would
 remove exactly what the operator reads.
 
+<a id="s2-6"></a>
 ### 2.6 Rollback triggers — accumulating; check at gates, never read silence as "not met"
 
 The table is in [`deployment-evidence.md`](deployment-evidence.md) §"Open
@@ -482,6 +500,7 @@ The two stale report strings found 2026-08-27 are FIXED (2026-09-04):
 `bear_arm.py`'s census header now says the rule was REVERTED 2026-08-24 and
 `account_sim.py`'s ARM H block says the D4 pick line was PULLED.
 
+<a id="s2-7"></a>
 ### 2.7 Parked / blocked long-term
 
 - **Credit exit knobs** — unvalidated; needs a credit-heavy window (every
@@ -492,9 +511,12 @@ The two stale report strings found 2026-08-27 are FIXED (2026-09-04):
   bull_put rows** — no backfill can reach it. Operator kept the thread parked;
   census + `sl 1x` comparator print on every credit run (09-04: sl-none still
   wins, Δ −$584 / Δ-LOO −$1,306, down from −$3,468 / −$3,853).
-- **Long-dated blind spot** — h ≥ 180 is unpriceable with real data and the BS
-  proxy tier is OFF (`proxy.bs_fallback: false`). Blocked on real long-dated
-  history; never read BS proxy rows as evidence for long-dated.
+- **Long-dated blind spot** — h ≥ 180 (the emitted `horizon` bucket, so >60 DTE
+  at entry) is unpriceable with real data and the BS proxy tier is OFF
+  (`proxy.bs_fallback: false`). Blocked on real long-dated history; never read
+  BS proxy rows as evidence for long-dated. **Scope: debit side only.** The
+  operator does not hold credit positions that long, so the credit exit knobs
+  above do not wait on this (operator, 2026-09-05).
 - **Per-regime exit switch** — STAYS GATED on the 166-date book
   (`exit_switch_mech_study`, `exit_switch_structure_study`, 2026-09-04; the
   structure study's Q2 guard read inverted sign on that book — the structure
@@ -536,6 +558,7 @@ The two stale report strings found 2026-08-27 are FIXED (2026-09-04):
   PostToolUse hook still never runs pytest. The delegation-nudge PreToolUse hook
   is advisory by design (`systemMessage` only, no `permissionDecision`).
 
+<a id="s2-8"></a>
 ### 2.8 Exit engine ignores per-play `invalidation` conditions — the last live item from the archived backlog
 
 **ANSWERED 2026-09-02 by `exit_from_text` (f2), and the answer is: do not
@@ -578,6 +601,7 @@ Do not quote any P&L figure from that archive: it is all on the superseded
 pre-2026-07-06 entry basis, and the v1 exports store `pnl_pct` as `"1.64%"`
 strings.
 
+<a id="s2-9"></a>
 ### 2.9 `prompt_eval` — harness built, noise floor running; a candidate needs an OPERATOR hypothesis
 
 **Status 2026-09-04: a STABILITY item, not an edge item.** The text thread is
@@ -656,7 +680,8 @@ still flips, the rule is not doing its job and the 40-date score is not worth
 buying. Only a candidate that holds the label steady goes on to the backfill
 command above.
 
-## 3. Standing rules the next session must not re-litigate
+<a id="s3"></a>
+## 3. Standing rules — settled, do not re-open
 
 **Selection and scoring**
 

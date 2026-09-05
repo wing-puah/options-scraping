@@ -362,33 +362,6 @@ STUDIES: dict[str, Study] = {
                 "+858  $/ct=   -3116  win= 88/127  med=$  +151  Δ=$    -584  Δ-LOO=$   -1306` "
                 "(08-24: Δ=$-3468, Δ-LOO=$-3853).",
     ),
-    "combined_exit_study": Study(
-        family="management", state="reference",
-        question="The same grid on a bigger tuning set — real rows and real-priced proxy "
-                 "rows pooled.",
-        verdict="Confirms production is the best GLOBAL config, and in doing so shows exits "
-                "are regime-conditional. That is what motivated the two switch studies.",
-        retired="RETIRED 2026-08-14 — its inputs (backtests/results_proxy.csv, an author "
-                "transposition that never matched config/backtest.yml's actual "
-                "proxy_results.csv name) are gitignored scratch, deleted long ago and "
-                "unrecoverable. Verdict already recorded (Attempts 8, 9, 12) in "
-                "research/archive/02-credit-debit-split-attempts-8-12.md; "
-                "not repointed at a surviving file — see next-steps.md §0c(B) for why.",
-    ),
-    "underlying_exit_study": Study(
-        family="management", state="null",
-        question="Credit spreads: stop on the UNDERLYING breaching a level, instead of on "
-                 "the option mark?",
-        verdict="Nothing shipped (Attempt 9).",
-        retired="RETIRED 2026-08-14 — its second input "
-                "(backtests/v2_BacktestResults_nocreditdiff.csv) is gitignored scratch, "
-                "deleted long ago and unrecoverable (the genuine rename, "
-                "v2_results_nocreditdiff.csv, survives but has 0 credit rows today, so "
-                "repointing would only emit a degenerate empty report). Verdict already "
-                "recorded (Attempt 9) in "
-                "research/archive/02-credit-debit-split-attempts-8-12.md — "
-                "see next-steps.md §0c(B) for why it is not repointed.",
-    ),
     "exit_switch_mech_study": Study(
         family="management", state="shipped",
         question="A per-regime exit switch keyed on the mechanical regime — is it stable "

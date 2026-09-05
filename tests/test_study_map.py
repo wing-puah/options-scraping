@@ -12,6 +12,7 @@ Two things are worth guarding, and they are different in kind:
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
 
@@ -21,6 +22,22 @@ from scripts.backtest_study import run as study_runner
 from scripts.study_map import build, catalog, digest, render, summary, tuning
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _mark_retired(monkeypatch) -> str:
+    """Mark one real study retired for the duration of a test.
+
+    No study carries `retired=` any more: the only two that did
+    (`combined_exit_study`, `underlying_exit_study`) were DELETED 2026-09-05
+    with their verdicts recorded in research/study-map.md. The mechanism stays
+    for a future retirement where the module is worth keeping, so its tests
+    supply their own subject rather than depending on one being left in place.
+    """
+    name = next(n for n, s in catalog.STUDIES.items() if s.state == "null")
+    monkeypatch.setitem(catalog.STUDIES, name,
+                        dataclasses.replace(catalog.STUDIES[name],
+                                            retired="RETIRED 2026-01-01 — inputs are gone."))
+    return name
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -87,11 +104,12 @@ def test_retired_studies_helper_matches_the_dataclass_field():
     }
 
 
-def test_exactly_the_two_gitignored_scratch_studies_are_retired():
-    """Pins the actual Part-B retirement, not just the mechanism — see
-    research/next-steps.md §0c(B)."""
-    assert set(catalog.retired_studies()) == {
-        "combined_exit_study", "underlying_exit_study"}
+def test_no_study_is_retired_today():
+    """`combined_exit_study` and `underlying_exit_study` were the only two, and
+    both were DELETED on 2026-09-05 with their verdicts recorded in
+    research/study-map.md. A future `retired=` must be a deliberate act, so pin
+    that none is inherited; the mechanism itself is covered synthetically."""
+    assert catalog.retired_studies() == {}
 
 
 def test_infra_table_matches_the_runners_infra_set():
@@ -127,10 +145,12 @@ def test_missing_report_is_reported_as_never_run(tmp_path):
     assert run.excerpt == []
 
 
-def test_retired_study_with_no_report_reads_as_retired_not_never_run(tmp_path):
+def test_retired_study_with_no_report_reads_as_retired_not_never_run(tmp_path, monkeypatch):
     """The whole point of retiring a study is that it will NOT be run again —
-    'never run' would read as 'nobody got round to it' instead."""
-    run = summary.summarize("combined_exit_study", tmp_path)
+    'never run' would read as 'nobody got round to it' instead. No real study
+    is retired since 2026-09-05, so this marks one synthetically."""
+    name = _mark_retired(monkeypatch)
+    run = summary.summarize(name, tmp_path)
     assert not run.ran
     assert run.retired is not None
     assert run.status == "retired"
@@ -142,12 +162,13 @@ def test_a_non_retired_study_with_no_report_is_unaffected(tmp_path):
     assert run.status == "never run"
 
 
-def test_retired_study_with_an_actual_report_shows_its_real_status(tmp_path):
+def test_retired_study_with_an_actual_report_shows_its_real_status(tmp_path, monkeypatch):
     """Retirement only overrides the ran=False case. A retired study CAN still
     be run directly (run.py prints a notice and runs it) — if it left a
     report, that report's own outcome is what's true, not a blanket 'retired'."""
-    write_report(tmp_path, "combined_exit_study", "some body\n", rc=0)
-    run = summary.summarize("combined_exit_study", tmp_path)
+    name = _mark_retired(monkeypatch)
+    write_report(tmp_path, name, "some body\n", rc=0)
+    run = summary.summarize(name, tmp_path)
     assert run.ran and run.retired is not None
     assert run.status == "ok"
 
@@ -419,6 +440,21 @@ def page(tmp_path):
     return build.build_fragment(out_dir=tmp_path, log_path=md)
 
 
+@pytest.fixture
+def retired_page(tmp_path, monkeypatch):
+    """The same page with ONE study marked retired, so the retired pill, card
+    class and caveat keep their coverage now that no real study is retired."""
+    name = next(n for n, s in catalog.STUDIES.items() if s.state == "null")
+    marked = dataclasses.replace(catalog.STUDIES[name],
+                                 retired="RETIRED 2026-01-01 — inputs are gone.")
+    monkeypatch.setitem(catalog.STUDIES, name, marked)
+    for other in catalog.STUDIES:
+        write_report(tmp_path, other, VERDICT_BODY)
+    md = tmp_path / "current.md"
+    md.write_text("## 2026-08-12 — a thing happened\n\nprose.\n")
+    return build.build_fragment(out_dir=tmp_path, log_path=md), name
+
+
 def test_page_names_every_study_and_family(page):
     for name in catalog.STUDIES:
         assert f"{name}.py" in page
@@ -442,17 +478,26 @@ def test_page_carries_both_themes_for_every_token(page):
     assert "--ink" in dark and "--paper" in dark
 
 
-def test_page_marks_retired_studies_with_the_retired_pill_and_card_class(page):
-    assert 'class="card is-reference is-retired"' in page   # combined_exit_study
-    assert 'class="card is-null is-retired"' in page         # underlying_exit_study
-    assert page.count('<span class="pill is-retired">retired</span>') == \
-        len(catalog.retired_studies())
+def test_no_real_study_is_retired_so_the_page_renders_no_retired_card(page):
+    """`combined_exit_study` and `underlying_exit_study` were the only retired
+    studies and both were DELETED on 2026-09-05, their verdicts recorded in
+    research/study-map.md. The rendering below is still exercised, on a
+    synthetic entry, so the feature keeps its coverage without a real study
+    having to stay retired to provide it."""
+    assert catalog.retired_studies() == {}
+    assert '<span class="pill is-retired">retired</span>' not in page
+    assert 'is-retired"' not in page.split("</style>", 1)[1]
 
 
-def test_page_shows_the_retirement_reason_as_a_caveat(page):
-    assert "RETIRED 2026-08-14" in page
-    assert "results_proxy.csv" in page               # combined_exit_study's reason
-    assert "v2_BacktestResults_nocreditdiff.csv" in page  # underlying_exit_study's reason
+def test_page_marks_a_retired_study_with_the_retired_pill_and_card_class(retired_page):
+    page, name = retired_page
+    assert 'class="card is-null is-retired"' in page
+    assert page.count('<span class="pill is-retired">retired</span>') == 1
+
+
+def test_page_shows_the_retirement_reason_as_a_caveat(retired_page):
+    page, _ = retired_page
+    assert "RETIRED 2026-01-01 — inputs are gone" in page
 
 
 def test_non_retired_study_gets_no_retired_pill(page):

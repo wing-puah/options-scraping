@@ -406,7 +406,7 @@ def test_a_study_with_no_report_is_skipped_without_error(tmp_path):
     fresh checkout has no reports at all until something is run."""
     _out, rec = setup_dirs(tmp_path)
 
-    outcome = record(tmp_path, name="combined_exit_study")
+    outcome = record(tmp_path, name="a_study_that_has_never_run")
 
     assert outcome.action == "no report"
     assert not rec.exists()

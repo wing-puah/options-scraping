@@ -411,23 +411,13 @@ def test_main_runs_a_retired_study_directly_with_a_notice(monkeypatch, capsys):
     assert "Running anyway because it was named explicitly" in out
 
 
-def test_catalogs_retired_studies_names_exactly_the_two_from_part_b():
-    """Pins the actual retirement, not just the mechanism: combined_exit_study
-    and underlying_exit_study are the two studies whose scratch inputs are
-    gone for good (research/next-steps.md §0c(B))."""
-    assert set(smc.retired_studies()) == {"combined_exit_study", "underlying_exit_study"}
-
-
-def test_run_list_shows_the_retirement_notice_as_the_one_line_summary(capsys):
-    """discover()'s summary is the module docstring's first line — retiring a
-    study rewrites that line, so `list` surfaces the retired status without
-    any extra machinery."""
-    study_runner.main(["list"])
-    out = capsys.readouterr().out
-    assert "combined_exit_study" in out
-    for line in out.splitlines():
-        if line.strip().startswith("combined_exit_study"):
-            assert "RETIRED" in line
+def test_no_study_is_retired_today():
+    """`combined_exit_study` and `underlying_exit_study` were the only two, and
+    both were DELETED on 2026-09-05 once their verdicts were recorded in
+    research/study-map.md. The retirement MECHANISM is still exercised, on a
+    synthetic catalog above — this test only pins that no real study is using
+    it, so a future `retired=` is a deliberate act and not an inherited one."""
+    assert smc.retired_studies() == {}
 
 
 # ──────────────────────────── extra arms (arm_plan) ─────────────────────────

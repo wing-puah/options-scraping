@@ -813,3 +813,72 @@ ANYTHING BELOW` (the disclosed `all` cut prints after the verdict summary), so
 two sections had recorded in-sample numbers as the study's answer; a negated
 title is now skipped, the two mis-recorded (uncommitted) sections were dropped
 and re-recorded, and the committed record quotes `VERDICT SUMMARY`.
+
+## 2026-09-05 (later) — `overview.md` and `glossary.md` rewritten for a reader who has lost the thread; the long-dated blind spot is scoped DEBIT-ONLY
+
+Nothing ships and no number moved. One queue item narrowed: the long-dated
+blind spot ([`next-steps.md`](next-steps.md) [§2.7](next-steps.md#s2-7)) is now
+recorded as a **debit-side** gap only. The operator does not hold credit
+positions at a `horizon` of 180 or 720 days, so the parked credit exit knobs in
+the same bullet do not wait on long-dated price history. Everything else in
+this entry is presentation.
+
+_No study run. Documents touched: [`overview.md`](overview.md),
+[`glossary.md`](glossary.md), [`next-steps.md`](next-steps.md). Under
+[`writing-guide.md`](writing-guide.md), adopted earlier the same day._
+
+**In production.** Nothing changes.
+
+**What changed in the prose.** Operator review of `overview.md` found the page
+was readable only by someone who already knew the answers. The fixes:
+
+| Was | Now |
+|---|---|
+| `§2.1`, `§2.2`, `§0` as bare numbers | linked; `next-steps.md` gained stable `<a id="sN">` anchors, matching the `deployment-rules.md` convention |
+| bare `ARM C`, `H3`, `X2`, `B2`, `D5`, `H0` | linked to [`arm-index.md`](arm-index.md), each carrying its definition as markdown hover text |
+| no route from the overview to a study's plan | every family table gained a **Plan** column linking the study's [`pre-registrations/`](pre-registrations/) file; a dash means the study predates the system |
+| terms redefined inline (`CI`, `LOO`, `n`, `BEAR_HE`) | linked only, so there is one definition to keep current |
+| `catalog.py` called "the hand-written verdict file" | corrected — an agent drafts those entries; the file is where a verdict is stored as prose, not a second opinion |
+| "lost its `**` on all three cuts" | the marker is explained (CI excludes zero AND every LOO fold positive), the three cuts are named, and the CI half is separated from the 2026 sign flip |
+| "day-5 and day-20 loss cuts" | replaced by the six harmful cells with their CIs; the real split is two day-5 loss cuts and four early profit exits |
+| "the diagonal cut" | named as the `long_diag` re-wrap, one of three substitutions, with its five gates in a table |
+| "clears the full conjunction" | "clears every one of its adoption criteria at once" |
+| "do not re-litigate" | "settled, do not re-open", here and in `next-steps.md` §3 |
+| "checked at their gates, never read from silence" | spelled out: a trigger that printed nothing usually has not reached its power floor, which is not the same as passing |
+| `hedge_concentration` as "concentration does not predict drawdown" | given its own paragraph — the two-stage design is now explicit, so the `PRECONDITION-NULL` reads as "stage 2, does the hedge help, never ran" |
+| two `RETIRED` rows with no verdict | see the deletion below |
+| attempts table copied out of the archive index | the copy is DELETED. The section now points at [`archive/README.md`](archive/README.md) §Section index, names the two attempts still live in production, says why there is no attempt 14, and notes that the same index continues past 13 in date order into `current.md`. The link had been pointing at `README.md`, which has no such section |
+
+[`glossary.md`](glossary.md)'s [LOO](glossary.md#loo) entry gained the
+correction that matters most for reading any study here: **the fold is the KEPT
+set, not the held-out one.** The dropped date is never scored. LOO here is a
+robustness check — "would this rule still win if any one date had not
+happened" — not a generalisation check.
+
+**The two retired management studies are DELETED.** `combined_exit_study.py`
+and `underlying_exit_study.py` are removed from the tree, along with their
+`catalog.py` entries, `run.py`'s `DEFAULT_ARGS` line, and the
+`f2_management/__init__.py` listing. Both were retired 2026-08-14 when their
+gitignored scratch inputs proved unrecoverable; neither could be run, so
+neither could ever revisit the rule it settled. **Neither ever shipped
+anything** — `combined_exit_study` was a `reference` study that confirmed the
+production exit profile was already the best global config (its one consequence
+was starting the two switch studies), and `underlying_exit_study` was a `null`.
+The verdicts are unchanged and
+the **record is now [`study-map.md`](study-map.md#management)**, whose two rows
+were rewritten to carry the question, the verdict, why the study cannot run,
+and the [archive/02](archive/02-credit-debit-split-attempts-8-12.md) trail.
+[`next-steps.md`](next-steps.md) §0c(B) rewritten to match.
+[`overview.md`](overview.md) drops them entirely: neither shipped, so two
+deleted studies on a page about where things stand is cognitive load without
+value (operator, 2026-09-05). `study-map.md` is where they are found.
+
+The **retirement mechanism is kept** — `Study.retired`, `retired_studies()`,
+`run --all`'s skip, the study-map `retired` pill — for a future case where the
+module is still worth reading. No study carries the field now, so its tests no
+longer borrow a real study as their subject: `tests/test_study_map.py` marks
+one synthetically via `monkeypatch`, and both that file and
+`tests/test_backtest_study_run.py` gained a test pinning that nothing is
+retired by inheritance. Study count 34 → 33.
+
+**Next.** No new item. `make check-doc-links` and the full suite (3,279) pass.

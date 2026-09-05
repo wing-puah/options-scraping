@@ -5,12 +5,6 @@ Where the edge actually is. Both shipped exit rules came from here.
     exit_mechanism_study.py         SHIPPED — the original grid; the production
                                     debit profile (target 0.90, stop 0.75, time
                                     exit at 0.75 DTE, no trail) is this study.
-    combined_exit_study.py          reference · RETIRED — same grid on a bigger
-                                    tuning set; showed exits are regime-
-                                    conditional, which motivated the two
-                                    switch studies below.
-    underlying_exit_study.py        null · RETIRED — stop credit spreads on the
-                                    UNDERLYING instead of the mark. Nothing.
     exit_switch_mech_study.py       SHIPPED — the BEAR_HE cell (trail 0.50 at
                                     trigger 0.50). L-VOL and RANGE/BULL stay
                                     gated and commented out in backtest.yml.

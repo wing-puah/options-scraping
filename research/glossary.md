@@ -85,7 +85,20 @@ better.
 `signal_date` at a time, recompute a candidate rule's gain over a
 baseline on what's left, report `(mean_gain, share_of_folds_positive,
 min_gain, n_folds)`. A rule SURVIVES only when every fold stays positive
-(`share == 1.0`). **Why min_gain matters more than the mean:** a
+(`share == 1.0`).
+
+**"Fold" here is the KEPT set, not the held-out one.** The word is the
+usual cross-validation one, but the usual meaning is inverted. In
+ordinary leave-one-out you train on the rest and SCORE the one you held
+out. Here the dropped date is never scored. One fold is the whole book
+minus one signal date, and the gain is measured on that remainder. There
+are as many folds as there are dates. So the question is not "does the
+rule predict the date I hid," it is "does the rule still win if any one
+date had never happened." That is a robustness check, not a
+generalisation check — the split discipline in §4 is where
+generalisation is tested.
+
+**Why min_gain matters more than the mean:** a
 one-date-driven rule can still show a high mean gain and a share "just
 under 1" — only `min_gain` catches the single fold that flips when its
 carrying date drops. This check killed the per-regime exit switch

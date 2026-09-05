@@ -207,7 +207,7 @@ def test_cited_file_is_pinned_with_its_citation(tmp_path):
 
 
 def test_citation_in_code_pins_too(tmp_path):
-    # underlying_exit_study.py names its baseline export by path; that counts.
+    # A study module that names its baseline export by path; that counts.
     _touch(tmp_path / "scripts" / "study.py",
            'BASE = ROOT / "backtests/v2_results_nocreditdiff.csv"\n')
     candidate = _touch(tmp_path / "backtests" / "v2_results_nocreditdiff.csv")

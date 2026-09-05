@@ -30,13 +30,14 @@ to overwrite the other's artifacts. The exit code is the worst arm's, real
 failures only — see "Designed refusals" below.
 
 Retired studies. A study whose inputs are gone for good (gitignored scratch,
-deleted, unrecoverable — see `combined_exit_study.py` / `underlying_exit_study.py`
-for the worked examples) is marked `retired=` in `scripts.study_map.catalog`,
-never deleted or silently dropped from `discover()` (a study module with no
-catalog entry still fails the test suite). `run --all` excludes retired
-studies from the bulk run and prints one notice line per skip; `run <name>`
-still runs a retired study directly, printing a notice first, for anyone who
-wants to see it fail on the missing file with their own eyes.
+deleted, unrecoverable) may be marked `retired=` in `scripts.study_map.catalog`
+rather than deleted: `run --all` then excludes it from the bulk run and prints
+one notice line per skip, while `run <name>` still runs it directly, printing a
+notice first, for anyone who wants to see it fail on the missing file with
+their own eyes. Nothing is retired today. The two studies that were
+(`combined_exit_study`, `underlying_exit_study`) were DELETED on 2026-09-05
+once their verdicts were recorded in `research/study-map.md`; the mechanism is
+kept for a future retirement where the module is still worth reading.
 
 Designed refusals. Some studies exit non-zero ON PURPOSE — a pre-registered
 calibration or power gate not cleared, or (like `v4_bridge.py`) a guard that
@@ -206,7 +207,6 @@ INFRA = {"run"} | {p.stem for p in (Path(__file__).resolve().parent / "lib").glo
 # when the caller did not pass that flag themselves.
 DEFAULT_ARGS = {
     "exit_mechanism_study": ["--side", "debit"],
-    "combined_exit_study": ["--side", "debit"],
     "book": ["--validate"],
 }
 

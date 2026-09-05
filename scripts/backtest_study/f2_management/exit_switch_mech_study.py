@@ -47,8 +47,9 @@ pre-registered criterion changed.
 --- Data ------------------------------------------------------------------
 The replay harness needs daily_price_csv / legs / entry_option_price. The
 harness's own results.csv is a stale 4-row artefact and results_proxy.csv never
-existed under that name, so combined_exit_study.py cannot be rerun literally (it
-is RETIRED as of 2026-08-14); the live priced book is the exported Sheets under
+existed under that name, so the older combined_exit_study could not be rerun
+literally (RETIRED 2026-08-14, deleted 2026-09-05 — its verdict is recorded in
+research/study-map.md); the live priced book is the exported Sheets under
 backtests/to_evaluate/ (BacktestResults + BacktestProxy), which carry the same
 replay columns. Pooled priced book = BacktestResults(real) +
 BacktestProxy(tweak, real-priced) + BacktestProxy(bs, model-priced), each
@@ -706,9 +707,10 @@ def main():
 
     # ── Step 2: harness validation ──
     hdr("STEP 2 — HARNESS VALIDATION (DEBIT_PROD reproduces the calibrated real book)")
-    print("combined_exit_study.py cannot be rerun literally: results.csv is a stale 4-row")
-    print("artefact and results_proxy.csv never existed under that name (both studies are")
-    print("RETIRED, 2026-08-14). Equivalent validation = its gate_real + SANITY check")
+    print("The older combined_exit_study could not be rerun literally: results.csv is a")
+    print("stale 4-row artefact and results_proxy.csv never existed under that name")
+    print("(RETIRED 2026-08-14, deleted 2026-09-05). Equivalent validation = its")
+    print("gate_real + SANITY check")
     print("applied to the live BacktestResults book (real debit rows):")
     harness_gate(diag, study="mech switch")
     if px["excl_rows"]:
