@@ -14,6 +14,7 @@ from scripts.backtest.helpers import _weekday_grid
 from scripts.backtest_study.f2_management import next_day_move as ndm
 from scripts.backtest_study.lib import underlying as und
 from scripts.backtest_study.lib.harness import Trade
+from scripts.collector import fetch_underlying_ohlc as foh
 
 SIGNAL = date(2024, 3, 4)      # Monday
 EXPIRY = date(2024, 3, 15)     # Friday
@@ -325,3 +326,111 @@ def test_bear_debit_keying_requires_both_structure_and_sign():
     assert ndm.is_bear_debit(_rec(0.0, structure="bear_put_spread", credit=False))
     assert not ndm.is_bear_debit(_rec(0.0, structure="bear_put_spread", credit=True))
     assert not ndm.is_bear_debit(_rec(0.0, structure="bull_call_spread", credit=False))
+
+
+# --- fetch_underlying_ohlc.write_rescaled / recheck_rescaled ------------------
+# The 2026-09-05 regression: a partial --tickers run rewrote rescaled_tickers.txt
+# in full, dropping every ticker it hadn't just fetched. write_rescaled() now
+# takes the set of tickers actually CHECKED this run and only touches those.
+
+@pytest.fixture
+def _isolate_foh_caches(tmp_path, monkeypatch):
+    ohlc = tmp_path / "foh_ohlc"
+    opts = tmp_path / "foh_opts"
+    ohlc.mkdir()
+    opts.mkdir()
+    monkeypatch.setattr(foh, "OHLC_CACHE", ohlc)
+    monkeypatch.setattr(foh, "RESCALED_FILE", ohlc / "rescaled_tickers.txt")
+    monkeypatch.setattr(foh, "HISTORY_CACHE", opts)
+    return ohlc, opts
+
+
+def _rescaled_syms(text: str) -> dict[str, tuple[float, int]]:
+    out = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        out[parts[0]] = (float(parts[1]), int(parts[2]))
+    return out
+
+
+def test_partial_run_keeps_prior_lines_for_unchecked_tickers(_isolate_foh_caches):
+    """OLD_UNCHECKED wasn't touched this run and must survive verbatim."""
+    ohlc, _ = _isolate_foh_caches
+    foh.RESCALED_FILE.write_text(
+        "# header\nOLD_UNCHECKED\t0.9000\t50\nFLAGGED_BEFORE\t0.8000\t60\n"
+        "CLEAN_BEFORE\t0.6000\t70\n")
+    foh.write_rescaled({"CLEAN_BEFORE": (0.6500, 71)},
+                       checked={"FLAGGED_BEFORE", "CLEAN_BEFORE"})
+    result = _rescaled_syms(foh.RESCALED_FILE.read_text())
+    # unchecked ticker's prior line survives untouched
+    assert result["OLD_UNCHECKED"] == (0.9000, 50)
+    # checked-and-no-longer-flagged ticker is removed
+    assert "FLAGGED_BEFORE" not in result
+    # checked-and-flagged ticker gets this run's new verdict, not the old one
+    assert result["CLEAN_BEFORE"] == (0.6500, 71)
+    assert "merged with prior entries not re-checked this run" in foh.RESCALED_FILE.read_text()
+
+
+def test_partial_run_can_newly_flag_a_previously_clean_ticker(_isolate_foh_caches):
+    """unflagged -> flagged: a ticker with no prior line gets added when checked
+    this run and found rescaled."""
+    ohlc, _ = _isolate_foh_caches
+    foh.RESCALED_FILE.write_text("# header\nKEEP_ME\t0.5000\t40\n")
+    foh.write_rescaled({"NEWLY_FLAGGED": (0.7000, 20)},
+                       checked={"NEWLY_FLAGGED"})
+    result = _rescaled_syms(foh.RESCALED_FILE.read_text())
+    assert result["KEEP_ME"] == (0.5000, 40)
+    assert result["NEWLY_FLAGGED"] == (0.7000, 20)
+
+
+def test_empty_run_writes_nothing(_isolate_foh_caches):
+    """A run that fetched/checked nothing must not touch the file at all —
+    not even to leave it byte-identical; the write call itself is skipped."""
+    ohlc, _ = _isolate_foh_caches
+    original = "# header\nSOMETHING\t0.9000\t10\n"
+    foh.RESCALED_FILE.write_text(original)
+    before_mtime = foh.RESCALED_FILE.stat().st_mtime_ns
+    foh.write_rescaled({}, checked=set())
+    assert foh.RESCALED_FILE.read_text() == original
+    assert foh.RESCALED_FILE.stat().st_mtime_ns == before_mtime
+
+
+def test_empty_run_with_no_existing_file_creates_nothing(_isolate_foh_caches):
+    ohlc, _ = _isolate_foh_caches
+    foh.write_rescaled({}, checked=set())
+    assert not foh.RESCALED_FILE.exists()
+
+
+def test_recheck_rewrites_in_full_dropping_stale_entries_not_in_cache(_isolate_foh_caches):
+    """--recheck-rescaled's path (full_rewrite=True) is the one allowed to
+    replace the whole file — including dropping a stale entry for a ticker
+    that no longer has a cached CSV at all, since it checked everything that
+    exists and that ticker isn't part of "everything"."""
+    ohlc, opts = _isolate_foh_caches
+    # Stale line for a ticker with no cached CSV any more.
+    foh.RESCALED_FILE.write_text("# header\nGONE_TICKER\t0.9000\t10\n")
+
+    # SPLIT1: OHLC close is ~10x the cached option Price~ -> flagged.
+    (ohlc / "SPLIT1.csv").write_text(_ohlc_csv([(date(2024, 3, 5), 100, 100, 100, 100)]))
+    (opts / "SPLIT1_20240315_100.00C.csv").write_text(
+        _tilde_csv([(date(2024, 3, 5), 10.0)]))
+
+    # CLEAN1: OHLC matches Price~ -> not flagged, but WAS checked.
+    (ohlc / "CLEAN1.csv").write_text(_ohlc_csv([(date(2024, 3, 5), 50, 50, 50, 50)]))
+    (opts / "CLEAN1_20240315_100.00C.csv").write_text(
+        _tilde_csv([(date(2024, 3, 5), 50.0)]))
+
+    rescaled = foh.recheck_rescaled()
+    assert set(rescaled) == {"SPLIT1"}
+    med, n = rescaled["SPLIT1"]
+    assert med == pytest.approx(9.0)  # |100-10|/10
+    assert n == 1
+
+    foh.write_rescaled(rescaled, full_rewrite=True)
+    text = foh.RESCALED_FILE.read_text()
+    result = _rescaled_syms(text)
+    assert set(result) == {"SPLIT1"}          # CLEAN1 not flagged, GONE_TICKER dropped
+    assert "merged with prior entries" not in text  # full rewrite, nothing merged

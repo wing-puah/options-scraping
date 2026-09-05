@@ -256,26 +256,104 @@ def split_check(ticker: str, csv_text: str) -> tuple[float | None, int]:
     return statistics.median(diffs), len(diffs)
 
 
-def write_rescaled(rescaled: dict[str, tuple[float, int]]) -> None:
+def _read_rescaled_entries() -> dict[str, tuple[float, int]]:
+    """Parse the existing ``rescaled_tickers.txt`` into ``{ticker: (median, n)}``.
+
+    ``{}`` when the file is absent or empty — same "no evidence yet" reading
+    ``rescaled_tickers()`` in ``scripts/backtest_study/lib/underlying.py`` gives it.
+    """
+    out: dict[str, tuple[float, int]] = {}
+    if not RESCALED_FILE.exists():
+        return out
+    for line in RESCALED_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        try:
+            out[parts[0].upper()] = (float(parts[1]), int(parts[2]))
+        except ValueError:
+            continue
+    return out
+
+
+def write_rescaled(rescaled: dict[str, tuple[float, int]], checked: set[str] = frozenset(),
+                   *, full_rewrite: bool = False) -> None:
     """Record split-adjusted-basis tickers for consumers to handle.
 
-    Rewritten in full on every run that fetched anything, so a ticker that stops
-    being flagged stops appearing. Not written at all when nothing was fetched —
-    an empty run must not erase a previous run's findings.
+    A run only ATTESTS the tickers it actually split-checked THIS run
+    (``checked``): each of those gets this run's verdict — flagged with its
+    numbers, or (no longer flagged) removed. Every ticker in the existing file
+    that is NOT in ``checked`` — one a partial run never looked at, e.g. because
+    --skip-existing left its cache untouched — keeps its prior line verbatim.
+    A partial run must never erase evidence about a ticker it didn't check;
+    that is what dropped AVGO/CVNA/MSTR/NFLX/SMCI/XLE on 2026-09-05.
+
+    ``full_rewrite=True`` is for --recheck-rescaled only: it re-derives the
+    flag for every cached ticker from disk, so there is nothing to merge —
+    ``rescaled`` (whatever it flagged) becomes the whole file.
+
+    Not written at all when there is nothing to attest to (nothing fetched,
+    nothing checked, and not a full rewrite) — an empty run must not erase a
+    previous run's findings.
     """
-    if not rescaled:
+    if not full_rewrite and not checked:
         return
+    if full_rewrite:
+        merged = dict(rescaled)
+        merged_prior = False
+    else:
+        prior = _read_rescaled_entries()
+        merged = {sym: val for sym, val in prior.items() if sym not in checked}
+        merged_prior = bool(merged)  # at least one untouched prior line survives
+        merged.update(rescaled)
     OHLC_CACHE.mkdir(parents=True, exist_ok=True)
     lines = [f"# ticker  median_rel_diff  n_overlap   (threshold {SPLIT_FLAG_THRESHOLD:.1%})",
              "# Scraped bars are split-adjusted; cached Price~ is not. RATIOS off these",
              "# bars are valid (a constant factor cancels); absolute dollars and any",
              "# cross-series comparison are not. This is a basis warning, not a quarantine.",
              f"# written {date.today().isoformat()} by scripts/collector/fetch_underlying_ohlc.py"]
-    for sym, (med, n) in sorted(rescaled.items()):
+    if merged_prior:
+        lines.append("# merged with prior entries not re-checked this run")
+    for sym, (med, n) in sorted(merged.items()):
         lines.append(f"{sym}\t{med:.4f}\t{n}")
     RESCALED_FILE.write_text("\n".join(lines) + "\n")
     log.warning("%d ticker(s) on a rescaled basis recorded in %s",
-                len(rescaled), RESCALED_FILE)
+                len(merged), RESCALED_FILE)
+
+
+def recheck_rescaled() -> dict[str, tuple[float, int]]:
+    """OFFLINE: re-derive the split flag for every cached ticker, from disk.
+
+    No network call. Reads every ``backtests/underlying_ohlc_cache/<T>.csv``
+    already on disk and runs it through the same ``split_check`` a live fetch
+    uses (cached OHLC close vs. the cached option-history ``Price~``). This is
+    the one path allowed to rewrite ``rescaled_tickers.txt`` in full, because
+    it checks every ticker the cache holds, not just the ones a partial
+    ``--tickers``/``--skip-existing`` run happened to touch.
+    """
+    rescaled: dict[str, tuple[float, int]] = {}
+    if not OHLC_CACHE.exists():
+        return rescaled
+    for path in sorted(OHLC_CACHE.glob("*.csv")):
+        sym = path.stem.upper()
+        try:
+            csv_text = path.read_text()
+        except Exception as e:
+            log.warning("%s: cannot read cached OHLC (%s) — skipping recheck", sym, safe_err(e))
+            continue
+        med, n_overlap = split_check(sym, csv_text)
+        if med is None:
+            log.info("%s: no Price~ overlap — UNCHECKED", sym)
+        elif med > SPLIT_FLAG_THRESHOLD:
+            rescaled[sym] = (med, n_overlap)
+            log.info("%s: RESCALED basis (ratio ~%.1fx): median %.2f%% over %d days",
+                     sym, 1 / (1 - med), med * 100, n_overlap)
+        else:
+            log.info("%s: split gate ok: median %.3f%% over %d days", sym, med * 100, n_overlap)
+    return rescaled
 
 
 # ─── Barchart fetch ──────────────────────────────────────────────────────────────
@@ -301,6 +379,7 @@ async def _scrape(pending: list[str], *, headless: bool, timeout_ms: int = 30000
     OHLC_CACHE.mkdir(parents=True, exist_ok=True)
     stats = {"fetched": 0, "failed": 0, "no_overlap": 0}
     rescaled: dict[str, tuple[float, int]] = {}
+    checked: set[str] = set()
 
     async def run(sess) -> None:
         for i, sym in enumerate(pending, 1):
@@ -315,12 +394,14 @@ async def _scrape(pending: list[str], *, headless: bool, timeout_ms: int = 30000
             if med is None:
                 stats["no_overlap"] += 1
                 flag = "no Price~ overlap — UNCHECKED"
-            elif med > SPLIT_FLAG_THRESHOLD:
-                rescaled[sym] = (med, n_overlap)
-                flag = (f"RESCALED basis (ratio ~{1 / (1 - med):.1f}x): median {med:.2%} "
-                        f"over {n_overlap} days — ratios ok, dollars not")
             else:
-                flag = f"split gate ok: median {med:.3%} over {n_overlap} days"
+                checked.add(sym)  # a real verdict — flagged or clean — was reached
+                if med > SPLIT_FLAG_THRESHOLD:
+                    rescaled[sym] = (med, n_overlap)
+                    flag = (f"RESCALED basis (ratio ~{1 / (1 - med):.1f}x): median {med:.2%} "
+                            f"over {n_overlap} days — ratios ok, dollars not")
+                else:
+                    flag = f"split gate ok: median {med:.3%} over {n_overlap} days"
             stats["fetched"] += 1
             log.info("[%d/%d] %s: %d bars %s — %s", i, len(pending), sym,
                      len(csv_text.splitlines()) - 1,
@@ -340,7 +421,7 @@ async def _scrape(pending: list[str], *, headless: bool, timeout_ms: int = 30000
         async with BarchartSession(email, password, cookies_path, headless) as sess:
             await run(sess)
 
-    write_rescaled(rescaled)
+    write_rescaled(rescaled, checked)
     stats["rescaled"] = len(rescaled)
     return stats
 
@@ -370,7 +451,25 @@ def main() -> None:
                         help="Also select tickers contributed only by bs_options_hist "
                              "proxy rows (excluded by default, like load_book).")
     parser.add_argument("--no-headless", action="store_true", help="Visible browser.")
+    parser.add_argument("--recheck-rescaled", action="store_true",
+                        help="OFFLINE — no network call. Re-derive the split-adjustment "
+                             "flag for every cached backtests/underlying_ohlc_cache/<T>.csv "
+                             "already on disk (vs. the cached option-history Price~) and "
+                             "rewrite rescaled_tickers.txt IN FULL. Standalone: exclusive "
+                             "with every selection/fetch flag.")
     args = parser.parse_args()
+
+    if args.recheck_rescaled:
+        if any([args.date, args.start, args.end, args.backfill, args.tickers,
+               args.dry_run, args.force, args.include_bs]):
+            parser.error("--recheck-rescaled is standalone (offline, whole-cache) — "
+                         "it takes no other selection/fetch flags")
+        rescaled = recheck_rescaled()
+        write_rescaled(rescaled, full_rewrite=True)
+        n_cached = sum(1 for _ in OHLC_CACHE.glob("*.csv"))
+        log.info("Recheck done — %d of %d cached ticker(s) on a rescaled basis",
+                 len(rescaled), n_cached)
+        return
 
     if args.date and (args.start or args.end or args.backfill):
         parser.error("--date is exclusive with --start/--end/--backfill")
