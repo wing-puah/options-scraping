@@ -11,6 +11,8 @@ rollback triggers behind them live in
 
 ---
 
+<a id="s0"></a>
+
 ## 0. Before you deploy
 
 - `make analyze` — it already depends on the `mech-regime` target, so the
@@ -20,6 +22,8 @@ rollback triggers behind them live in
 - Budget: the analysis emits ~10 plays/day. **Deploy 1–3.**
 - Entry basis: the **next trading day's OPEN**. Same-day fills were never
   modeled and are not covered by any rule here.
+
+<a id="s1"></a>
 
 ## 1. VETO — never deploy, regardless of score
 
@@ -34,6 +38,8 @@ rollback triggers behind them live in
    to the §4 hedge sleeve** — that is the one sanctioned way to hold a bear
    position. Bear plays stay emitted and visible on the analysis rows; the
    sleeve picks from them (which is why this is a card veto, not an intake veto).
+
+<a id="s2"></a>
 
 ## 2. Tier the survivors, deploy top-3/day in tier order
 
@@ -54,6 +60,8 @@ over budget — which is how a 1–3/day rule coexisted with a book that grew fr
 
 Tier membership is **structure × model regime × entry geometry**. Nothing else.
 
+<a id="s3"></a>
+
 ## 3. Check at order entry in IBKR — not on the analysis row
 
 **`bull_put_spread` short leg: `0.08 ≤ |delta| ≤ 0.20` AND `DTE ≤ 59`.**
@@ -63,6 +71,8 @@ Tier membership is **structure × model regime × entry geometry**. Nothing else
 - Miss either condition and the play drops to Tier C.
 
 `|delta|` and DTE are not columns on the analysis row — read them in IBKR.
+
+<a id="s4"></a>
 
 ## 4. Bear positions — hedge sleeve only (optional)
 
@@ -86,6 +96,8 @@ deliberately for drawdown protection.
   and within-era unstable (it flipped MET → NOT MET between the 08-22 and
   08-24 runs). The sleeve loses money on balance. That is the price of the
   protection.
+
+<a id="s5"></a>
 
 ## 5. Exit management
 
@@ -119,6 +131,8 @@ Three clauses that keep the table consistent:
   trail row applies. Evidence: `research/deployment-evidence.md` §"The
   bear-debit peak-triggered breakeven stop".
 
+<a id="s6"></a>
+
 ## 6. What not to use
 
 - **`score_total` is a within-tier tie-break only.** It is decision-irrelevant —
@@ -129,6 +143,8 @@ Three clauses that keep the table consistent:
   All live rows qualify.
 
 ---
+
+<a id="s7"></a>
 
 ## 7. Reference stats — what each cell has actually done
 
@@ -157,6 +173,8 @@ play into a tier because its cell looks good here. §1–4 is the selection rule
 `win` and `PF` disagree constantly — read them together. `bull_put_spread` wins
 68% of the time and still has PF 0.94.
 
+<a id="s7-1"></a>
+
 ### 7.1 The book, and the ladder
 
 | Cell         |   n | win |       PF |  meanR |          $ |   MFE |   MAE |   gb |   cap |
@@ -172,6 +190,8 @@ play into a tier because its cell looks good here. §1–4 is the selection rule
 The ladder is monotone on every column. A and B carry the whole book; C and VETO
 together are −$69.8k. **The rules are a subtraction, not an addition** — the edge
 comes from not deploying C and VETO.
+
+<a id="s7-2"></a>
 
 ### 7.2 By structure
 
@@ -190,6 +210,8 @@ comes from not deploying C and VETO.
 gives back 4× what it ever shows — that ratio is why it is intake-vetoed, and it is
 the worst `gb` on the board. Naked longs (n=14 combined) are a rounding error but
 have never worked. Straddle/strangle n is too small to read.
+
+<a id="s7-3"></a>
 
 ### 7.3 By model regime × structure
 
@@ -214,6 +236,8 @@ selection-relevant one. Structures with n < 3 in a cell omitted.
 regime, including BEAR. That is the whole reason Tier A and B are both
 `bull_call_spread` cells.
 
+<a id="s7-4"></a>
+
 ### 7.4 By model regime × vol — where the §1 vetoes live
 
 All structures pooled.
@@ -232,6 +256,8 @@ All structures pooled.
 
 BEAR + H-VOL is the worst pooled cell on the board — 30% win, PF 0.39, −$20.6k.
 That is §1.2, and it holds pooled across every structure.
+
+<a id="s7-5"></a>
 
 ### 7.5 The Tier-A cell — `bull_call_spread` by regime × vol
 
@@ -256,6 +282,8 @@ Two things to notice, both already reflected in the rules:
   §1.2 vetoes the whole regime cell, which is −$20.6k pooled (§7.4). Nine rows do
   not overturn that. This is the cell most likely to tempt an override — don't.
 
+<a id="s7-6"></a>
+
 ### 7.6 The §3 geometry gate — `bull_put_spread`
 
 | Cell | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
@@ -268,6 +296,8 @@ The gate is the entire `bull_put_spread` edge: in-band is PF 1.95 / +$5.9k,
 out-of-band is PF 0.76 / −$8.0k. The structure's flat headline in §7.2 is those
 two pooled. Note `gb` stays above 1 even in band — credits routinely go further
 against you than for you, which is exactly why row 4 of §5 carries no stop.
+
+<a id="s7-7"></a>
 
 ### 7.7 By mechanical cell — the exit-conditioning view
 
@@ -294,6 +324,8 @@ to know what path a position is likely to walk, not to decide whether to deploy.
 **do** show green and then give it all back. That is the finding §5 rows 2–3
 exist to manage: it is an exit problem, not a selection one. RB_EVOL (n=17) is
 too thin to break out per structure.
+
+<a id="s7-8"></a>
 
 ### 7.8 Reading these numbers safely
 

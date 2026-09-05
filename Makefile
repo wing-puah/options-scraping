@@ -85,6 +85,10 @@ check-pipeline:
 align-headers:
 	$(PY) scripts/align_tab_headers.py $(ARGS)
 
+.PHONY: check-doc-links
+check-doc-links:
+	$(PY) scripts/check_doc_links.py $(ARGS)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze: 
@@ -468,6 +472,9 @@ help:
 	@echo "  make study-chart ARM=structure            chart the --structure-universe arm's export (fragment only)"
 	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-site)"
 	@echo "  make study-docs     DOCS: rebuild every generated site page (map + chart pages, skipping any not yet run)"
+	@echo ""
+	@echo "  make check-doc-links   verify cross-links inside README.md/CLAUDE.md/GEMINI.md/docs/**/research/**"
+	@echo "  make check-doc-links ARGS=\"--strict\"  also fail on links into the generated site/ (normally a warning)"
 	@echo ""
 	@echo "  make clean        delete every regenerable file (scratch + study output)"
 	@echo "  make clean-dry    preview it, delete nothing"

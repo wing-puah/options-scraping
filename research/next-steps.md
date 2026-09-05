@@ -1,81 +1,94 @@
 # Next steps — session handoff
 
 Written 2026-08-31, refreshed 2026-09-04, so a fresh session can pick up without
-re-deriving state. Read this plus the **State of play (2026-09-04)** block at the top of
-[`current.md`](current.md) — that block is the authoritative summary; this file
-is the queue. Evidence trails live in [`current.md`](current.md),
+re-deriving state. Read this plus the [State of play](current.md#state-of-play)
+block at the top of [`current.md`](current.md), refreshed 2026-09-04 — that
+block is the authoritative summary; this file is the queue. Evidence trails live in [`current.md`](current.md),
 [`archive/`](archive/) and [`deployment-evidence.md`](deployment-evidence.md).
 
 ## 0. Repo state — READ FIRST
 
-- **Era `v4` is current.** The book is the **166-date backfilled** one; the
-  studies run on exports of **2026-09-04 20:31** (535 real results / 1,303
-  proxy / 2,212 analysis rows; pooled study book 1,143 rows; signal dates
-  2024-01-10 → 2026-04-16). **The book has 2026 signal dates for the first
-  time** — 13 of them (2026-01-06 → 2026-04-16, 79 pooled rows) plus 8 more
-  Nov/Dec-2025 dates from the neutral-date campaign (queue b, COMPLETE
-  2026-09-04) — so every `ex_2026_*` window cut and "positive in every year"
-  clause is LIVE. It was a silent no-op on every earlier export
-  ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) §2026-08-27);
-  what it did the first time it bit is in [`current.md`](current.md) 2026-09-04.
-  Two hardcoded date tables are still no-ops by construction — `mech_regime_recut`
-  §(b) and `regime_gap_reread` §0 list 2026-03 dates the export does not hold.
-- **Still unpriceable: the live dates.** `AnalysisClaude` carries 2026-08-11 →
-  2026-09-01 (the daily pipeline) with no backtest rows — their options have
-  not expired. Those are the "genuinely new, non-backfill" dates §2.2 and the
-  rollback triggers wait on; the 2026 dates above are BACKFILL and count as
-  the correlated window.
-- **Four real-priced rows are in the local backtest scratch but NOT in the
-  `BacktestResults` tab** (2025-12-22 TSLA and AMD `bull_call_spread`,
-  2025-09-26 CRWV `bull_call_spread` and HYG `bear_put_spread`), and not in
-  `BacktestProxy` either. The 12-22 SPY row from the same run IS there with the
-  same `created_datetime`, so the append did not simply fail. Not repaired —
-  the four rows have no provenance for why they are absent (a deliberate
-  deletion is as likely as a lost write), and a study population is not
-  patched from scratch files. Operator to decide; if they are to be restored,
-  re-run `make backtest ARGS="--date <D>"` for the two dates, NEVER a bare
-  backtest (no dedup — it would double every row).
-- **The underlying-OHLC cache now covers ALL 145 current-era book tickers** (68
-  were missing and were fetched 2026-09-05; v3's 103 were already complete). The
-  30 tickers still showing "missing sessions" are NYSE holidays on weekdays, not
-  scrapeable gaps. `backtests/underlying_ohlc_cache/rescaled_tickers.txt` was
-  **rebuilt and now lists 13 tickers** (11 before today, then wrongly 5): a partial
-  `--skip-existing` run used to rewrite that file in full and silently dropped
-  six still-rescaled tickers. `write_rescaled()` now MERGES — a run attests only
-  what it split-checked — and the new standalone offline
-  `fetch_underlying_ohlc.py --recheck-rescaled` is the one path allowed a full
-  rewrite. NVDA (10:1) and GE (the spinoff step) are newly flagged, so every
-  OHLC consumer now withholds absolute dollars / cross-series comparisons on
-  seven more tickers than yesterday (ratios stay valid).
-- **`account_sim`'s baseline LABEL named a reverted rule; its numbers did not
-  move.** `SHIPPED_BE_AFTER = 0.50` was hardcoded, so `profile_for` kept
-  applying the bear-debit break-even stop after the 2026-08-24
-  `structure_exit.enabled: false` revert (BEAR_HE's `regime_exit` is genuinely
-  still on — only `be_after` was stale). **Zero `be_stop` exits in any
-  `account_sim` or `exit_drawdown` baseline book**, so no verdict, cell or
-  baseline-book figure moves (`exit_drawdown` WAS re-run under the pin at
-  `efd9b76`: only its basis line and ARM O's hold-window census changed). Same
-  class as `exit_mechanism_study`'s stale `CREDIT_PROD` (2026-08-24); pinned to
-  the config and test-pinned 2026-09-05; `account_sim` re-run and re-recorded
-  at `d69a802` the same evening, headline unchanged, last stale strings retired.
-- **Tests green as last recorded: see [`current.md`](current.md) 2026-09-04.**
-  The last full study-suite re-run was **2026-09-04** on the 166-date book:
-  every non-retired study ran, `prompt_eval` refused by design (bare `--all`
-  passes no subcommand), and one gate stop — `calendar_hedge` R2 on one row —
-  was a study-side reconstruction gap (the entry pricer lacked production's
-  carry-forward branch), fixed and re-run the same session
-  ([`current.md`](current.md) 2026-09-04).
-- **The live thread is the hedge programme.** `hedge_exposure` is run, graded and
-  ratified, and it ships nothing; its follow-up `hedge_concentration` was
-  registered, built and RUN on 2026-08-31 — **PRECONDITION-NULL, a powered
-  null** — and awaits `study_review` grading before §2.1 closes. See §1 and §2.1.
-- **Where the old §0/§0b/§1 went.** The 2026-08-14 study-suite repair, era-scoping
-  and `selection_order` story is now
-  [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md); the
-  2026-08-13 decisions (bear_put demotion → card veto §1.4, OIConfirm out of the
-  Score, −25 IVspr veto retired, codex retired) are in
-  [archive/14](archive/14-volume-signal-demotion-and-audit.md) and archive/15.
-  Do not re-derive either here.
+The population, the verdicts and the standing hazards live in
+[`current.md`](current.md) under "State of play". That block is authoritative.
+This section carries only the repo facts the queue needs.
+
+**Era.** `v4` is current, on the 166-date backfilled book, from the exports of
+2026-09-04 20:31. Row counts and the signal-date range are in the state-of-play
+table.
+
+**The 2026 dates are live, and they are backfill.** The book gained 13 of them
+(2026-01-06 → 2026-04-16, 79 pooled rows) plus 8 more Nov/Dec-2025 dates, from
+the neutral-date campaign queue b, complete 2026-09-04. So every `ex_2026_*`
+window cut and every "positive in every year" clause now evaluates. Each was a
+silent no-op on every earlier export
+([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
+§2026-08-27). What they did the first time they bit is in
+[`current.md`](current.md). Two hardcoded date tables are still no-ops by
+construction: `mech_regime_recut` §(b) and `regime_gap_reread` §0 both list
+2026-03 dates the export does not hold.
+
+**Still unpriceable: the live dates.** `AnalysisClaude` carries 2026-08-11 →
+2026-09-01 from the daily pipeline, with no backtest rows, because those
+options have not expired. They are the "genuinely new, non-backfill" dates that
+§2.2 and the rollback triggers wait on. The 2026 dates above do not qualify:
+they are backfill, and they count as the correlated window.
+
+**Four real-priced rows are missing from the `BacktestResults` tab.** They are
+in the local backtest scratch: 2025-12-22 TSLA and AMD `bull_call_spread`, and
+2025-09-26 CRWV `bull_call_spread` and HYG `bear_put_spread`. They are not in
+`BacktestProxy` either. The 12-22 SPY row from the same run is present with the
+same `created_datetime`, so the append did not simply fail. Not repaired. The
+four rows have no provenance for why they are absent, a deliberate deletion
+being as likely as a lost write, and a study population is not patched from
+scratch files. The operator decides. If they are to be restored, re-run
+`make backtest ARGS="--date <D>"` for the two dates. Never a bare backtest:
+there is no dedup, so it would double every row.
+
+**The underlying-OHLC cache now covers all 145 current-era book tickers.** 68
+were missing and were fetched 2026-09-05. `v3`'s 103 were already complete. The
+30 tickers still showing "missing sessions" are NYSE holidays on weekdays, not
+scrapeable gaps. `backtests/underlying_ohlc_cache/rescaled_tickers.txt` was
+rebuilt and now lists 13 tickers, against 11 before today and then wrongly 5. A
+partial `--skip-existing` run used to rewrite that file in full, silently
+dropping six still-rescaled tickers. `write_rescaled()` now merges, so a run
+attests only what it split-checked, and the new standalone offline
+`fetch_underlying_ohlc.py --recheck-rescaled` is the one path allowed a full
+rewrite. NVDA at 10:1 and GE at the spinoff step are newly flagged. Every OHLC
+consumer therefore withholds absolute dollars and cross-series comparisons on
+seven more tickers than yesterday. Ratios stay valid.
+
+**`account_sim`'s baseline label named a reverted rule; its numbers did not
+move.** `SHIPPED_BE_AFTER = 0.50` was hardcoded, so `profile_for` kept applying
+the bear-debit break-even stop after the 2026-08-24
+`structure_exit.enabled: false` revert. Only `be_after` was stale, since
+BEAR_HE's `regime_exit` is genuinely still on. There are zero `be_stop` exits
+in any `account_sim` or `exit_drawdown` baseline book, so no verdict, cell or
+baseline-book figure moves. `exit_drawdown` was re-run under the pin at
+`efd9b76`, and only its basis line and ARM O's hold-window census changed. This
+is the same class of bug as `exit_mechanism_study`'s stale `CREDIT_PROD` on
+2026-08-24. It is now pinned to the config and test-pinned 2026-09-05.
+`account_sim` was re-run and re-recorded at `d69a802` the same evening, the
+headline unchanged, and the last stale strings retired.
+
+**Tests are green as last recorded.** See [`current.md`](current.md)
+2026-09-04. The last full study-suite re-run was 2026-09-04 on the 166-date
+book. Every non-retired study ran. `prompt_eval` refused by design, because a
+bare `--all` passes no subcommand. One gate stopped, `calendar_hedge` R2 on one
+row, and that was a study-side reconstruction gap: the entry pricer lacked
+production's carry-forward branch. It was fixed and re-run the same session
+([`current.md`](current.md) 2026-09-04).
+
+**The live thread is the hedge programme.** It is closed on triggers and open
+on the instrument. See "State of play" in [`current.md`](current.md), then §1
+and §2.1 below.
+
+**Where the old §0, §0b and §1 went.** The 2026-08-14 study-suite repair,
+era-scoping and `selection_order` story is now
+[archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md). The
+2026-08-13 decisions are in
+[archive/14](archive/14-volume-signal-demotion-and-audit.md) and archive/15:
+the bear_put demotion to card veto §1.4, OIConfirm out of the Score, the −25
+IVspr veto retired, and codex retired. Do not re-derive either here.
 
 ## 0c. Study suite — was 6 FAILING, **ALL RESOLVED 2026-08-14**; `run --all` exits 0
 

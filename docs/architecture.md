@@ -646,6 +646,12 @@ conclusion.
   compounding arm's readout + its EQUITY MARKS series; post-hoc, not pre-registered, and the
   page says so). The structure arm writes ONLY the fragment (chart-identical to the frozen
   book's page); an explicit `--site` on it is refused.
+- The compounding arm, by contrast, DOES get its own `site/` page. It is a different sizing
+  basis, not a slightly different candidate set, so it must never be confused with the frozen
+  book. A2/A5 do not transfer to it, because their B2 benchmark compounds too and the ratio
+  stops isolating the caps (see §account_sim above). A reader who lands on a page must be able
+  to tell which basis they are holding without checking a filename, so the page says so in its
+  own banner and the two arms never share an artifact.
 - Do not add a statistic the study refuses to print: no annualised figure, no Sharpe, no
   time-to-recover.
 

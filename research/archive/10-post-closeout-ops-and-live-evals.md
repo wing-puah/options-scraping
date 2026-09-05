@@ -66,7 +66,7 @@ No rule changed. No config changed. This is a documentation move.
 
 ## 2026-08-12 — v4 bridge: RECORDED DEVIATION from the pre-registration (written BEFORE the run)
 
-Amends the [pre-registration below](#2026-08-11--v4-emission-composition-bridge-pre-registration-written-before-the-run).
+Amends the [pre-registration below](09-v3-closeout.md#2026-08-11--v4-emission-composition-bridge-pre-registration--pre-registrationsf1_selectionv4_bridgemd).
 **Nothing has been run.** Written now, while no v4 result exists, because a
 deviation decided after seeing numbers is not a deviation, it is a choice.
 

@@ -59,7 +59,9 @@ studies' labels appear mid-prose only.
 
 ### ① Selection — what to trade
 
-#### `bear_arm` — [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/f1_selection/bear_arm.md), `f1_selection/bear_arm.py`
+#### `bear_arm`
+
+_Registered in [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/f1_selection/bear_arm.md) · module `f1_selection/bear_arm.py`_
 
 - `B1` `B2` (criterion) — Bear criteria, NOT arms and NOT `ml_combination`'s
   baselines of the same letters below: `B1` is selection conditioning ("is
@@ -68,7 +70,9 @@ studies' labels appear mid-prose only.
   `be_after: 0.50` in 2026-08-11 and its own rollback trigger reverted it on
   2026-08-24.
 
-#### `emission_timing` — [`pre-registrations/f1_selection/emission_timing.md`](pre-registrations/f1_selection/emission_timing.md)
+#### `emission_timing`
+
+_Registered in [`pre-registrations/f1_selection/emission_timing.md`](pre-registrations/f1_selection/emission_timing.md)_
 
 - `ARM L` (arm) — Fill lag — does an entry filled 1, 2 or 3 sessions after
   the signal lose the edge?
@@ -76,7 +80,9 @@ studies' labels appear mid-prose only.
   ticker+structure) perform worse than the first emission? One of `ARM P`'s
   four owners repo-wide (see Collisions, above).
 
-#### `text_features` — [`pre-registrations/f1_selection/text_features.md`](pre-registrations/f1_selection/text_features.md), `f1_selection/text_features.py`
+#### `text_features`
+
+_Registered in [`pre-registrations/f1_selection/text_features.md`](pre-registrations/f1_selection/text_features.md) · module `f1_selection/text_features.py`_
 
 - `ARM A` (arm) — Deterministic text features (invalidation `price_only` vs
   `mixed`, `invalidation_inside_strikes`, `trigger_conditional`,
@@ -91,7 +97,9 @@ studies' labels appear mid-prose only.
   Outputs are two named lists: PROMPT-ROBUSTNESS FINDINGS and ENTRY-GATE
   CANDIDATES.
 
-#### `prompt_eval` — [`pre-registrations/f1_selection/prompt_eval.md`](pre-registrations/f1_selection/prompt_eval.md), `f1_selection/prompt_eval.py`
+#### `prompt_eval`
+
+_Registered in [`pre-registrations/f1_selection/prompt_eval.md`](pre-registrations/f1_selection/prompt_eval.md) · module `f1_selection/prompt_eval.py`_
 
 - `PROD` / `CANDIDATE` (arm) — The two prompt arms: the committed
   framework + method files vs a named, committed snapshot; sha256 recorded.
@@ -102,7 +110,9 @@ studies' labels appear mid-prose only.
 - `draft` (mode, not an arm) — a headless model proposes a prompt diff from
   `text_features`' robustness list; a record, never auto-applied.
 
-#### `macro_event_study` — [`pre-registrations/f1_selection/macro_event_study.md`](pre-registrations/f1_selection/macro_event_study.md)
+#### `macro_event_study`
+
+_Registered in [`pre-registrations/f1_selection/macro_event_study.md`](pre-registrations/f1_selection/macro_event_study.md)_
 
 - `H1` `H2` `H3` `H4` (hypothesis) — pre-registered claims, each mapped to
   an arm under a DIFFERENT letter: H1→`ARM I`, H2→`ARM P`, H3→`ARM V`,
@@ -118,7 +128,9 @@ studies' labels appear mid-prose only.
 - `ARM X` (arm) — Exit census (H4) — `exit_reason` mix and R. ENDOGENOUS by
   construction, DESCRIPTIVE, no verdict.
 
-#### `ml_combination` — [`pre-registrations/f1_selection/ml_combination.md`](pre-registrations/f1_selection/ml_combination.md), `f1_selection/ml_combination.py`
+#### `ml_combination`
+
+_Registered in [`pre-registrations/f1_selection/ml_combination.md`](pre-registrations/f1_selection/ml_combination.md) · module `f1_selection/ml_combination.py`_
 
 - `B0` (baseline) — The benchmark: the shipped score-free ladder's top-3/day
   A-then-B replay, out-of-fold. Everything else is scored against it.
@@ -130,7 +142,9 @@ studies' labels appear mid-prose only.
   a single depth-3 tree. Only `M3` may ship, "because only it reduces to a
   human checklist"; a black-box score may at most tie-break within a tier.
 
-#### `trigger_entry` — [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrations/f1_selection/trigger_entry.md), `f1_selection/trigger_entry.py`
+#### `trigger_entry`
+
+_Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrations/f1_selection/trigger_entry.md) · module `f1_selection/trigger_entry.py`_
 
 - `ARM T` (arm) — Trigger-gated entry, the HEADLINE: enter only at the CLOSE of
   the first session k ∈ [1..N] whose underlying close crosses the model's own
@@ -150,7 +164,9 @@ studies' labels appear mid-prose only.
 
 ### ② Management — when to get out
 
-#### `bear_giveback` — `f2_management/bear_giveback.py`
+#### `bear_giveback`
+
+_Module `f2_management/bear_giveback.py`_
 
 - `ARM P` (arm) — Production baseline — the `be_after` threshold measured
   against the SHIPPED production exit. One of `ARM P`'s four owners
@@ -161,7 +177,9 @@ studies' labels appear mid-prose only.
 - `ARM U` (arm) — Underlying path — does the underlying's price path
   explain the give-back? Buckets pre-declared before any output.
 
-#### `next_day_move` — `f2_management/next_day_move.py`
+#### `next_day_move`
+
+_Module `f2_management/next_day_move.py`_
 
 - `ARM C` (arm) — Confound control — `ARM U`'s method (see `bear_giveback`,
   above — a different study's unrelated arm despite the shared letter)
@@ -172,7 +190,9 @@ studies' labels appear mid-prose only.
 - `ARM R` (arm) — The rule — a pre-registered day-0 cut, graded against
   shipped production.
 
-#### `staged_exit` — [`pre-registrations/f2_management/staged_exit.md`](pre-registrations/f2_management/staged_exit.md)
+#### `staged_exit`
+
+_Registered in [`pre-registrations/f2_management/staged_exit.md`](pre-registrations/f2_management/staged_exit.md)_
 
 - `ARM E` (arm) — Terminal "exit now" — pure composition around the FROZEN
   `harness.replay`, no fork or copy.
@@ -180,7 +200,9 @@ studies' labels appear mid-prose only.
   study for this arm (contrast `ARM E`, which composes around the frozen
   one).
 
-#### `exit_from_text` — [`pre-registrations/f2_management/exit_from_text.md`](pre-registrations/f2_management/exit_from_text.md), `f2_management/exit_from_text.py`
+#### `exit_from_text`
+
+_Registered in [`pre-registrations/f2_management/exit_from_text.md`](pre-registrations/f2_management/exit_from_text.md) · module `f2_management/exit_from_text.py`_
 
 - `E1` (arm) — Invalidation-as-stop: exit on the underlying close beyond the
   model's own stated invalidation level, buffer grid {0, 1%, 2%}, breakeven
@@ -191,7 +213,9 @@ studies' labels appear mid-prose only.
 - `E3` (arm) — Horizon-as-time-exit: the emitted `horizon` DTE bucket as the
   time exit vs the shipped 0.75 fraction; survival control runs first.
 
-#### `exit_drawdown` — [`pre-registrations/f2_management/exit_drawdown.md`](pre-registrations/f2_management/exit_drawdown.md), `lib/exit_overlays.py`
+#### `exit_drawdown`
+
+_Registered in [`pre-registrations/f2_management/exit_drawdown.md`](pre-registrations/f2_management/exit_drawdown.md) · module `lib/exit_overlays.py`_
 
 Five arms, every threshold chosen WALK-FORWARD on train dates only. The overlay
 mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
@@ -215,7 +239,9 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
 
 ### ③ Structure — which wrapper
 
-#### `bear_rewrap` — `f3_structure/bear_rewrap.py`
+#### `bear_rewrap`
+
+_Module `f3_structure/bear_rewrap.py`_
 
 - `ARM P` (arm) — Portfolio contribution — P1 worst-decile, P2 correlation.
   The merge this arm validated is what `financed_spread` and `account_sim`
@@ -225,7 +251,9 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
     confused with `calendar_hedge`'s own `P1` below, which is unrelated.
 - `ARM W` (arm) — The wrapper, replayed on the shipped production exit.
 
-#### `calendar_hedge` — [`pre-registrations/f3_structure/calendar_hedge.md`](pre-registrations/f3_structure/calendar_hedge.md) + `f3_structure/calendar_hedge.py`
+#### `calendar_hedge`
+
+_Registered in [`pre-registrations/f3_structure/calendar_hedge.md`](pre-registrations/f3_structure/calendar_hedge.md) · module `f3_structure/calendar_hedge.py`_
 
 - `ARM H` (arm) — The hedge programme (`calendar_hedge`'s own `P1` sleeve,
   below) — runs first; `ARM S` runs only behind it. This study also uses
@@ -244,7 +272,9 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
   `P1`/`P2` above (which are that study's `ARM P` halves) — same letter,
   unrelated meaning.
 
-#### `financed_spread` — [`pre-registrations/f3_structure/financed_spread.md`](pre-registrations/f3_structure/financed_spread.md)
+#### `financed_spread`
+
+_Registered in [`pre-registrations/f3_structure/financed_spread.md`](pre-registrations/f3_structure/financed_spread.md)_
 
 - `F0` `F1` `F2` `F3` `F4` (arm) — Financing structures. `F0` strike-aligned
   control (machinery pilot, runs first); `F1` opposite-delta credit spread;
@@ -254,7 +284,9 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
 
 ### ④ Deployment — can I run it
 
-#### `account_sim` — [`pre-registrations/f4_deployment/account_sim.md`](pre-registrations/f4_deployment/account_sim.md), `f4_deployment/account_sim.py`
+#### `account_sim`
+
+_Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrations/f4_deployment/account_sim.md) · module `f4_deployment/account_sim.py`_
 
 - `ARM D` (arm) — Downsize on admission failure (vs `ARM R` reject) — take
   the largest contract count that still fits.
@@ -270,13 +302,17 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
 
-#### `bear_deploy` — `f4_deployment/bear_deploy.py`, [`pre-registrations/f4_deployment/bear_deploy.md`](pre-registrations/f4_deployment/bear_deploy.md)
+#### `bear_deploy`
+
+_Registered in [`pre-registrations/f4_deployment/bear_deploy.md`](pre-registrations/f4_deployment/bear_deploy.md) · module `f4_deployment/bear_deploy.py`_
 
 - `D1` `D2` `D3` `D4` `D5` (criterion) — Deployment criteria, NOT `ARM D` —
   `D1` is joint selection × exit, and the four that follow it. Mirrored by
   `calendar_hedge`'s `H1`–`H5` above.
 
-#### `hedge_timing` — `f4_deployment/hedge_timing.py`, [`pre-registrations/f4_deployment/hedge_timing.md`](pre-registrations/f4_deployment/hedge_timing.md)
+#### `hedge_timing`
+
+_Registered in [`pre-registrations/f4_deployment/hedge_timing.md`](pre-registrations/f4_deployment/hedge_timing.md) · module `f4_deployment/hedge_timing.py`_
 
 Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
 `ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
@@ -305,7 +341,9 @@ trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
   `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
   `ARM H4-DECLINE`.
 
-#### `hedge_exposure` — [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md), `f4_deployment/hedge_exposure.py`
+#### `hedge_exposure`
+
+_Registered in [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md) · module `f4_deployment/hedge_exposure.py`_
 
 Grid: 3 τ × 3 f = 9 cells per arm, fixed at registration and never expanded.
 `ARM C` here is NOT `concurrency_correlation`'s `ARM C` (a concurrency
@@ -348,7 +386,9 @@ role, different study.
   delta-matched to a put and so depends on the option cache it was introduced
   to be free of. Reference only; no verdict is read from it.
 
-#### `portfolio_delta` — [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)
+#### `portfolio_delta`
+
+_Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)_
 
 - `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.
 - `ARM D` (arm) — Dose-response (DESCRIPTIVE PRIMARY) — mean R by the open
@@ -359,7 +399,9 @@ role, different study.
   COLLIDES with `concurrency_correlation`'s own `ARM N` below — same role,
   different study.
 
-#### `selection_order` — [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)
+#### `selection_order`
+
+_Registered in [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)_
 
 - `O0` `O1` `O1b` `O2` `O3` `O4` (arm) — Ordering arms. `O0` = production
   `ladder_rank` baseline; `O1` delta-notional ascending; `O2` reserved-$
@@ -369,7 +411,9 @@ role, different study.
 
 ### Queued — pre-registered, no module yet
 
-#### `concurrency_correlation` — [`pre-registrations/f4_deployment/concurrency_correlation.md`](pre-registrations/f4_deployment/concurrency_correlation.md)
+#### `concurrency_correlation`
+
+_Registered in [`pre-registrations/f4_deployment/concurrency_correlation.md`](pre-registrations/f4_deployment/concurrency_correlation.md)_
 
 Registered 2026-08-22; **built and first run 2026-09-04**
 (`scripts/backtest_study/f4_deployment/concurrency_correlation.py`, era v4,
@@ -394,7 +438,9 @@ and excludes it from `ARM CK` rather than assuming it.
   regardless of its own CI. COLLIDES with `portfolio_delta`'s own `ARM N`
   above — same role, different study.
 
-#### `hedge_concentration` — [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)
+#### `hedge_concentration`
+
+_Registered in [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)_
 
 Registered 2026-08-31 and first run the same day. The book is the ADMITTED
 subset `account_sim` takes from `hedge_exposure`'s ratified population. Stage 1

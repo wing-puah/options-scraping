@@ -655,7 +655,7 @@ this powerable.
 
 ### What was registered, and why it is shaped this way
 
-[`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md),
+[`pre-registrations/f4_deployment/hedge_concentration.md`](../pre-registrations/f4_deployment/hedge_concentration.md),
 2026-08-31. Given (2), the hedge mechanism cannot be the load-bearing stage,
 so the registration puts the PRECONDITION first — H-C from the 2026-08-29
 feasibility pass, which `hedge_exposure` skipped: **does a session's
@@ -686,7 +686,7 @@ sign-off under any branch. Module not yet written; README index says
 The module registered earlier today is written, tested and run once on the
 2026-08-27 exports. Report: `backtests/study_output/hedge_concentration-latest.txt`
 (era v4, sha 9834563, exit 0, 23 s); per-era record:
-[`study-results/f4_deployment/hedge_concentration.md`](study-results/f4_deployment/hedge_concentration.md).
+[`study-results/f4_deployment/hedge_concentration.md`](../study-results/f4_deployment/hedge_concentration.md).
 Not yet graded — `study_review hedge_concentration` is the next step, and the
 Ship-criteria branch is NOT acted on until it is.
 

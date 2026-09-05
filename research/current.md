@@ -1,86 +1,163 @@
 # Backtest tuning — current
 
-Most recent entries. Older work is in [`archive/`](archive/); see the
-[README](README.md) for the section index. Pruned 2026-08-31: everything up to
-2026-08-27 moved to [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md)
-(08-14/15 — era-scoping, suite repair, `selection_order`), [archive/16](archive/16-first-runs-on-v3.md)
-(08-19 — first runs of the v3-era studies) and [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md)
-(08-22 → 08-27 — vocabulary, `concurrency_correlation`, the v4 refresh, `bear_deploy`).
-Pruned 2026-09-04: 2026-08-28 → 2026-09-02 moved to
-[archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md) (the hedge
-programme — `hedge_timing`, `hedge_exposure`, `hedge_concentration` — the
-`exit_basis` re-measure and audit, and the text ↔ backtest loop).
+The recent end of the log. Dated entries run below the state of play. Older
+work is in [`archive/`](archive/), indexed by the [README](README.md).
+Conventions for this folder: terms in [`glossary.md`](glossary.md), study-local
+labels in [`arm-index.md`](arm-index.md), house style in
+[`writing-guide.md`](writing-guide.md).
 
-**State of play (2026-09-04).** Era v4, on the **166-date backfilled book** —
-exports of **2026-09-04 20:31** (535 real / 1,303 proxy / 2,212 analysis rows;
-pooled study book 1,143 rows, real 535 + tweak 608; signal dates 2024-01-10 →
-2026-04-16). **This is the first book with 2026 signal dates** (13 of them,
-2026-01-06 → 2026-04-16, 79 pooled rows), so every `ex_2026_*` cut and
-"positive in every year" clause is live for the first time; the neutral-date
-campaign that produced them (queue b) is COMPLETE and closed. Where things
-stand after the full-suite re-run on it (entry below):
+## State of play
 
-- **No headline verdict moved.** Every study prints the verdict word it
-  printed on the 140-date book; what moved is underneath — the per-year
-  clause now has a 2026 column and it is negative in most cells, which is the
-  first out-of-sample-in-time look any rule has had on v4. It killed
-  `next_day_move` ARM R's bear-debit `**` on all three cuts, `exit_from_text`
-  E2's pooled candidate, `portfolio_delta` B ceiling 1.50 (only B 1.00 clears),
-  two `emission_timing` ARM P sub-cuts, `bear_rewrap` long_diag's year
-  criterion (5/5 → 4/5, in the same run its portfolio checks were MET for the
-  first time), and it re-FIRED the bear-debit `be_after` rollback census
-  (199 arming rows / 110 dates; 2026 −0.0431) — already reverted since 08-24,
-  nothing to do. Three censuses, three answers: a 60-row floor on a
-  backfilling book is not a decision procedure.
-- **Two firsts that HOLD rather than ship** (correlated window): `bear_arm`
-  B2's exit-fix criteria are MET (`sl .50 (tighter)` Δ=+0.039 CI[+0.004,+0.071],
-  LOO min +0.035, bear-specificity control holds); `financed_spread` F3 off1
-  prints **RE-WRAP** (6/7, failing only the anti-re-wrap E3 correlation, and
-  its fixed-contracts control spans zero).
-- **The hedge programme is closed on triggers and unchanged on the
-  instrument.** `hedge_concentration` PRECONDITION-NULL again (ρ +0.00 on
-  626 usable sessions); `hedge_exposure` UNDERPOWERED + MEASUREMENT-ONLY with
-  ARM M's 40.2% identical to the dollar; `hedge_timing` survivors still 0 but
-  the arms moved — H1-GAP NULL → CONTRARY, H3-GAP stronger (−0.506
-  [−0.844, −0.157]), H4-GAP CONTRARY → NULL — so the drafted-and-HELD §4
-  gap-up prohibition now rests on the paired-R arms alone. `calendar_hedge`
-  H3 flipped back to NOT MET at any size (drawdown-bound); it has now read
-  NOT MET / DEPLOYABLE / NOT MET on three consecutive exports and is an
-  unstable measurement, not a verdict.
-- **`concurrency_correlation` X4 settled by hand: NOISE on both eras.** The v3
-  companion ran (795 rows / 118 dates, 8 of 13 arms powered, NOISE, same
-  sentence). No arm clears X2/X3 in either era, so no arm is or can be
-  ADOPT-eligible; 4 of the 8 arms powered in both eras flip sign. The verdict
-  is era-stable, the per-arm gains are not. Thread closed.
-- **Rollback triggers:** LVOL tef-null STAYS GATED on 73 affected dates
-  (median −0.033) — the 08-24 CLEARED did not survive two exports and the
-  operator's hold was right; BEAR_HE trail 1/25 UNDERPOWERED; credit sl-none
-  0/15 and unreachable by backfill (window starts after 2026-07-13).
-- **Data hazards found on this export, not repaired:** four real-priced rows
-  present in the local backtest scratch are absent from `BacktestResults`
-  (2025-12-22 TSLA/AMD, 2025-09-26 CRWV/HYG) and not proxied either;
-  2025-12-26 produced no analysis rows; `text_features` ARM B label coverage
-  fell to 89.3% because the label cache does not cover the new rows. Details
-  in the entry below and `next-steps.md` §0.
+Refreshed 2026-09-04. Nothing new ships. The whole suite was re-run on the
+first book that carries 2026 signal dates, and no headline verdict moved. Two
+studies produced a first-time candidate and both are held, because the new
+dates are a correlated backfill window rather than a fresh one.
 
-**Open queue** (detail in [`next-steps.md`](next-steps.md)): nothing new is
-registered. The v4 composition bridge and the rollback triggers wait on
-GENUINELY new dates — the live 2026-08-11 → 2026-09-01 analysis dates, which
-have no backtest rows until their options expire; `prompt_eval` §2.9 is a
-stability item; `operator_read` (§2.5) waits on the journal. Rollback
-triggers are checked at gates, never read from silence.
+This block is the authoritative summary of where the research stands.
+[`overview.md`](overview.md) and [`next-steps.md`](next-steps.md) §0 restate
+parts of it. If either disagrees with this block, this block wins.
 
-**Standing hazards carried forward** (each has its full entry in an archive):
-the `exit_basis` export column is unlabelled and scrambled on **v3 and
-earlier** and those exports are frozen (archive/15) — but it is CLEAN on v4
-(re-measured 2026-09-02: 485/485 labelled and internally consistent), so the
-rule is now era-scoped rather than absolute, and `BacktestProxy` carries it
-only for rows written after the 2026-09-02 writer fix; studies are ERA-scoped and the bare export name is not a
-population (archive/15, `lib/era.py`); ARM labels are study-local — cite
-`emission_timing ARM P`, never a bare `ARM P` (archive/17, `arm-index.md`);
-`study_review --dry-run` overwrites the review/digest artifacts (archive/17);
-the `hedge_exposure` registration's plan-time observations describe the `real`
-stratum, not the ratified book (`hedge-exposure-errata.md` §RATIFICATION).
+### The population
+
+| Field | Value |
+|---|---|
+| Era | `v4`, the 166-date backfilled book |
+| Exports | 2026-09-04 20:31 |
+| Real results | 535 |
+| Proxy rows | 1,303 |
+| Analysis rows | 2,212 |
+| Pooled study book | 1,143 rows, being 535 real plus 608 tweak |
+| Signal dates | 2024-01-10 → 2026-04-16 |
+| 2026 signal dates | 13, from 2026-01-06 to 2026-04-16, 79 pooled rows |
+
+This is the first book with 2026 signal dates. Every `ex_2026_*` cut and every
+"positive in every year" clause is live for the first time. The neutral-date
+campaign that produced those dates, queue b, is complete and closed.
+
+### Where the 2026 column bit
+
+Every study still prints the verdict word it printed on the 140-date book. What
+moved is underneath the verdict. The per-year clause now has a 2026 column, it
+is negative in most cells, and it is the first look out of sample in time that
+any rule has had on `v4`. [meanR](glossary.md#meanr) and
+[CI](glossary.md#ci) are defined in the glossary.
+Arm labels are study-local, so each is given with its study.
+
+| Study | Arm or cut | What changed | Record |
+|---|---|---|---|
+| `next_day_move` | [ARM R](arm-index.md#next_day_move), bear-debit | lost its `**` on all three cuts | [record](study-results/f2_management/next_day_move.md) |
+| `exit_from_text` | [E2](arm-index.md#exit_from_text), pooled | the pooled candidate is gone | [record](study-results/f2_management/exit_from_text.md) |
+| `portfolio_delta` | [ARM B](arm-index.md#portfolio_delta) ceiling 1.50 | dropped out, so only ceiling 1.00 clears | [record](study-results/f4_deployment/portfolio_delta.md) |
+| `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cuts | two of them fail | [record](study-results/f1_selection/emission_timing.md) |
+| `bear_rewrap` | `long_diag` year criterion | 5/5 fell to 4/5, and in the same run its portfolio checks were `MET` for the first time | [record](study-results/f3_structure/bear_rewrap.md) |
+| bear-debit `be_after` | rollback census | re-fired on 199 arming rows over 110 dates, 2026 −0.0431 | [plan](pre-registrations/f2_management/rollback_triggers.md) |
+
+The `be_after` rule was already reverted on 2026-08-24, so its census re-firing
+asks for nothing. That census has now given three answers on three runs. A
+60-row floor on a backfilling book is not a decision procedure.
+
+### Two firsts that hold rather than ship
+
+Both sit in the correlated window, so neither promotes a rule.
+
+| Study | Arm | Reading |
+|---|---|---|
+| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | criteria `MET` for the first time: `sl .50 (tighter)` Δ=+0.039, CI [+0.004, +0.071], [LOO](glossary.md#loo) min +0.035, and the bear-specificity control holds |
+| `financed_spread` | [F3](arm-index.md#financed_spread) off1 | prints `RE-WRAP` at 6/7, failing only the anti-re-wrap E3 correlation, and its fixed-contracts control spans zero |
+
+### The hedge programme
+
+Closed on triggers, unchanged on the instrument. The drafted gap-up prohibition
+in [§4](../docs/deployment-rules.md#s4) is still held, and it now rests on
+`hedge_timing`'s paired-[R](glossary.md#r) arms alone.
+
+| Study | Verdict | Detail |
+|---|---|---|
+| [`hedge_concentration`](study-results/f4_deployment/hedge_concentration.md) | `PRECONDITION-NULL` again | ρ +0.00 on 626 usable sessions |
+| [`hedge_exposure`](study-results/f4_deployment/hedge_exposure.md) | `UNDERPOWERED` plus `MEASUREMENT-ONLY` | [ARM M](arm-index.md#hedge_exposure)'s 40.2% is identical to the dollar |
+| [`hedge_timing`](study-results/f4_deployment/hedge_timing.md) | survivors still 0 | [H1-GAP](arm-index.md#hedge_timing) `NULL` → `CONTRARY`. H3-GAP stronger at −0.506, CI [−0.844, −0.157]. H4-GAP `CONTRARY` → `NULL` |
+| [`calendar_hedge`](study-results/f3_structure/calendar_hedge.md) | [H3](arm-index.md#calendar_hedge) back to `NOT MET` at any size | drawdown-bound. Three consecutive exports read `NOT MET`, `DEPLOYABLE`, `NOT MET`, so this is an unstable measurement and not a verdict |
+
+### `concurrency_correlation` is closed
+
+X4, the era-stability criterion, was settled by hand: `NOISE` on both eras. The
+`v3` companion ran on 795 rows over 118 dates, powered 8 of 13 arms, and
+printed the same sentence. No arm clears
+[X2 or X3](arm-index.md#concurrency_correlation) in either era, so no arm is or
+can be `ADOPT`-eligible. 4 of the 8 arms powered in both eras flip sign. The
+verdict is era-stable and the per-arm gains are not. The thread is closed, and
+the run is in the [record](study-results/f4_deployment/concurrency_correlation.md).
+
+### Rollback triggers
+
+Checked at their gates, never read from silence. The
+[plan](pre-registrations/f2_management/rollback_triggers.md) holds each floor.
+
+| Trigger | Reading on this export |
+|---|---|
+| LVOL tef-null | `STAYS GATED` on 73 affected dates, median −0.033. The 2026-08-24 `CLEARED` did not survive two exports, so the operator's hold was right |
+| BEAR_HE trail | `UNDERPOWERED` at 1 date of 25 |
+| credit sl-none | 0 of 15, and unreachable by backfill because the window starts after 2026-07-13 |
+
+### Data hazards on this export, not repaired
+
+- Four real-priced rows sit in the local backtest scratch but not in
+  `BacktestResults`, and are not proxied either. They are 2025-12-22 TSLA and
+  AMD, and 2025-09-26 CRWV and HYG.
+- 2025-12-26 produced no analysis rows.
+- `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
+  89.3%, because the label cache does not cover the new rows.
+
+Detail is in the 2026-09-04 entry below and in
+[`next-steps.md`](next-steps.md) §0.
+
+### The open queue
+
+Nothing new is registered. The queue itself is
+[`next-steps.md`](next-steps.md) §2.
+
+- The v4 composition bridge and the rollback triggers wait on genuinely new
+  dates. Those are the live analysis dates 2026-08-11 → 2026-09-01, which have
+  no backtest rows until their options expire.
+- `prompt_eval`, §2.9, is a stability item.
+- `operator_read`, §2.5, waits on the journal.
+
+### Standing hazards carried forward
+
+Each has its full entry in an archive volume.
+
+- **`exit_basis` is era-scoped, not corrupt.** The column is unlabelled and
+  scrambled on `v3` and earlier, and those exports are frozen
+  ([archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md)).
+  It is clean on `v4`, re-measured 2026-09-02 at 485/485 labelled and
+  internally consistent. `BacktestProxy` carries it only for rows written after
+  the 2026-09-02 writer fix.
+- **Studies are era-scoped.** The bare export name does not name a population;
+  `lib/era.py` is the single encoding (archive/15).
+- **Arm labels are study-local.** Cite `emission_timing ARM P`, never a bare
+  `ARM P` ([archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md),
+  [`arm-index.md`](arm-index.md)).
+- **`study_review --dry-run` overwrites** the review and digest artifacts
+  (archive/17).
+- **The `hedge_exposure` registration describes the wrong stratum.** Its
+  plan-time observations describe the `real` stratum, not the ratified book
+  (`hedge-exposure-errata.md` §RATIFICATION).
+
+### What was pruned from this log
+
+- Pruned 2026-08-31: everything up to 2026-08-27.
+  [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md) took
+  08-14 and 08-15, being era-scoping, suite repair and `selection_order`.
+  [archive/16](archive/16-first-runs-on-v3.md) took 08-19, the first runs of
+  the `v3`-era studies.
+  [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md) took 08-22
+  to 08-27, being vocabulary, `concurrency_correlation`, the `v4` refresh and
+  `bear_deploy`.
+- Pruned 2026-09-04: 2026-08-28 to 2026-09-02, into
+  [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md). That
+  volume holds the hedge programme (`hedge_timing`, `hedge_exposure`,
+  `hedge_concentration`), the `exit_basis` re-measure and audit, and the text
+  to backtest loop.
 
 ---
 
