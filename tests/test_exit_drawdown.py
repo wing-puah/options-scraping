@@ -696,7 +696,8 @@ def test_the_cells_sidecar_round_trips_and_refuses_the_wrong_era(
     pool, here or anywhere else."""
     monkeypatch.setattr(S, "CELLS_DIR", tmp_path)
     cells = {"ARM U/a": dict(verdict="NULL", ratio=-0.05, powered=True)}
-    assert S.write_cells_artifact(S.SECONDARY_ERA, cells) is not None
+    assert S.write_cells_artifact(
+        S.SECONDARY_ERA, S.POP_PRIMARY, cells) is not None
     got, why = S.read_sibling_cells("v4")
     assert got == cells and S.SECONDARY_ERA in why
 
@@ -704,7 +705,26 @@ def test_the_cells_sidecar_round_trips_and_refuses_the_wrong_era(
     assert S.read_sibling_cells(S.SECONDARY_ERA)[0] is None
     # A file recording the wrong era is refused rather than crossed over.
     S.cells_artifact_path(S.SECONDARY_ERA).write_text(
-        '{"era": "v4", "cells": {"ARM U/a": {}}}')
+        '{"era": "v4", "population": "primary", "cells": {"ARM U/a": {}}}')
+    got, why = S.read_sibling_cells("v4")
+    assert got is None and "not read" in why
+
+
+def test_the_cells_sidecar_refuses_the_secondary_CUT_as_a_referent(
+        tmp_path, monkeypatch):
+    """Clause 5's referent is the SECONDARY ERA's PRIMARY cell, never its `all`
+    cut. `all` is a disclosed secondary CUT of the same era that carries no
+    verdict, so a v3 `all` cell is not a v4 PRIMARY cell's referent — and a
+    sidecar written before the population was recorded is not one either."""
+    monkeypatch.setattr(S, "CELLS_DIR", tmp_path)
+    S.write_cells_artifact(S.SECONDARY_ERA, S.POP_ALL,
+                           {"ARM U/a": dict(verdict="NULL", ratio=-0.05,
+                                            powered=True)})
+    got, why = S.read_sibling_cells("v4")
+    assert got is None and S.POP_PRIMARY in why and "not read" in why
+
+    S.cells_artifact_path(S.SECONDARY_ERA).write_text(
+        '{"era": "v3", "cells": {"ARM U/a": {}}}')
     got, why = S.read_sibling_cells("v4")
     assert got is None and "not read" in why
 
@@ -824,3 +844,226 @@ def test_the_year_requirement_is_disclosed_beside_the_year_table(capsys):
     the reading is stated rather than tightened at run time."""
     out = _print_cell(_variant("U", "a"), False, capsys)
     assert "TWO" in out and "3 OR MORE" in out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The report's ORDER — coverage first, PRIMARY's tally under VERDICT SUMMARY
+# ════════════════════════════════════════════════════════════════════════════
+#
+# The 2026-09-05 two-analyst grading reopened the MODULE (never the
+# registration) on two REPORTING defects, and both are order properties a
+# report cannot demonstrate about itself:
+#
+#   * ARM P's split census printed BELOW the G0 cell table that already carried
+#     ARM P's affected-row and affected-date counts. G-COV is registered
+#     unqualified — "a conditional figure printed above its coverage line is a
+#     reporting defect" — so the census belongs in the G-COV block with ARM U's
+#     and ARM O's, above every cell table.
+#   * One invocation printed ONE population. The registration runs the `all`
+#     cut as a DISCLOSED SECONDARY CUT "printed beside" the PRIMARY headline,
+#     and the VERDICT SUMMARY is PRIMARY's alone.
+#
+# Both are pinned here rather than left to the next grading to re-find.
+
+def _index_of(lines, needle: str) -> int:
+    for i, ln in enumerate(lines):
+        if needle in ln:
+            return i
+    raise AssertionError(f"{needle!r} is not in the captured report")
+
+
+def test_g_cov_carries_every_arms_census_including_the_two_off_the_books(capsys):
+    """ARM P's and ARM D's censuses are counted off the books their arms
+    deployed, and they print in the G-COV block with ARM U's and ARM O's —
+    never below the cell table that reads them."""
+    S.print_g_cov("WUOPD", [], [], set(), set(),
+                  {"P": dict(n=77, credit=13, single_contract=51, split=13),
+                   "D": dict(choice="d 0.10", n_rows=7, n_dates=5,
+                             n_positions=90)})
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "G-COV — COVERAGE" in lines[_index_of(lines, "G-COV — COVERAGE")]
+    p_i = _index_of(lines, "ARM P — split census (G-COV)")
+    d_i = _index_of(lines, "ARM D — SIZING census (G-COV)")
+    assert _index_of(lines, "G-COV — COVERAGE") < p_i < d_i
+    assert "n = 1 (cannot be halved) 51" in out
+    assert "THROTTLED sessions 5" in out and "halved budget 7" in out
+    # A census, not a verdict: no token may appear in the coverage block.
+    assert not any(tok in out for tok in S.TOKENS)
+
+
+def test_a_missing_census_says_so_rather_than_going_absent(capsys):
+    """A run that stopped before an arm's book existed prints the census SLOT
+    with the reason, so the block is never silently short an arm."""
+    S.print_g_cov("P", [], [], set(), set(), {})
+    out = capsys.readouterr().out
+    assert "ARM P — split census (G-COV)" in out
+    assert "NOT COUNTED" in out
+
+
+def test_the_arm_p_census_prints_above_the_g0_cell_table():
+    """The defect itself, asserted on the artifact the grading reads.
+
+    Skipped rather than failed when no report is on disk: `site/` and
+    `backtests/study_output/` are generated output and a fresh checkout has
+    neither.
+    """
+    report = ROOT / "backtests" / "study_output" / "exit_drawdown-latest.txt"
+    if not report.exists():
+        pytest.skip("no exit_drawdown report on disk (generated output)")
+    lines = report.read_text().splitlines()
+    census = _index_of(lines, "ARM P — split census (G-COV)")
+    g0 = _index_of(lines, "G0 — POWER")
+    # The first row OF the cell table — the header line that opens it.
+    table = _index_of(lines, "curve pos")
+    assert census < g0 < table, (
+        f"ARM P's coverage census (line {census}) must print above the G0 cell "
+        f"table (header line {table}), which carries ARM P's own conditional "
+        f"affected-row and affected-date figures")
+    # And it is IN the G-COV block, not merely early.
+    assert _index_of(lines, "G-COV — COVERAGE") < census < _index_of(
+        lines, "WALK-FORWARD DESIGN")
+
+
+def test_the_report_carries_g_cal_s_own_g2_to_g5_lines():
+    """G-CAL's second half is RUN in-process, so its outcome is IN the report."""
+    report = ROOT / "backtests" / "study_output" / "exit_drawdown-latest.txt"
+    if not report.exists():
+        pytest.skip("no exit_drawdown report on disk (generated output)")
+    lines = report.read_text().splitlines()
+    cal = _index_of(lines, "G-CAL — the host simulation is unchanged")
+    tail = lines[cal:cal + 40]
+    for gate in ("G2:", "G3:", "G4:", "G5:"):
+        assert any(ln.strip().startswith(gate) for ln in tail), (
+            f"G-CAL prints no {gate} line — the registered second half of the "
+            f"gate is being asserted rather than run")
+
+
+# ── the two cuts, in one report ─────────────────────────────────────────────
+
+def _empty_book_run(monkeypatch, argv):
+    """Drive `main()` over an EMPTY book.
+
+    Every population is then empty, no test block survives the purge, and the
+    run takes its registered no-OOS path — which is exactly the path that
+    exercises the REPORT'S LAYOUT (both cuts, G-COV first, the summary) with no
+    simulation at all. The layout is the property under test; the numbers are a
+    data claim and belong in `research/`.
+    """
+    monkeypatch.setattr(S, "load_book", lambda **kw: ([], dict(
+        era="v4", counts_by_source={}, date_range=("-", "-"),
+        debit_calib={})))
+    monkeypatch.setattr(S, "write_cells_artifact",
+                        lambda era, population, cells: None)
+    assert S.main(argv) == 0
+
+
+def test_one_invocation_carries_the_primary_headline_and_the_all_cut(
+        monkeypatch, capsys):
+    """The registered default: ONE report, the PRIMARY headline and the `all`
+    cut beside it, with the VERDICT SUMMARY and its tally reading PRIMARY."""
+    _empty_book_run(monkeypatch, [])
+    lines = capsys.readouterr().out.splitlines()
+
+    primary = _index_of(lines, "POPULATION AND BASIS — PRIMARY")
+    summary = _index_of(lines, "VERDICT SUMMARY")
+    secondary = _index_of(lines, "DISCLOSED SECONDARY CUT — POPULATION `ALL`")
+    assert primary < summary < secondary, (
+        "the `all` cut is a DISCLOSURE printed beside the headline; it may not "
+        "come between the PRIMARY body and PRIMARY's own verdict summary")
+
+    # The tally under VERDICT SUMMARY is PRIMARY's, and it is the only one there.
+    tail = lines[summary:secondary]
+    tallies = [ln for ln in tail if ln.strip().startswith("tally:")]
+    assert len(tallies) == 1
+    assert any("population: PRIMARY" in ln for ln in tail)
+    # The `all` cut's tally is printed separately and LABELLED.
+    after = lines[secondary:]
+    assert any("SECONDARY CUT `all` tally:" in ln for ln in after)
+    assert not any(ln.strip().startswith("tally:") for ln in after)
+    # ...and there is no SECOND verdict summary SECTION under it (the banner's
+    # prose names the section; a `hdr()` puts the title alone on its own line).
+    assert not any(ln.strip() == "VERDICT SUMMARY" for ln in after)
+
+
+def test_g_cov_precedes_the_walk_forward_body_in_both_cuts(monkeypatch, capsys):
+    """Coverage first, in EVERY cut — not only in the headline."""
+    _empty_book_run(monkeypatch, [])
+    lines = capsys.readouterr().out.splitlines()
+    covs = [i for i, ln in enumerate(lines) if "G-COV — COVERAGE" in ln]
+    designs = [i for i, ln in enumerate(lines) if "WALK-FORWARD DESIGN" in ln]
+    assert len(covs) == len(designs) == 2
+    assert all(c < d for c, d in zip(covs, designs))
+
+
+def test_a_single_population_run_prints_that_cut_alone(monkeypatch, capsys):
+    """`--population primary|all` is kept for a targeted re-run and still
+    prints ONE cut, with no secondary-cut block."""
+    _empty_book_run(monkeypatch, ["--population", "primary"])
+    out = capsys.readouterr().out
+    assert "POPULATION AND BASIS — PRIMARY" in out
+    assert "POPULATION AND BASIS — ALL" not in out
+    assert "DISCLOSED SECONDARY CUT — POPULATION" not in out
+    assert "VERDICT SUMMARY" in out
+
+
+# ── G-CAL's second half is run, and it gates ────────────────────────────────
+
+def test_g_cal_lifts_account_sims_own_gate_lines_and_fails_on_one(monkeypatch):
+    """G-CAL fails on a failing G2-G5 exactly as it does on a book_signature
+    mismatch: a run-level machinery failure, no verdict read for any arm."""
+    monkeypatch.setattr(S.A, "simulate", lambda *a, **k: object())
+    monkeypatch.setattr(S.A, "book_signature", lambda sim: [("row",)])
+    monkeypatch.setattr(S.A, "new_cache", dict)
+
+    monkeypatch.setattr(S, "account_sim_gates",
+                        lambda recs, st, cache: (True, ["  G2: PASS"]))
+    assert S.g_cal(object(), [], [], _Settings(), {}) == 0
+
+    monkeypatch.setattr(S, "account_sim_gates",
+                        lambda recs, st, cache: (False, ["  G2: FAIL"]))
+    assert S.g_cal(object(), [], [], _Settings(), {}) == S.EXIT_GATE_FAILURE
+
+
+class _Settings:
+    budget = 500.0
+    capital = 25000.0
+    max_per_day = 3
+
+    def cfg(self, name, **kw):
+        return object()
+
+
+def test_account_sim_gates_calls_run_gates_and_quotes_only_its_verdict_lines(
+        monkeypatch):
+    """The gate is `account_sim.run_gates` ITSELF — never a copy — and only its
+    PASS/FAIL lines are lifted, verbatim."""
+    seen = {}
+
+    def fake_run_gates(recs, picked, st, cache, selftest=False):
+        seen["selftest"] = selftest
+        seen["n"] = len(recs)
+        print("--- G2 — some long narrative ---")
+        print("  calibrated debit picks re-replayed: 400  exact=400")
+        print("  G2: PASS")
+        print("  G5: FAIL")
+        print("\n  GATES: FAILED — G5")
+        return {"G2": True, "G5": False, "ok": False}
+
+    monkeypatch.setattr(S.A, "run_gates", fake_run_gates)
+    monkeypatch.setattr(S.P, "top_k_per_day", lambda *a, **k: [])
+    ok, lines = S.account_sim_gates([1, 2, 3], _Settings(), {})
+    assert ok is False and seen == {"selftest": False, "n": 3}
+    assert [ln.strip() for ln in lines] == [
+        "G2: PASS", "G5: FAIL", "GATES: FAILED — G5"]
+
+
+def test_account_sim_gates_reports_a_raise_as_a_failure_not_a_crash(monkeypatch):
+    """A gate that could not be run is a FAILED gate, reported in the report —
+    never an exception that loses the whole artifact."""
+    def boom(*a, **k):
+        raise RuntimeError("no book")
+    monkeypatch.setattr(S.A, "run_gates", boom)
+    monkeypatch.setattr(S.P, "top_k_per_day", lambda *a, **k: [])
+    ok, lines = S.account_sim_gates([], _Settings(), {})
+    assert ok is False and "NOT RUN" in lines[0]

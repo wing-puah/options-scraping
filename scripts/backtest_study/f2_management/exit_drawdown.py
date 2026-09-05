@@ -64,10 +64,12 @@ exit). Nothing ships from this run under any outcome.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import statistics
 import sys
 from collections import Counter
+from contextlib import redirect_stdout
 from datetime import date as _date
 from pathlib import Path
 
@@ -625,15 +627,24 @@ def cells_artifact_path(era: str) -> Path:
     return CELLS_DIR / f"exit_drawdown-cells-{era}.json"
 
 
-def write_cells_artifact(era: str, cells: dict) -> Path | None:
+def write_cells_artifact(era: str, population: str, cells: dict) -> Path | None:
     """Record this run's cells. A failure here is REPORTED, never fatal — the
     artifact only feeds the OTHER era's clause 5, and losing it degrades that
-    clause to VACUOUS (which is disclosed) rather than losing this report."""
+    clause to VACUOUS (which is disclosed) rather than losing this report.
+
+    THE POPULATION IS RECORDED WITH THE ERA, and clause 5 reads a PRIMARY
+    sidecar only. Both are population-scoped for the same reason the eras are
+    era-scoped: `all` is a DISCLOSED SECONDARY CUT that carries no verdict, so
+    a v3 `all` cell is not the referent for a v4 PRIMARY cell and letting one
+    stand in for the other would cross two cuts as silently as a stale filename
+    crosses two eras. Only the PRIMARY run records a sidecar.
+    """
     path = cells_artifact_path(era)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(
-            {"era": era, "written": _date.today().isoformat(), "cells": cells},
+            {"era": era, "population": population,
+             "written": _date.today().isoformat(), "cells": cells},
             indent=2, sort_keys=True))
     except OSError as exc:
         print(f"\n  (could not record this run's cells for the sibling era's "
@@ -661,7 +672,13 @@ def read_sibling_cells(era: str) -> tuple[dict | None, str]:
     if blob.get("era") != SECONDARY_ERA:
         return None, (f"{path.name} records era {blob.get('era')!r}, not "
                       f"{SECONDARY_ERA!r} — not read")
-    return blob.get("cells") or {}, f"{path.name} written {blob.get('written')}"
+    if blob.get("population") != POP_PRIMARY:
+        return None, (f"{path.name} records the {blob.get('population')!r} "
+                      f"population, not {POP_PRIMARY!r} — not read (the `all` "
+                      f"cut carries no verdict and is not a referent)")
+    return (blob.get("cells") or {},
+            f"{path.name} written {blob.get('written')} on the "
+            f"{blob.get('population')} population")
 
 
 def clause_five(cell: str, ratio: float, sibling: dict | None,
@@ -1635,7 +1652,44 @@ def g_fork(recs: list[dict], st: A.Settings) -> int:
     return 0
 
 
-def g_cal(baseline: A.Sim, day_lists, st: A.Settings) -> int:
+def account_sim_gates(recs: list[dict], st: A.Settings,
+                      cache: dict) -> tuple[bool, list[str]]:
+    """`account_sim`'s OWN G2-G5, run HERE, on the population this study runs.
+
+    G-CAL is registered as two halves and the second is "account_sim's own
+    gates G2-G5 must still pass with the DEFAULT replayer". That half used to
+    be delegated to `account_sim --selftest-gates`, run outside this process —
+    so the report ASSERTED a gate whose outcome it did not carry, and a reader
+    could not tell from the artifact whether it had been run at all, let alone
+    on which population. It is run in-process instead.
+
+    `account_sim.run_gates` is CALLED, never copied: G2's calibration identity,
+    G3's ledger accounting, G4's selection identity and G5's outcome-blindness
+    are that module's properties and a second implementation of them here is
+    how the study and its host come to certify different things. `selftest` is
+    left OFF — the self-test deliberately INVERTS every expectation so the
+    gates must FAIL, which is a check on the checker and not the check.
+
+    `run_gates` prints its own multi-section narrative, which would bury this
+    report; it is captured and only its PASS/FAIL lines are lifted out,
+    VERBATIM, so the two cannot disagree about what was found.
+    """
+    picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
+                             eligible_fn=P.ladder_eligible)
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            got = A.run_gates(recs, picked, st, cache)
+    except Exception as exc:                      # noqa: BLE001 — reported, not raised
+        return False, [f"G2-G5: NOT RUN — account_sim.run_gates raised {exc!r}"]
+    keep = ("G2:", "G3:", "G4:", "G5:", "GATES:")
+    lines = [ln for ln in buf.getvalue().splitlines()
+             if ln.strip().startswith(keep)]
+    return bool(got.get("ok")), lines
+
+
+def g_cal(baseline: A.Sim, day_lists, pop_recs: list[dict],
+          st: A.Settings, cache: dict) -> int:
     """The HOST simulation is unchanged: the shipped baseline IS `account_sim`.
 
     The baseline book is built with `replayer=None` — the default path — and is
@@ -1644,17 +1698,18 @@ def g_cal(baseline: A.Sim, day_lists, st: A.Settings) -> int:
     plumbing moved the host's book, and no arm-versus-shipped number would mean
     anything; the run stops.
 
-    The other half of G-CAL — `account_sim`'s own G2-G5 under the default
-    replayer — is `python -m scripts.backtest_study.f4_deployment.account_sim
-    --selftest-gates`, run outside this process because it is a property of that
-    module, not of this population.
+    The OTHER half of G-CAL is `account_sim`'s OWN G2-G5 under the default
+    replayer, and it is RUN IN THIS PROCESS, on this population, by calling
+    `account_sim.run_gates` itself — see `account_sim_gates`.
     """
     hdr("G-CAL — the host simulation is unchanged")
-    print("""  The SHIPPED baseline every arm is paired against is
-  account_sim.simulate() on the default replayer path. It is re-run here
-  directly, with its own fresh memo, and the two books' order-sensitive
-  book_signature must match exactly. account_sim's own G2-G5 are checked by
-  its --selftest-gates run, outside this process.""")
+    print("""  Two halves, BOTH run here and BOTH gating. (1) The SHIPPED baseline
+  every arm is paired against is account_sim.simulate() on the default replayer
+  path; it is re-run directly, with its own fresh memo, and the two books'
+  order-sensitive book_signature must match exactly. (2) account_sim's OWN
+  G2-G5 must still pass under that default replayer, on THIS population — run
+  in-process through account_sim.run_gates and its PASS/FAIL lines lifted
+  verbatim below. Either half failing fails G-CAL and NO verdict is read.""")
     direct = A.simulate(day_lists, st.cfg("G-CAL direct"), cache=A.new_cache())
     want = A.book_signature(direct)
     got = A.book_signature(baseline)
@@ -1668,7 +1723,21 @@ def g_cal(baseline: A.Sim, day_lists, st: A.Settings) -> int:
                       f"\n      study  {g}")
                 break
         return EXIT_GATE_FAILURE
-    print("  G-CAL: PASS — book_signature identical on every position.")
+    print("  (1) book_signature identical on every position.")
+
+    ok, lines = account_sim_gates(pop_recs, st, cache)
+    print(f"\n  (2) account_sim's own G2-G5, run in-process on this "
+          f"population ({len(pop_recs)} rows):")
+    for line in lines:
+        print(f"    {line.strip()}")
+    if not ok:
+        print("\n  *** G-CAL FAILED: account_sim's own G2-G5 did not pass "
+              "under the default\n      replayer on this population. The host "
+              "simulation this study deploys through\n      is not the one the "
+              "gate certifies, so nothing below may be read. ***")
+        return EXIT_GATE_FAILURE
+    print("  G-CAL: PASS — book_signature identical, and account_sim's G2-G5 "
+          "all pass here.")
     return 0
 
 
@@ -1822,11 +1891,13 @@ def main(argv=None) -> int:
                     help="era to run (default: STUDY_ERA, else `current`). The "
                          "runner sets STUDY_ERA for the whole suite; this flag "
                          "is the per-study equivalent and is named in the header.")
-    ap.add_argument("--population", default=POP_PRIMARY,
+    ap.add_argument("--population", default=None,
                     choices=(POP_PRIMARY, POP_ALL),
-                    help="PRIMARY is account_sim's dense_episodes population; "
-                         "`all` is the DISCLOSED SECONDARY CUT and carries no "
-                         "verdict of its own.")
+                    help="run ONE population instead of both. PRIMARY is "
+                         "account_sim's dense_episodes population; `all` is the "
+                         "DISCLOSED SECONDARY CUT and carries no verdict of its "
+                         "own. DEFAULT (omitted): the PRIMARY headline AND the "
+                         "`all` cut beside it, in one report, as registered.")
     ap.add_argument("--arms", default=ALL_ARMS,
                     help=f"subset of {ALL_ARMS} to run. The registration freezes "
                          f"the arms at five and adds none.")
@@ -1862,7 +1933,8 @@ def main(argv=None) -> int:
           f"counts_by_source={diag['counts_by_source']}  "
           f"date_range={diag['date_range']}  (bs excluded, calibration gate ON)")
     print(f"debit_calib: {diag['debit_calib']}")
-    print(f"arms: {arms}   population: {a.population}   "
+    print(f"arms: {arms}   population: "
+          f"{a.population or f'{POP_PRIMARY} (headline) + {POP_ALL} (disclosed secondary cut)'}   "
           f"capital ${st.capital:,.0f}  risk {st.risk_pct:.0%} = "
           f"${st.budget:,.0f}/position  {st.max_per_day}/day")
     print("""
@@ -1879,41 +1951,150 @@ def main(argv=None) -> int:
 
     variants = variants_for(arms)
 
-    # ── the population ──────────────────────────────────────────────────────
+    # ── the populations ─────────────────────────────────────────────────────
     all_dates = {str(r["date"]) for r in recs}
     episodes = A.dense_episodes(
         (d for d, _ in P.ordered_by_day(recs, P.ladder_rank, P.ladder_eligible)),
         max_gap=st.episode_max_gap, min_dates=st.episode_min_dates)
     ep_dates = {str(d) for ep in episodes for d in ep}
-    pop_dates = ep_dates if a.population == POP_PRIMARY else all_dates
 
-    hdr("POPULATION AND BASIS")
-    print(f"""  Deployment population: {a.population.upper()}.
-  dense episodes {len(episodes)}  covering {len(ep_dates)} dates;
-  full book {len(all_dates)} dates. account_sim's FEASIBLE verdict is a
-  dense-episode claim, which is why PRIMARY is that population and `all` is a
-  disclosed secondary cut carrying no verdict.
-  Baseline: the SHIPPED profile as account_sim.profile_for resolves it per row
-  (base -> bear-debit be_after .50 -> BEAR_HE), NEVER a clean DEBIT_PROD.
-  CREDIT rows keep CREDIT_PROD in every arm — they are in the book so the
-  ledger and the curve are the real book, not so a credit exit is tested.""")
+    # ONE INVOCATION CARRIES BOTH CUTS. The registration fixes the deployment
+    # population as "`account_sim`'s `dense_episodes` population is PRIMARY.
+    # The `all` population is run as a DISCLOSED SECONDARY CUT and printed
+    # BESIDE IT" — one report, two cuts, one of them carrying the verdicts.
+    # Printing one population per invocation left the `all` cut absent from
+    # every artifact unless somebody remembered a flag, which is the 2026-09-05
+    # grading's "the `all` population cut is absent". `--population` still
+    # takes a single cut for a targeted re-run; the DEFAULT is both.
+    todo = [a.population] if a.population else [POP_PRIMARY, POP_ALL]
 
-    # The walk-forward geometry is computed HERE, before G-COV, purely so the
-    # coverage censuses can be reported on the population the conditional
-    # numbers are actually computed on (the OOS-stitched evaluated set). It is
-    # PRINTED below, in its own section, in the order the report reads.
-    splits = build_splits(pop_dates)
-    block_map = block_index(splits)
-    burn = burn_in_dates(pop_dates, splits)
-    oos_dates = set(block_map)
+    headline: dict | None = None
+    rc_final = 0
+    for pop in todo:
+        if pop != todo[0]:
+            hdr(f"DISCLOSED SECONDARY CUT — POPULATION `{pop.upper()}`")
+            print("""  NO VERDICT IS READ FROM THIS CUT. The registration makes the
+  dense-episode population PRIMARY and runs `all` beside it as a disclosure,
+  mirroring account_sim's own reading in which FEASIBLE is explicitly a
+  dense-episode claim. Every cell below carries its OWN token, computed by the
+  same total ladder on this cut's own dates, and this cut's tally is printed
+  under its own label — never under VERDICT SUMMARY, which is PRIMARY's alone.
+  The two cuts are NOT pooled and neither is read as corroborating the other:
+  `all` is the SAME era's wider date set, not an independent population.""")
+        out = run_population(pop, recs=recs, st=st, cache=cache,
+                             variants=variants, arms=arms, era=era, args=a,
+                             ep_dates=ep_dates, all_dates=all_dates,
+                             episodes=episodes)
+        if pop == todo[0]:
+            headline = out
+            if out["rc"]:
+                # A machinery failure on the cut that carries the verdicts
+                # stops the run: the secondary cut cannot be read as a
+                # substitute for a headline that was never produced.
+                return out["rc"]
+        else:
+            print(f"\n  SECONDARY CUT `{pop}` tally: "
+                  f"{dict(Counter(out['verdicts'].values()))}"
+                  f"   (DISCLOSED, carries no verdict)")
+            if out["rc"]:
+                rc_final = out["rc"]
 
-    # ── G-COV, before any conditional number ────────────────────────────────
+        if pop == todo[0]:
+            print_verdict_summary(out, variants, arms, era, a)
+
+    if headline is None:                      # unreachable; `todo` is non-empty
+        return 2
+    return rc_final
+
+
+def print_verdict_summary(out: dict, variants, arms: str, era: str, a) -> None:
+    """The PRIMARY cut's summary — the only tally in this report that is one.
+
+    The `all` cut's tally prints under its own label inside its own block; this
+    section is PRIMARY's alone, because `all` carries no verdict and a reader
+    scanning for "the tally" must land on the one the registration reads.
+    """
+    verdicts = out["verdicts"]
+    hdr("VERDICT SUMMARY")
+    print(f"  population: {out['population'].upper()}"
+          f"{'  (PRIMARY — the cut the verdicts are read from)' if out['population'] == POP_PRIMARY else ''}")
+    if out.get("no_oos"):
+        for v in variants:
+            print(f"  {v.name:<16} {verdicts.get(v.name, '-')}   (no OOS dates)")
+    else:
+        for v in variants:
+            print(f"  {v.name:<16} {verdicts.get(v.name, '-')}")
+    if "W" in arms and "ARM W/wf" in verdicts:
+        token = prod_robust_token(verdicts["ARM W/wf"])
+        print(f"\n  ARM W arm-level token: {token}")
+        if token == T_PROD_ROBUST:
+            print("  No walk-forward-selected configuration beat PROD out of "
+                  "sample on these dates.\n  That is the affirmative reading of "
+                  "a null here, and it is what the rest of the\n  study is "
+                  "measured against. It ships nothing: it RETAINS the shipped "
+                  "profile.")
+        elif token == V_UNDERPOWERED:
+            print("  PROD-ROBUST is NOT claimed — too few dates to say whether "
+                  "PROD survived.")
+    print(f"\n  tally: {dict(Counter(verdicts.values()))}")
+
+    # ── the SECONDARY era, named here rather than left to be inferred ────────
+    if era == SECONDARY_ERA:
+        print(f"""
+  ERA {era} IS THE SECONDARY ERA AND CARRIES NO VERDICT OF ITS OWN. It is RUN
+  and REPORTED so the PRIMARY era's clause 5 has a referent; the tokens above
+  are printed for that comparison and for no other purpose, and v3 and v4 rows
+  are NEVER pooled. The PRIMARY era is v4 —
+    python -m scripts.backtest_study run exit_drawdown
+  whose report is backtests/study_output/exit_drawdown-latest.txt and is
+  archived beside it as exit_drawdown-v4-<date>.txt. THIS report is archived as
+  backtests/study_output/exit_drawdown-v3-<date>.txt.""")
+    else:
+        print(f"""
+  THE SECONDARY ERA IS {SECONDARY_ERA}, AND IT CARRIES NO VERDICT. It is RUN and
+  REPORTED separately —
+    python -m scripts.backtest_study run exit_drawdown --era {SECONDARY_ERA}
+  — and its report is archived as
+  backtests/study_output/exit_drawdown-{SECONDARY_ERA}-<date>.txt. Its cells
+  reach THIS run only through {cells_artifact_path(SECONDARY_ERA).name}, the
+  clause 5 referent named above the cells; when that file is absent clause 5 is
+  VACUOUS and says so. The two eras are NEVER pooled.""")
+
+    written = out.get("cells_path")
+    if written:
+        print(f"\n  cells recorded for the other era's clause 5: {written}")
+    print(f"""
+  Nothing ships from this research-tier study. A CANDIDATE queues an
+  independent-window confirmation (the live 2026-08/09 dates, once priced);
+  REACTIVE-AGAIN closes the thread for these dates; NULL is recorded as such;
+  UNDERPOWERED publishes its census and is not re-run on these dates. Every
+  ARM D token is prefixed SECONDARY- and none of them is an exit finding.
+  Clause 5 is read ACROSS the two eras: each run records its own PRIMARY cells
+  and reads the SECONDARY era's if that run has been recorded (the referent is
+  named above the cells). Where it printed VACUOUS, the {'v4' if era == 'v3' else 'v3'} cell did not corroborate —
+  it was not asked — and any CANDIDATE carries that annotation into the write-up.""")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# One population's body
+# ═══════════════════════════════════════════════════════════════════════════
+
+def print_g_cov(arms: str, pop_recs, oos_recs, pop_dates, oos_dates,
+                censuses: dict) -> None:
+    """G-COV — EVERY coverage and exclusion census, and nothing conditional.
+
+    `censuses` carries the two the records alone cannot produce: ARM P's split
+    census and ARM D's SIZING census. Both are counted off the book the arm
+    actually deployed, so both are computed in the buffered body and PRINTED
+    here — see `run_population`'s docstring for why that inversion exists.
+    """
     hdr("G-COV — COVERAGE. Printed BEFORE any conditional number.")
     print("""  A conditional figure printed above its coverage line is a reporting
   defect. Every count below comes from len(records) after filters at run time —
-  never from a stored expected figure.""")
-    pop_recs = [r for r in recs if str(r["date"]) in pop_dates]
-    oos_recs = [r for r in recs if str(r["date"]) in oos_dates]
+  never from a stored expected figure. EVERY arm's census is in THIS block:
+  ARM P's and ARM D's are counted off the books their arms deployed, which is
+  why the body that builds those books is computed before this section is
+  printed and printed after it.""")
     print(f"\n  population rows {len(pop_recs)}   dates {len(pop_dates)}   "
           f"debit {sum(1 for r in pop_recs if not r['credit'])}   "
           f"credit {sum(1 for r in pop_recs if r['credit'])}")
@@ -1987,9 +2168,118 @@ def main(argv=None) -> int:
   grid day is skipped exactly as an unpriced mark is, never read as a 100%
   drop.""")
 
-    # ── walk-forward geometry ───────────────────────────────────────────────
-    hdr("WALK-FORWARD DESIGN — thresholds chosen on TRAIN dates only")
-    print(f"""  walk_forward_splits(dates, block={WF_BLOCK}, embargo_days={WF_EMBARGO_DAYS}, \
+    if "P" in arms:
+        sub("ARM P — split census (G-COV)")
+        cp = censuses.get("P")
+        if cp is None:
+            print("  NOT COUNTED — the run stopped before ARM P's book existed. "
+                  "No ARM P\n  conditional figure is printed anywhere below "
+                  "either.")
+        else:
+            print(f"  LEDGER positions {cp['n']}   SPLIT into two halves "
+                  f"{cp['split']}   EXCLUDED: "
+                  f"credit {cp['credit']}   n = 1 (cannot be halved) "
+                  f"{cp['single_contract']}")
+        print("""  The ledger holds the WHOLE reserve until the LATER half exits —
+  simulate() carries one exit session per position and cannot release half a
+  reserve. That is CONSERVATIVE against the registration's "releases half the
+  reserve at the first exit" (it can only admit FEWER later positions, never
+  more) and is disclosed here rather than buried. The CURVE does see two
+  positions: every ARM P position is re-split into its two halves, each with
+  its own exit session and contract count, before book_curves is called.
+  Each half carries the per-position dollar stop on its own loss; at this
+  sizing a position's max loss is <= the risk budget by construction, so that
+  stop cannot bind before the structure's own max loss and the choice is
+  immaterial here.""")
+
+    if "D" in arms:
+        sub("ARM D — SIZING census (G-COV)")
+        cd = censuses.get("D")
+        if cd is None:
+            print("  NOT COUNTED — the run stopped before ARM D's book existed. "
+                  "No ARM D\n  conditional figure is printed anywhere below "
+                  "either.")
+        else:
+            print(f"  collapsed throttle d {cd['choice']}   THROTTLED sessions "
+                  f"{cd['n_dates']}   positions ENTERED at the halved budget "
+                  f"{cd['n_rows']}")
+            print(f"  ledger positions {cd['n_positions']}   NOT throttled "
+                  f"{cd['n_positions'] - cd['n_rows']}")
+        print("""  ARM D EXCLUDES NO ROW ON DATA GROUNDS — it reads no auxiliary series
+  and moves no exit, so it has no coverage gap to report. What it has instead
+  is its OWN registered definition of "affected", fixed in the registration
+  because the general one ("the arm changed that row's exit") is EMPTY for a
+  sizing rule: an affected ROW is a position ENTERED while the throttle was
+  ACTIVE, an affected DATE is a session on which one was. Those counts are
+  population-affecting — they are what G0 and clause 6 read for ARM D — so they
+  are printed HERE, with every other census, and not left to first appear in
+  the G0 cell table beside the conditional numbers they gate. The state is
+  re-derived from the book and RECONCILED against simulate()'s own
+  throttle_dates; a disagreement is a hard failure, not a footnote.""")
+
+
+def run_population(pop: str, *, recs, st: A.Settings, cache: dict,
+                   variants: list[Variant], arms: str, era: str, args,
+                   ep_dates: set, all_dates: set, episodes) -> dict:
+    """One population's whole body. Returns `{rc, verdicts, cells, ...}`.
+
+    `rc` is non-zero only on a MACHINERY refusal, in which case no verdict was
+    read for any arm on this cut.
+
+    THE BODY IS COMPUTED BEFORE G-COV IS PRINTED, AND PRINTED AFTER IT. Two of
+    the registration's censuses — ARM P's credit / `n = 1` exclusions and ARM
+    D's SIZING census — are counted off the book the arm actually deployed, and
+    that book does not exist until the walk-forward fits and the stitched
+    simulations have run. G-COV is registered unqualified as printing BEFORE
+    ANY CONDITIONAL NUMBER ("a conditional figure printed above its coverage
+    line is a reporting defect"), and the 2026-09-05 grading found exactly that
+    defect: ARM P's census printed BELOW the G0 cell table that already carried
+    ARM P's affected-row and affected-date counts.
+
+    Two repairs were available and only one keeps the numbers honest. Re-deriving
+    the two censuses off the RECORDS would put them above the cell table but
+    would print a different population from the one the cells are read on — a
+    census that does not describe the book is worse than a late one. So the
+    body's NARRATIVE is buffered instead: every number is computed in the
+    registered order, G-COV goes out ahead of it with every census in one
+    block, and the body follows unchanged. Nothing about any gate's semantics
+    moves; only the order the report emits two sections in.
+    """
+    pop_dates = ep_dates if pop == POP_PRIMARY else all_dates
+
+    hdr(f"POPULATION AND BASIS — {pop.upper()}")
+    print(f"""  Deployment population: {pop.upper()}.
+  dense episodes {len(episodes)}  covering {len(ep_dates)} dates;
+  full book {len(all_dates)} dates. account_sim's FEASIBLE verdict is a
+  dense-episode claim, which is why PRIMARY is that population and `all` is a
+  disclosed secondary cut carrying no verdict.
+  Baseline: the SHIPPED profile as account_sim.profile_for resolves it per row
+  (base -> bear-debit be_after .50 -> BEAR_HE), NEVER a clean DEBIT_PROD.
+  CREDIT rows keep CREDIT_PROD in every arm — they are in the book so the
+  ledger and the curve are the real book, not so a credit exit is tested.""")
+
+    # The walk-forward geometry is computed HERE, before G-COV, purely so the
+    # coverage censuses can be reported on the population the conditional
+    # numbers are actually computed on (the OOS-stitched evaluated set). It is
+    # PRINTED below, in its own section, in the order the report reads.
+    splits = build_splits(pop_dates)
+    block_map = block_index(splits)
+    burn = burn_in_dates(pop_dates, splits)
+    oos_dates = set(block_map)
+    pop_recs = [r for r in recs if str(r["date"]) in pop_dates]
+    oos_recs = [r for r in recs if str(r["date"]) in oos_dates]
+
+    censuses: dict = {}
+    state: dict = {}
+
+    def body() -> int | None:
+        """Everything from the walk-forward design through G-MTM.
+
+        Returns a non-None exit code on an early stop; fills `state` and
+        `censuses` otherwise. Its output is BUFFERED by the caller.
+        """
+        hdr("WALK-FORWARD DESIGN — thresholds chosen on TRAIN dates only")
+        print(f"""  walk_forward_splits(dates, block={WF_BLOCK}, embargo_days={WF_EMBARGO_DAYS}, \
 min_train_dates={WF_MIN_TRAIN_DATES})
   — purged, expanding, the embargo EQUAL to the path cap, so no training label
   can still be open when a block's test dates start.
@@ -1998,20 +2288,20 @@ min_train_dates={WF_MIN_TRAIN_DATES})
   only to train the first fit. They are NOT silently replayed under the shipped
   profile and folded into the headline; the OOS population is EXACTLY the union
   of the blocks' TEST dates.""")
-    print(f"\n  blocks {len(splits)}   OOS (test) dates {len(oos_dates)}   "
-          f"burn-in dates {len(burn)}")
-    if burn:
-        print(f"  burn-in span {burn[0]} .. {burn[-1]}   rows "
-              f"{sum(1 for r in pop_recs if str(r['date']) in set(burn))}")
-    embargo_held = embargo_ok(splits)
-    print(f"  embargo respected in every block: {embargo_held}")
-    for s in splits:
-        print(f"    block {s.idx:>2}  train {len(s.train):>3} dates "
-              f"(.. {s.train[-1] if s.train else '-'})   "
-              f"test {len(s.test):>3} dates ({s.test[0]} .. {s.test[-1]})")
+        print(f"\n  blocks {len(splits)}   OOS (test) dates {len(oos_dates)}   "
+              f"burn-in dates {len(burn)}")
+        if burn:
+            print(f"  burn-in span {burn[0]} .. {burn[-1]}   rows "
+                  f"{sum(1 for r in pop_recs if str(r['date']) in set(burn))}")
+        embargo_held = embargo_ok(splits)
+        print(f"  embargo respected in every block: {embargo_held}")
+        for s in splits:
+            print(f"    block {s.idx:>2}  train {len(s.train):>3} dates "
+                  f"(.. {s.train[-1] if s.train else '-'})   "
+                  f"test {len(s.test):>3} dates ({s.test[0]} .. {s.test[-1]})")
 
-    if not embargo_held:
-        print("""
+        if not embargo_held:
+            print("""
   *** MACHINERY GATE FAILED: THE EMBARGO. At least one block's last TRAIN date
   is closer to its first TEST date than the registered embargo, so a training
   label could still have been open when that block's test dates began. The
@@ -2019,48 +2309,47 @@ min_train_dates={WF_MIN_TRAIN_DATES})
   what it says — so the run STOPS here rather than printing verdicts with a
   `False` on this line. This is a real failure of the machinery, not a designed
   refusal: `walk_forward_splits` is expected to guarantee it. ***""")
-        return EXIT_GATE_FAILURE
+            return EXIT_GATE_FAILURE
 
-    if not oos_dates:
-        print("""
+        if not oos_dates:
+            print("""
   NO TEST BLOCK SURVIVED THE PURGE. Every candidate block's train set is
   thinner than the registered minimum once the 120-day embargo is applied, so
   there is no out-of-sample population to read and no cell can be evaluated.
   That is the honest output of this design on this population — not a failure,
   and not a reason to lower the floor. Every arm is UNDERPOWERED by
   construction; nothing below is computed.""")
-        hdr("VERDICT SUMMARY")
-        for v in variants:
-            token = V_UNDERPOWERED
-            if v.arm == "D":
-                token = SECONDARY_PREFIX + token
-            print(f"  {v.name:<16} {token}   (no OOS dates)")
-        return 0
+            state["no_oos"] = True
+            return 0
 
-    day_lists = day_lists_for(recs, oos_dates)
-    if not day_lists:
-        print("\n  no deployable rows on the OOS dates — nothing to simulate.")
-        return 0
+        day_lists = day_lists_for(recs, oos_dates)
+        if not day_lists:
+            print("\n  no deployable rows on the OOS dates — nothing to simulate.")
+            state["no_oos"] = True
+            return 0
+        state["day_lists"] = day_lists
 
-    # ── machinery gates ─────────────────────────────────────────────────────
-    rc = g_fork(recs, st)
-    if rc:
-        return rc
+        # ── machinery gates ─────────────────────────────────────────────────
+        rc = g_fork(recs, st)
+        if rc:
+            return rc
 
-    baseline = A.simulate(day_lists, st.cfg("SHIPPED baseline"), cache=cache)
-    rc = g_cal(baseline, day_lists, st)
-    if rc:
-        return rc
-    base_positions = list(baseline.taken)
-    base_bc, base_stats = curves_for(base_positions, st.capital)
+        baseline = A.simulate(day_lists, st.cfg("SHIPPED baseline"), cache=cache)
+        rc = g_cal(baseline, day_lists, pop_recs, st, cache)
+        if rc:
+            return rc
+        base_positions = list(baseline.taken)
+        base_bc, base_stats = curves_for(base_positions, st.capital)
+        state.update(base_positions=base_positions, base_bc=base_bc,
+                     base_stats=base_stats)
 
-    rc = g1_leak(pop_recs, variants)[0]
-    if rc:
-        return rc
+        rc = g1_leak(pop_recs, variants)[0]
+        if rc:
+            return rc
 
-    # ── the fits, the books, the cells ──────────────────────────────────────
-    hdr("WALK-FORWARD FITS — per block, on TRAIN dates only")
-    print(f"""  Two stages, both registered before any number was seen:
+        # ── the fits, the books, the cells ──────────────────────────────────
+        hdr("WALK-FORWARD FITS — per block, on TRAIN dates only")
+        print(f"""  Two stages, both registered before any number was seen:
     (1) every configuration's TRAIN mean R via the memoised replay; keep those
         within {TRAIN_R_TOLERANCE} of the best.
     (2) among the survivors, simulate() on the TRAIN day_lists only and pick the
@@ -2078,42 +2367,45 @@ min_train_dates={WF_MIN_TRAIN_DATES})
   'tied after (i)-(ii)' is how many configurations reached the fires-on-fewest-
   TRAIN-rows tiebreak; that pass is computed only when it can decide something.""")
 
-    # One FULL-WINDOW book per (arm, configuration), computed once. Two
-    # disclosures want the same objects — ARM D's "every grid value's own
-    # stitched book" and the in-sample best — and on ARM W that is 36
-    # `simulate()` + `book_curves` passes, the run's dominant cost after the
-    # per-block stage 2.
-    full_books: dict[tuple[str, str], tuple] = {}
+        # One FULL-WINDOW book per (arm, configuration), computed once. Two
+        # disclosures want the same objects — ARM D's "every grid value's own
+        # stitched book" and the in-sample best — and on ARM W that is 36
+        # `simulate()` + `book_curves` passes, the run's dominant cost after the
+        # per-block stage 2.
+        full_books: dict[tuple[str, str], tuple] = {}
+        state["full_books"] = full_books
 
-    def full_window_book(v: Variant, config):
-        key = (v.name, str(config))
-        if key not in full_books:
-            sim2, pos2 = run_book(v, {0: config}, day_lists, st, cache,
-                                  f"{v.name} @ {v.config_label(config)}",
-                                  one_block(0))
-            bc2, s2 = curves_for(pos2, st.capital)
-            full_books[key] = (sim2, pos2, bc2, s2)
-        return full_books[key]
+        def full_window_book(v: Variant, config):
+            key = (v.name, str(config))
+            if key not in full_books:
+                sim2, pos2 = run_book(v, {0: config}, day_lists, st, cache,
+                                      f"{v.name} @ {v.config_label(config)}",
+                                      one_block(0))
+                bc2, s2 = curves_for(pos2, st.capital)
+                full_books[key] = (sim2, pos2, bc2, s2)
+            return full_books[key]
 
-    results = []
-    mtm_failed = []
-    for v in variants:
-        chosen: dict[int, object] = {}
-        sub(f"{v.name} — per-block selection")
-        for s in splits:
-            fit = fit_block(v, s, recs, st, cache)
-            chosen[s.idx] = fit["pick"]
-            print(f"    block {s.idx:>2}  train {fit['n_train_dates']:>3} dates "
-                  f"/ {fit['n_train_rows']:>4} rows "
-                  f"({fit['n_credit_train_rows']} credit)   survivors "
-                  f"{len(fit['survivors']):>2}/{len(v.grid):<2}"
-                  f"  tied after (i)-(ii) {fit['n_tied']:>2}  -> "
-                  f"{v.config_label(fit['pick'])}")
-        picks = Counter(v.config_label(c) for c in chosen.values())
-        print(f"    selection tally: {dict(picks)}")
+        state["full_window_book"] = full_window_book
 
-        if v.kind == KIND_SIZING and chosen:
-            print(f"""    DISCLOSED, and recorded as wording corrections (b) of
+        results = []
+        mtm_failed = []
+        for v in variants:
+            chosen: dict[int, object] = {}
+            sub(f"{v.name} — per-block selection")
+            for s in splits:
+                fit = fit_block(v, s, recs, st, cache)
+                chosen[s.idx] = fit["pick"]
+                print(f"    block {s.idx:>2}  train {fit['n_train_dates']:>3} dates "
+                      f"/ {fit['n_train_rows']:>4} rows "
+                      f"({fit['n_credit_train_rows']} credit)   survivors "
+                      f"{len(fit['survivors']):>2}/{len(v.grid):<2}"
+                      f"  tied after (i)-(ii) {fit['n_tied']:>2}  -> "
+                      f"{v.config_label(fit['pick'])}")
+            picks = Counter(v.config_label(c) for c in chosen.values())
+            print(f"    selection tally: {dict(picks)}")
+
+            if v.kind == KIND_SIZING and chosen:
+                print(f"""    DISCLOSED, and recorded as wording corrections (b) of
     2026-09-05 (build, second) and (f) of 2026-09-05 (build, third) on the
     registration: `Cfg.dd_throttle` is ONE value for a whole simulation — a
     ledger cannot carry a different `d` per block — so ARM D's walk-forward
@@ -2126,62 +2418,103 @@ min_train_dates={WF_MIN_TRAIN_DATES})
     per-block table above shows what each block picked; every grid value's own
     stitched OOS book is printed below, so the reader can see what the collapse
     cost. Collapsed choice (block {min(chosen)}): {v.config_label(collapse_choice(chosen))}.""")
-            for g in v.grid:
-                _s2, pos2, _bc2, st2 = full_window_book(v, g)
-                print(f"      stitched OOS book at {v.config_label(g):<10} "
-                      f"positions {len(pos2):>4}   max DD ${st2.max_dd:>10,.0f} "
-                      f"({st2.max_dd / st.capital:>6.1%} of capital)   "
-                      f"Ulcer {st2.ulcer:.3f}%")
+                for g in v.grid:
+                    _s2, pos2, _bc2, st2 = full_window_book(v, g)
+                    print(f"      stitched OOS book at {v.config_label(g):<10} "
+                          f"positions {len(pos2):>4}   max DD ${st2.max_dd:>10,.0f} "
+                          f"({st2.max_dd / st.capital:>6.1%} of capital)   "
+                          f"Ulcer {st2.ulcer:.3f}%")
 
-        sim, positions = run_book(v, chosen, day_lists, st, cache, v.name,
-                                  map_block(block_map))
-        bc, stats = curves_for(positions, st.capital)
-        if not bc.reconciles:
-            mtm_failed.append((v.name, bc))
-        if v.kind == KIND_SIZING:
-            # ARM D's OWN registered definition of "affected" (a position
-            # ENTERED at the halved budget) IS its `changed` set: G0 and clause
-            # 6 read `rows`/`dates`, and for a sizing arm those are the throttled
-            # entries. `arm_only`/`base_only` have no meaning here — a sizing
-            # rule's book is not compared row-for-row against the shipped one —
-            # and the G0 table prints '-' for them.
-            aff = throttled_entries(sim, sim.cfg, day_lists)
-            aff = dict(changed=aff["rows"], arm_only=[], base_only=[],
-                       rows=aff["rows"], n_rows=aff["n_rows"],
-                       dates=aff["dates"], knockon_rows=[], knockon_dates=[])
-        else:
-            aff = affected_set(positions, base_positions)
-        results.append((v, sim, positions, bc, stats, aff))
+            sim, positions = run_book(v, chosen, day_lists, st, cache, v.name,
+                                      map_block(block_map))
+            bc, stats = curves_for(positions, st.capital)
+            if not bc.reconciles:
+                mtm_failed.append((v.name, bc))
+            if v.kind == KIND_SIZING:
+                # ARM D's OWN registered definition of "affected" (a position
+                # ENTERED at the halved budget) IS its `changed` set: G0 and clause
+                # 6 read `rows`/`dates`, and for a sizing arm those are the throttled
+                # entries. `arm_only`/`base_only` have no meaning here — a sizing
+                # rule's book is not compared row-for-row against the shipped one —
+                # and the G0 table prints '-' for them.
+                aff = throttled_entries(sim, sim.cfg, day_lists)
+                censuses["D"] = dict(choice=v.config_label(collapse_choice(chosen))
+                                     if chosen else "-",
+                                     n_rows=aff["n_rows"],
+                                     n_dates=len(aff["dates"]),
+                                     n_positions=len(sim.taken))
+                aff = dict(changed=aff["rows"], arm_only=[], base_only=[],
+                           rows=aff["rows"], n_rows=aff["n_rows"],
+                           dates=aff["dates"], knockon_rows=[], knockon_dates=[])
+            else:
+                aff = affected_set(positions, base_positions)
+            if v.arm == "P":
+                censuses["P"] = arm_p_census(sim.taken)
+            results.append((v, sim, positions, bc, stats, aff))
+        state["results"] = results
 
-    # G-MTM, printed with the books it was computed on — it has nothing to
-    # reconcile until every arm's book exists.
-    hdr("G-MTM — the curve and the ledger agree")
-    print("""  Every position's cumulative mark-to-market at its exit index, times its
+        # G-MTM, printed with the books it was computed on — it has nothing to
+        # reconcile until every arm's book exists.
+        hdr("G-MTM — the curve and the ledger agree")
+        print("""  Every position's cumulative mark-to-market at its exit index, times its
   contracts, must equal the dollars the FROZEN harness booked for it, within
   TOL_DOLLARS per contract. Target = TARGET_POSITION: this book was RE-SIZED
   and RE-EXITED by a replay, so the row's stored realized_pnl_abs describes a
   different position by construction. Two separate computations, but NOT the
   two-stored-columns check, and this report does not call it that.""")
-    n_pos = sum(len(r[2]) for r in results) + len(base_positions)
-    # The BASELINE is in the gate, not merely in its pass line. Every
-    # arm-versus-shipped number in this report is computed against this book;
-    # a baseline that failed to reconcile would make all of them meaningless,
-    # and the pass line below claims it reconciled.
-    if not base_bc.reconciles:
-        mtm_failed.insert(0, ("SHIPPED baseline", base_bc))
-    if mtm_failed:
-        print(f"\n  *** G-MTM FAILED on {len(mtm_failed)} book(s). ***")
-        for name, bc in mtm_failed:
-            print(f"    {name}: {len(bc.mismatches)} position(s) disagree, "
-                  f"worst ${bc.worst_mismatch:,.4f}")
-            for m in bc.mismatches[:5]:
-                print(f"      {m.date} {m.ticker} x{m.contracts} mtm "
-                      f"${m.mtm_at_exit:,.2f} vs booked ${m.booked:,.2f}")
-        return EXIT_GATE_FAILURE
-    print(f"\n  G-MTM: PASS — {n_pos} positions across the baseline and every "
-          f"arm's book\n  reconcile at TOL_DOLLARS ${M.TOL_DOLLARS:.2f} per "
-          f"contract; baseline stale marks carried\n  forward inside an open "
-          f"window: {base_bc.n_carried_forward}.")
+        n_pos = sum(len(r[2]) for r in results) + len(base_positions)
+        # The BASELINE is in the gate, not merely in its pass line. Every
+        # arm-versus-shipped number in this report is computed against this book;
+        # a baseline that failed to reconcile would make all of them meaningless,
+        # and the pass line below claims it reconciled.
+        if not base_bc.reconciles:
+            mtm_failed.insert(0, ("SHIPPED baseline", base_bc))
+        if mtm_failed:
+            print(f"\n  *** G-MTM FAILED on {len(mtm_failed)} book(s). ***")
+            for name, bc in mtm_failed:
+                print(f"    {name}: {len(bc.mismatches)} position(s) disagree, "
+                      f"worst ${bc.worst_mismatch:,.4f}")
+                for m in bc.mismatches[:5]:
+                    print(f"      {m.date} {m.ticker} x{m.contracts} mtm "
+                          f"${m.mtm_at_exit:,.2f} vs booked ${m.booked:,.2f}")
+            return EXIT_GATE_FAILURE
+        print(f"\n  G-MTM: PASS — {n_pos} positions across the baseline and every "
+              f"arm's book\n  reconcile at TOL_DOLLARS ${M.TOL_DOLLARS:.2f} per "
+              f"contract; baseline stale marks carried\n  forward inside an open "
+              f"window: {base_bc.n_carried_forward}.")
+        return None
+
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = body()
+    finally:
+        # G-COV first, ALWAYS — including on the paths that stopped early, where
+        # it says which censuses could not be counted rather than going missing.
+        print_g_cov(arms, pop_recs, oos_recs, pop_dates, oos_dates, censuses)
+        print(buf.getvalue(), end="")
+
+    verdicts: dict[str, str] = {}
+    cells: dict[str, dict] = {}
+
+    if state.get("no_oos"):
+        for v in variants:
+            token = V_UNDERPOWERED
+            if v.arm == "D":
+                token = SECONDARY_PREFIX + token
+            verdicts[v.name] = token
+            cells[v.name] = dict(verdict=token, ratio=None, powered=False,
+                                 n_aff_dates=0, n_aff_rows=0)
+        return _finish(pop, era, verdicts, cells, rc=0, no_oos=True)
+    if rc:
+        return dict(rc=rc, verdicts=verdicts, cells=cells, population=pop,
+                    cells_path=None, no_oos=False)
+
+    results = state["results"]
+    base_positions = state["base_positions"]
+    base_bc = state["base_bc"]
+    base_stats = state["base_stats"]
+    oos_sorted = sorted(oos_dates)
 
     # ── G0 and the cells ────────────────────────────────────────────────────
     hdr("G0 — POWER. Runs first and blocks every criterion.")
@@ -2202,7 +2535,11 @@ min_train_dates={WF_MIN_TRAIN_DATES})
   firing on it: an earlier exit freed a reserve and admitted a later position.
   Counting those towards the floor would inflate power in the PERMISSIVE
   direction — a cell clearing 25 dates / 60 rows on rows the rule never touched
-  — so they are printed as a DISCLOSED, NON-GATING breakdown beside it.""")
+  — so they are printed as a DISCLOSED, NON-GATING breakdown beside it.
+
+  EVERY COVERAGE AND EXCLUSION CENSUS THIS TABLE DEPENDS ON — ARM U's and ARM
+  O's data exclusions, ARM P's credit / n = 1 exclusions, ARM D's SIZING
+  census — IS PRINTED ABOVE, in G-COV.""")
     print(f"\n  baseline book: {len(base_positions)} positions / "
           f"{len({str(p.rec['date']) for p in base_positions})} dates   "
           f"max DD ${base_stats.max_dd:,.0f} "
@@ -2226,39 +2563,18 @@ min_train_dates={WF_MIN_TRAIN_DATES})
               f"{len(aff['dates']):>10}  {cols[0]:>8} {cols[1]:>9} "
               f"{cols[2]:>10}  {'powered' if ok else 'UNDERPOWERED'}")
 
-    if "P" in arms:
-        for v, sim, _positions, _bc, _stats, _aff in results:
-            if v.arm != "P":
-                continue
-            cp = arm_p_census(sim.taken)
-            sub("ARM P — split census (G-COV)")
-            print(f"  LEDGER positions {cp['n']}   SPLIT into two halves "
-                  f"{cp['split']}   EXCLUDED: "
-                  f"credit {cp['credit']}   n = 1 (cannot be halved) "
-                  f"{cp['single_contract']}")
-            print("""  The ledger holds the WHOLE reserve until the LATER half exits —
-  simulate() carries one exit session per position and cannot release half a
-  reserve. That is CONSERVATIVE against the registration's "releases half the
-  reserve at the first exit" (it can only admit FEWER later positions, never
-  more) and is disclosed here rather than buried. The CURVE does see two
-  positions: every ARM P position is re-split into its two halves, each with
-  its own exit session and contract count, before book_curves is called.
-  Each half carries the per-position dollar stop on its own loss; at this
-  sizing a position's max loss is <= the risk budget by construction, so that
-  stop cannot bind before the structure's own max loss and the choice is
-  immaterial here.""")
-
     hdr("CELL RESULTS — every cell, regardless of outcome")
     print("""  A cell is a CANDIDATE-FOR-INDEPENDENT-WINDOW only on the FULL
   conjunction. Failing any one clause is failing. A cell that clears DeltaR and
   fails CONT is REACTIVE-AGAIN: it cut the curve by SELLING CONTINUATIONS,
   exactly as the three rejected trails did, and the thread closes for these
   dates. CANDIDATE is NOT a ship — it queues an independent window.""")
-    verdicts: dict[str, str] = {}
-    cells: dict[str, dict] = {}
     sibling, sibling_why = read_sibling_cells(era)
     print(f"\n  clause 5 referent: "
           f"{'this IS the secondary era' if era == SECONDARY_ERA else sibling_why}")
+    if pop != POP_PRIMARY:
+        print("  (this is the DISCLOSED SECONDARY CUT — no verdict is read from "
+              "any token below)")
     for v, _sim, positions, bc, stats, aff in results:
         powered = (len(aff["dates"]) >= MIN_AFFECTED_DATES
                    and aff["n_rows"] >= MIN_AFFECTED_ROWS)
@@ -2277,9 +2593,9 @@ min_train_dates={WF_MIN_TRAIN_DATES})
                                  n_aff_rows=aff["n_rows"])
             continue
         ev = evaluate_cell(v, positions, base_positions, bc, base_bc, stats,
-                           base_stats, aff, sorted(oos_dates), st, era == "v3",
+                           base_stats, aff, oos_sorted, st, era == "v3",
                            sibling=sibling, sibling_why=sibling_why)
-        print_cell(v, ev, stats, base_stats, st.capital, a.arm_p_dollars)
+        print_cell(v, ev, stats, base_stats, st.capital, args.arm_p_dollars)
         verdicts[v.name] = ev["verdict"]
         cells[v.name] = dict(verdict=ev["verdict"], ratio=ev["ratio"],
                              powered=True, n_aff_dates=ev["n_aff_dates"],
@@ -2291,6 +2607,7 @@ min_train_dates={WF_MIN_TRAIN_DATES})
   the same OOS population, printed only so a reader can see the size of the
   in-sample / out-of-sample gap. No criterion above may be evaluated on it and
   none is.""")
+    full_window_book = state["full_window_book"]
     for v in variants:
         if len(v.grid) < 2:
             print(f"  {v.name:<16} single-configuration grid — nothing to "
@@ -2305,38 +2622,29 @@ min_train_dates={WF_MIN_TRAIN_DATES})
         print(f"  {v.name:<16} in-sample best {v.config_label(best):<34} "
               f"max DD ${dd:,.0f}   vs shipped ${base_stats.max_dd:,.0f}")
 
-    # ── summary ─────────────────────────────────────────────────────────────
-    hdr("VERDICT SUMMARY")
-    for v in variants:
-        print(f"  {v.name:<16} {verdicts.get(v.name, '-')}")
-    if "W" in arms and "ARM W/wf" in verdicts:
-        token = prod_robust_token(verdicts["ARM W/wf"])
-        print(f"\n  ARM W arm-level token: {token}")
-        if token == T_PROD_ROBUST:
-            print("  No walk-forward-selected configuration beat PROD out of "
-                  "sample on these dates.\n  That is the affirmative reading of "
-                  "a null here, and it is what the rest of the\n  study is "
-                  "measured against. It ships nothing: it RETAINS the shipped "
-                  "profile.")
-        elif token == V_UNDERPOWERED:
-            print("  PROD-ROBUST is NOT claimed — too few dates to say whether "
-                  "PROD survived.")
-    print(f"\n  tally: {dict(Counter(verdicts.values()))}")
-    written = write_cells_artifact(era, cells)
-    if written:
-        print(f"  cells recorded for the other era's clause 5: "
-              f"{written.relative_to(ROOT)}")
-    print(f"""
-  Nothing ships from this research-tier study. A CANDIDATE queues an
-  independent-window confirmation (the live 2026-08/09 dates, once priced);
-  REACTIVE-AGAIN closes the thread for these dates; NULL is recorded as such;
-  UNDERPOWERED publishes its census and is not re-run on these dates. Every
-  ARM D token is prefixed SECONDARY- and none of them is an exit finding.
-  Clause 5 is read ACROSS the two eras: each run records its own cells and reads
-  the SECONDARY era's if that run has been recorded (the referent is named above
-  the cells). Where it printed VACUOUS, the {'v4' if era == 'v3' else 'v3'} cell did not corroborate —
-  it was not asked — and any CANDIDATE carries that annotation into the write-up.""")
-    return 0
+    return _finish(pop, era, verdicts, cells, rc=0, no_oos=False)
+
+
+def _finish(pop: str, era: str, verdicts: dict, cells: dict, rc: int,
+            no_oos: bool) -> dict:
+    """Record the PRIMARY cut's cells for the sibling era's clause 5.
+
+    ONLY the PRIMARY cut records one, and it records one on EVERY path that
+    produced tokens — the no-OOS path included. That path used to return before
+    the write, so a v3 run whose primary population has no surviving test block
+    left NO referent on disk at all and the v4 run's clause 5 was VACUOUS for a
+    reason that had nothing to do with v3's evidence. An all-UNDERPOWERED
+    sidecar is the honest referent there: the cells have no sign, clause 5
+    reads them as VACUOUS-BUT-DISCLOSED, and the report says so with the file
+    named rather than absent.
+    """
+    path = None
+    if pop == POP_PRIMARY:
+        written = write_cells_artifact(era, pop, cells)
+        if written:
+            path = str(written.relative_to(ROOT))
+    return dict(rc=rc, verdicts=verdicts, cells=cells, population=pop,
+                cells_path=path, no_oos=no_oos)
 
 
 if __name__ == "__main__":

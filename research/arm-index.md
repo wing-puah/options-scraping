@@ -191,6 +191,28 @@ studies' labels appear mid-prose only.
 - `E3` (arm) — Horizon-as-time-exit: the emitted `horizon` DTE bucket as the
   time exit vs the shipped 0.75 fraction; survival control runs first.
 
+#### `exit_drawdown` — [`pre-registrations/f2_management/exit_drawdown.md`](pre-registrations/f2_management/exit_drawdown.md), `lib/exit_overlays.py`
+
+Five arms, every threshold chosen WALK-FORWARD on train dates only. The overlay
+mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
+`f4_deployment/account_sim.py` and changes no row's exit.
+
+- `ARM W` (arm) — Walk-forward knob control: the pt × sl × tef grid
+  (36 points, PROD is one of them) selected per block. The honesty baseline
+  every other arm is read against. One of `ARM W`'s owners repo-wide.
+- `ARM U` (arm) — Underlying ATR stop for DEBIT verticals: exit on the first
+  close against the position by ≥ k·ATR14, ATR FROZEN at entry, k ∈ {1.5, 2.0,
+  3.0}, added to sl .75 (a) or replacing it (b).
+- `ARM O` (arm) — Flow-unwind exit off the entry long leg's own `Open Int`
+  path, read LAGGED one session, X ∈ {0.25, 0.40}; plus one volume-climax
+  variant (3× the EXPANDING post-entry median and an adverse mark).
+- `ARM P` (arm) — Partial scale-out: half the contracts at the shipped pt,
+  half with pt=None, as two synthetic positions. Exact, nothing to select.
+  Quoted in R, not dollars. One of `ARM P`'s owners repo-wide.
+- `ARM D` (arm) — SECONDARY drawdown THROTTLE (sizing, not exit): half budget
+  while marked equity is ≥ d below its running peak, d ∈ {0.05, 0.10}. Can
+  never ship from this study; has its own "affected" definition for G0.
+
 ### ③ Structure — which wrapper
 
 #### `bear_rewrap` — `f3_structure/bear_rewrap.py`

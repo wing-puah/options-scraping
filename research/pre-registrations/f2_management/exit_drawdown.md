@@ -741,3 +741,254 @@ design is above; the file inventory is the plan's own "Files" section
 - Run as `python -m scripts.backtest_study run exit_drawdown` (v4) and
   `… --era v3`; record with `make study-record`; grade with
   `python -m scripts.study_review exit_drawdown` (never `--dry-run`).
+
+---
+
+## Wording correction — 2026-09-05 (build)
+
+_Appended at build time, per "Anti-tuning": "Any build-time deviation is
+appended to this file as a dated 'wording correction' and never made as a
+silent change." Nothing above is edited; this section records two build-time
+readings of **G1**, both of them narrowing an implementation detail of the
+GATE, neither of them touching an arm, a grid, a threshold, a population, a
+criterion or a verdict._
+
+**1. "ONE SESSION FORWARD" is one session of the RULE'S OWN GRID, not one row
+of the cached file.** G1 says "shift every auxiliary series (bars, OI, volume)
+ONE SESSION FORWARD". An option-history or OHLC file carries dates the
+position's grid never reads — before the signal date, after the exit, and any
+session the WEEKDAY grid skips — so shifting on the file's key order can pull a
+value the rule never saw onto a grid session, which is not "one session later"
+and makes the gate fire on rows that leak nothing. The shift is therefore
+applied on `t.grid`: session `i` carries what session `i-1` carried, MISSING
+stays MISSING, and keys off the grid are untouched. Measured on the v4 PRIMARY
+population, this is the difference between 57 spurious "moved earlier" rows and
+zero. ARM U additionally holds bars at or before the ENTRY session fixed, so
+the entry-frozen ATR14 — a SCALAR computed off bars `<= entry` by construction
+— is not re-estimated; the gate then measures the information set rather than
+the ATR.
+
+**2. G1's DIRECTION half is read on ARM O's volume LEG, not on its
+conjunction.** ARM O's volume variant fires on a volume spike **AND** a mark
+that closed against the position. Only the volume half is governed by the
+series G1 shifts, so delaying the volume while the mark stays put RE-PAIRS the
+two legs: a spike that missed an adverse mark on its own session can land on
+one a session later, ahead of the original firing. That is an artifact of
+shifting one leg of a conjunction, not a rule reading the future, and a literal
+reading of G1 would fail a correct rule for it. So for that variant alone, "no
+exit moves EARLIER" is evaluated on the volume leg in isolation, and the
+conjunction's own earlier-firings are PRINTED as a disclosed, non-gating count
+beside it. The probe is pinned to the rule by a coherence check — the
+conjunction can only ever fire at or after its own volume leg — and a non-zero
+coherence failure FAILS G1, so the two cannot drift apart silently. The
+"at least one exit CHANGES" half is unchanged and is still read on the rule
+itself.
+
+Both readings tighten what the gate measures; neither weakens what it would
+refuse. The ATR stop and the OI unwind are gated on both halves of G1 exactly
+as registered.
+
+---
+
+## Wording correction — 2026-09-05 (build, second)
+
+_Appended at build time, per "Anti-tuning": "Any build-time deviation is
+appended to this file as a dated 'wording correction' and never made as a
+silent change." Nothing above is edited. The first correction of this date
+recorded two readings of **G1**; this one records the deviations found by the
+build review of the module. **(a)–(c) are genuine deviations from the text
+above; (d)–(e) are readings of a gate's implementation, recorded here rather
+than left in report prose. None of them changes an arm, a grid, a threshold, a
+population, a criterion, a verdict token or the ladder.**_
+
+**(a) ARM P: the ledger holds the WHOLE reserve until the LATER half exits.**
+ARM P above says the two synthetic positions are modelled "so `book_curves` sees
+valid per-position windows and **the ledger releases half the reserve at the
+FIRST exit**". `account_sim.simulate()` carries ONE exit session per position and
+cannot release half a reserve, and `simulate()` is not forked for this study —
+the whole module is a composition around frozen machinery. So the LEDGER-facing
+blend (`partial_replayer`) reports `days_held` as the LATER of the two halves and
+the reserve is released then. This is CONSERVATIVE against the registered
+release: holding a reserve longer can only ever admit FEWER later positions,
+never more, so no ARM P number is flattered by it. The CURVE is unaffected and
+sees the registered shape — `split_positions()` re-splits every ARM P position
+into its two halves, each with its own contract count and its own exit session,
+before `book_curves` is called. The deviation is printed in ARM P's census.
+
+**(b) ARM D: the walk-forward selection COLLAPSES to the modal block choice.**
+ARM D above says `d` is "chosen walk-forward exactly as every other threshold
+here is". `Cfg.dd_throttle` is ONE value for a whole simulation — a ledger
+cannot carry a different `d` per block — so the stitched OOS book runs the MODAL
+block choice and the blocks whose TRAIN fit chose the other value are run under
+it. This is a property of the ledger, not a tuning choice, and it is disclosed
+three ways: the per-block selection table prints what each block picked, the
+collapse itself is printed with the modal value named, and **every grid value's
+own stitched OOS book is printed beside it** so a reader can see what the
+collapse cost. ARM D remains SECONDARY and unshippable from this family.
+
+**(c) ARM P's account-level drawdown is WITHHELD in dollars by default.** The
+"dollars ban is scoped" section above requires "an explicit operator ACK before
+the module is built", and states the ALTERNATIVE reading — no dollar drawdown
+figure for ARM P, the co-primary quoted in R and as a percentage of starting
+capital — for the case where the operator reads the ban as unscoped. **No ACK
+has been recorded.** The module was therefore built to the ALTERNATIVE reading
+as its DEFAULT: ARM P's account-level max drawdown, its improvement and the
+improvement's block-bootstrap CI bounds are all printed as a share of starting
+capital, with a banner naming the open item; `--arm-p-dollars` prints the dollar
+levels for whoever holds the ack. **The verdict is identical either way** —
+clause 1 is evaluated on the improvement RATIO, which is scale-free — so this
+resolves the presentation and defers, rather than pre-empts, the operator's
+choice. If the ack is given for the SCOPED reading, the flag becomes the default
+and this paragraph is superseded by a further dated correction; the ack is not
+retro-fitted by report prose.
+
+**(d) Clause 5's referent is the sibling era's RECORDED cells, and its absence
+is VACUOUS.** The two eras are two separate processes, so each run records its
+own cells (verdict, improvement ratio, power) in a per-era sidecar under
+`backtests/study_output/` and reads the SECONDARY era's if one is on disk; the
+sidecar names its own era and one that says otherwise is refused, so the eras
+cannot be crossed. When the v3 run has not been recorded, the clause is VACUOUS
+and printed as such — the same disclosure the registration fixes for a v3 cell
+with no sign, and for the same reason (a population that has not spoken
+contradicts nothing). A recorded, POWERED, opposite-signed v3 cell FAILS the
+clause and blocks the candidate, which is the behaviour the clause was written
+for and which a hardcoded pass could not deliver.
+
+**(e) G1's "at least one exit CHANGED" half is tallied PER VARIANT.** The gate's
+stated purpose for that half is per-series — "the first half proves the series
+is actually being read". One counter aggregated over every exercised variant
+lets a series that is in fact never read (a wiring bug returning an empty map)
+hide behind a variant whose series does change, so each EXERCISED variant must
+change at least one firing session on its own and the per-variant table is
+printed. This tightens what the gate refuses; it weakens nothing. The gate's
+series are also read through the SAME loaders the arms are wired to, so it
+probes what the run reads rather than a parallel read of the same files.
+
+---
+
+## Wording correction — 2026-09-05 (build, third)
+
+_Appended at build time, per "Anti-tuning": "Any build-time deviation is
+appended to this file as a dated 'wording correction' and never made as a
+silent change." Nothing above is edited. The build review of the module found
+one of the SECOND correction's own resolutions to be wrong, and one gap in the
+"Bar for a candidate" conjunction that the registration never resolved. **(f)
+SUPERSEDES paragraph (b) of the second correction of this date; (g) fixes a
+reading the registration left open on a verdict-affecting clause. Neither
+changes an arm, a grid, a threshold, a population, a criterion or a verdict
+token.**_
+
+**(f) ARM D's collapse is to the EARLIEST block's choice, not the MODAL one.
+This supersedes (b).** Paragraph (b) of the second correction recorded that
+`Cfg.dd_throttle` is ONE value for a whole simulation — true, and the reason a
+sizing arm's per-block selection must collapse at all — and then resolved the
+collapse to the MODAL block choice, framing that as "a property of the ledger,
+not a tuning choice". **That framing was wrong, and the resolution with it.**
+WHICH value the collapse lands on is not a property of the ledger; it is a
+choice, and the modal one is LOOKAHEAD. This registration's binding rule is
+"Thresholds are chosen per walk-forward block on TRAIN dates only … then
+applied to that block's TEST dates". A modal collapse replays block 0's TEST
+dates under a `d` selected using blocks 1..n's fits, whose TRAIN sets contain
+dates at or after those very test dates — so the stitched book would not be out
+of sample, and (b) neither said so nor labelled the cell. It is not cosmetic
+either: on the v4 primary population one grid value throttles sessions and
+changes the book while the other never fires, so the collapse decides the whole
+ARM D cell.
+
+The collapse is therefore to the **EARLIEST block's choice**, which uses no
+information after its own TRAIN window and gives the stitched ARM D book the
+same out-of-sample guarantee every exit arm's per-block dispatch gives. Block
+indices are unique, so there is no tie to break. The disclosure (b) committed is
+kept in full and unchanged: the per-block selection table prints what each block
+picked, the collapse is printed with the collapsed value named, and **every grid
+value's own stitched OOS book is printed beside it**. The collapse rule lives in
+one function (`collapse_choice()`, called by `run_book()`), so no caller can
+perform a different one while the report's prose describes this one. ARM D
+remains SECONDARY and unshippable from this family.
+
+**(g) Clause 4's SIGNLESS case is read STRICTLY, as clause 3's is.** "Bar for a
+candidate" clause 4 asks for the improvement to be same-signed in BOTH pricing
+tiers (`real` and `strike_expiry_tweak`). The registration spells out the
+signless case for clause 3 (a half with no sign cannot be same-signed, so the
+clause FAILS) and for clause 5 (a v3 cell with no sign contradicts nothing, so
+the clause PASSES vacuously), and says nothing for clause 4 — leaving a
+verdict-affecting reading to be inferred from `nan` propagation. It is fixed
+here: a tier with NO SIGN — no positions in one of the two books, so there is no
+improvement to compute — **cannot be same-signed and the clause is NOT
+cleared**, exactly as for clause 3 and for the same reason. Clause 4, like
+clause 3, is a STABILITY clause: it asks the PRIMARY evaluated population to
+agree with ITSELF across a cut of its own rows, and a cut that cannot agree
+fails it. Clause 5's vacuous pass is the CORROBORATION case and stays the
+asymmetry the registration already argues for. The reading is PRINTED on the
+clause-4 line of every cell, so a grader reads it rather than infers it.
+
+---
+
+## Wording correction — 2026-09-05 (build, fourth)
+
+_Appended at build time, per "Anti-tuning": "Any build-time deviation is
+appended to this file as a dated 'wording correction' and never made as a
+silent change." Nothing above is edited. The two-analyst grading of the first
+run reopened the MODULE on REPORTING defects — a grading defect reopens the
+module, never the registration — and two of the repairs turned on readings this
+file left ambiguous. **(h) resolves a mis-citation inside G-CAL; (i) fixes the
+scope of clause 5's referent. Neither changes an arm, a grid, a threshold, a
+population, a criterion or a verdict token.**_
+
+**Not recorded here, because neither needed a reading of this file:** ARM P's
+and ARM D's censuses now print in the G-COV block with ARM U's and ARM O's,
+above every cell table (the registration's "a conditional figure printed above
+its coverage line is a reporting defect" is unqualified, and the first run
+printed ARM P's census BELOW the G0 cell table that already carried ARM P's
+affected-row and affected-date counts); and one invocation now carries the
+PRIMARY headline AND the `all` cut, which is what "run as a DISCLOSED SECONDARY
+CUT and printed beside it" already says. Both were module defects against text
+that was already correct.
+
+**(h) G-CAL's parenthetical names the SELF-TEST invocation, which is the
+opposite of the check.** G-CAL reads: "`account_sim`'s own gates **G2–G5** must
+still pass with the DEFAULT replayer (`account_sim --selftest-gates`)." The
+requirement — G2–G5 passing under the default replayer — is exactly right; the
+parenthetical is not the command that shows it. `--selftest-gates` deliberately
+INVERTS every one of those gates' expectations (it adds 1 to `days_held` in G2,
+injects a $1 leak into G3's identity, and inverts G4's and G5's comparisons) so
+that a healthy build must print `GATES: FAILED`. It is a check on the CHECKER,
+not the check, and a run of it that PASSED would mean the gates were broken.
+
+The registered gate is therefore read as: **`account_sim.run_gates` under its
+DEFAULT (non-self-test) path, on the population this study deploys through, run
+IN THIS PROCESS, with its per-gate PASS/FAIL lines printed inside this study's
+own report; a failure fails G-CAL exactly as a `book_signature` mismatch does.**
+The first build delegated the half to a separate `--selftest-gates` invocation
+"outside this process" and printed no G2–G5 result at all, so the report
+ASSERTED a gate whose outcome it did not carry — the two analysts split on it
+precisely there (one graded G-CAL MET on the narrower printed claim, one
+declined to grade it at all), which is what an un-carried sub-check does to a
+reader. `run_gates` is CALLED, never copied: G2's calibration identity, G3's
+ledger accounting, G4's selection identity and G5's outcome-blindness are
+`account_sim`'s properties, and a second implementation of them here is how a
+study and its host come to certify different things.
+
+**(i) Clause 5's referent is the SECONDARY era's PRIMARY cell, never its `all`
+cut.** "Population and basis" fixes two independent axes — the ERA (v4 PRIMARY,
+v3 SECONDARY, never pooled) and the deployment POPULATION (`dense_episodes`
+PRIMARY, `all` a disclosed secondary cut from which **no verdict is read**) —
+and clause 5 is written on the first axis only ("SECONDARY v3 is not
+opposite-signed"). Because `all` carries no verdict, an `all` cell is not a
+verdict-carrying cell and cannot contradict one; this is a strict reading of
+text already here, not new content. It is recorded because it is
+VERDICT-AFFECTING and because the first build could violate it silently: the
+cells sidecar the two eras exchange recorded only its ERA, so a v3 `all` run's
+sidecar would have been read as v4 PRIMARY's clause-5 referent, crossing two
+cuts exactly as a stale filename would cross two eras.
+
+The sidecar therefore records its POPULATION beside its era, only the PRIMARY
+cut writes one, and a sidecar that names any other population — or names none,
+as the pre-correction files do — is REFUSED and clause 5 prints VACUOUS with the
+reason, which is the same disclosure this registration already fixes for a v3
+cell with no sign. One further consequence, and it is a repair rather than a
+reading: the no-OOS path now records its cells before returning. A v3 primary
+population with no surviving test block used to leave NO sidecar at all, so the
+v4 clause 5 read VACUOUS for a reason that had nothing to do with v3's evidence;
+an all-UNDERPOWERED sidecar is the honest referent there — cells with no sign,
+read as vacuous-but-disclosed, with the file named rather than absent.
