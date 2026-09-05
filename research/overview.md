@@ -322,9 +322,9 @@ cite them still resolve, but nothing is waiting on either.
    and fired again on the 166-date one, on the 2026 column. Three censuses,
    three answers. Nothing un-reverts without a fresh registration.
 4. **Live walk-forward** ([§2.5](next-steps.md#s2-5)) — still the intended
-   evidence source, with no recorded progress since 2026-08-13. Silence here is
-   not evidence of no progress, so check the live-loop artifacts before
-   re-planning.
+   evidence source, with no recorded progress since 2026-08-13. A missing log
+   entry means nobody wrote one, not that nothing happened, so check the
+   live-loop artifacts before re-planning.
 5. **Rollback triggers** ([§2.6](next-steps.md#s2-6)) — a rollback trigger is a
    pre-registered condition that would take a shipped rule back off. Each one
    names its own gate: a minimum number of rows or dates before it may be read

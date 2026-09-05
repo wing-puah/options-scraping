@@ -599,7 +599,8 @@ shipped-on-one-study to **cleared**; failing reverts it.
 | **bull_put delta/DTE band** | the next independent window (the ≤0.20 cap and 45–59 preference are the thin-n parts) | — PROVISIONAL, re-read rather than a hard revert | the band clause in the card's [§3](../docs/deployment-rules.md#s3) |
 
 Progress toward the first two accumulates from live fills plus new backtest
-rows. **Never read silence as "not met".** Check the numbers.
+rows. **A trigger with no recorded census has not been checked, and is not
+"not met".** Check the numbers.
 
 **First census + evaluations (2026-08-24, v4 exports, correlated-window
 re-read, `research/pre-registrations/f2_management/rollback_triggers.md`):**

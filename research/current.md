@@ -14,8 +14,8 @@ studies produced a first-time candidate and both are held, because the new
 dates are a correlated backfill window rather than a fresh one.
 
 This block is the authoritative summary of where the research stands.
-[`overview.md`](overview.md) and [`next-steps.md`](next-steps.md) §0 restate
-parts of it. If either disagrees with this block, this block wins.
+[`overview.md`](overview.md) restates parts of it, and [`next-steps.md`](next-steps.md)
+§0 points here. If either disagrees with this block, this block wins.
 
 ### The population
 
@@ -90,7 +90,8 @@ the run is in the [record](study-results/f4_deployment/concurrency_correlation.m
 
 ### Rollback triggers
 
-Checked at their gates, never read from silence. The
+Checked at their gates with numbers. A trigger that printed nothing has not
+been checked, and is not "not met". The
 [plan](pre-registrations/f2_management/rollback_triggers.md) holds each floor.
 
 | Trigger | Reading on this export |
