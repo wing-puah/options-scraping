@@ -90,6 +90,19 @@ from scripts.backtest_study.f2_management.staged_exit import (  # noqa: E402
 )
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
 from scripts.backtest_study.f4_deployment import hedge_exposure as HE  # noqa: E402
+
+
+def shipped_merge_desc() -> str:
+    """The shipped per-row merge, described off account_sim's CONFIG-PINNED
+    constant, never retyped. `SHIPPED_BE_AFTER` is None while
+    `simulation.structure_exit.enabled` is false in config/backtest.yml (the
+    2026-08-24 revert), and the report must say so rather than name a rule the
+    baseline no longer applies."""
+    if A.SHIPPED_BE_AFTER is None:
+        return ("base -> BEAR_HE (the bear-debit be_after block is DISABLED in "
+                "config/backtest.yml, so no breakeven stop is merged)")
+    return f"base -> bear-debit be_after {A.SHIPPED_BE_AFTER:.2f} -> BEAR_HE"
+
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
 
 # The runner promotes `-latest.txt` on these codes instead of deleting it. It
@@ -1761,7 +1774,7 @@ def print_cell(variant: Variant, ev: dict, arm_stats: M.PathStats,
     if variant.arm == "W" and variant.key == "prod":
         print("""  READ THE `affected` COUNT ON THIS CELL WITH CARE. The grid point is
   pt/sl/tef ONLY: `knob_profile` REPLACES the whole exit profile, so this cell
-  drops the shipped `be_after 0.50` and the BEAR_HE merge that
+  drops the shipped merge (""" + shipped_merge_desc() + """) that
   `account_sim.profile_for` applies on bear-debit rows. Any difference from the
   shipped baseline HERE is therefore that merge, not walk-forward selection —
   which is the opposite of what this control exists to show. Registered
@@ -2254,7 +2267,7 @@ def run_population(pop: str, *, recs, st: A.Settings, cache: dict,
   dense-episode claim, which is why PRIMARY is that population and `all` is a
   disclosed secondary cut carrying no verdict.
   Baseline: the SHIPPED profile as account_sim.profile_for resolves it per row
-  (base -> bear-debit be_after .50 -> BEAR_HE), NEVER a clean DEBIT_PROD.
+  ({shipped_merge_desc()}), NEVER a clean DEBIT_PROD.
   CREDIT rows keep CREDIT_PROD in every arm — they are in the book so the
   ledger and the curve are the real book, not so a credit exit is tested.""")
 

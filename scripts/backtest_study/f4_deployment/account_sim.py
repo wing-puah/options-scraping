@@ -15,7 +15,7 @@ here. It is: does the shipped operator card (`top_k_per_day`, tiers A/B,
 `ladder_rank` ordering) still produce a book when an account has to actually pay
 for the positions, hold reserved capital while they are open, and respect a
 delta-notional exposure cap? Selection is FROZEN, exits are FROZEN
-(`bear_giveback.prod_profile_for(rec, 0.50, True)` for debit rows,
+(`bear_giveback.prod_profile_for(rec, SHIPPED_BE_AFTER, True)` for debit rows,
 `book.CREDIT_PROD` for credit rows). The only new machinery is the ledger.
 
 Mechanics worth knowing before reading any number:
@@ -112,11 +112,38 @@ DEFAULT_CONFIG = ROOT / "config" / "account-sim.yml"
 # not a tuned parameter — see `mark_key` and the report's EQUITY MARKS banner.
 MARK_INTERVALS = ("month", "quarter", "year")
 
-# The shipped peak-triggered breakeven-stop threshold for bear debit structures. It is part
-# of the FROZEN exit policy, not a knob of this study: `bear_giveback.py`'s ARM P
-# measured it and the deployment ladder shipped 0.50. It is named here only so
-# `profile_for` and the CONFIGURATION section quote one value rather than two.
-SHIPPED_BE_AFTER = 0.50
+# The backtest engine's own config — NOT account-sim.yml — is the source of
+# truth for the shipped exit policy. Read separately from `load_settings`
+# below, which only ever parses `account-sim.yml`.
+BACKTEST_CONFIG = ROOT / "config" / "backtest.yml"
+
+
+def _shipped_be_after(path: Path = BACKTEST_CONFIG) -> float | None:
+    """The peak-triggered breakeven-stop threshold `profile_for` ships for bear
+    debit structures, read out of `config/backtest.yml`'s `structure_exit`
+    block rather than hardcoded.
+
+    `bear_arm.py`'s ARM P measured 0.50 and the deployment ladder shipped it
+    2026-08-11 — but the block was REVERTED 2026-08-24 (see the comment above
+    `simulation.structure_exit` in that file) and `enabled` has been `false`
+    since. A hardcoded 0.50 here would keep applying a breakeven stop the
+    shipped book no longer runs. `None` reproduces the disabled book:
+    `bear_giveback.prod_profile_for` treats `be_after=None` as "do not merge
+    the structure_exit override", matching PROD_BASE's own unset default.
+    """
+    raw = yaml.safe_load(path.read_text())
+    block = raw["simulation"]["structure_exit"]
+    if not block.get("enabled"):
+        return None
+    return block["cells"]["bear_debit"]["be_after"]
+
+
+# The shipped peak-triggered breakeven-stop threshold for bear debit
+# structures — `None` when `config/backtest.yml`'s `structure_exit` block is
+# disabled. Computed once at import from that file (not a knob of this
+# study); `profile_for` and the CONFIGURATION section quote this one value
+# rather than two.
+SHIPPED_BE_AFTER = _shipped_be_after()
 
 # The binding-constraint census buckets, in report order. A4 asserts these
 # PARTITION every candidate the walk considered, so `simulate()` may not emit a
@@ -566,7 +593,10 @@ def new_cache() -> dict:
 
 def profile_for(rec: dict) -> dict:
     """The SHIPPED exit profile for a row. Debit rows go through the base ->
-    bear-debit(be_after .50) -> BEAR_HE merge; credit rows never reach it."""
+    bear-debit(be_after=`SHIPPED_BE_AFTER`) -> BEAR_HE merge; credit rows never
+    reach it. `SHIPPED_BE_AFTER` is `None` whenever `config/backtest.yml`'s
+    `structure_exit` block is disabled, which reproduces the shipped book with
+    no breakeven-stop override rather than a stale one."""
     return dict(CREDIT_PROD) if rec["credit"] else prod_profile_for(rec, SHIPPED_BE_AFTER, True)
 
 
@@ -1512,6 +1542,19 @@ def print_configuration(st: Settings, cfg_name) -> None:
         if st.compound_enabled else ""
 
     sub(CFG_EXITS_GROUP)
+    # The bear-debit breakeven stop is the one exit lever `config/backtest.yml`
+    # can switch off entirely (the 2026-08-24 revert), so it gets its own row
+    # rather than only showing up as an absent field on "debit, bear" below —
+    # a reader scanning that row alone could otherwise mistake the omission
+    # for a print bug rather than a config state.
+    be_after_state = (
+        f"disabled — simulation.structure_exit.enabled is false in "
+        f"{BACKTEST_CONFIG.relative_to(ROOT)}"
+        if SHIPPED_BE_AFTER is None else
+        f"enabled at {SHIPPED_BE_AFTER:+.0%} (simulation.structure_exit.cells.bear_debit.be_after "
+        f"in {BACKTEST_CONFIG.relative_to(ROOT)})"
+    )
+    print(_cfg_row("bear-debit breakeven stop", be_after_state))
     for label, rec in _EXIT_ROWS:
         print(_cfg_row(label, _exit_phrase(profile_for(rec))))
     # The one resolved figure worth printing next to the file: the dollar stop

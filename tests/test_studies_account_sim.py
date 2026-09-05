@@ -1207,9 +1207,67 @@ def test_configuration_echo_prints_the_exit_policy_the_replay_will_apply(capsys)
     assert f"stop {-debit['sl']:+.0%}" in text
     assert f"time exit at {debit['tef']:.0%} of DTE" in text
     assert f"take profit {credit['pt']:+.0%}" in text
-    # the bear-debit breakeven stop and the BEAR_HE trail are separate rows
-    assert f"peak-triggered breakeven stop once peak {account_sim.SHIPPED_BE_AFTER:+.0%}" in text
+    # The bear-debit breakeven stop is config-driven (config/backtest.yml's
+    # `structure_exit` block) — SHIPPED_BE_AFTER is None whenever it is
+    # disabled, and the CONFIGURATION section must say so rather than print a
+    # stale breakeven-stop phrase.
+    if account_sim.SHIPPED_BE_AFTER is None:
+        assert "structure_exit.enabled is false" in text
+        assert "peak-triggered breakeven stop" not in text
+    else:
+        assert (f"peak-triggered breakeven stop once peak "
+                f"{account_sim.SHIPPED_BE_AFTER:+.0%}") in text
+    # the BEAR_HE trail is a separate row regardless of the breakeven state
     assert "trail 50% once +50% is touched" in text
+
+
+def test_shipped_be_after_is_pinned_to_backtest_yml(tmp_path):
+    """`SHIPPED_BE_AFTER` must track `config/backtest.yml`'s `structure_exit`
+    block exactly — a stale hardcoded value is the bug this module regressed
+    on (0.50 kept firing after the 2026-08-24 revert set `enabled: false`)."""
+    with account_sim.BACKTEST_CONFIG.open() as f:
+        raw = yaml.safe_load(f)
+    block = raw["simulation"]["structure_exit"]
+    expected = block["cells"]["bear_debit"]["be_after"] if block.get("enabled") else None
+    assert account_sim.SHIPPED_BE_AFTER == expected
+
+
+def _write_backtest_cfg(tmp_path, *, enabled: bool, be_after: float = 0.50) -> Path:
+    cfg = {"simulation": {"structure_exit": {
+        "enabled": enabled,
+        "cells": {"bear_debit": {"be_after": be_after}},
+    }}}
+    path = tmp_path / "backtest.yml"
+    path.write_text(yaml.safe_dump(cfg))
+    return path
+
+
+def test_shipped_be_after_reads_disabled_block_as_none(tmp_path):
+    path = _write_backtest_cfg(tmp_path, enabled=False)
+    assert account_sim._shipped_be_after(path) is None
+
+
+def test_shipped_be_after_reads_enabled_block_as_its_value(tmp_path):
+    path = _write_backtest_cfg(tmp_path, enabled=True, be_after=0.30)
+    assert account_sim._shipped_be_after(path) == 0.30
+
+
+def test_profile_for_disabled_structure_exit_yields_no_breakeven_stop(monkeypatch):
+    """A synthetic bear-debit row OUTSIDE BEAR_HE, replayed under a disabled
+    `structure_exit` block, must carry no `be_after` at all — the regression
+    this fix closes was `profile_for` applying a breakeven stop the shipped
+    book no longer runs."""
+    monkeypatch.setattr(account_sim, "SHIPPED_BE_AFTER", None)
+    rec = dict(credit=False, structure=account_sim.BEAR_DEBIT[0], mech_cell="LVOL")
+    prof = account_sim.profile_for(rec)
+    assert prof.get("be_after") is None
+
+
+def test_profile_for_enabled_structure_exit_yields_the_configured_breakeven_stop(monkeypatch):
+    monkeypatch.setattr(account_sim, "SHIPPED_BE_AFTER", 0.50)
+    rec = dict(credit=False, structure=account_sim.BEAR_DEBIT[0], mech_cell="LVOL")
+    prof = account_sim.profile_for(rec)
+    assert prof.get("be_after") == 0.50
 
 
 def test_configuration_echo_names_the_config_file_it_was_handed(capsys):
