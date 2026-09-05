@@ -108,6 +108,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 | [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
 | [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
 | [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
+| [`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md) | `exit_drawdown` — **module NOT yet written** (registered 2026-09-05; the plan is committed before the code on purpose — see the file's own "What this is NOT" table for the eleven exit families it must not re-find). Walk-forward exit hypotheses judged on the ACCOUNT-level mark-to-market drawdown curve (`lib/mtm_curve.py`) rather than on per-row R. Five arms, labelled W (out-of-sample selection of the shipped pt/sl/tef knobs, with its own `PROD-ROBUST` token), U (underlying ATR stop on debit verticals), O (flow-unwind off the traded contract's OI path), P (partial scale-out), and D (a drawdown sizing throttle, labelled SECONDARY and unshippable from this family). Every threshold is fitted on TRAIN dates and applied to TEST dates; burn-in dates are excluded from the headline. Nothing ships — a candidate queues an independent window. | registered |
 
 ## ③ Structure — `f3_structure/`
 
