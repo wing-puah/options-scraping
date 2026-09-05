@@ -189,8 +189,25 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ## Pipeline health check — the collection-tier watchdog
 
-`scripts/check_pipeline.py` + `.github/workflows/pipeline-health.yml` (cron `45 1 * * 2-6`).
+`scripts/check_pipeline.py` + `.github/workflows/pipeline-health.yml`.
 Answers one question: **did every collection stage actually run, and produce enough?**
+
+It fires on TWO triggers. The primary one is `workflow_run` on all three enrichers
+(`Enrich OI`, `Fetch Counterpart IV`, `Backfill Mech Cell`), so the check runs the moment
+the night's chain is actually finished rather than at a guessed hour. Those three run in
+PARALLEL and which finishes last varies (Fetch Counterpart IV ended 00:28 UTC while Enrich
+OI ran to 01:19 on 2026-09-05; the order reversed on 09-03), and Enrich OI alone produces
+three of the seven stages — so a `guard` step stands down every completion except the last
+one still in flight, by asking the Actions API whether a sibling is queued or in progress.
+It does NOT wait: waiting would idle a runner for the hour-plus Enrich OI routinely takes
+(4h27m on 2026-09-02). No conclusion gate either — a sibling that FAILED is exactly when
+the check is most worth running.
+
+The cron (`45 1 * * 2-6`) is kept as a BACKSTOP, not the normal path: the chain above only
+fires when Compile Flow succeeded, so if Compile Flow dies nothing completes and a watchdog
+wired only to completions would go silent exactly when it is needed. (GitHub also delays
+cron on this repo by hours — observed dispatch 06:26-13:22 UTC — which is the other reason
+the chain, not the clock, is the primary trigger.)
 
 ### Why it exists
 
@@ -247,13 +264,22 @@ One block per stage: `kind`, `lag_sessions`, `min_complete` (decimal fraction), 
 Plus `lookback_sessions`, `max_silence_sessions`, `commit_age_warn_days` and
 `chain_complete_utc_hour`.
 
+`lookback_sessions` is **3**. The check runs nightly, so a longer sweep only re-reports gaps
+already raised on earlier runs. The trade-off is that a gap AGES OUT of the window after three
+sessions instead of nagging — a clean run means "the last 3 sessions are clean", not "the
+pipeline is healthy" — and a stage's `lag_sessions` eats into it (`enrich_oi`, lag 1, is judged
+on 2 of the 3), so a lag must never be raised to the window size or that stage stops being
+checked at all.
+
 `chain_complete_utc_hour` (23) handles the IN-FLIGHT session. Compile Flow fires at 22:30 UTC
 on the session it compiles, so before that hour the current day's downstream evidence
 legitimately does not exist. `settled_sessions()` drops it, and lag then counts back from the
 newest SETTLED session — if today is in flight, yesterday's OI is not due either, because it
-needs today's open interest. This costs CI nothing (the watchdog runs at 01:45 UTC, when the
-newest session is already the previous UTC date); it exists so a hand-run check during market
-hours stays quiet instead of teaching the operator to ignore it.
+needs today's open interest. This costs CI nothing (the chained run lands after midnight UTC,
+by which point the newest session is already the previous UTC date); it exists so a hand-run
+check during market hours stays quiet instead of teaching the operator to ignore it. Should
+the chain ever complete BEFORE 23:00 UTC on the session's own date, that session is reported
+not-due rather than missing — a less informative run, never a false alarm.
 
 `lag_sessions` is the false-alarm defence — the newest N sessions of a stage report `not-due`,
 never `MISSING`. **`enrich_oi` has `lag_sessions: 1`** because it is structurally D+1: the OI

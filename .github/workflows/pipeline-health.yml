@@ -11,12 +11,32 @@ name: Pipeline Health
 # and fails when it is missing. Its failure IS the alert.
 
 on:
+  # PRIMARY: chain off the enrichment fan-out so the check runs as soon as the
+  # day's chain is genuinely finished, rather than at a guessed hour.
+  #
+  # Compile Flow fans out to THREE workflows that run in PARALLEL, and which one
+  # finishes last varies by night (observed: Fetch Counterpart IV ended 00:28
+  # while Enrich OI ran to 01:19 on 2026-09-05; the order reversed on 09-03).
+  # Enrich OI alone produces three of the seven stages asserted below, so firing
+  # on the first sibling to finish would report those MISSING while it is still
+  # running — a false alarm, which is how an operator learns to ignore the alarm.
+  #
+  # Hence: listen to all three, and let the `guard` step below stand down every
+  # run except the last one still in flight. No conclusion gate — a sibling that
+  # FAILED is exactly when this check is most worth running.
+  workflow_run:
+    workflows: ["Enrich OI", "Fetch Counterpart IV", "Backfill Mech Cell"]
+    types: [completed]
   schedule:
-    # 01:45 UTC (09:45 SGT), Tue-Sat. Compile Flow starts 22:30 UTC with a
-    # 10-minute timeout, and the enrich jobs it triggers carry 120-minute ones,
-    # so the worst case lands ~00:40 UTC; 01:45 is ~1h after that, with a few
-    # minutes' slack for workflow_run dispatch latency. Tue-Sat because each run
-    # audits the previous weekday's chain.
+    # BACKSTOP, not the primary path. Kept because the chain above only fires
+    # when Compile Flow succeeded: if Compile Flow dies, none of the three
+    # enrichers run, nothing completes, and a watchdog wired only to their
+    # completion would go silent exactly when it is needed. Tue-Sat because each
+    # run audits the previous weekday's chain.
+    #
+    # 01:45 UTC nominal (09:45 SGT). Note that GitHub delays cron on this repo
+    # by hours in practice (observed dispatch 06:26-13:22 UTC), which is another
+    # reason the workflow_run chain above is the path that should normally win.
     - cron: '45 1 * * 2-6'
   workflow_dispatch:
     inputs:
@@ -27,6 +47,8 @@ on:
 
 permissions:
   contents: read
+  # Read-only listing of the sibling workflows' runs, for the guard step.
+  actions: read
 
 jobs:
   check:
@@ -34,7 +56,43 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Stand down unless this is the last enricher to finish
+        # Deliberately does NOT wait: waiting would idle a runner for the hour
+        # or more Enrich OI routinely takes (4h27m on 2026-09-02). Instead every
+        # sibling completion asks "is anyone else still going?" and only the
+        # last one answers no, so exactly one check runs per night at the moment
+        # the chain is actually complete.
+        #
+        # The triggering run is excluded by id: it is `completed` by definition
+        # of the event, but the API can still list it for a beat.
+        id: guard
+        if: ${{ github.event_name == 'workflow_run' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRIGGER_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          busy=0
+          for wf in enrich-oi.yml fetch-counterpart-iv.yml backfill-mech-cell.yml; do
+            for st in queued in_progress; do
+              n=$(gh api \
+                    "repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}/runs?status=${st}&per_page=30" \
+                    --jq "[.workflow_runs[] | select(.id != ${TRIGGER_ID})] | length")
+              if [ "$n" -gt 0 ]; then
+                echo "still in flight: ${wf} (${st}=${n})"
+              fi
+              busy=$(( busy + n ))
+            done
+          done
+          if [ "$busy" -gt 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Standing down — a sibling enricher is still running; it will run the check."
+          else
+            echo "Last enricher standing — running the check."
+          fi
+
       - uses: actions/checkout@v5
+        if: ${{ steps.guard.outputs.skip != 'true' }}
         with:
           # The checker reads the newest commit's age to warn before GitHub's
           # 60-day no-commit rule disables every schedule in this repo —
@@ -42,6 +100,7 @@ jobs:
           fetch-depth: 1
 
       - uses: actions/setup-python@v6
+        if: ${{ steps.guard.outputs.skip != 'true' }}
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -53,10 +112,12 @@ jobs:
         # playwright (lib/barchart) and scipy (backtest.helpers) even though this
         # job never scrapes. The pip packages are enough to satisfy the imports —
         # deliberately NO `playwright install`, since no browser is ever launched.
+        if: ${{ steps.guard.outputs.skip != 'true' }}
         run: pip install -r requirements.txt
 
       - name: Check the collection pipeline
         # No continue-on-error, no `|| true`. The exit code is the alert.
+        if: ${{ steps.guard.outputs.skip != 'true' }}
         run: python scripts/check_pipeline.py ${{ inputs.as_of && format('--as-of {0}', inputs.as_of) || '' }}
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}

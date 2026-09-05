@@ -15,12 +15,26 @@
 # How far back to sweep. The whole window is checked on every run, so a gap the
 # operator does not act on the same day keeps being reported until it is fixed
 # or falls out of the window.
-lookback_sessions: 10
+#
+# 3 sessions: the check runs nightly, so anything older has already been
+# reported (and either fixed or knowingly ignored) on a previous run. Two
+# consequences of the short window, both deliberate:
+#   * A gap AGES OUT after three sessions. An unfixed one stops being reported
+#     rather than accumulating, so read a clean run as "the last 3 sessions are
+#     clean", not "the pipeline is healthy".
+#   * A stage with lag_sessions: N is judged on only 3-N of them (enrich_oi,
+#     lag 1, is judged on 2). Do not raise a lag past this window or that stage
+#     is never checked at all.
+lookback_sessions: 3
 
 # If the newest session holding ANY flow data is this many sessions behind the
 # newest real session, report PIPELINE SILENT as the headline instead of a pile
 # of per-stage gaps — the difference between "one enricher is behind" and
 # "nothing has run for a week".
+#
+# Left at 3 while lookback_sessions is 3: the headline now fires only when the
+# WHOLE window is empty, and `silence == len(sessions)` makes it report the
+# newest data as "never" (i.e. "none inside the window"), not a real date.
 max_silence_sessions: 3
 
 # GitHub disables scheduled workflows after 60 days with no repo COMMITS, which
