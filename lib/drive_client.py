@@ -56,6 +56,7 @@ class StorageClient(Protocol):
     def upload(self, local_path: Path, name: str, folder_id: str) -> str: ...
     def download(self, file_id: str) -> str: ...
     def list_files(self, prefix: str) -> list[dict]: ...
+    def list_folder(self, folder_id: str) -> list[dict]: ...
     def find_date_folder(self, date_str: str) -> str | None: ...
     def list_date_folders(self) -> dict[str, str]: ...
 
@@ -245,14 +246,36 @@ class DriveClient:
         """
         List all Drive files matching {prefix}-*.csv across all folders, newest first.
         Intentionally has no parent constraint so files in date subfolders are included.
+
+        PAGINATED, and must stay so: Drive answers an unpaged query with only its
+        first 100 files. Because the ordering is name-descending that truncation is
+        invisible — the caller gets a plausible listing of the NEWEST dates and
+        silently concludes every older date is missing. That is what made
+        scrape_flow's --skip-existing re-download an already-collected March once
+        the corpus passed 100 files.
         """
         log.debug("Listing files with prefix '%s'", prefix)
         q = f"name contains '{prefix}-' and name contains '.csv' and trashed = false"
-        files = self._svc.files().list(
-            q=q, fields="files(id, name, createdTime)", orderBy="name desc"
-        ).execute().get("files", [])
+        files = self._paginate(q, "id, name, createdTime", order_by="name desc")
         log.info("Found %d file(s) for prefix '%s'", len(files), prefix)
         return files
+
+    def list_folder(self, folder_id: str) -> list[dict]:
+        """Every file directly inside folder_id — id, name, size, createdTime.
+
+        The BOUNDED counterpart to list_files(). list_files() answers "where does
+        this prefix appear?" by scanning the whole corpus, which grows a page
+        heavier every few months; this answers "what is in this one day?" at a cost
+        that never changes. A caller asking about a RANGE of dates should walk that
+        range's folders, so its cost tracks what it asked for and not how much
+        history exists behind it.
+
+        Unlike list_files() there is no `.csv` constraint, so a date folder's
+        non-flow files come back too — filter by name at the call site.
+        """
+        log.debug("Listing children of folder '%s'", folder_id)
+        q = f"'{folder_id}' in parents and trashed = false"
+        return self._paginate(q, "id, name, size, createdTime", order_by="name")
 
     def download_latest(self, prefix: str) -> tuple[str, str] | tuple[None, None]:
         """Download the most recent file for prefix. Returns (name, content) or (None, None)."""

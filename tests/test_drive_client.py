@@ -273,3 +273,23 @@ def test_download_for_date_returns_none_when_not_found():
     name, content = client.download_for_date("unusual-stocks", "2026-06-02")
     assert name is None
     assert content is None
+
+
+def test_list_files_follows_pagination():
+    """An unpaged list_files sees only Drive's first page and reads as 'not collected'.
+
+    Drive answers a name-descending query with the NEWEST 100 files, so truncation
+    is invisible: every older date looks absent. This is the bug that made
+    scrape_flow's --skip-existing re-download an already-compiled March.
+    """
+    page1 = [{"id": "1", "name": "stocks-flow-20260904-compiled.csv", "createdTime": "x"}]
+    page2 = [{"id": "2", "name": "stocks-flow-20260312-compiled.csv", "createdTime": "x"}]
+    svc = MagicMock()
+    svc.files.return_value.list.return_value.execute.side_effect = [
+        {"files": page1, "nextPageToken": "tok"},
+        {"files": page2},
+    ]
+    client = DriveClient(svc, "root-id")
+    names = [f["name"] for f in client.list_files("stocks-flow")]
+    assert names == [page1[0]["name"], page2[0]["name"]]
+    assert svc.files.return_value.list.call_args_list[1].kwargs["pageToken"] == "tok"

@@ -117,33 +117,16 @@ def build_archive(root: Path, dest: Path, prefixes: list[str]) -> dict[str, int]
     return counts
 
 
-# ── Drive access gaps worked around here (not in lib/drive_client.py) ───────
+# ── Drive access gap worked around here (not in lib/drive_client.py) ────────
 #
-# DriveClient has no generic "list a folder's children" method: list_files()
-# hardcodes `.csv` in its query (built for the flow corpus) and our archives
-# are `.tar.gz`, and list_date_folders() only returns folders. Worse,
-# DriveClient.download() decodes the response as UTF-8 TEXT (`errors=
-# "replace"`) — fine for CSV, silently corrupting for a gzip archive's raw
-# bytes. Both are read-only, minimal reaches into the injected
-# `googleapiclient` service DriveClient wraps (the same object
-# `DriveClient(service, root_folder_id)` takes for testing) rather than
-# edits to drive_client.py.
-
-def _list_folder_files(client: DriveClient, folder_id: str) -> list[dict]:
-    """Every file directly inside folder_id: id, name, size, createdTime."""
-    q = f"'{folder_id}' in parents and trashed = false"
-    out: list[dict] = []
-    page_token = None
-    while True:
-        resp = client._svc.files().list(
-            q=q, fields="nextPageToken, files(id, name, size, createdTime)",
-            pageSize=1000, pageToken=page_token,
-        ).execute()
-        out.extend(resp.get("files", []))
-        page_token = resp.get("nextPageToken")
-        if not page_token:
-            break
-    return out
+# DriveClient.download() decodes the response as UTF-8 TEXT (`errors="replace"`)
+# — fine for CSV, silently corrupting for a gzip archive's raw bytes. This is a
+# read-only, minimal reach into the injected `googleapiclient` service
+# DriveClient wraps (the same object `DriveClient(service, root_folder_id)`
+# takes for testing) rather than an edit to drive_client.py.
+#
+# Listing a folder's children used to be worked around here too; it is now
+# DriveClient.list_folder().
 
 
 def _download_binary(client: DriveClient, file_id: str) -> bytes:
@@ -277,7 +260,7 @@ def cmd_pull(args, root: Path = ROOT, client: DriveClient | None = None) -> int:
         print(f"No '{BACKUP_FOLDER_NAME}' folder on Drive yet — nothing to pull.")
         return 1
 
-    files = _list_folder_files(client, folder_id)
+    files = client.list_folder(folder_id)
     stamp = getattr(args, "stamp", None)
     snap = select_snapshot(files, stamp)
     if snap is None:
@@ -301,7 +284,7 @@ def cmd_list(args, client: DriveClient | None = None) -> int:
         print(f"No '{BACKUP_FOLDER_NAME}' folder on Drive yet.")
         return 0
 
-    files = _list_folder_files(client, folder_id)
+    files = client.list_folder(folder_id)
     dated = sorted(
         ((parse_stamp(f["name"]), f) for f in files if parse_stamp(f["name"])),
         key=lambda sf: sf[0], reverse=True,

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import scrape_flow
-from scrape_flow import is_market_hours, _download_and_upload, _already_collected
+from scrape_flow import is_market_hours, _download_and_upload, _collected_dates
 
 ET = ZoneInfo("America/New_York")
 
@@ -145,34 +145,71 @@ def test_download_uploads_and_returns_row_count(tmp_path):
     client.upload.assert_called_once()
 
 
-# ── _already_collected ────────────────────────────────────────────────────────
+# ── _collected_dates (--skip-existing) ────────────────────────────────────────
 
-def test_already_collected_true_when_file_exists():
-    from datetime import date
-
+def _client(folders: dict[str, list[str]]) -> MagicMock:
+    """A client whose date folders hold the given file names."""
+    ids = {d: f"fid-{d}" for d in folders}
     client = MagicMock()
-    client.list_files.return_value = [
-        {"name": "unusual-stocks-20260602-1600.csv"},
+    client.list_date_folders.return_value = ids
+    client.list_folder.side_effect = lambda fid: [
+        {"name": n} for n in folders[next(d for d, i in ids.items() if i == fid)]
     ]
-    assert _already_collected(client, "unusual-stocks", date(2026, 6, 2)) is True
+    return client
 
 
-def test_already_collected_false_when_no_file():
-    from datetime import date
-
-    client = MagicMock()
-    client.list_files.return_value = []
-    assert _already_collected(client, "unusual-stocks", date(2026, 6, 2)) is False
+JUNE2 = [date(2026, 6, 2)]
 
 
-def test_already_collected_false_when_different_date():
-    from datetime import date
+def test_collected_dates_indexes_snapshots():
+    client = _client({"2026-06-02": ["unusual-stocks-20260602-1600.csv"]})
+    assert _collected_dates(client, ["unusual-stocks"], JUNE2) == {
+        "unusual-stocks": {"2026-06-02"}}
 
-    client = MagicMock()
-    client.list_files.return_value = [
-        {"name": "unusual-stocks-20260601-1600.csv"},  # June 1, not June 2
-    ]
-    assert _already_collected(client, "unusual-stocks", date(2026, 6, 2)) is False
+
+def test_collected_dates_empty_when_folder_missing():
+    client = _client({})
+    assert _collected_dates(client, ["unusual-stocks"], JUNE2) == {"unusual-stocks": set()}
+
+
+def test_collected_dates_counts_a_compiled_file():
+    """A gc'd date has ONLY its compiled file left; it must still count as collected.
+
+    gc_flow.py trashes the raw snapshots it verified into the compiled file, so
+    ignoring compiled files would make --skip-existing re-scrape exactly the dates
+    that are furthest along.
+    """
+    client = _client({"2026-06-02": ["stocks-flow-20260602-compiled.csv"]})
+    assert _collected_dates(client, ["stocks-flow"], JUNE2) == {
+        "stocks-flow": {"2026-06-02"}}
+
+
+def test_collected_dates_ignores_foreign_and_misfiled_names():
+    """Only prefix's own convention counts, and only for the folder's OWN date."""
+    client = _client({"2026-06-02": ["counterpart-iv-20260602.csv",
+                                     "stocks-flow-badname.csv",
+                                     "stocks-flow-20260601-1600.csv"]})  # misfiled
+    assert _collected_dates(client, ["stocks-flow"], JUNE2) == {"stocks-flow": set()}
+
+
+def test_collected_dates_reads_only_the_requested_range():
+    """The cost must track the request, not the corpus: no listing outside `dates`."""
+    client = _client({"2026-06-01": ["stocks-flow-20260601-compiled.csv"],
+                      "2026-06-02": ["stocks-flow-20260602-compiled.csv"],
+                      "2026-06-03": ["stocks-flow-20260603-compiled.csv"]})
+    assert _collected_dates(client, ["stocks-flow"], JUNE2) == {
+        "stocks-flow": {"2026-06-02"}}
+    client.list_folder.assert_called_once_with("fid-2026-06-02")
+    client.list_files.assert_not_called()
+
+
+def test_collected_dates_one_listing_serves_every_prefix():
+    client = _client({"2026-06-02": ["stocks-flow-20260602-compiled.csv",
+                                     "etfs-flow-20260602-compiled.csv"]})
+    out = _collected_dates(client, ["stocks-flow", "etfs-flow", "unusual-etfs"], JUNE2)
+    assert out == {"stocks-flow": {"2026-06-02"}, "etfs-flow": {"2026-06-02"},
+                   "unusual-etfs": set()}
+    assert client.list_folder.call_count == 1
 
 
 # ── staleness guard ───────────────────────────────────────────────────────────

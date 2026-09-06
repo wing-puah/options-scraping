@@ -33,7 +33,9 @@ sys.path.insert(0, str(_ROOT))
 from lib.logger import setup_logging
 from lib.barchart import BarchartSession
 from lib.csv_utils import flow_staleness_report, parse_csv
-from lib.drive_client import StorageClient, file_name, get_drive_client, trading_day
+from lib.drive_client import (
+    StorageClient, classify_flow_name, file_name, get_drive_client, trading_day,
+)
 
 log = logging.getLogger("scrape_flow")
 
@@ -257,9 +259,43 @@ async def run_live(session: BarchartSession, client: StorageClient, mode: str) -
 
 # ── Historical mode ────────────────────────────────────────────────────────────
 
-def _already_collected(client: StorageClient, prefix: str, target_date: date) -> bool:
-    compact = target_date.strftime("%Y%m%d")
-    return any(f["name"].startswith(f"{prefix}-{compact}-") for f in client.list_files(prefix))
+def _collected_dates(
+    client: StorageClient, prefixes: list[str], dates: list[date],
+) -> dict[str, set[str]]:
+    """{prefix: {YYYY-MM-DD, ...}} — which of THESE dates already have files on Drive.
+
+    Scoped to the run's own date range on purpose. The corpus-wide alternative
+    (list_files once per prefix) reads every date ever collected — 600+ already,
+    and one page heavier every few months — to answer a question about the couple
+    of dozen dates the operator actually asked for. Here it is one small listing
+    per date in the range plus one folder map: the cost tracks the REQUEST, not
+    the history behind it.
+
+    Built once per run rather than once per (prefix, date): a single folder
+    listing answers for all four prefixes at once.
+
+    A COMPILED file counts as collected. gc_flow.py trashes the raw snapshots it
+    verified into the compiled file, so on a garbage-collected date that compiled
+    file is the only surviving evidence the date was ever scraped — miss it and
+    --skip-existing re-scrapes exactly the dates that are furthest along.
+    """
+    folders = client.list_date_folders()
+    out: dict[str, set[str]] = {p: set() for p in prefixes}
+    for target_date in dates:
+        date_str = target_date.isoformat()
+        folder_id = folders.get(date_str)
+        if folder_id is None:
+            continue
+        for f in client.list_folder(folder_id):
+            for prefix in prefixes:
+                parsed = classify_flow_name(f["name"], prefix)
+                # The name must claim the folder's OWN date — a file misfiled under
+                # the wrong date must not mark that date collected.
+                if parsed is not None and parsed[0] == date_str:
+                    out[prefix].add(date_str)
+    for prefix, found in out.items():
+        log.info("%s: %d/%d date(s) already on Drive", prefix, len(found), len(dates))
+    return out
 
 
 async def run_historical(
@@ -272,6 +308,8 @@ async def run_historical(
     total_rows, errors, rejected = 0, 0, 0
     spy_closes = _load_spy_closes()
     seen_hashes = _manifest_hashes()
+    collected = (_collected_dates(client, [p for _, p in _HIST_BASE_PAGES], dates)
+                 if skip_existing else {})
 
     for i, target_date in enumerate(dates, 1):
         date_str = target_date.isoformat()
@@ -280,7 +318,7 @@ async def run_historical(
         log.info("[%d/%d] Historical | date=%s", i, len(dates), date_str)
 
         for base_url, prefix in _HIST_BASE_PAGES:
-            if skip_existing and _already_collected(client, prefix, target_date):
+            if date_str in collected.get(prefix, ()):
                 log.info("%s: already in Drive for %s — skipping", prefix, date_str)
                 continue
 

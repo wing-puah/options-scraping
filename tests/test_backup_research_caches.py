@@ -4,8 +4,8 @@ Tests for `scripts/backup_research_caches.py`.
 No real Drive credentials or network calls: Drive interaction is either a
 `DriveClient` wrapping a `MagicMock` service (mirrors tests/test_drive_client.py)
 or, for pull/list, a bare stub whose `find_date_folder` is enough — the
-listing/download helpers (`_list_folder_files`, `_download_binary`) are
-monkeypatched directly since they reach past DriveClient's public surface (see
+stub serves `find_date_folder`/`list_folder`, and `_download_binary` is
+monkeypatched directly since it reaches past DriveClient's public surface (see
 the module docstring for why).
 """
 import argparse
@@ -41,11 +41,15 @@ def _tar_bytes(members: dict[str, bytes]) -> bytes:
 class _StubClient:
     """Just enough of DriveClient's surface for pull/list tests."""
 
-    def __init__(self, folder_id: str | None):
+    def __init__(self, folder_id: str | None, files: list[dict] | None = None):
         self._folder_id = folder_id
+        self._files = files or []
 
     def find_date_folder(self, name: str) -> str | None:
         return self._folder_id
+
+    def list_folder(self, folder_id: str) -> list[dict]:
+        return list(self._files)
 
 
 # ── existing_prefixes ────────────────────────────────────────────────────────
@@ -147,12 +151,11 @@ def test_pull_additive_extracts_only_missing_files(monkeypatch, tmp_path, capsys
         "backtests/option_history_cache/AAPL.csv": b"new-A",
         "backtests/option_history_cache/MSFT.csv": b"new-M",
     })
-    monkeypatch.setattr(brc, "_list_folder_files", lambda client, folder_id: [
-        {"id": "file-id", "name": "research-caches-20260101-0000.tar.gz", "size": "10"},
-    ])
     monkeypatch.setattr(brc, "_download_binary", lambda client, file_id: archive)
 
-    client = _StubClient(folder_id="folder-id")
+    client = _StubClient(folder_id="folder-id", files=[
+        {"id": "file-id", "name": "research-caches-20260101-0000.tar.gz", "size": "10"},
+    ])
     rc = brc.cmd_pull(argparse.Namespace(stamp=None, force=False), root=tmp_path, client=client)
     assert rc == 0
 
@@ -168,12 +171,11 @@ def test_pull_force_overwrites_existing_files(monkeypatch, tmp_path, capsys):
     _touch(tmp_path / "backtests/option_history_cache/AAPL.csv", "old-A")
 
     archive = _tar_bytes({"backtests/option_history_cache/AAPL.csv": b"new-A"})
-    monkeypatch.setattr(brc, "_list_folder_files", lambda client, folder_id: [
-        {"id": "file-id", "name": "research-caches-20260101-0000.tar.gz", "size": "5"},
-    ])
     monkeypatch.setattr(brc, "_download_binary", lambda client, file_id: archive)
 
-    client = _StubClient(folder_id="folder-id")
+    client = _StubClient(folder_id="folder-id", files=[
+        {"id": "file-id", "name": "research-caches-20260101-0000.tar.gz", "size": "5"},
+    ])
     rc = brc.cmd_pull(argparse.Namespace(stamp=None, force=True), root=tmp_path, client=client)
     assert rc == 0
 
@@ -187,10 +189,10 @@ def test_pull_selects_requested_stamp(monkeypatch, tmp_path):
     archive_old = _tar_bytes({"backtests/option_history_cache/OLD.csv": b"old"})
     archive_new = _tar_bytes({"backtests/option_history_cache/NEW.csv": b"new"})
 
-    monkeypatch.setattr(brc, "_list_folder_files", lambda client, folder_id: [
+    listing = [
         {"id": "id-old", "name": "research-caches-20260101-0000.tar.gz", "size": "1"},
         {"id": "id-new", "name": "research-caches-20260215-1200.tar.gz", "size": "1"},
-    ])
+    ]
 
     def _dl(client, file_id):
         calls.append(file_id)
@@ -198,7 +200,7 @@ def test_pull_selects_requested_stamp(monkeypatch, tmp_path):
 
     monkeypatch.setattr(brc, "_download_binary", _dl)
 
-    client = _StubClient(folder_id="folder-id")
+    client = _StubClient(folder_id="folder-id", files=listing)
     rc = brc.cmd_pull(
         argparse.Namespace(stamp="20260101-0000", force=False), root=tmp_path, client=client)
     assert rc == 0
@@ -208,10 +210,9 @@ def test_pull_selects_requested_stamp(monkeypatch, tmp_path):
 
 
 def test_pull_unknown_stamp_reports_and_does_nothing(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(brc, "_list_folder_files", lambda client, folder_id: [
+    client = _StubClient(folder_id="folder-id", files=[
         {"id": "id-old", "name": "research-caches-20260101-0000.tar.gz", "size": "1"},
     ])
-    client = _StubClient(folder_id="folder-id")
     rc = brc.cmd_pull(
         argparse.Namespace(stamp="99999999-9999", force=False), root=tmp_path, client=client)
     assert rc == 1
@@ -287,11 +288,10 @@ def test_extract_aborts_wholesale_when_one_member_is_unsafe(tmp_path):
 # ── list ──────────────────────────────────────────────────────────────────────
 
 def test_cmd_list_prints_snapshots_newest_first(monkeypatch, capsys):
-    monkeypatch.setattr(brc, "_list_folder_files", lambda client, folder_id: [
+    client = _StubClient(folder_id="folder-id", files=[
         {"name": "research-caches-20260101-0000.tar.gz", "size": str(1024 * 1024)},
         {"name": "research-caches-20260215-1200.tar.gz", "size": str(2048)},
     ])
-    client = _StubClient(folder_id="folder-id")
     rc = brc.cmd_list(argparse.Namespace(), client=client)
     assert rc == 0
 
