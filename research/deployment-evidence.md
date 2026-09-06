@@ -630,7 +630,7 @@ backfill export.
 
 ---
 
-## Hedge-timing triggers (2026-08-28 — one drafted-and-held prohibition, one closed question, one untestable habit)
+## Hedge-timing triggers (2026-08-28 — one prohibition, accepted 2026-09-06; one closed question, one untestable habit)
 
 [`hedge_timing`](arm-index.md#hedge_timing) (f4, registered 2026-08-28, era v4 decisive + v3 replication,
 graded) tested the operator's three discretionary hedge-deploy triggers.
@@ -639,7 +639,7 @@ correlated window under every outcome.
 
 | Trigger | Verdict (v4) | What it means for [§4](../docs/deployment-rules.md#s4) |
 |---|---|---|
-| **GAP-UP** (SPY open ≥ prior close ×1.003) | **CONTRARY** on H3 (paired excess −0.408, CI [−0.749, −0.057], every LOO fold, both years, all cuts) AND on H4 (gating −$5,893, drawdown unimproved) | A §4 prohibition is **DRAFTED AND HELD** (operator pre-chose draft-and-hold): *"Do not open the hedge on a gap-up day — the same-day A/B long out-earned the bear by 0.67 R on those days, an excess of +0.41 R over ordinary days, and gating the sleeve on them bought no drawdown protection."* v3 read: H3 underpowered by one date, H4 directionally consistent (−$6,293, negative all three years incl. 2026). Accepting or rejecting the draft is the operator's decision. |
+| **GAP-UP** (SPY open ≥ prior close ×1.003) | **CONTRARY** on H3 (paired excess −0.408, CI [−0.749, −0.057], every LOO fold, both years, all cuts) AND on H4 (gating −$5,893, drawdown unimproved) | A §4 prohibition, **ACCEPTED 2026-09-06** (drafted 2026-08-28, held until then): *"Do not open the hedge because the day gapped up."* The shipped wording is in [§4](../docs/deployment-rules.md#s4) and rests on the paired-R arms only. v3 read: H3 underpowered by one date, H4 directionally consistent (−$6,293, negative all three years incl. 2026). |
 | **CHOP** (eff_ratio bottom tercile) | NULL / NULL / UNSTABLE | No support, no contradiction. Timing stays discretion. |
 | **DECLINE ≥3-of-5** (powered substitute) | NULL on all three arms | Per the pre-registered asymmetric rule, this NULL speaks against the strict 4–5-day habit: even the broad construct cannot separate hedge value. |
 | **DECLINE strict 4–5 days** (the operator's actual rule) | UNDERPOWERED, fixed in advance (2 book dates) | **Untestable at this emission density** (~3,000 more trading days to a floor). The habit stays discretionary because it cannot be evidenced, not because it passed. |
@@ -657,10 +657,9 @@ all cuts), **H4-GAP CONTRARY → NULL** (`cuts_ok` fails; best gated policy
 f=0.50 −$6,700), H4-CHOP and H4-DECLINE UNSTABLE → NULL. The drafted §4
 gap-up prohibition therefore now rests on the paired-R arms (H3, mirrored by
 H1) and no longer on the do-nothing-dollars arm H4. The "gating bought no
-drawdown protection" half of the draft's wording is no longer carried. The
-draft stays HELD; accepting, rewording or rejecting it is the operator's
-decision. The strict 4–5-day streak is still UNDERPOWERED (N=4 samples 4
-dates, N=5 samples 2).
+drawdown protection" half of the draft's wording is no longer carried, and the
+shipped rule does not claim it. The strict 4–5-day streak is still UNDERPOWERED
+(N=4 samples 4 dates, N=5 samples 2).
 
 **Open question, queued by the operator (2026-08-28): can any hedge mechanism
 reduce max drawdown at all?** H4's tables say the current sleeve cannot: max
@@ -692,6 +691,29 @@ hedge. It does not speak to hedging concentrated exposure on a day that
 happens to gap. The queued drawdown study is where that practice gets
 tested: trigger = concentration × hedge-flow signal, counterfactual =
 unhedged concentrated book, outcome = drawdown.
+
+### The gap-up prohibition is accepted; the hedge stays and its trigger is still open (2026-09-06)
+
+The operator accepted the drafted [§4](../docs/deployment-rules.md#s4) gap-up
+prohibition. The sleeve itself continues. The rule removes one reason to open a
+hedge, not the hedge.
+
+No indicator for WHEN to open one is supported by anything in this file. Three
+were tested and none survived.
+
+| Trigger | Study | Verdict |
+|---|---|---|
+| gap-up | [`hedge_timing`](arm-index.md#hedge_timing) H1/H3-GAP | `CONTRARY`, now prohibited |
+| chop, low efficiency ratio | `hedge_timing` H1/H3-CHOP | `NULL` |
+| SPY down-run | `hedge_timing` DECLINE | `NULL` at the powered substitute, `UNDERPOWERED` at the operator's strict 4–5-day rule |
+| book concentration | [`hedge_concentration`](arm-index.md#hedge_concentration) ARM K | `PRECONDITION-NULL` on a powered read |
+
+Finding an indicator stays an open operator request (2026-09-06). It does not
+reopen the closure above: a fourth timing study cut from these dates and these
+columns is still refused. A candidate has to bring a column the book does not
+carry yet — a hedge-flow or exposure signal — read on the mark-to-market curve,
+on dates chosen without a rule. Queued as
+[`next-steps.md`](next-steps.md) §2.10.
 
 ---
 

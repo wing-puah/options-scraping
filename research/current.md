@@ -67,9 +67,11 @@ Both sit in the correlated window, so neither promotes a rule.
 
 ### The hedge programme
 
-Closed on triggers, unchanged on the instrument. The drafted gap-up prohibition
-in [§4](../docs/deployment-rules.md#s4) is still held, and it now rests on
-`hedge_timing`'s paired-[R](glossary.md#r) arms alone.
+Closed on triggers, unchanged on the instrument. The gap-up prohibition in
+[§4](../docs/deployment-rules.md#s4) was accepted on 2026-09-06 and rests on
+`hedge_timing`'s paired-[R](glossary.md#r) arms alone. The sleeve stays, so
+finding an indicator for when to open a hedge is now an open queue item with
+nothing in it ([`next-steps.md`](next-steps.md) §2.10).
 
 | Study | Verdict | Detail |
 |---|---|---|
@@ -102,9 +104,10 @@ been checked, and is not "not met". The
 
 ### Data hazards on this export, not repaired
 
-- Four real-priced rows sit in the local backtest scratch but not in
-  `BacktestResults`, and are not proxied either. They are 2025-12-22 TSLA and
-  AMD, and 2025-09-26 CRWV and HYG.
+- The four missing real-priced rows were re-run on 2026-09-06 and are now on
+  `BacktestResults`, which the export does not yet see. The same re-run
+  duplicated 2025-12-22 SPY `bear_put_spread`, because the tab has no dedup.
+  Details and what to do about both: [`next-steps.md`](next-steps.md) §0.
 - 2025-12-26 produced no analysis rows.
 - `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
   89.3%, because the label cache does not cover the new rows.
@@ -883,3 +886,66 @@ one synthetically via `monkeypatch`, and both that file and
 retired by inheritance. Study count 34 → 33.
 
 **Next.** No new item. `make check-doc-links` and the full suite (3,279) pass.
+
+## 2026-09-06 — the gap-up hedge prohibition is ACCEPTED; the four missing rows are re-priced; a hedge-open indicator becomes the open item
+
+Three operator decisions, no study run and no verdict moved. The drafted §4
+gap-up prohibition is accepted, the hedge sleeve continues, and the missing
+real-priced rows are back on the tab.
+
+_Era v4 · exports still 2026-09-04 20:31 · `BacktestResults` now 540 rows
+against the export's 535._
+
+**In production.** [§4](../docs/deployment-rules.md#s4) gains one line: do not
+open the hedge because the day gapped up. It rests on
+[`hedge_timing`](arm-index.md#hedge_timing) H3-GAP, a paired excess of −0.506
+[R](glossary.md#r) against ordinary days (CI [−0.844, −0.157], every
+[LOO](glossary.md#loo) fold, all cuts). It is a restriction accepted on a
+correlated window, not a shipped rule, and it bans the gap as the REASON to
+hedge. Hedging concentrated exposure on a day that happens to gap is untested
+and not covered. The "gating bought no drawdown protection" half of the
+2026-08-28 draft is dropped, because the 166-date re-read moved H4-GAP to
+`NULL`.
+
+**The sleeve stays, so the trigger question is open.** Four candidate
+indicators have been tested and none survives.
+
+| Trigger | Study | Verdict |
+|---|---|---|
+| gap-up | `hedge_timing` H1/H3-GAP | `CONTRARY`, now prohibited |
+| chop | `hedge_timing` H1/H3-CHOP | `NULL` |
+| SPY down-run | `hedge_timing` DECLINE | `NULL` powered, `UNDERPOWERED` at the strict rule |
+| book concentration | [`hedge_concentration`](arm-index.md#hedge_concentration) ARM K | `PRECONDITION-NULL` |
+
+Finding one is now [`next-steps.md`](next-steps.md) §2.10. It does not reopen
+the 2026-09-04 closure: a fourth timing study cut from these dates and these
+columns is still refused, and a candidate has to bring a column the book does
+not carry yet — hedge flow, or a live exposure reading — read on the
+mark-to-market curve.
+
+**The four missing rows are re-priced.** Both dates were re-run per date on
+2026-09-06 and all four rows priced real, both legs `barchart_open`.
+
+| Date | Ticker | Structure | DTE | Realized | Exit |
+|---|---|---|---|---|---|
+| 2025-12-22 | TSLA | `bull_call_spread` | 724 | −46.7% | `dollar_stop` |
+| 2025-12-22 | AMD | `bull_call_spread` | 87 | −11.5% | `time_exit` |
+| 2025-09-26 | CRWV | `bull_call_spread` | 172 | −78.1% | `stop_loss` |
+| 2025-09-26 | HYG | `bear_put_spread` | 25 | +282.4% | `profit_target` |
+
+Two consequences, neither repaired. The 2025-12-22 re-run re-emitted SPY
+`bear_put_spread`, which was already on the append-only tab, so that row is
+there twice; the copies are identical but for `created_datetime`. And no study
+sees any of this until `scripts/export_tabs.py` refreshes
+`backtests/to_evaluate/`, which changes the population every study runs on. The
+TSLA row is 724 DTE and priced fully real, which is one row inside the
+long-dated blind spot rather than a lifting of it.
+
+**Prose.** `exit_drawdown`'s ARM P "dollars ban is scoped" passage was cut from
+two defensive paragraphs to two short bullets. The conflict is stated in one
+sentence, the chosen reading in one, and the operator's ACK is still owed —
+substance unchanged, which the diff shows. The house rule behind the cut is now
+[`writing-guide.md`](writing-guide.md) rule 9.
+
+**Next.** [`next-steps.md`](next-steps.md) §0 item 1 closes as an operator task,
+§2.10 opens, and the ARM P ack is still owed.

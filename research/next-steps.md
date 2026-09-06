@@ -37,24 +37,26 @@ keeps its number as a one-line stub with a link.
 
 Decisions owed. None of these is a study.
 
-1. **Four real-priced rows are missing from `BacktestResults`** and are not in
-   `BacktestProxy` either: 2025-12-22 TSLA and AMD `bull_call_spread`,
-   2025-09-26 CRWV `bull_call_spread` and HYG `bear_put_spread`. They sit in the
-   local backtest scratch with no provenance for why they are absent, so a study
-   population is not patched from them. To restore, re-run per date and never
-   bare, because there is no dedup
-   ([data hazards](current.md#data-hazards-on-this-export-not-repaired)):
+1. **The four missing real-priced rows were re-run 2026-09-06** and are DONE as
+   an operator task. Both dates were re-run per date, and all four rows priced:
+   2025-12-22 TSLA and AMD `bull_call_spread`, 2025-09-26 CRWV
+   `bull_call_spread` and HYG `bear_put_spread`. Two things follow, and neither
+   is done yet:
+   - **`BacktestResults` now holds 2025-12-22 SPY `bear_put_spread` twice.** The
+     re-run re-emitted a row that was already on the tab, and the tab is
+     append-only with no dedup. The tab reads 540 rows against the export's 535.
+     The two copies are identical but for `created_datetime`, so drop the
+     `2026-09-06 11:20:21` one.
+   - **No study sees the four rows until the exports are refreshed.**
+     `python3 scripts/export_tabs.py` re-pulls `backtests/to_evaluate/`, which
+     changes the population every study runs on, so refresh it deliberately and
+     re-run the suite after
+     ([data hazards](current.md#data-hazards-on-this-export-not-repaired)).
+     Read the TSLA row with §2.7 in hand: it is 724 DTE and priced fully real
+     (`pct_real_days` 1.0, both legs `barchart_open`), which is one row inside
+     the long-dated blind spot, not a lifting of it.
 
-   ```bash
-   make backtest ARGS="--date 2025-12-22"
-   make backtest ARGS="--date 2025-09-26"
-   ```
-
-2. **The drafted gap-up hedge prohibition in
-   [§4](../docs/deployment-rules.md#s4)** is HELD for the operator to accept or
-   reject
-   ([`deployment-evidence.md` §Hedge-timing triggers](deployment-evidence.md#hedge-timing-triggers-2026-08-28--one-drafted-and-held-prohibition-one-closed-question-one-untestable-habit)).
-3. **`exit_drawdown` ARM P's "dollars ban is scoped" ack** is owed before any
+2. **`exit_drawdown` ARM P's "dollars ban is scoped" ack** is owed before any
    ARM P cell is ever read. Without it the module defaults to quoting
    account-level drawdown as a share of starting capital. No run has displayed
    the banner yet because every ARM P cut was UNDERPOWERED
@@ -98,7 +100,7 @@ One line each. Do not re-open; follow the link for the detail.
 | Text thread as an edge search | 2026-09-04 | `text_features` NULL, `exit_from_text` E1 CONTRARY, `prompt_eval` variance floor set. §2.9 survives as a stability item only | [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md#2026-09-02--the-text--backtest-loop-built-and-first-run-text-is-the-last-untested-column-family-and-it-nulls-the-models-own-stop-is-contrary-on-bull-calls), [`current.md`](current.md#2026-09-04--hedge_concentration-graded-and-21-closed-concurrency_correlation-built-and-first-run-noise) |
 | `exit_drawdown` | 2026-09-05 | UNDERPOWERED on PRIMARY; the two powered `all` cells NULL | [record](study-results/f2_management/exit_drawdown.md), [`current.md`](current.md#2026-09-05--exit_drawdown-new-f2-walk-forward-exit-hypotheses-on-account-level-drawdown--underpowered-on-primary-the-two-powered-all-cells-are-null) |
 | `hedge_exposure` | 2026-08-31 | UNDERPOWERED, and ARM M MEASUREMENT-ONLY; population `all` ratified | [record](study-results/f4_deployment/hedge_exposure.md), [pre-registration](pre-registrations/f4_deployment/hedge_exposure.md) |
-| `hedge_timing` | 2026-08-28 | GAP-UP CONTRARY on both money arms; §4 prohibition drafted and HELD (§0) | [`deployment-evidence.md`](deployment-evidence.md#hedge-timing-triggers-2026-08-28--one-drafted-and-held-prohibition-one-closed-question-one-untestable-habit) |
+| `hedge_timing` | 2026-08-28 | GAP-UP CONTRARY; §4 prohibition ACCEPTED 2026-09-06. The hedge stays; its trigger is §2.10 | [`deployment-evidence.md`](deployment-evidence.md#hedge-timing-triggers-2026-08-28--one-prohibition-accepted-2026-09-06-one-closed-question-one-untestable-habit) |
 | `bear_deploy` | 2026-08-24 | pick line PULLED; far-OTM prohibition retained; sleeve is operator policy | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md#2026-08-24-late--bear_deploy-registered-and-graded-pick-line-pulled-sleeve-relabelled-operator-policy-far-otm-prohibition-retained) |
 | `selection_order` | 2026-08-14 | UNDERPOWERED at G0; do not re-run on these dates | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md#2026-08-14--selection_order-run-power-stopped-at-g0-every-re-ordering-moves-714-of-the-book-so-no-arm-reaches-the-pre-registered-floor--nothing-read-nothing-refuted) |
 | `volume_signal` | 2026-08-13 | NULL; the volume column is closed | [archive/14](archive/14-volume-signal-demotion-and-audit.md#2026-08-13--volume_signal-run-null--the-volume-column-is-closed) |
@@ -107,7 +109,7 @@ One line each. Do not re-open; follow the link for the detail.
 ## 2. Open queue
 
 The numbers are stable labels, not a ranking. Pick-up order is roughly §2.2,
-§2.5, §2.9, then the parked items as dates arrive.
+§2.5, §2.10, §2.9, then the parked items as dates arrive.
 
 <a id="s2-0"></a>
 ### 2.0 `concurrency_correlation` — CLOSED 2026-09-04
@@ -125,10 +127,12 @@ queued. [Record](study-results/f4_deployment/concurrency_correlation.md),
 
 `hedge_concentration` Stage 1 is PRECONDITION-NULL on a powered read, graded
 clean under the two-analyst protocol; Stage 2 never ran. Do not re-open, and
-**do not register a fourth trigger study**: every mechanical rule for WHEN to
-hedge has been tested and none survives, while WHETHER the sleeve pays has
-never been powered. What would move it is an instrument test on a
-mark-to-market curve on dates chosen without a rule, and that waits on dates.
+**do not register a fourth trigger study over these dates and these columns**:
+every mechanical rule for WHEN to hedge has been tested and none survives, while
+WHETHER the sleeve pays has never been powered. What would move it is an
+instrument test on a mark-to-market curve on dates chosen without a rule, and
+that waits on dates. The operator still wants a hedge-open indicator; that
+request is §2.10 and does not reopen this closure.
 [Closure](deployment-evidence.md#the-queued-max-drawdown-question-is-closed-for-concentration-gated-hedging-2026-09-04-hedge_concentration-stage-1),
 [the distinction it rests on](deployment-evidence.md#the-hedge-trigger-is-dead-the-hedge-instrument-is-unmeasured-closing-note-2026-09-04),
 [record](study-results/f4_deployment/hedge_concentration.md).
@@ -313,6 +317,30 @@ python -m scripts.backtest_study run prompt_eval -- run --candidate <dir> \
 python -m scripts.backtest_study run prompt_eval -- accumulate --candidate <dir> \
   --date YYYY-MM-DD --run-dir backtests/prompt_eval/live
 ```
+
+<a id="s2-10"></a>
+### 2.10 A hedge-open indicator — OPEN, no candidate yet
+
+The operator accepted the [§4](../docs/deployment-rules.md#s4) gap-up
+prohibition on 2026-09-06 and keeps hedging. So the sleeve stays and the
+question of WHEN to open one is open with nothing in it.
+
+Four candidates have been tested and none survives: gap-up is CONTRARY and now
+prohibited, chop is NULL, the SPY down-run is NULL where powered, and book
+concentration is PRECONDITION-NULL
+([evidence](deployment-evidence.md#the-gap-up-prohibition-is-accepted-the-hedge-stays-and-its-trigger-is-still-open-2026-09-06)).
+
+- **What does NOT count as a candidate:** another timing rule cut from these
+  dates and these columns (§2.1), or a re-read of the close-bucketed curve,
+  which understates drawdown by 40.2% on a book measured the same way
+  ([basis](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m)).
+- **What would count:** a signal the book does not carry yet — hedge flow in the
+  analysis, or a live exposure reading from the journal — measured on the
+  mark-to-market curve (`backtest_study/lib/mtm_curve.py`), on dates chosen
+  without a rule. Both sources are the same ones §2.5 waits on.
+- **Census first, as with `operator_read`.** Before any registration, count how
+  many book dates carry the proposed signal at all. Three of the four dead
+  triggers died on power, not on sign.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

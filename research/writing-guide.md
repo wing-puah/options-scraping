@@ -7,7 +7,7 @@ compression, and a link beats a re-explanation.
 Adopted 2026-09-05. It governs new writing in `research/` and `docs/`. It does
 not license rewriting the archive (see [What not to rewrite](#what-not-to-rewrite)).
 
-## The eight rules
+## The nine rules
 
 1. **Lead with the finding.** The first sentence of an entry is the verdict in
    plain words. The second is what it changes in production, or "Nothing ships".
@@ -36,6 +36,16 @@ not license rewriting the archive (see [What not to rewrite](#what-not-to-rewrit
    add it to the glossary in the same commit.
 8. **Say what happens next.** End with what the finding does to the queue in
    [`next-steps.md`](next-steps.md): a new item, a closed item, or nothing.
+9. **Write for a technical reader, not a lawyer.** State the rule, the conflict,
+   and the resolution. Do not defend the interpretation unless asked. Cut
+   repeated justification, defensive caveats, and any sentence about how the
+   text will be read — no meta-language about graders, breaches, sanctions or
+   compliance. Where two registered clauses conflict, name the conflict in one
+   sentence and the chosen reading in one. Before writing, decide the single
+   point the reader needs; delete every sentence that does not change their
+   understanding or their decision. Where the text cannot settle an ambiguity,
+   say so plainly and give the narrowest reading it supports (operator,
+   2026-09-06).
 
 ## The entry template for `current.md`
 

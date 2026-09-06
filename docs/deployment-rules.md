@@ -91,6 +91,14 @@ deliberately for drawdown protection.
 - **Do not** rank the sleeve by `score_total` (§6), and **do not** buy the
   cheap far-OTM put — v3-era evidence, not contradicted on v4
   (`|delta| low first` gain +0.017, CI [−0.133, +0.168] spans zero; RE-2 retained).
+- **Do not open the hedge because the day gapped up** (SPY open ≥ prior close
+  ×1.003). The hedge does worse on exactly those days: `hedge_timing` H3-GAP
+  reads a paired excess of −0.506 R against ordinary days (CI [−0.844, −0.157],
+  every LOO fold, all cuts). Accepted by the operator 2026-09-06 from that
+  study's drafted prohibition — a restriction taken on a correlated window, not
+  a shipped rule. It bans the gap as the REASON to hedge. Hedging concentrated
+  exposure on a day that happens to gap is untested and not covered
+  (`research/deployment-evidence.md` §"Hedge-timing triggers").
 - The sleeve is held as **operator policy** (stated 2026-08-24), not on v4
   evidence: the hedge-contribution criterion (D2) is NOT MET on the v4 re-read
   and within-era unstable (it flipped MET → NOT MET between the 08-22 and
