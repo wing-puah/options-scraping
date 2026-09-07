@@ -81,6 +81,9 @@ python3 scripts/check_pipeline.py                     # WATCHDOG: did every coll
 python3 -m scripts.analysis_pipeline                  # latest date → AnalysisClaude
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific tab
 python3 -m scripts.analysis_pipeline --skip-llm       # fetch + audit CSV only, no LLM
+# A date the target tab ALREADY holds is REFUSED before the first fetch. --allow-duplicate-date
+# is the override and is almost never right: delete the unwanted run's rows first.
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --allow-duplicate-date
 
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml            # add --dry-run to preview
@@ -273,7 +276,9 @@ scripts/                    ← entry points, each maps to a workflow step
 
 ## Google Sheets tabs
 
-- **AnalysisClaude** — `scripts.analysis_pipeline` output, one row per ticker/play per run. Also
+- **AnalysisClaude** — `scripts.analysis_pipeline` output, one row per ticker/play per run.
+  A date the tab already holds is REFUSED (see Invariants); `created_datetime` is what a
+  bad run is deleted by. Also
   carries deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/
   `iv_pct`) joined from that date's audit rollup CSV at row-expansion time — NOT
   model-produced, appended at the end of `ROW_COLUMNS`.
@@ -332,6 +337,20 @@ two prompt versions are never pooled.
   values. See the invariant comment on `analysis_to_rows()` in
   `scripts/analysis_pipeline/core.py` and `ANALYSIS_PROMPT_CONTRACT` in its `config.py`. This
   regression has happened before — keep the JSON contract, row expansion, and claude.md in sync.
+
+- **An analysis is written ONCE per date.** `append_rows` appends — no upsert, no undo —
+  and the analysis step is not deterministic, so a second run on a date the target tab
+  already holds does not duplicate it: it proposes DIFFERENT plays and the tab ends up
+  pooling two populations, silently, into every study that loads the export. It happened
+  on 2024-09-16, 2025-09-10 and 2025-09-18, and on 2025-09-18 the two runs disagreed about
+  the `MARKET` regime itself. `scripts/analysis_pipeline/core.py::_drop_already_analysed`
+  REFUSES such a date, checked in ONE Sheets read before the first fetch and long before
+  any LLM spend — a guard that costs a run to reach is not a guard. `--tickers` runs key on
+  (date, TICKER); `--dry-run` only warns; `--skip-llm` and `--output-dir` are exempt because
+  neither can reach `append_rows`. `--allow-duplicate-date` is the override and is almost
+  never right — delete the unwanted run's rows, keyed on `created_datetime`, instead.
+  `--output-dir` remains a SEPARATE structural guard: a candidate prompt's rows for a NEW
+  date pass this one and must still never reach the tab.
 
 - **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
   is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous

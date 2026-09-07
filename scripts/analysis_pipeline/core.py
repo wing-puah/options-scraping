@@ -410,6 +410,77 @@ def _dates_to_process(args, client) -> list[str]:
     return [latest]
 
 
+# ─── The already-analysed guard ────────────────────────────────────────────────
+# `append_rows` appends. It does not upsert, and a Sheets tab has no undo, so a
+# second run on a date that already has rows leaves the tab holding BOTH runs'
+# plays — and because two runs of a non-deterministic LLM propose DIFFERENT
+# plays rather than copies, that is not a duplicate anyone can dedupe later. It
+# is two populations pooled into one, which is a decision about what the book
+# IS, and it silently reaches every study that loads the export. It happened
+# three times before this guard existed (2024-09-16, 2025-09-10, 2025-09-18);
+# on 2025-09-18 the two runs disagreed about the MARKET regime itself.
+#
+# So the pipeline REFUSES a date the target tab already holds, and the refusal
+# is checked ONCE, before the first fetch and long before any LLM spend.
+# `--allow-duplicate-date` is the deliberate override; it appends anyway, which
+# is almost never what you want — the repair for a bad run is to delete its rows
+# from the tab first, keyed on `created_datetime`.
+
+def _already_analysed(tab: str, dates: list[str],
+                      focus_tickers: list[str] | None = None) -> set[str]:
+    """Which of ``dates`` the tab already holds rows for.
+
+    A ticker-focused run is narrowed to the tickers it was asked for: the
+    ticker-specific tab is legitimately written many times for one date with
+    different names, and only a repeat of the SAME name doubles anything.
+    """
+    wanted = {d for d in dates}
+    rows = sheets_client.get_all_rows(tab)
+    if focus_tickers:
+        names = {t.upper() for t in focus_tickers}
+        return {d for d in wanted
+                if any(str(r.get("date", "")).strip() == d
+                       and str(r.get("ticker", "")).strip().upper() in names
+                       for r in rows)}
+    return {d for d in wanted if any(str(r.get("date", "")).strip() == d for r in rows)}
+
+
+def _drop_already_analysed(args, tab: str, dates: list[str],
+                           focus_tickers: list[str] | None) -> tuple[list[str], list[str]]:
+    """Split ``dates`` into (to run, already on the tab).
+
+    Skipped entirely when the run cannot produce rows for the tab at all:
+    `--skip-llm` writes no analysis, and `--output-dir` is a hard fork that
+    never reaches `append_rows`. Neither should need Sheets credentials just to
+    be told about a tab it will not touch. A `--dry-run` IS checked, so the
+    refusal surfaces before the LLM call rather than after it, but it only warns
+    — a run that writes nothing cannot double anything.
+    """
+    if args.skip_llm or args.output_dir or args.allow_duplicate_date:
+        if args.allow_duplicate_date and not (args.skip_llm or args.output_dir):
+            log.warning("--allow-duplicate-date: the already-analysed check is OFF; "
+                        "rows for a date already on '%s' will be APPENDED beside it", tab)
+        return dates, []
+
+    present = _already_analysed(tab, dates, focus_tickers)
+    if not present:
+        return dates, []
+
+    scope = f" for {', '.join(sorted(t.upper() for t in focus_tickers))}" if focus_tickers else ""
+    if args.dry_run:
+        log.warning("--dry-run: '%s' ALREADY holds rows%s for %s — a real run would refuse these",
+                    tab, scope, ", ".join(sorted(present)))
+        return dates, []
+
+    for d in sorted(present):
+        log.error("REFUSING %s: '%s' already holds rows%s for it. Re-analysing APPENDS a "
+                  "second, DIFFERENT set of plays beside the first. Delete the unwanted "
+                  "run's rows from the tab (keyed on created_datetime) first, or pass "
+                  "--allow-duplicate-date if pooling both runs is really what you want.",
+                  d, tab, scope)
+    return [d for d in dates if d not in present], sorted(present)
+
+
 def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
     """Per-ticker ``{"score_price": int, "score_catalyst": int}`` from fetched
     price-history/earnings data (lib.price_catalyst), keyed by upper-cased ticker.
@@ -439,8 +510,10 @@ def _compute_play_scores(analysis: dict, date_str: str) -> dict[str, dict]:
 # against a date and keep the whole artefact set locally. It is deliberately a
 # hard fork of the write step, not a flavour of --dry-run: a run that names an
 # output dir NEVER reaches sheets_client.append_rows, so a candidate prompt's
-# rows can never land in AnalysisClaude (which has no date dedup — a stray
-# append doubles that date's rows and there is no undo).
+# rows can never land in AnalysisClaude. The already-analysed guard below is
+# the other half of that protection and the two are deliberately independent:
+# the guard refuses a date the tab already holds, but a candidate prompt's rows
+# for a NEW date would pass it, and those must not reach the tab either.
 
 def _file_digest(path: Path) -> str:
     """Short sha256 of a prompt file, recorded so a run is traceable to its inputs."""
@@ -550,6 +623,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(claude→opus).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + analyze but do not write to Sheets.")
+    parser.add_argument("--allow-duplicate-date", action="store_true",
+                        help="Analyse a date the target tab ALREADY holds rows for. Off by "
+                             "default: the tab appends, so a second run leaves both runs' "
+                             "plays on it, and two runs propose DIFFERENT plays rather than "
+                             "copies. Use only when pooling both runs is the intent; the "
+                             "usual repair is to delete the unwanted run's rows first.")
     parser.add_argument("--skip-llm", action="store_true",
                         help="Fetch data and write audit CSV only — skip LLM analysis entirely. "
                              "Prints the prepared markdown to stdout.")
@@ -620,9 +699,15 @@ def main(argv: list[str] | None = None) -> None:
     dates = _dates_to_process(args, client)
     if not dates:
         sys.exit(1)
+
+    # Checked ONCE, before the first fetch and before any LLM spend.
+    dates, already = _drop_already_analysed(args, tab, dates, focus_tickers)
+    if not dates:
+        log.error("Nothing to analyse: every requested date is already on '%s'.", tab)
+        sys.exit(1)
     log.info("Dates to process: %s", ", ".join(dates))
 
-    done, skipped = [], []
+    done, skipped = [], []          # `already` is reported on its own line, not as a skip
     for d in dates:
         # A local-only run keeps its audit CSV inside the run dir, so a prompt
         # evaluation never overwrites the production audit/ rollup for the date.
@@ -689,6 +774,8 @@ def main(argv: list[str] | None = None) -> None:
 
     label = "Fetched" if args.skip_llm else "Analyzed"
     print(f"\n{label}: {', '.join(done) or 'none'}")
+    if already:
+        print(f"Refused:  {', '.join(already)} (already on {tab}; --allow-duplicate-date overrides)")
     if skipped:
         print(f"Skipped:  {', '.join(skipped)}")
     if not done:

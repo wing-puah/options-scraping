@@ -1043,6 +1043,8 @@ python3 -m scripts.analysis_pipeline --start 2026-04-14 --end 2026-04-18 --days 
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --dry-run   # fetch+analyze, no write
 python3 -m scripts.analysis_pipeline --model claude-opus-5         # override engine model
 python3 -m scripts.analysis_pipeline --skip-llm                    # fetch + audit CSV only, no LLM
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --allow-duplicate-date  # analyse a date
+                                                   # the tab ALREADY holds — see the guard below
 
 # Local-only prompt-evaluation runs (never touch Sheets — see the note below)
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir backtests/prompt_eval/run1
@@ -1114,13 +1116,50 @@ python3 scripts/clean_generated.py --only logs,site
 python3 scripts/clean_generated.py --force        # ignore the citation pin scan
 ```
 
+### The already-analysed guard
+
+`append_rows` appends. It does not upsert, and a Sheets tab has no undo, so a second
+analysis run on a date the target tab already holds leaves BOTH runs' rows on it. That is
+not a duplicate anyone can dedupe later: the analysis step is not deterministic (there is
+no temperature knob over the headless CLIs), so two runs of one date propose **different
+plays**, not copies. The tab then holds two populations pooled into one — a decision about
+what the book IS, taken silently, reaching every study that loads the export.
+
+It happened three times before the guard existed. 2024-09-16, 2025-09-10 and 2025-09-18
+were each analysed twice in the 2026-08 backfill; on 2025-09-18 the two runs disagreed
+about the `MARKET` regime itself (`RANGE + L-VOL` against `BULL + C-VOL`). The 37 rows of
+the earlier run on each date were deleted on 2026-09-07 — see
+[`research/current.md`](../research/current.md).
+
+So the pipeline **refuses** a date the target tab already holds:
+
+| | Behaviour |
+|---|---|
+| a date already on the tab | refused, and the run exits 1 if that leaves nothing to do |
+| a `--start`/`--end` range | the analysed dates are refused, the new ones run, exit 0 |
+| `--tickers` (→ `AnalysisTickerSpecific`) | keyed on (date, TICKER) — a new name on an analysed date runs |
+| `--dry-run` | warns, then runs; a run that writes nothing cannot double anything |
+| `--skip-llm`, `--output-dir` | not checked at all — neither can reach `append_rows` |
+| `--allow-duplicate-date` | the deliberate override: appends beside the existing rows |
+
+Two properties matter as much as the refusal itself. The check is **one** Sheets read, taken
+**before the first fetch** and long before any LLM spend — a guard that costs a run to reach
+is not a guard. And `--skip-llm` / `--output-dir` are exempt so that a prompt-evaluation or
+a Drive probe never needs Sheets credentials to be told about a tab it will not touch.
+
+`--allow-duplicate-date` is almost never the right answer. The repair for a bad run is to
+delete its rows from the tab first, keyed on `created_datetime`, which is what that column
+is for.
+
 ### Local-only prompt evaluation runs
 
 A candidate analysis prompt is scored by running the real pipeline on real dates and
-backtesting the result — but neither half may reach Google Sheets. AnalysisClaude has no
-date dedup (a stray append doubles that date's rows, with no undo) and BacktestResults /
-BacktestProxy are the evidence base every shipped rule rests on, so the guard is
-structural rather than a `--dry-run` habit:
+backtesting the result — but neither half may reach Google Sheets. A Sheets tab appends
+and has no undo, and BacktestResults / BacktestProxy are the evidence base every shipped
+rule rests on, so the guard is structural rather than a `--dry-run` habit. It is
+independent of the [already-analysed guard](#the-already-analysed-guard) and has to be:
+that one refuses a date the tab already holds, but a candidate prompt's rows for a NEW
+date would pass it and must not reach the tab either.
 
 - **`--output-dir <dir>` on `scripts.analysis_pipeline` NEVER writes Sheets** —
   unconditionally, not only under `--dry-run`. The run writes `<date>.json` (the parsed
