@@ -353,6 +353,13 @@ trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
 
 _Registered in [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md) · module `f4_deployment/hedge_exposure.py`_
 
+**The module carries a second arm since 2026-09-07.** `--admitted` runs the same
+question on the ADMITTED book, and its labels are indexed separately under
+[`hedge_concentration`](#hedge_concentration), which is the study it was merged
+from. The labels below are the WHOLE-BOOK arm's. Six tokens are spelled the same
+in both and mean the same role over a different population, so always say which
+arm.
+
 Grid: 3 τ × 3 f = 9 cells per arm, fixed at registration and never expanded.
 `ARM C` here is NOT `concurrency_correlation`'s `ARM C` (a concurrency
 ceiling) and `ARM N` is the third `ARM N` in this family — same random-null

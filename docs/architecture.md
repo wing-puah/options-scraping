@@ -444,7 +444,28 @@ in the family folders concluded.
   shape its `research/study-results/` record quotes, and a narrowed grid is a
   registered choice. Pinned by `tests/test_hedge_criteria.py` against a hand-computed
   fixture, the way `lib/harness.py` is pinned by `tests/test_harness_replay.py`.
+- `lib/sleeve_synth.py` — the vol-sleeve synthesis layer: straddle/strangle/calendar leg
+  building, the strike index, the trade synthesizer, and the correlation/CI helpers that read
+  the result. It was `f3_structure/vol_sleeve.py`'s until that study was deleted on
+  2026-09-07, and it moved here byte-identical because `calendar_hedge`'s gate `R4` runs it as
+  the second side of a row-for-row comparison — a copy inside the study is exactly the copy
+  `R4` exists to refuse. DELIBERATE exception to the `lib/` layering rule: it imports pricing
+  helpers from `f3_structure/bear_rewrap`, on `lib/live_select.py`'s precedent, and its
+  docstring says so. Its `daily()` does NOT defer to `hedge_criteria.daily_series` — that one
+  sums only rows carrying a return, this one sums every row of the date, so importing would
+  move a number.
 - `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
+
+**Two study modules were deleted on 2026-09-07 and their questions live elsewhere.**
+`f3_structure/vol_sleeve.py` was retired into `calendar_hedge` gate `R4`, which already
+rebuilds its calendar cell in-process; its synthesis layer is `lib/sleeve_synth.py`.
+`f4_deployment/hedge_concentration.py` was merged into `f4_deployment/hedge_exposure.py` as
+that module's `--admitted` arm — the same question on the ADMITTED book `account_sim` takes
+rather than the whole one, which is why it already imported 32 symbols from it. `main()`
+dispatches on `--admitted` before any parser, so each arm keeps its own argparse surface and
+its own registered labels, and the arm files its report under `hedge_exposure-admitted`.
+A bare `run hedge_exposure` runs both arms; `run --all` does too. Verdicts for both deleted
+studies are the **DELETED** rows in `research/study-map.md`.
 
 ### account_sim
 
@@ -1189,6 +1210,7 @@ python3 -m scripts.backtest_study run account_sim -- --config config/my-account.
 python3 -m scripts.backtest_study run account_sim -- --compounding
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 python3 -m scripts.backtest_study run account_sim -- --live-select [--live-select-no-llm]
+python3 -m scripts.backtest_study run hedge_exposure -- --admitted   # bare run does both arms
 python3 -m scripts.study_review account_sim            # --skip-run reuses report; --dry-run no LLM
 python3 -m scripts.study_review <study>                # auto-inlines research/<study>-errata.md if one
                                                       # exists (`_`->`-` tried); --errata <path> ·

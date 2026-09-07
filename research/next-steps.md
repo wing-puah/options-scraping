@@ -32,6 +32,15 @@ keeps its number as a one-line stub with a link.
   duplicated analysis run (2026-09-07). No study has run on any of them. The
   population is now settled — nothing under *Waiting on the operator* changes it
   — so re-run the suite deliberately.
+- **RESOLVED 2026-09-07** — the missing option-history files are back and R2
+  passes. It was six files, not the two first found. IWM 2026-05-29 245P and
+  MSTR 2025-06-27 420C were named here; restoring them left `calendar_hedge`
+  still failing R2 at `leg_not_cached 3`, on three other keys needing SPY
+  2025-07-25 555P, KWEB 2025-04-25 32P and 35P, and TSLA 2025-02-28 360P. All
+  six came out of the `research-caches-20260905-1111.tar.gz` Drive snapshot, and
+  `calendar_hedge` now reads `reconstructs: 1180 / 1180 (100.0%)` and `R2 PASS`
+  on the installed export
+  ([record](current.md#2026-09-07-fifth--hedge-programme--criteria-consolidated-two-studies-deleted)).
 - **Two hardcoded date tables are still no-ops by construction.**
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
@@ -205,20 +214,19 @@ under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
 <a id="s2-3"></a>
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
 
-`calendar_hedge` has not passed its own gates on any v4 export: H0 fill NOT
-MET, H2 NOT EVALUABLE, and H3 read NOT MET, DEPLOYABLE, NOT MET on three
-consecutive exports, so H3 is recorded as an unstable measurement rather than a
-verdict either way ([record](study-results/f3_structure/calendar_hedge.md),
-[hedge programme](current.md#the-hedge-programme)). The wall is structural: 9
-worst-decile dates cannot power a worst-decile criterion under a 1/day sleeve.
+What the study asked, what each gate last read, and why the fill rate rather
+than the date count is the wall are in the spine,
+[Q2](hedge-programme.md#q2-what-to-hedge-with).
 
 - **Unblocks when** the book has materially more dates. Nothing to run until
-  then.
-- **Read H3 with this caveat:** it is `bear_deploy` D3 verbatim, and D3's
-  drawdown leg is read on the close-bucketed curve that understates drawdown
-  ([`deployment-evidence.md`](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m)).
+  then. The worst-decile cell needs roughly 320 deployed dates, twice the book
+  ([walls](hedge-programme.md#known-walls)).
+- **Read H3 with this caveat:** its drawdown basis is qualified in the spine,
+  [Q3](hedge-programme.md#q3-how-much-to-hedge), and in
+  [`deployment-evidence.md`](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m).
 - Carry-forwards, post-hoc and not candidates: the RANGE+C/L-VOL calendar cell
-  and the H2 clause amendment, both in the record.
+  and the H2 clause amendment, both in the
+  [record](study-results/f3_structure/calendar_hedge.md).
 
 <a id="s2-4"></a>
 ### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
@@ -376,15 +384,12 @@ The operator accepted the [§4](../docs/deployment-rules.md#s4) gap-up
 prohibition on 2026-09-06 and keeps hedging. So the sleeve stays and the
 question of WHEN to open one is open with nothing in it.
 
-Four candidates have been tested and none survives: gap-up is CONTRARY and now
-prohibited, chop is NULL, the SPY down-run is NULL where powered, and book
-concentration is PRECONDITION-NULL
-([evidence](deployment-evidence.md#the-gap-up-prohibition-is-accepted-the-hedge-stays-and-its-trigger-is-still-open-2026-09-06)).
+The four candidates that have been tested, and why each died, are in the spine,
+[Q1](hedge-programme.md#q1-when-to-open-a-hedge).
 
 - **What does NOT count as a candidate:** another timing rule cut from these
-  dates and these columns (§2.1), or a re-read of the close-bucketed curve,
-  which understates drawdown by 40.2% on a book measured the same way
-  ([basis](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m)).
+  dates and these columns (§2.1), or a re-read of the close-bucketed curve
+  ([basis](hedge-programme.md#q3-how-much-to-hedge)).
 - **What would count:** a signal the book does not carry yet — hedge flow in the
   analysis, or a live exposure reading from the journal — measured on the
   mark-to-market curve (`backtest_study/lib/mtm_curve.py`), on dates chosen

@@ -73,12 +73,9 @@ Closed on triggers, unchanged on the instrument. The gap-up prohibition in
 finding an indicator for when to open a hedge is now an open queue item with
 nothing in it ([`next-steps.md`](next-steps.md) §2.10).
 
-| Study | Verdict | Detail |
-|---|---|---|
-| [`hedge_concentration`](study-results/f4_deployment/hedge_concentration.md) | `PRECONDITION-NULL` again | ρ +0.00 on 626 usable sessions |
-| [`hedge_exposure`](study-results/f4_deployment/hedge_exposure.md) | `UNDERPOWERED` plus `MEASUREMENT-ONLY` | [ARM M](arm-index.md#hedge_exposure)'s 40.2% is identical to the dollar |
-| [`hedge_timing`](study-results/f4_deployment/hedge_timing.md) | survivors still 0 | [H1-GAP](arm-index.md#hedge_timing) `NULL` → `CONTRARY`. H3-GAP stronger at −0.506, CI [−0.844, −0.157]. H4-GAP `CONTRARY` → `NULL` |
-| [`calendar_hedge`](study-results/f3_structure/calendar_hedge.md) | [H3](arm-index.md#calendar_hedge) back to `NOT MET` at any size | drawdown-bound. Three consecutive exports read `NOT MET`, `DEPLOYABLE`, `NOT MET`, so this is an unstable measurement and not a verdict |
+The spine is [`hedge-programme.md`](hedge-programme.md). It carries the four
+studies grouped by the question each answers, what each one last printed, why
+each stopped, and what would unblock it.
 
 ### `concurrency_correlation` is closed
 
@@ -160,8 +157,11 @@ Each has its full entry in an archive volume.
 - **`study_review --dry-run` overwrites** the review and digest artifacts
   (archive/17).
 - **The `hedge_exposure` registration describes the wrong stratum.** Its
-  plan-time observations describe the `real` stratum, not the ratified book
-  (`hedge-exposure-errata.md` §RATIFICATION).
+  plan-time observations describe the `real` stratum, not the ratified book.
+  The RATIFICATION that says so was folded out of `hedge-exposure-errata.md`
+  into the registration itself on 2026-09-02, and now lives in
+  [Population and basis](pre-registrations/f4_deployment/hedge_exposure.md).
+  The errata file is deleted; dated entries below keep its name as history.
 
 ### What was pruned from this log
 
@@ -1397,3 +1397,183 @@ campaign imports those files per date.
 
 Next, after the campaign ends: merge the two worktrees, align the headers,
 re-run the suite once, then accept and run N1 and N2.
+
+## 2026-09-07 (fourth) — calendar_hedge — the new dates do not unblock it; two cached legs have gone missing
+
+The 12 backtest dates the campaign has added so far move the calendar sleeve's
+worst-decile cell from 4 positions to 5. The power floor is 10, so
+[H2](arm-index.md#calendar_hedge) stays `NOT EVALUABLE` and nothing ships. The
+wall is the fill rate, not the date count. The sleeve fills on half the deployed
+dates and a third of the worst decile, and the new dates fill at that same rate,
+so the cell reaches 10 only at roughly twice today's deployed dates.
+
+_Era v4 · live tabs staged 2026-09-07 20:23 and NOT installed · 569 real /
+1,523 proxy rows over 180 / 192 dates · report kept in the session scratchpad,
+not in `backtests/study_output/`, and nothing appended to study-results._
+
+**In production.** Nothing changes. [§4](../docs/deployment-rules.md#s4) keeps
+its one sleeve.
+
+**How it was run.** `export_tabs.py --dest` staged the live tabs outside
+`backtests/to_evaluate/`, and the study's `main()` ran with `era.EVAL_DIR`
+pointed at the staging directory. The installed export and every `-latest.txt`
+are untouched. The checkpoint store `backtests/sweep_cache/synth_results.csv`
+did gain rows, keyed by cache signature, as any run would. Two rows were set
+aside for the projection; the next paragraph says why.
+
+**A stop before the power floor.** The live tabs fail R2 with
+`leg_not_cached 2`. The short legs of IWM 2026-05-29 245P (signal 2026-04-13)
+and MSTR 2025-06-27 420C (signal 2025-06-05) have no file in
+`backtests/option_history_cache/`. Both rows are on the installed 2026-09-07
+export too, and the MSTR row passed R2 on 2026-09-04, so the file was lost
+between that run and today. Until the two files are back, `calendar_hedge`
+exits 1 at R2 on the next suite run, and the three studies that share the
+reconstruction check should be expected to stop the same way.
+`scripts/backtest/shared/history.py` writes the cache on a miss, so a
+`--redo` of the two signal dates refetches them; `backup_research_caches.py
+pull` restores them if the Drive snapshot holds them. Operator's call which.
+
+**Evidence.** The primary H2 block, P1 under the production exit profile.
+
+| Line | 2026-09-04 export, recorded | live tabs 2026-09-07, projection |
+|---|---|---|
+| Deployed dates | 147 | 163 |
+| Worst-decile dates | 14 | 16 |
+| H0 fill, deployed dates | 75 / 147 = 51.0% FAIL | 83 / 163 = 50.9% FAIL |
+| H0 fill, worst decile | 4 / 14 = 28.6% FAIL | 5 / 16 = 31.2% FAIL |
+| H2(a) date-level corr | −0.100, CI [−0.228, +0.017], MET | −0.102, CI [−0.221, +0.003], MET |
+| H2(b) worst-decile cell | n=4, [meanR](glossary.md#meanr) +0.810, `UNDERPOWERED` | n=5, meanR +0.557, `UNDERPOWERED` |
+| H2(c) worst-quartile tail | positive in 3/3 years | positive in 3/3 years |
+| H2 | `NOT EVALUABLE` | `NOT EVALUABLE` |
+| H3 sizing | NOT MET at any size | NOT MET at any size, drawdown-bound |
+
+What the cell needs, at the fill rates the book has shown:
+
+| Fill on worst-decile dates | Worst-decile dates for n ≥ 10 | Deployed dates implied |
+|---|---|---|
+| 31%, observed | 32 | ≈ 320 |
+| 60%, the H0 floor | 17 | ≈ 170 |
+
+Dates still in the pipeline: 15 from queue D, and the 19 live sessions
+2026-08-11 → 2026-09-04 that price from December 2026. Together they reach about
+197 deployed dates and a cell of about 6.
+
+**Caveats.** The projection drops two rows, so it is not the figure a recorded
+run will print; the recorded run is the one that goes in study-results. The
+fill rate is a property of what the option cache holds, two expiries at one
+strike on the entry session, and no collector fetches that for the H arm;
+`fetch_sweep_legs.py` serves ARM S and was last run 2026-08-13.
+
+**Next.** [`next-steps.md`](next-steps.md) §2.3 stays blocked and now states
+the size of the wall. §0 gains the two missing cache files as a hazard to clear
+before the suite re-run.
+
+## 2026-09-07 (fifth) — hedge programme — criteria consolidated, two studies deleted
+
+**The hedge contribution rule, the sizing rule and the drawdown function now
+have one body each, and no report moved.** Six modules carried a copy of
+`bear_deploy`'s `D2`, four carried its `D3`, and the drawdown function existed
+three times. Seven reports were reconciled one at a time, and every body is
+byte-identical before and after. Two modules are gone: `vol_sleeve` is
+retired into [`calendar_hedge`](arm-index.md#calendar_hedge) gate `R4`, and
+`hedge_concentration` is now
+[`hedge_exposure`](arm-index.md#hedge_exposure)'s `--admitted` arm.
+
+_Era v4 · installed export 2026-09-07 12:17 · pooled study book 1,183 rows over
+177 dates · plan in [`hedge-programme-plan.md`](hedge-programme-plan.md), spine
+in [`hedge-programme.md`](hedge-programme.md)._
+
+**In production.** Nothing changes. No verdict, gate or arm label moved, and
+[§4](../docs/deployment-rules.md#s4) keeps its one sleeve.
+
+**What the library holds.** `scripts/backtest_study/lib/hedge_criteria.py` owns
+one contribution rule, one sizing rule, the 1-per-day sleeve picker and the
+daily-series builder, transcribed from `bear_deploy` with every threshold and
+tie-break intact. It re-exports `max_drawdown` from `lib/mtm_curve.py` rather
+than holding a second body. It prints nothing and owns no fraction grid, because
+a narrowed grid is a registered choice and stays in the study.
+`tests/test_hedge_criteria.py` pins it against a hand-written 16-case fixture,
+the way `tests/test_harness_replay.py` pins the frozen engine.
+
+**Evidence.** One row per study. "Body identical" compares the report with the
+runner's header and footer stripped.
+
+| Study | What moved to the library | Body identical | Commit |
+|---|---|---|---|
+| `bear_deploy` | the reference for `D2` and `D3`; its six functions are now wrappers | yes | `a9b713a` |
+| `hedge_timing` | the `max_drawdown` fork and `daily_dollars` | yes | `8c03502` |
+| `vol_sleeve` | module DELETED; its synthesis layer is now `lib/sleeve_synth.py` | yes, via `calendar_hedge` | `5be4ba6` |
+| `calendar_hedge` | the per-year tail cut, the sizing sweep and verdict, the sleeve pick | yes | `4ed865f` |
+| `hedge_concentration` | module DELETED into `hedge_exposure --admitted`; no criterion moved | yes | `7187ca2` |
+| `hedge_exposure` | nothing; it carries neither rule | yes | `7187ca2` |
+| `bear_rewrap` | the daily series only | yes | `3d20781` |
+| `financed_spread` | the daily series only | yes | `0d27a37` |
+
+Two library behaviours the fixture makes visible and does not change. An empty
+sleeve passes the sizing rule vacuously at the largest fraction, so a study must
+read the position count beside the verdict. And `least_harmful` is now computed
+on every sweep rather than only in the `NOT MET` branch, unprinted either way.
+
+**Findings.** No copy disagreed with the library. Every report body reconciled.
+Four things were recorded during the work and are quoted here verbatim, in the
+words of the step that found them.
+
+> R2 still FAILS after restoring exactly the two files named in this step.
+> `python3 -m scripts.backtest_study run calendar_hedge` (2026-09-07 22:08:48,
+> era v4, book 1183 rows/177 dates) reports `reconstructs: 1177 / 1180 (99.7%)`
+> with `failed: leg_not_cached 3` and `R2 FAIL`, exit code 1.
+
+> Read-only diagnostic (scratchpad/diag_leg_not_cached.py, imports
+> calendar_hedge.load_book + bear_rewrap.reconstructs directly, no repo writes)
+> identified the 3 failing (date,ticker) keys and the specific uncached legs:
+> KEY ('2025-06-05','SPY') needs SPY 2025-07-25 555.00P (the 585.00P leg is
+> cached); KEY ('2025-03-06','KWEB') needs KWEB 2025-04-25 35.00P AND 32.00P
+> (both legs uncached); KEY ('2025-01-07','TSLA') needs TSLA 2025-02-28 360.00P
+> (the 400.00P leg is cached). None of these three keys involve IWM 2026-05-29
+> or MSTR 2025-06-27 at all — the two files this step was scoped to restore were
+> not the blocker for any of the three currently-failing keys.
+
+> All four of those additional missing files (SPY_20250725_555.00P.csv,
+> KWEB_20250425_35.00P.csv, KWEB_20250425_32.00P.csv,
+> TSLA_20250228_360.00P.csv) DO exist in the already-downloaded
+> research-caches-20260905-1111.tar.gz snapshot (confirmed by `tar -tzf`
+> listing) but were left un-extracted since restoring them was outside this
+> step's explicit scope (only the two named IWM/MSTR files were authorized).
+
+> FINDING-OF-FACT (not a mismatch): bear_rewrap ARM P's bucket arithmetic
+> genuinely differs from lib/hedge_criteria's D2 in three ways, so it was NOT
+> routed through the library. (1) Worst-decile cut: bear_rewrap takes a VALUE
+> cutoff -- cutoff = sorted(values)[max(0, n//10 - 1)] then {d : v <= cutoff},
+> so ties are carried in and there is no floor; hedge_criteria.hedge_contribution
+> takes the positional order[:max(DECILE_MIN=3, n//10)]. On the current v4 export
+> the two are not guaranteed to select the same date set. (2) P1's verdict is a
+> bootstrap CI excluding zero (P.boot_ci_by_date, lo > 0) measured on the
+> SUBSTITUTION's own rows on those dates; D2's is a bare tail mean > 0 on a
+> paired bear daily series. (3) P2 requires 8 shared dates and passes at
+> corr <= 0, where D2's power floor is MIN_COMMON_DATES=20 and it needs
+> corr < 0; and bear_rewrap's per-year clause is a per-year CORRELATION
+> (>=8 points), where D2's is the per-year worst-quartile tail sign over
+> MIN_TAIL_YEARS. Only the daily-series build was arithmetically identical
+> (str-keyed date buckets, statistics.fmean over non-None R; book rows carry str
+> dates and float R, so bear_rewrap's float() cast and direct r['date'] key were
+> identity), and that is what now calls HC.daily_series(ladder, 'R', 'R_dol'),
+> taking the mean leg only.
+
+The first three are resolved. Six files were restored from
+`research-caches-20260905-1111.tar.gz`, and `calendar_hedge` now reads
+`reconstructs: 1180 / 1180 (100.0%)` and `R2 PASS` on the installed export. The
+fourth stands: `bear_rewrap` `ARM P` keeps its own cutoff and its own `P1`/`P2`
+verdicts, because routing them through the library would move printed figures
+under registered labels.
+
+**Caveats.** `hedge_exposure`'s `ARM N` null band is cache-sensitive. Its two
+p95 figures moved between two runs 21 minutes apart, +0.3825 to +0.3704 and
++0.3465 to +0.3549, because queue D was writing option history under the study
+(43,047 to 43,038 contract files). The merge was proved against a fixed cache
+and nothing the study concludes moves. But a report quoted from a run taken
+while a scrape is in flight is not reproducible line for line.
+
+**Next.** [`next-steps.md`](next-steps.md) §0 closes its missing-cache-file
+hazard. Nothing else opens or closes. The two sleeve-sizing bodies outside the
+sweep shape, in `account_sim` and `portfolio_delta`, stay named in the plan and
+out of scope.
