@@ -88,6 +88,9 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --allow-duplicate-date
 # Backtest
 python3 -m scripts.backtest --config config/backtest.yml            # add --dry-run to preview
 python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested plays → BacktestProxy tab
+# BOTH are idempotent: a play already on the destination tab is SKIPPED. --redo re-simulates
+# it and DELETES the existing rows first; it needs a date bound (--date, or --start/--end).
+python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --redo
 
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
 python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
@@ -351,6 +354,25 @@ two prompt versions are never pooled.
   never right — delete the unwanted run's rows, keyed on `created_datetime`, instead.
   `--output-dir` remains a SEPARATE structural guard: a candidate prompt's rows for a NEW
   date pass this one and must still never reach the tab.
+
+- **A play is backtested ONCE per results tab, and both writers key on the SAME row
+  identity.** The results tabs append too, and a re-run is not a copy: it reprices the same
+  play on whatever the exit config, the cached Barchart history and the classifier say
+  TODAY, so the two rows can disagree about the exit, the basis and the P&L while looking
+  equally authoritative — `exit_basis` exists because that already happened once. The
+  2025-12-22 SPY duplicate found on 2026-09-06 came from a re-run of `scripts.backtest`,
+  which until 2026-09-07 never read its own destination. `scripts/backtest/core.py::
+  _drop_already_backtested` now drops a play already on `BacktestResults` BEFORE the
+  Barchart fetch, mirroring `proxy.py`'s long-standing check against `BacktestProxy`.
+  `--redo` is the override: it DELETES the existing rows and then appends, in that order,
+  and refuses to run without a date bound because an unbounded `--redo` rewrites the whole
+  tab. The key — `(date, TICKER, 60-char play prefix)` — lives in
+  `scripts/backtest/shared/identity.py` and there is exactly ONE copy: two would let the
+  real backtest and the proxy disagree about what a duplicate is. It is deliberately the
+  same normalisation `backtest_study/lib/book.py::norm_play` joins on, so the writers'
+  notion of row identity and the studies' are the same one. `core.py` must never import
+  `proxy.py` — the proxy reads `BacktestResults` as an INPUT, so that dependency runs one
+  way only.
 
 - **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
   is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous

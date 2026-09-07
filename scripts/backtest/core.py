@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
+from lib import sheets_client
 from lib.logger import setup_logging
 
 from .plays import build_matched_plays
@@ -20,6 +21,7 @@ from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 from .shared.analysis_io import load_analysis as _load_analysis
 from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
 from .shared.history import fetch_option_histories
+from .shared.identity import find_untested, identity_key, keys_from_tab
 from .shared.results_io import write_results
 
 log = logging.getLogger("backtest")
@@ -131,6 +133,63 @@ def _regime_prefix(regime: str) -> str:
 # Moved to scripts/backtest/shared/{analysis_io,history}.py so a sibling module
 # (e.g. a future proxy.py) can reuse them without importing this core module.
 # ``_load_analysis`` and ``fetch_option_histories`` are imported above.
+
+
+# ─── The already-backtested guard ──────────────────────────────────────────────
+# `append_rows` appends. It does not upsert, and a Sheets tab has no undo, so a
+# second run over a date this tab already holds leaves BOTH runs' rows on it —
+# and they are not copies. A re-run reprices the same play on whatever the exit
+# config, the cached Barchart history and the classifier say TODAY, so the two
+# rows can disagree about the exit, the basis and the P&L while looking equally
+# authoritative. `exit_basis` exists precisely because that happened: rows
+# written before 2026-07-22 carry a different exit profile from rows written
+# after it, on the same tab.
+#
+# It has already bitten. The 2025-12-22 SPY duplicate found on 2026-09-06 came
+# from a re-run of this module, and 15 older duplicates came with it. Nothing
+# stopped it, because until now this module never read its own destination.
+#
+# So a play already on the results tab is DROPPED before Pass 1 — before the
+# Barchart fetch, which is the expensive step, for the same reason the analysis
+# pipeline checks before its first LLM call: a guard that costs a run to reach
+# is not a guard. `--redo` is the override and deletes the existing rows first
+# rather than appending beside them, which is the same contract `proxy.py`'s
+# `--redo` already has. The identity key is shared with the proxy
+# (`shared/identity.py`) so both writers agree on what a duplicate is.
+
+def _drop_already_backtested(candidates: list[dict], cfg: dict,
+                             args) -> tuple[list[dict], set]:
+    """Split candidates into (to simulate, keys to delete first).
+
+    Skipped entirely when `output.sheet_tab` is null. That is local-only mode,
+    where the only destination is `output.local_csv` — which this CLI REWRITES
+    each run rather than appending to, so it cannot accumulate a duplicate and
+    there is nothing for the guard to protect.
+    """
+    sheet_tab = (cfg.get("output") or {}).get("sheet_tab")
+    if not sheet_tab:
+        log.info("output.sheet_tab is null (local-only run) — the already-backtested "
+                 "check is skipped; the local CSV is rewritten, not appended")
+        return candidates, set()
+
+    existing = keys_from_tab(sheet_tab)
+    if args.redo:
+        redo_keys = {k for k in (identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                                 for c in candidates) if k in existing}
+        log.warning("--redo: %d play(s) already on '%s' will be re-simulated and their "
+                    "existing rows DELETED before the new ones are appended",
+                    len(redo_keys), sheet_tab)
+        return candidates, redo_keys
+
+    remaining = find_untested(candidates, existing)
+    dropped = len(candidates) - len(remaining)
+    if dropped:
+        log.warning("SKIPPING %d play(s) already on '%s'. Re-simulating APPENDS a second "
+                    "row that may disagree with the first about the exit, the basis and "
+                    "the P&L. Pass --redo to replace them instead.", dropped, sheet_tab)
+    log.info("%d/%d candidate plays are not yet on '%s'",
+             len(remaining), len(candidates), sheet_tab)
+    return remaining, set()
 
 
 # ─── Output ────────────────────────────────────────────────────────────────────
@@ -276,7 +335,17 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Do not write output files")
     parser.add_argument("--cache-only", action="store_true",
                         help="Use cached Barchart history only; skip retrieval even if cache is stale or missing")
+    parser.add_argument("--redo", action="store_true",
+                        help="Re-simulate plays already on the results tab, DELETING their "
+                             "existing rows first instead of appending beside them (requires "
+                             "--date or --start/--end). Without it such plays are skipped: "
+                             "the tab appends, and a re-priced row can disagree with the "
+                             "first about the exit, the basis and the P&L.")
     args = parser.parse_args()
+    # Same bound proxy.py's --redo carries: an unbounded --redo would delete and
+    # rewrite the whole tab, which is a re-backtest of the book and not a repair.
+    if args.redo and not (args.date or args.start or args.end):
+        parser.error("--redo needs a date bound (--date, or --start/--end)")
 
     cfg_path = Path(__file__).resolve().parent.parent.parent / args.config
     with cfg_path.open() as f:
@@ -307,6 +376,15 @@ def main() -> None:
     if not candidates:
         log.warning("No plays found in '%s' — run `python3 -m scripts.analysis_pipeline` "
                     "first to populate it", source)
+        sys.exit(0)
+
+    # Checked BEFORE the Barchart fetch and before any classification: a play
+    # already on the results tab costs nothing to skip here, and everything to
+    # discover after it has been appended a second time.
+    candidates, redo_keys = _drop_already_backtested(candidates, cfg, args)
+    if not candidates:
+        log.warning("Nothing to simulate: every candidate play in '%s' is already on the "
+                    "results tab. Pass --redo to replace those rows.", source)
         sys.exit(0)
 
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.
@@ -343,5 +421,14 @@ def main() -> None:
              "%d unpriced, %d vetoed)",
              len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
              skipped["unpriced"], skipped["vetoed"])
+
+    # Delete-then-append, in that order: the new rows must never be able to land
+    # beside the old ones, which is the exact failure --redo exists to prevent.
+    sheet_tab = (cfg.get("output") or {}).get("sheet_tab")
+    if redo_keys and sheet_tab and not args.dry_run:
+        sheets_client.delete_rows_where(
+            sheet_tab,
+            lambda r: identity_key(r.get("signal_date", ""), r.get("ticker", ""),
+                                   r.get("play", "")) in redo_keys)
 
     _write_results(results, cfg, args.dry_run)

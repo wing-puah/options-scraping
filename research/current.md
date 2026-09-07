@@ -22,11 +22,11 @@ This block is the authoritative summary of where the research stands.
 | Field | Value |
 |---|---|
 | Era | `v4`, the 166-date backfilled book |
-| Exports | `BacktestResults` 2026-09-06, `AnalysisClaude` 2026-09-07; both deduplicated |
-| Real results | 524 |
-| Proxy rows | 1,303 |
+| Exports | all three re-pulled 2026-09-07; deduplicated, and every result row joins its play |
+| Real results | 543 over 168 dates |
+| Proxy rows | 1,380 |
 | Analysis rows | 2,325 over 198 dates, one analysis run per date |
-| Pooled study book | 1,132 rows, being 524 real plus 608 tweak |
+| Pooled study book | 1,183 rows over 177 dates, being 543 real plus 640 tweak |
 | Signal dates | 2024-01-10 → 2026-04-16 |
 | 2026 signal dates | 11 carry pooled rows, of the 13 backfilled; 2026-01-06 to 2026-04-16, 79 pooled rows |
 
@@ -104,27 +104,26 @@ been checked, and is not "not met". The
 
 ### Data hazards on this export, not repaired
 
-- **The export is refreshed and deduplicated.** 2026-09-06: the SPY duplicate
-  and 15 older duplicate rows were deleted from the tab, `export_tabs.py`
-  re-pulled, and the export now holds 524 rows over 159 dates with the four
-  re-priced rows in it. Tab and export agree. The suite has NOT been re-run on
-  it. Details: [`next-steps.md`](next-steps.md) §0.
+- **The exports are refreshed and deduplicated.** All three were re-pulled on
+  2026-09-07 after the 12 stale rows were dropped. `BacktestResults` holds 543
+  rows over 168 dates, and no identity key repeats on it or on `BacktestProxy`.
+  Tab and export agree on each. The suite has NOT been re-run on them.
+  Details: [`next-steps.md`](next-steps.md) §0.
 - **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
   analysis run than their own play.** A consequence of keeping the newer copy,
   not repaired. The backtest stamps each play with the newest `MARKET` row on
   its date, and 2025-09-18 was analysed twice, so those rows read `BULL + C-VOL`
   where the run that proposed them read `RANGE + L-VOL`. Any regime cut on
   2025-09-18 sees the later label.
-- **12 `BacktestResults` rows were proposed by an analysis run that no longer
-  exists.** The three doubled dates were repaired on 2026-09-07 by deleting the
-  earlier run, and these rows are what the repair left behind: 5 have no
-  `AnalysisClaude` row at all, and **7 now join a DIFFERENT play on the same
-  (date, ticker)** — silently, because the join still matches. On 2025-09-10
-  `NVDA` the direction itself flips, a `bull_call_spread` result row joining a
-  `bear_put_spread` play. Any study that reads a play through that join —
-  [`text_features`](arm-index.md#text_features) reads the play TEXT — sees the
-  wrong one on these rows. Full table and what it does NOT affect:
-  [2026-09-07](#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed).
+- **RESOLVED.** The 12 `BacktestResults` rows whose play no longer existed were
+  dropped on 2026-09-07, so no result row joins the wrong play any more. Record:
+  [2026-09-07 later](#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row).
+- **Two rows on 2025-07-29 still cannot join, and are KEPT on purpose.** `COIN`
+  and `EEM` have no `AnalysisClaude` row. Their cause is not the repair: the
+  analysis rows that proposed them went missing separately, and the backtest row
+  is now the only surviving record that those plays were ever proposed. They fail
+  the join outright rather than landing on another play, which studies already
+  count as unjoined. Dropping them would destroy evidence to tidy a count.
 - 2025-12-26 produced no analysis rows.
 - `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
   89.3%, because the label cache does not cover the new rows.
@@ -1130,6 +1129,109 @@ the robustness cut.
 
 **Next.** [`next-steps.md`](next-steps.md) §0 gains the queues as an operator
 item. The two hardcoded 2026-03 tables stop being no-ops once queue C runs.
+## 2026-09-07 later — the 12 stale backtest rows are dropped, and the backtest can no longer double a row
+
+The evidence base is 543 rows and every one of them joins the play that
+proposed it. Nothing ships: this is a data repair and a guard, not a result.
+The 12 rows the morning's analysis repair left pointing at a play that no
+longer existed are gone, and `scripts.backtest` now refuses to write a play its
+results tab already holds.
+
+_Era `v4` · all three exports re-pulled 2026-09-07 · `BacktestResults` 543 rows
+over 168 dates · pooled study book 1,183 rows over 177 dates._
+
+### The 12 rows are dropped
+
+The operator's decision from the morning entry, taken. The rows were identified
+by the same key the studies join on, so "a row a study cannot join" and "a row
+this deleted" are the same set by construction.
+
+| | Rows |
+|---|---|
+| `BacktestResults` before | 555 |
+| dropped | 12 |
+| after | 543 |
+
+A row-level diff against a pre-delete snapshot
+(`backtests/to_evaluate/_snapshot-BacktestResults-pre-dedup-20260907.csv`) shows
+exactly those 12 gone, nothing else removed and nothing added. The export moved
+524 → 543 rather than down, because it was also stale by the daily pipeline's
+rows.
+
+The evidence base moves 524 → 543, not 524 → 512. The morning entry framed the
+choice as "524 → 512" against an export that was already 31 rows behind the tab.
+The count went UP because the pipeline had added more rows than the repair took
+away.
+
+**What this changes for the studies.** Nothing recomputes. Entry, exit and P&L
+were priced at backtest time, and deleting a play row reprices nothing. What
+changes is the join: [`text_features`](arm-index.md#text_features) no longer
+reads the wrong play's text on 7 rows, and
+[`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) and
+[`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md) will
+print a different join coverage.
+
+**Two rows were deliberately not dropped.** `2025-07-29` `COIN` and `EEM` also
+fail to join, from an unrelated cause. Their analysis rows went missing
+separately, three minutes after the backtest that read them, so the backtest row
+is the only surviving record that those plays were ever proposed. They fail the
+join outright rather than landing on a different play, which is the safe failure
+and the one studies already count. Dropping them would destroy evidence to tidy
+a count.
+
+### Neither results tab holds a duplicate
+
+Checked directly on the refreshed exports, on the identity key both writers use.
+
+| Tab | Rows | Repeated identity keys |
+|---|---|---|
+| `BacktestResults` | 543 | 0 |
+| `BacktestProxy` | 1,380 | 0 |
+
+One proxy row overlaps a real row on (date, ticker, structure) rather than on
+the identity key. `load_book` already drops it in favour of the real row; it is
+that function's pooling rule, not a duplicate on a tab.
+
+### The backtest now refuses to write a play it has already written
+
+The hole the morning entry named as open is closed. It was a real one: the
+2025-12-22 `SPY` duplicate found on 2026-09-06 came from a re-run of
+`scripts.backtest`, and 15 older duplicates came with it.
+
+A backtest re-run is not the same failure as a doubled analysis, and the
+difference is worth stating. A second analysis run proposes *different plays*.
+A second backtest run reprices the *same play* on whatever the exit config, the
+cached Barchart history and the classifier say today — so the two rows disagree
+about the exit, the basis and the P&L while looking equally authoritative.
+`exit_basis` exists because that already happened once, across the 2026-07-22
+exit change.
+
+| | Behaviour |
+|---|---|
+| play already on `BacktestResults` | dropped before the Barchart fetch |
+| play already on `BacktestProxy` | dropped before evaluation, as before |
+| every candidate is a duplicate | logged, exit 0 |
+| `--redo` | re-simulates and DELETES the old rows before appending; needs a date bound |
+| `output.sheet_tab: null` | not checked, and no Sheets read — the local CSV is rewritten, not appended |
+
+Two details carry the weight. The check sits before the Barchart fetch, for the
+same reason the analysis guard sits before the first model call: a guard that
+costs a run to reach is not a guard. And `--redo` deletes before it appends,
+because the reverse order produces exactly the duplicate it exists to prevent.
+
+**One key, one copy.** `scripts/backtest/shared/identity.py` now holds the
+`(date, TICKER, 60-char play prefix)` key that both writers use. Two copies
+would let the real backtest and the proxy disagree about what a duplicate is.
+It is deliberately the same 60-char normalisation the study loader joins on, so
+the writers' notion of row identity and the studies' are one notion. Contract:
+`docs/architecture.md` §"The already-backtested guard"; tests:
+`tests/test_backtest_dup_guard.py`.
+
+**Next.** [`next-steps.md`](next-steps.md) §0 loses its operator decision. The
+suite still has to be re-run deliberately, now on a settled population.
+
+---
+
 ## 2026-09-07 — the three doubled analysis dates are repaired; the pipeline now REFUSES a date it has analysed
 
 The root cause is closed at both ends. 37 rows of the earlier analysis run were

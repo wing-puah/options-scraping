@@ -1057,6 +1057,13 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir <dir> --skip
 python3 scripts/collector/scrape_flow.py --date 2026-04-21
 python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
+# Backtest (idempotent: a play already on the results tab is SKIPPED — see the guard below)
+python3 -m scripts.backtest --config config/backtest.yml
+python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21
+python3 -m scripts.backtest --config config/backtest.yml --dry-run           # no sheet/CSV write
+python3 -m scripts.backtest --config config/backtest.yml --cache-only        # no Barchart scraping
+python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --redo  # replace those rows
+
 # Proxy-backtest untested plays
 python3 -m scripts.backtest.proxy --config config/backtest.yml               # all dates, idempotent
 python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
@@ -1150,6 +1157,50 @@ a Drive probe never needs Sheets credentials to be told about a tab it will not 
 `--allow-duplicate-date` is almost never the right answer. The repair for a bad run is to
 delete its rows from the tab first, keyed on `created_datetime`, which is what that column
 is for.
+
+### The already-backtested guard
+
+The results tabs have the same hole for a different reason, and it is closed the same way.
+`append_rows` appends there too, so re-running a date `BacktestResults` already holds used
+to leave both runs' rows on it. The two are not copies: a re-run reprices the same play on
+whatever the exit config, the cached Barchart history and the classifier say **today**, so
+the rows can disagree about the exit, the basis and the P&L while looking equally
+authoritative. `exit_basis` exists precisely because that happened once already — a row
+written before 2026-07-22 carries a different exit profile from one written after it, on
+the same tab.
+
+It has bitten. The 2025-12-22 `SPY` duplicate found on 2026-09-06 came from a re-run of
+`scripts.backtest`, and 15 older duplicates came with it. Nothing stopped it, because until
+2026-09-07 that module never read its own destination tab.
+
+Both writers now check, and both key on the **same** row identity:
+
+| | Behaviour |
+|---|---|
+| a play already on `BacktestResults` | dropped before Pass 1 — `scripts.backtest` |
+| a play already on `BacktestProxy` | dropped before evaluation — `scripts.backtest.proxy` |
+| every candidate is a duplicate | logged, exit 0 |
+| `--redo` | re-simulates them and **deletes** the existing rows before appending; needs `--date` or `--start`/`--end` |
+| `output.sheet_tab: null` | not checked, and no Sheets read at all — the local CSV is rewritten, not appended |
+
+The check sits **before the Barchart fetch**, which is the expensive step, for the same
+reason the analysis guard sits before the first LLM call.
+
+`--redo` deletes and then appends, in that order; the reverse would produce exactly the
+duplicate it exists to prevent. It refuses to run unbounded, because an unbounded `--redo`
+rewrites the whole tab — that is a re-backtest of the book, not a repair.
+
+**The identity key lives in `scripts/backtest/shared/identity.py` and there is exactly one
+copy.** It is `(analysis date, TICKER, 60-char play prefix)`: the date is parsed on both
+sides so the Sheets locale reparse (`6/25/2026` on the tab against `2026-06-25` in the
+candidate) cannot cause a phantom re-test, and the play prefix separates two plays proposed
+on the same ticker and date. `core.py` must not import `proxy.py` — the proxy reads
+`BacktestResults` as an *input*, so that dependency runs one way only, which is why the key
+lives in `shared/` rather than in either module. The prefix rule is deliberately the same
+60-char normalisation `scripts/backtest_study/lib/book.py::norm_play` uses to join a book
+row back to its `AnalysisClaude` row, so "a row the studies can join" and "a row the writers
+call a duplicate" are the same notion of row identity in the reader and in the writer.
+Contract and tests: `tests/test_backtest_dup_guard.py`.
 
 ### Local-only prompt evaluation runs
 

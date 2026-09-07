@@ -11,11 +11,12 @@ keeps its number as a one-line stub with a link.
 <a id="s0"></a>
 ## 0. Repo state — read first
 
-- **Era and population.** `v4`, the 166-date backfilled book. `BacktestResults`
-  is 524 rows over 159 dates (export 2026-09-06) and `AnalysisClaude` is 2,325
-  rows over 198 dates with ONE analysis run per date (export 2026-09-07); both
-  deduplicated, and tab and export agree on each. Counts and the date range are
-  in [the population](current.md#the-population).
+- **Era and population.** `v4`, the 166-date backfilled book. All three exports
+  were re-pulled 2026-09-07. `BacktestResults` is 543 rows over 168 dates and
+  `AnalysisClaude` is 2,325 rows over 198 dates with ONE analysis run per date.
+  Both are deduplicated, tab and export agree on each, and every result row
+  joins its play bar two kept on purpose. Counts and the date range are in
+  [the population](current.md#the-population).
 - **What most of the queue waits on: genuinely new dates.** `AnalysisClaude`
   carries 2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows,
   because those options have not expired. §2.2 and §2.6 wait on them. The 13
@@ -25,12 +26,12 @@ keeps its number as a one-line stub with a link.
   the 166-date book, every non-retired study ran, and the one gate stop was a
   study-side pricer gap fixed the same session
   ([`current.md` 2026-09-04 late](current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed)).
-  **Both exports have moved since.** `BacktestResults` lost 16 duplicate rows
-  and gained 4 re-priced ones (2026-09-06); `AnalysisClaude` lost the 37 rows of
-  a duplicated analysis run and gained the daily pipeline's (2026-09-07). No
-  study has run on either. Re-run the suite deliberately, and settle the
-  decision under *Waiting on the operator* below first — it changes the
-  population again if taken.
+  **Every export has moved since.** `BacktestResults` lost 16 duplicate rows and
+  gained 4 re-priced ones (2026-09-06), then lost the 12 stale rows and gained
+  the daily pipeline's (2026-09-07); `AnalysisClaude` lost the 37 rows of a
+  duplicated analysis run (2026-09-07). No study has run on any of them. The
+  population is now settled — nothing under *Waiting on the operator* changes it
+  — so re-run the suite deliberately.
 - **Two hardcoded date tables are still no-ops by construction.**
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
@@ -51,31 +52,13 @@ Decisions owed. None of these is a study.
    Read the re-priced 724-DTE TSLA row with §2.7 in hand: it is one row inside
    the long-dated blind spot, not a lifting of it.
 
-2. **DECIDE: drop the 12 backtest rows whose play no longer exists, or keep
-   them.** The three doubled analysis dates were repaired on 2026-09-07 — 37
-   rows of the earlier run deleted from `AnalysisClaude`, later run kept, and
-   `_drop_already_analysed` now refuses a re-analysis so it cannot recur. What
-   the repair left behind is the decision:
-
-   | Rows | State after the repair |
-   |---|---|
-   | 5 | orphaned — `2024-09-16` `MU`/`QQQ`, `2025-09-18` `MSTR`/`MU`/`XLI` |
-   | 7 | still match on (date, ticker) and join a **DIFFERENT play** |
-
-   The 7 are the dangerous half: the join does not fail, it returns the wrong
-   row. On `2025-09-10` `NVDA` a `bull_call_spread` result joins a
-   `bear_put_spread` play — the direction flips.
-
-   - **Drop them** → evidence base 524 → 512, and every play-join is honest.
-   - **Keep them** → the 524 stay, and any study reading a play THROUGH the
-     join is wrong on 7 rows: [`text_features`](arm-index.md#text_features)
-     reads the play text, `mech_regime_recut` and `regime_gap_reread` print
-     join coverage.
-
-   Not urgent for P&L — the 524 result rows were priced at backtest time and
-   deleting an analysis row reprices nothing — but it must be settled BEFORE
-   the suite is re-run, or the re-run bakes the choice in silently
-   ([detail](current.md#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed)).
+2. **DONE 2026-09-07** — the 12 rows were dropped. `BacktestResults` is 543 rows
+   over 168 dates and every one joins the play that proposed it. Two rows on
+   `2025-07-29` (`COIN`, `EEM`) still fail to join and were KEPT on purpose:
+   their analysis rows went missing from an unrelated cause, so the backtest row
+   is the only surviving record of the play. `scripts.backtest` now also refuses
+   to write a play its results tab already holds
+   ([record](current.md#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row)).
 
 3. **Three queues of pre-registered dates are written and unrun.** The
    neutral-date campaign dropped 40 of its 192 selected dates, because step 4

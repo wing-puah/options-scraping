@@ -45,7 +45,6 @@ modules, so it never pulls in ``core.py``'s CLI wiring.
 """
 import argparse
 import asyncio
-import csv
 import logging
 import os
 from datetime import date, datetime
@@ -68,7 +67,13 @@ from .plays import _choose_anchor
 from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
 from .shared.history import fetch_option_histories
-from .shared.results_io import ROOT, write_results
+from .shared.identity import (
+    find_untested as _find_untested,
+    identity_key as _identity_key,
+    keys_from_csv as _keys_from_csv,
+    keys_from_tab,
+)
+from .shared.results_io import write_results
 from .simulate import _simulate
 
 log = logging.getLogger("backtest")
@@ -118,21 +123,6 @@ def _regime_prefix(regime: str) -> str:
     ``core._regime_prefix`` without importing core)."""
     import re
     return re.split(r"[—–]", regime or "", maxsplit=1)[0].strip()
-
-
-def _play_prefix(play: str) -> str:
-    """Normalized play-text prefix used to disambiguate multiple plays on the same
-    ticker/date. Whitespace-collapsed, lower-cased, first 60 chars."""
-    return " ".join(str(play or "").split())[:60].lower()
-
-
-def _identity_key(signal_date, ticker: str, play: str) -> tuple:
-    """(date, TICKER, play-prefix) — the row identity shared by the untested join
-    and the ``BacktestProxy`` dedup. ``signal_date`` may be a ``date`` or any string
-    the analysis-date parser accepts (absorbs the Sheets locale reparse)."""
-    from .helpers import _parse_analysis_date
-    d = signal_date if isinstance(signal_date, date) else _parse_analysis_date(signal_date)
-    return (d, str(ticker or "").strip().upper(), _play_prefix(play))
 
 
 def _strike_step(strike: float) -> float:
@@ -617,50 +607,24 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
 
 # ─── Untested join + idempotency ────────────────────────────────────────────────
 
+# The key itself, the tab/CSV readers and the join all live in
+# `shared/identity.py` — see its docstring for why there is exactly one copy.
+# These two names stay distinct because they read DIFFERENT tabs for DIFFERENT
+# reasons: `BacktestResults` is this module's INPUT filter ("which plays did the
+# real backtest never test?") and `BacktestProxy` is its own destination
+# ("which of those have I already written?"). Collapsing them into one call
+# would lose that distinction at every call site.
+
 def _load_tested_keys(source_tab: str) -> set:
     """Identity keys already present in ``BacktestResults`` (dates normalized on
     both sides so the Sheets locale reparse doesn't cause phantom re-tests)."""
-    keys = set()
-    for r in sheets_client.get_all_rows(source_tab):
-        keys.add(_identity_key(r.get("signal_date", ""), r.get("ticker", ""), r.get("play", "")))
-    return keys
+    return keys_from_tab(source_tab)
 
 
 def _load_proxy_keys(proxy_tab: str) -> set:
     """Identity keys already in ``BacktestProxy`` — dropped so re-runs append
-    nothing. ``get_all_rows`` auto-creates (and returns ``[]`` for) a missing tab."""
-    keys = set()
-    for r in sheets_client.get_all_rows(proxy_tab):
-        keys.add(_identity_key(r.get("signal_date", ""), r.get("ticker", ""), r.get("play", "")))
-    return keys
-
-
-def _keys_from_csv(path) -> set:
-    """Identity keys from a LOCAL results/proxy CSV — the offline counterpart of
-    ``_load_tested_keys``/``_load_proxy_keys``.
-
-    A missing file is an EMPTY set, not an error: on a local-only run the proxy
-    CSV does not exist until the first write, and "nothing evaluated yet" is
-    exactly what an absent file means.
-    """
-    csv_path = Path(path)
-    if not csv_path.is_absolute():
-        csv_path = ROOT / csv_path
-    if not csv_path.exists():
-        log.info("No local CSV at '%s' — treating as empty", csv_path)
-        return set()
-    with csv_path.open(newline="", encoding="utf-8") as f:
-        return {_identity_key(r.get("signal_date", ""), r.get("ticker", ""), r.get("play", ""))
-                for r in csv.DictReader(f)}
-
-
-def _find_untested(candidates: list[dict], tested: set) -> list[dict]:
-    """Candidates whose identity key is not in the tested set."""
-    out = []
-    for c in candidates:
-        if _identity_key(c["signal_date"], c["ticker"], c.get("play", "")) not in tested:
-            out.append(c)
-    return out
+    nothing."""
+    return keys_from_tab(proxy_tab)
 
 
 # ─── Output ─────────────────────────────────────────────────────────────────────
