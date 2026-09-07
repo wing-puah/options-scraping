@@ -64,6 +64,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import triggers as TRIG  # noqa: E402
 from scripts.backtest_study.lib import underlying_features as UF  # noqa: E402
@@ -602,34 +603,26 @@ def h3_paired(bear_by_date, ladder_by_date, cen, evaluable=True):
 # ARM H4 — do-nothing baseline, in DOLLARS (the only arm that may quote $)
 # ════════════════════════════════════════════════════════════════════════════
 
-def max_drawdown(series):
-    """Max peak-to-trough drawdown of a cumulative dollar curve.
-
-    COPIED VERBATIM from `f4_deployment/bear_deploy.py::max_drawdown`
-    (2026-08-11) rather than imported: studies do not import each other's
-    internals, so `bear_deploy`'s recorded D3 numbers can never move because
-    this file changed.
-    """
-    peak, mdd = 0.0, 0.0
-    cum = 0.0
-    for v in series:
-        cum += v
-        peak = max(peak, cum)
-        mdd = min(mdd, cum - peak)
-    return mdd
+# `max_drawdown` was a verbatim fork of `bear_deploy`'s body until 2026-09-07,
+# copied rather than imported so that `bear_deploy`'s recorded D3 numbers could
+# never move because this file changed. The library is now the single body, so
+# the commitment the fork encoded is kept by TESTS instead of by duplication:
+# `tests/test_mtm_curve.py` pins that this name, `bear_deploy`'s and
+# `lib/hedge_criteria`'s are all the SAME function object, and
+# `tests/test_hedge_criteria.py` pins the body against the committed fixture.
+max_drawdown = HC.max_drawdown
 
 
 def daily_dollars(rows, dol_key="R_dol"):
     """`{date: total dollars}` for a sleeve.
 
-    Shape copied from `bear_deploy.py::daily_series` (2026-08-11), reduced to
-    the dollar leg — this arm never quotes an R.
+    The library's daily series with the return leg dropped — this arm never
+    quotes an R, so the same key does duty as both: rows are admitted on
+    `dol_key` and summed on `dol_key`, which is exactly what the local copy did
+    before 2026-09-07. The return shape stays `{date: dollars}`.
     """
-    by = defaultdict(float)
-    for r in rows:
-        if r.get(dol_key) is not None:
-            by[str(r["date"])] += float(r[dol_key])
-    return dict(by)
+    return {d: dol for d, (_r, dol, _n) in
+            HC.daily_series(rows, dol_key, dol_key).items()}
 
 
 def sleeve_pick(bear_by_date, dol_key="R_dol"):

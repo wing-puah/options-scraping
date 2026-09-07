@@ -248,6 +248,17 @@ def test_max_drawdown_is_bear_deploys_function_not_a_second_implementation():
     assert M.max_drawdown is max_drawdown
 
 
+def test_max_drawdown_has_no_fork_left_in_hedge_timing_or_the_criteria_library():
+    """`hedge_timing` carried a documented verbatim fork of this body until
+    2026-09-07, kept so `bear_deploy`'s recorded D3 numbers could not move.
+    The fork is gone; this identity is what now holds that commitment."""
+    from scripts.backtest_study.f4_deployment import hedge_timing
+    from scripts.backtest_study.lib import hedge_criteria
+
+    assert hedge_timing.max_drawdown is M.max_drawdown
+    assert hedge_criteria.max_drawdown is M.max_drawdown
+
+
 def test_time_under_water_counts_sessions_below_the_running_peak():
     # peak seeded at 0: session 0 is a fresh high, 1 and 2 are under it, 3 is a
     # new high.
