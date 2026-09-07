@@ -94,6 +94,17 @@ from scripts.backtest_study.lib import mtm_curve as M
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "scripts" / "backtest_study" / "f4_deployment" / "hedge_exposure.py"
 
+#: Where the ADMITTED arm begins. The merged module carries both arms, and a
+#: source-level assertion written about one of them must say which.
+_ADMITTED_BANNER = "THE ADMITTED ARM"
+
+
+def _whole_book_section(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    at = [i for i, ln in enumerate(lines) if _ADMITTED_BANNER in ln]
+    assert len(at) == 1, "the admitted arm's banner must appear exactly once"
+    return "".join(lines[:at[0]])
+
 
 # ── the runner's contract ────────────────────────────────────────────────────
 
@@ -1088,8 +1099,14 @@ def test_every_clause_is_computed_inside_the_stratified_loop() -> None:
     stratification was a session/episode COUNT TABLE and every clause, CI and
     ARM N band ran on the pooled trigger — so a MECHANISM-FOUND would have had
     no stratum to attach to. Nothing that computes a clause may sit outside the
-    per-stratum loop."""
-    tree = ast.parse(MODULE.read_text(encoding="utf-8"))
+    per-stratum loop.
+
+    Scoped to the WHOLE-BOOK arm. The module gained a second `strat in STRATA`
+    loop on 2026-09-07 when `hedge_concentration` was merged in as the
+    `--admitted` arm; that arm's copy of this rule is asserted in
+    tests/test_studies_hedge_concentration.py, against its own function names.
+    """
+    tree = ast.parse(_whole_book_section(MODULE.read_text(encoding="utf-8")))
     loops = [n for n in ast.walk(tree) if isinstance(n, ast.For)
              and isinstance(n.target, ast.Name) and n.target.id == "strat"
              and ast.unparse(n.iter) == "STRATA"]

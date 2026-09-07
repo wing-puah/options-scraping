@@ -450,6 +450,8 @@ and excludes it from `ARM CK` rather than assuming it.
 
 _Registered in [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)_
 
+**These labels now print from `hedge_exposure`'s `--admitted` arm.** The module was merged into [`hedge_exposure`](#hedge_exposure) and deleted on 2026-09-07; the section stays because the registration and the labels do.
+
 Registered 2026-08-31 and first run the same day. The book is the ADMITTED
 subset `account_sim` takes from `hedge_exposure`'s ratified population. Stage 1
 gates Stage 2, and on the first run it did not open it: Stage 1 is

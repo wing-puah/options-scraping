@@ -147,6 +147,15 @@ class Arm:
     suffix: str                     # report stem becomes `<name>-<suffix>`
     args: tuple[str, ...]           # appended to the caller's own extra args
     charts: tuple[str, ...] = ()    # chart modules for THIS arm only
+    #: Whether the caller's own extra args reach this arm. TRUE for an arm that
+    #: is a SENSITIVITY of the same run — `account_sim --compounding` shares one
+    #: parser with its parent, so `-- --side credit --compounding` is coherent.
+    #: FALSE for an arm that is a different POPULATION with its own parser:
+    #: `hedge_exposure --admitted` has one population and therefore no
+    #: `--sources`, so inheriting `-- --sources real` would hand it a flag it
+    #: cannot parse and argparse's exit 2 would then be reported as the era
+    #: refusal that shares that code.
+    inherit_caller_args: bool = True
 
 
 STUDY_ARMS = {
@@ -161,6 +170,14 @@ STUDY_ARMS = {
     "exit_mechanism_study": (
         Arm(suffix="credit", args=("--side", "credit")),
     ),
+    # The ADMITTED book — what `account_sim` actually takes — was its own study
+    # (`hedge_concentration`) until 2026-09-07. It is the same question at a
+    # second scope, so it is an ARM of the study that asks it on the whole book
+    # and files under its own stem. `run --all` runs both, which is what the
+    # separate module gave us and what a bare `run hedge_exposure` must keep.
+    "hedge_exposure": (
+        Arm(suffix="admitted", args=("--admitted",), inherit_caller_args=False),
+    ),
 }
 
 # Arms the CALLER asks for by flag, which rename the report stem instead of
@@ -174,6 +191,14 @@ STUDY_ARMS = {
 # compounding sensitivity with a differently-selected book.
 CALLER_ARMS = {
     "account_sim": (("--live-select", "live-select"),),
+    # `--admitted` is BOTH an extra arm above and a caller arm here, and it has
+    # to be. Without this entry an explicit `run hedge_exposure -- --admitted`
+    # would file the ADMITTED report under the bare `hedge_exposure` stem —
+    # arm_plan() suppresses the extra arm when the caller already passed its
+    # flag — and overwrite the whole-book report every recorded conclusion
+    # rests on. With it, the explicit call lands on the same stem the extra arm
+    # writes, and runs once.
+    "hedge_exposure": (("--admitted", "admitted"),),
 }
 
 # ── where the studies live ───────────────────────────────────────────────────
@@ -571,6 +596,10 @@ def arm_plan(name: str, extra: list[str]) -> list[tuple[str, list[str], tuple[st
     stem, with no extra arms and no chart pages (its numbers are not the ones
     those pages draw, and a page redrawn from them would look current while
     describing a different selector).
+
+    An arm with `inherit_caller_args=False` runs on its own args alone. See the
+    field's own note: an arm that is a different POPULATION has its own parser,
+    and handing it the parent's flags is not a sensitivity, it is a crash.
     """
     base_charts = tuple(CHART_MODULES.get(name, ()))
     for flag, suffix in CALLER_ARMS.get(name, ()):
@@ -582,7 +611,8 @@ def arm_plan(name: str, extra: list[str]) -> list[tuple[str, list[str], tuple[st
     for arm in STUDY_ARMS.get(name, ()):
         if any(f in extra for f in arm.args):
             continue
-        plan.append((f"{name}-{arm.suffix}", [*extra, *arm.args], arm.charts))
+        inherited = list(extra) if arm.inherit_caller_args else []
+        plan.append((f"{name}-{arm.suffix}", [*inherited, *arm.args], arm.charts))
     return plan
 
 

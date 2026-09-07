@@ -1,16 +1,24 @@
-"""`hedge_concentration` — the claims that live in CODE rather than in a report.
+"""`hedge_exposure --admitted` — the claims that live in CODE, not in a report.
 
-The study is pre-registered
-(`research/pre-registrations/f4_deployment/hedge_concentration.md`). What
-belongs here is everything that is a code-BEHAVIOUR claim rather than a data
+This was `f4_deployment/hedge_concentration.py` until 2026-09-07, when it was
+merged into `hedge_exposure` as that module's ADMITTED arm and deleted. The
+registration is unchanged and immutable
+(`research/pre-registrations/f4_deployment/hedge_concentration.md`), so every
+assertion below is the one it always was — only the module it reads has moved.
+SRC and TREE below are the ADMITTED SECTION of the merged file, not the whole
+file, so a file-wide check here still means what it meant when the section was
+its own module.
+
+What belongs here is everything that is a code-BEHAVIOUR claim rather than a data
 claim — each one a way the module could be deterministically, reproducibly
 wrong while printing a clean report:
 
   * `DESIGNED_REFUSAL_EXIT_CODES` is an AST-LITERAL set. `run.py` parses it
     without importing the module, so an alias or a `frozenset(...)` call is
     invisible to it and a designed refusal would be reported as a FAILURE.
-    G-ADMIT (5) is this study's own; G-MTM (4) is imported from
-    `hedge_exposure`; 2 and 3 come from `lib/era.py`.
+    G-ADMIT (5) is this arm's own; G-MTM (4) is the whole-book arm's, the
+    same gate on the same curve; 2 and 3 come from `lib/era.py`. The set is
+    the union of both arms' because the runner reads ONE per module.
   * G-BLIND is NOT in that set. A trigger that moves when the outcome columns
     are stripped is a DEFECT in this module, not a pre-registered refusal, so
     it exits 1 and the runner deletes `-latest.txt`.
@@ -45,7 +53,7 @@ from pathlib import Path
 import pytest
 
 from scripts.backtest_study.f4_deployment import account_sim as A
-from scripts.backtest_study.f4_deployment import hedge_concentration as HC
+from scripts.backtest_study.f4_deployment import hedge_exposure as HC
 from scripts.backtest_study.f4_deployment import hedge_exposure as HE
 from scripts.backtest_study.lib import concentration as C
 from scripts.backtest_study.lib import forward_drawdown as F
@@ -55,9 +63,36 @@ from scripts.backtest_study.lib import protocol as P
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = (ROOT / "scripts" / "backtest_study" / "f4_deployment"
-          / "hedge_concentration.py")
-SRC = MODULE.read_text(encoding="utf-8")
+          / "hedge_exposure.py")
+
+#: The merged file carries BOTH arms. Every source-level assertion here is
+#: about the ADMITTED one, so slice it out by the banner comments that fence
+#: it rather than scanning the whole file: a whole-file scan would silently
+#: start asserting things about the whole-book arm, which has its own test
+#: file and its own registration.
+_SECTION_OPEN = "THE ADMITTED ARM"
+_SECTION_CLOSE = "end of the admitted arm"
+
+
+def _admitted_section(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    starts = [i for i, ln in enumerate(lines) if _SECTION_OPEN in ln]
+    ends = [i for i, ln in enumerate(lines) if _SECTION_CLOSE in ln]
+    assert len(starts) == 1 and len(ends) == 1, (
+        "the admitted arm must be fenced by exactly one banner pair; without "
+        "it every source assertion in this file silently widens to the whole "
+        "module")
+    assert starts[0] < ends[0]
+    return "".join(lines[starts[0]:ends[0]])
+
+
+SRC = _admitted_section(MODULE.read_text(encoding="utf-8"))
 TREE = ast.parse(SRC)
+
+#: The runner parses `DESIGNED_REFUSAL_EXIT_CODES` off the MODULE, and the
+#: merged module declares it once for both arms, above the section.
+FULL_SRC = MODULE.read_text(encoding="utf-8")
+FULL_TREE = ast.parse(FULL_SRC)
 
 
 # ── the runner's contract ────────────────────────────────────────────────────
@@ -66,7 +101,7 @@ def test_designed_refusal_codes_are_an_ast_literal_set() -> None:
     """`run.py::_refusal_codes` reads this with `ast` and never imports the
     module, so it must survive `ast.literal_eval` as a bare set."""
     found = None
-    for node in TREE.body:
+    for node in FULL_TREE.body:
         if not isinstance(node, ast.Assign):
             continue
         if any(isinstance(t, ast.Name) and t.id == "DESIGNED_REFUSAL_EXIT_CODES"
@@ -95,12 +130,20 @@ def test_g_blind_exits_one_and_is_not_a_designed_refusal() -> None:
 
 
 def test_g_mtm_exit_code_is_hedge_exposures_not_a_second_copy() -> None:
+    """It was imported rather than restated while this was its own module; the
+    merge makes that structural — one declaration for both arms, and the
+    admitted section must not grow a second."""
     assert HC.EXIT_MTM_RECONCILE is HE.EXIT_MTM_RECONCILE == 4
+    assert FULL_SRC.count("EXIT_MTM_RECONCILE = ") == 1
+    assert "EXIT_MTM_RECONCILE = " not in SRC
+    assert SRC.count("EXIT_ADMIT = ") == 1
 
 
 def test_the_docstring_first_line_is_a_one_line_summary() -> None:
-    """`run.py list` shows the docstring's FIRST line."""
-    first = HC.__doc__.splitlines()[0]
+    """What the separate module's `__doc__` was: the arm's own summary, which
+    is what `main_admitted()` hands argparse. The merged module's `__doc__`
+    belongs to the whole-book arm and is tested in that arm's own file."""
+    first = HC.ADMITTED_DOC.splitlines()[0]
     assert first.startswith("HEDGE-CONCENTRATION")
     assert first.endswith("?")
     assert len(first) <= 120
@@ -113,7 +156,7 @@ def test_library_constants_are_the_library_objects() -> None:
     assert HC.F_GRID is C.F_GRID == (0.25, 0.50, 1.00)
     assert HC.MIN_TRIGGER_DATES is C.MIN_TRIGGER_DATES == 25
     assert HC.FILL_GATE is HI.FILL_GATE == 0.60
-    assert HC.BOOT_N is P.BOOT_N == 10000
+    assert HC.BOOT_N_ADMITTED is P.BOOT_N == 10000
 
 
 def test_the_tau_grid_is_this_studys_own_registered_triple() -> None:
@@ -121,9 +164,9 @@ def test_the_tau_grid_is_this_studys_own_registered_triple() -> None:
     p75 and p90 — against `hedge_exposure`'s {0.30, 0.35, 0.40} on a book more
     than twice as diversified. Sharing `C.TAU_GRID` would silently run this
     study on a trigger it did not register."""
-    assert HC.TAU_GRID == (0.45, 0.55, 0.65)
-    assert HC.TAU_GRID is not C.TAU_GRID
-    assert HC.TAU_GRID != C.TAU_GRID
+    assert HC.TAU_GRID_ADMITTED == (0.45, 0.55, 0.65)
+    assert HC.TAU_GRID_ADMITTED is not C.TAU_GRID
+    assert HC.TAU_GRID_ADMITTED != C.TAU_GRID
 
 
 def test_the_registered_stage_one_knobs() -> None:
@@ -137,14 +180,14 @@ def test_the_registered_stage_one_knobs() -> None:
 
 
 def test_bonferroni_denominator_is_the_registered_nine_cells() -> None:
-    assert HC.N_CELLS == len(HC.TAU_GRID) * len(HC.F_GRID) == 9
-    assert HC.ALPHA == pytest.approx(0.05 / 9)
+    assert HC.N_CELLS_ADMITTED == len(HC.TAU_GRID_ADMITTED) * len(HC.F_GRID) == 9
+    assert HC.ALPHA_ADMITTED == pytest.approx(0.05 / 9)
 
 
 def test_the_comparison_taus_are_not_cells() -> None:
     """`hedge_exposure`'s taus are printed for continuity. Registering them as
     cells here would be the post-hoc threshold search the registration bans."""
-    assert set(HC.COMPARISON_TAUS).isdisjoint(HC.TAU_GRID)
+    assert set(HC.COMPARISON_TAUS).isdisjoint(HC.TAU_GRID_ADMITTED)
 
 
 # ── the verdict vocabularies ─────────────────────────────────────────────────
@@ -361,7 +404,7 @@ def test_the_planner_skips_a_sub_one_contract_session_without_admitting_it(
     monkeypatch.setattr(HI, "select_put", lambda t, d, r: pick)
     monkeypatch.setattr(HI, "entry_delta", lambda p, c: -10.0 * c)
     ov = _overlay(session=session)
-    diag = HC.new_diag()
+    diag = HC.new_diag_admitted()
     leg = HC.plan_episode_admitted([session, date(2025, 1, 8)],
                                    ["QQQ", HE.CARRY], 0.25, 500.0,
                                    HI.RULE_BAND, diag, ov)
@@ -379,7 +422,7 @@ def test_the_planner_counts_a_refused_admission_and_places_nothing(
     monkeypatch.setattr(HI, "select_put", lambda t, d, r: pick)
     monkeypatch.setattr(HI, "entry_delta", lambda p, c: -10.0 * c)
     ov = _overlay(session=session, per_pos_cap=0.0001)
-    diag = HC.new_diag()
+    diag = HC.new_diag_admitted()
     leg = HC.plan_episode_admitted([session, date(2025, 1, 8)],
                                    ["QQQ", HE.CARRY], 1.00, 500.0,
                                    HI.RULE_BAND, diag, ov)
@@ -399,7 +442,7 @@ def test_a_put_with_no_cached_entry_greek_is_never_admitted_at_zero_delta(
     monkeypatch.setattr(HI, "select_put", lambda t, d, r: pick)
     monkeypatch.setattr(HI, "entry_delta", lambda p, c: None)
     ov = _overlay(session=session)
-    diag = HC.new_diag()
+    diag = HC.new_diag_admitted()
     leg = HC.plan_episode_admitted([session, date(2025, 1, 8)],
                                    ["QQQ", HE.CARRY], 1.00, 500.0,
                                    HI.RULE_BAND, diag, ov)
@@ -415,7 +458,7 @@ def test_an_admitted_leg_reaches_the_ledger_and_the_segment(monkeypatch) -> None
     monkeypatch.setattr(HI, "select_put", lambda t, d, r: pick)
     monkeypatch.setattr(HI, "entry_delta", lambda p, c: -10.0 * c)
     ov = _overlay(session=session)
-    diag = HC.new_diag()
+    diag = HC.new_diag_admitted()
     leg = HC.plan_episode_admitted([session, date(2025, 1, 8)],
                                    ["QQQ", HE.CARRY], 1.00, 500.0,
                                    HI.RULE_BAND, diag, ov)
@@ -435,7 +478,7 @@ def test_a_legs_ledger_span_stops_at_the_expiry(monkeypatch) -> None:
     ov = _overlay(session=session)
     HC.plan_episode_admitted([session, date(2025, 1, 8), date(2025, 1, 9)],
                              ["QQQ", "QQQ", HE.CARRY], 1.00, 500.0,
-                             HI.RULE_BAND, HC.new_diag(), ov)
+                             HI.RULE_BAND, HC.new_diag_admitted(), ov)
     assert ov.legs[0].last == date(2025, 1, 8)
 
 
@@ -538,6 +581,30 @@ def test_stage_one_statistics_are_the_library_functions() -> None:
                  "sign_kept", "block_bootstrap", "circular_shift_null"):
         assert hasattr(F, name)
         assert f"def {name}(" not in SRC, f"{name} is reimplemented locally"
+
+
+def test_every_clause_is_computed_inside_the_stratified_loop() -> None:
+    """`hedge_exposure`'s errata F9 rule, on this arm's own Stage 2 loop.
+
+    The binding rule says results are ALWAYS stratified, so nothing that
+    computes a clause may sit outside the per-stratum loop. The whole-book arm
+    asserts the same thing about its own loop in
+    tests/test_studies_hedge_exposure.py; this is the admitted arm's, keyed on
+    the names the merge gave it.
+    """
+    loops = [n for n in ast.walk(TREE) if isinstance(n, ast.For)
+             and isinstance(n.target, ast.Name) and n.target.id == "strat"
+             and ast.unparse(n.iter) == "STRATA"]
+    assert len(loops) == 1
+    inside = {ast.unparse(c.func) for c in ast.walk(loops[0])
+              if isinstance(c, ast.Call)}
+    for fn in ("evaluate_bar", "arm_n_band_admitted",
+               "leave_one_date_out_admitted", "print_clauses"):
+        assert fn in inside, f"{fn} is computed outside the stratified loop"
+    outside = [c for c in ast.walk(TREE) if isinstance(c, ast.Call)
+               and ast.unparse(c.func) in ("evaluate_bar", "print_clauses")
+               and c not in list(ast.walk(loops[0]))]
+    assert not outside
 
 
 def test_the_block_is_the_horizon() -> None:
