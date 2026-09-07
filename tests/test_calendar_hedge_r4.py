@@ -18,11 +18,16 @@ that conversion rests on —
   2. the checkpoint store being keyed on its CACHE GENERATION, without which
      R4 would compare a cached side against a freshly built one and fail on the
      next scrape for a reason that is not drift;
-  3. `vol_sleeve.synthesize` honouring `structures=`, the narrowing that lets
-     R4 build the reference side without the straddle and strangle cells.
+  3. `synthesize` honouring `structures=`, the narrowing that lets R4 build
+     the reference side without the straddle and strangle cells.
 
 and the absence of any stored expectation, which is the regression that would
 undo all of it.
+
+`vol_sleeve` itself was retired and DELETED on 2026-09-07. Its synthesis layer
+moved byte-identical to `lib/sleeve_synth.py`, which is what `VS` binds to
+below and what R4 now runs as its reference side; the study's verdict is the
+DELETED row in `research/study-map.md`. Nothing else about these tests changed.
 """
 import sys
 from datetime import date
@@ -31,7 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.backtest_study.f3_structure import calendar_hedge as C  # noqa: E402
-from scripts.backtest_study.f3_structure import vol_sleeve as VS  # noqa: E402
+from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 
 
 # ── the comparable form of a cell ────────────────────────────────────────────

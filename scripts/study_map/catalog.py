@@ -638,31 +638,6 @@ STUDIES: dict[str, Study] = {
                 "on a population bear_position_study says to VETO. Nothing changes in "
                 "config/backtest.yml.",
     ),
-    "vol_sleeve": Study(
-        family="structure", state="null",
-        question="Synthesize straddle / strangle / calendar on the dates the engine already "
-                 "signalled. Is there a vol sleeve in here?",
-        verdict="CLOSED — that word is this catalog's label for the argument, not a token the "
-                "study prints. What the run prints is `Q1 non-null: True   Q2 non-null: False` and "
-                "`Q2 IS NULL — the sleeve is neither reliably anti-correlated with the deployed "
-                "book nor reliably positive on its worst dates.`, unchanged on the 2026-09-04 "
-                "re-run (sha e59356f, run 21:45; the book's new year is `2026  n=   61  dates=  "
-                "11`). The sign check is still the whole argument, same signs and all three "
-                "weaker: straddle `corr(daily mean R)   +0.220   CI95 [+0.063, +0.384]` and "
-                "strangle `+0.187   CI95 [+0.036, +0.354]` against calendar `-0.211   CI95 "
-                "[-0.384, -0.026]` — the straddle and strangle re-wrap the same exposure, the "
-                "calendar does not. WHICH cells clear Q1 moved with the new rows: `Q1 NON-NULL "
-                "cells: straddle/>90, strangle/>90, calendar/ALL, calendar/>90` where 08-24 read "
-                "straddle/ALL, straddle/>90, calendar/ALL — the ALL-tenor straddle dropped out and "
-                "the >90 strangle joined, which is composition rather than a finding, and Q2 fails "
-                "either way. The calendar remains the one survivor and reads stronger than before "
-                "on the numbers the study prints POST-HOC rather than as a gate: "
-                "`calendar                       n= 133  win   57%  PF  1.39  meanR +0.303  $    "
-                "17,583` and `calendar   ex_BOTH_windows    n= 123  E +0.337  CI [+0.111, "
-                "+0.637]`. The two structures split hard on the new year (straddle `2026:-0.31`, "
-                "calendar `2026:+0.67`, on 61 rows over 11 dates — too thin to lean on). Those "
-                "worst-decile numbers go on to calendar_hedge, which is where the fill rule bites.",
-    ),
     "calendar_hedge": Study(
         family="structure", state="open",
         question="Re-derive that one survivor under a pre-registered pick rule and a strict "
@@ -1079,6 +1054,19 @@ INFRA: dict[str, str] = {
                       "overlay params (the 2026-08-13 G5 bug class). Disabled, it reproduces "
                       "replay_sized exactly — the G-FORK gate, pinned in tests against the "
                       "same committed fixture as the frozen engine.",
+    "lib/sleeve_synth.py": "`vol_sleeve`'s synthesis layer — the strike index, the "
+                           "leg builder, the trade synthesizer and its statistics helpers — kept "
+                           "byte-identical when that study was RETIRED AND DELETED on 2026-09-07. "
+                           "calendar_hedge's gate R4 builds the calendar cell twice in one process, "
+                           "once through its own build_universe/evaluate and once through "
+                           "synthesize() here, and requires the two equal row for row; a copy of the "
+                           "entry rule inside calendar_hedge is the exact copy R4 exists to refuse, "
+                           "so the layer outlived the study. fetch_sweep_legs.py and "
+                           "fetch_financing_legs.py read _strike_index/paired_strikes from here for "
+                           "the same reason. daily() is NOT lib/hedge_criteria.py::daily_series: it "
+                           "returns a mapping rather than a tuple and sums dollars over every row of "
+                           "a date rather than only the rows carrying a return. The deleted study's "
+                           "verdict is the DELETED row in research/study-map.md.",
     "lib/book.py": "The pooled real + proxy loader. bs_options_hist rows are excluded by "
                    "default — they are priced FROM the model that scores them.",
     "lib/basis_audit.py": "Coherence audit for the exit_basis COLUMN — reports, never "

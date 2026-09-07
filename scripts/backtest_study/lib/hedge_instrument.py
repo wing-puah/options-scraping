@@ -44,10 +44,13 @@ with it.
 DUPLICATED, NOT IMPORTED
 ------------------------
 `_put_index()` re-implements the option-cache filename convention that
-`f3_structure/vol_sleeve.py::_strike_index` encodes (`TICKER_YYYYMMDD_STRIKE[C|P].csv`,
-expiry and strike parsed off the stem). Per the `lib/` layering rule stated in
-`greeks.py`, a module here MUST NOT import from a study folder (`f1_*`…`f4_*`),
-so the convention is restated rather than imported — the same trade `greeks.py`
+`lib/sleeve_synth.py::_strike_index` encodes (`TICKER_YYYYMMDD_STRIKE[C|P].csv`,
+expiry and strike parsed off the stem; it lived in `f3_structure/vol_sleeve.py`
+until that study was deleted on 2026-09-07). Per the `lib/` layering rule stated
+in `greeks.py`, a module here MUST NOT import from a study folder (`f1_*`…`f4_*`),
+and `sleeve_synth` is the sanctioned exception that DOES — it imports
+`f3_structure/bear_rewrap` — so importing it from here would reach a study folder
+transitively. The convention stays restated rather than imported — the same trade `greeks.py`
 makes for `bear_rewrap.entry_date_for`. It is indexed per TICKER and lazily,
 because a hedge only ever looks at the ~11 proxies.
 
@@ -117,8 +120,8 @@ def _put_index(ticker: str) -> dict[date, tuple[float, ...]]:
     """`{expiry: (strike, ...)}` over the cached PUTs of one ticker, ascending.
 
     Filename convention `TICKER_YYYYMMDD_STRIKE[C|P].csv`, as
-    `vol_sleeve._strike_index` encodes it (restated, not imported — see the
-    module docstring).
+    `lib/sleeve_synth.py::_strike_index` encodes it (restated, not imported —
+    see the module docstring).
     """
     ticker = ticker.upper().strip()
     out: dict[date, list[float]] = {}

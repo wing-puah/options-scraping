@@ -46,10 +46,21 @@ numbers, rather than discovered as a snapshot mismatch three gates in.
 THE FROZEN HARNESS IS NOT EDITED
 --------------------------------
 `harness.py` prices nothing — it replays a mark series. Synthesis and pricing
-are `vol_sleeve.build_legs`/`_strike_index` and `bear_rewrap.{entry_date_for,
+are `sleeve_synth.build_legs`/`_strike_index` and `bear_rewrap.{entry_date_for,
 net_entry, net_marks, size_contracts, reconstructs}` IMPORTED UNCHANGED, and
 exits are the frozen `replay` under `DEBIT_PROD`. Two copies of the entry rule
 would eventually disagree, and R4 is precisely the test that they have not.
+
+WHERE `vol_sleeve` WENT (2026-09-07)
+------------------------------------
+`f3_structure/vol_sleeve.py` was retired and DELETED. Every `vol_sleeve.*`
+name below now resolves to `lib/sleeve_synth.py`, which holds those bodies
+byte-identical — the imports here are unchanged in substance and `VS` still
+reads as "vol sleeve". The study's verdicts are the DELETED row in
+`research/study-map.md`; its per-era record is
+`research/study-results/f3_structure/vol_sleeve.md`. R4 is why the synthesis
+layer outlived the study: it needs a second construction to compare against,
+and a copy of it inside THIS module is the exact copy R4 exists to refuse.
 
 CHECKPOINTING
 -------------
@@ -97,7 +108,7 @@ from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import underlying as U  # noqa: E402
-from scripts.backtest_study.f3_structure import vol_sleeve as VS  # noqa: E402
+from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,

@@ -92,7 +92,7 @@ from lib.logger import safe_err, setup_logging  # noqa: E402
 from lib.parsing import to_float  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
-from scripts.backtest_study.f3_structure.vol_sleeve import _strike_index, paired_strikes  # noqa: E402
+from scripts.backtest_study.lib.sleeve_synth import _strike_index, paired_strikes  # noqa: E402
 
 log = logging.getLogger("fetch_sweep_legs")
 

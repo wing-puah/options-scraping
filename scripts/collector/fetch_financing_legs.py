@@ -129,7 +129,7 @@ from scripts.backtest_study.f3_structure import bear_rewrap as BR  # noqa: E402
 from scripts.backtest_study.f3_structure.financed_spread import (  # noqa: E402
     DIAG_N_CANDIDATES, near_expiry_for, population,
 )
-from scripts.backtest_study.f3_structure.vol_sleeve import _strike_index  # noqa: E402
+from scripts.backtest_study.lib.sleeve_synth import _strike_index  # noqa: E402
 
 log = logging.getLogger("fetch_financing_legs")
 
