@@ -98,6 +98,7 @@ from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
 )
 from scripts.backtest_study.f3_structure import bear_rewrap as BR  # noqa: E402
 from scripts.backtest_study.lib import greeks as GK  # noqa: E402
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade, replay  # noqa: E402
@@ -1480,18 +1481,27 @@ def report_e1_e2(built: dict) -> bool:
 
 def sleeve_daily(recs: list[dict]) -> dict[str, float]:
     """Mean R per date of the DEPLOYED ladder — `top_k_per_day(ladder_rank, k=3)`,
-    the same join `bear_rewrap`'s ARM P / P2 makes."""
+    the same join `bear_rewrap`'s ARM P / P2 makes. The daily-series arithmetic
+    itself now lives in `lib/hedge_criteria.daily_series`, so this study, ARM P
+    and `bear_deploy`'s D2 read one body and their ladder dates cannot drift
+    apart."""
     ladder = P.top_k_per_day(recs, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
-    by: dict[str, list[float]] = defaultdict(list)
-    for r in ladder:
-        if r.get("R") is not None:
-            by[str(r["date"])].append(float(r["R"]))
-    return {d: statistics.fmean(v) for d, v in by.items() if v}
+    return {d: mean for d, (mean, _dol, _n)
+            in HC.daily_series(ladder, "R", "R_dol").items()}
 
 
 def cell_corr(rows: list[dict], sleeve: dict[str, float],
               r_key: str = "R") -> tuple[float | None, int]:
-    """`(corr, n_shared_dates)` of the cell's daily mean R vs the sleeve's."""
+    """`(corr, n_shared_dates)` of the cell's daily mean R vs the sleeve's.
+
+    DELIBERATELY NOT `HC.hedge_contribution`, and the difference is arithmetic
+    rather than presentation. Here the correlation IS the criterion (E3: a
+    POSITIVE correlation is a RE-WRAP verdict regardless of dR), it needs
+    `MIN_SHARED_DATES` = 8 shared dates where D2's floor is 20, it is measured
+    on the cell's own rows rather than a paired sleeve/bear series, and an
+    undefined correlation is returned as None rather than `nan`. Routing it
+    through the library would move printed figures, so it stays local.
+    """
     shared = sorted({r["date"] for r in rows} & set(sleeve))
     pts = [(sleeve[d], _mean([r[r_key] for r in rows if r["date"] == d]))
            for d in shared]
@@ -1649,6 +1659,10 @@ def report_criteria(built: dict, power: dict, e3: dict, r_key: str = "R",
 # ── descriptive, NOT criteria ────────────────────────────────────────────────
 
 def report_descriptive(built: dict, power: dict, sleeve: dict[str, float]) -> None:
+    # Also NOT `HC.hedge_contribution`: the worst-decile cut below is a VALUE
+    # cutoff (`v <= cutoff`, ties carried in) with no floor, where D2 takes the
+    # `max(3, n // 10)` worst dates positionally — and nothing here is a
+    # criterion at all, which is the label this block prints. Local on purpose.
     hdr("DESCRIPTIVE — worst-decile behaviour. NOT A CRITERION.")
     print("""  NOT A CRITERION. Printed because a hedge question always gets asked, and
   refused as evidence because 118 dates cannot power a worst-decile read — the
