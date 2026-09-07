@@ -22,10 +22,10 @@ This block is the authoritative summary of where the research stands.
 | Field | Value |
 |---|---|
 | Era | `v4`, the 166-date backfilled book |
-| Exports | 2026-09-06, deduplicated |
+| Exports | `BacktestResults` 2026-09-06, `AnalysisClaude` 2026-09-07; both deduplicated |
 | Real results | 524 |
 | Proxy rows | 1,303 |
-| Analysis rows | 2,224 |
+| Analysis rows | 2,325 over 198 dates, one analysis run per date |
 | Pooled study book | 1,132 rows, being 524 real plus 608 tweak |
 | Signal dates | 2024-01-10 → 2026-04-16 |
 | 2026 signal dates | 11 carry pooled rows, of the 13 backfilled; 2026-01-06 to 2026-04-16, 79 pooled rows |
@@ -112,23 +112,19 @@ been checked, and is not "not met". The
 - **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
   analysis run than their own play.** A consequence of keeping the newer copy,
   not repaired. The backtest stamps each play with the newest `MARKET` row on
-  its date, and 2025-09-18 was analysed twice; the second run does not contain
-  MU, MSTR, QQQ, SMH or XLI at all, so their surviving rows read `BULL + C-VOL`
+  its date, and 2025-09-18 was analysed twice, so those rows read `BULL + C-VOL`
   where the run that proposed them read `RANGE + L-VOL`. Any regime cut on
   2025-09-18 sees the later label.
-- **`AnalysisClaude` still holds both runs on the three doubled dates, 33 extra
-  rows, NOT repaired.** This is the root cause and it is not a duplicate
-  problem: the two runs proposed DIFFERENT plays, not copies.
-
-  | Date | Rows | The two runs |
-  |---|---|---|
-  | 2024-09-16 | 22 | 11 and 11; 6 tickers differ (`QQQ`, `MU` against `SPY`, `META`) |
-  | 2025-09-10 | 25 | 12 and 13; the later run adds `IBIT` and `IREN` |
-  | 2025-09-18 | 26 | 14 and 12; 8 tickers differ, and the `MARKET` regime flips |
-
-  Choosing which analysis stands is a decision about the population, not a
-  repair, so nothing was deleted there. Until it is made, a backtest re-run on
-  these dates will re-emit both runs' plays and the duplicates come back.
+- **12 `BacktestResults` rows were proposed by an analysis run that no longer
+  exists.** The three doubled dates were repaired on 2026-09-07 by deleting the
+  earlier run, and these rows are what the repair left behind: 5 have no
+  `AnalysisClaude` row at all, and **7 now join a DIFFERENT play on the same
+  (date, ticker)** — silently, because the join still matches. On 2025-09-10
+  `NVDA` the direction itself flips, a `bull_call_spread` result row joining a
+  `bear_put_spread` play. Any study that reads a play through that join —
+  [`text_features`](arm-index.md#text_features) reads the play TEXT — sees the
+  wrong one on these rows. Full table and what it does NOT affect:
+  [2026-09-07](#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed).
 - 2025-12-26 produced no analysis rows.
 - `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
   89.3%, because the label cache does not cover the new rows.
@@ -1134,3 +1130,102 @@ the robustness cut.
 
 **Next.** [`next-steps.md`](next-steps.md) §0 gains the queues as an operator
 item. The two hardcoded 2026-03 tables stop being no-ops once queue C runs.
+## 2026-09-07 — the three doubled analysis dates are repaired; the pipeline now REFUSES a date it has analysed
+
+The root cause is closed at both ends. 37 rows of the earlier analysis run were
+deleted from `AnalysisClaude`, and the pipeline can no longer create the
+condition again. The repair left 12 backtest rows pointing at plays that are
+gone, which is the finding worth carrying forward.
+
+_Era v4 · `AnalysisClaude` 2,325 rows over 198 dates, one run per date, tab and
+export in agreement._
+
+### What was deleted
+
+Three dates carried two `created_datetime` stamps. The LATER run was kept on
+each, the same rule applied to `BacktestResults` on 2026-09-06.
+
+| Date | Before | Dropped | Kept |
+|---|---|---|---|
+| 2024-09-16 | 22 | 11 (`2026-08-26 0:49:52`) | 11 |
+| 2025-09-10 | 25 | 12 (`2026-08-26 14:52:42`) | 13 |
+| 2025-09-18 | 26 | 14 (`2026-08-27 0:45:51`) | 12 |
+
+The tab went 2,362 → 2,325 rows; a row-level diff against the pre-delete
+snapshot (`backtests/to_evaluate/_snapshot-AnalysisClaude-pre-dedup-20260907.csv`)
+shows exactly those 37 gone and nothing else touched, nothing added. No date
+carries two stamps now. `export_tabs.py` re-pulled: the export was ALSO stale by
+the daily pipeline's rows since 2026-09-06, so it moved 2,224 → 2,325 over 198
+dates rather than down.
+
+### The finding: 12 backtest rows now point at a play that no longer exists
+
+This is the cost of the repair and it is not the regime flip already recorded.
+5 rows lose their analysis row outright. **7 keep a (date, ticker) match and
+join to a DIFFERENT play** — the join does not fail, it silently returns the
+wrong one.
+
+| Date | Ticker | What the join does now |
+|---|---|---|
+| 2024-09-16 | `MU`, `QQQ` | orphaned — no analysis row |
+| 2025-09-18 | `MSTR`, `MU`, `XLI` | orphaned — no analysis row |
+| 2024-09-16 | `IWM` | `bear put 215/195` → joins `bear put 210/195` |
+| 2024-09-16 | `TSM` | `bull call 180/…` → joins `bull call 175/…` |
+| 2024-09-16 | `EEM`, `MSTR` | joins a same-structure play at other strikes |
+| 2025-09-10 | `NVDA` | `bull call 180/…` → joins a **`bear put 175/155`**; the direction flips |
+| 2025-09-18 | `QQQ` | `bear put 570/530` → joins `bear put 585/555` |
+| 2025-09-18 | `SMH` | `bull call 320/…` → joins `bull call 325/…` |
+
+`SMH` on 2025-09-18 has TWO backtest rows, one from each analysis run, and both
+survive — the second is now the one joining the wrong play.
+
+**What this affects.** Any study reading a play THROUGH the join:
+[`text_features`](arm-index.md#text_features) reads the play text,
+[`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) and
+[`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md) print
+join coverage and will show 7 of 524 rows landing on a different row than before
+plus 5 no longer landing at all.
+
+**What it does NOT affect.** The 524 result rows themselves. Entry, exit,
+pricing and P&L were computed at backtest time from the play as it then stood;
+deleting an analysis row does not reprice anything. Total orphans in the export
+are 7, of which 2 (`2025-07-29` `COIN` and `EEM`) pre-date this repair and are
+unrelated.
+
+**Not repaired, and it is a decision, not a bug.** Dropping the 12 rows would
+change the evidence base 524 → 512 and is the operator's call.
+
+### The correction to the 2026-09-06 entry
+
+That entry said the later 2025-09-18 run "does not contain MU, MSTR, QQQ, SMH or
+XLI at all". Three of those are right — `MU`, `MSTR`, `XLI` are absent. `QQQ`
+and `SMH` ARE in the later run, with different strikes, which is why they became
+wrong-play joins rather than orphans. The entry's own headline claim (5 backtest
+rows on 2025-09-18 carry a later run's regime) stands: they are `MSTR`, `MU`,
+`QQQ`, `SMH` and `XLI`, attributed by matching play text.
+
+### The pipeline now refuses a date it has already analysed
+
+`scripts/analysis_pipeline/core.py::_drop_already_analysed`. `append_rows`
+appends, and the analysis step is not deterministic, so a second run on a date
+does not duplicate it — it proposes different plays and the tab pools two
+populations into one. The guard refuses such a date in ONE Sheets read taken
+before the first fetch, so it costs no LLM spend to reach.
+
+| | Behaviour |
+|---|---|
+| date already on the tab | refused; exit 1 if nothing is left to do |
+| `--start`/`--end` | analysed dates refused, new ones run, exit 0 |
+| `--tickers` | keyed on (date, TICKER) — a new name on an analysed date runs |
+| `--dry-run` | warns and runs; it writes nothing, so it cannot double anything |
+| `--skip-llm`, `--output-dir` | not checked — neither can reach `append_rows` |
+| `--allow-duplicate-date` | the override; appends beside the existing rows |
+
+`--output-dir` stays a separate structural guard: a candidate prompt's rows for
+a NEW date pass this one, and must still never reach the tab. Contract and
+tests: `docs/architecture.md` §"The already-analysed guard",
+`tests/test_analysis_pipeline_dup_guard.py`.
+
+**The backtest has the same shape of hole and it is NOT closed.** The
+2025-12-22 `SPY` duplicate on 2026-09-06 came from a re-run of
+`scripts.backtest`, not from a doubled analysis. Nothing stops that recurring.

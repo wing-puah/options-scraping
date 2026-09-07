@@ -11,10 +11,11 @@ keeps its number as a one-line stub with a link.
 <a id="s0"></a>
 ## 0. Repo state — read first
 
-- **Era and population.** `v4`, the 166-date backfilled book, exports of
-  2026-09-06. `BacktestResults` is 524 rows over 159 dates, deduplicated, and
-  the tab and the export agree. Counts and the date range are in
-  [the population](current.md#the-population).
+- **Era and population.** `v4`, the 166-date backfilled book. `BacktestResults`
+  is 524 rows over 159 dates (export 2026-09-06) and `AnalysisClaude` is 2,325
+  rows over 198 dates with ONE analysis run per date (export 2026-09-07); both
+  deduplicated, and tab and export agree on each. Counts and the date range are
+  in [the population](current.md#the-population).
 - **What most of the queue waits on: genuinely new dates.** `AnalysisClaude`
   carries 2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows,
   because those options have not expired. §2.2 and §2.6 wait on them. The 13
@@ -56,15 +57,21 @@ Decisions owed. None of these is a study.
    run that proposed them
    ([detail](current.md#2026-09-06-later--the-spy-duplicate-and-15-older-duplicate-rows-are-dropped-the-export-is-524-rows-analysisclaude-keeps-both-runs)).
 
-2. **`AnalysisClaude` still holds both runs on three doubled dates — 33 extra
-   rows.** The root cause, and NOT a duplicate problem. 2024-09-16, 2025-09-10
-   and 2025-09-18 were each analysed twice; the pipeline has no date dedup, so
-   the second run appended. The two runs proposed **different plays**, not
-   copies — on 2024-09-16 the first has `QQQ` and `MU` where the second has
-   `SPY` and `META`, and on 2025-09-18 the `MARKET` regime itself flips.
-   Choosing which run stands is a decision about the population, so nothing was
-   deleted. **Until it is made, any backtest re-run over these three dates
-   re-emits both runs' plays and the duplicates come back.**
+2. **The three doubled analysis dates are REPAIRED and the pipeline now refuses
+   a date it has analysed** (2026-09-07). 37 rows of the earlier run were
+   deleted from `AnalysisClaude` on 2024-09-16, 2025-09-10 and 2025-09-18,
+   keeping the later run on each; `_drop_already_analysed` stops it recurring
+   (`--allow-duplicate-date` overrides). **One decision is owed.** The repair
+   left **12 `BacktestResults` rows proposed by a run that no longer exists** —
+   5 orphaned, and 7 that still match on (date, ticker) but now join a
+   DIFFERENT play, `NVDA` on 2025-09-10 flipping direction outright. Dropping
+   them moves the evidence base 524 → 512 and is the operator's call; leaving
+   them means any study reading a play through that join is wrong on 7 rows
+   ([detail](current.md#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed)).
+
+   The same hole is still OPEN one tab over: `scripts.backtest` has no
+   equivalent guard, and the 2025-12-22 `SPY` duplicate came from a re-run of
+   it, not from a doubled analysis.
 
 3. **Three queues of pre-registered dates are written and unrun.** The
    neutral-date campaign dropped 40 of its 192 selected dates, because step 4
