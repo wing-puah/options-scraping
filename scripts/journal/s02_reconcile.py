@@ -17,6 +17,13 @@ carries a real `conid` (rawpull.validate() refuses a pull where that is not
 true), so identity is exact and that price-matching inference is simply not
 needed — every leg's `match` is populated straight from the Leg itself.
 
+A STRUCTURE LABEL NAMES A POSITION, NOT AN ORDER. The action is decided first
+and a whole-group CLOSE is classified on the position it UNWINDS, by inverting
+the legs' signs in `_entry_adapter()`. Reading the fill signs directly named the
+mirror image of every closed spread — a closed bull call spread journalled as a
+`bear_call_spread`, which `ladder_tier()` then vetoes (robustness-review P1).
+Money is never oriented: `net_price` is inverted back to the fill's own cash.
+
 That same exact identity is also what lets `_merge_legs_by_conid()` fold the
 broker's FILLS back into the operator's LEGS: one contract filled in three
 parts is 3 contracts of a one-leg position, not a "3-leg combo". Everything
@@ -222,18 +229,47 @@ def _merge_legs_by_conid(legs: list[Leg]) -> tuple[list[Leg], list[str]]:
 # The adapters below present our Leg objects and rawpull's own open-position
 # snapshot in that shape. They do NOT re-derive structure/tier logic — that
 # stays exactly where deployment-rules.md's one encoding lives.
-def _entry_adapter(legs: list[Leg]) -> dict:
+def _entry_adapter(legs: list[Leg], closing: bool = False) -> dict:
+    """Present `legs` in the entry shape `mapping.py` expects.
+
+    `closing=True` INVERTS every leg's sign. THIS IS THE P1 FIX, and the reason
+    it belongs here rather than in mapping.py: `match["position"]` means "the
+    signed position this leg is part of", and stage1 fills it from a real
+    broker snapshot. This adapter has no snapshot, so it fills it from the
+    FILL's signed quantity — which equals the position only when the fill
+    OPENED it. A closing fill is the position's mirror image: selling the 170
+    and buying back the 180 of a bull call spread reads, sign for sign, as a
+    bear call spread, and `ladder_tier()` vetoes that on sight. Every closed
+    spread journalled before 2026-09-07 carries the inverted label.
+
+    So the caller passes the ACTION and the group is oriented to the position
+    it acts on. Everything downstream then describes that position: the
+    structure label, `decompose_core()`'s financed-vertical split, the overlay
+    test, the analysis match and the tier. mapping.py is untouched — there is
+    still exactly one `ladder_tier()` and one `CONFIDENCES`.
+
+    Only a whole-group CLOSE is oriented. A ROLL closes one leg while opening
+    another and a PARTIAL does not know which it did, so neither names a single
+    position; both keep the fill-sign reading and `_build_event` discloses it.
+
+    NOTE the one thing orientation must NOT touch: money. `classify_structure`
+    derives its `net` from these same signs, so on a CLOSE it returns the
+    price of the POSITION, not the cash of the fill — `_build_event` inverts
+    that figure back before it becomes `net_price`.
+    """
+    flip = -1 if closing else 1
     legs_out = []
     for lg in legs:
+        qty = flip * lg.qty
         # 0.0 rather than None for an unreported commission is safe HERE and
         # only here: mapping.classify_structure uses it for a net-with-commission
         # figure this module discards, and the structure label itself does not
         # depend on it. The costed value the journal records keeps its None.
-        trade = {"side": "BUY" if lg.qty > 0 else "SELL",
+        trade = {"side": "BUY" if qty > 0 else "SELL",
                  "price": lg.fill_price, "commission": lg.commission or 0.0}
         # `match` is never None here — see the module docstring: a real conid
         # means identity is always known, unlike stage1's price-matched infer.
-        match = {"position": lg.qty, "strike": lg.strike, "expiry": lg.expiry,
+        match = {"position": qty, "strike": lg.strike, "expiry": lg.expiry,
                  "right": lg.right, "symbol": lg.symbol}
         legs_out.append({"trade": trade, "match": match})
     return {"legs": legs_out}
@@ -483,14 +519,31 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
     fill_dt = min(lg.fill_time for lg in legs)
     event_date = fill_dt.date()
 
-    entry = _entry_adapter(legs)
-    struct_label, net_price, _net_wc, _status, cs_note, is_overlay = \
-        mapping.classify_structure(entry, positions_adapter)
-    if cs_note:
-        notes.append(cs_note)
-
+    # ACTION FIRST, then the structure. The label names the position the fill
+    # group acts on, and on a CLOSE that is the mirror of the fills themselves
+    # (see `_entry_adapter`), so the action has to be known before the group can
+    # be classified at all.
     action, action_notes = _classify_action(legs)
     notes.extend(action_notes)
+
+    closing = action == "CLOSE"
+    entry = _entry_adapter(legs, closing=closing)
+    struct_label, net_price, _net_wc, _status, cs_note, is_overlay = \
+        mapping.classify_structure(entry, positions_adapter)
+    if closing:
+        # `net_price` came back oriented to the position; the journal records
+        # the FILL's cash. Invert it back — this is the one figure orientation
+        # must not change.
+        net_price = -net_price
+        notes.append(f"structure names the position this group closes "
+                     f"({struct_label}), read from the legs' resulting position "
+                     "rather than the fills' own signs")
+    elif action in ("ROLL", "PARTIAL"):
+        notes.append(
+            f"structure read from the fill signs: a {action} does not name one "
+            "held position, so this label describes the order, not a position")
+    if cs_note:
+        notes.append(cs_note)
 
     # All-or-nothing across legs, the same rule s03_risk.py applies to delta: a
     # group is only as costed as its least-costed leg. Summing the known legs
@@ -546,6 +599,19 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
         event.match_confidence = "OVERLAY"
         notes.append("financing/carry overlay on an existing same-ticker "
                      "position — not a play attempt, excluded from the match tally")
+
+    # A CLOSE can now MATCH, and that is a side effect of the P1 orientation
+    # fix worth stating on the row itself: before it, a closed spread carried
+    # the mirror label and scored NONE by accident. The match names the play
+    # this group UNWINDS — it is not a second attempt to trade that play, and a
+    # "did I trade the plan" tally that counts it double-counts one attempt.
+    # The vocabulary is untouched (no new confidence, CORE still never promoted,
+    # OVERLAY still out of both sides); this is the tally's POPULATION.
+    if closing and event.match_confidence not in ("NONE", "OVERLAY"):
+        notes.append(
+            f"match names the play this CLOSE unwinds ({event.match_confidence}), "
+            "not a fresh attempt to trade it — count play attempts on "
+            "action == OPEN")
 
     # Market-level reads keyed on the SIGNAL date, never a play row — the
     # invariant lib/analysis.py's docstring pins.

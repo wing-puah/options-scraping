@@ -79,6 +79,25 @@ _GLYPH = {OK: "ok", MISSING: "MISS", PARTIAL: "PART", NOT_DUE: "-", UNKNOWN: "?"
 # GitHub renders at most 10 annotations per step; past that they vanish silently.
 MAX_ANNOTATIONS = 10
 
+# A prefix's presence check (`flow_present`, below) only looks for a FILE — a
+# compiled CSV or a raw snapshot. It cannot see what is INSIDE one, so a single
+# dead prefix that still manages to leave an all-but-empty file (Barchart
+# quietly serving a broken/changed page while its sibling keeps working) reads
+# as fully healthy. A real trading session's flow/unusual page runs in the
+# hundreds to thousands of rows (see scrape_flow.py's --mode pages), so this
+# floor is deliberately generous: it exists to catch a corpse, not to flag a
+# volume regression (that would need its own, separately tuned gate).
+MIN_PREFIX_ROWS = 20
+
+# The journal ("did python3 -m scripts.journal run today") lives in a SEPARATE
+# spreadsheet (TRADE_JOURNAL_SPREADSHEET_ID) from everything else this script
+# checks, and reading it needs that env var wired into whichever workflow runs
+# this script. It is deliberately NOT a config/pipeline-health.yml stage (see
+# `main()`): appending it here in code lets the stage exist and degrade to
+# NOT_DUE (inert, never a false alarm) wherever the env var is absent, rather
+# than requiring every caller of this script to also carry that secret.
+JOURNAL_SPREADSHEET_ENV = "TRADE_JOURNAL_SPREADSHEET_ID"
+
 
 class StageSpec(NamedTuple):
     name: str
@@ -94,6 +113,12 @@ class Finding(NamedTuple):
     session: str
     verdict: str
     detail: str
+
+
+# Appended to whatever config/pipeline-health.yml defines (see `main()`) rather
+# than living in it, per the comment on JOURNAL_SPREADSHEET_ENV above.
+JOURNAL_STAGE = StageSpec(name="journal", kind="journal_marked", lag_sessions=0,
+                          min_complete=1.0, prefixes=(), field="")
 
 
 class HealthConfig(NamedTuple):
@@ -148,6 +173,19 @@ def _coverage_verdict(cov, min_complete: float, unit: str) -> tuple[str, str]:
     return (OK if pct >= min_complete else PARTIAL), detail
 
 
+def _max_date_column(header: list[str], rows: list[list[str]], col: str) -> str | None:
+    """The lexicographically-largest non-blank value of `col`, or None. Pure.
+
+    ISO dates (`YYYY-MM-DD`) sort correctly as plain strings, so "largest" is
+    genuinely "latest" for every column this is used on.
+    """
+    if not header or col not in header:
+        return None
+    i = header.index(col)
+    values = {r[i].strip() for r in rows if len(r) > i and r[i].strip()}
+    return max(values) if values else None
+
+
 def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
     """One stage's verdict for one session. Pure — reads `state`, touches nothing."""
     flow = state.get("flow", {}).get(session, {})
@@ -162,6 +200,20 @@ def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
         if missing:
             return Finding(stage.name, session, MISSING,
                            f"no flow data for {', '.join(missing)}")
+        # ROW FLOOR: presence alone cannot tell a healthy prefix from a dead one
+        # that still left an all-but-empty file — see MIN_PREFIX_ROWS. Only
+        # fires when a row count was actually gathered (`state["flow_rows"]`,
+        # built in collect_state): a prefix this run could not verify
+        # (mid-session, no source file resolved yet) is left OK rather than
+        # guessed at, since `compiled_present` and the enrichment stages
+        # independently catch a genuinely missing/failed compile.
+        rows_by_prefix = state.get("flow_rows", {}).get(session, {})
+        thin = [p for p in stage.prefixes
+                if rows_by_prefix.get(p) is not None and rows_by_prefix[p] < MIN_PREFIX_ROWS]
+        if thin:
+            detail = "; ".join(f"{p}: {rows_by_prefix[p]} row(s)" for p in thin)
+            return Finding(stage.name, session, PARTIAL,
+                           f"below the {MIN_PREFIX_ROWS}-row floor — {detail}")
         have = sum(flow.get(p, {}).get("snapshots", 0) for p in stage.prefixes)
         return Finding(stage.name, session, OK,
                        f"{have} snapshot(s)" if have else "compiled (snapshots GC'd)")
@@ -196,6 +248,26 @@ def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
         if session in state.get("baseline", set()):
             return Finding(stage.name, session, OK, "row present")
         return Finding(stage.name, session, MISSING, f"no {BASELINE_TAB} row")
+
+    if stage.kind == "journal_marked":
+        j = state.get("journal") or {}
+        if not j.get("configured"):
+            return Finding(stage.name, session, NOT_DUE,
+                           f"{JOURNAL_SPREADSHEET_ENV} not set in this run's environment "
+                           "— the stage is wired into the code but not yet into this "
+                           "workflow's secrets (see check_pipeline.py::JOURNAL_STAGE)")
+        if j.get("error"):
+            return Finding(stage.name, session, UNKNOWN, f"could not read: {j['error']}")
+        marked = j.get("last_marked")
+        if marked is None:
+            return Finding(stage.name, session, MISSING,
+                           "no OpenBook or TradeJournal row found at all — the journal "
+                           "has left no evidence it has ever run")
+        if marked >= session:
+            return Finding(stage.name, session, OK, f"marked through {marked} ({j['source']})")
+        return Finding(stage.name, session, MISSING,
+                       f"latest mark is {marked} ({j['source']}) — session {session} "
+                       "not covered")
 
     return Finding(stage.name, session, UNKNOWN, f"unknown stage kind {stage.kind!r}")
 
@@ -358,6 +430,62 @@ def _commit_age_days(as_of: date) -> int | None:
     return (as_of - committed).days
 
 
+def _read_tj_tab(spreadsheet_id: str, tab: str) -> tuple[list[str], list[list[str]]]:
+    """`(header, data_rows)` from `tab` in the TRADE_JOURNAL workbook.
+
+    A DIFFERENT spreadsheet from the one `lib.sheets_client.get_all_values`
+    reads (that one is hardwired to the default GOOGLE_SPREADSHEET_ID), so this
+    goes through `sheets_client._get_spreadsheet(spreadsheet_id)` — its explicit
+    argument exists for exactly this ("a caller can target a DIFFERENT workbook
+    without disturbing the default", per its own docstring) — rather than
+    reinventing an auth path. That keeps this read on the same
+    `RetryingHTTPClient` (429/503/connection-error retries) as every other
+    Sheets read in the repo, matching this file's existing pattern of importing
+    other modules' private helpers (`_source_file`, `_check_cp`, `_iv_fields`,
+    `_oi_fields`, `_price_fields`) rather than a hand-rolled client.
+    """
+    import gspread
+    from lib.sheets_client import _get_spreadsheet
+
+    ss = _get_spreadsheet(spreadsheet_id)
+    try:
+        ws = ss.worksheet(tab)
+    except gspread.exceptions.WorksheetNotFound:
+        return [], []
+    values = ws.get_all_values()
+    if not values or not values[0]:
+        return [], []
+    return values[0], values[1:]
+
+
+def _journal_last_marked(spreadsheet_id: str) -> tuple[str | None, str]:
+    """`(latest_date, source_tab)` — the newest evidence the journal has left.
+
+    OpenBook is a MIRROR (`scripts/journal/s05b_bookwriter.py`: every run
+    REPLACES it with the book exactly as marked), so its current `as_of_date`
+    is the date of the run that produced what is on it now — UNLESS that run's
+    book was flat, in which case the tab is cleared to zero rows and that
+    run leaves no trace here. TradeJournal is append-only but only grows on a
+    day with an actual fill. A run that found nothing new AND a book already
+    flat is therefore indistinguishable from the journal never having run —
+    a real, known blind spot (not fixable from here: both writers skip their
+    own `_meta` stamp on empty content too). This check exists to catch the
+    CONFIRMED finding — the schedule stopping entirely — not to prove every
+    single quiet day was covered.
+    """
+    header, rows = _read_tj_tab(spreadsheet_id, "OpenBook")
+    marked = _max_date_column(header, rows, "as_of_date")
+    if marked is not None:
+        return marked, "OpenBook"
+
+    header, rows = _read_tj_tab(spreadsheet_id, "TradeJournal")
+    marked = _max_date_column(header, rows, "date")
+    if marked is not None:
+        return marked, "TradeJournal"
+
+    return None, ""
+
+
 def collect_state(client, stages, sessions: list[str]) -> dict:
     """Fetch every fact `evaluate()` needs. All Drive/Sheets I/O happens here."""
     from lib import sheets_client
@@ -376,10 +504,17 @@ def collect_state(client, stages, sessions: list[str]) -> dict:
     needs_enrich = {s.field for s in stages if s.kind == "enrichment"}
     needs_cp = any(s.kind == "counterpart" for s in stages)
     enrich_prefixes = sorted({p for s in stages if s.kind == "enrichment" for p in s.prefixes})
+    # The row-floor prefixes (see MIN_PREFIX_ROWS): usually the same set the
+    # enrichment stages already read, so the gather below reuses that download
+    # rather than fetching the same file twice, and only falls back to a
+    # dedicated fetch for a prefix no enrichment stage happens to cover.
+    floor_prefixes = sorted({p for s in stages if s.kind == "flow_present" for p in s.prefixes})
 
     enrich: dict[str, dict] = {}
     counterpart: dict[str, tuple[int, int] | None] = {}
+    flow_rows: dict[str, dict[str, int]] = {}
     for session in sessions:
+        row_counts: dict[str, int] = {}
         if needs_enrich:
             per_prefix: dict[str, dict] = {}
             for prefix in enrich_prefixes:
@@ -388,6 +523,7 @@ def collect_state(client, stages, sessions: list[str]) -> dict:
                     per_prefix[prefix] = {f: None for f in needs_enrich}
                     continue
                 rows = parse_csv(client.download(file_id, name=file_name))
+                row_counts[prefix] = len(rows)
                 cov: dict[str, tuple[int, int] | None] = {}
                 if "oi" in needs_enrich:
                     f = _oi_fields(rows)
@@ -400,6 +536,18 @@ def collect_state(client, stages, sessions: list[str]) -> dict:
                     cov["price"] = (f["price_enriched_tickers"], f["price_total_tickers"])
                 per_prefix[prefix] = cov
             enrich[session] = per_prefix
+        for prefix in floor_prefixes:
+            if prefix in row_counts:
+                continue
+            file_id, file_name = _source_file(client, prefix, session)
+            if not file_id:
+                # Nothing resolvable yet (e.g. mid-session, several uncompiled
+                # snapshots) — leave it out rather than guess; `_judge` treats
+                # an absent entry as "cannot verify", not as a failure.
+                continue
+            row_counts[prefix] = len(parse_csv(client.download(file_id, name=file_name)))
+        if row_counts:
+            flow_rows[session] = row_counts
         if needs_cp:
             cp = _check_cp(client, session)
             counterpart[session] = (None if cp["cp_status"] == "no-compiled"
@@ -417,7 +565,20 @@ def collect_state(client, stages, sessions: list[str]) -> dict:
         except Exception as e:                               # noqa: BLE001
             log.warning("Could not read %s: %s", BASELINE_TAB, e)
 
-    return {"flow": flow, "enrich": enrich, "counterpart": counterpart, "baseline": baseline}
+    journal: dict = {"configured": False, "last_marked": None, "source": "", "error": None}
+    if any(s.kind == "journal_marked" for s in stages):
+        spreadsheet_id = os.getenv(JOURNAL_SPREADSHEET_ENV)
+        if spreadsheet_id:
+            journal["configured"] = True
+            try:
+                marked, source = _journal_last_marked(spreadsheet_id)
+                journal["last_marked"], journal["source"] = marked, source
+            except Exception as e:                           # noqa: BLE001
+                log.warning("Could not read journal evidence: %s", e)
+                journal["error"] = str(e)
+
+    return {"flow": flow, "enrich": enrich, "counterpart": counterpart, "baseline": baseline,
+            "flow_rows": flow_rows, "journal": journal}
 
 
 def main() -> int:
@@ -436,6 +597,10 @@ def main() -> int:
     except (OSError, ValueError, yaml.YAMLError) as e:
         log.error("bad config: %s", e)
         return EXIT_USAGE
+    # Appended in code, not in config/pipeline-health.yml — see JOURNAL_STAGE's
+    # comment. Degrades to NOT_DUE (never a false alarm) until the workflow
+    # that runs this script also carries TRADE_JOURNAL_SPREADSHEET_ID.
+    cfg = cfg._replace(stages=cfg.stages + (JOURNAL_STAGE,))
     try:
         as_of = date.fromisoformat(args.as_of) if args.as_of else date.today()
     except ValueError:

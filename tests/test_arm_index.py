@@ -51,7 +51,8 @@ _STUDY_HEADING = re.compile(r"^#### `([a-z][a-z0-9_]*)`", re.M)
 
 
 def _sources() -> list[Path]:
-    return sorted(STUDY_PKG.rglob("*.py")) + sorted(PREREGS.glob("*.md"))
+    preregs = sorted(p for p in PREREGS.rglob("*.md") if p.name != "README.md")
+    return sorted(STUDY_PKG.rglob("*.py")) + preregs
 
 
 def _study_sections(text: str) -> list[tuple[str, str]]:
@@ -80,6 +81,20 @@ def _indexed_labels() -> set[str]:
     return labels
 
 
+# `ARM <TICKER>` false positives: a sector-map ticker list writes tickers
+# space-separated with no punctuation, so when the ARM Holdings ticker
+# ("ARM") is immediately followed by another ticker, ARM_TOKEN reads the two
+# as one arm citation. These are prose in an IMMUTABLE registration (fixed
+# 2026-08-29, per its own "sector map is fixed HERE" clause) — not a study
+# arm — so they cannot be indexed and are not a coverage gap. Pinned here,
+# by file and label, the same way test_index_covers_the_known_collisions
+# pins the ARM P owners: a new entry needs a comment naming the ticker list
+# it comes from, never a silent addition.
+_KNOWN_TICKER_FALSE_POSITIVES: dict[str, set[str]] = {
+    "hedge_exposure.md": {"MRVL"},  # `SEMIS` sector map: "... AMAT ARM MRVL INTC ..."
+}
+
+
 def test_index_exists_and_is_readable() -> None:
     assert INDEX.is_file(), f"{INDEX} is the arm lookup readers are pointed at; it must exist"
 
@@ -88,6 +103,7 @@ def test_index_exists_and_is_readable() -> None:
 def test_every_arm_label_is_indexed(source: Path) -> None:
     indexed = _indexed_labels()
     found = set(ARM_TOKEN.findall(source.read_text(encoding="utf-8")))
+    found -= _KNOWN_TICKER_FALSE_POSITIVES.get(source.name, set())
     missing = sorted(label for label in found if label not in indexed)
     assert not missing, (
         f"{source.relative_to(ROOT)} uses arm label(s) {missing} with no mention in "

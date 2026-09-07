@@ -59,6 +59,24 @@ lose money to a few large losers) — read next to meanR, not instead of it.
 the same day, which is usual — and is why almost nothing here resamples
 on `n`. See §3.
 
+<a id="net-r"></a>
+### net R
+R after modelled trading costs: the stored R less commission and
+slippage, charged per LEG at entry and at exit, divided by the position's
+entry cost basis so it stays in R units. The backtest itself fills at the
+bid/ask mid and charges nothing, so every R in this repo is GROSS unless a
+report says otherwise. Registered in
+[`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md).
+
+<a id="cost-point"></a>
+### cost point
+one (commission per contract, slippage as a fraction of the
+quoted spread) pair. The registered point is $0.65 per contract plus 25% of
+the quoted spread per leg per side; a sweep of other points is a sensitivity,
+never a verdict. The **breakeven contour** is the smallest cost point at which
+a tier's net-R confidence interval no longer excludes zero — the answer to "at
+what cost does the edge vanish".
+
 ## 3. Uncertainty & robustness
 
 <a id="ci"></a>
@@ -405,6 +423,26 @@ trading sessions and ≥10 dates — a continuously-tradeable stretch.
 SECONDARY = every date in the pooled book, gaps included; only an
 availability upper bound / concurrency lower bound and, per the
 `account_sim` pre-registration, "may not carry a conclusion alone."
+
+<a id="matched-geometry"></a>
+### matched geometry
+the rule that builds a mechanical counterpart to a deployed
+pick: a two-leg debit call vertical on the same underlying and signal date,
+same expiry on both legs, chosen inside the pick's own DTE band. Fixed
+geometry takes ATM and +5% strikes; matched geometry takes the strike whose
+entry-dated delta is nearest the pick's. Both are frozen in
+[`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md)
+so a losing geometry cannot be re-chosen after the fact.
+
+<a id="sealed-window"></a>
+### sealed window
+a set of signal dates no research-tier code may compute an
+outcome statistic on until a named count of them has priced. Census counts,
+the production journal, pipeline health checks and data collection stay
+permitted; R, E, meanR, PF, win%, maxDD, MFE/MAE, dollars and any interval
+built from them do not. The commitment, its unseal condition and the single
+read taken on unseal are in
+[`pre-registrations/f4_deployment/holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md).
 
 ## 9. Verdict grammar
 

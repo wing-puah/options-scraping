@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import scrape_flow
-from scrape_flow import is_market_hours, _download_and_upload, _collected_dates
+from scrape_flow import is_market_hours, _download_and_upload, _collected_dates, _SKIPPED
 
 ET = ZoneInfo("America/New_York")
 
@@ -95,7 +95,12 @@ def test_download_skips_when_already_exists():
         session, client, "http://example.com", "unusual-stocks", run_dt, "folder-id",
         target_date=TARGET))
 
-    assert result == 0
+    # _SKIPPED, NOT 0 — an already-uploaded file is not a failure, and must
+    # stay distinguishable from a genuinely empty CSV (see
+    # test_download_returns_0_on_empty_csv below and P6 in
+    # research/robustness-review.md): a live run that finds every page already
+    # uploaded must never be mistaken for one whose pages all came back empty.
+    assert result == _SKIPPED
     session.download_csv.assert_not_called()
 
 

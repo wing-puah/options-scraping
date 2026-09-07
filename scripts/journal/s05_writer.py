@@ -112,13 +112,22 @@ def _csv_path(path: Path | None = None) -> Path:
     return Path(path if path is not None else TRADES_CSV)
 
 
-def read_csv_source_refs(path: Path | None = None) -> set[str]:
+def read_csv_rows(path: Path | None = None) -> list[dict]:
+    """Every row ever written to the local journal CSV, or `[]`.
+
+    Used to find genuinely new rows (`source_ref` not among these) AND, for
+    the Sheets sync in `write()`, to retry any row that reached the CSV on an
+    earlier run but never reached Sheets — see the module docstring.
+    """
     path = _csv_path(path)
     if not path.exists():
-        return set()
+        return []
     with open(path, newline="", encoding="utf-8") as fh:
-        return {r.get("source_ref", "") for r in csv.DictReader(fh)
-                if r.get("source_ref")}
+        return list(csv.DictReader(fh))
+
+
+def read_csv_source_refs(path: Path | None = None) -> set[str]:
+    return {r.get("source_ref", "") for r in read_csv_rows(path) if r.get("source_ref")}
 
 
 def append_csv(rows: list[dict], path: Path | None = None) -> int:
@@ -164,7 +173,8 @@ def write(events: list[PositionEvent],
         log.info("No journal rows to write")
         return summary
 
-    seen = read_csv_source_refs(csv_path)
+    existing = read_csv_rows(csv_path)
+    seen = {r.get("source_ref", "") for r in existing if r.get("source_ref")}
     fresh = [r for r in rows if r["source_ref"] and r["source_ref"] not in seen]
     summary["skipped_duplicate"] = len(rows) - len(fresh)
 
@@ -184,7 +194,7 @@ def write(events: list[PositionEvent],
 
     summary["csv_written"] = append_csv(fresh, csv_path)
 
-    if skip_sheets or not fresh:
+    if skip_sheets:
         return summary
 
     spreadsheet_id = os.getenv(TRADE_JOURNAL_SPREADSHEET_ENV)
@@ -195,7 +205,17 @@ def write(events: list[PositionEvent],
 
     try:
         already = read_sheet_source_refs(spreadsheet_id)
-        to_send = [r for r in fresh if r["source_ref"] not in already]
+        # Diff against EVERY local row (what was already on disk plus this
+        # run's new ones), not just `fresh`. A row that reached the CSV on an
+        # earlier run but never reached Sheets (an outage, a bad credential)
+        # is no longer "fresh" on any later run — comparing only against
+        # `fresh` would strand it there permanently, since the CSV-first
+        # write already means every later run finds it "already present" and
+        # never reconsiders it for Sheets. `existing` was read before this
+        # run's rows were appended, so the union is exactly what the CSV now
+        # holds, without a second file read.
+        to_send = [r for r in existing + fresh
+                  if r.get("source_ref") and r["source_ref"] not in already]
         if to_send:
             # raw=True: the date column is part of the identity and must not be
             # locale-parsed into a sheet date.

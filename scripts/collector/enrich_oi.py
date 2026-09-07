@@ -517,7 +517,13 @@ def main() -> None:
             avail = _enrichable_dates(client, index)
             print(f"\n  Nothing enriched. Enrichable dates in Drive: "
                   f"{', '.join(avail) if avail else '(none)'}")
-            print("  (the latest compiled date is held back until its next trading day lands)")
+            # NOT a hold-back: OI enrichment compares D to D-1, both of which are
+            # already known once D's own session has closed, so the newest
+            # compiled date is enrichable the same evening it is compiled — see
+            # each date's per-prefix status above for why THIS run found nothing
+            # (already enriched, no compiled file, etc).
+            print("  (every listed date is enrichable now — see the per-date status above "
+                  "for why this run found nothing new)")
 
 
 if __name__ == "__main__":

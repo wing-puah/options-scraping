@@ -11,6 +11,14 @@ Entry point for the daily trade journal.
     python3 -m scripts.journal --from-raw <path>   replay a past pull, no network
     python3 -m scripts.journal --dry-run           write nothing; show what it would write
     python3 -m scripts.journal --no-llm            deterministic only
+    python3 -m scripts.journal relabel             P1 label-fix diagnostic; journal/trades.csv
+    python3 -m scripts.journal relabel --csv PATH  same, against a different trades CSV
+
+`relabel` is OFFLINE-ONLY and PRINT-ONLY (see `scripts/journal/lib/relabel.py`):
+it says which already-journalled rows the 2026-09-07 CLOSE-orientation fix
+would relabel, and touches no network and no CSV. It bypasses the flags below
+entirely — dispatched before argument parsing, so `--csv` is its own and not
+one of this module's.
 
 DATA SOURCE. Flex, and only Flex — a statement fetched with `IBKR_FLEX_TOKEN`
 by default, or read off disk with `--offline`. It needs no local software and
@@ -269,19 +277,24 @@ def _build_book(raw: dict, as_of: date):
 
     A missing NetLiquidation does not abort the run — the journal itself is still
     worth writing. It degrades the exposure section to 'not evaluable' and says
-    so, rather than inventing an equity figure to divide by.
+    so, rather than inventing an equity figure to divide by. It does NOT skip
+    `risk.assess()` — passing `caps=None` still runs the real totals (net,
+    gross, per-ticker delta-notional), and only the breach check is skipped.
+    Building a `BookRisk` by hand here used to leave those totals at their
+    0.0 dataclass default with real priced positions sitting alongside them,
+    which the report printed as a flat book it was not.
     """
     greeks = rawpull.greeks_map(raw)
     positions, notes = book.open_positions(raw, greeks, as_of=as_of)
     net_liq = raw.get("net_liquidation")
+    caps = None
     if net_liq is None:
         log.error("No NetLiquidation in the pull — exposure caps cannot be evaluated")
         notes.append("NetLiquidation missing from the broker pull — the exposure caps could "
                      "not be evaluated. Position deltas below are still real.")
-        return risk.BookRisk(positions=[p for p in positions if p.priced],
-                             unpriced=[p for p in positions if not p.priced],
-                             caps=None), positions, notes
-    return risk.assess(positions, risk.load_caps(net_liq)), positions, notes
+    else:
+        caps = risk.load_caps(net_liq)
+    return risk.assess(positions, caps), positions, notes
 
 
 def cmd_run(args) -> int:
@@ -534,6 +547,16 @@ def _judgment_context(session: str, ac_source: str, book_risk) -> str:
 
 
 def main(argv=None) -> int:
+    # `relabel` is dispatched here, before `_parse_args()`, because it owns
+    # its own argument surface (`--csv PATH`) rather than sharing this
+    # module's — see the module docstring. It is OFFLINE and PRINT-ONLY:
+    # `scripts/journal/lib/relabel.py` never writes journal/trades.csv or
+    # touches Sheets/the network, so it needs none of the flags below.
+    raw_argv = sys.argv[1:] if argv is None else list(argv)
+    if raw_argv[:1] == ["relabel"]:
+        from .lib import relabel
+        return relabel.main(raw_argv[1:])
+
     args = _parse_args(argv)
     _setup_logging(args.verbose)
     try:

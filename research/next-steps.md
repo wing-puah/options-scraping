@@ -39,8 +39,9 @@ keeps its number as a one-line stub with a link.
 - **Robustness review, 2026-09-07.** Before the suite is re-run, read
   [`robustness-review.md`](robustness-review.md). Two of its items change every
   number the re-run would print: the backtest has no cost model, and it can
-  book P&L on days before the fill. Fix both first, then re-run once. Its
-  follow-ups are §2.11.
+  book P&L on days before the fill. Both are BUILT (2026-09-07, later) in a
+  worktree and merge only after the queue C/E campaign ends; then re-run once.
+  Status of every item: §2.11.
 - **Rescaled tickers.** `backtests/underlying_ohlc_cache/rescaled_tickers.txt`
   lists 13 tickers after the 2026-09-05 rebuild, NVDA and GE newly among them.
   Every OHLC consumer withholds absolute dollars and cross-series comparisons on
@@ -401,6 +402,22 @@ seven investigations there (cost sensitivity, same-date benchmark, beta
 decomposition, live slippage, sealed holdout, join attrition, programme-wide
 null) are candidates, not registered studies: each gets its own
 pre-registration before it runs. The code fixes are not studies and need none.
+
+**Status 2026-09-07 (later).** Twelve items built and reviewer-approved, none
+committed ([log](current.md#2026-09-07-later--robustness-review-twelve-items-built-six-landed-in-the-tree-six-wait-in-two-worktrees-for-the-campaign-to-end)).
+
+| Where | Items | Next |
+|---|---|---|
+| Main tree, uncommitted | P1, P2, P3, P6, P8, A5 | commit |
+| Worktree `wf_129cdac5-757-5` | B1, B2, B3, B5 | merge after the campaign, align both results-tab headers, one suite re-run |
+| Worktree `wf_129cdac5-757-6` | A1, A4 | merge after the campaign |
+| Drafts, not registered | N1, N2, N5 | operator accepts each, after the decisions each names |
+| Not started | A2, A3, B4, B6, B7, P4, P5, P7, N3, N4, N6, N7 | A2/A3 need the tab header; P5 is the Stage 2 build |
+
+The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md),
+[`mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) and
+[`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md). `holdout_seal`
+names the conflict with §2.2 and §2.6 and leaves the choice open.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

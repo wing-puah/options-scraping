@@ -1331,3 +1331,69 @@ tests: `docs/architecture.md` §"The already-analysed guard",
 **The backtest has the same shape of hole and it is NOT closed.** The
 2025-12-22 `SPY` duplicate on 2026-09-06 came from a re-run of
 `scripts.backtest`, not from a doubled analysis. Nothing stops that recurring.
+
+## 2026-09-07 (later) — robustness review: twelve items built, six landed in the tree, six wait in two worktrees for the campaign to end
+
+Every item the [review](robustness-review.md) marked workable while queues C and
+E run is built and approved by an independent reviewer. Nothing is committed.
+The main tree is green on 3,406 tests and `make check-doc-links`. The
+backtest-engine and analysis-guard changes sit in two git worktrees because the
+campaign imports those files per date.
+
+| Item | Outcome | Where |
+|---|---|---|
+| P1 closed spread inverted | fixed; `python3 -m scripts.journal relabel` diffs past rows offline | main tree |
+| P2 no-NetLiq bypassed `assess()` | fixed; `assess(caps=None)` always computes totals | main tree |
+| P3 failed Sheets write never retried | fixed; writers diff the tab's own ids against all local rows | main tree |
+| P6 scrape exit 0 on zero rows | fixed; per-prefix floor in the watchdog | main tree |
+| P8 journal unscheduled | weekday workflow + watchdog stage; needs the CI secret | main tree |
+| A5 stale "held back" messages | fixed | main tree |
+| B1 cost model | knobs default 0; three columns end-appended | worktree `-5` |
+| B2 pre-fill P&L | pre-entry grid days present but UNPRICED; day indices unchanged | worktree `-5` |
+| B3 stale carry | bounded, `barchart_stale` tag, leg-day `pct_real_days` | worktree `-5` |
+| B5 zero bid | 0 when ask is 0, else ask/2 | worktree `-5` |
+| A1 empty-table analysis | skip before the LLM; zero plays refused | worktree `-6` |
+| A4 per-play validation | keys and enums checked; attempt count in the manifest | worktree `-6` |
+| N1, N2, N5 | DRAFT pre-registrations, indexed, not registered | `research/pre-registrations/` |
+
+### What building them found
+
+- **The journal's past CLOSE rows are a known-inverted cohort.** 18 of 18
+  CLOSE rows in `journal/trades.csv` carry an inverted `structure` and 3 an
+  inverted `tier` (GLD ×2 on 2026-08-28 read VETO, are B; IWM on 2026-08-31
+  read B, is C). The same rows are on the `TradeJournal` tab. Repair needs a
+  `journal/` edit and a Sheets write, neither done. Until then
+  `date < 2026-09-07 AND action == CLOSE` is excluded from any Stage 2 join.
+- **The report's "attempts matched" headline now counts OPEN events only.**
+  With closes matching their play, a same-play open+close read 2/2 for one
+  attempt. `s04a_report.py` and `s04b_page.py` each carry the rule
+  independently, as with the cap rule.
+- **B2 keeps the grid origin.** The first pass moved the grid to the entry
+  date and broke the frozen harness's `len(marks) == len(grid)` and
+  `mtm_curve`'s index-0 assumption. The landed design marks pre-fill days
+  unpriced with a `pre_entry` source tag, so no exit, MFE or MAE books on
+  them. Rows written before the fix may hold pre-entry P&L (about 4% of
+  positions per the review); a `--redo` re-price cleans them. `mtm_curve`'s
+  carried-forward count rises for late fills and nothing gates on it.
+- **B1's three cost columns need both results-tab headers aligned** before
+  the first write after the merge (`align_tab_headers.py`). With the knobs at
+  0, every recorded number is unchanged.
+- **Both worktrees branched from `294764a`, five commits behind `main`.**
+  `scripts/backtest/core.py` is touched by both the worktree and `a9b51c8`.
+  Merge by hand, not by assuming a clean apply.
+- **The campaign is running three copies of `analyze_bt_queue.sh`**, one on
+  queue C and two on queue E, against the script's own rule. The second E
+  copy flagged 2026-05-04 SKIPPED-PARTIAL while the first was still running
+  it. Read E's ledger against the tab before trusting it.
+- **Two draft decisions are the operator's before acceptance.** N1 reads
+  "$0.65 per contract plus 25% of the spread per leg" as per leg PER SIDE and
+  charges it twice. N5 seals on-or-after 2026-08-11, unseals at 40 priced
+  dates, and leaves the §2.2 conflict open with two options.
+- **Two latent items, not fixed.** `s04b_page.py` raises `ReconcileError` on
+  a zero-event day (pre-existing). `account_sim`'s exposure window still
+  starts at `grid[0]`, a pre-entry session for a late fill (pre-existing).
+- `tests/test_arm_index.py` now scans the family folders; it had matched only
+  the README. One false positive (`ARM MRVL`, two tickers) is pinned.
+
+Next, after the campaign ends: merge the two worktrees, align the headers,
+re-run the suite once, then accept and run N1 and N2.

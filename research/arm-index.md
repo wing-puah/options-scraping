@@ -21,9 +21,17 @@ a bare `ARM P`.
 - **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
   `trigger_entry`) — and `bear_deploy`'s `D1`–`D5`, which are criteria, not
   `ARM D`.
-- **`T`** — two arms: `staged_exit` (tighten / arm-trail, a fork of the replay
-  engine) and `trigger_entry` (trigger-gated ENTRY). Opposite ends of the
-  system and nothing alike.
+- **`T`** — **three** arms: `staged_exit` (tighten / arm-trail, a fork of the
+  replay engine), `trigger_entry` (trigger-gated ENTRY) and
+  `mechanical_benchmark` (the deployed picks themselves, a reference arm).
+  Opposite ends of the system and nothing alike.
+- **`X`** — two arms: `macro_event_study` (the exit census, descriptive) and
+  `mechanical_benchmark`'s sibling draft `cost_sensitivity` (the registered
+  cost point, the one arm it grades on). One is a census, the other is the
+  whole verdict.
+- **`U`** — **three** arms: `bear_giveback` (the underlying's price path),
+  `exit_drawdown` (the underlying ATR stop) and `mechanical_benchmark` (the
+  random-universe base-rate null). Nothing alike beyond the letter.
 - **`L`** — two arms: `emission_timing` (fill lag) and `trigger_entry` (the
   unconditional-lag control, deliberately matched to it).
 - **`H`** — two arms (`account_sim`, `calendar_hedge`); `H1`–`H4` hypotheses
@@ -471,6 +479,59 @@ evaluated and no cell of the τ×f grid carries a number.
   episode count, lengths and proxy mix. The fourth `ARM N` in this family.
 - `ARM R` (arm) — Stage 2 always-fillable reference: delta-equivalent SHORT
   in the proxy underlying; clause 7's control. NOT `account_sim`'s `ARM R`.
+
+#### `cost_sensitivity`
+
+_Drafted in [`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md)_
+
+**DRAFT — not registered.** The file carries a STATUS line saying so, and the
+labels below are provisional until the operator accepts it. The study asks at
+what cost per leg the Tier A/B edge vanishes; it cannot be built before the
+cost knobs and the pre-fill grid fix land and the suite is re-run once.
+
+- `ARM Z` (arm) — Zero-cost control: the book exactly as it prints today.
+  Reference only, never a result of this study.
+- `ARM X` (arm) — The registered cost point: $0.65 per contract plus 25% of
+  the quoted spread, per leg, per side. The only arm any criterion is graded
+  on. COLLIDES with `macro_event_study`'s `ARM X` (its exit census), which is
+  unrelated — qualify every citation with its study.
+- `ARM SW` (arm) — The cost sweep, commission × slippage fraction. Sensitivity
+  only; it locates the breakeven contour and may never carry a verdict.
+- `ARM Q` (arm) — Quote availability: the census of missing or degenerate
+  quotes and the fixed three-step fallback ladder. A position with no usable
+  quote is UNCOSTABLE and excluded, never charged zero.
+- `ARM GAP` (arm) — Adverse-fill sensitivity on close-marked exits; folds
+  [`robustness-review.md`](robustness-review.md) B4 in as a sensitivity.
+
+#### `mechanical_benchmark`
+
+_Drafted in [`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md)_
+
+**DRAFT — not registered**, and NOT BUILDABLE until a pre-build census clears
+its floors: most mechanical counterpart legs are not in
+`backtests/option_history_cache/` today. The study asks whether the picks beat
+a mechanical bull call spread on the same dates and tickers.
+
+- `ARM T` (arm) — The deployed picks, replayed unchanged. Reference only.
+  COLLIDES with `staged_exit`'s and `trigger_entry`'s `ARM T`, which are
+  unrelated — qualify every citation with its study.
+- `ARM M1` (arm) — Fixed-geometry counterpart: ATM/+5% call vertical on the
+  same ticker and date, inside the pick's DTE band. PRIMARY.
+- `ARM M2` (arm) — Matched-geometry counterpart: the vertical whose
+  entry-dated delta and DTE are nearest the pick's. SECONDARY.
+- `ARM U` (arm) — Universe null: the `ARM M1` wrap on random flow-universe
+  tickers for that date, ≥1,000 date-clustered draws. The base-rate arm, and
+  the one that answers "long calls just worked". COLLIDES with
+  `bear_giveback`'s `ARM U` (the underlying's price path) and `exit_drawdown`'s
+  `ARM U` (the underlying ATR stop), both unrelated — qualify every citation
+  with its study. Not the printed prose `ARM UNIVERSE` below either.
+- `ARM CEN` (arm) — Census: pair-build rates, redraw rates and band coverage
+  by tier, structure and DTE band. Descriptive only, never a criterion.
+
+Registered alongside these two, with no arms of its own:
+[`pre-registrations/f4_deployment/holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md)
+— a DRAFT commitment to seal the live dates, not a study. It has no module, no
+report and no labels to index.
 
 ## Not labels
 

@@ -1,9 +1,11 @@
 name: Enrich OI
 
-# Adds next-day OI change + EOD greeks to each compiled flow file. Enriching trade
-# date D needs D+1's data, so this runs AFTER Compile Flow (which produces today's
-# compiled file) and enriches the latest enrichable date only (no --backfill: a full
-# historical sweep risks the job timeout). Resume is per-contract via the
+# Adds OI change + EOD greeks to each compiled flow file. Enrichment compares
+# trade date D's open interest to D-1's, and both are already known once D's own
+# session has closed — this runs AFTER Compile Flow simply because that is what
+# produces D's compiled file, not because enrichment needs a day to catch up. It
+# enriches the latest enrichable date only (no --backfill: a full historical
+# sweep risks the job timeout). Resume is per-contract via the
 # oi_enriched_on marker written into the compiled file itself, so a run that was cut
 # short self-heals next time (the enriched CSV is checkpointed back to Drive as it
 # goes — there is no separate history cache to restore between runs). Also chains

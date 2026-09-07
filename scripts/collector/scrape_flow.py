@@ -50,6 +50,7 @@ MANIFEST_COLUMNS = [
 SPY_VIX_CSV = _ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv"
 
 _REJECTED = -2   # distinct from -1 (download failure) so the two are counted apart
+_SKIPPED = -3    # file already in Drive this run — not new data, but not a failure either
 
 ET = ZoneInfo("America/New_York")
 
@@ -178,13 +179,17 @@ async def _download_and_upload(
 ) -> int:
     """Download one Barchart page and upload to Drive.
 
-    Returns the row count, -1 on download failure, or _REJECTED when the payload
-    failed the staleness guard (in which case nothing is uploaded).
+    Returns the row count, -1 on download failure, _REJECTED when the payload
+    failed the staleness guard (nothing uploaded), or _SKIPPED when this exact
+    file was already in Drive (nothing NEW, but not a failure — a genuinely
+    empty CSV is what returns 0, and callers must tell the two apart: a live
+    run that finds zero rows because the page is broken must not read the same
+    as a live run that already succeeded earlier this run).
     """
     name = file_name(prefix, run_dt)
     if client.file_exists(name, folder_id):
         log.info("%s: '%s' already in Drive — skipping", prefix, name)
-        return 0
+        return _SKIPPED
 
     log.info("%s: downloading from '%s'", prefix, url)
     try:
@@ -238,7 +243,28 @@ async def _download_and_upload(
 
 # ── Live mode ──────────────────────────────────────────────────────────────────
 
-async def run_live(session: BarchartSession, client: StorageClient, mode: str) -> None:
+def _dead_prefixes(results: list[tuple[str, int]]) -> list[str]:
+    """Which of this run's live pages got NOTHING — pure, so the exit-code
+    decision is unit-testable without a live Barchart session.
+
+    A page counts as dead on 0 (download succeeded, parsed to an empty CSV —
+    the "quietly serving nothing" failure this exists to catch) or -1
+    (download itself failed). `_SKIPPED` (already uploaded earlier this run)
+    and `_REJECTED` (staleness veto — a deliberate non-upload, not a broken
+    scraper) are both legitimate non-failures and must never land here.
+    """
+    return [prefix for prefix, count in results if count == 0 or count == -1]
+
+
+async def run_live(session: BarchartSession, client: StorageClient, mode: str) -> bool:
+    """Live scrape for one mode. Returns False when EVERY new-data path failed.
+
+    Previously this exited 0 no matter what `_download_and_upload` returned,
+    so a page that quietly came back empty (a dead prefix — Barchart serving a
+    changed/broken page) left no failure signal until the nightly watchdog
+    caught the missing evidence roughly a session later. Failing the run here
+    instead makes GitHub send its failure email on the very run it happens.
+    """
     run_dt = datetime.now(ET)
     date_str = trading_day()
     folder_id = client.get_or_create_date_folder(date_str)
@@ -248,13 +274,23 @@ async def run_live(session: BarchartSession, client: StorageClient, mode: str) -
     seen_hashes = _manifest_hashes()
     target_date = date.fromisoformat(date_str)
 
+    results: list[tuple[str, int]] = []
     for url, prefix in _LIVE_PAGES[mode]:
-        await _download_and_upload(
+        count = await _download_and_upload(
             session, client, url, prefix, run_dt, folder_id,
             target_date=target_date,
             spy_close=spy_closes.get(date_str),
             seen_hashes=seen_hashes,
         )
+        results.append((prefix, count))
+
+    dead = _dead_prefixes(results)
+    if dead:
+        log.error("Live scrape got nothing for: %s — failing this run so GitHub's "
+                  "failure email fires now instead of the nightly watchdog catching "
+                  "a dead prefix a session later", ", ".join(dead))
+        return False
+    return True
 
 
 # ── Historical mode ────────────────────────────────────────────────────────────
@@ -305,7 +341,7 @@ async def run_historical(
     skip_existing: bool,
     allow_stale: bool = False,
 ) -> None:
-    total_rows, errors, rejected = 0, 0, 0
+    total_rows, errors, rejected, skipped = 0, 0, 0, 0
     spy_closes = _load_spy_closes()
     seen_hashes = _manifest_hashes()
     collected = (_collected_dates(client, [p for _, p in _HIST_BASE_PAGES], dates)
@@ -332,6 +368,10 @@ async def run_historical(
             )
             if count > 0:
                 total_rows += count
+            elif count == _SKIPPED:
+                # Already in Drive from an earlier run of this exact date —
+                # not new data, but not a failure: never count towards errors.
+                skipped += 1
             elif count == _REJECTED:
                 rejected += 1
             elif count < 0:
@@ -344,8 +384,8 @@ async def run_historical(
     # `rejected` is reported apart from `errors`: a rejection means Barchart
     # answered but with someone else's data, which is a data-integrity event,
     # not a transport failure.
-    log.info("Historical complete — %d total rows, %d errors, %d rejected (stale)",
-             total_rows, errors, rejected)
+    log.info("Historical complete — %d total rows, %d errors, %d rejected (stale), "
+             "%d skipped (already in Drive)", total_rows, errors, rejected, skipped)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -394,14 +434,20 @@ async def main() -> None:
             log.info("Outside market hours (Mon-Fri 09:30-16:00 ET) — proceeding anyway")
         log.info("Mode: live | %s", args.mode)
 
+    live_ok = True
     async with BarchartSession(BARCHART_EMAIL, BARCHART_PASSWORD, COOKIES_PATH, HEADLESS) as session:
         if historical:
             await run_historical(session, client, dates, args.skip_existing,
                                  allow_stale=args.allow_stale)
         else:
-            await run_live(session, client, args.mode)
+            live_ok = await run_live(session, client, args.mode)
 
     log.info("Done")
+    if not live_ok:
+        # Deliberately outside the `async with` block: the session is already
+        # closed cleanly, and sys.exit's SystemExit must not look like a
+        # session-teardown error to anything wrapping this call.
+        sys.exit(1)
 
 
 if __name__ == "__main__":

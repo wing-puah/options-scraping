@@ -43,7 +43,7 @@ import re
 from pathlib import Path
 
 from . import s04a_report as report
-from .config import MATCH_CONFIDENCES, PositionEvent
+from .config import MATCH_CONFIDENCES, NON_ATTEMPT_CONFIDENCES, PositionEvent
 from .s03_risk import BookRisk
 
 log = logging.getLogger(__name__)
@@ -62,7 +62,31 @@ class ReconcileError(RuntimeError):
 # compute_figures() — the headline numbers, derived independently of s04a_report.py
 # --------------------------------------------------------------------------
 def _confidence_counts(events: list[PositionEvent]) -> dict[str, int]:
+    """Every event, OPEN and CLOSE alike — the displayed §3 breakdown, not the
+    attempt count (see `_attempt_figures`)."""
     return {c: sum(1 for e in events if e.match_confidence == c) for c in MATCH_CONFIDENCES}
+
+
+def _attempt_figures(events: list[PositionEvent]) -> tuple[int, int]:
+    """`(attempts, matched)` — a DELIBERATE SECOND IMPLEMENTATION of
+    `s04a_report.py`'s §3 ratio line, same rule as `_breach_count` above: this
+    must NOT call into `s04a_report.py` to compute it, or a bug in that
+    population decision could never surface here as a `ReconcileError`.
+
+    THE POPULATION IS OPEN EVENTS ONLY. A CLOSE now matches an analysis play
+    too (the P1 orientation fix in `s02_reconcile.py`), and it names the play
+    the group UNWINDS, not a fresh attempt to trade it — counting every event
+    as an attempt makes a same-play open+close report 2/2 for one attempt. An
+    OVERLAY is excluded from both sides of the ratio, same as always. If this
+    rule changes in `s04a_report.py`, change it here too, BY HAND.
+    """
+    opens = [e for e in events if e.action == "OPEN"]
+    tally = {c: sum(1 for e in opens if e.match_confidence == c) for c in MATCH_CONFIDENCES}
+    not_attempts = sum(tally.get(c, 0) for c in NON_ATTEMPT_CONFIDENCES)
+    attempts = len(opens) - not_attempts
+    matched = sum(v for k, v in tally.items()
+                  if k != "NONE" and k not in NON_ATTEMPT_CONFIDENCES)
+    return attempts, matched
 
 
 def _breach_count(book: BookRisk) -> int:
@@ -113,6 +137,7 @@ def compute_figures(events: list[PositionEvent], book: BookRisk) -> dict:
                                 if caps.net_dollars else None)
     for c, n in _confidence_counts(events).items():
         figs[f"conf_{c}"] = n
+    figs["attempts"], figs["matched"] = _attempt_figures(events)
     return figs
 
 
@@ -143,6 +168,10 @@ def extract_report_figures(text: str) -> dict:
     m = re.search(r"\*\*(\d+) breach\(es\)\.\*\*", text)
     if m:
         figs["breach_n"] = int(m.group(1))
+    m = re.search(r"\*\*(\d+)/(\d+) play attempt\(s\) matched an analysis play\*\*", text)
+    if m:
+        figs["matched"] = int(m.group(1))
+        figs["attempts"] = int(m.group(2))
     m = re.search(r"Per-position cap:\s*([^(]+)\(", text)
     if m:
         figs["per_pos_cap"] = _money_to_float(m.group(1))

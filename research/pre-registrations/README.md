@@ -24,6 +24,10 @@ This README is the **living index** over the immutable files: the tables below
 (and only they) are kept current as studies move through their lifecycle.
 **Status** values:
 
+- `draft` — not registered; every number, arm, gate and verdict may still be
+  edited (the file's own first body line and `STATUS` line say so); becomes
+  immutable in substance the moment the operator accepts it and stamps the
+  registration date, at which point its status becomes `registered`
 - `registered` — plan committed; module not yet written or not yet run
 - `run` — the study has produced a report (see `../study-results/`)
 - `graded` — a `study_review` A/B replication grading + digest exists
@@ -37,18 +41,30 @@ Every file follows one template:
   fragment only when there is a real one (`scripts/study_review/` extracts this
   line as the document's label — never demote it or put anything above it).
 - **First body line**: `_Registered YYYY-MM-DD._` — the original commitment
-  date, and the only date the file carries.
+  date, and the only date the file carries. A `draft` file's first body line
+  reads `_Registered ____-__-__ (DRAFT — not registered; becomes immutable in
+  substance when the operator accepts it)._` instead, with the file's own
+  `**STATUS: DRAFT.**` sentence sitting immediately below it. Acceptance fills
+  in the date and drops the parenthetical — the line then reads like every
+  other registration's.
 - **Sections**, each a `## ` heading (the same level as line 1 — see
   [`f1_selection/bear_arm.md`](f1_selection/bear_arm.md) for the reference
   shape), in canonical order, each omitted when a study has nothing for it
-  (never an empty stub): Question · What this is NOT · Population and basis,
-  fixed here · Plan-time observations, disclosed · Arms · Unit and metric ·
-  Gates · Bar for a candidate · Verdicts, worded now · Anti-tuning · Ship
-  criteria · Build notes (the one section that is NOT part of the
-  registration — implementation, not commitment). `### ` sub-headings are
-  free inside a section (one per ARM, per gate group, …). Qualifiers that used
-  to live in headings ("in order", "frozen at two") sit in the section's first
-  sentence instead.
+  (never an empty stub): Question · What this is NOT · Definitions ·
+  Dependencies · Population and basis, fixed here · Plan-time observations,
+  disclosed · Arms · Unit and metric · Gates · Bar for a candidate ·
+  Verdicts, worded now · Anti-tuning · Ship criteria · Build notes (the one
+  section that is NOT part of the registration — implementation, not
+  commitment). Definitions pins a term the study's Arms or Population depend
+  on (`### ` sub-headings split more than one); Dependencies states what must
+  land, be built, or be read — a census, a config knob, another study's
+  prerequisite — before this one can run. `### ` sub-headings are free inside
+  a section (one per ARM, per gate group, per defined term, …). Qualifiers
+  that used to live in headings ("in order", "frozen at two") sit in the
+  section's first sentence instead. A COMMITMENT rather than a study (one
+  with no arms and no module, e.g. `holdout_seal`) may replace the section
+  list with its own — it says so at the top — but keeps Verdicts before
+  Anti-tuning before Ship criteria before Build notes.
 - **Wording** is plain English. The files were re-edited for readability on
   2026-08-31 with every number, ARM label, gate id, verdict token and
   quotation held verbatim (a mechanical diff enforced it); what a registration
@@ -100,11 +116,13 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 | [`f1_selection/ml_combination.md`](f1_selection/ml_combination.md) | `ml_combination` — ground rules + Phases 0–5 carried over from `ml-plan.md` (2026-08-11) | run |
 | [`f1_selection/v4_bridge.md`](f1_selection/v4_bridge.md) | `v4_bridge` | run |
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
+| [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Waits on its pre-build census (§Dependencies — floors 1–5, read by the operator before any module is written or any backfill runs). | draft |
 
 ## ② Management — `f2_management/`
 
 | File | Study | Status |
 |---|---|---|
+| [`f2_management/cost_sensitivity.md`](f2_management/cost_sensitivity.md) | `cost_sensitivity` — at what cost per leg does the Tier A/B edge vanish? Waits on three prerequisites landing: the B1 cost knobs, the B2 pre-fill grid fix, and one `BacktestResults` suite re-run produced after both. | draft |
 | [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
 | [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
 | [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
@@ -122,6 +140,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 
 | File | Study | Status |
 |---|---|---|
+| [`f4_deployment/holdout_seal.md`](f4_deployment/holdout_seal.md) | `holdout_seal` — a COMMITMENT, not a study: seals every signal date on or after 2026-08-11 from research-tier outcome reads until 40 of them have priced. Waits on the operator choosing between its two named options (seal everything, or additionally exempt `v4_bridge`'s five composition tests) before it can be accepted. | draft |
 | [`f4_deployment/account_sim.md`](f4_deployment/account_sim.md) | `account_sim` | graded |
 | [`f4_deployment/selection_order.md`](f4_deployment/selection_order.md) | `selection_order` | run |
 | [`f4_deployment/portfolio_delta.md`](f4_deployment/portfolio_delta.md) | `portfolio_delta` | graded |

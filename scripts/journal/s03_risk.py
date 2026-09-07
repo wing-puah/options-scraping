@@ -246,7 +246,7 @@ def per_ticker_delta_notional(positions: list[PositionRisk]) -> dict[str, float]
     return dict(sorted(totals.items()))
 
 
-def assess(positions: list[PositionRisk], caps: Caps) -> BookRisk:
+def assess(positions: list[PositionRisk], caps: Caps | None) -> BookRisk:
     """Total the book, compute cap utilisation, and flag every breach.
 
     Breaches are reported for ALL tickers that exceed the cap, not just the
@@ -257,6 +257,15 @@ def assess(positions: list[PositionRisk], caps: Caps) -> BookRisk:
     each position's own delta-notional. A financing short leg at another expiry
     is a different position here but the same directional risk, and netting it
     is the whole point of having sold it.
+
+    `caps` may be `None` — a missing NetLiquidation means the CAPS cannot be
+    evaluated, not that the book has no exposure. The totals (`net`, `gross`,
+    per-ticker) are always the real computed figures; only the breach check is
+    skipped, and `breaches` comes back empty rather than the totals coming
+    back as a 0.0 dataclass default. This is the ONLY path that may build a
+    `BookRisk` from real positions — see `__main__._build_book`, which used to
+    bypass this function entirely for want of NetLiquidation and left the
+    totals at their zero default.
     """
     priced = [p for p in positions if p.priced]
     unpriced = [p for p in positions if not p.priced]
@@ -266,24 +275,25 @@ def assess(positions: list[PositionRisk], caps: Caps) -> BookRisk:
     by_ticker = per_ticker_delta_notional(priced)
 
     breaches: list[str] = []
-    for ticker, total in by_ticker.items():
-        if abs(total) <= caps.per_position_dollars:
-            continue
-        # Name the constituents so the netting is auditable from the report
-        # alone — a bare ticker total invites the reader to go and re-derive it.
-        parts = ", ".join(
-            f"{p.structure} {p.delta_notional:+,.0f}"
-            for p in priced if p.ticker == ticker)
-        n = sum(1 for p in priced if p.ticker == ticker)
-        breaches.append(
-            f"{ticker}: |net delta-notional across {n} position(s)| "
-            f"${abs(total):,.0f} exceeds the per-position cap "
-            f"${caps.per_position_dollars:,.0f} ({caps.per_position:.2f}x equity) "
-            f"[{parts}]")
-    if abs(net) > caps.net_dollars:
-        breaches.append(
-            f"BOOK: |net delta-notional| ${abs(net):,.0f} exceeds the net cap "
-            f"${caps.net_dollars:,.0f} ({caps.net:.2f}x equity)")
+    if caps is not None:
+        for ticker, total in by_ticker.items():
+            if abs(total) <= caps.per_position_dollars:
+                continue
+            # Name the constituents so the netting is auditable from the report
+            # alone — a bare ticker total invites the reader to go and re-derive it.
+            parts = ", ".join(
+                f"{p.structure} {p.delta_notional:+,.0f}"
+                for p in priced if p.ticker == ticker)
+            n = sum(1 for p in priced if p.ticker == ticker)
+            breaches.append(
+                f"{ticker}: |net delta-notional across {n} position(s)| "
+                f"${abs(total):,.0f} exceeds the per-position cap "
+                f"${caps.per_position_dollars:,.0f} ({caps.per_position:.2f}x equity) "
+                f"[{parts}]")
+        if abs(net) > caps.net_dollars:
+            breaches.append(
+                f"BOOK: |net delta-notional| ${abs(net):,.0f} exceeds the net cap "
+                f"${caps.net_dollars:,.0f} ({caps.net:.2f}x equity)")
 
     for p in unpriced:
         log.warning("%s %s excluded from exposure totals — no delta from broker",

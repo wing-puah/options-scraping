@@ -692,6 +692,29 @@ conclusion.
 
 ## Daily trade journal — data contracts
 
+**Schedule.** `.github/workflows/journal.yml` runs `python3 -m scripts.journal` (the bare `run`
+command — never `recommend`, so no model call happens here) at 22:15 UTC every weekday:
+close+1h15m in EST, close+2h15m in EDT, safely after both the 16:00 ET close and the Flex
+statement's post-close settle window. Before this workflow (added 2026-09-07,
+research/robustness-review.md P8) the journal only ran when someone ran it by hand — reports
+existed for 2026-08-25, 08-26, 08-28, 08-31 and 09-03 and no other date. It needs the full
+Playwright requirements set (`lib/greeks.py` backfills EOD greeks Flex doesn't carry) plus the
+IBKR Flex secrets and the same Google OAuth2 token every other workflow here uses, scoped to
+BOTH `GOOGLE_SPREADSHEET_ID` (the AnalysisClaude read) and `TRADE_JOURNAL_SPREADSHEET_ID` (the
+TradeJournal/OpenBook writes). `journal/` stays gitignored and is never committed or uploaded as
+a workflow artifact.
+
+`scripts/check_pipeline.py::JOURNAL_STAGE` covers the watchdog side: a "journal" row appended to
+the stage table in code (not in `config/pipeline-health.yml`) reports MISSING when neither the
+OpenBook tab's `as_of_date` nor TradeJournal's newest `date` covers the session being checked.
+It needs `TRADE_JOURNAL_SPREADSHEET_ID` in whichever workflow runs `check_pipeline.py`; until
+`pipeline-health.yml`'s own env carries that secret, the stage reports `not-due` there rather
+than a false MISSING. It is also a KNOWN, ACCEPTED blind spot on a genuinely flat book: OpenBook
+is a MIRROR that a flat book CLEARS (`s05b_bookwriter.py`), and both OpenBook's and
+TradeJournal's own `_meta` stamps are skipped on empty content — so a run that found nothing new
+on an already-flat day is indistinguishable from the journal never having run. This catches the
+CONFIRMED finding (the schedule stopping entirely), not every possible quiet day.
+
 **Package layout — the listing IS the flow.** Files are named `sNN_<step>.py` and run in that
 order, so `ls scripts/journal/` reads top-to-bottom as the pipeline instead of having to be
 reconstructed from the imports. The `s` prefix carries no meaning beyond legality: a Python
@@ -717,6 +740,11 @@ scripts/journal/
     book.py         group the broker's flat legs into logical positions      (s03)
     analysis.py     the shared AnalysisClaude loader              (s02 AND s06)
     prompt.py       prompt text + response parsing for the judgment pass     (s06)
+    relabel.py      offline diagnostic, NOT a step: which journalled rows the
+                    CLOSE-orientation fix would relabel. Prints, never writes.
+                    Exposed as `python3 -m scripts.journal relabel`
+                    (__main__.py dispatches to relabel.main() before its own
+                    argument parsing runs, since relabel owns its own --csv flag)
 ```
 
 `scripts/journal/lib/` and the repo-root `lib/` never collide: the former is only ever reached
@@ -865,6 +893,57 @@ the v4 cut-over) reaching back years and stamping a fill with another prompt ver
 signal date. Market regime always comes from the date's MARKET row, never a play row.
 `lib/analysis.py` is the shared AnalysisClaude loader (Sheets → CSV fallback).
 
+**A structure label names a POSITION, not an order.** The action (OPEN / CLOSE / ROLL /
+PARTIAL) is decided FIRST, and a whole-group CLOSE is then classified on the position it
+unwinds: `_entry_adapter()` inverts every leg's sign before handing the group to
+`mapping.classify_structure()`. Without that inversion the label is the mirror image of what
+was closed — selling the 170 and buying back the 180 of a bull call spread reads, sign for
+sign, as a `bear_call_spread`, which `ladder_tier()` vetoes on sight, and every closed spread
+journalled before 2026-09-07 carries the inverted name (robustness-review P1). The inversion
+propagates by construction to the core decomposition, the overlay test, the analysis match
+and the tier, so `mapping.py` is untouched: there is still ONE `ladder_tier()` and ONE
+`CONFIDENCES`. Two things it must NOT change. Money: `net_price` is inverted back to the
+fill's own cash, and `net_cash`/`realized_pnl` never pass through the adapter at all. And
+scope: a ROLL closes one leg while opening another, and a PARTIAL does not know which it did,
+so neither names one held position — both keep the fill-sign reading and say so in `notes`.
+A CLOSE can now MATCH an analysis play, where before the fix its mirror label scored NONE by
+accident. The match is kept — it names the play the group unwinds — but it is NOT a second
+attempt to trade that play: the row says so in `notes`, and a "did I trade the plan" tally
+must count attempts on `action == OPEN`. The MATCH VOCABULARY is unchanged by all of this:
+no new confidence value, CORE still never promoted to EXACT, OVERLAY still out of both sides
+of the ratio. `s04a_report.py`'s §3 ratio now enforces that population split: the displayed
+per-confidence tally still counts every event, but the `matched/attempts` headline is
+computed over `action == OPEN` events only, with the ratio line saying so explicitly
+("attempts counted on OPEN events only") — a same-play open+close reports one attempt, not
+two. `s04b_page.py::_attempt_figures()` is a DELIBERATE SECOND IMPLEMENTATION of that same
+OPEN-only population (matching `_breach_count`'s existing pattern for the cap rule): it must
+never call into `s04a_report.py`, and a future change to the population rule has to be made
+in both places by hand or `ReconcileError` stops catching drift between them.
+
+Rows already written keep their old label. `python3 -m scripts.journal relabel` (dispatched in
+`__main__.py` before argument parsing, since it owns its own `--csv PATH` flag; the bare
+`python3 -m scripts.journal.lib.relabel` module invocation still works too) reads
+`journal/trades.csv` and PRINTS which rows the fix would change (structure, tier), writing
+nothing — OFFLINE and PRINT-ONLY, no network and no CSV write. It declines a 3+-leg group,
+whose core decomposition reads per-leg prices the CSV does not carry, rather than guessing
+one. On a CLOSE row it DROPS any recorded `(overlay)` suffix and counts the row as
+`overlay_unknown`: `_is_overlay()` only fires on a leg whose position is negative, so a
+suffix recorded on a CLOSE was read off the FILL's sign and says the closed position was
+long — which cannot be an overlay. Carrying it would print `single long call (overlay)`, a
+label the live pipeline can never emit. The mirror case (a genuine overlay close recorded
+without a suffix) is undetectable offline for the same reason.
+
+**The pre-2026-09-07 CLOSE rows are a known-inverted cohort, not yet repaired.** Running the
+diagnostic against `journal/trades.csv` as it stands today: 18 CLOSE rows carry an inverted
+`structure` label and 3 of those also carry an inverted `tier` (the GLD/IWM rows quoted
+above — a VETOed bear-call-spread label that was really a B-tier bull call spread closing,
+and a B-tier bull-put-spread label that was really a C-tier bear put spread closing).
+Repairing them is a deliberate, separate act by the operator (rewrite `journal/trades.csv`
+and the TradeJournal tab by hand from the diagnostic's output) — nothing in this pipeline
+does it automatically, and no study or report currently excludes this cohort, so a reader
+joining pre-2026-09-07 CLOSE rows into a structure- or tier-keyed analysis is joining on the
+inverted label until that repair happens.
+
 **Open book** (`lib/book.py`) — legs group by (underlying, expiry). A vertical reassembles; a
 calendar/diagonal is reported as two positions and the report says so. Grouping by
 underlying alone would fuse a core long and a hedge overlay into a fictional structure.
@@ -997,9 +1076,19 @@ the archive as "largest `as_of_date`, then largest `generation` per position"
 CSV is what answers "was this flagged before it went wrong?", and it costs nothing: it is
 written first, its failure is fatal, and it is the copy that survives a Sheets outage. The
 missing/zero discipline holds at this seam too: an unpriced position is written with BLANK delta
-cells and `priced=False`, never a zero — `_net_delta_notional()` also recomputes the net when
-`__main__._build_book` skipped `assess()` for want of NetLiquidation, so a 0.0 dataclass default
-can never be recorded as a flat book.
+cells and `priced=False`, never a zero. As of 2026-09-07, `s03_risk.py::assess(positions,
+caps)` takes `caps: Caps | None` and ALWAYS computes the real totals (net, gross, per-ticker
+delta-notional) from priced positions — only the breach check is skipped when `caps` is
+`None`. `__main__._build_book` now routes the missing-NetLiquidation path through
+`assess(positions, None)` instead of hand-building a `BookRisk` directly; the old hand-built
+shape left `net_delta_notional`/`gross_delta_notional`/`ticker_exposure` at their 0.0
+dataclass default while real priced positions sat in `book.positions`, which is exactly the
+"flat book that was not flat" this discipline exists to prevent (robustness-review P2 —
+caught before this fix only by `s04b_page.py`'s reconcile-or-write-nothing gate, and only
+after the report had already been built wrong). `s05b_bookwriter.py::_net_delta_notional()`/
+`_ticker_exposure()` still recompute independently whenever `book.caps` is `None` — now
+redundant with what `assess()` already guarantees for the totals, kept anyway as the same
+kind of second, by-hand implementation as `_breach_count`.
 
 **Privacy** — `/journal/` is gitignored in full (raw pulls carry account identifiers,
 trades.csv carries live sizes and P&L; the TradeJournal tab is the only copy that leaves the

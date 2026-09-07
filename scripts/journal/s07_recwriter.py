@@ -413,7 +413,7 @@ def write(candidates, rejected, ctx: RecContext, *,
 
     summary["csv_written"] = append_csv(fresh, csv_path)
 
-    if skip_sheets or not fresh:
+    if skip_sheets:
         return summary
 
     spreadsheet_id = os.getenv(TRADE_JOURNAL_SPREADSHEET_ENV)
@@ -437,7 +437,14 @@ def write(candidates, rejected, ctx: RecContext, *,
         sheets_client.ensure_header(RECOMMENDATIONS_TAB, RECOMMENDATION_COLUMNS,
                                     spreadsheet_id=spreadsheet_id)
         already = read_sheet_rec_ids(spreadsheet_id)
-        to_send = [r for r in fresh if r["rec_id"] not in already]
+        # Diff against EVERY local row (`existing` plus this run's `fresh`),
+        # not just `fresh` — the same fix as `s05_writer.py`. `existing` was
+        # already read above (for generation assignment) before this run's
+        # rows were appended, so the union is exactly what the CSV now holds.
+        # A card that reached the CSV on an earlier run but never reached
+        # Sheets would otherwise never be "fresh" again and stay stranded.
+        to_send = [r for r in existing + fresh
+                  if r.get("rec_id") and r["rec_id"] not in already]
         if to_send:
             # raw=True: the date columns are part of the identity and must not
             # be locale-parsed into sheet dates.

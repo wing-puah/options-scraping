@@ -209,22 +209,33 @@ def build(events: list[PositionEvent], book: BookRisk, meta: dict) -> str:
                  f"{e.match_confidence} | {play} | {e.tier or EM_DASH} | "
                  f"{cell(e.tier_reason) or EM_DASH} | {basis} |")
         emit("")
+        # Displayed tally: every event, OPEN and CLOSE alike — this is the
+        # per-confidence breakdown of what the match layer said about today's
+        # rows, not the attempt count below.
         tally = {c: sum(1 for e in events if e.match_confidence == c)
                  for c in MATCH_CONFIDENCES}
         emit("**Confidence tally:** "
              + ", ".join(f"{k}={v}" for k, v in tally.items()) + ".")
-        # An OVERLAY was never an attempt to trade a play — a financing leg sold
-        # against a position already open. It leaves BOTH sides of the ratio, so
-        # "matched an analysis play" keeps meaning what it says.
-        not_attempts = sum(tally.get(c, 0) for c in NON_ATTEMPT_CONFIDENCES)
-        attempts = len(events) - not_attempts
-        matched = sum(v for k, v in tally.items()
+        # ATTEMPT POPULATION IS OPEN EVENTS ONLY. A CLOSE now matches too (the
+        # P1 orientation fix), and it names the play the group UNWINDS — not a
+        # second attempt to trade it. Counting every event as an attempt makes
+        # a same-play open+close report 2/2 for what was ONE attempt. An
+        # OVERLAY was never an attempt either — a financing leg sold against a
+        # position already open — and stays excluded from both sides of the
+        # ratio, same as before.
+        opens = [e for e in events if e.action == "OPEN"]
+        attempt_tally = {c: sum(1 for e in opens if e.match_confidence == c)
+                         for c in MATCH_CONFIDENCES}
+        not_attempts = sum(attempt_tally.get(c, 0) for c in NON_ATTEMPT_CONFIDENCES)
+        attempts = len(opens) - not_attempts
+        matched = sum(v for k, v in attempt_tally.items()
                       if k != "NONE" and k not in NON_ATTEMPT_CONFIDENCES)
         emit(f"**{matched}/{attempts} play attempt(s) matched an analysis play** "
-             f"({tally['EXACT']} EXACT, {tally['STRUCTURE']} STRUCTURE traded the "
-             f"emitted play; {tally['CORE']} CORE traded it as the core of a "
-             f"financed structure; {tally['SUBSTITUTED']} SUBSTITUTED traded a "
-             f"different, same-direction structure; {tally['NONE']} unmatched).")
+             f"({attempt_tally['EXACT']} EXACT, {attempt_tally['STRUCTURE']} STRUCTURE "
+             f"traded the emitted play; {attempt_tally['CORE']} CORE traded it as the "
+             f"core of a financed structure; {attempt_tally['SUBSTITUTED']} SUBSTITUTED "
+             f"traded a different, same-direction structure; {attempt_tally['NONE']} "
+             "unmatched) (attempts counted on OPEN events only).")
         if not_attempts:
             emit(f"**{not_attempts} financing/carry overlay(s)** excluded from the "
                  "ratio above — sold against a position already open, never a "

@@ -1,0 +1,101 @@
+name: Daily Trade Journal
+
+# PRODUCTION TIER. Runs `python3 -m scripts.journal` (fetch -> reconcile -> risk
+# -> report -> write) once per weekday after the US close, so the analysis ->
+# trade -> evidence loop closes daily instead of only on days someone happens
+# to run it by hand (research/robustness-review.md P8 — reports existed only
+# for 2026-08-25, 08-26, 08-28, 08-31 and 09-03 before this workflow).
+#
+# Scheduled well after 16:00 ET close in EITHER daylight regime: EST close is
+# 21:00 UTC, EDT close is 20:00 UTC, so 22:15 UTC is close+1h15m (EST) to
+# close+2h15m (EDT) — enough buffer for the day's Flex statement to settle
+# (IBKR's Flex Web Service can answer "generation in progress" for a few
+# minutes after close; `lib/ibkr/flex.py::FlexClient` already retries that).
+#
+# Data sources: IBKR Flex (trades + open positions, IBKR_FLEX_TOKEN et al.) and
+# Barchart (EOD greeks for the open book when Flex doesn't carry them,
+# `scripts/journal/lib/greeks.py` — needs the full requirements.txt/Playwright
+# set, same as enrich-oi.yml). This is the bare `run` command, NOT
+# `recommend`: it never makes the pipeline's one model call
+# (`s06_recommend.py`), so no ANTHROPIC_API_KEY is needed here.
+#
+# journal/ is gitignored (account ids, live position sizes, P&L) and MUST stay
+# that way — this workflow never commits it and never uploads it as a build
+# artifact. Its only permitted remote destinations are the TradeJournal /
+# OpenBook Sheets tabs in TRADE_JOURNAL_SPREADSHEET_ID (see
+# scripts/journal/config.py's DATA PRIVACY note).
+#
+# The watchdog side of P8 (a missing daily journal mark failing
+# scripts/check_pipeline.py) is wired into that script directly rather than
+# into pipeline-health.yml's own env — see check_pipeline.py::JOURNAL_STAGE.
+
+on:
+  schedule:
+    - cron: '15 22 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Session date to journal (YYYY-MM-DD). Blank = latest Flex trade_date.'
+        required: false
+        type: string
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        # Full set, not requirements-compile.txt: scripts/journal/lib/greeks.py
+        # opens a Playwright BarchartSession to backfill EOD greeks Flex never
+        # carries.
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browser
+        # Unconditional, not gated on cache-hit — see scrape.yml/enrich-oi.yml's
+        # history: a cache that is warm but missing the resolved pip version's
+        # browser revision would otherwise leave it silently missing.
+        run: playwright install --with-deps chromium
+
+      - name: Run the daily trade journal
+        run: python -m scripts.journal ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        env:
+          # Barchart — EOD greeks fallback (lib/greeks.py) and OI-history reads.
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          SCRAPE_HEADLESS: 'true'
+          # Google OAuth2 — same token as every other workflow here, covering
+          # both the AnalysisClaude read (analysis.load()) and the
+          # TradeJournal/OpenBook writes below.
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          # The journal's OWN workbook (TradeJournal + OpenBook tabs) — a
+          # separate spreadsheet from GOOGLE_SPREADSHEET_ID above so the trade
+          # record can be shared, or kept unshared, independently.
+          TRADE_JOURNAL_SPREADSHEET_ID: ${{ secrets.TRADE_JOURNAL_SPREADSHEET_ID }}
+          # IBKR Flex — the only broker transport (Client Portal was deleted
+          # 2026-08-15). IBKR_FLEX_OPEN_POSITIONS_QUERY_ID is optional but
+          # strongly recommended: without it the open book is reconstructed by
+          # netting fills instead of read from the broker's declared book.
+          IBKR_ACCOUNT_ID: ${{ secrets.IBKR_ACCOUNT_ID }}
+          IBKR_FLEX_TOKEN: ${{ secrets.IBKR_FLEX_TOKEN }}
+          IBKR_FLEX_QUERY_TRADES_ID: ${{ secrets.IBKR_FLEX_QUERY_TRADES_ID }}
+          IBKR_FLEX_OPEN_POSITIONS_QUERY_ID: ${{ secrets.IBKR_FLEX_OPEN_POSITIONS_QUERY_ID }}
+          # Optional: a Flex trades query reports no account equity, and every
+          # exposure cap is a fraction of it. Left unset, the risk section
+          # reports "not evaluable" rather than guessing — never fatal.
+          JOURNAL_NET_LIQUIDATION: ${{ secrets.JOURNAL_NET_LIQUIDATION }}

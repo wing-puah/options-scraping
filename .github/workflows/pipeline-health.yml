@@ -123,6 +123,10 @@ jobs:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          # Wires the journal stage live (scripts/check_pipeline.py::JOURNAL_STAGE):
+          # a SEPARATE workbook from GOOGLE_SPREADSHEET_ID above, so its own id
+          # has to be passed explicitly or the stage degrades to NOT_DUE forever.
+          TRADE_JOURNAL_SPREADSHEET_ID: ${{ secrets.TRADE_JOURNAL_SPREADSHEET_ID }}
           # GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT is deliberately absent: Sheets
           # authenticates with the same OAuth2 token as Drive
           # (lib/sheets_client.py::_get_client), and no Python in this repo reads

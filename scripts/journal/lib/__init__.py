@@ -15,6 +15,9 @@ Anything shared, or subordinate to one step, lives here instead:
                   (step3 marks it, step6's card projects it)
     analysis.py   load the AnalysisClaude book             (step2 AND step6 share it)
     prompt.py     prompt text + response parsing for the judgment pass     (step6)
+    relabel.py    OFF-LINE DIAGNOSTIC, not part of the flow: which already-
+                  journalled rows the CLOSE-orientation fix would relabel.
+                  Prints; never writes trades.csv, never touches Sheets
 
 NOT THE REPO-ROOT `lib/`. That one holds modules shared across the WHOLE repo
 (Barchart scrapers, Drive/Sheets clients, `structure_names.py`). These are
