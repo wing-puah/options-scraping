@@ -109,7 +109,14 @@ from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import underlying as U  # noqa: E402
 from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
-from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown  # noqa: E402
+# H2(c) and H3 are D2's and D3's rules, and since 2026-09-07 the rules live in
+# `lib/hedge_criteria.py` rather than in `bear_deploy` (which this module used
+# to import `max_drawdown` from, one study reaching into another's internals).
+# The library is arithmetic only: everything PRINTED below, the power floor of
+# 10, the zero-carry of an unfillable day and the two H3 baselines are this
+# study's registered shape and stay here. See
+# research/hedge-programme-plan.md §"The shared criteria library".
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
@@ -943,6 +950,23 @@ def h1_standalone(sleeve: list[dict], label: str = "P1") -> None:
 def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
                     dep_dates: list[str], worst_dates: list[str],
                     label: str = "P1") -> dict:
+    """The pre-registered primary gate: (a) correlation, (b) tail, (c) years.
+
+    The printed line below calls this "D2's rule verbatim", and since
+    2026-09-07 the rule it is verbatim OF is `lib/hedge_criteria.py` — the one
+    body `bear_deploy` D2 now reads too, so "verbatim" is an identity a test
+    can hold rather than a claim about two files that were once typed alike.
+
+    What comes from the library is (c)'s geometry, `HC.year_tails`: the year
+    key, the six-date minimum, the `max(2, n // 4)` tail and the two-year
+    threshold. What stays HERE is this study's registered shape on top of it —
+    the power floor of `MIN_N_TO_READ` positions under which (b) is NOT
+    EVALUABLE rather than failed, the unfillable day carried at $0, and the
+    two correlations, which are `sleeve_synth`'s `pearson`/`corr_ci` on the
+    daily series and NOT the library's `statistics.correlation` over an
+    overlap. Substituting one for the other would move a printed figure, so it
+    is not done.
+    """
     hdr(f"H2 — HEDGE CONTRIBUTION ({label}) — THE PRIMARY GATE")
     print("  D2's rule verbatim: (a) date-level correlation < 0, (b) mean sleeve R")
     print("  on the deployed book's worst-decile dates > 0 with a date-clustered CI")
@@ -995,23 +1019,24 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
 
     # (c) worst-quartile tail by year.
     sub("(c) worst-quartile tail, by year")
+    # The cut is D2's, taken from the library; the MEASUREMENT on it is this
+    # study's — the mean of the picks that exist on those dates, with a date
+    # that has no pick left out of the mean rather than carried at zero.
     ok_years, tot_years = 0, 0
-    for y in sorted({d[:4] for d in dep_dates}):
-        ys = [d for d in dep_dates if d[:4] == y]
-        if len(ys) < 6:
-            print(f"  {y}: only {len(ys)} deployed dates — not evaluated")
+    for yc in HC.year_tails(dep_dates, key=lambda d: dep[d]["dollars"]):
+        if not yc.evaluated:
+            print(f"  {yc.year}: only {yc.n_dates} deployed dates — not evaluated")
             continue
-        order = sorted(ys, key=lambda d: dep[d]["dollars"])
-        ytail = order[:max(2, len(ys) // 4)]
+        ytail = yc.tail_dates
         yrows = [picks[d] for d in ytail if d in picks]
         tot_years += 1
         m = mean([r["R"] for r in yrows]) if yrows else float("nan")
         good = m == m and m > 0
         ok_years += 1 if good else 0
-        print(f"  {y}: worst-quartile dates {len(ytail):>3}  deployed "
+        print(f"  {yc.year}: worst-quartile dates {len(ytail):>3}  deployed "
               f"{mean([dep[d]['dollars'] for d in ytail]):>+10,.0f}  sleeve n={len(yrows):>3} "
               f"meanR {m:+.3f}  -> {'positive' if good else 'not positive'}")
-    c_met = ok_years >= 2
+    c_met = ok_years >= HC.MIN_TAIL_YEARS
     print(f"  tail positive in {ok_years}/{tot_years} evaluable years — needs >= 2: "
           f"{'YES' if c_met else 'NO'}")
 
@@ -1064,22 +1089,21 @@ def h0b_freshness(fillable_by_date: dict, rule, dep: dict, dep_dates: list[str],
 def bear_sleeve_dollars(book: list[dict], dates: list[str]) -> dict[str, float]:
     """The SHIPPED bear hedge sleeve: 1/day, |delta| DESCENDING, <= 1/2 size.
 
-    `docs/deployment-rules.md` §4. Dollars follow `bear_deploy._sleeve_dollars`'
-    convention — the day's single best-ranked bear candidate, its realized
-    dollars — replayed on the SHIPPED merge (`bear_giveback.prod_profile_for`,
-    i.e. base -> structure_exit bear_debit be_after 0.50 -> regime_exit BEAR_HE),
-    then halved for the sleeve's <= 1/2 size.
+    `docs/deployment-rules.md` §4. The PICK is `lib/hedge_criteria.sleeve_pick`,
+    the one 1-per-day sleeve rule `bear_deploy._sleeve_dollars` also reads
+    (first-wins on a tie, a day with no candidate skipped). What the sleeve is
+    worth is this study's: `bear_deploy` reads a stored dollar column, and this
+    one has none to read, so the pick is replayed on the SHIPPED merge
+    (`bear_giveback.prod_profile_for`, i.e. base -> structure_exit bear_debit
+    be_after 0.50 -> regime_exit BEAR_HE) and then halved for the sleeve's
+    <= 1/2 size. Only the pick is replayed, never the whole day's candidates.
     """
-    by_day: dict[str, list[dict]] = defaultdict(list)
-    for r in book:
-        if r["structure"] in BEAR_DEBIT and not r["credit"] and r.get("delta") is not None:
-            by_day[str(r["date"])].append(r)
+    cands = [r for r in book
+             if r["structure"] in BEAR_DEBIT and not r["credit"]
+             and r.get("delta") is not None]
+    picks = HC.sleeve_pick(cands, lambda r: abs(float(r["delta"])), dates=dates)
     out = {}
-    for d in dates:
-        rs = by_day.get(d) or []
-        if not rs:
-            continue
-        pick = max(rs, key=lambda r: abs(float(r["delta"])))
+    for d, pick in picks.items():
         rp = replay(pick["t"], **prod_profile_for(pick, 0.50, True))
         out[d] = HEDGE_SIZE * pick["t"].dollars(rp["pnl_pct"])
     return out
@@ -1087,37 +1111,46 @@ def bear_sleeve_dollars(book: list[dict], dates: list[str]) -> dict[str, float]:
 
 def _sweep(base_daily: dict[str, float], sleeve: dict[str, float],
            dates: list[str], label: str) -> None:
+    """One H3 baseline swept over `SIZE_FRACTIONS` — D3's rule, printed here.
+
+    The arithmetic and the verdict are `lib/hedge_criteria`'s `sweep` and
+    `sizing_verdict`: the largest positive fraction whose drawdown AND worst
+    date are both no worse than carrying nothing, with the same 1e-9 slack.
+    The GRID is not the library's, because narrowing one is a registered
+    choice, and neither is the printed shape — this study quotes four columns
+    and `bear_deploy` D3 quotes five, the extra one being downside deviation,
+    which the library computes and this report does not read.
+    """
     print(f"\n  baseline: {label}")
     print(f"  {'f':>5s} {'total $':>12s} {'max DD $':>12s} {'worst date $':>13s} "
           f"{'neg dates':>10s}")
-    out, base = [], None
-    for f in SIZE_FRACTIONS:
-        daily = [base_daily.get(d, 0.0) + f * sleeve.get(d, 0.0) for d in dates]
-        tot, mdd, worst = sum(daily), max_drawdown(daily), min(daily)
-        neg = sum(1 for v in daily if v < 0)
-        print(f"  {f:5.2f} {tot:>12,.0f} {mdd:>12,.0f} {worst:>13,.0f} {neg:>10d}")
-        if f == 0.0:
-            base = (tot, mdd, worst)
-        out.append(dict(f=f, total=tot, mdd=mdd, worst=worst))
-    ok = [o for o in out if o["f"] > 0 and o["mdd"] >= base[1] - 1e-9
-          and o["worst"] >= base[2] - 1e-9]
-    if ok:
-        best = max(ok, key=lambda o: o["f"])
-        print(f"  -> DEPLOYABLE at f = {best['f']:.2f}: DD {base[1]:,.0f} -> "
-              f"{best['mdd']:,.0f}, total ${base[0]:,.0f} -> ${best['total']:,.0f} "
-              f"({best['total'] - base[0]:+,.0f})")
+    # The library takes the baseline series in `daily_series`' (R, $, n) shape
+    # and sweeps the UNION of the two date sets; both series here are keyed on
+    # `dates`, so the union is exactly `dates` and a day missing from either
+    # contributes 0, which is what this study's own loop did.
+    out, base, _ = HC.sweep({d: (0.0, base_daily.get(d, 0.0), 0) for d in dates},
+                            {d: sleeve.get(d, 0.0) for d in dates},
+                            SIZE_FRACTIONS)
+    for r in out:
+        print(f"  {r.f:5.2f} {r.total:>12,.0f} {r.mdd:>12,.0f} {r.worst:>13,.0f} "
+              f"{r.neg:>10d}")
+    best = HC.sizing_verdict(out, base).best
+    if best is not None:
+        print(f"  -> DEPLOYABLE at f = {best.f:.2f}: DD {base.mdd:,.0f} -> "
+              f"{best.mdd:,.0f}, total ${base.total:,.0f} -> ${best.total:,.0f} "
+              f"({best.total - base.total:+,.0f})")
     else:
         print("  -> NOT MET at any size — no fraction leaves both drawdown and "
               "worst-date unharmed.")
         # Which of the two conditions bound is decision-relevant and is NOT a
         # relaxation of the rule: the rule is unchanged, this only says why.
-        dd_ok = [o for o in out if o["f"] > 0 and o["mdd"] >= base[1] - 1e-9]
-        w_ok = [o for o in out if o["f"] > 0 and o["worst"] >= base[2] - 1e-9]
+        dd_ok = [r for r in out if r.f > 0 and r.mdd >= base.mdd - HC.EPS]
+        w_ok = [r for r in out if r.f > 0 and r.worst >= base.worst - HC.EPS]
         print(f"     bound by: drawdown {'ok at every f' if len(dd_ok) == len(out) - 1 else 'fails'}"
               f"; worst-date {'ok at every f' if len(w_ok) == len(out) - 1 else 'fails'}"
-              f"  (f=1.00 moves DD {out[-1]['mdd'] - base[1]:+,.0f}, "
-              f"worst date {out[-1]['worst'] - base[2]:+,.0f}, "
-              f"total {out[-1]['total'] - base[0]:+,.0f})")
+              f"  (f=1.00 moves DD {out[-1].mdd - base.mdd:+,.0f}, "
+              f"worst date {out[-1].worst - base.worst:+,.0f}, "
+              f"total {out[-1].total - base.total:+,.0f})")
 
 
 def h3_sizing(picks: dict[str, dict], dep: dict, dep_dates: list[str],

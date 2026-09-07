@@ -164,3 +164,172 @@ def test_h3_sizing_does_not_raise_on_an_unsizable_pick(capsys):
     picks = {"2025-01-06": _pick("2025-01-06", "AAA", None, None)}
     h3_sizing(picks, dep, dep_dates, book=[])
     capsys.readouterr()  # must not raise
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The three bodies calendar_hedge deleted on 2026-09-07, kept here as literals
+# ════════════════════════════════════════════════════════════════════════════
+# H2(c)'s year clause, H3's `_sweep` and `bear_sleeve_dollars`' 1-per-day pick
+# were this study's own copies of `bear_deploy` D2/D3 until they were replaced
+# by `lib/hedge_criteria.py` (research/hedge-programme-plan.md §"The shared
+# criteria library"). The study reconciled BYTE-IDENTICAL on era v4, which
+# pins the merge on the ONE population the export happens to hold. These tests
+# pin it on synthetic series instead: the deleted body is copied verbatim
+# below and asserted equal to the library's on inputs the export does not
+# contain — a year that falls under the six-date minimum, a sweep no fraction
+# clears, a tie between two picks on the same day.
+#
+# They are here rather than in tests/test_hedge_criteria.py because what they
+# pin is CALENDAR_HEDGE's claim that its rule is D2's verbatim, not the
+# library's own behaviour, which the committed fixture covers.
+
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
+
+
+def _old_year_clause(dep_dates, dep):
+    """`h2_contribution`'s (c) loop as it stood before 2026-09-07."""
+    out = []
+    for y in sorted({d[:4] for d in dep_dates}):
+        ys = [d for d in dep_dates if d[:4] == y]
+        if len(ys) < 6:
+            out.append((y, len(ys), False, []))
+            continue
+        order = sorted(ys, key=lambda d: dep[d]["dollars"])
+        out.append((y, len(ys), True, order[:max(2, len(ys) // 4)]))
+    return out
+
+
+def _new_year_clause(dep_dates, dep):
+    return [(yc.year, yc.n_dates, yc.evaluated, list(yc.tail_dates))
+            for yc in HC.year_tails(dep_dates, key=lambda d: dep[d]["dollars"])]
+
+
+def _synthetic_dep(spec):
+    """`{date: {"dollars": ...}}` from `{year: [dollars, ...]}`."""
+    dep = {}
+    for year, vals in spec.items():
+        for i, v in enumerate(vals):
+            dep[f"{year}-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}"] = {"dollars": float(v)}
+    return dep
+
+
+@pytest.mark.parametrize("spec", [
+    # a full year, a year one date under the minimum, and a year of exactly it
+    {"2024": [-9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2],
+     "2025": [-5, -4, -3, -2, 1],
+     "2026": [-3, -2, -1, 0, 1, 2]},
+    # ties in the ordering key: the tail must take the same dates in the same
+    # order, which is `sorted`'s stability and not an accident
+    {"2024": [0, 0, 0, 0, 0, 0, 0, 0]},
+    # a single year, all positive: the "worst" quartile is still cut
+    {"2025": [1, 2, 3, 4, 5, 6, 7]},
+])
+def test_the_year_clause_the_study_deleted_equals_the_library(spec):
+    dep = _synthetic_dep(spec)
+    dep_dates = sorted(dep)
+    assert _new_year_clause(dep_dates, dep) == _old_year_clause(dep_dates, dep)
+
+
+def _old_sweep(base_daily, sleeve, dates, fractions):
+    """`_sweep`'s arithmetic and verdict as they stood before 2026-09-07."""
+    out, base = [], None
+    for f in fractions:
+        daily = [base_daily.get(d, 0.0) + f * sleeve.get(d, 0.0) for d in dates]
+        tot, mdd, worst = sum(daily), HC.max_drawdown(daily), min(daily)
+        neg = sum(1 for v in daily if v < 0)
+        if f == 0.0:
+            base = (tot, mdd, worst)
+        out.append(dict(f=f, total=tot, mdd=mdd, worst=worst, neg=neg))
+    ok = [o for o in out if o["f"] > 0 and o["mdd"] >= base[1] - 1e-9
+          and o["worst"] >= base[2] - 1e-9]
+    best = max(ok, key=lambda o: o["f"]) if ok else None
+    return out, base, best
+
+
+def _new_sweep(base_daily, sleeve, dates, fractions):
+    out, base, _ = HC.sweep({d: (0.0, base_daily.get(d, 0.0), 0) for d in dates},
+                            {d: sleeve.get(d, 0.0) for d in dates},
+                            fractions)
+    return out, base, HC.sizing_verdict(out, base).best
+
+
+@pytest.mark.parametrize("book,sleeve", [
+    # the hedge helps at every size: the largest fraction wins
+    ([-300.0, 200.0, -100.0, 50.0], [80.0, -10.0, 120.0, -5.0]),
+    # the hedge harms the drawdown: NOT MET, no fallback to a smaller size
+    ([-300.0, 200.0, -100.0, 50.0], [-80.0, -60.0, -40.0, -20.0]),
+    # a sleeve on a day the book is flat still costs something
+    ([0.0, 0.0, -500.0, 0.0], [-25.0, -25.0, 300.0, -25.0]),
+])
+def test_the_sweep_the_study_deleted_equals_the_library(book, sleeve):
+    from scripts.backtest_study.f3_structure.calendar_hedge import SIZE_FRACTIONS
+
+    dates = [f"2025-01-{i + 1:02d}" for i in range(len(book))]
+    base_daily = dict(zip(dates, book))
+    sleeve_d = dict(zip(dates, sleeve))
+
+    old_out, old_base, old_best = _old_sweep(base_daily, sleeve_d, dates,
+                                             SIZE_FRACTIONS)
+    new_out, new_base, new_best = _new_sweep(base_daily, sleeve_d, dates,
+                                             SIZE_FRACTIONS)
+
+    assert [(r.f, r.total, r.mdd, r.worst, r.neg) for r in new_out] == \
+           [(o["f"], o["total"], o["mdd"], o["worst"], o["neg"]) for o in old_out]
+    assert (new_base.total, new_base.mdd, new_base.worst) == old_base
+    assert (new_best is None) == (old_best is None)
+    if old_best is not None:
+        assert (new_best.f, new_best.total, new_best.mdd) == \
+               (old_best["f"], old_best["total"], old_best["mdd"])
+
+
+def _old_bear_pick(book, dates, bear_debit):
+    """`bear_sleeve_dollars`' picking loop as it stood before 2026-09-07."""
+    from collections import defaultdict
+
+    by_day = defaultdict(list)
+    for r in book:
+        if r["structure"] in bear_debit and not r["credit"] and r.get("delta") is not None:
+            by_day[str(r["date"])].append(r)
+    out = {}
+    for d in dates:
+        rs = by_day.get(d) or []
+        if not rs:
+            continue
+        out[d] = max(rs, key=lambda r: abs(float(r["delta"])))
+    return out
+
+
+def test_the_bear_pick_the_study_deleted_equals_the_library():
+    bear_debit = {"bear_put"}
+    book = [
+        # two candidates the same day, the second the larger |delta|
+        {"date": "2025-01-06", "structure": "bear_put", "credit": False,
+         "delta": -0.20, "id": "a"},
+        {"date": "2025-01-06", "structure": "bear_put", "credit": False,
+         "delta": 0.55, "id": "b"},
+        # a TIE: first-wins, which is max()'s rule on both sides
+        {"date": "2025-01-07", "structure": "bear_put", "credit": False,
+         "delta": -0.40, "id": "c"},
+        {"date": "2025-01-07", "structure": "bear_put", "credit": False,
+         "delta": 0.40, "id": "d"},
+        # excluded: wrong structure, a credit, and a missing delta
+        {"date": "2025-01-08", "structure": "bull_call", "credit": False,
+         "delta": -0.90, "id": "e"},
+        {"date": "2025-01-08", "structure": "bear_put", "credit": True,
+         "delta": -0.90, "id": "f"},
+        {"date": "2025-01-08", "structure": "bear_put", "credit": False,
+         "delta": None, "id": "g"},
+        # a date outside the sweep's date list
+        {"date": "2025-01-09", "structure": "bear_put", "credit": False,
+         "delta": -0.99, "id": "h"},
+    ]
+    dates = ["2025-01-06", "2025-01-07", "2025-01-08"]
+
+    cands = [r for r in book if r["structure"] in bear_debit and not r["credit"]
+             and r.get("delta") is not None]
+    new = HC.sleeve_pick(cands, lambda r: abs(float(r["delta"])), dates=dates)
+    old = _old_bear_pick(book, dates, bear_debit)
+
+    assert list(new) == list(old) == ["2025-01-06", "2025-01-07"]
+    assert {d: r["id"] for d, r in new.items()} == {d: r["id"] for d, r in old.items()}
+    assert new["2025-01-06"]["id"] == "b" and new["2025-01-07"]["id"] == "c"

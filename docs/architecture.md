@@ -435,7 +435,11 @@ in the family folders concluded.
   ahead"). Event distance keys off the ENTRY session; pre-open vs post-open decides day 0.
 - `lib/hedge_criteria.py` — the hedge programme's ONE contribution rule (`bear_deploy` D2)
   and ONE sizing rule (D3), transcribed from that origin with every threshold and
-  tie-break intact, plus `max_drawdown` re-exported from `lib/mtm_curve.py`. Pure
+  tie-break intact, plus `max_drawdown` re-exported from `lib/mtm_curve.py`. Two
+  pieces of those rules are callable on their own because a study needs the cut
+  without the measurement: `year_tails` (D2's per-year worst quartile, ordered by
+  the caller's key) and `sleeve_pick` (the 1-per-day sleeve's chosen row, which
+  `bear_deploy` prices from a stored column and `calendar_hedge` replays). Pure
   functions that PRINT NOTHING and own no fraction grid — each study keeps the report
   shape its `research/study-results/` record quotes, and a narrowed grid is a
   registered choice. Pinned by `tests/test_hedge_criteria.py` against a hand-computed

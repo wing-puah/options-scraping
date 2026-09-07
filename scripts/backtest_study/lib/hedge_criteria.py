@@ -116,6 +116,48 @@ class Bucket:
 
 
 @dataclass(frozen=True)
+class YearCut:
+    """One year's worst-quartile dates, before anything is measured on them.
+
+    `evaluated` False means the year fell below `MIN_YEAR_DATES` and is
+    REPORTED but not COUNTED — the denominator of the year clause is the
+    evaluated years only.
+    """
+    year: str
+    n_dates: int
+    evaluated: bool
+    tail_dates: list[str] = field(default_factory=list)
+
+
+def year_tails(dates, key, min_dates: int = MIN_YEAR_DATES,
+               tail_min: int = YEAR_TAIL_MIN) -> list[YearCut]:
+    """The per-year worst-quartile cut of `dates`, ordered by `key`.
+
+    The geometry of the contribution rule's year clause and nothing else: the
+    year is the date's first four characters, a year below `min_dates` is
+    reported unevaluated, and the tail is the `max(tail_min, n // 4)` worst.
+    `key` is a parameter because the studies order a year by different
+    quantities — `bear_deploy` D2 by the deployed book's mean return, and
+    `calendar_hedge` H2(c) by its daily dollars. `sorted` is stable, so ties
+    keep the order `dates` gave them.
+
+    What each caller MEASURES on the returned tail stays with the caller: D2
+    takes the bear sleeve's mean return over it, H2(c) takes the mean of the
+    picks that exist on it and carries no zero for the days that have none.
+    """
+    out = []
+    for y in sorted({d[:4] for d in dates}):
+        ys = [d for d in dates if d[:4] == y]
+        if len(ys) < min_dates:
+            out.append(YearCut(year=y, n_dates=len(ys), evaluated=False))
+            continue
+        yorder = sorted(ys, key=key)
+        out.append(YearCut(year=y, n_dates=len(ys), evaluated=True,
+                           tail_dates=yorder[:max(tail_min, len(ys) // 4)]))
+    return out
+
+
+@dataclass(frozen=True)
 class YearTail:
     """One year's worst-quartile dates. `evaluated` False = too few dates."""
     year: str
@@ -185,17 +227,16 @@ def hedge_contribution(dep, bear, min_common: int = MIN_COMMON_DATES
     tail_r = tail.bear_r if tail else float("nan")
 
     years, ok_years, tot_years = [], 0, 0
-    for y in sorted({d[:4] for d in common}):
-        ys = [d for d in common if d[:4] == y]
-        if len(ys) < MIN_YEAR_DATES:
-            years.append(YearTail(year=y, n_overlap=len(ys), evaluated=False))
+    for yc in year_tails(common, key=lambda d: dep[d][0]):
+        if not yc.evaluated:
+            years.append(YearTail(year=yc.year, n_overlap=yc.n_dates,
+                                  evaluated=False))
             continue
-        yorder = sorted(ys, key=lambda d: dep[d][0])
-        ytail = yorder[:max(YEAR_TAIL_MIN, len(ys) // 4)]
+        ytail = yc.tail_dates
         b_r = _fmean([bear[d][0] for d in ytail])
         tot_years += 1
         ok_years += 1 if b_r > 0 else 0
-        years.append(YearTail(year=y, n_overlap=len(ys), evaluated=True,
+        years.append(YearTail(year=yc.year, n_overlap=yc.n_dates, evaluated=True,
                               tail_dates=list(ytail),
                               dep_r=_fmean([dep[d][0] for d in ytail]),
                               bear_r=b_r,
@@ -234,30 +275,49 @@ class SizingVerdict:
     least_harmful: SweepRow | None
 
 
-def sleeve_dollars(rows, picker, dol_key="Rb_dol", gate=None, date_key="date"):
-    """date -> dollars of a 1-per-day sleeve chosen by `picker`.
+def sleeve_pick(rows, picker, gate=None, date_key="date", dates=None):
+    """date -> the ONE row a 1-per-day sleeve carries that day.
 
-    A row with no `dol_key` is not a candidate at all — it cannot be carried,
-    whatever the picker thinks of it. `picker(row)` returning None drops that
-    row; a day on which nothing is rankable is skipped entirely.
-    `gate(date, rows)` may veto a day (the conditional sleeve); None means
-    carry the sleeve every day a candidate exists. Ties go to the first row in
-    the day's order, which is `max()`'s rule.
+    The picking rule on its own, with what is then read off the chosen row left
+    to the caller: `sleeve_dollars` takes a stored dollar column,
+    `calendar_hedge.bear_sleeve_dollars` replays the pick and prices it. Both
+    are the same sleeve.
+
+    `picker(row)` returning None drops that row; a day on which nothing is
+    rankable is skipped entirely. `gate(date, rows)` may veto a day (the
+    conditional sleeve); None means carry the sleeve every day a candidate
+    exists. Ties go to the first row in the day's order, which is `max()`'s
+    rule. `dates` restricts and ORDERS the result — a caller sweeping a fixed
+    date list wants the sleeve on those days only, in that order; None keeps
+    every day the rows cover, in first-appearance order.
     """
     by_day = defaultdict(list)
     for r in rows:
-        if r.get(dol_key) is not None:
-            by_day[str(r[date_key])].append(r)
+        by_day[str(r[date_key])].append(r)
+    order = list(by_day) if dates is None else [d for d in dates if d in by_day]
     out = {}
-    for d, rs in by_day.items():
+    for d in order:
+        rs = by_day[d]
         if gate is not None and not gate(d, rs):
             continue
         keyed = [(picker(r), r) for r in rs]
         keyed = [(k, r) for k, r in keyed if k is not None]
         if not keyed:
             continue
-        out[d] = max(keyed, key=lambda kr: kr[0])[1][dol_key]
+        out[d] = max(keyed, key=lambda kr: kr[0])[1]
     return out
+
+
+def sleeve_dollars(rows, picker, dol_key="Rb_dol", gate=None, date_key="date"):
+    """date -> dollars of a 1-per-day sleeve chosen by `picker`.
+
+    A row with no `dol_key` is not a candidate at all — it cannot be carried,
+    whatever the picker thinks of it, so it is filtered out BEFORE the gate
+    sees the day. The pick itself is `sleeve_pick`.
+    """
+    picks = sleeve_pick([r for r in rows if r.get(dol_key) is not None],
+                        picker, gate=gate, date_key=date_key)
+    return {d: r[dol_key] for d, r in picks.items()}
 
 
 def sweep(dep, sleeve, fractions) -> tuple[list[SweepRow], SweepRow | None, list[str]]:

@@ -367,3 +367,37 @@ def test_the_library_re_exports_the_one_drawdown_implementation():
     from scripts.backtest_study.lib.mtm_curve import max_drawdown as curve_mdd
 
     assert HC.max_drawdown is curve_mdd is bd_mdd
+
+
+def test_the_sleeve_picker_is_the_body_behind_the_sleeve_cases():
+    """`sleeve_pick` has no fixture criterion of its own because it is not a
+    separate rule: `sleeve_dollars` IS it, plus reading one column off the
+    chosen row. `calendar_hedge.bear_sleeve_dollars` reads the same pick and
+    prices it instead, so this identity is what makes the two the same sleeve
+    (research/hedge-programme-plan.md §"Q3, how much to hedge")."""
+    for case in [c for c in CASES if c["criterion"] == "sleeve"]:
+        rows = _rows(case["rows"])
+        veto = {d for d in case["gate_veto"].split(";") if d}
+        gate = (lambda d, rs: d not in veto) if veto else None
+        picks = HC.sleeve_pick([r for r in rows if r.get("dol") is not None],
+                               lambda r: r["key"], gate=gate)
+        dollars = HC.sleeve_dollars(rows, lambda r: r["key"], dol_key="dol",
+                                    gate=gate)
+        assert {d: r["dol"] for d, r in picks.items()} == dollars
+
+
+def test_the_year_cut_is_the_body_behind_the_d2_cases():
+    """`year_tails` has no fixture criterion of its own for the same reason:
+    it is D2's year clause with the MEASUREMENT left to the caller, so every
+    d2 case exercises it. `calendar_hedge` H2(c) calls it with its own
+    ordering key and measures the picks it has, which is why the cut had to
+    come out of `hedge_contribution` rather than stay inside it."""
+    for case in [c for c in CASES if c["criterion"] == "d2"]:
+        kw = {"min_common": int(case["min_common"])} if case["min_common"] else {}
+        dep, bear = _series(case["dep_series"]), _series(case["bear_series"])
+        hc = HC.hedge_contribution(dep, bear, **kw)
+        if hc is None:
+            continue
+        cuts = HC.year_tails(hc.common, key=lambda d: dep[d][0])
+        assert [(c.year, c.n_dates, c.evaluated, list(c.tail_dates)) for c in cuts] == \
+               [(y.year, y.n_overlap, y.evaluated, list(y.tail_dates)) for y in hc.years]
