@@ -22,13 +22,13 @@ This block is the authoritative summary of where the research stands.
 | Field | Value |
 |---|---|
 | Era | `v4`, the 166-date backfilled book |
-| Exports | 2026-09-04 20:31 |
-| Real results | 535 |
+| Exports | 2026-09-06, deduplicated |
+| Real results | 524 |
 | Proxy rows | 1,303 |
-| Analysis rows | 2,212 |
-| Pooled study book | 1,143 rows, being 535 real plus 608 tweak |
+| Analysis rows | 2,224 |
+| Pooled study book | 1,132 rows, being 524 real plus 608 tweak |
 | Signal dates | 2024-01-10 → 2026-04-16 |
-| 2026 signal dates | 13, from 2026-01-06 to 2026-04-16, 79 pooled rows |
+| 2026 signal dates | 11 carry pooled rows, of the 13 backfilled; 2026-01-06 to 2026-04-16, 79 pooled rows |
 
 This is the first book with 2026 signal dates. Every `ex_2026_*` cut and every
 "positive in every year" clause is live for the first time. The neutral-date
@@ -104,10 +104,31 @@ been checked, and is not "not met". The
 
 ### Data hazards on this export, not repaired
 
-- The four missing real-priced rows were re-run on 2026-09-06 and are now on
-  `BacktestResults`, which the export does not yet see. The same re-run
-  duplicated 2025-12-22 SPY `bear_put_spread`, because the tab has no dedup.
-  Details and what to do about both: [`next-steps.md`](next-steps.md) §0.
+- **The export is refreshed and deduplicated.** 2026-09-06: the SPY duplicate
+  and 15 older duplicate rows were deleted from the tab, `export_tabs.py`
+  re-pulled, and the export now holds 524 rows over 159 dates with the four
+  re-priced rows in it. Tab and export agree. The suite has NOT been re-run on
+  it. Details: [`next-steps.md`](next-steps.md) §0.
+- **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
+  analysis run than their own play.** A consequence of keeping the newer copy,
+  not repaired. The backtest stamps each play with the newest `MARKET` row on
+  its date, and 2025-09-18 was analysed twice; the second run does not contain
+  MU, MSTR, QQQ, SMH or XLI at all, so their surviving rows read `BULL + C-VOL`
+  where the run that proposed them read `RANGE + L-VOL`. Any regime cut on
+  2025-09-18 sees the later label.
+- **`AnalysisClaude` still holds both runs on the three doubled dates, 33 extra
+  rows, NOT repaired.** This is the root cause and it is not a duplicate
+  problem: the two runs proposed DIFFERENT plays, not copies.
+
+  | Date | Rows | The two runs |
+  |---|---|---|
+  | 2024-09-16 | 22 | 11 and 11; 6 tickers differ (`QQQ`, `MU` against `SPY`, `META`) |
+  | 2025-09-10 | 25 | 12 and 13; the later run adds `IBIT` and `IREN` |
+  | 2025-09-18 | 26 | 14 and 12; 8 tickers differ, and the `MARKET` regime flips |
+
+  Choosing which analysis stands is a decision about the population, not a
+  repair, so nothing was deleted there. Until it is made, a backtest re-run on
+  these dates will re-emit both runs' plays and the duplicates come back.
 - 2025-12-26 produced no analysis rows.
 - `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
   89.3%, because the label cache does not cover the new rows.
@@ -689,17 +710,36 @@ same cells) prints `4164 / 2119 / 0` on PRIMARY, because pinning
   invocation now carries BOTH cuts** — the PRIMARY headline and the disclosed
   `all` cut in one report, which is what "run as a disclosed secondary cut and
   printed beside it" always said. Verdicts did not move.
-- **The fourth wording correction** (2026-09-05, build, fourth) records the two
-  repairs that turned on readings the registration left ambiguous: **(h)**
-  G-CAL's parenthetical named `account_sim --selftest-gates`, which is the
-  OPPOSITE of the check (below); **(i)** clause 5's referent is the SECONDARY
-  era's PRIMARY cell, **never its `all` cut** — `all` carries no verdict, so an
-  `all` cell is not verdict-carrying and cannot contradict one. The sidecar now
-  records its POPULATION beside its era, only the PRIMARY cut writes one, and a
-  sidecar naming any other population (or none, as the pre-correction files do)
-  is REFUSED with clause 5 printing VACUOUS and the reason. The no-OOS path also
+- **Two readings the grading forced**, recorded on 2026-09-05 while the module
+  was built and labelled **(h)** and **(i)**, turned on ambiguities the
+  registration had left. **(h)** G-CAL's parenthetical named
+  `account_sim --selftest-gates`, which is the OPPOSITE of the check (below);
+  it now reads as §7 of [`exit_drawdown-errata.md`](exit_drawdown-errata.md).
+  **(i)** clause 5's referent is the SECONDARY era's PRIMARY cell, **never its
+  `all` cut** — `all` carries no verdict, so an `all` cell is not
+  verdict-carrying and cannot contradict one; that referent rule is now folded
+  into clause 5 of the registration's own "Bar for a candidate", and the
+  sidecar mechanism it turns on is errata §5. The sidecar records its
+  POPULATION beside its era, only the PRIMARY cut writes one, and a sidecar
+  naming any other population (or none, as the pre-correction files do) is
+  REFUSED with clause 5 printing VACUOUS and the reason. The no-OOS path also
   now records its cells before returning, so v3's all-UNDERPOWERED cell set is
   the honest referent instead of no file at all.
+- **The four corrections were CONSOLIDATED on 2026-09-06, and the grading is
+  still traceable.** The registration now states one final design read top to
+  bottom: readings 1, (g) and (i)'s referent rule are folded into the
+  registration's own G1 bullet under "Gates" and clauses 4 and 5 under "Bar for
+  a candidate" (reading 1's measurement moved with it, into "Build notes"),
+  because each narrows a clause without changing what it refuses. The rest —
+  reading 2 (ARM O's volume leg), (a), (b) superseded by (f), (c), (d)'s
+  sidecar mechanism, (e) and (h) — are in
+  [`exit_drawdown-errata.md`](exit_drawdown-errata.md), which `study_review`
+  inlines beside the registration as AUTHORITY, each under the label the report
+  and the two analyst gradings cite it by. They are NOT folded because each
+  changes what a gate refuses, what an arm does or how a clause is read, and
+  writing one into the registration's own prose would present a build-time
+  decision as a pre-commitment. The graded report and both analyst files are
+  untouched; every letter they cite resolves in the errata's concordance table.
 
 **Traps found, all of them the kind that would have been silent.**
 
@@ -807,7 +847,8 @@ re-run at `efd9b76`**, after the `SHIPPED_BE_AFTER` pin (identical verdicts and
 cells; the pin's only effect is the basis line and ARM O's hold-window census,
 above) — plus the v4/v3 runs at `e19d3b4`;
 `pre-registrations/f2_management/exit_drawdown.md`
-(four dated wording corrections), `study_output/exit_drawdown-census-2026-09-05.txt`.
+(with `exit_drawdown-errata.md` beside it),
+`study_output/exit_drawdown-census-2026-09-05.txt`.
 The v3 SECONDARY run was likewise re-run at `efd9b76`
 (`study_output/exit_drawdown-v3-2026-09-05.txt`) and is recorded at that sha
 beside the v4 section. Recording trap fixed the same evening (`d69a802`):
@@ -949,3 +990,147 @@ substance unchanged, which the diff shows. The house rule behind the cut is now
 
 **Next.** [`next-steps.md`](next-steps.md) §0 item 1 closes as an operator task,
 §2.10 opens, and the ARM P ack is still owed.
+
+## 2026-09-06 (later) — the SPY duplicate and 15 older duplicate rows are DROPPED; the export is 524 rows; `AnalysisClaude` keeps both runs
+
+The book had been counting 16 rows twice. It no longer does. The cause is
+untouched and sits one layer up, in `AnalysisClaude`.
+
+_Era v4 · exports 2026-09-06 · `BacktestResults` 524 rows over 159 dates, tab
+and export in agreement, zero duplicate groups._
+
+**What was dropped.** 16 rows in all: the 2025-12-22 SPY `bear_put_spread` copy
+from the morning's re-run, then 15 older copies across 13 groups. In every group
+the copy with the LATER `created_datetime` was kept, on the operator's
+instruction. The tab has no git history, so both tabs were snapshotted to
+`backtests/to_evaluate/_snapshot-*-pre-dedup-20260906.csv` before the delete.
+
+| Signal date | Groups | Rows dropped | Survivor stamp |
+|---|---|---|---|
+| 2024-09-16 | 7 | 9 | `2026-08-26 23:55:16` |
+| 2025-09-10 | 1 | 1 | `2026-08-27 11:33:20` |
+| 2025-09-18 | 5 | 5 | `2026-08-27 12:17:09` |
+
+`ORCL` and `RH` on 2024-09-16 had three rows each and the later two shared a
+stamp, so the timestamp could not separate them. They were separated by which
+ANALYSIS run each came from, read off `score_total`: `ORCL` 29 and `RH` 28 are
+the earlier analysis, 28 and 27 the later. The later analysis survives, which
+is the same rule as everywhere else.
+
+| Tab | Before | After |
+|---|---|---|
+| `BacktestResults` | 540 rows | 524 rows, 159 dates |
+| local export | 539 rows | 524 rows, 159 dates |
+
+**One consequence, recorded rather than repaired.** The backtest stamps every
+play with the newest `MARKET` row on its date. 2025-09-18 was analysed twice
+and the second run does not contain `MU`, `MSTR`, `QQQ`, `SMH` or `XLI` at all.
+So their surviving rows pair a play from the first run with the second run's
+market read: `BULL + C-VOL` where the run that proposed them said
+`RANGE + L-VOL`. Keeping the newer copy is what the operator asked for, and on
+these five rows the older copy was the internally consistent one. Any regime
+cut on 2025-09-18 sees the later label.
+
+**The cause is untouched, and it is not a duplicate problem.** Exactly three
+analysis dates carry two `created_datetime` stamps, and they are the same three
+dates: 2024-09-16, 2025-09-10, 2025-09-18. The pipeline has no date dedup, so
+re-analysing a date appends rather than replaces. But the two runs did not
+produce copies — they produced DIFFERENT plays.
+
+| Date | Analysis rows | The two runs |
+|---|---|---|
+| 2024-09-16 | 22 | 11 and 11; the first has `QQQ` and `MU`, the second `SPY` and `META` |
+| 2025-09-10 | 25 | 12 and 13; the later adds `IBIT` and `IREN` |
+| 2025-09-18 | 26 | 14 and 12; 8 tickers differ and the `MARKET` regime flips |
+
+33 extra analysis rows. Deleting one run is a decision about the population,
+not a repair, so nothing was deleted. Until it is made, a backtest re-run over
+these dates re-emits both runs' plays and the duplicates come back.
+
+**Next.** The suite has not been re-run. It can be, on a book that is now clean
+at the backtest layer; the `AnalysisClaude` decision is
+[`next-steps.md`](next-steps.md) §0 item 2.
+
+## 2026-09-06 (third) — 40 pre-registered dates were never run; the 2026 sample misses its own crash
+
+The neutral-date campaign dropped 40 of its 192 selected dates, and 13 of them
+are the 2026 sessions that carry the March drawdown. Nothing ships. Three
+queues are written and none has been run.
+
+_Era v4 · exports 2026-09-06 · 524 real rows over 159 dates · selection rule
+[`backtests/neutral_dates_v1.md`](../backtests/neutral_dates_v1.md)._
+
+**The bug.** Step 4 of the selection rule subtracts "any date present in
+`analysis - AnalysisClaude.csv`". That export was a v3 export when the rule ran
+on 2026-08-14. So 37 dates were dropped for being in a population v4 no longer
+draws from. Three more have no rows in any era. Recomputing `index % 3 == 0`
+over `[2024-01-02, 2026-04-16]` against the current v4 export reproduces the
+192 and finds the 40.
+
+**Why the 13 matter.** The v4 book's eleven 2026 dates sit either side of the
+March fall without sampling it. SPY closed 683 on 2026-01-02 and 632
+on 2026-03-30, then 773 by 2026-09-03.
+
+| 2026 dates | n | VIX mean | VIX range |
+|---|---|---|---|
+| in the book | 11 | 17.66 | 14.49 – 21.04 |
+| dropped by step 4 | 13 | 23.18 | 16.34 – 30.61 |
+
+All seven March sessions are in the second row. The book's own 2026 rows are
+positive — [meanR](glossary.md#meanr) +0.231 on n=31, win 0.61 — so the
+negative 2026 column in several studies is a statement about effects, not about
+the year.
+
+**The right edge has moved.** The bound 2026-04-16 was 2026-08-14 minus
+`path_cap_days: 120`. Today's frontier is 2026-05-09. Re-running the rule over
+the longer window gives 197 = the same 192 plus 5 new dates, because appending
+sessions cannot shift the modulo phase. The left edge could not be patched this
+way, and that asymmetry is already recorded in the selection file.
+
+**The queues.**
+
+| Queue | Dates | Collection state | Runner |
+|---|---|---|---|
+| `backtests/enrich_queue_c.txt` | 13, all 2026 | enriched in 2026; needs the probe below | `analyze_bt_queue.sh` |
+| `backtests/enrich_queue_d.txt` | 24, pre-2026 | enriched in 2024-25; needs the probe below | `analyze_bt_queue.sh` |
+| `backtests/enrich_queue_e.txt` | 5, 2026-04-21 → 05-07 | never collected | `scrape_and_enrich.sh`, then analyze |
+
+**Probe the Drive files before running C or D.** Both queues assume the
+compiled flow CSV is still in Drive with its enrichment columns. The v3 export
+proves those columns existed when the dates were current. It does not prove the
+files are there today. `--skip-llm` fetches from Drive, writes the audit CSV
+and never touches Sheets, so it settles it for free:
+
+```bash
+for d in $(cat backtests/enrich_queue_c.txt.done); do
+  python3 -m scripts.analysis_pipeline --date $d --skip-llm >/dev/null 2>&1 \
+    && echo "$d ok" || echo "$d NEEDS SCRAPE+ENRICH"
+done
+```
+
+A date that prints `NEEDS SCRAPE+ENRICH` moves to a scrape queue in the
+`enrich_queue_e.txt` format. The `.done` seeding marks these dates enriched, so
+`analyze_bt_queue.sh` will not check for itself.
+
+`scripts/analyze_bt_queue.sh` was restored from `973922a`; it had been deleted
+when campaign b closed. Excluded from queue D: 2024-01-02 and 2024-01-05 sit at
+the proven Barchart retention floor, and 2025-12-26 already produced zero
+analysis rows. 2026-02-24 is in queue C but has one v3 row and no enrichment,
+so expect it to yield little.
+
+**Stated before the run.** These dates were selected on calendar position alone
+in 2026-08-14, before any 2026 outcome was read. The omission is a mechanical
+fault in step 4. Running them is finishing the registered selection, not a new
+one, and needs no new registration. The 2026 column has already been read once,
+so the honest expectation is written here rather than after: adding the March
+sessions will move every per-year criterion that currently has a 2026 cell, and
+it may move them either way.
+
+**What this does not do.** The 13 sit inside `[2024-01, 2026-04]`, so they do
+not make the window independent. §2.2 and §2.6 stay blocked on dates after
+2026-08-11. `protocol.DOMINANT_WINDOWS` already re-cuts every result without
+`ex_2026_feb_apr`, so the crash sessions will be excluded by construction in
+the robustness cut.
+
+**Next.** [`next-steps.md`](next-steps.md) §0 gains the queues as an operator
+item. The two hardcoded 2026-03 tables stop being no-ops once queue C runs.

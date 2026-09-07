@@ -12,7 +12,8 @@ keeps its number as a one-line stub with a link.
 ## 0. Repo state — read first
 
 - **Era and population.** `v4`, the 166-date backfilled book, exports of
-  2026-09-04 20:31. Counts and the date range are in
+  2026-09-06. `BacktestResults` is 524 rows over 159 dates, deduplicated, and
+  the tab and the export agree. Counts and the date range are in
   [the population](current.md#the-population).
 - **What most of the queue waits on: genuinely new dates.** `AnalysisClaude`
   carries 2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows,
@@ -26,7 +27,7 @@ keeps its number as a one-line stub with a link.
 - **Two hardcoded date tables are still no-ops by construction.**
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
-  §0 list 2026-03 dates the export does not hold.
+  §0 list 2026-03 dates the export does not hold. Queue C below is those dates.
 - **Rescaled tickers.** `backtests/underlying_ohlc_cache/rescaled_tickers.txt`
   lists 13 tickers after the 2026-09-05 rebuild, NVDA and GE newly among them.
   Every OHLC consumer withholds absolute dollars and cross-series comparisons on
@@ -37,26 +38,54 @@ keeps its number as a one-line stub with a link.
 
 Decisions owed. None of these is a study.
 
-1. **The four missing real-priced rows were re-run 2026-09-06** and are DONE as
-   an operator task. Both dates were re-run per date, and all four rows priced:
+1. **The four missing real-priced rows are DONE, the duplicates are DROPPED and
+   the export is refreshed** (2026-09-06). All four priced fully real:
    2025-12-22 TSLA and AMD `bull_call_spread`, 2025-09-26 CRWV
-   `bull_call_spread` and HYG `bear_put_spread`. Two things follow, and neither
-   is done yet:
-   - **`BacktestResults` now holds 2025-12-22 SPY `bear_put_spread` twice.** The
-     re-run re-emitted a row that was already on the tab, and the tab is
-     append-only with no dedup. The tab reads 540 rows against the export's 535.
-     The two copies are identical but for `created_datetime`, so drop the
-     `2026-09-06 11:20:21` one.
-   - **No study sees the four rows until the exports are refreshed.**
-     `python3 scripts/export_tabs.py` re-pulls `backtests/to_evaluate/`, which
-     changes the population every study runs on, so refresh it deliberately and
-     re-run the suite after
-     ([data hazards](current.md#data-hazards-on-this-export-not-repaired)).
-     Read the TSLA row with §2.7 in hand: it is 724 DTE and priced fully real
-     (`pct_real_days` 1.0, both legs `barchart_open`), which is one row inside
-     the long-dated blind spot, not a lifting of it.
+   `bull_call_spread` and HYG `bear_put_spread`. 16 duplicate rows were deleted
+   from the tab — the SPY row the re-run re-emitted, plus 15 older copies across
+   13 groups, keeping the later `created_datetime` in each — and
+   `scripts/export_tabs.py` has re-pulled. Tab and export both read 524 rows
+   over 159 dates with zero duplicate groups. Pre-delete snapshots of both tabs
+   are at `backtests/to_evaluate/_snapshot-*-pre-dedup-20260906.csv`. Read the
+   TSLA row with §2.7 in hand: 724 DTE, priced fully real (`pct_real_days` 1.0,
+   both legs `barchart_open`) — one row inside the long-dated blind spot, not a
+   lifting of it. **The suite has NOT been re-run on this export.**
 
-2. **`exit_drawdown` ARM P's "dollars ban is scoped" ack** is owed before any
+   One consequence, recorded not repaired: the 5 surviving 2025-09-18 rows
+   carry `BULL + C-VOL`, a `market_regime` from a later analysis run than the
+   run that proposed them
+   ([detail](current.md#2026-09-06-later--the-spy-duplicate-and-15-older-duplicate-rows-are-dropped-the-export-is-524-rows-analysisclaude-keeps-both-runs)).
+
+2. **`AnalysisClaude` still holds both runs on three doubled dates — 33 extra
+   rows.** The root cause, and NOT a duplicate problem. 2024-09-16, 2025-09-10
+   and 2025-09-18 were each analysed twice; the pipeline has no date dedup, so
+   the second run appended. The two runs proposed **different plays**, not
+   copies — on 2024-09-16 the first has `QQQ` and `MU` where the second has
+   `SPY` and `META`, and on 2025-09-18 the `MARKET` regime itself flips.
+   Choosing which run stands is a decision about the population, so nothing was
+   deleted. **Until it is made, any backtest re-run over these three dates
+   re-emits both runs' plays and the duplicates come back.**
+
+3. **Three queues of pre-registered dates are written and unrun.** The
+   neutral-date campaign dropped 40 of its 192 selected dates, because step 4
+   of the rule subtracted dates present in what was then a v3 export. 13 are
+   2026 sessions carrying the March drawdown the book does not sample: its
+   eleven 2026 dates are VIX mean 17.66, the dropped thirteen 23.18. Running
+   them finishes the registered selection and needs no new registration
+   ([detail](current.md#2026-09-06-third--40-pre-registered-dates-were-never-run-the-2026-sample-misses-its-own-crash)).
+
+   | Queue | Dates | Runner |
+   |---|---|---|
+   | `backtests/enrich_queue_c.txt` | 13, all 2026 — run this one | `analyze_bt_queue.sh` |
+   | `backtests/enrich_queue_d.txt` | 24, pre-2026 | `analyze_bt_queue.sh` |
+   | `backtests/enrich_queue_e.txt` | 5, the moved right edge | `scrape_and_enrich.sh`, then analyze |
+
+   **Probe C and D before running them.** Both assume the compiled flow CSV is
+   still in Drive; the queue headers carry the `--skip-llm` one-liner that
+   settles it. Neither unblocks §2.2 or §2.6 — those wait on dates after
+   2026-08-11, which no backfill reaches.
+
+4. **`exit_drawdown` ARM P's "dollars ban is scoped" ack** is owed before any
    ARM P cell is ever read. Without it the module defaults to quoting
    account-level drawdown as a share of starting capital. No run has displayed
    the banner yet because every ARM P cut was UNDERPOWERED
