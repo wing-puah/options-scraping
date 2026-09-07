@@ -1129,6 +1129,16 @@ INFRA: dict[str, str] = {
                    "(max drawdown — this module's own function, which bear_deploy imports "
                    "back — Ulcer, time-under-water). Both bases come back from one call so "
                    "a caller cannot mix them.",
+    "lib/hedge_criteria.py": "The hedge programme's ONE contribution rule, ONE sizing "
+                   "rule and one drawdown function (re-exported from lib/mtm_curve, "
+                   "never a second body). Transcribed from bear_deploy D2/D3, the "
+                   "origin the other hedge studies name, with every threshold and "
+                   "tie-break intact — the decile and quartile floors, the six-date "
+                   "year minimum, the 1e-9 slack, max()'s first-wins. Returns "
+                   "figures and PRINTS NOTHING, so each study keeps the report shape "
+                   "its record quotes, and owns no fraction grid, because narrowing "
+                   "one is a registered choice. Pinned by tests/test_hedge_criteria.py "
+                   "against a hand-computed fixture, the way lib/harness.py is.",
     "lib/forward_drawdown.py": "The Stage-1 statistics for a \"does book state PREDICT "
                    "forward drawdown\" read: the forward-drawdown series (min of "
                    "levels[t]-levels[s] over the next H sessions, None where no full window "

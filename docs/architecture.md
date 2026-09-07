@@ -433,6 +433,13 @@ in the family folders concluded.
   features, from the hand-authored `config/macro-events.yml`; `next_event` is strictly-after
   and refuses past each type's `verified_through` (an unpublished schedule is never "nothing
   ahead"). Event distance keys off the ENTRY session; pre-open vs post-open decides day 0.
+- `lib/hedge_criteria.py` — the hedge programme's ONE contribution rule (`bear_deploy` D2)
+  and ONE sizing rule (D3), transcribed from that origin with every threshold and
+  tie-break intact, plus `max_drawdown` re-exported from `lib/mtm_curve.py`. Pure
+  functions that PRINT NOTHING and own no fraction grid — each study keeps the report
+  shape its `research/study-results/` record quotes, and a narrowed grid is a
+  registered choice. Pinned by `tests/test_hedge_criteria.py` against a hand-computed
+  fixture, the way `lib/harness.py` is pinned by `tests/test_harness_replay.py`.
 - `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
 
 ### account_sim

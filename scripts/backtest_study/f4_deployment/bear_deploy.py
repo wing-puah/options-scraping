@@ -58,6 +58,13 @@ from scripts.backtest_study.lib.harness import replay  # noqa: E402
 # the SAME function object, which is what keeps D3's dollar-drawdown criterion
 # one implementation rather than two.
 from scripts.backtest_study.lib.mtm_curve import max_drawdown  # noqa: E402,F401
+# D2 and D3 are the ORIGIN the other hedge studies name, so their arithmetic
+# now lives in `lib/hedge_criteria.py` — one body per rule, pinned against a
+# committed fixture (research/hedge-programme-plan.md §"The shared criteria
+# library"). Everything PRINTED below stays here: the report's layout is quoted
+# verbatim in research/study-results/, so the criteria moved and the shape did
+# not.
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 
 # The exit B2 recommended (bear_arm's B2, MET 2026-08-11). Bear-KEYED: it is only
 # ever applied to bear debit rows here, never to the rest of the book.
@@ -207,15 +214,12 @@ def d1_joint(bear_rows):
 # ════════════════════════════════════════════════════════════════════════════
 
 def daily_series(rows, r_key, dol_key):
-    """date -> (mean return, total dollars, n) for a sleeve."""
-    by = defaultdict(list)
-    for r in rows:
-        if r.get(r_key) is not None:
-            by[str(r["date"])].append(r)
-    return {d: (fmean([x[r_key] for x in rs]),
-                sum(x[dol_key] for x in rs if x.get(dol_key) is not None),
-                len(rs))
-            for d, rs in by.items()}
+    """date -> (mean return, total dollars, n) for a sleeve.
+
+    The library's, under this module's name, so every existing
+    `from ...bear_deploy import daily_series` keeps resolving to the one body.
+    """
+    return HC.daily_series(rows, r_key, dol_key)
 
 
 def d2_hedge(deployed, bear_rows):
@@ -226,72 +230,46 @@ def d2_hedge(deployed, bear_rows):
 
     dep = daily_series(deployed, "R", "R_dol")
     bear = daily_series(bear_rows, "Rb", "Rb_dol")
-    common = sorted(set(dep) & set(bear))
+    common = HC.common_dates(dep, bear)
     print(f"\n  deployed dates {len(dep)}   bear dates {len(bear)}   overlapping {len(common)}")
-    if len(common) < 20:
+    hc = HC.hedge_contribution(dep, bear)
+    if hc is None:
         print("  too few overlapping dates to test the hedge — skipped")
         return None
 
-    dep_r = [dep[d][0] for d in common]
-    bear_r = [bear[d][0] for d in common]
-    corr = statistics.correlation(dep_r, bear_r) if len(common) > 2 else float("nan")
-    print(f"  date-level correlation of the two sleeves: {corr:+.3f}")
+    print(f"  date-level correlation of the two sleeves: {hc.corr:+.3f}")
     print("  (a hedge needs this NEGATIVE — a positive correlation means the bear")
     print("   sleeve loses on the same days the long book does)")
 
     sub("Deployed-book dates sorted by outcome — the tail is the whole question")
-    order = sorted(common, key=lambda d: dep[d][0])
-    n_dec = max(3, len(common) // 10)
-    buckets = [("worst decile", order[:n_dec]),
-               ("worst quartile", order[:max(3, len(common) // 4)]),
-               ("negative dates", [d for d in order if dep[d][0] < 0]),
-               ("positive dates", [d for d in order if dep[d][0] >= 0]),
-               ("ALL", order)]
     print(f"  {'bucket':18s} {'dates':>6s} {'deployed R':>11s} {'bear R':>9s} "
           f"{'bear $':>10s} {'bear win%':>10s}")
-    tail_bear = None
-    for name, ds in buckets:
-        if not ds:
-            continue
-        d_r = fmean([dep[d][0] for d in ds])
-        b_r = fmean([bear[d][0] for d in ds])
-        b_d = sum(bear[d][1] for d in ds)
-        b_w = sum(1 for d in ds if bear[d][0] > 0) / len(ds)
-        print(f"  {name:18s} {len(ds):6d} {d_r:+11.3f} {b_r:+9.3f} {b_d:>10,.0f} {b_w:>9.1%}")
-        if name == "worst decile":
-            tail_bear = (ds, b_r)
+    for b in hc.buckets:
+        print(f"  {b.name:18s} {len(b.dates):6d} {b.dep_r:+11.3f} {b.bear_r:+9.3f} "
+              f"{b.bear_dollars:>10,.0f} {b.bear_win_rate:>9.1%}")
 
     sub("Does the tail behaviour reproduce by year?")
-    ok_years = 0
-    tot_years = 0
-    for y in sorted({d[:4] for d in common}):
-        ys = [d for d in common if d[:4] == y]
-        if len(ys) < 6:
-            print(f"  {y}: only {len(ys)} overlapping dates — not evaluated")
+    for y in hc.years:
+        if not y.evaluated:
+            print(f"  {y.year}: only {y.n_overlap} overlapping dates — not evaluated")
             continue
-        yorder = sorted(ys, key=lambda d: dep[d][0])
-        ytail = yorder[:max(2, len(ys) // 4)]
-        b_r = fmean([bear[d][0] for d in ytail])
-        tot_years += 1
-        ok_years += 1 if b_r > 0 else 0
-        print(f"  {y}: worst-quartile dates n={len(ytail):3d}  deployed "
-              f"{fmean([dep[d][0] for d in ytail]):+.3f}  bear {b_r:+.3f}  "
-              f"${sum(bear[d][1] for d in ytail):>9,.0f}")
+        print(f"  {y.year}: worst-quartile dates n={len(y.tail_dates):3d}  deployed "
+              f"{y.dep_r:+.3f}  bear {y.bear_r:+.3f}  "
+              f"${y.bear_dollars:>9,.0f}")
 
     sub("Pre-registered D2 rule")
-    tail_r = tail_bear[1] if tail_bear else float("nan")
-    tail_rows = [r for r in bear_rows if str(r["date"]) in set(tail_bear[0])] if tail_bear else []
+    tail_dates = set(hc.tail.dates) if hc.tail else set()
+    tail_rows = [r for r in bear_rows if str(r["date"]) in tail_dates] if hc.tail else []
     tail_ci = P.boot_ci_by_date(tail_rows, "Rb", n=4000) if len(tail_rows) >= 10 else (float("nan"),) * 2
-    met = (tail_r > 0) and (corr < 0) and (ok_years >= 2)
-    print(f"  bear R on deployed worst-decile dates: {tail_r:+.3f} "
+    print(f"  bear R on deployed worst-decile dates: {hc.tail_r:+.3f} "
           f"(row-level CI [{tail_ci[0]:+.3f}, {tail_ci[1]:+.3f}], n={len(tail_rows)}) — "
-          f"needs > 0: {'YES' if tail_r > 0 else 'NO'}")
-    print(f"  sleeve correlation {corr:+.3f} — needs < 0: {'YES' if corr < 0 else 'NO'}")
-    print(f"  tail positive in {ok_years}/{tot_years} evaluable years — needs >= 2: "
-          f"{'YES' if ok_years >= 2 else 'NO'}")
-    print(f"  HEDGE IS REAL: {'MET' if met else 'NOT MET'}")
-    return dict(corr=corr, tail_r=tail_r, ok_years=ok_years, met=met,
-                dep=dep, bear=bear, common=common)
+          f"needs > 0: {'YES' if hc.tail_r > 0 else 'NO'}")
+    print(f"  sleeve correlation {hc.corr:+.3f} — needs < 0: {'YES' if hc.corr < 0 else 'NO'}")
+    print(f"  tail positive in {hc.ok_years}/{hc.tot_years} evaluable years — needs >= 2: "
+          f"{'YES' if hc.ok_years >= HC.MIN_TAIL_YEARS else 'NO'}")
+    print(f"  HEDGE IS REAL: {'MET' if hc.met else 'NOT MET'}")
+    return dict(corr=hc.corr, tail_r=hc.tail_r, ok_years=hc.ok_years, met=hc.met,
+                dep=dep, bear=bear, common=hc.common)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -307,60 +285,39 @@ def _sleeve_dollars(bear_rows, picker, gate=None):
     """date -> dollars of a 1-per-day bear sleeve chosen by `picker`.
 
     `gate(date, rows)` may veto the day entirely (the D5 conditional sleeve);
-    None means carry the sleeve every day a bear candidate exists.
+    None means carry the sleeve every day a bear candidate exists. The picking
+    rule itself is `lib/hedge_criteria.sleeve_dollars`.
     """
-    by_day = defaultdict(list)
-    for r in bear_rows:
-        if r.get("Rb_dol") is not None:
-            by_day[str(r["date"])].append(r)
-    out = {}
-    for d, rs in by_day.items():
-        if gate is not None and not gate(d, rs):
-            continue
-        keyed = [(picker(r), r) for r in rs]
-        keyed = [(k, r) for k, r in keyed if k is not None]
-        if not keyed:
-            continue
-        out[d] = max(keyed, key=lambda kr: kr[0])[1]["Rb_dol"]
-    return out
+    return HC.sleeve_dollars(bear_rows, picker, dol_key="Rb_dol", gate=gate)
 
 
 def _sweep(dep, bear_dol, label):
     """Print the f-sweep for one sleeve definition; return (rows, base)."""
-    dates = sorted(set(dep) | set(bear_dol))
+    rows, base, dates = HC.sweep(dep, bear_dol, SIZE_FRACTIONS)
     print(f"\n  sleeve: {label} — {len(bear_dol)} positions over {len(dates)} book dates")
     print(f"  {'f':>5s} {'total $':>12s} {'max DD $':>12s} {'worst date $':>13s} "
           f"{'neg dates':>10s} {'downside dev':>13s}")
-    base, out = None, []
-    for f in SIZE_FRACTIONS:
-        daily = [dep.get(d, (0, 0.0, 0))[1] + f * bear_dol.get(d, 0.0) for d in dates]
-        tot, mdd, worst = sum(daily), max_drawdown(daily), min(daily)
-        neg = sum(1 for v in daily if v < 0)
-        dd = (statistics.fmean([v * v for v in daily if v < 0]) ** 0.5) if neg else 0.0
-        print(f"  {f:5.2f} {tot:>12,.0f} {mdd:>12,.0f} {worst:>13,.0f} "
-              f"{neg:>10d} {dd:>13,.0f}")
-        if f == 0.0:
-            base = (tot, mdd, worst)
-        out.append(dict(f=f, total=tot, mdd=mdd, worst=worst))
-    return out, base
+    for r in rows:
+        print(f"  {r.f:5.2f} {r.total:>12,.0f} {r.mdd:>12,.0f} {r.worst:>13,.0f} "
+              f"{r.neg:>10d} {r.downside_dev:>13,.0f}")
+    return rows, base
 
 
 def _verdict(out, base, label):
-    ok = [o for o in out if o["f"] > 0 and o["mdd"] >= base[1] - 1e-9
-          and o["worst"] >= base[2] - 1e-9]
-    if ok:
-        best = max(ok, key=lambda o: o["f"])
-        print(f"  [{label}] DEPLOYABLE at f = {best['f']:.2f} — DD {base[1]:,.0f} -> "
-              f"{best['mdd']:,.0f}, total ${base[0]:,.0f} -> ${best['total']:,.0f} "
-              f"({best['total'] - base[0]:+,.0f})")
+    v = HC.sizing_verdict(out, base)
+    if v.best is not None:
+        best = v.best
+        print(f"  [{label}] DEPLOYABLE at f = {best.f:.2f} — DD {base.mdd:,.0f} -> "
+              f"{best.mdd:,.0f}, total ${base.total:,.0f} -> ${best.total:,.0f} "
+              f"({best.total - base.total:+,.0f})")
         return best
     print(f"  [{label}] NOT MET at any size — no fraction leaves both drawdown and "
           f"worst-date unharmed.")
     # least harmful = the tested size whose drawdown is closest to (or above) base
-    least = max((o for o in out if o["f"] > 0), key=lambda o: o["mdd"])
-    print(f"      least-harmful tested size f={least['f']:.2f}: DD {base[1]:,.0f} -> "
-          f"{least['mdd']:,.0f} ({least['mdd'] - base[1]:+,.0f}), total "
-          f"${base[0]:,.0f} -> ${least['total']:,.0f} ({least['total'] - base[0]:+,.0f})")
+    least = v.least_harmful
+    print(f"      least-harmful tested size f={least.f:.2f}: DD {base.mdd:,.0f} -> "
+          f"{least.mdd:,.0f} ({least.mdd - base.mdd:+,.0f}), total "
+          f"${base.total:,.0f} -> ${least.total:,.0f} ({least.total - base.total:+,.0f})")
     return None
 
 
@@ -592,8 +549,8 @@ def main() -> int:
           f"{'candidate(s) found — ' + str(len(d1_survivors)) if d1_survivors else 'NOT MET'}")
     print(f"  D2 hedge is real          : "
           f"{'MET' if (d2 and d2['met']) else 'NOT MET'}")
-    d3_ok = any(o["mdd"] >= base[1] - 1e-9 and o["worst"] >= base[2] - 1e-9
-                for out, base in d3.values() for o in out if o["f"] > 0)
+    d3_ok = any(HC.qualifies(o, base)
+                for out, base in d3.values() for o in out if o.f > 0)
     print(f"  D3 always-on sizing       : {'MET' if d3_ok else 'NOT MET at any size'}")
     print(f"  D4 conditional pick       : "
           f"{'adopted — ' + ', '.join(o['name'] for o in d4_adopted) if d4_adopted else 'NOT MET'}")
