@@ -1500,12 +1500,12 @@ runner's header and footer stripped.
 
 | Study | What moved to the library | Body identical | Commit |
 |---|---|---|---|
-| `bear_deploy` | the reference for `D2` and `D3`; its six functions are now wrappers | yes | `a9b713a` |
-| `hedge_timing` | the `max_drawdown` fork and `daily_dollars` | yes | `8c03502` |
+| `bear_deploy` | the reference for `D2` and `D3`; its six functions are now wrappers; post-hoc `D5`'s inlined comparison in the follow-up | yes, both runs | `a9b713a`, `90e21a5` |
+| `hedge_timing` | the `max_drawdown` fork and `daily_dollars`; `ARM H4`'s two inlined size comparisons in the follow-up | yes, both runs | `8c03502`, `90e21a5` |
 | `vol_sleeve` | module DELETED; its synthesis layer is now `lib/sleeve_synth.py` | yes, via `calendar_hedge` | `5be4ba6` |
 | `calendar_hedge` | the per-year tail cut, the sizing sweep and verdict, the sleeve pick | yes | `4ed865f` |
 | `hedge_concentration` | module DELETED into `hedge_exposure --admitted`; no criterion moved | yes | `7187ca2` |
-| `hedge_exposure` | nothing; it carries neither rule | yes | `7187ca2` |
+| `hedge_exposure` | nothing; it carries neither rule | yes, after a cache-attributed delta, see Caveats | `7187ca2` |
 | `bear_rewrap` | the daily series only | yes | `3d20781` |
 | `financed_spread` | the daily series only | yes | `0d27a37` |
 
@@ -1513,6 +1513,28 @@ Two library behaviours the fixture makes visible and does not change. An empty
 sleeve passes the sizing rule vacuously at the largest fraction, so a study must
 read the position count beside the verdict. And `least_harmful` is now computed
 on every sweep rather than only in the `NOT MET` branch, unprinted either way.
+
+**Review.** An independent review of the eight commits on 2026-09-08 found the
+size comparison still inlined twice in `hedge_timing` `ARM H4` and once in
+`bear_deploy`'s post-hoc `D5`, so the sizing rule had two bodies after the first
+pass. Commit `90e21a5` gives the library the scalar form, `unharmed`, routes all
+three through it, and renames `hedge_timing`'s `sleeve_pick`, which shadowed the
+library's helper with different `None` handling. Both reports reconciled again.
+
+**Caveats.** The plan's two start conditions were overridden, by the operator,
+after checking that neither risk reached this work. Queue D writes to Sheets and
+to the option cache, not to the installed export, and every reconciliation read
+the same export. The robustness worktrees touch no file under
+`scripts/backtest_study/`. The one moving input was the option cache, which
+`scripts/backtest/shared/history.py` refreshes in place: a file whose history
+does not reach back to the signal date is deleted and refetched, so the file
+count moves while the queue runs. That moved two `ARM N` p95 figures in
+`hedge_exposure`'s whole-book report between the before and after runs
+(+0.3825 to +0.3704 and +0.3465 to +0.3549). The pre-merge module run on the
+later cache prints the after report byte for byte, so the delta is the cache and
+not the merge. Nothing the study concludes moves. `ARM N`'s null band is
+cache-sensitive, so a report quoted from a run taken while a queue writes to the
+cache is not reproducible line for line.
 
 **Findings.** No copy disagreed with the library. Every report body reconciled.
 Four things were recorded during the work and are quoted here verbatim, in the

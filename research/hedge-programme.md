@@ -289,4 +289,4 @@ its verdict ([labels](arm-index.md#bear_rewrap),
 |---|---|---|
 | worst-decile deployed dates | 14 recorded, about 16 on the staged tabs | every worst-decile reading, `bear_deploy` `D2`, `calendar_hedge` `H2`, `vol_sleeve` Q2 |
 | `calendar_hedge` fill, not date count | 31% of worst-decile dates fill, so a cell of 10 needs about 320 deployed dates, twice the book | `calendar_hedge` `H0` and `H2` |
-| two missing option-history files | IWM 2026-05-29 245P and MSTR 2025-06-27 420C | `calendar_hedge` exits 1 at `R2` until they are refetched |
+| option-history cache completeness | six files were missing on 2026-09-07 and were restored from the 2026-09-05 Drive snapshot; `R2` passes again | `calendar_hedge` exits 1 at `R2` on any missing leg, and the backtest refreshes stale files in place, so the count moves while a queue runs |

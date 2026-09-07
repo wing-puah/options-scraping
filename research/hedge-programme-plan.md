@@ -14,7 +14,8 @@ printed._
 ## Status
 
 **Executed 2026-09-07. Every study reconciled byte-identical and nothing
-shipped.** Seven commits, one study at a time, in this order.
+shipped.** Seven commits, one study at a time, in this order, and one review
+follow-up.
 
 | Commit | What it did |
 |---|---|
@@ -25,6 +26,7 @@ shipped.** Seven commits, one study at a time, in this order.
 | `7187ca2` | `hedge_concentration` merged into `hedge_exposure --admitted` and deleted |
 | `3d20781` | `bear_rewrap` reads the daily series |
 | `0d27a37` | `financed_spread` reads the daily series |
+| `90e21a5` | review follow-up: `hedge_timing` `ARM H4` and `bear_deploy` `D5` apply the size rule through `unharmed` |
 
 **Retired means deleted, by operator decision on 2026-09-07.** The plan below
 proposed keeping `vol_sleeve.py` on disk with the catalog's `retired` field set.
@@ -162,13 +164,19 @@ now prints.
 
 `hedge_timing` stays a separate module. It carries its own immutable
 pre-registration and it answers a question no other study asks. Its share of the
-consolidation is two items only.
+consolidation is three items.
 
 - **`max_drawdown` at `hedge_timing.py:605` is replaced by the library import.**
   The bodies are byte-identical today, so the reconciliation is a re-run and a
   diff of the recorded verdict block against the record.
 - **`daily_dollars` at `:622` is replaced by the library's daily series.**
   It is the dollar leg of the origin's helper with the return leg removed.
+- **`ARM H4`'s two inlined size comparisons call the library's `unharmed`.**
+  H4 does not call the library's sweep, because its policy paths carry a
+  gate-vetoed date at `f = 0` and its pick runs over trigger-gated policies
+  only. It builds its own paths and applies the one size rule to them. The
+  review on 2026-09-08 found the comparisons still inlined after the first
+  pass, so this item landed in a follow-up commit.
 
 No arm label and no gate label changes. The report must keep printing
 `ARM H1`, `ARM H2`, `ARM H3` and `ARM H4` under those labels, per trigger family.
@@ -226,7 +234,7 @@ three consumers keep their own registered shapes on top of it.
 | Consumer | What stays local to it |
 |---|---|
 | `bear_deploy` `D3` | the four-fraction grid and the downside-deviation column |
-| `hedge_timing` `ARM H4` | the two-fraction grid, the gated policy, the closed-fail on an empty cut |
+| `hedge_timing` `ARM H4` | the two-fraction grid, the gated policy, the closed-fail on an empty cut, and its own daily paths, so it calls the size rule (`unharmed`) rather than the sweep |
 | `calendar_hedge` `H3` | the second baseline, the deployed ladder plus the shipped bear sleeve |
 
 The library exposes the criterion, meaning the largest fraction whose drawdown
@@ -361,6 +369,19 @@ tests them, which is why they drifted.
 
 <a id="sequencing"></a>
 ## Sequencing
+
+**Both start conditions below were overridden on 2026-09-07, by the operator,
+after the two risks were checked and found not to reach this work.** Queue D
+writes to Google Sheets and to the option-history cache, never to the installed
+export in `backtests/to_evaluate/`, and every reconciliation read the same
+export (`543 / 1,380 / 2,325 rows @ 2026-09-07 12:17`). The two robustness
+worktrees touch `scripts/backtest/`, `scripts/analysis_pipeline/`, config and
+docs, and no file under `scripts/backtest_study/`. The one thing the queue did
+move was the option cache, which the backtest refreshes in place (a stale file
+is deleted and refetched), and that moved two `ARM N` null-band figures in
+`hedge_exposure`'s report between runs. The record in
+[`current.md`](current.md) states it. The conditions stay written here because
+they are the right default for the next consolidation.
 
 **Nothing in this plan starts while either of two things is true.**
 
