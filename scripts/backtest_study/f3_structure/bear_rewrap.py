@@ -77,6 +77,7 @@ from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade, replay  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 
@@ -568,14 +569,29 @@ def report_portfolio(by_label: dict, recs: list[dict]) -> None:
     if not ladder:
         print("\n  no deployed rows — ladder replay empty")
         return
-    by_date: dict[str, list[float]] = defaultdict(list)
-    for r in ladder:
-        if r.get("R") is not None:
-            by_date[r["date"]].append(float(r["R"]))
-    sleeve_daily = {d: statistics.fmean(v) for d, v in by_date.items() if v}
+    # The daily series is `lib/hedge_criteria.daily_series` — one body, the
+    # same one D2 reads, so the deployed ladder's dates cannot drift apart
+    # between this study and its origin. Only the mean is taken; P1/P2 read no
+    # dollars off the deployed side.
+    sleeve_daily = {d: mean for d, (mean, _dol, _n)
+                    in HC.daily_series(ladder, "R", "R_dol").items()}
     if not sleeve_daily:
         print("\n  no priced ladder rows")
         return
+    # What follows is DELIBERATELY NOT `HC.hedge_contribution`, and the
+    # difference is arithmetic rather than presentation — see
+    # `lib/hedge_criteria.py`. Three things differ, all of them registered here:
+    #   * the worst-decile cut is a VALUE cutoff (`v <= cutoff`, so ties are
+    #     carried in) with no floor, where D2 takes exactly the
+    #     `max(3, n // 10)` worst dates positionally;
+    #   * P1's verdict is a bootstrap CI excluding zero, where D2's is a bare
+    #     mean > 0, and it is measured on the SUBSTITUTION's own rows rather
+    #     than on a paired daily series;
+    #   * P2 needs 8 shared dates (D2's floor is 20), passes at corr <= 0
+    #     (D2 needs < 0), and its per-year clause is a per-year CORRELATION,
+    #     not D2's per-year tail sign.
+    # Routing these through the library would move printed figures, so they
+    # stay local.
     cutoff = sorted(sleeve_daily.values())[max(0, len(sleeve_daily) // 10 - 1)]
     worst = {d for d, v in sleeve_daily.items() if v <= cutoff}
     print(f"\n  deployed ladder: {len(ladder)} rows / {len(sleeve_daily)} dates; "
