@@ -3,6 +3,8 @@ import json
 import logging
 import math
 import os
+import random
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +12,10 @@ import gspread
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from gspread.exceptions import APIError
+from gspread.http_client import HTTPClient
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -54,8 +60,127 @@ def load_credentials() -> Credentials:
     return creds
 
 
+# --- Transient-failure retry -------------------------------------------------
+#
+# Google's Sheets frontend returns 503/500/429 under its own load, unrelated to
+# anything this repo did or to the state of the OAuth token. Without a retry a
+# single blip kills a whole backtest, analysis or journal run at whichever call
+# it happens to land on — most often the FIRST one, since every entry point
+# opens the spreadsheet before doing anything else.
+#
+# The retry is deliberately NOT blanket, in two directions.
+#
+# It fires only on TRANSIENT conditions: no HTTP response at all, 408, 429, or
+# 5xx. An expired or revoked token comes back as 401/403 and must still fail
+# FAST and loudly, because the fix there is `python3 scripts/auth_drive.py`, not
+# waiting — a client that backs off through an auth failure turns a one-line
+# diagnosis into a two-minute hang followed by the same error.
+#
+# It fires only on calls that are safe to REPEAT. GET and PUT are: they read, or
+# write fixed values into a fixed range. `values:append` is NOT — a 503 is
+# normally the frontend refusing a request before the backend ever sees it, but
+# "normally" is not a guarantee, and a silently duplicated row in AnalysisClaude
+# (which has no date-level dedup) or TradeJournal is a worse outcome than a run
+# that dies and gets re-run by hand. Grid mutations (`<id>:batchUpdate` — create
+# tab, insert/delete rows) are excluded for the same reason. Those calls still
+# raise, with a log line saying the write may be partial.
+#
+# gspread ships a BackOffHTTPClient; it documents itself as not production
+# ready, retries every verb including `values:append`, and treats some 403s as
+# retryable. This one is narrower on all three counts.
+
+_RETRY_MAX_ATTEMPTS = int(os.getenv("SHEETS_RETRY_ATTEMPTS", "5"))
+_RETRY_BASE_DELAY = float(os.getenv("SHEETS_RETRY_BASE_DELAY", "1.0"))
+_RETRY_MAX_DELAY = 32.0
+_RETRY_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+
+# POST endpoints whose effect is fully determined by the request body, so
+# repeating one cannot produce a second copy of anything.
+_IDEMPOTENT_POST_SUFFIXES = (
+    "/values:batchGet",
+    "/values:batchUpdate",
+    "/values:batchClear",
+    ":clear",
+)
+
+
+def _is_repeatable(method: str, endpoint: str) -> bool:
+    """Can this exact call be sent twice without changing the outcome?"""
+    method = method.upper()
+    if method in ("GET", "HEAD", "PUT"):
+        return True
+    if method == "POST":
+        return endpoint.split("?", 1)[0].endswith(_IDEMPOTENT_POST_SUFFIXES)
+    return False
+
+
+def _endpoint_label(endpoint: str) -> str:
+    """The operation part of a Sheets URL, minus the spreadsheet id."""
+    tail = endpoint.partition("/spreadsheets/")[2]
+    if not tail:
+        return endpoint
+    first, _, rest = tail.partition("/")
+    return rest or first.partition(":")[2] or "<spreadsheet>"
+
+
+def _describe(exc: Exception) -> str:
+    response = getattr(exc, "response", None)
+    if response is not None:
+        return f"HTTP {response.status_code}"
+    return type(exc).__name__
+
+
+def _retry_delay(attempt: int, response=None) -> float:
+    """Exponential backoff with full jitter; Retry-After wins when the API sends one."""
+    if response is not None:
+        header = response.headers.get("Retry-After")
+        if header:
+            try:
+                return min(float(header), _RETRY_MAX_DELAY)
+            except ValueError:
+                pass
+    ceiling = min(_RETRY_BASE_DELAY * (2 ** attempt), _RETRY_MAX_DELAY)
+    return ceiling * random.uniform(0.5, 1.0)
+
+
+class RetryingHTTPClient(HTTPClient):
+    """gspread transport that retries transient failures on repeatable calls only."""
+
+    def request(self, method: str, endpoint: str, *args, **kwargs):
+        last_exc: Exception
+        for attempt in range(_RETRY_MAX_ATTEMPTS):
+            try:
+                return super().request(method, endpoint, *args, **kwargs)
+            except APIError as exc:
+                if exc.response.status_code not in _RETRY_STATUSES:
+                    raise
+                last_exc, response = exc, exc.response
+            except (RequestsConnectionError, RequestsTimeout) as exc:
+                last_exc, response = exc, None
+
+            label = f"{method.upper()} {_endpoint_label(endpoint)}"
+            if not _is_repeatable(method, endpoint):
+                log.error("Sheets %s failed transiently (%s) and is NOT safe to retry "
+                          "— check the tab for a partial write before re-running",
+                          label, _describe(last_exc))
+                raise last_exc
+            if attempt == _RETRY_MAX_ATTEMPTS - 1:
+                break
+            delay = _retry_delay(attempt, response)
+            log.warning("Sheets %s failed transiently (%s) — retrying in %.1fs (%d/%d)",
+                        label, _describe(last_exc), delay,
+                        attempt + 1, _RETRY_MAX_ATTEMPTS - 1)
+            time.sleep(delay)
+
+        # Out of attempts: the caller sees the ORIGINAL API error, not a wrapper,
+        # so an operator reading the traceback still gets Google's own message.
+        log.error("Sheets %s still failing after %d attempt(s) — giving up",
+                  f"{method.upper()} {_endpoint_label(endpoint)}", _RETRY_MAX_ATTEMPTS)
+        raise last_exc
+
+
 def _get_client() -> gspread.Client:
-    return gspread.authorize(load_credentials())
+    return gspread.authorize(load_credentials(), http_client=RetryingHTTPClient)
 
 
 def _get_spreadsheet(spreadsheet_id: str | None = None) -> gspread.Spreadsheet:

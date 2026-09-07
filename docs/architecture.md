@@ -64,7 +64,8 @@ lib/                        ← shared modules, imported by scripts, never run d
                               signal date + the frozen SPY/VIX table
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
   sheets_client.py          — read/write Google Sheets tabs; `_get_spreadsheet(id)` targets the
-                              journal workbook, `_ensure_tab(min_cols=)` sizes new tabs
+                              journal workbook, `_ensure_tab(min_cols=)` sizes new tabs,
+                              `RetryingHTTPClient` absorbs Google's transient 5xx/429
 
 scripts/                    ← entry points, each maps to a workflow step
   collector/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
@@ -186,6 +187,40 @@ scripts/                    ← entry points, each maps to a workflow step
                             — RESEARCH tier; see §Research tier below
   auth_drive.py             — one-time OAuth2 flow for Drive
 ```
+
+## Sheets transport — what a 503 is and is not
+
+Every Sheets call in this repo goes through `lib/sheets_client.py`, whose gspread client is a
+`RetryingHTTPClient`. It exists because Google's Sheets frontend intermittently answers
+`503 The service is currently unavailable` under its own load, and without a retry that blip
+kills a whole backtest, analysis or journal run — most often on the FIRST call, since every
+entry point opens the spreadsheet before doing anything else.
+
+**A 503/500/429 is not an auth problem.** An expired or revoked token comes back as 401/403.
+Reading a 503 as "the token needs re-authorising" sends the operator to
+`python3 scripts/auth_drive.py` for a fault that fixes itself in seconds; the retry keeps that
+mistake off the table by absorbing the transient case and letting the auth case fail fast.
+
+The policy is narrow on purpose, in two directions:
+
+| | Retried | Why |
+|---|---|---|
+| No HTTP response, 408, 429, 500, 502, 503, 504 | yes | transient — the server, not the request |
+| 400, 401, 403, 404 | **no** | bad request, bad token, missing sheet — waiting cannot fix any of them |
+| GET, PUT, `values:batchGet` / `values:batchUpdate` / `values:batchClear` / `values/…:clear` | yes | the effect is fixed by the request, so a repeat changes nothing |
+| `values:append` | **no** | a repeat could duplicate a row, and AnalysisClaude has no date-level dedup |
+| `<id>:batchUpdate` (create tab, insert/delete rows) | **no** | grid mutations are not repeatable |
+
+A transient failure on one of the non-repeatable calls raises, with a log line saying the write
+may be partial — check the tab before re-running rather than assuming nothing landed.
+
+Backoff is exponential with full jitter (1s, 2s, 4s, … capped at 32s), 5 attempts, overridable
+with `SHEETS_RETRY_ATTEMPTS` / `SHEETS_RETRY_BASE_DELAY`. A `Retry-After` header, which the API
+sends with a 429, wins over the computed delay. The final failure re-raises the ORIGINAL
+`gspread.APIError`, so the traceback still carries Google's own message.
+
+gspread ships a `BackOffHTTPClient`. It is not used here: it documents itself as not production
+ready, retries every verb including `values:append`, and treats some 403s as retryable.
 
 ## Pipeline health check — the collection-tier watchdog
 
