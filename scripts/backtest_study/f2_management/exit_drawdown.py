@@ -1438,8 +1438,9 @@ def vol_spike_session(t, vol, mult: float = X.VOL_CLIMAX_MULT) -> int | None:
 
     So G1's DIRECTION half is evaluated on this probe for the volume variant —
     the leg the shifted series actually governs — while the conjunction's own
-    earlier-firings are printed as a DISCLOSED, non-gating count. See the
-    2026-09-05 wording correction appended to the registration.
+    earlier-firings are printed as a DISCLOSED, non-gating count. See §1 of
+    the study's errata (`research/exit_drawdown-errata.md`), which records this
+    SCOPING of the registered G1 and is read beside the registration.
 
     `_vol_climax_is_at_or_after_the_spike` pins this probe to the rule it is
     standing in for, so the two cannot drift apart silently.
@@ -1486,8 +1487,7 @@ def g1_leak(recs: list[dict], variants: list[Variant]) -> tuple[int, dict]:
 
     The DIRECTION half is evaluated on ARM O's volume variant through
     `vol_spike_session`, the leg the shifted series governs; see that function
-    and the 2026-09-05 wording correction on the registration for why, and for
-    what is printed instead.
+    and §1 of the study's errata for why, and for what is printed instead.
     """
     hdr("G1 — LEAK GUARD (every auxiliary series shifted ONE SESSION FORWARD)")
     print("""  The shift is on the TRADE'S OWN GRID, the axis the rules read: session
@@ -1508,8 +1508,9 @@ def g1_leak(recs: list[dict], variants: list[Variant]) -> tuple[int, dict]:
   the two legs, so a firing session can move earlier for that reason alone.
   The direction half is therefore read on the VOLUME LEG, and the
   conjunction's own earlier-firings are printed below as a DISCLOSED,
-  NON-GATING count. Registered as a dated wording correction, not a silent
-  change.""")
+  NON-GATING count. This SCOPING of the registered gate is recorded in the
+  study's ERRATA (§1), which is read beside the registration as part of the
+  authority this run is graded against — not a silent change.""")
 
     checks = {"changed": 0, "earlier": 0, "compared": 0, "exercised": [],
               "vol_conjunction_earlier": 0, "probe_incoherent": 0,
@@ -1788,10 +1789,11 @@ def print_cell(variant: Variant, ev: dict, arm_stats: M.PathStats,
   dollars. The registration carries an OPEN operator ACK on whether the planning
   rule "quote R, not dollars, for ARM P" reaches the whole-book MTM co-primary;
   no ack is recorded, so this run uses the registration's own ALTERNATIVE
-  reading, which is recorded as wording correction (c) of 2026-09-05 (build,
-  second). The verdict is identical either way: clause 1 is evaluated on the
-  IMPROVEMENT RATIO, which is scale-free. Re-run with --arm-p-dollars for the
-  dollar levels.""")
+  reading, recorded as still OPEN in the study's ERRATA (§4, ARM P's
+  account-level drawdown withheld in dollars by default), which is read beside
+  the registration. The verdict is identical either way: clause 1 is evaluated
+  on the IMPROVEMENT RATIO, which is scale-free. Re-run with --arm-p-dollars
+  for the dollar levels.""")
         print(f"  max DD   shipped {base_stats.max_dd / capital:>8.2%} of capital"
               f"   arm {arm_stats.max_dd / capital:>8.2%}")
     else:
@@ -1869,12 +1871,14 @@ def print_cell(variant: Variant, ev: dict, arm_stats: M.PathStats,
     print("      READING, stated rather than left to `nan` propagation: a tier "
           "with NO SIGN —\n      no positions in one of the two books, so there "
           "is no improvement to compute —\n      cannot be same-signed and the "
-          "clause is NOT cleared. The registration spells the\n      signless "
-          "case out for clause 3 (fails) and clause 5 (vacuous pass) and is "
-          "silent\n      for clause 4; this run takes clause 3's STRICT reading, "
-          "because clause 4 is a\n      stability clause asking the PRIMARY "
-          "population to agree with itself. Recorded as\n      wording "
-          "correction (g) of 2026-09-05 (build, third).")
+          "clause is NOT cleared. The registration fixes\n      this STRICT "
+          "reading on clause 4 itself, for clause 3's reason: clause 4 is a "
+          "STABILITY\n      clause asking the PRIMARY population to agree with "
+          "ITSELF across a cut of its own\n      rows, and a cut that cannot "
+          "agree fails it. Clause 5's vacuous pass is the\n      CORROBORATION "
+          "case and stays asymmetric. The registration requires the reading "
+          "PRINTED\n      on the clause-4 line of every cell, so a grader reads "
+          "it rather than infers it.")
     print(f"  5 SECONDARY v3: {ev['c5_text']}"
           f"   {'PASS' if ev['criteria']['c5_v3'] else 'FAIL'}")
     print(f"  6 affected dates {ev['n_aff_dates']} >= {MIN_AFFECTED_DATES}"
@@ -2418,19 +2422,19 @@ min_train_dates={WF_MIN_TRAIN_DATES})
             print(f"    selection tally: {dict(picks)}")
 
             if v.kind == KIND_SIZING and chosen:
-                print(f"""    DISCLOSED, and recorded as wording corrections (b) of
-    2026-09-05 (build, second) and (f) of 2026-09-05 (build, third) on the
-    registration: `Cfg.dd_throttle` is ONE value for a whole simulation — a
-    ledger cannot carry a different `d` per block — so ARM D's walk-forward
-    selection has to COLLAPSE to one value before the stitched book can run.
-    It collapses to the EARLIEST block's choice, which uses no information
-    after its own TRAIN window, so the stitched book REMAINS OUT OF SAMPLE.
-    Correction (b)'s MODAL collapse would not: it would replay block 0's TEST
-    dates under a `d` fitted on train sets containing those very dates, and
-    the cell could not be called out of sample anywhere it was printed. The
-    per-block table above shows what each block picked; every grid value's own
-    stitched OOS book is printed below, so the reader can see what the collapse
-    cost. Collapsed choice (block {min(chosen)}): {v.config_label(collapse_choice(chosen))}.""")
+                print(f"""    DISCLOSED, and recorded in the study's ERRATA (§3,
+    ARM D's per-block choice collapses to the EARLIEST block's), which is read
+    beside the registration: `Cfg.dd_throttle` is ONE value for a whole
+    simulation — a ledger cannot carry a different `d` per block — so ARM D's
+    walk-forward selection has to COLLAPSE to one value before the stitched
+    book can run. It collapses to the EARLIEST block's choice, which uses no
+    information after its own TRAIN window, so the stitched book REMAINS OUT
+    OF SAMPLE. The MODAL collapse recorded first there, and SUPERSEDED, would
+    not: it would replay block 0's TEST dates under a `d` fitted on train sets
+    containing those very dates, and the cell could not be called out of
+    sample anywhere it was printed. The per-block table above shows what each
+    block picked; every grid value's own stitched OOS book is printed below, so
+    the reader can see what the collapse cost. Collapsed choice (block {min(chosen)}): {v.config_label(collapse_choice(chosen))}.""")
                 for g in v.grid:
                     _s2, pos2, _bc2, st2 = full_window_book(v, g)
                     print(f"      stitched OOS book at {v.config_label(g):<10} "

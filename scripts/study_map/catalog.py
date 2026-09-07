@@ -571,7 +571,13 @@ STUDIES: dict[str, Study] = {
                 "reverted be_after .50 merge. Nothing ships from this "
                 "study under any outcome, and per the registration's anti-tuning clause the "
                 "grid is not re-cut for these dates: a CANDIDATE would still need an "
-                "independent window, and an UNDERPOWERED cell publishes its census and stops.",
+                "independent window, and an UNDERPOWERED cell publishes its census and stops. "
+                "Read the registration together with research/exit_drawdown-errata.md: the "
+                "build-time readings recorded while the module was written were consolidated "
+                "on 2026-09-06, so the ones that only narrow a clause now sit in the "
+                "registration's own sections and the ones that change what a gate refuses, "
+                "what an arm does or how a clause is read sit in the errata, which "
+                "study_review inlines beside the registration as authority.",
     ),
     "staged_exit": Study(
         family="management", state="open",

@@ -113,10 +113,10 @@ file paths and qualifiers in the first line under the heading, not in it.
 - **`archive/`** is history. Its volumes carry a status line and nothing else
   in them changes. Rewriting an old conclusion for style risks changing what
   it claimed.
-- **`pre-registrations/`** hold commitments. Wording may be clarified, but
-  every number, arm label, gate id, verdict token, and quotation is held
-  verbatim, and a diff should be able to prove it. The 2026-08-31 pass did
-  exactly this.
+- **`pre-registrations/`** are fixed in substance, not in prose. Wording may be
+  clarified, but every number, arm label, gate id, verdict token, and quotation
+  is held verbatim, and a diff should be able to prove it. The 2026-08-31 pass
+  did exactly this.
 - **`study-results/`** is machine-written by `scripts/study_results.py`.
   Do not hand-edit a section.
 

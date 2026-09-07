@@ -805,13 +805,16 @@ def test_arm_p_dollars_prints_dollars_everywhere_when_the_flag_is_given(capsys):
 
 def test_the_clause_four_signless_reading_is_printed_not_inferred(capsys):
     """A tier with no positions in one book yields `nan`, `_sign(nan) == 0` and
-    a FAILED clause 4. The registration spells the signless case out for
-    clauses 3 and 5 and is silent for clause 4, so which reading binds must be
-    stated on the line rather than left to `nan` propagation."""
+    a FAILED clause 4. The registration fixes the STRICT reading on clause 4
+    itself and requires it PRINTED on every cell's clause-4 line, so which
+    reading binds is stated there rather than left to `nan` propagation."""
     out = _print_cell(_variant("U", "a"), False, capsys)
     assert "4 pricing tiers" in out
     assert "NO SIGN" in out and "is NOT cleared" in out
-    assert "wording correction (g)" in out
+    # The REASON, not just the verdict: clause 4 is read strictly because it is
+    # a stability clause, and clause 5's vacuous pass stays the asymmetry.
+    assert "clause 4 is a STABILITY" in out
+    assert "a grader reads it rather than infers it" in out
 
 
 def test_the_prod_control_says_what_its_affected_count_is_made_of(capsys):
