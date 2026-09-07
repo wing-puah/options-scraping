@@ -21,10 +21,16 @@ keeps its number as a one-line stub with a link.
   because those options have not expired. §2.2 and §2.6 wait on them. The 13
   backfilled 2026 dates do NOT qualify. They are a correlated window
   ([where the 2026 column bit](current.md#where-the-2026-column-bit)).
-- **Tests green, suite green.** Last full study-suite run 2026-09-04 on the
-  166-date book, every non-retired study ran, and the one gate stop was a
+- **Tests green; the SUITE IS STALE.** Last full study-suite run 2026-09-04 on
+  the 166-date book, every non-retired study ran, and the one gate stop was a
   study-side pricer gap fixed the same session
   ([`current.md` 2026-09-04 late](current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed)).
+  **Both exports have moved since.** `BacktestResults` lost 16 duplicate rows
+  and gained 4 re-priced ones (2026-09-06); `AnalysisClaude` lost the 37 rows of
+  a duplicated analysis run and gained the daily pipeline's (2026-09-07). No
+  study has run on either. Re-run the suite deliberately, and settle the
+  decision under *Waiting on the operator* below first — it changes the
+  population again if taken.
 - **Two hardcoded date tables are still no-ops by construction.**
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
@@ -39,39 +45,37 @@ keeps its number as a one-line stub with a link.
 
 Decisions owed. None of these is a study.
 
-1. **The four missing real-priced rows are DONE, the duplicates are DROPPED and
-   the export is refreshed** (2026-09-06). All four priced fully real:
-   2025-12-22 TSLA and AMD `bull_call_spread`, 2025-09-26 CRWV
-   `bull_call_spread` and HYG `bear_put_spread`. 16 duplicate rows were deleted
-   from the tab — the SPY row the re-run re-emitted, plus 15 older copies across
-   13 groups, keeping the later `created_datetime` in each — and
-   `scripts/export_tabs.py` has re-pulled. Tab and export both read 524 rows
-   over 159 dates with zero duplicate groups. Pre-delete snapshots of both tabs
-   are at `backtests/to_evaluate/_snapshot-*-pre-dedup-20260906.csv`. Read the
-   TSLA row with §2.7 in hand: 724 DTE, priced fully real (`pct_real_days` 1.0,
-   both legs `barchart_open`) — one row inside the long-dated blind spot, not a
-   lifting of it. **The suite has NOT been re-run on this export.**
+1. **DONE 2026-09-06** — four missing rows re-priced, 16 `BacktestResults`
+   duplicates dropped, export refreshed to 524 rows / 159 dates
+   ([record](current.md#2026-09-06-later--the-spy-duplicate-and-15-older-duplicate-rows-are-dropped-the-export-is-524-rows-analysisclaude-keeps-both-runs)).
+   Read the re-priced 724-DTE TSLA row with §2.7 in hand: it is one row inside
+   the long-dated blind spot, not a lifting of it.
 
-   One consequence, recorded not repaired: the 5 surviving 2025-09-18 rows
-   carry `BULL + C-VOL`, a `market_regime` from a later analysis run than the
-   run that proposed them
-   ([detail](current.md#2026-09-06-later--the-spy-duplicate-and-15-older-duplicate-rows-are-dropped-the-export-is-524-rows-analysisclaude-keeps-both-runs)).
+2. **DECIDE: drop the 12 backtest rows whose play no longer exists, or keep
+   them.** The three doubled analysis dates were repaired on 2026-09-07 — 37
+   rows of the earlier run deleted from `AnalysisClaude`, later run kept, and
+   `_drop_already_analysed` now refuses a re-analysis so it cannot recur. What
+   the repair left behind is the decision:
 
-2. **The three doubled analysis dates are REPAIRED and the pipeline now refuses
-   a date it has analysed** (2026-09-07). 37 rows of the earlier run were
-   deleted from `AnalysisClaude` on 2024-09-16, 2025-09-10 and 2025-09-18,
-   keeping the later run on each; `_drop_already_analysed` stops it recurring
-   (`--allow-duplicate-date` overrides). **One decision is owed.** The repair
-   left **12 `BacktestResults` rows proposed by a run that no longer exists** —
-   5 orphaned, and 7 that still match on (date, ticker) but now join a
-   DIFFERENT play, `NVDA` on 2025-09-10 flipping direction outright. Dropping
-   them moves the evidence base 524 → 512 and is the operator's call; leaving
-   them means any study reading a play through that join is wrong on 7 rows
+   | Rows | State after the repair |
+   |---|---|
+   | 5 | orphaned — `2024-09-16` `MU`/`QQQ`, `2025-09-18` `MSTR`/`MU`/`XLI` |
+   | 7 | still match on (date, ticker) and join a **DIFFERENT play** |
+
+   The 7 are the dangerous half: the join does not fail, it returns the wrong
+   row. On `2025-09-10` `NVDA` a `bull_call_spread` result joins a
+   `bear_put_spread` play — the direction flips.
+
+   - **Drop them** → evidence base 524 → 512, and every play-join is honest.
+   - **Keep them** → the 524 stay, and any study reading a play THROUGH the
+     join is wrong on 7 rows: [`text_features`](arm-index.md#text_features)
+     reads the play text, `mech_regime_recut` and `regime_gap_reread` print
+     join coverage.
+
+   Not urgent for P&L — the 524 result rows were priced at backtest time and
+   deleting an analysis row reprices nothing — but it must be settled BEFORE
+   the suite is re-run, or the re-run bakes the choice in silently
    ([detail](current.md#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed)).
-
-   The same hole is still OPEN one tab over: `scripts.backtest` has no
-   equivalent guard, and the 2025-12-22 `SPY` duplicate came from a re-run of
-   it, not from a doubled analysis.
 
 3. **Three queues of pre-registered dates are written and unrun.** The
    neutral-date campaign dropped 40 of its 192 selected dates, because step 4
@@ -86,6 +90,21 @@ Decisions owed. None of these is a study.
    | `backtests/enrich_queue_c.txt` | 13, all 2026 — run this one | `analyze_bt_queue.sh` |
    | `backtests/enrich_queue_d.txt` | 24, pre-2026 | `analyze_bt_queue.sh` |
    | `backtests/enrich_queue_e.txt` | 5, the moved right edge | `scrape_and_enrich.sh`, then analyze |
+
+   **12 of the 42 queued dates are ALREADY analysed and none has backtest rows.**
+   `make analyze-bt` will now REFUSE those and, because `analyze-bt` is
+   `analyze` then `backtest-all`, the refusal aborts the date before the
+   backtest ever runs. That is the guard working — running them yesterday would
+   have doubled 12 dates' analysis rows. They need the BACKTEST step only:
+   `make backtest-all ARGS="--date D"`, then mark the date done in the queue
+   ledger by hand. Do NOT reach for `--allow-duplicate-date`; there is nothing
+   wrong with the analysis these dates already have.
+
+   | Queue | Already analysed, backtest owed |
+   |---|---|
+   | C | `2026-02-02`, `-02-05`, `-02-13`, `-02-19`, `-02-24`, `2026-03-04`, `-03-09` |
+   | D | `2024-06-20`, `2024-07-17`, `2024-07-22`, `2024-08-07` |
+   | E | `2026-04-21` |
 
    **Probe C and D before running them.** Both assume the compiled flow CSV is
    still in Drive; the queue headers carry the `--skip-llm` one-liner that
@@ -129,6 +148,7 @@ One line each. Do not re-open; follow the link for the detail.
 
 | Closed | Date | Outcome | Record |
 |---|---|---|---|
+| `AnalysisClaude` doubled dates | 2026-09-07 | 37 rows of the earlier run deleted on 3 dates; the pipeline now REFUSES a date it has analysed. One decision left behind, §0 | [`current.md`](current.md#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed) |
 | Neutral-date campaign, queue b | 2026-09-04 | COMPLETE; exports refreshed to 166 dates; suite re-run; nothing ships | [`current.md`](current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed) |
 | `concurrency_correlation` | 2026-09-04 | NOISE on both eras | §2.0 |
 | `hedge_concentration` | 2026-09-04 | PRECONDITION-NULL, graded | §2.1 |
@@ -303,6 +323,12 @@ census prints on every relevant study run. Reading on the 166-date book:
 - **Prompt and infra** — the `analysis_pipeline/core.py` refactor is deferred;
   the PostToolUse hook still never runs pytest; the delegation-nudge hook is
   advisory by design.
+- **`scripts.backtest` has no already-run guard.** The analysis side got one on
+  2026-09-07; the backtest side did not, and it is the tab that actually
+  duplicated — the 2025-12-22 `SPY` row came from a backtest re-run, not from a
+  doubled analysis. Cheaper to fix than to clean up after: `BacktestResults`
+  rows carry `signal_date` + `created_datetime`, the same two columns the
+  analysis guard reads. Not scheduled; nothing waits on it.
 
 <a id="s2-8"></a>
 ### 2.8 Per-play `invalidation` exits — CLOSED 2026-09-02, do not build
