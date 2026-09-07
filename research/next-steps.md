@@ -36,6 +36,11 @@ keeps its number as a one-line stub with a link.
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
   §0 list 2026-03 dates the export does not hold. Queue C below is those dates.
+- **Robustness review, 2026-09-07.** Before the suite is re-run, read
+  [`robustness-review.md`](robustness-review.md). Two of its items change every
+  number the re-run would print: the backtest has no cost model, and it can
+  book P&L on days before the fill. Fix both first, then re-run once. Its
+  follow-ups are §2.11.
 - **Rescaled tickers.** `backtests/underlying_ohlc_cache/rescaled_tickers.txt`
   lists 13 tickers after the 2026-09-05 rebuild, NVDA and GE newly among them.
   Every OHLC consumer withholds absolute dollars and cross-series comparisons on
@@ -386,6 +391,16 @@ concentration is PRECONDITION-NULL
 - **Census first, as with `operator_read`.** Before any registration, count how
   many book dates carry the proposed signal at all. Three of the four dead
   triggers died on power, not on sign.
+
+<a id="s2-11"></a>
+### 2.11 Robustness follow-ups — OPEN, nothing waits on dates
+
+The queue from [`robustness-review.md`](robustness-review.md), in its
+[suggested order](robustness-review.md#order). None of it needs new dates. The
+seven investigations there (cost sensitivity, same-date benchmark, beta
+decomposition, live slippage, sealed holdout, join attrition, programme-wide
+null) are candidates, not registered studies: each gets its own
+pre-registration before it runs. The code fixes are not studies and need none.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

@@ -26,6 +26,7 @@ produced it lives in `scripts/backtest_study/`. The rules it produced live in
 | [`arm-index.md`](arm-index.md) | Every arm, gate, and criterion label, grouped by study. Labels are study-local. | hand |
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst replication protocol for grading a study report. | hand |
 | [`analysis-roadmap.md`](analysis-roadmap.md) | The longer-range plan for the analysis pipeline itself. | hand |
+| [`robustness-review.md`](robustness-review.md) | One-page audit of what can be trusted in the analysis, backtest and production loop, and what beyond the queue would improve returns and risk. Rows flip to `FIXED <date>`; a new review replaces the file. | hand |
 | [`writing-guide.md`](writing-guide.md) | How to write in this folder. Adopted 2026-09-05. | hand |
 | [`pre-registrations/`](pre-registrations/) | One file per study: the plan written before the run. Foldered `f1_selection/` to `f4_deployment/`. | immutable |
 | [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export era, quoted verbatim. | machine (`make study-record`) |
