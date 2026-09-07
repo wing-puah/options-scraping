@@ -27,7 +27,10 @@ figures; the study prints them.
 
 **No grid.** A study that narrows its fraction grid is making a registered
 choice (`bear_deploy` D3 sweeps four fractions, `hedge_timing` ARM H4 two), so
-the grid is a parameter and never a default.
+the grid is a parameter and never a default. ARM H4 does not call `sweep` at
+all: its policy paths carry a gate-vetoed date at `f = 0` rather than dropping
+it, and its pick is over trigger-gated policies only, so it builds its own
+paths and applies the size rule through `unharmed`.
 
 **No second drawdown body.** `max_drawdown` is imported from `lib/mtm_curve.py`
 and re-exported here, so a caller reaching for it through this module gets the
@@ -349,13 +352,22 @@ def sweep(dep, sleeve, fractions) -> tuple[list[SweepRow], SweepRow | None, list
     return out, base, dates
 
 
-def qualifies(row: SweepRow, base: SweepRow, eps: float = EPS) -> bool:
-    """The size rule for ONE fraction: no worse than carrying nothing.
+def unharmed(mdd: float, worst: float, base_mdd: float, base_worst: float,
+             eps: float = EPS) -> bool:
+    """The size rule on bare figures: no worse than carrying nothing.
 
     Both comparisons, drawdown and worst date, against the `f = 0` baseline
-    with `eps` of slack so an exactly-equal path counts as unharmed.
+    with `eps` of slack so an exactly-equal path counts as unharmed. This is
+    the one body; `qualifies` is the `SweepRow` form of it, and `hedge_timing`
+    ARM H4 and `bear_deploy` D5, which build their own daily paths, call this
+    form directly.
     """
-    return row.mdd >= base.mdd - eps and row.worst >= base.worst - eps
+    return mdd >= base_mdd - eps and worst >= base_worst - eps
+
+
+def qualifies(row: SweepRow, base: SweepRow, eps: float = EPS) -> bool:
+    """`unharmed` for one sweep row against the `f = 0` row."""
+    return unharmed(row.mdd, row.worst, base.mdd, base.worst, eps)
 
 
 def sizing_verdict(rows, base: SweepRow, eps: float = EPS) -> SizingVerdict:

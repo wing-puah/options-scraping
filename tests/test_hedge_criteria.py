@@ -401,3 +401,17 @@ def test_the_year_cut_is_the_body_behind_the_d2_cases():
         cuts = HC.year_tails(hc.common, key=lambda d: dep[d][0])
         assert [(c.year, c.n_dates, c.evaluated, list(c.tail_dates)) for c in cuts] == \
                [(y.year, y.n_overlap, y.evaluated, list(y.tail_dates)) for y in hc.years]
+
+
+# ── the scalar size rule is the one body `qualifies` wraps ───────────────────
+def test_unharmed_is_the_body_qualifies_delegates_to():
+    """`hedge_timing` ARM H4 and `bear_deploy` D5 build their own daily paths and
+    call `unharmed` on bare figures; `qualifies` is the SweepRow form. Both must
+    agree on every side of both comparisons, including the eps-equal edge."""
+    base = HC.SweepRow(f=0.0, total=0.0, mdd=-100.0, worst=-40.0, neg=0, downside_dev=0.0)
+    for mdd, worst, want in [(-100.0, -40.0, True), (-100.0 - 1e-9, -40.0, True),
+                             (-100.0 - 2e-9, -40.0, False), (-99.0, -40.0 - 2e-9, False),
+                             (-50.0, -10.0, True)]:
+        row = HC.SweepRow(f=0.5, total=0.0, mdd=mdd, worst=worst, neg=0, downside_dev=0.0)
+        assert HC.unharmed(mdd, worst, base.mdd, base.worst) is want
+        assert HC.qualifies(row, base) is HC.unharmed(mdd, worst, base.mdd, base.worst)

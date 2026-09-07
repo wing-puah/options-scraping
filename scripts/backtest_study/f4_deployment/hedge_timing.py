@@ -625,7 +625,7 @@ def daily_dollars(rows, dol_key="R_dol"):
             HC.daily_series(rows, dol_key, dol_key).items()}
 
 
-def sleeve_pick(bear_by_date, dol_key="R_dol"):
+def widest_max_loss_sleeve(bear_by_date, dol_key="R_dol"):
     """`{date: dollars of ONE hedge that day}` — the day's widest `max_loss`.
 
     One hedge per day, per the registration. The picker is `bear_deploy` D3's
@@ -670,7 +670,8 @@ def _policy_stats(series):
 def h4_portfolio(dep_dollars, sleeve, cen, evaluable=True):
     """ARM H4 (one per trigger family) — does gating the sleeve on the trigger leave the book unharmed?
 
-    Criterion VERBATIM from `bear_deploy` D3: max drawdown AND worst single date
+    Criterion is `bear_deploy` D3, applied through `lib/hedge_criteria.unharmed`
+    (one body since 2026-09-07): max drawdown AND worst single date
     both no worse than f=0. Disclosed: this reuses D5's estimator on new gates,
     so a pass HERE ALONE can never ship — D5's own gate family failed
     year-stability.
@@ -690,8 +691,8 @@ def h4_portfolio(dep_dollars, sleeve, cen, evaluable=True):
                            + [("trigger-gated", f, gated) for f in SLEEVE_FRACTIONS]):
         st = _policy_stats(policy_daily(dep_dollars, sleeve, f, gate))
         st.update(policy=label, f=f,
-                  harmless=(st["mdd"] >= base["mdd"] - 1e-9
-                            and st["worst"] >= base["worst"] - 1e-9))
+                  harmless=HC.unharmed(st["mdd"], st["worst"],
+                                       base["mdd"], base["worst"]))
         rows.append(st)
 
     gated_rows = [r for r in rows if r["policy"] == "trigger-gated"]
@@ -716,8 +717,7 @@ def h4_portfolio(dep_dollars, sleeve, cen, evaluable=True):
     ex_both = [d for d in gated if str(d)[:7] not in EX_BOTH_MONTHS]
     if ex_both:
         st = _policy_stats(policy_daily(dep_dollars, sleeve, best["f"], ex_both))
-        cuts_ok = (st["mdd"] >= base["mdd"] - 1e-9
-                   and st["worst"] >= base["worst"] - 1e-9)
+        cuts_ok = HC.unharmed(st["mdd"], st["worst"], base["mdd"], base["worst"])
     else:
         cuts_ok = False        # fail closed on an empty cut
 
@@ -977,7 +977,7 @@ def main() -> int:
 
     # ── the verdicted arms ──────────────────────────────────────────────────
     dep_dollars = daily_dollars(deployed)
-    sleeve = sleeve_pick(bear_by_date)
+    sleeve = widest_max_loss_sleeve(bear_by_date)
     results = {}
     for fam in FAMILIES:
         cen = censuses[fam]

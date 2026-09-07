@@ -389,7 +389,7 @@ def d5_conditional_sleeve(deployed, bear_rows, d4_adopted):
         for f in (0.5, 1.0):
             daily = [dep.get(d, (0, 0.0, 0))[1] + f * sleeve.get(d, 0.0) for d in dates]
             tot, mdd, worst = sum(daily), max_drawdown(daily), min(daily)
-            flag = "  **" if (mdd >= b_mdd - 1e-9 and worst >= b_worst - 1e-9) else ""
+            flag = "  **" if HC.unharmed(mdd, worst, b_mdd, b_worst) else ""
             print(f"  {gname if f == 0.5 else '':26s} {len(sleeve) if f == 0.5 else '':>5} "
                   f"{f:5.2f} {tot:>11,.0f} {mdd - b_mdd:>+10,.0f} "
                   f"{worst - b_worst:>+10,.0f} {tot - b_tot:>+11,.0f}{flag}")

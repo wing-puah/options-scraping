@@ -179,7 +179,7 @@ def test_strict_streak_arm_is_underpowered_without_computing_a_mean() -> None:
                 HT.h2_between(ladder_by_date, cen),
                 HT.h3_paired(bear_by_date, ladder_by_date, cen),
                 HT.h4_portfolio({d: 10.0 for d in dates},
-                                HT.sleeve_pick(bear_by_date), cen)):
+                                HT.widest_max_loss_sleeve(bear_by_date), cen)):
         assert res["verdict"] == "UNDERPOWERED", res["arm"]
         assert res["powered"] is False
         leaked = [k for k in STATISTIC_KEYS if k in res]
@@ -215,7 +215,7 @@ def test_not_evaluable_short_circuits_before_the_floor_check() -> None:
                 HT.h2_between(ladder_by_date, cen, evaluable=False),
                 HT.h3_paired(bear_by_date, ladder_by_date, cen, evaluable=False),
                 HT.h4_portfolio({d: 10.0 for d in dates},
-                                HT.sleeve_pick(bear_by_date), cen, evaluable=False)):
+                                HT.widest_max_loss_sleeve(bear_by_date), cen, evaluable=False)):
         assert res["verdict"] == "NOT EVALUABLE", res["arm"]
         assert not [k for k in STATISTIC_KEYS if k in res]
 
@@ -234,10 +234,10 @@ def test_the_report_printers_render_every_branch(capsys) -> None:
     HT.print_census(cen)
     HT._print_between(HT.h1_between(bear_by_date, cen), "between-date")
     HT._print_h3(HT.h3_paired(bear_by_date, ladder_by_date, cen))
-    HT._print_h4(HT.h4_portfolio(dep, HT.sleeve_pick(bear_by_date), cen))
+    HT._print_h4(HT.h4_portfolio(dep, HT.widest_max_loss_sleeve(bear_by_date), cen))
     HT._print_between(HT.h1_between(bear_by_date, cen, evaluable=False), "between-date")
     HT._print_h3(HT.h3_paired(bear_by_date, ladder_by_date, cen, evaluable=False))
-    HT._print_h4(HT.h4_portfolio(dep, HT.sleeve_pick(bear_by_date), cen, evaluable=False))
+    HT._print_h4(HT.h4_portfolio(dep, HT.widest_max_loss_sleeve(bear_by_date), cen, evaluable=False))
 
     out = capsys.readouterr().out
     assert "ARM H1-CHOP" in out and "ARM H3-CHOP" in out and "ARM H4-CHOP" in out
