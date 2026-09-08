@@ -73,7 +73,7 @@ downstream needs a code change.
 RESUMABILITY
 ------------
 `backtests/sweep_cache/financing_manifest.csv` — a SEPARATE file from
-`legs_manifest.csv` (`calendar_hedge --arm S` depends on that one; this
+`legs_manifest.csv` (`hedge_structure --arm S` depends on that one; this
 collector never reads or writes it). Same fields (ticker, expiration, strike,
 opt_type, category, status, fetched_at, reason). Every fetch attempt writes
 its CSV to the cache and flushes the manifest IMMEDIATELY, so a crash loses

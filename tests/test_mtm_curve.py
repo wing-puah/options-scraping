@@ -1,6 +1,6 @@
 """Tests for the mark-to-market book equity curve (`lib/mtm_curve.py`).
 
-`hedge_exposure` reads every verdict off this curve, so what is pinned here is
+`hedge_portfolio` reads every verdict off this curve, so what is pinned here is
 the METHODOLOGY, not return shapes: that the curve actually marks open
 positions (the whole reason the module exists), that the realized basis it
 returns alongside is byte-identical to `account_sim.equity_curve`'s, that
@@ -244,13 +244,13 @@ def test_the_g_mtm_tolerance_is_an_argument_with_a_stated_default():
 # ── path statistics ──────────────────────────────────────────────────────────
 
 def test_max_drawdown_is_bear_deploys_function_not_a_second_implementation():
-    from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown
+    from scripts.backtest_study.f5_hedging.hedge_sizing import max_drawdown
     assert M.max_drawdown is max_drawdown
 
 
 def test_max_drawdown_has_no_fork_left_in_hedge_timing_or_the_criteria_library():
     """`hedge_timing` carried a documented verbatim fork of this body until
-    2026-09-07, kept so `bear_deploy`'s recorded D3 numbers could not move.
+    2026-09-07, kept so `hedge_sizing`'s recorded D3 numbers could not move.
     The fork is gone; this identity is what now holds that commitment."""
     from scripts.backtest_study.f5_hedging import hedge_timing
     from scripts.backtest_study.lib import hedge_criteria
@@ -310,7 +310,7 @@ def test_realized_basis_is_byte_identical_to_account_sim_equity_curve():
     restated on the open-session axis, not recomputed differently.
 
     Positions are built from each row's STORED outcome, which is what
-    `hedge_exposure.book_positions` does since the 2026-08-29 errata (F2). It
+    `hedge_portfolio.book_positions` does since the 2026-08-29 errata (F2). It
     used to build them from a `replay_sized(..., 1000.0)` REPLAY and then
     assert G-MTM passed — an assertion that could only hold while the gate
     compared that replay against itself. Now that the gate reconciles the

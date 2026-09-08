@@ -1,6 +1,6 @@
-"""Tests for `calendar_hedge`'s R4 gate — the same-run construction comparison.
+"""Tests for `hedge_structure`'s R4 gate — the same-run construction comparison.
 
-R4 asks whether `calendar_hedge.build_universe`/`evaluate` has drifted from the
+R4 asks whether `hedge_structure.build_universe`/`evaluate` has drifted from the
 construction `vol_sleeve.synthesize` performs inline. It used to ask that by
 comparing against `R4_EXPECT = dict(n=183, mean_r=0.158, dollars=28059.0, ...)`,
 transcribed from vol_sleeve's 2026-08-12 report — two unknowns (this code, and
@@ -35,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.backtest_study.f5_hedging import calendar_hedge as C  # noqa: E402
+from scripts.backtest_study.f5_hedging import hedge_structure as C  # noqa: E402
 from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 
 
@@ -113,7 +113,7 @@ def test_r4_carries_no_transcribed_expectation():
     # one run. A code-behaviour claim needing a fixed expectation belongs in
     # this directory against a committed fixture, not in the study.
     for name in ("R4_EXPECT", "R4_DOLLAR_TOL", "R3_EXPECT", "VOL_SLEEVE_RUN"):
-        assert not hasattr(C, name), f"{name} is back in calendar_hedge"
+        assert not hasattr(C, name), f"{name} is back in hedge_structure"
 
 
 def test_the_snapshot_subtraction_machinery_is_gone():
@@ -121,7 +121,7 @@ def test_the_snapshot_subtraction_machinery_is_gone():
     # inverse that only held while every later addition was manifested too.
     for name in ("SNAPSHOT_STRUCTURE", "manifest_additions", "snapshot_index",
                  "LEGS_MANIFEST", "_r4_attribute"):
-        assert not hasattr(C, name), f"{name} is back in calendar_hedge"
+        assert not hasattr(C, name), f"{name} is back in hedge_structure"
 
 
 # ── the checkpoint store is keyed on its cache generation ────────────────────

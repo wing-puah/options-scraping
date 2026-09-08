@@ -8,7 +8,7 @@ which Sheets export the numbers rested on. All three were remembered wrong at
 least once.
 
     python -m scripts.backtest_study list
-    python -m scripts.backtest_study run bear_deploy
+    python -m scripts.backtest_study run hedge_sizing
     python -m scripts.backtest_study run exit_mechanism_study --side credit
     python -m scripts.backtest_study run --all
 
@@ -151,7 +151,7 @@ class Arm:
     #: is a SENSITIVITY of the same run — `account_sim --compounding` shares one
     #: parser with its parent, so `-- --side credit --compounding` is coherent.
     #: FALSE for an arm that is a different POPULATION with its own parser:
-    #: `hedge_exposure --admitted` has one population and therefore no
+    #: `hedge_portfolio --admitted` has one population and therefore no
     #: `--sources`, so inheriting `-- --sources real` would hand it a flag it
     #: cannot parse and argparse's exit 2 would then be reported as the era
     #: refusal that shares that code.
@@ -174,8 +174,8 @@ STUDY_ARMS = {
     # (`hedge_concentration`) until 2026-09-07. It is the same question at a
     # second scope, so it is an ARM of the study that asks it on the whole book
     # and files under its own stem. `run --all` runs both, which is what the
-    # separate module gave us and what a bare `run hedge_exposure` must keep.
-    "hedge_exposure": (
+    # separate module gave us and what a bare `run hedge_portfolio` must keep.
+    "hedge_portfolio": (
         Arm(suffix="admitted", args=("--admitted",), inherit_caller_args=False),
     ),
 }
@@ -192,13 +192,13 @@ STUDY_ARMS = {
 CALLER_ARMS = {
     "account_sim": (("--live-select", "live-select"),),
     # `--admitted` is BOTH an extra arm above and a caller arm here, and it has
-    # to be. Without this entry an explicit `run hedge_exposure -- --admitted`
-    # would file the ADMITTED report under the bare `hedge_exposure` stem —
+    # to be. Without this entry an explicit `run hedge_portfolio -- --admitted`
+    # would file the ADMITTED report under the bare `hedge_portfolio` stem —
     # arm_plan() suppresses the extra arm when the caller already passed its
     # flag — and overwrite the whole-book report every recorded conclusion
     # rests on. With it, the explicit call lands on the same stem the extra arm
     # writes, and runs once.
-    "hedge_exposure": (("--admitted", "admitted"),),
+    "hedge_portfolio": (("--admitted", "admitted"),),
 }
 
 # ── where the studies live ───────────────────────────────────────────────────

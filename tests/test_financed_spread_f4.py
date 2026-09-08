@@ -275,7 +275,7 @@ def test_entry_price_carries_the_prior_mark_forward_when_the_entry_day_has_neith
     when the entry-day row has no positive Open and no mark (an illiquid leg
     with bid 0). The study's reconstruction must do the same, or a row that
     production priced fails `reconstructs` as `entry_unpriced` for no reason
-    but the mirror being incomplete (UTHR 2025-12-17, calendar_hedge R2)."""
+    but the mirror being incomplete (UTHR 2025-12-17, hedge_structure R2)."""
     day0, day1 = ENTRY, ENTRY + timedelta(days=1)
     cache(SHORT, {day0: 2.875, day1: None})
     # The entry-day row exists (so `entry_date_for` accepts the day) but

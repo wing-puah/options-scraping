@@ -9,7 +9,7 @@ common way to hit this: `account_sim-latest.txt` is whichever arm ran last,
 which is not necessarily the arm that wrote `account_sim-positions-latest.csv`.)
 
 Two estimators are borrowed rather than reinvented: `max_drawdown` from
-`bear_deploy` (it seeds the running peak at zero, so a book that opens underwater
+`hedge_sizing` (it seeds the running peak at zero, so a book that opens underwater
 counts that as drawdown) and `boot_ci_by_date` from `protocol` (the date-clustered
 bootstrap the study's own A1 line uses). Reimplementing either would produce
 numbers that disagree with the report in kind rather than in value.
@@ -22,7 +22,7 @@ from pathlib import Path
 from statistics import fmean, median
 
 from scripts.backtest_study.lib import protocol as P
-from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown
+from scripts.backtest_study.f5_hedging.hedge_sizing import max_drawdown
 
 # The order the report lists them in: taken first, then the exclusion buckets.
 CENSUS_ORDER = [

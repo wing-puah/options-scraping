@@ -1,8 +1,8 @@
-"""The CONCENTRATION series and its trigger — `hedge_exposure`'s independent
+"""The CONCENTRATION series and its trigger — `hedge_portfolio`'s independent
 variable.
 
 Implements the Arms section of
-`research/pre-registrations/f5_hedging/hedge_exposure.md`: the per-session
+`research/pre-registrations/f5_hedging/hedge_portfolio.md`: the per-session
 open-book reconstruction, the per-cluster signed delta-notional, the
 concentration measure the committed tau grid is applied to, the
 DIRECT/CONSTITUENT stratification the study's binding asymmetric reading rule

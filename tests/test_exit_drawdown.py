@@ -442,7 +442,7 @@ def test_the_volume_probe_skips_missing_sessions_like_the_rule_does():
 
 
 def test_dd_improvement_is_positive_when_the_drawdown_shrinks():
-    """Signed through `hedge_exposure.improvement`, so the two studies cannot
+    """Signed through `hedge_portfolio.improvement`, so the two studies cannot
     drift on what "improved" means: max_dd is <= 0 and less negative wins."""
     import scripts.backtest_study.lib.mtm_curve as M
 

@@ -11,7 +11,7 @@ imported so that a change elsewhere could not move their recorded numbers.
 
 That is a commitment about NUMBERS, not about intent, so this module is the
 copies' origin transcribed rather than re-derived. **The reference is
-`f5_hedging/bear_deploy.py`** — `D2` at its `daily_series`/`d2_hedge` and
+`f5_hedging/hedge_sizing.py`** — `D2` at its `daily_series`/`d2_hedge` and
 `D3` at its `_sleeve_dollars`/`_sweep`/`_verdict`/`d3_sizing` — because it is
 the origin the other modules name. Every threshold, tie-break and comparison
 below is that module's, moved without an "improvement": the `max(3, n // 10)`
@@ -26,7 +26,7 @@ would silently rewrite what those records mean. The functions here return the
 figures; the study prints them.
 
 **No grid.** A study that narrows its fraction grid is making a registered
-choice (`bear_deploy` D3 sweeps four fractions, `hedge_timing` ARM H4 two), so
+choice (`hedge_sizing` D3 sweeps four fractions, `hedge_timing` ARM H4 two), so
 the grid is a parameter and never a default. ARM H4 does not call `sweep` at
 all: its policy paths carry a gate-vetoed date at `f = 0` rather than dropping
 it, and its pick is over trigger-gated policies only, so it builds its own
@@ -48,7 +48,7 @@ from dataclasses import dataclass, field
 
 from scripts.backtest_study.lib.mtm_curve import max_drawdown  # noqa: F401  (re-export)
 
-# ── the criteria's constants, all of them bear_deploy's ──────────────────────
+# ── the criteria's constants, all of them hedge_sizing's ──────────────────────
 
 #: A cell below this many overlapping dates is not evaluated at all.
 MIN_COMMON_DATES = 20
@@ -104,7 +104,7 @@ def common_dates(dep, bear) -> list[str]:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# The hedge-contribution criterion (bear_deploy D2)
+# The hedge-contribution criterion (hedge_sizing D2)
 # ════════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
@@ -140,8 +140,8 @@ def year_tails(dates, key, min_dates: int = MIN_YEAR_DATES,
     year is the date's first four characters, a year below `min_dates` is
     reported unevaluated, and the tail is the `max(tail_min, n // 4)` worst.
     `key` is a parameter because the studies order a year by different
-    quantities — `bear_deploy` D2 by the deployed book's mean return, and
-    `calendar_hedge` H2(c) by its daily dollars. `sorted` is stable, so ties
+    quantities — `hedge_sizing` D2 by the deployed book's mean return, and
+    `hedge_structure` H2(c) by its daily dollars. `sorted` is stable, so ties
     keep the order `dates` gave them.
 
     What each caller MEASURES on the returned tail stays with the caller: D2
@@ -252,7 +252,7 @@ def hedge_contribution(dep, bear, min_common: int = MIN_COMMON_DATES
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# The sizing criterion (bear_deploy D3)
+# The sizing criterion (hedge_sizing D3)
 # ════════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
@@ -283,7 +283,7 @@ def sleeve_pick(rows, picker, gate=None, date_key="date", dates=None):
 
     The picking rule on its own, with what is then read off the chosen row left
     to the caller: `sleeve_dollars` takes a stored dollar column,
-    `calendar_hedge.bear_sleeve_dollars` replays the pick and prices it. Both
+    `hedge_structure.bear_sleeve_dollars` replays the pick and prices it. Both
     are the same sleeve.
 
     `picker(row)` returning None drops that row; a day on which nothing is
@@ -359,7 +359,7 @@ def unharmed(mdd: float, worst: float, base_mdd: float, base_worst: float,
     Both comparisons, drawdown and worst date, against the `f = 0` baseline
     with `eps` of slack so an exactly-equal path counts as unharmed. This is
     the one body; `qualifies` is the `SweepRow` form of it, and `hedge_timing`
-    ARM H4 and `bear_deploy` D5, which build their own daily paths, call this
+    ARM H4 and `hedge_sizing` D5, which build their own daily paths, call this
     form directly.
     """
     return mdd >= base_mdd - eps and worst >= base_worst - eps

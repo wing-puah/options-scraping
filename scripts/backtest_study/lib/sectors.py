@@ -1,7 +1,7 @@
 """The ticker -> correlated-cluster map: the repo's SINGLE encoding.
 
 Transcribed verbatim from the COMMITTED constant in
-`research/pre-registrations/f5_hedging/hedge_exposure.md` §"Population and
+`research/pre-registrations/f5_hedging/hedge_portfolio.md` §"Population and
 basis, fixed here" — 11 clusters, one proxy instrument each, residual BROAD ->
 SPY, and four clusters marked UNHEDGEABLE. That file fixed the map before any
 concentration or outcome column was computed and forbids editing it after
@@ -11,14 +11,14 @@ proxies and unhedgeable set may NOT change.
 Shared, not study-local, per the same section's commitment: *"Two maps would
 let two studies disagree about what 'same sector' means, which is the failure
 mode `mapping.CONFIDENCES` and `ladder_tier()` exist to prevent."*
-`hedge_exposure` (f4) uses it for the concentration trigger and the proxy
+`hedge_portfolio` (f4) uses it for the concentration trigger and the proxy
 instrument; `concurrency_correlation`'s ARM K (registered 2026-08-22) imports
 it rather than restating it.
 
 The two callers need DIFFERENT residual behaviour and both are provided, so
 neither has to re-encode the map to get it:
 
-- `cluster_for()` applies `hedge_exposure`'s committed residual rule — every
+- `cluster_for()` applies `hedge_portfolio`'s committed residual rule — every
   ticker not named in a cluster is BROAD, hedged with SPY.
 - `named_cluster_for()` returns None for exactly those tickers, which is what
   `concurrency_correlation` commits to instead: an unmapped ticker "is its own
@@ -49,7 +49,7 @@ from scripts.backtest_study.lib.underlying import rescaled_tickers  # noqa: E402
 
 # Where the map is committed. Quoted in report censuses so a reader can find
 # the immutable source rather than trusting this file.
-MAP_SOURCE = "research/pre-registrations/f5_hedging/hedge_exposure.md"
+MAP_SOURCE = "research/pre-registrations/f5_hedging/hedge_portfolio.md"
 
 BROAD = "BROAD"
 
@@ -57,7 +57,7 @@ BROAD = "BROAD"
 #           already holds).
 # CONSTITUENT = a single name inside the proxy — the operator's literally
 #           described practice. The two are never pooled in a verdict
-#           (hedge_exposure's binding asymmetric reading rule).
+#           (hedge_portfolio's binding asymmetric reading rule).
 DIRECT = "DIRECT"
 CONSTITUENT = "CONSTITUENT"
 
@@ -184,13 +184,13 @@ def named_cluster_for(ticker: str) -> str | None:
 
     This is `concurrency_correlation`'s residual rule — an unmapped ticker is
     its own bucket and is never folded into a named sector. Callers wanting
-    `hedge_exposure`'s residual (BROAD) want `cluster_for` instead.
+    `hedge_portfolio`'s residual (BROAD) want `cluster_for` instead.
     """
     return _BY_TICKER.get(_norm(ticker))
 
 
 def cluster_for(ticker: str) -> str:
-    """The cluster name for `ticker`, applying `hedge_exposure`'s committed
+    """The cluster name for `ticker`, applying `hedge_portfolio`'s committed
     residual rule: every ticker not named in the map is BROAD (proxy SPY)."""
     return _BY_TICKER.get(_norm(ticker), BROAD)
 
@@ -237,7 +237,7 @@ def unhedgeable() -> dict[str, str]:
 
 def stratum(ticker: str) -> str:
     """DIRECT when the position IS its cluster's proxy instrument, else
-    CONSTITUENT — the split every hedge_exposure result must be stratified on.
+    CONSTITUENT — the split every hedge_portfolio result must be stratified on.
 
     Derived from the map, never stored: a DIRECT position is one whose ticker
     equals the proxy of the cluster it resolves to. Note that a proxy NOT

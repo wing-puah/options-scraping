@@ -1,7 +1,7 @@
-"""The MARK-TO-MARKET book equity curve — the basis `hedge_exposure` concludes from.
+"""The MARK-TO-MARKET book equity curve — the basis `hedge_portfolio` concludes from.
 
 Implements the "Population and basis" bullet on the equity curve and gate
-**G-MTM** of `research/pre-registrations/f5_hedging/hedge_exposure.md`, plus
+**G-MTM** of `research/pre-registrations/f5_hedging/hedge_portfolio.md`, plus
 the primary / co-primary path metrics under §"Unit and metric" (max drawdown in
 dollars, Ulcer index, time-under-water).
 
@@ -9,7 +9,7 @@ dollars, Ulcer index, time-under-water).
 `account_sim.equity_curve()` buckets a position's whole result on its
 `exit_sess`, and its own `print_equity()` says so: *"Open positions are not
 marked to market, so this understates intra-position drawdown."* Every hedge
-verdict on record (`bear_deploy` D3, `calendar_hedge` H3, `hedge_timing` H4)
+verdict on record (`hedge_sizing` D3, `hedge_structure` H3, `hedge_timing` H4)
 rests on that curve — while a hedge's function is precisely to cushion the
 intra-position path the curve omits. This module builds the curve that does not
 omit it, and returns BOTH curves from one call so a caller cannot silently mix
@@ -55,7 +55,7 @@ recorded for it — `realized_pnl_abs`, the column `simulate.py` wrote, read off
 the row and never off the caller.
 
 That target matters, and it is the 2026-08-29 errata's F2. This gate used to
-compare `mtm_at_exit` against `pos.dollars`, which `hedge_exposure` filled from
+compare `mtm_at_exit` against `pos.dollars`, which `hedge_portfolio` filled from
 the same `replay_sized()` call it took `days_held` from: one replay on both
 sides of an equals sign, a gate that passed 485/485 at $0.0000 because it could
 not do anything else. It now compares two INDEPENDENT stored columns — the
@@ -105,7 +105,7 @@ REALIZED = "realized_on_close"
 #   TARGET_STORED   the row's own stored `realized_pnl_abs` (fallback `R_dol`),
 #                   at the ROW's contract count and stored exit. The default,
 #                   and the only meaningful target for a book held at the row's
-#                   own size (hedge_exposure; errata F2).
+#                   own size (hedge_portfolio; errata F2).
 #   TARGET_POSITION the position's own `dollars` — for a book whose positions
 #                   were RE-SIZED and RE-EXITED by a replay (account_sim's
 #                   admitted book), where the stored column describes a
@@ -133,7 +133,7 @@ class Curve:
     """A book equity curve on the session axis.
 
     `daily` is the per-session CHANGE in book equity — the shape
-    `bear_deploy.max_drawdown` and `account_sim.equity_curve` both speak — and
+    `hedge_sizing.max_drawdown` and `account_sim.equity_curve` both speak — and
     `levels` is its running sum, i.e. cumulative book P&L from a zero start.
     """
     basis: str
@@ -475,11 +475,11 @@ def max_drawdown(series):
     never gets above flat still reports its full fall. The return is <= 0.
 
     THE research tier's one drawdown implementation. It lived in
-    `f5_hedging/bear_deploy.py` until 2026-08-29 and was imported UPWARDS
+    `f5_hedging/hedge_sizing.py` until 2026-08-29 and was imported UPWARDS
     from here — a `lib/` module executing an f4 study at import time. Moved
     here (this module already owns Ulcer and time-under-water, which speak the
-    same shape) and re-exported by `bear_deploy` under its old name, so
-    `bear_deploy` D3's dollar-drawdown criterion and this study's clause 1 are
+    same shape) and re-exported by `hedge_sizing` under its old name, so
+    `hedge_sizing` D3's dollar-drawdown criterion and this study's clause 1 are
     the same function object and cannot drift apart. Behaviour is byte-for-byte
     what it was.
     """
@@ -538,8 +538,8 @@ def path_stats(curve: Curve, capital: float) -> PathStats:
     """The study's primary + co-primary metrics for one curve.
 
     `max_dd` is this module's own `max_drawdown` (see its docstring) on the
-    per-session changes — `bear_deploy` imports that function back from here,
-    so `bear_deploy` D3's dollar-drawdown criterion and this study's bar stay
+    per-session changes — `hedge_sizing` imports that function back from here,
+    so `hedge_sizing` D3's dollar-drawdown criterion and this study's bar stay
     the same function object rather than two implementations.
     """
     if not curve.sessions:

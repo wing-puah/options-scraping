@@ -3,7 +3,7 @@ Clear out `backtests/study_output/` — the study runner's scratch report direct
 
 Every `python -m scripts.backtest_study run <name>` writes a stamped
 `<name>-<stamp>.txt` AND a full copy at `<name>-latest.txt`, so the directory
-fills up with duplicate report text (nine `calendar_hedge` runs in one
+fills up with duplicate report text (nine `hedge_structure` runs in one
 afternoon, at the time this was written). The tree is gitignored scratch: there
 is no history to recover from, so deletion here is final.
 
@@ -59,8 +59,8 @@ LATEST_SUFFIXES = ("-latest.txt", "-latest.csv", "-latest.md")
 # gate reads the report directory must register its marker here, or a cleanup
 # can silently revoke that gate.
 #
-#   "H2 (primary)"  — scripts/backtest_study/f5_hedging/calendar_hedge.py:1266 globs every
-#                     calendar_hedge-*.txt for this line before it will run ARM
+#   "H2 (primary)"  — scripts/backtest_study/f5_hedging/hedge_structure.py:1266 globs every
+#                     hedge_structure-*.txt for this line before it will run ARM
 #                     S. Only stamped reports carry it; -latest.txt may not.
 GATE_MARKERS = ("H2 (primary)",)
 

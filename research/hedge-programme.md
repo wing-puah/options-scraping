@@ -6,6 +6,17 @@ thing you put on pays for itself has never been powered. Nothing ships from any
 of it, and [§4](../docs/deployment-rules.md#s4) keeps its one bear sleeve as
 operator policy.
 
+**Three studies were renamed on 2026-09-08 after the question each answers.**
+Every label, gate and figure is unchanged; the archive and the frozen records
+keep the old names, and git holds the rename.
+
+| Was | Is | Question |
+|---|---|---|
+| `bear_deploy` | `hedge_sizing` | [Q3](#q3), and the origin of `D2`/`D3` |
+| `calendar_hedge` | `hedge_structure` | [Q2](#q2) |
+| `hedge_exposure` | `hedge_portfolio` | [Q4](#q4) |
+| `hedge_timing` | unchanged | [Q1](#q1) |
+
 _Written 2026-09-07. Every verdict below is the last recorded run of that study:
 era `v4`, git sha `e59356f`, recorded 2026-09-04. The population on every one of
 them is 535 real results, 1,303 proxy rows, 2,212 analysis rows and 819
@@ -53,9 +64,8 @@ reason to hedge, on the paired excess in the table below.
 
 `hedge_concentration` asks the prior question, whether a session's cluster
 concentration predicts the book's later drawdown at all
-([pre-registration](pre-registrations/f5_hedging/hedge_concentration.md),
-[record](study-results/f5_hedging/hedge_concentration.md),
-[labels](arm-index.md#hedge_concentration)).
+([DELETED row](study-map.md#hedging), its registration and record deleted
+2026-09-08 and held in git at `44bbfb2`; [labels](arm-index.md#hedge_concentration)).
 
 | Stage | Verdict, as printed |
 |---|---|
@@ -84,11 +94,11 @@ and stays closed.
 each stopped for a different reason. Nothing here refutes an instrument. It
 leaves them unmeasured.
 
-The bear put debit is the shipped one. `bear_deploy` asks whether it pays as a
+The bear put debit is the shipped one. `hedge_sizing` asks whether it pays as a
 hedge and which one to pick
-([pre-registration](pre-registrations/f5_hedging/bear_deploy.md),
-[record](study-results/f5_hedging/bear_deploy.md),
-[labels](arm-index.md#bear_deploy)).
+([pre-registration](pre-registrations/f5_hedging/hedge_sizing.md),
+[record](study-results/f5_hedging/hedge_sizing.md),
+[labels](arm-index.md#hedge_sizing)).
 
 | Criterion | Verdict, as printed |
 |---|---|
@@ -98,18 +108,18 @@ hedge and which one to pick
 
 The straddle, the strangle and the calendar were built and priced by
 `vol_sleeve` on the dates the engine already signalled
-([pre-registration](pre-registrations/f5_hedging/vol_sleeve.md),
-[record](study-results/f5_hedging/vol_sleeve.md)). Its diversification
+([DELETED row](study-map.md#hedging); its registration and record were deleted
+2026-09-08 and are held in git at `44bbfb2`). Its diversification
 question, whether the sleeve is anti-correlated with the deployed book or
 positive on that book's worst dates, came back null. Only the calendar carried a
 negative correlation. The straddle and the strangle re-wrap the exposure the
 book already has.
 
 The calendar was then re-derived on its own, under a pre-registered pick rule
-and a strict fill rule, by `calendar_hedge`
-([pre-registration](pre-registrations/f5_hedging/calendar_hedge.md),
-[record](study-results/f5_hedging/calendar_hedge.md),
-[labels](arm-index.md#calendar_hedge)).
+and a strict fill rule, by `hedge_structure`
+([pre-registration](pre-registrations/f5_hedging/hedge_structure.md),
+[record](study-results/f5_hedging/hedge_structure.md),
+[labels](arm-index.md#hedge_structure)).
 
 | Gate | Verdict, as printed |
 |---|---|
@@ -124,7 +134,7 @@ because its worst-decile cell never reaches the pre-registered floor of 10
 positions. On `v3` the fill gate passed and the primary was still not evaluable.
 `vol_sleeve` stopped for a different reason. Its correlation question was
 answered and the answer was no, and nothing in that study can ship on its own.
-`bear_deploy` stopped for a third reason. It ran clean and shipped no rule
+`hedge_sizing` stopped for a third reason. It ran clean and shipped no rule
 because it was registered to ship none.
 
 | Line | 2026-09-04 export, recorded | live tabs 2026-09-07, projection |
@@ -137,11 +147,11 @@ because it was registered to ship none.
 
 The projection column is not a recorded run. It was taken on staged tabs and
 appended to no record
-([sizing](current.md#2026-09-07-fourth--calendar_hedge--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
+([sizing](current.md#2026-09-07-fourth--hedge_structure--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
 
 **What would unblock it.** [`next-steps.md`](next-steps.md) §2.3 for the
 calendar, blocked on new dates and sized at roughly 320 deployed dates. For the
-bear put debit it is `bear_deploy`'s own forward trigger, a re-grade once the
+bear put debit it is `hedge_sizing`'s own forward trigger, a re-grade once the
 book holds at least 20 multi-candidate bear dates after 2026-08-11. `vol_sleeve`
 carries no queue item at all.
 
@@ -149,23 +159,23 @@ carries no queue item at all.
 ## Q3. HOW MUCH to hedge
 
 **No size has ever been supported by evidence, and the half-position line is
-policy.** The sizing criterion is one rule, written once in `bear_deploy` and
+policy.** The sizing criterion is one rule, written once in `hedge_sizing` and
 then reused verbatim by two other studies. It reads the largest fraction whose
 [maxDD](glossary.md#maxdd) and worst single date are both no worse than carrying
 no sleeve.
 
 | Study | Criterion | Verdict, as printed |
 |---|---|---|
-| `bear_deploy` | `D3` | `D3 always-on sizing       : NOT MET at any size` |
+| `hedge_sizing` | `D3` | `D3 always-on sizing       : NOT MET at any size` |
 | `hedge_timing` | `ARM H4` | `ARM H4-CHOP        : NULL` |
 | `hedge_timing` | `ARM H4` | `ARM H4-DECLINE     : NULL` |
-| `calendar_hedge` | `H3` | not reached, the study stops at `H0 FILL           NOT MET` |
+| `hedge_structure` | `H3` | not reached, the study stops at `H0 FILL           NOT MET` |
 
-`hedge_exposure` sweeps a size fraction against a concentration threshold, nine
+`hedge_portfolio` sweeps a size fraction against a concentration threshold, nine
 cells in all
-([pre-registration](pre-registrations/f5_hedging/hedge_exposure.md),
-[record](study-results/f5_hedging/hedge_exposure.md),
-[labels](arm-index.md#hedge_exposure)). Every cell of the ratified population is
+([pre-registration](pre-registrations/f5_hedging/hedge_portfolio.md),
+[record](study-results/f5_hedging/hedge_portfolio.md),
+[labels](arm-index.md#hedge_portfolio)). Every cell of the ratified population is
 power-stopped.
 
 | Stratum | Verdict, as printed |
@@ -188,13 +198,13 @@ the same way that curve missed 40% of the drawdown.
 
 That gap is a fact about the basis and not a correction factor for any of the
 three figures
-([basis](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m)).
-`calendar_hedge` `H3` compounds it. It read `NOT MET`, then deployable at full
+([basis](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_portfolio-arm-m)).
+`hedge_structure` `H3` compounds it. It read `NOT MET`, then deployable at full
 size, then `NOT MET` on three consecutive exports, so it is recorded as an
 unstable measurement rather than a verdict.
 
 **What would unblock it.** [`next-steps.md`](next-steps.md) §2.3 for
-`calendar_hedge` `H3`, which also carries the basis caveat. `hedge_exposure`
+`hedge_structure` `H3`, which also carries the basis caveat. `hedge_portfolio`
 carries no numbered item. Its registration forbids searching for a threshold
 that would power a cell, so the only path is the book accruing more trigger
 dates. Any future read that wants to conclude about drawdown computes the
@@ -236,7 +246,7 @@ The two clauses that passed are the controls, so this is not a gross-exposure
 effect wearing a concentration label. It is no effect. That run is written up in
 [deployment-evidence](deployment-evidence.md#the-queued-max-drawdown-question-is-closed-for-concentration-gated-hedging-2026-09-04-hedge_concentration-stage-1).
 
-`hedge_exposure` is the same question one layer out, on the whole book rather
+`hedge_portfolio` is the same question one layer out, on the whole book rather
 than the admitted one. Its cells are all power-stopped, so it says nothing about
 composition either. Its measurement arm is the one part of the hedge programme
 that produced a usable number, and it is a fact about the measuring instrument
@@ -255,7 +265,7 @@ report rather than an arm to conclude from.
 **What would unblock it.** Nothing, on this question.
 [`next-steps.md`](next-steps.md) §2.1 is closed and a fourth trigger study over
 these dates and these columns is ruled out. The successor question is §2.10. The
-one deferred piece is `hedge_exposure`'s corrected prose control, to be
+one deferred piece is `hedge_portfolio`'s corrected prose control, to be
 registered only when the book holds materially more parsed dates.
 
 <a id="dependency"></a>
@@ -264,7 +274,7 @@ registered only when the book holds materially more parsed dates.
 **The four questions were answered in the inverted order, and Q1 is now the link
 that blocks the rest.** The bear sleeve was an existing operator practice before
 any study touched it. So the instrument and its size were the first things
-written down, in `bear_deploy`, and both came back unmet. The trigger studies
+written down, in `hedge_sizing`, and both came back unmet. The trigger studies
 came second, once there was a sleeve whose timing could be asked about.
 
 That order left the programme with a sleeve it keeps, a size it holds as policy,
@@ -278,7 +288,7 @@ signal the book does not carry yet, meaning hedge flow in the analysis or a live
 exposure reading from the journal, censused before it is registered.
 
 `bear_rewrap` is a structure study and not part of this programme, and
-`calendar_hedge` imports its reconstruction and pricing machinery rather than
+`hedge_structure` imports its reconstruction and pricing machinery rather than
 its verdict ([labels](arm-index.md#bear_rewrap),
 [record](study-results/f3_structure/bear_rewrap.md)).
 
@@ -287,6 +297,6 @@ its verdict ([labels](arm-index.md#bear_rewrap),
 
 | Wall | Size | What it binds |
 |---|---|---|
-| worst-decile deployed dates | 14 recorded, about 16 on the staged tabs | every worst-decile reading, `bear_deploy` `D2`, `calendar_hedge` `H2`, `vol_sleeve` Q2 |
-| `calendar_hedge` fill, not date count | 31% of worst-decile dates fill, so a cell of 10 needs about 320 deployed dates, twice the book | `calendar_hedge` `H0` and `H2` |
-| option-history cache completeness | six files were missing on 2026-09-07 and were restored from the 2026-09-05 Drive snapshot; `R2` passes again | `calendar_hedge` exits 1 at `R2` on any missing leg, and the backtest refreshes stale files in place, so the count moves while a queue runs |
+| worst-decile deployed dates | 14 recorded, about 16 on the staged tabs | every worst-decile reading, `hedge_sizing` `D2`, `hedge_structure` `H2`, `vol_sleeve` Q2 |
+| `hedge_structure` fill, not date count | 31% of worst-decile dates fill, so a cell of 10 needs about 320 deployed dates, twice the book | `hedge_structure` `H0` and `H2` |
+| option-history cache completeness | six files were missing on 2026-09-07 and were restored from the 2026-09-05 Drive snapshot; `R2` passes again | `hedge_structure` exits 1 at `R2` on any missing leg, and the backtest refreshes stale files in place, so the count moves while a queue runs |

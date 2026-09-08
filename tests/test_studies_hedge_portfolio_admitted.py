@@ -1,7 +1,7 @@
-"""`hedge_exposure --admitted` — the claims that live in CODE, not in a report.
+"""`hedge_portfolio --admitted` — the claims that live in CODE, not in a report.
 
 This was `f5_hedging/hedge_concentration.py` until 2026-09-07, when it was
-merged into `hedge_exposure` as that module's ADMITTED arm and deleted. The
+merged into `hedge_portfolio` as that module's ADMITTED arm and deleted. The
 registration is unchanged and immutable
 (`research/pre-registrations/f5_hedging/hedge_concentration.md`), so every
 assertion below is the one it always was — only the module it reads has moved.
@@ -24,7 +24,7 @@ wrong while printing a clean report:
     it exits 1 and the runner deletes `-latest.txt`.
   * the committed constants that belong to `lib/` are IMPORTED from it, and the
     tau grid that does NOT — this study's registration fixes its own
-    {0.45, 0.55, 0.65} against `hedge_exposure`'s {0.30, 0.35, 0.40} — is
+    {0.45, 0.55, 0.65} against `hedge_portfolio`'s {0.30, 0.35, 0.40} — is
     stated here and is deliberately not `C.TAU_GRID`. Sharing that constant
     would silently run the study on a trigger nobody registered.
   * `stage1_verdict` maps the registration's four words EXACTLY. A module that
@@ -53,8 +53,8 @@ from pathlib import Path
 import pytest
 
 from scripts.backtest_study.f4_deployment import account_sim as A
-from scripts.backtest_study.f5_hedging import hedge_exposure as HC
-from scripts.backtest_study.f5_hedging import hedge_exposure as HE
+from scripts.backtest_study.f5_hedging import hedge_portfolio as HC
+from scripts.backtest_study.f5_hedging import hedge_portfolio as HE
 from scripts.backtest_study.lib import concentration as C
 from scripts.backtest_study.lib import forward_drawdown as F
 from scripts.backtest_study.lib import hedge_instrument as HI
@@ -63,7 +63,7 @@ from scripts.backtest_study.lib import protocol as P
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = (ROOT / "scripts" / "backtest_study" / "f5_hedging"
-          / "hedge_exposure.py")
+          / "hedge_portfolio.py")
 
 #: The merged file carries BOTH arms. Every source-level assertion here is
 #: about the ADMITTED one, so slice it out by the banner comments that fence
@@ -161,7 +161,7 @@ def test_library_constants_are_the_library_objects() -> None:
 
 def test_the_tau_grid_is_this_studys_own_registered_triple() -> None:
     """The registration fixes {0.45, 0.55, 0.65} — the ADMITTED book's median,
-    p75 and p90 — against `hedge_exposure`'s {0.30, 0.35, 0.40} on a book more
+    p75 and p90 — against `hedge_portfolio`'s {0.30, 0.35, 0.40} on a book more
     than twice as diversified. Sharing `C.TAU_GRID` would silently run this
     study on a trigger it did not register."""
     assert HC.TAU_GRID_ADMITTED == (0.45, 0.55, 0.65)
@@ -185,7 +185,7 @@ def test_bonferroni_denominator_is_the_registered_nine_cells() -> None:
 
 
 def test_the_comparison_taus_are_not_cells() -> None:
-    """`hedge_exposure`'s taus are printed for continuity. Registering them as
+    """`hedge_portfolio`'s taus are printed for continuity. Registering them as
     cells here would be the post-hoc threshold search the registration bans."""
     assert set(HC.COMPARISON_TAUS).isdisjoint(HC.TAU_GRID_ADMITTED)
 
@@ -386,7 +386,7 @@ def test_a_hedge_that_reduces_net_delta_is_admitted_where_one_that_adds_is_not()
 
 def test_a_sub_one_contract_hedge_is_skipped_not_floored_to_one() -> None:
     """`account_sim` ARM H's convention, which the registration names. The
-    planner is `hedge_exposure`'s, imported rather than copied, so the two
+    planner is `hedge_portfolio`'s, imported rather than copied, so the two
     studies cannot come to size a hedge differently."""
     assert HC.plan_episode_admitted.__module__ == HC.__name__
     assert HE._contracts_for(500.0, 0.25, 500.0) == 0     # int(0.25 x 1)
@@ -584,12 +584,12 @@ def test_stage_one_statistics_are_the_library_functions() -> None:
 
 
 def test_every_clause_is_computed_inside_the_stratified_loop() -> None:
-    """`hedge_exposure`'s errata F9 rule, on this arm's own Stage 2 loop.
+    """`hedge_portfolio`'s errata F9 rule, on this arm's own Stage 2 loop.
 
     The binding rule says results are ALWAYS stratified, so nothing that
     computes a clause may sit outside the per-stratum loop. The whole-book arm
     asserts the same thing about its own loop in
-    tests/test_studies_hedge_exposure.py; this is the admitted arm's, keyed on
+    tests/test_studies_hedge_portfolio.py; this is the admitted arm's, keyed on
     the names the merge gave it.
     """
     loops = [n for n in ast.walk(TREE) if isinstance(n, ast.For)

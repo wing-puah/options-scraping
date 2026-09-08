@@ -16,10 +16,10 @@ a bare `ARM P`.
 
 - **`P`** — **four** arms: `emission_timing`, `macro_event_study`,
   `bear_giveback`, `bear_rewrap` — plus `P1`/`P2` sub-parts in `bear_rewrap`
-  (the arm's own two halves) and `calendar_hedge` (an unrelated `P1`, the
+  (the arm's own two halves) and `hedge_structure` (an unrelated `P1`, the
   hedge sleeve itself).
 - **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
-  `trigger_entry`) — and `bear_deploy`'s `D1`–`D5`, which are criteria, not
+  `trigger_entry`) — and `hedge_sizing`'s `D1`–`D5`, which are criteria, not
   `ARM D`.
 - **`T`** — **three** arms: `staged_exit` (tighten / arm-trail, a fork of the
   replay engine), `trigger_entry` (trigger-gated ENTRY) and
@@ -34,8 +34,8 @@ a bare `ARM P`.
   random-universe base-rate null). Nothing alike beyond the letter.
 - **`L`** — two arms: `emission_timing` (fill lag) and `trigger_entry` (the
   unconditional-lag control, deliberately matched to it).
-- **`H`** — two arms (`account_sim`, `calendar_hedge`); `H1`–`H4` hypotheses
-  in `macro_event_study`; `H0`–`H5` criteria in `calendar_hedge`, which
+- **`H`** — two arms (`account_sim`, `hedge_structure`); `H1`–`H4` hypotheses
+  in `macro_event_study`; `H0`–`H5` criteria in `hedge_structure`, which
   *also* has its own `ARM H` — unrelated to its criteria of the same letter;
   and `H0`–`H4` arms in `hedge_timing`, which are neither of those — there
   they are the census plus four hypotheses, each run once per trigger family
@@ -45,11 +45,11 @@ a bare `ARM P`.
   registered both on 2026-08-11, and they mean nothing alike.
 - **`F1` / `F2`** — `financed_spread`'s financing structures vs
   `account_sim`'s 1-contract-floor question. Unrelated.
-- **`C`** — **six** arms (`text_features`, `next_day_move`, `hedge_exposure`,
+- **`C`** — **six** arms (`text_features`, `next_day_move`, `hedge_portfolio`,
   `concurrency_correlation`, `hedge_concentration`, `trigger_entry`). **`N` `R`**
   — two arms each, different studies.
-- **`S`** — `ARM S` in two studies (`calendar_hedge`, `bear_giveback`) vs
-  `calendar_hedge`'s own `S1`–`S6` sub-arms vs the printed prose
+- **`S`** — `ARM S` in two studies (`hedge_structure`, `bear_giveback`) vs
+  `hedge_structure`'s own `S1`–`S6` sub-arms vs the printed prose
   `ARM SELECTION`.
 - **Gates: `G0` `G1` `G2` `G3` `G4` `G5` `G6`** — hard pass/fail
   preconditions checked before any result prints ([`glossary.md`](glossary.md)
@@ -180,7 +180,7 @@ _Module `f2_management/bear_giveback.py`_
   against the SHIPPED production exit. One of `ARM P`'s four owners
   repo-wide.
 - `ARM S` (arm) — Deployment reference stats — n / win rate / profit
-  factor / mean R by cut. COLLIDES with `calendar_hedge`'s own `ARM S`
+  factor / mean R by cut. COLLIDES with `hedge_structure`'s own `ARM S`
   (its structure sweep) — unrelated.
 - `ARM U` (arm) — Underlying path — does the underlying's price path
   explain the give-back? Buckets pre-declared before any output.
@@ -256,7 +256,7 @@ _Module `f3_structure/bear_rewrap.py`_
   cite. One of `ARM P`'s four owners repo-wide.
   - `P1` `P2` (sub-arm) — `ARM P`'s own two halves (worst-decile,
     correlation), graded together with their parent, never alone. Not to be
-    confused with `calendar_hedge`'s own `P1` below, which is unrelated.
+    confused with `hedge_structure`'s own `P1` below, which is unrelated.
 - `ARM W` (arm) — The wrapper, replayed on the shipped production exit.
 
 #### `financed_spread`
@@ -314,19 +314,25 @@ _Registered in [`pre-registrations/f4_deployment/selection_order.md`](pre-regist
 
 ### ⑤ Hedging — what protects the book
 
-#### `bear_deploy`
+<a id="bear_deploy"></a>
+#### `hedge_sizing`
 
-_Registered in [`pre-registrations/f5_hedging/bear_deploy.md`](pre-registrations/f5_hedging/bear_deploy.md) · module `f5_hedging/bear_deploy.py`_
+_Was `bear_deploy` until 2026-09-08; renamed after the question it answers, labels unchanged._
+
+_Registered in [`pre-registrations/f5_hedging/hedge_sizing.md`](pre-registrations/f5_hedging/hedge_sizing.md) · module `f5_hedging/hedge_sizing.py`_
 
 - `D1` `D2` `D3` `D4` `D5` (criterion) — Deployment criteria, NOT `ARM D` —
   `D1` is joint selection × exit, and the four that follow it. Mirrored by
-  `calendar_hedge`'s `H1`–`H5` above.
+  `hedge_structure`'s `H1`–`H5` above.
 
-#### `calendar_hedge`
+<a id="calendar_hedge"></a>
+#### `hedge_structure`
 
-_Registered in [`pre-registrations/f5_hedging/calendar_hedge.md`](pre-registrations/f5_hedging/calendar_hedge.md) · module `f5_hedging/calendar_hedge.py`_
+_Was `calendar_hedge` until 2026-09-08; renamed after the question it answers, labels unchanged._
 
-- `ARM H` (arm) — The hedge programme (`calendar_hedge`'s own `P1` sleeve,
+_Registered in [`pre-registrations/f5_hedging/hedge_structure.md`](pre-registrations/f5_hedging/hedge_structure.md) · module `f5_hedging/hedge_structure.py`_
+
+- `ARM H` (arm) — The hedge programme (`hedge_structure`'s own `P1` sleeve,
   below) — runs first; `ARM S` runs only behind it. This study also uses
   `H0`–`H5` as criteria (below); the two are unrelated despite the shared
   letter.
@@ -337,15 +343,18 @@ _Registered in [`pre-registrations/f5_hedging/calendar_hedge.md`](pre-registrati
   unrelated.
 - `H0` `H0b` `H1` `H2` `H3` `H4` `H5` (criterion) — criteria, NOT
   hypotheses and NOT `ARM H`: `H0` FILL, `H0b` FRESHNESS, `H1`–`H5`
-  mirroring `bear_deploy`'s `D1`–`D5` (below). COLLIDES in letter only with
+  mirroring `hedge_sizing`'s `D1`–`D5` (below). COLLIDES in letter only with
   `macro_event_study`'s `H1`–`H4` hypotheses above — unrelated forms.
 - `P1` (sub-arm) — this study's own hedge sleeve itself, NOT `bear_rewrap`'s
   `P1`/`P2` above (which are that study's `ARM P` halves) — same letter,
   unrelated meaning.
 
-#### `hedge_exposure`
+<a id="hedge_exposure"></a>
+#### `hedge_portfolio`
 
-_Registered in [`pre-registrations/f5_hedging/hedge_exposure.md`](pre-registrations/f5_hedging/hedge_exposure.md) · module `f5_hedging/hedge_exposure.py`_
+_Was `hedge_exposure` until 2026-09-08; renamed after the question it answers, labels unchanged._
+
+_Registered in [`pre-registrations/f5_hedging/hedge_portfolio.md`](pre-registrations/f5_hedging/hedge_portfolio.md) · module `f5_hedging/hedge_portfolio.py`_
 
 **The module carries a second arm since 2026-09-07.** `--admitted` runs the same
 question on the ADMITTED book, and its labels are indexed separately under
@@ -367,7 +376,7 @@ role, different study.
   **MEASUREMENT-ONLY** verdict — the two curves differ materially while no
   hedge cell clears the bar. Every hedge CELL is UNDERPOWERED there, so the
   mechanism question is **UNDERPOWERED** and no direction is quoted from any
-  of them. See `research/pre-registrations/f5_hedging/hedge_exposure.md`
+  of them. See `research/pre-registrations/f5_hedging/hedge_portfolio.md`
   §Population and basis (RATIFICATION consolidated there 2026-09-02).
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
   cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
@@ -402,7 +411,7 @@ _Registered in [`pre-registrations/f5_hedging/hedge_timing.md`](pre-registration
 Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
 `ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
 The bare `H0`–`H4` below are the arms themselves; the suffix names which
-trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
+trigger the arm was run on, not a different question. NOT `hedge_structure`'s
 `H0`–`H5` (criteria) and NOT `macro_event_study`'s `H1`–`H4` (hypotheses).
 
 - `ARM H0` (arm) — POWER CENSUS. Runs first and returns BEFORE any outcome
@@ -417,13 +426,13 @@ trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
   `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1 delta|, opposite-signed) turns a
   positive into MARKET-TIMING-PROXY. Printed as `ARM H2-CHOP` `ARM H2-GAP`
   `ARM H2-DECLINE`.
-- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`bear_deploy` D4's
+- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`hedge_sizing` D4's
   method): date-mean bear R minus date-mean tier-A/B long R, headline = the
   DIFFERENCE of that paired mean on trigger vs non-trigger dates. Printed as
   `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE`.
 - `ARM H4` (arm) — Do-nothing baseline in DOLLARS (the only arm that may quote
   `$`): sleeve policies over the deployed ladder's daily dollars, judged by
-  `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
+  `hedge_sizing` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
   `ARM H4-DECLINE`.
 
 ### Queued — pre-registered, no module yet
@@ -457,19 +466,19 @@ and excludes it from `ARM CK` rather than assuming it.
 
 #### `hedge_concentration`
 
-_Registered in [`pre-registrations/f5_hedging/hedge_concentration.md`](pre-registrations/f5_hedging/hedge_concentration.md)_
+_Registered 2026-08-31. The registration and the record were deleted 2026-09-08 with the module's other leftovers and are held in git at `44bbfb2`; the verdict is the DELETED row in [`study-map.md`](study-map.md#hedging)._
 
-**These labels now print from `hedge_exposure`'s `--admitted` arm.** The module was merged into [`hedge_exposure`](#hedge_exposure) and deleted on 2026-09-07; the section stays because the registration and the labels do.
+**These labels now print from `hedge_portfolio`'s `--admitted` arm.** The module was merged into [`hedge_portfolio`](#hedge_portfolio) and deleted on 2026-09-07; the section stays because the registration and the labels do.
 
 Registered 2026-08-31 and first run the same day. The book is the ADMITTED
-subset `account_sim` takes from `hedge_exposure`'s ratified population. Stage 1
+subset `account_sim` takes from `hedge_portfolio`'s ratified population. Stage 1
 gates Stage 2, and on the first run it did not open it: Stage 1 is
 PRECONDITION-NULL on a POWERED read, so `ARM C` / `ARM N` / `ARM R` were NOT
 evaluated and no cell of the τ×f grid carries a number.
 
 - `ARM M` (arm) — Measurement: the unhedged admitted book on both curves,
   mark-to-market versus realized-on-close. Reported every run, never a
-  verdict. Same role as `hedge_exposure`'s `ARM M`, on the admitted book.
+  verdict. Same role as `hedge_portfolio`'s `ARM M`, on the admitted book.
 - `ARM K` (arm) — The precondition: does a session's any-cluster
   concentration PREDICT the book's forward 20-session mark-to-market
   drawdown? Tercile contrast + Spearman ρ, block-bootstrapped. COLLIDES with
@@ -550,7 +559,7 @@ report and no labels to index.
 comments that read like labels but are not: `"ARM VERDICT INPUT:
 UNDERPOWERED"` is a printed report line; `ARM SELECTION` marks
 `account_sim`'s `--compounding` switch in a code comment; `H ARM UNIVERSE`
-is a `calendar_hedge` table header.
+is a `hedge_structure` table header.
 
 ### Kinds
 

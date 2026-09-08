@@ -25,7 +25,7 @@ Figures, populations and the export provenance are in one place: the
   first-time candidate and both are held, because the new dates are a
   backfill window and its dates move together.
 - The hedge programme is closed on triggers and open on the instrument.
-  `hedge_exposure` ships nothing, `hedge_concentration` is graded
+  `hedge_portfolio` ships nothing, `hedge_concentration` is graded
   `PRECONDITION-NULL`, a *powered* null, and the queue item is closed. The
   drafted gap-up prohibition is still held
   ([`next-steps.md`](next-steps.md) [§1](next-steps.md#s1),
@@ -62,7 +62,7 @@ debit exit that switches on the *mechanical* regime; it came from
 `UNDERPOWERED` triggers are "credit sl-none" at **0** fresh `bull_put` rows of
 15, and "BEAR_HE trail" at **1** affected date of 25 on the 2026-08-24 census;
 both are in [`deployment-evidence.md`](deployment-evidence.md) §"Open
-pre-registered rollback triggers". The `bear_deploy` D4 pick rule
+pre-registered rollback triggers". The `hedge_sizing` D4 pick rule
 ("`|delta|` descending") was **PULLED** on the 2026-08-24 v4 re-read
 ([`scripts/study_map/catalog.py`](../scripts/study_map/catalog.py)), so the
 sleeve is now held as operator policy rather than as evidence.
@@ -241,23 +241,23 @@ The figures behind those. Every number is on the 166-date `v4` book.
 
 | Study | Verdict | Why | Plan |
 |---|---|---|---|
-| [`bear_deploy`](study-results/f5_hedging/bear_deploy.md) | D1–D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4 | [plan](pre-registrations/f5_hedging/bear_deploy.md) |
-| [`calendar_hedge`](study-results/f5_hedging/calendar_hedge.md) | **BLOCKED ON NEW DATES** | the sizing criterion answers differently on every export | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
+| [`hedge_sizing`](study-results/f5_hedging/hedge_sizing.md) | D1–D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4 | [plan](pre-registrations/f5_hedging/hedge_sizing.md) |
+| [`hedge_structure`](study-results/f5_hedging/hedge_structure.md) | **BLOCKED ON NEW DATES** | the sizing criterion answers differently on every export | [plan](pre-registrations/f5_hedging/hedge_structure.md) |
 | [`hedge_timing`](study-results/f5_hedging/hedge_timing.md) | GAP-UP came back **CONTRARY** | the hedge underperformed the same day's ladder-eligible long; survivors 0 of 9 | [plan](pre-registrations/f5_hedging/hedge_timing.md) |
-| [`hedge_exposure`](study-results/f5_hedging/hedge_exposure.md) | **UNDERPOWERED** on the mechanism, **MEASUREMENT-ONLY** on ARM M | all nine hedge cells fail the power gate | [plan](pre-registrations/f5_hedging/hedge_exposure.md) |
-| [`hedge_concentration`](study-results/f5_hedging/hedge_concentration.md) | **PRECONDITION-NULL** | the gate question failed, so the hedge itself was never tested — see below | [plan](pre-registrations/f5_hedging/hedge_concentration.md) |
-| [`vol_sleeve`](study-results/f5_hedging/vol_sleeve.md) | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the wrong sign with the deployed book | [plan](pre-registrations/f5_hedging/vol_sleeve.md) |
+| [`hedge_portfolio`](study-results/f5_hedging/hedge_portfolio.md) | **UNDERPOWERED** on the mechanism, **MEASUREMENT-ONLY** on ARM M | all nine hedge cells fail the power gate | [plan](pre-registrations/f5_hedging/hedge_portfolio.md) |
+| [`hedge_concentration`](study-map.md#hedging) | **PRECONDITION-NULL** | the gate question failed, so the hedge itself was never tested — see below | plan and record deleted 2026-09-08 (git `44bbfb2`) |
+| [`vol_sleeve`](study-map.md#hedging) | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the wrong sign with the deployed book | plan and record deleted 2026-09-08 (git `44bbfb2`) |
 
 The figures behind those. Every number is on the 166-date `v4` book.
 
 | Study | Figure | What it means |
 |---|---|---|
-| [`bear_deploy` D5](arm-index.md#bear_deploy "bear_deploy D5: carry the hedge only on some days — a POST-HOC gate search, labelled a candidate and not a finding") | 8 → 2 gates | the sleeve is **operator policy** now, not evidence | [plan](pre-registrations/f5_hedging/bear_deploy.md) |
-| [`calendar_hedge` H0](arm-index.md#calendar_hedge "calendar_hedge criterion H0 FILL: the sleeve must produce a fillable hedge on at least 60% of deployed-book dates and at least 60% of the deployed book's worst-decile dates") | fills 51.0% of deployed dates | the gate is 60% | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
-| [`calendar_hedge` H2](arm-index.md#calendar_hedge "calendar_hedge criterion H2 HEDGE CONTRIBUTION: negative daily correlation, positive mean sleeve R on the book's worst-decile dates, positive worst-quartile tail in two or more years") | n=4 | not evaluable | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
+| [`hedge_sizing` D5](arm-index.md#hedge_sizing "hedge_sizing D5: carry the hedge only on some days — a POST-HOC gate search, labelled a candidate and not a finding") | 8 → 2 gates | the sleeve is **operator policy** now, not evidence | [plan](pre-registrations/f5_hedging/hedge_sizing.md) |
+| [`hedge_structure` H0](arm-index.md#hedge_structure "hedge_structure criterion H0 FILL: the sleeve must produce a fillable hedge on at least 60% of deployed-book dates and at least 60% of the deployed book's worst-decile dates") | fills 51.0% of deployed dates | the gate is 60% | [plan](pre-registrations/f5_hedging/hedge_structure.md) |
+| [`hedge_structure` H2](arm-index.md#hedge_structure "hedge_structure criterion H2 HEDGE CONTRIBUTION: negative daily correlation, positive mean sleeve R on the book's worst-decile dates, positive worst-quartile tail in two or more years") | n=4 | not evaluable | [plan](pre-registrations/f5_hedging/hedge_structure.md) |
 | [`hedge_timing` ARM H3](arm-index.md#hedge_timing "hedge_timing ARM H3, the PRIMARY: within-date paired — date-mean bear R minus date-mean tier-A/B long R, compared on trigger versus non-trigger dates") | −0.506 R · CI [−0.844, −0.157] | the hedge lost to the same day's long; H1 now agrees and H4's dollar arm fell to NULL | [plan](pre-registrations/f5_hedging/hedge_timing.md) |
-| [`hedge_exposure` ARM M](arm-index.md#hedge_exposure "hedge_exposure ARM M: measurement only — the book on the mark-to-market curve versus the realized-on-close curve") | understates max drawdown by 40.2% | the close-bucketed curve is not the book's real worst case | [plan](pre-registrations/f5_hedging/hedge_exposure.md) |
-| `vol_sleeve` | +0.220 on 166 dates | only the calendar wrapper is right-signed against the book | [plan](pre-registrations/f5_hedging/vol_sleeve.md) |
+| [`hedge_portfolio` ARM M](arm-index.md#hedge_portfolio "hedge_portfolio ARM M: measurement only — the book on the mark-to-market curve versus the realized-on-close curve") | understates max drawdown by 40.2% | the close-bucketed curve is not the book's real worst case | [plan](pre-registrations/f5_hedging/hedge_portfolio.md) |
+| `vol_sleeve` | +0.220 on 166 dates | only the calendar wrapper is right-signed against the book | plan and record deleted 2026-09-08 (git `44bbfb2`) |
 
 **"Operator policy, not evidence"** means the rule is kept because the operator
 chooses to keep it, not because a study supports it. The bear hedge sleeve was
@@ -322,7 +322,7 @@ cite them still resolve, but nothing is waiting on either.
    waits on genuinely new, non-backfill signal dates before anything is
    re-derived. The 2026 backfill dates do not qualify.
 2. **Calendar-as-hedge** ([§2.3](next-steps.md#s2-3)) — **BLOCKED ON NEW
-   DATES**. [`calendar_hedge` H3](arm-index.md#calendar_hedge "calendar_hedge criterion H3 SIZING: the largest hedge size f whose max drawdown and worst single date are both no worse than carrying no hedge") is
+   DATES**. [`hedge_structure` H3](arm-index.md#hedge_structure "hedge_structure criterion H3 SIZING: the largest hedge size f whose max drawdown and worst single date are both no worse than carrying no hedge") is
    the sizing criterion: is there any hedge size that does not make the book's
    worst day or worst drawdown worse? It has answered NOT MET, then
    DEPLOYABLE, then NOT MET on three consecutive exports. A criterion that

@@ -14,7 +14,7 @@ WHAT IT REPLACED
 ----------------
 Until now the only thing that would notice such a change was a set of
 hardcoded expectations embedded in two research studies — `account_sim`'s gate
-G1 (220 positions / 90 dates / $63,553) and `calendar_hedge`'s `R3_EXPECT`,
+G1 (220 positions / 90 dates / $63,553) and `hedge_structure`'s `R3_EXPECT`,
 which asserted the same figures. Those were deleted, and rightly: they
 fingerprinted ONE data export. Any legitimate refresh of
 `backtests/to_evaluate/` — a new signal date, one more proxy row admitted —

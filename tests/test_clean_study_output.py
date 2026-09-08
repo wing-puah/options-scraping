@@ -98,22 +98,22 @@ def test_cited_file_is_pinned_with_its_citation(tmp_path):
 
 
 def test_gate_marker_pins_the_report_that_carries_it(tmp_path):
-    # Mirrors the real hazard: only a stamped calendar_hedge report carries the
-    # H2 verdict that calendar_hedge.py's ARM S gate looks for; -latest.txt does
+    # Mirrors the real hazard: only a stamped hedge_structure report carries the
+    # H2 verdict that hedge_structure.py's ARM S gate looks for; -latest.txt does
     # not, so a naive keep-latest would revoke the gate.
     out = _mkdir(tmp_path, {
-        "calendar_hedge-20260813-130412.txt": "...\nH2 (primary)  verdict: PASS\n",
-        "calendar_hedge-20260813-143447.txt": "...\ngates-only run, no verdict\n",
-        "calendar_hedge-latest.txt": "...\ngates-only run, no verdict\n",
+        "hedge_structure-20260813-130412.txt": "...\nH2 (primary)  verdict: PASS\n",
+        "hedge_structure-20260813-143447.txt": "...\ngates-only run, no verdict\n",
+        "hedge_structure-latest.txt": "...\ngates-only run, no verdict\n",
     })
 
     keep, pinned, delete, _ = classify(out, keep_latest=True, force=False,
                                        citations={})
 
-    assert _names(keep) == {"calendar_hedge-latest.txt"}
+    assert _names(keep) == {"hedge_structure-latest.txt"}
     assert [(p.name, why) for p, why in pinned] == [
-        ("calendar_hedge-20260813-130412.txt", 'gate marker "H2 (primary)"')]
-    assert _names(delete) == {"calendar_hedge-20260813-143447.txt"}
+        ("hedge_structure-20260813-130412.txt", 'gate marker "H2 (primary)"')]
+    assert _names(delete) == {"hedge_structure-20260813-143447.txt"}
 
 
 def test_gate_marker_scan_ignores_non_txt_files(tmp_path):
@@ -128,7 +128,7 @@ def test_gate_marker_scan_ignores_non_txt_files(tmp_path):
 def test_force_deletes_both_pin_classes(tmp_path):
     out = _mkdir(tmp_path, {
         "bear_arm-20260811-185851.txt": "cited run\n",
-        "calendar_hedge-20260813-130412.txt": "H2 (primary)  verdict: PASS\n",
+        "hedge_structure-20260813-130412.txt": "H2 (primary)  verdict: PASS\n",
     })
     citations = {"bear_arm-20260811-185851.txt": "current.md:3"}
 
@@ -171,12 +171,12 @@ def test_citation_in_a_nested_archive_dir_is_found(tmp_path):
     tuning = tmp_path / "research"
     (tuning / "archive").mkdir(parents=True)
     (tuning / "archive" / "13-account-sim.md").write_text(
-        "**Provenance.** `backtests/study_output/calendar_hedge-20260813-130412.txt`\n")
+        "**Provenance.** `backtests/study_output/hedge_structure-20260813-130412.txt`\n")
 
     citations = cited_files(tuning)
 
-    assert list(citations) == ["calendar_hedge-20260813-130412.txt"]
-    assert citations["calendar_hedge-20260813-130412.txt"].where == (
+    assert list(citations) == ["hedge_structure-20260813-130412.txt"]
+    assert citations["hedge_structure-20260813-130412.txt"].where == (
         "archive/13-account-sim.md:1")
 
 

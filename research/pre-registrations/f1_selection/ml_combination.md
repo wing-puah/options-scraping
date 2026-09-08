@@ -14,7 +14,7 @@ in git (`git show 42b5e46:research/ml-plan.md`).
 
 The same document registered two other arms, each now its own file:
 [`bear_arm.md`](bear_arm.md) (the BEAR arm, B1/B2) and
-[`../f5_hedging/bear_deploy.md`](../f5_hedging/bear_deploy.md) (the
+[`../f5_hedging/hedge_sizing.md`](../f5_hedging/hedge_sizing.md) (the
 DEPLOY arm, D1–D5).
 
 ## Question

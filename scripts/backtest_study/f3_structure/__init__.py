@@ -11,7 +11,7 @@ the book's own exposure again.
                         book's own exposure again, so it fails the anti-re-wrap
                         clause it was registered against. Nothing ships.
 
-`calendar_hedge.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
-with the rest of the hedge programme. So is the DELETED `vol_sleeve.py`, whose
-frozen record moved with it.
+`hedge_structure.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
+with the rest of the hedge programme. So was the DELETED `vol_sleeve.py`, whose
+registration and record were deleted 2026-09-08 (git 44bbfb2).
 """

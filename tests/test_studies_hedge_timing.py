@@ -15,7 +15,7 @@ deterministically, reproducibly wrong while printing a clean report:
     statistic. "Underpowered but here is the number anyway" is how an n=2 read
     gets quoted six months later.
   * H4 carries a no-bear day at f=0 rather than dropping it — the
-    `calendar_hedge` lesson: a hedge unavailable exactly when it is needed is
+    `hedge_structure` lesson: a hedge unavailable exactly when it is needed is
     not a hedge, and dropping the day hides that.
   * the ex-BOTH-windows cut really excludes BOTH month sets. It is computed by
     hand (`protocol.window_cuts` yields the two separately and never their
@@ -305,7 +305,7 @@ def test_h2_mirror_needs_opposite_signs_and_a_comparable_size() -> None:
 
 
 def test_same_sign_fails_closed_on_an_empty_cut() -> None:
-    """`bear_deploy`'s 2026-08-24 scar: a nan from an EMPTY ex-window cut must
+    """`hedge_sizing`'s 2026-08-24 scar: a nan from an EMPTY ex-window cut must
     FAIL the check, never be filtered out of it."""
     assert HT._same_sign(float("nan"), 0.5) is False
     assert HT._same_sign(0.0, 0.5) is False

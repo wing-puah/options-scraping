@@ -1,6 +1,6 @@
-"""`bear_deploy`'s D1 window check must FAIL CLOSED on an empty ex-window cut.
+"""`hedge_sizing`'s D1 window check must FAIL CLOSED on an empty ex-window cut.
 
-D1 is pre-registered (`research/pre-registrations/f5_hedging/bear_deploy.md`)
+D1 is pre-registered (`research/pre-registrations/f5_hedging/hedge_sizing.md`)
 as re-screening "the identical pre-declared clause vocabulary" as `bear_arm`'s
 B1, so the two must agree on what "survives both window cuts" means. They did
 not: B1 rejects a subset whose ex-window cut has no rows (its `stat()` returns
@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 
 from scripts.backtest_study.f1_selection import bear_arm
-from scripts.backtest_study.f5_hedging.bear_deploy import cuts_pass, fmean
+from scripts.backtest_study.f5_hedging.hedge_sizing import cuts_pass, fmean
 from scripts.backtest_study.lib import protocol as P
 
 NAN = float("nan")

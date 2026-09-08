@@ -244,7 +244,7 @@ earlier, and on `BacktestProxy` only for rows written after 2026-09-02. See
 
 **Bear is deployable as a hedge, not as a selection.** This is the resolution of
 the bear_put thread, and it is not a compromise position. Both halves were
-tested ([`bear_deploy`](arm-index.md#bear_deploy) study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
+tested ([`hedge_sizing`](arm-index.md#hedge_sizing) study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
 not retained on disk, D1/D2 below are the record).
 
 ### D1 — why not a selection
@@ -329,7 +329,7 @@ f = 0.50 drawdown improves by $571 but the worst date degrades from −3,212 to
 −3,298. The rule fails on a rounding-scale margin; it is reported as failed, not
 waved through.
 
-### The curve D3 was read on understates drawdown (2026-08-31, `hedge_exposure` ARM M)
+### The curve D3 was read on understates drawdown (2026-08-31, `hedge_portfolio` ARM M)
 
 ARM M put the same unhedged book on both equity curves, mark-to-market from
 `daily_pnl_csv` against the realized-on-close curve `account_sim.equity_curve`
@@ -344,15 +344,15 @@ Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
 **UNDERPOWERED**. Every cell of the τ × f grid is power-stopped on the ratified
 population, so nothing there says a hedge works, and no direction is quoted
 from any cell. See [`archive/18`](archive/18-hedge-programme-exit-basis-and-text-loop.md) 2026-08-31 and
-[`pre-registrations/f5_hedging/hedge_exposure.md`](pre-registrations/f5_hedging/hedge_exposure.md)
+[`pre-registrations/f5_hedging/hedge_portfolio.md`](pre-registrations/f5_hedging/hedge_portfolio.md)
 §Population and basis (ratification consolidated there 2026-09-02).
 
 **Why it lands on D3.** D3 is judged on a series of daily realized dollars
 bucketed to the date each position closed (`_sweep`'s `daily` in
-`f5_hedging/bear_deploy.py`), never on a path that marks open positions. Two
+`f5_hedging/hedge_sizing.py`), never on a path that marks open positions. Two
 other rules read that same criterion off that same kind of curve:
 
-- **[`calendar_hedge`](arm-index.md#calendar_hedge) H3**, "D3 verbatim" by its own registration (the largest
+- **[`hedge_structure`](arm-index.md#hedge_structure) H3**, "D3 verbatim" by its own registration (the largest
   f whose max drawdown and worst single date are both no worse than f = 0). It
   sits inside a ship ceiling never reached (v4: H0 FILL NOT MET, H2 NOT
   EVALUABLE), so nothing here changes a verdict. It qualifies the basis on
@@ -364,13 +364,13 @@ other rules read that same criterion off that same kind of curve:
   [`arm-index.md`](arm-index.md) on the H-label collisions.
 
 **What this does not do.** All three verdicts STAND, and no number in this file
-is restated. ARM M measured [`hedge_exposure`](arm-index.md#hedge_exposure)'s own 996-row concentrated book on
+is restated. ARM M measured [`hedge_portfolio`](arm-index.md#hedge_portfolio)'s own 996-row concentrated book on
 its own session axis, not D3's bear-sleeve book or H4's deployed-ladder
 dollars. So **40.2% is not a correction factor to apply to their figures**, and
 the `real` stratum shows the gap can run the other way and be small. What
 transfers is the basis, not the number.
 
-**What it does.** Quote it with the rule. The drawdown leg of D3 / `calendar_hedge`
+**What it does.** Quote it with the rule. The drawdown leg of D3 / `hedge_structure`
 H3 / `hedge_timing` H4 is measured on an instrument that, on a book measured the
 same way, missed 40% of the drawdown. D3's own margins are $571 of drawdown
 improvement and an $86 formal failure on the worst date. These are margins a
@@ -382,13 +382,13 @@ close-bucketed one.
 
 ### The queued max-drawdown question is CLOSED for concentration-gated hedging (2026-09-04, `hedge_concentration` Stage 1)
 
-`hedge_exposure` left the queued max-drawdown question **open**: every cell of
+`hedge_portfolio` left the queued max-drawdown question **open**: every cell of
 its τ × f grid was power-stopped on the ratified 996-row book, so nothing there
 said a concentration hedge works or does not. [`hedge_concentration`](arm-index.md#hedge_concentration) was
 registered to answer it a different way. Put the **precondition** first, on the
 **admitted** book (what [`account_sim`](arm-index.md#account_sim) actually takes under the operator's
 top-3-per-day rule and exposure caps, not the twice-as-diversified book
-`hedge_exposure` held), and only enter the mechanism stage if the precondition
+`hedge_portfolio` held), and only enter the mechanism stage if the precondition
 holds.
 
 It does not hold, and this time the null is **powered**.
@@ -449,7 +449,7 @@ that has been powered is about the trigger.
 | study | what it tested | result |
 |---|---|---|
 | `hedge_timing` (2026-08-28) | three mechanical triggers, chop, SPY gap-up, a 4–5-day down-run | 0 of 9 TIMING-CANDIDATE survivors; GAP-UP **CONTRARY** on both money arms; the operator's own streak rule **UNDERPOWERED** as fixed in advance (2 book dates) |
-| `hedge_exposure` (2026-08-31) | a concentration trigger × hedge fraction grid | every cell power-stopped, **UNDERPOWERED**, no direction quoted |
+| `hedge_portfolio` (2026-08-31) | a concentration trigger × hedge fraction grid | every cell power-stopped, **UNDERPOWERED**, no direction quoted |
 | `hedge_concentration` (2026-09-04) | the precondition under that trigger, does concentration predict drawdown at all? | **PRECONDITION-NULL**, powered |
 
 Read together: **every mechanical rule anyone has proposed for deciding when to
@@ -457,9 +457,9 @@ open the hedge has been tested and none survives**, and the one that came
 closest to a mechanism, concentration, has now been refuted at its
 precondition on a powered sample. The trigger question is settled negative.
 
-The instrument question has **never been powered**. `bear_deploy` D2 (the hedge
+The instrument question has **never been powered**. `hedge_sizing` D2 (the hedge
 contribution) flipped MET → NOT MET on the v4 refresh and D3 (sizing) was never
-met at any size; `hedge_exposure` could not power one cell; `hedge_concentration`
+met at any size; `hedge_portfolio` could not power one cell; `hedge_concentration`
 never entered Stage 2. Nobody has produced a powered estimate of what carrying
 the sleeve is worth. "Not shown to work" here is the absence of a measurement,
 not a measurement of absence. The two ex-window cuts and the tail row that
@@ -468,7 +468,7 @@ been left unresolved by studies that stopped at the trigger.
 
 **What that decides.** The [§4](../docs/deployment-rules.md#s4) sleeve is held as **operator policy**, not on v4
 evidence. That was already recorded when the §4 pick line was pulled after
-`bear_deploy` D2 reversed. This note states the reason it is not a contradiction
+`hedge_sizing` D2 reversed. This note states the reason it is not a contradiction
 to keep it: the evidence contradicts hedging **on a mechanical trigger**, and
 says nothing either way about hedging **on judgment**. Continuing to hedge on
 judgment is consistent with everything on the record. Stopping is too. What is
@@ -499,10 +499,10 @@ on dates, not on design. Do not register a fourth trigger study.
   D2. **PROVISIONAL, not a rule**; re-read on the next independent window before
   gating the sleeve on anything.
 - **The drawdown leg is measured on the close-bucketed curve**, which
-  `hedge_exposure`'s ARM M found understates max drawdown by **40.2%** on its own
+  `hedge_portfolio`'s ARM M found understates max drawdown by **40.2%** on its own
   ratified book (§"The curve D3 was read on understates drawdown" above). D3
   stands; its measurement basis is qualified, and the same qualification travels
-  to `calendar_hedge` H3 and `hedge_timing` ARM H4.
+  to `hedge_structure` H3 and `hedge_timing` ARM H4.
 - **This rule barely fires by design.** Every bear row in the book is ladder
   **Tier C (299) or VETO (71)**; none is Tier A or B, so the shipped ladder never
   deploys one. The sleeve only bites on bear positions the operator takes
@@ -670,13 +670,13 @@ worst-decile power wall (~9 dates).
 
 **Measurement basis (recorded 2026-08-31):** ARM H4's dollars, including the
 "gating −$5,893, drawdown unimproved" read behind the drafted GAP-UP prohibition,
-come off the close-bucketed realized curve, judged by [`bear_deploy`](arm-index.md#bear_deploy) D3's
-criterion verbatim. [`hedge_exposure`](arm-index.md#hedge_exposure)'s ARM M shows that curve understating max
+come off the close-bucketed realized curve, judged by [`hedge_sizing`](arm-index.md#hedge_sizing) D3's
+criterion verbatim. [`hedge_portfolio`](arm-index.md#hedge_portfolio)'s ARM M shows that curve understating max
 drawdown by 40.2% on its own ratified book, so H4's verdicts STAND on a
 qualified basis; see §"The curve D3 was read on understates drawdown" above for
 what does and does not transfer. Label note: that is ARM H4, the do-nothing
 dollars arm. The `H3` in the table above is `hedge_timing`'s paired-R arm and is
-not [`calendar_hedge`](arm-index.md#calendar_hedge)'s `H3` sizing criterion, which is the other rule the
+not [`hedge_structure`](arm-index.md#hedge_structure)'s `H3` sizing criterion, which is the other rule the
 measurement finding touches.
 
 **Scope note on the operator's actual practice (2026-08-28):** the operator

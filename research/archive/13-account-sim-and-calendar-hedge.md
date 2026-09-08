@@ -1263,7 +1263,7 @@ file is pruned into `archive/`. The section is unchanged, just relocated.
 
 ---
 
-## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION → [`pre-registrations/f5_hedging/calendar_hedge.md`](../pre-registrations/f5_hedging/calendar_hedge.md)
+## 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION → [`pre-registrations/f5_hedging/hedge_structure.md`](../pre-registrations/f5_hedging/hedge_structure.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.

@@ -89,7 +89,7 @@ from scripts.backtest_study.f2_management.staged_exit import (  # noqa: E402
     CONTINUATION_MARGIN, post_exit_max,
 )
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
-from scripts.backtest_study.f5_hedging import hedge_exposure as HE  # noqa: E402
+from scripts.backtest_study.f5_hedging import hedge_portfolio as HE  # noqa: E402
 
 
 def shipped_merge_desc() -> str:
@@ -160,9 +160,9 @@ DR_NONINFERIORITY = -0.02    # clause 2
 CONT_MAJORITY = 0.50         # clause 7 — fails STRICTLY at or above this share
 
 #: Block-bootstrap resamples for the drawdown-improvement CI, and its alpha.
-#: The estimator is `hedge_exposure`'s chronological moving block — the
+#: The estimator is `hedge_portfolio`'s chronological moving block — the
 #: `improvement()` pattern the registration names. `alpha` is passed
-#: EXPLICITLY at .05: `hedge_exposure`'s module constant is Bonferroni-
+#: EXPLICITLY at .05: `hedge_portfolio`'s module constant is Bonferroni-
 #: corrected for ITS nine registered cells and does not transfer.
 BOOT_N = HE.BOOT_N
 BOOT_ALPHA = 0.05
@@ -595,8 +595,8 @@ def union_axis(a: M.BookCurves, b: M.BookCurves) -> list:
 def dd_improvement(base: M.PathStats, arm: M.PathStats) -> tuple[float, float]:
     """`(dollars better, share of the base drawdown)` — positive is BETTER.
 
-    Signed through `hedge_exposure.improvement`, the same function
-    `hedge_exposure`'s own clause reads, so the two studies cannot drift on what
+    Signed through `hedge_portfolio.improvement`, the same function
+    `hedge_portfolio`'s own clause reads, so the two studies cannot drift on what
     "improved" means. The share is `NaN` when the baseline never drew down —
     there is no percentage of zero, and a zero-baseline cell fails clause 1 on
     the CI rather than on a fabricated ratio.

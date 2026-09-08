@@ -68,7 +68,7 @@ Two arms, one theme, plus a conditioning cut on the lag ladder.
   rule. Same-day duplicate emissions therefore collapse to one and **cannot fake
   a repeat** — without this, a single session's duplicate rows would manufacture
   the entire effect.
-- **The test is WITHIN-DATE PAIRED** — the `bear_deploy` D4 method, because it
+- **The test is WITHIN-DATE PAIRED** — the `hedge_sizing` D4 method, because it
   cancels the date's own return level, which is the dominant nuisance variable
   in this book. Plan-time measurement (disclosed): **82 of 118 dates carry BOTH
   a first and a repeat emission.** The estimand is the paired **Δ(mean R),

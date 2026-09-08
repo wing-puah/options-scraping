@@ -4,8 +4,8 @@ WHY THIS EXISTS
 ---------------
 `scripts/backtest_study/lib/hedge_criteria.py` is one body per rule for a
 question six study modules ask: what a hedge sleeve does in the book's tail
-(the contribution rule, `bear_deploy` D2) and how much of it the book can carry
-(the sizing rule, `bear_deploy` D3). Before it existed, each study carried its
+(the contribution rule, `hedge_sizing` D2) and how much of it the book can carry
+(the sizing rule, `hedge_sizing` D3). Before it existed, each study carried its
 own copy, and two of those copies said in their own docstrings that they were
 copied rather than imported precisely so a change elsewhere could never move
 their recorded numbers.
@@ -361,9 +361,9 @@ def test_every_criterion_in_the_library_has_at_least_one_case():
 
 def test_the_library_re_exports_the_one_drawdown_implementation():
     """Not a copy, not a wrapper: the same function object as `lib/mtm_curve`'s
-    and `bear_deploy`'s, which is what keeps the sizing rule's drawdown and the
+    and `hedge_sizing`'s, which is what keeps the sizing rule's drawdown and the
     equity curve's the same measurement."""
-    from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown as bd_mdd
+    from scripts.backtest_study.f5_hedging.hedge_sizing import max_drawdown as bd_mdd
     from scripts.backtest_study.lib.mtm_curve import max_drawdown as curve_mdd
 
     assert HC.max_drawdown is curve_mdd is bd_mdd
@@ -372,7 +372,7 @@ def test_the_library_re_exports_the_one_drawdown_implementation():
 def test_the_sleeve_picker_is_the_body_behind_the_sleeve_cases():
     """`sleeve_pick` has no fixture criterion of its own because it is not a
     separate rule: `sleeve_dollars` IS it, plus reading one column off the
-    chosen row. `calendar_hedge.bear_sleeve_dollars` reads the same pick and
+    chosen row. `hedge_structure.bear_sleeve_dollars` reads the same pick and
     prices it instead, so this identity is what makes the two the same sleeve
     (research/hedge-programme-plan.md §"Q3, how much to hedge")."""
     for case in [c for c in CASES if c["criterion"] == "sleeve"]:
@@ -389,7 +389,7 @@ def test_the_sleeve_picker_is_the_body_behind_the_sleeve_cases():
 def test_the_year_cut_is_the_body_behind_the_d2_cases():
     """`year_tails` has no fixture criterion of its own for the same reason:
     it is D2's year clause with the MEASUREMENT left to the caller, so every
-    d2 case exercises it. `calendar_hedge` H2(c) calls it with its own
+    d2 case exercises it. `hedge_structure` H2(c) calls it with its own
     ordering key and measures the picks it has, which is why the cut had to
     come out of `hedge_contribution` rather than stay inside it."""
     for case in [c for c in CASES if c["criterion"] == "d2"]:
@@ -405,7 +405,7 @@ def test_the_year_cut_is_the_body_behind_the_d2_cases():
 
 # ── the scalar size rule is the one body `qualifies` wraps ───────────────────
 def test_unharmed_is_the_body_qualifies_delegates_to():
-    """`hedge_timing` ARM H4 and `bear_deploy` D5 build their own daily paths and
+    """`hedge_timing` ARM H4 and `hedge_sizing` D5 build their own daily paths and
     call `unharmed` on bare figures; `qualifies` is the SweepRow form. Both must
     agree on every side of both comparisons, including the eps-equal edge."""
     base = HC.SweepRow(f=0.0, total=0.0, mdd=-100.0, worst=-40.0, neg=0, downside_dev=0.0)

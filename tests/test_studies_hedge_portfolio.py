@@ -1,7 +1,7 @@
-"""`hedge_exposure` — the claims that live in CODE rather than in a report.
+"""`hedge_portfolio` — the claims that live in CODE rather than in a report.
 
 The study is pre-registered
-(`research/pre-registrations/f5_hedging/hedge_exposure.md`). What belongs
+(`research/pre-registrations/f5_hedging/hedge_portfolio.md`). What belongs
 here is everything that is a code-BEHAVIOUR claim rather than a data claim —
 each one a way the module could be deterministically, reproducibly wrong while
 printing a clean report:
@@ -49,7 +49,7 @@ each of which was a way the module printed a clean report while being wrong:
   * F5 — the bootstrap resamples CHRONOLOGICALLY. Path statistics are
     order-dependent, so a resample that reorders the tape is not that
     statistic's sampling distribution.
-  * F7 — `max_drawdown` lives in `lib/`, and `bear_deploy` imports it from
+  * F7 — `max_drawdown` lives in `lib/`, and `hedge_sizing` imports it from
     there. A `lib/` module must not execute an f4 study on import.
 
 The 2026-08-31 independent audit (same errata file, fix plan F8-F16) added the
@@ -86,13 +86,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.backtest_study.f5_hedging import hedge_exposure as HE
+from scripts.backtest_study.f5_hedging import hedge_portfolio as HE
 from scripts.backtest_study.lib import concentration as C
 from scripts.backtest_study.lib import hedge_instrument as HI
 from scripts.backtest_study.lib import mtm_curve as M
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "scripts" / "backtest_study" / "f5_hedging" / "hedge_exposure.py"
+MODULE = ROOT / "scripts" / "backtest_study" / "f5_hedging" / "hedge_portfolio.py"
 
 #: Where the ADMITTED arm begins. The merged module carries both arms, and a
 #: source-level assertion written about one of them must say which.
@@ -586,7 +586,7 @@ def test_the_ratified_population_is_the_literal_load_book_call() -> None:
     a later reader sees the verdict resting on a recorded decision."""
     assert HE.RATIFIED_POPULATION == HE.POP_ALL
     assert HE.RATIFIED_POPULATION in HE.POP_LABELS
-    assert "hedge_exposure.md" in HE.RATIFICATION_SOURCE
+    assert "hedge_portfolio.md" in HE.RATIFICATION_SOURCE
     assert "Population and basis" in HE.RATIFICATION_SOURCE
     assert "2026-08-31" in HE.RATIFICATION_SOURCE
 
@@ -599,7 +599,7 @@ def test_the_registration_carries_the_ratified_population_in_its_own_text() -> N
     `all` — 996 rows / 145 dates — as the population, with `real` (485/140)
     demoted to a reported stratum, never restated as the conclusion."""
     reg_path = (ROOT / "research" / "pre-registrations" / "f5_hedging"
-                / "hedge_exposure.md")
+                / "hedge_portfolio.md")
     text = reg_path.read_text(encoding="utf-8")
     start = text.index("## Population and basis")
     end = text.index("\n## ", start + 1)
@@ -722,7 +722,7 @@ def test_the_closing_section_keeps_every_standing_disclosure(capsys) -> None:
             "§4 sleeve is operator policy",
             # what the verdict does NOT do
             "does NOT close the queued max-drawdown question",
-            "bear_deploy D3, calendar_hedge H3 or hedge_timing H4",
+            "hedge_sizing D3, hedge_structure H3 or hedge_timing H4",
             "KNOWN LIMITATION",
             # the ratification's own limitation
             "PLAN-TIME OBSERVATIONS",
@@ -898,14 +898,14 @@ def test_arm_p_is_still_literally_arm_cs_session_set() -> None:
 # F7 — the layering direction
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_max_drawdown_lives_in_lib_and_bear_deploy_imports_it() -> None:
+def test_max_drawdown_lives_in_lib_and_hedge_sizing_imports_it() -> None:
     """A `lib/` module importing an f4 study executes that study at import
     time. `lib/greeks.py`, `lib/sectors.py` and `lib/hedge_instrument.py` each
     state and honour the opposite rule."""
-    from scripts.backtest_study.f5_hedging import bear_deploy
+    from scripts.backtest_study.f5_hedging import hedge_sizing
 
     assert M.max_drawdown.__module__.endswith("lib.mtm_curve")
-    assert bear_deploy.max_drawdown is M.max_drawdown
+    assert hedge_sizing.max_drawdown is M.max_drawdown
 
 
 def test_mtm_curve_imports_nothing_from_a_study_family() -> None:

@@ -1,6 +1,6 @@
 """DEPLOY arm — pre-registered 2026-08-11.
 
-Registration: research/pre-registrations/f5_hedging/bear_deploy.md, where
+Registration: research/pre-registrations/f5_hedging/hedge_sizing.md, where
 `study_review` reads it. It was written as §addendum 2 of research/ml-plan.md,
 which covered three studies and was split into per-study files (and deleted) on
 2026-08-24; the D-rules are quoted there verbatim, and the original text is in
@@ -30,7 +30,7 @@ before quoting any conclusion.
 
 Run:
     source .venv/bin/activate
-    python -m scripts.backtest_study.f5_hedging.bear_deploy | tee backtests/study_output/bear_deploy.txt
+    python -m scripts.backtest_study.f5_hedging.hedge_sizing | tee backtests/study_output/hedge_sizing.txt
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ from scripts.backtest_study.lib.harness import replay  # noqa: E402
 # `lib/mtm_curve.py` — a lib module executing an f4 study on import, the
 # inversion `lib/greeks.py`, `lib/sectors.py` and `lib/hedge_instrument.py`
 # each state and honour the opposite of. Re-exported under this module's name
-# so every existing `from ...bear_deploy import max_drawdown` still resolves to
+# so every existing `from ...hedge_sizing import max_drawdown` still resolves to
 # the SAME function object, which is what keeps D3's dollar-drawdown criterion
 # one implementation rather than two.
 from scripts.backtest_study.lib.mtm_curve import max_drawdown  # noqa: E402,F401
@@ -123,7 +123,7 @@ def cuts_pass(cuts) -> bool:
     it was written to kill. `bear_arm.py`'s B1 — the criterion D1 mirrors, on
     the same clause vocabulary — already fails closed, because its `stat()`
     returns None on no rows and the gate tests `c is not None`. The two
-    encodings now agree; `tests/test_studies_bear_deploy.py` pins that.
+    encodings now agree; `tests/test_studies_hedge_sizing.py` pins that.
 
     No recorded verdict changes: D1 has returned 0 survivors on every run.
     """
@@ -217,7 +217,7 @@ def daily_series(rows, r_key, dol_key):
     """date -> (mean return, total dollars, n) for a sleeve.
 
     The library's, under this module's name, so every existing
-    `from ...bear_deploy import daily_series` keeps resolving to the one body.
+    `from ...hedge_sizing import daily_series` keeps resolving to the one body.
     """
     return HC.daily_series(rows, r_key, dol_key)
 
@@ -526,7 +526,7 @@ def main() -> int:
     deployed = P.top_k_per_day(rows, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
 
     hdr("DEPLOY ARM — pre-registered 2026-08-11 "
-        "(pre-registrations/f5_hedging/bear_deploy.md)")
+        "(pre-registrations/f5_hedging/hedge_sizing.md)")
     print(f"  book {len(rows)} priced rows / {len({r['date'] for r in rows})} dates")
     print(f"  bear {len(bear)} rows / {len({r['date'] for r in bear})} dates")
     print(f"  deployed ladder sleeve {len(deployed)} rows / "
@@ -544,7 +544,7 @@ def main() -> int:
     d3 = d3_sizing(deployed, bear, d4_adopted)
     d5 = d5_conditional_sleeve(deployed, bear, d4_adopted)
 
-    hdr("VERDICT (pre-registered rules, pre-registrations/f5_hedging/bear_deploy.md)")
+    hdr("VERDICT (pre-registered rules, pre-registrations/f5_hedging/hedge_sizing.md)")
     print(f"  D1 joint selection x exit : "
           f"{'candidate(s) found — ' + str(len(d1_survivors)) if d1_survivors else 'NOT MET'}")
     print(f"  D2 hedge is real          : "

@@ -1,6 +1,7 @@
-## hedge_exposure — does exposure-triggered proxy hedging cut the book's drawdown?
+## hedge_portfolio — does exposure-triggered proxy hedging cut the book's drawdown?
 
 _Registered 2026-08-29._
+_Renamed from `hedge_exposure` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
 
 ## Question
 
@@ -23,7 +24,7 @@ Scope limits, fixed here.
   calendar or market-state condition. Where a trigger session happens to be a
   gap-up day, that is incidental; the drafted §4 GAP prohibition speaks to the
   gap AS the reason to hedge and is not litigated here.
-- **Not a selection study.** Selection is untouched in every arm. `bear_deploy`
+- **Not a selection study.** Selection is untouched in every arm. `hedge_sizing`
   D1 settled that no rule identifies a profitable bear play ("Stop looking for
   one"); nothing here reopens it.
 - **Not a worst-decile tail study.** The 2026-08-13 wall — ~9 worst-decile
@@ -113,7 +114,7 @@ the drawdown is measured on, the sizing, and the sector map.
   `concurrency_correlation`'s standing commitment that an unmapped ticker "is
   its own bucket — never folded into a named sector". A session whose top
   cluster is unhedgeable is **carried at f=0 and counted against the fill
-  gate**, per `calendar_hedge`'s rule that a hedge unavailable exactly when
+  gate**, per `hedge_structure`'s rule that a hedge unavailable exactly when
   needed is not a hedge.
 - **The sector map is shared, not study-local.** `concurrency_correlation`
   (registered 2026-08-22, module not yet written) commits to a static
@@ -183,7 +184,7 @@ nearest strike at-or-below spot, expiry nearest 45 DTE within 20–120.
 | IBIT | 22.9% | 38.6% | FAIL |
 
 CRYPTO and INTL therefore have no band-rule instrument (7.0% of exposure
-combined). Per `calendar_hedge`'s standing principle — *"A hedge unavailable
+combined). Per `hedge_structure`'s standing principle — *"A hedge unavailable
 exactly when needed is not a hedge"* — those sessions are **carried at f=0 and
 counted against the fill gate, never dropped from the population**.
 
@@ -216,7 +217,7 @@ date-level keyword match was considered and REJECTED at plan time: it fires on
 **The measurement finding that motivated ARM M.** `account_sim.equity_curve()`
 buckets P&L by `exit_sess` and its own `print_equity()` states *"Open positions
 are not marked to market, so this understates intra-position drawdown."* Every
-hedge verdict on record — `bear_deploy` D3, `calendar_hedge` H3, `hedge_timing`
+hedge verdict on record — `hedge_sizing` D3, `hedge_structure` H3, `hedge_timing`
 H4, including the −$10,968 baseline this study was queued against — rests on
 that curve. A hedge's function is to cushion the intra-position path, which is
 precisely what the curve omits.
@@ -247,13 +248,13 @@ precisely what the curve omits.
   Following `portfolio_delta`'s ARM N: **an arm must beat ARM N's 95th
   percentile, not merely beat the unhedged book.**
 - **ARM B — instrument comparison.** ARM C with the book's own bear row as the
-  instrument instead of the proxy put. `bear_deploy` D3 and `hedge_timing` H4
+  instrument instead of the proxy put. `hedge_sizing` D3 and `hedge_timing` H4
   both found this cannot cut max drawdown on the close-bucketed curve; this arm
   asks only whether that survives the move to a mark-to-market curve.
 - **ARM R — always-fillable reference.** ARM C with a delta-equivalent SHORT in
   the proxy UNDERLYING instead of a put. No option cache dependency and no fill
   gate, so the study cannot terminate on fill coverage alone — which is how
-  `calendar_hedge` ended. **ARM R is a floor on feasibility, not a
+  `hedge_structure` ended. **ARM R is a floor on feasibility, not a
   recommendation: it has a different loss shape from a put and is not an
   instrument the operator trades.**
 
@@ -296,7 +297,7 @@ Grid: 3 τ × 3 f = 9 cells per arm. Fixed here; not expanded later.
 A cell is a CANDIDATE only if ALL of:
 
 1. **Max drawdown AND worst single session are both no worse than f=0** — the
-   criterion carried verbatim from `bear_deploy` D3, judged on dollars.
+   criterion carried verbatim from `hedge_sizing` D3, judged on dollars.
 2. The improvement in **at least one co-primary path metric** (Ulcer index or
    time-under-water) has a **date-clustered CI excluding zero** at
    Bonferroni-corrected α = 0.05/9.
@@ -346,7 +347,7 @@ LOOKAHEAD-UNRESOLVED** — a candidate for a forward window, never a ship.
 - The **sector map, the τ grid, the f grid, the hedge-pressure cut (≥50), the
   fill rules and the DTE window are all fixed in this file** before any outcome
   column is read. None may be edited after commit.
-- **9 cells, Bonferroni α = 0.05/9.** Half of the `calendar_hedge` wall was
+- **9 cells, Bonferroni α = 0.05/9.** Half of the `hedge_structure` wall was
   multiplicity and is free to fix by pre-registering one grid; that is done
   here. No second grid may be added to this study.
 - **No post-hoc threshold search.** If no τ in the grid triggers ≥25 dates,
@@ -355,7 +356,7 @@ LOOKAHEAD-UNRESOLVED** — a candidate for a forward window, never a ship.
   count above is disclosed as a plan-time observation, not a checksum.
 - **No annualised figure, Sharpe, or time-to-recover** is computed or printed.
 - If the study is re-run on a grown option cache, the cache state is recorded
-  in the report header — `calendar_hedge` R4 had to be frozen to a pre-scrape
+  in the report header — `hedge_structure` R4 had to be frozen to a pre-scrape
   snapshot because nearest-strike re-picks legs on a grown cache.
 
 ## Ship criteria
@@ -371,7 +372,7 @@ The §4 sleeve is operator policy and is not removed by any outcome here.
 
 _Not part of the registration._
 
-- Module: `scripts/backtest_study/f4_deployment/hedge_exposure.py`. Auto-
+- Module: `scripts/backtest_study/f5_hedging/hedge_portfolio.py`. Auto-
   discovered by `run.py::study_paths()`; needs a `catalog.STUDIES` entry and a
   mention in `research/study-map.md` or `tests/test_study_map.py` fails.
 - Declare `DESIGNED_REFUSAL_EXIT_CODES` as an AST-literal `set` at module
@@ -380,7 +381,7 @@ _Not part of the registration._
 - Reuse, do not reimplement: `lib/era.py::load_book`, `account_sim.simulate`'s
   hedge-admission pattern (hedge added after the day's picks, through the same
   `admission()`), `account_sim.session_series` for open-book exposure,
-  `bear_deploy.max_drawdown`, `protocol.walk_forward_splits` /
+  `hedge_sizing.max_drawdown`, `protocol.walk_forward_splits` /
   `DOMINANT_WINDOWS`, `underlying.rescaled_tickers` as an instrument filter,
   `vol_sleeve._strike_index` for the option-cache filename convention, and
   `lib/barchart/options.py::_mark` for what counts as a usable price.

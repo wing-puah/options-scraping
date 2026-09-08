@@ -1,7 +1,7 @@
-"""Hedge INSTRUMENT selection and pricing for the `hedge_exposure` study.
+"""Hedge INSTRUMENT selection and pricing for the `hedge_portfolio` study.
 
 Implements the instrument half of
-`research/pre-registrations/f5_hedging/hedge_exposure.md`:
+`research/pre-registrations/f5_hedging/hedge_portfolio.md`:
 
   * §"Fill coverage, per proxy" + gate **G-FILL** — the two committed fill
     rules and the coverage report the gate is read from.
@@ -29,7 +29,7 @@ WHAT COUNTS AS FILLABLE
 when > 0. A contract with no mark on the session is NOT fillable, and this
 module returns **None** rather than a fabricated fill. Per the pre-registration
 those sessions are carried by the study at f=0 and counted AGAINST the fill
-gate, never dropped from the population (`calendar_hedge`'s standing rule that
+gate, never dropped from the population (`hedge_structure`'s standing rule that
 a hedge unavailable exactly when needed is not a hedge).
 
 THE INSTRUMENT EXCLUSION IS A FUNCTION CALL, NOT A NAME LIST
@@ -452,7 +452,7 @@ def underlying_position(ticker: str, session: date, shares: float
 
     Always fillable by construction — the only None cases are an excluded
     instrument and a session with no bar, which is why ARM R cannot terminate
-    the study on fill coverage the way `calendar_hedge` ended.
+    the study on fill coverage the way `hedge_structure` ended.
     """
     ticker = ticker.upper().strip()
     if instrument_excluded(ticker):

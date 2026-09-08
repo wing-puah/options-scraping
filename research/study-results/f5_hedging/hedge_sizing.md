@@ -1,4 +1,6 @@
-# bear_deploy — per-era record
+# hedge_sizing — per-era record
+
+_Renamed from `bear_deploy` on 2026-09-08; the sections below were recorded under the old name and quote it verbatim._
 
 **Question.** Bear selection is unfixable — but is bear worth holding as a HEDGE? Four estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, D4 conditional pick.
 

@@ -267,9 +267,9 @@ No target was added or removed after any outcome was seen.
   `python -m scripts.backtest_study run financed_spread --era v3`.
 - Scrape: `scripts/collector/fetch_financing_legs.py`, manifest
   `backtests/sweep_cache/financing_manifest.csv` — a SEPARATE file from
-  `legs_manifest.csv` (calendar_hedge ARM S depends on that one).
-- `bear_rewrap` is imported as a module (the `calendar_hedge` precedent), never
-  refactored — its published cell means are pinned by `calendar_hedge`.
+  `legs_manifest.csv` (hedge_structure ARM S depends on that one).
+- `bear_rewrap` is imported as a module (the `hedge_structure` precedent), never
+  refactored — its published cell means are pinned by `hedge_structure`.
 - New shared helper `scripts/backtest_study/lib/greeks.py` (per-leg greeks from
   the cache; missing leg → None, never 0) serves E1/E2 here and G-DELTA in
   `portfolio_delta`.

@@ -23,7 +23,7 @@ Nothing here changes config.
 CAVEAT AMENDED 2026-08-11 (same day): this module's "the book prices each play
 standalone and cannot price a hedge" was too strong. 84 bear dates also carry a
 deployed ladder sleeve, so a concurrent-dollar proxy for the hedge IS
-measurable — see `bear_deploy.py` (D2), which measures it and finds the hedge
+measurable — see `hedge_sizing.py` (D2), which measures it and finds the hedge
 real. Quote the amended version: the book cannot price a *held* hedge with
 margin and real sizing, but it can and does price the concurrent book.
 
@@ -426,7 +426,7 @@ def main() -> int:
                       for s in sorted({r["source"] for r in bear})))
     print("  CAVEAT (amended 2026-08-11): this book prices each play standalone, "
           "but the\n  hedging value IS partly measurable on the concurrent book — "
-          "see bear_deploy.py\n  (D2), which finds it real. What stays unpriceable "
+          "see hedge_sizing.py\n  (D2), which finds it real. What stays unpriceable "
           "is a HELD hedge with margin\n  and the operator's real sizing.")
 
     from collections import Counter

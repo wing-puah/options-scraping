@@ -1,4 +1,6 @@
-# calendar_hedge — per-era record
+# hedge_structure — per-era record
+
+_Renamed from `calendar_hedge` on 2026-09-08; the sections below were recorded under the old name and quote it verbatim._
 
 **Question.** Re-derive that one survivor under a pre-registered pick rule and a strict fill rule.
 

@@ -17,13 +17,13 @@ operator discretion. It does not ask whether the sleeve is worth holding at all.
 
 ## What this is NOT
 
-- **Not a re-run of `bear_deploy` D5.** D5's regime gates for hedge timing were
+- **Not a re-run of `hedge_sizing` D5.** D5's regime gates for hedge timing were
   POST-HOC and failed year-stability — the surviving gate was carried by 2025
   alone. Its gate family is not re-tested here, and the one gate that came
   closest (`mech_direction = RANGE`) is explicitly excluded from every verdict
   below (see T-CHOP).
 - **Not a re-opening of bear SELECTION.** `bear_arm` B1 (0 of 496 subsets) and
-  `bear_deploy` D1 (0 survivors, re-confirmed on v4) stand. No arm here screens
+  `hedge_sizing` D1 (0 survivors, re-confirmed on v4) stand. No arm here screens
   which bear to take.
 - **Not a market-timing study.** H2 exists precisely to catch that confound: a
   trigger that marks days on which EVERYTHING pays (or nothing does) is a read
@@ -122,7 +122,7 @@ boundary computed over the ERA'S BOOK DATES from the series alone. The boundary
 is printed in the census BEFORE any R is touched. Sensitivity: `eff_ratio ≤ 0.30`.
 The window length is the standing `underlying_features` constant and is NOT swept.
 
-**T-CHOP is explicitly NOT `mech_direction = RANGE`.** RANGE was `bear_deploy`
+**T-CHOP is explicitly NOT `mech_direction = RANGE`.** RANGE was `hedge_sizing`
 D5's best POST-HOC gate on 2026-08-27 (+$9,622) and re-testing it here would be
 a disguised D5 re-run. `mech_direction = RANGE` is computed and printed as a
 flagged SECONDARY carrying NO verdict. Three further reasons it may not be the
@@ -167,7 +167,7 @@ Each is run once per trigger FAMILY.
   to bear R's rise — **defined here as `|H2 delta| ≥ 0.5 × |H1 delta|` with the
   two deltas OPPOSITE-SIGNED.**
 - **H3 — PRIMARY. The operator's counterfactual, within-date paired.** The
-  method `bear_deploy` D4 proved: on each trigger date carrying ≥ 1 bear row AND
+  method `hedge_sizing` D4 proved: on each trigger date carrying ≥ 1 bear row AND
   ≥ 1 ladder-eligible (tier A|B) row, `dR = date-mean bear R − date-mean A/B
   long R`. Reported with `boot_ci_paired_by_date`, `loo_by_date`, per-year signs,
   and all three window cuts (`ex_2025_mar_apr`, `ex_2026_feb_apr`, ex-BOTH by
@@ -177,9 +177,9 @@ Each is run once per trigger FAMILY.
 - **H4 — do-nothing baseline (portfolio, dollars).** Sleeve policies over the
   deployed ladder's daily dollars: `f = 0` (never hedge), always-on (hedge every
   day a bear row exists), and trigger-gated — at `f ∈ {0.5, 1.0}`, one hedge per
-  day. **Criterion, verbatim from `bear_deploy` D3: max drawdown AND worst single
+  day. **Criterion, verbatim from `hedge_sizing` D3: max drawdown AND worst single
   date both no worse than `f = 0`.** Days with no bear row are CARRIED at `f = 0`,
-  never dropped — the `calendar_hedge` lesson: a hedge that is unavailable exactly
+  never dropped — the `hedge_structure` lesson: a hedge that is unavailable exactly
   when it is needed is not a hedge, and dropping those days would hide that.
   **Disclosed:** H4 reuses D5's estimator on new gates, so a pass here ALONE can
   never ship — D5's own gate family failed year-stability.
@@ -294,9 +294,9 @@ is one of three things, each of which the operator applies by hand:
 
 _Not part of the registration — implementation, not commitment._
 
-`scripts/backtest_study/f4_deployment/hedge_timing.py`. Rows already carry `R`
+`scripts/backtest_study/f5_hedging/hedge_timing.py`. Rows already carry `R`
 and `R_dol` under the PROD profiles from `load_book`, so the FROZEN harness is
 not imported. `max_drawdown` and the daily-dollar series shape are COPIED from
-`bear_deploy.py` with attribution comments rather than imported — studies do not
+`hedge_sizing.py` with attribution comments rather than imported — studies do not
 import each other's internals. Census lines use
 `lib/triggers.py::census_line`, the house `FLOOR MET` / `UNDERPOWERED` token.

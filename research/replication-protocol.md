@@ -66,7 +66,7 @@ what order, and what it does with the result.
    ratification of a population — is recorded in `research/<study>-errata.md`
    instead of being edited in. Name the registration without it and the graders
    are blind to the document that decides those clauses: on 2026-08-31 both
-   analysts and the validator graded `hedge_exposure` against the report's own
+   analysts and the validator graded `hedge_portfolio` against the report's own
    quoted RATIFICATION text and each disclosed the gap themselves. The errata
    never RELAXES a commitment — anything it does not explicitly resolve is still
    graded against the registration as written.
@@ -85,7 +85,7 @@ what order, and what it does with the result.
 
 Mode 1, replication grading. Three placeholders: `<pre-registration section>`
 (the study's file under `research/pre-registrations/`, e.g.
-`pre-registrations/f5_hedging/calendar_hedge.md`, read whole — see
+`pre-registrations/f5_hedging/hedge_structure.md`, read whole — see
 [`pre-registrations/README.md`](pre-registrations/README.md)),
 `<report path>` (e.g. `backtests/study_output/<name>-latest.txt`), and
 `<errata path>` (`research/<study>-errata.md`, `_` in the study name also
@@ -220,7 +220,7 @@ after the call has already been reached.
   to shake out the mechanics (schema drift, an analyst going out of scope,
   a validator missing a mismatch) before anything with stakes runs through
   it.
-- **`calendar_hedge`** — the protocol's **first real use**. Pre-registered
+- **`hedge_structure`** — the protocol's **first real use**. Pre-registered
   2026-08-13 alongside `account_sim`; its H2 gate is the primary criterion
   that decides whether the calendar candidate becomes a shippable second
   hedge sleeve, and its ARM S structure sweep is exactly the kind of

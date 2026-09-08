@@ -637,7 +637,7 @@ def test_equity_curve_books_pnl_on_the_exit_session(rows):
 
 def test_max_drawdown_seeds_its_peak_at_zero(rows):
     """A book that opens underwater counts that as drawdown — the study's own
-    `bear_deploy.max_drawdown` does, and a naive cummax would report 0."""
+    `hedge_sizing.max_drawdown` does, and a naive cummax would report 0."""
     assert series.build(rows, "primary", 25_000.0)["summary"]["maxDD"] == -300.0
     assert series.build(rows, "secondary", 25_000.0)["summary"]["maxDD"] == -500.0
 

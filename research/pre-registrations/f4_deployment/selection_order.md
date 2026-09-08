@@ -63,7 +63,7 @@ so the walk stays deterministic.
 | **O0** | `ladder_rank` — tier, then `score_total` tie-break | baseline = today's production |
 | **O1** | delta-notional ASCENDING, within tier | cheapest exposure first fits more picks per unit of the binding budget |
 | **O2** | reserved-$ per unit delta-notional, DESCENDING, within tier | budget efficiency: most risk-budget deployed per unit of the scarce resource |
-| **O3** | `\|delta\|` DESCENDING, within tier | transfer test of `bear_deploy`'s D4 rule ("the losing trade is the cheap far-OTM one"), never yet run outside bear |
+| **O3** | `\|delta\|` DESCENDING, within tier | transfer test of `hedge_sizing`'s D4 rule ("the losing trade is the cheap far-OTM one"), never yet run outside bear |
 | **O1b** | delta-notional ASCENDING, TIER-BLIND across A∪B | admissible only because A vs B is statistically MERGED (+0.36 vs +0.37, p=.65, third validation) — eligibility is unchanged, so this is an ordering change, not a tier change |
 | **O4** | seeded random permutation within the day, 200 draws | the null band. If O0 sits inside it, ordering is noise |
 
@@ -81,7 +81,7 @@ test (including them is the zero-inflation that failed `exit_switch_mech`'s LOO
 median gate; the corrected form is registered below).
 
 Metric = **within-date paired difference vs O0** in mean R over the day's taken
-positions, the `bear_deploy` D4 method — it cancels the date's return level.
+positions, the `hedge_sizing` D4 method — it cancels the date's return level.
 Dollars print alongside and are a sanity check only: an ordering change alters
 which positions get sized, so $ is composition-dependent in the same way a
 structure substitution is. **Quote R.**
@@ -115,7 +115,7 @@ Each gate exits non-zero on failure.
 
 The unit judged here is an arm, and it must clear the whole conjunction below —
 every item, not most of them. It is registered as the corrected gate from
-2026-07-22, plus the `bear_deploy` D4 standard that is the only precedent here
+2026-07-22, plus the `hedge_sizing` D4 standard that is the only precedent here
 that ever passed:
 
 1. paired mean gain vs O0 > 0 with **date-clustered bootstrap CI excluding zero**

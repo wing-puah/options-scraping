@@ -91,7 +91,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
-from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown  # noqa: E402
+from scripts.backtest_study.f5_hedging.hedge_sizing import max_drawdown  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, hdr, prod_profile_for, sub,
 )
@@ -1879,7 +1879,7 @@ def print_regime(sim: Sim, label: str) -> None:
 def print_equity(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     hdr(f"[{label}] EQUITY CURVE — constrained vs B2, and drawdown")
     print("  REALIZED curve: P&L is booked on the session a position exits, the same")
-    print("  basis bear_deploy.max_drawdown is used on elsewhere. Open positions are")
+    print("  basis hedge_sizing.max_drawdown is used on elsewhere. Open positions are")
     print("  not marked to market, so this understates intra-position drawdown.")
     out = {}
     for name, s in (("constrained", sim), ("B2 unconstrained", b2)):
@@ -2061,7 +2061,7 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
                 st: Settings, cache: dict) -> None:
     hdr(f"[{label}] ARM H — the shipped bear sleeve on the constrained run")
     print(f"""  1 bear-debit position per signal date, chosen by |delta| DESCENDING
-  (bear_deploy D4 — its §4 pick line was PULLED 2026-08-24, the live pick is operator
+  (hedge_sizing D4 — its §4 pick line was PULLED 2026-08-24, the live pick is operator
   discretion; the sleeve keeps D4 as its mechanical stand-in), sized at
   int({st.hedge_risk_fraction:g} x risk contracts) with a floor of 1, entered AFTER the
   day's signal picks so it can never displace one. This is

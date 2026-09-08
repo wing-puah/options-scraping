@@ -101,13 +101,13 @@ code they name is now under `scripts/backtest_study/`.
 | 2026-08-12 — `be_after` grid RUN: does NOT ship; give-back pattern is in the underlying | [archive/11](11-exit-conditioning.md) |
 | 2026-08-12 — day-0 underlying move: ARM C does not clear, no rule; sensitivity is structural | [archive/11](11-exit-conditioning.md) |
 | 2026-08-12 — `bear_rewrap`: the WRAPPER is worth +0.085 but does not hold up | [archive/12](12-wrappers-and-vol-sleeve.md) |
-| 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/f5_hedging/vol_sleeve.md](../pre-registrations/f5_hedging/vol_sleeve.md) |
+| 2026-08-12 — `vol_sleeve`: PRE-REGISTRATION | [pre-registrations/f5_hedging/vol_sleeve.md](../study-map.md#hedging) |
 | 2026-08-12 — `vol_sleeve` RUN: the sleeve DOUBLES DOWN; the calendar is the only survivor | [archive/12](12-wrappers-and-vol-sleeve.md) |
 | 2026-08-13 — `account_sim`: PRE-REGISTRATION ($25k feasibility, caps, nothing ships) | [pre-registrations/f4_deployment/account_sim.md](../pre-registrations/f4_deployment/account_sim.md) |
 | 2026-08-13 — `account_sim` RUN: caps survive, window doesn't; delta binds, not cash; grammar gap | [archive/13](13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `calendar_hedge` RUN: R4 exact; H2 power-stopped at n=6, corr wrong-signed; needs new dates | [archive/13](13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `calendar_hedge --arm S` RUN: 30/30 cells power-stopped; condor NOT EVALUABLE (39.9%); hedge programme blocked on new dates | [archive/13](13-account-sim-and-calendar-hedge.md) |
-| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/f5_hedging/calendar_hedge.md](../pre-registrations/f5_hedging/calendar_hedge.md) |
+| 2026-08-13 — `calendar_hedge`: PRE-REGISTRATION (calendar candidate + gated ARM S sweep) | [pre-registrations/f5_hedging/hedge_structure.md](../pre-registrations/f5_hedging/hedge_structure.md) |
 | 2026-08-13 — `account_sim` SIZING ARM ($1,000/position, per-pos 0.40x, net 3.00x) | [archive/13](13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `account_sim` made CONFIG-DRIVEN (`config/account-sim.yml`) | [archive/13](13-account-sim-and-calendar-hedge.md) |
 | 2026-08-13 — `account_sim` caps reconfigured to 0.25x / 2.50x | [archive/13](13-account-sim-and-calendar-hedge.md) |

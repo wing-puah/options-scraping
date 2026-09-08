@@ -1,13 +1,13 @@
-"""`vol_sleeve`'s synthesis layer, kept because `calendar_hedge` R4 runs it.
+"""`vol_sleeve`'s synthesis layer, kept because `hedge_structure` R4 runs it.
 
 WHY THIS MODULE EXISTS
 ----------------------
 `f5_hedging/vol_sleeve.py` was RETIRED AND DELETED on 2026-09-07. Its
 verdicts are recorded in `research/study-map.md` (a `DELETED` row in the
 hedging family table) and its frozen per-era record is
-`research/study-results/f5_hedging/vol_sleeve.md`. Nothing here re-opens it.
+git history (`44bbfb2`; its record was deleted 2026-09-08). Nothing here re-opens it.
 
-What could not be deleted with it is the synthesis layer. `calendar_hedge`'s
+What could not be deleted with it is the synthesis layer. `hedge_structure`'s
 gate **R4** builds `vol_sleeve`'s calendar cell TWICE in one process — once
 through its own `build_universe`/`evaluate`, once through `synthesize` below —
 and requires the two equal row for row. R4 is exactly the test that a second
@@ -23,10 +23,10 @@ cache's filename convention, not two.
 MOVED UNCHANGED
 ---------------
 Every body below is byte-identical to `vol_sleeve.py`'s at the time of the
-deletion (git 8c03502). That is the point: `calendar_hedge`'s recorded R4 PASS
+deletion (git 8c03502). That is the point: `hedge_structure`'s recorded R4 PASS
 is a claim about these exact bodies, so a tidy-up here is a silent change to a
 recorded gate. Fix a bug here only with a reconciliation run of
-`calendar_hedge` beside it.
+`hedge_structure` beside it.
 
 `daily()` deliberately does NOT defer to `lib/hedge_criteria.py::daily_series`.
 The two disagree on two things, not one: this one returns a mapping
@@ -246,7 +246,7 @@ def synthesize(book: list[dict], idx, require_recon: bool = True,
     """One record per (date, ticker, expiry, structure). Plus a diagnostics dict.
 
     `structures` narrows the build to a subset of `STRUCTURES` (default: all of
-    them, this study's own behaviour). It exists so `calendar_hedge`'s R4 can
+    them, this study's own behaviour). It exists so `hedge_structure`'s R4 can
     rebuild the calendar cell through THIS function — the reference side of a
     same-run comparison — without paying for the straddle and strangle cells it
     does not compare. Narrowing changes no row: the structure loop is

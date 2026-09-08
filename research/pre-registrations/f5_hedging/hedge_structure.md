@@ -1,6 +1,7 @@
-## calendar_hedge — re-deriving the calendar candidate under a fixed pick rule
+## hedge_structure — re-deriving the calendar candidate under a fixed pick rule
 
 _Registered 2026-08-13._
+_Renamed from `calendar_hedge` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
 
 A structure study. It takes one leftover candidate from `vol_sleeve` and asks
 it again under rules written before the number is re-read.
@@ -44,7 +45,7 @@ counted: `entry_net ≤ 0` (crossed/stale market — vol_sleeve saw 2/183) and
 One hedge per day, ≤½ position: `bear_rewrap.size_contracts` × 0.5 on the
 shipped $50k basis, which makes it directly comparable with the shipped bear
 sleeve. Portfolio effect at sleeve fractions f ∈ {0, 0.25, 0.50, 1.0}, exactly
-as `bear_deploy` D3.
+as `hedge_sizing` D3.
 
 ### Exit
 
@@ -148,7 +149,7 @@ These must pass before any hedge number is read.
 
 ## Bar for a candidate
 
-H1–H5, mirroring bear_deploy D1–D5, renamed to avoid confusion.
+H1–H5, mirroring hedge_sizing D1–D5, renamed to avoid confusion.
 
 - **H1 STANDALONE** (context, NOT a gate): mean E and R of the P1 sleeve,
   date-clustered CI, per-year signs. Negative standalone does not fail a hedge.

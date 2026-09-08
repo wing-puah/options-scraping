@@ -1,5 +1,5 @@
 """Tests for `scripts.backtest_study.lib.hedge_instrument` — the hedge
-INSTRUMENT layer of the `hedge_exposure` study (proxy put + ARM R underlying
+INSTRUMENT layer of the `hedge_portfolio` study (proxy put + ARM R underlying
 short).
 
 Fixture option CSVs are written under `tmp_path` with the header
@@ -10,7 +10,7 @@ come from a fixture `underlying_ohlc_cache` behind `underlying.OHLC_CACHE`, so
 `spot_on` is exercised through the real `load_bars`, not stubbed.
 
 What these pin is the COMMITTED behaviour of
-`research/pre-registrations/f5_hedging/hedge_exposure.md`: the two fill
+`research/pre-registrations/f5_hedging/hedge_portfolio.md`: the two fill
 rules and their windows, "return None rather than fabricate a fill", the
 rescaled-ticker exclusion being a function call and not a name list, a missing
 greek staying None, and ARM R being SHORT.

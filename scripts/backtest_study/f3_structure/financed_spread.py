@@ -39,8 +39,8 @@ WHAT THIS MODULE OWNS AND WHAT IT BORROWS
 Pricing is `bear_rewrap`'s path VERBATIM BY IMPORT (`leg_details`, `leg_series`,
 `entry_date_for`, `entry_price_of`, `net_entry`, `net_marks` with the
 `_defined_risk_bounds` clamp, `synth_trade`, `reconstructs`, `cached_puts`) —
-the `calendar_hedge` precedent. `bear_rewrap` is never edited: its published
-cell means are pinned by `calendar_hedge`. `cached_calls` is the one sibling
+the `hedge_structure` precedent. `bear_rewrap` is never edited: its published
+cell means are pinned by `hedge_structure`. `cached_calls` is the one sibling
 helper this module adds, because `bear_rewrap` only ever needed the put ladder.
 
 Sizing is NOT borrowed. `bear_rewrap.size_contracts` is debit-only, and three of
@@ -216,7 +216,7 @@ def cached_calls(ticker: str, expiration: date) -> list[float]:
     """Strikes of every cached CALL on one (ticker, expiry), ascending.
 
     Sibling of `bear_rewrap.cached_puts`, added HERE rather than there: that
-    module is imported by `calendar_hedge` and its published cell means are
+    module is imported by `hedge_structure` and its published cell means are
     pinned, so it is read-only for this study. Candidate strikes come from the
     ticker's OBSERVED cached ladder — never an invented increment.
     """
@@ -1483,7 +1483,7 @@ def sleeve_daily(recs: list[dict]) -> dict[str, float]:
     """Mean R per date of the DEPLOYED ladder — `top_k_per_day(ladder_rank, k=3)`,
     the same join `bear_rewrap`'s ARM P / P2 makes. The daily-series arithmetic
     itself now lives in `lib/hedge_criteria.daily_series`, so this study, ARM P
-    and `bear_deploy`'s D2 read one body and their ladder dates cannot drift
+    and `hedge_sizing`'s D2 read one body and their ladder dates cannot drift
     apart."""
     ladder = P.top_k_per_day(recs, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
     return {d: mean for d, (mean, _dol, _n)

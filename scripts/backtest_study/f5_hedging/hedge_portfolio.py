@@ -1,7 +1,7 @@
 """HEDGE-EXPOSURE arm — does concentration-triggered proxy hedging cut the book's drawdown?
 
 Pre-registered 2026-08-29. Registration:
-`research/pre-registrations/f5_hedging/hedge_exposure.md`, where
+`research/pre-registrations/f5_hedging/hedge_portfolio.md`, where
 `scripts/study_review/` reads it. Read it before quoting anything printed here.
 
 The operator's described practice is exposure-conditional: *"I hedge when I hold
@@ -11,7 +11,7 @@ made mechanical, reduces the book's MARK-TO-MARKET drawdown versus carrying the
 same concentrated book unhedged.
 
 What this is NOT: not a timing study (`hedge_timing` returned 0 of 9 and no arm
-here is keyed to a calendar or market state); not a selection study (`bear_deploy`
+here is keyed to a calendar or market state); not a selection study (`hedge_sizing`
 D1 stands); not a worst-decile tail study (every primary metric is path-shaped,
 computed over every session the book is open); not a test of the §4 bear sleeve
 (it appears only as instrument comparison ARM B and cannot be removed by any
@@ -95,7 +95,7 @@ verdict produces a DRAFTED §4 amendment held in `research/`, never an edit.
 
 Run:
     source .venv/bin/activate
-    python -m scripts.backtest_study run hedge_exposure
+    python -m scripts.backtest_study run hedge_portfolio
 """
 from __future__ import annotations
 
@@ -183,7 +183,7 @@ POP_LABELS = {
 # not make it, and it may not re-decide it if a later run's shape changes.
 RATIFIED_POPULATION = POP_ALL
 RATIFICATION_SOURCE = ("research/pre-registrations/f5_hedging/"
-                       "hedge_exposure.md §Population and basis — "
+                       "hedge_portfolio.md §Population and basis — "
                        "RATIFICATION, operator, 2026-08-31")
 
 #: The two words emitted, each over a DIFFERENT object. UNDERPOWERED is defined
@@ -243,7 +243,7 @@ CO_PRIMARIES = (METRIC_ULCER, METRIC_TUW)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# printing helpers (shape copied from bear_deploy.py / hedge_timing.py)
+# printing helpers (shape copied from hedge_sizing.py / hedge_timing.py)
 # ════════════════════════════════════════════════════════════════════════════
 
 def hdr(t: str) -> None:
@@ -508,7 +508,7 @@ def episode_plan(episode, by_session, universe
       * a session whose top cluster is UNHEDGEABLE, or carries no proxy at all,
         yields None. The hedge is carried at f=0 on that SESSION, the session
         stays in the denominator, and the episode is never dropped —
-        `calendar_hedge`'s standing principle, which this module already
+        `hedge_structure`'s standing principle, which this module already
         applies to an unfillable session.
       * the trailing hold-window session yields `CARRY`: it marks whatever is
         open one more day and opens nothing.
@@ -653,7 +653,7 @@ def price_cluster_short(episode, by_session, universe, f: float,
     The registration's ARM R is delta-matched to ARM C's put, which makes it
     depend on the option cache it was introduced to be free of. Both readings
     are therefore run: ARM R is clause 7's control, ARM RF is the floor that
-    keeps the study from terminating on fill coverage (`calendar_hedge`'s end).
+    keeps the study from terminating on fill coverage (`hedge_structure`'s end).
     The sign is the caller's: a POSITIVE cluster net (a long book) is stood
     against by carrying `-f x net`.
 
@@ -1082,7 +1082,7 @@ def evaluate_bar(cell: Cell, axis, base_daily, capital, arm_n,
     cell.stats = hedged
     out: dict = {"base": base, "hedged": hedged}
 
-    # 1 — bear_deploy D3's criterion, verbatim, on dollars.
+    # 1 — hedge_sizing D3's criterion, verbatim, on dollars.
     out["c1"] = (hedged.max_dd >= base.max_dd
                  and hedged.worst_session >= base.worst_session)
 
@@ -1355,7 +1355,7 @@ def print_not_preregistered(args, budget: float) -> None:
     hdr("NOT PRE-REGISTERED — every discretionary choice in this module, in "
         "one place")
     print(f"""  The pre-registration
-  (research/pre-registrations/f5_hedging/hedge_exposure.md) fixes the sector
+  (research/pre-registrations/f5_hedging/hedge_portfolio.md) fixes the sector
   map, the tau grid, the f grid, the hedge-pressure cut, the two fill rules,
   the DTE windows, the >=60% fill gate, the >=25 trigger-date floor, the
   Bonferroni denominator of 9, the seven clauses of the bar and the verdict
@@ -1460,7 +1460,7 @@ def print_not_preregistered(args, budget: float) -> None:
 
 
 def cache_state() -> str:
-    """`calendar_hedge` R4's scar: the nearest-strike rule RE-PICKS legs on a
+    """`hedge_structure` R4's scar: the nearest-strike rule RE-PICKS legs on a
     grown option cache, so the report must record the cache it ran against."""
     if not HISTORY_CACHE.exists():
         return f"{HISTORY_CACHE} MISSING"
@@ -1588,7 +1588,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
 
     # ── ARM M ───────────────────────────────────────────────────────────────
     hdr("ARM M — MEASUREMENT: the SAME unhedged book on both curves")
-    print("""  Every hedge verdict on record (bear_deploy D3, calendar_hedge H3,
+    print("""  Every hedge verdict on record (hedge_sizing D3, hedge_structure H3,
   hedge_timing H4) rests on account_sim's close-bucketed curve, whose own
   print_equity says "Open positions are not marked to market, so this
   understates intra-position drawdown." A hedge's function is to cushion
@@ -1683,7 +1683,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     hdr("G-FILL — a hedge must be fillable on >=60% of triggered sessions "
         "(band rule)")
     print("""  An unfillable session is CARRIED AT f=0 and stays in the denominator, per
-  calendar_hedge's standing principle that a hedge unavailable exactly when
+  hedge_structure's standing principle that a hedge unavailable exactly when
   needed is not a hedge. An UNHEDGEABLE cluster keeps its proxy identity and
   counts against the gate; it is never folded into BROAD/SPY.
 
@@ -1732,7 +1732,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
   proxy when the top cluster rotates, and ROLLED when the put expires inside
   the episode (settled at expiry intrinsic against that day's close). A session
   whose top cluster is one of the four UNHEDGEABLE ones is carried at f=0 and
-  STAYS IN THE DENOMINATOR — never a dropped episode, per calendar_hedge's
+  STAYS IN THE DENOMINATOR — never a dropped episode, per hedge_structure's
   standing principle. Until 2026-08-31 this module read the cluster ONCE, at
   the episode's first session, and dropped whole any episode whose first
   session was unhedgeable.
@@ -1840,7 +1840,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
 
     sub(f"ARM RF — {ARM_RF_LABEL}")
     print(f"""  {ARM_RF_LABEL}. ARM RF is NOT in
-  research/pre-registrations/f5_hedging/hedge_exposure.md. It is this
+  research/pre-registrations/f5_hedging/hedge_portfolio.md. It is this
   module's own fill-INDEPENDENT floor — short fraction f of the concentrated
   cluster's own signed delta notional in the proxy underlying — added because
   the registration's ARM R is delta-matched to ARM C's put and therefore
@@ -1861,7 +1861,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
 
     # ── ARM B ───────────────────────────────────────────────────────────────
     hdr("ARM B — instrument comparison: the book's own bear row instead of the put")
-    print("""  bear_deploy D3 and hedge_timing H4 both found the sleeve cannot cut max
+    print("""  hedge_sizing D3 and hedge_timing H4 both found the sleeve cannot cut max
   drawdown on the close-bucketed curve. This arm asks ONLY whether that survives
   the move to a mark-to-market curve. It cannot remove the §4 sleeve, which is
   operator policy.""")
@@ -2121,7 +2121,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
     hdr(f"REGISTERED SENSITIVITY — the {other} fill rule, same taus and f grid")
     print(f"""  Both fill rules are pre-registered because coverage is not uniform in time
   (band-rule SMH and QQQ collapse in 2025Q3/Q4). The {other} rule RE-PICKS legs
-  on a grown option cache — calendar_hedge R4's scar — so the cache state is in
+  on a grown option cache — hedge_structure R4's scar — so the cache state is in
   the header above. Reported for shape only; no verdict is read from it.""")
     print()
     print_stats_row("f = 0 (unhedged)", mtm_stats)
@@ -2330,7 +2330,7 @@ def print_result(summaries: list[dict]) -> None:
     It does NOT close the queued max-drawdown question. UNDERPOWERED leaves it
       OPEN: the registration retires that question on a NULL or a CONTRARY, and
       neither was reached.
-    It does NOT overturn bear_deploy D3, calendar_hedge H3 or hedge_timing H4.
+    It does NOT overturn hedge_sizing D3, hedge_structure H3 or hedge_timing H4.
       Those verdicts STAND. But MEASUREMENT-ONLY says they were read on the
       close-bucketed curve, which on THIS book {verb.lower()} max drawdown by
       {pct:.1f}%, so the basis they were read on is now a KNOWN LIMITATION of
@@ -2407,7 +2407,7 @@ def main() -> int:
     books = {w: _population_recs(w) for w in wanted}
     era = next(iter(books.values()))[1]["era"]
 
-    hdr("hedge_exposure — does concentration-triggered proxy hedging cut the "
+    hdr("hedge_portfolio — does concentration-triggered proxy hedging cut the "
         "book's drawdown?")
     shapes = "\n".join(
         f"    {w:<5s} {POP_LABELS[w]:<58s} {len(recs):4d} rows / "
@@ -2484,7 +2484,7 @@ def main() -> int:
 
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║  THE ADMITTED ARM  —  `--admitted`, filed as `hedge_exposure-admitted`   ║
+# ║  THE ADMITTED ARM  —  `--admitted`, filed as `hedge_portfolio-admitted`   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
 # Everything below was `f5_hedging/hedge_concentration.py` until 2026-09-07,
@@ -2510,8 +2510,8 @@ def main() -> int:
 #
 # Run:
 #     source .venv/bin/activate
-#     python -m scripts.backtest_study run hedge_exposure            # both arms
-#     python -m scripts.backtest_study run hedge_exposure -- --admitted
+#     python -m scripts.backtest_study run hedge_portfolio            # both arms
+#     python -m scripts.backtest_study run hedge_portfolio -- --admitted
 
 #: The flag `main()` dispatches on and `run.py`'s arm tables name.
 ADMITTED_ARM_FLAG = "--admitted"
@@ -2528,18 +2528,19 @@ ADMITTED_SUMMARY = ("HEDGE-CONCENTRATION — on the ADMITTED book, does "
 
 ADMITTED_DOC = ADMITTED_SUMMARY + """
 
-Pre-registered 2026-08-31. Registration:
-`research/pre-registrations/f5_hedging/hedge_concentration.md`, where
-`scripts/study_review/` reads it. Read it before quoting anything printed here.
+Pre-registered 2026-08-31 as `hedge_concentration`. Its registration and record
+were deleted 2026-09-08 and are held in git at `44bbfb2`; the verdict row is
+`research/study-map.md#hedging`. Read the registration there before quoting anything
+printed here.
 
-This is the "third reading" `hedge_exposure`'s errata named and declined to run
+This is the "third reading" `hedge_portfolio`'s errata named and declined to run
 under its own registration (post-ratification note 3): the SAME ratified
 population and the SAME ratified prices, but an ADMISSION MODEL over which of
-those plays are held at once. `hedge_exposure` held every ratified row
+those plays are held at once. `hedge_portfolio` held every ratified row
 concurrently; the operator's card admits at most `max_positions_per_day` new
 positions a day and respects the cash and delta caps, so the book actually run
 is `account_sim.simulate()`'s admitted subset — a smaller, more CONCENTRATED
-book than the one `hedge_exposure` measured.
+book than the one `hedge_portfolio` measured.
 
 TWO STAGES, IN A FIXED ORDER, and the second runs only if the first finds its
 precondition:
@@ -2599,9 +2600,9 @@ or printed, by construction.
 
 NOTHING SHIPS FROM THIS STUDY WITHOUT OPERATOR SIGN-OFF.
 
-Run (this is the ADMITTED arm of `hedge_exposure`):
+Run (this is the ADMITTED arm of `hedge_portfolio`):
     source .venv/bin/activate
-    python -m scripts.backtest_study run hedge_exposure -- --admitted
+    python -m scripts.backtest_study run hedge_portfolio -- --admitted
 """
 
 #: G-ADMIT's refusal, this arm's own. G-MTM (4) and G-BLIND (1) are the
@@ -2616,7 +2617,7 @@ H_SENS = 10
 
 #: THIS STUDY'S OWN tau grid, fixed by its registration: the admitted book's
 #: median / p75 / p90 concentration, rounded. It is deliberately NOT
-#: `C.TAU_GRID` (0.30 / 0.35 / 0.40), which is `hedge_exposure`'s grid on a
+#: `C.TAU_GRID` (0.30 / 0.35 / 0.40), which is `hedge_portfolio`'s grid on a
 #: book more than twice as diversified. Sharing that constant would silently
 #: run this study on a trigger the registration did not commit.
 TAU_GRID_ADMITTED = (0.45, 0.55, 0.65)
@@ -2647,11 +2648,11 @@ STAGE2_VERDICTS = ("MECHANISM-FOUND", "NULL", "CONTRARY", "UNDERPOWERED",
                    "NOT EVALUABLE")
 
 #: Stamped on any ARM K row belonging to a read the study has power-stopped —
-#: `hedge_exposure`'s errata F11 rule, applied to Stage 1. A signed number in a
+#: `hedge_portfolio`'s errata F11 rule, applied to Stage 1. A signed number in a
 #: table IS a direction in print.
 UNPOWERED_NOTE_ADMITTED = "UNDERPOWERED — no direction is quoted from this row"
 
-#: The taus `hedge_exposure` ran, printed in this study's census FOR
+#: The taus `hedge_portfolio` ran, printed in this study's census FOR
 #: CONTINUITY ONLY. They are not cells here and no arm reads them.
 COMPARISON_TAUS = (0.30, 0.35, 0.40, 0.50)
 
@@ -2681,7 +2682,7 @@ def _pass(flag: bool) -> str:
 def load_population() -> tuple[list[dict], dict]:
     """The RATIFIED population — the literal call, and nothing around it.
 
-    `hedge_exposure`'s operator ratification (2026-08-31) fixes
+    `hedge_portfolio`'s operator ratification (2026-08-31) fixes
     `load_book(include_bs=False)` as the population, and `account_sim`'s own
     default loader makes byte-for-byte the same call. There is no `--sources`
     switch here: this study's registration names ONE population and pooling or
@@ -3120,7 +3121,7 @@ class Overlay:
 
 
 def new_diag_admitted() -> dict:
-    """`hedge_exposure`'s planning diagnostic plus this study's admission ones."""
+    """`hedge_portfolio`'s planning diagnostic plus this study's admission ones."""
     d = new_diag()
     d.update(admission_refused=0, no_entry_delta=0)
     return d
@@ -3128,11 +3129,11 @@ def new_diag_admitted() -> dict:
 
 def plan_episode_admitted(window, proxies, f: float, budget: float, rule: str,
                           diag: dict, overlay: Overlay) -> Leg:
-    """`hedge_exposure.plan_episode`, with every leg run past the overlay ledger.
+    """`hedge_portfolio.plan_episode`, with every leg run past the overlay ledger.
 
     Identical in every other respect — the per-session re-pick, the rotation at
     a cluster change, the roll at expiry, the SKIP of a sub-one-contract size —
-    so the only difference between this study's ARM C and `hedge_exposure`'s is
+    so the only difference between this study's ARM C and `hedge_portfolio`'s is
     the admission the registration adds.
 
     A put with no cached entry greek cannot be admitted: its delta notional is
@@ -3278,7 +3279,7 @@ def arm_n_band_admitted(eps, by_session, universe, axis, base_daily, capital, f,
 def leave_one_date_out_admitted(cell: Cell, by_session, universe, axis, base_daily,
                                 capital, base, metrics, f, budget, rule,
                                 overlay_factory) -> dict:
-    """Clause 6, folded over TRIGGER DATES — `hedge_exposure`'s errata F10 rule.
+    """Clause 6, folded over TRIGGER DATES — `hedge_portfolio`'s errata F10 rule.
 
     A FOLD IS ONE TRIGGER DATE. Removing a date removes it from the trigger, so
     the episode containing it is re-planned as the (up to two) contiguous
@@ -3333,7 +3334,7 @@ def stage2_dispatch(verdict: str, run_stage2, print_census) -> str | None:
 def print_not_preregistered_admitted(args, capital: float, budget: float) -> None:
     """The ONE place every discretionary choice in this module is listed.
 
-    `hedge_exposure`'s errata F14 discipline: every choice this module made
+    `hedge_portfolio`'s errata F14 discipline: every choice this module made
     that the registration does NOT commit is listed here, with what it is and
     which clause it feeds. A choice that feeds a clause and is not on this list
     is a defect. None of these may be read as findings, and none is tuned —
@@ -3342,7 +3343,7 @@ def print_not_preregistered_admitted(args, capital: float, budget: float) -> Non
     hdr("NOT PRE-REGISTERED — every discretionary choice in this module, in "
         "one place")
     print(f"""  The registration
-  (research/pre-registrations/f5_hedging/hedge_concentration.md) fixes the
+  (hedge_concentration's, deleted 2026-09-08, held in git at 44bbfb2) fixes the
   population and the admission model, H = 20, the tercile rule, the tau grid
   {TAU_GRID_ADMITTED}, the f grid {F_GRID}, the fill rules and DTE windows, the
   >=60% fill gate, the >=25 trigger-date floor, G-POWER-K's 60/3, the
@@ -3360,7 +3361,7 @@ def print_not_preregistered_admitted(args, capital: float, budget: float) -> Non
      on the POSITION target — daily_pnl_csv at the replay's exit index times
      the replay's contracts, versus the dollars the FROZEN harness booked —
      which is a check between two separate computations but is NOT
-     hedge_exposure's two-STORED-columns check, and this report never calls it
+     hedge_portfolio's two-STORED-columns check, and this report never calls it
      that. The stored-target reconciliation is printed BESIDE it as a
      disclosure, with the re-sized and re-exited counts computed at run time.
      Feeds: G-MTM, and through the curve every Stage 1 and Stage 2 read.
@@ -3451,7 +3452,7 @@ def print_not_preregistered_admitted(args, capital: float, budget: float) -> Non
  16  ARM N IS PLANNED THROUGH THE SAME OVERLAY, a fresh ledger per seed. A
      null free of the admission the arm is subject to would stop being a null
      for that arm.   Feeds: clause 3.
- 17  EVERYTHING hedge_exposure ALREADY DISCLOSED AND THIS MODULE INHERITS by
+ 17  EVERYTHING hedge_portfolio ALREADY DISCLOSED AND THIS MODULE INHERITS by
      importing its planner: rolling at expiry (settled at expiry intrinsic
      against that day's close, walked back up to {SETTLE_LOOKBACK_DAYS} calendar days), the
      holding window extended one session past the episode, the per-session
@@ -3465,7 +3466,7 @@ def print_not_preregistered_admitted(args, capital: float, budget: float) -> Non
 
   THINGS THAT FEED NO CLAUSE, LISTED SO THE LIST IS COMPLETE
  18  THE COMPARISON TAUS {COMPARISON_TAUS} are printed in the census for
-     continuity with hedge_exposure. They are NOT cells here, no arm reads
+     continuity with hedge_portfolio. They are NOT cells here, no arm reads
      them, and the registration's grid may not be moved after commit.
  19  THE HEDGE-FLOW PROSE is parsed and censused only. No arm in this study
      reads it — see the registration's "What this is NOT".
@@ -3477,7 +3478,7 @@ def print_census(series, universe, adm_dates, positions, sess_series,
                  capital: float, st, dense_eps, spans) -> None:
     """G-CENSUS — the trigger and tercile census, from entry-dated INPUTS.
 
-    States the INPUT property, as `hedge_exposure`'s errata F13 fixed it: every
+    States the INPUT property, as `hedge_portfolio`'s errata F13 fixed it: every
     number here is computed from ticker / delta / contracts / entry_underlying,
     plus `days_held` through the OCCUPANCY layer alone — the replay fixture of
     a book that already happened, not a trigger input. G-CENSUS HAS NO FAILING
@@ -3540,13 +3541,13 @@ def print_census(series, universe, adm_dates, positions, sess_series,
     sub("trigger census — episodes are maximal runs of CONSECUTIVE triggered "
         "sessions")
     print(f"  G-POWER's floor is {MIN_TRIGGER_DATES} trigger DATES, read against EPISODES — the "
-          f"strictest\n  of the readings, and the clustering hedge_exposure "
+          f"strictest\n  of the readings, and the clustering hedge_portfolio "
           f"fixed. THE REGISTERED GRID:")
     print(f"  {'tau':>6s}  {'any:sessions':>13s} {'any:episodes':>13s}  "
           f"{'con:sessions':>13s} {'con:episodes':>13s}  power(any)")
     for tau in TAU_GRID_ADMITTED:
         _trigger_row(series, universe, tau)
-    print("\n  FOR COMPARISON ONLY, NOT A CELL — hedge_exposure's own taus on "
+    print("\n  FOR COMPARISON ONLY, NOT A CELL — hedge_portfolio's own taus on "
           "this book:")
     for tau in COMPARISON_TAUS:
         _trigger_row(series, universe, tau)
@@ -3742,10 +3743,10 @@ def main_admitted() -> int:
   Stage 2 primary fill rule: {args.rule}
 
   POPULATION — the RATIFIED one, by the literal call `load_book(include_bs=False)`
-  (research/pre-registrations/f5_hedging/hedge_exposure.md §Population and
+  (research/pre-registrations/f5_hedging/hedge_portfolio.md §Population and
   basis — RATIFICATION, operator 2026-08-31).
   `account_sim`'s own default loader makes byte-for-byte the same call, so the
-  candidate set here IS the population hedge_exposure ratified:
+  candidate set here IS the population hedge_portfolio ratified:
     rows {len(recs)}   signal dates {len(dates)}   {dates[0] if dates else 'n/a'} .. {dates[-1] if dates else 'n/a'}
     pricing sources: """ + "  ".join(f"{k} {v}" for k, v in sorted(by_source.items())) + f"""
 
@@ -3755,7 +3756,7 @@ def main_admitted() -> int:
   top-{st.max_per_day}-per-day rule and the cash / per-position / net delta caps. Hedges
   (Stage 2 only) go through `account_sim.admission()` and never displace a pick.
 
-  This is a DIFFERENT BOOK from hedge_exposure's, which held every ratified row
+  This is a DIFFERENT BOOK from hedge_portfolio's, which held every ratified row
   concurrently; no figure here restates one of that study's, and neither
   study's verdict overrides the other's.
 
@@ -3763,7 +3764,7 @@ def main_admitted() -> int:
   figure, Sharpe or time-to-recover appears anywhere in this report.""")
 
     # ── the sector map, quoted as the registration requires ─────────────────
-    hdr("SECTOR MAP — fixed in hedge_exposure's registration before any "
+    hdr("SECTOR MAP — fixed in hedge_portfolio's registration before any "
         "concentration was computed")
     for line in S.census_lines():
         print(line)
@@ -3815,12 +3816,12 @@ def main_admitted() -> int:
         "position's exit")
     bc = M.book_curves(positions, target=M.TARGET_POSITION)
     print("""  THE TARGET IS `TARGET_POSITION`, and this report does not call it
-  hedge_exposure's check. It compares TWO SEPARATE COMPUTATIONS — daily_pnl_csv
+  hedge_portfolio's check. It compares TWO SEPARATE COMPUTATIONS — daily_pnl_csv
   at the REPLAY's exit index, times the REPLAY's contracts, against the dollars
   the FROZEN harness booked for that same replay — which is the only target the
   registration's own words ("reconciles ... at every ADMITTED POSITION's exit")
   can mean on a book the simulator re-sized and re-exited. It is NOT
-  hedge_exposure's two-STORED-columns check (daily_pnl_csv vs
+  hedge_portfolio's two-STORED-columns check (daily_pnl_csv vs
   realized_pnl_abs), because the stored column describes a DIFFERENT position
   here by construction. That stored-target reconciliation is printed below as a
   DISCLOSURE, with the re-sizing and re-exiting counted at run time.""")
@@ -3863,12 +3864,12 @@ def main_admitted() -> int:
 
     # ── ARM M ───────────────────────────────────────────────────────────────
     hdr("ARM M — MEASUREMENT: the SAME unhedged ADMITTED book on both curves")
-    print("""  Every hedge verdict on record (bear_deploy D3, calendar_hedge H3,
+    print("""  Every hedge verdict on record (hedge_sizing D3, hedge_structure H3,
   hedge_timing H4) rests on account_sim's close-bucketed curve, whose own
   print_equity says "Open positions are not marked to market, so this
   understates intra-position drawdown." A hedge's function is to cushion
   exactly the path that curve omits. ARM M measures the gap ON THE BOOK
-  account_sim ACTUALLY HOLDS, so unlike hedge_exposure's ARM M it is a
+  account_sim ACTUALLY HOLDS, so unlike hedge_portfolio's ARM M it is a
   measurement of the very curve that study's baseline was queued against.
 
   ARM M GATES NOTHING and is NEVER a verdict word in this study: the
@@ -4121,7 +4122,7 @@ def main_admitted() -> int:
     It ships NOTHING. NOTHING SHIPS FROM THIS STUDY WITHOUT OPERATOR SIGN-OFF.
     It does NOT remove or amend the §4 bear sleeve, which is operator policy
       and is not removed by any outcome here.
-    It does NOT overturn hedge_exposure. That study's UNDERPOWERED describes
+    It does NOT overturn hedge_portfolio. That study's UNDERPOWERED describes
       the every-row book; this one describes the ADMITTED book. Neither
       verdict overrides the other's.
     It is NOT evidence about concurrency_correlation's ceiling, in either
@@ -4138,7 +4139,7 @@ def run_stage2(series, universe, by_session, recs_adm, axis, base_daily,
                mtm_stats, capital, budget, sess_series, st, args) -> str:
     """The full Stage 2 grid. Reached ONLY on PRECONDITION-FOUND.
 
-    Everything here is `hedge_exposure`'s machinery over this study's objects —
+    Everything here is `hedge_portfolio`'s machinery over this study's objects —
     the seven clauses, the CONTRARY mirror, the ARM N band, the
     leave-one-date-out folds and the per-stratum computation — with one
     difference the registration adds: every hedge leg is admitted through
@@ -4153,7 +4154,7 @@ def run_stage2(series, universe, by_session, recs_adm, axis, base_daily,
     hdr("G-FILL — a hedge must be fillable on >=60% of triggered sessions "
         "(band rule)")
     print("""  An unfillable session is CARRIED AT f=0 and stays in the denominator, per
-  calendar_hedge's standing principle that a hedge unavailable exactly when
+  hedge_structure's standing principle that a hedge unavailable exactly when
   needed is not a hedge. DISCLOSED: this denominator is CACHE-CONDITIONED — the
   instrument universe is the option history cache, i.e. contracts the BOOK
   traded, so these rates measure CACHE COVERAGE, not market liquidity.""")
@@ -4285,7 +4286,7 @@ def run_stage2(series, universe, by_session, recs_adm, axis, base_daily,
                     mtm_stats, CO_PRIMARIES, f, budget, args.rule,
                     overlay_factory)
                 # `arm_n_registered=band` is the SAME band on purpose. In
-                # hedge_exposure the rich match was NOT what its registration
+                # hedge_portfolio the rich match was NOT what its registration
                 # committed, so the two had to be printed side by side; THIS
                 # registration commits exactly this match — "episode COUNT,
                 # episode LENGTHS and PROXY mix" — so there is no second

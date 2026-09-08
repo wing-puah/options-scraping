@@ -324,9 +324,9 @@ def test_build_validator_prompt_inlines_errata():
 
 def test_load_errata_finds_the_hyphenated_file_for_an_underscored_study(tmp_path, monkeypatch):
     monkeypatch.setattr(core.config, "ERRATA_DIR", tmp_path)
-    (tmp_path / "hedge-exposure-errata.md").write_text("# errata body\n")
-    path, text = load_errata("hedge_exposure", None, skip=False)
-    assert path.name == "hedge-exposure-errata.md"
+    (tmp_path / "hedge-portfolio-errata.md").write_text("# errata body\n")
+    path, text = load_errata("hedge_portfolio", None, skip=False)
+    assert path.name == "hedge-portfolio-errata.md"
     assert text == "# errata body"
 
 

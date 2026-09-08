@@ -1,4 +1,4 @@
-"""Tests for `calendar_hedge`'s ARM H sizing floor.
+"""Tests for `hedge_structure`'s ARM H sizing floor.
 
 `_typed()` converts a stored calendar candidate row into a report row and
 computes `hedge_contracts` under ARM H's pre-registered half-size convention
@@ -10,7 +10,7 @@ hedge where the arm specifies half. The floor now SKIPS the position instead
 (`hedge_contracts` / `H_dol` are `None`).
 
 This is a SIZING fact ONLY. An earlier version of this fix also filtered
-`calendar_hedge.py`'s `keep` (the candidate universe) on `hedge_contracts`,
+`hedge_structure.py`'s `keep` (the candidate universe) on `hedge_contracts`,
 which silently moved H0 — a RECORDED gate (75.6% deployed / 66.7%
 worst-decile, MET) — from MET to NOT MET, because "fillable but unsizable"
 got conflated with "unfillable". That was wrong and has been reverted: `keep`
@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 
-from scripts.backtest_study.f5_hedging.calendar_hedge import (  # noqa: E402
+from scripts.backtest_study.f5_hedging.hedge_structure import (  # noqa: E402
     HEDGE_SIZE, apply_pick, h0_fill, h2_contribution, h3_sizing, _typed,
 )
 
@@ -167,10 +167,10 @@ def test_h3_sizing_does_not_raise_on_an_unsizable_pick(capsys):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# The three bodies calendar_hedge deleted on 2026-09-07, kept here as literals
+# The three bodies hedge_structure deleted on 2026-09-07, kept here as literals
 # ════════════════════════════════════════════════════════════════════════════
 # H2(c)'s year clause, H3's `_sweep` and `bear_sleeve_dollars`' 1-per-day pick
-# were this study's own copies of `bear_deploy` D2/D3 until they were replaced
+# were this study's own copies of `hedge_sizing` D2/D3 until they were replaced
 # by `lib/hedge_criteria.py` (research/hedge-programme-plan.md §"The shared
 # criteria library"). The study reconciled BYTE-IDENTICAL on era v4, which
 # pins the merge on the ONE population the export happens to hold. These tests
@@ -262,7 +262,7 @@ def _new_sweep(base_daily, sleeve, dates, fractions):
     ([0.0, 0.0, -500.0, 0.0], [-25.0, -25.0, 300.0, -25.0]),
 ])
 def test_the_sweep_the_study_deleted_equals_the_library(book, sleeve):
-    from scripts.backtest_study.f5_hedging.calendar_hedge import SIZE_FRACTIONS
+    from scripts.backtest_study.f5_hedging.hedge_structure import SIZE_FRACTIONS
 
     dates = [f"2025-01-{i + 1:02d}" for i in range(len(book))]
     base_daily = dict(zip(dates, book))

@@ -10,7 +10,7 @@ never an invented increment — plus cache-presence skip/count
 (`split_cached`), the manifest's resume semantics (fetched/failed rows are
 never clobbered, --limit is honored, --retry-failed gating), and that the
 financing manifest path is a SEPARATE constant from `fetch_sweep_legs.py`'s
-legs manifest (calendar_hedge ARM S depends on that one).
+legs manifest (hedge_structure ARM S depends on that one).
 
 Everything is synthetic and written to tmp_path; no network, no real cache.
 """
@@ -62,7 +62,7 @@ def _isolate(tmp_path, monkeypatch):
 # --- distinct manifest paths -----------------------------------------------------
 
 def test_financing_manifest_path_is_distinct_from_legs_manifest_path():
-    """calendar_hedge --arm S depends on legs_manifest.csv; this collector
+    """hedge_structure --arm S depends on legs_manifest.csv; this collector
     must never read or write it."""
     assert ffl.MANIFEST_PATH != fsl.MANIFEST_PATH
     assert ffl.MANIFEST_PATH.name == "financing_manifest.csv"

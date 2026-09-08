@@ -19,14 +19,14 @@ follow-up.
 
 | Commit | What it did |
 |---|---|
-| `a9b713a` | `lib/hedge_criteria.py` created; `bear_deploy` reads it |
+| `a9b713a` | `lib/hedge_criteria.py` created; `hedge_sizing` reads it |
 | `8c03502` | `hedge_timing` reads it |
 | `5be4ba6` | `vol_sleeve` deleted; `lib/sleeve_synth.py` created |
-| `4ed865f` | `calendar_hedge` reads it |
-| `7187ca2` | `hedge_concentration` merged into `hedge_exposure --admitted` and deleted |
+| `4ed865f` | `hedge_structure` reads it |
+| `7187ca2` | `hedge_concentration` merged into `hedge_portfolio --admitted` and deleted |
 | `3d20781` | `bear_rewrap` reads the daily series |
 | `0d27a37` | `financed_spread` reads the daily series |
-| `90e21a5` | review follow-up: `hedge_timing` `ARM H4` and `bear_deploy` `D5` apply the size rule through `unharmed` |
+| `90e21a5` | review follow-up: `hedge_timing` `ARM H4` and `hedge_sizing` `D5` apply the size rule through `unharmed` |
 
 **Retired means deleted, by operator decision on 2026-09-07.** The plan below
 proposed keeping `vol_sleeve.py` on disk with the catalog's `retired` field set.
@@ -36,10 +36,10 @@ DELETED as modules, and neither the `retired` field nor
 **DELETED** rows in [`study-map.md`](study-map.md), beside their frozen
 [`study-results/`](study-results/) prints and their immutable
 pre-registrations. Nothing that either study printed is lost: `vol_sleeve`'s
-synthesis layer is `lib/sleeve_synth.py`, which `calendar_hedge` `R4` runs, and
+synthesis layer is `lib/sleeve_synth.py`, which `hedge_structure` `R4` runs, and
 `hedge_concentration`'s whole report prints from the `--admitted` arm.
 
-**The option-history cache was repaired first.** `calendar_hedge` `R2` failed on
+**The option-history cache was repaired first.** `hedge_structure` `R2` failed on
 three reconstruction keys, not the two named in
 [`next-steps.md`](next-steps.md) §0. Six files were restored from the
 `research-caches-20260905-1111.tar.gz` Drive snapshot:
@@ -78,11 +78,11 @@ The hedge contribution rule, `D2` in its origin, appears in six modules.
 
 | File and line | Symbol | How it differs from the origin |
 |---|---|---|
-| `f5_hedging/bear_deploy.py:209`, `:221` | `daily_series`, `d2_hedge` | the origin, correlation plus tail plus per-year sign |
+| `f5_hedging/hedge_sizing.py:209`, `:221` | `daily_series`, `d2_hedge` | the origin, correlation plus tail plus per-year sign |
 | `f5_hedging/hedge_timing.py:622` | `daily_dollars` | dollar leg only, no tail cut at all |
 | `f5_hedging/vol_sleeve.py:413`, `:549` | `daily`, `q2` | own bootstrap CI, tail ordered by dollars, no year clause |
 | `f3_structure/bear_rewrap.py:559` | `report_portfolio` | decile as a value cutoff, tail verdict is CI based |
-| `f5_hedging/calendar_hedge.py:932` | `h2_contribution` | adds a floor of 10, carries unfillable dates at zero |
+| `f5_hedging/hedge_structure.py:932` | `h2_contribution` | adds a floor of 10, carries unfillable dates at zero |
 | `f3_structure/financed_spread.py:1481`, `:1492`, `:1651` | `sleeve_daily`, `cell_corr`, `report_descriptive` | correlation is the criterion, the tail is labelled not a criterion |
 
 The sizing rule, `D3` in its origin, appears four times in the fraction-sweep
@@ -90,29 +90,29 @@ shape.
 
 | File and line | Symbol | How it differs from the origin |
 |---|---|---|
-| `f5_hedging/bear_deploy.py:306`, `:328`, `:348`, `:367` | `_sleeve_dollars`, `_sweep`, `_verdict`, `d3_sizing` | the origin, fractions 0, 0.25, 0.5, 1.0 |
+| `f5_hedging/hedge_sizing.py:306`, `:328`, `:348`, `:367` | `_sleeve_dollars`, `_sweep`, `_verdict`, `d3_sizing` | the origin, fractions 0, 0.25, 0.5, 1.0 |
 | `f5_hedging/hedge_timing.py:635`, `:652`, `:671`, `:677` | `sleeve_pick`, `policy_daily`, `_policy_stats`, `h4_portfolio` | two fractions, gated policy, fails closed on an empty cut |
-| `f5_hedging/calendar_hedge.py:1053`, `:1077`, `:1112` | `bear_sleeve_dollars`, `_sweep`, `h3_sizing` | two baselines, drops the downside-deviation column |
+| `f5_hedging/hedge_structure.py:1053`, `:1077`, `:1112` | `bear_sleeve_dollars`, `_sweep`, `h3_sizing` | two baselines, drops the downside-deviation column |
 | `f5_hedging/vol_sleeve.py:604` to `:611` | inline block | no baseline row, no verdict, normalised to one average position |
 
 Two further sleeve-sizing implementations sit outside the sweep shape, at
 `f4_deployment/account_sim.py:988` to `:1007` and
 `f4_deployment/portfolio_delta.py:363` to `:389`. They pick one position a day
-by descending delta, which `calendar_hedge.py:1053` implements a third time.
+by descending delta, which `hedge_structure.py:1053` implements a third time.
 They are named here and are out of scope for the first pass.
 
 The drawdown function exists as three bodies.
 
 | File and line | Status |
 |---|---|
-| `lib/mtm_curve.py:471` | the canonical body, re-exported from `f5_hedging/bear_deploy.py:60` |
+| `lib/mtm_curve.py:471` | the canonical body, re-exported from `f5_hedging/hedge_sizing.py:60` |
 | `f5_hedging/vol_sleeve.py:428` | a port, untested, will not follow a change to the canonical one |
 | `f5_hedging/hedge_timing.py:605` | a documented verbatim fork, untested |
 
 ### The reference, and how a copy is deleted
 
-**`bear_deploy` is the reference for `D2` and `D3`, because it is the origin the
-copies name.** `hedge_timing`, `vol_sleeve` and `calendar_hedge` name the module
+**`hedge_sizing` is the reference for `D2` and `D3`, because it is the origin the
+copies name.** `hedge_timing`, `vol_sleeve` and `hedge_structure` name the module
 itself. `bear_rewrap.py:560` names the criterion `D2` without naming the module.
 `financed_spread` names neither. It attributes its join to
 [`bear_rewrap` `ARM P`](arm-index.md#bear_rewrap) / `P2` instead, one hop further
@@ -120,7 +120,7 @@ out. That does not unseat the reference, but the claim is three modules and not
 five.
 
 `lib/mtm_curve.py:471` is the reference for the drawdown function, because
-`tests/test_mtm_curve.py:246` already pins that `bear_deploy` re-exports it
+`tests/test_mtm_curve.py:246` already pins that `hedge_sizing` re-exports it
 rather than owning a second body.
 
 A copy is not deleted because it looks the same. Each one is reconciled first
@@ -134,8 +134,8 @@ identical print permits the deletion.
 [`current.md`](current.md) with the two figures and the population, and the
 deletion stops there. Two of the copies are load-bearing in this exact way.
 `hedge_timing.py:605` says in its own docstring that it was copied rather than
-imported so that `bear_deploy`'s recorded numbers can never move because that
-file changed. `calendar_hedge.py:936` says its rule is the origin's verbatim.
+imported so that `hedge_sizing`'s recorded numbers can never move because that
+file changed. `hedge_structure.py:936` says its rule is the origin's verbatim.
 Both are commitments about numbers, so the merge has to preserve numerical
 identity and not merely intent.
 
@@ -184,11 +184,11 @@ No arm label and no gate label changes. The report must keep printing
 <a id="q2-work"></a>
 ## Q2, what to hedge with
 
-**`vol_sleeve` is retired into `calendar_hedge`.** `calendar_hedge` already
+**`vol_sleeve` is retired into `hedge_structure`.** `hedge_structure` already
 rebuilds `vol_sleeve`'s calendar cell in-process and compares it row for row,
 under its own gate `R4`, and imports the synthesis layer rather than copying it.
 The straddle and the strangle are the only part of `vol_sleeve` that
-`calendar_hedge` does not already carry, and both were answered.
+`hedge_structure` does not already carry, and both were answered.
 
 **Retired means the module is deleted** (operator, 2026-09-07). `vol_sleeve.py`
 is gone and its catalog entry with it, because `tests/test_study_map.py:73`
@@ -199,15 +199,15 @@ with a surviving entry fails, and a surviving file with no entry fails too. The
 **DELETED** row in [`study-map.md`](study-map.md#hedging), which that test
 also checks.
 
-**Every `VS.` reference in `calendar_hedge.py` resolves to `lib/` rather than to
-the deleted module.** The import at `calendar_hedge.py:100` reached twelve
+**Every `VS.` reference in `hedge_structure.py` resolves to `lib/` rather than to
+the deleted module.** The import at `hedge_structure.py:100` reached twelve
 symbols, not three. They moved to `lib/sleeve_synth.py`, unchanged, and
-`calendar_hedge` imports them from there, so nothing imports a study that is not
+`hedge_structure` imports them from there, so nothing imports a study that is not
 there. `lib/sleeve_synth.py` is a deliberate exception to the `lib/` layering
 rule: it imports pricing helpers from `f3_structure/bear_rewrap`, on the
 precedent of `lib/live_select.py`, because `R4` compares row for row and a third
 copy of the entry rule is the failure `R4` exists to catch. Its docstring says
-so. Nothing moved into `calendar_hedge` itself, because `R4` exists precisely to
+so. Nothing moved into `hedge_structure` itself, because `R4` exists precisely to
 catch a second copy of the entry rule drifting, and a copy inside the study is
 exactly the copy `R4` is there to refuse. These are the symbols that moved.
 
@@ -222,20 +222,20 @@ exactly the copy `R4` is there to refuse. These are the symbols that moved.
 of its row-for-row comparison, so a retirement that left it behind would have
 left `R4` importing a module that is not there.
 
-`bear_deploy` and `calendar_hedge` stay separate modules. They ask different
+`hedge_sizing` and `hedge_structure` stay separate modules. They ask different
 questions and each has its own immutable pre-registration.
 
 <a id="q3-work"></a>
 ## Q3, how much to hedge
 
-The sizing rule moves into the library with `bear_deploy` as the reference. The
+The sizing rule moves into the library with `hedge_sizing` as the reference. The
 three consumers keep their own registered shapes on top of it.
 
 | Consumer | What stays local to it |
 |---|---|
-| `bear_deploy` `D3` | the four-fraction grid and the downside-deviation column |
+| `hedge_sizing` `D3` | the four-fraction grid and the downside-deviation column |
 | `hedge_timing` `ARM H4` | the two-fraction grid, the gated policy, the closed-fail on an empty cut, and its own daily paths, so it calls the size rule (`unharmed`) rather than the sweep |
-| `calendar_hedge` `H3` | the second baseline, the deployed ladder plus the shipped bear sleeve |
+| `hedge_structure` `H3` | the second baseline, the deployed ladder plus the shipped bear sleeve |
 
 The library exposes the criterion, meaning the largest fraction whose drawdown
 and worst date are both no worse than carrying nothing. It does not own the grid.
@@ -245,21 +245,21 @@ the study.
 <a id="q4-work"></a>
 ## Q4, portfolio make-up
 
-**`hedge_exposure` and `hedge_concentration` merge into one module with an
+**`hedge_portfolio` and `hedge_concentration` merge into one module with an
 admission arm.** They are the same question at two scopes. `hedge_concentration`
-already imports 32 symbols from `hedge_exposure`, including its whole pricing and
+already imports 32 symbols from `hedge_portfolio`, including its whole pricing and
 evaluation stack, its printers and its constants. The only thing it redefines is
 the handful of functions that read the admitted book rather than the whole book.
 
 The merged module takes an arm selecting the population: the whole book, which is
-`hedge_exposure` today, or the admitted book that `account_sim` actually takes,
+`hedge_portfolio` today, or the admitted book that `account_sim` actually takes,
 which is `hedge_concentration` today. Each arm writes its own report stem, the
 way `account_sim`'s arms do.
 
 **Every registered gate and arm keeps printing under its registered label.** Both
 registrations are immutable in substance, and six labels collide between them.
 
-| Label | `hedge_exposure` means | `hedge_concentration` means |
+| Label | `hedge_portfolio` means | `hedge_concentration` means |
 |---|---|---|
 | `ARM C` | concentration-gated proxy put on the whole book | the same, Stage 2 only, on the admitted book |
 | `ARM M` | measurement, two curves on the unhedged book | the same on the admitted book |
@@ -271,7 +271,7 @@ registrations are immutable in substance, and six labels collide between them.
 The merged module prints each label prefixed by its arm, so a reader can tell
 which population a line came from, and neither registration's vocabulary is
 renamed. `hedge_concentration`'s Stage 1 and Stage 2 verdict grammars stay
-separate from `hedge_exposure`'s six study-level words, because a merged verdict
+separate from `hedge_portfolio`'s six study-level words, because a merged verdict
 would be a new claim.
 
 The two libraries these studies share, `lib/concentration.py` and
@@ -301,7 +301,7 @@ There is no `superseded` field. The word appears only inside verdict prose.
 |---|---|
 | `vol_sleeve` | entry removed, because the module is gone and the runner discovers studies from the directory. Its verdict is now the **DELETED** row in [`study-map.md`](study-map.md#hedging) |
 | `hedge_concentration` | entry removed, for the same reason. Its verdict is the **DELETED** row in [`study-map.md`](study-map.md#hedging) |
-| `hedge_exposure` | entry kept, verdict prose extended to name both arms |
+| `hedge_portfolio` | entry kept, verdict prose extended to name both arms |
 | `lib/hedge_criteria.py`, `lib/sleeve_synth.py` | added to the INFRA table, which `tests/test_study_map.py:115` checks against `run.INFRA`'s `lib/*.py` glob |
 
 ### The frozen records
@@ -353,8 +353,8 @@ hand-maintained.
 | `tests/test_study_map.py:107` | it asserts nothing is retired, so retiring `vol_sleeve` requires editing this test deliberately |
 | `tests/test_study_map.py:115` | the catalog's infrastructure table must match the runner's, and `run.INFRA` globs `lib/*.py`, so ANY new module under `scripts/backtest_study/lib/` fails until it is listed — `hedge_criteria.py` and everything Q2 relocates there |
 | `tests/test_arm_index.py:103` | any renamed or new `ARM` token fails until the index carries it |
-| `tests/test_calendar_hedge_r4.py` | it imports `vol_sleeve` directly, so the retirement moves what it imports |
-| `tests/test_studies_hedge_concentration.py` | it imports `hedge_exposure` and asserts the shared exit code, so the merge rewrites its imports |
+| `tests/test_hedge_structure_r4.py` | it imports `vol_sleeve` directly, so the retirement moves what it imports |
+| `tests/test_studies_hedge_concentration.py` | it imports `hedge_portfolio` and asserts the shared exit code, so the merge rewrites its imports |
 | `tests/test_mtm_curve.py:246` | it pins the single drawdown implementation and should gain the two removed forks |
 
 The registry itself needs no edit. `scripts/backtest_study/run.py:232` discovers
@@ -379,7 +379,7 @@ worktrees touch `scripts/backtest/`, `scripts/analysis_pipeline/`, config and
 docs, and no file under `scripts/backtest_study/`. The one thing the queue did
 move was the option cache, which the backtest refreshes in place (a stale file
 is deleted and refetched), and that moved two `ARM N` null-band figures in
-`hedge_exposure`'s report between runs. The record in
+`hedge_portfolio`'s report between runs. The record in
 [`current.md`](current.md) states it. The conditions stay written here because
 they are the right default for the next consolidation.
 

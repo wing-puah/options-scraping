@@ -180,7 +180,7 @@ def entry_price_of(leg: Leg, day: date) -> float | None:
     Until 2026-09-04 only the first two were mirrored, and one real row
     (UTHR 2025-12-17 bull_call_spread, short leg bid 0 / no mark on the entry
     day, priced by production off the prior day's mark) failed `reconstructs`
-    as `entry_unpriced` and stopped `calendar_hedge` at R2 — a gate on the
+    as `entry_unpriced` and stopped `hedge_structure` at R2 — a gate on the
     STUDY's fidelity to production, which is exactly what it exists to catch.
     """
     row = leg_details(leg).get(day)

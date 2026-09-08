@@ -826,12 +826,12 @@ STUDIES: dict[str, Study] = {
     ),
 
     # ⑤ hedging
-    "bear_deploy": Study(
+    "hedge_sizing": Study(
         family="hedging", state="shipped",
         attention="2026-08-24 grading PULLED the §4 closer-to-money pick line and "
                   "relabelled the hedge sleeve operator-policy — read the digest and "
                   "validator memo, and confirm the operator pre-commitment wording in "
-                  "research/pre-registrations/f5_hedging/bear_deploy.md says what you meant.",
+                  "research/pre-registrations/f5_hedging/hedge_sizing.md says what you meant.",
         question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
                  "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
                  "D4 conditional pick.",
@@ -859,7 +859,7 @@ STUDIES: dict[str, Study] = {
                 "ADOPTED read is recorded in research/deployment-evidence.md.",
     ),
 
-    "calendar_hedge": Study(
+    "hedge_structure": Study(
         family="hedging", state="open",
         question="Re-derive that one survivor under a pre-registered pick rule and a strict "
                  "fill rule.",
@@ -925,7 +925,7 @@ STUDIES: dict[str, Study] = {
                 "post-2025-11-04 dates.",
     ),
 
-    "hedge_exposure": Study(
+    "hedge_portfolio": Study(
         family="hedging", state="open",
         question="When the open book is CONCENTRATED in one correlated cluster, does adding "
                  "a long put on that cluster's proxy reduce the book's MARK-TO-MARKET "
@@ -934,7 +934,7 @@ STUDIES: dict[str, Study] = {
                 "over two different objects, both emitted, neither ordered ahead of the other, and "
                 "both unchanged on the 2026-09-04 v4 export (sha e59356f). The population deadlock "
                 "recorded as ERRATUM 1 was RATIFIED by the operator on 2026-08-31 "
-                "(research/pre-registrations/f5_hedging/hedge_exposure.md, Population and "
+                "(research/pre-registrations/f5_hedging/hedge_portfolio.md, Population and "
                 "basis, consolidated there 2026-09-02): the population is the literal "
                 "load_book(include_bs=False) call, because a strike_expiry_tweak row is a REAL "
                 "Barchart price for a nearby strike and an operator who does not follow a proposed "
@@ -955,18 +955,18 @@ STUDIES: dict[str, Study] = {
                 "pts   (differ materially: YES)`, i.e. `the close-bucketed curve UNDERSTATES this "
                 "book's max drawdown by 40.2%.` — hence `VERDICT — ARM M, the measurement, which "
                 "is not power-gated: MEASUREMENT-ONLY`. Nothing ships. UNDERPOWERED leaves the "
-                "queued max-drawdown question OPEN rather than closing it. bear_deploy D3, "
-                "calendar_hedge H3 and hedge_timing H4 all STAND — but they were read on the "
+                "queued max-drawdown question OPEN rather than closing it. hedge_sizing D3, "
+                "hedge_structure H3 and hedge_timing H4 all STAND — but they were read on the "
                 "close-bucketed curve, which understates this book's drawdown by 40%, and that is "
-                "now a known limitation of theirs. ERRATUM 2 stands too: `hedge_exposure ARM P` is "
+                "now a known limitation of theirs. ERRATUM 2 stands too: `hedge_portfolio ARM P` is "
                 "INERT AS REGISTERED and has not been redefined, so the binding prose rule is "
-                "unreachable; `hedge_exposure ARM RF` prints as UNREGISTERED — ADDED AFTER COMMIT "
+                "unreachable; `hedge_portfolio ARM RF` prints as UNREGISTERED — ADDED AFTER COMMIT "
                 "and no clause reads it. Read with the ratification's own limitation: the "
                 "registration's PLAN-TIME observations (exposure table, concentration quantiles, "
                 "504-session universe) describe the `real` stratum and are NOT disclosures about "
                 "the ratified book — the figures that describe it are the ones the run prints. "
                 "TWO ARMS SINCE 2026-09-07, and the verdict above is the WHOLE-BOOK one. `hedge_concentration` "
-                "was merged in as this module's `--admitted` arm and deleted; it files as `hedge_exposure-admitted` "
+                "was merged in as this module's `--admitted` arm and deleted; it files as `hedge_portfolio-admitted` "
                 "and asks the same question on the ADMITTED book — what account_sim actually takes under the "
                 "top-3-per-day rule and the exposure caps. Its own two-stage verdict is unchanged by the merge "
                 "and the report reconciles byte-identical: `VERDICT — Stage 1 (ARM K, the precondition): "
@@ -976,10 +976,10 @@ STUDIES: dict[str, Study] = {
                 "and neither overrides the other: UNDERPOWERED here describes the every-row book, "
                 "PRECONDITION-NULL there describes the book the operator runs. The deleted module's full "
                 "verdict is quoted verbatim in research/study-map.md and its frozen per-era print stands at "
-                "research/study-results/f5_hedging/hedge_concentration.md.",
+                "git history (44bbfb2), its record having been deleted 2026-09-08.",
         attention="ARM M's MEASUREMENT-ONLY finding is now RECORDED (2026-08-31): "
                   "research/deployment-evidence.md gained a section qualifying the "
-                  "measurement basis of bear_deploy D3, calendar_hedge H3 and hedge_timing "
+                  "measurement basis of hedge_sizing D3, hedge_structure H3 and hedge_timing "
                   "ARM H4 — none overturned, no figure of theirs restated, and 40.2% is not "
                   "a correction factor transferable to their books. The dilution question "
                   "raised against the ratified population (admitting `tweak` rows made the "
@@ -987,7 +987,7 @@ STUDIES: dict[str, Study] = {
                   "was argued) was ANSWERED FROM DISK the same day, not left open: "
                   "research/archive/18-hedge-programme-exit-basis-and-text-loop.md "
                   "2026-08-31 (late) shows the deploy card admits only 221 of 458 "
-                  "ladder-eligible rows (at most 3 per day), so hedge_exposure's 996-row book is "
+                  "ladder-eligible rows (at most 3 per day), so hedge_portfolio's 996-row book is "
                   "about twice as diversified as what the operator actually holds, which "
                   "registered hedge_concentration to measure the admitted book directly.",
     ),
@@ -1026,10 +1026,10 @@ INFRA: dict[str, str] = {
     "lib/sleeve_synth.py": "`vol_sleeve`'s synthesis layer — the strike index, the "
                            "leg builder, the trade synthesizer and its statistics helpers — kept "
                            "byte-identical when that study was RETIRED AND DELETED on 2026-09-07. "
-                           "calendar_hedge's gate R4 builds the calendar cell twice in one process, "
+                           "hedge_structure's gate R4 builds the calendar cell twice in one process, "
                            "once through its own build_universe/evaluate and once through "
                            "synthesize() here, and requires the two equal row for row; a copy of the "
-                           "entry rule inside calendar_hedge is the exact copy R4 exists to refuse, "
+                           "entry rule inside hedge_structure is the exact copy R4 exists to refuse, "
                            "so the layer outlived the study. fetch_sweep_legs.py and "
                            "fetch_financing_legs.py read _strike_index/paired_strikes from here for "
                            "the same reason. daily() is NOT lib/hedge_criteria.py::daily_series: it "
@@ -1069,11 +1069,11 @@ INFRA: dict[str, str] = {
                    "11 clusters, one proxy each, residual BROAD -> SPY, and four clusters "
                    "(ENERGY/FINL/CRYPTO/INTL) marked UNHEDGEABLE with the reason carried as "
                    "DATA so a caller branches on the map rather than on a cluster name. "
-                   "Transcribed verbatim from hedge_exposure's committed constant and shared "
+                   "Transcribed verbatim from hedge_portfolio's committed constant and shared "
                    "with concurrency_correlation's ARM K, which imports it rather than "
                    "restating it — two maps would let two studies disagree about what 'same "
                    "sector' means.",
-    "lib/concentration.py": "The concentration trigger layer for hedge_exposure: per-session "
+    "lib/concentration.py": "The concentration trigger layer for hedge_portfolio: per-session "
                    "open-book occupancy, each cluster's signed delta notional, the "
                    "largest-cluster share that IS the independent variable, the "
                    "DIRECT/CONSTITUENT stratum, the hedge-pressure parse, and the census "
@@ -1083,12 +1083,12 @@ INFRA: dict[str, str] = {
     "lib/mtm_curve.py": "The MARK-TO-MARKET book equity curve, built from daily_pnl_csv, "
                    "beside the close-bucketed one account_sim already produces — plus the "
                    "per-position G-MTM reconciliation between them and the path statistics "
-                   "(max drawdown — this module's own function, which bear_deploy imports "
+                   "(max drawdown — this module's own function, which hedge_sizing imports "
                    "back — Ulcer, time-under-water). Both bases come back from one call so "
                    "a caller cannot mix them.",
     "lib/hedge_criteria.py": "The hedge programme's ONE contribution rule, ONE sizing "
                    "rule and one drawdown function (re-exported from lib/mtm_curve, "
-                   "never a second body). Transcribed from bear_deploy D2/D3, the "
+                   "never a second body). Transcribed from hedge_sizing D2/D3, the "
                    "origin the other hedge studies name, with every threshold and "
                    "tie-break intact — the decile and quartile floors, the six-date "
                    "year minimum, the 1e-9 slack, max()'s first-wins. Returns "
@@ -1108,7 +1108,7 @@ INFRA: dict[str, str] = {
                    "destroy the autocorrelation the null has to preserve. H, the group count, "
                    "the draw counts and every seed are PARAMETERS; nothing here knows what a "
                    "session, a cluster or a hedge is, and it carries no verdict.",
-    "lib/hedge_instrument.py": "Hedge instrument selection and pricing for hedge_exposure: "
+    "lib/hedge_instrument.py": "Hedge instrument selection and pricing for hedge_portfolio: "
                    "the proxy put under the two committed fill rules (band 25-75 DTE / "
                    "+/-5%, nearest-available anchored at 45 DTE within 20-120), the "
                    "delta-equivalent underlying short, and the G-FILL coverage report. "

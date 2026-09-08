@@ -185,7 +185,7 @@ ARMS = (
     ("O2", "reserved-$ per unit delta-notional, DESCENDING, within tier",
      "budget efficiency: most risk-budget deployed per unit of the scarce resource"),
     ("O3", "|delta| DESCENDING, within tier",
-     "transfer test of bear_deploy's D4 rule, never yet run outside bear"),
+     "transfer test of hedge_sizing's D4 rule, never yet run outside bear"),
     ("O1b", "delta-notional ASCENDING, TIER-BLIND across A u B",
      "eligibility unchanged; A vs B is statistically merged"),
 )

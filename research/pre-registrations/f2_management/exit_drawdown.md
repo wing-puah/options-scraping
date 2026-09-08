@@ -98,7 +98,7 @@ ways, and both must hold for it to be worth running:
    MARKED (`lib/mtm_curve.py`), not the mean of a per-row distribution. A rule
    can leave mean R untouched and still change that curve — through *when* the
    reserve is released, *which* positions are concurrently open, and how deep the
-   marked book goes between entry and exit. Conversely, `hedge_exposure` ARM M
+   marked book goes between entry and exit. Conversely, `hedge_portfolio` ARM M
    established that the close-bucketed curve UNDERSTATES this book's max drawdown
    by 40.2%, so a per-row read cannot stand in for it. Per-row R is therefore not
    a proxy for this metric in either direction, and the standing nulls above do
@@ -232,7 +232,7 @@ Two boundaries on that yardstick, disclosed with it:
 - `account_sim`'s own `print_equity` states that **open positions are not marked
   to market** on the basis it reports. The marked curve this study reads is
   `lib/mtm_curve.py` (`book_curves` → `path_stats`), which is a different and
-  deeper curve; `hedge_exposure` ARM M measured the close-bucketed
+  deeper curve; `hedge_portfolio` ARM M measured the close-bucketed
   understatement at 40.2%.
 
 **Coverage — ESTIMATES, to be replaced by the run's own census.** These are
@@ -489,7 +489,7 @@ co-primary 1 subject to its own OPEN item — see ARM P's STATUS above):
 2. **Paired ΔR by DATE versus the shipped profile** — `boot_ci_paired_by_date`.
 
 The drawdown-improvement CI uses the block-bootstrap `improvement()` pattern
-already registered and used in `hedge_exposure`.
+already registered and used in `hedge_portfolio`.
 
 **Never annualised. No Sharpe. No time-to-recover.** ARM P's per-row comparison
 is quoted in R, never in dollars.

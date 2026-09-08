@@ -95,7 +95,7 @@ def test_prose_companion_names_every_study():
 
 
 def test_retired_field_defaults_to_none():
-    assert catalog.STUDIES["bear_deploy"].retired is None
+    assert catalog.STUDIES["hedge_sizing"].retired is None
 
 
 def test_retired_studies_helper_matches_the_dataclass_field():
@@ -157,7 +157,7 @@ def test_retired_study_with_no_report_reads_as_retired_not_never_run(tmp_path, m
 
 
 def test_a_non_retired_study_with_no_report_is_unaffected(tmp_path):
-    run = summary.summarize("bear_deploy", tmp_path)
+    run = summary.summarize("hedge_sizing", tmp_path)
     assert run.retired is None
     assert run.status == "never run"
 
@@ -237,8 +237,8 @@ def test_an_undeclared_exit_code_on_a_refusal_study_still_fails(tmp_path):
 
 
 def test_a_study_with_no_declared_refusal_codes_never_reads_as_refused(tmp_path):
-    write_report(tmp_path, "bear_deploy", "*** something broke ***\n", rc=1)
-    run = summary.summarize("bear_deploy", tmp_path)
+    write_report(tmp_path, "hedge_sizing", "*** something broke ***\n", rc=1)
+    run = summary.summarize("hedge_sizing", tmp_path)
 
     assert run.refused is False
     assert run.status == "exit 1"
@@ -501,9 +501,9 @@ def test_page_shows_the_retirement_reason_as_a_caveat(retired_page):
 
 
 def test_non_retired_study_gets_no_retired_pill(page):
-    """bear_deploy is an ordinary, runnable study — its card must not claim
+    """hedge_sizing is an ordinary, runnable study — its card must not claim
     retirement just because the page also renders retired ones."""
-    idx = page.index('<h3>bear_deploy.py</h3>')
+    idx = page.index('<h3>hedge_sizing.py</h3>')
     head_end = page.index("</div>", idx)
     assert 'is-retired' not in page[idx:head_end]
 

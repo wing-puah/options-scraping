@@ -392,7 +392,7 @@ The 08-24 suite refresh left `bear_deploy` REVERSED (D1–D4 all NOT MET) with
 no way to grade it — its original registration is `ml-plan.md` §addendum 2
 (2026-08-11), which predates `research/pre-registrations/`, so `study_review`
 had no file to hand the analysts. Written today, before grading and before any
-card edit: `research/pre-registrations/f4_deployment/bear_deploy.md` — the original D-rules
+card edit: `research/pre-registrations/f5_hedging/hedge_sizing.md` — the original D-rules
 quoted verbatim, plus a v4 re-read section pinning the decisive read, the
 binding basis (R under the SHIPPED PROD exit, since `be_after 0.50` was
 reverted this morning), RE-1…RE-4 card-edit decision rules, and the operator
@@ -529,7 +529,7 @@ Split (editorial only — every gate, bar, arm and verdict carried across as a
 VERBATIM quote, nothing reworded): `pre-registrations/f1_selection/ml_combination.md`
 (ground rules 1–7, Phases 0–5, the ship decision, the kickoff's three settled
 choices) and `pre-registrations/f1_selection/bear_arm.md` (§Kickoff addendum,
-B1 selection + B2 exit, the standalone-vs-hedge caveat). `f4_deployment/bear_deploy.md`
+B1 selection + B2 exit, the standalone-vs-hedge caveat). `f5_hedging/hedge_sizing.md`
 already held §addendum 2's D-rules. `ml-plan.md` itself is DELETED rather than
 left as a pointer — two copies of one commitment is how they drift; its text is
 in git at `42b5e46`. Links in `archive/09` retargeted to the successor files

@@ -29,9 +29,9 @@ built is runnable in a real account, not whether it is right.
 import in the package; it lives in `../lib/live_select.py` because it carries no
 verdict of its own.
 
-`bear_deploy.py`, `hedge_timing.py` and `hedge_exposure.py` were here until
+`hedge_sizing.py`, `hedge_timing.py` and `hedge_portfolio.py` were here until
 2026-09-08 and are now in `../f5_hedging/`, with the rest of the hedge
-programme. So is the DELETED `hedge_concentration.py`, whose frozen record moved
-with it. The shared contribution and sizing rules those studies lean on stay in
+programme. So was the DELETED `hedge_concentration.py`, whose registration and
+record were deleted 2026-09-08 (git 44bbfb2). The shared contribution and sizing rules those studies lean on stay in
 `../lib/hedge_criteria.py`.
 """

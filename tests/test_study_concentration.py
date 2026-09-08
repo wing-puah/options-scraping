@@ -1,4 +1,4 @@
-"""Tests for `hedge_exposure`'s concentration series and trigger.
+"""Tests for `hedge_portfolio`'s concentration series and trigger.
 
 What is pinned here is METHODOLOGICAL, not populational: no count off the live
 export appears in this file (a stored figure fingerprints a snapshot, per

@@ -434,13 +434,13 @@ in the family folders concluded.
   features, from the hand-authored `config/macro-events.yml`; `next_event` is strictly-after
   and refuses past each type's `verified_through` (an unpublished schedule is never "nothing
   ahead"). Event distance keys off the ENTRY session; pre-open vs post-open decides day 0.
-- `lib/hedge_criteria.py` — the hedge programme's ONE contribution rule (`bear_deploy` D2)
+- `lib/hedge_criteria.py` — the hedge programme's ONE contribution rule (`hedge_sizing` D2)
   and ONE sizing rule (D3), transcribed from that origin with every threshold and
   tie-break intact, plus `max_drawdown` re-exported from `lib/mtm_curve.py`. Two
   pieces of those rules are callable on their own because a study needs the cut
   without the measurement: `year_tails` (D2's per-year worst quartile, ordered by
   the caller's key) and `sleeve_pick` (the 1-per-day sleeve's chosen row, which
-  `bear_deploy` prices from a stored column and `calendar_hedge` replays). Pure
+  `hedge_sizing` prices from a stored column and `hedge_structure` replays). Pure
   functions that PRINT NOTHING and own no fraction grid — each study keeps the report
   shape its `research/study-results/` record quotes, and a narrowed grid is a
   registered choice. Pinned by `tests/test_hedge_criteria.py` against a hand-computed
@@ -448,7 +448,7 @@ in the family folders concluded.
 - `lib/sleeve_synth.py` — the vol-sleeve synthesis layer: straddle/strangle/calendar leg
   building, the strike index, the trade synthesizer, and the correlation/CI helpers that read
   the result. It was `f5_hedging/vol_sleeve.py`'s until that study was deleted on
-  2026-09-07, and it moved here byte-identical because `calendar_hedge`'s gate `R4` runs it as
+  2026-09-07, and it moved here byte-identical because `hedge_structure`'s gate `R4` runs it as
   the second side of a row-for-row comparison — a copy inside the study is exactly the copy
   `R4` exists to refuse. DELIBERATE exception to the `lib/` layering rule: it imports pricing
   helpers from `f3_structure/bear_rewrap`, on `lib/live_select.py`'s precedent, and its
@@ -458,14 +458,14 @@ in the family folders concluded.
 - `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
 
 **Two study modules were deleted on 2026-09-07 and their questions live elsewhere.**
-`f5_hedging/vol_sleeve.py` was retired into `calendar_hedge` gate `R4`, which already
+`f5_hedging/vol_sleeve.py` was retired into `hedge_structure` gate `R4`, which already
 rebuilds its calendar cell in-process; its synthesis layer is `lib/sleeve_synth.py`.
-`f5_hedging/hedge_concentration.py` was merged into `f5_hedging/hedge_exposure.py` as
+`f5_hedging/hedge_concentration.py` was merged into `f5_hedging/hedge_portfolio.py` as
 that module's `--admitted` arm — the same question on the ADMITTED book `account_sim` takes
 rather than the whole one, which is why it already imported 32 symbols from it. `main()`
 dispatches on `--admitted` before any parser, so each arm keeps its own argparse surface and
-its own registered labels, and the arm files its report under `hedge_exposure-admitted`.
-A bare `run hedge_exposure` runs both arms; `run --all` does too. Verdicts for both deleted
+its own registered labels, and the arm files its report under `hedge_portfolio-admitted`.
+A bare `run hedge_portfolio` runs both arms; `run --all` does too. Verdicts for both deleted
 studies are the **DELETED** rows in `research/study-map.md`.
 
 ### account_sim
@@ -658,7 +658,7 @@ order. The errata is inlined as AUTHORITY, not commentary: a registration is imm
 defect found in it after commit — a self-contradictory clause, a degenerate arm, an operator's
 ratification of a population — is recorded there instead of being edited in, and a grader
 shown only the registration is blind to the document that decides those clauses. That gap was
-real: the 2026-08-31 `hedge_exposure` grading had all three graders disclose they could not
+real: the 2026-08-31 `hedge_portfolio` grading had all three graders disclose they could not
 see the errata and grade the report's own quoted RATIFICATION text instead. The block says
 explicitly that the errata never RELAXES a commitment — anything it does not resolve is still
 graded against the registration as written. `--errata <path>` overrides discovery; `--no-errata`
@@ -1206,12 +1206,12 @@ python3 scripts/collector/fetch_counterpart_history.py --limit 200   # resumable
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list
-python3 -m scripts.backtest_study run bear_deploy      # also: --all, --date, --dry-run, --cache-only, --redo
+python3 -m scripts.backtest_study run hedge_sizing      # also: --all, --date, --dry-run, --cache-only, --redo
 python3 -m scripts.backtest_study run account_sim -- --config config/my-account.yml
 python3 -m scripts.backtest_study run account_sim -- --compounding
 python3 -m scripts.backtest_study run account_sim -- --structure-universe
 python3 -m scripts.backtest_study run account_sim -- --live-select [--live-select-no-llm]
-python3 -m scripts.backtest_study run hedge_exposure -- --admitted   # bare run does both arms
+python3 -m scripts.backtest_study run hedge_portfolio -- --admitted   # bare run does both arms
 python3 -m scripts.study_review account_sim            # --skip-run reuses report; --dry-run no LLM
 python3 -m scripts.study_review <study>                # auto-inlines research/<study>-errata.md if one
                                                       # exists (`_`->`-` tried); --errata <path> ·

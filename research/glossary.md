@@ -183,7 +183,7 @@ effect, not a general one.
 
 ### maxDD
 largest peak-to-trough decline in a cumulative realized-dollar
-equity curve (`bear_deploy.max_drawdown`, reused by `account_sim.py`),
+equity curve (`hedge_sizing.max_drawdown`, reused by `account_sim.py`),
 booked on the session a position exits. Open positions aren't marked to
 market on this curve, so maxDD *understates* true intra-position drawdown.
 
@@ -479,7 +479,7 @@ rounding the bar to fit the result.
 
 ### NOT EVALUABLE
 **UNDERPOWERED**, not a failure: a cell's sample size
-fell below a pre-registered power floor (e.g. `calendar_hedge.
+fell below a pre-registered power floor (e.g. `hedge_structure.
 MIN_N_TO_READ = 10`), so its CI literally can't be read. Its own state
 so a thin-n subset never silently gets counted as a negative finding.
 Reports, registrations and log entries dated before 2026-08-22 call this
@@ -496,7 +496,7 @@ outside those three named buckets — reported as-is rather than force-fit.
 
 ### Why "nothing ships from this study"
 several studies (`account_sim`,
-`calendar_hedge`) are pre-registered as read-only feasibility/robustness
+`hedge_structure`) are pre-registered as read-only feasibility/robustness
 checks: passing every gate and criterion still doesn't change
 `deployment-rules.md` by itself. A finding ships only after grading by
 the replication protocol (§10) and write-up into `current.md` /

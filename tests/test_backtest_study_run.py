@@ -52,7 +52,7 @@ def test_render_charts_skips_studies_with_no_chart_module(monkeypatch):
         raise AssertionError(f"import_module must not run for a chart-less study (got {name!r})")
 
     monkeypatch.setattr(study_runner.importlib, "import_module", _forbidden)
-    study_runner._render_charts("bear_deploy", [])  # not in CHART_MODULES
+    study_runner._render_charts("hedge_sizing", [])  # not in CHART_MODULES
 
 
 def test_render_charts_points_at_the_plain_positions_csv_by_default(monkeypatch, capsys):
@@ -242,7 +242,7 @@ def test_refusal_codes_reads_v4_bridges_real_declaration():
 
 
 def test_refusal_codes_falls_back_to_the_era_codes_for_a_study_with_no_declaration():
-    """bear_deploy declares no DESIGNED_REFUSAL_EXIT_CODES of its own, and still
+    """hedge_sizing declares no DESIGNED_REFUSAL_EXIT_CODES of its own, and still
     gets the era ones.
 
     Those two are emitted by shared infrastructure — `lib/era.py`, reached the
@@ -251,7 +251,7 @@ def test_refusal_codes_falls_back_to_the_era_codes_for_a_study_with_no_declarati
     same two integers would be a rule the next study forgets, and forgetting it
     is expensive now: an undeclared refusal reads as a FAILURE, which deletes
     the study's `-latest.txt`."""
-    assert study_runner._refusal_codes("bear_deploy") == era.DESIGNED_REFUSAL_EXIT_CODES
+    assert study_runner._refusal_codes("hedge_sizing") == era.DESIGNED_REFUSAL_EXIT_CODES
 
 
 def test_refusal_codes_falls_back_to_the_era_codes_for_an_unknown_name():
@@ -360,7 +360,7 @@ def test_main_still_fails_v4_bridge_on_an_undeclared_exit_code(monkeypatch, caps
 def test_main_all_worst_real_failure_wins_even_alongside_a_refusal(monkeypatch, capsys):
     """A refusal must not mask an actual failure elsewhere in `--all`."""
     monkeypatch.setattr(study_runner, "discover",
-                        lambda: {"v4_bridge": "doc", "bear_deploy": "doc"})
+                        lambda: {"v4_bridge": "doc", "hedge_sizing": "doc"})
     _stub_run_one(monkeypatch, lambda stem: 3 if stem == "v4_bridge" else 1)
     _stub_charts(monkeypatch)
 
@@ -368,7 +368,7 @@ def test_main_all_worst_real_failure_wins_even_alongside_a_refusal(monkeypatch, 
 
     assert rc == 1
     err = capsys.readouterr().err
-    assert "bear_deploy (exit 1)" in err
+    assert "hedge_sizing (exit 1)" in err
     assert "v4_bridge" not in err  # the refusal is not in the FAILURES line
 
 
@@ -463,7 +463,7 @@ def test_arm_plan_runs_one_arm_for_a_gates_only_or_selftest_run(flag):
 
 
 def test_arm_plan_is_a_single_arm_for_a_study_with_none_declared():
-    assert study_runner.arm_plan("bear_deploy", []) == [("bear_deploy", [], ())]
+    assert study_runner.arm_plan("hedge_sizing", []) == [("hedge_sizing", [], ())]
 
 
 # ───────────────────────── wiring into main()'s run loop ────────────────────
@@ -607,14 +607,14 @@ def test_main_dry_run_prints_the_planned_command_for_every_arm(monkeypatch, caps
 def test_main_does_not_render_charts_for_a_study_with_no_chart_module(monkeypatch):
     """`_render_charts` is still called (it is a no-op for these studies) —
     this pins that the no-op path, not a skip in main(), is what's doing the
-    work, matching bear_deploy's absence from CHART_MODULES."""
+    work, matching hedge_sizing's absence from CHART_MODULES."""
     _stub_run_one(monkeypatch, lambda stem: 0)
     calls = _stub_charts(monkeypatch)
 
-    rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
+    rc = study_runner.main(["run", "hedge_sizing", "--no-handoff"])
 
     assert rc == 0
-    assert calls == [("bear_deploy", [], ())]
+    assert calls == [("hedge_sizing", [], ())]
 
 
 # ─────────────────────── main()'s stderr failure summary ────────────────────
@@ -625,19 +625,19 @@ def test_main_prints_a_stderr_failure_summary_when_a_study_fails(monkeypatch, ca
     _stub_run_one(monkeypatch, lambda stem: 1)
     _stub_charts(monkeypatch)
 
-    rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
+    rc = study_runner.main(["run", "hedge_sizing", "--no-handoff"])
 
     assert rc == 1
     err = capsys.readouterr().err
     assert "*** STUDY FAILURES:" in err
-    assert "bear_deploy (exit 1)" in err
+    assert "hedge_sizing (exit 1)" in err
 
 
 def test_main_prints_no_failure_summary_when_every_study_succeeds(monkeypatch, capsys):
     _stub_run_one(monkeypatch, lambda stem: 0)
     _stub_charts(monkeypatch)
 
-    rc = study_runner.main(["run", "bear_deploy", "--no-handoff"])
+    rc = study_runner.main(["run", "hedge_sizing", "--no-handoff"])
 
     assert rc == 0
     err = capsys.readouterr().err

@@ -1,8 +1,9 @@
-## bear_deploy — the bear sleeve's deployment criteria (D1–D4), and the v4 re-read of the card lines they backed
+## hedge_sizing — the bear sleeve's deployment criteria (D1–D4), and the v4 re-read of the card lines they backed
 
 _Registered 2026-08-11._
+_Renamed from `bear_deploy` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
 
-Module: `scripts/backtest_study/f4_deployment/bear_deploy.py`. The study's
+Module: `scripts/backtest_study/f5_hedging/hedge_sizing.py`. The study's
 original pre-registration is `research/ml-plan.md` §addendum 2 (2026-08-11,
 written before the study was built or run). It predates this folder, so the
 study had no file here and could not go through `study_review`. That document
@@ -179,6 +180,6 @@ permitted again.
   passed VACUOUSLY — on precisely the subsets that lie entirely inside a
   dominant window, which is the population ground rule 4 exists to reject.
   `bear_arm`'s B1, the criterion D1 mirrors, already failed closed. Now
-  `cuts_pass()`, pinned by `tests/test_studies_bear_deploy.py`. **No recorded
+  `cuts_pass()`, pinned by `tests/test_studies_hedge_sizing.py`. **No recorded
   verdict changes**: D1 has returned 0 survivors on every run, so nothing was
   ever admitted through the vacuous branch.

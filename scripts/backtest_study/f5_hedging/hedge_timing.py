@@ -29,14 +29,14 @@ Arms (one per trigger FAMILY: CHOP, GAP, DECLINE):
           control. `h2_mirrors` fires when the long book moves the opposite way
           by a comparable amount, which makes H1 a read on the tape.
   ARM H3  PRIMARY. The operator's counterfactual, within-date paired
-          (`bear_deploy` D4's proven method): date-mean bear R minus date-mean
+          (`hedge_sizing` D4's proven method): date-mean bear R minus date-mean
           tier-A/B long R, and the headline is the DIFFERENCE between that
           paired mean on trigger dates and on non-trigger dates.
   ARM H4  Do-nothing baseline, in dollars: sleeve policies over the deployed
-          ladder's daily dollars, judged by `bear_deploy` D3's criterion (max
+          ladder's daily dollars, judged by `hedge_sizing` D3's criterion (max
           drawdown AND worst single date both no worse than f=0).
 
-What this is NOT: not a re-run of `bear_deploy` D5 (its regime gates failed
+What this is NOT: not a re-run of `hedge_sizing` D5 (its regime gates failed
 year-stability and are not re-tested; `mech_direction = RANGE` is printed as a
 flagged SECONDARY with no verdict), not a re-opening of bear selection (B1/D1
 nulls stand), and not a market-timing study — ARM H2 exists to catch exactly
@@ -118,7 +118,7 @@ VERDICTS = ("NOT EVALUABLE", "UNDERPOWERED", "TIMING-CANDIDATE",
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# printing helpers (shape copied from bear_deploy.py, 2026-08-11)
+# printing helpers (shape copied from hedge_sizing.py, 2026-08-11)
 # ════════════════════════════════════════════════════════════════════════════
 
 def hdr(t):
@@ -137,7 +137,7 @@ def fmean(vals):
 def _same_sign(a: float, b: float) -> bool:
     """Both strictly positive or both strictly negative. A zero, or a nan from
     an EMPTY cut, is NOT the same sign as anything — this fails CLOSED, the
-    lesson `bear_deploy.cuts_pass` was rewritten for on 2026-08-24."""
+    lesson `hedge_sizing.cuts_pass` was rewritten for on 2026-08-24."""
     if a != a or b != b:
         return False
     return (a > 0 and b > 0) or (a < 0 and b < 0)
@@ -195,7 +195,7 @@ def chop_value(closes, d):
 def t_chop(closes, d, boundary) -> bool:
     """T-CHOP: efficiency ratio at or below `boundary` (chop, not trend).
 
-    NOT `mech_direction = RANGE`: that was `bear_deploy` D5's best POST-HOC gate
+    NOT `mech_direction = RANGE`: that was `hedge_sizing` D5's best POST-HOC gate
     on 2026-08-27 and re-testing it here would be a disguised D5 re-run. RANGE
     is printed as a flagged SECONDARY carrying no verdict.
     """
@@ -552,7 +552,7 @@ def h3_paired(bear_by_date, ladder_by_date, cen, evaluable=True):
     """ARM H3 (one per trigger family) — the operator's counterfactual.
 
     On each date carrying >=1 bear row AND >=1 ladder-eligible (tier A|B) row,
-    `dR = date-mean bear R - date-mean A/B long R` — `bear_deploy` D4's proven
+    `dR = date-mean bear R - date-mean A/B long R` — `hedge_sizing` D4's proven
     within-date method, so the day is its own control and the level problem that
     sinks every B1/D1 subset cancels. The HEADLINE is the DIFFERENCE between
     that paired mean on trigger dates and on non-trigger dates, not the trigger
@@ -603,11 +603,11 @@ def h3_paired(bear_by_date, ladder_by_date, cen, evaluable=True):
 # ARM H4 — do-nothing baseline, in DOLLARS (the only arm that may quote $)
 # ════════════════════════════════════════════════════════════════════════════
 
-# `max_drawdown` was a verbatim fork of `bear_deploy`'s body until 2026-09-07,
-# copied rather than imported so that `bear_deploy`'s recorded D3 numbers could
+# `max_drawdown` was a verbatim fork of `hedge_sizing`'s body until 2026-09-07,
+# copied rather than imported so that `hedge_sizing`'s recorded D3 numbers could
 # never move because this file changed. The library is now the single body, so
 # the commitment the fork encoded is kept by TESTS instead of by duplication:
-# `tests/test_mtm_curve.py` pins that this name, `bear_deploy`'s and
+# `tests/test_mtm_curve.py` pins that this name, `hedge_sizing`'s and
 # `lib/hedge_criteria`'s are all the SAME function object, and
 # `tests/test_hedge_criteria.py` pins the body against the committed fixture.
 max_drawdown = HC.max_drawdown
@@ -628,7 +628,7 @@ def daily_dollars(rows, dol_key="R_dol"):
 def widest_max_loss_sleeve(bear_by_date, dol_key="R_dol"):
     """`{date: dollars of ONE hedge that day}` — the day's widest `max_loss`.
 
-    One hedge per day, per the registration. The picker is `bear_deploy` D3's
+    One hedge per day, per the registration. The picker is `hedge_sizing` D3's
     lower-bound picker (widest max_loss), NOT its D4-adopted ranker: D4 lost the
     |delta|-descending rule outright on v4, so there is no adopted picker to
     inherit and this study does not re-open the pick question.
@@ -646,7 +646,7 @@ def policy_daily(dep_dollars, sleeve, f, gated_dates=None):
     """`[(date, dollars)]` for one sleeve policy over the deployed book.
 
     A date with NO bear row — or one the gate vetoes — is CARRIED AT f=0, never
-    dropped. That is the `calendar_hedge` lesson made mechanical: a hedge
+    dropped. That is the `hedge_structure` lesson made mechanical: a hedge
     unavailable exactly when it is needed is not a hedge, and dropping those
     days would quietly delete the evidence for it.
     """
@@ -670,7 +670,7 @@ def _policy_stats(series):
 def h4_portfolio(dep_dollars, sleeve, cen, evaluable=True):
     """ARM H4 (one per trigger family) — does gating the sleeve on the trigger leave the book unharmed?
 
-    Criterion is `bear_deploy` D3, applied through `lib/hedge_criteria.unharmed`
+    Criterion is `hedge_sizing` D3, applied through `lib/hedge_criteria.unharmed`
     (one body since 2026-09-07): max drawdown AND worst single date
     both no worse than f=0. Disclosed: this reuses D5's estimator on new gates,
     so a pass HERE ALONE can never ship — D5's own gate family failed
@@ -852,7 +852,7 @@ def _print_secondaries(book_dates, closes, opens, bear_by_date, ladder_by_date,
 
     census_only("GAP at the ENTRY session (requires an at-the-open decision)", entry_gap)
 
-    # mech RANGE — bear_deploy D5's best post-hoc gate, deliberately NOT a primary.
+    # mech RANGE — hedge_sizing D5's best post-hoc gate, deliberately NOT a primary.
     range_dates = [d for d in book_dates
                    if any(r.get("mech_direction") == "RANGE"
                           for r in rows_by_date.get(d, ()))]

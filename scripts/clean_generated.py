@@ -233,7 +233,7 @@ TARGETS: tuple[Target, ...] = (
     Target(
         name="sweep-cache",
         globs=("backtests/sweep_cache/*",),
-        what="sweep-leg manifest + the calendar_hedge RESUME CHECKPOINT",
+        what="sweep-leg manifest + the hedge_structure RESUME CHECKPOINT",
         regen="python3 scripts/collector/fetch_sweep_legs.py  (an interrupted sweep restarts from zero)",
         expensive=True,
     ),

@@ -53,7 +53,7 @@ to `backtests/study_output/`.
 ```bash
 source .venv/bin/activate
 python3 -m scripts.backtest_study list                 # what's available
-python3 -m scripts.backtest_study run bear_deploy      # run one
+python3 -m scripts.backtest_study run hedge_sizing      # run one
 python3 -m scripts.backtest_study run exit_mechanism_study --side credit
 python3 -m scripts.backtest_study run --all            # every study
 ```

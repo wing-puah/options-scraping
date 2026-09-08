@@ -1,6 +1,6 @@
 """Calendar hedge: the one vol_sleeve survivor, re-derived under a pre-registered pick rule.
 
-Pre-registered in `research/current.md` §2026-08-13 "`calendar_hedge`:
+Pre-registered in `research/current.md` §2026-08-13 "`hedge_structure`:
 PRE-REGISTRATION", written BEFORE this file was built or run. The pick rules, the
 gates, the criteria, the power floor and the two baselines are fixed there;
 nothing here may be reworded after seeing a table.
@@ -58,7 +58,7 @@ name below now resolves to `lib/sleeve_synth.py`, which holds those bodies
 byte-identical — the imports here are unchanged in substance and `VS` still
 reads as "vol sleeve". The study's verdicts are the DELETED row in
 `research/study-map.md`; its per-era record is
-`research/study-results/f5_hedging/vol_sleeve.md`. R4 is why the synthesis
+git history (`44bbfb2`; the record was deleted 2026-09-08). R4 is why the synthesis
 layer outlived the study: it needs a second construction to compare against,
 and a copy of it inside THIS module is the exact copy R4 exists to refuse.
 
@@ -83,9 +83,9 @@ its input so a cached row can never be compared against a freshly built one.
 
 Read-only with respect to the project: touches no config, writes no tab. Run:
 
-    python -m scripts.backtest_study run calendar_hedge --gates-only
-    python -m scripts.backtest_study run calendar_hedge
-    python -m scripts.backtest_study run calendar_hedge --arm S   # after a leg scrape
+    python -m scripts.backtest_study run hedge_structure --gates-only
+    python -m scripts.backtest_study run hedge_structure
+    python -m scripts.backtest_study run hedge_structure --arm S   # after a leg scrape
 """
 from __future__ import annotations
 
@@ -110,7 +110,7 @@ from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import underlying as U  # noqa: E402
 from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 # H2(c) and H3 are D2's and D3's rules, and since 2026-09-07 the rules live in
-# `lib/hedge_criteria.py` rather than in `bear_deploy` (which this module used
+# `lib/hedge_criteria.py` rather than in `hedge_sizing` (which this module used
 # to import `max_drawdown` from, one study reaching into another's internals).
 # The library is arithmetic only: everything PRINTED below, the power floor of
 # 10, the zero-carry of an unfillable day and the two H3 baselines are this
@@ -373,7 +373,7 @@ def _typed(row: dict) -> dict:
     # The REPLAY is left at full size on purpose — `harness.replay`'s dollar_stop
     # is an absolute $1,000 cap, so re-replaying at half size would change which
     # exit fired and the row would no longer be the one R4 validated. The
-    # halving is applied to dollars only, exactly as `bear_deploy` applies its
+    # halving is applied to dollars only, exactly as `hedge_sizing` applies its
     # sleeve fraction.
     #
     # 2026-08-13 recorded follow-up (closed 2026-08-14): at contracts == 1,
@@ -954,7 +954,7 @@ def h2_contribution(sleeve: list[dict], picks: dict[str, dict], dep: dict,
 
     The printed line below calls this "D2's rule verbatim", and since
     2026-09-07 the rule it is verbatim OF is `lib/hedge_criteria.py` — the one
-    body `bear_deploy` D2 now reads too, so "verbatim" is an identity a test
+    body `hedge_sizing` D2 now reads too, so "verbatim" is an identity a test
     can hold rather than a claim about two files that were once typed alike.
 
     What comes from the library is (c)'s geometry, `HC.year_tails`: the year
@@ -1090,9 +1090,9 @@ def bear_sleeve_dollars(book: list[dict], dates: list[str]) -> dict[str, float]:
     """The SHIPPED bear hedge sleeve: 1/day, |delta| DESCENDING, <= 1/2 size.
 
     `docs/deployment-rules.md` §4. The PICK is `lib/hedge_criteria.sleeve_pick`,
-    the one 1-per-day sleeve rule `bear_deploy._sleeve_dollars` also reads
+    the one 1-per-day sleeve rule `hedge_sizing._sleeve_dollars` also reads
     (first-wins on a tie, a day with no candidate skipped). What the sleeve is
-    worth is this study's: `bear_deploy` reads a stored dollar column, and this
+    worth is this study's: `hedge_sizing` reads a stored dollar column, and this
     one has none to read, so the pick is replayed on the SHIPPED merge
     (`bear_giveback.prod_profile_for`, i.e. base -> structure_exit bear_debit
     be_after 0.50 -> regime_exit BEAR_HE) and then halved for the sleeve's
@@ -1118,7 +1118,7 @@ def _sweep(base_daily: dict[str, float], sleeve: dict[str, float],
     date are both no worse than carrying nothing, with the same 1e-9 slack.
     The GRID is not the library's, because narrowing one is a registered
     choice, and neither is the printed shape — this study quotes four columns
-    and `bear_deploy` D3 quotes five, the extra one being downside deviation,
+    and `hedge_sizing` D3 quotes five, the extra one being downside deviation,
     which the library computes and this report does not read.
     """
     print(f"\n  baseline: {label}")
@@ -1395,7 +1395,7 @@ def arm_s(universe: dict, idx, store: Store, book: list[dict], dep: dict,
     # look like a missing H arm. The marker is the H2 verdict line, so a
     # gates-only report still cannot unlock the sweep.
     out_dir = ROOT / "backtests" / "study_output"
-    h_reports = sorted(p for p in out_dir.glob("calendar_hedge-*.txt")
+    h_reports = sorted(p for p in out_dir.glob("hedge_structure-*.txt")
                        if "H2 (primary)" in p.read_text())
     if not h_reports:
         print(f"ARM S REFUSED: no H-arm report in {out_dir.relative_to(ROOT)} "
@@ -1564,7 +1564,7 @@ def main(argv=None) -> int:
     print(f"  exit profiles      " + "   ".join(
         f"{k}={profile_hash(v)} {v}" for k, v in PROFILES.items()))
     print(f"  pre-registration   research/current.md "
-          f"§2026-08-13 calendar_hedge")
+          f"§2026-08-13 hedge_structure")
     print(f"  P6 ETF list ({len(ETF_UNDERLYINGS)}): " + " ".join(ETF_UNDERLYINGS))
 
     book, bdiag = load_book(include_bs=False)

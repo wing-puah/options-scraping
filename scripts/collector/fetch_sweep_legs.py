@@ -1,5 +1,5 @@
 """
-Resumable fetcher for the option-history legs the `calendar_hedge --arm S`
+Resumable fetcher for the option-history legs the `hedge_structure --arm S`
 structure sweep needs and doesn't have yet.
 
 WHY THIS EXISTS

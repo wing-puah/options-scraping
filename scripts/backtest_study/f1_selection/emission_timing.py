@@ -260,7 +260,7 @@ def paired_by_date(rows: list[dict], is_repeat, is_first=None) -> list[dict]:
     side, `d` = a - b. Handing `protocol.boot_ci_paired_by_date` one row per
     date makes its date-clustered resample reproduce exactly the registered
     estimand: the mean over dates of the within-date delta. This is
-    `bear_deploy`'s D4 method, chosen because it cancels the date's own return
+    `hedge_sizing`'s D4 method, chosen because it cancels the date's own return
     level — the dominant nuisance variable in this book.
     """
     if is_first is None:

@@ -1,4 +1,6 @@
-# hedge_exposure — per-era record
+# hedge_portfolio — per-era record
+
+_Renamed from `hedge_exposure` on 2026-09-08; the sections below were recorded under the old name and quote it verbatim._
 
 **Question.** When the open book is CONCENTRATED in one correlated cluster, does adding a long put on that cluster's proxy reduce the book's MARK-TO-MARKET drawdown, versus carrying the same concentrated book unhedged?
 
