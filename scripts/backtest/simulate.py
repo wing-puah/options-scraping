@@ -15,6 +15,97 @@ from .legs import format_legs, merge_legs
 log = logging.getLogger("backtest")
 
 
+# ─── Quote handling: staleness, zero bids, spreads ─────────────────────────────
+# Three properties of a Barchart mark the simulation used to be blind to. All
+# three are read off the per-contract history ROW (``barchart_details``), which
+# carries Bid/Ask; the price SERIES carries only the pre-computed mark.
+
+# How many CALENDAR days a Barchart mark may be carried forward before the day is
+# tagged `barchart_stale` (robustness review B3). The price is still used — the
+# tag is what changes, so a frozen contract stops reading as a live quote in
+# `daily_source_csv` / `pct_stale_days`. 5 days is the same staleness convention
+# `_entry_row_from_history` and the history cache already use (a Friday mark
+# covers the following Wednesday). Config: `simulation.max_price_carry_days`;
+# set it to null to carry forever (the pre-2026-09-07 behaviour).
+_DEFAULT_MAX_CARRY_DAYS = 5
+
+
+def _snap_asof(series, key, day, expiration=None):
+    """``(price, snap_date)`` for the most recent scrape on-or-before ``day``.
+
+    Identical carry-forward to ``helpers._price_asof``, but it also returns WHICH
+    day the mark came from, so the caller can tell a fresh quote from one carried
+    forward across a contract that stopped printing. ``(None, None)`` when there
+    is no usable snap.
+    """
+    snaps = series.get(key)
+    if not snaps:
+        return None, None
+    best = (None, None)
+    for snap_date, price in snaps:
+        if snap_date > day:
+            break
+        if expiration and snap_date > expiration:
+            break
+        best = (price, snap_date)
+    return best
+
+
+def _bid_ask(row) -> tuple[float | None, float | None]:
+    """``(bid, ask)`` off a Barchart history row; ``None`` per side when the column
+    is absent or unparseable (older cache files, synthesised rows in tests)."""
+    if not row:
+        return None, None
+    return _to_float(row.get("Bid")), _to_float(row.get("Ask"))
+
+
+def _zero_bid_mark(row) -> float | None:
+    """The liquidation mark for a ZERO-BID contract, or None to keep the row's own
+    ``_mark`` (robustness review B5).
+
+    ``lib/barchart/options.py::_mark`` is mid(Bid,Ask) and falls through to
+    ``Latest`` — a LAST TRADE price — whenever either side of the quote is missing
+    or zero. On a contract that has gone bid-less that last trade can be days old
+    and far above anything the position could actually be closed at, so the leg
+    stays "valued" while its real liquidation value is near zero. Rule:
+
+      bid == 0, ask == 0  → 0.0        (nothing is bid and nothing is offered)
+      bid == 0, ask  > 0  → ask / 2    (the true mid of a 0×ask market)
+      otherwise           → None       (a two-sided quote, or no quote data)
+
+    Sign-independent: it is a property of the CONTRACT's market, so a short leg is
+    re-marked the same way (a naked short at a 0 bid is closed for near nothing).
+    """
+    bid, ask = _bid_ask(row)
+    if bid is None or bid > 0 or ask is None:
+        return None
+    return 0.0 if ask <= 0 else ask / 2
+
+
+def _leg_spread(row) -> float | None:
+    """Quoted bid/ask spread in option points, or None when the row carries no
+    usable two-sided quote (slippage then falls back to 0 and the row says so
+    through `cost_basis`)."""
+    bid, ask = _bid_ask(row)
+    if bid is None or ask is None or ask <= 0 or bid < 0 or ask < bid:
+        return None
+    return ask - bid
+
+
+def _cost_knobs(cfg: dict) -> tuple[float, float]:
+    """``(commission_per_contract, slippage_frac_of_spread)`` — the transaction-cost
+    model (robustness review B1). BOTH DEFAULT TO 0, so an unconfigured run and
+    every number recorded before 2026-09-07 are reproduced exactly.
+
+    `commission_per_contract` is charged per LEG per CONTRACT at entry and again at
+    exit. `slippage_frac_of_spread` is the fraction of the QUOTED spread given up
+    per leg on each side, in the adverse direction — 0.5 fills at the touch
+    (bid when closing a long, ask when opening one), 0.25 splits mid and touch.
+    """
+    return (_to_float(cfg.get("commission_per_contract")) or 0.0,
+            _to_float(cfg.get("slippage_frac_of_spread")) or 0.0)
+
+
 _MECH_LABELERS: dict[str, object] = {}
 _MECH_STALE_WARNED: set[str] = set()
 
@@ -252,9 +343,26 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                     be_after=None) -> dict:
     """Turn a day-by-day signed-value grid into the path string, realized exit, and MFE/MAE.
 
+    Day indices (`days_held`, `mfe_day`, `mae_day`) are 1-based positions in the
+    grid, which starts the weekday AFTER the signal date — SIGNAL-relative, the
+    same convention as `time_exit_day` and `path_cap_days` and the one the frozen
+    research harness rebuilds and asserts against.
+
+    A grid day the position did not exist on yet is present but UNPRICED: the grid
+    build stamps every weekday before the entry date with `p=None` and the source
+    tag `pre_entry` (robustness review B2). Unpriced days are skipped by every scan
+    below, so no P&L, MFE/MAE or exit can be booked before the fill; they hold the
+    grid's length and index origin fixed while contributing nothing. They also do
+    not reach `pct_real_days` / `pct_stale_days`, which are computed over PRICED
+    days only, so a late fill shrinks those denominators rather than diluting them.
+
     Each grid mark holds the position's signed net value V = Σ qty·price. P&L is
     the single unified formula `(V − entry_net) / abs(entry_net)`, correct for both
     debit (entry_net > 0) and credit (entry_net < 0) positions with no flag.
+
+    Everything here is GROSS of transaction costs: the exit rules are defined on
+    marks, so commission/slippage are charged once in `_simulate` against the
+    realized figures rather than shifting the thresholds the path is scanned with.
 
     Realized exit = the FIRST exit condition crossed (frozen at that day's mark).
     MFE/MAE are measured over the WHOLE path so exit params can be tuned in analysis.
@@ -285,7 +393,9 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
     prices, sources, pnl_dollars = [], [], []
     for (_, _, p, src) in grid_marks:
         prices.append("" if p is None else f"{p:.4f}")
-        sources.append("" if p is None else src)
+        # `src` survives an unpriced day so `pre_entry` reaches daily_source_csv;
+        # an unpriceable day still carries the empty token it always did.
+        sources.append(src or "")
         # Per-SINGLE-CONTRACT dollar P&L: (V − entry_net)·100, deliberately NOT
         # scaled by `contracts` (unlike realized_pnl_abs). Same day grid + blank
         # tokens as daily_price_csv.
@@ -301,7 +411,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
         out.update({"realized_pnl_pct": "", "realized_pnl_abs": "", "days_held": "",
                     "exit_reason": "no_data", "mfe_pct": "", "mfe_abs": "", "mfe_day": "",
                     "mae_pct": "", "mae_abs": "", "mae_day": "", "pnl_at_cap_pct": "",
-                    "pct_real_days": ""})
+                    "pct_real_days": "", "pct_stale_days": ""})
         return out
 
     mfe, mae, mfe_day, mae_day = -1e18, 1e18, None, None
@@ -348,8 +458,20 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
 
     realized_pnl = pnl_of(realized_p)
     cap_p = priced[-1][2]
-    real_days = sum(1 for (_, _, _, s) in priced
-                    if s and any(t != "bs" for t in s.split("+")))
+    # LEG-days, not days (robustness review B3/B7). The old count called a day
+    # "real" when ANY leg was real, so a vertical with one modelled leg scored the
+    # same 1.00 as one priced entirely from Barchart. Each priced day contributes
+    # one unit per leg; `pct_stale_days` is the share of those leg-days whose mark
+    # was carried forward past `max_price_carry_days`, which is the honesty check
+    # for a contract that stopped being quoted — those days still count as real
+    # (they ARE quotes, just frozen ones), so `pct_real_days` keeps its
+    # real-vs-model meaning across eras.
+    leg_days = real_leg_days = stale_leg_days = 0
+    for (_, _, _, s) in priced:
+        tags = s.split("+") if s else []
+        leg_days += len(tags)
+        real_leg_days += sum(1 for t in tags if t != "bs")
+        stale_leg_days += sum(1 for t in tags if t == "barchart_stale")
 
     out.update({
         "realized_pnl_pct": round(realized_pnl, 4),
@@ -363,9 +485,66 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
         "mae_abs": round(mae * denom * 100 * contracts, 2),
         "mae_day": mae_day,
         "pnl_at_cap_pct": round(pnl_of(cap_p), 4),
-        "pct_real_days": round(real_days / len(priced), 4),
+        "pct_real_days": round(real_leg_days / leg_days, 4) if leg_days else "",
+        "pct_stale_days": round(stale_leg_days / leg_days, 4) if leg_days else "",
     })
     return out
+
+
+# ─── Transaction costs ─────────────────────────────────────────────────────────
+
+def _apply_costs(result: dict, cfg: dict, legs: list, contracts: int,
+                 entry_net: float, entry_spread_units, grid_spread_units) -> None:
+    """Charge commission + slippage on the round trip and write `cost_total` /
+    `cost_basis` onto ``result``, netting the realized P&L columns (B1).
+
+    ``entry_spread_units`` / the exit day's entry in ``grid_spread_units`` are
+    ``Σ |qty|·spread`` in option points for that side, or None when any leg had no
+    two-sided quote that day. A missing spread charges NO slippage on that side and
+    says so in `cost_basis` — never a guessed one.
+
+        commission = commission_per_contract · Σ|qty| · contracts · 2 sides
+        slippage   = slippage_frac_of_spread · Σ|qty|·spread · 100 · contracts,
+                     once per side, always adverse
+
+    What is netted: `realized_pnl_abs`, `realized_pnl_pct` and (downstream, since it
+    is derived from `realized_pnl_abs`) `pnl_on_risk_pct`. What stays GROSS:
+    `mfe_*`, `mae_*`, `pnl_at_cap_pct`, `daily_pnl_csv` — path statistics used to
+    tune exits, which is a different question from what the round trip cost.
+    """
+    commission_per_contract, slip_frac = _cost_knobs(cfg)
+    if not commission_per_contract and not slip_frac:
+        result["cost_total"] = 0.0
+        result["cost_basis"] = ""
+        return
+
+    units = sum(abs(leg.qty) for leg in legs) * contracts
+    cost = commission_per_contract * units * 2
+
+    exit_spread_units = None
+    days_held = result.get("days_held")
+    if isinstance(days_held, int) and 1 <= days_held <= len(grid_spread_units):
+        exit_spread_units = grid_spread_units[days_held - 1]
+
+    if slip_frac:
+        for side_units in (entry_spread_units, exit_spread_units):
+            if side_units is not None:
+                cost += slip_frac * side_units * 100 * contracts
+        missing = [name for name, v in (("entry", entry_spread_units),
+                                        ("exit", exit_spread_units)) if v is None]
+        basis = "full" if not missing else "no_spread_" + "_".join(missing)
+    else:
+        basis = "commission_only"
+
+    result["cost_total"] = round(cost, 2)
+    result["cost_basis"] = basis
+
+    realized_abs, realized_pct = result.get("realized_pnl_abs"), result.get("realized_pnl_pct")
+    if isinstance(realized_abs, (int, float)) and isinstance(realized_pct, (int, float)):
+        result["realized_pnl_abs"] = round(realized_abs - cost, 2)
+        position_dollars = abs(entry_net) * 100 * contracts
+        if position_dollars:
+            result["realized_pnl_pct"] = round(realized_pct - cost / position_dollars, 4)
 
 
 # ─── Iron condor strike resolution ──────────────────────────────────────────────
@@ -438,6 +617,9 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     r = sim_cfg.get("risk_free_rate", 0.05)
     exit_sources = sim_cfg.get("exit_sources", ["barchart", "reappearance", "bs"])
     entry_sources = sim_cfg.get("entry_sources", ["barchart"])
+    # Quote-staleness bound: a PRICING property of the data, so it is read off the
+    # base config and never from the credit/regime/structure exit profiles.
+    max_carry_days = sim_cfg.get("max_price_carry_days", _DEFAULT_MAX_CARRY_DAYS)
 
     price_fn = price_fn or (lambda tk, dt: _price_on_or_after(
         _get_prices(tk, signal_date, sim_cfg.get("path_cap_days", 120)), dt))
@@ -448,28 +630,47 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     def _T(leg, d):
         return max(0.0, ((leg.expiration - signal_date).days - d) / 365)
 
+    def _detail_row(key, day):
+        """The Barchart history row for exactly ``day`` (never carried forward), or
+        None when this run has no details map / no row that day."""
+        return (barchart_details or {}).get(key, {}).get(day)
+
     def _price_leg(leg, day, d, sources=None):
+        """``(price, source_tag, quoted_spread)``.
+
+        The spread is the leg's quoted bid/ask width in option points on the day
+        the mark came from, or None when that day has no two-sided quote — it is
+        what the slippage term is charged against. Barchart marks are tagged
+        `barchart_stale` once carried forward past `max_carry_days`.
+        """
         if sources is None:
             sources = exit_sources
         key = _key(leg)
         for src in sources:
             if src == "barchart":
-                p = _price_asof(barchart_series, key, day, leg.expiration)
+                p, snap = _snap_asof(barchart_series, key, day, leg.expiration)
                 if p is not None:
-                    return p, "barchart"
+                    row = _detail_row(key, snap)
+                    zb = _zero_bid_mark(row)
+                    if zb is not None:
+                        p = zb
+                    stale = (max_carry_days is not None and snap is not None
+                             and (day - snap).days > max_carry_days)
+                    return p, ("barchart_stale" if stale else "barchart"), _leg_spread(row)
             elif src == "reappearance":
                 p = _price_asof(contract_index, key, day, leg.expiration)
                 if p is not None:
-                    return p, "real"
+                    return p, "real", None
             elif src == "bs":
                 S = price_fn(ticker, day)
                 if S is None:
-                    return None, None
+                    return None, None, None
                 sigma = iv_fn(day) if iv_fn is not None else iv
                 if sigma is None:
                     sigma = iv
-                return _bs_price(S, leg.strike, _T(leg, d), r, sigma, leg.opt_type), "bs"
-        return None, None
+                return (_bs_price(S, leg.strike, _T(leg, d), r, sigma, leg.opt_type),
+                        "bs", None)
+        return None, None, None
 
     # Step 1 — entry price for each leg, every leg on the SAME entry day (the
     # anchor's _entry_date: the next trading day under entry_timing "next_open",
@@ -484,24 +685,38 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     use_open = entry_timing == "next_open" and entry_date > signal_date
 
     def _entry_price_leg(leg):
+        """``(price, source_tag, quoted_spread)`` for one leg on the entry day."""
         if use_open and "barchart" in entry_sources:
             row = (barchart_details.get(_key(leg)) or {}).get(entry_date)
             if row is not None:
+                spread = _leg_spread(row)
                 op = _to_float(row.get("Open"))
                 if op and op > 0:
-                    return op, "barchart_open"
+                    return op, "barchart_open", spread
+                # Zero-volume day: fall back to that day's mark, re-marked when the
+                # contract is bid-less (B5) exactly as the daily path does. A leg
+                # quoted 0×0 at entry is worth 0 and says so, rather than falling
+                # through to an older day's mark.
+                zb = _zero_bid_mark(row)
+                if zb is not None:
+                    return zb, "barchart", spread
                 mk = row.get("_mark")
                 if mk and mk > 0:
-                    return mk, "barchart"
+                    return mk, "barchart", spread
         return _price_leg(leg, entry_date, entry_d, sources=entry_sources)
 
     entry_prices, entry_tags = [], []
+    entry_spread_units, entry_spread_complete = 0.0, True
     for leg in legs:
-        p, tag = _entry_price_leg(leg)
+        p, tag, spread = _entry_price_leg(leg)
         if p is None:
             return {}
         entry_prices.append(p)
         entry_tags.append(tag)
+        if spread is None:
+            entry_spread_complete = False
+        else:
+            entry_spread_units += abs(leg.qty) * spread
 
     entry_net = sum(leg.qty * p for leg, p in zip(legs, entry_prices))
     if abs(entry_net) <= 1e-9:
@@ -531,20 +746,59 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     cap_reached_expiry = nearest_dte <= path_cap
     end_date = signal_date + timedelta(days=min(nearest_dte, path_cap))
 
-    grid_marks = []
+    # The grid ORIGIN is unchanged and must stay unchanged: the first weekday AFTER
+    # the signal date, exactly what `_weekday_grid` returns. EVERY day index this
+    # engine reports stays SIGNAL-relative — `days_held`, `mfe_day`, `mae_day`,
+    # `time_exit_day`, `path_cap_days` — because three things outside this file
+    # rebuild that grid from `signal_date` and index into it positionally:
+    # `backtest_study/lib/harness.py` asserts `len(marks) == len(_weekday_grid(
+    # signal_date, end))` (it is FROZEN — the mark count is its contract),
+    # `backtest_study/lib/mtm_curve.py` and `f4_deployment/concurrency_correlation.py`
+    # both take index 0 as the first session after the signal. Moving the origin
+    # would break all three and pool two day-index conventions on one tab.
+    #
+    # What changed (robustness review B2, 2026-09-07) is the MARK, not the grid: a
+    # grid day BEFORE the entry date is present but UNPRICED — value None, source
+    # tag `pre_entry`, blank token in `daily_price_csv`/`daily_pnl_csv`. The fill
+    # can land up to `_ENTRY_STALENESS_DAYS` after the signal
+    # (classify.py::_entry_row_from_history), and those in-between days used to be
+    # priced by carrying an old mark forward and compared against an entry struck
+    # later, which booked MFE/MAE — and on ~4% of positions a realized exit — on
+    # days the position did not exist yet. Unpriced days are skipped by every scan
+    # in `_summarize_path`, so the first PRICED day is now the entry day. The
+    # common case (entry = the first weekday after the signal) is unchanged.
+    #
+    # Not pricing them is also what keeps the B3 carry-forward honest: a pre-entry
+    # day never asks `_price_leg` for a mark, so no stale quote is carried backwards
+    # into a day before the fill.
+    #
+    # `d` is SIGNAL-relative as it always was: the argument to `_T` (time-to-expiry
+    # for the BS fallback) and the clock the time exit measures.
+    grid_marks, grid_spread_units = [], []
     for day in _weekday_grid(signal_date, end_date):
         d = (day - signal_date).days
+        if day < entry_date:
+            grid_marks.append((day, d, None, "pre_entry"))
+            grid_spread_units.append(None)
+            continue
         value, tags = 0.0, []
+        spread_units, spread_complete = 0.0, True
         for leg in legs:
-            p, tag = _price_leg(leg, day, d)
+            p, tag, spread = _price_leg(leg, day, d)
             if p is None:
                 value = None
                 break
             value += leg.qty * p
             tags.append(tag)
+            if spread is None:
+                spread_complete = False
+            else:
+                spread_units += abs(leg.qty) * spread
         if value is not None and _v_clamp is not None:
             value = max(_v_clamp[0], min(_v_clamp[1], value))
         grid_marks.append((day, d, value, "+".join(tags) if value is not None else ""))
+        grid_spread_units.append(
+            spread_units if (value is not None and spread_complete) else None)
 
     # Step 5 — daily_price_csv + realized exit + MFE/MAE.
     contracts = _size_contracts(entry_net, legs, eff_cfg)
@@ -614,6 +868,14 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         loss_days_exit=loss_days_exit,
         be_after=be_after,
     ))
+
+    # Transaction costs (robustness review B1). Charged ONCE, against the realized
+    # figures, after the path has been scanned — the exit rules are defined on
+    # marks, so costs must not move the thresholds the path is read with. Both
+    # knobs default to 0, which reproduces every pre-2026-09-07 number exactly.
+    _apply_costs(result, eff_cfg, legs, contracts, entry_net,
+                 entry_spread_units if entry_spread_complete else None,
+                 grid_spread_units)
 
     # Which exit profile this row was simulated on. Empty on rows written before
     # 2026-07-22 = PROD-basis; see _exit_basis.

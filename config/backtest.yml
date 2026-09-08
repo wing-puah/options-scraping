@@ -65,6 +65,53 @@ simulation:
   # Fallback: fixed contracts when portfolio_value is not set.
   contracts: 1
 
+  # ── Transaction costs (robustness review B1, added 2026-09-07) ────────────────
+  # The backtest filled every leg at the mark, in and out, and no commission or
+  # slippage term existed anywhere in the repo — so no shipped rule has ever been
+  # measured net of costs, and the deltas they shipped on (+0.02 to +0.04 R) are
+  # the same order as one realistic round trip. These two knobs are the model.
+  #
+  # BOTH DEFAULT TO 0 ON PURPOSE. Zero CHARGES NOTHING, so the cost model on its
+  # own changes no recorded number — turning costs on is a deliberate act with its
+  # own before/after, not a silent rewrite of the evidence base. Charged in
+  # `_apply_costs` (scripts/backtest/simulate.py) against the realized columns
+  # only; MFE/MAE and the daily path stay gross.
+  #
+  # ⚠️ That claim is scoped to the COST TERM ALONE. The same 2026-09-07 change
+  # also left grid days BEFORE the fill UNPRICED (`pre_entry`, B2 — the grid's
+  # origin and length are unchanged, only the marks on those days), made
+  # `pct_real_days` count leg-days (B3) and re-marked zero-bid contracts off the
+  # quote instead of the last trade (B5). Each of those shifts recorded rows AT
+  # ZERO COST, so a post-merge `--redo` re-run WILL differ from the tab even with
+  # both knobs at 0. Expect that diff; take it deliberately.
+  #
+  #   commission_per_contract  — dollars per LEG per CONTRACT, charged at entry
+  #                              and again at exit (a 2-leg spread, 3 contracts,
+  #                              $0.65 → $0.65 × 6 × 2 = $7.80 for the round trip).
+  #   slippage_frac_of_spread  — fraction of the QUOTED bid/ask spread given up per
+  #                              leg on each side, always adverse. 0.5 = filled at
+  #                              the touch; 0.25 = midway between mid and touch.
+  #                              A leg with no two-sided quote that day is charged
+  #                              nothing and the row's `cost_basis` says which side
+  #                              was unpriced — never a guessed spread.
+  #
+  # The cost-sensitivity study (research/robustness-review.md N1) is what these are
+  # for: at what cost per leg does the Tier A/B edge stop excluding zero.
+  commission_per_contract: 0.0
+  slippage_frac_of_spread: 0.0
+
+  # ── Quote staleness (robustness review B3) ────────────────────────────────────
+  # How many CALENDAR days a Barchart mark may be carried forward before the day is
+  # tagged `barchart_stale` in `daily_source_csv` and counted in `pct_stale_days`.
+  # A contract that stops being quoted (a strike that vanishes at a split, a wing
+  # that dies) used to be carried at its last price to the end of the path, tagged
+  # `barchart` and scored `pct_real_days` 1.00 — one v4 row exits `cap_open` at
+  # +72% on 70 frozen days. The mark is STILL used past the bound (dropping it
+  # would silently reshape paths); what changes is that the row now says so.
+  # 5 days = the same window the entry staleness check and the history cache use.
+  # null = carry forever (the pre-2026-09-07 behaviour).
+  max_price_carry_days: 5
+
   # Fixed profit target as a fraction of entry premium. Used alongside trailing_stop —
   # profit_target fires reliably for normal winners; trailing_stop catches parabolic moves
   # that gap past the trigger before profit_target can fire.

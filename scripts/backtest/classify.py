@@ -374,6 +374,17 @@ def _entry_row_from_history(
         day exists within the staleness window, so the play is still priced (at the
         signal day's EOD mark) rather than dropped.
     Either way the day must be within the staleness window of the signal date.
+
+    ``_entry_date`` IS LOAD-BEARING, in two places: ``DTE`` is measured from it, and
+    ``simulate._simulate`` leaves every grid day BEFORE it UNPRICED (tagged
+    `pre_entry`). Under either timing the fill can land several days after the signal
+    (a contract with no bar until day 3), and those days used to be priced by
+    carry-forward and marked against an entry struck later, which could book MFE/MAE
+    or even a realized exit before the position existed (robustness review B2, fixed
+    2026-09-07). The grid's ORIGIN is untouched — still the weekday after the signal,
+    because the frozen research harness asserts against that length. A caller that
+    builds an entry row by hand must stamp this field, or the whole grid is priced
+    from the signal date as it was before.
     """
     _ENTRY_STALENESS_DAYS = 5
 

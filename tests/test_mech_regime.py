@@ -171,11 +171,19 @@ def test_exit_basis_agrees_with_the_config_actually_used(bear_cfg):
 
 
 def test_exit_basis_in_both_key_orders():
-    """Present, and LAST — Sheets append is positional (core.py:45-48)."""
+    """Present, and in the END-APPENDED tail — Sheets append is positional
+    (core.py:45-48), so what this guards is that `exit_basis` is never MOVED or
+    dropped, and that anything added after it is appended at the very end. The
+    2026-09-07 robustness fix appended `pct_stale_days`/`cost_total`/`cost_basis`
+    after it (B1/B3); `cost_basis` must stay last on both tabs so a realized
+    figure is never read without the column saying whether costs were charged."""
     from scripts.backtest.core import _KEY_ORDER
     from scripts.backtest.proxy import _PROXY_KEY_ORDER
-    assert _KEY_ORDER[-1] == "exit_basis"
-    assert _PROXY_KEY_ORDER[-1] == "exit_basis"
+    tail = ["exit_basis", "pct_stale_days", "cost_total", "cost_basis"]
+    assert "exit_basis" in _KEY_ORDER
+    assert "exit_basis" in _PROXY_KEY_ORDER
+    assert _KEY_ORDER[-len(tail):] == tail
+    assert _PROXY_KEY_ORDER[-len(tail):] == tail
 
 
 # ── the structure override: be_after on bear debits only (2026-08-11) ─────────

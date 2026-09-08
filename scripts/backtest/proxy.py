@@ -111,7 +111,14 @@ _SCORE_COLS = [
 # empty-means-pre-2026-07-22 convention as BacktestResults. Proxy rows run the
 # SAME simulation:/credit:/regime_exit: rules, so the two tabs stay comparable.
 _BASIS_COLS = ["exit_basis"]
-_PROXY_KEY_ORDER = _IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS + _BASIS_COLS
+# Quote-staleness + transaction-cost columns (robustness review B3/B1, 2026-09-07).
+# `_simulate` stamps all three on every proxy row too, so the two tabs stay
+# comparable; appended at the VERY END for the same positional-append reason, and
+# the BacktestProxy tab header must gain them in this order. `cost_basis` empty =
+# costs are off and the realized columns are GROSS. See docs/backtest-reference.md.
+_COST_COLS = ["pct_stale_days", "cost_total", "cost_basis"]
+_PROXY_KEY_ORDER = (_IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS
+                    + _BASIS_COLS + _COST_COLS)
 
 _ENTRY_STALENESS_DAYS = 5  # same near-entry rule the real backtest applies
 

@@ -413,9 +413,8 @@ committed ([log](current.md#2026-09-07-later--robustness-review-twelve-items-bui
 
 | Where | Items | Next |
 |---|---|---|
-| Main tree, uncommitted | P1, P2, P3, P6, P8, A5 | commit |
-| Worktree `wf_129cdac5-757-5` | B1, B2, B3, B5 | merge after the campaign, align both results-tab headers, one suite re-run |
-| Worktree `wf_129cdac5-757-6` | A1, A4 | merge after the campaign |
+| Main, committed | P1, P2, P3, P6, P8, A5 | done |
+| Branch `robustness-fold` (2026-09-08: both worktrees merged onto main, one conflict resolved, suite green) | B1, B2, B3, B5, A1, A4 | fast-forward main AFTER the queue-D campaign ends, align both results-tab headers, one suite re-run |
 | Drafts, not registered | N1, N2, N5 | operator accepts each, after the decisions each names |
 | Not started | A2, A3, B4, B6, B7, P4, P5, P7, N3, N4, N6, N7 | A2/A3 need the tab header; P5 is the Stage 2 build |
 

@@ -168,7 +168,42 @@ scripts/                    ← entry points, each maps to a workflow step
                               (docs/backtest-reference.md). Shared internals (analysis load,
                               history fetch, results writer, classify_and_build) in
                               `scripts/backtest/shared/` — imported by core.py and proxy.py,
-                              never cross-imported
+                              never cross-imported.
+                              THE PRICE GRID ORIGIN IS THE WEEKDAY AFTER THE SIGNAL AND NEVER
+                              MOVES; every day index (`days_held`/`mfe_day`/`mae_day`/
+                              `time_exit_day`/`path_cap_days`) is signal-relative. Moving it
+                              would break the FROZEN `backtest_study/lib/harness.py`
+                              (`len(marks) == len(_weekday_grid(signal_date, end))`) and the
+                              index-0 readers `backtest_study/lib/mtm_curve.py` and
+                              `f4_deployment/concurrency_correlation.py`, and would pool two
+                              day-index conventions on one tab.
+                              What DOES change (robustness review B2, 2026-09-07): a grid day
+                              BEFORE `_entry_date` (stamped by
+                              `classify.py::_entry_row_from_history`, up to 5 days after the
+                              signal) is present but UNPRICED — blank mark, source tag
+                              `pre_entry` — so no P&L, MFE/MAE or realized exit can be booked
+                              before the fill, and no stale quote is carried backwards into it.
+                              It used to carry an old mark forward against an entry struck
+                              later, booking excursions and, on ~4% of positions, a realized
+                              exit on days the position did not exist. `pct_real_days`/
+                              `pct_stale_days` count PRICED days, so pre-entry days leave the
+                              denominator. Rows written before the fix may hold pre-entry P&L;
+                              a dated `--redo` re-price is the cleanup.
+                              Three further pricing rules, all in `simulate.py`: a Barchart mark
+                              carried past `simulation.max_price_carry_days` (default 5) is
+                              tagged `barchart_stale` and counted in `pct_stale_days` (B3); a
+                              zero-bid contract is marked `ask/2`, or 0 when nothing is offered,
+                              instead of falling through to its last trade (B5); and
+                              `simulation.commission_per_contract` +
+                              `slippage_frac_of_spread` charge a round trip against the realized
+                              columns only — BOTH DEFAULT 0, so the COST TERM alone changes no
+                              recorded number (B1); B2/B3/B5 above do, at zero cost, so expect a
+                              re-run diff. `pct_stale_days`/`cost_total`/`cost_basis` are appended
+                              in that order at the END of `core._KEY_ORDER` and
+                              `proxy._PROXY_KEY_ORDER`, so `cost_basis` is the last column on both
+                              tabs; the BacktestResults/BacktestProxy tab HEADERS must gain the
+                              three before the next append (`align_tab_headers.py --dry-run`).
+                              An empty `cost_basis` means the realized columns are GROSS
   backtest/proxy.py         — proxy-backtests plays the real backtest never covered: diffs the
                               analysis tab against BacktestResults (identity =
                               signal_date+ticker+play-prefix), records WHY skipped
@@ -1461,3 +1496,71 @@ The analysis also emits a market-level `themes` array (`{theme, tickers, breadth
 grouping the day's flow into narrative clusters — presentation-only, never a multiplier on
 any play's score. `--days N` (default 5) appends a multi-day persistence section tracking
 recurring names.
+
+### The no-data skip and the zero-plays refusal
+
+Two guards sit in `core.main`'s per-date loop, both checked **before** they can do harm:
+the first before the LLM call, the second before the Sheets write.
+
+**No-data skip.** `fetch_data`'s SCORED path — the one `core.main` calls; never
+`--raw`/`--ticker` — renders a `"_No data available._"` marker only for the two FLOW-kind
+sections (stocks-flow, etfs-flow): the unusual-kind sections feed scoring only and never get
+a heading of their own here. So this path can produce **at most 2** such markers, never the 4
+a `--raw`/`--ticker` dump could. The skip used to require 4, which meant it could never fire
+on the path the daily pipeline actually runs — a date whose Drive files were entirely
+missing or empty got "analysed" on blank tables instead of skipped, and (once a
+duplicate-date guard exists ahead of the write — see the note below) the empty result would
+then lock the date against every future re-run. The check now requires 2: both flow sections
+empty, which is what "no data for this date" actually means on this path. A focus run
+(`--tickers`) narrowing to zero MATCHING tickers renders a different message
+(`"_None of the focus tickers had flow in..._"`) and is correctly NOT caught here — that is
+real market data with nothing for the requested names, not a missing Drive file.
+
+**Zero-plays refusal.** An analysis that comes back with an empty `plays` list is not
+rejected by validation (below) — a thin day can legitimately have nothing to say, and making
+that a retry target would turn retrying into the only way to paper over a genuinely empty
+day. Instead, `core.main` refuses to WRITE it: only the `MARKET` row would reach the tab, and
+nothing distinguishes that later from "this date was analysed and had nothing", which is
+exactly the state an already-analysed guard (keyed on "does the tab hold a row for this
+date") would treat as done — locking the date against a real re-run with no play evidence to
+show for it. `--output-dir` is exempt: it never reaches Sheets regardless of play count, and
+for prompt evaluation a zero-play result is itself useful evidence about the candidate
+prompt, so it is written to `<date>.json`/manifest like any other run (with `n_plays: 0`
+recorded). A refused date is reported separately from a generic skip (`Refused (zero
+plays): ...`) and, like a skip, does not count toward `done` — the run exits 1 if that leaves
+nothing.
+
+### Output validation
+
+`_parse_and_validate` checks the parsed JSON against `config.ANALYSIS_PROMPT_CONTRACT`
+before `run_engine` accepts it, and a failure here is retried exactly like an unparseable
+response (`run_engine`'s except clause catches `ValueError`, which is what every check below
+raises):
+
+- **Top-level keys**: `regime`, `signals`, `themes`, `plays` must all be present (previously
+  only `regime` was checked).
+- **Per-play required keys**: every element of `plays` must carry all of `ticker`,
+  `asset_class`, `pattern`, `regime`, `signal`, `structure`, `thesis`, `trigger`,
+  `invalidation`, `score`, `key_level`, `direction`, `flow_intent`, `horizon`,
+  `alternative_interpretation` — presence only, never non-empty content. `regime` in
+  particular is allowed to be blank ("leave EMPTY if there is nothing ticker-specific to
+  add"), and holding it to a non-empty bar would invite "fixing" a blank one by copying the
+  MARKET-level `regime`/`signal` onto it — the exact regression `analysis_to_rows` guards
+  against (CLAUDE.md Invariants).
+- **Enum vocabulary**: `asset_class` (stock|etf), `pattern` (TF|MR|GE|VC|PU|DP), `direction`
+  (bullish|bearish|neutral), `flow_intent` (DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK) and
+  `horizon` (14|60|180|720) are checked against the contract's fixed vocabulary (normalised
+  for case/whitespace/int-vs-string first). `structure` is deliberately NOT enum-checked — it
+  is a name plus strikes, not a closed set — but an off-vocabulary `asset_class`/`pattern`/
+  `flow_intent`/`horizon` breaks a downstream reader (the row expansion, the backtest's
+  structure/horizon bucketing) silently rather than loudly, which is what this check is for.
+- **Zero plays** is explicitly NOT a validation failure — see the zero-plays refusal above.
+
+The winning retry attempt is recorded on the module-level `run_engine._last_attempt` (not
+added to `run_engine`'s return tuple, to avoid changing its calling convention) and, on an
+`--output-dir` run, persisted into that date's `manifest.jsonl` entry as `analysis_attempt` /
+`analysis_max_attempts` — so a prompt evaluation can tell "won on the first try" from "took a
+retry to get a conforming response" apart. `--skip-llm` runs (which never call the engine)
+carry neither key.
+
+Tests: `tests/test_analysis_guards_robustness.py`.

@@ -91,11 +91,75 @@ def _extract_json(text: str) -> dict:
     return json.loads(s[start:end + 1])
 
 
+# Per-play keys the JSON contract (config.ANALYSIS_PROMPT_CONTRACT) requires on
+# every element of `plays`. This checks PRESENCE only, never non-empty content:
+# `regime` is explicitly allowed to be blank ("Leave EMPTY if there is nothing
+# ticker-specific to add" — config.py), and treating every field as
+# non-empty-or-bust invites "fixing" a blank one by copying the MARKET-level
+# regime/signal onto it, which is the exact regression `analysis_to_rows`
+# guards against (see the INVARIANT comment there and CLAUDE.md Invariants).
+_PLAY_REQUIRED_KEYS = (
+    "ticker", "asset_class", "pattern", "regime", "signal", "structure",
+    "thesis", "trigger", "invalidation", "score", "key_level", "direction",
+    "flow_intent", "horizon", "alternative_interpretation",
+)
+
+# Enum vocabularies from the same contract. A play outside one of these breaks
+# a downstream reader silently rather than loudly — e.g. an off-vocabulary
+# `structure` qualifier breaks the backtest's structure parser (see the
+# `debit`/`credit`-in-the-name warning in config.ANALYSIS_PROMPT_CONTRACT) and
+# an off-vocabulary `horizon` can't be bucketed at all. `structure` itself is
+# free text (a name plus strikes, not a closed set) and is deliberately not
+# enum-checked here.
+_ASSET_CLASSES = {"stock", "etf"}
+_PATTERNS = {"TF", "MR", "GE", "VC", "PU", "DP"}
+_DIRECTIONS = {"bullish", "bearish", "neutral"}
+_FLOW_INTENTS = {"DIRECTIONAL", "VOLATILITY", "HEDGE", "SYNTHETIC STOCK"}
+_HORIZONS = {"14", "60", "180", "720"}
+
+
+def _validate_play(play: dict, index: int) -> None:
+    """Raise ValueError on a play missing a contract key or off-vocabulary enum."""
+    label = str(play.get("ticker") or "").strip() or f"play[{index}]"
+    missing = [k for k in _PLAY_REQUIRED_KEYS if k not in play]
+    if missing:
+        raise ValueError(f"{label}: missing required key(s) {missing}")
+    if not str(play.get("ticker", "")).strip():
+        raise ValueError(f"play[{index}]: blank ticker")
+    for field, normalize, allowed in (
+        ("asset_class", str.lower, _ASSET_CLASSES),
+        ("pattern", str.upper, _PATTERNS),
+        ("direction", str.lower, _DIRECTIONS),
+        ("flow_intent", str.upper, _FLOW_INTENTS),
+        ("horizon", str.strip, _HORIZONS),
+    ):
+        value = normalize(str(play.get(field, "")).strip())
+        if value not in allowed:
+            raise ValueError(
+                f"{label}: {field}={play.get(field)!r} not in {sorted(allowed)}")
+
+
 def _parse_and_validate(text: str) -> dict:
-    """Extract the JSON object from a model's final message and sanity-check it."""
+    """Extract the JSON object from a model's final message and check it against
+    the output contract (config.ANALYSIS_PROMPT_CONTRACT): the top-level keys,
+    then every play's required keys and enum vocabulary.
+
+    A zero-length `plays` list is NOT rejected here — a thin day can
+    legitimately return none, and rejecting it here would make a retry the
+    only way to paper over a genuinely empty day. `core.main()` instead
+    refuses the WRITE for a zero-play analysis (see the zero-plays guard).
+    """
     analysis = _extract_json(text)
-    if "regime" not in analysis:
-        raise ValueError("analysis missing 'regime' key")
+    for key in ("regime", "signals", "themes", "plays"):
+        if key not in analysis:
+            raise ValueError(f"analysis missing '{key}' key")
+    plays = analysis["plays"]
+    if not isinstance(plays, list):
+        raise ValueError("analysis 'plays' must be a list")
+    for i, p in enumerate(plays):
+        if not isinstance(p, dict):
+            raise ValueError(f"play[{i}] is not an object")
+        _validate_play(p, i)
     return analysis
 
 
@@ -131,18 +195,32 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> tuple[dict, str]
 # Maps each engine name in config.ENGINES to the function that invokes its CLI.
 _RUNNERS = {"claude": _invoke_claude}
 
+# Set by a real run_engine() call to the attempt number that produced the
+# accepted analysis, so a --output-dir manifest can record which attempt won
+# without changing run_engine's return type (every existing test that stubs
+# out run_engine returns a bare 2-tuple, and main() must keep unpacking it the
+# same way regardless). Left at its previous value — stale or None — when
+# run_engine is stubbed out, so a reader must treat that as "unknown", not
+# load-bearing.
+_last_attempt: int | None = None
+
 
 def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
     """Run one headless analysis via the chosen engine, with retries.
 
     Returns ``(analysis, raw_text)``: the parsed analysis plus the engine's raw
     final message, so ``--output-dir`` runs can persist the response verbatim.
+    The winning attempt number is recorded separately in the module-level
+    ``_last_attempt`` (see its comment) rather than added to this tuple.
 
     The engine step is the only LLM touchpoint. The runner executes from a
     throwaway cwd so the project's CLAUDE.md / AGENTS.md and skills never load
     into the isolated session. Retries on non-zero exit, timeout, or unparseable
-    output.
+    output (which now includes a play missing a contract key or off-vocabulary
+    enum — see ``_parse_and_validate`` — so a badly-shaped response gets a
+    fresh attempt exactly like an unparseable one).
     """
+    global _last_attempt
     invoke = _RUNNERS[engine]
     cfg = config.ENGINES.get(engine)
     last_err: Exception | None = None
@@ -155,12 +233,15 @@ def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
             log.info("%s analyze attempt %d/%d (model=%s)",
                      engine, attempt, config.MAX_ATTEMPTS, effective_model or "engine default")
             try:
-                return invoke(prompt, effective_model, neutral_cwd)
+                result = invoke(prompt, effective_model, neutral_cwd)
+                _last_attempt = attempt
+                return result
             except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError,
                     RuntimeError, OSError) as e:
                 last_err = e
                 log.warning("%s attempt %d failed: %s", engine, attempt, e)
                 continue
+    _last_attempt = None
     raise RuntimeError(
         f"{engine} analysis failed after {config.MAX_ATTEMPTS} attempts: {last_err}")
 
@@ -684,8 +765,8 @@ def main(argv: list[str] | None = None) -> None:
         log.info("LOCAL-ONLY run: output → %s; nothing will be written to '%s'",
                  args.output_dir, tab)
 
-    def _meta() -> dict:
-        return {
+    def _meta(attempt: int | None = None) -> dict:
+        meta = {
             "engine": args.engine,
             "model": model or "engine default",
             "framework_file": str(framework_file),
@@ -694,6 +775,13 @@ def main(argv: list[str] | None = None) -> None:
             "method_sha256": _file_digest(method_file),
             "argv": list(argv) if argv is not None else sys.argv[1:],
         }
+        # Which retry attempt produced the accepted analysis (None when no
+        # engine call happened, e.g. --skip-llm, or when run_engine is a test
+        # stub that bypasses the real retry loop — see `_last_attempt`).
+        if attempt is not None:
+            meta["analysis_attempt"] = attempt
+            meta["analysis_max_attempts"] = config.MAX_ATTEMPTS
+        return meta
 
     client = get_drive_client()
     dates = _dates_to_process(args, client)
@@ -707,7 +795,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
     log.info("Dates to process: %s", ", ".join(dates))
 
-    done, skipped = [], []          # `already` is reported on its own line, not as a skip
+    done, skipped, zero_plays = [], [], []   # `already` is reported on its own line, not as a skip
     for d in dates:
         # A local-only run keeps its audit CSV inside the run dir, so a prompt
         # evaluation never overwrites the production audit/ rollup for the date.
@@ -723,8 +811,18 @@ def main(argv: list[str] | None = None) -> None:
             skipped.append(d)
             continue
 
-        if "_No data available._" in data_md and data_md.count("_No data available._") >= 4:
-            log.info("No data for %s — skipping", d)
+        # fetch_data's SCORED path (this call — never raw=True/ticker=) renders
+        # a "_No data available._" marker only for the two FLOW-kind sections
+        # (stocks-flow, etfs-flow): the unusual-kind sections feed scoring only
+        # and never get their own heading here. So 2 is the ceiling this path
+        # can ever produce, not 4 (that count only applies to --raw/--ticker's
+        # 4-section dump, which this call never takes). Requiring 4 meant a
+        # date whose Drive files are entirely missing/empty never tripped this
+        # skip: it went on to be "analysed" on empty tables instead. Checked
+        # BEFORE the LLM call below, same as every other skip in this loop.
+        if data_md.count("_No data available._") >= 2:
+            log.info("No flow data for %s (Drive files missing/empty for both "
+                     "flow sections) — skipping before any LLM call", d)
             skipped.append(d)
             continue
 
@@ -751,6 +849,8 @@ def main(argv: list[str] | None = None) -> None:
             continue
         if not focus_tickers:  # coverage minimums don't apply to focused runs
             _warn_if_below_targets(analysis)
+        n_plays = len(analysis.get("plays") or [])
+        attempt_used = _last_attempt
         play_scores = _compute_play_scores(analysis, d)
         rows = analysis_to_rows(analysis, d, window_start, window_end,
                                 rollup_metrics=_load_rollup_metrics(audit_path),
@@ -758,11 +858,30 @@ def main(argv: list[str] | None = None) -> None:
                                 mech_cell=_mech_cell(d))
         if args.output_dir:
             # Hard fork: local artefacts, and NEVER the Sheets append below —
-            # unconditionally, not merely when --dry-run happens to be set.
+            # unconditionally, not merely when --dry-run happens to be set,
+            # and regardless of play count. A prompt evaluation run wants to
+            # SEE a zero-play result (it's evidence about the candidate
+            # prompt), not have it silently dropped like the write below.
             write_local_output(args.output_dir, d, analysis=analysis, prompt_text=prompt,
-                               raw_response=raw_response, rows=rows, meta=_meta())
+                               raw_response=raw_response, rows=rows,
+                               meta={**_meta(attempt_used), "n_plays": n_plays})
             done.append(d)
             _print_report(d, analysis, tab=str(args.output_dir), written=True)
+            continue
+        if n_plays == 0:
+            # Refuse rather than write the MARKET row alone. A MARKET-only row
+            # looks, to any later reader (including an already-analysed guard
+            # keyed on "does the tab hold a row for this date", if/when one is
+            # added ahead of this write), exactly like "this date was
+            # analysed" — with no play evidence to show for it and no way to
+            # tell that apart from a real, empty-conviction day after the
+            # fact. Investigate the engine response (log above from
+            # run_engine's attempts) or re-run instead of writing this.
+            log.error(
+                "REFUSING to write %s: the analysis returned ZERO plays. A "
+                "MARKET-only row is not written for this date.", d)
+            zero_plays.append(d)
+            _print_report(d, analysis, tab=tab, written=False)
             continue
         if not args.dry_run:
             sheets_client.append_rows(tab, rows)
@@ -776,6 +895,9 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\n{label}: {', '.join(done) or 'none'}")
     if already:
         print(f"Refused:  {', '.join(already)} (already on {tab}; --allow-duplicate-date overrides)")
+    if zero_plays:
+        print(f"Refused (zero plays): {', '.join(zero_plays)} "
+              "(MARKET-only row not written; date stays open for re-run)")
     if skipped:
         print(f"Skipped:  {', '.join(skipped)}")
     if not done:
