@@ -60,6 +60,16 @@ _KEY_ORDER = [
     # full re-run leaves both bases on the sheet. See scripts/backtest/simulate.py
     # _exit_basis and research/current.md addendum 7.
     "exit_basis",
+    # Robustness review B1/B3 (2026-09-07). Appended at the VERY END for the
+    # positional-append reason above — the BacktestResults tab header must gain
+    # these three, in this order (`python3 scripts/align_tab_headers.py --dry-run`).
+    # `pct_stale_days` = share of priced leg-days whose Barchart mark was carried
+    # past `simulation.max_price_carry_days`. `cost_total`/`cost_basis` are the
+    # transaction-cost charge and what it could see; `cost_basis` is EMPTY when
+    # both cost knobs are 0, i.e. the realized columns are gross. Reading a
+    # realized figure without this pair is the un-labelled-basis failure
+    # `exit_basis` exists for. See docs/backtest-reference.md.
+    "pct_stale_days", "cost_total", "cost_basis",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent

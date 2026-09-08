@@ -167,7 +167,42 @@ scripts/                    ← entry points, each maps to a workflow step
                               (docs/backtest-reference.md). Shared internals (analysis load,
                               history fetch, results writer, classify_and_build) in
                               `scripts/backtest/shared/` — imported by core.py and proxy.py,
-                              never cross-imported
+                              never cross-imported.
+                              THE PRICE GRID ORIGIN IS THE WEEKDAY AFTER THE SIGNAL AND NEVER
+                              MOVES; every day index (`days_held`/`mfe_day`/`mae_day`/
+                              `time_exit_day`/`path_cap_days`) is signal-relative. Moving it
+                              would break the FROZEN `backtest_study/lib/harness.py`
+                              (`len(marks) == len(_weekday_grid(signal_date, end))`) and the
+                              index-0 readers `backtest_study/lib/mtm_curve.py` and
+                              `f4_deployment/concurrency_correlation.py`, and would pool two
+                              day-index conventions on one tab.
+                              What DOES change (robustness review B2, 2026-09-07): a grid day
+                              BEFORE `_entry_date` (stamped by
+                              `classify.py::_entry_row_from_history`, up to 5 days after the
+                              signal) is present but UNPRICED — blank mark, source tag
+                              `pre_entry` — so no P&L, MFE/MAE or realized exit can be booked
+                              before the fill, and no stale quote is carried backwards into it.
+                              It used to carry an old mark forward against an entry struck
+                              later, booking excursions and, on ~4% of positions, a realized
+                              exit on days the position did not exist. `pct_real_days`/
+                              `pct_stale_days` count PRICED days, so pre-entry days leave the
+                              denominator. Rows written before the fix may hold pre-entry P&L;
+                              a dated `--redo` re-price is the cleanup.
+                              Three further pricing rules, all in `simulate.py`: a Barchart mark
+                              carried past `simulation.max_price_carry_days` (default 5) is
+                              tagged `barchart_stale` and counted in `pct_stale_days` (B3); a
+                              zero-bid contract is marked `ask/2`, or 0 when nothing is offered,
+                              instead of falling through to its last trade (B5); and
+                              `simulation.commission_per_contract` +
+                              `slippage_frac_of_spread` charge a round trip against the realized
+                              columns only — BOTH DEFAULT 0, so the COST TERM alone changes no
+                              recorded number (B1); B2/B3/B5 above do, at zero cost, so expect a
+                              re-run diff. `pct_stale_days`/`cost_total`/`cost_basis` are appended
+                              in that order at the END of `core._KEY_ORDER` and
+                              `proxy._PROXY_KEY_ORDER`, so `cost_basis` is the last column on both
+                              tabs; the BacktestResults/BacktestProxy tab HEADERS must gain the
+                              three before the next append (`align_tab_headers.py --dry-run`).
+                              An empty `cost_basis` means the realized columns are GROSS
   backtest/proxy.py         — proxy-backtests plays the real backtest never covered: diffs the
                               analysis tab against BacktestResults (identity =
                               signal_date+ticker+play-prefix), records WHY skipped
