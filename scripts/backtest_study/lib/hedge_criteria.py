@@ -1,9 +1,9 @@
 """The hedge programme's shared criteria: contribution, sizing, drawdown.
 
 --- Why this module exists ---------------------------------------------------
-The hedge question is asked by six study modules across `f3_structure/` and
-`f4_deployment/`, and until 2026-09-07 each carried its own body of the same
-two rules. `research/hedge-programme-plan.md` §"The shared criteria library"
+The hedge question is asked by six study modules, all of them now in
+`f5_hedging/`. Until 2026-09-07 each carried its own body of the same two
+rules. `research/hedge-programme-plan.md` §"The shared criteria library"
 counts them: the contribution rule six times, the sizing rule four, the
 drawdown function three. None of the copies was tested against the others, and
 two of them say in their own docstrings that they were copied rather than
@@ -11,7 +11,7 @@ imported so that a change elsewhere could not move their recorded numbers.
 
 That is a commitment about NUMBERS, not about intent, so this module is the
 copies' origin transcribed rather than re-derived. **The reference is
-`f4_deployment/bear_deploy.py`** — `D2` at its `daily_series`/`d2_hedge` and
+`f5_hedging/bear_deploy.py`** — `D2` at its `daily_series`/`d2_hedge` and
 `D3` at its `_sleeve_dollars`/`_sweep`/`_verdict`/`d3_sizing` — because it is
 the origin the other modules name. Every threshold, tie-break and comparison
 below is that module's, moved without an "improvement": the `max(3, n // 10)`

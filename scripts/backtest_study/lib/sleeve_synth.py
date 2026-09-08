@@ -2,10 +2,10 @@
 
 WHY THIS MODULE EXISTS
 ----------------------
-`f3_structure/vol_sleeve.py` was RETIRED AND DELETED on 2026-09-07. Its
+`f5_hedging/vol_sleeve.py` was RETIRED AND DELETED on 2026-09-07. Its
 verdicts are recorded in `research/study-map.md` (a `DELETED` row in the
-structure family table) and its frozen per-era record is
-`research/study-results/f3_structure/vol_sleeve.md`. Nothing here re-opens it.
+hedging family table) and its frozen per-era record is
+`research/study-results/f5_hedging/vol_sleeve.md`. Nothing here re-opens it.
 
 What could not be deleted with it is the synthesis layer. `calendar_hedge`'s
 gate **R4** builds `vol_sleeve`'s calendar cell TWICE in one process — once

@@ -1,9 +1,9 @@
 """`hedge_exposure --admitted` — the claims that live in CODE, not in a report.
 
-This was `f4_deployment/hedge_concentration.py` until 2026-09-07, when it was
+This was `f5_hedging/hedge_concentration.py` until 2026-09-07, when it was
 merged into `hedge_exposure` as that module's ADMITTED arm and deleted. The
 registration is unchanged and immutable
-(`research/pre-registrations/f4_deployment/hedge_concentration.md`), so every
+(`research/pre-registrations/f5_hedging/hedge_concentration.md`), so every
 assertion below is the one it always was — only the module it reads has moved.
 SRC and TREE below are the ADMITTED SECTION of the merged file, not the whole
 file, so a file-wide check here still means what it meant when the section was
@@ -53,8 +53,8 @@ from pathlib import Path
 import pytest
 
 from scripts.backtest_study.f4_deployment import account_sim as A
-from scripts.backtest_study.f4_deployment import hedge_exposure as HC
-from scripts.backtest_study.f4_deployment import hedge_exposure as HE
+from scripts.backtest_study.f5_hedging import hedge_exposure as HC
+from scripts.backtest_study.f5_hedging import hedge_exposure as HE
 from scripts.backtest_study.lib import concentration as C
 from scripts.backtest_study.lib import forward_drawdown as F
 from scripts.backtest_study.lib import hedge_instrument as HI
@@ -62,7 +62,7 @@ from scripts.backtest_study.lib import mtm_curve as M
 from scripts.backtest_study.lib import protocol as P
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = (ROOT / "scripts" / "backtest_study" / "f4_deployment"
+MODULE = (ROOT / "scripts" / "backtest_study" / "f5_hedging"
           / "hedge_exposure.py")
 
 #: The merged file carries BOTH arms. Every source-level assertion here is

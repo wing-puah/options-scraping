@@ -104,7 +104,7 @@ BAND_ALPHA = 0.05          # band = [p5, p95]; X3 reads "> p95"
 
 # X1's two power floors. `MIN_MOVED_DATES` is the registration's own ">= 25
 # dates". `MIN_N_TO_READ` is the repo's existing constant of that name
-# (`f3_structure/calendar_hedge.py`, = 10), which is what the registration
+# (`f5_hedging/calendar_hedge.py`, = 10), which is what the registration
 # cites; it is NOT re-derived here and may not be lowered to make an arm
 # readable.
 MIN_MOVED_DATES = 25

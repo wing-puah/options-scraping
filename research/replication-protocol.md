@@ -85,7 +85,7 @@ what order, and what it does with the result.
 
 Mode 1, replication grading. Three placeholders: `<pre-registration section>`
 (the study's file under `research/pre-registrations/`, e.g.
-`pre-registrations/f3_structure/calendar_hedge.md`, read whole — see
+`pre-registrations/f5_hedging/calendar_hedge.md`, read whole — see
 [`pre-registrations/README.md`](pre-registrations/README.md)),
 `<report path>` (e.g. `backtests/study_output/<name>-latest.txt`), and
 `<errata path>` (`research/<study>-errata.md`, `_` in the study name also

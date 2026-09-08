@@ -7,8 +7,9 @@ quoting verbatim what that study's report actually printed.
 research/study-results/
 ├── f1_selection/     bear_arm.md  bear_position_study.md  mech_regime_recut.md  …
 ├── f2_management/    bear_giveback.md  exit_mechanism_study.md  next_day_move.md  …
-├── f3_structure/     bear_rewrap.md  calendar_hedge.md  vol_sleeve.md
-└── f4_deployment/    account_sim.md  account_sim-compounding.md  bear_deploy.md  …
+├── f3_structure/     bear_rewrap.md  financed_spread.md
+├── f4_deployment/    account_sim.md  account_sim-compounding.md  portfolio_delta.md  …
+└── f5_hedging/       bear_deploy.md  calendar_hedge.md  hedge_exposure.md  …
 ```
 
 ```bash
@@ -52,12 +53,12 @@ A study's record sits under the same family folder its module does:
     scripts/backtest_study/f1_selection/bear_arm.py
     research/study-results/f1_selection/bear_arm.md
 
-`f1` → `f2` → `f3` → `f4` is not alphabetical filing — it is **the order a play
-moves through the system: pick it, manage it, wrap it, fund it.** That is why the
-folders carry the numeric prefix, it is the taxonomy `catalog.py::FAMILIES`
-renders onto the study map, and it means the records read in the same sequence
-the pipeline does: selection evidence before management evidence before structure
-before sizing.
+`f1` → `f2` → `f3` → `f4` → `f5` is not alphabetical filing — it is **the order a
+play moves through the system: pick it, manage it, wrap it, fund it, protect
+it.** That is why the folders carry the numeric prefix, it is the taxonomy
+`catalog.py::FAMILIES` renders onto the study map, and it means the records read
+in the same sequence the pipeline does: selection evidence before management
+evidence before structure before sizing before hedging.
 
 The mirror is *derived*, never listed. `scripts/study_results.py::family_of()`
 reads the family off the study module's own parent directory via the runner's
@@ -68,6 +69,11 @@ is what `research/current.md` cites and what the `(era, sha)` history hangs off.
 
 Arm stems (`account_sim-compounding`) are not modules, so they file under their
 parent study's family — `f4_deployment`, beside `account_sim.md`.
+
+A DELETED study has no module for `family_of()` to read, so its record is filed
+by hand under the family it belonged to, and moves when that family does.
+`vol_sleeve.md` and `hedge_concentration.md` moved into `f5_hedging/` with the
+rest of the hedge programme on 2026-09-08.
 
 ## The rules
 

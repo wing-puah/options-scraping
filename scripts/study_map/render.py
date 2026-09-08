@@ -75,24 +75,25 @@ def _diagram(counts: dict[str, int]) -> str:
     # Short labels, not truncated catalog text — a diagram that clips a word
     # mid-way reads as a bug rather than as shorthand.
     lanes = [
-        ("selection", "what to trade", "mostly null", "0/496 subsets · 0/15 cells"),
+        ("selection", "what to trade", "mostly null", "0/496 subsets"),
         ("management", "when to get out", "the edge is here", "2 rules shipped"),
         ("structure", "which wrapper", "one +0.085", "dies out of sample"),
-        ("deployment", "can I run it", "feasibility only", "delta binds, not cash"),
+        ("deployment", "can I run it", "feasibility only", "delta binds first"),
+        ("hedging", "what protects it", "bear is a hedge", "the rest is blocked"),
     ]
-    xs = [70, 265, 460, 655]
+    xs = [60, 228, 396, 564, 732]
     boxes = "".join(
-        _svg_box(x, 300, 175, 108,
+        _svg_box(x, 300, 150, 108,
                  f"{fam[key]['index']} {fam[key]['title'].upper()}",
                  [label, "", line1, line2],
                  tag=f"{counts.get(key, 0)} STUDIES")
         for x, (key, label, line1, line2) in zip(xs, lanes))
     drops = "".join(
-        f'<path class="d-line" d="M {x + 87} 276 V 300"/>'
-        f'<path class="d-line" d="M {x + 87} 408 V 432"/>' for x in xs)
+        f'<path class="d-line" d="M {x + 75} 276 V 300"/>'
+        f'<path class="d-line" d="M {x + 75} 408 V 432"/>' for x in xs)
     return f"""    <div class="diagram">
       <svg viewBox="0 0 900 500" role="img" aria-label="Flow from the analysis engine
-        through the pooled book and the frozen harness into four study families and
+        through the pooled book and the frozen harness into five study families and
         out to the operator card.">
         {_svg_box(300, 8, 300, 46, "ANALYSIS ENGINE", ["v3 frozen · v4 live"])}
         <path class="d-line" d="M 450 54 V 82"/>
@@ -105,10 +106,10 @@ def _diagram(counts: dict[str, int]) -> str:
             "purged walk-forward · date-clustered CIs · LOO · window re-cuts"],
             tag="HARNESS.PY / PROTOCOL.PY")}
         <path class="d-line" d="M 450 246 V 276"/>
-        <path class="d-line" d="M 157 276 H 742"/>
+        <path class="d-line" d="M 135 276 H 807"/>
         {drops}
         {boxes}
-        <path class="d-line" d="M 157 432 H 742"/>
+        <path class="d-line" d="M 135 432 H 807"/>
         {_svg_box(300, 432, 300, 52, "docs/deployment-rules.md",
                   ["the operator card — top 3/day, tiers A/B"], accent=True)}
       </svg>

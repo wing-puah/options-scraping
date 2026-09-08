@@ -1,7 +1,7 @@
 """`hedge_exposure` — the claims that live in CODE rather than in a report.
 
 The study is pre-registered
-(`research/pre-registrations/f4_deployment/hedge_exposure.md`). What belongs
+(`research/pre-registrations/f5_hedging/hedge_exposure.md`). What belongs
 here is everything that is a code-BEHAVIOUR claim rather than a data claim —
 each one a way the module could be deterministically, reproducibly wrong while
 printing a clean report:
@@ -86,13 +86,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.backtest_study.f4_deployment import hedge_exposure as HE
+from scripts.backtest_study.f5_hedging import hedge_exposure as HE
 from scripts.backtest_study.lib import concentration as C
 from scripts.backtest_study.lib import hedge_instrument as HI
 from scripts.backtest_study.lib import mtm_curve as M
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "scripts" / "backtest_study" / "f4_deployment" / "hedge_exposure.py"
+MODULE = ROOT / "scripts" / "backtest_study" / "f5_hedging" / "hedge_exposure.py"
 
 #: Where the ADMITTED arm begins. The merged module carries both arms, and a
 #: source-level assertion written about one of them must say which.
@@ -598,7 +598,7 @@ def test_the_registration_carries_the_ratified_population_in_its_own_text() -> N
     CODE constant (asserted above) and the REGISTRATION text must both name
     `all` — 996 rows / 145 dates — as the population, with `real` (485/140)
     demoted to a reported stratum, never restated as the conclusion."""
-    reg_path = (ROOT / "research" / "pre-registrations" / "f4_deployment"
+    reg_path = (ROOT / "research" / "pre-registrations" / "f5_hedging"
                 / "hedge_exposure.md")
     text = reg_path.read_text(encoding="utf-8")
     start = text.index("## Population and basis")
@@ -902,7 +902,7 @@ def test_max_drawdown_lives_in_lib_and_bear_deploy_imports_it() -> None:
     """A `lib/` module importing an f4 study executes that study at import
     time. `lib/greeks.py`, `lib/sectors.py` and `lib/hedge_instrument.py` each
     state and honour the opposite rule."""
-    from scripts.backtest_study.f4_deployment import bear_deploy
+    from scripts.backtest_study.f5_hedging import bear_deploy
 
     assert M.max_drawdown.__module__.endswith("lib.mtm_curve")
     assert bear_deploy.max_drawdown is M.max_drawdown
@@ -918,6 +918,7 @@ def test_mtm_curve_imports_nothing_from_a_study_family() -> None:
             assert "f2_management" not in node.module
             assert "f3_structure" not in node.module
             assert "f4_deployment" not in node.module
+            assert "f5_hedging" not in node.module
 
 
 def test_the_drawdown_is_still_the_same_arithmetic_it_always_was() -> None:

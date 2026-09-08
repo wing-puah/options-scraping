@@ -1,7 +1,7 @@
 """HEDGE-TIMING arm — does a mechanical trigger pick the day the bear hedge beats the ladder?
 
 Pre-registered 2026-08-28. Registration:
-`research/pre-registrations/f4_deployment/hedge_timing.md`, where
+`research/pre-registrations/f5_hedging/hedge_timing.md`, where
 `scripts/study_review/` reads it. Read it before quoting anything printed here.
 
 The operator deploys the bear-debit hedge sleeve on three discretionary
@@ -889,7 +889,7 @@ def main() -> int:
         rows_by_date[str(r["date"])].append(r)
 
     hdr("HEDGE_TIMING — pre-registered 2026-08-28 "
-        "(pre-registrations/f4_deployment/hedge_timing.md)")
+        "(pre-registrations/f5_hedging/hedge_timing.md)")
     print(f"  era {diag['era']}   book {len(rows)} priced rows / {len(book_dates)} dates "
           f"{diag['date_range'][0]} -> {diag['date_range'][1]}")
     print(f"  bear sleeve {len(bear)} rows / {len(bear_by_date)} dates "
@@ -1005,7 +1005,7 @@ def main() -> int:
         results[fam] = dict(h1=h1, h2=h2, h3=h3, h4=h4, mirrors=mirrors)
 
     # ── verdict block ───────────────────────────────────────────────────────
-    hdr("VERDICT (pre-registered grammar, pre-registrations/f4_deployment/hedge_timing.md)")
+    hdr("VERDICT (pre-registered grammar, pre-registrations/f5_hedging/hedge_timing.md)")
     survivors = 0
     for fam in FAMILIES:
         r = results[fam]

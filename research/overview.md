@@ -76,8 +76,9 @@ to `false` ([`next-steps.md`](next-steps.md) [§1](next-steps.md#s1),
 
 ## What was tried and did not survive
 
-Grouped by the four study families: `f1_selection` → `f2_management` →
-`f3_structure` → `f4_deployment`, or "pick it, manage it, wrap it, fund it".
+Grouped by the five study families: `f1_selection` → `f2_management` →
+`f3_structure` → `f4_deployment` → `f5_hedging`, or "pick it, manage it, wrap
+it, fund it, protect it".
 Verdict words are copied verbatim from
 [`scripts/study_map/catalog.py`](../scripts/study_map/catalog.py), unless
 noted. That file is where a verdict is written down as prose rather than
@@ -192,11 +193,9 @@ So: cutting a loser at session 5, and taking profit early at sessions 15 and
 | Study | Verdict | Why | Plan |
 |---|---|---|---|
 | [`bear_rewrap`](study-results/f3_structure/bear_rewrap.md) | **NULL** for naive re-wraps | the diagonal re-wrap fails the every-year gate on its first look at 2026 | — |
-| [`vol_sleeve`](study-results/f3_structure/vol_sleeve.md) | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the wrong sign with the deployed book | [plan](pre-registrations/f3_structure/vol_sleeve.md) |
-| [`calendar_hedge`](study-results/f3_structure/calendar_hedge.md) | **BLOCKED ON NEW DATES** | the sizing criterion answers differently on every export | [plan](pre-registrations/f3_structure/calendar_hedge.md) |
 | [`financed_spread`](study-results/f3_structure/financed_spread.md) | **UNCONFIRMED** on v4 | same-expiry shapes are NULL | [plan](pre-registrations/f3_structure/financed_spread.md) |
 
-`bear_rewrap` needs a table of its own; the other three are a line each.
+`bear_rewrap` needs a table of its own; `financed_spread` is a line.
 
 `bear_rewrap` re-prices each bear debit play as if it had been wrapped a
 different way. The **diagonal** re-wrap rolls the long leg out to the next
@@ -219,9 +218,6 @@ and one arm newly passing is a candidate, not a ship.
 
 | Study | Figure | Where it stands |
 |---|---|---|
-| `vol_sleeve` | +0.220 on 166 dates | only the calendar wrapper is right-signed against the book | [plan](pre-registrations/f3_structure/vol_sleeve.md) |
-| [`calendar_hedge` H0](arm-index.md#calendar_hedge "calendar_hedge criterion H0 FILL: the sleeve must produce a fillable hedge on at least 60% of deployed-book dates and at least 60% of the deployed book's worst-decile dates") | fills 51.0% of deployed dates | the gate is 60% | [plan](pre-registrations/f3_structure/calendar_hedge.md) |
-| [`calendar_hedge` H2](arm-index.md#calendar_hedge "calendar_hedge criterion H2 HEDGE CONTRIBUTION: negative daily correlation, positive mean sleeve R on the book's worst-decile dates, positive worst-quartile tail in two or more years") | n=4 | not evaluable | [plan](pre-registrations/f3_structure/calendar_hedge.md) |
 | [`financed_spread` F3](arm-index.md#financed_spread "financed_spread F3: same-direction financed vertical") off1 | 6 of 7 criteria on 166 dates | prints RE-WRAP; the one failure is the anti-re-wrap correlation | [plan](pre-registrations/f3_structure/financed_spread.md) |
 | [`financed_spread` F4](arm-index.md#financed_spread "financed_spread F4: diagonal financing, added by amendment 1 on 2026-08-19")-d20 hold | 36 rows against a floor of 60 | the v3 candidate is still under its rows floor | [plan](pre-registrations/f3_structure/financed_spread.md) |
 
@@ -232,10 +228,6 @@ and one arm newly passing is a candidate, not a ship.
 | [`account_sim`](study-results/f4_deployment/account_sim.md) | `>>> FEASIBLE <<<` on caps, but the window does not survive | delta-notional binds before cash does; feasibility only, nothing ships | [plan](pre-registrations/f4_deployment/account_sim.md) |
 | [`selection_order`](study-results/f4_deployment/selection_order.md) | **ORDERING-IS-NOISE** | no arm separates from the O4 null band on 166 dates | [plan](pre-registrations/f4_deployment/selection_order.md) |
 | [`portfolio_delta`](study-results/f4_deployment/portfolio_delta.md) | **CANDIDATE-FOR-INDEPENDENT-WINDOW**, B ceiling 1.00 only | a 1.00× net-delta ceiling clears every one of its adoption criteria at once, on the dense-episode population | [plan](pre-registrations/f4_deployment/portfolio_delta.md) |
-| [`hedge_timing`](study-results/f4_deployment/hedge_timing.md) | GAP-UP came back **CONTRARY** | the hedge underperformed the same day's ladder-eligible long; survivors 0 of 9 | [plan](pre-registrations/f4_deployment/hedge_timing.md) |
-| [`hedge_exposure`](study-results/f4_deployment/hedge_exposure.md) | **UNDERPOWERED** on the mechanism, **MEASUREMENT-ONLY** on ARM M | all nine hedge cells fail the power gate | [plan](pre-registrations/f4_deployment/hedge_exposure.md) |
-| [`hedge_concentration`](study-results/f4_deployment/hedge_concentration.md) | **PRECONDITION-NULL** | the gate question failed, so the hedge itself was never tested — see below | [plan](pre-registrations/f4_deployment/hedge_concentration.md) |
-| [`bear_deploy`](study-results/f4_deployment/bear_deploy.md) | D1–D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4 | [plan](pre-registrations/f4_deployment/bear_deploy.md) |
 
 The figures behind those. Every number is on the 166-date `v4` book.
 
@@ -244,9 +236,28 @@ The figures behind those. Every number is on the 166-date `v4` book.
 | [`account_sim` A1 / A3](glossary.md#criteria-a1a6 "account_sim criterion A1: edge survival — mean R positive, CI excludes zero, every year positive. A3: no blowup — drawdown bound, no ledger violation") | 2026 −0.062 · 35.7% drawdown | FEASIBLE is a two-year, dense-episode claim only; the full book fails both | [plan](pre-registrations/f4_deployment/account_sim.md) |
 | [`selection_order` G0](pre-registrations/f4_deployment/selection_order.md "selection_order gate G0 POWER PRE-CHECK: runs first and blocks every read below it; under 25 affected dates and nothing is read") | powered since 08-27 | but the primary population has no 2026 term at all, and the secondary's 2026 cell is 3 dates | [plan](pre-registrations/f4_deployment/selection_order.md) |
 | [`portfolio_delta` ARM B](arm-index.md#portfolio_delta "portfolio_delta ARM B: net-delta ceiling band, 1.0/1.5/2.0/2.5/infinity times equity") 1.50 | primary CI spans zero · secondary 2026 −0.088 | dropped out 2026-09-04; nothing ships off a correlated window | [plan](pre-registrations/f4_deployment/portfolio_delta.md) |
-| [`hedge_timing` ARM H3](arm-index.md#hedge_timing "hedge_timing ARM H3, the PRIMARY: within-date paired — date-mean bear R minus date-mean tier-A/B long R, compared on trigger versus non-trigger dates") | −0.506 R · CI [−0.844, −0.157] | the hedge lost to the same day's long; H1 now agrees and H4's dollar arm fell to NULL | [plan](pre-registrations/f4_deployment/hedge_timing.md) |
-| [`hedge_exposure` ARM M](arm-index.md#hedge_exposure "hedge_exposure ARM M: measurement only — the book on the mark-to-market curve versus the realized-on-close curve") | understates max drawdown by 40.2% | the close-bucketed curve is not the book's real worst case | [plan](pre-registrations/f4_deployment/hedge_exposure.md) |
-| [`bear_deploy` D5](arm-index.md#bear_deploy "bear_deploy D5: carry the hedge only on some days — a POST-HOC gate search, labelled a candidate and not a finding") | 8 → 2 gates | the sleeve is **operator policy** now, not evidence | [plan](pre-registrations/f4_deployment/bear_deploy.md) |
+
+### Hedging — "what protects the book when the ladder is wrong?"
+
+| Study | Verdict | Why | Plan |
+|---|---|---|---|
+| [`bear_deploy`](study-results/f5_hedging/bear_deploy.md) | D1–D4 **NOT MET** | the hedge-is-real and pick-rule estimands that held on v3 reverse on v4 | [plan](pre-registrations/f5_hedging/bear_deploy.md) |
+| [`calendar_hedge`](study-results/f5_hedging/calendar_hedge.md) | **BLOCKED ON NEW DATES** | the sizing criterion answers differently on every export | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
+| [`hedge_timing`](study-results/f5_hedging/hedge_timing.md) | GAP-UP came back **CONTRARY** | the hedge underperformed the same day's ladder-eligible long; survivors 0 of 9 | [plan](pre-registrations/f5_hedging/hedge_timing.md) |
+| [`hedge_exposure`](study-results/f5_hedging/hedge_exposure.md) | **UNDERPOWERED** on the mechanism, **MEASUREMENT-ONLY** on ARM M | all nine hedge cells fail the power gate | [plan](pre-registrations/f5_hedging/hedge_exposure.md) |
+| [`hedge_concentration`](study-results/f5_hedging/hedge_concentration.md) | **PRECONDITION-NULL** | the gate question failed, so the hedge itself was never tested — see below | [plan](pre-registrations/f5_hedging/hedge_concentration.md) |
+| [`vol_sleeve`](study-results/f5_hedging/vol_sleeve.md) | **CLOSED** | the straddle clears its gate then dies out of sample, and correlates the wrong sign with the deployed book | [plan](pre-registrations/f5_hedging/vol_sleeve.md) |
+
+The figures behind those. Every number is on the 166-date `v4` book.
+
+| Study | Figure | What it means |
+|---|---|---|
+| [`bear_deploy` D5](arm-index.md#bear_deploy "bear_deploy D5: carry the hedge only on some days — a POST-HOC gate search, labelled a candidate and not a finding") | 8 → 2 gates | the sleeve is **operator policy** now, not evidence | [plan](pre-registrations/f5_hedging/bear_deploy.md) |
+| [`calendar_hedge` H0](arm-index.md#calendar_hedge "calendar_hedge criterion H0 FILL: the sleeve must produce a fillable hedge on at least 60% of deployed-book dates and at least 60% of the deployed book's worst-decile dates") | fills 51.0% of deployed dates | the gate is 60% | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
+| [`calendar_hedge` H2](arm-index.md#calendar_hedge "calendar_hedge criterion H2 HEDGE CONTRIBUTION: negative daily correlation, positive mean sleeve R on the book's worst-decile dates, positive worst-quartile tail in two or more years") | n=4 | not evaluable | [plan](pre-registrations/f5_hedging/calendar_hedge.md) |
+| [`hedge_timing` ARM H3](arm-index.md#hedge_timing "hedge_timing ARM H3, the PRIMARY: within-date paired — date-mean bear R minus date-mean tier-A/B long R, compared on trigger versus non-trigger dates") | −0.506 R · CI [−0.844, −0.157] | the hedge lost to the same day's long; H1 now agrees and H4's dollar arm fell to NULL | [plan](pre-registrations/f5_hedging/hedge_timing.md) |
+| [`hedge_exposure` ARM M](arm-index.md#hedge_exposure "hedge_exposure ARM M: measurement only — the book on the mark-to-market curve versus the realized-on-close curve") | understates max drawdown by 40.2% | the close-bucketed curve is not the book's real worst case | [plan](pre-registrations/f5_hedging/hedge_exposure.md) |
+| `vol_sleeve` | +0.220 on 166 dates | only the calendar wrapper is right-signed against the book | [plan](pre-registrations/f5_hedging/vol_sleeve.md) |
 
 **"Operator policy, not evidence"** means the rule is kept because the operator
 chooses to keep it, not because a study supports it. The bear hedge sleeve was

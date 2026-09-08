@@ -1,7 +1,7 @@
 """`hedge_timing` — the claims that live in CODE rather than in a report.
 
 The study is pre-registered
-(`research/pre-registrations/f4_deployment/hedge_timing.md`) and has not been
+(`research/pre-registrations/f5_hedging/hedge_timing.md`) and has not been
 run yet, on purpose: registration-before-run has to be visible in git. What can
 be pinned before the first run is everything that is a code-BEHAVIOUR claim
 rather than a data claim — and each of these is a way the study could be
@@ -27,7 +27,7 @@ import itertools
 import math
 from datetime import date
 
-from scripts.backtest_study.f4_deployment import hedge_timing as HT
+from scripts.backtest_study.f5_hedging import hedge_timing as HT
 
 CRITERIA = ("evaluable", "powered", "ci_excludes_zero", "positive",
             "loo_all_same_sign", "years_ok", "cuts_ok", "h2_mirrors")

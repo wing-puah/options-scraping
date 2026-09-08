@@ -95,8 +95,8 @@ silently rotting.
 | a metric or term | `[meanR](glossary.md#meanr)` | the term's own `###` heading in `glossary.md` |
 | an arm, gate, or criterion | `[hedge_timing ARM R](arm-index.md#hedge_timing)` | the study's `####` heading in `arm-index.md`, which is the bare study slug |
 | a deployment rule | `[§1.4](../docs/deployment-rules.md#s1)` | an explicit `<a id="sN">` above each numbered section of the card |
-| a study's plan | `[pre-registration](pre-registrations/f4_deployment/hedge_timing.md)` | file path; the family folder mirrors `scripts/backtest_study/` |
-| what a study last printed | `[record](study-results/f4_deployment/hedge_timing.md)` | file path |
+| a study's plan | `[pre-registration](pre-registrations/f5_hedging/hedge_timing.md)` | file path; the family folder mirrors `scripts/backtest_study/` |
+| what a study last printed | `[record](study-results/f5_hedging/hedge_timing.md)` | file path |
 | a study's standing verdict | `[study map](study-map.md#deployment)` | the family heading in `study-map.md` |
 | an archived entry | `[archive/16](archive/16-first-runs-on-v3.md)` | file path; add `#slug` only for a long volume |
 

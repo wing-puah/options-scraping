@@ -22,7 +22,7 @@ from pathlib import Path
 from statistics import fmean, median
 
 from scripts.backtest_study.lib import protocol as P
-from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown
+from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown
 
 # The order the report lists them in: taken first, then the exclusion buckets.
 CENSUS_ORDER = [

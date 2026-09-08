@@ -53,12 +53,12 @@ would eventually disagree, and R4 is precisely the test that they have not.
 
 WHERE `vol_sleeve` WENT (2026-09-07)
 ------------------------------------
-`f3_structure/vol_sleeve.py` was retired and DELETED. Every `vol_sleeve.*`
+`f5_hedging/vol_sleeve.py` was retired and DELETED. Every `vol_sleeve.*`
 name below now resolves to `lib/sleeve_synth.py`, which holds those bodies
 byte-identical — the imports here are unchanged in substance and `VS` still
 reads as "vol sleeve". The study's verdicts are the DELETED row in
 `research/study-map.md`; its per-era record is
-`research/study-results/f3_structure/vol_sleeve.md`. R4 is why the synthesis
+`research/study-results/f5_hedging/vol_sleeve.md`. R4 is why the synthesis
 layer outlived the study: it needs a second construction to compare against,
 and a copy of it inside THIS module is the exact copy R4 exists to refuse.
 

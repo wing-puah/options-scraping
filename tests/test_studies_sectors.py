@@ -2,7 +2,7 @@
 
 The load-bearing test is `test_map_is_verbatim_transcription_of_prereg`: it
 re-parses the COMMITTED map out of
-`research/pre-registrations/f4_deployment/hedge_exposure.md` and diffs it
+`research/pre-registrations/f5_hedging/hedge_exposure.md` and diffs it
 against the module. That is not a stored expected figure — the pre-registration
 is immutable by its own terms, so the file IS the specification, and a drift in
 either direction (module edited, or the committed constant edited after commit)
@@ -23,7 +23,7 @@ import pytest
 from scripts.backtest_study.lib import sectors as S
 
 ROOT = Path(__file__).resolve().parents[1]
-PREREG = ROOT / "research" / "pre-registrations" / "f4_deployment" / "hedge_exposure.md"
+PREREG = ROOT / "research" / "pre-registrations" / "f5_hedging" / "hedge_exposure.md"
 
 # `  - `NAME` → **PROXY**[, but UNHEDGEABLE (see below)]: T1 T2 ...`
 _BULLET = re.compile(

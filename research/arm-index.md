@@ -60,7 +60,7 @@ a bare `ARM P`.
 
 ## The index, by study
 
-Grouped in `scripts/backtest_study/` family order (①–④), alphabetical within
+Grouped in `scripts/backtest_study/` family order (①–⑤), alphabetical within
 a family, then the studies still queued with no module yet. A bullet that
 DEFINES a label starts with the backticked label; cross-references to other
 studies' labels appear mid-prose only.
@@ -259,27 +259,6 @@ _Module `f3_structure/bear_rewrap.py`_
     confused with `calendar_hedge`'s own `P1` below, which is unrelated.
 - `ARM W` (arm) — The wrapper, replayed on the shipped production exit.
 
-#### `calendar_hedge`
-
-_Registered in [`pre-registrations/f3_structure/calendar_hedge.md`](pre-registrations/f3_structure/calendar_hedge.md) · module `f3_structure/calendar_hedge.py`_
-
-- `ARM H` (arm) — The hedge programme (`calendar_hedge`'s own `P1` sleeve,
-  below) — runs first; `ARM S` runs only behind it. This study also uses
-  `H0`–`H5` as criteria (below); the two are unrelated despite the shared
-  letter.
-- `ARM S` (arm) — Structure sweep of untried wrappers, with sub-arms `S1`
-  put mirror, `S2` short-near-put, `S3` short-pulled-up bear vertical, `S6`
-  bull-put + bear-call wings. Runs only AFTER `ARM H` prints; nothing in it
-  can ship on its own. COLLIDES with `bear_giveback`'s own `ARM S` above —
-  unrelated.
-- `H0` `H0b` `H1` `H2` `H3` `H4` `H5` (criterion) — criteria, NOT
-  hypotheses and NOT `ARM H`: `H0` FILL, `H0b` FRESHNESS, `H1`–`H5`
-  mirroring `bear_deploy`'s `D1`–`D5` (below). COLLIDES in letter only with
-  `macro_event_study`'s `H1`–`H4` hypotheses above — unrelated forms.
-- `P1` (sub-arm) — this study's own hedge sleeve itself, NOT `bear_rewrap`'s
-  `P1`/`P2` above (which are that study's `ARM P` halves) — same letter,
-  unrelated meaning.
-
 #### `financed_spread`
 
 _Registered in [`pre-registrations/f3_structure/financed_spread.md`](pre-registrations/f3_structure/financed_spread.md)_
@@ -310,48 +289,63 @@ _Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrati
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
 
+#### `portfolio_delta`
+
+_Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)_
+
+- `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.
+- `ARM D` (arm) — Dose-response (DESCRIPTIVE PRIMARY) — mean R by the open
+  book's delta at entry.
+- `ARM H*` (arm) — Delta-TARGETED hedge-sleeve resizing — adjacent to
+  `account_sim`'s hedge sleeve above, NOT the same arm.
+- `ARM N` (arm) — The random null band — 200 seeded random admissions.
+  COLLIDES with `concurrency_correlation`'s own `ARM N` below — same role,
+  different study.
+
+#### `selection_order`
+
+_Registered in [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)_
+
+- `O0` `O1` `O1b` `O2` `O3` `O4` (arm) — Ordering arms. `O0` = production
+  `ladder_rank` baseline; `O1` delta-notional ascending; `O2` reserved-$
+  per unit delta-notional descending; `O3` `|delta|` descending; `O1b`
+  tier-blind across A∪B; `O4` = the seeded random null band that decides
+  the meaning of the others.
+
+### ⑤ Hedging — what protects the book
+
 #### `bear_deploy`
 
-_Registered in [`pre-registrations/f4_deployment/bear_deploy.md`](pre-registrations/f4_deployment/bear_deploy.md) · module `f4_deployment/bear_deploy.py`_
+_Registered in [`pre-registrations/f5_hedging/bear_deploy.md`](pre-registrations/f5_hedging/bear_deploy.md) · module `f5_hedging/bear_deploy.py`_
 
 - `D1` `D2` `D3` `D4` `D5` (criterion) — Deployment criteria, NOT `ARM D` —
   `D1` is joint selection × exit, and the four that follow it. Mirrored by
   `calendar_hedge`'s `H1`–`H5` above.
 
-#### `hedge_timing`
+#### `calendar_hedge`
 
-_Registered in [`pre-registrations/f4_deployment/hedge_timing.md`](pre-registrations/f4_deployment/hedge_timing.md) · module `f4_deployment/hedge_timing.py`_
+_Registered in [`pre-registrations/f5_hedging/calendar_hedge.md`](pre-registrations/f5_hedging/calendar_hedge.md) · module `f5_hedging/calendar_hedge.py`_
 
-Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
-`ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
-The bare `H0`–`H4` below are the arms themselves; the suffix names which
-trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
-`H0`–`H5` (criteria) and NOT `macro_event_study`'s `H1`–`H4` (hypotheses).
-
-- `ARM H0` (arm) — POWER CENSUS. Runs first and returns BEFORE any outcome
-  column is read: trigger dates, bear-carrying dates, bear rows, H3-paired
-  dates, and the same four on non-trigger dates. Every arm below early-returns
-  UNDERPOWERED off it without computing a statistic.
-- `ARM H1` (arm) — Between-date separation of bear R, trigger vs non-trigger,
-  date-clustered. NOT the primary: a date either fires or does not, so no
-  within-date pairing exists and a positive is confounded with "the market
-  fell". Printed as `ARM H1-CHOP` `ARM H1-GAP` `ARM H1-DECLINE`.
-- `ARM H2` (arm) — Beta control: the SAME separation on the DEPLOYED LADDER.
-  `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1 delta|, opposite-signed) turns a
-  positive into MARKET-TIMING-PROXY. Printed as `ARM H2-CHOP` `ARM H2-GAP`
-  `ARM H2-DECLINE`.
-- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`bear_deploy` D4's
-  method): date-mean bear R minus date-mean tier-A/B long R, headline = the
-  DIFFERENCE of that paired mean on trigger vs non-trigger dates. Printed as
-  `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE`.
-- `ARM H4` (arm) — Do-nothing baseline in DOLLARS (the only arm that may quote
-  `$`): sleeve policies over the deployed ladder's daily dollars, judged by
-  `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
-  `ARM H4-DECLINE`.
+- `ARM H` (arm) — The hedge programme (`calendar_hedge`'s own `P1` sleeve,
+  below) — runs first; `ARM S` runs only behind it. This study also uses
+  `H0`–`H5` as criteria (below); the two are unrelated despite the shared
+  letter.
+- `ARM S` (arm) — Structure sweep of untried wrappers, with sub-arms `S1`
+  put mirror, `S2` short-near-put, `S3` short-pulled-up bear vertical, `S6`
+  bull-put + bear-call wings. Runs only AFTER `ARM H` prints; nothing in it
+  can ship on its own. COLLIDES with `bear_giveback`'s own `ARM S` above —
+  unrelated.
+- `H0` `H0b` `H1` `H2` `H3` `H4` `H5` (criterion) — criteria, NOT
+  hypotheses and NOT `ARM H`: `H0` FILL, `H0b` FRESHNESS, `H1`–`H5`
+  mirroring `bear_deploy`'s `D1`–`D5` (below). COLLIDES in letter only with
+  `macro_event_study`'s `H1`–`H4` hypotheses above — unrelated forms.
+- `P1` (sub-arm) — this study's own hedge sleeve itself, NOT `bear_rewrap`'s
+  `P1`/`P2` above (which are that study's `ARM P` halves) — same letter,
+  unrelated meaning.
 
 #### `hedge_exposure`
 
-_Registered in [`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md) · module `f4_deployment/hedge_exposure.py`_
+_Registered in [`pre-registrations/f5_hedging/hedge_exposure.md`](pre-registrations/f5_hedging/hedge_exposure.md) · module `f5_hedging/hedge_exposure.py`_
 
 **The module carries a second arm since 2026-09-07.** `--admitted` runs the same
 question on the ADMITTED book, and its labels are indexed separately under
@@ -373,7 +367,7 @@ role, different study.
   **MEASUREMENT-ONLY** verdict — the two curves differ materially while no
   hedge cell clears the bar. Every hedge CELL is UNDERPOWERED there, so the
   mechanism question is **UNDERPOWERED** and no direction is quoted from any
-  of them. See `research/pre-registrations/f4_deployment/hedge_exposure.md`
+  of them. See `research/pre-registrations/f5_hedging/hedge_exposure.md`
   §Population and basis (RATIFICATION consolidated there 2026-09-02).
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
   cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
@@ -401,28 +395,36 @@ role, different study.
   delta-matched to a put and so depends on the option cache it was introduced
   to be free of. Reference only; no verdict is read from it.
 
-#### `portfolio_delta`
+#### `hedge_timing`
 
-_Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)_
+_Registered in [`pre-registrations/f5_hedging/hedge_timing.md`](pre-registrations/f5_hedging/hedge_timing.md) · module `f5_hedging/hedge_timing.py`_
 
-- `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.
-- `ARM D` (arm) — Dose-response (DESCRIPTIVE PRIMARY) — mean R by the open
-  book's delta at entry.
-- `ARM H*` (arm) — Delta-TARGETED hedge-sleeve resizing — adjacent to
-  `account_sim`'s hedge sleeve above, NOT the same arm.
-- `ARM N` (arm) — The random null band — 200 seeded random admissions.
-  COLLIDES with `concurrency_correlation`'s own `ARM N` below — same role,
-  different study.
+Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
+`ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
+The bare `H0`–`H4` below are the arms themselves; the suffix names which
+trigger the arm was run on, not a different question. NOT `calendar_hedge`'s
+`H0`–`H5` (criteria) and NOT `macro_event_study`'s `H1`–`H4` (hypotheses).
 
-#### `selection_order`
-
-_Registered in [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)_
-
-- `O0` `O1` `O1b` `O2` `O3` `O4` (arm) — Ordering arms. `O0` = production
-  `ladder_rank` baseline; `O1` delta-notional ascending; `O2` reserved-$
-  per unit delta-notional descending; `O3` `|delta|` descending; `O1b`
-  tier-blind across A∪B; `O4` = the seeded random null band that decides
-  the meaning of the others.
+- `ARM H0` (arm) — POWER CENSUS. Runs first and returns BEFORE any outcome
+  column is read: trigger dates, bear-carrying dates, bear rows, H3-paired
+  dates, and the same four on non-trigger dates. Every arm below early-returns
+  UNDERPOWERED off it without computing a statistic.
+- `ARM H1` (arm) — Between-date separation of bear R, trigger vs non-trigger,
+  date-clustered. NOT the primary: a date either fires or does not, so no
+  within-date pairing exists and a positive is confounded with "the market
+  fell". Printed as `ARM H1-CHOP` `ARM H1-GAP` `ARM H1-DECLINE`.
+- `ARM H2` (arm) — Beta control: the SAME separation on the DEPLOYED LADDER.
+  `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1 delta|, opposite-signed) turns a
+  positive into MARKET-TIMING-PROXY. Printed as `ARM H2-CHOP` `ARM H2-GAP`
+  `ARM H2-DECLINE`.
+- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`bear_deploy` D4's
+  method): date-mean bear R minus date-mean tier-A/B long R, headline = the
+  DIFFERENCE of that paired mean on trigger vs non-trigger dates. Printed as
+  `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE`.
+- `ARM H4` (arm) — Do-nothing baseline in DOLLARS (the only arm that may quote
+  `$`): sleeve policies over the deployed ladder's daily dollars, judged by
+  `bear_deploy` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
+  `ARM H4-DECLINE`.
 
 ### Queued — pre-registered, no module yet
 
@@ -455,7 +457,7 @@ and excludes it from `ARM CK` rather than assuming it.
 
 #### `hedge_concentration`
 
-_Registered in [`pre-registrations/f4_deployment/hedge_concentration.md`](pre-registrations/f4_deployment/hedge_concentration.md)_
+_Registered in [`pre-registrations/f5_hedging/hedge_concentration.md`](pre-registrations/f5_hedging/hedge_concentration.md)_
 
 **These labels now print from `hedge_exposure`'s `--admitted` arm.** The module was merged into [`hedge_exposure`](#hedge_exposure) and deleted on 2026-09-07; the section stays because the registration and the labels do.
 

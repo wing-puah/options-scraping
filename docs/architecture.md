@@ -365,10 +365,11 @@ in `research/glossary.md`; the replication protocol in
 `research/replication-protocol.md`.
 
 **`scripts/backtest_study/`** — run via `python3 -m scripts.backtest_study {list,run}`. The studies
-themselves sit in four family folders, `f1_selection/` → `f2_management/` → `f3_structure/` →
-`f4_deployment/` (pick it, manage it, wrap it, fund it) — the same taxonomy `scripts/study_map/
-catalog.py::FAMILIES` renders onto the study map, and the test suite asserts a module's folder
-equals its catalog `family`. `lib/` holds the shared substrate: import-only (except `book.py
+themselves sit in five family folders, `f1_selection/` → `f2_management/` → `f3_structure/` →
+`f4_deployment/` → `f5_hedging/` (pick it, manage it, wrap it, fund it, protect it) — the same
+taxonomy `scripts/study_map/catalog.py::FAMILIES` renders onto the study map, and the test
+suite asserts a module's folder equals its catalog `family`. `lib/` holds the shared
+substrate: import-only (except `book.py
 --validate`) and carries no verdict of its own — see `research/study-map.md` for what each study
 in the family folders concluded.
 
@@ -446,7 +447,7 @@ in the family folders concluded.
   fixture, the way `lib/harness.py` is pinned by `tests/test_harness_replay.py`.
 - `lib/sleeve_synth.py` — the vol-sleeve synthesis layer: straddle/strangle/calendar leg
   building, the strike index, the trade synthesizer, and the correlation/CI helpers that read
-  the result. It was `f3_structure/vol_sleeve.py`'s until that study was deleted on
+  the result. It was `f5_hedging/vol_sleeve.py`'s until that study was deleted on
   2026-09-07, and it moved here byte-identical because `calendar_hedge`'s gate `R4` runs it as
   the second side of a row-for-row comparison — a copy inside the study is exactly the copy
   `R4` exists to refuse. DELIBERATE exception to the `lib/` layering rule: it imports pricing
@@ -457,9 +458,9 @@ in the family folders concluded.
 - `lib/live_select.py` — the ONE sanctioned research→production import (see account_sim below).
 
 **Two study modules were deleted on 2026-09-07 and their questions live elsewhere.**
-`f3_structure/vol_sleeve.py` was retired into `calendar_hedge` gate `R4`, which already
+`f5_hedging/vol_sleeve.py` was retired into `calendar_hedge` gate `R4`, which already
 rebuilds its calendar cell in-process; its synthesis layer is `lib/sleeve_synth.py`.
-`f4_deployment/hedge_concentration.py` was merged into `f4_deployment/hedge_exposure.py` as
+`f5_hedging/hedge_concentration.py` was merged into `f5_hedging/hedge_exposure.py` as
 that module's `--admitted` arm — the same question on the ADMITTED book `account_sim` takes
 rather than the whole one, which is why it already imported 32 symbols from it. `main()`
 dispatches on `--admitted` before any parser, so each arm keeps its own argparse surface and
@@ -667,7 +668,7 @@ warns on stderr, while an EMPTY one is fatal, so a run cannot look like it grade
 **`scripts/study_results.py`** — the per-ERA record: `make study-record` reads each
 `<name>-latest.txt` and appends a section to `research/study-results/<family>/<name>.md`,
 tracked and append-only, keyed on `(era, git sha)` so an unchanged re-run appends nothing.
-The folder MIRRORS `scripts/backtest_study/`'s `f1_selection/` → `f4_deployment/` layout, and
+The folder MIRRORS `scripts/backtest_study/`'s `f1_selection/` → `f5_hedging/` layout, and
 derives it from the module's real parent directory rather than a table, so the two cannot
 drift. Fields come from `study_map.summary.summarize()` — the same extractor the map uses, so
 excerpts stay verbatim and there is no second header parser to go stale.

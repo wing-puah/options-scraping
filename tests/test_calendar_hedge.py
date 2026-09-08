@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 
-from scripts.backtest_study.f3_structure.calendar_hedge import (  # noqa: E402
+from scripts.backtest_study.f5_hedging.calendar_hedge import (  # noqa: E402
     HEDGE_SIZE, apply_pick, h0_fill, h2_contribution, h3_sizing, _typed,
 )
 
@@ -262,7 +262,7 @@ def _new_sweep(base_daily, sleeve, dates, fractions):
     ([0.0, 0.0, -500.0, 0.0], [-25.0, -25.0, 300.0, -25.0]),
 ])
 def test_the_sweep_the_study_deleted_equals_the_library(book, sleeve):
-    from scripts.backtest_study.f3_structure.calendar_hedge import SIZE_FRACTIONS
+    from scripts.backtest_study.f5_hedging.calendar_hedge import SIZE_FRACTIONS
 
     dates = [f"2025-01-{i + 1:02d}" for i in range(len(book))]
     base_daily = dict(zip(dates, book))

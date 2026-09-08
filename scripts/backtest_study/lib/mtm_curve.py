@@ -1,7 +1,7 @@
 """The MARK-TO-MARKET book equity curve — the basis `hedge_exposure` concludes from.
 
 Implements the "Population and basis" bullet on the equity curve and gate
-**G-MTM** of `research/pre-registrations/f4_deployment/hedge_exposure.md`, plus
+**G-MTM** of `research/pre-registrations/f5_hedging/hedge_exposure.md`, plus
 the primary / co-primary path metrics under §"Unit and metric" (max drawdown in
 dollars, Ulcer index, time-under-water).
 
@@ -475,7 +475,7 @@ def max_drawdown(series):
     never gets above flat still reports its full fall. The return is <= 0.
 
     THE research tier's one drawdown implementation. It lived in
-    `f4_deployment/bear_deploy.py` until 2026-08-29 and was imported UPWARDS
+    `f5_hedging/bear_deploy.py` until 2026-08-29 and was imported UPWARDS
     from here — a `lib/` module executing an f4 study at import time. Moved
     here (this module already owns Ulcer and time-under-water, which speak the
     same shape) and re-exported by `bear_deploy` under its old name, so

@@ -301,7 +301,7 @@ def base_study(name: str) -> str:
 
 
 def family_of(name: str) -> str:
-    """The family folder a record mirrors — `f1_selection` … `f4_deployment`.
+    """The family folder a record mirrors — `f1_selection` … `f5_hedging`.
 
     Read off the study module's OWN parent directory, via the runner's
     `study_paths()`. Three other spellings of this were available and all three

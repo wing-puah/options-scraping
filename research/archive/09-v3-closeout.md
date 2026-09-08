@@ -384,7 +384,7 @@ deployed ladder sleeve, so the concurrent book exists and the portfolio question
 is answerable on it. The operator's instruction (bear positions stay deployable)
 made the gap worth closing. Pre-registered as
 `ml-plan.md` §addendum 2 — now
-[`pre-registrations/f4_deployment/bear_deploy.md`](../pre-registrations/f4_deployment/bear_deploy.md)
+[`pre-registrations/f5_hedging/bear_deploy.md`](../pre-registrations/f5_hedging/bear_deploy.md)
 — BEFORE running; code
 `scripts/backtest_study/bear_deploy.py`, which at the time wrote a plain
 `bear_deploy.txt` (pre-runner `tee` output; no report is retained).

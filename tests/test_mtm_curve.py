@@ -244,7 +244,7 @@ def test_the_g_mtm_tolerance_is_an_argument_with_a_stated_default():
 # ── path statistics ──────────────────────────────────────────────────────────
 
 def test_max_drawdown_is_bear_deploys_function_not_a_second_implementation():
-    from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown
+    from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown
     assert M.max_drawdown is max_drawdown
 
 
@@ -252,7 +252,7 @@ def test_max_drawdown_has_no_fork_left_in_hedge_timing_or_the_criteria_library()
     """`hedge_timing` carried a documented verbatim fork of this body until
     2026-09-07, kept so `bear_deploy`'s recorded D3 numbers could not move.
     The fork is gone; this identity is what now holds that commitment."""
-    from scripts.backtest_study.f4_deployment import hedge_timing
+    from scripts.backtest_study.f5_hedging import hedge_timing
     from scripts.backtest_study.lib import hedge_criteria
 
     assert hedge_timing.max_drawdown is M.max_drawdown

@@ -344,12 +344,12 @@ Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
 **UNDERPOWERED**. Every cell of the τ × f grid is power-stopped on the ratified
 population, so nothing there says a hedge works, and no direction is quoted
 from any cell. See [`archive/18`](archive/18-hedge-programme-exit-basis-and-text-loop.md) 2026-08-31 and
-[`pre-registrations/f4_deployment/hedge_exposure.md`](pre-registrations/f4_deployment/hedge_exposure.md)
+[`pre-registrations/f5_hedging/hedge_exposure.md`](pre-registrations/f5_hedging/hedge_exposure.md)
 §Population and basis (ratification consolidated there 2026-09-02).
 
 **Why it lands on D3.** D3 is judged on a series of daily realized dollars
 bucketed to the date each position closed (`_sweep`'s `daily` in
-`f4_deployment/bear_deploy.py`), never on a path that marks open positions. Two
+`f5_hedging/bear_deploy.py`), never on a path that marks open positions. Two
 other rules read that same criterion off that same kind of curve:
 
 - **[`calendar_hedge`](arm-index.md#calendar_hedge) H3**, "D3 verbatim" by its own registration (the largest

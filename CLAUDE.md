@@ -268,7 +268,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               single encoding of deployment-rules §1–§3 (journal imports it too)
   backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
                               f1_selection/ → f2_management/ → f3_structure/ → f4_deployment/
-                              ("pick it, manage it, wrap it, fund it"); lib/harness.py FROZEN;
+                              → f5_hedging/ ("pick it, manage it, wrap it, fund it, protect
+                              it"); lib/harness.py FROZEN;
                               the one sanctioned research→production import is
                               lib/live_select.py calling s06_recommend.py's rank()+judge()
   study_map/ / study_charts/ / study_review/

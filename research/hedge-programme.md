@@ -31,8 +31,8 @@ its precondition on a powered sample.
 
 `hedge_timing` asks whether chop, a gap-up or a SPY down-run picks a day on
 which the bear sleeve earns more than the same day's ladder-eligible long
-([pre-registration](pre-registrations/f4_deployment/hedge_timing.md),
-[record](study-results/f4_deployment/hedge_timing.md)). Its labels are in
+([pre-registration](pre-registrations/f5_hedging/hedge_timing.md),
+[record](study-results/f5_hedging/hedge_timing.md)). Its labels are in
 [`arm-index.md`](arm-index.md#hedge_timing).
 
 | Arm | Verdict, as printed |
@@ -53,8 +53,8 @@ reason to hedge, on the paired excess in the table below.
 
 `hedge_concentration` asks the prior question, whether a session's cluster
 concentration predicts the book's later drawdown at all
-([pre-registration](pre-registrations/f4_deployment/hedge_concentration.md),
-[record](study-results/f4_deployment/hedge_concentration.md),
+([pre-registration](pre-registrations/f5_hedging/hedge_concentration.md),
+[record](study-results/f5_hedging/hedge_concentration.md),
 [labels](arm-index.md#hedge_concentration)).
 
 | Stage | Verdict, as printed |
@@ -86,8 +86,8 @@ leaves them unmeasured.
 
 The bear put debit is the shipped one. `bear_deploy` asks whether it pays as a
 hedge and which one to pick
-([pre-registration](pre-registrations/f4_deployment/bear_deploy.md),
-[record](study-results/f4_deployment/bear_deploy.md),
+([pre-registration](pre-registrations/f5_hedging/bear_deploy.md),
+[record](study-results/f5_hedging/bear_deploy.md),
 [labels](arm-index.md#bear_deploy)).
 
 | Criterion | Verdict, as printed |
@@ -98,8 +98,8 @@ hedge and which one to pick
 
 The straddle, the strangle and the calendar were built and priced by
 `vol_sleeve` on the dates the engine already signalled
-([pre-registration](pre-registrations/f3_structure/vol_sleeve.md),
-[record](study-results/f3_structure/vol_sleeve.md)). Its diversification
+([pre-registration](pre-registrations/f5_hedging/vol_sleeve.md),
+[record](study-results/f5_hedging/vol_sleeve.md)). Its diversification
 question, whether the sleeve is anti-correlated with the deployed book or
 positive on that book's worst dates, came back null. Only the calendar carried a
 negative correlation. The straddle and the strangle re-wrap the exposure the
@@ -107,8 +107,8 @@ book already has.
 
 The calendar was then re-derived on its own, under a pre-registered pick rule
 and a strict fill rule, by `calendar_hedge`
-([pre-registration](pre-registrations/f3_structure/calendar_hedge.md),
-[record](study-results/f3_structure/calendar_hedge.md),
+([pre-registration](pre-registrations/f5_hedging/calendar_hedge.md),
+[record](study-results/f5_hedging/calendar_hedge.md),
 [labels](arm-index.md#calendar_hedge)).
 
 | Gate | Verdict, as printed |
@@ -163,8 +163,8 @@ no sleeve.
 
 `hedge_exposure` sweeps a size fraction against a concentration threshold, nine
 cells in all
-([pre-registration](pre-registrations/f4_deployment/hedge_exposure.md),
-[record](study-results/f4_deployment/hedge_exposure.md),
+([pre-registration](pre-registrations/f5_hedging/hedge_exposure.md),
+[record](study-results/f5_hedging/hedge_exposure.md),
 [labels](arm-index.md#hedge_exposure)). Every cell of the ratified population is
 power-stopped.
 

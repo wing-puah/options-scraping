@@ -1,7 +1,7 @@
 """HEDGE-EXPOSURE arm — does concentration-triggered proxy hedging cut the book's drawdown?
 
 Pre-registered 2026-08-29. Registration:
-`research/pre-registrations/f4_deployment/hedge_exposure.md`, where
+`research/pre-registrations/f5_hedging/hedge_exposure.md`, where
 `scripts/study_review/` reads it. Read it before quoting anything printed here.
 
 The operator's described practice is exposure-conditional: *"I hedge when I hold
@@ -182,7 +182,7 @@ POP_LABELS = {
 # separate errata file, now deleted). This module cites that decision; it does
 # not make it, and it may not re-decide it if a later run's shape changes.
 RATIFIED_POPULATION = POP_ALL
-RATIFICATION_SOURCE = ("research/pre-registrations/f4_deployment/"
+RATIFICATION_SOURCE = ("research/pre-registrations/f5_hedging/"
                        "hedge_exposure.md §Population and basis — "
                        "RATIFICATION, operator, 2026-08-31")
 
@@ -1355,7 +1355,7 @@ def print_not_preregistered(args, budget: float) -> None:
     hdr("NOT PRE-REGISTERED — every discretionary choice in this module, in "
         "one place")
     print(f"""  The pre-registration
-  (research/pre-registrations/f4_deployment/hedge_exposure.md) fixes the sector
+  (research/pre-registrations/f5_hedging/hedge_exposure.md) fixes the sector
   map, the tau grid, the f grid, the hedge-pressure cut, the two fill rules,
   the DTE windows, the >=60% fill gate, the >=25 trigger-date floor, the
   Bonferroni denominator of 9, the seven clauses of the bar and the verdict
@@ -1840,7 +1840,7 @@ def run_population(name: str, recs: list[dict], diag: dict, args, capital: float
 
     sub(f"ARM RF — {ARM_RF_LABEL}")
     print(f"""  {ARM_RF_LABEL}. ARM RF is NOT in
-  research/pre-registrations/f4_deployment/hedge_exposure.md. It is this
+  research/pre-registrations/f5_hedging/hedge_exposure.md. It is this
   module's own fill-INDEPENDENT floor — short fraction f of the concentrated
   cluster's own signed delta notional in the proxy underlying — added because
   the registration's ARM R is delta-matched to ARM C's put and therefore
@@ -2487,7 +2487,7 @@ def main() -> int:
 # ║  THE ADMITTED ARM  —  `--admitted`, filed as `hedge_exposure-admitted`   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
-# Everything below was `f4_deployment/hedge_concentration.py` until 2026-09-07,
+# Everything below was `f5_hedging/hedge_concentration.py` until 2026-09-07,
 # when that module was merged in here and DELETED. The two are the same question
 # at two scopes — the whole book above, the ADMITTED book here — and the merged
 # module runs whichever the arm flag selects. Nothing below prints a line the
@@ -2529,7 +2529,7 @@ ADMITTED_SUMMARY = ("HEDGE-CONCENTRATION — on the ADMITTED book, does "
 ADMITTED_DOC = ADMITTED_SUMMARY + """
 
 Pre-registered 2026-08-31. Registration:
-`research/pre-registrations/f4_deployment/hedge_concentration.md`, where
+`research/pre-registrations/f5_hedging/hedge_concentration.md`, where
 `scripts/study_review/` reads it. Read it before quoting anything printed here.
 
 This is the "third reading" `hedge_exposure`'s errata named and declined to run
@@ -3342,7 +3342,7 @@ def print_not_preregistered_admitted(args, capital: float, budget: float) -> Non
     hdr("NOT PRE-REGISTERED — every discretionary choice in this module, in "
         "one place")
     print(f"""  The registration
-  (research/pre-registrations/f4_deployment/hedge_concentration.md) fixes the
+  (research/pre-registrations/f5_hedging/hedge_concentration.md) fixes the
   population and the admission model, H = 20, the tercile rule, the tau grid
   {TAU_GRID_ADMITTED}, the f grid {F_GRID}, the fill rules and DTE windows, the
   >=60% fill gate, the >=25 trigger-date floor, G-POWER-K's 60/3, the
@@ -3742,7 +3742,7 @@ def main_admitted() -> int:
   Stage 2 primary fill rule: {args.rule}
 
   POPULATION — the RATIFIED one, by the literal call `load_book(include_bs=False)`
-  (research/pre-registrations/f4_deployment/hedge_exposure.md §Population and
+  (research/pre-registrations/f5_hedging/hedge_exposure.md §Population and
   basis — RATIFICATION, operator 2026-08-31).
   `account_sim`'s own default loader makes byte-for-byte the same call, so the
   candidate set here IS the population hedge_exposure ratified:

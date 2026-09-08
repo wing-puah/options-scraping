@@ -1,7 +1,7 @@
 """Hedge INSTRUMENT selection and pricing for the `hedge_exposure` study.
 
 Implements the instrument half of
-`research/pre-registrations/f4_deployment/hedge_exposure.md`:
+`research/pre-registrations/f5_hedging/hedge_exposure.md`:
 
   * §"Fill coverage, per proxy" + gate **G-FILL** — the two committed fill
     rules and the coverage report the gate is read from.
@@ -45,9 +45,10 @@ DUPLICATED, NOT IMPORTED
 ------------------------
 `_put_index()` re-implements the option-cache filename convention that
 `lib/sleeve_synth.py::_strike_index` encodes (`TICKER_YYYYMMDD_STRIKE[C|P].csv`,
-expiry and strike parsed off the stem; it lived in `f3_structure/vol_sleeve.py`
-until that study was deleted on 2026-09-07). Per the `lib/` layering rule stated
-in `greeks.py`, a module here MUST NOT import from a study folder (`f1_*`…`f4_*`),
+expiry and strike parsed off the stem; it lived in the `vol_sleeve.py` now
+filed under `f5_hedging/`, until that study was deleted on 2026-09-07). Per the
+`lib/` layering rule stated in `greeks.py`, a module here MUST NOT import from a
+study folder (`f1_*`…`f5_*`),
 and `sleeve_synth` is the sanctioned exception that DOES — it imports
 `f3_structure/bear_rewrap` — so importing it from here would reach a study folder
 transitively. The convention stays restated rather than imported — the same trade `greeks.py`

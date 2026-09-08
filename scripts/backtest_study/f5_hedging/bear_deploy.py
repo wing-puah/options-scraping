@@ -1,6 +1,6 @@
 """DEPLOY arm — pre-registered 2026-08-11.
 
-Registration: research/pre-registrations/f4_deployment/bear_deploy.md, where
+Registration: research/pre-registrations/f5_hedging/bear_deploy.md, where
 `study_review` reads it. It was written as §addendum 2 of research/ml-plan.md,
 which covered three studies and was split into per-study files (and deleted) on
 2026-08-24; the D-rules are quoted there verbatim, and the original text is in
@@ -30,7 +30,7 @@ before quoting any conclusion.
 
 Run:
     source .venv/bin/activate
-    python -m scripts.backtest_study.f4_deployment.bear_deploy | tee backtests/study_output/bear_deploy.txt
+    python -m scripts.backtest_study.f5_hedging.bear_deploy | tee backtests/study_output/bear_deploy.txt
 """
 from __future__ import annotations
 
@@ -526,7 +526,7 @@ def main() -> int:
     deployed = P.top_k_per_day(rows, P.ladder_rank, k=3, eligible_fn=P.ladder_eligible)
 
     hdr("DEPLOY ARM — pre-registered 2026-08-11 "
-        "(pre-registrations/f4_deployment/bear_deploy.md)")
+        "(pre-registrations/f5_hedging/bear_deploy.md)")
     print(f"  book {len(rows)} priced rows / {len({r['date'] for r in rows})} dates")
     print(f"  bear {len(bear)} rows / {len({r['date'] for r in bear})} dates")
     print(f"  deployed ladder sleeve {len(deployed)} rows / "
@@ -544,7 +544,7 @@ def main() -> int:
     d3 = d3_sizing(deployed, bear, d4_adopted)
     d5 = d5_conditional_sleeve(deployed, bear, d4_adopted)
 
-    hdr("VERDICT (pre-registered rules, pre-registrations/f4_deployment/bear_deploy.md)")
+    hdr("VERDICT (pre-registered rules, pre-registrations/f5_hedging/bear_deploy.md)")
     print(f"  D1 joint selection x exit : "
           f"{'candidate(s) found — ' + str(len(d1_survivors)) if d1_survivors else 'NOT MET'}")
     print(f"  D2 hedge is real          : "

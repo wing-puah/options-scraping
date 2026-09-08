@@ -91,7 +91,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
-from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown  # noqa: E402
+from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, hdr, prod_profile_for, sub,
 )

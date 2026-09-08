@@ -8,7 +8,7 @@ addendum in `research/current.md`.
 
 THE PACKAGE LISTING IS THE ARGUMENT. `scripts/journal/` names its files `sNN_`
 because it is a pipeline and the listing is its FLOW. Studies are not a
-sequence — twenty of them argue past each other about four different questions —
+sequence — twenty of them argue past each other about five different questions —
 so the folders carry the ordering instead, and the order is real: it is the
 order a play moves through the system.
 
@@ -17,10 +17,13 @@ order a play moves through the system.
     f2_management/   ② when do I get out?
                         Where the edge actually is. Both shipped exit rules.
     f3_structure/    ③ am I expressing the signal in the wrong wrapper?
-                        One effect that does not hold out of sample, one
-                        survivor that is underpowered rather than refuted.
+                        One effect that does not hold out of sample, one shape
+                        that re-wraps the book's own exposure.
     f4_deployment/   ④ can I actually run this?
                         Feasibility, not edge. Nothing ships from here.
+    f5_hedging/      ⑤ what protects the book when the ladder is wrong?
+                        One ship — bear is a hedge, not a selection. The rest is
+                        blocked on dates or underpowered.
 
     lib/             the shared substrate — the FROZEN harness, the pooled book
                      loader, the validation protocol, the underlying/volume

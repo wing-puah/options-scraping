@@ -363,7 +363,7 @@ def test_the_library_re_exports_the_one_drawdown_implementation():
     """Not a copy, not a wrapper: the same function object as `lib/mtm_curve`'s
     and `bear_deploy`'s, which is what keeps the sizing rule's drawdown and the
     equity curve's the same measurement."""
-    from scripts.backtest_study.f4_deployment.bear_deploy import max_drawdown as bd_mdd
+    from scripts.backtest_study.f5_hedging.bear_deploy import max_drawdown as bd_mdd
     from scripts.backtest_study.lib.mtm_curve import max_drawdown as curve_mdd
 
     assert HC.max_drawdown is curve_mdd is bd_mdd

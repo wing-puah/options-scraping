@@ -13,7 +13,7 @@ original text is in git (`git show 42b5e46:research/ml-plan.md`).
 
 The same document registered the ML combination search
 ([`ml_combination.md`](ml_combination.md)) and, later the same day, the DEPLOY
-arm ([`../f4_deployment/bear_deploy.md`](../f4_deployment/bear_deploy.md)) —
+arm ([`../f5_hedging/bear_deploy.md`](../f5_hedging/bear_deploy.md)) —
 which asks the deployment questions B1/B2 skipped and is a **different
 estimand**, not a second bite: "B1 asked an *absolute level* question — is
 there a bear subset with mean E ≥ 0 — and the answer is no in 496 subsets."
@@ -54,7 +54,7 @@ positions as well."*
 
   (The DEPLOY arm later judged this caveat "too strong" *for the portfolio
   question specifically*, because 107 of 111 bear dates carry concurrent
-  non-bear rows — see `../f4_deployment/bear_deploy.md`. The standalone-vs-
+  non-bear rows — see `../f5_hedging/bear_deploy.md`. The standalone-vs-
   hedge distinction itself stands.)
 
 ## Population and basis, fixed here

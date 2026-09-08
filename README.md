@@ -339,8 +339,9 @@ match vocabulary (`EXACT` / `STRUCTURE` / `CORE` / `OVERLAY`) is likewise define
 
 Research code (`scripts/backtest_study/`, `study_map/`, `study_charts/`, `study_review/`) is
 never imported by production and never scheduled. It produces reports, not trades. Studies sit
-in four family folders under `backtest_study/` — `f1_selection/` → `f2_management/` →
-`f3_structure/` → `f4_deployment/` (pick it, manage it, wrap it, fund it) — with the shared,
+in five family folders under `backtest_study/` — `f1_selection/` → `f2_management/` →
+`f3_structure/` → `f4_deployment/` → `f5_hedging/` (pick it, manage it, wrap it,
+fund it, protect it) — with the shared,
 verdict-free substrate in `lib/`.
 
 ```bash

@@ -153,7 +153,7 @@ One line each. Do not re-open; follow the link for the detail.
 | `trigger_entry` | 2026-09-04 | LATE-ENTRY on v4 and v3 | [record](study-results/f1_selection/trigger_entry.md) |
 | Text thread as an edge search | 2026-09-04 | `text_features` NULL, `exit_from_text` E1 CONTRARY, `prompt_eval` variance floor set. §2.9 survives as a stability item only | [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md#2026-09-02--the-text--backtest-loop-built-and-first-run-text-is-the-last-untested-column-family-and-it-nulls-the-models-own-stop-is-contrary-on-bull-calls), [`current.md`](current.md#2026-09-04--hedge_concentration-graded-and-21-closed-concurrency_correlation-built-and-first-run-noise) |
 | `exit_drawdown` | 2026-09-05 | UNDERPOWERED on PRIMARY; the two powered `all` cells NULL | [record](study-results/f2_management/exit_drawdown.md), [`current.md`](current.md#2026-09-05--exit_drawdown-new-f2-walk-forward-exit-hypotheses-on-account-level-drawdown--underpowered-on-primary-the-two-powered-all-cells-are-null) |
-| `hedge_exposure` | 2026-08-31 | UNDERPOWERED, and ARM M MEASUREMENT-ONLY; population `all` ratified | [record](study-results/f4_deployment/hedge_exposure.md), [pre-registration](pre-registrations/f4_deployment/hedge_exposure.md) |
+| `hedge_exposure` | 2026-08-31 | UNDERPOWERED, and ARM M MEASUREMENT-ONLY; population `all` ratified | [record](study-results/f5_hedging/hedge_exposure.md), [pre-registration](pre-registrations/f5_hedging/hedge_exposure.md) |
 | `hedge_timing` | 2026-08-28 | GAP-UP CONTRARY; §4 prohibition ACCEPTED 2026-09-06. The hedge stays; its trigger is §2.10 | [`deployment-evidence.md`](deployment-evidence.md#hedge-timing-triggers-2026-08-28--one-prohibition-accepted-2026-09-06-one-closed-question-one-untestable-habit) |
 | `bear_deploy` | 2026-08-24 | pick line PULLED; far-OTM prohibition retained; sleeve is operator policy | [archive/17](archive/17-v4-refresh-bear-deploy-and-vocabulary.md#2026-08-24-late--bear_deploy-registered-and-graded-pick-line-pulled-sleeve-relabelled-operator-policy-far-otm-prohibition-retained) |
 | `selection_order` | 2026-08-14 | UNDERPOWERED at G0; do not re-run on these dates | [archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md#2026-08-14--selection_order-run-power-stopped-at-g0-every-re-ordering-moves-714-of-the-book-so-no-arm-reaches-the-pre-registered-floor--nothing-read-nothing-refuted) |
@@ -189,13 +189,13 @@ that waits on dates. The operator still wants a hedge-open indicator; that
 request is §2.10 and does not reopen this closure.
 [Closure](deployment-evidence.md#the-queued-max-drawdown-question-is-closed-for-concentration-gated-hedging-2026-09-04-hedge_concentration-stage-1),
 [the distinction it rests on](deployment-evidence.md#the-hedge-trigger-is-dead-the-hedge-instrument-is-unmeasured-closing-note-2026-09-04),
-[record](study-results/f4_deployment/hedge_concentration.md).
+[record](study-results/f5_hedging/hedge_concentration.md).
 
 Deferred, not dropped: the corrected prose control (`hedge_exposure` ARM C on
 concentration-matched sessions with no hedge-pressure signal). Register it only
 when the book has materially more parsed dates; today it would be another arm
 that cannot bite
-([pre-registration](pre-registrations/f4_deployment/hedge_exposure.md)).
+([pre-registration](pre-registrations/f5_hedging/hedge_exposure.md)).
 
 <a id="s2-2"></a>
 ### 2.2 v4 composition bridge — OPEN, waits on new dates
@@ -226,7 +226,7 @@ than the date count is the wall are in the spine,
   [`deployment-evidence.md`](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_exposure-arm-m).
 - Carry-forwards, post-hoc and not candidates: the RANGE+C/L-VOL calendar cell
   and the H2 clause amendment, both in the
-  [record](study-results/f3_structure/calendar_hedge.md).
+  [record](study-results/f5_hedging/calendar_hedge.md).
 
 <a id="s2-4"></a>
 ### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
@@ -463,7 +463,7 @@ One line each, with the evidence.
   [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md#2026-09-02--exit_basis-re-measured-the-ban-was-right-for-v3-and-wrong-for-v4-the-proxy-half-never-wrote-at-all)).
 - `hedge_exposure`'s registration describes the `real` stratum, not the
   ratified `all` book
-  ([pre-registration](pre-registrations/f4_deployment/hedge_exposure.md)).
+  ([pre-registration](pre-registrations/f5_hedging/hedge_exposure.md)).
 
 **Vocabulary and process**
 

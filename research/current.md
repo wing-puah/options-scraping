@@ -160,7 +160,7 @@ Each has its full entry in an archive volume.
   plan-time observations describe the `real` stratum, not the ratified book.
   The RATIFICATION that says so was folded out of `hedge-exposure-errata.md`
   into the registration itself on 2026-09-02, and now lives in
-  [Population and basis](pre-registrations/f4_deployment/hedge_exposure.md).
+  [Population and basis](pre-registrations/f5_hedging/hedge_exposure.md).
   The errata file is deleted; dated entries below keep its name as history.
 
 ### What was pruned from this log
@@ -281,7 +281,7 @@ completeness item, not a blocker. Gates G1–G6 and X8 all pass (G2 re-derives a
 `top_k_per_day`; G4 attribution sums on every arm).
 
 Records: `study-results/f4_deployment/concurrency_correlation.md`,
-`study-results/f4_deployment/hedge_concentration.md` (both v4).
+`study-results/f5_hedging/hedge_concentration.md` (both v4).
 
 ## 2026-09-04 (late) — first book with 2026 dates: export refreshed, suite re-run, nothing ships, the year clause bites; campaign b CLOSED
 

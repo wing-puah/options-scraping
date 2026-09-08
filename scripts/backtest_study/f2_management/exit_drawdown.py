@@ -89,7 +89,7 @@ from scripts.backtest_study.f2_management.staged_exit import (  # noqa: E402
     CONTINUATION_MARGIN, post_exit_max,
 )
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
-from scripts.backtest_study.f4_deployment import hedge_exposure as HE  # noqa: E402
+from scripts.backtest_study.f5_hedging import hedge_exposure as HE  # noqa: E402
 
 
 def shipped_merge_desc() -> str:

@@ -210,11 +210,12 @@ CALLER_ARMS = {
 # as to why. Now a helper goes in `lib/` and is never a candidate.
 #
 # The folders are ORDERED, and the order is real: it is the order a play moves
-# through the system — pick it, manage it, wrap it, fund it. It is the same
-# order `scripts/study_map/catalog.py::FAMILIES` renders on the map, and the
-# `fN_` prefix is what makes `ls` agree with both (`f` only because a package
-# name may not begin with a digit — the same reason journal steps are `sNN_`).
-FAMILY_DIRS = ("f1_selection", "f2_management", "f3_structure", "f4_deployment")
+# through the system — pick it, manage it, wrap it, fund it, protect it. It is
+# the same order `scripts/study_map/catalog.py::FAMILIES` renders on the map,
+# and the `fN_` prefix is what makes `ls` agree with both (`f` only because a
+# package name may not begin with a digit — the same reason journal steps are `sNN_`).
+FAMILY_DIRS = ("f1_selection", "f2_management", "f3_structure", "f4_deployment",
+               "f5_hedging")
 
 # `lib/` modules the runner will still RUN. Only `book`, whose `--validate`
 # diagnostics table is the standard pre-flight before any study; the rest are

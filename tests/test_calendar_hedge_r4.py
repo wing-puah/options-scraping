@@ -35,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.backtest_study.f3_structure import calendar_hedge as C  # noqa: E402
+from scripts.backtest_study.f5_hedging import calendar_hedge as C  # noqa: E402
 from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 
 

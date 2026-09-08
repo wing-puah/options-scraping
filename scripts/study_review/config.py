@@ -27,7 +27,7 @@ GLOSSARY_MD = TUNING_DIR / "glossary.md"
 # its own file and is read whole — no heading matching anywhere.
 PRE_REG_DIR = TUNING_DIR / "pre-registrations"
 # Registrations live one level down, under the same family folders as
-# scripts/backtest_study/ (f1_selection … f4_deployment) — load_pre_registration()
+# scripts/backtest_study/ (f1_selection … f5_hedging) — load_pre_registration()
 # globs for this, so a study's file is found regardless of which family holds it.
 PRE_REG_PATTERN = "*/{study}.md"
 

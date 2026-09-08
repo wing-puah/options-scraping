@@ -78,11 +78,11 @@ The hedge contribution rule, `D2` in its origin, appears in six modules.
 
 | File and line | Symbol | How it differs from the origin |
 |---|---|---|
-| `f4_deployment/bear_deploy.py:209`, `:221` | `daily_series`, `d2_hedge` | the origin, correlation plus tail plus per-year sign |
-| `f4_deployment/hedge_timing.py:622` | `daily_dollars` | dollar leg only, no tail cut at all |
-| `f3_structure/vol_sleeve.py:413`, `:549` | `daily`, `q2` | own bootstrap CI, tail ordered by dollars, no year clause |
+| `f5_hedging/bear_deploy.py:209`, `:221` | `daily_series`, `d2_hedge` | the origin, correlation plus tail plus per-year sign |
+| `f5_hedging/hedge_timing.py:622` | `daily_dollars` | dollar leg only, no tail cut at all |
+| `f5_hedging/vol_sleeve.py:413`, `:549` | `daily`, `q2` | own bootstrap CI, tail ordered by dollars, no year clause |
 | `f3_structure/bear_rewrap.py:559` | `report_portfolio` | decile as a value cutoff, tail verdict is CI based |
-| `f3_structure/calendar_hedge.py:932` | `h2_contribution` | adds a floor of 10, carries unfillable dates at zero |
+| `f5_hedging/calendar_hedge.py:932` | `h2_contribution` | adds a floor of 10, carries unfillable dates at zero |
 | `f3_structure/financed_spread.py:1481`, `:1492`, `:1651` | `sleeve_daily`, `cell_corr`, `report_descriptive` | correlation is the criterion, the tail is labelled not a criterion |
 
 The sizing rule, `D3` in its origin, appears four times in the fraction-sweep
@@ -90,10 +90,10 @@ shape.
 
 | File and line | Symbol | How it differs from the origin |
 |---|---|---|
-| `f4_deployment/bear_deploy.py:306`, `:328`, `:348`, `:367` | `_sleeve_dollars`, `_sweep`, `_verdict`, `d3_sizing` | the origin, fractions 0, 0.25, 0.5, 1.0 |
-| `f4_deployment/hedge_timing.py:635`, `:652`, `:671`, `:677` | `sleeve_pick`, `policy_daily`, `_policy_stats`, `h4_portfolio` | two fractions, gated policy, fails closed on an empty cut |
-| `f3_structure/calendar_hedge.py:1053`, `:1077`, `:1112` | `bear_sleeve_dollars`, `_sweep`, `h3_sizing` | two baselines, drops the downside-deviation column |
-| `f3_structure/vol_sleeve.py:604` to `:611` | inline block | no baseline row, no verdict, normalised to one average position |
+| `f5_hedging/bear_deploy.py:306`, `:328`, `:348`, `:367` | `_sleeve_dollars`, `_sweep`, `_verdict`, `d3_sizing` | the origin, fractions 0, 0.25, 0.5, 1.0 |
+| `f5_hedging/hedge_timing.py:635`, `:652`, `:671`, `:677` | `sleeve_pick`, `policy_daily`, `_policy_stats`, `h4_portfolio` | two fractions, gated policy, fails closed on an empty cut |
+| `f5_hedging/calendar_hedge.py:1053`, `:1077`, `:1112` | `bear_sleeve_dollars`, `_sweep`, `h3_sizing` | two baselines, drops the downside-deviation column |
+| `f5_hedging/vol_sleeve.py:604` to `:611` | inline block | no baseline row, no verdict, normalised to one average position |
 
 Two further sleeve-sizing implementations sit outside the sweep shape, at
 `f4_deployment/account_sim.py:988` to `:1007` and
@@ -105,9 +105,9 @@ The drawdown function exists as three bodies.
 
 | File and line | Status |
 |---|---|
-| `lib/mtm_curve.py:471` | the canonical body, re-exported from `f4_deployment/bear_deploy.py:60` |
-| `f3_structure/vol_sleeve.py:428` | a port, untested, will not follow a change to the canonical one |
-| `f4_deployment/hedge_timing.py:605` | a documented verbatim fork, untested |
+| `lib/mtm_curve.py:471` | the canonical body, re-exported from `f5_hedging/bear_deploy.py:60` |
+| `f5_hedging/vol_sleeve.py:428` | a port, untested, will not follow a change to the canonical one |
+| `f5_hedging/hedge_timing.py:605` | a documented verbatim fork, untested |
 
 ### The reference, and how a copy is deleted
 
@@ -196,7 +196,7 @@ asserts the catalog's keys equal the runner's directory glob: a deleted file
 with a surviving entry fails, and a surviving file with no entry fails too. The
 `retired=` field is therefore still unused, and
 `tests/test_study_map.py:107` is untouched. The verdict survives as the
-**DELETED** row in [`study-map.md`](study-map.md#structure), which that test
+**DELETED** row in [`study-map.md`](study-map.md#hedging), which that test
 also checks.
 
 **Every `VS.` reference in `calendar_hedge.py` resolves to `lib/` rather than to
@@ -299,8 +299,8 @@ There is no `superseded` field. The word appears only inside verdict prose.
 
 | Study | Catalog action taken |
 |---|---|
-| `vol_sleeve` | entry removed, because the module is gone and the runner discovers studies from the directory. Its verdict is now the **DELETED** row in [`study-map.md`](study-map.md#structure) |
-| `hedge_concentration` | entry removed, for the same reason. Its verdict is the **DELETED** row in [`study-map.md`](study-map.md#deployment) |
+| `vol_sleeve` | entry removed, because the module is gone and the runner discovers studies from the directory. Its verdict is now the **DELETED** row in [`study-map.md`](study-map.md#hedging) |
+| `hedge_concentration` | entry removed, for the same reason. Its verdict is the **DELETED** row in [`study-map.md`](study-map.md#hedging) |
 | `hedge_exposure` | entry kept, verdict prose extended to name both arms |
 | `lib/hedge_criteria.py`, `lib/sleeve_synth.py` | added to the INFRA table, which `tests/test_study_map.py:115` checks against `run.INFRA`'s `lib/*.py` glob |
 

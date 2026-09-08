@@ -1,13 +1,9 @@
 """④ Deployment — can I actually run this?
 
 Feasibility, not edge. Delta-notional binds before cash does. NOTHING ships from
-this family under any outcome: it asks whether the ladder the other three
-families built is runnable in a real account, not whether it is right.
+this family under any outcome: it asks whether the ladder the other families
+built is runnable in a real account, not whether it is right.
 
-    bear_deploy.py      SHIPPED — bear selection is unfixable, but bear pays on
-                        the deployed book's worst dates (correlation −0.13), and
-                        picking bear by |delta| DESCENDING was adopted. Bear is
-                        a hedge, not a selection.
     account_sim.py      open — a real $25,000 account paying for positions,
                         holding reserve, respecting a delta cap. The caps
                         survive; the WINDOW does not. Config-driven and
@@ -28,29 +24,14 @@ families built is runnable in a real account, not whether it is right.
                         so does the size or internal similarity of the open book
                         degrade per-position outcome? All 11 powered arms sit
                         inside the random-admission null band, in both eras.
-    hedge_timing.py     open · 0 of 9 TIMING-CANDIDATE survivors — can a
-                        discretionary hedge trigger (chop, a SPY gap-up, a SPY
-                        down-run) be made mechanical? The gap-up arms came back
-                        CONTRARY, which is what the §4 prohibition the operator
-                        accepted on 2026-09-06 rests on. The operator's own
-                        streak trigger stays UNDERPOWERED by design.
-    hedge_exposure.py   open · UNDERPOWERED on the mechanism, MEASUREMENT-ONLY on
-                        ARM M — when the book is concentrated in one correlated
-                        cluster, does a put on that cluster's proxy cut its
-                        mark-to-market drawdown? No hedge cell powers. Carries
-                        the `--admitted` ARM since 2026-09-07: the same question
-                        on the book `account_sim` actually takes, which was
-                        `hedge_concentration.py` until that module was merged in
-                        and deleted. Stage 1 there is a POWERED
-                        PRECONDITION-NULL, so Stage 2 never opened. Run it with
-                        `run hedge_exposure -- --admitted`; a bare run does both
-                        arms, and the admitted arm files under
-                        `hedge_exposure-admitted`. Verdicts for the deleted
-                        module are the DELETED row in research/study-map.md.
 
 `account_sim`'s `--live-select` arm is the one sanctioned research→production
 import in the package; it lives in `../lib/live_select.py` because it carries no
-verdict of its own. The hedge programme's shared contribution and sizing rules
-live in `../lib/hedge_criteria.py`, with `bear_deploy` as their origin; a study
-keeps its own registered grid and report shape on top.
+verdict of its own.
+
+`bear_deploy.py`, `hedge_timing.py` and `hedge_exposure.py` were here until
+2026-09-08 and are now in `../f5_hedging/`, with the rest of the hedge
+programme. So is the DELETED `hedge_concentration.py`, whose frozen record moved
+with it. The shared contribution and sizing rules those studies lean on stay in
+`../lib/hedge_criteria.py`.
 """

@@ -58,6 +58,14 @@ FAMILIES: dict[str, dict[str, str]] = {
         "question": "can I actually run this?",
         "note": "Feasibility, not edge. Delta-notional binds before cash does.",
     },
+    "hedging": {
+        "index": "⑤",
+        "title": "Hedging",
+        "question": "what protects the book when the ladder is wrong?",
+        "note": "One ship — bear is a hedge, not a selection. Everything after it is "
+                "blocked on dates or underpowered, and the gap-up trigger came back "
+                "CONTRARY.",
+    },
 }
 
 STATES: dict[str, str] = {
@@ -638,43 +646,6 @@ STUDIES: dict[str, Study] = {
                 "on a population bear_position_study says to VETO. Nothing changes in "
                 "config/backtest.yml.",
     ),
-    "calendar_hedge": Study(
-        family="structure", state="open",
-        question="Re-derive that one survivor under a pre-registered pick rule and a strict "
-                 "fill rule.",
-        verdict="Gates pass; the primary stays unreadable. The 2026-09-04 re-run (sha e59356f, "
-                "run 21:55) is the one that matters twice over. First, the reconstruction gate "
-                "that stopped the evening's FIRST suite pass now clears completely — "
-                "`reconstructs: 1122 / 1122  (100.0%)` -> `R2 PASS` — where that pass stopped at "
-                "1121 / 1122 on a single `entry_unpriced` row (UTHR 2025-12-17): "
-                "`bear_rewrap.entry_price_of` had no branch for an entry day with no open and no "
-                "mark, and it now carries a prior mark forward, mirroring production's third "
-                "branch. The other gates: `debit_calib      n=408  exact=392  near-rounding-tie=1  "
-                "superseded-basis=14  hard=0`, `deployed: 362 positions over 147 dates, $74,001   "
-                "meanR +0.216  win 63%`, and `R4 PASS — the two constructions agree row for row`. "
-                "Second, the VERDICT block is unchanged — `H0 FILL           NOT MET`, `H2 "
-                "(primary)      NOT EVALUABLE`, `H2 under hold     NOT EVALUABLE   (sensitivity — "
-                "may not change the verdict)` — with the fill rate still binding on a book twice "
-                "the size: `P1 fillable on deployed dates          75 / 147  =  51.0%   FAIL` and "
-                "`P1 fillable on worst-decile dates       4 / 14   =  28.6%   FAIL`. H2 reads what "
-                "it can: (a) `corr(daily $)       -0.100  CI95 [-0.228, +0.017]   over 147 "
-                "deployed dates (unfillable carried at 0)`; (b) `n=4` -> `UNDERPOWERED — n < 10. "
-                "The CI is NOT read and (b) is recorded NOT EVALUABLE, not failed.`; (c) `tail "
-                "positive in 3/3 evaluable years — needs >= 2: YES`, but carried on the new year "
-                "by ONE position over two dates (`2026: worst-quartile dates   2  deployed     "
-                "-1,184  sleeve n=  1 meanR +0.944  -> positive`). H3 is the line to handle "
-                "carefully: both baselines now read `-> NOT MET at any size — no fraction leaves "
-                "both drawdown and worst-date unharmed.` with `bound by: drawdown fails; "
-                "worst-date ok at every f`, on baselines that themselves moved (max DD `-12,529` "
-                "on the ladder alone and `-15,425` on ladder + shipped bear sleeve, against "
-                "-10,968 and -11,467 on 08-27). Over three consecutive exports H3 has read NOT "
-                "MET, then DEPLOYABLE at f=1.00, then NOT MET again — record it as an UNSTABLE "
-                "MEASUREMENT, not a verdict, and carry none of the three as evidence. H4's paired "
-                "read went flat rather than negative: `n=75 dates  dR +0.001  CI [-0.071, +0.073]` "
-                "(08-27: -0.036). H5 is labelled POST-HOC and its one eye-catching cell is "
-                "degenerate at n=1 — `mech_cell == BEAR_HE              1   -0.104    "
-                "+0.166            [-0.440, -0.099]  <- excludes 0`. Blocked on dates, not refuted.",
-    ),
 
     "financed_spread": Study(
         family="structure", state="open",
@@ -717,38 +688,6 @@ STUDIES: dict[str, Study] = {
     ),
 
     # ④ deployment
-    "bear_deploy": Study(
-        family="deployment", state="shipped",
-        attention="2026-08-24 grading PULLED the §4 closer-to-money pick line and "
-                  "relabelled the hedge sleeve operator-policy — read the digest and "
-                  "validator memo, and confirm the operator pre-commitment wording in "
-                  "research/pre-registrations/f4_deployment/bear_deploy.md says what you meant.",
-        question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
-                 "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
-                 "D4 conditional pick.",
-        verdict="Bear is a hedge, not a selection — that half is unmoved. The hedge case itself "
-                "REVERSED on the 2026-08-24 v4 refresh and stays reversed on the 2026-09-04 export "
-                "(sha e59356f, 1,143 rows / 166 dates): `D1 joint selection x exit : NOT MET`, `D2 "
-                "hedge is real          : NOT MET`, `D3 always-on sizing       : NOT MET at any "
-                "size`, `D4 conditional pick       : NOT MET`. D2 again fails on the year check "
-                "alone, and the year check is a real three-year one now — its two hedge conditions "
-                "pass (`bear R on deployed worst-decile dates: +0.032 (row-level CI [-0.218, "
-                "+0.403], n=37) — needs > 0: YES` and `sleeve correlation -0.141 — needs < 0: "
-                "YES`) and then `tail positive in 1/3 evaluable years — needs >= 2: NO`, where the "
-                "one positive year is `2026: worst-quartile dates n=  2  deployed -1.868  bear "
-                "+0.724  $    6,537`, which is two dates and not a year. D4 still loses the "
-                "shipped ranker outright — `rankers tested: 10  adopted: 0  (~0.5 expected by "
-                "chance)` — and the direction that matters for the card is intact: the best of the "
-                "ten is `|delta| low first             120   +0.024   -0.060   +0.084 [-0.028, "
-                "+0.197]    +0.066`, a CLOSER-to-money pick with a CI spanning zero, so nothing "
-                "here contradicts the §4 far-OTM prohibition. D5 is POST-HOC and narrowed hard on "
-                "this export, from eight candidate gates to two, both the same cell at two sizes: "
-                "`D5 gated sleeve (POST-HOC): 2 candidate gate(s)` — `mech vol H-VOL             "
-                "f=1.00  Δtotal +505  ΔDD +770` and `mech vol H-VOL             f=0.50  Δtotal "
-                "+253  ΔDD +500`. The §4 pick line stays PULLED and the sleeve stays operator "
-                "policy (docs/deployment-rules.md §4), not a v4 evidence claim; the v3 D2 MET / D4 "
-                "ADOPTED read is recorded in research/deployment-evidence.md.",
-    ),
     "account_sim": Study(
         family="deployment", state="open",
         question="The ladder assumes infinite capital. Does a real $25,000 account — paying "
@@ -886,8 +825,80 @@ STUDIES: dict[str, Study] = {
                 "queues an INDEPENDENT WINDOW and nothing else.",
     ),
 
+    # ⑤ hedging
+    "bear_deploy": Study(
+        family="hedging", state="shipped",
+        attention="2026-08-24 grading PULLED the §4 closer-to-money pick line and "
+                  "relabelled the hedge sleeve operator-policy — read the digest and "
+                  "validator memo, and confirm the operator pre-commitment wording in "
+                  "research/pre-registrations/f5_hedging/bear_deploy.md says what you meant.",
+        question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
+                 "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
+                 "D4 conditional pick.",
+        verdict="Bear is a hedge, not a selection — that half is unmoved. The hedge case itself "
+                "REVERSED on the 2026-08-24 v4 refresh and stays reversed on the 2026-09-04 export "
+                "(sha e59356f, 1,143 rows / 166 dates): `D1 joint selection x exit : NOT MET`, `D2 "
+                "hedge is real          : NOT MET`, `D3 always-on sizing       : NOT MET at any "
+                "size`, `D4 conditional pick       : NOT MET`. D2 again fails on the year check "
+                "alone, and the year check is a real three-year one now — its two hedge conditions "
+                "pass (`bear R on deployed worst-decile dates: +0.032 (row-level CI [-0.218, "
+                "+0.403], n=37) — needs > 0: YES` and `sleeve correlation -0.141 — needs < 0: "
+                "YES`) and then `tail positive in 1/3 evaluable years — needs >= 2: NO`, where the "
+                "one positive year is `2026: worst-quartile dates n=  2  deployed -1.868  bear "
+                "+0.724  $    6,537`, which is two dates and not a year. D4 still loses the "
+                "shipped ranker outright — `rankers tested: 10  adopted: 0  (~0.5 expected by "
+                "chance)` — and the direction that matters for the card is intact: the best of the "
+                "ten is `|delta| low first             120   +0.024   -0.060   +0.084 [-0.028, "
+                "+0.197]    +0.066`, a CLOSER-to-money pick with a CI spanning zero, so nothing "
+                "here contradicts the §4 far-OTM prohibition. D5 is POST-HOC and narrowed hard on "
+                "this export, from eight candidate gates to two, both the same cell at two sizes: "
+                "`D5 gated sleeve (POST-HOC): 2 candidate gate(s)` — `mech vol H-VOL             "
+                "f=1.00  Δtotal +505  ΔDD +770` and `mech vol H-VOL             f=0.50  Δtotal "
+                "+253  ΔDD +500`. The §4 pick line stays PULLED and the sleeve stays operator "
+                "policy (docs/deployment-rules.md §4), not a v4 evidence claim; the v3 D2 MET / D4 "
+                "ADOPTED read is recorded in research/deployment-evidence.md.",
+    ),
+
+    "calendar_hedge": Study(
+        family="hedging", state="open",
+        question="Re-derive that one survivor under a pre-registered pick rule and a strict "
+                 "fill rule.",
+        verdict="Gates pass; the primary stays unreadable. The 2026-09-04 re-run (sha e59356f, "
+                "run 21:55) is the one that matters twice over. First, the reconstruction gate "
+                "that stopped the evening's FIRST suite pass now clears completely — "
+                "`reconstructs: 1122 / 1122  (100.0%)` -> `R2 PASS` — where that pass stopped at "
+                "1121 / 1122 on a single `entry_unpriced` row (UTHR 2025-12-17): "
+                "`bear_rewrap.entry_price_of` had no branch for an entry day with no open and no "
+                "mark, and it now carries a prior mark forward, mirroring production's third "
+                "branch. The other gates: `debit_calib      n=408  exact=392  near-rounding-tie=1  "
+                "superseded-basis=14  hard=0`, `deployed: 362 positions over 147 dates, $74,001   "
+                "meanR +0.216  win 63%`, and `R4 PASS — the two constructions agree row for row`. "
+                "Second, the VERDICT block is unchanged — `H0 FILL           NOT MET`, `H2 "
+                "(primary)      NOT EVALUABLE`, `H2 under hold     NOT EVALUABLE   (sensitivity — "
+                "may not change the verdict)` — with the fill rate still binding on a book twice "
+                "the size: `P1 fillable on deployed dates          75 / 147  =  51.0%   FAIL` and "
+                "`P1 fillable on worst-decile dates       4 / 14   =  28.6%   FAIL`. H2 reads what "
+                "it can: (a) `corr(daily $)       -0.100  CI95 [-0.228, +0.017]   over 147 "
+                "deployed dates (unfillable carried at 0)`; (b) `n=4` -> `UNDERPOWERED — n < 10. "
+                "The CI is NOT read and (b) is recorded NOT EVALUABLE, not failed.`; (c) `tail "
+                "positive in 3/3 evaluable years — needs >= 2: YES`, but carried on the new year "
+                "by ONE position over two dates (`2026: worst-quartile dates   2  deployed     "
+                "-1,184  sleeve n=  1 meanR +0.944  -> positive`). H3 is the line to handle "
+                "carefully: both baselines now read `-> NOT MET at any size — no fraction leaves "
+                "both drawdown and worst-date unharmed.` with `bound by: drawdown fails; "
+                "worst-date ok at every f`, on baselines that themselves moved (max DD `-12,529` "
+                "on the ladder alone and `-15,425` on ladder + shipped bear sleeve, against "
+                "-10,968 and -11,467 on 08-27). Over three consecutive exports H3 has read NOT "
+                "MET, then DEPLOYABLE at f=1.00, then NOT MET again — record it as an UNSTABLE "
+                "MEASUREMENT, not a verdict, and carry none of the three as evidence. H4's paired "
+                "read went flat rather than negative: `n=75 dates  dR +0.001  CI [-0.071, +0.073]` "
+                "(08-27: -0.036). H5 is labelled POST-HOC and its one eye-catching cell is "
+                "degenerate at n=1 — `mech_cell == BEAR_HE              1   -0.104    "
+                "+0.166            [-0.440, -0.099]  <- excludes 0`. Blocked on dates, not refuted.",
+    ),
+
     "hedge_timing": Study(
-        family="deployment", state="open",
+        family="hedging", state="open",
         question="The bear hedge sleeve is deployed on discretionary triggers — chop, a SPY "
                  "gap-up, a 4-5-day SPY down-run. Does any of them, made mechanical, pick a "
                  "day on which the hedge earns more than the SAME day's ladder-eligible long?",
@@ -913,8 +924,9 @@ STUDIES: dict[str, Study] = {
                 "the forward trigger is unchanged: >=25 strict-streak dates or >=25 "
                 "post-2025-11-04 dates.",
     ),
+
     "hedge_exposure": Study(
-        family="deployment", state="open",
+        family="hedging", state="open",
         question="When the open book is CONCENTRATED in one correlated cluster, does adding "
                  "a long put on that cluster's proxy reduce the book's MARK-TO-MARKET "
                  "drawdown, versus carrying the same concentrated book unhedged?",
@@ -922,7 +934,7 @@ STUDIES: dict[str, Study] = {
                 "over two different objects, both emitted, neither ordered ahead of the other, and "
                 "both unchanged on the 2026-09-04 v4 export (sha e59356f). The population deadlock "
                 "recorded as ERRATUM 1 was RATIFIED by the operator on 2026-08-31 "
-                "(research/pre-registrations/f4_deployment/hedge_exposure.md, Population and "
+                "(research/pre-registrations/f5_hedging/hedge_exposure.md, Population and "
                 "basis, consolidated there 2026-09-02): the population is the literal "
                 "load_book(include_bs=False) call, because a strike_expiry_tweak row is a REAL "
                 "Barchart price for a nearby strike and an operator who does not follow a proposed "
@@ -964,7 +976,7 @@ STUDIES: dict[str, Study] = {
                 "and neither overrides the other: UNDERPOWERED here describes the every-row book, "
                 "PRECONDITION-NULL there describes the book the operator runs. The deleted module's full "
                 "verdict is quoted verbatim in research/study-map.md and its frozen per-era print stands at "
-                "research/study-results/f4_deployment/hedge_concentration.md.",
+                "research/study-results/f5_hedging/hedge_concentration.md.",
         attention="ARM M's MEASUREMENT-ONLY finding is now RECORDED (2026-08-31): "
                   "research/deployment-evidence.md gained a section qualifying the "
                   "measurement basis of bear_deploy D3, calendar_hedge H3 and hedge_timing "

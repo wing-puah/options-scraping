@@ -1,7 +1,7 @@
 """The ticker -> correlated-cluster map: the repo's SINGLE encoding.
 
 Transcribed verbatim from the COMMITTED constant in
-`research/pre-registrations/f4_deployment/hedge_exposure.md` §"Population and
+`research/pre-registrations/f5_hedging/hedge_exposure.md` §"Population and
 basis, fixed here" — 11 clusters, one proxy instrument each, residual BROAD ->
 SPY, and four clusters marked UNHEDGEABLE. That file fixed the map before any
 concentration or outcome column was computed and forbids editing it after
@@ -49,7 +49,7 @@ from scripts.backtest_study.lib.underlying import rescaled_tickers  # noqa: E402
 
 # Where the map is committed. Quoted in report censuses so a reader can find
 # the immutable source rather than trusting this file.
-MAP_SOURCE = "research/pre-registrations/f4_deployment/hedge_exposure.md"
+MAP_SOURCE = "research/pre-registrations/f5_hedging/hedge_exposure.md"
 
 BROAD = "BROAD"
 

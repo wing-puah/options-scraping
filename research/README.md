@@ -42,9 +42,10 @@ each one.
 
 ## Running a study
 
-Study code sits in four family folders under `scripts/backtest_study/`:
+Study code sits in five family folders under `scripts/backtest_study/`:
 `f1_selection/`, then `f2_management/`, then `f3_structure/`, then
-`f4_deployment/`. Pick it, manage it, wrap it, fund it. A study's bare name is
+`f4_deployment/`, then `f5_hedging/`. Pick it, manage it, wrap it, fund it,
+protect it. A study's bare name is
 unaffected by which folder it sits in. `backtests/` holds only data: the Sheets
 exports a study reads from `backtests/to_evaluate/`, and the reports it writes
 to `backtests/study_output/`.
