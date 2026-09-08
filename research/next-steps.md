@@ -12,29 +12,40 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 <a id="s0"></a>
 ## 0. Repo state — read first
 
-- **Era and population.** `v4`, the 166-date backfilled book, all three exports
-  re-pulled 2026-09-07. `BacktestResults` is 543 rows over 168 dates;
-  `AnalysisClaude` is 2,325 rows over 198 dates with one analysis run per date.
-  Both are deduplicated, tab and export agree on each, and every result row
-  joins its play except two kept on purpose. Counts and the date range:
-  [the population](current.md#the-population).
+- **Era and population.** `v4`, the 193-date backfilled book, all three exports
+  re-pulled 2026-09-08 after queues C, D and E finished. `BacktestResults` is
+  598 rows over 193 dates; `AnalysisClaude` is 2,677 rows over 228 dates with
+  one analysis run per date. Both are deduplicated, tab and export agree on
+  each, and every result row joins its play except two kept on purpose. Counts
+  and the date range: [the population](current.md#the-population).
 - **Most of the queue waits on genuinely new dates.** `AnalysisClaude` carries
-  2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows, because
-  those options have not expired. §2.2 and §2.6 wait on them. The 13 backfilled
-  2026 dates do NOT qualify — they are a correlated window
+  2026-08-11 → 2026-09-04 from the daily pipeline with no backtest rows, because
+  those options have not expired. §2.2 and §2.6 wait on them. The 42 dates
+  queues C, D and E just added do NOT qualify — they sit inside
+  `[2024-01, 2026-05]`, the same correlated window
   ([where the 2026 column bit](current.md#where-the-2026-column-bit)).
 - **Tests green; the SUITE IS STALE — re-run it deliberately.** The last full
   study-suite run was 2026-09-04 on the 166-date book: every non-retired study
   ran, and the one gate stop was a study-side pricer gap fixed the same session
   ([`current.md` 2026-09-04 late](current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed)).
-  Every export has moved since, and no study has run on any of them:
-  `BacktestResults` lost 16 duplicate rows and gained 4 re-priced ones
+  Every export has moved several times since, and no study has run on any of
+  them: `BacktestResults` lost 16 duplicate rows and gained 4 re-priced ones
   (2026-09-06), then lost the 12 stale rows and gained the daily pipeline's
-  (2026-09-07); `AnalysisClaude` lost the 37 rows of a duplicated analysis run
-  (2026-09-07). The population is now settled — nothing under *Waiting on the
-  operator* changes it.
-- **RESOLVED 2026-09-07 — the missing option-history files are back and R2
-  passes.** It was six files, not the two first found. IWM 2026-05-29 245P and
+  (2026-09-07), then gained the 42 queue dates (2026-09-08); `AnalysisClaude`
+  lost the 37 rows of a duplicated analysis run (2026-09-07) and gained the same
+  42 dates. The population is now settled — nothing under *Waiting on the
+  operator* changes it, and this is the book to re-run on.
+- **The option-history cache LOST 178 FILES between the 2026-09-05 snapshot and
+  2026-09-08, and the scraper was asking Barchart for three months of history.**
+  Found 2026-09-08 ([record](current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The captured price-history feed request
+  carries the page's default `startDate=` three months back, so a re-issued request for
+  an expired contract returned no rows; `lib/barchart/session.py` now pins the floor at
+  2020-01-01. `scripts/backtest/shared/history.py` unlinks a shallow cache file before that
+  refetch, so every empty refetch deleted a file. The 178 were restored from the snapshot;
+  every file scraped since it has no copy until `backup_research_caches.py push` runs.
+  The unlink is filed in [§2.11](#s2-11).
+- **RESOLVED 2026-09-07 — the missing option-history files were back and R2
+  passed, until the 2026-09-08 retries deleted three more (above; restored again).** It was six files, not the two first found. IWM 2026-05-29 245P and
   MSTR 2025-06-27 420C were named here; restoring them left `hedge_structure`
   still failing R2 at `leg_not_cached 3` on three other keys, needing SPY
   2025-07-25 555P, KWEB 2025-04-25 32P and 35P, and TSLA 2025-02-28 360P. All
@@ -42,10 +53,13 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
   `hedge_structure` now reads `reconstructs: 1180 / 1180 (100.0%)` and `R2 PASS`
   on the installed export
   ([record](current.md#2026-09-07-fifth--hedge-programme--criteria-consolidated-two-studies-deleted)).
-- **Two hardcoded date tables are still no-ops by construction.**
+- **Two hardcoded date tables are still PARTLY no-ops.**
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
-  §0 list 2026-03 dates the export does not hold. Queue C below is those dates.
+  §0 both list `2026-03-06`, `03-12`, `03-20`, `03-27`. Queue C added `03-20`
+  with real rows and `03-12` with analysis rows only. `03-06` and `03-27` are in
+  no export and were never in the neutral-date selection, so both tables stay
+  half-empty however the suite is re-run.
 - **Robustness review, 2026-09-07 — read it before the suite is re-run.**
   [`robustness-review.md`](robustness-review.md). Two of its items change every
   number the re-run would print: the backtest has no cost model, and it can book
@@ -76,40 +90,17 @@ Decisions owed. None of these is a study.
    to write a play its results tab already holds
    ([record](current.md#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row)).
 
-3. **OPEN — three queues of pre-registered dates are written and unrun.**
-   Waits on the operator running them; no new registration is needed, because
-   running them finishes the registered selection. The neutral-date campaign
-   dropped 40 of its 192 selected dates, because step 4 of the rule subtracted
-   dates present in what was then a v3 export. 13 of the 40 are 2026 sessions
-   carrying the March drawdown the book does not sample: the book's eleven 2026
-   dates are VIX mean 17.66, the dropped thirteen 23.18
-   ([detail](current.md#2026-09-06-third--40-pre-registered-dates-were-never-run-the-2026-sample-misses-its-own-crash)).
-
-   | Queue | Dates | Runner |
-   |---|---|---|
-   | `backtests/enrich_queue_c.txt` | 13, all 2026 — run this one | `analyze_bt_queue.sh` |
-   | `backtests/enrich_queue_d.txt` | 24, pre-2026 | `analyze_bt_queue.sh` |
-   | `backtests/enrich_queue_e.txt` | 5, the moved right edge | `scrape_and_enrich.sh`, then analyze |
-
-   **12 of the 42 queued dates are ALREADY analysed and none has backtest rows.**
-   `make analyze-bt` will now REFUSE those, and because `analyze-bt` is `analyze`
-   then `backtest-all`, the refusal aborts the date before the backtest ever
-   runs. That is the guard working: running them yesterday would have doubled 12
-   dates' analysis rows. These dates need the BACKTEST step only —
-   `make backtest-all ARGS="--date D"`, then mark the date done in the queue
-   ledger by hand. Do NOT reach for `--allow-duplicate-date`; there is nothing
-   wrong with the analysis these dates already have.
-
-   | Queue | Already analysed, backtest owed |
-   |---|---|
-   | C | `2026-02-02`, `-02-05`, `-02-13`, `-02-19`, `-02-24`, `2026-03-04`, `-03-09` |
-   | D | `2024-06-20`, `2024-07-17`, `2024-07-22`, `2024-08-07` |
-   | E | `2026-04-21` |
-
-   **Probe C and D before running them.** Both assume the compiled flow CSV is
-   still in Drive; the queue headers carry the `--skip-llm` one-liner that
-   settles it. Neither unblocks §2.2 or §2.6 — those wait on dates after
-   2026-08-11, which no backfill reaches.
+3. **DONE 2026-09-08 — all three queues are run; 42 dates added, 35 of them
+   priced.** Queues C (13 dates, 2026), D (24, pre-2026) and E (5, the moved
+   right edge) finished the registered neutral-date selection that step 4 of the
+   rule had dropped. `BacktestResults` is 598 rows over 193 dates and the 2026
+   column grows from 11 dates to 26, five of them March sessions inside the
+   drawdown the sample previously missed
+   ([record](current.md#2026-09-08-fifth--queues-c-d-and-e-are-run-42-dates-added-and-the-2026-column-now-samples-march)).
+   Seven of the 42 produced no real rows — every play skipped `no_history` or
+   `unpriced`, all recorded on `BacktestProxy`. That is the pricer, not a
+   half-run date, and none of them needs re-running. Nothing has been measured:
+   the suite re-run is what reads these dates.
 
 4. **RESOLVED 2026-09-08 — `exit_drawdown` ARM P's "dollars ban is scoped"
    ack.** The operator ACKed the SCOPED reading: account-level drawdown prints
@@ -227,6 +218,10 @@ the wall are in the spine,
 - **Unblocks when** the book grows: the worst-decile cell needs roughly 320
   deployed dates, twice the book
   ([walls](../scripts/backtest_study/f5_hedging/README.md#known-walls)).
+- **The far leg is fetchable.** `fetch_far_legs.py` (2026-09-08) fetches the calendar's
+  far call for every anchor whose near-expiry grid names K*; the study's R2 gate, not
+  the cache, is what blocks the post-fetch read ([record](current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The 601 anchors
+  with no paired grid still need `fetch_sweep_legs.py`'s near put.
 - **Read H3 with this caveat:** its drawdown basis is qualified in the spine,
   [Q3](../scripts/backtest_study/f5_hedging/README.md#q3-how-much-to-hedge), and in
   [`deployment-evidence.md`](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_portfolio-arm-m).
@@ -432,8 +427,19 @@ committed ([log](current.md#2026-09-07-later--robustness-review-twelve-items-bui
 The `3e5c2dc` merge landed 2026-09-08, after the queue-D campaign stopped with
 six failed dates. Both results-tab headers gained `pct_stale_days`,
 `cost_total` and `cost_basis`, and the suite is 3,502 green. The six failed
-queue-D dates (2025-03-19, 03-24, 03-27, 04-09, 04-23, 04-28) would price under
-the cost model if retried; the 18 that did run did not.
+queue-D dates (2025-03-19, 03-24, 03-27, 04-09, 04-23, 04-28) were retried after
+the merge and all six priced, so they are the only rows in the book that ran
+under the cost model and the pre-entry grid fix.
+
+**Two things the merge left, found 2026-09-08 when the queues finished.**
+
+| Item | What is wrong | Fix |
+|---|---|---|
+| The split is not readable on `cost_basis` | `_apply_costs` writes `cost_basis` empty whenever both cost knobs are 0, which they are, so it is blank on all 598 rows. Split the two populations on `cost_total` or `pct_stale_days` being non-blank instead — 14 rows, the six retried dates. | prose only; done here |
+| `history.py` unlinks a cache file before a refetch that can fail | The refetch path unlinks a shallow cache file, then keeps nothing when the feed returns no rows. Under the page's default three-month `startDate` every expired contract's refetch was empty, and 178 files were lost since the 2026-09-05 snapshot (restored 2026-09-08, [record](current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The range is fixed in `session.py`, so the trigger is gone; the unlink stays fragile. | write the refetched text to a temp file and replace only on success; never unlink on the way in. Then `backup_research_caches.py push`. |
+| B5's zero-bid re-mark is not mirrored by `bear_rewrap`'s reconstruction | `simulate.py::_zero_bid_mark` (3e5c2dc) marks a `bid 0` leg at `ask/2`; `bear_rewrap.reconstructs` re-prices with the old mid-else-Latest mark, so every row priced after the fold that met a zero bid fails R2 (`mark_mismatch`/`entry_mismatch`), and R2 is all-or-nothing. Five such rows on the 2026-09-08 export, all on the retried queue-D dates, block `hedge_structure` entirely. `bear_rewrap` is registered UNCHANGED, so this is the operator's call: mirror B5 in the reconstruction (a maintenance change to a pricer mirror, re-run and reconcile the records), or re-price the six retried dates without B5. | operator decision |
+| B5 on a stale one-sided quote fabricates a credit | HYG 2025-04-09 proxy row: short 72P had no bar on the fill day, the six-day-old carried snap was `bid 0 / ask 2.68`, `_zero_bid_mark` gave 1.34, entry went to −0.37 on a bear put spread, `_exit_basis` then keyed CREDIT and booked +100%. `max_price_carry_days` only tags. Any post-fold row with a negative entry on a debit structure is suspect. | fold follow-up: no `ask/2` on a carried snap, or block past the carry limit |
+| Proxy rows carry none of the three columns | `proxy.py::_evaluate` copies `_RESULT_COLS + _BASIS_COLS` from the simulation and never `_COST_COLS`, so all 1,665 proxy rows are blank in them even on priced tiers. Same shape as the `exit_basis` gap fixed 2026-09-02, described in the comment two lines above the copy loop. | one line, not yet made |
 
 The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md),
 [`mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) and
@@ -441,16 +447,16 @@ The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sens
 names the conflict with §2.2 and §2.6 and leaves the choice open.
 
 <a id="s2-12"></a>
-### 2.12 Hedge programme follow-ups — OPEN, nothing waits on dates
+### 2.12 Hedge programme follow-ups — both picked up 2026-09-08; one read still blocked
 
-Two items left over from the 2026-09-07 consolidation, neither picked up. The
+Two items left over from the 2026-09-07 consolidation, both worked 2026-09-08. The
 plan was deleted once executed; the programme's four questions are
 [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md).
 
 | Item | What it is | Why it is open |
 |---|---|---|
-| Far-call fetch pre-run note (Q2) | A collector mode for `hedge_structure`'s hedge arm: for every deployed date and every ticker the book entered that day, fetch the at-the-money strike at the next listed later expiry, read from the flow CSV or that ticker's other cached contracts. Separate from `fetch_sweep_legs.py`. | The registered rule asks for the long leg at the first later listed expiry at the same strike, and the cache does not hold it — the sleeve fills on about a third of worst-decile dates. The fetch completes the data the rule reads; it changes no rule and picks no strike the chain may not list. Write the note, then run the fetch, then re-run `hedge_structure`. |
-| Two sleeve-sizing bodies outside the library | `f4_deployment/account_sim.py` (~`:988`) and `f4_deployment/portfolio_delta.py` (~`:363`) each pick one position a day by descending delta; `hedge_structure.bear_sleeve_dollars` does it a third time through `lib/hedge_criteria.sleeve_pick`. | Out of scope for the first pass. Fold each in one at a time under the reconciliation rule in `lib/hedge_criteria.py`'s docstring: identical print, or a finding in `current.md`. |
+| Far-call fetch (Q2) — COLLECTOR BUILT AND RUN 2026-09-08; the read is blocked | `scripts/collector/fetch_far_legs.py`: for every (date, ticker, near expiry) the book entered, the call at the paired ATM strike on the ticker's first later cached expiry; imports `fetch_sweep_legs.py`'s manifest and scrape loop, own manifest `backtests/sweep_cache/far_legs_manifest.csv`. | Pre-run note and outcome in `current.md` ([note](current.md#2026-09-08-seventh--far-call-fetch-for-hedge_structure-q2-pre-run-note-then-the-fetch-r2-fails-on-the-new-export-before-any-of-it), [outcome](current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The first run fetched almost nothing because the scraper re-issued the page's three-month default range; fixed in `session.py` and re-run. `hedge_structure` cannot print H0 on this export because R2 fails on five post-fold rows (§2.11); re-run the study once that is decided. |
+| Two sleeve-sizing bodies outside the library — CLOSED 2026-09-08 | `f4_deployment/account_sim.py` and `f4_deployment/portfolio_delta.py` each picked one position a day by descending delta in their own sorted copy. | Both now call `lib/hedge_criteria.sleeve_pick` under `account_sim.sleeve_rank`; both studies printed identically before and after on the 2026-09-08 export ([record](current.md#2026-09-08-sixth--the-two-sleeve-sizing-bodies-in-account_sim--portfolio_delta-are-folded-onto-libhedge_criteriasleeve_pick-identical-print)). |
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

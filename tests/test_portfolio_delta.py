@@ -463,3 +463,45 @@ def test_the_frozen_grids_are_the_registered_ones():
     assert PD.MIN_CELL_N == 20
     assert PD.DELTA_TOL == 0.05
     assert PD.MIN_DELTA_AGREE == 0.90 and PD.MIN_DELTA_AVAIL == 0.95
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The sleeve PICK is hedge_criteria.sleeve_pick in both simulators
+# ════════════════════════════════════════════════════════════════════════════
+
+def _sleeve_cand(signal: date, ticker: str, delta, mlpc: float = 500.0):
+    return _rec(signal, ticker, mark=4.80, entry=5.00, mlpc=mlpc, delta=delta,
+                underlying=100.0, structure="bear_put_spread")
+
+
+def test_both_simulators_take_the_row_hedge_criteria_sleeve_pick_chooses():
+    """Until 2026-09-08 `account_sim.simulate` and `simulate_banded` each
+    carried their own sorted-by-|delta| copy of the 1-per-day pick. Both now
+    call `lib/hedge_criteria.sleeve_pick` under `account_sim.sleeve_rank`, and
+    this pins the three edges the copies encoded: an unpriced candidate is
+    unrankable however early it sits, a tie on |delta| goes to the FIRST row,
+    and a chosen row with no max loss is skipped rather than replaced by the
+    runner-up."""
+    from scripts.backtest_study.lib import hedge_criteria as HC
+    d1, d2, d3 = date(2025, 1, 6), date(2025, 1, 13), date(2025, 1, 21)
+    day1 = [_sleeve_cand(d1, "HA", None),          # unpriced, listed first
+            _sleeve_cand(d1, "HB", -0.45),         # top |delta|, first of a tie
+            _sleeve_cand(d1, "HC", +0.45),         # the tie
+            _sleeve_cand(d1, "HD", -0.30)]
+    day2 = [_sleeve_cand(d2, "HE", -0.45, mlpc=0.0),  # picked, then unsizable
+            _sleeve_cand(d2, "HF", -0.30)]
+    bear_by_day = {d1.isoformat(): day1, d2.isoformat(): day2}
+    picks = HC.sleeve_pick(day1 + day2, A.sleeve_rank)
+    assert picks[d1.isoformat()]["ticker"] == "HB"
+    assert picks[d2.isoformat()]["ticker"] == "HE"
+
+    day_lists = _day_lists(_book())
+    cfg = _cfg(label="pick", hedge=True)
+    for sim in (A.simulate(day_lists, cfg, bear_by_day=bear_by_day,
+                           cache=A.new_cache()),
+                PD.simulate_banded(day_lists, cfg, bear_by_day=bear_by_day,
+                                   cache=A.new_cache())):
+        hedged = {p.rec["date"]: p.rec["ticker"] for p in sim.taken if p.hedge}
+        assert hedged == {d1.isoformat(): "HB"}, hedged
+        assert sim.census["hedge_taken"] == 1
+        assert d3.isoformat() not in hedged

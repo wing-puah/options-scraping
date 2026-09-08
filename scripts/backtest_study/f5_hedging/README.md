@@ -161,7 +161,11 @@ appended to no record
 ([sizing](../../../research/current.md#2026-09-07-fourth--hedge_structure--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
 
 **What would unblock it.** [`next-steps.md`](../../../research/next-steps.md) §2.3 for the
-calendar, blocked on new dates and sized at roughly 320 deployed dates. For the
+calendar, blocked on new dates and sized at roughly 320 deployed dates. The far
+call the calendar reads is fetched by `scripts/collector/fetch_far_legs.py`
+(2026-09-08); the post-fetch read waits on the R2 stop filed in
+[`next-steps.md`](../../../research/next-steps.md) §2.11
+([outcome](../../../research/current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). For the
 bear put debit it is `hedge_sizing`'s own forward trigger, a re-grade once the
 book holds at least 20 multi-candidate bear dates after 2026-08-11. `vol_sleeve`
 carries no queue item at all.
@@ -311,4 +315,5 @@ its verdict ([labels](../../../research/arm-index.md#bear_rewrap),
 |---|---|---|
 | worst-decile deployed dates | 14 recorded, about 16 on the staged tabs | every worst-decile reading, `hedge_sizing` `D2`, `hedge_structure` `H2`, `vol_sleeve` Q2 |
 | `hedge_structure` fill, not date count | 31% of worst-decile dates fill, so a cell of 10 needs about 320 deployed dates, twice the book | `hedge_structure` `H0` and `H2` |
+| the scraper's history range | the captured feed request carries the page's default `startDate=` three months back; re-issued for an expired contract it returns nothing (2026-09-08, 320 of 348 far calls). Pinned to 2020-01-01 in `lib/barchart/session.py` the same day | any refetch of an expired contract made before the fix; the backtest's refetch path deleted 178 files that way
 | option-history cache completeness | six files were missing on 2026-09-07 and were restored from the 2026-09-05 Drive snapshot; `R2` passes again | `hedge_structure` exits 1 at `R2` on any missing leg, and the backtest refreshes stale files in place, so the count moves while a queue runs |

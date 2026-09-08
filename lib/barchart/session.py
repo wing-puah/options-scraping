@@ -18,6 +18,11 @@ from lib.logger import safe_err
 
 log = logging.getLogger(__name__)
 
+#: Floor for the price-history feed's `startDate=`. The page defaults it to ~3
+#: months back; anything earlier is accepted, and the cache needs a contract's
+#: whole life (the book's earliest signal date is 2024-01-10).
+HISTORY_START_DATE = "2020-01-01"
+
 
 class BarchartSession:
     _BASE = "https://www.barchart.com"
@@ -598,6 +603,17 @@ class BarchartSession:
         url = re.sub(r"limit=\d+", "limit=1000", feed_url)
         if "limit=" not in url:
             url += ("&" if "?" in url else "?") + "limit=1000"
+        # The page fires the feed with ITS default range — `startDate=` three months
+        # back (observed 2026-09-08: `startDate=2026-06-08`), the "3M" position of the
+        # range toggle. Re-issuing that verbatim returns NO ROWS for any contract that
+        # expired before the window, which read as "Barchart has no history" until the
+        # page's 2-year toggle showed otherwise. The feed accepts any earlier start
+        # (probed: 2020-01-01 returned an expired 2025 put's whole life), so the
+        # floor is pinned here rather than inherited from whatever the page defaulted
+        # to today.
+        url = re.sub(r"startDate=[^&]*", f"startDate={HISTORY_START_DATE}", url)
+        if "startDate=" not in url:
+            url += f"&startDate={HISTORY_START_DATE}"
         if "bidPrice" not in url:
             # Append to the fields list — sits right before the next `&` param.
             if "&type=" in url:

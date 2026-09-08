@@ -5,6 +5,7 @@ import pytest
 import backtest as bt
 from lib.barchart import options as bo
 from lib.barchart import BarchartSession
+from lib.barchart.session import HISTORY_START_DATE
 
 
 # ── price-history JSON feed scraping (BarchartSession helpers) ──────────────────
@@ -19,6 +20,23 @@ def test_augment_history_url_lifts_limit_and_adds_bidask():
     assert "%2CbidPrice%2CaskPrice&type=eod" in out
     # fields value (commas/parens) must survive untouched — no urlencode mangling.
     assert "tradeTime.format(m/d/Y)" in out
+
+
+def test_augment_history_url_pins_start_date_below_the_pages_default():
+    """The page fires the feed with its own default range (`startDate=` ~3 months
+    back). Re-issued verbatim, an expired contract returns no rows; 2026-09-08
+    that read as "no history on Barchart" for 317 contracts. The floor is ours."""
+    feed = ("https://www.barchart.com/proxies/core-api/v1/historical/get"
+            "?symbol=INTC%7C20250117%7C47.00P&fields=tradeTime.format(m/d/Y),lastPrice"
+            "&type=eod&orderBy=tradeTime&orderDir=desc&limit=65&startDate=2026-06-08&raw=1")
+    out = BarchartSession._augment_history_url(feed)
+    assert "startDate=2026-06-08" not in out
+    assert f"startDate={HISTORY_START_DATE}" in out
+    assert out.count("startDate=") == 1
+    # a capture without the param gets the floor too
+    feed2 = feed.replace("&startDate=2026-06-08", "")
+    out2 = BarchartSession._augment_history_url(feed2)
+    assert out2.count("startDate=") == 1 and "startDate=2020-01-01" in out2
 
 
 def test_reissue_history_url_swaps_symbol_to_page_contract():

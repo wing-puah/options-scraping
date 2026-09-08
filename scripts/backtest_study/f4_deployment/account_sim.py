@@ -103,6 +103,7 @@ from scripts.backtest_study.lib.harness import (  # noqa: E402
 # BACK into this module through deferred function-level imports, which is what
 # keeps the cycle from closing at import time.
 from scripts.backtest_study.lib import live_select  # noqa: E402
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 
 EPS = 1e-9
 
@@ -783,6 +784,17 @@ class Sim:
         return {p.rec["date"] for p in self.signal_pos}
 
 
+def sleeve_rank(rec) -> float | None:
+    """The shipped sleeve's rank key: |delta| DESCENDING, an unpriced candidate
+    unrankable (None drops it from `hedge_criteria.sleeve_pick`).
+
+    `hedge_sizing`'s "|delta| high first" D4 ranker and `hedge_structure.
+    bear_sleeve_dollars` key the same way; `portfolio_delta` imports this one.
+    """
+    d = rec.get("delta")
+    return abs(d) if d is not None else None
+
+
 def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
              selftest_leak: bool = False, cache: dict | None = None,
              ranker=None, replayer=None) -> Sim:
@@ -987,24 +999,25 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
 
         # ARM H — the shipped bear sleeve, AFTER the day's signal picks so it can
         # never displace one. Not counted against cfg.max_per_day.
+        # The PICK is `lib/hedge_criteria.sleeve_pick` (folded 2026-09-08 from a
+        # sorted-by-|delta| copy; identical print on the v4 book). The chosen
+        # row is then sized and admitted here — a pick with no max loss is
+        # skipped, never replaced by the next candidate.
         if cfg.hedge and bear_by_day and d in bear_by_day and not ruined:
-            cands = sorted(bear_by_day[d],
-                           key=lambda r: abs(r["delta"]) if r.get("delta") is not None else -1,
-                           reverse=True)
-            for rec in cands[:1]:
-                if rec.get("delta") is None or not rec["max_loss_per_contract"]:
-                    continue
+            pick = HC.sleeve_pick(bear_by_day[d], sleeve_rank, dates=[d]).get(d)
+            if pick is not None and pick["max_loss_per_contract"]:
+                rec = pick
                 base = risk_contracts(rec["max_loss_per_contract"], budget)
-                if base is None:
-                    continue
-                c = max(1, int(cfg.hedge_risk_fraction * base))
-                ok, _ = admission(c * rec["max_loss_per_contract"], c * signed_dn(rec, 1),
-                                  led.cash, net_open, cfg, equity=marked)
-                if ok:
-                    sim.census["hedge_taken"] += 1
-                    take(rec, c, stop, hedge=True)
-                else:
-                    sim.census["hedge_rejected"] += 1
+                if base is not None:
+                    c = max(1, int(cfg.hedge_risk_fraction * base))
+                    ok, _ = admission(c * rec["max_loss_per_contract"],
+                                      c * signed_dn(rec, 1),
+                                      led.cash, net_open, cfg, equity=marked)
+                    if ok:
+                        sim.census["hedge_taken"] += 1
+                        take(rec, c, stop, hedge=True)
+                    else:
+                        sim.census["hedge_rejected"] += 1
 
     for p in sorted(open_pos, key=lambda q: q.exit_sess):
         led.close(p.reserved, p.dollars, "final")

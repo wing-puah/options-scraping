@@ -180,6 +180,13 @@ Research tier (`backtest_study/`, `study_*`):
   evidence exports and the hand-written `*.md` date lists have NO git history to recover from.
   `scripts/clean_generated.py` encodes which paths are safe — extend its table rather than
   writing a new `rm -rf`, and never widen a glob without re-reading its PROTECTED_PREFIXES.
+  The price-history feed request the page fires carries the page's DEFAULT RANGE
+  (`startDate=` three months back); `lib/barchart/session.py::_augment_history_url` pins
+  it to `HISTORY_START_DATE` because a verbatim re-issue returns no rows for an expired
+  contract — and `scripts/backtest/shared/history.py` UNLINKS a shallow cache file before
+  refetching, which is how 178 files were lost between the 2026-09-05 snapshot and
+  2026-09-08 (restored; unlink fix filed in `research/next-steps.md` §2.11). Run
+  `backup_research_caches.py push` after every scrape.
 - Study charts reconcile every CSV-recomputed figure against the report before writing —
   mismatch exits non-zero. Never add a statistic the study refuses to print (no annualised
   figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
@@ -246,7 +253,8 @@ lib/                        ← shared modules, imported by scripts, never run d
 scripts/                    ← entry points, each maps to a workflow step
   collector/                — scrape_flow, enrich_oi, fetch_iv_percentile, fetch_counterpart_iv,
                               fetch_price_catalyst, fetch_mech_regime, fetch_underlying_ohlc,
-                              fetch_counterpart_history, fetch_sweep_legs, fetch_financing_legs
+                              fetch_counterpart_history, fetch_sweep_legs, fetch_financing_legs,
+                              fetch_far_legs (hedge_structure's far call; imports fetch_sweep_legs' loop)
   compile_flow.py / gc_flow.py / build_baseline.py / backfill_mech_cell.py / align_tab_headers.py
   analysis_pipeline/        — fetch → headless engine → Sheets; the sole entry point for
                               producing an analysis; config.py = ALL user-tunable settings

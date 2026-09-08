@@ -64,6 +64,7 @@ if str(ROOT) not in sys.path:
 from scripts.backtest_study.f4_deployment import account_sim as A  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import greeks  # noqa: E402
+from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, hdr, sub,
@@ -362,31 +363,29 @@ def simulate_banded(day_lists, cfg, bear_by_day: dict | None = None,
 
         # The shipped bear sleeve, AFTER the day's signal picks so it can never
         # displace one, and not counted against cfg.max_positions_per_day.
+        # The PICK is `lib/hedge_criteria.sleeve_pick` under `account_sim.
+        # sleeve_rank` (folded 2026-09-08; identical print on the v4 book).
+        # ARM H* re-SIZES the chosen row and never re-chooses it.
         if cfg.hedge and bear_by_day and d in bear_by_day:
-            cands = sorted(
-                bear_by_day[d],
-                key=lambda r: abs(r["delta"]) if r.get("delta") is not None else -1,
-                reverse=True)
-            for rec in cands[:1]:
-                if rec.get("delta") is None or not rec["max_loss_per_contract"]:
-                    continue
+            pick = HC.sleeve_pick(bear_by_day[d], A.sleeve_rank, dates=[d]).get(d)
+            if pick is not None and pick["max_loss_per_contract"]:
+                rec = pick
                 base = A.risk_contracts(rec["max_loss_per_contract"], budget)
-                if base is None:
-                    continue
-                unit_dn = A.signed_dn(rec, 1)
-                if hedge_target is None:
-                    c = max(1, int(cfg.hedge_risk_fraction * base))
-                else:
-                    c = hedge_contracts_for_target(net_open, unit_dn,
-                                                   hedge_target * equity)
-                ok, _ = admission_banded(c * rec["max_loss_per_contract"],
-                                         c * unit_dn, led.cash, net_open, cfg,
-                                         equity=equity, net_band=net_band)
-                if ok:
-                    sim.census["hedge_taken"] += 1
-                    take(rec, c, hedge=True)
-                else:
-                    sim.census["hedge_rejected"] += 1
+                if base is not None:
+                    unit_dn = A.signed_dn(rec, 1)
+                    if hedge_target is None:
+                        c = max(1, int(cfg.hedge_risk_fraction * base))
+                    else:
+                        c = hedge_contracts_for_target(net_open, unit_dn,
+                                                       hedge_target * equity)
+                    ok, _ = admission_banded(c * rec["max_loss_per_contract"],
+                                             c * unit_dn, led.cash, net_open, cfg,
+                                             equity=equity, net_band=net_band)
+                    if ok:
+                        sim.census["hedge_taken"] += 1
+                        take(rec, c, hedge=True)
+                    else:
+                        sim.census["hedge_rejected"] += 1
 
     for p in sorted(open_pos, key=lambda q: q.exit_sess):
         led.close(p.reserved, p.dollars, "final")

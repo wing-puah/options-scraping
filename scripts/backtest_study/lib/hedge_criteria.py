@@ -42,7 +42,9 @@ A copy is deleted only after its study is re-run on the era its record in
 and every printed figure matches the recorded section. A different print is a
 FINDING, not a merge conflict: write it up in `research/current.md` with both
 figures and the population, and stop there. Every copy folded in so far
-reconciled byte-identical.
+reconciled byte-identical, the last two being `account_sim.simulate`'s and
+`portfolio_delta.simulate_banded`'s sleeve picks (2026-09-08, under
+`account_sim.sleeve_rank`).
 
 Pinned by `tests/test_hedge_criteria.py` against the committed fixture
 `tests/fixtures/hedge_criteria.csv`, the way `lib/harness.py` is pinned by
