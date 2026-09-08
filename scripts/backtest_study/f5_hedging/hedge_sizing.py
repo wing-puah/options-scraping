@@ -60,8 +60,7 @@ from scripts.backtest_study.lib.harness import replay  # noqa: E402
 from scripts.backtest_study.lib.mtm_curve import max_drawdown  # noqa: E402,F401
 # D2 and D3 are the ORIGIN the other hedge studies name, so their arithmetic
 # now lives in `lib/hedge_criteria.py` — one body per rule, pinned against a
-# committed fixture (research/hedge-programme-plan.md §"The shared criteria
-# library"). Everything PRINTED below stays here: the report's layout is quoted
+# committed fixture. Everything PRINTED below stays here: the report's layout is quoted
 # verbatim in research/study-results/, so the criteria moved and the shape did
 # not.
 from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402

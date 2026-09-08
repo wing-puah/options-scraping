@@ -1,7 +1,7 @@
 ## hedge_sizing — the bear sleeve's deployment criteria (D1–D4), and the v4 re-read of the card lines they backed
 
 _Registered 2026-08-11._
-_Renamed from `bear_deploy` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
+_Renamed from `bear_deploy` on 2026-09-08, after the question it answers in `scripts/backtest_study/f5_hedging/README.md`. No gate, arm, bar or verdict changed._
 
 Module: `scripts/backtest_study/f5_hedging/hedge_sizing.py`. The study's
 original pre-registration is `research/ml-plan.md` §addendum 2 (2026-08-11,

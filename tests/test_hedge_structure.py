@@ -171,8 +171,7 @@ def test_h3_sizing_does_not_raise_on_an_unsizable_pick(capsys):
 # ════════════════════════════════════════════════════════════════════════════
 # H2(c)'s year clause, H3's `_sweep` and `bear_sleeve_dollars`' 1-per-day pick
 # were this study's own copies of `hedge_sizing` D2/D3 until they were replaced
-# by `lib/hedge_criteria.py` (research/hedge-programme-plan.md §"The shared
-# criteria library"). The study reconciled BYTE-IDENTICAL on era v4, which
+# by `lib/hedge_criteria.py`. The study reconciled BYTE-IDENTICAL on era v4, which
 # pins the merge on the ONE population the export happens to hold. These tests
 # pin it on synthetic series instead: the deleted body is copied verbatim
 # below and asserted equal to the library's on inputs the export does not

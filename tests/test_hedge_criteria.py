@@ -65,8 +65,8 @@ KNOWN GAPS
     hand-typed series than the branch is worth. The quartile cut's formula IS
     exercised (20 dates gives `max(3, 5)` = 5, and 24 gives 6).
   - `hedge_timing`'s gated-policy empty cut, which must fail CLOSED, is not
-    here: that criterion has not moved into the library yet
-    (`research/hedge-programme-plan.md` §Q1). The library's own fail-closed
+    here: that criterion stays in the study by design — ARM H4 builds its own
+    paths and applies the size rule through `unharmed`. The library's own fail-closed
     branch — an undefined tail — is covered.
 
 If a case here fails, the fix is almost never the fixture. Either the change to
@@ -374,7 +374,7 @@ def test_the_sleeve_picker_is_the_body_behind_the_sleeve_cases():
     separate rule: `sleeve_dollars` IS it, plus reading one column off the
     chosen row. `hedge_structure.bear_sleeve_dollars` reads the same pick and
     prices it instead, so this identity is what makes the two the same sleeve
-    (research/hedge-programme-plan.md §"Q3, how much to hedge")."""
+    (`f5_hedging/README.md`, Q3)."""
     for case in [c for c in CASES if c["criterion"] == "sleeve"]:
         rows = _rows(case["rows"])
         veto = {d for d in case["gate_veto"].split(";") if d}

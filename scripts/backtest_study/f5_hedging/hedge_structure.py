@@ -114,8 +114,7 @@ from scripts.backtest_study.lib import sleeve_synth as VS  # noqa: E402
 # to import `max_drawdown` from, one study reaching into another's internals).
 # The library is arithmetic only: everything PRINTED below, the power floor of
 # 10, the zero-carry of an unfillable day and the two H3 baselines are this
-# study's registered shape and stay here. See
-# research/hedge-programme-plan.md §"The shared criteria library".
+# study's registered shape and stay here. See `lib/hedge_criteria.py`.
 from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,

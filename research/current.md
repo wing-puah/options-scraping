@@ -73,7 +73,7 @@ Closed on triggers, unchanged on the instrument. The gap-up prohibition in
 finding an indicator for when to open a hedge is now an open queue item with
 nothing in it ([`next-steps.md`](next-steps.md) §2.10).
 
-The spine is [`hedge-programme.md`](hedge-programme.md). It carries the four
+The spine is [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md). It carries the four
 studies grouped by the question each answers, what each one last printed, why
 each stopped, and what would unblock it.
 
@@ -1480,8 +1480,8 @@ retired into [`hedge_structure`](arm-index.md#hedge_structure) gate `R4`, and
 [`hedge_portfolio`](arm-index.md#hedge_portfolio)'s `--admitted` arm.
 
 _Era v4 · installed export 2026-09-07 12:17 · pooled study book 1,183 rows over
-177 dates · plan in [`hedge-programme-plan.md`](hedge-programme-plan.md), spine
-in [`hedge-programme.md`](hedge-programme.md)._
+177 dates · plan in `hedge-programme-plan.md` (deleted 2026-09-08 once executed; git `be6cfd0` holds it), spine
+in [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md)._
 
 **In production.** Nothing changes. No verdict, gate or arm label moved, and
 [§4](../docs/deployment-rules.md#s4) keeps its one sleeve.
@@ -1603,16 +1603,16 @@ out of scope.
 ## 2026-09-08 — hedge programme — three studies renamed after their question; the two deleted studies lose their leftover files
 
 **The four hedge studies are now named after the question each answers in
-[`hedge-programme.md`](hedge-programme.md), and nothing else changed.** Operator
+[`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md), and nothing else changed.** Operator
 decision, 2026-09-08. Every arm, gate and criterion label is as registered, and
 every figure is the one on record.
 
 | Was | Is | Question |
 |---|---|---|
-| `bear_deploy` | `hedge_sizing` | [Q3](hedge-programme.md#q3), and the origin of `D2`/`D3` |
-| `calendar_hedge` | `hedge_structure` | [Q2](hedge-programme.md#q2) |
-| `hedge_exposure` | `hedge_portfolio` | [Q4](hedge-programme.md#q4) |
-| `hedge_timing` | unchanged | [Q1](hedge-programme.md#q1) |
+| `bear_deploy` | `hedge_sizing` | [Q3](../scripts/backtest_study/f5_hedging/README.md#q3), and the origin of `D2`/`D3` |
+| `calendar_hedge` | `hedge_structure` | [Q2](../scripts/backtest_study/f5_hedging/README.md#q2) |
+| `hedge_exposure` | `hedge_portfolio` | [Q4](../scripts/backtest_study/f5_hedging/README.md#q4) |
+| `hedge_timing` | unchanged | [Q1](../scripts/backtest_study/f5_hedging/README.md#q1) |
 
 What moved with each name: the module in `f5_hedging/`, its tests, its
 pre-registration (one prose line added under the registration date, nothing in
@@ -1632,7 +1632,7 @@ link that pointed at the deleted files now points there.
 
 **Next.** Nothing opens or closes. Deliverable 3 (the far-call fetch note) and
 the two sleeve-sizing bodies in `account_sim` / `portfolio_delta` stay where the
-[plan](hedge-programme-plan.md#status) left them.
+plan (deleted 2026-09-08) left them.
 
 ## 2026-09-08 (later) — robustness fold LANDED on main; results-tab headers aligned; queue D stopped with six failed dates
 
@@ -1660,3 +1660,20 @@ moved:
 The one study-suite re-run the fold calls for is still owed, and the six failed
 dates are a retry (`RETRY_PARTIAL=1`) the operator decides on. The
 `robustness-fold` worktree and branch are removed, fully merged.
+
+## 2026-09-08 (third) — hedge programme: plan deleted, spine moved into `f5_hedging/README.md`, follow-ups filed in §2.12
+
+**The consolidation plan is deleted, not archived** (operator, 2026-09-08). It
+was executed on 2026-09-07 and its status section was history; git `be6cfd0`
+is the last commit holding it. The six code and test comments that cited its
+sections now cite `lib/hedge_criteria.py`, whose docstring carries the one
+working rule worth keeping: a copy is folded in only on an identical print, and
+a different print is a finding.
+
+**The spine is now [`scripts/backtest_study/f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md)**,
+beside the studies named after its four questions. Every inbound link is
+repointed and the link checker now scans `scripts/**/README.md`.
+
+**The two open items moved to [`next-steps.md` §2.12](next-steps.md#s2-12):**
+the far-call fetch pre-run note for Q2, and the two sleeve-sizing bodies in
+`account_sim` / `portfolio_delta`.

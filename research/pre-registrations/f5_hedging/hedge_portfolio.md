@@ -1,7 +1,7 @@
 ## hedge_portfolio — does exposure-triggered proxy hedging cut the book's drawdown?
 
 _Registered 2026-08-29._
-_Renamed from `hedge_exposure` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
+_Renamed from `hedge_exposure` on 2026-09-08, after the question it answers in `scripts/backtest_study/f5_hedging/README.md`. No gate, arm, bar or verdict changed._
 
 ## Question
 

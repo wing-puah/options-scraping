@@ -1,7 +1,7 @@
 ## hedge_structure — re-deriving the calendar candidate under a fixed pick rule
 
 _Registered 2026-08-13._
-_Renamed from `calendar_hedge` on 2026-09-08, after the question it answers in `../../hedge-programme.md`. No gate, arm, bar or verdict changed._
+_Renamed from `calendar_hedge` on 2026-09-08, after the question it answers in `scripts/backtest_study/f5_hedging/README.md`. No gate, arm, bar or verdict changed._
 
 A structure study. It takes one leftover candidate from `vol_sleeve` and asks
 it again under rules written before the number is re-read.

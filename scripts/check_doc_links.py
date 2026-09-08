@@ -1,6 +1,7 @@
 """Cross-link checker for the repo's hand-written docs.
 
-Scans README.md, CLAUDE.md, GEMINI.md, docs/**/*.md and research/**/*.md for
+Scans README.md, CLAUDE.md, GEMINI.md, docs/**/*.md, research/**/*.md and
+scripts/**/README.md for
 markdown links -- inline `[text](target)` and reference-style `[text]: target`
 -- and verifies each relative target resolves to a real file/directory, and
 that any `#anchor` on it matches something inside the target file.
@@ -28,7 +29,7 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_TOP = ["README.md", "CLAUDE.md", "GEMINI.md"]
-_DEFAULT_GLOBS = ["docs/**/*.md", "research/**/*.md"]
+_DEFAULT_GLOBS = ["docs/**/*.md", "research/**/*.md", "scripts/**/README.md"]
 
 _FENCE_RE = re.compile(r"^\s*```")
 _INLINE_LINK_RE = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")

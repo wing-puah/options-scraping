@@ -1,10 +1,10 @@
 """The hedge programme's shared criteria: contribution, sizing, drawdown.
 
 --- Why this module exists ---------------------------------------------------
-The hedge question is asked by six study modules, all of them now in
-`f5_hedging/`. Until 2026-09-07 each carried its own body of the same two
-rules. `research/hedge-programme-plan.md` §"The shared criteria library"
-counts them: the contribution rule six times, the sizing rule four, the
+The hedge question is asked by the study modules in `f5_hedging/` (the
+four questions they are named after are in that folder's README) and by two
+in `f3_structure/`. Until 2026-09-07 each carried its own body of the same
+two rules: the contribution rule six times, the sizing rule four, the
 drawdown function three. None of the copies was tested against the others, and
 two of them say in their own docstrings that they were copied rather than
 imported so that a change elsewhere could not move their recorded numbers.
@@ -35,6 +35,14 @@ paths and applies the size rule through `unharmed`.
 **No second drawdown body.** `max_drawdown` is imported from `lib/mtm_curve.py`
 and re-exported here, so a caller reaching for it through this module gets the
 SAME function object — which is what `tests/test_mtm_curve.py` pins.
+
+--- Moving another copy in here -------------------------------------------
+A copy is deleted only after its study is re-run on the era its record in
+`research/study-results/` names, with the copy replaced by the library call,
+and every printed figure matches the recorded section. A different print is a
+FINDING, not a merge conflict: write it up in `research/current.md` with both
+figures and the population, and stop there. Every copy folded in so far
+reconciled byte-identical.
 
 Pinned by `tests/test_hedge_criteria.py` against the committed fixture
 `tests/fixtures/hedge_criteria.csv`, the way `lib/harness.py` is pinned by

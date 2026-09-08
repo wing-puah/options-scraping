@@ -134,7 +134,7 @@ management. Every selection study returns a null; two exit studies shipped.
 <a id="hedging"></a>
 ## ⑤ HEDGING — "what protects the book when the ladder is wrong?"
 
-Three modules were renamed 2026-09-08 after the question each answers: `bear_deploy` → `hedge_sizing`, `calendar_hedge` → `hedge_structure`, `hedge_exposure` → `hedge_portfolio` (table in [`hedge-programme.md`](hedge-programme.md)). Labels and figures are unchanged.
+Three modules were renamed 2026-09-08 after the question each answers: `bear_deploy` → `hedge_sizing`, `calendar_hedge` → `hedge_structure`, `hedge_exposure` → `hedge_portfolio` (table in [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md)). Labels and figures are unchanged.
 
 | File | The question | Verdict |
 |---|---|---|

@@ -56,7 +56,7 @@ surviving questions — with what, when, and how much.
                         deleted 2026-09-08 (git 44bbfb2).
 
 Three modules were renamed on 2026-09-08 after the question each answers in
-`research/hedge-programme.md`: `bear_deploy` -> `hedge_sizing`, `calendar_hedge`
+`scripts/backtest_study/f5_hedging/README.md`: `bear_deploy` -> `hedge_sizing`, `calendar_hedge`
 -> `hedge_structure`, `hedge_exposure` -> `hedge_portfolio`. Labels, gates and
 figures are unchanged; the frozen records and the archive keep the old names.
 

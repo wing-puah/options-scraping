@@ -216,13 +216,13 @@ under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
 
 What the study asked, what each gate last read, and why the fill rate rather
 than the date count is the wall are in the spine,
-[Q2](hedge-programme.md#q2-what-to-hedge-with).
+[Q2](../scripts/backtest_study/f5_hedging/README.md#q2-what-to-hedge-with).
 
 - **Unblocks when** the book has materially more dates. Nothing to run until
   then. The worst-decile cell needs roughly 320 deployed dates, twice the book
-  ([walls](hedge-programme.md#known-walls)).
+  ([walls](../scripts/backtest_study/f5_hedging/README.md#known-walls)).
 - **Read H3 with this caveat:** its drawdown basis is qualified in the spine,
-  [Q3](hedge-programme.md#q3-how-much-to-hedge), and in
+  [Q3](../scripts/backtest_study/f5_hedging/README.md#q3-how-much-to-hedge), and in
   [`deployment-evidence.md`](deployment-evidence.md#the-curve-d3-was-read-on-understates-drawdown-2026-08-31-hedge_portfolio-arm-m).
 - Carry-forwards, post-hoc and not candidates: the RANGE+C/L-VOL calendar cell
   and the H2 clause amendment, both in the
@@ -385,11 +385,11 @@ prohibition on 2026-09-06 and keeps hedging. So the sleeve stays and the
 question of WHEN to open one is open with nothing in it.
 
 The four candidates that have been tested, and why each died, are in the spine,
-[Q1](hedge-programme.md#q1-when-to-open-a-hedge).
+[Q1](../scripts/backtest_study/f5_hedging/README.md#q1-when-to-open-a-hedge).
 
 - **What does NOT count as a candidate:** another timing rule cut from these
   dates and these columns (§2.1), or a re-read of the close-bucketed curve
-  ([basis](hedge-programme.md#q3-how-much-to-hedge)).
+  ([basis](../scripts/backtest_study/f5_hedging/README.md#q3-how-much-to-hedge)).
 - **What would count:** a signal the book does not carry yet — hedge flow in the
   analysis, or a live exposure reading from the journal — measured on the
   mark-to-market curve (`backtest_study/lib/mtm_curve.py`), on dates chosen
@@ -424,6 +424,17 @@ The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sens
 names the conflict with §2.2 and §2.6 and leaves the choice open.
 
 <a id="s3"></a>
+<a id="s2-12"></a>
+### 2.12 Hedge programme follow-ups — OPEN, nothing waits on dates
+
+Left over from the 2026-09-07 consolidation (plan deleted once executed; the
+programme's four questions are [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md)).
+
+| Item | What it is | Why it is open |
+|---|---|---|
+| Far-call fetch pre-run note (Q2) | A collector mode for `hedge_structure`'s hedge arm: for every deployed date and every ticker the book entered that day, fetch the at-the-money strike at the next listed later expiry, read from the flow CSV or that ticker's other cached contracts. Separate from `fetch_sweep_legs.py`. | The registered rule asks for the long leg at the first later listed expiry at the same strike, and the cache does not hold it — the sleeve fills on about a third of worst-decile dates. The fetch completes the data the rule reads; it changes no rule and picks no strike the chain may not list. Write the note, then run the fetch, then re-run `hedge_structure`. |
+| Two sleeve-sizing bodies outside the library | `f4_deployment/account_sim.py` (~`:988`) and `f4_deployment/portfolio_delta.py` (~`:363`) each pick one position a day by descending delta; `hedge_structure.bear_sleeve_dollars` does it a third time through `lib/hedge_criteria.sleeve_pick`. | Out of scope for the first pass. Fold each in one at a time under the reconciliation rule in `lib/hedge_criteria.py`'s docstring: identical print, or a finding in `current.md`. |
+
 ## 3. Standing rules — settled, do not re-open
 
 One line each, with the evidence.
