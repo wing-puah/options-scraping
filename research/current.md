@@ -30,18 +30,18 @@ This block is the authoritative summary of where the research stands.
 | Signal dates | 2024-01-10 → 2026-04-16 |
 | 2026 signal dates | 11 carry pooled rows, of the 13 backfilled; 2026-01-06 to 2026-04-16, 79 pooled rows |
 
-This is the first book with 2026 signal dates. Every `ex_2026_*` cut and every
-"positive in every year" clause is live for the first time. The neutral-date
-campaign that produced those dates, queue b, is complete and closed.
+This is the first book with 2026 signal dates, so every `ex_2026_*` cut and
+every "positive in every year" clause runs for the first time. Queue b, the
+neutral-date campaign that produced those dates, is complete and closed.
 
 ### Where the 2026 column bit
 
 Every study still prints the verdict word it printed on the 140-date book. What
-moved is underneath the verdict. The per-year clause now has a 2026 column, it
-is negative in most cells, and it is the first look out of sample in time that
-any rule has had on `v4`. [meanR](glossary.md#meanr) and
-[CI](glossary.md#ci) are defined in the glossary.
-Arm labels are study-local, so each is given with its study.
+moved is underneath the verdict: the per-year clause now has a 2026 column, that
+column is negative in most cells, and it is the first look out of sample in time
+that any rule has had on `v4`. [meanR](glossary.md#meanr) and
+[CI](glossary.md#ci) are defined in the glossary. Arm labels are study-local, so
+each is given with its study.
 
 | Study | Arm or cut | What changed | Record |
 |---|---|---|---|
@@ -52,48 +52,48 @@ Arm labels are study-local, so each is given with its study.
 | `bear_rewrap` | `long_diag` year criterion | 5/5 fell to 4/5, and in the same run its portfolio checks were `MET` for the first time | [record](study-results/f3_structure/bear_rewrap.md) |
 | bear-debit `be_after` | rollback census | re-fired on 199 arming rows over 110 dates, 2026 −0.0431 | [plan](pre-registrations/f2_management/rollback_triggers.md) |
 
-The `be_after` rule was already reverted on 2026-08-24, so its census re-firing
-asks for nothing. That census has now given three answers on three runs. A
-60-row floor on a backfilling book is not a decision procedure.
+`be_after` was already reverted on 2026-08-24, so its census re-firing asks for
+nothing. That census has now given three answers on three runs: a 60-row floor
+on a backfilling book is not a decision procedure.
 
 ### Two firsts that hold rather than ship
 
 Both sit in the correlated window, so neither promotes a rule.
 
-| Study | Arm | Reading |
+| Study | Arm | What it prints |
 |---|---|---|
 | `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | criteria `MET` for the first time: `sl .50 (tighter)` Δ=+0.039, CI [+0.004, +0.071], [LOO](glossary.md#loo) min +0.035, and the bear-specificity control holds |
-| `financed_spread` | [F3](arm-index.md#financed_spread) off1 | prints `RE-WRAP` at 6/7, failing only the anti-re-wrap E3 correlation, and its fixed-contracts control spans zero |
+| `financed_spread` | [F3](arm-index.md#financed_spread) off1 | `RE-WRAP` at 6/7, failing only the anti-re-wrap E3 correlation; its fixed-contracts control spans zero |
 
 ### The hedge programme
 
-Closed on triggers, unchanged on the instrument. The gap-up prohibition in
-[§4](../docs/deployment-rules.md#s4) was accepted on 2026-09-06 and rests on
-`hedge_timing`'s paired-[R](glossary.md#r) arms alone. The sleeve stays, so
-finding an indicator for when to open a hedge is now an open queue item with
-nothing in it ([`next-steps.md`](next-steps.md) §2.10).
+The trigger studies are closed and the instrument is unchanged. The gap-up
+prohibition in [§4](../docs/deployment-rules.md#s4) was accepted on 2026-09-06
+and rests on `hedge_timing`'s paired-[R](glossary.md#r) arms alone. The sleeve
+stays, so finding an indicator for when to open a hedge is now an open queue
+item with nothing in it ([`next-steps.md`](next-steps.md) §2.10).
 
-The spine is [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md). It carries the four
-studies grouped by the question each answers, what each one last printed, why
-each stopped, and what would unblock it.
+The spine is [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md):
+the four studies grouped by the question each answers, what each one last
+printed, why each stopped, and what would unblock it.
 
 ### `concurrency_correlation` is closed
 
-X4, the era-stability criterion, was settled by hand: `NOISE` on both eras. The
-`v3` companion ran on 795 rows over 118 dates, powered 8 of 13 arms, and
-printed the same sentence. No arm clears
-[X2 or X3](arm-index.md#concurrency_correlation) in either era, so no arm is or
-can be `ADOPT`-eligible. 4 of the 8 arms powered in both eras flip sign. The
-verdict is era-stable and the per-arm gains are not. The thread is closed, and
-the run is in the [record](study-results/f4_deployment/concurrency_correlation.md).
+No arm clears [X2 or X3](arm-index.md#concurrency_correlation) in either era, so
+no arm is or can be `ADOPT`-eligible. X4, the era-stability criterion, was
+settled by hand: `NOISE` on both eras. The `v3` companion ran on 795 rows over
+118 dates, powered 8 of 13 arms, and printed the same sentence. 4 of the 8 arms
+powered in both eras flip sign, so the verdict is era-stable while the per-arm
+gains are not. The thread is closed, and the run is in the
+[record](study-results/f4_deployment/concurrency_correlation.md).
 
 ### Rollback triggers
 
-Checked at their gates with numbers. A trigger that printed nothing has not
-been checked, and is not "not met". The
+Each trigger is checked at its gate, with numbers. A trigger that printed
+nothing has not been checked, and that is not the same as "not met". The
 [plan](pre-registrations/f2_management/rollback_triggers.md) holds each floor.
 
-| Trigger | Reading on this export |
+| Trigger | On this export |
 |---|---|
 | LVOL tef-null | `STAYS GATED` on 73 affected dates, median −0.033. The 2026-08-24 `CLEARED` did not survive two exports, so the operator's hold was right |
 | BEAR_HE trail | `UNDERPOWERED` at 1 date of 25 |
@@ -107,20 +107,21 @@ been checked, and is not "not met". The
   Tab and export agree on each. The suite has NOT been re-run on them.
   Details: [`next-steps.md`](next-steps.md) §0.
 - **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
-  analysis run than their own play.** A consequence of keeping the newer copy,
-  not repaired. The backtest stamps each play with the newest `MARKET` row on
-  its date, and 2025-09-18 was analysed twice, so those rows read `BULL + C-VOL`
-  where the run that proposed them read `RANGE + L-VOL`. Any regime cut on
-  2025-09-18 sees the later label.
+  analysis run than their own play.** The backtest stamps each play with the
+  newest `MARKET` row on its date, and 2025-09-18 was analysed twice, so those
+  rows read `BULL + C-VOL` where the run that proposed them read `RANGE +
+  L-VOL`. That follows from keeping the newer copy, and is not repaired. Any
+  regime cut on 2025-09-18 sees the later label.
 - **RESOLVED.** The 12 `BacktestResults` rows whose play no longer existed were
   dropped on 2026-09-07, so no result row joins the wrong play any more. Record:
   [2026-09-07 later](#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row).
 - **Two rows on 2025-07-29 still cannot join, and are KEPT on purpose.** `COIN`
-  and `EEM` have no `AnalysisClaude` row. Their cause is not the repair: the
-  analysis rows that proposed them went missing separately, and the backtest row
-  is now the only surviving record that those plays were ever proposed. They fail
-  the join outright rather than landing on another play, which studies already
-  count as unjoined. Dropping them would destroy evidence to tidy a count.
+  and `EEM` have no `AnalysisClaude` row, from a cause unrelated to the repair:
+  the analysis rows that proposed them went missing separately, so the backtest
+  row is now the only surviving record that those plays were ever proposed. They
+  fail the join outright rather than landing on another play, which studies
+  already count as unjoined. Dropping them would destroy evidence to tidy a
+  count.
 - 2025-12-26 produced no analysis rows.
 - `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
   89.3%, because the label cache does not cover the new rows.
@@ -465,11 +466,21 @@ brought current for every mover above; `overview.md`, `next-steps.md`,
 
 ## 2026-09-05 — `exit_drawdown` (NEW, f2): walk-forward exit hypotheses on account-level drawdown — UNDERPOWERED on PRIMARY; the two powered `all` cells are NULL
 
-Registered, built, run, graded and recorded the same day. It is the first study
-in the repo to judge an exit rule on the **account's mark-to-market curve**
+No exit rule can be judged on this book. Every PRIMARY cell fails the power
+floor, and the only two cells with enough rows to read sit on the disclosed
+`all` cut, where both are negative: `exit_drawdown ARM O/vol` is `NULL` and
+`exit_drawdown ARM D/throttle` is `SECONDARY-NULL`. Nothing ships from this
+study under any outcome, by construction. It is the first study in the repo to
+judge an exit rule on the **account's mark-to-market curve**
 (`lib/mtm_curve.py`) rather than on per-row R, and the first to choose an exit
-threshold **out of sample**. Nothing ships from it under any outcome, by
-construction.
+threshold **out of sample**.
+
+_Era v4, the 166-date book · exports of 2026-09-04 · 535 real / 1,303 proxy /
+2,212 analysis rows · pooled study book 1,143 rows (real 535 + tweak 608, bs 0),
+2024-01-10 → 2026-04-16 · registered, built, run, graded and recorded the same
+day · record: [study-results](study-results/f2_management/exit_drawdown.md)._
+
+**In production.** Nothing changes.
 
 **The question, and why these five arms.** Every standing exit null was reached
 on a per-row R estimand under a full-window, in-sample parameter choice. The
@@ -484,7 +495,7 @@ arms are the ones the record had *not* already refuted:
   `protocol.walk_forward_splits` existed and had never been pointed at the grid.
 - `exit_drawdown ARM U` — an underlying ATR stop on debit verticals, ATR14
   FROZEN at entry. Only CREDITS were ever given an underlying stop (the
-  short-strike breach); `bear_giveback` had located the give-back pattern in the
+  short-strike breach); `bear_giveback` had found the give-back pattern in the
   UNDERLYING rather than in the mark, and nothing acted on that.
 - `exit_drawdown ARM O` — a flow-unwind exit off the entry long leg's own
   `Open Int` path, read LAGGED one session, plus one volume-climax variant.
@@ -500,12 +511,10 @@ arms are the ones the record had *not* already refuted:
 The standing nulls this had to avoid re-finding are the reactive family —
 Attempts 1/2/10's drawdown-from-peak trails and `staged_exit`'s day-X formula
 (0/40 powered cells, six harmful CIs on the 09-04 book). §3 already forbids
-re-registering that formula under another anchor; this study is not it, and one
+re-registering that formula under another anchor. This study is not it, and one
 of its arms walked into it anyway (below).
 
-**Population.** Era v4, the 166-date book, exports of 2026-09-04 (535 real /
-1,303 proxy / 2,212 analysis; pooled study book 1,143 rows, real 535 + tweak
-608, bs 0; 2024-01-10 → 2026-04-16). Two cuts in ONE report:
+**The two cuts, in ONE report.**
 
 - **PRIMARY = dense episodes** — 3 episodes covering **88 dates**, 621 rows
   (478 debit / 143 credit). After the purged walk-forward and a **45-date
@@ -523,10 +532,10 @@ of its arms walked into it anyway (below).
   `blocks 0   OOS (test) dates 0   burn-in dates 46`, so every arm reads
   `UNDERPOWERED   (no OOS dates)`. Its `all` cut does split (3 blocks, 43 OOS
   dates, baseline 41 positions / 24 dates, max DD $−6,182) and is UNDERPOWERED
-  everywhere too — and one cell there is a complete no-op rather than a thin
-  one: `exit_drawdown ARM P/half` changes `0 rows / 0 dates` on v3's `all` cut
+  everywhere too. One cell there is a complete no-op rather than a thin one:
+  `exit_drawdown ARM P/half` changes `0 rows / 0 dates` on v3's `all` cut
   (`ARM P/half              48         0          0`), so v3 says nothing about
-  partial scale-out at all. Everything on v3 is UNDERPOWERED; it neither
+  partial scale-out at all. Everything on v3 is UNDERPOWERED, so it neither
   corroborates nor contradicts v4, and clause 5 reads VACUOUS on every powered
   v4 cell for exactly that reason.
 
@@ -537,23 +546,23 @@ stages, both registered before any number was seen: (1) keep every configuration
 whose TRAIN mean R is within 0.02 of the best; (2) among the survivors,
 `simulate()` on the TRAIN day-lists only and take the SMALLEST **train** MTM max
 drawdown. The blocks' TEST books are then stitched into one OOS book and the
-curve is marked through `mtm_curve`. Gates all pass on both cuts: **G-COV**
-(every census printed before any conditional number), **G-FORK** (with its own
-rule disabled every overlay reproduces `account_sim.replay_sized` field for
-field — `2286/2286 exact`; `lib/harness.py` is neither edited nor copied),
-**G-CAL** (`positions   direct 84   study baseline 84`, `book_signature`
-identical, and `account_sim`'s own `G2: PASS` / `G3: PASS  (0 violations)` /
-`G4: PASS` / `G5: PASS` / `GATES: ALL PASS` run **in-process** and lifted
-verbatim), **G1** (every auxiliary series shifted one session forward: PRIMARY
-`4164` comparisons, `2119` firing sessions changed, **0 moved earlier**; `all`
-`7444 / 3858 / 0`), **G-MTM** (785 PRIMARY / 1,514 `all` positions reconcile to
-the frozen harness at $0.01 per contract), and **G0**, the power floor, which
-runs first and blocks everything.
+curve is marked through `mtm_curve`.
+
+Every gate passes on both cuts.
+
+| Gate | What it checks, and what it printed |
+|---|---|
+| G-COV | every census printed before any conditional number |
+| G-FORK | with its own rule disabled, every overlay reproduces `account_sim.replay_sized` field for field — `2286/2286 exact`; `lib/harness.py` is neither edited nor copied |
+| G-CAL | `positions   direct 84   study baseline 84`, `book_signature` identical, and `account_sim`'s own `G2: PASS` / `G3: PASS  (0 violations)` / `G4: PASS` / `G5: PASS` / `GATES: ALL PASS` run **in-process** and lifted verbatim |
+| G1 | every auxiliary series shifted one session forward: PRIMARY `4164` comparisons, `2119` firing sessions changed, **0 moved earlier**; `all` `7444 / 3858 / 0` |
+| G-MTM | 785 PRIMARY / 1,514 `all` positions reconcile to the frozen harness at $0.01 per contract |
+| G0 | the power floor; it runs first and blocks everything |
 
 **PRIMARY: every cell fails G0 before any drawdown or ΔR clause is evaluated.**
-Floor, registered before any count was known: **< 25 affected DATES or < 60
-affected ROWS is UNDERPOWERED** — census printed, nothing concluded, no re-run
-on these dates. Baseline book `84 positions / 40 dates   max DD $-5,466
+The floor was registered before any count was known: **< 25 affected DATES or
+< 60 affected ROWS is UNDERPOWERED** — census printed, nothing concluded, no
+re-run on these dates. Baseline book `84 positions / 40 dates   max DD $-5,466
 (-21.9% of capital)   Ulcer 7.093%   TUW 91.8%`. Verbatim:
 
 ```
@@ -568,47 +577,51 @@ on these dates. Baseline book `84 positions / 40 dates   max DD $-5,466
   ARM D/throttle          86        16          8         -         -          -  UNDERPOWERED
 ```
 
-`tally: {'UNDERPOWERED': 7, 'SECONDARY-UNDERPOWERED': 1}`. G0 runs first and
-blocks every criterion, so **no PRIMARY cell has a drawdown or ΔR figure of its
-own anywhere in the report** — the census is the whole output, which is what
-"nothing concluded" means here and why no PRIMARY arm-versus-shipped dollar
-figure can be quoted from this run. Not one cell is close: the best-populated, `exit_drawdown ARM O/vol`, reaches 35 rows against a
-60-row floor, and `exit_drawdown ARM W/prod` — the shipped grid point itself —
-changes **0 rows / 0 dates**, which is what makes the arm-level token
-unreadable. The floor counts the `changed` column ONLY; `arm-only`/`base-only`
-are reserve-release knock-ons (an earlier exit freed a reserve and admitted a
-later position) and are printed as a DISCLOSED, NON-GATING breakdown rather than
-counted towards power, which would have inflated it in the permissive direction.
-`exit_drawdown ARM D`'s counts are its own registered SIZING definition of
-"affected" (positions ENTERED at the halved budget, and the dates one was),
-re-derived from the book and reconciled against `simulate()`'s own
-`throttle_dates`. One thinness is STRUCTURAL rather than date-driven and is
-worth naming: on PRIMARY `exit_drawdown ARM P` could split only **13 of the 77
-ledger positions** — `EXCLUDED: credit 13   n = 1 (cannot be halved) 51` — so at
-this $500 risk budget a scale-out arm is mostly untestable by construction, not
-merely underpowered on these dates (`all`: 21 split of 155, 102 excluded at
-n = 1).
+`tally: {'UNDERPOWERED': 7, 'SECONDARY-UNDERPOWERED': 1}`. Because G0 runs first
+and blocks every criterion, **no PRIMARY cell has a drawdown or ΔR figure of its
+own anywhere in the report** — the census is the whole output. That is what
+"nothing concluded" means here, and why no PRIMARY arm-versus-shipped dollar
+figure can be quoted from this run. Not one cell is close: the best-populated,
+`exit_drawdown ARM O/vol`, reaches 35 rows against a 60-row floor, and
+`exit_drawdown ARM W/prod` — the shipped grid point itself — changes **0 rows /
+0 dates**, which is what makes the arm-level token unreadable.
+
+Three details of the count:
+
+- The floor counts the `changed` column ONLY. `arm-only` and `base-only` are
+  reserve-release knock-ons — an earlier exit freed a reserve and admitted a
+  later position — and are printed as a DISCLOSED, NON-GATING breakdown rather
+  than counted towards power, which would have inflated it in the permissive
+  direction.
+- `exit_drawdown ARM D`'s counts use its own registered SIZING definition of
+  "affected": positions ENTERED at the halved budget, and the dates one was.
+  They are re-derived from the book and reconciled against `simulate()`'s own
+  `throttle_dates`.
+- One thinness is STRUCTURAL rather than date-driven. On PRIMARY
+  `exit_drawdown ARM P` could split only **13 of the 77 ledger positions** —
+  `EXCLUDED: credit 13   n = 1 (cannot be halved) 51` — so at this $500 risk
+  budget a scale-out arm is mostly untestable by construction, not merely
+  underpowered on these dates (`all`: 21 split of 155, 102 excluded at n = 1).
 
 **The two powered cells, both on `all`, both negative.** Baseline there is
 `162 positions / 76 dates   max DD $-14,238 (-57.0% of capital)   Ulcer 19.452%
   TUW 92.6%`.
 
 - **`exit_drawdown ARM O/vol` — the volume-climax exit. VERDICT: NULL.**
-  `max DD   shipped $   -14,238   arm $    -7,194   (-57.0% / -28.8% of
-  capital)`, i.e. `$+7,045 = +49.5% of the shipped drawdown` — and it fails
-  three ways. (1) `block-bootstrap CI95 [-268, +13,843] (n=2000, chronological
-  moving block)   FAIL` — the interval contains zero. (2) `paired DeltaR by date
-  -0.054   CI95 [-0.130, +0.017]   lower bound > -0.02   FAIL` — it buys the
-  drawdown cut with return. (7) `CONT: 55/77 early exits (71%) followed by a
-  post-exit max > realized+0.30 R   (strict any-recovery share 92%, DISCLOSED,
-  not the gate)   FAIL`. Clauses 3 (3/3 years agree), 4 (real / tweak same sign)
-  and 5 (VACUOUS) pass and do not save it. **Name it what it is: this is the
-  reactive null — Attempts 1/2/10 and `staged_exit` — measured at ACCOUNT level
-  for the first time.** Every earlier refutation was a per-row R estimand; this
-  one halves the account's marked drawdown on its face and *still* fails, on the
-  same mechanism (selling continuations) and at the same rate band the trails
-  failed on. The account curve does not rehabilitate a reactive exit. Thread
-  closed for these dates.
+  It halves the marked drawdown — `max DD   shipped $   -14,238   arm $
+  -7,194   (-57.0% / -28.8% of capital)`, i.e. `$+7,045 = +49.5% of the shipped
+  drawdown` — and still fails three clauses. (1)
+  `block-bootstrap CI95 [-268, +13,843] (n=2000, chronological moving block)   FAIL` — the interval contains zero. (2) `paired DeltaR by date -0.054   CI95 [-0.130, +0.017]   lower bound
+  > -0.02   FAIL`: it buys the drawdown cut with return. (7) `CONT: 55/77 early
+  exits (71%) followed by a post-exit max > realized+0.30 R   (strict
+  any-recovery share 92%, DISCLOSED, not the gate)   FAIL`. Clauses 3 (3/3 years
+  agree), 4 (real / tweak same sign) and 5 (VACUOUS) pass and do not save it.
+  **Name it what it is: this is the reactive null — Attempts 1/2/10 and
+  `staged_exit` — measured at ACCOUNT level for the first time.** Every earlier
+  refutation used a per-row R estimand; this one fails on the same mechanism
+  (selling continuations) and in the same rate band the trails failed on. The
+  account curve does not rehabilitate a reactive exit. Thread closed for these
+  dates.
 - **`exit_drawdown ARM D/throttle` — the drawdown throttle. VERDICT:
   SECONDARY-NULL.** `max DD   shipped $   -14,238   arm $   -11,467   (-57.0% /
   -45.9% of capital)`, `$+2,771 = +19.5% of the shipped drawdown`, and again
@@ -617,62 +630,66 @@ n = 1).
   `pricing tiers: real $-379 (n=68)  tweak $+2,616 (n=107)   FAIL` — **the real
   rows got WORSE and only the tweak rows improved**, which is the single most
   disqualifying shape a sizing rule can have. Clause 3 passes 2/3 on a first
-  half worth `$+4`, which is noise wearing a PASS — and the 2/3 is itself a
-  SILENT NO-OP disclosed only in the printed line: `years: 2024 n/a (eval dates
-  13, aff 0)`, i.e. the throttle never fired on any 2024 evaluated date, so the
-  year cut is signless there and the clause clears on the two years that HAVE a
-  sign. (Clause 3's registered signless rule is written for the HALVES, where a
+  half worth `$+4`, which is noise wearing a PASS, and the 2/3 is itself a
+  SILENT NO-OP disclosed only in the printed line `years: 2024 n/a (eval dates
+  13, aff 0)`: the throttle never fired on any 2024 evaluated date, so the year
+  cut is signless there and the clause clears on the two years that HAVE a sign.
+  (Clause 3's registered signless rule is written for the HALVES, where a
   signless half fails; the `>= 2 of the 3 years` half of the clause has no such
   rule, which is why a year that never fired passes silently.) `exit_drawdown
-  ARM D` has no clause 7 by
-  registration (a sizing rule moves no exit, so its continuation rate is the
-  baseline's by construction). It could never have shipped from f2 anyway; the
-  most it could ever have done is queue an f4 registration, and it does not.
+  ARM D` has no clause 7 by registration, because a sizing rule moves no exit
+  and its continuation rate is the baseline's by construction. It could never
+  have shipped from f2 anyway; the most it could ever have done is queue an f4
+  registration, and it does not.
 - **`exit_drawdown ARM W`'s arm-level token is UNDERPOWERED and `PROD-ROBUST` is
   NOT claimed** — `too few dates to say whether PROD survived`. Recorded as the
   report prints it (see the disagreement log).
 
-**The honest read on "robustness": the in-family best is not stable across
-blocks.** This is the finding that outlives the tokens. On `all`'s 7 blocks the
-walk-forward re-picks a *different* winner as the train window grows:
-`exit_drawdown ARM W/wf` `pt 0.90 / sl off / tef off` for blocks 0–2 → `pt 1.10
-/ sl off / tef off` → `pt 1.10 / sl off / tef 0.75`
-(`{'pt 0.90 / sl off / tef off': 3, 'pt 1.10 / sl off / tef off': 2,
-'pt 1.10 / sl off / tef 0.75': 2}`); `exit_drawdown ARM U/a` and `U/b`
-`k 3.0` → `k 1.5` (`{'k 3.0': 3, 'k 1.5': 4}`); `exit_drawdown ARM O/oi`
-`X 0.40` → `X 0.25` (`{'X 0.40': 3, 'X 0.25': 4}`); `exit_drawdown ARM D`
-`d 0.10` → `d 0.05` (`{'d 0.10': 3, 'd 0.05': 4}`). Only `O/vol` (no threshold
-to pick) and `W/prod` (a one-point grid) are stable, and on PRIMARY's 3 blocks
-the drift is not visible at all — three blocks is not enough window to see it.
-A knob whose best value moves with the training window is not a knob with a
-value; it is a knob being fitted.
+**The finding that outlives the tokens: the in-family best is not stable across
+blocks.** On `all`'s 7 blocks the walk-forward re-picks a *different* winner as
+the train window grows.
+
+| Arm | Winner as the window grows | Tally |
+|---|---|---|
+| `exit_drawdown ARM W/wf` | `pt 0.90 / sl off / tef off` for blocks 0–2 → `pt 1.10 / sl off / tef off` → `pt 1.10 / sl off / tef 0.75` | `{'pt 0.90 / sl off / tef off': 3, 'pt 1.10 / sl off / tef off': 2, 'pt 1.10 / sl off / tef 0.75': 2}` |
+| `exit_drawdown ARM U/a` and `U/b` | `k 3.0` → `k 1.5` | `{'k 3.0': 3, 'k 1.5': 4}` |
+| `exit_drawdown ARM O/oi` | `X 0.40` → `X 0.25` | `{'X 0.40': 3, 'X 0.25': 4}` |
+| `exit_drawdown ARM D` | `d 0.10` → `d 0.05` | `{'d 0.10': 3, 'd 0.05': 4}` |
+
+Only `O/vol` (no threshold to pick) and `W/prod` (a one-point grid) are stable,
+and on PRIMARY's 3 blocks the drift is not visible at all — three blocks is not
+enough window to see it. A knob whose best value moves with the training window
+is not a knob with a value; it is a knob being fitted.
 
 The **in-sample DISCLOSURE gap** measures what that fitting is worth, and it is
 the size of the tuning bias every earlier in-sample exit read in this repo
-carried. On PRIMARY the best full-window configuration reaches max DD $−4,127
-(`exit_drawdown ARM O/oi`, `X 0.25`) .. $−5,275 (`ARM U`, `k 1.5`) against a
-shipped $−5,466; on `all`, $−8,118 (`exit_drawdown ARM U`, `k 1.5`) .. $−13,167
-(`exit_drawdown ARM O/oi`)
-against $−14,238. Every one of those looks better than the honest out-of-sample
-book, and none of them is a result — the report prints them under
-`NO VERDICT IS READ FROM ANYTHING BELOW` precisely so the gap is visible rather
-than inferred. `exit_drawdown ARM D`'s own collapse is disclosed the same way:
-`Cfg.dd_throttle` is ONE value for a whole simulation, so the per-block
-selection has to collapse before the stitched book runs, and it collapses to the
-EARLIEST block's choice (`d 0.10`) — the only collapse that uses no information
-after its own TRAIN window. A modal collapse would have replayed block 0's TEST
-dates under a `d` fitted on train sets containing them. Both grid values'
-stitched books are printed beside it (`d 0.05` $−11,177 / `d 0.10` $−11,467 on
-`all`; identical $−5,466 on PRIMARY) so the reader can see what the collapse
-cost.
+carried.
 
-**Disagreement log (two-analyst grading, `study_review exit_drawdown`).** The
-graded round: **A and B agree on every row, and the validator found no
-violations** — every quoted figure (G0's per-cell counts, the `25 dates / 60
-rows` floor, G-FORK's `2286/2286`, G-CAL's `direct 84 / study baseline 84` and
-its G2–G5 lines, G-MTM's `785 positions … $0.01`, G1's `4166 / 2119 / 0`,
-G-COV's census lines, and the eight PRIMARY cells' affected-date list
-`16, 0, 14, 16, 9, 28, 6, 8`) reproduces character-for-character on both sides.
+| Cut | Best full-window configuration | Shipped |
+|---|---|---|
+| PRIMARY | max DD $−4,127 (`exit_drawdown ARM O/oi`, `X 0.25`) .. $−5,275 (`ARM U`, `k 1.5`) | $−5,466 |
+| `all` | $−8,118 (`exit_drawdown ARM U`, `k 1.5`) .. $−13,167 (`exit_drawdown ARM O/oi`) | $−14,238 |
+
+Every one of those looks better than the honest out-of-sample book, and none of
+them is a result. The report prints them under
+`NO VERDICT IS READ FROM ANYTHING BELOW` precisely so the gap is visible
+rather than inferred.
+`exit_drawdown ARM D`'s own collapse is disclosed the same way: `Cfg.dd_throttle`
+is ONE value for a whole simulation, so the per-block selection has to collapse
+before the stitched book runs, and it collapses to the EARLIEST block's choice
+(`d 0.10`) — the only collapse that uses no information after its own TRAIN
+window. A modal collapse would have replayed block 0's TEST dates under a `d`
+fitted on train sets containing them. Both grid values' stitched books are
+printed beside it (`d 0.05` $−11,177 / `d 0.10` $−11,467 on `all`; identical
+$−5,466 on PRIMARY) so the reader can see what the collapse cost.
+
+**Disagreement log (two-analyst grading, `study_review exit_drawdown`).** In the
+graded round **A and B agree on every row, and the validator found no
+violations.** Every quoted figure reproduces character-for-character on both
+sides: G0's per-cell counts,
+the `25 dates / 60 rows` floor, G-FORK's `2286/2286`, G-CAL's `direct 84 / study baseline 84` and its G2–G5 lines,
+G-MTM's `785 positions … $0.01`, G1's `4166 / 2119 / 0`, G-COV's census lines,
+and the eight PRIMARY cells' affected-date list `16, 0, 14, 16, 9, 28, 6, 8`.
 Both correctly refused to import any `all`-cut number into a verdict cell, which
 the validator flagged as the easiest place either analyst could have smuggled
 one in. **The graded artifact is the run at sha `e1af7f8`**, so its G1 total is
@@ -683,58 +700,60 @@ same cells) prints `4164 / 2119 / 0` on PRIMARY, because pinning
 
 - **One coverage gap, not a violation.** Analyst B's table stops after clause 7
   and never grades the report's separate `ARM W arm-level token` line; A grades
-  it `NOT EVALUABLE`. B took no position, so it cannot be adjudicated from the
-  source. **Main-session decision: record the token as the report prints it —
-  `ARM W arm-level token: UNDERPOWERED`, `PROD-ROBUST is NOT claimed` — and note
-  that analyst A read it NOT EVALUABLE.** The two are not in conflict: the
-  report's own token is the record, and A's grade says a reader could not
-  independently evaluate it, which on `W/prod` changing 0 rows is correct.
+  it `NOT EVALUABLE`. B took no position, so the point cannot be adjudicated
+  from the source. **Main-session decision: record the token as the report
+  prints it — `ARM W arm-level token: UNDERPOWERED`,
+  `PROD-ROBUST is NOT claimed` — and note that analyst A read it NOT
+  EVALUABLE.** The two do not
+  conflict: the report's own token is the record, and A's grade says a reader
+  could not independently evaluate it, which on `W/prod` changing 0 rows is
+  correct.
 - **The EARLIER round is where the grading did its work.** It reopened the
   **MODULE** — a grading defect reopens the module, never the registration — on
-  three REPORTING defects, all fixed and the study re-run: (a) **G-COV
-  ordering** — `exit_drawdown ARM P`'s split census printed BELOW the G0 cell
-  table that already carried that arm's affected counts, against the
-  registration's unqualified "a conditional figure printed above its coverage
-  line is a reporting defect"; `exit_drawdown ARM P`'s and `ARM D`'s censuses now
-  print in G-COV with `ARM U`'s and `ARM O`'s, above every cell table. (b) **`run_gates` was
-  asserted, not carried** — G-CAL claimed `account_sim`'s G2–G5 pass but
-  delegated them to a separate invocation outside the process and printed no
-  result, and the two analysts split exactly there (one graded G-CAL MET on the
-  narrower printed claim, one declined to grade it). They are now called
-  in-process and their PASS/FAIL lines printed inside this report. (c) **one
-  invocation now carries BOTH cuts** — the PRIMARY headline and the disclosed
-  `all` cut in one report, which is what "run as a disclosed secondary cut and
-  printed beside it" always said. Verdicts did not move.
-- **Two readings the grading forced**, recorded on 2026-09-05 while the module
-  was built and labelled **(h)** and **(i)**, turned on ambiguities the
+  three REPORTING defects. All three were fixed and the study re-run, and
+  verdicts did not move. (a) **G-COV ordering**: `exit_drawdown ARM P`'s split
+  census printed BELOW the G0 cell table that already carried that arm's
+  affected counts, against the registration's unqualified "a conditional figure
+  printed above its coverage line is a reporting defect". `ARM P`'s and
+  `ARM D`'s censuses now print in G-COV with `ARM U`'s and `ARM O`'s, above
+  every cell table. (b) **`run_gates` was asserted, not carried**: G-CAL claimed
+  `account_sim`'s G2–G5 pass but delegated them to a separate invocation outside
+  the process and printed no result, and the two analysts split exactly there
+  (one graded G-CAL MET on the narrower printed claim, one declined to grade
+  it). They are now called in-process and their PASS/FAIL lines printed inside
+  this report. (c) **one invocation now carries BOTH cuts**: the PRIMARY
+  headline and the disclosed `all` cut in one report, which is what "run as a
+  disclosed secondary cut and printed beside it" always said.
+- **Two rulings the grading forced**, recorded on 2026-09-05 while the module
+  was built and labelled **(h)** and **(i)**, settled ambiguities the
   registration had left. **(h)** G-CAL's parenthetical named
   `account_sim --selftest-gates`, which is the OPPOSITE of the check (below);
-  it now reads as §7 of [`exit_drawdown-errata.md`](exit_drawdown-errata.md).
-  **(i)** clause 5's referent is the SECONDARY era's PRIMARY cell, **never its
-  `all` cut** — `all` carries no verdict, so an `all` cell is not
-  verdict-carrying and cannot contradict one; that referent rule is now folded
-  into clause 5 of the registration's own "Bar for a candidate", and the
-  sidecar mechanism it turns on is errata §5. The sidecar records its
-  POPULATION beside its era, only the PRIMARY cut writes one, and a sidecar
-  naming any other population (or none, as the pre-correction files do) is
-  REFUSED with clause 5 printing VACUOUS and the reason. The no-OOS path also
-  now records its cells before returning, so v3's all-UNDERPOWERED cell set is
-  the honest referent instead of no file at all.
+  it now reads as §7 of `exit_drawdown-errata.md` (folded into the registration
+  2026-09-08). **(i)** clause 5's referent is the SECONDARY era's PRIMARY cell,
+  **never its `all` cut**: `all` carries no verdict, so an `all` cell is not
+  verdict-carrying and cannot contradict one. That referent rule is now folded
+  into clause 5 of the registration's own "Bar for a candidate", and the sidecar
+  it turns on is errata §5. The sidecar records its POPULATION beside its era,
+  only the PRIMARY cut writes one, and a sidecar naming any other population (or
+  none, as the pre-correction files do) is REFUSED with clause 5 printing
+  VACUOUS and the reason. The no-OOS path also now records its cells before
+  returning, so v3's all-UNDERPOWERED cell set is the honest referent instead of
+  no file at all.
 - **The four corrections were CONSOLIDATED on 2026-09-06, and the grading is
   still traceable.** The registration now states one final design read top to
-  bottom: readings 1, (g) and (i)'s referent rule are folded into the
+  bottom. Readings 1, (g) and (i)'s referent rule are folded into the
   registration's own G1 bullet under "Gates" and clauses 4 and 5 under "Bar for
   a candidate" (reading 1's measurement moved with it, into "Build notes"),
   because each narrows a clause without changing what it refuses. The rest —
   reading 2 (ARM O's volume leg), (a), (b) superseded by (f), (c), (d)'s
-  sidecar mechanism, (e) and (h) — are in
-  [`exit_drawdown-errata.md`](exit_drawdown-errata.md), which `study_review`
-  inlines beside the registration as AUTHORITY, each under the label the report
-  and the two analyst gradings cite it by. They are NOT folded because each
-  changes what a gate refuses, what an arm does or how a clause is read, and
-  writing one into the registration's own prose would present a build-time
-  decision as a pre-commitment. The graded report and both analyst files are
-  untouched; every letter they cite resolves in the errata's concordance table.
+  sidecar, (e) and (h) — are in `exit_drawdown-errata.md` (folded into the
+  registration 2026-09-08), which `study_review` inlines beside the registration
+  as AUTHORITY, each under the label the report and the two analyst gradings
+  cite it by. They are NOT folded because each changes what a gate refuses, what
+  an arm does or how a clause is read, and writing one into the registration's
+  own prose would present a build-time decision as a pre-commitment. The graded
+  report and both analyst files are untouched, and every letter they cite
+  resolves in the errata's concordance table.
 
 **Traps found, all of them the kind that would have been silent.**
 
@@ -752,7 +771,7 @@ same cells) prints `4164 / 2119 / 0` on PRIMARY, because pinning
   era ran last and must be re-checked against its own header before anything is
   quoted from it.
 - **`-- --era v3` is swallowed by the runner.** `--era` is the runner's own flag,
-  not a study argument: put it BEFORE the `--`
+  not a study argument, so it goes BEFORE the `--`
   (`run exit_drawdown --era v3`). After the `--` it reaches the study module,
   which does not parse it, and the run silently proceeds on the CURRENT era —
   producing a "v3" report that is v4.
@@ -761,23 +780,23 @@ same cells) prints `4164 / 2119 / 0` on PRIMARY, because pinning
   PRIMARY's clause-5 referent, crossing two CUTS exactly the way a stale
   filename crosses two ERAS.
 - **`fetch_underlying_ohlc.py --skip-existing` REWROTE `rescaled_tickers.txt`
-  and dropped six attestations.** The file was rewritten in full by a run that
-  only fetched 68 of 145 tickers, so AVGO, CVNA, MSTR, NFLX, SMCI and XLE — all
-  still on a rescaled basis, their CSVs untouched — vanished from it. Absence
-  read as "not rescaled". **Fixed today**: `write_rescaled()` now MERGES (a run
-  attests only the tickers it actually split-checked; every other prior line is
-  kept verbatim, and an empty run writes nothing), and a new standalone offline
-  `--recheck-rescaled` re-derives the flag for every cached ticker from disk and
-  is the one path allowed a full rewrite. **13 tickers are flagged now**,
-  including **NVDA (0.9000 over 216 days — the 10:1 split)** and **GE (0.2000
-  over 31 days — the spinoff step)**, neither of which was in the file before.
-  This CHANGES WHAT `volume_features` AND EVERY OTHER OHLC CONSUMER WITHHOLD
-  from here on: absolute dollars and cross-series comparisons on a flagged
-  ticker are invalid (ratios are fine — a constant factor cancels). The counts,
-  since three different ones are in play: **11** attested before today's partial
-  run, **5** left after it rewrote the file, **13** after the offline rebuild —
-  so two tickers are newly flagged versus yesterday and eight versus the file the
-  partial run left standing.
+  and dropped six attestations.** A run that fetched only 68 of 145 tickers
+  rewrote the file in full, so AVGO, CVNA, MSTR, NFLX, SMCI and XLE — all still
+  on a rescaled basis, their CSVs untouched — vanished from it, and their
+  absence read as "not rescaled". **Fixed today**: `write_rescaled()` now MERGES
+  (a run attests only the tickers it actually split-checked, every other prior
+  line is kept verbatim, and an empty run writes nothing), and a new standalone
+  offline `--recheck-rescaled` re-derives the flag for every cached ticker from
+  disk and is the one path allowed a full rewrite. **13 tickers are flagged
+  now**, including **NVDA (0.9000 over 216 days — the 10:1 split)** and **GE
+  (0.2000 over 31 days — the spinoff step)**, neither of which was in the file
+  before. This CHANGES WHAT `volume_features` AND EVERY OTHER OHLC CONSUMER
+  WITHHOLD from here on: absolute dollars and cross-series comparisons on a
+  flagged ticker are invalid, while ratios are fine because a constant factor
+  cancels. Three counts are in play: **11** attested before today's partial run,
+  **5** left after it rewrote the file, **13** after the offline rebuild — two
+  tickers newly flagged versus yesterday and eight versus the file the partial
+  run left standing.
 - **The pairing baseline's LABEL named a reverted rule.** `account_sim.py`
   hardcoded `SHIPPED_BE_AFTER = 0.50`, so `profile_for` kept applying the
   bear-debit break-even stop to bear-debit rows and the PRE-pin reports'
@@ -789,23 +808,24 @@ same cells) prints `4164 / 2119 / 0` on PRIMARY, because pinning
   `exit_drawdown` baseline book** (`account_sim-positions-latest.csv` and both
   `exit_drawdown` reports), so **no verdict, no cell, no baseline book and no
   clause figure moves** across the pin. Same class of latent defect as
-  `exit_mechanism_study`'s stale
-  `CREDIT_PROD` (2026-08-24). Fixed the same day: `SHIPPED_BE_AFTER` is pinned to
-  the config (`None` when the block is disabled) and test-pinned, and the study
-  was re-run and re-recorded at `efd9b76`, whose basis line now reads
-  `base -> BEAR_HE (the bear-debit be_after block is DISABLED in
-  config/backtest.yml, so no breakeven stop is merged)`.
-  **The pin is not figure-neutral OUTSIDE the deployed book**, and that is worth
-  stating rather than discovering: `be_after` did move shipped `days_held`
-  somewhere OUTSIDE the deployed book (whose positions, max DD, Ulcer and TUW are
-  identical across the two runs), so between `e1af7f8` and `efd9b76` ARM O's
-  hold-window census shifts — `>= 20% blank` 16 → 17 on the PRIMARY population
+  `exit_mechanism_study`'s stale `CREDIT_PROD` (2026-08-24). Fixed the same day:
+  `SHIPPED_BE_AFTER` is pinned to the config (`None` when the block is disabled)
+  and test-pinned, and the study was re-run and re-recorded at `efd9b76`, whose
+  basis line now reads `base -> BEAR_HE (the bear-debit be_after block is
+  DISABLED in config/backtest.yml, so no breakeven stop is merged)`.
+
+  **The pin is not figure-neutral OUTSIDE the deployed book**, which is worth
+  stating rather than discovering. `be_after` did move shipped `days_held`
+  somewhere outside the deployed book — whose positions, max DD, Ulcer and TUW
+  are identical across the two runs — so between `e1af7f8` and `efd9b76` ARM O's
+  hold-window census shifts: `>= 20% blank` 16 → 17 on the PRIMARY population
   and 8 → 9 on the OOS-evaluated rows, `USABLE by ARM O` 421 → 420 and
   216 → 215, and G1's PRIMARY comparison total `4166` → `4164`. Nothing that
   carries a verdict changed.
+
   **Closed the same evening:** `account_sim` was re-run at the committed sha
   `d69a802` (its last two `be_after-0.50` strings — the G2 prose and the
-  `replay_sized` docstring — retired in that commit) and re-recorded; the PRIMARY
+  `replay_sized` docstring — retired in that commit) and re-recorded. The PRIMARY
   headline is unchanged under the pin (`total $22,217 · maxDD $-3,750 · worst
   session $-2,796`), and its CONFIGURATION block now prints `bear-debit breakeven
   stop  disabled — simulation.structure_exit.enabled is false in
@@ -830,29 +850,31 @@ note it covers `live_loop` / `option_history_cache` / `to_evaluate` only, NOT
 PRIMARY question is **more OOS dates**, and the only ones that are not more of
 this same correlated window are the **live 2026-08/09 dates once their options
 expire and price** — the independent window §2.2 and the rollback triggers also
-wait on. Until then: **on these dates the exit question is closed for all five
-arms.** UNDERPOWERED publishes its census and is **not re-run on these dates**;
-the grid is not re-cut, no arm is re-registered under a different anchor, and
-the two `all` NULLs are recorded as NULLs and not read as findings on a cut that
-carries no verdict.
+wait on them. Until then, **on these dates the exit question is closed for all
+five arms.** UNDERPOWERED publishes its census and is **not re-run on these
+dates**; the grid is not re-cut, no arm is re-registered under a different
+anchor, and the two `all` NULLs are recorded as NULLs, not read as findings on a
+cut that carries no verdict.
 
-Records: `study-results/f2_management/exit_drawdown.md` — the GRADED run is v4 at
-sha `e1af7f8`, and **the RECORDED run this entry is read against is the same run
-re-run at `efd9b76`**, after the `SHIPPED_BE_AFTER` pin (identical verdicts and
-cells; the pin's only effect is the basis line and ARM O's hold-window census,
-above) — plus the v4/v3 runs at `e19d3b4`;
-`pre-registrations/f2_management/exit_drawdown.md`
-(with `exit_drawdown-errata.md` beside it),
-`study_output/exit_drawdown-census-2026-09-05.txt`.
-The v3 SECONDARY run was likewise re-run at `efd9b76`
+**Records.** `study-results/f2_management/exit_drawdown.md` — the GRADED run is
+v4 at sha `e1af7f8`, and **the RECORDED run this entry is read against is the
+same run re-run at `efd9b76`**, after the `SHIPPED_BE_AFTER` pin (identical
+verdicts and cells; the pin's only effect is the basis line and ARM O's
+hold-window census, above) — plus the v4/v3 runs at `e19d3b4`. Also
+`pre-registrations/f2_management/exit_drawdown.md` (with
+`exit_drawdown-errata.md` beside it — folded into the registration 2026-09-08)
+and `study_output/exit_drawdown-census-2026-09-05.txt`. The v3 SECONDARY run was
+likewise re-run at `efd9b76`
 (`study_output/exit_drawdown-v3-2026-09-05.txt`) and is recorded at that sha
-beside the v4 section. Recording trap fixed the same evening (`d69a802`):
+beside the v4 section.
+
+A recording trap was fixed the same evening (`d69a802`).
 `scripts/study_map/summary.py` quoted the LAST banner containing `VERDICT`, and
-this report's last banner is `DISCLOSURE, in-sample — NO VERDICT IS READ FROM
-ANYTHING BELOW` (the disclosed `all` cut prints after the verdict summary), so
-two sections had recorded in-sample numbers as the study's answer; a negated
-title is now skipped, the two mis-recorded (uncommitted) sections were dropped
-and re-recorded, and the committed record quotes `VERDICT SUMMARY`.
+this report's last banner is
+`DISCLOSURE, in-sample — NO VERDICT IS READ FROM ANYTHING BELOW` (the disclosed `all` cut prints after the verdict summary). Two sections had therefore recorded in-sample numbers as the study's
+answer. A negated title is now skipped, the two mis-recorded (uncommitted)
+sections were dropped and re-recorded, and the committed record quotes
+`VERDICT SUMMARY`.
 
 ## 2026-09-05 (later) — `overview.md` and `glossary.md` rewritten for a reader who has lost the thread; the long-dated blind spot is scoped DEBIT-ONLY
 
@@ -861,7 +883,7 @@ blind spot ([`next-steps.md`](next-steps.md) [§2.7](next-steps.md#s2-7)) is now
 recorded as a **debit-side** gap only. The operator does not hold credit
 positions at a `horizon` of 180 or 720 days, so the parked credit exit knobs in
 the same bullet do not wait on long-dated price history. Everything else in
-this entry is presentation.
+this entry is prose.
 
 _No study run. Documents touched: [`overview.md`](overview.md),
 [`glossary.md`](glossary.md), [`next-steps.md`](next-steps.md). Under
@@ -904,11 +926,11 @@ neither could ever revisit the rule it settled. **Neither ever shipped
 anything** — `combined_exit_study` was a `reference` study that confirmed the
 production exit profile was already the best global config (its one consequence
 was starting the two switch studies), and `underlying_exit_study` was a `null`.
-The verdicts are unchanged and
-the **record is now [`study-map.md`](study-map.md#management)**, whose two rows
-were rewritten to carry the question, the verdict, why the study cannot run,
-and the [archive/02](archive/02-credit-debit-split-attempts-8-12.md) trail.
-[`next-steps.md`](next-steps.md) §0c(B) rewritten to match.
+The verdicts are unchanged and the **record is now
+[`study-map.md`](study-map.md#management)**, whose two rows were rewritten to
+carry the question, the verdict, why the study cannot run, and the
+[archive/02](archive/02-credit-debit-split-attempts-8-12.md) trail.
+[`next-steps.md`](next-steps.md) §0c(B) was rewritten to match.
 [`overview.md`](overview.md) drops them entirely: neither shipped, so two
 deleted studies on a page about where things stand is cognitive load without
 value (operator, 2026-09-05). `study-map.md` is where they are found.
@@ -956,7 +978,7 @@ indicators have been tested and none survives.
 Finding one is now [`next-steps.md`](next-steps.md) §2.10. It does not reopen
 the 2026-09-04 closure: a fourth timing study cut from these dates and these
 columns is still refused, and a candidate has to bring a column the book does
-not carry yet — hedge flow, or a live exposure reading — read on the
+not carry yet — hedge flow, or a live exposure figure — read on the
 mark-to-market curve.
 
 **The four missing rows are re-priced.** Both dates were re-run per date on
@@ -1057,7 +1079,7 @@ _Era v4 · exports 2026-09-06 · 524 real rows over 159 dates · selection rule
 
 **The bug.** Step 4 of the selection rule subtracts "any date present in
 `analysis - AnalysisClaude.csv`". That export was a v3 export when the rule ran
-on 2026-08-14. So 37 dates were dropped for being in a population v4 no longer
+on 2026-08-14, so 37 dates were dropped for being in a population v4 no longer
 draws from. Three more have no rows in any era. Recomputing `index % 3 == 0`
 over `[2024-01-02, 2026-04-16]` against the current v4 export reproduces the
 192 and finds the 40.
@@ -1115,11 +1137,11 @@ so expect it to yield little.
 
 **Stated before the run.** These dates were selected on calendar position alone
 in 2026-08-14, before any 2026 outcome was read. The omission is a mechanical
-fault in step 4. Running them is finishing the registered selection, not a new
-one, and needs no new registration. The 2026 column has already been read once,
-so the honest expectation is written here rather than after: adding the March
-sessions will move every per-year criterion that currently has a 2026 cell, and
-it may move them either way.
+fault in step 4. Running them finishes the registered selection rather than
+making a new one, and needs no new registration. The 2026 column has already
+been read once, so the honest expectation is written here rather than after:
+adding the March sessions will move every per-year criterion that currently has
+a 2026 cell, and it may move them either way.
 
 **What this does not do.** The 13 sit inside `[2024-01, 2026-04]`, so they do
 not make the window independent. §2.2 and §2.6 stay blocked on dates after
@@ -1129,6 +1151,7 @@ the robustness cut.
 
 **Next.** [`next-steps.md`](next-steps.md) §0 gains the queues as an operator
 item. The two hardcoded 2026-03 tables stop being no-ops once queue C runs.
+
 ## 2026-09-07 later — the 12 stale backtest rows are dropped, and the backtest can no longer double a row
 
 The evidence base is 543 rows and every one of them joins the play that
@@ -1154,14 +1177,12 @@ this deleted" are the same set by construction.
 
 A row-level diff against a pre-delete snapshot
 (`backtests/to_evaluate/_snapshot-BacktestResults-pre-dedup-20260907.csv`) shows
-exactly those 12 gone, nothing else removed and nothing added. The export moved
-524 → 543 rather than down, because it was also stale by the daily pipeline's
-rows.
+exactly those 12 gone, nothing else removed and nothing added.
 
 The evidence base moves 524 → 543, not 524 → 512. The morning entry framed the
 choice as "524 → 512" against an export that was already 31 rows behind the tab.
-The count went UP because the pipeline had added more rows than the repair took
-away.
+The count went UP because the daily pipeline had added more rows than the repair
+took away.
 
 **What this changes for the studies.** Nothing recomputes. Entry, exit and P&L
 were priced at backtest time, and deleting a play row reprices nothing. What
@@ -1282,11 +1303,11 @@ wrong one.
 survive — the second is now the one joining the wrong play.
 
 **What this affects.** Any study reading a play THROUGH the join:
-[`text_features`](arm-index.md#text_features) reads the play text,
+[`text_features`](arm-index.md#text_features) reads the play text, and
 [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) and
 [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md) print
-join coverage and will show 7 of 524 rows landing on a different row than before
-plus 5 no longer landing at all.
+join coverage, so they will show 7 of 524 rows landing on a different row than
+before plus 5 no longer landing at all.
 
 **What it does NOT affect.** The 524 result rows themselves. Entry, exit,
 pricing and P&L were computed at backtest time from the play as it then stood;
@@ -1521,21 +1542,6 @@ pass. Commit `90e21a5` gives the library the scalar form, `unharmed`, routes all
 three through it, and renames `hedge_timing`'s `sleeve_pick`, which shadowed the
 library's helper with different `None` handling. Both reports reconciled again.
 
-**Caveats.** The plan's two start conditions were overridden, by the operator,
-after checking that neither risk reached this work. Queue D writes to Sheets and
-to the option cache, not to the installed export, and every reconciliation read
-the same export. The robustness worktrees touch no file under
-`scripts/backtest_study/`. The one moving input was the option cache, which
-`scripts/backtest/shared/history.py` refreshes in place: a file whose history
-does not reach back to the signal date is deleted and refetched, so the file
-count moves while the queue runs. That moved two `ARM N` p95 figures in
-`hedge_portfolio`'s whole-book report between the before and after runs
-(+0.3825 to +0.3704 and +0.3465 to +0.3549). The pre-merge module run on the
-later cache prints the after report byte for byte, so the delta is the cache and
-not the merge. Nothing the study concludes moves. `ARM N`'s null band is
-cache-sensitive, so a report quoted from a run taken while a queue writes to the
-cache is not reproducible line for line.
-
 **Findings.** No copy disagreed with the library. Every report body reconciled.
 Four things were recorded during the work and are quoted here verbatim, in the
 words of the step that found them.
@@ -1588,12 +1594,24 @@ fourth stands: `bear_rewrap` `ARM P` keeps its own cutoff and its own `P1`/`P2`
 verdicts, because routing them through the library would move printed figures
 under registered labels.
 
-**Caveats.** `hedge_portfolio`'s `ARM N` null band is cache-sensitive. Its two
-p95 figures moved between two runs 21 minutes apart, +0.3825 to +0.3704 and
-+0.3465 to +0.3549, because queue D was writing option history under the study
-(43,047 to 43,038 contract files). The merge was proved against a fixed cache
-and nothing the study concludes moves. But a report quoted from a run taken
-while a scrape is in flight is not reproducible line for line.
+**Caveats.** The plan's two start conditions were overridden, by the operator,
+after checking that neither risk reached this work. Queue D writes to Sheets and
+to the option cache, not to the installed export, and every reconciliation read
+the same export. The robustness worktrees touch no file under
+`scripts/backtest_study/`.
+
+The one moving input was the option cache, which
+`scripts/backtest/shared/history.py` refreshes in place: a file whose history
+does not reach back to the signal date is deleted and refetched, so the file
+count moves while the queue runs. That made `hedge_portfolio`'s `ARM N` null
+band cache-sensitive. Its two p95 figures in the whole-book report moved between
+two runs 21 minutes apart, +0.3825 to +0.3704 and +0.3465 to +0.3549, because
+queue D was writing option history under the study (43,047 to 43,038 contract
+files). The pre-merge module run on the later cache prints the after report byte
+for byte, so the delta is the cache and not the merge; the merge was proved
+against a fixed cache and nothing the study concludes moves. But a report quoted
+from a run taken while a queue writes to the cache is not reproducible line for
+line.
 
 **Next.** [`next-steps.md`](next-steps.md) §0 closes its missing-cache-file
 hazard. Nothing else opens or closes. The two sleeve-sizing bodies outside the
@@ -1677,3 +1695,78 @@ repointed and the link checker now scans `scripts/**/README.md`.
 **The two open items moved to [`next-steps.md` §2.12](next-steps.md#s2-12):**
 the far-call fetch pre-run note for Q2, and the two sleeve-sizing bodies in
 `account_sim` / `portfolio_delta`.
+
+## 2026-09-08 (fourth) — `exit_drawdown` ARM P dollars ACK recorded; the SCOPED reading is in force
+
+**`exit_drawdown ARM P`'s account-level drawdown is quoted in dollars. The
+operator approved this today, and the study's last open item closes.**
+
+Why an ACK was needed: the plan has two clauses that disagree. One says "quote
+R, not dollars, for ARM P". The other asks for the account-level drawdown, which
+is a whole-book dollar figure on one ledger and has no natural R. The study
+applied the R-only rule to the per-row and paired comparisons and used dollars
+for the account-level figure, but would not let that choice stand without the
+operator confirming it. The operator's reason: a whole-book drawdown of one
+ledger is clearest in dollars.
+
+**What changed in code.** The module prints ARM P's account-level drawdown, its
+improvement and the CI bounds in dollars by default. The pre-ACK opt-in
+`--arm-p-dollars` is gone. `--arm-p-share` is the new opt-in for the
+share-of-capital form, and its banner names the rule in force and says the flag
+departs from it. The STATUS bullet in the
+[registration](pre-registrations/f2_management/exit_drawdown.md) and §4 of the
+errata (folded into the registration 2026-09-08) record the ACK, and
+[`next-steps.md`](next-steps.md) §0 item 4 is resolved.
+
+**What did not move.** No graded artefact. Clause 1 is a scale-free ratio, so
+the verdict is identical either way, and no run ever displayed either form:
+every ARM P cell on the 2026-09-05 runs of both eras was UNDERPOWERED and
+printed its census only. The graded report, the two analyst gradings and the
+study-results record stand as written.
+
+## 2026-09-08 (fifth) — `exit_drawdown` errata FOLDED into the registration; the file is gone
+
+**Two documents made the design unreadable, so there is now one.**
+`research/exit_drawdown-errata.md` is deleted and everything it held is in
+[`pre-registrations/f2_management/exit_drawdown.md`](pre-registrations/f2_management/exit_drawdown.md).
+The operator: "if it has changed and updated the preregistration, it should be
+folded in. it's impossible to have the exit_drawdown document and this errata
+and know what's going on."
+
+**What was folded, and where.** Each build-time ruling now sits directly after
+the registered sentence it amends, opening with a bold **`Resolved at build
+(2026-09-05):`** tag. The registered sentences are untouched — nothing was
+deleted or reworded — so a reader can still tell a ruling taken while the module
+was built from a commitment made before it.
+
+| Errata section | Now lives in |
+|---|---|
+| §1 G1's DIRECTION half on ARM O's volume leg | the G1 bullet under "Gates" |
+| §2 ARM P's ledger releases at the LATER half | ARM P, the "TWO synthetic `Pos`" bullet |
+| §3 ARM D collapses to the EARLIEST block (and the superseded modal reading) | the ARM D section |
+| §5 clause 5's sidecar, and vacuous-on-absent | clause 5 under "Bar for a candidate" |
+| §6 G1's CHANGE half tallied per variant | the G1 bullet under "Gates" |
+| §7 G-CAL reads `run_gates` in-process, lines printed | the G-CAL bullet under "Gates" |
+
+§4 needed no folding: ARM P's dollars ACK was already recorded in the
+registration's STATUS bullet earlier today, and the one detail only the errata
+carried — that between the build and the ACK the module printed a
+share-of-capital form behind a banner, and that no graded run displayed either
+form — is now in that bullet.
+
+**The recorded labels still resolve.** The graded report
+(`backtests/study_output/exit_drawdown-latest.txt`) and both analyst gradings
+cite readings by label — "reading 1", "correction 2", (a) through (i). A table
+headed "Build-time resolutions, by recorded label" in the registration's "Build
+notes" maps every label to the section that now holds it.
+
+**Nothing graded moves.** No ruling changed meaning; only where it is written
+changed. The report, the two analyst gradings and the
+[study-results record](study-results/f2_management/exit_drawdown.md) stand as
+they are. `scripts/study_review/` now grades `exit_drawdown` against the
+registration alone — the generic `research/<study>-errata.md` discovery
+mechanism is untouched and simply finds no file, which is the normal case.
+
+**The rule is now in CLAUDE.md.** A build-time ruling that changes what a gate
+refuses or how a clause is read is folded in and tagged, never kept in a
+separate file.

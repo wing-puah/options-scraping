@@ -1,28 +1,32 @@
 # Pre-registrations
 
-One file per study, containing that study's pre-registration: the question,
-frozen inputs, criteria, and gates committed to **before** the study was built
-or run. The **commitments** are immutable — no gate, bar, arm definition, or
-verdict changes meaning after it is written. The **file** is not frozen prose,
-though: it is consolidated so it reads as one final design rather than a
-change-log — a later refinement is folded into the section it amends, and what
-changed and when is not tracked inline; that history lives in git. They
-deliberately do NOT live in [`../current.md`](../current.md) (a rolling log
-pruned into `../archive/`) — pruning a pre-registration would destroy its
-evidentiary value.
+Each study has one pre-registration file: the question, frozen inputs,
+criteria, and gates committed to **before** the study was built or run.
 
-Files are grouped by study family, mirroring `scripts/backtest_study/` and
-[`../study-results/`](../study-results/): a study's registration lives in the
-same `fN_*` folder as its module. `python -m scripts.study_review <study>`
-globs `<family>/<study>.md` and hands the whole file to the two independent
-analyst agents plus validator, who grade the study's run against what was
-committed here — see [`../replication-protocol.md`](../replication-protocol.md).
+**The rule.** A pre-registration's commitments are immutable — no gate, bar,
+arm definition, or verdict changes meaning after it is written.
+
+**Current practice.** The file itself is not frozen prose: it is consolidated
+so it reads as one final design rather than a change-log. A later
+refinement — a ruling made, say, while the module was being built — is
+folded into the section it amends, and what changed and when is not tracked
+inline; that history lives in git instead. Pre-registrations deliberately do
+NOT live in [`../current.md`](../current.md) (a rolling log pruned into
+`../archive/`), because pruning one would destroy its evidentiary value.
+
+**Tooling.** Files are grouped by study family, mirroring
+`scripts/backtest_study/` and [`../study-results/`](../study-results/): a
+study's registration lives in the same `fN_*` folder as its module.
+`python -m scripts.study_review <study>` globs `<family>/<study>.md` and
+hands the whole file to the two independent analyst agents plus validator,
+who grade the study's run against what was committed here — see
+[`../replication-protocol.md`](../replication-protocol.md).
 
 ## How this index works
 
-This README is the **living index** over the immutable files: the tables below
-(and only they) are kept current as studies move through their lifecycle.
-**Status** values:
+This README is the **living index** over the immutable files: only the tables
+below are kept current, as studies move through their lifecycle. **Status**
+values:
 
 - `draft` — not registered; every number, arm, gate and verdict may still be
   edited (the file's own first body line and `STATUS` line say so); becomes
@@ -38,45 +42,47 @@ This README is the **living index** over the immutable files: the tables below
 Every file follows one template:
 
 - **Line 1** is a `## ` heading: the study slug, plus a short descriptive
-  fragment only when there is a real one (`scripts/study_review/` extracts this
-  line as the document's label — never demote it or put anything above it).
-- **First body line**: `_Registered YYYY-MM-DD._` — the original commitment
-  date, and the only date the file carries. A `draft` file's first body line
-  reads `_Registered ____-__-__ (DRAFT — not registered; becomes immutable in
-  substance when the operator accepts it)._` instead, with the file's own
-  `**STATUS: DRAFT.**` sentence sitting immediately below it. Acceptance fills
-  in the date and drops the parenthetical — the line then reads like every
-  other registration's.
-- **Sections**, each a `## ` heading (the same level as line 1 — see
+  fragment only when there is a real one. `scripts/study_review/` extracts
+  this line as the document's label, so never demote it or put anything
+  above it.
+- **First body line** reads `_Registered YYYY-MM-DD._` — the original
+  commitment date, and the only date the file carries. A `draft` file's
+  first body line reads `_Registered ____-__-__ (DRAFT — not registered;
+  becomes immutable in substance when the operator accepts it)._` instead,
+  with the file's own `**STATUS: DRAFT.**` sentence sitting directly below
+  it. Acceptance fills in the date and drops the parenthetical, and the line
+  then reads like every other registration's.
+- **Sections**, each a `## ` heading at the same level as line 1 (see
   [`f1_selection/bear_arm.md`](f1_selection/bear_arm.md) for the reference
-  shape), in canonical order, each omitted when a study has nothing for it
-  (never an empty stub): Question · What this is NOT · Definitions ·
-  Dependencies · Population and basis, fixed here · Plan-time observations,
-  disclosed · Arms · Unit and metric · Gates · Bar for a candidate ·
-  Verdicts, worded now · Anti-tuning · Ship criteria · Build notes (the one
-  section that is NOT part of the registration — implementation, not
-  commitment). Definitions pins a term the study's Arms or Population depend
-  on (`### ` sub-headings split more than one); Dependencies states what must
-  land, be built, or be read — a census, a config knob, another study's
-  prerequisite — before this one can run. `### ` sub-headings are free inside
-  a section (one per ARM, per gate group, per defined term, …). Qualifiers
-  that used to live in headings ("in order", "frozen at two") sit in the
-  section's first sentence instead. A COMMITMENT rather than a study (one
-  with no arms and no module, e.g. `holdout_seal`) may replace the section
-  list with its own — it says so at the top — but keeps Verdicts before
-  Anti-tuning before Ship criteria before Build notes.
+  shape), come in this canonical order, and a section is omitted — never left
+  as an empty stub — when a study has nothing for it: Question · What this is
+  NOT · Definitions · Dependencies · Population and basis, fixed here ·
+  Plan-time observations, disclosed · Arms · Unit and metric · Gates · Bar
+  for a candidate · Verdicts, worded now · Anti-tuning · Ship criteria ·
+  Build notes. Build notes is the one section that is NOT part of the
+  registration — it is implementation, not commitment. Definitions pins a
+  term the study's Arms or Population depend on (`### ` sub-headings split
+  more than one); Dependencies states what must land, be built, or be read —
+  a census, a config knob, another study's prerequisite — before this one can
+  run. `### ` sub-headings are free inside any section: one per ARM, per gate
+  group, per defined term. Qualifiers that used to live in headings ("in
+  order", "frozen at two") now sit in the section's first sentence instead. A
+  COMMITMENT rather than a study — one with no arms and no module, e.g.
+  `holdout_seal` — may replace the section list with its own (it says so at
+  the top), but still keeps Verdicts before Anti-tuning before Ship criteria
+  before Build notes.
 - **Wording** is plain English. The files were re-edited for readability on
-  2026-08-31 with every number, ARM label, gate id, verdict token and
-  quotation held verbatim (a mechanical diff enforced it); what a registration
-  COMMITS did not change, only how it reads.
+  2026-08-31, holding every number, ARM label, gate id, verdict token and
+  quotation verbatim — a mechanical diff enforced it. What a registration
+  commits did not change, only how it reads.
 
-The unifying property is that the same kind of content always has the same
-name and relative position — not that every file has every section.
+The unifying property: the same kind of content always has the same name and
+relative position, not that every file has every section.
 
 ## Terminology legend
 
-Every registration is a scientific pre-registration; its recurring sections map
-to standard experiment terminology:
+Every registration is a scientific pre-registration. Its recurring sections
+map to standard experiment terms:
 
 | Section in a registration | Experiment term |
 |---|---|
@@ -92,11 +98,11 @@ to standard experiment terminology:
 | "What this is NOT" | Scope limitations |
 | "Ship criteria" (older files: "Ship ceiling") | Maximum admissible outcome — what, if anything, the study may cause to ship |
 
-Verdict vocabulary, repo-wide (registered in `financed_spread`'s build-time
-notes, re-homed here): "POWER-STOPPED" is read as **UNDERPOWERED — too few
-dates to judge; census printed, nothing concluded**. Existing printed reports
-and registrations keep the original token for traceability; new code prints
-UNDERPOWERED.
+Verdict vocabulary, repo-wide (originally recorded in `financed_spread`'s
+build-time notes, moved here): "POWER-STOPPED" is read as **UNDERPOWERED —
+too few dates to judge; census printed, nothing concluded**. Existing printed
+reports and registrations keep the original token for traceability; new code
+prints UNDERPOWERED.
 
 ## Arm labels
 
@@ -126,7 +132,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 | [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
 | [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
 | [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
-| [`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md) | `exit_drawdown` — registered, built, run and **graded 2026-09-05** (era v4 headline + the disclosed `all` cut in one report; SECONDARY era v3 run and recorded the same day). Walk-forward exit hypotheses judged on the ACCOUNT-level mark-to-market drawdown curve (`lib/mtm_curve.py`) rather than on per-row R — see the file's own "What this is NOT" table for the eleven exit families it must not re-find. Five arms, labelled W (out-of-sample selection of the shipped pt/sl/tef knobs, with its own `PROD-ROBUST` token), U (underlying ATR stop on debit verticals), O (flow-unwind off the traded contract's OI path), P (partial scale-out), and D (a drawdown sizing throttle, labelled SECONDARY and unshippable from this family). Every threshold is fitted on TRAIN dates and applied to TEST dates; burn-in dates are excluded from the headline. **Result: UNDERPOWERED on every PRIMARY cell — the modal outcome the registration named in advance — with `PROD-ROBUST` NOT claimed; on the no-verdict `all` cut the only two powered cells are NULL (`ARM O/vol`) and SECONDARY-NULL (`ARM D/throttle`).** The four dated wording corrections recorded while the module was built have been consolidated (2026-09-06): the readings that narrow a clause without changing what it refuses are folded into the registration's own sections, and the resolutions that change what a gate refuses, what an arm does or how a clause is read are in [`../exit_drawdown-errata.md`](../exit_drawdown-errata.md), which `study_review` inlines beside the registration as authority — including the two repairs the two-analyst grading forced (it reopened the MODULE, never the registration). Nothing ships — a candidate would still need an independent window. | graded |
+| [`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md) | `exit_drawdown` — registered, built, run and **graded 2026-09-05** (era v4 headline + the disclosed `all` cut in one report; SECONDARY era v3 run and recorded the same day). Walk-forward exit hypotheses judged on the ACCOUNT-level mark-to-market drawdown curve (`lib/mtm_curve.py`) rather than on per-row R — see the file's own "What this is NOT" table for the eleven exit families it must not re-find. Five arms, labelled W (out-of-sample selection of the shipped pt/sl/tef knobs, with its own `PROD-ROBUST` token), U (underlying ATR stop on debit verticals), O (flow-unwind off the traded contract's OI path), P (partial scale-out), and D (a drawdown sizing throttle, labelled SECONDARY and unshippable from this family). Every threshold is fitted on TRAIN dates and applied to TEST dates; burn-in dates are excluded from the headline. **Result: UNDERPOWERED on every PRIMARY cell — the modal outcome the registration named in advance — with `PROD-ROBUST` NOT claimed; on the no-verdict `all` cut the only two powered cells are NULL (`ARM O/vol`) and SECONDARY-NULL (`ARM D/throttle`).** The dated wording corrections recorded while the module was built were folded into the registration on 2026-09-08 — each tagged `Resolved at build` beside the text it amends, with a label-to-section table in its "Build notes", so `study_review` grades against that one file (the two repairs the two-analyst grading forced reopened the MODULE, never the registration). Nothing ships — a candidate would still need an independent window. | graded |
 
 ## ③ Structure — `f3_structure/`
 
@@ -150,7 +156,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 |---|---|---|
 | [`f5_hedging/hedge_sizing.md`](f5_hedging/hedge_sizing.md) | `hedge_sizing` — original D-rules carried over from `ml-plan.md` §addendum 2 + the 2026-08-24 v4 re-read (card-line decision rules; sleeve itself operator-policy, exempt) | graded |
 | [`f5_hedging/hedge_structure.md`](f5_hedging/hedge_structure.md) | `hedge_structure` | run |
-| [`f5_hedging/hedge_portfolio.md`](f5_hedging/hedge_portfolio.md) | `hedge_portfolio` — registered 2026-08-29, built, run and graded 2026-08-31 (era v4). The operator's queued max-drawdown question, scoped to their practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? The registration's population clause was originally self-contradictory; the operator ratified `all` (996 rows / 145 dates), consolidated into this file's own §Population and basis on 2026-09-02. Result: the mechanism question is UNDERPOWERED (all nine cells), ARM M is MEASUREMENT-ONLY (the close-bucketed curve understates this book's max drawdown by 40.2%). Nothing ships; the question stays open. | graded |
+| [`f5_hedging/hedge_portfolio.md`](f5_hedging/hedge_portfolio.md) | `hedge_portfolio` — registered 2026-08-29, built, run and graded 2026-08-31 (era v4). The operator's queued max-drawdown question, specific to their own practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? The registration's population clause was originally self-contradictory; the operator ratified `all` (996 rows / 145 dates), consolidated into this file's own §Population and basis on 2026-09-02. Result: the mechanism question is UNDERPOWERED (all nine cells), ARM M is MEASUREMENT-ONLY (the close-bucketed curve understates this book's max drawdown by 40.2%). Nothing ships; the question stays open. | graded |
 | [`f5_hedging/hedge_timing.md`](f5_hedging/hedge_timing.md) | `hedge_timing` — registered 2026-08-28, run and graded same day (era v4 + v3 replication). Does a mechanical trigger — chop, SPY gap-up, a 4–5-day down-run — pick a day the bear hedge beats the same day's ladder-eligible long? GAP-UP came back CONTRARY (hedge worse than the long, both money arms) — §4 prohibition drafted and HELD; chop and the broad decline NULL; the strict streak UNDERPOWERED as fixed in advance (2 book dates). | graded |
 
 

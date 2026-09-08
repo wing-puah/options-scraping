@@ -1,41 +1,42 @@
 # Next steps — the queue
 
-This file is the queue and nothing else. Written 2026-08-31, cut to queue-only
-2026-09-05. Every item says what it is waiting on and links to where its
-evidence lives. Nothing here restates a result: for where the research stands,
-read the [State of play](current.md#state-of-play) block at the top of
+This file is the queue and nothing else. Every item leads with its status, then
+what it is waiting on, then the decision or finding in one line, then links.
+Nothing here restates a result: for where the research stands, read the
+[State of play](current.md#state-of-play) block at the top of
 [`current.md`](current.md), which is authoritative. Section numbers are
-**stable labels** cited from code, tests and the archive, so a closed item
-keeps its number as a one-line stub with a link.
+**stable labels** cited from code, tests and the archive, so a closed item keeps
+its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
+2026-09-05.
 
 <a id="s0"></a>
 ## 0. Repo state — read first
 
-- **Era and population.** `v4`, the 166-date backfilled book. All three exports
-  were re-pulled 2026-09-07. `BacktestResults` is 543 rows over 168 dates and
-  `AnalysisClaude` is 2,325 rows over 198 dates with ONE analysis run per date.
+- **Era and population.** `v4`, the 166-date backfilled book, all three exports
+  re-pulled 2026-09-07. `BacktestResults` is 543 rows over 168 dates;
+  `AnalysisClaude` is 2,325 rows over 198 dates with one analysis run per date.
   Both are deduplicated, tab and export agree on each, and every result row
-  joins its play bar two kept on purpose. Counts and the date range are in
+  joins its play except two kept on purpose. Counts and the date range:
   [the population](current.md#the-population).
-- **What most of the queue waits on: genuinely new dates.** `AnalysisClaude`
-  carries 2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows,
-  because those options have not expired. §2.2 and §2.6 wait on them. The 13
-  backfilled 2026 dates do NOT qualify. They are a correlated window
+- **Most of the queue waits on genuinely new dates.** `AnalysisClaude` carries
+  2026-08-11 → 2026-09-01 from the daily pipeline with no backtest rows, because
+  those options have not expired. §2.2 and §2.6 wait on them. The 13 backfilled
+  2026 dates do NOT qualify — they are a correlated window
   ([where the 2026 column bit](current.md#where-the-2026-column-bit)).
-- **Tests green; the SUITE IS STALE.** Last full study-suite run 2026-09-04 on
-  the 166-date book, every non-retired study ran, and the one gate stop was a
-  study-side pricer gap fixed the same session
+- **Tests green; the SUITE IS STALE — re-run it deliberately.** The last full
+  study-suite run was 2026-09-04 on the 166-date book: every non-retired study
+  ran, and the one gate stop was a study-side pricer gap fixed the same session
   ([`current.md` 2026-09-04 late](current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed)).
-  **Every export has moved since.** `BacktestResults` lost 16 duplicate rows and
-  gained 4 re-priced ones (2026-09-06), then lost the 12 stale rows and gained
-  the daily pipeline's (2026-09-07); `AnalysisClaude` lost the 37 rows of a
-  duplicated analysis run (2026-09-07). No study has run on any of them. The
-  population is now settled — nothing under *Waiting on the operator* changes it
-  — so re-run the suite deliberately.
-- **RESOLVED 2026-09-07** — the missing option-history files are back and R2
-  passes. It was six files, not the two first found. IWM 2026-05-29 245P and
+  Every export has moved since, and no study has run on any of them:
+  `BacktestResults` lost 16 duplicate rows and gained 4 re-priced ones
+  (2026-09-06), then lost the 12 stale rows and gained the daily pipeline's
+  (2026-09-07); `AnalysisClaude` lost the 37 rows of a duplicated analysis run
+  (2026-09-07). The population is now settled — nothing under *Waiting on the
+  operator* changes it.
+- **RESOLVED 2026-09-07 — the missing option-history files are back and R2
+  passes.** It was six files, not the two first found. IWM 2026-05-29 245P and
   MSTR 2025-06-27 420C were named here; restoring them left `hedge_structure`
-  still failing R2 at `leg_not_cached 3`, on three other keys needing SPY
+  still failing R2 at `leg_not_cached 3` on three other keys, needing SPY
   2025-07-25 555P, KWEB 2025-04-25 32P and 35P, and TSLA 2025-02-28 360P. All
   six came out of the `research-caches-20260905-1111.tar.gz` Drive snapshot, and
   `hedge_structure` now reads `reconstructs: 1180 / 1180 (100.0%)` and `R2 PASS`
@@ -45,12 +46,12 @@ keeps its number as a one-line stub with a link.
   [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
   and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
   §0 list 2026-03 dates the export does not hold. Queue C below is those dates.
-- **Robustness review, 2026-09-07.** Before the suite is re-run, read
+- **Robustness review, 2026-09-07 — read it before the suite is re-run.**
   [`robustness-review.md`](robustness-review.md). Two of its items change every
-  number the re-run would print: the backtest has no cost model, and it can
-  book P&L on days before the fill. Both are BUILT (2026-09-07, later) in a
-  worktree and merge only after the queue C/E campaign ends; then re-run once.
-  Status of every item: §2.11.
+  number the re-run would print: the backtest has no cost model, and it can book
+  P&L on days before the fill. Both were BUILT 2026-09-07 in a worktree and
+  LANDED on main 2026-09-08 (`3e5c2dc`) after the queue-D campaign stopped, so
+  the next suite run picks them up. Re-run once. Status of every item: §2.11.
 - **Rescaled tickers.** `backtests/underlying_ohlc_cache/rescaled_tickers.txt`
   lists 13 tickers after the 2026-09-05 rebuild, NVDA and GE newly among them.
   Every OHLC consumer withholds absolute dollars and cross-series comparisons on
@@ -67,20 +68,21 @@ Decisions owed. None of these is a study.
    Read the re-priced 724-DTE TSLA row with §2.7 in hand: it is one row inside
    the long-dated blind spot, not a lifting of it.
 
-2. **DONE 2026-09-07** — the 12 rows were dropped. `BacktestResults` is 543 rows
-   over 168 dates and every one joins the play that proposed it. Two rows on
+2. **DONE 2026-09-07** — the 12 rows were dropped, `BacktestResults` is 543 rows
+   over 168 dates, and every one joins the play that proposed it. Two rows on
    `2025-07-29` (`COIN`, `EEM`) still fail to join and were KEPT on purpose:
    their analysis rows went missing from an unrelated cause, so the backtest row
    is the only surviving record of the play. `scripts.backtest` now also refuses
    to write a play its results tab already holds
    ([record](current.md#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row)).
 
-3. **Three queues of pre-registered dates are written and unrun.** The
-   neutral-date campaign dropped 40 of its 192 selected dates, because step 4
-   of the rule subtracted dates present in what was then a v3 export. 13 are
-   2026 sessions carrying the March drawdown the book does not sample: its
-   eleven 2026 dates are VIX mean 17.66, the dropped thirteen 23.18. Running
-   them finishes the registered selection and needs no new registration
+3. **OPEN — three queues of pre-registered dates are written and unrun.**
+   Waits on the operator running them; no new registration is needed, because
+   running them finishes the registered selection. The neutral-date campaign
+   dropped 40 of its 192 selected dates, because step 4 of the rule subtracted
+   dates present in what was then a v3 export. 13 of the 40 are 2026 sessions
+   carrying the March drawdown the book does not sample: the book's eleven 2026
+   dates are VIX mean 17.66, the dropped thirteen 23.18
    ([detail](current.md#2026-09-06-third--40-pre-registered-dates-were-never-run-the-2026-sample-misses-its-own-crash)).
 
    | Queue | Dates | Runner |
@@ -90,10 +92,10 @@ Decisions owed. None of these is a study.
    | `backtests/enrich_queue_e.txt` | 5, the moved right edge | `scrape_and_enrich.sh`, then analyze |
 
    **12 of the 42 queued dates are ALREADY analysed and none has backtest rows.**
-   `make analyze-bt` will now REFUSE those and, because `analyze-bt` is
-   `analyze` then `backtest-all`, the refusal aborts the date before the
-   backtest ever runs. That is the guard working — running them yesterday would
-   have doubled 12 dates' analysis rows. They need the BACKTEST step only:
+   `make analyze-bt` will now REFUSE those, and because `analyze-bt` is `analyze`
+   then `backtest-all`, the refusal aborts the date before the backtest ever
+   runs. That is the guard working: running them yesterday would have doubled 12
+   dates' analysis rows. These dates need the BACKTEST step only —
    `make backtest-all ARGS="--date D"`, then mark the date done in the queue
    ledger by hand. Do NOT reach for `--allow-duplicate-date`; there is nothing
    wrong with the analysis these dates already have.
@@ -109,11 +111,13 @@ Decisions owed. None of these is a study.
    settles it. Neither unblocks §2.2 or §2.6 — those wait on dates after
    2026-08-11, which no backfill reaches.
 
-4. **`exit_drawdown` ARM P's "dollars ban is scoped" ack** is owed before any
-   ARM P cell is ever read. Without it the module defaults to quoting
-   account-level drawdown as a share of starting capital. No run has displayed
-   the banner yet because every ARM P cut was UNDERPOWERED
-   ([pre-registration](pre-registrations/f2_management/exit_drawdown.md)).
+4. **RESOLVED 2026-09-08 — `exit_drawdown` ARM P's "dollars ban is scoped"
+   ack.** The operator ACKed the SCOPED reading: account-level drawdown prints
+   in dollars by default, `--arm-p-share` for the share-of-capital
+   presentation. No graded cell changes — every ARM P cut was UNDERPOWERED and
+   printed no drawdown line
+   ([pre-registration](pre-registrations/f2_management/exit_drawdown.md), ARM
+   P's STATUS bullet).
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
@@ -168,11 +172,11 @@ The numbers are stable labels, not a ranking. Pick-up order is roughly §2.2,
 <a id="s2-0"></a>
 ### 2.0 `concurrency_correlation` — CLOSED 2026-09-04
 
-NOISE on both eras. X4, era stability, was read by hand against the
-registration's rule: no arm clears X2 or X3 in either era, so no arm is
-ADOPT-eligible, and 4 of the 8 arms powered in both eras flip sign. The
-verdict is era-stable and the per-arm gains are not. Nothing ships, nothing is
-queued. [Record](study-results/f4_deployment/concurrency_correlation.md),
+NOISE on both eras; nothing ships, nothing is queued. X4, era stability, was
+read by hand against the registration's rule: no arm clears X2 or X3 in either
+era, so no arm is ADOPT-eligible, and 4 of the 8 arms powered in both eras flip
+sign — the verdict is era-stable, the per-arm gains are not.
+[Record](study-results/f4_deployment/concurrency_correlation.md),
 [summary](current.md#concurrency_correlation-is-closed),
 [arm labels](arm-index.md#concurrency_correlation).
 
@@ -180,22 +184,23 @@ queued. [Record](study-results/f4_deployment/concurrency_correlation.md),
 ### 2.1 The max-drawdown hedge question — CLOSED 2026-09-04
 
 `hedge_concentration` Stage 1 is PRECONDITION-NULL on a powered read, graded
-clean under the two-analyst protocol; Stage 2 never ran. Do not re-open, and
-**do not register a fourth trigger study over these dates and these columns**:
-every mechanical rule for WHEN to hedge has been tested and none survives, while
-WHETHER the sleeve pays has never been powered. What would move it is an
-instrument test on a mark-to-market curve on dates chosen without a rule, and
-that waits on dates. The operator still wants a hedge-open indicator; that
-request is §2.10 and does not reopen this closure.
+clean under the two-analyst protocol; Stage 2 never ran.
 [Closure](deployment-evidence.md#the-queued-max-drawdown-question-is-closed-for-concentration-gated-hedging-2026-09-04-hedge_concentration-stage-1),
 [the distinction it rests on](deployment-evidence.md#the-hedge-trigger-is-dead-the-hedge-instrument-is-unmeasured-closing-note-2026-09-04),
 [DELETED row in `study-map.md`](study-map.md#hedging); its record was deleted 2026-09-08 with the module's other leftovers and is held in git at `44bbfb2`.
 
-Deferred, not dropped: the corrected prose control (`hedge_portfolio` ARM C on
-concentration-matched sessions with no hedge-pressure signal). Register it only
-when the book has materially more parsed dates; today it would be another arm
-that cannot bite
-([pre-registration](pre-registrations/f5_hedging/hedge_portfolio.md)).
+- **Do not re-open, and do not register a fourth trigger study over these dates
+  and these columns.** Every mechanical rule for WHEN to hedge has been tested
+  and none survives, while WHETHER the sleeve pays has never been powered. What
+  would move it is an instrument test on a mark-to-market curve on dates chosen
+  without a rule, and that waits on dates.
+- The operator still wants a hedge-open indicator; that request is §2.10 and
+  does not reopen this closure.
+- **Deferred, not dropped:** the corrected prose control (`hedge_portfolio` ARM C
+  on concentration-matched sessions with no hedge-pressure signal). Register it
+  only when the book has materially more parsed dates; today it would be another
+  arm that cannot bite
+  ([pre-registration](pre-registrations/f5_hedging/hedge_portfolio.md)).
 
 <a id="s2-2"></a>
 ### 2.2 v4 composition bridge — OPEN, waits on new dates
@@ -214,12 +219,13 @@ under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
 <a id="s2-3"></a>
 ### 2.3 Calendar-as-hedge — BLOCKED ON NEW DATES
 
-What the study asked, what each gate last read, and why the fill rate rather
-than the date count is the wall are in the spine,
+Nothing to run until the book has materially more dates. What the study asked,
+what each gate last read, and why the fill rate rather than the date count is
+the wall are in the spine,
 [Q2](../scripts/backtest_study/f5_hedging/README.md#q2-what-to-hedge-with).
 
-- **Unblocks when** the book has materially more dates. Nothing to run until
-  then. The worst-decile cell needs roughly 320 deployed dates, twice the book
+- **Unblocks when** the book grows: the worst-decile cell needs roughly 320
+  deployed dates, twice the book
   ([walls](../scripts/backtest_study/f5_hedging/README.md#known-walls)).
 - **Read H3 with this caveat:** its drawdown basis is qualified in the spine,
   [Q3](../scripts/backtest_study/f5_hedging/README.md#q3-how-much-to-hedge), and in
@@ -231,15 +237,16 @@ than the date count is the wall are in the spine,
 <a id="s2-4"></a>
 ### 2.4 Bear sub-0.50 give-back — the `be_after` route is closed; the pattern is not
 
-`bear_giveback` found the give-back lives in the underlying's path, not the
-option mark ([record](study-results/f2_management/bear_giveback.md)). The
-shipped breakeven stop was reverted 2026-08-24 when its rollback trigger fired
+CLOSED as a route, with nothing to run: `bear_giveback` found the give-back
+lives in the underlying's path, not the option mark
+([record](study-results/f2_management/bear_giveback.md)), and the shipped
+breakeven stop was reverted 2026-08-24 when its rollback trigger fired
 ([`deployment-evidence.md`](deployment-evidence.md#the-bear-debit-peak-triggered-breakeven-stop-shipped-2026-08-11--reverted-2026-08-24)).
 
-- **Status of the trigger:** fired 08-24, un-fired 08-27, fires again 09-04 on
-  the 2026 column alone. Already reverted, so nothing to do, and the lesson is
-  that a 60-row floor on a backfilling book is not a decision procedure (§2.6).
-  Nothing un-reverts without a fresh registration.
+- **The trigger** fired 08-24, un-fired 08-27, and fires again 09-04 on the 2026
+  column alone. The stop is already reverted, so there is nothing to do, and
+  nothing un-reverts without a fresh registration. The lesson is that a 60-row
+  floor on a backfilling book is not a decision procedure (§2.6).
 - **Held, not queued:** [`bear_arm` B2](arm-index.md#bear_arm)'s exit-fix
   criteria are MET for the first time by `sl .50`. A correlated-window read
   holds a rule and promotes nothing
@@ -249,10 +256,10 @@ shipped breakeven stop was reverted 2026-08-24 when its rollback trigger fired
 <a id="s2-5"></a>
 ### 2.5 Live walk-forward — the intended evidence source; no recorded movement
 
-v3 tuning is closed and live fills are meant to be the evidence. The
-`SUBSTITUTED` match category shipped 2026-08-11
-([archive/10](archive/10-post-closeout-ops-and-live-evals.md)). Open: the
-Stage 1/2 fill mapping and the live-vs-tier eval, whether realized live P&L
+OPEN, waiting on live fills. v3 tuning is closed and live fills are meant to be
+the evidence. The `SUBSTITUTED` match category shipped 2026-08-11
+([archive/10](archive/10-post-closeout-ops-and-live-evals.md)). Still open: the
+Stage 1/2 fill mapping, and the live-vs-tier eval of whether realized live P&L
 orders A > B > C. Also worth tracking: the operator substituting a naked leg
 where a spread was emitted, an untested instrument.
 
@@ -260,30 +267,34 @@ where a spread was emitted, an untested instrument.
 nobody wrote one, not that nothing happened. Check the live-loop artifacts
 before re-planning.
 
-**The operator-read test belongs here** (to pre-register before any code, f4,
-`operator_read`). `text_features` showed the signal text carries no
+**The operator-read test belongs here** — to pre-register before any code, f4,
+`operator_read`. `text_features` showed the signal text carries no
 machine-readable edge ([record](study-results/f1_selection/text_features.md)),
-but the operator reads it qualitatively to decide what to trade, so its value
-is realised in the PICK and only the journal can measure that. Design in one
-paragraph: among ladder-eligible plays per date, TAKEN (journal `EXACT`,
-`STRUCTURE`, `CORE`, `SUBSTITUTED`) against NOT TAKEN, paired by date, on
-[R](glossary.md#r) and [PF](glossary.md#pf) with `protocol.pf_paired_by_date`
-never without mean R, and the entry-session price move as the declared
-covariate, because `next_day_move` showed day-0 confirmation is a confound
-([record](study-results/f2_management/next_day_move.md)). Floor: at least 25
-dates with 2 eligible plays and 1 taken. Census first; the journal may not have
-it yet. A positive result is a statement about the operator's read, not the
-prompt. Do NOT test this with a stripped-text `prompt_eval` candidate, which
-would remove exactly what the operator reads.
+but the operator reads it qualitatively to decide what to trade, so its value is
+realised in the PICK and only the journal can measure that.
+
+- **Design.** Among ladder-eligible plays per date, compare TAKEN (journal
+  `EXACT`, `STRUCTURE`, `CORE`, `SUBSTITUTED`) against NOT TAKEN, paired by
+  date, on [R](glossary.md#r) and [PF](glossary.md#pf) with
+  `protocol.pf_paired_by_date` never without mean R. The declared covariate is
+  the entry-session price move, because `next_day_move` showed day-0
+  confirmation is a confound
+  ([record](study-results/f2_management/next_day_move.md)).
+- **Floor:** at least 25 dates with 2 eligible plays and 1 taken. Census first;
+  the journal may not have it yet.
+- A positive result is a statement about the operator's read, not the prompt.
+  Do NOT test this with a stripped-text `prompt_eval` candidate, which would
+  remove exactly what the operator reads.
 
 <a id="s2-6"></a>
 ### 2.6 Rollback triggers — a trigger that printed nothing has not been checked
 
-The table of triggers and floors is
+OPEN; three of the four triggers wait on new dates. The census prints on every
+relevant study run. The table of triggers and floors is
 [`deployment-evidence.md` §Open pre-registered rollback triggers](deployment-evidence.md#open-pre-registered-rollback-triggers);
 the plan is the
-[pre-registration](pre-registrations/f2_management/rollback_triggers.md). The
-census prints on every relevant study run. Reading on the 166-date book:
+[pre-registration](pre-registrations/f2_management/rollback_triggers.md).
+Reading on the 166-date book:
 
 | Trigger | Reading | What it waits on |
 |---|---|---|
@@ -295,10 +306,12 @@ census prints on every relevant study run. Reading on the 166-date book:
 <a id="s2-7"></a>
 ### 2.7 Parked or blocked long-term
 
+Each of these is blocked on what its bullet names; none is scheduled.
+
 - **Credit exit knobs** — unvalidated; needs a credit-heavy window. The v4
-  credit book calibrates exactly and the corrected baseline is in place, but
-  the fresh window starts after 2026-07-13, so no backfill can reach it. Census
-  and the `sl 1x` comparator print on every credit run
+  credit book calibrates exactly and the corrected baseline is in place, but the
+  fresh window starts after 2026-07-13, so no backfill can reach it. Census and
+  the `sl 1x` comparator print on every credit run
   ([record](study-results/f2_management/exit_mechanism_study-credit.md)).
 - **Long-dated blind spot** — `h ≥ 180` is unpriceable with real data and the
   BS proxy tier is OFF. Never read BS proxy rows as long-dated evidence.
@@ -320,34 +333,32 @@ census prints on every relevant study run. Reading on the 166-date book:
 - **Prompt and infra** — the `analysis_pipeline/core.py` refactor is deferred;
   the PostToolUse hook still never runs pytest; the delegation-nudge hook is
   advisory by design.
-- **`scripts.backtest` has no already-run guard.** The analysis side got one on
-  2026-09-07; the backtest side did not, and it is the tab that actually
-  duplicated — the 2025-12-22 `SPY` row came from a backtest re-run, not from a
-  doubled analysis. Cheaper to fix than to clean up after: `BacktestResults`
-  rows carry `signal_date` + `created_datetime`, the same two columns the
-  analysis guard reads. Not scheduled; nothing waits on it.
+- **`scripts.backtest` already-run guard — DONE 2026-09-07.** The backtest now
+  refuses a play its results tab already holds (`_drop_already_backtested`,
+  commit `a9b51c8`), matching the analysis-side guard shipped the same day. It
+  was the tab that actually duplicated — the 2025-12-22 `SPY` row came from a
+  backtest re-run, not a doubled analysis. Nothing left to do.
 
 <a id="s2-8"></a>
 ### 2.8 Per-play `invalidation` exits — CLOSED 2026-09-02, do not build
 
 Answered by `exit_from_text`: the model's own invalidation level as an
 underlying-close stop is CONTRARY on `bull_call_spread` / LVOL and NULL or
-UNDERPOWERED elsewhere on v4. The v3 `bear_put_spread` re-read was answered
-2026-09-04 on the 166-date book: NULL at every buffer, 2026 negative.
-`invalidation_exit` stays unshipped on evidence
+UNDERPOWERED elsewhere on v4, so `invalidation_exit` stays unshipped on evidence
 ([record](study-results/f2_management/exit_from_text.md),
-[arm labels](arm-index.md#exit_from_text)). The original gap and its two
-parser cautions: [archive/00](archive/00-backtest-engine-backlog-2026-06.md).
+[arm labels](arm-index.md#exit_from_text)). The v3 `bear_put_spread` re-read was
+answered 2026-09-04 on the 166-date book: NULL at every buffer, 2026 negative.
+The original gap and its two parser cautions:
+[archive/00](archive/00-backtest-engine-backlog-2026-06.md).
 
 <a id="s2-9"></a>
 ### 2.9 `prompt_eval` — a STABILITY item, not an edge item
 
-Harness built 2026-09-03
+OPEN but do not pick it up ahead of §2.2: it is a v5 prompt bump if adopted, and
+nothing in the book says it changes P&L. Harness built 2026-09-03
 ([pre-registration](pre-registrations/f1_selection/prompt_eval.md)). The
 PROD × 3 variance run is DONE: floor 0.0419 on paired ΔR, below which no
 difference may be claimed ([record](study-results/f1_selection/prompt_eval.md)).
-Do not pick this up ahead of §2.2; it is a v5 prompt bump if adopted, and
-nothing in the book says it changes P&L.
 
 - **The one candidate worth writing:** a WRITTEN decision rule for
   BULL/RANGE/BEAR over rollup fields the model already cites, so identical
@@ -380,20 +391,20 @@ python -m scripts.backtest_study run prompt_eval -- accumulate --candidate <dir>
 <a id="s2-10"></a>
 ### 2.10 A hedge-open indicator — OPEN, no candidate yet
 
-The operator accepted the [§4](../docs/deployment-rules.md#s4) gap-up
-prohibition on 2026-09-06 and keeps hedging. So the sleeve stays and the
-question of WHEN to open one is open with nothing in it.
-
-The four candidates that have been tested, and why each died, are in the spine,
+The sleeve stays and WHEN to open one is an open question with nothing in it:
+the operator accepted the [§4](../docs/deployment-rules.md#s4) gap-up
+prohibition on 2026-09-06 and keeps hedging. It waits on a signal the book does
+not carry yet. The four candidates that have been tested, and why each died, are
+in the spine,
 [Q1](../scripts/backtest_study/f5_hedging/README.md#q1-when-to-open-a-hedge).
 
 - **What does NOT count as a candidate:** another timing rule cut from these
   dates and these columns (§2.1), or a re-read of the close-bucketed curve
   ([basis](../scripts/backtest_study/f5_hedging/README.md#q3-how-much-to-hedge)).
-- **What would count:** a signal the book does not carry yet — hedge flow in the
-  analysis, or a live exposure reading from the journal — measured on the
-  mark-to-market curve (`backtest_study/lib/mtm_curve.py`), on dates chosen
-  without a rule. Both sources are the same ones §2.5 waits on.
+- **What would count:** hedge flow in the analysis, or a live exposure reading
+  from the journal — measured on the mark-to-market curve
+  (`backtest_study/lib/mtm_curve.py`), on dates chosen without a rule. Both
+  sources are the same ones §2.5 waits on.
 - **Census first, as with `operator_read`.** Before any registration, count how
   many book dates carry the proposed signal at all. Three of the four dead
   triggers died on power, not on sign.
@@ -402,11 +413,11 @@ The four candidates that have been tested, and why each died, are in the spine,
 ### 2.11 Robustness follow-ups — OPEN, nothing waits on dates
 
 The queue from [`robustness-review.md`](robustness-review.md), in its
-[suggested order](robustness-review.md#order). None of it needs new dates. The
-seven investigations there (cost sensitivity, same-date benchmark, beta
-decomposition, live slippage, sealed holdout, join attrition, programme-wide
-null) are candidates, not registered studies: each gets its own
-pre-registration before it runs. The code fixes are not studies and need none.
+[suggested order](robustness-review.md#order). The seven investigations there
+(cost sensitivity, same-date benchmark, beta decomposition, live slippage,
+sealed holdout, join attrition, programme-wide null) are candidates, not
+registered studies: each gets its own pre-registration before it runs. The code
+fixes are not studies and need none.
 
 **Status 2026-09-07 (later).** Twelve items built and reviewer-approved, none
 committed ([log](current.md#2026-09-07-later--robustness-review-twelve-items-built-six-landed-in-the-tree-six-wait-in-two-worktrees-for-the-campaign-to-end)).
@@ -414,27 +425,34 @@ committed ([log](current.md#2026-09-07-later--robustness-review-twelve-items-bui
 | Where | Items | Next |
 |---|---|---|
 | Main, committed | P1, P2, P3, P6, P8, A5 | done |
-| Main, merged `3e5c2dc` (2026-09-08, after the queue-D campaign stopped with six failed dates; both results-tab headers gained `pct_stale_days`, `cost_total`, `cost_basis`; suite 3,502 green) | B1, B2, B3, B5, A1, A4 | done — the six failed queue-D dates (2025-03-19, 03-24, 03-27, 04-09, 04-23, 04-28), if retried, price under the cost model; the 18 done did not |
+| Main, merged `3e5c2dc` | B1, B2, B3, B5, A1, A4 | done |
 | Drafts, not registered | N1, N2, N5 | operator accepts each, after the decisions each names |
 | Not started | A2, A3, B4, B6, B7, P4, P5, P7, N3, N4, N6, N7 | A2/A3 need the tab header; P5 is the Stage 2 build |
+
+The `3e5c2dc` merge landed 2026-09-08, after the queue-D campaign stopped with
+six failed dates. Both results-tab headers gained `pct_stale_days`,
+`cost_total` and `cost_basis`, and the suite is 3,502 green. The six failed
+queue-D dates (2025-03-19, 03-24, 03-27, 04-09, 04-23, 04-28) would price under
+the cost model if retried; the 18 that did run did not.
 
 The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md),
 [`mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) and
 [`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md). `holdout_seal`
 names the conflict with §2.2 and §2.6 and leaves the choice open.
 
-<a id="s3"></a>
 <a id="s2-12"></a>
 ### 2.12 Hedge programme follow-ups — OPEN, nothing waits on dates
 
-Left over from the 2026-09-07 consolidation (plan deleted once executed; the
-programme's four questions are [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md)).
+Two items left over from the 2026-09-07 consolidation, neither picked up. The
+plan was deleted once executed; the programme's four questions are
+[`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md).
 
 | Item | What it is | Why it is open |
 |---|---|---|
 | Far-call fetch pre-run note (Q2) | A collector mode for `hedge_structure`'s hedge arm: for every deployed date and every ticker the book entered that day, fetch the at-the-money strike at the next listed later expiry, read from the flow CSV or that ticker's other cached contracts. Separate from `fetch_sweep_legs.py`. | The registered rule asks for the long leg at the first later listed expiry at the same strike, and the cache does not hold it — the sleeve fills on about a third of worst-decile dates. The fetch completes the data the rule reads; it changes no rule and picks no strike the chain may not list. Write the note, then run the fetch, then re-run `hedge_structure`. |
 | Two sleeve-sizing bodies outside the library | `f4_deployment/account_sim.py` (~`:988`) and `f4_deployment/portfolio_delta.py` (~`:363`) each pick one position a day by descending delta; `hedge_structure.bear_sleeve_dollars` does it a third time through `lib/hedge_criteria.sleeve_pick`. | Out of scope for the first pass. Fold each in one at a time under the reconciliation rule in `lib/hedge_criteria.py`'s docstring: identical print, or a finding in `current.md`. |
 
+<a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 
 One line each, with the evidence.

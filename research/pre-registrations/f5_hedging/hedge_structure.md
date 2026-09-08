@@ -11,12 +11,15 @@ it again under rules written before the number is re-read.
 Does the calendar survive a pre-registered pick rule, a fixed universe, and a
 strict fill definition?
 
-The 2026-08-12 `vol_sleeve` run left one CANDIDATE: the calendar is
-uncorrelated with the deployed book (+0.088, CI spans zero) and returns +0.336
-CI [+0.124, +0.486] on its worst decile — a per-structure subgroup of a POOLED
-gate, n=13 rows over 7 dates. This study re-derives that number. It will be a
-different number on a smaller n; that is the point. A bounded sweep of untried
-wrappers runs SEPARATELY behind it (ARM S below).
+The 2026-08-12 `vol_sleeve` run left one CANDIDATE, the calendar. This study
+re-derives its number on a smaller n; it will come out different, and that is
+the point. A bounded sweep of untried wrappers runs SEPARATELY behind it (ARM
+S below).
+
+| `vol_sleeve` figure (2026-08-12) | Value | CI | Population |
+|---|---|---|---|
+| Correlation with the deployed book | +0.088 | spans zero | — |
+| Worst-decile return | +0.336 | [+0.124, +0.486] | n=13 rows / 7 dates — a per-structure subgroup of a POOLED gate |
 
 ## Population and basis, fixed here
 
@@ -93,19 +96,14 @@ for a future window, never a ship.
 Runs only AFTER the H arm has printed, only under `--arm S`, in a separate
 invocation and report file.
 
-- **S1 `put_calendar`** — short near put + long next-cached-expiry put at K*;
-  plan-time cache feasibility 577/786 groups.
-- **S2 `put_diagonal`** — short near put at K*, long next-expiry put at nearest
-  cached strike BELOW; 561/786.
-- **S3 `narrower`** — bear vertical, short pulled UP to the highest cached
-  strike below the long; the mirror of `sub_wider`.
-- **S4 `wider`** and **S5 `long_put`** — rerun UNCHANGED from `bear_rewrap` as
-  internal plumbing controls with known answers (wider −0.056; long_put +0.002
-  failing 2026).
-- **S6 `iron_condor`** — bull-put + bear-call wings at nearest cached-or-scraped
-  strikes around K*, same expiry. Included ONLY if the leg scrape reaches ≥60%
-  four-leg group coverage (plan-time cache-only feasibility is 214/786, far
-  short); otherwise NOT EVALUABLE with the coverage number printed.
+| Arm | Structure | Legs | Plan-time cache feasibility |
+|---|---|---|---|
+| S1 | `put_calendar` | short near put + long next-cached-expiry put at K* | 577/786 groups |
+| S2 | `put_diagonal` | short near put at K*, long next-expiry put at nearest cached strike BELOW | 561/786 |
+| S3 | `narrower` | bear vertical, short pulled UP to the highest cached strike below the long; the mirror of `sub_wider` | — |
+| S4 | `wider` | rerun UNCHANGED from `bear_rewrap` as an internal plumbing control; known answer −0.056 | — |
+| S5 | `long_put` | rerun UNCHANGED from `bear_rewrap` as an internal plumbing control; known answer +0.002, failing 2026 | — |
+| S6 | `iron_condor` | bull-put + bear-call wings at nearest cached-or-scraped strikes around K*, same expiry; included ONLY if the leg scrape reaches ≥60% four-leg group coverage, otherwise NOT EVALUABLE with the coverage number printed | 214/786, far short |
 
 Missing legs are scraped FIRST by `scripts/collector/fetch_sweep_legs.py`
 (resumable: one cache file per contract, `--limit` chunks, skip-existing,
@@ -138,14 +136,17 @@ These must pass before any hedge number is read.
   - **R2** — `bear_rewrap.reconstructs` on every source row feeding the
     universe.
   - **R3** — the deployed-book replay reproduces the deployed line the 08-12
-    `vol_sleeve` report printed on the same exports (220 positions / 90 dates /
-    $63,553).
+    `vol_sleeve` report printed on the same exports.
   - **R4 (the critical one)** — with the pick rule disabled and the LOOSE fill
-    rule, this study must reproduce vol_sleeve's calendar cell EXACTLY — 183
-    rows, meanR +0.158, $28,059, exit mix time_exit 124 / pt 28 / dollar_stop 22
-    / cap_open 5 / sl 4 — otherwise the gap between +0.336 and whatever H2
-    prints cannot be attributed (pick rule vs re-implementation drift). Non-zero
-    exit on failure.
+    rule, this study must reproduce vol_sleeve's calendar cell EXACTLY.
+    Otherwise the gap between +0.336 and whatever H2 prints cannot be
+    attributed (pick rule vs re-implementation drift). Non-zero exit on
+    failure.
+
+    | Check | Must reproduce |
+    |---|---|
+    | R3 | 220 positions / 90 dates / $63,553 |
+    | R4 | 183 rows, meanR +0.158, $28,059, exit mix time_exit 124 / pt 28 / dollar_stop 22 / cap_open 5 / sl 4 |
 
 ## Bar for a candidate
 
@@ -163,8 +164,13 @@ H1–H5, mirroring hedge_sizing D1–D5, renamed to avoid confusion.
 - **H4 CONDITIONAL PICK:** within-date paired comparison of P1 vs the day's
   average fillable calendar and vs each of P2–P6.
 - **H5 TIMING** (POST-HOC, labelled): gates on `mech_cell == BEAR_HE`, H-VOL,
-  RANGE+C/L-VOL, and earnings-inside-DTE (vol_sleeve's one CI-clearing
-  conditional: +0.356 vs −0.035, CI [+0.111, +0.664], n=42). Candidate-only.
+  RANGE+C/L-VOL, and earnings-inside-DTE — vol_sleeve's one CI-clearing
+  conditional. Candidate-only.
+
+  | Conditional | non-conditional | CI | n |
+  |---|---|---|---|
+  | earnings-inside-DTE +0.356 | −0.035 | [+0.111, +0.664] | 42 |
+
 - **POWER STOP:** if the P1 worst-decile cell has fewer than 10 positions,
   H2(b)'s CI is NOT read and H2 is recorded **NOT EVALUABLE** — not "failed".
   Expected: the cell will be ≈7–9 under a 1/day rule; NOT EVALUABLE is a

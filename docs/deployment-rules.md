@@ -34,10 +34,11 @@ rollback triggers behind them live in
 4. **`bear_put_spread` / `long_put` as a selection play** — never in the deployed
    top-3, however thin the day's A/B supply. Bear is a hedge, not a selection:
    all pre-registered DEMOTE criteria fired on the n=164 holdout, and 0 of 496
-   conditioned subsets found a profitable bear slice. **This veto does not apply
-   to the §4 hedge sleeve** — that is the one sanctioned way to hold a bear
-   position. Bear plays stay emitted and visible on the analysis rows; the
-   sleeve picks from them (which is why this is a card veto, not an intake veto).
+   conditioned subsets found a profitable bear slice.
+   **Exception: the §4 hedge sleeve**, the one sanctioned way to hold a bear
+   position. Bear plays therefore stay emitted and visible on the analysis rows
+   for the sleeve to pick from — which is why this is a card veto, not an
+   intake veto.
 
 <a id="s2"></a>
 
@@ -49,16 +50,15 @@ rollback triggers behind them live in
 | **B** — deploy if capital remains     | any other `bull_call_spread`; `bull_put_spread` meeting the §3 geometry |
 | **C** — skip when capital-constrained | everything else                                                         |
 
-Tie-break **within** a tier: higher `score_total`. That is a deterministic
-ordering only — it carries no signal (see §6).
+Tier membership is **structure × model regime × entry geometry**. Nothing else.
+Tie-break **within** a tier: higher `score_total`, a deterministic ordering that
+carries no signal (see §6).
 
 Survivors past the third are printed as a **Reserve** list, one line each. A
 reserve REPLACES a budgeted pick that turns out to be untradeable at order
 entry; it is never a fourth position. Taking one as an addition puts the day
 over budget — which is how a 1–3/day rule coexisted with a book that grew from
 3 open legs to 19 between May and August 2026.
-
-Tier membership is **structure × model regime × entry geometry**. Nothing else.
 
 <a id="s3"></a>
 
@@ -76,34 +76,35 @@ Tier membership is **structure × model regime × entry geometry**. Nothing else
 
 ## 4. Bear positions — hedge sleeve only (optional)
 
-Bear is a **hedge, not a selection** — §1.4 vetoes bear debit as a selection
-play outright (until 2026-08-13 bear rows merely landed in Tier C, which a thin
-day could still deploy). This section only applies to a position you take
-deliberately for drawdown protection.
+Bear is a **hedge, not a selection**: §1.4 vetoes bear debit as a selection play
+outright, and this section applies only to a position you take deliberately for
+drawdown protection. (Until 2026-08-13 bear rows merely landed in Tier C, which
+a thin day could still deploy.)
 
-- **Pick:** no ranking preference is supported on v4 — the pick is operator
-  discretion. The v3-adopted "closer-to-money first" (`|delta|` descending)
-  rule read −0.004 vs the day average on the 2026-08-24 v4 re-read (CI
-  [−0.166, +0.166], a null — pulled per `research/pre-registrations/f5_hedging/hedge_sizing.md`
-  RE-1; the v3 evidence stays recorded in `research/deployment-evidence.md`).
-- **Size:** **≤ ½ a normal position.** Treat it as insurance, not a trade.
-  (Policy, not evidence — D3 sizing has never been MET at any size, v3 or v4.)
-- **Do not** rank the sleeve by `score_total` (§6), and **do not** buy the
-  cheap far-OTM put — v3-era evidence, not contradicted on v4
+The sleeve is held as **operator policy** (stated 2026-08-24), not on v4
+evidence. The hedge-contribution criterion (D2) is NOT MET on the v4 re-read and
+is unstable within the era — it flipped MET → NOT MET between the 08-22 and
+08-24 runs. The sleeve loses money on balance; that is the price of the
+protection.
+
+- **Pick:** operator discretion. No ranking preference is supported on v4 — the
+  v3-adopted "closer-to-money first" (`|delta|` descending) rule read −0.004 vs
+  the day average on the 2026-08-24 v4 re-read (CI [−0.166, +0.166], a null),
+  and was pulled per `research/pre-registrations/f5_hedging/hedge_sizing.md`
+  RE-1. The v3 evidence stays recorded in `research/deployment-evidence.md`.
+- **Size: ≤ ½ a normal position.** Treat it as insurance, not a trade. Policy,
+  not evidence — D3 sizing has never been MET at any size, v3 or v4.
+- **Do not** rank the sleeve by `score_total` (§6).
+- **Do not** buy the cheap far-OTM put. v3-era evidence, not contradicted on v4
   (`|delta| low first` gain +0.017, CI [−0.133, +0.168] spans zero; RE-2 retained).
 - **Do not open the hedge because the day gapped up** (SPY open ≥ prior close
   ×1.003). The hedge does worse on exactly those days: `hedge_timing` H3-GAP
   reads a paired excess of −0.506 R against ordinary days (CI [−0.844, −0.157],
   every LOO fold, all cuts). Accepted by the operator 2026-09-06 from that
   study's drafted prohibition — a restriction taken on a correlated window, not
-  a shipped rule. It bans the gap as the REASON to hedge. Hedging concentrated
+  a shipped rule. It bans the gap as the REASON to hedge; hedging concentrated
   exposure on a day that happens to gap is untested and not covered
   (`research/deployment-evidence.md` §"Hedge-timing triggers").
-- The sleeve is held as **operator policy** (stated 2026-08-24), not on v4
-  evidence: the hedge-contribution criterion (D2) is NOT MET on the v4 re-read
-  and within-era unstable (it flipped MET → NOT MET between the 08-22 and
-  08-24 runs). The sleeve loses money on balance. That is the price of the
-  protection.
 
 <a id="s5"></a>
 
@@ -121,8 +122,8 @@ governs selection in §1–2.
 
 Three clauses that keep the table consistent:
 
-- **The debit time exit has a date.** "75% of DTE elapsed" means: **exit on or
-  before `entry date + 0.75 × (expiry − entry date)`** — i.e. when 25% of the
+- **The debit time exit has a date.** "75% of DTE elapsed" means **exit on or
+  before `entry date + 0.75 × (expiry − entry date)`** — when 25% of the
   option's life remains, counted in calendar days and rounded down. You never
   need to compute it: the daily journal (§4 of its report) prints that date for
   every open debit position, and the deploy card projects it for every
@@ -132,11 +133,11 @@ Three clauses that keep the table consistent:
   Credits carry no time exit and get no date (row 4).
 - **Credits are never regime-switched.** A `bull_put_spread` keeps row 4 in every
   regime.
-- **The bear-debit peak-triggered breakeven stop was REVERTED 2026-08-24.** Its
-  rollback trigger fired at the first floor evaluation (2025 mean-R delta negative,
-  total gain vs PROD +$58 on the v4 re-read) — a bear debit now runs the
-  normal debit row everywhere except a mech BEAR + H/E-VOL date, where the
-  trail row applies. Evidence: `research/deployment-evidence.md` §"The
+- **The bear-debit peak-triggered breakeven stop was REVERTED 2026-08-24.** A
+  bear debit now runs the normal debit row everywhere except a mech BEAR +
+  H/E-VOL date, where the trail row applies. Its rollback trigger fired at the
+  first floor evaluation (2025 mean-R delta negative, total gain vs PROD +$58 on
+  the v4 re-read). Evidence: `research/deployment-evidence.md` §"The
   bear-debit peak-triggered breakeven stop".
 
 <a id="s6"></a>
@@ -156,10 +157,10 @@ Three clauses that keep the table consistent:
 
 ## 7. Reference stats — what each cell has actually done
 
-**These are descriptive, not a selection rule.** They are in-sample summaries of
-the book the rules above were derived on. Read them to know what a deploy
-*normally* looks like and how much room a position needs; do **not** promote a
-play into a tier because its cell looks good here. §1–4 is the selection rule.
+**These are descriptive, not a selection rule** — in-sample summaries of the book
+the rules above were derived on. Read them to know what a deploy *normally*
+looks like and how much room a position needs, never to promote a play into a
+tier because its cell looks good here. §1–4 is the selection rule.
 
 <!-- Regenerate: `python -m scripts.backtest_study run bear_giveback --arms S`
      Snapshot below: 2026-08-12, pooled real+tweak book, 795 rows, bs excluded. -->

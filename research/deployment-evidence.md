@@ -17,34 +17,43 @@ Terms are defined in [glossary.md](glossary.md); arm and gate labels in
 
 ## Provenance of the ladder
 
+The ladder exists because something has to choose: the analysis emits a median
+10 plays/day and live capital supports 1–3 positions.
+
 Derived **2026-07-19** from the 607-row pooled book; **re-validated 2026-07-21
 at the ≥800 gate** (762 pooled priced rows). See
 [`archive/04`](archive/04-pooled-evals-and-ladder.md) §"Deployment ladder" for the
 derivation and [`archive/05`](archive/05-pooled-evals-762-and-regime-labels.md)
 §"≥800-GATE EVALUATION" for the re-validation.
 
-The analysis emits a median 10 plays/day and live capital supports 1–3
-positions. The ladder exists because something has to choose.
-
 Every rule on the card is a **≥2-snapshot-confirmed** backtest finding except
 where marked PROVISIONAL.
 
 ### Validation at 762 pooled priced rows (score-free ladder)
 
-Numbers are for the ladder after the `score_total` membership clauses were
-removed (see "Closed threads" below).
+The numbers below are for the ladder after the `score_total` membership clauses
+were removed (see "Closed threads"). Tier means are **monotone in every cut** —
+A > B > C > VETO never inverts:
 
-- Tier means **monotone in every cut**: pooled (+0.64 / +0.28 / −0.02 / −0.39),
-  real-priced (+0.77 / +0.31 / −0.01 / −0.45), pre-13c, post-13c, and both time
-  halves. A > B > C > VETO never inverts.
-- Post-13c only: A vs C [MWU](glossary.md#mwu) **p = .0001**, B vs C **p < .0001**. A vs B is
-  ordered but not separated (+0.50 vs +0.40, p = .98). **Watch item, still open.**
-- Post-13c capped replay: top-1/day **76% win / +0.41 mean**; top-3/day **69%
-  win, $30.3k from 97 rows**, better than the with-score-clauses ladder
-  ($19.1k, 61% win) on the same dates.
-- 2026-07-19 book (607 rows, the derivation sample): top-1/day +0.82, top-3
-  +0.45 vs +0.14 take-everything; top-3/day = 28% of positions but **83% of book
-  P&L**.
+| Cut | A | B | C | VETO |
+|---|---|---|---|---|
+| pooled | +0.64 | +0.28 | −0.02 | −0.39 |
+| real-priced | +0.77 | +0.31 | −0.01 | −0.45 |
+
+Pre-13c, post-13c and both time halves are monotone too.
+
+Separation post-13c: A vs C [MWU](glossary.md#mwu) **p = .0001**, B vs C
+**p < .0001**. A vs B is ordered but not separated (+0.50 vs +0.40, p = .98).
+**Watch item, still open.**
+
+Capped replay — taking only the top plays per day beats taking everything:
+
+| Book | Rule | Result |
+|---|---|---|
+| post-13c | top-1/day | 76% win, +0.41 mean |
+| post-13c | top-3/day | 69% win, **$30.3k from 97 rows** — vs $19.1k / 61% win for the with-score-clauses ladder on the same dates |
+| 2026-07-19, 607 rows (the derivation sample) | top-1/day | +0.82 |
+| 2026-07-19, 607 rows | top-3/day | +0.45, vs +0.14 take-everything; 28% of positions but **83% of book P&L** |
 
 ### Why the vetoes
 
@@ -59,26 +68,36 @@ the most reliable part of the ladder.
 
 ### Why the tiers
 
-- **Tier A** — `bull_call_spread` in RANGE or E-VOL: pooled n=147, 67% win,
-  mean +0.64; real-priced +0.77.
-- **Tier B** — pooled n=168, 60% win, mean +0.28.
-- **Tier C** — pooled n=262, 51% win, mean +0.09. **Dead money, not poison.**
-  Fine to paper-track. Its named residents: `bear_put_spread` with
-  `iv_spread` > 0 (a **3×-confirmed** MAE penalty), low-delta/long-DTE
-  `bull_put_spread`s that miss the [§3](../docs/deployment-rules.md#s3) band, and everything else.
+| Tier | Membership | Pooled n | Win | mean R |
+|---|---|---|---|---|
+| **A** | `bull_call_spread` in RANGE or E-VOL | 147 | 67% | +0.64 (real-priced +0.77) |
+| **B** | — | 168 | 60% | +0.28 |
+| C | see below | 262 | 51% | +0.09 |
+
+Tier C is **dead money, not poison** — fine to paper-track. Its named residents:
+`bear_put_spread` with `iv_spread` > 0 (a **3×-confirmed** MAE penalty),
+low-delta/long-DTE `bull_put_spread`s that miss the
+[§3](../docs/deployment-rules.md#s3) band, and everything else.
 
 The 08-11 ML search independently rediscovered the structure: the full-sample
 depth-3 tree's root split is `structure = bull_call`, unprompted.
 
 ### The bull_put geometry band
 
-Derived at the ≥800 gate, **n=118 real-priced**. The qualifying
-`|d| ≥ 0.08 / DTE ≤ 59` cell runs **80% win / +0.25 mean** vs **60% / −0.08**
-violated, and holds post-13c at **+0.15 / 80%**.
+**The rule: `|d| ≥ 0.08 / DTE ≤ 59`.** Derived at the ≥800 gate,
+**n=118 real-priced**.
 
-Delta is a **band, not a floor**: `> 0.20` runs **−0.39** and `< 0.08` runs
-**−0.28**. DTE 45–59 carries the whole edge (**+0.47, 87% win**); DTE ≤ 22
-produced the post-13c `dollar_stop` losers.
+| Cut | Win | mean R |
+|---|---|---|
+| qualifying | 80% | +0.25 |
+| violated | 60% | −0.08 |
+| qualifying, post-13c | 80% | +0.15 |
+| delta > 0.20 | — | −0.39 |
+| delta < 0.08 | — | −0.28 |
+| DTE 45–59 | 87% | +0.47 |
+
+Delta is a **band, not a floor** — both ends lose. DTE 45–59 carries the whole
+edge; DTE ≤ 22 produced the post-13c `dollar_stop` losers.
 
 **The ≤ 0.20 cap and the 45–59 preference are thin-n, PROVISIONAL.**
 
@@ -88,23 +107,23 @@ produced the post-13c `dollar_stop` losers.
 
 ### The BEAR_HE trail (shipped 2026-07-22)
 
-Keyed on the **mechanical** regime of the signal date, not the model's label.
-Model labels win for selection, mech labels win for exit conditioning. These are
-opposite jobs, both evidenced. See [`archive/06`](archive/06-mech-regime-and-shipped-exits.md)
-§2026-07-22 addendum 4.
+**The rule** keys on the **mechanical** regime of the signal date, not the
+model's label. Model labels win for selection, mech labels win for exit
+conditioning; these are opposite jobs, both evidenced. See
+[`archive/06`](archive/06-mech-regime-and-shipped-exits.md) §2026-07-22 addendum 4.
 
-**The mechanical label, for reference** (the card says read [`mech_cell`](glossary.md#mech_cell) off the
-row; this is what that column computes, from SPY/^VIX closes as of the signal
-date):
+**Why it works.** In bear/high-vol tape, debit winners reach a high MFE and give
+it back before the 0.90 target fires. The trail converts that unrealized peak
+into a realized exit, **worth +$4.4k in the study**. The effect is confined to
+this cell, which is why no other cell is switched.
+
+**The mechanical label, for reference.** The card says read
+[`mech_cell`](glossary.md#mech_cell) off the row; this is what that column
+computes, from SPY/^VIX closes as of the signal date:
 
 - direction = **BEAR** if SPY < its 50-day SMA **and** the 20-day return < 0
 - vol = **E-VOL** if VIX ≥ 30 or the 5-day VIX change ≥ +25%; **H-VOL** if
   VIX ≥ 20; else L-VOL
-
-Rationale: in bear/high-vol tape, debit winners reach a high MFE and give it
-back before the 0.90 target fires. The trail converts that unrealized peak into a
-realized exit. **Worth +$4.4k in the study**; the effect is confined to this
-cell, which is why no other cell is switched.
 
 **Status: PRE-GATE EXCEPTION, not a cleared rule.** 5 of 6 pre-registered
 criteria passed; the 6th is mis-specified for a zero-inflated delta and can only
@@ -114,28 +133,38 @@ shipped ahead of its gate deliberately.
 
 ### The bear-debit peak-triggered breakeven stop (shipped 2026-08-11 — REVERTED 2026-08-24)
 
-**REVERTED 2026-08-24.** First floor evaluation of the pre-registered rollback
-trigger (below, and `research/pre-registrations/f2_management/rollback_triggers.md`,
+**REVERTED 2026-08-24**, on the first evaluation of its own pre-registered
+rollback trigger (`research/pre-registrations/f2_management/rollback_triggers.md`,
 a correlated-window re-read on the v4 exports, registered as such before the
-numbers were read): 92 arming rows / 53 dates ≥ the 60-row floor; total gain
-vs PROD **+$58** (pass, but ~zero), mean-R on affected rows +0.0071 (pass),
-per-year mean-R delta **2024 +0.022 / 2025 −0.034 → condition three FIRED**.
-Operator decision: revert `simulation.structure_exit.enabled → false`. The
-original shipping evidence below is kept verbatim as the record of what the
-rule looked like on v3.
+numbers were read). The census cleared the 60-row floor, so the trigger got a
+reading:
 
+| Condition | Reading | Outcome |
+|---|---|---|
+| census | 92 arming rows / 53 dates | ≥ the 60-row floor |
+| total gain vs PROD | **+$58** | pass, but ~zero |
+| mean-R on affected rows | +0.0071 | pass |
+| per-year mean-R delta | 2024 +0.022 / 2025 −0.034 | **condition three FIRED** |
+
+Operator decision: revert `simulation.structure_exit.enabled → false`. The v3
+evidence the rule shipped on is kept below as the record of what it looked like.
 
 **This is not an edge. It reduces a loss.** On 332 bear debit rows (real+tweak,
-`bear_put_spread` + `long_put`), on the study's basis: mean [R](glossary.md#r) **−0.133 → −0.092**
-(~**31% less bleed**), **−$54.4k → −$38.0k**. Bear selection stays negative
-afterwards; the breakeven stop only stops giving back a peak that was already there.
+`bear_put_spread` + `long_put`), on the study's basis: mean [R](glossary.md#r)
+**−0.133 → −0.092** (~**31% less bleed**), **−$54.4k → −$38.0k**. Bear selection
+stays negative afterwards; the breakeven stop only stops giving back a peak that
+was already there.
 
-Evidence ([`bear_arm`](arm-index.md#bear_arm) study, 2026-08-11, git 470b95f, 08-11 v3 exports; report
-not retained on disk, the figures here are the record): paired date-clustered [CI](glossary.md#ci)
-**[+0.015, +0.065]**, **every [LOO](glossary.md#loo) fold positive** (min +0.038), right-signed in
-all three years (2024 +0.036 / 2025 +0.055 / 2026 +0.028, the last with its own
-CI [+0.009, +0.053]) and in both pricing tiers (real +0.054 / tweak +0.027).
-Exit mix on the study basis: `be_stop` 0 → 44, `stop_loss` 110 → 92.
+Evidence ([`bear_arm`](arm-index.md#bear_arm) study, 2026-08-11, git 470b95f,
+08-11 v3 exports; report not retained on disk, the figures here are the record):
+
+| Check | Reading |
+|---|---|
+| paired date-clustered [CI](glossary.md#ci) | **[+0.015, +0.065]** |
+| [LOO](glossary.md#loo) folds | **every fold positive**, min +0.038 |
+| by year | right-signed in all three: 2024 +0.036 / 2025 +0.055 / 2026 +0.028 (2026 CI [+0.009, +0.053]) |
+| by pricing tier | real +0.054 / tweak +0.027 |
+| exit mix, study basis | `be_stop` 0 → 44, `stop_loss` 110 → 92 |
 
 Chosen over the competing trails on **robustness, not pooled size**. It is the
 only config whose 2026-alone CI excludes zero, and its pooled CI is the tightest:
@@ -148,45 +177,44 @@ only config whose 2026-alone CI excludes zero, and its pooled CI is the tightest
 
 **It is bear-keyed, and the keying is the finding.** The identical config on the
 NON-bear debit book measures **+0.234 → +0.209, a loss of 0.026**. Applying a
-peak-triggered breakeven stop to bull_calls actively destroys value: those positions
-routinely dip back through entry on the way to the 0.90 target, and the breakeven stop
-sells them there. Credits get nothing. There is no reproducible credit-side change, and
-the only bear credit structure (`bear_call_spread`) has been intake-vetoed with
-0 emissions since Attempt 13. On the credit side (bear_call, n=38), `pt .50`
-clears CI+LOO (+0.344) but the best config `sl 1x` does not
-(CI [−0.012, +1.252]), the population is one year deep, and there is nothing to
-apply it to.
+peak-triggered breakeven stop to bull_calls actively destroys value: those
+positions routinely dip back through entry on the way to the 0.90 target, and
+the breakeven stop sells them there. Credits get nothing — there is no reproducible
+credit-side change, and the only bear credit structure (`bear_call_spread`) has
+been intake-vetoed with 0 emissions since Attempt 13. On the credit side
+(bear_call, n=38), `pt .50` clears CI+LOO (+0.344) but the best config `sl 1x`
+does not (CI [−0.012, +1.252]), the population is one year deep, and there is
+nothing to apply it to.
 
 Leak guard **PASSED**: non-bear debits (n=261) 0 rows changed; credits (n=202)
 0 rows changed. Now enforced by tests.
 
-**Known reach limitation.** The breakeven stop does not address most bear give-back.
-Measured 2026-08-12 (scratch cut, `current.md` §"bear MFE give-back"): 82% of
-bear debit rows go into profit at some point and 56% of those finish ≤ 0, but
-**124 rows peaked between +1% and +50% and lost −$77.2k entirely below the +0.50
-arming threshold**. `stop_loss` and `dollar_stop` rows carry mean MFE +0.217 and
-+0.287. 178 positions were up 20–30% and stopped out anyway. A lower threshold
-is a **candidate, not a finding**: the census of peaks does not price the cost on
-winners that dip back through entry, and that cost is what made the identical
-config lose value on the non-bear debit book. Do not read the shipped breakeven stop as
-covering this.
+**Known reach limitation: the breakeven stop does not address most bear
+give-back.** Measured 2026-08-12 (scratch cut, `current.md` §"bear MFE
+give-back"): 82% of bear debit rows go into profit at some point and 56% of those
+finish ≤ 0, but **124 rows peaked between +1% and +50% and lost −$77.2k entirely
+below the +0.50 arming threshold**. `stop_loss` and `dollar_stop` rows carry mean
+MFE +0.217 and +0.287. 178 positions were up 20–30% and stopped out anyway. A
+lower threshold is a **candidate, not a finding**: the census of peaks does not
+price the cost on winners that dip back through entry, and that cost is what made
+the identical config lose value on the non-bear debit book. Do not read the
+shipped breakeven stop as covering this.
 
 ### Why the trail suppresses the breakeven stop (interaction check A3)
 
-The breakeven stop was measured against a no-trail profile, but a bear debit opened on a
-BEAR_HE date also gets the 0.50/0.50 trail, a stack the frozen grid never
-evaluated. One confirming config was run:
+Inside BEAR_HE the breakeven stop is **strictly dominated** by the trail, so
+production suppresses it there at **zero measured cost**.
 
-**"BE @.50 + trail .50 trig .50" scores Δ+0.036 with zero `be_stop` exits,
-bit-identical to the trail alone**, and below the breakeven stop alone (+0.041). The
-cause is structural, not sampling: the trail arms at peak ≥ 0.50 and its floor
-(peak − 0.50) is then ≥ 0, at or above the breakeven stop's threshold, and
-the trail
-is checked first. The breakeven stop is **strictly dominated** inside BEAR_HE.
+The breakeven stop was measured against a no-trail profile, but a bear debit
+opened on a BEAR_HE date also gets the 0.50/0.50 trail, a stack the frozen grid
+never evaluated. One confirming config was run: **"BE @.50 + trail .50 trig .50"
+scores Δ+0.036 with zero `be_stop` exits, bit-identical to the trail alone**, and
+below the breakeven stop alone (+0.041).
 
-So the breakeven stop is suppressed there, at **zero measured cost**: suppress vs stack
-over the 224 BEAR_HE bear-debit rows differ on **0 rows**. Each rule stays inside
-the envelope it was measured in.
+The cause is structural, not sampling: the trail arms at peak ≥ 0.50 and its
+floor (peak − 0.50) is then ≥ 0, at or above the breakeven stop's threshold, and
+the trail is checked first. Suppress vs stack over the 224 BEAR_HE bear-debit
+rows differ on **0 rows**. Each rule stays inside the envelope it was measured in.
 
 ### The production delta is a third of the study delta — record this
 
@@ -249,17 +277,17 @@ not retained on disk, D1/D2 below are the record).
 
 ### D1 — why not a selection
 
-**0 of 496** pre-registered conditioned subsets survive, on mech cell, mech/model
-direction, vol label, delta band, DTE band, `iv_spread`, `iv_pct`, singles and
-pairs. All were re-run **under the new breakeven exit**, not just the old one. ~10 false
-survivors were expected by chance at a nominal 5% rate, so zero is a clean
-negative.
+**There is no rule that tells you a bear play will be a winner. Stop looking for
+one.** **0 of 496** pre-registered conditioned subsets survive, on mech cell,
+mech/model direction, vol label, delta band, DTE band, `iv_spread`, `iv_pct`,
+singles and pairs. All were re-run **under the new breakeven exit**, not just the
+old one. ~10 false survivors were expected by chance at a nominal 5% rate, so
+zero is a clean negative.
 
-370 bear rows (bear_put 327 / bear_call 37 / long_put 6), 111 dates. Pooled
-[E](glossary.md#e) **−0.601**, CI [−0.726, −0.477], negative every year (−0.815 / −0.660 / −0.386).
-The best subset in the entire search is E −0.231 (`mech BEAR AND iv_pct<0.5`,
-n=43), still negative. **There is no rule that tells you a bear play will be a
-winner. Stop looking for one.**
+Population: 370 bear rows (bear_put 327 / bear_call 37 / long_put 6), 111 dates.
+Pooled [E](glossary.md#e) **−0.601**, CI [−0.726, −0.477], negative every year
+(−0.815 / −0.660 / −0.386). The best subset in the entire search is E −0.231
+(`mech BEAR AND iv_pct<0.5`, n=43), still negative.
 
 The operator's chop hypothesis, tested directly, turns out to be an exit story:
 
@@ -299,7 +327,7 @@ concurrent book exists and the portfolio question is answerable on it.
 
 ### D4 — the pick rule
 
-Rank by **`|delta|` descending** (closer-to-money). Within-date paired gain
+**Rank by `|delta|` descending** (closer-to-money). Within-date paired gain
 **+0.232**, CI **[+0.091, +0.370]**, **every LOO fold positive** (min +0.204),
 positive in all three years (2024 +0.285 / 2025 +0.312 / 2026 +0.083), across 93
 dates with ≥2 bear candidates. It **holds on the shipped exit** too (+0.159, CI
@@ -319,9 +347,9 @@ same caveat the bull_put band carries.
 
 ### D3 — sizing, and the formal failure
 
-At **f = 0.50** the book's max drawdown **improves, −7,609 → −7,037**, with total
-P&L also up (+$1,429). At f = 1.00 drawdown gets worse again (−7,780). Half size
-or less is the whole recommendation.
+**Half size or less is the whole recommendation.** At **f = 0.50** the book's max
+drawdown **improves, −7,609 → −7,037**, with total P&L also up (+$1,429). At
+f = 1.00 drawdown gets worse again (−7,780).
 
 **D3 is formally NOT MET, by $86.** The pre-registered sizing rule required both
 drawdown *and* worst single date to be no worse than carrying no sleeve. At
@@ -341,7 +369,7 @@ already produces. They do not agree:
 | **`all`, the ratified book (996 rows)** | **−$32,571** | **−$23,239** | **close UNDERSTATES by $9,332 (40.2%)** |
 
 Verdict **MEASUREMENT-ONLY**. The mechanism question in that same study is
-**UNDERPOWERED**. Every cell of the τ × f grid is power-stopped on the ratified
+**UNDERPOWERED**: every cell of the τ × f grid is power-stopped on the ratified
 population, so nothing there says a hedge works, and no direction is quoted
 from any cell. See [`archive/18`](archive/18-hedge-programme-exit-basis-and-text-loop.md) 2026-08-31 and
 [`pre-registrations/f5_hedging/hedge_portfolio.md`](pre-registrations/f5_hedging/hedge_portfolio.md)
@@ -373,8 +401,8 @@ transfers is the basis, not the number.
 **What it does.** Quote it with the rule. The drawdown leg of D3 / `hedge_structure`
 H3 / `hedge_timing` H4 is measured on an instrument that, on a book measured the
 same way, missed 40% of the drawdown. D3's own margins are $571 of drawdown
-improvement and an $86 formal failure on the worst date. These are margins a
-measurement basis carrying a double-digit-percent question mark cannot support in either
+improvement and an $86 formal failure on the worst date — margins a measurement
+basis carrying a double-digit-percent question mark cannot support in either
 direction. Any future re-read that wants to **conclude** about drawdown should
 compute the mark-to-market curve (`backtest_study/lib/mtm_curve.py` returns both
 bases from one call, so a caller cannot mix them) rather than re-reading the
@@ -382,16 +410,19 @@ close-bucketed one.
 
 ### The queued max-drawdown question is CLOSED for concentration-gated hedging (2026-09-04, `hedge_concentration` Stage 1)
 
-`hedge_portfolio` left the queued max-drawdown question **open**: every cell of
-its τ × f grid was power-stopped on the ratified 996-row book, so nothing there
-said a concentration hedge works or does not. [`hedge_concentration`](arm-index.md#hedge_concentration) was
-registered to answer it a different way. Put the **precondition** first, on the
-**admitted** book (what [`account_sim`](arm-index.md#account_sim) actually takes under the operator's
-top-3-per-day rule and exposure caps, not the twice-as-diversified book
-`hedge_portfolio` held), and only enter the mechanism stage if the precondition
-holds.
+On the book the operator actually runs, cluster concentration does not predict
+forward drawdown, so a hedge triggered off concentration has nothing to trigger
+on. `next-steps.md` §2.1 is closed.
 
-It does not hold, and this time the null is **powered**.
+`hedge_portfolio` had left the queued max-drawdown question **open**: every cell
+of its τ × f grid was power-stopped on the ratified 996-row book, so nothing
+there said a concentration hedge works or does not.
+[`hedge_concentration`](arm-index.md#hedge_concentration) was registered to answer
+it a different way — put the **precondition** first, on the **admitted** book
+(what [`account_sim`](arm-index.md#account_sim) actually takes under the operator's
+top-3-per-day rule and exposure caps, not the twice-as-diversified book
+`hedge_portfolio` held), and enter the mechanism stage only if the precondition
+holds. It does not hold, and this time the null is **powered**.
 
 Run 2026-09-04 (era v4, sha `64689d0`, exit 0; the 2026-08-31 first run agreed
 on a slightly smaller export). Book: 996+ ratified rows → ladder-eligible →
@@ -421,30 +452,23 @@ at 18 against a floor of 25, as the registration predicted before the run).
 [`replication-protocol.md`](replication-protocol.md) Mode 1. Analysts A and B
 agreed on all 21 gate/clause rows with no violations and no mis-transcriptions;
 the validator found the pair "unusually clean". Both independently flagged the
-module's two disclosed substitutions rather than glossing them. G-MTM read
+module's two disclosed substitutions rather than glossing them: G-MTM read
 against `TARGET_POSITION` rather than the registration's literal stored-column
 check (the sim re-sized 101 positions and re-exited 35, so the stored target
 cannot reconcile), and G-POWER read against episodes rather than the registered
 trigger-date count. Both were disclosed by the module itself, in the report's
-twenty-item **not pre-registered** block. A grading defect would have reopened the
-module; none was found, and the registration was never in question.
-
-**What this closes.** The queued max-drawdown question, **for
-concentration-gated hedging**: on the book the operator actually runs, cluster
-concentration does not predict forward drawdown, so a hedge triggered off
-concentration has nothing to trigger on. `next-steps.md` §2.1 is closed.
+twenty-item **not pre-registered** block. No grading defect was found, and the
+registration was never in question.
 
 **What this does not close.** Read the next section before quoting this one.
 
 ### The hedge trigger is dead; the hedge INSTRUMENT is unmeasured (closing note, 2026-09-04)
 
-Three studies have now been run at the bear hedge sleeve, and it is worth being
-exact about which half of it each one touched, because the programme reads as
-uniformly negative and is not.
-
-A hedge is two separate claims: **when to put it on** (the trigger) and
-**whether the thing you put on pays for itself** (the instrument). Everything
-that has been powered is about the trigger.
+**The trigger question is settled negative; the instrument question has never
+been powered.** A hedge is two separate claims: **when to put it on** (the
+trigger) and **whether the thing you put on pays for itself** (the instrument).
+Everything that has been powered is about the trigger. The programme reads as
+uniformly negative and is not, so be exact about which half each study touched:
 
 | study | what it tested | result |
 |---|---|---|
@@ -452,10 +476,10 @@ that has been powered is about the trigger.
 | `hedge_portfolio` (2026-08-31) | a concentration trigger × hedge fraction grid | every cell power-stopped, **UNDERPOWERED**, no direction quoted |
 | `hedge_concentration` (2026-09-04) | the precondition under that trigger, does concentration predict drawdown at all? | **PRECONDITION-NULL**, powered |
 
-Read together: **every mechanical rule anyone has proposed for deciding when to
-open the hedge has been tested and none survives**, and the one that came
-closest to a mechanism, concentration, has now been refuted at its
-precondition on a powered sample. The trigger question is settled negative.
+**Every mechanical rule anyone has proposed for deciding when to open the hedge
+has been tested and none survives**, and the one that came closest to a
+mechanism, concentration, has now been refuted at its precondition on a powered
+sample.
 
 The instrument question has **never been powered**. `hedge_sizing` D2 (the hedge
 contribution) flipped MET → NOT MET on the v4 refresh and D3 (sizing) was never
@@ -468,13 +492,13 @@ been left unresolved by studies that stopped at the trigger.
 
 **What that decides.** The [§4](../docs/deployment-rules.md#s4) sleeve is held as **operator policy**, not on v4
 evidence. That was already recorded when the §4 pick line was pulled after
-`hedge_sizing` D2 reversed. This note states the reason it is not a contradiction
-to keep it: the evidence contradicts hedging **on a mechanical trigger**, and
-says nothing either way about hedging **on judgment**. Continuing to hedge on
-judgment is consistent with everything on the record. Stopping is too. What is
-not available is a claim that the studies show the hedge does not pay. They do
-not test that, and the drawdown basis they would be tested on is the same
-close-bucketed curve ARM M found understates this book's drawdown by 40%.
+`hedge_sizing` D2 reversed. Keeping it is not a contradiction: the evidence
+contradicts hedging **on a mechanical trigger**, and says nothing either way
+about hedging **on judgment**. Continuing to hedge on judgment is consistent
+with everything on the record. Stopping is too. What is not available is a claim
+that the studies show the hedge does not pay. They do not test that, and the
+drawdown basis they would be tested on is the same close-bucketed curve ARM M
+found understates this book's drawdown by 40%.
 
 **What would move it.** An instrument test, not another trigger test: a powered
 estimate of the sleeve's contribution on a mark-to-market curve
@@ -491,7 +515,7 @@ on dates, not on design. Do not register a fourth trigger study.
   at order entry. A naked put is a different instrument with different path
   behaviour; it is untested here.
 - **D5's timing gate does not reproduce across years.** Carrying the sleeve only
-  on selected dates looked like the best of both. Mech H-VOL at f=1.00 is
+  on selected dates looked like the best of both: mech H-VOL at f=1.00 is
   **+$3,336 with drawdown improved (+768)**, mech BEAR_HE at f=1.00 **+$2,243**
   on the same terms. But the leading gate (H-VOL, 46 days) splits by year into
   **−$2,655 / +$5,179 / +$813**: one good year and two near-zero ones, the
@@ -512,16 +536,16 @@ on dates, not on design. Do not register a fourth trigger study.
 
 ## Deployment reference stats
 
-Look-up table for deploy time. Source: [`bear_giveback`](arm-index.md#bear_giveback) study ARM S, 2026-08-12,
-git 470b95f, 08-11 v3 exports; report not retained on disk, this table is the
-record. Book = **795 rows, real+tweak
-only** (bs excluded, attenuating). **Profit factor ([PF](glossary.md#pf)) = gross winning $ /
-|gross losing $|** on realized R. **PF < 1.0 means the cell lost money however
-good its win rate looks.**
+Look-up table for deploy time. **Read these as in-sample descriptions of the
+book, not predictions.** They do not override the ladder — the ladder is the
+decision rule and these are the numbers behind it. Cells below n≈20 move a lot.
 
-**Read these as in-sample descriptions of the book, not predictions.** They do
-not override the ladder. The ladder is the decision rule and these are the
-numbers behind it. Cells below n≈20 move a lot.
+Source: [`bear_giveback`](arm-index.md#bear_giveback) study ARM S, 2026-08-12,
+git 470b95f, 08-11 v3 exports; report not retained on disk, this table is the
+record. Book = **795 rows, real+tweak only** (bs excluded, attenuating).
+**Profit factor ([PF](glossary.md#pf)) = gross winning $ / |gross losing $|** on
+realized R. **PF < 1.0 means the cell lost money however good its win rate
+looks.**
 
 ### By ladder tier — monotone in PF, which is the point
 
@@ -578,10 +602,10 @@ BULL + L-VOL is where bull_calls go to do nothing (PF 1.07 on 60 rows).
 | LVOL | `bull_put_spread` | 61 | 67% | 0.63 | +0.027 | −5,689 |
 | RB_EVOL | all | 17 | — | <1 | negative | −7,289 |
 
-Two things worth carrying to deploy time: **bull_call in BEAR_HE is the single
-best large cell in the book** (PF 2.58, n=95). Buying calls into mechanical
+Two things worth carrying to deploy time. **bull_call in BEAR_HE is the single
+best large cell in the book** (PF 2.58, n=95) — buying calls into mechanical
 bear/high-vol tape is where the engine earns, which is counter-intuitive enough
-to state plainly; and **`bear_put_spread` in LVOL is the only bear cell with
+to state plainly. And **`bear_put_spread` in LVOL is the only bear cell with
 PF > 1** (1.18, n=91), consistent with the chop-hedge slice in D1.
 
 ---

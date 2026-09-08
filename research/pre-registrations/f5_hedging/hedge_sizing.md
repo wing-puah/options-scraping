@@ -3,20 +3,22 @@
 _Registered 2026-08-11._
 _Renamed from `bear_deploy` on 2026-09-08, after the question it answers in `scripts/backtest_study/f5_hedging/README.md`. No gate, arm, bar or verdict changed._
 
-Module: `scripts/backtest_study/f5_hedging/hedge_sizing.py`. The study's
-original pre-registration is `research/ml-plan.md` §addendum 2 (2026-08-11,
-written before the study was built or run). It predates this folder, so the
-study had no file here and could not go through `study_review`. That document
-was removed on 2026-08-24 once its three studies had files of their own — its
-text is in git, `git show 42b5e46:research/ml-plan.md` — and its other two arms
-live in
-[`../f1_selection/ml_combination.md`](../f1_selection/ml_combination.md) and
-[`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md).
+Module: `scripts/backtest_study/f5_hedging/hedge_sizing.py`.
 
-This file therefore carries two registrations. The first is the original
-D-rules, quoted here verbatim so a run can be graded. The second, registered
-2026-08-24, is the v4 re-read; everything belonging to it either sits under a
-"v4 re-read" sub-heading or is dated inline.
+This file carries two registrations, kept separate so a run can be graded
+against either.
+
+1. **The original D-rules** (2026-08-11), first written as `research/ml-plan.md`
+   §addendum 2, before the study was built or run. That file predates this
+   folder, so the study had no file here and could not go through
+   `study_review`. It was removed on 2026-08-24 once its three studies had
+   files of their own — its text is in git at
+   `git show 42b5e46:research/ml-plan.md` — and its other two arms live in
+   [`../f1_selection/ml_combination.md`](../f1_selection/ml_combination.md) and
+   [`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md). The D-rules
+   are quoted here verbatim.
+2. **The v4 re-read**, registered 2026-08-24. Everything belonging to it sits
+   under the "v4 re-read" sub-heading below, or is dated inline.
 
 ## Question
 
@@ -63,8 +65,8 @@ which return basis binds, and what this window may support.
 - **Decisive read.** The `study_review`-produced run on the era-v4 current
   exports (refreshed 2026-08-24 17:09, inputs `46cc19b`). The 2026-08-22 run is
   instability evidence, not a basis: D2 and D3 flipped MET → NOT MET on +50
-  rows / +9 dates. Graders should treat any criterion whose verdict flipped
-  within-era as UNSTABLE rather than settled either way.
+  rows / +9 dates. Any criterion whose verdict flipped within-era counts as
+  UNSTABLE, not settled either way.
 - **Binding basis for the pick line: R under the shipped PROD exit.** The
   bear-keyed `be_after: 0.50` exit (the study's Rb basis) was REVERTED
   2026-08-24 (commit `1e36dba`, rollback trigger fired), so Rb no longer
@@ -77,14 +79,18 @@ which return basis binds, and what this window may support.
 
 ## Plan-time observations, disclosed
 
-**Honesty note: the v4 re-read is a re-read, not a blind registration.** Three
-runs were already read before this file was written.
+**The v4 re-read is not a blind registration.** Three runs were already read
+before this file was written.
 
-- **era v3, 2026-08-15** — D2 MET, D4 adopted `|delta| high first`, the basis
-  of the §4 card lines.
-- **era v4, 2026-08-22** — D2 MET, D3 MET, D4 NOT MET.
-- **era v4, 2026-08-24** — D1–D4 all NOT MET; D4 `|delta| high first` gain
-  −0.004, CI [−0.166, +0.166].
+| Era | Date | D1 | D2 | D3 |
+|---|---|---|---|---|
+| v3 | 2026-08-15 | — | MET | — |
+| v4 | 2026-08-22 | — | MET | MET |
+| v4 | 2026-08-24 | NOT MET | NOT MET | NOT MET |
+
+D4 (adoption of `|delta| high first`): v3, 2026-08-15 — adopted, the basis of
+the §4 card lines. v4, 2026-08-22 — NOT MET. v4, 2026-08-24 — NOT MET, gain
+−0.004, CI [−0.166, +0.166].
 
 What is pinned here BEFORE the `study_review` grading and before any edit to
 `docs/deployment-rules.md`: the decision rules, the binding basis, which run is

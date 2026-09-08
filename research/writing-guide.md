@@ -7,45 +7,90 @@ compression, and a link beats a re-explanation.
 Adopted 2026-09-05. It governs new writing in `research/` and `docs/`. It does
 not license rewriting the archive (see [What not to rewrite](#what-not-to-rewrite)).
 
-## The nine rules
+## Who the reader is
 
-1. **Lead with the finding.** The first sentence of an entry is the verdict in
-   plain words. The second is what it changes in production, or "Nothing ships".
-   Evidence comes after, never before.
-2. **One idea per sentence.** About twenty words. Use a full stop where you
-   would have used an em-dash, a semicolon, or a nested parenthesis. If a
-   clause needs a qualifier, give the qualifier its own sentence.
-3. **Define before you use.** A study-local label (`ARM P`, `B2`, `G0`, `H4`,
-   `E3`) is linked to its study's entry in [`arm-index.md`](arm-index.md) on
-   first use in a section, and always qualified with the study name. A metric
-   (`R`, `E`, `meanR`, `CI`, `LOO`, `MWU`) is linked to
-   [`glossary.md`](glossary.md) on first use in a document. A rule number
-   (§1.4, §5) is linked to its section of
-   [`docs/deployment-rules.md`](../docs/deployment-rules.md).
-4. **Numbers live in tables.** Prose says what a number means. The table holds
+Write for a technically competent engineer who understands the domain but has
+not been inside your reasoning process. They should understand the decision
+and its implications on the first pass, without reconstructing the logic. Clarity
+and navigability beat formal-sounding precision.
+
+Adopted 2026-09-08 (operator). This section replaces the earlier "one idea per
+sentence" rule; the numbered rules below were rewritten to match it.
+
+## Structure
+
+1. **State the main point or conclusion first.** The first sentence of an entry
+   is the verdict in plain words. The second is what it changes in production,
+   or "Nothing ships". Reasoning, implementation, exceptions and edge cases come
+   after, never before. The reader must never have to infer the conclusion from
+   the middle or end of a paragraph.
+2. **Separate the rule, the current behaviour, and the implementation** when
+   they are different things. Use headings, bullets or short paragraphs to make
+   that separation visible.
+3. **Say plainly what is unresolved.** For any ambiguity or open decision state:
+   what is ambiguous, what the current default is, why that default is used, how
+   it can be changed, and whether changing it affects the actual result.
+4. **Numbers live in tables.** Prose says what a number means; the table holds
    the number, its confidence interval, and its population. A sentence carrying
    more than two figures becomes a table row.
-5. **Name the population once.** Era, export timestamp, and row counts go in
-   one provenance line at the top of the entry. Bullets below it do not repeat
-   them.
-6. **One emphasis per point.** Bold the verdict token once. Do not write in
-   capitals except to quote a token the study itself printed (`UNDERPOWERED`,
-   `NULL`, `CONTRARY`, `PRECONDITION-NULL`), and quote those verbatim.
-7. **Prefer the plain word.** "The hedge lost money on gap-up days" beats
-   "GAP-UP came back CONTRARY on both money arms". If a term has to be coined,
-   add it to the glossary in the same commit.
-8. **Say what happens next.** End with what the finding does to the queue in
+5. **Name the population once**, in one provenance line at the top of the
+   entry: era, export timestamp, row counts. Bullets below it do not repeat them.
+6. **Say what happens next.** End with what the finding does to the queue in
    [`next-steps.md`](next-steps.md): a new item, a closed item, or nothing.
-9. **Write for a technical reader, not a lawyer.** State the rule, the conflict,
-   and the resolution. Do not defend the interpretation unless asked. Cut
-   repeated justification, defensive caveats, and any sentence about how the
-   text will be read — no meta-language about graders, breaches, sanctions or
-   compliance. Where two registered clauses conflict, name the conflict in one
-   sentence and the chosen reading in one. Before writing, decide the single
-   point the reader needs; delete every sentence that does not change their
-   understanding or their decision. Where the text cannot settle an ambiguity,
-   say so plainly and give the narrowest reading it supports (operator,
-   2026-09-06).
+
+## Sentences
+
+- **One main claim per sentence.** Do not force every sentence to hold only one
+  idea. Combine closely related cause-and-effect, qualification, or consequence
+  clauses when that makes the relationship clearer.
+- Avoid sentences that introduce a rule, an exception, an implementation
+  choice, an audit requirement and a future state all at once. Split those.
+
+## Language
+
+- **Plain technical English.** Prefer concrete verbs over abstract nouns: "the
+  code reports", not "the reporting mechanism provides"; "the ACK changes the
+  default", not "the ACK constitutes a modification of the default
+  interpretation".
+- **No legalistic or bureaucratic phrasing** unless it carries a precise
+  technical meaning. Do not use *scoped*, *reading*, *presentation*,
+  *pre-empts*, *retro-fitted*, *disposition*, *mechanism*, *posture*,
+  *resolution* because they sound precise; use them only when ordinary language
+  cannot draw the distinction.
+- **Define project-specific terms the first time they matter.** A study-local
+  label (`ARM P`, `B2`, `G0`, `H4`, `E3`) is linked to its study's entry in
+  [`arm-index.md`](arm-index.md) on first use in a section and qualified with
+  the study name. A metric (`R`, `E`, `meanR`, `CI`, `LOO`, `MWU`) is linked to
+  [`glossary.md`](glossary.md) on first use in a document. A rule number (§1.4,
+  §5) is linked to its section of
+  [`docs/deployment-rules.md`](../docs/deployment-rules.md). A coined term goes
+  into the glossary in the same commit.
+- **Do not make ordinary ideas sound like subtle distinctions.** "The hedge
+  lost money on gap-up days" beats "GAP-UP came back CONTRARY on both money
+  arms".
+- **One emphasis per point.** Bold the verdict token once. Capitals only to
+  quote a token the study itself printed (`UNDERPOWERED`, `NULL`, `CONTRARY`,
+  `PRECONDITION-NULL`), quoted verbatim.
+
+## What to cut
+
+- Repeating the same idea in progressively different wording.
+- Explaining every implication, unless someone needs it to implement, review
+  or audit the system.
+- Defensive prose whose only purpose is to show that every edge case was
+  considered.
+- Formal qualifications wrapped around a straightforward implementation
+  decision.
+- Any sentence about how the text will be read: no meta-language about graders,
+  breaches, sanctions or compliance. Where two registered clauses conflict, name
+  the conflict in one sentence and the chosen interpretation in one.
+
+## The test
+
+Before finalising, ask: could a competent engineer explain what this section
+means after reading it once? If not, restructure it rather than adding more
+explanation. Be rigorous in the underlying logic, but make the rigour visible
+through structure rather than dense prose.
 
 ## The entry template for `current.md`
 

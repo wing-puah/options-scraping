@@ -774,9 +774,11 @@ def _variant(arm, key):
 
 
 def test_arm_p_withholds_the_ci_bounds_in_dollars_too(capsys):
-    """Under the dollars ban the CI bounds are the SAME dollar-improvement
-    estimator as the point figure beside them — quoting them raw would print in
-    dollars the very number the banner three lines above withholds.
+    """Under the share-of-capital presentation (`--arm-p-share`, opt-in since
+    the operator's 2026-09-08 ACK made dollars the default) the CI bounds are
+    the SAME dollar-improvement estimator as the point figure beside them —
+    quoting them raw would print in dollars the very number the banner three
+    lines above withholds.
 
     Asserted over the WHOLE cell, not one slice: the clause-3 halves, the
     clause-3 years and the clause-4 tier lines carry that same account-level
@@ -791,9 +793,25 @@ def test_arm_p_withholds_the_ci_bounds_in_dollars_too(capsys):
     assert "+3.60% of cap" in out and "+1.40% of cap" in out
     # NO dollar figure anywhere in an ARM P cell under the ban.
     assert "$" not in out
+    # The banner says which reading is in force and why this run departs from
+    # it, so a reader of a share-of-capital report cannot take the presentation
+    # for the (superseded) pre-ACK default.
+    assert "--arm-p-share" in out and "2026-09-08" in out
+    assert "That is NOT the" in out and "reading in force" in out
 
 
-def test_arm_p_dollars_prints_dollars_everywhere_when_the_flag_is_given(capsys):
+def test_arm_p_share_is_opt_in_and_dollars_are_the_default():
+    """The registration's ARM P STATUS bullet records the 2026-09-08
+    ACK of the SCOPED reading: dollars by default, share of capital behind a
+    flag. `--arm-p-dollars`, the pre-ACK opt-in, no longer exists, so a stale
+    invocation fails loudly rather than silently printing the default."""
+    import inspect
+    src = inspect.getsource(S)
+    assert '"--arm-p-share"' in src and '"--arm-p-dollars"' not in src
+    assert "st.capital, not args.arm_p_share)" in src
+
+
+def test_arm_p_prints_dollars_everywhere_by_default(capsys):
     out = _print_cell(_variant("P", "half"), True, capsys)
     assert "[+400, +2,100]" in out
     assert "SHARE OF STARTING CAPITAL" not in out

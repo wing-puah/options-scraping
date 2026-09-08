@@ -41,8 +41,9 @@ PRE_REG_PATTERN = "*/{study}.md"
 # all three graders had to disclose they could not see it. When one exists it is
 # inlined for the analysts and the validator alongside the registration.
 # Discovery is by convention: research/<study>-errata.md, with `_` in the study
-# name also tried as `-` (exit_drawdown -> exit-drawdown-errata.md is tried after exit_drawdown-errata.md). Most
-# studies have none; that is the normal, non-fatal case.
+# name also tried as `-` (a study named foo_bar would try foo_bar-errata.md and
+# then foo-bar-errata.md). Most studies have none; that is the normal,
+# non-fatal case.
 ERRATA_DIR = TUNING_DIR
 ERRATA_PATTERN = "{study}-errata.md"
 

@@ -157,7 +157,10 @@ Research tier (`backtest_study/`, `study_*`):
   SUBSTANCE — no gate, bar, arm definition, or verdict changes meaning after it is written —
   but not in prose: the file may be consolidated editorially (a later refinement folded into
   the section it amends, so the file states one final design; what changed and when lives in
-  git, not inline). Read only by `scripts/study_review/` — no study code reads a number out
+  git, not inline). A build-time ruling that changes what a gate refuses or how a clause is
+  read is folded in too, tagged `Resolved at build (date)` beside the text it amends — never
+  kept in a separate errata file (one was, for exit_drawdown, 2026-09-05 -> 2026-09-08, and
+  was unreadable beside the registration). Read only by `scripts/study_review/` — no study code reads a number out
   of one.
 - `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
   There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,

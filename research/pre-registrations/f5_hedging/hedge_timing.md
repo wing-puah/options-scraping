@@ -4,40 +4,39 @@ _Registered 2026-08-28._
 
 ## Question
 
-The operator deploys the bear-debit hedge sleeve on discretionary triggers:
-(a) the market looks choppy, (b) SPY gaps up, (c) SPY has closed lower 4–5
-sessions in a row.
+The operator deploys the bear-debit hedge sleeve on three discretionary
+triggers: (a) the market looks choppy, (b) SPY gaps up, (c) SPY has closed
+lower 4–5 sessions in a row.
 
-Do these mechanical triggers identify days on which the hedge earns more than
-the same day's ladder-eligible long — or should streak days in particular be
-spent opening a LONG instead?
+Do those triggers, made mechanical, mark days on which the hedge earns more
+than the same day's ladder-eligible long — or should streak days in particular
+be spent opening a LONG instead?
 
-The study asks about the TIMING of a sleeve whose pick and size are already
-operator discretion. It does not ask whether the sleeve is worth holding at all.
+The sleeve's pick and size are already operator discretion. This study asks
+only about its TIMING, not whether the sleeve is worth holding at all.
 
 ## What this is NOT
 
 - **Not a re-run of `hedge_sizing` D5.** D5's regime gates for hedge timing were
   POST-HOC and failed year-stability — the surviving gate was carried by 2025
-  alone. Its gate family is not re-tested here, and the one gate that came
-  closest (`mech_direction = RANGE`) is explicitly excluded from every verdict
-  below (see T-CHOP).
+  alone. That gate family is not re-tested here, and the gate that came closest
+  (`mech_direction = RANGE`) is excluded from every verdict below (see T-CHOP).
 - **Not a re-opening of bear SELECTION.** `bear_arm` B1 (0 of 496 subsets) and
   `hedge_sizing` D1 (0 survivors, re-confirmed on v4) stand. No arm here screens
   which bear to take.
-- **Not a market-timing study.** H2 exists precisely to catch that confound: a
-  trigger that marks days on which EVERYTHING pays (or nothing does) is a read
-  on the tape, not a property of the hedge.
+- **Not a market-timing study.** H2 exists to catch that confound: a trigger that
+  marks days on which EVERYTHING pays (or nothing does) reads the tape; it is
+  not a property of the hedge.
 
 ## Population and basis, fixed here
 
-The book, the outcome column, the units, the era and the window cuts are all
-fixed here, before any arm runs.
+Fixed before any arm runs: the book, the outcome column, the units, the era and
+the window cuts.
 
 - **Book.** `lib/book.py::load_book(include_bs=False)` — real +
   `strike_expiry_tweak` rows, proxy calibration gate ON. No `bs_options_hist`.
 - **Outcome.** `R` as the loader carries it, i.e. the SHIPPED PROD exit profiles
-  (`DEBIT_PROD` / `CREDIT_PROD`). **No `be_after` variant anywhere.** `bear_arm`
+  (`DEBIT_PROD` / `CREDIT_PROD`). **No `be_after` variant anywhere:** `bear_arm`
   B2's `be_after: 0.50` was reverted by its own rollback trigger on 2026-08-24,
   so replaying bear rows under it would price the sleeve on an exit the operator
   is not running.
@@ -47,24 +46,24 @@ fixed here, before any arm runs.
   is a credit structure and is tier-VETO'd at intake, so it is not part of the
   sleeve this study is about.
 - **Era.** The decisive read is `current` (v4). A pre-declared `--era v3`
-  replication run is reported SEPARATELY, with identical thresholds, and is
+  replication run is reported SEPARATELY with identical thresholds, and is
   disclosed as **PARTIALLY CORRELATED**: the calendar windows overlap, so only
   v3's post-2025-11-04 tail is fresh evidence. That tail gets its own census and
   will most likely print UNDERPOWERED. **Pooling the two eras is forbidden**
   under every outcome.
-- **The 2026 no-op, stated up front.** The v4 export carries ZERO 2026 signal
-  dates. So `ex_2026_feb_apr` ≡ `ALL` on v4, and "the sign holds in every year"
-  reduces to 2024 ∧ 2025. Every cut prints its own `n` beside `ALL`'s `n`, so a
-  reader can see when a cut is a no-op rather than a passed test.
-- **The ex-BOTH-windows cut.** A third column, computed BY HAND (not from
-  `protocol.window_cuts`, which yields the two cuts separately): rows dated in
-  NEITHER 2025-03/04 NOR 2026-02/03/04. On v4 it EQUALS `ex_2025_mar_apr`, and
-  the report must say so rather than presenting it as an independent check.
+- **The 2026 no-op.** The v4 export carries ZERO 2026 signal dates, so
+  `ex_2026_feb_apr` ≡ `ALL` on v4 and "the sign holds in every year" reduces to
+  2024 ∧ 2025. Every cut prints its own `n` beside `ALL`'s `n`, so a reader can
+  see when a cut is a no-op rather than a passed test.
+- **The ex-BOTH-windows cut.** A third column, computed BY HAND because
+  `protocol.window_cuts` yields the two cuts separately: rows dated in NEITHER
+  2025-03/04 NOR 2026-02/03/04. On v4 it EQUALS `ex_2025_mar_apr`, and the report
+  must say so rather than presenting it as an independent check.
 
 ## Plan-time observations, disclosed
 
-Counts only. **No outcome column was read while designing this study** — the
-census below is date and row counts against trigger definitions, nothing else.
+**No outcome column was read while designing this study.** The census below is
+date and row counts against trigger definitions, nothing else.
 
 Measured 2026-08-28 on the v4 book: 145 signal dates 2024-01-10 → 2025-11-04,
 365 bear rows, 139 bear-carrying dates, and 121 dates carrying BOTH a bear row
@@ -87,8 +86,8 @@ and a ladder-A/B row.
 **Provenance of the table, disclosed.** These counts came from a plan-time
 script that APPROXIMATES `load_book`: it omits `Trade()` construction failures
 and does not apply the proxy calibration gate. The study's own H0 census
-re-derives every one of them THROUGH `load_book`; any discrepancy is printed and
-explained in the report and is never silently accepted.
+re-derives every one THROUGH `load_book`, and prints and explains any
+discrepancy rather than accepting it silently.
 
 **THE OPERATOR'S OWN TRIGGER IS NOT TESTABLE ON THIS BOOK.** A strict 4-session
 SPY down-run occurs on roughly 11 of the era's ~457 trading days; the book
@@ -123,18 +122,17 @@ is printed in the census BEFORE any R is touched. Sensitivity: `eff_ratio ≤ 0.
 The window length is the standing `underlying_features` constant and is NOT swept.
 
 **T-CHOP is explicitly NOT `mech_direction = RANGE`.** RANGE was `hedge_sizing`
-D5's best POST-HOC gate on 2026-08-27 (+$9,622) and re-testing it here would be
-a disguised D5 re-run. `mech_direction = RANGE` is computed and printed as a
-flagged SECONDARY carrying NO verdict. Three further reasons it may not be the
-primary: it is a RESIDUAL category (whatever is neither BULL nor BEAR), it was
-fitted for EXITS rather than for entry timing, and it carried a provenance
-defect on 2026-08-27.
+D5's best POST-HOC gate on 2026-08-27 (+$9,622), so re-testing it here would be
+a disguised D5 re-run. Three further reasons it may not be the primary: it is a
+RESIDUAL category (whatever is neither BULL nor BEAR), it was fitted for EXITS
+rather than for entry timing, and it carried a provenance defect on 2026-08-27.
+It is computed and printed as a flagged SECONDARY carrying NO verdict.
 
 **T-GAP (primary g = 0.003).** `open(D) ≥ close(D−1) × (1 + g)`. Sensitivity
 `g = 0.002`. `g = 0.005` is declared UNDERPOWERED by the census above and
 carries no verdict. SECONDARY, censused with no verdict: the ENTRY-session gap
-`open(D+1)` vs `close(D)` — disclosed as requiring an at-the-open decision,
-which the shipped card does not make.
+`open(D+1)` vs `close(D)`, which would need an at-the-open decision the shipped
+card does not make.
 
 **T-DECLINE-STRICT(N), N ∈ {3, 4, 5}.** N consecutive lower SPY closes ending at
 D. **Verdict fixed in advance: `DECLINE-UNDERPOWERED`.** The census prints; no
@@ -142,10 +140,10 @@ direction is quoted, ever, under any outcome.
 
 **T-DECLINE-BROAD.** SPY closed lower on ≥ 3 of the last 5 sessions ending at D.
 **ASYMMETRIC READING RULE, pre-registered:** a NULL here IS informative about the
-strict rule — if even the broad construct cannot separate, the narrow one is not
-worth waiting for. A POSITIVE here is NOT evidence for the operator's 4–5-day
-rule and may NEVER be cited as such; it is a different, weaker hypothesis and is
-reported under its own name.
+strict rule, because if even the broad construct cannot separate, the narrow one
+is not worth waiting for. A POSITIVE here is a different, weaker hypothesis, is
+reported under its own name, and may NEVER be cited as evidence for the
+operator's 4–5-day rule.
 
 ### The verdicted arms
 
@@ -157,9 +155,9 @@ Each is run once per trigger FAMILY.
   fails early-returns UNDERPOWERED without computing any statistic at all.
 - **H1 — between-date.** `mean(date-mean bear R | trigger) − mean(date-mean bear
   R | non-trigger)`, date-clustered bootstrap CI. **Named weakness, registered:**
-  no within-date pairing is possible (a date either fires the trigger or does
-  not), and a positive H1 is confounded with "the market fell". H1 is therefore
-  NOT the primary arm.
+  a date either fires the trigger or does not, so no within-date pairing is
+  possible and a positive H1 is confounded with "the market fell". H1 is
+  therefore NOT the primary arm.
 - **H2 — beta control.** The SAME between-date separation computed for the
   DEPLOYED LADDER (`protocol.top_k_per_day(rows, ladder_rank, k=3,
   eligible_fn=ladder_eligible)`), printed as a signed pair beside H1.
@@ -171,7 +169,7 @@ Each is run once per trigger FAMILY.
   ≥ 1 ladder-eligible (tier A|B) row, `dR = date-mean bear R − date-mean A/B
   long R`. Reported with `boot_ci_paired_by_date`, `loo_by_date`, per-year signs,
   and all three window cuts (`ex_2025_mar_apr`, `ex_2026_feb_apr`, ex-BOTH by
-  hand). The SAME paired statistic on NON-trigger dates is the contrast, and the
+  hand). The contrast is the SAME paired statistic on NON-trigger dates, and the
   **headline claim is the DIFFERENCE of the two paired means** — not the trigger
   arm's level.
 - **H4 — do-nothing baseline (portfolio, dollars).** Sleeve policies over the

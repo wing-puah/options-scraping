@@ -2,11 +2,13 @@
 
 _This is `f5_hedging`'s README: the four questions the studies in this folder are named after, and what each last printed. It lived at `research/hedge-programme.md` until 2026-09-08._
 
-The hedge is two claims and only one of them has been tested. Every mechanical
-rule for when to open a hedge has been tested and none survives. Whether the
-thing you put on pays for itself has never been powered. Nothing ships from any
-of it, and [§4](../../../docs/deployment-rules.md#s4) keeps its one bear sleeve as
-operator policy.
+**No mechanical rule for opening a hedge survives testing, and nothing ships
+from any of it.** [§4](../../../docs/deployment-rules.md#s4) keeps its one bear
+sleeve as operator policy regardless.
+
+The hedge rests on two claims: when to open it, and whether the position pays
+for itself. Only the first has been tested — every mechanical trigger tried
+has failed. The second has never been powered enough to answer.
 
 **Three studies were renamed on 2026-09-08 after the question each answers.**
 Every label, gate and figure is unchanged; the archive and the frozen records
@@ -27,13 +29,15 @@ power-gate figures in [Q4](#q4) are carried forward from an earlier run and are
 labelled there. Metrics are defined in [`glossary.md`](../../../research/glossary.md) and
 study-local labels in [`arm-index.md`](../../../research/arm-index.md)._
 
-This page groups studies that have already run. It adds no result. The record's
-own split is two claims rather than four, the trigger and the instrument
+This page groups studies that have already run; it adds no new result. The
+underlying record splits the hedge into two claims, not four — the trigger and
+the instrument
 ([closing note](../../../research/deployment-evidence.md#the-hedge-trigger-is-dead-the-hedge-instrument-is-unmeasured-closing-note-2026-09-04)).
-The four questions below are a finer cut of that same split. Where the note this
-page was drafted from disagreed with a file, the file won, and the sharpest case
-is [§4](../../../docs/deployment-rules.md#s4) itself: the sleeve and its half-size line
-are held despite `D2` and `D3` never being met, not shipped on them.
+The four questions below are a finer cut of that same split. Where this page's
+draft disagreed with the underlying file, the file's wording stands. The
+sharpest case is [§4](../../../docs/deployment-rules.md#s4) itself: the sleeve
+and its half-size line are held as policy despite `D2` and `D3` never being
+met — not shipped on the strength of them.
 
 <a id="q1"></a>
 ## Q1. WHEN to open a hedge
@@ -78,8 +82,10 @@ concentration predicts the book's later drawdown at all
 candidates out of nine headline cells. Its own ship criteria say nothing ships
 from it under any outcome. The operator's literal four-day and five-day streak
 rule was fixed in advance as `DECLINE-UNDERPOWERED`, because the book samples
-too few occurrences to reach the 25-date floor. `hedge_concentration` was a
-powered refusal rather than a power stop, so Stage 2 never opened.
+too few occurrences to reach the 25-date floor.
+
+`hedge_concentration` was a powered refusal rather than a power stop, so Stage
+2 never opened.
 
 **What would unblock it.** [`next-steps.md`](../../../research/next-steps.md) §2.10, open with
 nothing in it. Another timing rule cut from these dates and these columns does
@@ -129,14 +135,17 @@ and a strict fill rule, by `hedge_structure`
 | hedge contribution | `H2 (primary)      NOT EVALUABLE` |
 | hedge contribution, sensitivity | `H2 under hold     NOT EVALUABLE   (sensitivity — may not change the verdict)` |
 
-**Why it stopped.** On every `v4` export the first gate to fail is the fill
-gate, not the primary. The sleeve is available on about half the deployed dates
-and about a third of the worst tenth. The primary then cannot be read at all,
-because its worst-decile cell never reaches the pre-registered floor of 10
-positions. On `v3` the fill gate passed and the primary was still not evaluable.
-`vol_sleeve` stopped for a different reason. Its correlation question was
+**Why it stopped.** `hedge_structure` stopped on the fill gate: on every
+`v4` export the first gate to fail is the fill gate, not the primary. The
+sleeve is available on about half the deployed dates and about a third of the
+worst tenth, so the primary cannot be read at all — its worst-decile cell never
+reaches the pre-registered floor of 10 positions. On `v3` the fill gate passed
+and the primary was still not evaluable.
+
+`vol_sleeve` stopped for a different reason: its correlation question was
 answered and the answer was no, and nothing in that study can ship on its own.
-`hedge_sizing` stopped for a third reason. It ran clean and shipped no rule
+
+`hedge_sizing` stopped for a third reason: it ran clean and shipped no rule
 because it was registered to ship none.
 
 | Line | 2026-09-04 export, recorded | live tabs 2026-09-07, projection |
@@ -188,10 +197,11 @@ power-stopped.
 
 **Why it stopped.** `D3` has never been met at any size, on any era. The
 [§4](../../../docs/deployment-rules.md#s4) size line of at most half a normal position
-was registered as policy held whatever the outcome, and the card says so. Two of
-the three sizing reads are also measured on a curve that books profit and loss
-on the session a position exits, and never marks an open one. On a book measured
-the same way that curve missed 40% of the drawdown.
+was registered as policy held whatever the outcome, and the card says so.
+
+Two of the three sizing reads are also measured on a curve that books profit
+and loss on the session a position exits, and never marks an open one. On a
+book measured the same way, that curve missed 40% of the drawdown.
 
 | population | mark-to-market maxDD | close-bucketed maxDD | gap |
 |---|---|---|---|

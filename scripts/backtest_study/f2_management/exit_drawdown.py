@@ -1438,9 +1438,9 @@ def vol_spike_session(t, vol, mult: float = X.VOL_CLIMAX_MULT) -> int | None:
 
     So G1's DIRECTION half is evaluated on this probe for the volume variant —
     the leg the shifted series actually governs — while the conjunction's own
-    earlier-firings are printed as a DISCLOSED, non-gating count. See §1 of
-    the study's errata (`research/exit_drawdown-errata.md`), which records this
-    SCOPING of the registered G1 and is read beside the registration.
+    earlier-firings are printed as a DISCLOSED, non-gating count. This SCOPING
+    of the registered G1 is folded into the registration's G1 bullet under
+    "Gates", tagged `Resolved at build (2026-09-05)`.
 
     `_vol_climax_is_at_or_after_the_spike` pins this probe to the rule it is
     standing in for, so the two cannot drift apart silently.
@@ -1487,7 +1487,8 @@ def g1_leak(recs: list[dict], variants: list[Variant]) -> tuple[int, dict]:
 
     The DIRECTION half is evaluated on ARM O's volume variant through
     `vol_spike_session`, the leg the shifted series governs; see that function
-    and §1 of the study's errata for why, and for what is printed instead.
+    and the registration's G1 bullet (`Resolved at build (2026-09-05)`) for why,
+    and for what is printed instead.
     """
     hdr("G1 — LEAK GUARD (every auxiliary series shifted ONE SESSION FORWARD)")
     print("""  The shift is on the TRADE'S OWN GRID, the axis the rules read: session
@@ -1508,9 +1509,9 @@ def g1_leak(recs: list[dict], variants: list[Variant]) -> tuple[int, dict]:
   the two legs, so a firing session can move earlier for that reason alone.
   The direction half is therefore read on the VOLUME LEG, and the
   conjunction's own earlier-firings are printed below as a DISCLOSED,
-  NON-GATING count. This SCOPING of the registered gate is recorded in the
-  study's ERRATA (§1), which is read beside the registration as part of the
-  authority this run is graded against — not a silent change.""")
+  NON-GATING count. This SCOPING of the registered gate is folded into the
+  registration's own G1 bullet under a `Resolved at build (2026-09-05)` tag, so
+  it is graded as part of the registration — not a silent change.""")
 
     checks = {"changed": 0, "earlier": 0, "compared": 0, "exercised": [],
               "vol_conjunction_earlier": 0, "probe_incoherent": 0,
@@ -1786,14 +1787,14 @@ def print_cell(variant: Variant, ev: dict, arm_stats: M.PathStats,
     if withhold:
         print("""  ARM P's account-level drawdown — its LEVELS, its improvement and that
   improvement's CI bounds — is quoted as a SHARE OF STARTING CAPITAL, not in
-  dollars. The registration carries an OPEN operator ACK on whether the planning
-  rule "quote R, not dollars, for ARM P" reaches the whole-book MTM co-primary;
-  no ack is recorded, so this run uses the registration's own ALTERNATIVE
-  reading, recorded as still OPEN in the study's ERRATA (§4, ARM P's
-  account-level drawdown withheld in dollars by default), which is read beside
-  the registration. The verdict is identical either way: clause 1 is evaluated
-  on the IMPROVEMENT RATIO, which is scale-free. Re-run with --arm-p-dollars
-  for the dollar levels.""")
+  dollars, because this run was invoked with --arm-p-share. That is NOT the
+  reading in force: the operator ACKed the registration's SCOPED reading on
+  2026-09-08 (the planning rule "quote R, not dollars, for ARM P" binds the
+  per-row and paired comparison only; the whole-book MTM co-primary is a dollar
+  figure of one ledger and prints in dollars by default), recorded in the
+  registration's STATUS bullet under ARM P. The verdict is
+  identical either way: clause 1 is evaluated on the IMPROVEMENT RATIO, which
+  is scale-free. Re-run without --arm-p-share for the dollar levels.""")
         print(f"  max DD   shipped {base_stats.max_dd / capital:>8.2%} of capital"
               f"   arm {arm_stats.max_dd / capital:>8.2%}")
     else:
@@ -1918,11 +1919,13 @@ def main(argv=None) -> int:
     ap.add_argument("--arms", default=ALL_ARMS,
                     help=f"subset of {ALL_ARMS} to run. The registration freezes "
                          f"the arms at five and adds none.")
-    ap.add_argument("--arm-p-dollars", action="store_true",
-                    help="print ARM P's account-level drawdown in DOLLARS. Off "
-                         "until the registration's OPEN operator ACK on the "
-                         "scope of the ARM P dollars ban is recorded; the "
-                         "verdict is unaffected either way (clause 1 is a "
+    ap.add_argument("--arm-p-share", action="store_true",
+                    help="print ARM P's account-level drawdown as a SHARE OF "
+                         "STARTING CAPITAL instead of in dollars. Dollars are "
+                         "the default since the operator's 2026-09-08 ACK of "
+                         "the registration's SCOPED reading (the ARM P dollars "
+                         "ban binds the per-row and paired comparison only); "
+                         "the verdict is unaffected either way (clause 1 is a "
                          "scale-free ratio).")
     ap.add_argument("--config", type=Path, default=A.DEFAULT_CONFIG,
                     help="the account simulation this study deploys through "
@@ -2422,9 +2425,9 @@ min_train_dates={WF_MIN_TRAIN_DATES})
             print(f"    selection tally: {dict(picks)}")
 
             if v.kind == KIND_SIZING and chosen:
-                print(f"""    DISCLOSED, and recorded in the study's ERRATA (§3,
-    ARM D's per-block choice collapses to the EARLIEST block's), which is read
-    beside the registration: `Cfg.dd_throttle` is ONE value for a whole
+                print(f"""    DISCLOSED, and recorded in the registration's
+    ARM D section under `Resolved at build (2026-09-05)` (the per-block choice
+    collapses to the EARLIEST block's): `Cfg.dd_throttle` is ONE value for a whole
     simulation — a ledger cannot carry a different `d` per block — so ARM D's
     walk-forward selection has to COLLAPSE to one value before the stitched
     book can run. It collapses to the EARLIEST block's choice, which uses no
@@ -2612,7 +2615,7 @@ min_train_dates={WF_MIN_TRAIN_DATES})
         ev = evaluate_cell(v, positions, base_positions, bc, base_bc, stats,
                            base_stats, aff, oos_sorted, st, era == "v3",
                            sibling=sibling, sibling_why=sibling_why)
-        print_cell(v, ev, stats, base_stats, st.capital, args.arm_p_dollars)
+        print_cell(v, ev, stats, base_stats, st.capital, not args.arm_p_share)
         verdicts[v.name] = ev["verdict"]
         cells[v.name] = dict(verdict=ev["verdict"], ratio=ev["ratio"],
                              powered=True, n_aff_dates=ev["n_aff_dates"],

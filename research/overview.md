@@ -17,13 +17,13 @@ Figures, populations and the export provenance are in one place: the
 [`current.md`](current.md). These bullets only say which way to look.
 
 - Era `v4` is current. `v3` is frozen, and is the era every shipped rule was
-  derived on. The two are never pooled.
+  derived on. The two are never pooled (see Standing rules below).
 - The book carries 2026 signal dates for the first time, so every "ex-2026" and
   "positive in every year" cut is live. See
   [where the 2026 column bit](current.md#state-of-play).
 - Nothing new ships from the 166-date `v4` book. Two studies produced a
   first-time candidate and both are held, because the new dates are a
-  backfill window and its dates move together.
+  backfill window and its dates move together (see the family tables below).
 - The hedge programme is closed on triggers and open on the instrument.
   `hedge_portfolio` ships nothing, `hedge_concentration` is graded
   `PRECONDITION-NULL`, a *powered* null, and the queue item is closed. The
@@ -269,20 +269,20 @@ pre-registered rollback trigger that would take it off automatically, and a
 policy rule has none. Nothing will fire to remove it, so it comes off only if
 the operator decides to remove it.
 
-`hedge_concentration` deserves its own paragraph, because its verdict is easy
-to misread. The intended question was the one you would expect: when the book
-is concentrated in a few correlated names, does buying a put help? That is
-stage 2, and **stage 2 never ran.** Stage 1 is a gate in front of it, and it
-asks something narrower:
+`hedge_concentration`'s verdict is easy to misread, so it gets its own
+paragraph. The question anyone would expect — when the book is concentrated
+in a few correlated names, does buying a put help? — is stage 2, and
+**stage 2 never ran**, because stage 1, the gate in front of it, failed.
+Stage 1 asks something narrower:
 [`hedge_concentration` ARM K](arm-index.md#hedge_concentration "hedge_concentration ARM K: does a session's any-cluster concentration predict the book's forward 20-session mark-to-market drawdown? Tercile contrast plus Spearman rho, block-bootstrapped")
 measures whether how concentrated the book is on a given session predicts how
-far it draws down over the next 20 sessions. It does not. Spearman ρ is +0.00
-on 166 dates. That is a **powered** null, meaning the sample was large enough
-that the flat answer is the answer and not just thin data. With no link
-between concentration and drawdown, a concentration-triggered hedge has
-nothing to trigger on, so the τ×f grid was never priced. Graded and closed
-2026-09-04. The instrument — whether a put helps at all — is still
-unmeasured, and would need a different trigger to be worth testing.
+far it draws down over the next 20 sessions. It does not: Spearman ρ is +0.00
+on 166 dates, a **powered** null — the sample was large enough that the flat
+answer is the answer, not just thin data. With no link between concentration
+and drawdown, a concentration-triggered hedge has nothing to trigger on, so
+the τ×f grid was never priced. Graded and closed 2026-09-04. The instrument
+itself — whether a put helps at all — is still unmeasured, and would need a
+different trigger to be worth testing.
 
 ### Exit-rule attempts 1–13, the original tuning log
 
