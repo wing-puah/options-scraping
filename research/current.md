@@ -1633,3 +1633,30 @@ link that pointed at the deleted files now points there.
 **Next.** Nothing opens or closes. Deliverable 3 (the far-call fetch note) and
 the two sleeve-sizing bodies in `account_sim` / `portfolio_delta` stay where the
 [plan](hedge-programme-plan.md#status) left them.
+
+## 2026-09-08 (later) — robustness fold LANDED on main; results-tab headers aligned; queue D stopped with six failed dates
+
+**The six robustness items that waited in the two worktrees are on main, at
+merge `3e5c2dc`.** B1 (cost knobs), B2 (pre-entry grid days unpriced), B3, B5,
+A1 (empty-table skip and zero-play refusal) and A4 (per-play validation). The
+merge was clean; the suite passes at 3,502.
+
+**The landing condition was met by a stop, not a finish.** Queue D's ledger ends
+`ANALYZE-BT STOPPED` at 03:09 with six dates failed: 2025-03-19, 03-24, 03-27,
+04-09, 04-23, 04-28. The operator chose to land now. Any retry of those six runs
+under the cost model and the grid fix; the 18 queue-D dates already done ran
+under the old code, and their rows carry blank cost columns. Read the two
+populations apart on `cost_basis`.
+
+**Both results-tab headers were realigned**, append-at-end, no data column
+moved:
+
+| Tab | Was | Is | Added |
+|---|---|---|---|
+| BacktestResults | 47 | 50 | `pct_stale_days`, `cost_total`, `cost_basis` |
+| BacktestProxy | 46 | 49 | the same three |
+
+**Next.** [`next-steps.md`](next-steps.md#s2-11) §2.11 marks the branch done.
+The one study-suite re-run the fold calls for is still owed, and the six failed
+dates are a retry (`RETRY_PARTIAL=1`) the operator decides on. The
+`robustness-fold` worktree and branch are removed, fully merged.
