@@ -64,7 +64,7 @@ overwrite the frozen book's. The runner runs both arms in one
 `--live-select` is an arm of a different kind: it changes WHO CHOOSES. Selection
 runs through the shipped decision function (`scripts/journal/recommend.py` —
 `rank()` then `judge()`), which encodes the deployment ladder once via
-`scripts/live_loop/mapping.ladder_tier`, instead of this study's own port of it
+`scripts/journal/lib/mapping.ladder_tier`, instead of this study's own port of it
 in `book.py`. Everything else — ledger, caps, sizing, frozen exit replay — is
 unchanged. It files its own report and positions CSV, evaluates no
 pre-registered criterion (A1-A6 were registered against the frozen selector's

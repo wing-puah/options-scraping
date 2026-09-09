@@ -67,7 +67,7 @@ Four things, and nothing else.
 | Permitted | Why it is not a peek |
 |---|---|
 | Census counts — row counts, date counts, priceability, structure and tier mix | No outcome figure. This is how the unseal condition is checked at all. |
-| The production loop: `scripts/journal/`, `scripts/live_loop/`, the deploy card | It is production, not research. It must keep running, and it reads the live book by design. |
+| The production loop: `scripts/journal/`, the deploy card | It is production, not research. It must keep running, and it reads the live book by design. |
 | Pipeline health: `check_pipeline.py`, header alignment, the era refusals | Mechanical, and blind to outcome. |
 | Data collection and enrichment on sealed dates | Collecting is not reading. |
 

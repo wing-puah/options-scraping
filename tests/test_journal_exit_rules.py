@@ -16,7 +16,7 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.journal.lib import exit_rules
-from scripts.live_loop.mapping import SIDE
+from scripts.journal.lib.mapping import SIDE
 
 
 # --------------------------------------------------------------------------

@@ -14,7 +14,7 @@ import pytest
 
 from lib.structure_names import canonical_spread_names
 from backtest.classify import classify_play
-from live_loop.mapping import play_structure
+from scripts.journal.lib.mapping import play_structure
 
 
 # (play text, expected structure, expected is_credit)

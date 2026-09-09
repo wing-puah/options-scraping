@@ -3,10 +3,14 @@ Daily trade journal — pull the day's fills, reconcile them against the analysi
 that proposed them, report the book's delta exposure, and recommend what to
 deploy next session.
 
-PRODUCTION TIER. Runs daily, writes a durable record. This is the counterpart to
-`scripts/live_loop/`, which audits the same ground fortnightly and in more
-depth; both share one encoding of the deployment ladder
-(`scripts/live_loop/mapping.py`) so the two can never disagree about a tier.
+PRODUCTION TIER. Runs daily, writes a durable record. Its rules vocabulary —
+structure names, the match confidences, and `ladder_tier()`, the ONE encoding of
+`docs/deployment-rules.md` §1-§3 — lives in `lib/mapping.py`, and the research
+tier reads the ladder from there too, so nothing can disagree about a tier. A
+fortnightly audit (`scripts/live_loop/stage1_map_fills.py`) once shared it; it
+was RETIRED on 2026-09-09 because this daily loop reads Flex, which carries
+strike and expiry on every fill, and supersedes it. Its snapshots stay under
+`backtests/live_loop/` as protected data.
 
 THE PACKAGE LISTING IS THE FLOW. Files are named `sNN_<what it does>.py` and run
 in that order — `ls` reads top-to-bottom as the pipeline, so no one has to

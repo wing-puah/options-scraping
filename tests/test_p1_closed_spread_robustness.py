@@ -11,10 +11,10 @@ was named from the fill signs and journalled as a `bear_call_spread` — which
     2026-08-28 GLD bear_call_spread CLOSE  GLD:2027-01-15:405:C -1 ...:440:C +1
     2026-08-31 IWM bull_put_spread  CLOSE  IWM:2026-10-16:270:P +1 ...:290:P -1
 
-THE FIX. The label names the position the fill group ACTS ON. On a CLOSE the
-adapter inverts every leg's sign before handing the group to mapping.py, so the
-structure, the core decomposition, the overlay test and the tier all describe
-the position that was closed. mapping.py itself is untouched: there is still one
+THE FIX. The label names the position the fill group ACTS ON. On a CLOSE
+`mapping.position_legs(legs, closing=True)` inverts every leg's sign before the
+group is classified, so the structure, the core decomposition, the overlay test
+and the tier all describe the position that was closed. There is still one
 `ladder_tier()` and one `CONFIDENCES`.
 
 Fully offline — every pull is built inline, nothing reads journal/ or Sheets.
@@ -35,10 +35,7 @@ from scripts.journal.lib import rawpull
 from scripts.journal.lib import relabel
 from scripts.journal.s03_risk import BookRisk
 
-try:  # same dual import the journal steps use
-    from scripts.live_loop import mapping
-except ImportError:  # pragma: no cover
-    from live_loop import mapping
+from scripts.journal.lib import mapping
 
 
 # --------------------------------------------------------------------------
@@ -108,24 +105,21 @@ def _close_bull_call():
 def test_reproduce_fill_sign_classification_inverts_a_closed_bull_call():
     """Pins the OLD behaviour at its source: sign-of-fill, not sign-of-position.
 
-    This is the pre-fix adapter, written out literally, so the regression this
-    file guards is visible rather than asserted by absence. Feeding the closing
-    fills' own signs to `classify_structure()` names the MIRROR of the position
-    that was closed.
+    This is the pre-fix reading written out literally — classifying the closing
+    fills WITHOUT `position_legs(..., closing=True)` — so the regression this
+    file guards is visible rather than asserted by absence. The fills' own signs
+    name the MIRROR of the position that was closed.
     """
     closing_legs, _dropped = reconcile._fills_to_legs(
         _raw(_close_bull_call(), _nvda_contracts()))
     legs = [leg for _fill_dict, leg in closing_legs]
 
-    fill_sign_entry = {"legs": [
-        {"trade": {"side": "BUY" if lg.qty > 0 else "SELL",
-                   "price": lg.fill_price, "commission": lg.commission or 0.0},
-         "match": {"position": lg.qty, "strike": lg.strike, "expiry": lg.expiry,
-                   "right": lg.right, "symbol": lg.symbol}}
-        for lg in legs]}
-
-    label, *_rest = mapping.classify_structure(fill_sign_entry, [])
+    label, *_rest = mapping.classify_structure(legs)
     assert label == "bear_call_spread", "the documented P1 symptom"
+
+    # ...and orienting the same legs to the position they close names it right
+    oriented = mapping.position_legs(legs, closing=True)
+    assert mapping.classify_structure(oriented)[0] == "bull_call_spread"
 
     # and that label is what the ladder vetoes
     tier, _partial, reason = mapping.ladder_tier(label, "RANGE + L-VOL")

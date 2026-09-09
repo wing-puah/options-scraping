@@ -21,7 +21,7 @@ from journal.lib import analysis, exit_rules
 from journal.s06_recommend import (Candidate, Rejected, StaleAnalysis, annotate_exit_by,
                                check_freshness, judge, rank, render)
 from journal.s03_risk import BookRisk
-from scripts.live_loop import mapping as live_mapping
+from scripts.journal.lib import mapping as live_mapping
 
 DATE = "2026-08-14"
 

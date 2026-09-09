@@ -4,7 +4,7 @@ RESEARCH TIER importing PRODUCTION. That is the allowed direction and the whole
 point: `account_sim` re-implements the deployment ladder in
 `scripts/backtest_study/lib/book.py::ladder_tier`, while the function that actually
 decides what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (the
-deterministic ladder, encoded once in `scripts/live_loop/mapping.ladder_tier`)
+deterministic ladder, encoded once in `scripts/journal/lib/mapping.ladder_tier`)
 followed by `judge()` (the one model call, demote-only). The two ladders have
 already drifted apart. This module runs the shipped pair over the historical
 book so the drift is a measured number rather than an argument, and so the
@@ -86,7 +86,7 @@ from scripts.journal import s03_risk as jrisk  # noqa: E402
 from scripts.journal.config import (  # noqa: E402
     DELTA_SOURCE_BARCHART, JUDGMENT_MODEL, PositionRisk,
 )
-from scripts.live_loop import mapping  # noqa: E402
+from scripts.journal.lib import mapping  # noqa: E402
 
 JUDGMENT_CACHE = ROOT / "backtests" / "study_output" / "live-select-judgments.jsonl"
 
@@ -627,7 +627,7 @@ def print_preamble(st, entry_check: str, use_llm: bool, cache: JudgmentCache | N
     print(f"""  This arm replaces account_sim's own ladder (book.py::ladder_tier) with the
   function that actually decides what gets deployed: scripts/journal/s06_recommend.py's
   rank() — which encodes docs/deployment-rules.md §1-§3 exactly once, via
-  scripts/live_loop/mapping.ladder_tier — followed by judge(), the single
+  scripts/journal/lib/mapping.ladder_tier — followed by judge(), the single
   demote-only model call. Pricing, sizing, admission and exit replay are
   account_sim's frozen machinery, unchanged and unreachable from here.
 
@@ -847,7 +847,7 @@ def _structure_of(plays: pd.DataFrame, d: str, ticker: str) -> str:
 def print_ladder_divergence(recs, entry_check: str) -> dict:
     hdr("LADDER DIVERGENCE — the research ladder against the shipped one")
     print("""  book.py::ladder_tier is a 2026-07 port of the deployment ladder; production
-  encodes the same rules once, in scripts/live_loop/mapping.ladder_tier. The port
+  encodes the same rules once, in scripts/journal/lib/mapping.ladder_tier. The port
   has since fallen behind. Every disagreement below is a row the simulation and
   the live card would treat differently — itemised by cause, not asserted.""")
 

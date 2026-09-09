@@ -1,98 +1,144 @@
 """
-Shared, tier-neutral matching + deployment-ladder layer for the live loop.
+The journal's rules vocabulary: structure names, match confidences, the ladder.
 
-This module holds the reusable pieces that both a fortnightly audit
-(`scripts/live_loop/stage1_map_fills.py`) and the daily production pipeline
-(`scripts/journal/`, built separately) need: turning a live-filled options
-structure into a canonical family, matching it against an AnalysisClaude play
-on its signal date, and reconstructing the deployment-ladder tier that play
-would have received.
+PRODUCTION TIER, pure computation. This is where the daily journal keeps the
+rules that name what was traded and score it against the analysis that proposed
+it: turning a group of filled option legs into a canonical structure family,
+matching that against an AnalysisClaude play on its signal date, and
+reconstructing the deployment-ladder tier the play would have received.
 
 `ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1-§3 —
 there must never be a second copy. Anything that needs to know a structure's
-tier (live-fill audit, daily deployment, a future backtest reconciliation)
-calls this function; do not re-derive the veto/tier rules inline elsewhere.
+tier (the daily journal, the deploy card, the research tier's live_select
+layer) calls this function; do not re-derive the veto/tier rules inline
+elsewhere.
 
-What is deliberately NOT here: contract-string parsing, IBKR-snapshot
-loading, fill-to-position reconstruction, and report emission. Those are
-specific to the hand-pasted MCP snapshot format `stage1_map_fills.py` reads
-and stay there (`parse_contract`, `load_snapshot`, `reconstruct`, `emit`,
-`main`). This module only knows about *entries* (already-reconstructed
-combos of legs with resolved/unresolved identity) and *analysis rows* — it
-has no opinion on where either came from.
+IT SPEAKS THE JOURNAL'S OWN TYPES. Every leg-shaped argument here is a
+`config.Leg` — the same object `lib/rawpull.py` builds from a fill and from an
+open position — and every position-shaped argument is a list of them. Until
+2026-09-09 this module was shared with `scripts/live_loop/stage1_map_fills.py`,
+a fortnightly audit that reconstructed positions from a hand-pasted MCP
+snapshot with no broker contract id, so it took a bespoke
+`{"trade": ..., "match": ...}` dict shape and three callers carried adapters to
+dress `Leg`s up as it. That script was RETIRED on 2026-09-09 — the daily
+journal reads Flex, which carries strike and expiry on every fill, and
+supersedes it — so the dict shape and its adapters are gone. Its snapshots stay
+under `backtests/live_loop/` as protected data.
+
+ONE CONSEQUENCE OF THAT, WORTH STATING. A `Leg` always knows its strike,
+expiry, right and signed quantity, so the "identity could not be pinned"
+branches the snapshot format needed (a round-trip close named
+`single long option (debit), strike/expiry UNKNOWN`) are unreachable and are
+not carried here. `_live_to_canonical()` still maps that legacy label to
+`"unknown"`, because rows written under it are still in `journal/trades.csv`.
+
+What is deliberately NOT here: broker transport, pull loading, fill grouping
+and report emission. This module only knows about *leg groups* and *analysis
+rows* — it has no opinion on where either came from.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from lib.structure_names import canonical_spread_names
 
+if TYPE_CHECKING:  # `..config` imports CONFIDENCES from here — a runtime import
+    from ..config import Leg  # would be circular, and annotations are strings.
+
 
 # --------------------------------------------------------------------------
-# Structure classification (live fills -> canonical structure labels)
+# Orientation: a structure label names a POSITION, not an ORDER
 # --------------------------------------------------------------------------
-def classify_structure(entry, positions):
-    """Return (structure_label, net_price, net_with_comm, status, note, is_overlay)."""
-    legs = entry["legs"]
-    # net price per share: BUY=+ (debit component), SELL=- (credit component)
-    net = 0.0
-    comm = 0.0
-    for lg in legs:
-        tr = lg["trade"]
-        sgn = 1 if tr["side"] == "BUY" else -1
-        net += sgn * float(tr["price"])
-        comm += float(tr["commission"])
-    net_with_comm = net + comm / 100.0  # commissions always cost -> raise debit / cut credit
+def position_legs(legs: list[Leg], *, closing: bool) -> list[Leg]:
+    """`legs` oriented to the position they act on. `closing=True` flips signs.
 
-    matched = [lg for lg in legs if lg["match"] is not None]
-    all_matched = len(matched) == len(legs)
-    status = "OPEN" if all_matched else "CLOSED"  # unmatched opening fills are round-trip closed
+    THIS IS THE P1 FIX (robustness-review P1, 2026-09-07). A `Leg`'s `qty` is
+    the signed quantity of the FILL, which equals the signed POSITION only when
+    the fill OPENED it. A closing fill is the position's mirror image: selling
+    the 170 and buying back the 180 of a bull call spread reads, sign for sign,
+    as a bear call spread, and `ladder_tier()` vetoes that on sight. Every
+    closed spread journalled before 2026-09-07 carries the inverted label.
+
+    So the caller decides the ACTION first and orients the group to the position
+    it acts on. Everything downstream then describes that position: the
+    structure label, `decompose_core()`'s financed-vertical split, the overlay
+    test, the analysis match and the tier.
+
+    ONLY A WHOLE-GROUP CLOSE IS ORIENTED. A ROLL closes one leg while opening
+    another and a PARTIAL does not know which it did, so neither names a single
+    position; both keep the fill-sign reading and the caller discloses it.
+
+    ORIENTATION MUST NOT TOUCH MONEY. `net_price()` is deliberately a separate
+    function and is always called on the UNORIENTED legs: a label names the
+    position, but cash names the transaction, and inverting the journal's
+    `net_price` would misreport what was actually paid or received.
+    """
+    if not closing:
+        return list(legs)
+    return [replace(lg, qty=-lg.qty) for lg in legs]
+
+
+def net_price(legs: list[Leg]) -> float:
+    """Net price per share of a leg group: positive debit, negative credit.
+
+    Read from the legs' own signs, so calling this on the unoriented fills
+    gives the transaction's cash and calling it on `position_legs(...,
+    closing=True)` gives the closed position's side. Commission is not folded
+    in — the journal records it as its own column, all-or-nothing across legs.
+    """
+    return sum(_leg_sign(lg) * float(lg.fill_price) for lg in legs)
+
+
+def _leg_sign(lg: Leg) -> int:
+    """+1 long, -1 short. A zero quantity reads short, as the fill side did."""
+    return 1 if lg.qty > 0 else -1
+
+
+# --------------------------------------------------------------------------
+# Structure classification (a leg group -> a canonical structure label)
+# --------------------------------------------------------------------------
+def classify_structure(legs: list[Leg], open_book: list[Leg] = ()
+                       ) -> tuple[str, str, bool]:
+    """Return `(structure_label, note, is_overlay)` for one leg group.
+
+    `legs` must already be oriented — see `position_legs()`. `open_book` is the
+    broker's currently-held option legs (`rawpull.open_legs()`), used only by
+    the overlay test; pass nothing when the book of the day is not recoverable.
+    """
+    net = net_price(legs)
     debit_credit = "debit" if net > 0 else "credit"
 
     # -- single leg --
     if len(legs) == 1:
         lg = legs[0]
-        tr = lg["trade"]
-        side = "long" if tr["side"] == "BUY" else "short"
-        if lg["match"] is not None:
-            m = lg["match"]
-            right = "call" if m["right"] == "C" else "put"
-            label = f"single {side} {right}"
-            # overlay = short single-expiry leg over a same-ticker spread at another expiry
-            is_overlay = _is_overlay(m, positions)
-            if is_overlay:
-                label += " (overlay)"
-            return label, net, net_with_comm, "OPEN", "", is_overlay
-        else:
-            right = "call/put UNKNOWN"
-            return (f"single {side} option ({debit_credit}), strike/expiry UNKNOWN",
-                    net, net_with_comm, "CLOSED",
-                    "round-trip: opened then bought/sold back within window (no open position to pin identity)",
-                    False)
+        side = "long" if lg.qty > 0 else "short"
+        right = "call" if lg.right == "C" else "put"
+        label = f"single {side} {right}"
+        # overlay = short single-expiry leg over a same-ticker position at
+        # another expiry
+        is_overlay = _is_overlay(lg, open_book)
+        if is_overlay:
+            label += " (overlay)"
+        return label, "", is_overlay
 
     # -- two-leg combos --
-    if len(legs) == 2 and all_matched:
-        a, b = matched[0]["match"], matched[1]["match"]
-        if a["expiry"] != b["expiry"]:
-            return ("diagonal/calendar (mixed expiry)", net, net_with_comm, status,
-                    "legs span two expiries — not a vertical", True)
-        return _vertical_label(a, b, debit_credit), net, net_with_comm, status, "", False
-
-    # -- two-leg combo, unmatched (closed) --
     if len(legs) == 2:
-        return (f"2-leg vertical ({debit_credit}), strikes/right UNKNOWN",
-                net, net_with_comm, "CLOSED",
-                "both legs closed (no open position to pin identity); structure inferred from net sign only",
-                False)
+        a, b = legs
+        if a.expiry != b.expiry:
+            return ("diagonal/calendar (mixed expiry)",
+                    "legs span two expiries — not a vertical", True)
+        return _vertical_label(a, b, debit_credit), "", False
 
-    return (f"{len(legs)}-leg combo ({debit_credit})", net, net_with_comm, status, "", False)
+    return f"{len(legs)}-leg combo ({debit_credit})", "", False
 
 
-def _vertical_label(a, b, debit_credit):
+def _vertical_label(a: Leg, b: Leg, debit_credit: str) -> str:
     """Canonical name for a same-expiry two-leg pair, from its rights and signs.
 
     Extracted from `classify_structure`'s two-leg branch so the core of a
@@ -100,11 +146,11 @@ def _vertical_label(a, b, debit_credit):
     standalone vertical is. Two encodings of "what is a bull call spread" would
     let a financed spread and a plain one disagree about their own name.
     """
-    rights = {a["right"], b["right"]}
+    rights = {a.right, b.right}
     # sort by strike
-    lo, hi = (a, b) if a["strike"] < b["strike"] else (b, a)
-    lo_pos = lo["position"]  # <0 short, >0 long
-    hi_pos = hi["position"]
+    lo, hi = (a, b) if a.strike < b.strike else (b, a)
+    lo_pos = lo.qty  # <0 short, >0 long
+    hi_pos = hi.qty
     if rights == {"C"}:
         if lo_pos > 0 and hi_pos < 0:
             return "bull_call_spread"
@@ -120,29 +166,17 @@ def _vertical_label(a, b, debit_credit):
     return f"mixed C/P vertical ({debit_credit})"
 
 
-def _is_overlay(matched_pos, positions):
-    """A single short leg is an overlay if the same ticker has other open option
-    legs at a different expiry (i.e. it sits on top of an existing spread)."""
-    if matched_pos["position"] >= 0:
+def _is_overlay(leg: Leg, open_book: list[Leg]) -> bool:
+    """A single SHORT leg is an overlay when the same ticker already holds open
+    option legs at a different expiry — i.e. it sits on top of a spread."""
+    if leg.qty >= 0:
         return False
-    sym = matched_pos["symbol"]
-    others = [p for p in positions
-              if p["is_option"] and p["symbol"] == sym and p is not matched_pos]
-    return any(p["expiry"] != matched_pos["expiry"] for p in others)
+    return any(p.symbol == leg.symbol and p.expiry != leg.expiry
+               for p in open_book)
 
 
-def _leg_sign(lg):
-    """+1/-1 for a leg's direction, from the fill side rather than the match.
-
-    `trade.side` is present on every leg shape this module sees; `match.position`
-    is not (see `decompose_core`'s precondition note), so the fill is the
-    reliable source when both exist.
-    """
-    return 1 if lg["trade"]["side"] == "BUY" else -1
-
-
-def decompose_core(entry):
-    """Split a multi-leg entry into `(core_pair, overlay_legs)`, or `(None, [])`.
+def decompose_core(legs: list[Leg]):
+    """Split a multi-leg group into `(core_pair, overlay_legs)`, or `(None, [])`.
 
     THE STRATEGY THIS MODELS. The operator trades a core debit vertical and
     sells a further leg — usually shorter-dated, always short — to finance it.
@@ -156,20 +190,16 @@ def decompose_core(entry):
     and the caller falls back to today's behaviour. Guessing a core would put a
     fabricated structure in front of `ladder_tier`, which is the one thing worse
     than reporting no match at all.
-
-    A NOTE ON LEG SHAPE. Callers build `entry["legs"]` to several shapes — some
-    carry only `{"strike": ...}` in `match`. Every field is read with `.get()`
-    and a missing one makes the group undecidable, never an exception.
     """
-    legs = entry.get("legs") or []
+    legs = list(legs or [])
     if len(legs) < 3:
         return None, []
     for lg in legs:
-        m = lg.get("match")
-        if not m or any(m.get(k) is None
-                        for k in ("expiry", "right", "strike", "position")):
-            return None, []
-        if not (lg.get("trade") or {}).get("side"):
+        # A Leg built from a fill or a position always carries these; one
+        # rebuilt from a partial record may not, and a missing field makes the
+        # group undecidable rather than raising.
+        if any(getattr(lg, k, None) is None
+               for k in ("expiry", "right", "strike", "qty")):
             return None, []
 
     # Candidate cores: a same-expiry, same-right pair at different strikes with
@@ -178,10 +208,9 @@ def decompose_core(entry):
     for i in range(len(legs)):
         for j in range(i + 1, len(legs)):
             a, b = legs[i], legs[j]
-            ma, mb = a["match"], b["match"]
-            if ma["expiry"] != mb["expiry"] or ma["right"] != mb["right"]:
+            if a.expiry != b.expiry or a.right != b.right:
                 continue
-            if ma["strike"] == mb["strike"]:
+            if a.strike == b.strike:
                 continue
             if _leg_sign(a) * _leg_sign(b) >= 0:
                 continue
@@ -200,59 +229,41 @@ def decompose_core(entry):
 
     # 2. The core itself must be a DEBIT. "A debit vertical, part-financed" is
     #    the strategy being modelled; a credit core is a different animal.
-    candidates = [c for c in candidates if _pair_net_price(c[0], c[1]) > 0]
+    candidates = [c for c in candidates if net_price(c[:2]) > 0]
     if not candidates:
         return None, []
 
     # 3. Prefer the largest net debit — the biggest premium outlay is the
     #    position; anything smaller is what was sold against it.
-    candidates.sort(key=lambda c: _pair_net_price(c[0], c[1]), reverse=True)
-    if len(candidates) > 1 and (_pair_net_price(*candidates[0][:2])
-                                == _pair_net_price(*candidates[1][:2])):
+    candidates.sort(key=lambda c: net_price(c[:2]), reverse=True)
+    if len(candidates) > 1 and (net_price(candidates[0][:2])
+                                == net_price(candidates[1][:2])):
         return None, []          # 4. a genuine tie is undecidable
     a, b, overlays = candidates[0]
     return (a, b), overlays
 
 
-def core_structure(entry):
-    """Canonical structure of `entry`'s core vertical, or None if undecidable."""
-    core, _overlays = decompose_core(entry)
+def core_structure(legs: list[Leg]) -> str | None:
+    """Canonical structure of the group's core vertical, or None if undecidable."""
+    core, _overlays = decompose_core(legs)
     if core is None:
         return None
     a, b = core
-    debit_credit = "debit" if _pair_net_price(a, b) > 0 else "credit"
-    return _vertical_label(a["match"], b["match"], debit_credit)
+    debit_credit = "debit" if net_price(core) > 0 else "credit"
+    return _vertical_label(a, b, debit_credit)
 
 
-def _pair_net_price(a, b):
-    return sum(_leg_sign(lg) * float(lg["trade"]["price"]) for lg in (a, b))
-
-
-def _core_strikes(entry):
+def _core_strikes(legs: list[Leg]) -> set:
     """Strikes of the core pair ONLY.
 
-    Distinct from `_live_strikes`, which pools every leg's strike — on a
-    3-leg group that yields {110, 135, 150}, which can never equal a
-    `bull call spread 110/135` play's {110, 135}.
+    Distinct from the whole group's strikes, which on a 3-leg group yield
+    {110, 135, 150} — never equal to a `bull call spread 110/135` play's
+    {110, 135}.
     """
-    core, _overlays = decompose_core(entry)
+    core, _overlays = decompose_core(legs)
     if core is None:
         return set()
-    return {core[0]["match"]["strike"], core[1]["match"]["strike"]}
-
-
-def leg_desc(entry, structure, positions):
-    parts = []
-    for lg in entry["legs"]:
-        tr = lg["trade"]
-        if lg["match"] is not None:
-            m = lg["match"]
-            sgn = "+1" if m["position"] > 0 else "-1"
-            parts.append(f"{m['symbol']} {m['expiry']} {m['strike']:g}{m['right']} {sgn} @ {tr['price']:g}")
-        else:
-            sgn = "+1" if tr["side"] == "BUY" else "-1"
-            parts.append(f"{tr['symbol']} UNKNOWN {sgn} @ {tr['price']:g}")
-    return " / ".join(parts)
+    return {core[0].strike, core[1].strike}
 
 
 # --------------------------------------------------------------------------
@@ -358,8 +369,8 @@ def ladder_tier(structure: str, market_regime: str, dte_proxy=np.nan, short_leg_
       before this parameter existed. Behaviour is BYTE-IDENTICAL to the
       original function: only the DTE proxy is checked, the result is always
       `partial=True`, and the reason string says the delta is UNVERIFIED.
-      This is the path every existing caller (and the 38 pinned tests in
-      `tests/test_live_loop.py`) exercises today.
+      This is the path every existing caller (and the pinned tests in
+      `tests/test_journal_mapping.py`) exercises today.
     - `short_leg_delta` given AND `dte_proxy` is usable (not NaN): both
       conditions are evaluated for real and `partial=False`. Tier B if both
       pass; otherwise Tier C, with the reason string naming which condition
@@ -417,12 +428,13 @@ def ladder_tier(structure: str, market_regime: str, dte_proxy=np.nan, short_leg_
 
 
 # --------------------------------------------------------------------------
-# Entry <-> analysis-play matching
+# Leg group <-> analysis-play matching
 # --------------------------------------------------------------------------
 # THE MATCH VOCABULARY, in descending strength. This tuple is the single
-# definition — `scripts/journal/config.py::MATCH_CONFIDENCES` and
-# `stage1_map_fills.py`'s tally both derive from it, so a new category can never
-# be added in one place and silently dropped from a count in another.
+# definition — `scripts/journal/config.py::MATCH_CONFIDENCES` derives from it,
+# and every tally that iterates it (s04a_report.py, s04b_page.py) counts what
+# it lists, so a new category can never be added in one place and silently
+# dropped from a count in another.
 #
 #   EXACT       traded the emitted play, at its strikes
 #   STRUCTURE   traded the emitted play's structure, different strikes
@@ -442,21 +454,24 @@ CONFIDENCES = ("EXACT", "STRUCTURE", "CORE", "SUBSTITUTED", "OVERLAY", "NONE")
 _CONF_RANK = {"EXACT": 0, "STRUCTURE": 1, "CORE": 2, "SUBSTITUTED": 3}
 
 
-def map_entry(inv_row, sig, ticker, ac):
-    """Match a live entry to AnalysisClaude rows on the signal date."""
+def map_entry(structure: str, legs: list[Leg], sig, ticker: str, ac) -> dict:
+    """Match one leg group to AnalysisClaude rows on the signal date `sig`.
+
+    `structure` is the label `classify_structure()` gave the group and `legs`
+    are the same (oriented) legs it named.
+    """
     day = ac[(ac["date"] == sig) & (ac["ticker"] == ticker)]
     # `core_structure` is returned whether or not a play matched: it is what
     # `s02_reconcile.py` tiers a financed spread off, and an untiered position is
     # not something to leave to whether an analysis row happened to exist.
-    entry = inv_row.get("entry") if hasattr(inv_row, "get") else inv_row["entry"]
-    core_struct = core_structure(entry) if entry else None
+    core_struct = core_structure(legs) if legs else None
     out = {"confidence": "NONE", "ac_play": None, "ac_structure": None,
            "dte_proxy": np.nan, "core_structure": core_struct}
     if day.empty:
         return out
-    live_struct = _live_to_canonical(inv_row["structure"])
-    live_strikes = _live_strikes(inv_row)
-    core_strikes = _core_strikes(entry) if core_struct else set()
+    live_struct = _live_to_canonical(structure)
+    live_strikes = {lg.strike for lg in legs}
+    core_strikes = _core_strikes(legs) if core_struct else set()
     best = None
     best_rank = (99, 99)
     for _, pr in day.iterrows():
@@ -495,7 +510,7 @@ def map_entry(inv_row, sig, ticker, ac):
             if rank == (0, 0):
                 break
     if best is None:
-        # no structure/family/direction match but same ticker/date exists -> NONE per brief
+        # no structure/family/direction match but same ticker/date exists -> NONE
         return out
     pr, conf, ps = best
     out.update(confidence=conf, ac_play=str(pr["play"]).replace("\n", " "),
@@ -522,11 +537,3 @@ def _live_to_canonical(struct: str) -> str:
     if "long put" in s:
         return "long_put"
     return "unknown"
-
-
-def _live_strikes(inv_row):
-    strikes = set()
-    for lg in inv_row["entry"]["legs"]:
-        if lg["match"] is not None:
-            strikes.add(lg["match"]["strike"])
-    return strikes

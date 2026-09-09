@@ -4,20 +4,20 @@
 4th, optional parameter so `scripts/journal/` (a real-delta daily pipeline)
 can evaluate the bull_put_spread Tier-B clause in
 `docs/deployment-rules.md` §3 for real — ``0.08 <= |delta| <= 0.20`` AND
-``DTE <= 59`` — instead of the DTE-only PARTIAL proxy `stage1_map_fills.py`
-is stuck with (no delta on the analysis row).
+``DTE <= 59`` — instead of the DTE-only PARTIAL proxy the retired
+`stage1_map_fills.py` (formerly `scripts/live_loop/`, superseded by the daily
+journal's `s02_reconcile.py`) was stuck with (no delta on the analysis row).
 
-These tests pin the new path; `tests/test_live_loop.py` (untouched) pins that
-omitting `short_leg_delta` stays byte-identical to the original PARTIAL
-behaviour.
+These tests pin the new path; `tests/test_journal_mapping.py` pins that omitting
+`short_leg_delta` stays byte-identical to the original PARTIAL behaviour.
 """
 
 import numpy as np
 
-# mapping.py has no import-time side effects (unlike stage1_map_fills.py,
-# which resolves an IBKR snapshot path at import time) -- a plain import is
-# safe here.
-from live_loop.mapping import ladder_tier
+# mapping.py has no import-time side effects (unlike the retired
+# stage1_map_fills.py, which resolved an IBKR snapshot path at import time) --
+# a plain import is safe here.
+from scripts.journal.lib.mapping import ladder_tier
 
 
 def test_delta_too_low_is_tier_c():

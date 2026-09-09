@@ -8,9 +8,9 @@ was.
 
 TWO SOURCES, IN ORDER. Live Sheets first, because a fill has to be matched
 against the analysis that actually preceded it and the tab is the live record.
-The `backtests/to_evaluate/*.csv` export is the fallback — the same file
-`scripts/live_loop/stage1_map_fills.py` reads — so the pipeline still runs with
-no credentials, offline, or when Sheets is down. Which source was used is
+The `backtests/to_evaluate/*.csv` export is the fallback — the same file the
+backtest studies read — so the pipeline still runs with no credentials,
+offline, or when Sheets is down. Which source was used is
 returned alongside the data and printed in the report; a journal built off a
 stale CSV export must never be mistaken for one built off the live book.
 

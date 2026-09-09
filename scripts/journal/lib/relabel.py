@@ -35,8 +35,9 @@ argument: a genuine overlay close (BUY-to-close a short leg) was recorded
 WITHOUT a suffix and re-derives without one.
 
 ONE ENCODING, STILL. The label comes from `mapping.classify_structure()` and
-the tier from `mapping.ladder_tier()`, reached through `s02_reconcile`'s own
-`_entry_adapter`. There is no second copy of either rule here.
+the tier from `mapping.ladder_tier()`, with `mapping.position_legs()` doing the
+CLOSE orientation the live pipeline does. There is no second copy of any of
+those rules here.
 
     python3 -m scripts.journal relabel                 # journal/trades.csv — the operator CLI
     python3 -m scripts.journal relabel --csv PATH
@@ -54,13 +55,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..config import TRADES_CSV, Leg
-
-try:  # `python3 -m scripts.journal...` — ROOT is on sys.path
-    from scripts.journal import s02_reconcile as reconcile
-    from scripts.live_loop import mapping
-except ImportError:  # tests/conftest.py puts scripts/ on sys.path directly
-    from journal import s02_reconcile as reconcile  # type: ignore
-    from live_loop import mapping  # type: ignore
+from . import mapping
 
 
 _LEG_RE = re.compile(
@@ -196,14 +191,14 @@ def _rederive_row(row: dict, index: int) -> tuple[Relabel | None, str]:
     old_structure = (row.get("structure") or "").strip()
     recorded_overlay = old_structure.endswith(_OVERLAY_SUFFIX)
 
-    entry = reconcile._entry_adapter(_legs_to_objects(parsed), closing=True)
-    # positions=[] — the open book as it stood that day is not recoverable from
-    # this CSV, so the overlay test cannot run and the re-derived label never
-    # carries the suffix. A RECORDED one is dropped rather than carried: see the
-    # module docstring — on a CLOSE it can only have been read off the fill's
-    # sign, and re-appending it would print a label the live pipeline cannot
-    # emit. The drop is reported, not silent.
-    new_structure, *_rest = mapping.classify_structure(entry, [])
+    pos_legs = mapping.position_legs(_legs_to_objects(parsed), closing=True)
+    # No open book — the book as it stood that day is not recoverable from this
+    # CSV, so the overlay test cannot run and the re-derived label never carries
+    # the suffix. A RECORDED one is dropped rather than carried: see the module
+    # docstring — on a CLOSE it can only have been read off the fill's sign, and
+    # re-appending it would print a label the live pipeline cannot emit. The
+    # drop is reported, not silent.
+    new_structure, *_rest = mapping.classify_structure(pos_legs)
     reoriented = _reorient_side(new_structure, row.get("net_price"))
     if reoriented == "":
         return None, "not_rederivable"

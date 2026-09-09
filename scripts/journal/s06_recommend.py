@@ -7,7 +7,7 @@ already cleared:
 
     rank()    PART A — the deterministic ranker. Reads one date's analysis
               plays plus the open book and applies `docs/deployment-rules.md`
-              §0-§4 via `scripts/live_loop/mapping.ladder_tier` (the ONE
+              §0-§4 via `lib/mapping.py::ladder_tier` (the ONE
               encoding of §1-§3 — this module never reimplements a tier rule).
               Does all the real work; a `--no-llm` run is this function plus
               `render()` and nothing else.
@@ -39,15 +39,10 @@ from datetime import date
 
 import pandas as pd
 
-from .lib import analysis, prompt
+from .lib import analysis, mapping, prompt
 from . import s03_risk as risk_mod
 from .config import (JUDGMENT_MAX_ATTEMPTS, JUDGMENT_MODEL, JUDGMENT_TIMEOUT_S,
                      RECOMMENDATION_MAX_AGE_DAYS)
-
-try:
-    from scripts.live_loop import mapping
-except ImportError:  # pragma: no cover - alternate sys.path layout (tests/conftest.py)
-    from live_loop import mapping
 
 log = logging.getLogger(__name__)
 
@@ -57,8 +52,9 @@ DEPLOY_BUDGET = 3
 # deployment-rules.md §1.4: bear debit is a hedge, never a selection play. It
 # stays emitted/visible and is eligible for the §4 hedge sleeve, but is NEVER a
 # `rank()` deploy candidate no matter how thin the day's A/B supply — ladder_tier()
-# itself has no opinion on "selection vs hedge" (it is tier-neutral, shared with
-# the fortnightly audit), so that split is this module's job, not mapping.py's.
+# itself has no opinion on "selection vs hedge" (it is tier-neutral, and the
+# journal's reconciler and the research tier read the same one), so that split is
+# this module's job, not mapping.py's.
 _HEDGE_ONLY_STRUCTURES = ("bear_put_spread", "long_put")
 
 # The caveat block PART C prints verbatim near the top of every card — see

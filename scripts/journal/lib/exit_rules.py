@@ -60,10 +60,7 @@ def is_debit(structure: str | None) -> bool | None:
     False would silently suppress the date on a debit whose label merely
     drifted. Callers must test `is True`, never truthiness of the table hit.
     """
-    try:
-        from scripts.live_loop.mapping import SIDE
-    except ImportError:  # pragma: no cover - alternate sys.path layout
-        from live_loop.mapping import SIDE
+    from .mapping import SIDE
     label = str(structure or "")
     side = SIDE.get(label)
     if side is not None:

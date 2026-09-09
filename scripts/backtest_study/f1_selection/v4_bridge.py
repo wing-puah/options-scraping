@@ -100,7 +100,7 @@ BEARISH = {"bear_put_spread", "long_put", "bear_call_spread", "short_call"}
 
 
 # --------------------------------------------------------------------------
-# parsing — shared vocabulary with scripts/live_loop/stage1_map_fills.py
+# parsing — shared vocabulary with scripts/journal/lib/mapping.py
 # --------------------------------------------------------------------------
 def play_structure(play_text: str) -> str:
     t = str(play_text).lower()

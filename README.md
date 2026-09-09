@@ -2,8 +2,8 @@
 
 Automated options-flow intelligence: scrapes barchart.com on a schedule, stores raw data in
 Google Drive, compiles and enriches it, runs LLM analysis via Claude, backtests the plays it
-produced, and closes the loop with a daily trade journal against the live broker book plus a
-fortnightly live-vs-ladder audit.
+produced, and closes the loop with a daily trade journal against the live broker book — fills
+reconciled against the ladder tier they should have gotten, as part of the same daily run.
 
 Prose lives in exactly two tracked places — `docs/` (how the system works, how to run it) and
 `research/` (what we learned and how we learned it). `config/` holds only what code reads.
@@ -69,9 +69,8 @@ scripts/analysis_pipeline (headless LLM step) ──► AnalysisClaude tab   (Go
     ├─► scripts/journal recommend ──► Recommendations tab   (what we said to trade)
     │       │  IBKR Flex statement ─┐
     │       ▼                       ▼
-    │   scripts/journal          ──► TradeJournal tab       (what was actually traded)
-    │
-    └─► scripts/live_loop         ──► fortnightly audit: did the fills match the ladder?
+    └─► scripts/journal          ──► TradeJournal tab       (what was actually traded;
+                                     s02_reconcile.py maps fills back to the ladder tier)
 ```
 
 **One Google auth, two scopes.** Drive and Sheets both authorise from the *same* OAuth2
@@ -319,21 +318,19 @@ the Recommendations tab (a Sheets failure is reported but never loses the row). 
 append-only and generational: an unchanged re-run appends nothing, a changed verdict appends
 `generation = n+1` rather than overwriting.
 
-## Live loop (production tier)
+## Fill reconciliation (production tier)
 
-The fortnightly counterpart to the daily journal: take the real fills, map each back to the
-analysis play that predicted it, and reconstruct which ladder tier that play would have been
-given — so live behaviour can be graded against the rules rather than against memory.
+There is no separate fortnightly audit any more. The daily journal (`python3 -m
+scripts.journal`) itself maps real fills back to the analysis play that predicted them and
+reconstructs which ladder tier that play would have been given — `s02_reconcile.py` is the
+fill→play matcher.
 
-```bash
-python3 -m scripts.live_loop.stage1_map_fills
-```
-
-`scripts/live_loop/mapping.py::ladder_tier()` is the **only** encoding of
-`docs/deployment-rules.md` §1–§3, and `scripts/journal/` imports it from there. Two copies
-would let the daily card and the fortnightly audit disagree about the same structure. The
-match vocabulary (`EXACT` / `STRUCTURE` / `CORE` / `OVERLAY`) is likewise defined once, in
-`mapping.CONFIDENCES`.
+`scripts/journal/lib/mapping.py::ladder_tier()` is the **only** encoding of
+`docs/deployment-rules.md` §1–§3. The deploy card (`s06_recommend.py`), the reconcile step
+(`s02_reconcile.py`) and the research live-select arm (`scripts/backtest_study/lib/
+live_select.py`) all import it from there — one copy is what keeps the three from disagreeing
+about the same structure. The match vocabulary (`EXACT` / `STRUCTURE` / `CORE` / `OVERLAY`) is
+likewise defined once, in `mapping.CONFIDENCES`.
 
 ## Research / backtest-study tier
 

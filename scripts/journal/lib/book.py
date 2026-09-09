@@ -34,66 +34,25 @@ from collections import defaultdict
 from datetime import date, datetime
 
 from ..config import Greeks, Leg, PositionRisk
-from .rawpull import contract_for
+from . import mapping
+from .rawpull import open_legs
 from ..s03_risk import mark_position
 
 log = logging.getLogger(__name__)
 
 
-def _legs_from_positions(raw: dict) -> list[Leg]:
-    """Turn each open position row into a Leg.
-
-    `position` is signed contracts as the broker reports it, so it carries the
-    long/short direction directly — unlike a fill, where the side does.
-    """
-    legs: list[Leg] = []
-    for p in raw.get("positions") or []:
-        conid = int(p["conid"])
-        c = contract_for(raw, conid)
-        qty = int(round(float(p.get("position") or 0)))
-        if qty == 0:
-            continue
-        if not c.get("expiry") or c.get("strike") is None:
-            log.warning("conid %s has no strike/expiry — excluded from the open book", conid)
-            continue
-        legs.append(Leg(
-            conid=conid,
-            symbol=str(c["symbol"]).upper(),
-            expiry=datetime.strptime(str(c["expiry"])[:10], "%Y-%m-%d").date(),
-            strike=float(c["strike"]),
-            right=str(c["right"]).upper()[:1],
-            qty=qty,
-            fill_price=float(p.get("avg_cost") or 0) / 100.0,
-            commission=0.0,
-            exec_id=f"pos:{conid}",
-            fill_time=datetime.now(),
-            open_close="O",
-        ))
-    return legs
-
-
 def _structure_label(legs: list[Leg]) -> str:
     """Canonical structure for a leg group, via the shared classifier.
 
-    Presents the legs in the shape `scripts/live_loop/mapping.classify_structure`
-    expects rather than duplicating its rules — that function is shared with the
-    fortnightly audit and must stay the single implementation.
+    `mapping.classify_structure()` takes the journal's own `Leg` objects, so
+    there is nothing to adapt: the rules stay in the one module that encodes
+    them. An open position is never a CLOSE, so the legs need no orientation
+    (see `mapping.position_legs`), and the open book is not passed because the
+    overlay test is about a fill sitting on top of a position, not about a
+    position describing itself.
     """
     try:
-        from scripts.live_loop import mapping
-    except ImportError:  # pragma: no cover - alternate sys.path layout
-        from live_loop import mapping
-
-    adapted = {"legs": [{"trade": {"side": "BUY" if lg.qty > 0 else "SELL",
-                                   "price": lg.fill_price,
-                                   "commission": lg.commission,
-                                   "symbol": lg.symbol},
-                         "match": {"symbol": lg.symbol, "strike": lg.strike,
-                                   "expiry": lg.expiry.isoformat(),
-                                   "right": lg.right, "position": lg.qty}}
-                        for lg in legs]}
-    try:
-        label = mapping.classify_structure(adapted, [])[0]
+        label = mapping.classify_structure(legs)[0]
     except Exception as exc:  # noqa: BLE001 - a label is cosmetic; exposure is not
         log.warning("Could not classify %s legs (%s) — labelling 'unclassified'",
                     len(legs), exc)
@@ -125,7 +84,7 @@ def open_positions(raw: dict, greeks: dict[int, Greeks],
     holdings that were split, and symbols with no spot price.
     """
     as_of = as_of or date.today()
-    legs = _legs_from_positions(raw)
+    legs = open_legs(raw)
     prices = raw.get("underlying_prices") or {}
 
     # Per-leg entry dates for the §5 exit-by display. Optional v1 field: an

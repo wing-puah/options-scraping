@@ -1,4 +1,4 @@
-"""Regression tests for the live walk-forward fill mapper.
+"""Regression tests for the journal's fill mapper (`scripts/journal/lib/mapping.py`).
 
 The bug these exist for (found 2026-08-11 by reading, not by a test): `SIDE`
 maps `long_call` and `bull_call_spread` both to `debit`, so the family branch in
@@ -13,40 +13,50 @@ mislabelled fill does not raise, it just quietly corrupts the only source of new
 evidence the system has.
 """
 
+from datetime import date, datetime
+
 import numpy as np
 import pandas as pd
 import pytest
 
-# stage1_map_fills resolves its IBKR snapshot at IMPORT time and raises
-# SystemExit when backtests/live_loop/ has no ibkr_snapshot_*.json — true in
-# every worktree (backtests/ is gitignored data). Without this guard that
-# SystemExit aborts the ENTIRE pytest run as an INTERNALERROR, not just this
-# module, which is why the suite used to need --ignore=tests/test_live_loop.py.
-try:
-    from live_loop.stage1_map_fills import (
-        CONFIDENCES,
-        DIRECTION,
-        SIDE,
-        _CONF_RANK,
-        _live_to_canonical,
-        ladder_tier,
-        map_entry,
-        play_structure,
-    )
-    from live_loop.mapping import (
-        _core_strikes,
-        _vertical_label,
-        core_structure,
-        decompose_core,
-    )
-except SystemExit as exc:
-    pytest.skip(f"live_loop snapshot data not present: {exc}",
-                allow_module_level=True)
+from scripts.journal.config import Leg
+from scripts.journal.lib.mapping import (
+    CONFIDENCES,
+    DIRECTION,
+    SIDE,
+    _CONF_RANK,
+    _core_strikes,
+    _live_to_canonical,
+    _vertical_label,
+    classify_structure,
+    core_structure,
+    decompose_core,
+    ladder_tier,
+    map_entry,
+    play_structure,
+    position_legs,
+)
 
 
 # --------------------------------------------------------------------------
 # helpers
+#
+# mapping.py takes the journal's OWN `Leg` objects — the same type
+# `lib/rawpull.py` builds from a fill and from an open position — so the
+# fixtures below build Legs directly. There is no adapter to mirror.
 # --------------------------------------------------------------------------
+_EXPIRY = date(2026, 12, 18)
+
+
+def _leg(strike, *, right="C", qty=1, price=1.0, expiry=_EXPIRY, symbol="META",
+         conid=None):
+    return Leg(conid=conid if conid is not None else int(strike * 10),
+               symbol=symbol, expiry=expiry, strike=float(strike), right=right,
+               qty=qty, fill_price=price, commission=0.0,
+               exec_id=f"e{strike}{right}{qty}", fill_time=datetime(2026, 7, 22, 14, 0),
+               open_close="O")
+
+
 def _ac(*plays):
     """An AnalysisClaude frame for one ticker/date, one row per play text."""
     return pd.DataFrame(
@@ -56,7 +66,7 @@ def _ac(*plays):
 
 
 def _live(structure, strikes):
-    """A reconstructed live entry.
+    """The legs of a reconstructed live position, at `strikes`.
 
     `structure` must be a label `classify_structure()` actually emits — naked
     legs come through as `"single long call"` (spaces), verticals as
@@ -64,15 +74,12 @@ def _live(structure, strikes):
     leg would silently make it `"unknown"` and the test would prove nothing;
     `test_classify_structure_labels_survive_canonicalisation` pins that seam.
     """
-    return {
-        "structure": structure,
-        "entry": {"legs": [{"match": {"strike": s}} for s in strikes]},
-    }
+    return structure, [_leg(s) for s in strikes]
 
 
 def _map(live_structure, live_strikes, *plays):
-    return map_entry(_live(live_structure, live_strikes), "2026-07-22", "META",
-                     _ac(*plays))
+    structure, legs = _live(live_structure, live_strikes)
+    return map_entry(structure, legs, "2026-07-22", "META", _ac(*plays))
 
 
 # --------------------------------------------------------------------------
@@ -165,7 +172,7 @@ def test_a_position_with_unpinnable_identity_stays_unknown():
 
 
 def test_no_play_for_that_ticker_date_is_none():
-    out = map_entry(_live("bull_call_spread", [185.0, 200.0]),
+    out = map_entry(*_live("bull_call_spread", [185.0, 200.0]),
                     "2026-07-22", "NVDA", _ac("bull call spread 185/200"))
     assert out["confidence"] == "NONE"
 
@@ -275,28 +282,27 @@ def test_unknown_structure_does_not_crash_the_ladder():
 # more importantly — pin that an AMBIGUOUS group is never guessed at.
 # --------------------------------------------------------------------------
 def _mleg(strike, right, expiry, qty, price):
-    """One leg in `classify_structure`/`decompose_core`'s entry shape."""
-    return {"trade": {"side": "BUY" if qty > 0 else "SELL", "price": price,
-                      "commission": 0.0, "symbol": "CRWV"},
-            "match": {"symbol": "CRWV", "strike": strike, "expiry": expiry,
-                      "right": right, "position": qty}}
+    """One leg of a financed multi-leg group."""
+    return _leg(strike, right=right, qty=qty, price=price, symbol="CRWV",
+                expiry=date.fromisoformat(expiry),
+                conid=int(strike * 10) + (0 if expiry == "2027-01-15" else 1))
 
 
 def _crwv():
     """The real 2026-08-14 fill: a 110/135 Jan-27 call spread, financed by a
     short Sep-26 150 call."""
-    return {"legs": [
+    return [
         _mleg(110.0, "C", "2027-01-15", 1, 22.00),
         _mleg(135.0, "C", "2027-01-15", -1, 13.00),
         _mleg(150.0, "C", "2026-09-18", -1, 2.65),
-    ]}
+    ]
 
 
 def test_a_financed_vertical_decomposes_into_its_core_and_the_financing_leg():
     core, overlays = decompose_core(_crwv())
     assert core is not None
-    assert {c["match"]["strike"] for c in core} == {110.0, 135.0}
-    assert [o["match"]["strike"] for o in overlays] == [150.0]
+    assert {c.strike for c in core} == {110.0, 135.0}
+    assert [o.strike for o in overlays] == [150.0]
     assert core_structure(_crwv()) == "bull_call_spread"
     assert _core_strikes(_crwv()) == {110.0, 135.0}
 
@@ -305,8 +311,7 @@ def test_the_core_matches_the_emitted_play_as_core_not_none():
     """THE BUG. Before decomposition this scored NONE against its own play."""
     ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
                         "play": "bull call spread 110/135", "horizon": 45}])
-    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
-                    "2026-08-13", "CRWV", ac)
+    out = map_entry("3-leg combo (debit)", _crwv(), "2026-08-13", "CRWV", ac)
     assert out["confidence"] == "CORE"
     assert out["ac_structure"] == "bull_call_spread"
     assert out["core_structure"] == "bull_call_spread"
@@ -317,16 +322,14 @@ def test_a_core_match_is_not_promoted_to_exact_even_when_strikes_agree():
     leg the analysis never proposed — a materially different position."""
     ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
                         "play": "bull call spread 110/135", "horizon": 45}])
-    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
-                    "2026-08-13", "CRWV", ac)
+    out = map_entry("3-leg combo (debit)", _crwv(), "2026-08-13", "CRWV", ac)
     assert out["confidence"] != "EXACT"
 
 
 def test_the_core_still_matches_when_the_plays_strikes_differ():
     ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
                         "play": "bull call spread 120/140", "horizon": 45}])
-    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
-                    "2026-08-13", "CRWV", ac)
+    out = map_entry("3-leg combo (debit)", _crwv(), "2026-08-13", "CRWV", ac)
     assert out["confidence"] == "CORE"
 
 
@@ -334,8 +337,7 @@ def test_the_direction_gate_still_binds_on_a_decomposed_core():
     """Decomposition widens WHAT can match, never WHETHER direction matters."""
     ac = pd.DataFrame([{"date": "2026-08-13", "ticker": "CRWV",
                         "play": "bear put spread 100/90", "horizon": 45}])
-    out = map_entry({"structure": "3-leg combo (debit)", "entry": _crwv()},
-                    "2026-08-13", "CRWV", ac)
+    out = map_entry("3-leg combo (debit)", _crwv(), "2026-08-13", "CRWV", ac)
     assert out["confidence"] == "NONE"
 
 
@@ -351,7 +353,7 @@ def test_a_long_leftover_leg_makes_the_group_undecidable():
     """A financing overlay is SHORT by definition. A long leftover means this is
     some other structure whose shape we do not know."""
     e = _crwv()
-    e["legs"][2] = _mleg(150.0, "C", "2026-09-18", 1, 2.65)   # long, not short
+    e[2] = _mleg(150.0, "C", "2026-09-18", 1, 2.65)   # long, not short
     assert decompose_core(e) == (None, [])
 
 
@@ -359,45 +361,46 @@ def test_a_credit_core_makes_the_group_undecidable():
     """'A debit vertical, part-financed' is the strategy modelled. A credit core
     is a different animal and gets no invented interpretation."""
     e = _crwv()
-    e["legs"][0] = _mleg(110.0, "C", "2027-01-15", 1, 5.00)   # core now a credit
+    e[0] = _mleg(110.0, "C", "2027-01-15", 1, 5.00)   # core now a credit
     assert decompose_core(e) == (None, [])
 
 
 def test_a_group_with_no_vertical_pair_is_undecidable():
-    e = {"legs": [_mleg(110.0, "C", "2027-01-15", -1, 22.00),
-                  _mleg(135.0, "C", "2027-01-15", -1, 13.00),
-                  _mleg(150.0, "C", "2026-09-18", -1, 2.65)]}
+    e = [_mleg(110.0, "C", "2027-01-15", -1, 22.00),
+         _mleg(135.0, "C", "2027-01-15", -1, 13.00),
+         _mleg(150.0, "C", "2026-09-18", -1, 2.65)]
     assert decompose_core(e) == (None, [])
 
 
-def test_an_unmatched_leg_makes_the_group_undecidable():
+def test_a_leg_missing_its_identity_makes_the_group_undecidable():
+    """A `Leg` rebuilt from a partial record (relabel.py does this) can carry a
+    None field. That must make the group undecidable, never raise."""
+    from dataclasses import replace
     e = _crwv()
-    e["legs"][1]["match"] = None
+    e[1] = replace(e[1], strike=None)
     assert decompose_core(e) == (None, [])
 
 
 def test_a_tie_between_two_equal_cores_is_undecidable_rather_than_arbitrary():
     """Two candidate cores with identical net debit: picking either would be a
     coin flip presented as a fact."""
-    e = {"legs": [_mleg(110.0, "C", "2027-01-15", 1, 20.00),
-                  _mleg(135.0, "C", "2027-01-15", -1, 10.00),
-                  _mleg(110.0, "P", "2027-01-15", 1, 20.00),
-                  _mleg(135.0, "P", "2027-01-15", -1, 10.00),
-                  _mleg(150.0, "C", "2026-09-18", -1, 2.65)]}
+    e = [_mleg(110.0, "C", "2027-01-15", 1, 20.00),
+         _mleg(135.0, "C", "2027-01-15", -1, 10.00),
+         _mleg(110.0, "P", "2027-01-15", 1, 20.00),
+         _mleg(135.0, "P", "2027-01-15", -1, 10.00),
+         _mleg(150.0, "C", "2026-09-18", -1, 2.65)]
     assert decompose_core(e) == (None, [])
 
 
-def test_decompose_core_never_raises_on_a_minimal_leg_shape():
-    """THE SEAM THAT PROTECTS THIS WHOLE MODULE'S SUITE. `_live()` builds legs
-    as {"match": {"strike": s}} — no expiry, no right, no position, no trade.
-    Every field must be read with .get() and a missing one must make the group
-    undecidable, never raise."""
-    e = {"legs": [{"match": {"strike": s}} for s in (110.0, 135.0, 150.0)]}
+def test_decompose_core_never_raises_on_a_degenerate_group():
+    """An empty or under-identified group is undecidable, never an exception."""
+    from dataclasses import replace
+    e = [replace(lg, expiry=None, right=None) for lg in _crwv()]
     assert decompose_core(e) == (None, [])
     assert core_structure(e) is None
     assert _core_strikes(e) == set()
-    assert decompose_core({}) == (None, [])
-    assert decompose_core({"legs": []}) == (None, [])
+    assert decompose_core([]) == (None, [])
+    assert decompose_core(None) == (None, [])
 
 
 # -- _vertical_label is one encoding, shared by the two-leg branch and the core
@@ -408,7 +411,70 @@ def test_decompose_core_never_raises_on_a_minimal_leg_shape():
     (-1, 1, "P", "bear_put_spread"),
 ])
 def test_vertical_label_names_every_plain_vertical(lo_qty, hi_qty, right, expected):
-    a = {"strike": 100.0, "right": right, "position": lo_qty, "expiry": "2026-12-18"}
-    b = {"strike": 110.0, "right": right, "position": hi_qty, "expiry": "2026-12-18"}
+    a = _leg(100.0, right=right, qty=lo_qty)
+    b = _leg(110.0, right=right, qty=hi_qty)
     assert _vertical_label(a, b, "debit") == expected
     assert _vertical_label(b, a, "debit") == expected   # order-independent
+
+
+# --------------------------------------------------------------------------
+# position_legs — the CLOSE orientation (the P1 fix), and the money it must
+# never touch. `tests/test_p1_closed_spread_robustness.py` pins the pipeline
+# end of this; these pin the function itself.
+# --------------------------------------------------------------------------
+def test_position_legs_leaves_an_opening_group_alone():
+    legs = [_leg(170.0, qty=1, price=8.0), _leg(180.0, qty=-1, price=3.0)]
+    assert position_legs(legs, closing=False) == legs
+    assert classify_structure(legs)[0] == "bull_call_spread"
+
+
+def test_position_legs_names_the_position_a_close_unwinds():
+    """Selling the 170 and buying back the 180 IS a bull call spread being
+    closed — read from the fill signs it is the mirror image, which
+    `ladder_tier()` then vetoes."""
+    closing = [_leg(170.0, qty=-1, price=11.0), _leg(180.0, qty=1, price=5.0)]
+    assert classify_structure(closing)[0] == "bear_call_spread"
+    assert classify_structure(position_legs(closing, closing=True))[0] == \
+        "bull_call_spread"
+
+
+def test_orientation_never_touches_the_money():
+    """`net_price()` is read off the UNORIENTED legs on purpose: the label names
+    the position, the cash names the transaction."""
+    from scripts.journal.lib.mapping import net_price
+    closing = [_leg(170.0, qty=-1, price=11.0), _leg(180.0, qty=1, price=5.0)]
+    assert net_price(closing) == pytest.approx(-6.0)          # a $6 credit
+    assert net_price(position_legs(closing, closing=True)) == pytest.approx(6.0)
+
+
+# --------------------------------------------------------------------------
+# classify_structure — the labels the rest of the journal reads
+# --------------------------------------------------------------------------
+def test_classify_structure_names_a_single_leg_by_side_and_right():
+    assert classify_structure([_leg(185.0, qty=1)])[0] == "single long call"
+    assert classify_structure([_leg(185.0, qty=-1, right="P")])[0] == "single short put"
+
+
+def test_a_short_leg_over_another_expiry_is_an_overlay():
+    """The overlay test reads the OPEN BOOK — `rawpull.open_legs()`'s Legs."""
+    leg = _leg(200.0, qty=-1, expiry=date(2026, 9, 18))
+    book = [_leg(185.0, qty=1, expiry=date(2027, 1, 15)),
+            _leg(200.0, qty=-1, expiry=date(2027, 1, 15))]
+    label, _note, is_overlay = classify_structure([leg], book)
+    assert (label, is_overlay) == ("single short call (overlay)", True)
+    # a LONG leg is never an overlay, and neither is one with an empty book
+    assert classify_structure([_leg(200.0, qty=1, expiry=date(2026, 9, 18))],
+                              book)[2] is False
+    assert classify_structure([leg])[2] is False
+
+
+def test_two_expiries_are_reported_as_a_calendar_rather_than_a_vertical():
+    legs = [_leg(200.0, qty=1, expiry=date(2027, 1, 15), price=9.0),
+            _leg(200.0, qty=-1, expiry=date(2026, 9, 18), price=3.0)]
+    label, note, _overlay = classify_structure(legs)
+    assert label == "diagonal/calendar (mixed expiry)"
+    assert "two expiries" in note
+
+
+def test_three_distinct_contracts_are_a_combo_named_by_their_net():
+    assert classify_structure(_crwv())[0] == "3-leg combo (debit)"

@@ -1,7 +1,7 @@
 """Text corpus: the analysis model's PROSE re-attached to every priced row.
 
-RESEARCH TIER. Never imported by `scripts/journal/`, `scripts/live_loop/` or
-`scripts/analysis_pipeline/`; nothing here decides a trade. It is a loader plus
+RESEARCH TIER. Never imported by `scripts/journal/` or `scripts/analysis_pipeline/`;
+nothing here decides a trade. It is a loader plus
 a set of deterministic, regex-only text features, built so a later study can ask
 whether anything in what the model *wrote* predicts what the row *did* — a
 question no study in this repo has ever been able to pose, because every study

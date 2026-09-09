@@ -8,12 +8,12 @@ those strings contain the canonical ``bear put spread`` / ``put spread``
 substrings that the downstream keyword matchers key on, so a two-leg vertical
 used to fall through to the single-leg branch and be priced as ONE long option
 (``scripts/backtest/classify.py``) or fail to match a real fill at all
-(``scripts/live_loop/mapping.py::play_structure`` → ``"unknown"``). It is the
+(``scripts/journal/lib/mapping.py::play_structure`` → ``"unknown"``). It is the
 silent-wrong case, not a skip: the row still gets written, with a
 ``structure``/``legs`` that contradict its own ``play`` text.
 
 This is the ONE encoding of that rewrite. Both the backtest classifier and the
-live-loop play parser call it, so the backtest and the daily/fortnightly match
+journal's play parser call it, so the backtest and the daily fill match
 can never disagree about what a play's text named.
 
 The (option type, debit|credit) pair determines the vertical completely, so the

@@ -3,11 +3,17 @@ Helpers for the daily trade journal — everything the numbered steps lean on bu
 that is not itself a step.
 
 WHY IT EXISTS. `scripts/journal/` reads top-to-bottom as the pipeline: the files
-named `stepN_*.py` ARE the flow, in order, and nothing else sits beside them.
+named `sNN_*.py` ARE the flow, in order, and nothing else sits beside them.
 Anything shared, or subordinate to one step, lives here instead:
 
     rawpull.py    the on-disk pull schema — the contract step1 writes and every
-                  later step reads (dependency-free on purpose)
+                  later step reads (dependency-free on purpose), plus the typed
+                  views over it (`fill_to_leg`, `open_legs`, `greeks_map`)
+    mapping.py    the RULES VOCABULARY: structure names, the match confidences,
+                  play-text parsing, and `ladder_tier()` — the ONE encoding of
+                  docs/deployment-rules.md §1-§3        (step2 AND step6 share it,
+                  and scripts/backtest_study/lib/live_select.py reads the ladder
+                  from here rather than porting it)
     flexparse.py  IBKR Flex export -> rawpull, plus the flat-book guards  (step1)
     greeks.py     Barchart EOD greeks for the open book, which Flex lacks  (step1)
     book.py       group the broker's flat legs into logical positions      (step3)

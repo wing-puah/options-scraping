@@ -6,23 +6,25 @@ PRODUCTION TIER, pure computation. Reads a validated rawpull dict (see
 lib/rawpull.py) plus the analysis book (see lib/analysis.py) and returns
 `list[PositionEvent]` (see config.py) — no network, no Sheets, no file writes.
 
-THIS IS THE DAILY COUNTERPART OF `scripts/live_loop/stage1_map_fills.py`.
-Both turn live fills into a structure label, a signal-date match and a
-deployment-ladder tier, and both call the SAME encoding of those rules
-(`scripts/live_loop/mapping.py`) so the two can never disagree about a tier.
-The one structural difference: stage1 infers contract identity by joining a
-fill price to an open position's `average_price` within a tolerance, because
-its hand-pasted MCP snapshot carries no broker contract id. Every fill here
-carries a real `conid` (rawpull.validate() refuses a pull where that is not
-true), so identity is exact and that price-matching inference is simply not
-needed — every leg's `match` is populated straight from the Leg itself.
+THE RULES IT APPLIES LIVE IN `lib/mapping.py` — structure names, the match
+vocabulary, and `ladder_tier()`, the ONE encoding of `docs/deployment-rules.md`
+§1-§3. This module decides WHICH legs form a group and what the group DID; it
+never re-derives a structure or a tier rule of its own. Mapping speaks the
+journal's own `Leg` type, so nothing is adapted on the way in.
+
+IDENTITY IS EXACT HERE. Every fill carries a real `conid` (rawpull.validate()
+refuses a pull where that is not true), so a leg's strike, expiry and right are
+known rather than inferred — unlike the retired
+`scripts/live_loop/stage1_map_fills.py`, which price-matched fills against a
+hand-pasted snapshot and was superseded by this daily Flex loop on 2026-09-09.
 
 A STRUCTURE LABEL NAMES A POSITION, NOT AN ORDER. The action is decided first
 and a whole-group CLOSE is classified on the position it UNWINDS, by inverting
-the legs' signs in `_entry_adapter()`. Reading the fill signs directly named the
-mirror image of every closed spread — a closed bull call spread journalled as a
-`bear_call_spread`, which `ladder_tier()` then vetoes (robustness-review P1).
-Money is never oriented: `net_price` is inverted back to the fill's own cash.
+the legs' signs through `mapping.position_legs(..., closing=True)`. Reading the
+fill signs directly named the mirror image of every closed spread — a closed
+bull call spread journalled as a `bear_call_spread`, which `ladder_tier()` then
+vetoes (robustness-review P1). Money is never oriented: `net_price` is read off
+the UNORIENTED legs, so it stays the fill's own cash.
 
 That same exact identity is also what lets `_merge_legs_by_conid()` fold the
 broker's FILLS back into the operator's LEGS: one contract filled in three
@@ -39,18 +41,12 @@ import logging
 import math
 from dataclasses import replace
 from datetime import date as _date
-from datetime import datetime as _datetime
 from pathlib import Path
 
 from . import s03_risk as risk
-from .lib import analysis
+from .lib import analysis, mapping
 from .config import Leg, OPTION_MULTIPLIER, PositionEvent
-from .lib.rawpull import contract_for, fill_to_leg, greeks_map
-
-try:  # `python3 -m scripts.journal...` — ROOT is on sys.path
-    from scripts.live_loop import mapping
-except ImportError:  # tests/conftest.py puts scripts/ on sys.path directly
-    from live_loop import mapping
+from .lib.rawpull import fill_to_leg, greeks_map, open_legs
 
 log = logging.getLogger(__name__)
 
@@ -75,14 +71,14 @@ def reconcile(raw: dict, ac_df=None) -> list[PositionEvent]:
             "(expiry/assignment bookkeeping, not real fills — price == 0 and "
             "no realized P&L to corroborate)", n_settlement)
 
-    positions_adapter = _positions_adapter(raw)
+    open_book = open_legs(raw)
     greeks = greeks_map(raw)
     regime_by_date = analysis.market_regime_by_date(ac_df)
     mech_cell_by_date = analysis.mech_cell_by_date(ac_df)
 
     events = []
     for legs in _group_legs(pairs):
-        events.append(_build_event(legs, positions_adapter, greeks, raw, ac_df,
+        events.append(_build_event(legs, open_book, greeks, raw, ac_df,
                                    regime_by_date, mech_cell_by_date))
     return events
 
@@ -94,10 +90,9 @@ def _fills_to_legs(raw: dict) -> tuple[list[tuple[dict, Leg]], int]:
     """Build a Leg for every fill, dropping zero-price settlement rows.
 
     A settlement row (price == 0 AND no/zero realized_pnl) is expiry/assignment
-    bookkeeping IBKR stamps outside market hours, not a fill — the identical
-    distinction `scripts/live_loop/stage1_map_fills.py::reconstruct()` makes. A
-    zero-price row that DOES carry a nonzero realized_pnl is real expiration
-    P&L and stays in scope.
+    bookkeeping IBKR stamps outside market hours, not a fill. A zero-price row
+    that DOES carry a nonzero realized_pnl is real expiration P&L and stays in
+    scope.
 
     Returns `(fill, Leg)` pairs (not bare Legs) because grouping needs the raw
     fill's `order_id`, which Leg does not carry.
@@ -220,97 +215,6 @@ def _merge_legs_by_conid(legs: list[Leg]) -> tuple[list[Leg], list[str]]:
 
 
 # --------------------------------------------------------------------------
-# 2. Adapters into the stage1 shape mapping.py expects
-# --------------------------------------------------------------------------
-# `classify_structure()` and `map_entry()` (scripts/live_loop/mapping.py) were
-# written against stage1's hand-reconstructed shape:
-#   entry  = {"legs": [{"trade": {side, price, commission}, "match": pos|None}]}
-#   positions = [{"is_option", "symbol", "expiry", "strike", "right", "position"}]
-# The adapters below present our Leg objects and rawpull's own open-position
-# snapshot in that shape. They do NOT re-derive structure/tier logic — that
-# stays exactly where deployment-rules.md's one encoding lives.
-def _entry_adapter(legs: list[Leg], closing: bool = False) -> dict:
-    """Present `legs` in the entry shape `mapping.py` expects.
-
-    `closing=True` INVERTS every leg's sign. THIS IS THE P1 FIX, and the reason
-    it belongs here rather than in mapping.py: `match["position"]` means "the
-    signed position this leg is part of", and stage1 fills it from a real
-    broker snapshot. This adapter has no snapshot, so it fills it from the
-    FILL's signed quantity — which equals the position only when the fill
-    OPENED it. A closing fill is the position's mirror image: selling the 170
-    and buying back the 180 of a bull call spread reads, sign for sign, as a
-    bear call spread, and `ladder_tier()` vetoes that on sight. Every closed
-    spread journalled before 2026-09-07 carries the inverted label.
-
-    So the caller passes the ACTION and the group is oriented to the position
-    it acts on. Everything downstream then describes that position: the
-    structure label, `decompose_core()`'s financed-vertical split, the overlay
-    test, the analysis match and the tier. mapping.py is untouched — there is
-    still exactly one `ladder_tier()` and one `CONFIDENCES`.
-
-    Only a whole-group CLOSE is oriented. A ROLL closes one leg while opening
-    another and a PARTIAL does not know which it did, so neither names a single
-    position; both keep the fill-sign reading and `_build_event` discloses it.
-
-    NOTE the one thing orientation must NOT touch: money. `classify_structure`
-    derives its `net` from these same signs, so on a CLOSE it returns the
-    price of the POSITION, not the cash of the fill — `_build_event` inverts
-    that figure back before it becomes `net_price`.
-    """
-    flip = -1 if closing else 1
-    legs_out = []
-    for lg in legs:
-        qty = flip * lg.qty
-        # 0.0 rather than None for an unreported commission is safe HERE and
-        # only here: mapping.classify_structure uses it for a net-with-commission
-        # figure this module discards, and the structure label itself does not
-        # depend on it. The costed value the journal records keeps its None.
-        trade = {"side": "BUY" if qty > 0 else "SELL",
-                 "price": lg.fill_price, "commission": lg.commission or 0.0}
-        # `match` is never None here — see the module docstring: a real conid
-        # means identity is always known, unlike stage1's price-matched infer.
-        match = {"position": qty, "strike": lg.strike, "expiry": lg.expiry,
-                 "right": lg.right, "symbol": lg.symbol}
-        legs_out.append({"trade": trade, "match": match})
-    return {"legs": legs_out}
-
-
-def _parse_expiry(v) -> _date | None:
-    if v is None:
-        return None
-    if isinstance(v, _date):
-        return v
-    return _datetime.strptime(str(v)[:10], "%Y-%m-%d").date()
-
-
-def _positions_adapter(raw: dict) -> list[dict]:
-    """The open book in `classify_structure()`'s `positions` shape.
-
-    `s01_pull.py` only ever writes OPTION positions into `raw["positions"]`
-    (`_is_option()` filters stock rows before the pull is built), so
-    `is_option` is unconditionally True here. Expiry is parsed to a `date`
-    (matching Leg.expiry) rather than left as the raw "YYYY-MM-DD" string —
-    `_is_overlay()` compares expiries with `!=`, and a date never equals the
-    string that spells it, so leaving it unparsed would silently defeat every
-    overlay check.
-    """
-    out = []
-    for p in raw.get("positions", []):
-        conid = int(p["conid"])
-        c = contract_for(raw, conid)
-        out.append({
-            "conid": conid,
-            "position": float(p.get("position") or 0),
-            "symbol": str(c["symbol"]).upper(),
-            "expiry": _parse_expiry(c.get("expiry")),
-            "strike": float(c["strike"]) if c.get("strike") is not None else None,
-            "right": str(c["right"]).upper()[:1] if c.get("right") else None,
-            "is_option": True,
-        })
-    return out
-
-
-# --------------------------------------------------------------------------
 # 3. Action classification
 # --------------------------------------------------------------------------
 def _classify_action(legs: list[Leg]) -> tuple[str, list[str]]:
@@ -360,16 +264,20 @@ def _classify_action(legs: list[Leg]) -> tuple[str, list[str]]:
 # --------------------------------------------------------------------------
 # 4. Analysis matching
 # --------------------------------------------------------------------------
-def _match_to_analysis(struct_label: str, entry: dict, ticker: str,
+def _match_to_analysis(struct_label: str, pos_legs: list[Leg], ticker: str,
                        event_date: str, ac_df) -> dict:
     """Walk candidate signal dates nearest-first; the first non-NONE match wins.
+
+    `pos_legs` are the legs oriented to the position they act on, exactly as
+    `classify_structure()` saw them — the match must describe the same position
+    the label names.
 
     `entry_lag_days` is the candidate's POSITION in
     `analysis.candidate_signal_dates()`'s nearest-first list (0 = nearest) —
     i.e. trading days counted over the BOOK's own dates, per the brief, not a
     calendar day-count.
     """
-    core_struct = mapping.core_structure(entry)
+    core_struct = mapping.core_structure(pos_legs)
     candidates = analysis.candidate_signal_dates(ac_df, event_date)
     if not candidates:
         return {"signal_date": None, "entry_lag_days": None,
@@ -377,9 +285,8 @@ def _match_to_analysis(struct_label: str, entry: dict, ticker: str,
                 "core_structure": core_struct,
                 "note": "no analysis date precedes this fill within the lookback window"}
 
-    inv_row = {"structure": struct_label, "entry": entry}
     for i, sig in enumerate(candidates):
-        result = mapping.map_entry(inv_row, sig, ticker, ac_df)
+        result = mapping.map_entry(struct_label, pos_legs, sig, ticker, ac_df)
         if result["confidence"] != "NONE":
             return {"signal_date": sig, "entry_lag_days": i,
                     "match_confidence": result["confidence"],
@@ -416,12 +323,11 @@ def _short_leg_delta_for_tier(action: str, legs: list[Leg], greeks: dict):
 
 
 def _assign_tier(event: PositionEvent, greeks: dict) -> None:
-    # Tier the EMITTED play's structure when one was matched, exactly like
-    # stage1_map_fills.py does — a SUBSTITUTED live structure must not shift
-    # the tier the analysis row itself would have received, or the two
-    # pipelines (daily journal vs fortnightly audit) would disagree on the
-    # same fill. Only fall back to the live-traded structure when nothing
-    # matched at all (ac_structure is None).
+    # Tier the EMITTED play's structure when one was matched: a SUBSTITUTED
+    # live structure must not shift the tier the analysis row itself would have
+    # received, or the journal and the deploy card would disagree about the same
+    # play. Only fall back to the live-traded structure when nothing matched at
+    # all (ac_structure is None).
     #
     # `core_structure` sits between the two. A financed vertical's LABEL is
     # "3-leg combo (debit)", which canonicalises to "unknown" and lands on the
@@ -446,11 +352,10 @@ def _assign_tier(event: PositionEvent, greeks: dict) -> None:
 def _entry_slippage_notes(ac_play: str | None, legs: list[Leg]) -> list[str]:
     """Strike mismatch is recorded; a numeric slippage figure is never invented.
 
-    There is no reference/modeled entry price sourceable at reconcile time (no
-    backtest row exists for a same-day fill — the same conclusion Step D of
-    stage1_map_fills.py reaches: NOT_BACKTESTED). `net_price` is what was PAID,
-    not a price to diff against itself, so `entry_slippage` stays None and the
-    reason is always recorded rather than left implicit.
+    There is no reference/modeled entry price sourceable at reconcile time: no
+    backtest row exists for a same-day fill. `net_price` is what was PAID, not a
+    price to diff against itself, so `entry_slippage` stays None and the reason
+    is always recorded rather than left implicit.
     """
     notes = []
     if ac_play:
@@ -501,7 +406,7 @@ def _source_ref(raw: dict, legs: list[Leg]) -> str:
     return f"{_pull_filename(raw)}:{exec_ids}"
 
 
-def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
+def _build_event(legs: list[Leg], open_book: list[Leg], greeks: dict,
                  raw: dict, ac_df, regime_by_date: dict, mech_cell_by_date: dict
                  ) -> PositionEvent:
     legs = sorted(legs, key=lambda lg: (lg.fill_time, lg.conid))
@@ -521,20 +426,19 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
 
     # ACTION FIRST, then the structure. The label names the position the fill
     # group acts on, and on a CLOSE that is the mirror of the fills themselves
-    # (see `_entry_adapter`), so the action has to be known before the group can
-    # be classified at all.
+    # (see `mapping.position_legs`), so the action has to be known before the
+    # group can be classified at all.
     action, action_notes = _classify_action(legs)
     notes.extend(action_notes)
 
     closing = action == "CLOSE"
-    entry = _entry_adapter(legs, closing=closing)
-    struct_label, net_price, _net_wc, _status, cs_note, is_overlay = \
-        mapping.classify_structure(entry, positions_adapter)
+    pos_legs = mapping.position_legs(legs, closing=closing)
+    struct_label, cs_note, is_overlay = mapping.classify_structure(
+        pos_legs, open_book)
+    # Read off the UNORIENTED legs on purpose: the label names the position, the
+    # money names the transaction, and the journal records what was paid.
+    net_price = mapping.net_price(legs)
     if closing:
-        # `net_price` came back oriented to the position; the journal records
-        # the FILL's cash. Invert it back — this is the one figure orientation
-        # must not change.
-        net_price = -net_price
         notes.append(f"structure names the position this group closes "
                      f"({struct_label}), read from the legs' resulting position "
                      "rather than the fills' own signs")
@@ -577,7 +481,7 @@ def _build_event(legs: list[Leg], positions_adapter: list[dict], greeks: dict,
         dte_at_entry=dte_at_entry,
     )
 
-    match = _match_to_analysis(struct_label, entry, ticker, event.date, ac_df)
+    match = _match_to_analysis(struct_label, pos_legs, ticker, event.date, ac_df)
     event.signal_date = match["signal_date"]
     event.entry_lag_days = match["entry_lag_days"]
     event.match_confidence = match["match_confidence"]

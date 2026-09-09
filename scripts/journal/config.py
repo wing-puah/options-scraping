@@ -57,8 +57,8 @@ RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
 OPEN_BOOK_CSV = JOURNAL_DIR / "open_book.csv"
 SITE_DIR = ROOT / "site"               # generated HTML, also gitignored
 
-# Fallback analysis source when Sheets is unreachable — the same exports
-# scripts/live_loop/stage1_map_fills.py already reads.
+# Fallback analysis source when Sheets is unreachable — the same exports the
+# backtest studies read.
 EVAL_DIR = ROOT / "backtests" / "to_evaluate"
 AC_CSV_FALLBACK = EVAL_DIR / "analysis - AnalysisClaude.csv"
 
@@ -140,15 +140,12 @@ MAX_SIGNAL_AGE_DAYS = 10
 # change when the card refuses to build.
 RECOMMENDATION_MAX_AGE_DAYS = MAX_SIGNAL_AGE_DAYS
 
-# Ranked best-first. DERIVED from scripts/live_loop/mapping.py rather than
-# mirrored: the daily journal and the fortnightly audit assign these labels from
-# the same `map_entry`, so a hand-kept copy here could only ever drift from it —
-# and a category missing from this tuple vanishes silently out of every count
-# that iterates it (s04a_report.py's tally, s04b_page.py's chart).
-try:
-    from scripts.live_loop.mapping import CONFIDENCES as MATCH_CONFIDENCES  # noqa: F401
-except ImportError:  # pragma: no cover - alternate sys.path layout
-    from live_loop.mapping import CONFIDENCES as MATCH_CONFIDENCES  # noqa: F401
+# Ranked best-first. DERIVED from lib/mapping.py rather than mirrored: that is
+# where `map_entry` assigns these labels, so a hand-kept copy here could only
+# ever drift from it — and a category missing from this tuple vanishes silently
+# out of every count that iterates it (s04a_report.py's tally, s04b_page.py's
+# chart).
+from .lib.mapping import CONFIDENCES as MATCH_CONFIDENCES  # noqa: F401
 
 # Confidences that mean "this fill was not an attempt to trade a play at all",
 # so counting them as a miss would misdescribe the operator's discipline. Only
@@ -333,7 +330,7 @@ class PositionEvent:
     market_regime: str | None = None
     mech_cell: str | None = None
 
-    # --- ladder (scripts/live_loop/mapping.ladder_tier) ---
+    # --- ladder (lib/mapping.py::ladder_tier) ---
     tier: str | None = None
     tier_reason: str | None = None
     tier_verified: bool = False       # False when the §3 delta gate was unchecked

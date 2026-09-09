@@ -52,10 +52,13 @@ least representable, and refuses a pull that is internally inconsistent.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime
 from pathlib import Path
 
 from ..config import (DELTA_SOURCE_UNAVAILABLE, DELTA_SOURCES_REAL, Greeks, Leg)
+
+log = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
@@ -191,3 +194,45 @@ def fill_to_leg(raw: dict, fill: dict) -> Leg:
         open_close=str(fill.get("open_close") or "?").upper()[:1],
         realized_pnl=fill.get("realized_pnl"),
     )
+
+
+def open_legs(raw: dict) -> list[Leg]:
+    """The currently-held option positions, as `Leg`s. The ONE conversion.
+
+    `position` is signed contracts as the broker reports it, so it carries the
+    long/short direction directly — unlike a fill, where the side does.
+    `fill_price` is the position's average cost per share (the broker reports
+    `avg_cost` per contract) and `commission` is 0.0, because a held position's
+    entry commission is not re-charged by holding it.
+
+    A row with no strike/expiry, or a flat (zero) quantity, is NOT a position
+    and is dropped with a warning rather than passed on as a leg that cannot be
+    priced or dated. Two callers read this: `lib/book.py` groups the result into
+    logical positions, and `s02_reconcile.py` hands it to
+    `mapping.classify_structure()` as the book the overlay test looks at.
+    """
+    legs: list[Leg] = []
+    for p in raw.get("positions") or []:
+        conid = int(p["conid"])
+        c = contract_for(raw, conid)
+        qty = int(round(float(p.get("position") or 0)))
+        if qty == 0:
+            continue
+        if not c.get("expiry") or c.get("strike") is None:
+            log.warning("conid %s has no strike/expiry — excluded from the open book",
+                        conid)
+            continue
+        legs.append(Leg(
+            conid=conid,
+            symbol=str(c["symbol"]).upper(),
+            expiry=_parse_date(c["expiry"]),
+            strike=float(c["strike"]),
+            right=str(c["right"]).upper()[:1],
+            qty=qty,
+            fill_price=float(p.get("avg_cost") or 0) / 100.0,
+            commission=0.0,
+            exec_id=f"pos:{conid}",
+            fill_time=datetime.now(),
+            open_close="O",
+        ))
+    return legs

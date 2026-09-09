@@ -192,7 +192,7 @@ Research tier (`backtest_study/`, `study_*`):
   figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
   the cut to the study first.
 
-Journal / production tier (`scripts/journal/`, `scripts/live_loop/`):
+Journal / production tier (`scripts/journal/`):
 
 - Flex is the ONLY broker transport and it fetches by default (`IBKR_FLEX_TOKEN` +
   `IBKR_FLEX_QUERY_TRADES_ID`, optional `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`); `--offline`
@@ -244,7 +244,7 @@ lib/                        ← shared modules, imported by scripts, never run d
   baseline.py / iv_history.py / counterpart_iv.py / price_catalyst.py
                             — pure enrichment + baseline logic (I/O lives in scripts/)
   structure_names.py        — the ONE canonicalisation of a play's structure name; called by the
-                              backtest classifier AND live_loop's play parser
+                              backtest classifier AND the journal's play parser
   mech_regime.py            — mechanical market-regime label (mech_cell)
   drive_client.py           — DriveClient, StorageClient protocol, file naming
   sheets_client.py          — Sheets tab I/O; _get_spreadsheet(id) for the journal workbook,
@@ -274,9 +274,9 @@ scripts/                    ← entry points, each maps to a workflow step
                               tab + journal/recommendations.csv, append-only/generational
     journal/lib/            — journal-only helpers the steps lean on, NOT the repo-root lib/:
                               rawpull.py (the pull schema), flexparse.py (Flex → rawpull + the
-                              flat-book guards), greeks.py, book.py, analysis.py, prompt.py
-  live_loop/                — PRODUCTION fortnightly audit; mapping.py::ladder_tier() = the
-                              single encoding of deployment-rules §1–§3 (journal imports it too)
+                              flat-book guards), greeks.py, book.py, analysis.py, prompt.py,
+                              mapping.py::ladder_tier() = the single encoding of
+                              deployment-rules §1–§3 (the research live-select arm imports it too)
   backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
                               f1_selection/ → f2_management/ → f3_structure/ → f4_deployment/
                               → f5_hedging/ ("pick it, manage it, wrap it, fund it, protect
@@ -424,20 +424,21 @@ two prompt versions are never pooled.
   discovering the contamination after building on them. `scripts/backtest_study/lib/live_select.py`
   documents the same concern for its own judge layer.
 
-- **`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1–§3.** Both
-  `scripts/journal/` and `scripts/live_loop/` import it from `scripts/live_loop/mapping.py`.
-  Two copies would let the daily card and the fortnightly audit disagree — never inline a
-  tier rule elsewhere. A financed multi-leg position is tiered off `event.core_structure`
-  (the vertical `mapping.decompose_core()` finds at its centre), NOT off its
-  `"3-leg combo (debit)"` label; `_live_to_canonical` matches bare substrings, so a cosmetic
-  rename containing `"bull_call"` would flip a tier silently.
+- **`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1–§3.** It lives in
+  `scripts/journal/lib/mapping.py`; the deploy card (`s06_recommend.py`), the reconcile step
+  (`s02_reconcile.py`) and the research live-select arm (`scripts/backtest_study/lib/live_select.py`)
+  all import it from there. One copy is what keeps those three from disagreeing about a tier —
+  never inline a tier rule elsewhere. A financed multi-leg position is tiered off
+  `event.core_structure` (the vertical `mapping.decompose_core()` finds at its centre), NOT
+  off its `"3-leg combo (debit)"` label; `_live_to_canonical` matches bare substrings, so a
+  cosmetic rename containing `"bull_call"` would flip a tier silently.
 
 - **The match vocabulary is defined once, in `mapping.CONFIDENCES`.** `MATCH_CONFIDENCES`
-  (`scripts/journal/config.py`) and `stage1_map_fills.py`'s tally both DERIVE from it.
-  `EXACT`/`STRUCTURE` = the emitted play was traded; `CORE` = traded as the core of a larger
-  financed position, never promoted to `EXACT`; `OVERLAY` = a financing/carry leg, excluded
-  from BOTH sides of the matched/unmatched ratio. An ambiguous multi-leg group is reported
-  undecidable rather than decomposed on a guess.
+  (`scripts/journal/config.py`) DERIVES from it. `EXACT`/`STRUCTURE` = the emitted play was
+  traded; `CORE` = traded as the core of a larger financed position, never promoted to
+  `EXACT`; `OVERLAY` = a financing/carry leg, excluded from BOTH sides of the matched/unmatched
+  ratio. An ambiguous multi-leg group is reported undecidable rather than decomposed on a
+  guess.
 
 ## Analysis pipeline
 
