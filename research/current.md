@@ -107,7 +107,7 @@ nothing has not been checked, and that is not the same as "not met". The
 | BEAR_HE trail | `UNDERPOWERED` at 1 date of 25 |
 | credit sl-none | 0 of 15, and unreachable by backfill because the window starts after 2026-07-13 |
 
-### Data hazards on this export, not repaired
+### Known defects in this export, not repaired
 
 - **The exports are refreshed and deduplicated.** All three were re-pulled on
   2026-09-08 after queues C, D and E finished. `BacktestResults` holds 598 rows

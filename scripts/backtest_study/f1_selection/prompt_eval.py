@@ -841,7 +841,7 @@ def compare(rep: Report, prod: dict, cand: dict, floor: dict | None,
     rep("  These are ARM-COMPARISON books loaded with the documented escape hatch")
     rep("  load_book(..., check_era=False, min_dates=0) on this run's OWN CSVs. They are")
     rep("  NOT a prompt-version population and NO era-scoped conclusion may be drawn")
-    rep("  from them (registration §'Known confounds and hazards').")
+    rep("  from them (registration §'Known confounds and defects').")
     rep("")
     rep(f"  {'arm':<6} {'rows':>6} {'dates':>6} {'picks':>6} {'calls':>6} {'wall_s':>8}  dir")
     for k, v in arms.items():

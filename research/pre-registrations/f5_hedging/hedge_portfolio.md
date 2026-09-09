@@ -198,7 +198,7 @@ for January-2024 sessions — the v4 book is a backfill. For a study keyed to th
 model's WORDS the consequence differs in kind from the density consequence
 already on record: `hedge-pressure 35/100` written against 2024-03-20 was
 produced in 2026-08 by a model whose training cutoff overlaps that date, so it
-may be recall rather than a read of that day's tape. This is the hazard
+may be recall rather than a read of that day's tape. This is the defect
 `s06_recommend.judge()` and `live_select.py` already document, arriving through
 the analysis prose. It cannot be bounded away. Two things contain it: ARM P
 below, which carries no prose at all, and the rule that **no verdict may rest

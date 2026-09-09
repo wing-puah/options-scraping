@@ -1126,7 +1126,7 @@ top of that sort forever, indistinguishable from a live one, and the operator ha
 now rewrites the header and every data row from `OPEN_BOOK_COLUMNS` on each run, so what is on
 the tab is what is held, and a FLAT book CLEARS it rather than leaving yesterday's positions
 standing (a spuriously flat book cannot reach here — `flexparse._refuse_a_contradicted_flat_book`
-already refused it). Nothing reads the tab back first: there is no positional-append hazard
+already refused it). Nothing reads the tab back first: there is no positional-append defect
 (the header is written with the rows it labels), so the old `ensure_header` "mismatch" refusal
 and the `vN_OpenBook` rename it prescribed are both gone — a tab on an older layout is simply
 rewritten. `replace_rows` writes the new block at A1 BEFORE clearing what is below and to the

@@ -98,7 +98,7 @@ def test_cited_file_is_pinned_with_its_citation(tmp_path):
 
 
 def test_gate_marker_pins_the_report_that_carries_it(tmp_path):
-    # Mirrors the real hazard: only a stamped hedge_structure report carries the
+    # Mirrors the real defect: only a stamped hedge_structure report carries the
     # H2 verdict that hedge_structure.py's ARM S gate looks for; -latest.txt does
     # not, so a naive keep-latest would revoke the gate.
     out = _mkdir(tmp_path, {

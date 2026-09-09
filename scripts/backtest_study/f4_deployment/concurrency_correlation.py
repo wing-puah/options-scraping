@@ -833,7 +833,7 @@ def gate_dollar_honesty(diag: dict, recs: list[dict]) -> bool:
     print(f"  bs_options_hist rows in the population: {bs}")
     print("  Every dollar figure in this report is real+tweak. A bs row is "
           "priced FROM the model that scores it and is never pooled here — the "
-          "standing DTE>=180 contamination hazard.")
+          "standing DTE>=180 contamination defect.")
     print(f"  {'PASS' if bs == 0 else 'FAIL'}")
     return bs == 0
 

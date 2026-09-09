@@ -663,7 +663,7 @@ def test_main_lists_every_failed_study_with_its_own_exit_code_and_still_returns_
 
 def test_input_inventory_counts_csv_rows_not_lines(tmp_path, monkeypatch):
     """daily_price_csv carries embedded newlines; a line count overstated every
-    provenance header ~4x (the wc -l hazard, current.md 2026-08-14 method
+    provenance header ~4x (the wc -l defect, current.md 2026-08-14 method
     note). The inventory must count CSV ROWS."""
     f = tmp_path / "book.csv"
     f.write_text('a,daily_price_csv\n1,"x\ny\nz"\n2,"p\nq"\n')  # 2 data rows, 6 lines

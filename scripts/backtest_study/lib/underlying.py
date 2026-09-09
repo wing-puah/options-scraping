@@ -53,7 +53,7 @@ That distinction decides the handling:
   `rescaled_tickers()` so they can drop those rows from $-denominated cells
   only, not from the study.
 
-The FALLBACK path carries the opposite hazard. `Price~` is the unadjusted
+The FALLBACK path carries the opposite defect. `Price~` is the unadjusted
 real-time price, so the tilde series has a genuine 10x DISCONTINUITY at an
 ex-split date, and a window straddling it reads as a ~-90% session move.
 `_SPLIT_ARTIFACT_PCT` guards that; it can only ever bite W1C, since a close-only

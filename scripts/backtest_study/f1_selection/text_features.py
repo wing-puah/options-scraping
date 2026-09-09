@@ -1059,7 +1059,7 @@ def census(rows, unpriced, diag, era: str) -> None:
     bs_note = ("a NO-OP on this era (ZERO bs_options_hist rows in the proxy export)"
                if not n_bs else
                f"a BINDING exclusion here ({n_bs} bs_options_hist rows dropped)")
-    print("  include_bs=False is the 2026-08-11 standing hazard: real + "
+    print("  include_bs=False is the 2026-08-11 standing defect: real + "
           f"strike_expiry_tweak tiers only.\n    It is {bs_note}.")
     print(f"  debit calibration: {diag['debit_calib']}")
     print(f"  credit rows admitted UNGATED (calibrated=False): {diag['n_credit_ungated']}")
@@ -1681,7 +1681,7 @@ def main(argv=None) -> int:
     from scripts.backtest_study.lib import era as era_mod
     era = era_mod.requested_era()
 
-    # include_bs=False: the 2026-08-11 standing hazard. A NO-OP on v4 (zero
+    # include_bs=False: the 2026-08-11 standing defect. A NO-OP on v4 (zero
     # bs_options_hist rows in that proxy export) and still binding on v3.
     rows, unpriced, diag = TC.load_corpus(era=era, include_bs=False)
     for i, r in enumerate(rows):

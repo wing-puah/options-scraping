@@ -588,7 +588,7 @@ def write(book, ctx: BookContext, *, dry_run: bool = False,
     try:
         # A MIRROR, not an append. `replace_rows` rewrites the header and every
         # data row from OPEN_BOOK_COLUMNS, which is why nothing here reads the
-        # tab back first: there is no positional-append hazard to guard against
+        # tab back first: there is no positional-append defect to guard against
         # (the header is written with the rows it labels), no book_id to
         # dedupe against (a run that changed nothing writes the same content),
         # and a tab left on an older layout is simply rewritten rather than

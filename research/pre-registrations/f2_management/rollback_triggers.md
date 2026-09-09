@@ -23,7 +23,7 @@ The census runs on one book, and every term the trigger texts left loose is
 pinned here.
 
 - **Population**: the era-resolved current exports, real + strike_expiry_tweak
-  proxy rows, `include_bs=False` everywhere (the 2026-08-11 standing hazard).
+  proxy rows, `include_bs=False` everywhere (the 2026-08-11 standing defect).
 - **"Affected"** (one definition, `lib/triggers.py::is_affected`): a row is
   affected by a rule iff base and variant configs produce different outcome
   triples `(exit_reason, days_held, round(pnl_pct, 4))` under the frozen

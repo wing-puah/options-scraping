@@ -71,9 +71,9 @@ produced the PROD arm that day; its export IS the PROD arm. One extra model
 call per day.
 
 **Why LIVE is PRIMARY and BACKFILL is SECONDARY:** both arms share the same
-lookahead hazard on backfilled dates — **the v4 book was itself backfilled in
+lookahead defect on backfilled dates — **the v4 book was itself backfilled in
 2026-08 using a 2026 model on 2024–2025 dates**, so a "better" backfill score
-may be recall rather than reasoning. The hazard is symmetric across arms, which
+may be recall rather than reasoning. The defect is symmetric across arms, which
 makes the comparison usable, but it is not clean evidence about a prompt's
 forward behaviour. Genuinely new live dates are.
 
@@ -163,7 +163,7 @@ All figures are ESTIMATES, disclosed so the operator can refuse the run:
 - The run is delegated to a subagent; the report records wall time, call count
   and the model used.
 
-## Known confounds and hazards
+## Known confounds and defects
 
 - **Shared backfill lookahead**, as stated in (c) — the reason LIVE supersedes.
 - **The variance floor is itself estimated from 5 dates.** It is a floor, not a

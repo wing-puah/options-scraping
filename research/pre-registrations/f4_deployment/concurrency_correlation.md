@@ -212,7 +212,7 @@ All of X1–X8 must hold. A failure is a failure, not a footnote.
   and does not ship.
 - **X8 DOLLAR HONESTY.** Every dollar figure is quoted real+tweak, never
   pooled with `bs_options_hist` rows, per the standing DTE≥180 contamination
-  hazard.
+  defect.
 
 ## Verdicts, worded now
 

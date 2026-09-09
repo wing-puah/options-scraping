@@ -59,7 +59,7 @@ THE MEMO KEY
 ------------
 `account_sim.replay_sized`'s docstring records the 2026-08-13 G5 bug: a memo
 key that omitted the exit profile served one arm's answer to another. The
-overlay params are a second dimension of exactly that hazard, so every key
+overlay params are a second dimension of exactly that defect, so every key
 produced here is `replay_sized`'s key EXTENDED with the whole `Overlay`. The
 `Overlay` is a frozen dataclass and is hashed in full — including its label —
 because over-keying only costs a recomputation while under-keying is the bug

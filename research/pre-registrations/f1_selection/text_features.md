@@ -44,7 +44,7 @@ One era carries the study; the other is reported and carries nothing.
   about v3 text is a finding about a dead prompt.
 - **SECONDARY: `--era v3`**, identical thresholds, reported separately, **never
   pooled**. `load_book(include_bs=False)`: **real + strike_expiry_tweak only**;
-  bs rows excluded (the 2026-08-11 hazard). **On v4 that exclusion is a NO-OP** —
+  bs rows excluded (the 2026-08-11 defect). **On v4 that exclusion is a NO-OP** —
   the v4 proxy export carries ZERO `bs_options_hist` rows (tweak 564 /
   underlying_trend 473 / unevaluable 107, measured 2026-09-02). It still binds
   on v3 (295 bs rows) and is left in force.
