@@ -15,22 +15,30 @@ produced it lives in `scripts/backtest_study/`. The rules it produced live in
 
 ## What lives where
 
-| File or folder | What it holds | Maintained by |
+| File or folder | What it holds | Written by |
 |---|---|---|
-| [`overview.md`](overview.md) | The dated one-page state of the research programme. A summary of the three files below it. | hand |
-| [`current.md`](current.md) | The running tuning log. New entries are appended here. | hand |
-| [`next-steps.md`](next-steps.md) | The open queue, numbered by section. | hand |
-| [`deployment-evidence.md`](deployment-evidence.md) | Why each operator-card rule exists: derivation, validation tables, caveats, and the open rollback triggers. | hand |
-| [`study-map.md`](study-map.md) | One-page map of `scripts/backtest_study/`: what each study asks and what it concluded. | hand |
-| [`glossary.md`](glossary.md) | Metric and term definitions (`R`, `meanR`, `CI`, `LOO`, `MWU`). | hand |
-| [`arm-index.md`](arm-index.md) | Every arm, gate, and criterion label, grouped by study. Labels are study-local. | hand |
-| [`replication-protocol.md`](replication-protocol.md) | The two-analyst replication protocol for grading a study report. | hand |
-| [`analysis-roadmap.md`](analysis-roadmap.md) | The longer-range plan for the analysis pipeline itself. | hand |
-| [`robustness-review.md`](robustness-review.md) | One-page audit of what can be trusted in the analysis, backtest and production loop, and what beyond the queue would improve returns and risk. Rows flip to `FIXED <date>`; a new review replaces the file. | hand |
-| [`writing-guide.md`](writing-guide.md) | How to write in this folder. Adopted 2026-09-05. | hand |
-| [`pre-registrations/`](pre-registrations/) | One file per study: the plan written before the run. Foldered `f1_selection/` to `f4_deployment/`. | immutable |
-| [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export era, quoted verbatim. | machine (`make study-record`) |
-| [`archive/`](archive/) | The tuning log by period, 19 volumes. Old entries move here when `current.md` passes about 400 lines. | hand, status lines only |
+| [`overview.md`](overview.md) | The dated one-page state of the research programme. A summary of the three files below it. | agent |
+| [`current.md`](current.md) | The running tuning log. New entries are appended here. | agent |
+| [`next-steps.md`](next-steps.md) | The open queue, numbered by section. | agent |
+| [`deployment-evidence.md`](deployment-evidence.md) | Why each operator-card rule exists: derivation, validation tables, caveats, and the open rollback triggers. | agent |
+| [`study-map.md`](study-map.md) | One-page map of `scripts/backtest_study/`: what each study asks and what it concluded. | agent |
+| [`glossary.md`](glossary.md) | Metric and term definitions (`R`, `meanR`, `CI`, `LOO`, `MWU`). | agent |
+| [`arm-index.md`](arm-index.md) | Every arm, gate, and criterion label, grouped by study. Labels are study-local. | agent |
+| [`replication-protocol.md`](replication-protocol.md) | The two-analyst replication protocol for grading a study report. | agent |
+| [`analysis-roadmap.md`](analysis-roadmap.md) | The longer-range plan for the analysis pipeline itself. | agent |
+| [`robustness-review.md`](robustness-review.md) | One-page audit of what can be trusted in the analysis, backtest and production loop, and what beyond the queue would improve returns and risk. Rows flip to `FIXED <date>`; a new review replaces the file. | agent |
+| [`writing-guide.md`](writing-guide.md) | How to write in this folder. Adopted 2026-09-05. | agent |
+| [`pre-registrations/`](pre-registrations/) | One file per study: the plan written before the run. Foldered `f1_selection/` to `f5_hedging/`. | agent, then frozen |
+| [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export era, quoted verbatim. | `make study-review` |
+| [`archive/`](archive/) | The tuning log by period, 19 volumes. Old entries move here when `current.md` passes about 400 lines. | agent, status lines only |
+
+An agent writes everything in this folder, under
+[`writing-guide.md`](writing-guide.md); the operator directs and corrects it.
+So the column says what the WRITING is, not who typed it. `agent` means prose
+someone reasoned out and may revise. `agent, then frozen` means a plan that
+must not change meaning after it is committed. `make study-review` means
+generated text — a study's own output, quoted verbatim, that no one edits by
+hand.
 
 `deployment-evidence.md` is a summary of the tuning log, not a second source.
 When the two disagree, the log wins.
@@ -74,21 +82,29 @@ reproduce the stored `exit_reason`, `days_held` and `realized_pnl_pct` exactly.
 Such a study stops rather than print numbers it cannot vouch for. That is the
 gate working, so do not route around it.
 
-## Recording, reviewing, charting a study
-
-**Recording.** `make study-record` reads each `<name>-latest.txt` and appends a
-section to [`study-results/`](study-results/), keyed on era and git sha. This
-matters because a study runs on the current era only, so the next era's re-run
-overwrites the gitignored report. `current.md` holds the reasoning and
-`study-results/` holds the index.
+## Reviewing and charting a study
 
 **Reviewing.** `make study-review ARGS="<study>"` (or `python3 -m
-scripts.study_review <study>`) runs the study, grades the report with analyst A,
-analyst B and a validator, then writes a plain-language digest. Four files land
-in `backtests/study_output/`, and the digest is also rendered to
+scripts.study_review <study>`) is the one command. It runs the study, records
+the report, grades it with analyst A, analyst B and a validator, writes a
+plain-language digest, and rebuilds the map. Four files land in
+`backtests/study_output/`; the digest is also rendered to
 `site/<study>-digest.html` and linked from that study's card on the map. See
 [`replication-protocol.md`](replication-protocol.md) for the manual path and the
 full flag list.
+
+The record is part of the review because the two were never separately useful:
+a review grades exactly the report worth keeping. It appends a section to
+[`study-results/`](study-results/) keyed on era and git sha, which matters
+because a study runs on the current era only — the next era's re-run overwrites
+the gitignored report and the record is then the only copy. `current.md` holds
+the reasoning, `study-results/` holds the index. Recording is idempotent, so
+re-running a review costs nothing; `--no-record` skips it, and `--dry-run` never
+records.
+
+`make study-record` still exists for the bulk case — it records every study
+with a report on disk, which is what you want after `make study-all`. Reach for
+it when you ran studies without reviewing them, not as a step after a review.
 
 **Charting.** `python3 -m scripts.study_charts.account_sim` renders a result as
 one self-contained HTML page, and `make study-chart CHART=regime` or

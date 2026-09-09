@@ -700,9 +700,14 @@ graded against the registration as written. `--errata <path>` overrides discover
 skips it (only to reproduce a pre-errata grading run); a missing errata is the normal case and
 warns on stderr, while an EMPTY one is fatal, so a run cannot look like it graded against one.
 
-**`scripts/study_results.py`** — the per-ERA record: `make study-record` reads each
-`<name>-latest.txt` and appends a section to `research/study-results/<family>/<name>.md`,
-tracked and append-only, keyed on `(era, git sha)` so an unchanged re-run appends nothing.
+**`scripts/study_results.py`** — the per-ERA record: reads a `<name>-latest.txt` and appends
+a section to `research/study-results/<family>/<name>.md`, tracked and append-only, keyed on
+`(era, git sha)` so an unchanged re-run appends nothing. `study_review` calls `record()`
+directly, right after it resolves the report and BEFORE the LLM calls, so the cheap durable
+artifact lands even if grading fails; it is best-effort there (a failed record warns, never
+costs a review) and `--no-record` / `--dry-run` skip it. `make study-record` is the BULK
+path — every study with a report on disk — for runs made without a review, and
+`make study RECORD=1` chains it after a bare run.
 The folder MIRRORS `scripts/backtest_study/`'s `f1_selection/` → `f5_hedging/` layout, and
 derives it from the module's real parent directory rather than a table, so the two cannot
 drift. Fields come from `study_map.summary.summarize()` — the same extractor the map uses, so
@@ -1182,7 +1187,8 @@ python3 scripts/gc_flow.py --all --dry-run           # report what would be tras
 
 # Append daily market-baseline rows to the BaselineDaily tab
 python3 scripts/build_baseline.py                     # latest Drive date
-python3 scripts/build_baseline.py --backfill          # every missing date (idempotent)
+python3 scripts/build_baseline.py --last 3            # 3 newest Drive dates (the scheduled mode)
+python3 scripts/build_baseline.py --backfill          # every missing date (idempotent, UNBOUNDED — by hand only)
 python3 scripts/build_baseline.py --backfill --dry-run
 
 # Enrichments — all share: bare = latest date · --date · --backfill (idempotent) ·

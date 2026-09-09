@@ -2,6 +2,7 @@
 Core logic for the study-review two-analyst replication harness.
 
     resolve report  → run/locate scripts.backtest_study's <study>-latest.txt   (deterministic)
+    record          → append that report to research/study-results/            (deterministic)
     load artifacts  → pre-registration, errata, positions CSV, personas       (deterministic)
     grade           → Analyst A + Analyst B headless calls, in PARALLEL       (LLM, isolated)
     validate        → validator headless call, reading both analyst outputs  (LLM, isolated)
@@ -47,6 +48,12 @@ from lib.logger import setup_logging  # noqa: E402  (after sys.path insert, mirr
 # DESIGNED refusal is already parsed there (exit code vs the study's own
 # DESIGNED_REFUSAL_EXIT_CODES), and a second copy here would drift from it.
 from scripts.study_map import summary as study_summary  # noqa: E402
+# The per-era recorder, called here rather than left as a second command the
+# operator must remember: a review ALWAYS runs against a report worth keeping,
+# and backtests/study_output/ is gitignored scratch that the next era's re-run
+# overwrites. record() is idempotent on (era, git sha), so chaining it costs
+# nothing when the report is already on file.
+import scripts.study_results as study_results  # noqa: E402
 
 log = logging.getLogger("study_review")
 
@@ -113,6 +120,30 @@ def resolve_report(study: str, skip_run: bool, run_args: list[str]) -> Path:
             f"names has cleared.")
     return report_path
 
+
+def record_report(study: str, dry_run: bool) -> None:
+    """Append this study's current report to `research/study-results/`.
+
+    Chained into the review rather than left to `make study-record`, because
+    the two were never independently useful: a review grades exactly the
+    report that ought to be recorded, and the record is the only copy that
+    survives the next era's re-run (backtests/study_output/ is gitignored).
+
+    Best-effort. The record is tracked and append-only, but a failure here
+    must not cost a review whose expensive LLM outputs are on disk — and it
+    runs BEFORE those calls precisely so the cheap durable artifact lands
+    first. `--dry-run` writes placeholders, so it records nothing.
+    """
+    if dry_run:
+        log.info("Record: skipped (--dry-run)")
+        return
+    try:
+        outcome = study_results.record(study)
+    except Exception as e:  # noqa: BLE001 - never fail a review over the record
+        log.warning("Record: failed for %s (%s) - run `make study-record` "
+                    "to retry", study, e)
+        return
+    log.info("Record: %s - %s", outcome.action, outcome.detail)
 
 def _study_from_report_path(report_path: Path) -> str:
     """`<study>-latest.txt` → `<study>` (resolve_report's naming convention)."""
@@ -513,6 +544,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Override the model for ALL roles (analyst A/B, validator, "
                              "digest). Default: each persona file's frontmatter `model:`, "
                              "falling back to this module's config.DEFAULT_*_MODEL.")
+    parser.add_argument("--no-record", action="store_true",
+                        help="skip appending the report to research/study-results/ "
+                             "(the review records it by default; `make study-record` "
+                             "does the same for every study with a report)")
     parser.add_argument("--skip-digest", action="store_true",
                         help="Skip the plain-language digest step.")
     parser.add_argument("--dry-run", action="store_true",
@@ -530,6 +565,9 @@ def main(argv: list[str] | None = None) -> None:
     report_path = resolve_report(study, args.skip_run, shlex.split(args.run_args))
     report_text = report_path.read_text()
     log.info("Report: %s", report_path)
+
+    if not args.no_record:
+        record_report(study, args.dry_run)
 
     section_heading, section_body = load_pre_registration(study, args.pre_reg)
     log.info("Pre-registration section: %s", section_heading)

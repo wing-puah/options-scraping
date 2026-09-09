@@ -752,9 +752,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_handoff:
         print("\nFor the write-up, either:")
         print(f"  python3 -m scripts.study_review {names[0]} --skip-run"
-              "   (graded: analyst A/B + validator + digest)")
-        print("  or paste the report above into Claude and ask for a write-up.")
-        print("  next: make study-record  (append this run's report to research/study-results/)")
+              "   (graded: analyst A/B + validator + digest; RECORDS the report too)")
+        print("  or paste the report above into Claude and ask for a write-up,")
+        print("     then: make study-record   (this run\'s report -> research/study-results/)")
     print("=" * 78)
     failed = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if rc and not refused]
     refusals = [(stem, rc) for stem, _n, _a, _c, rc, refused in results if refused]

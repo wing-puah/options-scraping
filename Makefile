@@ -210,10 +210,15 @@ study-check:
 # backtests/study_output/ is gitignored scratch — a re-run overwrites it, and on
 # 2026-08-15 one did, with nothing to recover from. This appends each study's
 # CURRENT report to research/study-results/<family>/<name>.md — the tree mirrors
-# scripts/backtest_study/, f1..f4 — one append-only section per
+# scripts/backtest_study/, f1..f5 — one append-only section per
 # (export era, git sha), quoted verbatim. Run it while an era is still current:
 # once the suite is re-run on the next era, this is the only copy of this one's
 # answer. Idempotent — a re-run with nothing changed appends nothing.
+#
+# This is the BULK target, for studies run without a review — after `make
+# study-all`, say. `make study-review` records the study it reviews on its own,
+# so it needs no follow-up here, and `make study RECORD=1` chains this after a
+# bare run.
 .PHONY: study-record
 study-record:
 	$(PY) -m scripts.study_results $(ARGS)
@@ -267,8 +272,13 @@ clean-list:
 	$(PY) scripts/clean_generated.py --list
 
 # ── study review ────────────────────────────────────────────────────────────────
-# Deterministic two-analyst replication protocol wrapper (headless `claude -p`
-# calls, isolated sessions). ARGS="<study> [flags]" — see
+# The one command for a study you intend to conclude from: it RUNS the study,
+# RECORDS the report to research/study-results/, grades it through the
+# deterministic two-analyst replication protocol (headless `claude -p` calls,
+# isolated sessions), writes the digest, and rebuilds the map. The record is
+# folded in rather than left as a separate `make study-record` step because a
+# review grades exactly the report worth keeping; --no-record opts out and
+# --dry-run never records. ARGS="<study> [flags]" — see
 # research/replication-protocol.md § Automated invocation.
 # The study name defaults to $(STUDY_REVIEW_STUDY) when ARGS starts with a flag
 # (or is empty), so `make study-review` and `make study-review ARGS="--skip-run"`
@@ -455,11 +465,11 @@ help:
 	@echo "                      a study refuses if the era on disk is not the one asked for)"
 	@echo "  make study RECORD=1 / make study-all RECORD=1  also RECORD the run afterward (see below)"
 	@echo ""
-	@echo "  make study-record  RECORD each study's current report to research/study-results/ (tracked, append-only)"
+	@echo "  make study-record  BULK RECORD: every study with a report -> research/study-results/ (study-review records its own)"
 	@echo "  make study-record ARGS=\"--dry-run\"  show what it would append, write nothing"
 	@echo "  make study-record ARGS=\"--study bear_arm\"  record one study"
 	@echo ""
-	@echo "  make study-review  REVIEW: run account_sim, then two-analyst replication grading + digest"
+	@echo "  make study-review  REVIEW: run account_sim, record it, then two-analyst replication grading + digest"
 	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
 	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
 	@echo ""
