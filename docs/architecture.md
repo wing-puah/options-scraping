@@ -58,7 +58,7 @@ lib/                        ← shared modules, imported by scripts, never run d
                               (models write "bear put debit spread" etc., which the downstream
                               substring matchers don't key on — the silent-wrong case priced a
                               vertical as its naked long leg). Called by BOTH
-                              scripts/backtest/classify.py and live_loop mapping's play parser,
+                              scripts/backtest/classify.py and the journal's mapping play parser,
                               so backtest and live match can never disagree about a play's name
   mech_regime.py            — mechanical market-regime label (`mech_cell`), a pure function of
                               signal date + the frozen SPY/VIX table
@@ -216,8 +216,9 @@ scripts/                    ← entry points, each maps to a workflow step
                               rules as the real backtest → BacktestProxy tab +
                               backtests/proxy_results.csv, idempotent; cache-first, scrapes
                               missing neighbors unless --cache-only
-  journal/ · live_loop/     — PRODUCTION tier; journal/ steps are numbered sNN_*.py and its
-                              helpers live in journal/lib/; see §Daily trade journal below
+  journal/                  — PRODUCTION tier; steps are numbered sNN_*.py and its
+                              helpers live in journal/lib/ (incl. mapping.py::ladder_tier());
+                              see §Daily trade journal below
   backtest_study/ · study_review/ · study_map/ · study_charts/
                             — RESEARCH tier; see §Research tier below
   auth_drive.py             — one-time OAuth2 flow for Drive
@@ -825,10 +826,12 @@ relatively (`from .lib import rawpull`), so an absolute `from lib import sheets_
 journal module still resolves to the repo-root package. Anything that outgrows journal-only use
 moves UP to the repo-root `lib/`; nothing moves the other way.
 
-PRODUCTION tier. Closes the analysis → trade → evidence loop daily. `scripts/live_loop/`
-audits the same ground fortnightly and in more depth; both import
-`scripts/live_loop/mapping.py`, so `ladder_tier()` (the sole encoding of
-`docs/deployment-rules.md` §1–§3) has exactly one implementation.
+PRODUCTION tier. Closes the analysis → trade → evidence loop daily — there is no separate
+fortnightly audit; `s02_reconcile.py` is the fill→play matcher. The deploy card
+(`s06_recommend.py`), the reconcile step (`s02_reconcile.py`), and the research live-select arm
+(`scripts/backtest_study/lib/live_select.py`) all import `scripts/journal/lib/mapping.py`, so
+`ladder_tier()` (the sole encoding of `docs/deployment-rules.md` §1–§3) has exactly one
+implementation.
 
 **Pipeline and boundaries**
 

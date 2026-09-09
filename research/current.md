@@ -273,3 +273,42 @@ two vocabularies should agree.
 movement" warning and gains the census. The replay script is a one-off in the
 session scratchpad, not in the repo; if a second Flex gap appears, a `backfill`
 command on `scripts.journal` is the right home for it.
+
+## 2026-09-09 — journal — `scripts/live_loop/` is gone; its rules module is `scripts/journal/lib/mapping.py` and speaks the journal's own types
+
+The live-loop package is deleted. Its rules module, the one encoding of
+[deployment-rules §1–§3](../docs/deployment-rules.md#s1) plus the structure
+classifier and the play matcher, now lives inside the journal at
+`scripts/journal/lib/mapping.py`. `stage1_map_fills.py` is retired: its data
+source was a hand-pasted IBKR snapshot, the newest is dated 2026-08-12, and the
+daily journal reads Flex with strike and expiry on every fill, so the reconcile
+step already does what the fortnightly script did. The two snapshots and their
+reports stay under `backtests/live_loop/` as protected data.
+
+The move also removed the adapter layer. Mapping was written against the
+snapshot script's hand-built dict shape, so the reconcile step, the book
+grouper and the relabel diagnostic each carried code whose only job was to
+dress the journal's `Leg` objects up as that shape. Mapping now takes `Leg`s
+directly and the adapters are deleted. The closing-fill sign inversion, the
+P1 fix from the robustness review, is a named function
+`mapping.position_legs(legs, closing=True)` instead of a side effect inside an
+adapter. Two dead branches went with it: the classifier's "identity could not
+be pinned" path, unreachable when every leg carries a contract id, and the
+unused `leg_desc` helper.
+
+Behaviour is unchanged, checked two ways:
+
+| Check | Result |
+|---|---|
+| Every raw pull in `journal/raw/` re-reconciled before and after, journal row fields keyed on `source_ref` | 159 events compared, 0 differ |
+| Test suite | 3527 passed (3520 before; the seven new tests pin `position_legs`, `net_price` and classifier labels the old fixtures never reached) |
+
+The research tier's live-select arm still imports `ladder_tier()`; it is the
+one sanctioned research-to-production import, now stated as "the arm imports
+from `scripts/journal/`". The evaluation half of the walk-forward, live P&L
+by tier and taken versus not taken, was never in the deleted script in a
+usable form and is still not written. It belongs to the f4 study queued in
+[next-steps §2.5](next-steps.md#s2-5), after its registration.
+
+Provenance: working tree on main after commit 2226888, uncommitted;
+`make check-doc-links` 0 broken.
