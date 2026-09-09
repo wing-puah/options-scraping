@@ -41,6 +41,8 @@ code they name is now under `scripts/backtest_study/`.
 | [`16-first-runs-on-v3.md`](16-first-runs-on-v3.md) | 2026-08-19 | First runs of the v3-era studies, plus their replication reviews |
 | [`17-v4-refresh-bear-deploy-and-vocabulary.md`](17-v4-refresh-bear-deploy-and-vocabulary.md) | 2026-08-22 to 08-27 | Verdict vocabulary, the v4 refresh, `bear_deploy`, `concurrency_correlation` |
 | [`18-hedge-programme-exit-basis-and-text-loop.md`](18-hedge-programme-exit-basis-and-text-loop.md) | 2026-08-28 to 09-02 | The hedge programme, `exit_basis` re-measured, the text loop closed |
+| [`19-2026-column-exit-drawdown-and-duplicate-repairs.md`](19-2026-column-exit-drawdown-and-duplicate-repairs.md) | 2026-09-04 to 09-07 | `hedge_concentration` GRADED, `exit_drawdown` UNDERPOWERED, the 2026 column, duplicate-row repairs |
+| [`20-hedge-programme-reorg-queues-cde-and-cache-loss.md`](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) | 2026-09-08 | Hedge studies renamed, robustness fold landed, queues C/D/E, the scraper-range cache loss and restore |
 
 ## Section index
 
@@ -147,4 +149,24 @@ code they name is now under `scripts/backtest_study/`.
 | 2026-09-02 — `exit_basis` re-measured: the ban was right for v3 and WRONG for v4 (485/485 labelled); the proxy half never wrote at all | [archive/18](18-hedge-programme-exit-basis-and-text-loop.md) |
 | 2026-09-02 — `exit_basis` now AUDITED, not trusted: three one-directional checks, reporting only | [archive/18](18-hedge-programme-exit-basis-and-text-loop.md) |
 | 2026-09-02 — the text ↔ backtest loop BUILT and first-run: text NULLS (`exit_from_text` CONTRARY on bull calls, `prompt_eval` at the variance floor); thread closed | [archive/18](18-hedge-programme-exit-basis-and-text-loop.md) |
-| 2026-09-04 — first export with 2026 signal dates (166 dates, 13 in 2026); full-suite re-run: no headline verdict moves, the per-year clause bites for the first time (bear-debit `be_after` census re-FIRES on 2026, `next_day_move` ARM R and `exit_from_text` E2 lose their candidates, `portfolio_delta` keeps only B 1.00); campaign b closed | [current.md](../current.md) |
+| 2026-09-04 — `hedge_concentration` GRADED and §2.1 CLOSED; `concurrency_correlation` BUILT and first-run: NOISE | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-04 — first export with 2026 signal dates (166 dates, 13 in 2026); full-suite re-run: no headline verdict moves, the per-year clause bites for the first time (bear-debit `be_after` census re-FIRES on 2026, `next_day_move` ARM R and `exit_from_text` E2 lose their candidates, `portfolio_delta` keeps only B 1.00); campaign b closed | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-05 — `exit_drawdown` (NEW, f2): walk-forward exit hypotheses on account-level drawdown — UNDERPOWERED on PRIMARY; the two powered `all` cells are NULL | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-05 (later) — `overview.md` and `glossary.md` rewritten for a reader who has lost the thread; the long-dated blind spot is scoped DEBIT-ONLY | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-06 — the gap-up hedge prohibition is ACCEPTED; the four missing rows are re-priced; a hedge-open indicator becomes the open item | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-06 (later) — the SPY duplicate and 15 older duplicate rows are DROPPED; the export is 524 rows; `AnalysisClaude` keeps both runs | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-06 (third) — 40 pre-registered dates were never run; the 2026 sample misses its own crash | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-07 later — the 12 stale backtest rows are dropped, and the backtest can no longer double a row | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-07 — the three doubled analysis dates are repaired; the pipeline now REFUSES a date it has analysed | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-07 (later) — robustness review: twelve items built, six landed in the tree, six wait in two worktrees for the campaign to end | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-07 (fourth) — hedge_structure — the new dates do not unblock it; two cached legs have gone missing | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-07 (fifth) — hedge programme — criteria consolidated, two studies deleted | [archive/19](19-2026-column-exit-drawdown-and-duplicate-repairs.md) |
+| 2026-09-08 — hedge programme — three studies renamed after their question; the two deleted studies lose their leftover files | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (later) — robustness fold LANDED on main; results-tab headers aligned; queue D stopped with six failed dates | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (third) — hedge programme: plan deleted, spine moved into `f5_hedging/README.md`, follow-ups filed in §2.12 | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (fourth) — `exit_drawdown` ARM P dollars ACK recorded; the SCOPED reading is in force | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (fifth) — `exit_drawdown` errata FOLDED into the registration; the file is gone | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (fifth) — queues C, D and E are run: 42 dates added, and the 2026 column now samples March | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (sixth) — the two sleeve-sizing bodies in `account_sim` / `portfolio_delta` are folded onto `lib/hedge_criteria.sleeve_pick`; identical print | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (seventh) — far-call fetch for `hedge_structure` Q2: pre-run note, then the fetch; R2 fails on the new export before any of it | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |
+| 2026-09-08 (eighth) — far-call fetch run twice: the scraper was re-issuing the page's three-month default range, fixed; 178 lost cache files restored; hedge_structure stays blocked at R2 | [archive/20](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) |

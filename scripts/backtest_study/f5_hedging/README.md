@@ -158,14 +158,14 @@ because it was registered to ship none.
 
 The projection column is not a recorded run. It was taken on staged tabs and
 appended to no record
-([sizing](../../../research/current.md#2026-09-07-fourth--hedge_structure--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
+([sizing](../../../research/archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07-fourth--hedge_structure--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
 
 **What would unblock it.** [`next-steps.md`](../../../research/next-steps.md) §2.3 for the
 calendar, blocked on new dates and sized at roughly 320 deployed dates. The far
 call the calendar reads is fetched by `scripts/collector/fetch_far_legs.py`
 (2026-09-08); the post-fetch read waits on the R2 stop filed in
 [`next-steps.md`](../../../research/next-steps.md) §2.11
-([outcome](../../../research/current.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). For the
+([outcome](../../../research/archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). For the
 bear put debit it is `hedge_sizing`'s own forward trigger, a re-grade once the
 book holds at least 20 multi-candidate bear dates after 2026-08-11. `vol_sleeve`
 carries no queue item at all.
@@ -243,7 +243,7 @@ was powered and it was refused.
 | Spearman rho | +0.0000, CI [−0.2198, +0.2231] | the same 626 sessions |
 
 Those two figures are quoted from
-[the log](../../../research/current.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed),
+[the log](../../../research/archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed),
 because the frozen record for the `e59356f` run carries the verdict lines and no
 numbers.
 

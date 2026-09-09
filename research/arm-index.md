@@ -463,6 +463,17 @@ and excludes it from `ARM CK` rather than assuming it.
   matched on affected count; an arm inside its [p5, p95] band is NOISE
   regardless of its own CI. COLLIDES with `portfolio_delta`'s own `ARM N`
   above — same role, different study.
+- `X1`–`X8` (criterion) — The eight ship criteria, all of which must hold
+  for `ADOPT`: `X1` power floor (≥ 25 changed dates), `X2` paired
+  within-date gain with a date-clustered CI clear of zero, `X3` gain above
+  `ARM N`'s p95, `X4` era stability (`X2` and `X3` hold on BOTH v3 and the
+  current era, same sign, within 0.15 R — not checkable in one run, since
+  `lib/era.py` binds a run to one era, so it is settled by a `--era v3`
+  companion run), `X5` same sign on PRIMARY and SECONDARY, `X6`
+  leave-one-out by date and by ticker, `X7` survives the delta-notional
+  control (else RESTATEMENT of `portfolio_delta`), `X8` dollars quoted
+  real+tweak only. Settled 2026-09-04: NOISE on both eras, no arm clears
+  `X2`/`X3`.
 
 #### `hedge_concentration`
 
