@@ -10,8 +10,17 @@ Usage:
   python3 scripts/build_baseline.py                       # latest Drive date
   python3 scripts/build_baseline.py --date 2026-06-10
   python3 scripts/build_baseline.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/build_baseline.py --last 3              # the 3 newest Drive dates
   python3 scripts/build_baseline.py --backfill            # every Drive date
   python3 scripts/build_baseline.py --backfill --dry-run  # report, no write
+
+The scheduled job runs --last 3, NOT --backfill. --backfill's cost is the number of
+Drive dates with no tab row, which is unbounded: until 2026-09-06 the Drive listing
+was silently truncated to its newest 100 files, so --backfill looked cheap while
+never seeing the older half of the corpus; the pagination fix exposed 409 missing
+dates at ~3.5 s each, and the daily job hit its 10-minute timeout two nights
+running. A missed day still heals under --last 3 on the next pass; a real history
+gap is a one-off, run by hand.
 """
 import argparse
 import logging
@@ -66,6 +75,23 @@ def _load_flow(client, prefix: str, date_str: str) -> list[dict]:
         return []
 
 
+def select_targets(client, args) -> list[str]:
+    """The dates a run considers, oldest → newest, before the tab is consulted.
+
+    Every mode except --date/--start/--end pays ONE paginated Drive listing;
+    --last N then keeps the newest N of it, so the scheduled run's cost does not
+    grow with the corpus. Only --backfill is unbounded.
+    """
+    if args.backfill:
+        return _drive_dates(client)
+    if args.date:
+        return [args.date]
+    if args.start:
+        return _weekday_range(args.start, args.end)
+    all_dates = _drive_dates(client)
+    return all_dates[-(args.last or 1):]
+
+
 def _existing_dates() -> set[str]:
     rows = get_all_rows(BASELINE_TAB)
     return {iso for r in rows if (iso := normalize_sheet_date(r.get("date")))}
@@ -77,28 +103,26 @@ def main() -> None:
     parser.add_argument("--date", help="Single trading date (YYYY-MM-DD).")
     parser.add_argument("--start", help="Range start (YYYY-MM-DD), weekdays only.")
     parser.add_argument("--end", help="Range end (YYYY-MM-DD), weekdays only.")
+    parser.add_argument("--last", type=int, metavar="N",
+                        help="Bounded: only the N most recent dates with flow data in Drive "
+                             "(the scheduled job's mode; a missed day heals on the next pass).")
     parser.add_argument("--backfill", action="store_true",
-                        help="Target every date with flow data in Drive.")
+                        help="Target every date with flow data in Drive. UNBOUNDED — one "
+                             "Drive round-trip per missing date; run by hand, never scheduled.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Compute and report; do not write to the sheet.")
     args = parser.parse_args()
 
-    if args.date and (args.start or args.end or args.backfill):
-        parser.error("--date is exclusive with --start/--end/--backfill")
+    modes = [m for m in ("date", "start", "end", "backfill", "last") if getattr(args, m)]
+    if len(modes) > 1 and modes != ["start", "end"]:
+        parser.error("--date, --start/--end, --backfill and --last are mutually exclusive")
     if bool(args.start) != bool(args.end):
         parser.error("--start and --end must be given together")
+    if args.last is not None and args.last < 1:
+        parser.error("--last must be at least 1")
 
     client = get_drive_client()
-
-    if args.backfill:
-        targets = _drive_dates(client)
-    elif args.date:
-        targets = [args.date]
-    elif args.start:
-        targets = _weekday_range(args.start, args.end)
-    else:
-        all_dates = _drive_dates(client)
-        targets = all_dates[-1:]  # latest available
+    targets = select_targets(client, args)
 
     existing = _existing_dates()
     missing = [d for d in targets if d not in existing]

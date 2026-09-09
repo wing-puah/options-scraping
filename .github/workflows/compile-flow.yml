@@ -92,9 +92,15 @@ jobs:
 
       - name: Append daily baseline row
         # Market-level aggregates → BaselineDaily tab (regime baseline for
-        # /options analyze). --backfill is idempotent and computes only dates
-        # missing from the tab, so a missed day self-heals on the next run.
-        run: python scripts/build_baseline.py --backfill
+        # /options analyze). Idempotent: only dates missing from the tab are
+        # computed, so a missed day self-heals on the next pass. Bounded to the
+        # 3 newest Drive dates like `gc_flow.py --last 3` above: this step ran
+        # --backfill until 2026-09-09, which was only cheap because the Drive
+        # listing silently truncated at 100 files; the 09-06 pagination fix
+        # exposed 409 older dates with no row and the step blew the job's
+        # 10-minute timeout two nights running. History gaps are filled by
+        # hand with `build_baseline.py --backfill`, never here.
+        run: python scripts/build_baseline.py --last 3
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}

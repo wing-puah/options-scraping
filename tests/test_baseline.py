@@ -1,5 +1,6 @@
 """Tests for lib/baseline.py — daily row computation, window selection,
 percentiles, and the markdown context section. Pure functions, no network."""
+import types
 from datetime import date, timedelta
 
 from lib.baseline import (
@@ -185,3 +186,51 @@ def test_context_md_skips_metrics_blank_today():
     # No SPY data today → SPY rows simply absent, not rendered as junk
     assert "| SPY C/P |" not in md
     assert "| Stocks total premium | $0 |" not in md or True
+
+
+# --- scripts/build_baseline.py target selection --------------------------------
+
+class _FakeDrive:
+    """list_files is the ONLY Drive call select_targets may make (one paginated listing)."""
+
+    def __init__(self, dates):
+        self.calls = 0
+        self._dates = dates
+
+    def list_files(self, prefix):
+        self.calls += 1
+        return [{"name": f"{prefix}-{d.replace('-', '')}-compiled.csv"} for d in self._dates]
+
+
+def _args(**kw):
+    base = dict(date=None, start=None, end=None, backfill=False, last=None)
+    base.update(kw)
+    return types.SimpleNamespace(**base)
+
+
+_DRIVE_DATES = ["2024-01-04", "2024-01-05", "2026-09-04", "2026-09-05", "2026-09-08"]
+
+
+def test_select_targets_last_is_bounded_to_newest_n():
+    from build_baseline import select_targets
+
+    drive = _FakeDrive(_DRIVE_DATES)
+    assert select_targets(drive, _args(last=3)) == ["2026-09-04", "2026-09-05", "2026-09-08"]
+    assert drive.calls == 1
+
+
+def test_select_targets_default_is_latest_only_and_backfill_is_everything():
+    from build_baseline import select_targets
+
+    assert select_targets(_FakeDrive(_DRIVE_DATES), _args()) == ["2026-09-08"]
+    assert select_targets(_FakeDrive(_DRIVE_DATES), _args(backfill=True)) == _DRIVE_DATES
+
+
+def test_select_targets_explicit_dates_never_list_drive():
+    from build_baseline import select_targets
+
+    drive = _FakeDrive(_DRIVE_DATES)
+    assert select_targets(drive, _args(date="2026-09-08")) == ["2026-09-08"]
+    assert select_targets(drive, _args(start="2026-09-04", end="2026-09-08")) == [
+        "2026-09-04", "2026-09-07", "2026-09-08"]
+    assert drive.calls == 0
