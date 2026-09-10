@@ -53,7 +53,9 @@ FILE_PREFIXES = {
 class StorageClient(Protocol):
     def get_or_create_date_folder(self, date_str: str) -> str: ...
     def file_exists(self, name: str, folder_id: str) -> str | None: ...
-    def upload(self, local_path: Path, name: str, folder_id: str) -> str: ...
+    def upload(self, local_path: Path, name: str, folder_id: str,
+               mimetype: str = ...) -> str: ...
+
     def download(self, file_id: str) -> str: ...
     def list_files(self, prefix: str) -> list[dict]: ...
     def list_folder(self, folder_id: str) -> list[dict]: ...
@@ -195,11 +197,17 @@ class DriveClient:
         log.debug("'%s' not found in Drive", name)
         return None
 
-    def upload(self, local_path: Path, name: str, folder_id: str) -> str:
-        """Upload local_path to folder_id. Replaces existing file with same name."""
+    def upload(self, local_path: Path, name: str, folder_id: str,
+               mimetype: str = "text/csv") -> str:
+        """Upload local_path to folder_id. Replaces existing file with same name.
+
+        `mimetype` defaults to CSV because every caller here but the journal's
+        Drive sync (`scripts/journal/lib/drive_sync.py`, which sends markdown,
+        HTML and JSONL) uploads a Barchart export.
+        """
         log.info("Uploading '%s' from local path '%s' to Drive", name, local_path)
         media = MediaFileUpload(
-            str(local_path), mimetype="text/csv", resumable=True)
+            str(local_path), mimetype=mimetype, resumable=True)
         q = f"name = '{name}' and '{folder_id}' in parents and trashed = false"
         existing = self._svc.files().list(
             q=q, fields="files(id)").execute().get("files", [])
@@ -451,9 +459,16 @@ def _build_service():
     return svc
 
 
-def get_drive_client() -> DriveClient:
-    """Build a DriveClient from environment variables."""
-    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+def get_drive_client(folder_id: str | None = None) -> DriveClient:
+    """Build a DriveClient from environment variables.
+
+    `folder_id` overrides GOOGLE_DRIVE_FOLDER_ID for a caller rooted somewhere
+    else — the journal's Drive mirror is, deliberately, since that folder holds
+    account ids and P&L and the flow folder may be shared on its own terms
+    (`scripts/journal/lib/drive_sync.py`). The credentials are the same either
+    way; only the root differs.
+    """
+    folder_id = folder_id or os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
     if not folder_id:
         log.error("GOOGLE_DRIVE_FOLDER_ID not set in .env")
         raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID not set in .env")

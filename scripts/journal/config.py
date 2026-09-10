@@ -30,12 +30,20 @@ never sum over a list without first filtering on `delta_source`.
 
 DATA PRIVACY. Everything this contract describes is real trading activity.
 `journal/` is gitignored in full (raw pulls carry account identifiers;
-trades.csv carries position sizes and P&L). Journal content has exactly THREE
+trades.csv carries position sizes and P&L). Journal content has exactly FOUR
 permitted destinations: `journal/`, the Sheets tabs in
-TRADE_JOURNAL_SPREADSHEET_ID, and `site/` — which s04b_page.py has always written
+TRADE_JOURNAL_SPREADSHEET_ID, `site/` — which s04b_page.py has always written
 position sizes and P&L into, and which is gitignored for that reason
-(.gitignore). Do not add a path under `journal/` or `site/` to version control,
-and do not write journal content anywhere else.
+(.gitignore) — and the Drive folder named by JOURNAL_DRIVE_FOLDER_ID, added so a
+run on a disposable machine has somewhere private to leave its record instead of
+a build log (`lib/drive_sync.py`). That folder is NOT GOOGLE_DRIVE_FOLDER_ID,
+which holds the Barchart flow scrapes and may be shared on its own terms. Do not
+add a path under `journal/` or `site/` to version control, and do not write
+journal content anywhere else.
+
+A run whose output must not appear in a log at all takes `--quiet`: the report
+and the deploy card are then written and uploaded but never printed, and a Drive
+failure becomes fatal because Drive is the only place they went.
 """
 
 from __future__ import annotations
@@ -52,10 +60,24 @@ ROOT = Path(__file__).resolve().parents[2]
 JOURNAL_DIR = ROOT / "journal"
 RAW_DIR = JOURNAL_DIR / "raw"          # immutable broker pulls, write-once
 REPORTS_DIR = JOURNAL_DIR / "reports"  # <date>.md
+CARDS_DIR = JOURNAL_DIR / "cards"      # <date>.md, the deploy card as rendered
 TRADES_CSV = JOURNAL_DIR / "trades.csv"
 RECOMMENDATIONS_CSV = JOURNAL_DIR / "recommendations.csv"
 OPEN_BOOK_CSV = JOURNAL_DIR / "open_book.csv"
 SITE_DIR = ROOT / "site"               # generated HTML, also gitignored
+
+# --------------------------------------------------------------------------
+# Drive — the journal's own folder, never the flow folder
+# --------------------------------------------------------------------------
+# Unset = every Drive call in lib/drive_sync.py no-ops and a run behaves exactly
+# as it did before that module existed. Set = the report, the deploy card, the
+# broker pull, the page and the three append-only archives are mirrored there,
+# which is what makes a run on a machine that is thrown away afterwards leave a
+# record at all. Deliberately NOT GOOGLE_DRIVE_FOLDER_ID — see DATA PRIVACY.
+DRIVE_FOLDER_ENV = "JOURNAL_DRIVE_FOLDER_ID"
+# What is about to be uploaded, kept on disk so it can be read back afterwards,
+# alongside timestamped backups of any archive Drive replaced.
+DRIVE_STAGE_DIR = JOURNAL_DIR / "drive"
 
 # Fallback analysis source when Sheets is unreachable — the same exports the
 # backtest studies read.

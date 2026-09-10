@@ -400,6 +400,15 @@ journal-page-open:
 	$(PY) -m scripts.journal --page-only $(ARGS)
 	@open site/journal-latest.html 2>/dev/null || echo "built site/journal-latest.html"
 
+# The page as the LAST RUN left it, wherever that ran. journal-page-open above
+# rebuilds it from this machine's own pull; this one downloads what the
+# scheduled (--quiet) run uploaded to JOURNAL_DRIVE_FOLDER_ID, which is the only
+# way to read a session journalled somewhere else.
+.PHONY: journal-page-pull
+journal-page-pull:
+	$(PY) -m scripts.journal pull-page
+	@open site/journal-latest.html 2>/dev/null || echo "pulled site/journal-latest.html"
+
 .PHONY: help
 help:
 	@echo ""
@@ -503,6 +512,7 @@ help:
 	@echo "  make journal-dry   same, but write nothing (shows the rows it would append)"
 	@echo "  make journal ARGS=\"--offline\"  read portfolio/input/ only, no network"
 	@echo "  make journal-replay ARGS=\"--from-raw journal/raw/ibkr-<date>-<HHMM>.json\"  offline replay"
+	@echo "  make journal-page-pull  download the latest journal page from Drive and open it"
 	@echo "  make journal-recommend  deploy card for the next session (add ARGS=\"--no-llm\")"
 	@echo "  make journal-page-open  rebuild site/journal-latest.html and open it"
 	@echo ""

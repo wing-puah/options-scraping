@@ -21,9 +21,25 @@ name: Daily Trade Journal
 #
 # journal/ is gitignored (account ids, live position sizes, P&L) and MUST stay
 # that way — this workflow never commits it and never uploads it as a build
-# artifact. Its only permitted remote destinations are the TradeJournal /
-# OpenBook Sheets tabs in TRADE_JOURNAL_SPREADSHEET_ID (see
-# scripts/journal/config.py's DATA PRIVACY note).
+# artifact. Its permitted remote destinations are the TradeJournal / OpenBook
+# Sheets tabs in TRADE_JOURNAL_SPREADSHEET_ID and the private Drive folder named
+# by JOURNAL_DRIVE_FOLDER_ID (see scripts/journal/config.py's DATA PRIVACY note).
+#
+# THE RUN IS --quiet, AND THAT IS THE POINT. A GitHub Actions log is readable by
+# anyone with access to the repo and is retained for 90 days; the report the
+# journal prints names tickers, position sizes and P&L. --quiet keeps all of it
+# off stdout and leaves it in Drive instead: reports and deploy cards grouped one
+# file per month inside a YYYY-MM/ folder, the broker pull appended to that
+# month's JSONL beside them, the page as journal-latest.html at the root, and
+# the three append-only archives round-tripped under _history/ — pulled
+# before the writers so `generation` keeps counting across runs, pushed after.
+# Without that round trip a runner's empty disk restarts every generation at 1.
+# Read the result with `make journal-page-pull`.
+#
+# --quiet REFUSES TO RUN without JOURNAL_DRIVE_FOLDER_ID, before any network
+# call: a silent run with nowhere to put its output produces nothing at all. So
+# the secret below is required here, not optional — and a Drive failure exits 4
+# and fails this workflow, deliberately, for the same reason.
 #
 # The watchdog side of P8 (a missing daily journal mark failing
 # scripts/check_pipeline.py) is wired into that script directly rather than
@@ -71,7 +87,7 @@ jobs:
         run: playwright install --with-deps chromium
 
       - name: Run the daily trade journal
-        run: python -m scripts.journal ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python -m scripts.journal --quiet ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           # Barchart — EOD greeks fallback (lib/greeks.py) and OI-history reads.
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
@@ -82,6 +98,12 @@ jobs:
           # TradeJournal/OpenBook writes below.
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          # The journal's OWN Drive folder — where this run's report, card,
+          # broker pull, page and archives go, since --quiet prints none of them
+          # and the runner's disk does not outlive the job. NOT the flow folder
+          # above: that one holds Barchart scrapes and may be shared on its own
+          # terms, and this one holds account ids and live P&L.
+          JOURNAL_DRIVE_FOLDER_ID: ${{ secrets.JOURNAL_DRIVE_FOLDER_ID }}
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
           # The journal's OWN workbook (TradeJournal + OpenBook tabs) — a
           # separate spreadsheet from GOOGLE_SPREADSHEET_ID above so the trade

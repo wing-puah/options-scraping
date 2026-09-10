@@ -776,7 +776,9 @@ Playwright requirements set (`lib/greeks.py` backfills EOD greeks Flex doesn't c
 IBKR Flex secrets and the same Google OAuth2 token every other workflow here uses, scoped to
 BOTH `GOOGLE_SPREADSHEET_ID` (the AnalysisClaude read) and `TRADE_JOURNAL_SPREADSHEET_ID` (the
 TradeJournal/OpenBook writes). `journal/` stays gitignored and is never committed or uploaded as
-a workflow artifact.
+a workflow artifact. The scheduled run is `--quiet` and requires `JOURNAL_DRIVE_FOLDER_ID`: an
+Actions log is readable by anyone with repo access and kept for 90 days, and the report names
+tickers, position sizes and P&L — so it goes to Drive instead (see The Drive mirror below).
 
 `scripts/check_pipeline.py::JOURNAL_STAGE` covers the watchdog side: a "journal" row appended to
 the stage table in code (not in `config/pipeline-health.yml`) reports MISSING when neither the
@@ -796,9 +798,9 @@ module name may not begin with a digit, so `01_pull.py` would be unimportable.
 
 ```
 scripts/journal/
-  __main__.py       CLI + the three commands (run / pull / recommend)
+  __main__.py       CLI + the four commands (run / pull / recommend / pull-page)
   config.py         the data contract every step reads — records, column orders, env names
-  s01_pull.py       broker  -> journal/raw/<date>.json           (the only networked module)
+  s01_pull.py       broker  -> journal/raw/<date>.json          (the only networked STEP)
   s02_reconcile.py  fills   -> PositionEvents, matched to the analysis that proposed them
   s03_risk.py       open book -> delta exposure vs the deployment caps
   s04a_report.py    -> journal/reports/<date>.md
@@ -814,12 +816,94 @@ scripts/journal/
     book.py         group the broker's flat legs into logical positions      (s03)
     analysis.py     the shared AnalysisClaude loader              (s02 AND s06)
     prompt.py       prompt text + response parsing for the judgment pass     (s06)
+    drive_sync.py   the private Drive mirror — pulled before the writers,
+                    pushed after; not a step, a transport that brackets the run
     relabel.py      offline diagnostic, NOT a step: which journalled rows the
                     CLOSE-orientation fix would relabel. Prints, never writes.
                     Exposed as `python3 -m scripts.journal relabel`
                     (__main__.py dispatches to relabel.main() before its own
                     argument parsing runs, since relabel owns its own --csv flag)
 ```
+
+### The Drive mirror
+
+**What it is for.** Every journal artefact is gitignored, so a run on a machine that is thrown
+away afterwards — a CI runner, a cloud session — writes its record to a disk that ceases to
+exist and prints the rest into a build log other people can read. `scripts/journal/lib/
+drive_sync.py` gives that output one private destination instead: the Drive folder named by
+`JOURNAL_DRIVE_FOLDER_ID`. Leave the variable unset and every function there no-ops, so a local
+run behaves exactly as it did before the module existed.
+
+**Not `GOOGLE_DRIVE_FOLDER_ID`.** That folder holds the Barchart flow scrapes and may be shared
+on its own terms; this one holds account identifiers, position sizes and P&L. Same reasoning as
+`TRADE_JOURNAL_SPREADSHEET_ID` being a separate workbook. The journal's DATA PRIVACY note
+(`scripts/journal/config.py`) now names FOUR permitted destinations, not three.
+
+**What lands there, and how it is grouped.** One file per day per artefact reaches four figures
+inside two years, so everything datewise groups by MONTH:
+
+| On Drive | Holds | Re-run of a date |
+|---|---|---|
+| `YYYY-MM/reports-YYYY-MM.md` | that month's daily reports, in date order, inside `<!-- journal:report <date> -->` markers | REPLACES that day's section |
+| `YYYY-MM/cards-YYYY-MM.md` | that month's deploy cards, same shape | replaces |
+| `YYYY-MM/raw-YYYY-MM.jsonl` | one broker pull per line, keyed on `_file` (its original filename) | skipped — pulls are immutable, and a second pull that day is a new filename, so a new line |
+| `_history/trades.csv` · `open_book.csv` · `recommendations.csv` | the append-only archives, whole | appended |
+| `journal-latest.html` | the current page | overwritten |
+
+The dated three group by month twice over — into a folder as well as into a file — so the folder
+root holds only `journal-latest.html`, one folder per month and `_history/`, however many years
+accumulate behind it. The archives are deliberately NOT month-partitioned: each is one continuous
+series that the next run, of any month, has to find in one known place. They sit under `_history/`
+because they are the WRITERS' OWN RECORD rather than a second copy of the Sheets tabs — underscore-
+led so it sorts away from the month folders and reads as machinery. `pull_archives()` resolves that
+folder with `find_date_folder()`, not the create variant, so a read against a folder nothing has
+ever been pushed to leaves no empty directory behind as its only effect. Month folders
+are created on first write via `get_or_create_date_folder()` — named for the flow corpus's
+YYYY-MM-DD folders, but it is just "find or make a subfolder of the root by name", and a month is
+that same shape one level up. Nothing here ever lists or scans a folder: every read asks for one
+exact name inside one known parent.
+
+Extract one pull back out with `jq -r 'select(._file=="ibkr-2026-09-10-2215.json")'
+2026-09/raw-2026-09.jsonl > /tmp/pull.json`, then `--from-raw /tmp/pull.json`.
+
+**The round trip, and why it is not optional.** All three CSVs are append-only AND generational:
+each writer reads the file's own history to assign `generation` and to drop rows it already
+recorded. `pull_archives()` runs BEFORE the writers and restores them; `push()` runs after.
+
+What a fresh checkout without them costs is narrower than "duplicate rows", because the two
+append-only TABS guard themselves: `s05_writer.py` diffs against the tab's own `source_ref`s
+(`read_sheet_source_refs`) and `s07_recwriter.py` against its `rec_id`s. What is genuinely lost is
+(1) `open_book.csv` itself — the OpenBook tab is a MIRROR, replaced every run, so the history of
+past marks exists in that CSV and NOWHERE else; (2) `generation` continuity, which is computed from
+the CSV alone and then written INTO the Recommendations and OpenBook tabs, so a re-marked position
+lands there as a first mark when it is a second; and (3) the repair path for a row that reached
+disk but never Sheets, which later runs re-send from `existing` and could not otherwise reconsider.
+
+**Divergence is reported, never guessed at.** Append-only makes "has this copy fallen behind?"
+answerable exactly — one copy's lines are a prefix of the other's — so `relation()` returns
+`same` / `local_ahead` / `remote_ahead` / `diverged` and each is acted on differently: a pull
+that finds the local file behind replaces it, keeping a timestamped backup in `journal/drive/`; a
+push that finds Drive behind overwrites it; a push that finds Drive AHEAD does not overwrite it
+at all. A genuine fork — neither a prefix of the other, meaning two machines appended different
+rows to the same base — is never merged. Drive's copy is left untouched and the local one goes up
+as `<stem>-conflict-<stamp>.csv` for a person to reconcile. The same rule guards the monthly
+files: one that holds text outside its markers is preserved as `-unreadable-<stamp>.md` rather
+than rewritten.
+
+**`--quiet`.** Prints no report and no card — for a run whose log other people can read. The
+artefacts are still written and uploaded; only stdout is suppressed. It REFUSES to run without
+`JOURNAL_DRIVE_FOLDER_ID`, checked before any network call, because a silent run with nowhere to
+put its output produces nothing at all. It also inverts the "PRINT BEFORE PERSISTING" ordering in
+`cmd_recommend`: with no screen to lose the card to, the card is written to
+`journal/cards/<date>.md` first. And it makes a Drive failure FATAL — exit 4, the fourth exit
+code — where an ordinary run only warns, because on a quiet run Drive is the only place the
+report went. `--no-drive` skips the mirror entirely; `--dry-run` never mirrors, since it writes
+nothing locally either and a mirror of nothing is a lie about what ran.
+
+**Reading the result.** `make journal-page-pull` (`python3 -m scripts.journal pull-page`)
+downloads `journal-latest.html` into `site/` and opens it. That is the only way to read a session
+journalled on a machine you do not have. `make journal-page-open` is the different, older thing:
+it REBUILDS the page from this machine's own pull.
 
 `scripts/journal/lib/` and the repo-root `lib/` never collide: the former is only ever reached
 relatively (`from .lib import rawpull`), so an absolute `from lib import sheets_client` inside a

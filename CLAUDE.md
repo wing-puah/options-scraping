@@ -118,6 +118,8 @@ make clean ARGS="--caches --yes"      # also drop the refetchable network caches
 # Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
 python3 -m scripts.journal                    # Flex fetch → reconcile → risk → report → write
 python3 -m scripts.journal --offline          # read portfolio/input/ only, no network
+python3 -m scripts.journal --quiet            # print NOTHING; output goes to Drive only
+python3 -m scripts.journal pull-page          # download the latest page from Drive → site/
 python3 -m scripts.journal recommend          # deploy card for the NEXT session — persisted to
                                                # the Recommendations tab + journal/recommendations.csv
 python3 -m scripts.journal recommend --as-of 2026-08-14 --allow-stale  # replay a past morning
@@ -211,6 +213,22 @@ Journal / production tier (`scripts/journal/`):
   recomputes so drift surfaces as a ReconcileError; change both, by hand; never make s04b_page.py
   call s03_risk.py's helper.
 - ONE model call in the whole pipeline: the judgment pass in `s06_recommend.py` (see Invariants).
+- **`JOURNAL_DRIVE_FOLDER_ID` is the journal's OWN Drive folder, never
+  `GOOGLE_DRIVE_FOLDER_ID`.** The flow folder holds Barchart scrapes and may be shared; this one
+  holds account ids and live P&L. Unset = `lib/drive_sync.py` no-ops entirely. Reports and deploy
+  cards group one file per MONTH inside a `YYYY-MM/` folder, broker pulls one line per that
+  month's JSONL; the three archives go whole into `_history/`, un-partitioned, because each is one
+  continuous series the next run of any month must find in one known place. They are the WRITERS'
+  RECORD, not a copy of the tabs: the tabs dedup against themselves, but `generation` is computed
+  from the CSV and written INTO them, and the OpenBook tab is a MIRROR so open_book.csv is the only
+  place that book's past marks exist. Those archives ROUND-TRIP — pulled before the writers read their own history, pushed
+  after — because a fresh checkout restarts every `generation` at 1 and re-appends rows it has
+  already written. Divergence is never merged on a guess: append-only makes "behind or ahead"
+  exact (`relation()`), and a genuine fork leaves Drive's copy untouched and uploads the local one
+  under `-conflict-<stamp>`. `--quiet` prints no report and no card (an Actions log is not a
+  private place for position sizes), REFUSES to run without the folder set, and makes a Drive
+  failure fatal (exit 4) because Drive is then the only copy. Full contract:
+  `docs/architecture.md` §The Drive mirror.
 
 ## Architecture
 
@@ -264,7 +282,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               sNN_<step>.py and run in that order (`s` only because a module
                               name may not start with a digit). config.py = data contract (now
                               incl. RECOMMENDATION_COLUMNS + RecContext, OPEN_BOOK_COLUMNS +
-                              BookContext); s01_pull.py = the only networked module;
+                              BookContext); s01_pull.py = the only networked STEP
+                              (lib/drive_sync.py brackets the run with its own I/O);
                               s05b_bookwriter.py = persists the OPEN BOOK — the tab MIRRORS
                               the current book (replaced each run), journal/open_book.csv is the
                               append-only/generational archive; every row leads with a triage
@@ -276,7 +295,9 @@ scripts/                    ← entry points, each maps to a workflow step
                               rawpull.py (the pull schema), flexparse.py (Flex → rawpull + the
                               flat-book guards), greeks.py, book.py, analysis.py, prompt.py,
                               mapping.py::ladder_tier() = the single encoding of
-                              deployment-rules §1–§3 (the research live-select arm imports it too)
+                              deployment-rules §1–§3 (the research live-select arm imports it too);
+                              drive_sync.py = the private Drive mirror, pulled before the
+                              writers and pushed after
   backtest_study/           — RESEARCH tier, never imported by production, never scheduled.
                               f1_selection/ → f2_management/ → f3_structure/ → f4_deployment/
                               → f5_hedging/ ("pick it, manage it, wrap it, fund it, protect

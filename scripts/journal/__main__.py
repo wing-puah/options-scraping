@@ -11,6 +11,8 @@ Entry point for the daily trade journal.
     python3 -m scripts.journal --from-raw <path>   replay a past pull, no network
     python3 -m scripts.journal --dry-run           write nothing; show what it would write
     python3 -m scripts.journal --no-llm            deterministic only
+    python3 -m scripts.journal --quiet             print nothing; Drive holds the output
+    python3 -m scripts.journal pull-page           fetch the latest page back from Drive
     python3 -m scripts.journal relabel             P1 label-fix diagnostic; journal/trades.csv
     python3 -m scripts.journal relabel --csv PATH  same, against a different trades CSV
 
@@ -19,6 +21,16 @@ it says which already-journalled rows the 2026-09-07 CLOSE-orientation fix
 would relabel, and touches no network and no CSV. It bypasses the flags below
 entirely — dispatched before argument parsing, so `--csv` is its own and not
 one of this module's.
+
+WHERE THE OUTPUT GOES. Locally, `journal/` and `site/`. With
+JOURNAL_DRIVE_FOLDER_ID set, every artefact is ALSO mirrored to that private
+Drive folder — reports and deploy cards grouped one file per month, broker pulls
+one line per month's JSONL, the three append-only archives whole. That mirror is
+what lets this pipeline run somewhere its disk does not survive the run, and the
+archives round-trip (pulled before the writers, pushed after) so generations keep
+counting across machines. `--quiet` goes further and prints NOTHING: the report
+and the card are written and uploaded but never put on stdout, for a run whose
+log other people can read. See `scripts/journal/lib/drive_sync.py`.
 
 DATA SOURCE. Flex, and only Flex — a statement fetched with `IBKR_FLEX_TOKEN`
 by default, or read off disk with `--offline`. It needs no local software and
@@ -40,7 +52,9 @@ recording an empty day because a source came back empty looks exactly like a day
 you chose not to trade, and nothing about it prompts a second look. 3 the broker
 refused us: a bad token, an unknown query, or the Flex Web Service's per-token
 rate limit (error 1018), which a default run now meets far more often than the
-old read-from-disk one did.
+old read-from-disk one did. 4 the Drive mirror failed on a `--quiet` run, which
+means the output went nowhere at all — the local files are still written, but
+re-run it or read them off this machine.
 """
 
 from __future__ import annotations
@@ -59,9 +73,10 @@ from . import s03_risk as risk
 from . import s04a_report as report
 from . import s05_writer as writer
 from . import s05b_bookwriter as bookwriter
-from .lib import analysis, book, flexparse, rawpull
-from .config import (FLEX_INPUT_DIR, FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV,
-                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR, BookContext)
+from .lib import analysis, book, drive_sync, flexparse, rawpull
+from .config import (CARDS_DIR, DRIVE_FOLDER_ENV, FLEX_INPUT_DIR,
+                     FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV, RAW_DIR, REPORTS_DIR,
+                     ROOT, SITE_DIR, BookContext)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -73,6 +88,7 @@ log = logging.getLogger("journal")
 
 EXIT_USAGE = 2
 EXIT_BROKER = 3
+EXIT_DRIVE = 4
 
 # The Flex service's own code for "you have asked for too many statements".
 # Named because the remedy is nothing like the other failures': wait, then
@@ -85,8 +101,8 @@ def _parse_args(argv=None):
         prog="python3 -m scripts.journal",
         description="Daily trade journal: what you traded, what proposed it, what you now hold.")
     p.add_argument("command", nargs="?", default="run",
-                   choices=["run", "pull", "recommend"],
-                   help="run (default) | pull | recommend")
+                   choices=["run", "pull", "recommend", "pull-page"],
+                   help="run (default) | pull | recommend | pull-page")
     p.add_argument("--date", help="session to journal (YYYY-MM-DD); default today")
     p.add_argument("--from-raw", metavar="PATH",
                    help="replay an existing broker pull instead of calling the API")
@@ -149,6 +165,11 @@ def _parse_args(argv=None):
     p.add_argument("--no-page", action="store_true", help="skip the HTML page")
     p.add_argument("--page-only", action="store_true",
                    help="rebuild the report and page from the newest pull; write nothing else")
+    p.add_argument("--quiet", action="store_true",
+                   help="print no report and no card — for a run whose log is "
+                        f"readable by others; needs {DRIVE_FOLDER_ENV}")
+    p.add_argument("--no-drive", action="store_true",
+                   help="skip the Drive mirror even when it is configured")
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -297,7 +318,58 @@ def _build_book(raw: dict, as_of: date):
     return risk.assess(positions, caps), positions, notes
 
 
+def _drive_on(args) -> bool:
+    """Whether this run mirrors to Drive. A dry run never does — it writes
+    nothing locally either, and a mirror of nothing is a lie about what ran."""
+    return not args.dry_run and not args.no_drive and drive_sync.enabled()
+
+
+def _drive_pull(args) -> None:
+    """Restore the append-only archives BEFORE the writers read them.
+
+    Never fatal: an archive that could not be restored costs generation
+    continuity, not the run. It IS logged as an error, because a run that
+    silently restarts every generation at 1 is the failure this whole mirror
+    exists to prevent.
+    """
+    if not _drive_on(args):
+        return
+    try:
+        log.info("Drive archives: %s", drive_sync.pull_archives())
+    except Exception as exc:  # noqa: BLE001 — the journal stands without Drive
+        log.error("Could not restore the archives from Drive (%s) — this run's "
+                  "generations count from whatever is on this disk", exc)
+
+
+def _drive_push(args, session: str, **artefacts) -> int:
+    """Mirror this run's output. Returns an exit code, not None: on `--quiet`
+    Drive is the ONLY place the report went, so a failure there is a failed run
+    rather than a warning to scroll past."""
+    if not _drive_on(args):
+        return 0
+    try:
+        summary = drive_sync.push(session, **artefacts)
+    except Exception as exc:  # noqa: BLE001 — see the docstring
+        if args.quiet:
+            log.error("Drive push failed (%s). --quiet printed nothing, so this "
+                      "run's report exists only on this machine, under journal/.", exc)
+            return EXIT_DRIVE
+        log.warning("Drive push failed (%s) — the local files and the Sheets tabs "
+                    "are unaffected", exc)
+        return 0
+    log.info("Drive: %s", ", ".join(f"{k} {v}" for k, v in summary.items()))
+    forked = [k for k, v in summary.items() if v == "diverged"]
+    if forked:
+        # Not a lost run — the conflict copy is on Drive — but it needs a person,
+        # and on a quiet run nobody is watching the log, so fail the job.
+        log.error("Drive and this machine have forked on: %s", ", ".join(forked))
+        if args.quiet:
+            return EXIT_DRIVE
+    return 0
+
+
 def cmd_run(args) -> int:
+    _drive_pull(args)
     raw = _load_raw(args)
     session = raw.get("trade_date") or args.date or date.today().isoformat()
 
@@ -337,17 +409,26 @@ def cmd_run(args) -> int:
     if not args.dry_run:
         REPORTS_DIR.mkdir(parents=True, exist_ok=True)
         log.info("Report written to %s", report.write(text, session))
-    print(text)
+    # --quiet keeps the report off stdout entirely: it holds ticker-level
+    # positions and P&L, and a cloud run's log is not a private place to put
+    # them. The report itself is unchanged — it goes to journal/reports/ and to
+    # Drive, and `pull-page` brings the page back when you want to read it.
+    if not args.quiet:
+        print(text)
 
+    page_path = None
     if not args.no_page and not args.dry_run:
         SITE_DIR.mkdir(parents=True, exist_ok=True)
         from . import s04b_page as page
         out = page.build(events, book_risk, meta, SITE_DIR / f"journal-{session}.html")
-        page.build(events, book_risk, meta, SITE_DIR / "journal-latest.html")
+        page_path = page.build(events, book_risk, meta, SITE_DIR / "journal-latest.html")
         log.info("Page written to %s", out)
 
     if args.page_only:
-        return 0
+        # Nothing was written to the archives, so nothing of theirs to push.
+        return _drive_push(args, session, report_text=text,
+                           raw_path=raw.get("_path"), page=page_path,
+                           archives=False)
 
     summary = writer.write(
         events, {p.conid_key: p for p in positions}, raw.get("net_liquidation"),
@@ -383,7 +464,9 @@ def cmd_run(args) -> int:
         log.info("Open book: %d position(s) need ATTENTION, %d on WATCH — see the "
                  "OpenBook tab's status column",
                  book_summary["attention"], book_summary["watch"])
-    return 0
+
+    return _drive_push(args, session, report_text=text, raw_path=raw.get("_path"),
+                       page=page_path)
 
 
 def _source_caveats(raw: dict) -> list[str]:
@@ -441,11 +524,34 @@ def _next_weekday(d: date) -> date:
     return nxt
 
 
+def cmd_pull_page(args) -> int:
+    """Bring the latest journal page back from Drive to `site/`.
+
+    The counterpart of a `--quiet` run: the page was built on a machine you do
+    not have, so this is how you read it. It overwrites site/journal-latest.html
+    — generated output either way, rebuilt by the next local run.
+    """
+    if not drive_sync.enabled():
+        log.error("%s is not set — there is no Drive folder to pull from",
+                  DRIVE_FOLDER_ENV)
+        return EXIT_USAGE
+    try:
+        dest = drive_sync.pull_page(SITE_DIR / "journal-latest.html")
+    except drive_sync.DriveSyncError as exc:
+        log.error("%s", exc)
+        return EXIT_USAGE
+    print(dest)
+    return 0
+
+
 def cmd_recommend(args) -> int:
     from . import s06_recommend as rec
     from . import s07_recwriter as recwriter
     from .config import RecContext
 
+    # Before s07_recwriter reads journal/recommendations.csv to number this
+    # card's generation against the ones already recorded.
+    _drive_pull(args)
     ac_df, ac_source = analysis.load()
     # The day the card STANDS ON. Everything it may look at is bounded by this:
     # the analysis session below, and the broker book in _book_context.
@@ -495,17 +601,27 @@ def cmd_recommend(args) -> int:
             judge_status = "failed"
             log.warning("Judgment pass failed (%s) — printing the deterministic card", exc)
 
+    card = rec.render(candidates, rejected, judged,
+                      date=session, source=ac_source, net_liq=net_liq,
+                      as_of=as_of, staleness_days=staleness, stale_note=stale_note,
+                      book_evaluable=prov["evaluable"], book_note=prov["note"],
+                      book=book_risk)
     # PRINT BEFORE PERSISTING. A disk error or a missing credential must never
     # cost you the card on screen — the record is a convenience, the card is the
-    # product.
-    print(rec.render(candidates, rejected, judged,
-                     date=session, source=ac_source, net_liq=net_liq,
-                     as_of=as_of, staleness_days=staleness, stale_note=stale_note,
-                     book_evaluable=prov["evaluable"], book_note=prov["note"],
-                     book=book_risk))
+    # product. Under --quiet there is no screen to lose it to, so the ordering
+    # inverts: the card goes to journal/cards/<date>.md FIRST, and that file is
+    # what the run has to show for itself if everything after it fails.
+    if args.quiet:
+        if not args.dry_run:
+            CARDS_DIR.mkdir(parents=True, exist_ok=True)
+            card_path = CARDS_DIR / f"{session}.md"
+            card_path.write_text(card, encoding="utf-8")
+            log.info("Card written to %s", card_path)
+    else:
+        print(card)
 
     if args.no_persist:
-        return 0
+        return _drive_push(args, session, card_text=card, archives=False)
 
     notes = " ".join(n for n in (stale_note, prov["note"]) if n)
     ctx = RecContext(
@@ -523,7 +639,8 @@ def cmd_recommend(args) -> int:
     if summary.get("sheets_error"):
         log.warning("Sheets copy did not update (%s) — rows are safe locally",
                     summary["sheets_error"])
-    return 0
+
+    return _drive_push(args, session, card_text=card)
 
 
 def _judgment_context(session: str, ac_source: str, book_risk) -> str:
@@ -559,9 +676,18 @@ def main(argv=None) -> int:
 
     args = _parse_args(argv)
     _setup_logging(args.verbose)
+    # Checked here, before any network call: --quiet with nowhere to put the
+    # output is a run that produces nothing and says so only at the end.
+    if args.quiet and not (drive_sync.enabled() and not args.no_drive) and not args.dry_run:
+        log.error("--quiet suppresses the report and the card, so %s must be set "
+                  "(and --no-drive not passed) — otherwise the run has nowhere to "
+                  "put them.", DRIVE_FOLDER_ENV)
+        return EXIT_USAGE
     try:
         if args.command == "pull":
             return cmd_pull(args)
+        if args.command == "pull-page":
+            return cmd_pull_page(args)
         if args.command == "recommend":
             return cmd_recommend(args)
         return cmd_run(args)
