@@ -228,21 +228,47 @@ def main() -> None:
     parser.add_argument("--era", default="current",
                         help="Book era to derive ladder targets from (default: current).")
     parser.add_argument("--no-headless", action="store_true", help="Visible browser.")
+    parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH,
+                        help="Manifest file to load/flush (default: the shared "
+                             "ladder_manifest.csv). A SECOND collector running in "
+                             "parallel on a disjoint --category must use its own "
+                             "file: every attempt rewrites the whole manifest, so two "
+                             "writers on one file wipe each other's failed rows. Merge "
+                             "the statuses back with `--merge-from` when it finishes.")
+    parser.add_argument("--merge-from", type=Path, default=None,
+                        help="Copy status/fetched_at/reason from this secondary manifest "
+                             "into --manifest for every target both hold, then exit.")
     args = parser.parse_args()
+    manifest_path: Path = args.manifest
+
+    if args.merge_from is not None:
+        primary = load_manifest(manifest_path)
+        secondary = load_manifest(args.merge_from)
+        n = 0
+        for key, row in secondary.items():
+            if key in primary and row.get("status") in ("fetched", "failed") \
+                    and primary[key].get("status") == "pending":
+                primary[key].update(status=row["status"], fetched_at=row.get("fetched_at", ""),
+                                    reason=row.get("reason", ""))
+                n += 1
+        write_manifest(manifest_path, primary)
+        log.info("merged %d row statuses from %s into %s", n, args.merge_from, manifest_path)
+        print_summary(primary)
+        return
 
     idx = _strike_index()
     target_records, census = ladder_target_records(era=args.era)
     cached, missing = split_cached(target_records, idx)
     print_ladder_census(target_records, cached, missing, census, args.era)
 
-    existing = load_manifest(MANIFEST_PATH)
+    existing = load_manifest(manifest_path)
     rows = merge_manifest(existing, missing)
     n_upgraded = sync_cache_status(rows)
     if n_upgraded:
         log.info("%d rows already covered by an existing cache file — marked fetched", n_upgraded)
-    write_manifest(MANIFEST_PATH, rows)
+    write_manifest(manifest_path, rows)
     print_summary(rows)
-    log.info("manifest: %s", MANIFEST_PATH)
+    log.info("manifest: %s", manifest_path)
 
     if args.dry_run:
         log.info("[dry-run] nothing fetched")
@@ -257,7 +283,7 @@ def main() -> None:
         log.info("Nothing to fetch.")
         return
 
-    stats = asyncio.run(run_fetch(rows, MANIFEST_PATH, limit=args.limit,
+    stats = asyncio.run(run_fetch(rows, manifest_path, limit=args.limit,
                                   retry_failed=args.retry_failed,
                                   headless=not args.no_headless,
                                   categories=cats))
