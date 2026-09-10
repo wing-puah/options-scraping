@@ -476,7 +476,22 @@ outcome is seen.
 - The scrape target derivation is fixed before any fetch, and no target is
   added or removed after any outcome is seen.
 
-_Collector dry-run census (targets / cached / missing): TO BE PASTED BEFORE THE FIRST FETCH._
+_Collector dry-run census, pasted 2026-09-10 before the first fetch
+(`python3 scripts/collector/fetch_ladder_legs.py --dry-run`, era v4, 447
+bull_call_spread cores, 44 with no eligible expiry at any slot):_
+
+| category | targets | cached | missing |
+|---|---|---|---|
+| `ladder_call_t0` | 2,390 | 243 | 2,147 |
+| `ladder_call_roll` | 3,833 | 419 | 3,414 |
+| `ladder_put_core` | 377 | 132 | 245 |
+| `ladder_put_short` | 6,547 | 851 | 5,696 |
+| **all** | **13,147** | **1,645** | **11,502** |
+
+The plan-time estimate was ~5,000 fetches; the live number is 11,502 and is
+recorded as printed, not adjusted. Fetch order: the two call categories and
+`ladder_put_core` first, `ladder_put_short` last, so the ladder cells can be
+read before the naked-put arm fills.
 
 ## What this cannot answer
 
