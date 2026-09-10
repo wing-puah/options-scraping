@@ -834,7 +834,8 @@ def run_campaign(core, spec: CampaignSpec, prices: PriceSource, bars: dict,
 # ── the net-mark algebra ─────────────────────────────────────────────────────
 
 def campaign_net_marks(core_legs: Sequence[Leg], tranches: Sequence[Tranche],
-                       grid: Sequence[date], prices: PriceSource) -> list[float | None]:
+                       grid: Sequence[date], prices: PriceSource, *,
+                       credit_received: bool = False) -> list[float | None]:
     """Daily signed net over the core's grid for the whole campaign.
 
     Three contributions per day, and the third is what makes a ROLL readable:
@@ -863,14 +864,23 @@ def campaign_net_marks(core_legs: Sequence[Leg], tranches: Sequence[Tranche],
     debit D_e alone (the plan's denominator decision) — tranche credits are NOT
     folded in, they arrive through the mark series. With `u` the overlay unit, a
     tranche sold for C_o and closed for C_c contributes `u*(C_o - C_c)` of realized
-    P&L, and that is exactly what `M(t) = D(t) - u*C_c + u*C_o` less D_e gives... but
-    the mark series may not carry the credit, because a credit RECEIVED is cash the
-    denominator never charged for. So the series carries only `leg.qty * C_c`
-    (qty = -u) and the tranche's P&L appears as the difference between the day it
-    was sold (the leg marked at C_o, subtracting u*C_o) and afterwards.
+    P&L, and that is exactly what `M(t) = D(t) - u*C_c + u*C_o` less D_e gives.
+
+    THE `credit_received` FLAG decides whether the `+ u*C_o` term is in the series,
+    and the two callers need opposite answers:
+
+      * `credit_received=True` (`campaign_trade`, the study's own cells): the
+        denominator is the bare core debit, so the credit the position TOOK IN
+        must arrive through the marks or a tranche sold at entry prints
+        `R = -u*C_o/D_e` on its own fill day when the true return is zero, and a
+        naked put that expires worthless prints R = 0 instead of +credit.
+      * `credit_received=False` (`f4_identity`, gate G1b): `financed_spread` folds
+        the entry-day credit into `entry_net` instead, so ITS mark series carries
+        only `leg.qty * C_c`, and the identity check must compare like with like.
 
     Numerically, D_e = 3.00, u = 1, core grid days 0..5, one tranche sold day 1 for
-    0.80 and settling day 3 at 0.30, a second sold day 4 for 0.60:
+    0.80 and settling day 3 at 0.30, a second sold day 4 for 0.60, with
+    `credit_received=False` (add +0.80 from day 1 and +0.60 from day 4 for True):
 
         day 0  core 3.00, no tranche      -> M = 3.00          (clamped: flat core)
         day 1  core 3.10, leg live @0.80  -> M = 3.10 - 0.80 = 2.30   (unclamped)
@@ -914,6 +924,8 @@ def campaign_net_marks(core_legs: Sequence[Leg], tranches: Sequence[Tranche],
         for tranche in tranches:
             if day < tranche.open_day:
                 continue
+            if credit_received:
+                realized -= tranche.leg.qty * tranche.credit     # + u*C_o, qty < 0
             if tranche.closed and day >= tranche.close_day:
                 if tranche.close_cost is None:
                     broken = True
@@ -963,7 +975,8 @@ def campaign_trade(core_rec: dict, tranches: Sequence[Tranche], entry_net: float
     if not entry_net or abs(entry_net) <= 1e-9:
         return None
     source = prices if prices is not None else CachePrices()
-    marks = campaign_net_marks(base.legs, tranches, base.grid, source)
+    marks = campaign_net_marks(base.legs, tranches, base.grid, source,
+                               credit_received=True)
     if all(m is None for m in marks):
         return None
     leg_str = "\n".join(

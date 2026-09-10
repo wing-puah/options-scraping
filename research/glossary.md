@@ -203,6 +203,26 @@ them alongside R, not as a standalone verdict.
 calendar days from entry, bounding far-dated/LEAP trades. Still open at
 the cap → exits `cap_open` (below).
 
+### Tranche
+one short option sold against a `ladder_overlay` core: its leg, the grid
+day it opened and closed, the credit received and the closing cost, and
+whether it was breached. A campaign is the ordered list of tranches over
+one core's grid (`overlay_campaign.py`). At most one tranche is live at a
+time — the overlay ratio is 1:1 with the core.
+
+### Breach
+the underlying's close reaches a live tranche's short strike (`close >= K`
+for a call tranche, `close <= K` for a put tranche). A state, not an exit
+— under `ladder_overlay`'s PRIMARY breach policy (`BHOLD`) nothing is done
+about it, and its cost is read from the breach census instead.
+
+### MODEL tier
+a sensitivity leg-pricing mode, printed under a `[MODEL]` header: every
+leg is repriced by `helpers._bs_price` at its entry-day cache IV held
+constant for the whole path, with the underlying taken from the OHLC
+close (`ladder_overlay`, `overlay_campaign.py`). Never pooled with
+cache-priced rows — a MODEL row reaching a criterion is a build error.
+
 ## 6. Exit reasons
 
 `harness.replay()`'s exact vocabulary, checked in this priority order every

@@ -469,6 +469,22 @@ plan was deleted once executed; the programme's four questions are
 | Far-call fetch (Q2) — COLLECTOR BUILT AND RUN 2026-09-08; the read is blocked | `scripts/collector/fetch_far_legs.py`: for every (date, ticker, near expiry) the book entered, the call at the paired ATM strike on the ticker's first later cached expiry; imports `fetch_sweep_legs.py`'s manifest and scrape loop, own manifest `backtests/sweep_cache/far_legs_manifest.csv`. | Pre-run note and outcome in `current.md` ([note](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-seventh--far-call-fetch-for-hedge_structure-q2-pre-run-note-then-the-fetch-r2-fails-on-the-new-export-before-any-of-it), [outcome](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The first run fetched almost nothing because the scraper re-issued the page's three-month default range; fixed in `session.py` and re-run. `hedge_structure` cannot print H0 on this export because R2 fails on five post-fold rows (§2.11); re-run the study once that is decided. |
 | Two sleeve-sizing bodies outside the library — CLOSED 2026-09-08 | `f4_deployment/account_sim.py` and `f4_deployment/portfolio_delta.py` each picked one position a day by descending delta in their own sorted copy. | Both now call `lib/hedge_criteria.sleeve_pick` under `account_sim.sleeve_rank`; both studies printed identically before and after on the 2026-09-08 export ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-sixth--the-two-sleeve-sizing-bodies-in-account_sim--portfolio_delta-are-folded-onto-libhedge_criteriasleeve_pick-identical-print)). |
 
+<a id="s2-13"></a>
+### 2.13 `ladder_overlay` first run — waits on the scrape
+
+Registered 2026-09-10. A scrape of 11,502 contracts is in progress
+(`scripts/collector/fetch_ladder_legs.py`): the two call categories and
+`ladder_put_core` fetch first, `ladder_put_short` last, so the ladder cells
+can be read before the naked-put arm fills.
+
+After the scrape:
+
+1. `python3 scripts/backup_research_caches.py push`
+2. `python3 -m scripts.backtest_study run ladder_overlay`
+3. `--era v3` companion run
+4. `python3 -m scripts.study_review ladder_overlay`
+5. Write-up in `current.md`
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

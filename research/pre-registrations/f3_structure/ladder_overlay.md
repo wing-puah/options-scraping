@@ -229,7 +229,8 @@ The long-dated question is therefore answerable on this book, bounded by the
 ## Arms
 
 Three groups: the PRIMARY ladder cells, the naked-put cells, and SENSITIVITY.
-Only PRIMARY and the naked-put cells may earn a verdict.
+Only PRIMARY and the naked-put cells may earn a verdict. Every label below is
+indexed in [`arm-index.md`](../../arm-index.md#ladder_overlay).
 
 Axis vocabulary, used in every table below:
 

@@ -51,6 +51,10 @@ a bare `ARM P`.
 - **`S`** — `ARM S` in two studies (`hedge_structure`, `bear_giveback`) vs
   `hedge_structure`'s own `S1`–`S6` sub-arms vs the printed prose
   `ARM SELECTION`.
+- **`E1` / `E2` / `E3`** — two studies: `exit_from_text` (arms —
+  invalidation-as-stop, trigger-as-entry-filter, horizon-as-time-exit) vs
+  `ladder_overlay` (gates — Δ(net delta), Δ(net vega), sleeve correlation).
+  Nothing alike beyond the letter.
 - **Gates: `G0` `G1` `G2` `G3` `G4` `G5` `G6`** — hard pass/fail
   preconditions checked before any result prints ([`glossary.md`](glossary.md)
   §9). Every study numbers its OWN from scratch, so `G2` in two studies is
@@ -220,6 +224,8 @@ _Registered in [`pre-registrations/f2_management/exit_from_text.md`](pre-registr
   quoted on R with the excluded share.
 - `E3` (arm) — Horizon-as-time-exit: the emitted `horizon` DTE bucket as the
   time exit vs the shipped 0.75 fraction; survival control runs first.
+  `E1`/`E2`/`E3` COLLIDE with `ladder_overlay`'s own `E1`/`E2`/`E3` (exposure
+  gates) — unrelated; qualify every citation with its study.
 
 #### `exit_drawdown`
 
@@ -268,6 +274,80 @@ _Registered in [`pre-registrations/f3_structure/financed_spread.md`](pre-registr
   `F2` naked short leg; `F3` same-direction financed vertical; `F4`
   diagonal financing (amendment 1, 2026-08-19). `F1`/`F2` COLLIDE with
   `account_sim`'s unrelated 1-contract-floor `F1`/`F2` below.
+
+#### `ladder_overlay`
+
+_Registered in [`pre-registrations/f3_structure/ladder_overlay.md`](pre-registrations/f3_structure/ladder_overlay.md) · module `f3_structure/ladder_overlay.py` (build in progress) · engine `lib/overlay_campaign.py` · targets `lib/ladder_targets.py`_
+
+Wraps a book `bull_call_spread` core in a rolled short-call ladder, on the
+same core rows and dates as `financed_spread`; two cells replace the core
+with a naked put instead. **AWAITING SCRAPE** as of registration — see
+`next-steps.md` §2.13.
+
+- `L-BASE` `L-F4` `L-T0` `L-GAP` `L-RUN` `L-T0-TEF` `L-GAP-TEF` `L-RUN-TEF`
+  (arm) — the 8 PRIMARY ladder cells, all |Δ| 0.20 calls, `BHOLD` breach.
+  `L-BASE` is the core alone (`TNEVER`) — the baseline every other cell's ΔR
+  is paired against, never a candidate itself. `L-F4` is the `G1b`
+  replication anchor (below), not a candidate in its own right. `L-T0`
+  `L-GAP` `L-RUN` vary the trigger, rolling (`R1`); the `-TEF` cells repeat
+  those three with the profit target dropped (`X-TEF` core exit). `L-F4`
+  reproduces `financed_spread` [`ARM F4`](#financed_spread)-d20-hold's mark
+  series exactly (gate `G1b`) — it is a machinery check, not a new arm on
+  F4's ground.
+- `N-CORE` `N-ROLL` (arm) — the 2 naked-put cells; both REPLACE the core
+  rather than wrap it. `N-CORE` sells a put at the core's own long strike
+  and expiry (`T0`/`R0`). `N-ROLL` rolls a |Δ| 0.30 put on the same slot
+  schedule as the ladder cells (`T0`/`R1`). Both UNBOUNDED below the
+  strike; `G3` carries a margin census, never a criterion.
+- `S-D30` `S-BBUY` `S-BUP` `S-XEXP` `S-GAP103` `S-DTE60` `S-MODEL` (arm) —
+  7 SENSITIVITY cells, printed with n, never a criterion: `S-D30` at |Δ|
+  0.30 (PRIMARY is 0.20); `S-BBUY`/`S-BUP` vary the breach policy (buy
+  back / buy back and re-sell); `S-XEXP` holds to the 120-day path cap
+  instead of §5; `S-GAP103` is the `TGAP` trigger at 1.03× instead of
+  1.015×; `S-DTE60` restricts the `T0` cell to cores ≥60 DTE; `S-MODEL`
+  ×{1.00, 0.75, 1.25} is the `[MODEL]` tier (below).
+- `T0` `TGAP` `TRUN` `TNEVER` (axis) — the trigger a tranche is sold on: at
+  entry, on a gap-up (open ≥1.015× prior close), on a sustained rise (3
+  consecutive higher closes, close ≥1.04× entry close), or never.
+- `R0` `R1` (axis) — roll policy: one tranche only, or roll each slot as it
+  expires.
+- `BHOLD` `BBUY` `BUP` (axis) — breach policy while a tranche is live: do
+  nothing, buy back at that close's mark, or buy back and sell the next
+  expiry's target-delta strike.
+- `X-SHIP` `X-TEF` `X-EXP` (axis) — core exit profile: the shipped §5 debit
+  profile, §5 with no profit target, or hold to the 120-day path cap
+  (sensitivity only).
+- `G0` (gate) — power floor: <25 dates OR <60 rows → UNDERPOWERED, no
+  criterion evaluated.
+- `G1` (gate) — `reconstructs()` on every candidate core; failures excluded
+  and counted by reason.
+- `G1b` (gate) — the F4 identity check: `L-F4`'s per-day mark series must
+  equal `financed_spread` [`ARM F4`](#financed_spread)-d20-hold's to $0.01
+  per day on shared rows (`overlay_campaign.f4_identity`). Proves the
+  campaign engine is a SUPERSET of F4's single-tranche simulator, not a
+  second one; a mismatch fails the run.
+- `G2` (gate) — clamp attribution: every ladder cell must be 100%
+  unclamped on days with a live tranche, clamped on core-only days.
+- `G3` (gate) — sizing and margin census; the naked-put cells' reg-T margin
+  proxy prints here, never as a criterion.
+- `G4` (gate) — breach census: tranches sold, share breached, the
+  `settle_mark`/`settle_intrinsic` split, breach cost in R, share of exits
+  taken by `dollar_stop`. Criterion 8 is read against this census.
+- `E1` `E2` `E3` (gate) — exposure reads printed alongside ΔR for every
+  PRIMARY and naked-put cell, and re-checked as gates in the bar for a
+  candidate: `E1` Δ(net delta) at entry (geometry check — must go more
+  negative), `E2` Δ(net vega) (every ladder cell is structurally short
+  vega), `E3` correlation of the cell's mean R against the deployed top-3
+  sleeve's mean R (≥8 shared dates required; positive = **RE-WRAP**
+  regardless of ΔR). COLLIDES with `exit_from_text`'s own [`E1`/`E2`/`E3`
+  above](#exit_from_text) (invalidation-stop / entry-filter / time-exit
+  arms) — unrelated; qualify every citation with its study.
+- **BREACH-DOMINATED** / **AWAITING SCRAPE** (verdict) — two tokens this
+  study adds to the verdict grammar ([glossary.md](glossary.md) §9).
+  BREACH-DOMINATED: criteria 1–7 pass and criterion 8 flips sign — the
+  campaign's edge is a tail it never paid for. AWAITING SCRAPE: the
+  contracts a cell needs are not yet cached; the run exits 0, prints the
+  census, and evaluates no criterion.
 
 ### ④ Deployment — can I run it
 

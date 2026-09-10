@@ -486,6 +486,27 @@ def test_the_worked_example_in_the_docstring_executes(cache):
     ]
     marks = OC.campaign_net_marks(CORE, tranches, grid, OC.CachePrices())
     assert marks == pytest.approx([3.00, 2.30, 2.85, 3.10, 2.60, 3.10])
+    # The study's own convention: the denominator is the bare core debit, so each
+    # tranche's CREDIT RECEIVED enters the series from its open day (+0.80 from
+    # day 1, +0.60 from day 4). On a fill day the tranche then contributes zero.
+    got = OC.campaign_net_marks(CORE, tranches, grid, OC.CachePrices(),
+                                credit_received=True)
+    assert got == pytest.approx([3.00, 3.10, 3.65, 3.90, 4.00, 4.50])
+
+
+def test_campaign_trade_carries_the_credit_and_f4_identity_does_not(cache):
+    """`campaign_trade` prices on the core-debit denominator, so a tranche sold on
+    the entry day leaves R at zero that day; `f4_identity` reproduces
+    financed_spread's credit-folded series, in which the same day reads -credit."""
+    grid = _days(3)
+    _flat_core(cache, grid, [3.0, 3.0, 3.0])
+    cache(Leg(-1, TK, NEAR, 120.0, "Call"), dict(zip(grid, [0.8, 0.8, 0.8])))
+    tr = [_tranche(120.0, NEAR, grid[0], 0.8)]
+    with_credit = OC.campaign_net_marks(CORE, tr, grid, OC.CachePrices(),
+                                        credit_received=True)
+    without = OC.campaign_net_marks(CORE, tr, grid, OC.CachePrices())
+    assert with_credit == pytest.approx([3.0, 3.0, 3.0])
+    assert without == pytest.approx([2.2, 2.2, 2.2])
 
 
 def test_the_series_is_continuous_at_every_close(cache):

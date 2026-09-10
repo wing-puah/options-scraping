@@ -686,6 +686,18 @@ STUDIES: dict[str, Study] = {
                 "2025 +0.064  2026 +0.462`). Nothing ships.",
     ),
 
+    "ladder_overlay": Study(
+        family="structure", state="open",
+        question="Does selling a shorter-dated short call against a long-dated bull call "
+                 "spread — and rolling that short call as each one expires — beat simply "
+                 "running the spread to the shipped §5 exits, and would a naked put beat "
+                 "both?",
+        verdict="NOT YET RUN — registered 2026-09-10; first run waits on the collector "
+                "scrape (11,502 contracts pending at registration).",
+        attention="2026-09-10 AWAITING SCRAPE: fetch_ladder_legs.py running; "
+                  "ladder_put_short category queued last.",
+    ),
+
     # ④ deployment
     "account_sim": Study(
         family="deployment", state="open",
@@ -1156,6 +1168,29 @@ INFRA: dict[str, str] = {
                          "only. Event distance keys off the ENTRY session, with "
                          "pre-open vs post-open deciding day-0. Built for "
                          "macro_event_study.",
+    "lib/ladder_targets.py": "The ONE owner of \"which contracts does a ladder campaign owe "
+                         "a core\", imported by both the collector "
+                         "(`fetch_ladder_legs.py`) and the campaign engine "
+                         "(`overlay_campaign.py`) so the scrape targets and the simulation "
+                         "can never disagree. `third_fridays`, `eligible_expiries`, "
+                         "`roll_chain`, `ticker_ladder`, `target_strikes`, "
+                         "`cached_strikes`, `CoreSpec` and `core_of` are defined ONCE, "
+                         "here. The two callers differ only in their EXPIRY UNIVERSE — the "
+                         "collector passes cached union third-Fridays, the campaign passes "
+                         "cached-only — always an explicit argument, never re-derived. "
+                         "`DIAG_MIN_DAYS`/`DIAG_MAX_DTE_FRAC` are imported from "
+                         "financed_spread (F4's frozen near-expiry window), never "
+                         "redefined. Pure, no network, no writes. Built for "
+                         "ladder_overlay.",
+    "lib/overlay_campaign.py": "The roll-capable tranche campaign for `ladder_overlay`, "
+                         "composed AROUND the frozen harness — trigger, sale, breach "
+                         "policy, settlement, roll — plus the multi-tranche net-mark "
+                         "algebra (core clamped only on days with no live tranche, "
+                         "realized costs outside the clamp) and the `[MODEL]` "
+                         "Black-Scholes sensitivity tier that `assert_not_model` keeps out "
+                         "of every criterion. Gate G1b's `f4_identity` proves it is a "
+                         "SUPERSET of `financed_spread` ARM F4 rather than a second "
+                         "simulator.",
 }
 
 # ── the traps, kept where the map is read ─────────────────────────────────────
