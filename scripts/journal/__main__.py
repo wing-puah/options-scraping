@@ -35,7 +35,8 @@ log other people can read. See `scripts/journal/lib/drive_sync.py`.
 DATA SOURCE. Flex, and only Flex — a statement fetched with `IBKR_FLEX_TOKEN`
 by default, or read off disk with `--offline`. It needs no local software and
 no daily login, which is the whole reason it is the transport; what it costs is
-greeks (enriched from Barchart) and NetLiquidation (supply `--net-liq`).
+greeks (enriched from Barchart) and NetLiquidation (`JOURNAL_NET_LIQUIDATION`
+in .env; `--net-liq` overrides it for one run).
 
 THE CARD'S TIME BOUND. `recommend` is built AS OF a date (default today) and may
 read nothing published after it — not a later analysis session, not a later

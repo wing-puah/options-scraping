@@ -944,7 +944,7 @@ with it):
 |---|---|
 | Greeks | Barchart EOD Delta/Gamma/Theta/Vega/IV per contract (`lib/greeks.py`), latest row **on or before** the session date — never after (lookahead) |
 | Open positions | the declared `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID` query, else reconstructed by netting fills (`lib/flexparse.py`) |
-| NetLiquidation | a NAV/Account-Information section on the positions query if it carries one (detected, never assumed), else `--net-liq` / `JOURNAL_NET_LIQUIDATION`, else the caps report "not evaluable" |
+| NetLiquidation | `--net-liq` if passed (a one-run override), else a NAV/Account-Information section on the positions query if it carries one (detected, never assumed), else `JOURNAL_NET_LIQUIDATION` from `.env`, else the caps report "not evaluable" |
 | Commission | nothing — recorded as `None`, never `0.0`; `net_cash` excludes it. `PositionEvent.commission` is all-or-nothing across a group's legs (same rule s03_risk.py applies to delta) |
 
 **Two saved queries, one token — or one query carrying both sections.** A Flex query is

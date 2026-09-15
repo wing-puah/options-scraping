@@ -199,6 +199,12 @@ def test_net_liquidation_falls_back_to_the_environment(monkeypatch):
     assert raw["net_liquidation"] == 40000.0
 
 
+def test_passed_net_liquidation_overrides_the_environment(monkeypatch):
+    monkeypatch.setenv("JOURNAL_NET_LIQUIDATION", "40000")
+    raw = flexparse.parse(csv_text(row()), net_liquidation=51234.5)
+    assert raw["net_liquidation"] == 51234.5
+
+
 def test_a_missing_file_names_the_path():
     with pytest.raises(FlexParseError, match="not found"):
         flexparse.parse("/nonexistent/flex.csv")
