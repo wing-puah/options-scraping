@@ -1121,7 +1121,14 @@ positions, and that leg exists to cut the ticker's directional exposure. A posit
 is all-or-nothing across legs: a spread priced on one leg would report the naked long's
 delta, since the unpriced leg is precisely the hedge.
 
-**Output** — `journal/reports/<date>.md` and `site/journal-<date>.html`. The page recomputes
+**Output** — `journal/reports/<date>.md` and `site/journal-<date>.html`. Both OPEN with a
+per-ticker summary (the report's unnumbered `## At a glance`, the page's By ticker table), one
+row per ticker, breaches first: share-equivalent delta, signed delta-notional, % NetLiq, % of
+the per-ticker cap, the overage in dollars and share-equivalent delta (`Over Cap By`), `Room
+Left`, the earliest §5 exit-by, and the positions netted into the total. Status is BREACH /
+NEAR (≥ `CAP_NEAR_UTILISATION`) / OK / UNPRICED. Both render from
+`s04a_report._ticker_summaries()`, whose totals are `book.ticker_exposure`; each ticker's
+delta-notional is reconciled as `ticker_dn:<T>`. The page recomputes
 each figure from the records and reconciles against the report, writing nothing on a
 mismatch (`s03_risk.py::assess` and `s04b_page.py::_breach_count` are two DELIBERATE
 implementations of the cap rule — change both by hand, never share a helper). The charts are Cap utilisation

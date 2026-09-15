@@ -285,15 +285,19 @@ def assess(positions: list[PositionRisk], caps: Caps | None) -> BookRisk:
                 f"{p.structure} {p.delta_notional:+,.0f}"
                 for p in priced if p.ticker == ticker)
             n = sum(1 for p in priced if p.ticker == ticker)
+            # The overage, stated — "exceeds" alone sends the reader off to do
+            # the subtraction before they know how much has to come off.
             breaches.append(
                 f"{ticker}: |net delta-notional across {n} position(s)| "
                 f"${abs(total):,.0f} exceeds the per-position cap "
                 f"${caps.per_position_dollars:,.0f} ({caps.per_position:.2f}x equity) "
+                f"by ${abs(total) - caps.per_position_dollars:,.0f} "
                 f"[{parts}]")
         if abs(net) > caps.net_dollars:
             breaches.append(
                 f"BOOK: |net delta-notional| ${abs(net):,.0f} exceeds the net cap "
-                f"${caps.net_dollars:,.0f} ({caps.net:.2f}x equity)")
+                f"${caps.net_dollars:,.0f} ({caps.net:.2f}x equity) "
+                f"by ${abs(net) - caps.net_dollars:,.0f}")
 
     for p in unpriced:
         log.warning("%s %s excluded from exposure totals — no delta from broker",

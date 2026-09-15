@@ -145,9 +145,19 @@ def test_a_breach_appears_in_the_exposure_section():
     assert "**1 breach(es).**" in text
 
 
-def test_the_per_ticker_exposure_table_shows_the_netting_behind_a_breach():
-    """§5's table is what makes a breach checkable: the reader must be able to
-    see the financing leg that a ticker's total already nets in."""
+def _glance(text: str) -> str:
+    return text[text.index("## At a glance"):text.index("## 1. Header")]
+
+
+def _glance_row(text: str, ticker: str) -> list[str]:
+    rows = [ln for ln in _glance(text).splitlines() if ln.startswith(f"| {ticker} |")]
+    assert len(rows) == 1, rows
+    return [c.strip() for c in rows[0].split("|")[1:-1]]
+
+
+def test_the_per_ticker_summary_shows_the_netting_behind_a_breach():
+    """The At-a-glance table is what makes a breach checkable: the reader must
+    be able to see the financing leg that a ticker's total already nets in."""
     from scripts.journal.s03_risk import assess
     core = _risk(conid_key="k1", ticker="GLD", structure="bull_call_spread",
                  delta_notional=8529.58)
@@ -155,10 +165,99 @@ def test_the_per_ticker_exposure_table_shows_the_netting_behind_a_breach():
                     delta_notional=-2226.37)
     book = assess([core, overlay], _caps(net_liq=31000.0))
     text = report.build([], book, _meta())
-    exposure = text[text.index("## 5. Exposure"):]
-    assert "Per-ticker exposure" in exposure
-    assert "**0 breach(es).**" in exposure          # $6,303 is under the $7,750 cap
-    assert "BREACH" not in exposure
+    assert text.index("## At a glance") < text.index("## 1. Header")
+    row = _glance_row(text, "GLD")
+    assert row[1] == "NEAR"                          # $6,303 is under the $7,750 cap, but 81%
+    assert row[3] == "+$6,303.21"
+    assert row[6] == report.EM_DASH                  # nothing over
+    assert row[7] == "$1,446.79"                     # room left
+    assert "bull_call_spread +8,530" in row[9] and "single short call -2,226" in row[9]
+    assert "**0 breach(es).**" in text[text.index("## 5. Exposure"):]
+
+
+def test_a_breached_ticker_states_by_how_much_in_dollars_and_delta_shares():
+    from scripts.journal.s03_risk import assess
+    msft = _risk(conid_key="k1", ticker="MSFT", position_delta=0.254,
+                 delta_notional=13056.25, underlying_price=513.53)
+    small = _risk(conid_key="k2", ticker="KWEB", position_delta=0.78,
+                  delta_notional=2101.54, underlying_price=26.95)
+    book = assess([small, msft], _caps(net_liq=31000.0))
+    text = report.build([], book, _meta())
+
+    row = _glance_row(text, "MSFT")
+    assert row[1] == "**BREACH**"
+    assert row[2] == "+25.4"                         # 0.254 x 100 share-equivalent
+    assert row[5] == "168.5%"
+    assert row[6] == "**$5,306.25** (≈10.3 Δ sh)"    # 5,306.25 / 513.53
+    assert row[7] == report.EM_DASH
+    # breaches sort first, whatever the ticker order
+    glance = _glance(text)
+    assert glance.index("| MSFT |") < glance.index("| KWEB |")
+    assert "**Tickers over cap:** 1" in glance
+    # the §5 breach bullet carries the overage too
+    assert any("exceeds the per-position cap $7,750 (0.25x equity) by $5,306" in b
+               for b in book.breaches)
+
+
+def test_a_ticker_near_its_cap_is_marked_near():
+    from scripts.journal.s03_risk import assess
+    book = assess([_risk(ticker="NVDA", delta_notional=7733.61)], _caps(net_liq=31000.0))
+    row = _glance_row(report.build([], book, _meta()), "NVDA")
+    assert row[1] == "NEAR" and row[7] == "$16.39"
+
+
+def test_an_unpriced_only_ticker_shows_no_total_rather_than_zero():
+    from scripts.journal.s03_risk import assess
+    book = assess([_risk(ticker="NVDA"), _unpriced(ticker="AMD")], _caps())
+    text = report.build([], book, _meta())
+    row = _glance_row(text, "AMD")
+    assert row[1] == "UNPRICED"
+    assert row[2] == report.EM_DASH and row[3] == report.EM_DASH
+    assert "(no delta)" in row[9]
+    assert "FLOOR" in _glance(text)
+
+
+def test_the_summary_surfaces_an_overdue_exit_by_ticker():
+    from scripts.journal.s03_risk import assess
+    book = assess([_risk(ticker="NVDA", entry_date=date(2026, 5, 1),
+                         exit_by=date(2026, 8, 1))], _caps())
+    text = report.build([], book, _meta())
+    assert _glance_row(text, "NVDA")[8] == "2026-08-01 ⚠ OVERDUE"
+    assert "**Exits overdue:** 1" in _glance(text)
+
+
+def test_the_page_reconciles_each_ticker_total_against_the_summary(tmp_path, monkeypatch):
+    """The page's By-ticker table is only as honest as its reconcile: a ticker
+    figure the report does not print must stop the page being written."""
+    from scripts.journal.s03_risk import assess
+    book = assess([_risk(ticker="NVDA", delta_notional=5000.0),
+                   _risk(conid_key="k2", ticker="TSM", delta_notional=-1200.0)], _caps())
+    events = [_event()]
+    text = report.build(events, book, _meta())
+    computed = page.compute_figures(events, book)
+    assert computed["ticker_dn:NVDA"] == 5000.0 and computed["ticker_dn:TSM"] == -1200.0
+    assert page.reconcile(computed, page.extract_report_figures(text)) == []
+
+    glance = _glance(text)
+    tampered = text.replace(glance, glance.replace("-$1,200.00", "-$1,100.00"))
+    assert tampered != text
+    monkeypatch.setattr(page.report, "build", lambda events, book, meta: tampered)
+    out = tmp_path / "journal-2026-08-14.html"
+    with pytest.raises(page.ReconcileError, match="ticker_dn:TSM"):
+        page.build(events, book, _meta(), out)
+    assert not out.exists()
+
+
+def test_the_page_renders_the_by_ticker_table_with_the_breach_highlighted(tmp_path):
+    from scripts.journal.s03_risk import assess
+    book = assess([_risk(ticker="MSFT", delta_notional=13056.25, underlying_price=513.53)],
+                  _caps(net_liq=31000.0))
+    out = tmp_path / "journal-2026-08-14.html"
+    page.build([_event()], book, _meta(net_liquidation=31000.0), out)
+    html_text = out.read_text()
+    assert "By ticker" in html_text
+    assert '<tr class="is-breach"><td>MSFT</td><td>BREACH</td>' in html_text
+    assert "$5,306.25 (≈10.3 Δ sh)" in html_text
 
 
 def test_page_and_risk_agree_on_the_breach_count_after_per_ticker_netting():
@@ -271,7 +370,8 @@ def test_an_absent_cross_check_says_not_measured_rather_than_zero():
 # --------------------------------------------------------------------------
 def _open_book_row(text: str, ticker: str) -> str:
     """The single `| ticker | ... |` line for `ticker` in §4's table."""
-    lines = [ln for ln in text.splitlines() if ln.startswith(f"| {ticker} |")]
+    section = text[text.index("## 4. Open book"):text.index("## 5. Exposure")]
+    lines = [ln for ln in section.splitlines() if ln.startswith(f"| {ticker} |")]
     assert len(lines) == 1, f"expected exactly one §4 row for {ticker}, got {lines}"
     return lines[0]
 

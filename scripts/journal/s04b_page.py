@@ -36,6 +36,7 @@ page's own copy honest about which half of it is reconciled.
 
 from __future__ import annotations
 
+import datetime as dt
 import html
 import json
 import logging
@@ -43,7 +44,8 @@ import re
 from pathlib import Path
 
 from . import s04a_report as report
-from .config import MATCH_CONFIDENCES, NON_ATTEMPT_CONFIDENCES, PositionEvent
+from .config import (CAP_NEAR_UTILISATION, MATCH_CONFIDENCES, NON_ATTEMPT_CONFIDENCES,
+                     PositionEvent)
 from .s03_risk import BookRisk
 
 log = logging.getLogger(__name__)
@@ -89,6 +91,17 @@ def _attempt_figures(events: list[PositionEvent]) -> tuple[int, int]:
     return attempts, matched
 
 
+def _ticker_totals(book: BookRisk) -> dict[str, float]:
+    """Signed delta-notional per ticker, summed here from `book.positions` —
+    part of the same deliberate second implementation as `_breach_count`."""
+    by_ticker: dict[str, float] = {}
+    for p in book.positions:
+        if p.delta_notional is None:
+            continue
+        by_ticker[p.ticker] = by_ticker.get(p.ticker, 0.0) + p.delta_notional
+    return by_ticker
+
+
 def _breach_count(book: BookRisk) -> int:
     """Recomputed from caps + priced positions — NOT read off `book.breaches` —
     so a bug that let `assess()`'s own breach list drift from its own totals
@@ -103,11 +116,7 @@ def _breach_count(book: BookRisk) -> int:
     caps = book.caps
     if caps is None:
         return 0
-    by_ticker: dict[str, float] = {}
-    for p in book.positions:
-        if p.delta_notional is None:
-            continue
-        by_ticker[p.ticker] = by_ticker.get(p.ticker, 0.0) + p.delta_notional
+    by_ticker = _ticker_totals(book)
     n = sum(1 for total in by_ticker.values()
             if abs(total) > caps.per_position_dollars)
     net = sum(p.delta_notional for p in book.positions if p.delta_notional is not None)
@@ -135,6 +144,11 @@ def compute_figures(events: list[PositionEvent], book: BookRisk) -> dict:
         figs["net_cap"] = round(caps.net_dollars, 2)
         figs["net_util_pct"] = (round(100 * abs(net_dn) / caps.net_dollars, 1)
                                 if caps.net_dollars else None)
+    # One key per priced ticker: the At-a-glance table's Delta-Notional column,
+    # which the page's own By-ticker table renders. Reconciling each total means
+    # that table cannot show a ticker figure the report does not.
+    for ticker, total in _ticker_totals(book).items():
+        figs[f"ticker_dn:{ticker}"] = round(total, 2)
     for c, n in _confidence_counts(events).items():
         figs[f"conf_{c}"] = n
     figs["attempts"], figs["matched"] = _attempt_figures(events)
@@ -181,6 +195,7 @@ def extract_report_figures(text: str) -> dict:
     m = re.search(r"Net utilisation:\s*([\d.]+)%", text)
     if m:
         figs["net_util_pct"] = float(m.group(1))
+    figs.update(_extract_ticker_figures(text))
     m = re.search(r"Confidence tally:\*\*\s*(.+?)\.", text)
     if m:
         for pair in m.group(1).split(","):
@@ -188,6 +203,33 @@ def extract_report_figures(text: str) -> dict:
             key = key.strip()
             if key and val.strip().lstrip("-").isdigit():
                 figs[f"conf_{key}"] = int(val.strip())
+    return figs
+
+
+def _extract_ticker_figures(text: str) -> dict:
+    """`ticker_dn:<T>` from the At-a-glance table — located by its header, so a
+    column added to the table does not silently shift what is read. Only rows
+    inside that section are read: §4's open-book rows also start `| TICKER |`."""
+    start = text.find("## At a glance")
+    if start < 0:
+        return {}
+    end = text.find("\n## ", start + 1)
+    section = text[start:end if end >= 0 else len(text)]
+    figs: dict = {}
+    col = None
+    for line in section.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line)[1:-1]]
+        if col is None:
+            if "Delta-Notional" in cells:
+                col = cells.index("Delta-Notional")
+            continue
+        if set(cells[0]) <= set("-"):
+            continue
+        value = _money_to_float(cells[col]) if col < len(cells) else None
+        if value is not None:
+            figs[f"ticker_dn:{cells[0]}"] = value
     return figs
 
 
@@ -227,6 +269,71 @@ def _tiles(meta: dict, computed: dict) -> str:
         f'<span class="value">{html.escape(value)}</span></div>'
         for label, value in rows
     )
+
+
+_TICKER_CSS = """
+tr.is-breach td { background: var(--critical-wash); }
+tr.is-near td { background: var(--warning-wash); }
+tr.is-breach td:nth-child(2) { color: var(--critical); font-weight: 600; }
+td.positions { text-align: left; white-space: normal; min-width: 22ch; }
+"""
+
+
+def _ticker_panel(book: BookRisk, meta: dict) -> str:
+    """The By-ticker table — the same rows, order and status as the report's
+    At-a-glance section, because it is rendered from the same helper. Its
+    Delta-Notional column is in the reconciled set (`ticker_dn:<T>`), so it has
+    already been checked against an independent sum by the time this runs."""
+    try:
+        day = dt.date.fromisoformat(str(meta.get("date")))
+    except ValueError:
+        day = None
+    rows = report._ticker_summaries(book, meta.get("net_liquidation"), day)
+    head = '      <div class="panel-head"><h3>By ticker</h3></div>\n'
+    if not rows:
+        return (f'    <figure class="panel">\n{head}'
+                '      <p class="note">No open positions.</p>\n    </figure>')
+    labels = ["ticker", "status", "Δ shares", "delta-notional", "% netliq",
+              "% of cap", "over cap by", "room left", "next exit-by", "positions"]
+    th = "".join(f"<th>{html.escape(x)}</th>" for x in labels)
+    trs = []
+    for r in rows:
+        over = EM_DASH
+        if r["excess"] is not None:
+            over = report.money(r["excess"])
+            if r["excess_shares"] is not None:
+                over += f" (≈{r['excess_shares']:.1f} Δ sh)"
+        exit_cell = report.isodate(r["next_exit"]) + (" ⚠ OVERDUE" if r["overdue"] else "")
+        members = "<br>".join(
+            html.escape(f"{p.structure} {p.delta_notional:+,.0f}" if p.priced
+                        else f"{p.structure} (no delta)")
+            for p in r["members"])
+        cells = [
+            html.escape(r["ticker"]), html.escape(r["status"]),
+            EM_DASH if r["shares"] is None else f"{r['shares']:+.1f}",
+            html.escape(report.money(r["total"], signed=True)),
+            report.pct(r["pct_net_liq"]), report.pct(r["util"]),
+            html.escape(over), html.escape(report.money(r["room"])),
+            html.escape(exit_cell),
+        ]
+        cls = {"BREACH": ' class="is-breach"', "NEAR": ' class="is-near"'}.get(r["status"], "")
+        tds = "".join(f"<td>{c}</td>" for c in cells)
+        trs.append(f'<tr{cls}>{tds}<td class="positions">{members}</td></tr>')
+    caps = book.caps
+    note = ("Δ shares = share-equivalent delta. Over cap by ≈ Δ sh is the "
+            "share-equivalent delta that must come off to get back under the "
+            "per-ticker cap")
+    if caps is not None:
+        note += (f" ({report.money(caps.per_position_dollars)}). NEAR = at least "
+                 f"{CAP_NEAR_UTILISATION:.0%} of it")
+    note += "."
+    return (f'    <figure class="panel">\n{head}'
+            '      <div class="table-view"><table>\n'
+            f'        <thead><tr>{th}</tr></thead>\n'
+            f'        <tbody>{"".join(trs)}</tbody>\n'
+            '      </table></div>\n'
+            f'      <p class="note">{html.escape(note)}</p>\n'
+            '    </figure>')
 
 
 def _payload(events: list[PositionEvent], book: BookRisk, computed: dict) -> dict:
@@ -375,6 +482,7 @@ def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: d
 <title>{html.escape(title)}</title>
 <style>
 {css}
+{_TICKER_CSS}
 </style>
 </head>
 <body>
@@ -397,7 +505,11 @@ def _render(events: list[PositionEvent], book: BookRisk, meta: dict, computed: d
     </div>
   </section>
 
-  <section id="charts">
+  <section id="tickers" style="margin-top:18px">
+{_ticker_panel(book, meta)}
+  </section>
+
+  <section id="charts" style="margin-top:18px">
     <div class="grid-2">
       <figure class="panel">
         <div class="panel-head"><h3>Cap utilisation</h3></div>
