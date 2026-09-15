@@ -100,13 +100,13 @@ scripts/                    ← entry points, each maps to a workflow step
                               file on Drive is the only store; checkpointed back every 50
                               contracts + on exit (incl. interrupt). Resume is per-contract via
                               the marker (empty results marked attempted); --force clears.
-                              Needs D+1, so the newest date is skipped until it exists
+                              D vs D-1, so the newest compiled date is enriched the same evening
   collector/fetch_iv_percentile.py
                             — for every distinct TICKER in a compiled flow file, scrape a small
                               window of its Barchart IV history around D and APPEND the
                               lib/iv_history.py columns (above). Same enrich-in-place /
                               checkpoint-every-50 / per-ticker-marker / --force pattern as
-                              enrich_oi, but needs no D+1 (the latest date is enriched too).
+                              enrich_oi (the latest date is enriched too).
                               Prints a DEPTH EXHAUSTED banner when `out_of_window` covers more
                               than DEPTH_EXHAUSTED_SHARE of a date's pending tickers. Needs
                               BARCHART_EMAIL/PASSWORD. One-shot backfill: `make
@@ -338,24 +338,24 @@ Plus `lookback_sessions`, `max_silence_sessions`, `commit_age_warn_days` and
 `lookback_sessions` is **3**. The check runs nightly, so a longer sweep only re-reports gaps
 already raised on earlier runs. The trade-off is that a gap AGES OUT of the window after three
 sessions instead of nagging — a clean run means "the last 3 sessions are clean", not "the
-pipeline is healthy" — and a stage's `lag_sessions` eats into it (`enrich_oi`, lag 1, is judged
-on 2 of the 3), so a lag must never be raised to the window size or that stage stops being
-checked at all.
+pipeline is healthy" — and a stage's `lag_sessions` eats into it (a lag-1 stage is judged on 2 of
+the 3), so a lag must never be raised to the window size or that stage stops being checked at
+all.
 
 `chain_complete_utc_hour` (23) handles the IN-FLIGHT session. Compile Flow fires at 22:30 UTC
 on the session it compiles, so before that hour the current day's downstream evidence
 legitimately does not exist. `settled_sessions()` drops it, and lag then counts back from the
-newest SETTLED session — if today is in flight, yesterday's OI is not due either, because it
-needs today's open interest. This costs CI nothing (the chained run lands after midnight UTC,
+newest SETTLED session, so an in-flight day never consumes a lagged stage's grace. This costs CI nothing (the chained run lands after midnight UTC,
 by which point the newest session is already the previous UTC date); it exists so a hand-run
 check during market hours stays quiet instead of teaching the operator to ignore it. Should
 the chain ever complete BEFORE 23:00 UTC on the session's own date, that session is reported
 not-due rather than missing — a less informative run, never a false alarm.
 
 `lag_sessions` is the false-alarm defence — the newest N sessions of a stage report `not-due`,
-never `MISSING`. **`enrich_oi` has `lag_sessions: 1`** because it is structurally D+1: the OI
-*change* for session D needs D+1's open interest, so `enrich_oi.py` holds the newest compiled
-date back until its next trading day lands. Lag is counted in SESSIONS, not calendar days, so
+never `MISSING`. **No shipped stage uses one.** `enrich_oi` carried `lag_sessions: 1` on a
+stale "needs D+1" claim until 2026-09-15; OI change is D vs D-1 and lands the same evening, and
+the primary watchdog run chains off Enrich OI's completion, so the lag only left the newest
+session permanently unchecked. Lag is counted in SESSIONS, not calendar days, so
 a Monday check walks back to Friday rather than into the weekend.
 
 ### Exit codes
@@ -1281,7 +1281,7 @@ python3 scripts/build_baseline.py --backfill --dry-run
 # Enrichments — all share: bare = latest date · --date · --backfill (idempotent) ·
 # --dry-run · --force (clear columns/sidecar and re-scrape)
 python3 scripts/collector/fetch_iv_percentile.py      # one-shot backfill: make iv-percentile ARGS="--backfill"
-python3 scripts/collector/enrich_oi.py                # latest ENRICHABLE date (needs D+1)
+python3 scripts/collector/enrich_oi.py                # latest compiled date (D vs D-1)
 python3 scripts/collector/fetch_counterpart_iv.py
 python3 scripts/collector/fetch_price_catalyst.py     # make price-catalyst
 

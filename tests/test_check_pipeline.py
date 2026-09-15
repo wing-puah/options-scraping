@@ -24,7 +24,9 @@ SESSIONS = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"]
 
 SCRAPE = StageSpec("scrape", "flow_present", 0, 1.0, PREFIXES, "")
 COMPILE = StageSpec("compile", "compiled_present", 0, 1.0, PREFIXES, "")
-OI = StageSpec("enrich_oi", "enrichment", 1, 0.95, PREFIXES, "oi")
+OI = StageSpec("enrich_oi", "enrichment", 0, 0.95, PREFIXES, "oi")
+# The lag mechanism, exercised on a synthetic stage: no shipped stage uses one.
+LAGGED = StageSpec("lagged", "enrichment", 1, 0.95, PREFIXES, "oi")
 IV = StageSpec("iv_percentile", "enrichment", 0, 0.90, PREFIXES, "iv")
 CP = StageSpec("counterpart_iv", "counterpart", 0, 0.90, (), "")
 BASE = StageSpec("baseline", "baseline_row", 0, 1.0, (), "")
@@ -71,15 +73,23 @@ def test_holiday_is_simply_not_a_session():
     assert holiday not in {f.session for f in findings}
 
 
-def test_newest_session_oi_is_not_due_never_missing():
-    """enrich_oi is structurally D+1 — OI CHANGE for session D needs D+1's open
-    interest. The newest session's OI being absent is NORMAL."""
+def test_lagged_stage_newest_session_is_not_due_never_missing():
+    """A stage with lag_sessions: 1 reports its newest session not-due."""
     state = _healthy()
     state["enrich"][SESSIONS[-1]] = {p: {"oi": (0, 100)} for p in PREFIXES}
-    findings = evaluate(state, [OI], SESSIONS)
-    v = _verdicts(findings, "enrich_oi")
+    findings = evaluate(state, [LAGGED], SESSIONS)
+    v = _verdicts(findings, "lagged")
     assert v[SESSIONS[-1]] == NOT_DUE
     assert all(v[s] == OK for s in SESSIONS[:-1])
+
+
+def test_newest_session_oi_is_judged():
+    """enrich_oi is D vs D-1 and lands the same evening, so the newest settled
+    session's OI is due — an unenriched one is a gap, not a grace period."""
+    state = _healthy()
+    state["enrich"][SESSIONS[-1]] = {p: {"oi": (0, 100)} for p in PREFIXES}
+    v = _verdicts(evaluate(state, [OI], SESSIONS), "enrich_oi")
+    assert v[SESSIONS[-1]] == PARTIAL
 
 
 def test_lag_is_counted_in_sessions_not_calendar_days():
@@ -89,7 +99,7 @@ def test_lag_is_counted_in_sessions_not_calendar_days():
     sessions = ["2026-08-13", "2026-08-14", "2026-08-17"]   # Thu, Fri, Mon
     state = _healthy(sessions)
     state["enrich"]["2026-08-17"] = {p: {"oi": (0, 100)} for p in PREFIXES}
-    v = _verdicts(evaluate(state, [OI], sessions), "enrich_oi")
+    v = _verdicts(evaluate(state, [LAGGED], sessions), "lagged")
     assert v == {"2026-08-13": OK, "2026-08-14": OK, "2026-08-17": NOT_DUE}
 
 
@@ -272,9 +282,9 @@ def test_in_flight_does_not_mask_an_older_gap():
 
 
 def test_in_flight_and_lag_compose():
-    """enrich_oi's D+1 lag stacks with the in-flight cut rather than fighting it:
-    with today in flight, OI is due only through the day before yesterday."""
-    v = _verdicts(evaluate(_healthy(), [OI], SESSIONS, SESSIONS[:-1]), "enrich_oi")
+    """A 1-session lag stacks with the in-flight cut rather than fighting it:
+    with today in flight, the stage is due only through the day before yesterday."""
+    v = _verdicts(evaluate(_healthy(), [LAGGED], SESSIONS, SESSIONS[:-1]), "lagged")
     assert v[SESSIONS[-1]] == NOT_DUE and v[SESSIONS[-2]] == NOT_DUE
     assert v[SESSIONS[0]] == OK and v[SESSIONS[1]] == OK
 
@@ -286,7 +296,7 @@ def test_shipped_config_loads_and_covers_every_collection_stage():
     names = {s.name for s in cfg.stages}
     assert names == {"scrape", "compile", "enrich_oi", "iv_percentile",
                      "price_catalyst", "counterpart_iv", "baseline"}
-    assert {s.name: s.lag_sessions for s in cfg.stages}["enrich_oi"] == 1
+    assert {s.name: s.lag_sessions for s in cfg.stages}["enrich_oi"] == 0
     assert all(0 < s.min_complete <= 1.0 for s in cfg.stages), "percent, not fraction"
     assert cfg.chain_complete_utc_hour >= 23, "Compile Flow fires at 22:30 UTC"
 

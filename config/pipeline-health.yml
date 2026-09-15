@@ -22,9 +22,8 @@
 #   * A gap AGES OUT after three sessions. An unfixed one stops being reported
 #     rather than accumulating, so read a clean run as "the last 3 sessions are
 #     clean", not "the pipeline is healthy".
-#   * A stage with lag_sessions: N is judged on only 3-N of them (enrich_oi,
-#     lag 1, is judged on 2). Do not raise a lag past this window or that stage
-#     is never checked at all.
+#   * A stage with lag_sessions: N is judged on only 3-N of them. Do not raise
+#     a lag past this window or that stage is never checked at all.
 lookback_sessions: 3
 
 # If the newest session holding ANY flow data is this many sessions behind the
@@ -74,13 +73,15 @@ stages:
   - name: enrich_oi
     kind: enrichment
     field: oi
-    lag_sessions: 1
+    lag_sessions: 0
     min_complete: 0.95
     prefixes: [etfs-flow, stocks-flow]
-    # Structurally D+1: open-interest CHANGE for session D needs D+1's open
-    # interest, so enrich_oi.py holds the newest compiled date back until its
-    # next trading day lands (see that script's run summary). "Yesterday's OI is
-    # incomplete" is NORMAL and must never alarm.
+    # NO lag. OI change for session D compares D against D-1, both known once
+    # D closes, so enrich_oi.py enriches the newest compiled date the same
+    # evening. This stage used to carry lag_sessions: 1 on a stale "needs D+1"
+    # claim (corrected in the script 2026-09-07, robustness-review A5), which
+    # left the newest session permanently unchecked. The primary watchdog run
+    # chains off Enrich OI's completion, so it never judges a run in flight.
 
   - name: iv_percentile
     kind: enrichment

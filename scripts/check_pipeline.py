@@ -297,9 +297,8 @@ def evaluate(state: dict, stages, sessions: list[str],
     """Verdicts for every (stage, session) pair. Pure — no I/O, no clock.
 
     A stage's newest `lag_sessions` sessions are reported not-due rather than
-    missing: `enrich_oi` is structurally D+1 (OI CHANGE for session D needs D+1's
-    open interest), so "yesterday's OI is incomplete" is normal, not a fault.
-    Lag is counted in SESSIONS, not calendar days, so a Friday check never walks
+    missing — the grace for a stage whose evidence structurally lands a session
+    late. No shipped stage currently needs one. Lag is counted in SESSIONS, not calendar days, so a Friday check never walks
     back into the weekend. `settled` (default: all of them) further excludes any
     session whose end-of-day chain has not plausibly run yet.
     """
@@ -307,8 +306,7 @@ def evaluate(state: dict, stages, sessions: list[str],
     findings: list[Finding] = []
     for stage in stages:
         # Lag counts back from the newest SETTLED session, not the newest
-        # session: if today is still in flight, yesterday's OI is not due either
-        # — it needs today's open interest, which does not exist yet.
+        # session, so an in-flight day never consumes a lagged stage's grace.
         cut = min(n_settled, len(sessions)) - stage.lag_sessions
         for session in sessions[:max(cut, 0)]:
             findings.append(_judge(stage, session, state))
