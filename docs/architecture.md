@@ -1647,7 +1647,7 @@ raises):
   add"), and holding it to a non-empty bar would invite "fixing" a blank one by copying the
   MARKET-level `regime`/`signal` onto it — the exact regression `analysis_to_rows` guards
   against (CLAUDE.md Invariants).
-- **Enum vocabulary**: `asset_class` (stock|etf), `pattern` (TF|MR|GE|VC|PU|DP), `direction`
+- **Enum vocabulary**: `asset_class` (stock|etf), `pattern` (TF|TF-S|MR|GE|VC|PU|DP), `direction`
   (bullish|bearish|neutral), `flow_intent` (DIRECTIONAL|VOLATILITY|HEDGE|SYNTHETIC STOCK) and
   `horizon` (14|60|180|720) are checked against the contract's fixed vocabulary (normalised
   for case/whitespace/int-vs-string first). `structure` is deliberately NOT enum-checked — it

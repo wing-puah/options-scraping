@@ -112,7 +112,7 @@ _PLAY_REQUIRED_KEYS = (
 # free text (a name plus strikes, not a closed set) and is deliberately not
 # enum-checked here.
 _ASSET_CLASSES = {"stock", "etf"}
-_PATTERNS = {"TF", "MR", "GE", "VC", "PU", "DP"}
+_PATTERNS = {"TF", "TF-S", "MR", "GE", "VC", "PU", "DP"}
 _DIRECTIONS = {"bullish", "bearish", "neutral"}
 _FLOW_INTENTS = {"DIRECTIONAL", "VOLATILITY", "HEDGE", "SYNTHETIC STOCK"}
 _HORIZONS = {"14", "60", "180", "720"}

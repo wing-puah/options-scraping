@@ -149,7 +149,7 @@ mechanical exposure never inflates conviction.
   **SYNTHETIC STOCK** — strip the intrinsic before ranking (`Ext$` / `Fin%` in
   the rollup already do this). SYNTHETIC STOCK is a soft positioning tell, not a
   high-confidence call on a near-term move.
-- **DIRECTIONAL vs VOLATILITY** follows the playbook from Step 2 (TF/MR/GE/PU
+- **DIRECTIONAL vs VOLATILITY** follows the playbook from Step 2 (TF/TF-S/MR/GE/PU
   directional; VC/DP volatility) and the structure confirms it — a one-sided
   debit/credit spread is DIRECTIONAL; a straddle/strangle/condor/calendar is
   VOLATILITY.

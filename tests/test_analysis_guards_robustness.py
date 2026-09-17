@@ -114,6 +114,48 @@ def test_parse_and_validate_enum_check_is_case_insensitive_and_tolerates_int_hor
     assert parsed["plays"][0]["asset_class"] == "STOCK"  # stored verbatim, not rewritten
 
 
+def test_parse_and_validate_accepts_tf_s_pattern():
+    """TF-S is a framework playbook (Step 4); a bull put spread emitted under it
+    must not burn a retry. Regression: EWZ, 'pattern=TF-S not in [...]'."""
+    for code in ("TF-S", "tf-s"):
+        play = _play(pattern=code, structure="bull put spread 30/28")
+        parsed = core._parse_and_validate(json.dumps(_analysis(plays=[play])))
+        assert parsed["plays"][0]["pattern"] == code
+
+
+def test_pattern_vocabulary_matches_the_prompt_contract():
+    """The validator's pattern set and the contract's `pattern` list are two copies
+    of one vocabulary. They drifted once: the contract omitted TF-S, the validator
+    copied it, and a valid TF-S play (EWZ) failed every retry."""
+    import re
+    from analysis_pipeline import config
+    m = re.search(r'"pattern": "([A-Z|-]+) —', config.ANALYSIS_PROMPT_CONTRACT)
+    assert m, "contract `pattern` line not found"
+    assert set(m.group(1).split("|")) == core._PATTERNS
+
+
+def test_tf_s_play_survives_every_downstream_reader():
+    """A TF-S bull put spread goes from validation through row expansion, the
+    backtest classifier, the study corpus parser and the deploy ladder without
+    raising or losing its pattern/structure."""
+    from backtest.classify import classify_play
+    from backtest_study.lib.text_corpus import parse_play
+    from journal.lib.mapping import ladder_tier
+
+    play = _play(ticker="EWZ", pattern="TF-S", structure="bull put spread 30/28",
+                 direction="bullish")
+    parsed = core._parse_and_validate(json.dumps(_analysis(plays=[play])))
+    rows = core.analysis_to_rows(parsed, "2026-09-16", "2026-09-15", "2026-09-16")
+    cell = next(r for r in rows if r["ticker"] == "EWZ")["play"]
+    assert "TF-S | bull put spread 30/28" in cell
+
+    assert classify_play(cell)["structure"] == "bull_put_spread"
+    corpus = parse_play(cell)
+    assert (corpus["pattern"], corpus["structure_text"]) == ("TF-S", "bull put spread 30/28")
+    tier, _, _ = ladder_tier("bull_put_spread", "BULL + L-VOL", 45)
+    assert tier in {"A", "B", "C"}
+
+
 def test_parse_and_validate_rejects_non_dict_play():
     with pytest.raises(ValueError, match="play\\[0\\]"):
         core._parse_and_validate(json.dumps(_analysis(plays=["NVDA bull call spread"])))
