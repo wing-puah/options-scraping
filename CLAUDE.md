@@ -500,5 +500,6 @@ Tests live in `tests/`. `conftest.py` adds the project root (for `lib.*`) and `s
 **Always prefix shell commands with `rtk`** — dedicated filters cut 60–99% of output;
 unfiltered commands pass through unchanged, so it is always safe. Use it inside `&&` chains
 too (`rtk git add . && rtk git commit -m "msg"`). A hook also rewrites plain commands
-automatically. `rtk proxy <cmd>` runs unfiltered (debugging); `rtk gain` shows savings. Full
+automatically. `rtk proxy <cmd>` runs unfiltered (debugging); `rtk gain` shows savings. `rtk find`
+refuses compound predicates (`-o`, `-not`, `-exec`): run those through `rtk proxy find`. Full
 reference: `~/.claude/rtk-reference.md` (open on demand, not auto-loaded).
