@@ -277,12 +277,14 @@ _Registered in [`pre-registrations/f3_structure/financed_spread.md`](pre-registr
 
 #### `ladder_overlay`
 
-_Registered in [`pre-registrations/f3_structure/ladder_overlay.md`](pre-registrations/f3_structure/ladder_overlay.md) · module `f3_structure/ladder_overlay.py` (build in progress) · engine `lib/overlay_campaign.py` · targets `lib/ladder_targets.py`_
+_Registered in [`pre-registrations/f3_structure/ladder_overlay.md`](pre-registrations/f3_structure/ladder_overlay.md) · module `f3_structure/ladder_overlay.py` · engine `lib/overlay_campaign.py` · targets `lib/ladder_targets.py`_
 
 Wraps a book `bull_call_spread` core in a rolled short-call ladder, on the
 same core rows and dates as `financed_spread`; two cells replace the core
-with a naked put instead. **AWAITING SCRAPE** as of registration — see
-`next-steps.md` §2.13.
+with a naked put instead. Run on both eras and **closed 2026-09-16**: every
+graded cell `NULL` on v4, six `NULL` and four `UNDERPOWERED` on v3
+([record](study-results/f3_structure/ladder_overlay.md),
+[`next-steps.md` §2.13](next-steps.md#s2-13)).
 
 - `L-BASE` `L-F4` `L-T0` `L-GAP` `L-RUN` `L-T0-TEF` `L-GAP-TEF` `L-RUN-TEF`
   (arm) — the 8 PRIMARY ladder cells, all |Δ| 0.20 calls, `BHOLD` breach.

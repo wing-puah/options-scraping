@@ -362,6 +362,13 @@ Three reads print alongside ΔR for every PRIMARY and naked-put cell.
 - **E2 — Δ(net vega)** from cached per-leg `Vega`. Every ladder cell sells an
   extra option and is structurally SHORT vega; quantify it rather than assume
   it.
+
+_Resolved at build (2026-09-10; recorded 2026-09-16)._ A trigger cell (`TGAP`, `TRUN`) holds no
+tranche on the common entry day, so its entry-day Δ is 0 by construction. The
+E1 geometry gate is applied to such a cell at its FIRST SALE DAY, printed in
+the column beside the entry-day read; T0 cells are gated at entry as written.
+The naked-put cells replace the core rather than wrap it (a short put is long
+delta), so E1 and E2 print their direction for them and are not gated.
 - **E3 — correlation with the deployed sleeve.** Date-level correlation of the
   cell's mean R against the deployed
   [`top_k_per_day`](../../glossary.md#top-kday)`(`[`ladder_rank`](../../glossary.md#ladder_rank)`, k=3)`
@@ -385,6 +392,14 @@ Evaluated in this order. A gate failure exits non-zero.
   one. A mismatch FAILS THE RUN — it is never reported as a difference of
   method. R is deliberately NOT compared, because this study's denominator is
   the core debit and F4's is the financed net.
+
+  _Resolved at build (2026-09-10; recorded 2026-09-16)._ "The shared rows" are grid days on or
+  after the common entry day, on cores where F4 priced a leg and the campaign
+  sold its tranche on that same day. Rows F4 never had a leg for (`no_f4_leg`),
+  rows F4 excluded and the campaign sold (`campaign_sold_f4_excluded`), rows
+  the campaign opened after entry (`opened_after_entry`), and pre-fill grid
+  days are each listed separately with their count and never averaged in.
+  None of them is a pass; the tolerance applies to the matched rows only.
 - **G2 — clamp attribution.** Every ladder cell must be **100% UNCLAMPED on
   days with a live tranche** (`_defined_risk_bounds` returns None on a
   two-expiry leg set by design) and clamped on core-only days. The segment
@@ -445,6 +460,13 @@ CRITERION. No criterion here requires one.
   is what `financed_spread` F3 printed on v4.
 - **NULL** — clears the CI but fails LOO, the ex-BOTH cut, or sign stability. A
   window artifact; recorded.
+
+  _Resolved at build (2026-09-10; recorded 2026-09-16)._ `verdict_of()` makes NULL the total
+  default, so it also covers: a CI that includes zero or lies wholly below it;
+  a failure of criterion 5 or 6; an E3 that is NOT EVALUABLE; and the corner
+  where 1–6 pass and both 7 and 8 fail. There is no CONTRARY token. A cell that
+  loses with a CI clear of zero prints NULL and the write-up states the sign
+  in words.
 - **UNDERPOWERED** — G0 fails for the cell (or for a regime cut). Census
   published, no re-run on these dates, nothing concluded.
 - **BREACH-DOMINATED** — criteria 1–7 pass and **8 flips the sign**. The

@@ -470,20 +470,20 @@ plan was deleted once executed; the programme's four questions are
 | Two sleeve-sizing bodies outside the library — CLOSED 2026-09-08 | `f4_deployment/account_sim.py` and `f4_deployment/portfolio_delta.py` each picked one position a day by descending delta in their own sorted copy. | Both now call `lib/hedge_criteria.sleeve_pick` under `account_sim.sleeve_rank`; both studies printed identically before and after on the 2026-09-08 export ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-sixth--the-two-sleeve-sizing-bodies-in-account_sim--portfolio_delta-are-folded-onto-libhedge_criteriasleeve_pick-identical-print)). |
 
 <a id="s2-13"></a>
-### 2.13 `ladder_overlay` first run — waits on the scrape
+### 2.13 `ladder_overlay` — CLOSED 2026-09-16; nothing ships, no cell beats the plain spread
 
-Registered 2026-09-10. A scrape of 11,502 contracts is in progress
-(`scripts/collector/fetch_ladder_legs.py`): the two call categories and
-`ladder_put_core` fetch first, `ladder_put_short` last, so the ladder cells
-can be read before the naked-put arm fills.
-
-After the scrape:
-
-1. `python3 scripts/backup_research_caches.py push`
-2. `python3 -m scripts.backtest_study run ladder_overlay`
-3. `--era v3` companion run
-4. `python3 -m scripts.study_review ladder_overlay`
-5. Write-up in `current.md`
+Registered 2026-09-10; run on v4 the same evening once the 11,551-contract
+scrape finished and the cache snapshot was pushed, and on v3 on 2026-09-16.
+All ten graded cells print `NULL` on v4; on v3 six print `NULL` and the four
+sell-at-entry cells are `UNDERPOWERED`. Two analysts and the validator agreed
+on every number. Write-up:
+[`current.md` 2026-09-16](current.md#2026-09-16--ladder_overlay--nothing-ships-no-ladder-or-naked-put-cell-beats-the-plain-spread-on-v4-or-v3);
+record: [study-results](study-results/f3_structure/ladder_overlay.md). Three
+build rulings (NULL as the default token, E1/E2 read at the first sale day for
+trigger cells, G1b's non-shared row categories) are folded into the
+[registration](pre-registrations/f3_structure/ladder_overlay.md) tagged
+`Resolved at build`. Nothing is left open; the thread re-opens only on
+genuinely new dates (§0).
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

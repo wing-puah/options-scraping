@@ -687,15 +687,31 @@ STUDIES: dict[str, Study] = {
     ),
 
     "ladder_overlay": Study(
-        family="structure", state="open",
+        family="structure", state="null",
         question="Does selling a shorter-dated short call against a long-dated bull call "
                  "spread — and rolling that short call as each one expires — beat simply "
                  "running the spread to the shipped §5 exits, and would a naked put beat "
                  "both?",
-        verdict="NOT YET RUN — registered 2026-09-10; first run waits on the collector "
-                "scrape (11,502 contracts pending at registration).",
-        attention="2026-09-10 AWAITING SCRAPE: fetch_ladder_legs.py running; "
-                  "ladder_put_short category queued last.",
+        verdict="No. Every graded cell prints `NULL` on the 2026-09-10 v4 run (sha 8aed569, "
+                "`kept 447 cores of 447 bull_call_spread rows, out of 1324 book rows`, "
+                "`no category has pending rows — every cell's contracts are cached`). Selling "
+                "the call at entry loses to the plain spread with the CI clear of zero: `L-T0` "
+                "`PAIRED       n=  93 /  71 dates   ΔR -0.255   CI [-0.528, -0.011]`, `L-T0-TEF` "
+                "`PAIRED       n=  93 /  71 dates   ΔR -0.310   CI [-0.591, -0.053]`. The "
+                "trigger cells are positive but inside their intervals and re-wrap the deployed "
+                "exposure: `L-GAP` `PAIRED       n= 199 / 122 dates   ΔR +0.078   CI [-0.012, "
+                "+0.168]` with E3 `+0.378`, `L-RUN` `PAIRED       n= 205 / 121 dates   ΔR +0.045   "
+                "CI [-0.048, +0.135]` with E3 `+0.258`. Neither naked put helps: `N-CORE` "
+                "`PAIRED       n= 446 / 165 dates   ΔR -0.018   CI [-0.181, +0.144]`, `N-ROLL` "
+                "`PAIRED       n= 360 / 154 dates   ΔR -0.007   CI [-0.157, +0.144]`. The v3 "
+                "companion (2026-09-16, `ladder_overlay-v3-2026-09-16.txt`) prints `NULL` on its "
+                "six powered cells and `UNDERPOWERED` on the four T0 cells; its `N-ROLL` is "
+                "`PAIRED       n= 124 /  69 dates   ΔR -0.274   CI [-0.478, -0.073]`. Nothing "
+                "ships; the thread re-opens only on genuinely new dates.",
+        attention="2026-09-16 CLOSED. Three build rulings folded into the registration "
+                  "(NULL is the default token; E1/E2 read at the first sale day for trigger "
+                  "cells; G1b's non-shared row categories). `S-D30` and `S-DTE60` UNDERPOWERED "
+                  "on both eras.",
     ),
 
     # ④ deployment

@@ -17,3 +17,16 @@ excerpt     matched
   >= 8 shared dates required; fewer means E3 is NOT EVALUABLE and the cell
 ```
 
+
+## era v3 · inputs e5140f3 · sha 2d72047 — recorded 2026-09-16
+<!-- key era=v3 sha=2d72047 inputs=e5140f3 -->
+
+population  406 results · 796 proxy · 1,607 analysis · 827 spy_vix_daily_full  (inputs dated 2026-08-15 19:03 … 2026-09-16 11:32)
+run         2026-09-16 23:11:29 · git 2d72047 (main, working tree dirty) · exit 0 · 254.5s
+command     python -m scripts.backtest_study.f3_structure.ladder_overlay
+excerpt     matched
+
+```
+  >= 8 shared dates required; fewer means E3 is NOT EVALUABLE and the cell
+```
+

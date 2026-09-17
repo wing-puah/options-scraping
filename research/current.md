@@ -147,8 +147,10 @@ Detail is in the 2026-09-04 entry below and in
 
 ### The open queue
 
-Nothing new is registered. The queue itself is
-[`next-steps.md`](next-steps.md) §2.
+The queue itself is [`next-steps.md`](next-steps.md) §2. `ladder_overlay`,
+registered 2026-09-10, ran on both eras and closed 2026-09-16 with every graded
+cell `NULL`
+([entry](#2026-09-16--ladder_overlay--nothing-ships-no-ladder-or-naked-put-cell-beats-the-plain-spread-on-v4-or-v3)).
 
 - The v4 composition bridge and the rollback triggers wait on genuinely new
   dates. Those are the live analysis dates 2026-08-11 → 2026-09-01, which have
@@ -312,3 +314,119 @@ usable form and is still not written. It belongs to the f4 study queued in
 
 Provenance: working tree on main after commit 2226888, uncommitted;
 `make check-doc-links` 0 broken.
+
+## 2026-09-16 — ladder_overlay — nothing ships; no ladder or naked-put cell beats the plain spread on v4 or v3
+
+Wrapping a bull call spread in a rolled short-call ladder does not beat running
+the spread to the shipped [§5](../docs/deployment-rules.md#s5) exits, and
+neither naked-put substitute does either. All ten graded cells print `NULL` on
+v4, and on v3 the six powered cells print `NULL` and the four sell-at-entry
+cells are `UNDERPOWERED`
+([record](study-results/f3_structure/ladder_overlay.md)). The one confidence
+interval clear of zero is on the wrong side: selling the call on the entry day
+and rolling it costs about a quarter of an R against the plain spread.
+
+_Era v4 · exports 2026-09-08 22:38 · 598 real / 1,665 proxy rows · 447
+bull-call cores over 165 dates · report
+`backtests/study_output/ladder_overlay-latest.txt` (run 2026-09-10 22:17, sha
+8aed569, after the 11,551-contract scrape finished at 22:15 and the cache
+snapshot was pushed at 22:16) · v3 companion run 2026-09-16, 242 cores over 89
+dates, filed as `ladder_overlay-v3-2026-09-16.txt` · review 2026-09-10: two
+analysts and the validator agreed on every number and every verdict._
+
+**In production.** Nothing changes. The §5 debit exits stay and no overlay
+enters the deploy card. The
+[pre-registration](pre-registrations/f3_structure/ladder_overlay.md) allowed at
+most a CANDIDATE queued for confirmation, and none appeared.
+
+**Evidence.** [ΔR](glossary.md#paired-ci) is the cell's R minus the plain
+spread's R on the same row, with a date-clustered
+[CI95](glossary.md#ci95-date-clustered-bootstrap). Criteria are the
+registration's eight; cell labels are in
+[`arm-index.md`](arm-index.md#ladder_overlay).
+
+| Cell (v4) | What it does | ΔR | CI95 | Dates | Criteria failed | Verdict |
+|---|---|---|---|---|---|---|
+| L-F4 | one call sold at entry, never rolled | −0.225 | [−0.477, +0.001] | 71 | 1, 2, 3, 4, 5, 7, 8 | NULL |
+| L-T0 | sold at entry, rolled each slot | −0.255 | [−0.528, −0.011] | 71 | 1, 2, 3, 4, 5, 7, 8 | NULL |
+| L-T0-TEF | L-T0 with no profit target | −0.310 | [−0.591, −0.053] | 71 | 1, 2, 3, 4, 5, 7, 8 | NULL |
+| L-GAP | sold after a gap-up, rolled | +0.078 | [−0.012, +0.168] | 122 | 1, 4, 7 | NULL |
+| L-RUN | sold after a sustained rise, rolled | +0.045 | [−0.048, +0.135] | 121 | 1, 4, 7 | NULL |
+| L-GAP-TEF | L-GAP with no profit target | +0.102 | [−0.038, +0.234] | 122 | 1, 4, 7 | NULL |
+| L-RUN-TEF | L-RUN with no profit target | +0.071 | [−0.074, +0.203] | 121 | 1, 4, 7 | NULL |
+| N-CORE | short put at the long strike, in place of the core | −0.018 | [−0.181, +0.144] | 165 | 1, 2, 3, 4, 5, 7, 8 | NULL |
+| N-ROLL | rolled short-dated put, in place of the core | −0.007 | [−0.157, +0.144] | 154 | 1, 2, 3, 4, 5, 7, 8 | NULL |
+
+| Cell (v3) | ΔR | CI95 | Dates | Verdict |
+|---|---|---|---|---|
+| L-F4, L-T0, L-T0-TEF | — | — | 33 (41 rows) | UNDERPOWERED |
+| L-GAP | −0.042 | [−0.245, +0.099] | 62 | NULL |
+| L-RUN | −0.065 | [−0.199, +0.044] | 58 | NULL |
+| L-GAP-TEF | +0.090 | [−0.141, +0.273] | 62 | NULL |
+| L-RUN-TEF | +0.047 | [−0.122, +0.201] | 58 | NULL |
+| N-CORE | +0.008 | [−0.228, +0.253] | 89 | NULL |
+| N-ROLL | −0.274 | [−0.478, −0.073] | 69 | NULL |
+
+**What the two eras agree on.** Selling the call on the entry day hurts. On v4
+the three sell-at-entry cells are negative with the CI clear of zero for two of
+them; on v3 the same cells are too thin to read. Waiting for a gap-up or a run
+before selling is the only pattern that is positive on v4, and those four cells
+clear the leave-one-date-out, window, pricing-tier and breach-stress criteria.
+They still fail three: the CI includes zero, 2026 is a negative year, and
+their P&L is positively correlated with the deployed book (E3 between +0.16 and
++0.38), which is the re-wrap pattern `financed_spread` printed before. A larger
+book that pushed the CI clear of zero would therefore print RE-WRAP, not
+CANDIDATE, and RE-WRAP closes the thread. On v3 the same four cells split two
+positive, two negative, all inside their intervals. The rolled naked put is the
+one cell with a CI wholly below zero on v3 and it is flat on v4.
+
+**Costs.** The book runs at zero commission and zero slippage. The report's
+sensitivity line re-costs every cell at $0.65 a contract and half the quoted
+spread; it turns N-ROLL's 2,062 opens and closes from +$69k gross to −$15k net,
+and takes the trigger cells down by a fifth to a quarter. It is printed with n
+and changes no verdict.
+
+**Registration gaps, folded in as build rulings.** The review found three
+places where the report resolved something the registration did not say.
+Each was decided in code on 2026-09-10 before any cell had a verdict, so each
+is now in the registration tagged `Resolved at build`.
+
+- `NULL` in the registration meant "clears the CI but fails stability". The
+  code's `verdict_of()` makes NULL the total default: it also covers a CI that
+  includes zero or lies below it, a criterion 5 or 6 failure, an E3 that is
+  NOT EVALUABLE, and the corner where 1–6 pass and both 7 and 8 fail. There is
+  no CONTRARY token, so a cell that loses with a clear CI prints NULL and the
+  write-up says so in words, as above.
+- E1/E2 are registered "at the common entry day". A trigger cell holds no
+  tranche on that day, so the report gates its geometry at the first sale day
+  and prints both columns. Naked-put cells replace the core, so their direction
+  is printed and not gated.
+- G1b compares "the shared rows". The report names what is not shared and lists
+  each separately: rows where F4 had no leg (353), rows F4 excluded and the
+  campaign sold (7), rows the campaign opened after entry (4), and 8 pre-fill
+  grid days. The 82 rows both sides priced match to $0.0000 a day.
+
+**Two review questions, answered from the code.** The scrape's target set grew
+from the registered 11,502 to 11,551 because `ladder_targets.py` reads the
+ticker's strike ladder and expiry list off the option cache, so targets appear
+as the scrape lands; every graded cell was still AWAITING SCRAPE until the
+manifest's last write, so no target was added after an outcome was seen. The
+criterion-5 labels `real` and `tweak` are the export file a row came from,
+which is the same thing as its pricing tier in this book: every
+`BacktestResults` row is real-priced and `bs` proxy rows are dropped before the
+study runs.
+
+**Caveats.** `S-D30` (the 0.30-delta ladder) is underpowered on both eras, so
+the delta target was tested at 0.20 only. `S-DTE60` is underpowered too, so
+the ≥60-DTE question stays with the
+[long-dated blind spot](next-steps.md#s2). The 2026 column is the same
+correlated backfill window every other study reads; nothing here has seen a
+genuinely new date.
+
+**Next.** [`next-steps.md` §2.13](next-steps.md#s2-13) closes. No new item.
+The ladder thread re-opens only on genuinely new dates, and only if the
+trigger cells' re-wrap correlation has moved.
+
+Provenance: working tree on main after commit 2d72047, uncommitted; the v3
+report is filed under its own name because `run.py` gives both eras one
+`-latest.txt`, and the v4 report was restored as the current one.
