@@ -75,6 +75,7 @@ sentence" rule; the numbered rules below were rewritten to match it.
 ## What to cut
 
 - Repeating the same idea in progressively different wording.
+- Restating a core lesson the archive already learned. Read [`lessons.md`](lessons.md) first; if the line is there, cite it.
 - Explaining every implication, unless someone needs it to implement, review
   or audit the system.
 - Defensive prose whose only purpose is to show that every edge case was
