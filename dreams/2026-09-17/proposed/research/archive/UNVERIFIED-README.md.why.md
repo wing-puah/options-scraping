@@ -1,0 +1,3 @@
+Purely additive: one row in "## The volumes" table for the new archive/21 (after the archive/20 row, matching the existing `[file](file) | covers | topic` format), and two rows at the foot of "## Section index" (one per moved `##` heading, `| heading text | [archive/21](21-journal-replay-and-live-loop-fold.md) |`), appended after the existing 2026-09-08 (eighth) row. Nothing else touched.
+Evidence: `diff research/archive/README.md proposed/research/archive/README.md` shows exactly 3 added lines (46, 174, 175), zero removed/modified. 172 -> 175 lines.
+Checks: `research-headings` PASS (3 headings kept — the volume/index tables are not headings, so they're untouched by that check). No other invariant targets this file.

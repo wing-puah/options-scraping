@@ -7,9 +7,6 @@
   "research/archive/16-first-runs-on-v3.md",
   "research/archive/17-v4-refresh-bear-deploy-and-vocabulary.md",
   "research/archive/18-hedge-programme-exit-basis-and-text-loop.md",
-  "research/lessons.md",
-  "research/next-steps.md",
-  "research/overview.md",
   "research/writing-guide.md"
  ],
  "results": [
@@ -23,23 +20,9 @@
   {
    "id": "research-headings",
    "type": "headings_kept",
-   "file": "research/overview.md",
-   "status": "pass",
-   "detail": "15 headings kept"
-  },
-  {
-   "id": "research-headings",
-   "type": "headings_kept",
    "file": "research/writing-guide.md",
    "status": "pass",
    "detail": "11 headings kept"
-  },
-  {
-   "id": "research-headings",
-   "type": "headings_kept",
-   "file": "research/next-steps.md",
-   "status": "pass",
-   "detail": "24 headings kept"
   },
   {
    "id": "research-headings",
@@ -84,13 +67,6 @@
    "detail": "12 headings kept"
   },
   {
-   "id": "research-headings",
-   "type": "headings_kept",
-   "file": "research/lessons.md",
-   "status": "pass",
-   "detail": "0 headings kept"
-  },
-  {
    "id": "docs-headings",
    "type": "headings_kept",
    "file": "docs/*.md",
@@ -101,8 +77,8 @@
    "id": "next-steps-sections",
    "type": "custom",
    "file": "research/next-steps.md",
-   "status": "pass",
-   "detail": "19 section labels kept"
+   "status": "n/a",
+   "detail": "no proposed file matches"
   },
   {
    "id": "archive-status-only",
@@ -157,22 +133,22 @@
    "id": "lessons-cap",
    "type": "max_lines",
    "file": "research/lessons.md",
-   "status": "pass",
-   "detail": "44 lines (max 120)"
+   "status": "n/a",
+   "detail": "no proposed file matches"
   },
   {
    "id": "no-account-lessons",
    "type": "no_pattern",
    "file": "research/lessons.md",
-   "status": "pass",
-   "detail": "matches: 0"
+   "status": "n/a",
+   "detail": "no proposed file matches"
   },
   {
    "id": "no-account-overview",
    "type": "no_pattern",
    "file": "research/overview.md",
-   "status": "pass",
-   "detail": "matches: 0"
+   "status": "n/a",
+   "detail": "no proposed file matches"
   },
   {
    "id": "ibkr-tripwire",

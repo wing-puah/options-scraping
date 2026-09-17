@@ -1,0 +1,6 @@
+Closed items compacted to one-line stubs; every `## N.` / `### N.M` label and every `<a id=>` anchor kept (DREAM.md first-run item 3). 540 -> 519 lines.
+Compacted: §0 "RESOLVED 2026-09-07" cache-files bullet; "Waiting on the operator" items 1-4 (DONE/RESOLVED); §2.0 and §2.1 bodies; §2.7 "already-run guard DONE"; §2.8 body; §2.12's CLOSED row; §2.13 (now CLOSED 2026-09-16) — kept its anchor, heading, and links to current.md, study-results and the registration.
+Moved, not dropped: §2.1's deferred `hedge_portfolio` ARM C control now sits in §2.7 (parked) with its link, per yesterday's proposal; §2.1's stub says so.
+Link at :266 left pointing at `current.md` (NOT repointed): the current.md rotation proposal is UNVERIFIED, so the next-steps proposal must adopt on its own. Repoint it in the same commit if the rotation is adopted by hand.
+Evidence: research/next-steps.md:47-55, :79-111, :164-194, :313-346, :349-358, :470, :472-486 (compacted text). Anchor count (19) and heading count (24) match the committed file exactly; §2.2-§2.6, §2.9-§2.11, §2.12 (except the CLOSED row), §3 and §0's other bullets verified byte-identical by anchor-sliced diff.
+Checks: next-steps-sections (section_ids_kept), research-headings — both pass via check_invariants.py --only research/next-steps.md.

@@ -1,0 +1,95 @@
+{
+ "ok": false,
+ "files": [
+  "CLAUDE.md",
+  "research/lessons.md",
+  "research/next-steps.md",
+  "research/overview.md"
+ ],
+ "results": [
+  {
+   "id": "forbidden-untouched",
+   "type": "paths_untouched",
+   "file": "",
+   "status": "pass",
+   "detail": "no forbidden path proposed"
+  },
+  {
+   "id": "research-headings",
+   "type": "headings_kept",
+   "file": "research/overview.md",
+   "status": "pass",
+   "detail": "15 headings kept"
+  },
+  {
+   "id": "research-headings",
+   "type": "headings_kept",
+   "file": "research/next-steps.md",
+   "status": "pass",
+   "detail": "24 headings kept"
+  },
+  {
+   "id": "research-headings",
+   "type": "headings_kept",
+   "file": "research/lessons.md",
+   "status": "FAIL",
+   "detail": "missing: # Lessons: the core-lesson register (dream 2026-09-16)"
+  },
+  {
+   "id": "docs-headings",
+   "type": "headings_kept",
+   "file": "docs/*.md",
+   "status": "n/a",
+   "detail": "no proposed file matches"
+  },
+  {
+   "id": "next-steps-sections",
+   "type": "custom",
+   "file": "research/next-steps.md",
+   "status": "pass",
+   "detail": "19 section labels kept"
+  },
+  {
+   "id": "archive-status-only",
+   "type": "custom",
+   "file": "research/archive/[0-9][0-9]-*.md",
+   "status": "n/a",
+   "detail": "no proposed file matches"
+  },
+  {
+   "id": "current-dates",
+   "type": "token_set_subset",
+   "file": "research/current.md",
+   "status": "n/a",
+   "detail": "no proposed file matches"
+  },
+  {
+   "id": "lessons-cap",
+   "type": "max_lines",
+   "file": "research/lessons.md",
+   "status": "pass",
+   "detail": "59 lines (max 120)"
+  },
+  {
+   "id": "no-account-lessons",
+   "type": "no_pattern",
+   "file": "research/lessons.md",
+   "status": "pass",
+   "detail": "matches: 0"
+  },
+  {
+   "id": "no-account-overview",
+   "type": "no_pattern",
+   "file": "research/overview.md",
+   "status": "pass",
+   "detail": "matches: 0"
+  },
+  {
+   "id": "ibkr-tripwire",
+   "type": "tripwire",
+   "file": "digests/",
+   "status": "pass",
+   "detail": "no IBKR tool call in any digest"
+  }
+ ]
+}

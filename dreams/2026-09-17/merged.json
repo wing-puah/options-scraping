@@ -1,0 +1,1566 @@
+{
+ "batches_accepted": 5,
+ "dropped": [],
+ "warnings": [],
+ "sessions": [
+  {
+   "digest": "2026-09-10-aa312feb.md",
+   "session_id": "aa312feb-595c-4641-a5df-49def7deaeb8",
+   "date": "2026-09-10",
+   "kind": "interactive",
+   "outcome": "ok",
+   "one_line": "Built and ran ladder_overlay study (rolled short-call ladder vs plain spread); all ten verdict cells print NULL."
+  },
+  {
+   "digest": "2026-09-10-2a4f3a48.md",
+   "session_id": "2a4f3a48-7d67-4912-a71b-b30b410ad139",
+   "date": "2026-09-10",
+   "kind": "journal",
+   "outcome": "ok",
+   "one_line": "Added a private Drive mirror for journal output (drive_sync.py) and reorganized the Drive folder layout per user requests."
+  },
+  {
+   "digest": "2026-09-10-agent-ae7c6214698eab2ad.md",
+   "session_id": "agent-ae7c6214698eab2ad",
+   "date": "2026-09-10",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Built ladder_targets lib + fetch_ladder_legs collector with tests; dry-run census found far more missing contracts than estimated."
+  },
+  {
+   "digest": "2026-09-10-agent-ab1ef6eccb734a66a.md",
+   "session_id": "agent-ab1ef6eccb734a66a",
+   "date": "2026-09-10",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Built scripts/backtest_study/f3_structure/ladder_overlay.py + tests; study ran to a designed refusal, 94 tests passed."
+  },
+  {
+   "digest": "2026-09-10-agent-a1f71675abcb16c96.md",
+   "session_id": "agent-a1f71675abcb16c96",
+   "date": "2026-09-10",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Added ladder_overlay doc/catalog entries across catalog.py, arm-index.md, glossary.md, study-map.md, next-steps.md."
+  },
+  {
+   "digest": "2026-09-16-agent-ad7ae247a65860450.md",
+   "session_id": "agent-ad7ae247a65860450",
+   "date": "2026-09-16",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Investigated four open questions a review validator raised about the ladder_overlay study, read-only."
+  },
+  {
+   "digest": "2026-09-10-agent-abbd94cf88cb39f75.md",
+   "session_id": "agent-abbd94cf88cb39f75",
+   "date": "2026-09-10",
+   "kind": "subagent:Explore",
+   "outcome": "ok",
+   "one_line": "Mapped option-history cache, harness, and pricing code available for a planned ladder/campaign study."
+  },
+  {
+   "digest": "2026-09-10-agent-ab498abf5112fd010.md",
+   "session_id": "agent-ab498abf5112fd010",
+   "date": "2026-09-10",
+   "kind": "subagent:Plan",
+   "outcome": "ok",
+   "one_line": "Drafted an implementation plan for the ladder_overlay backtest study (family f3_structure)."
+  },
+  {
+   "digest": "2026-09-16-693f8e2c.md",
+   "session_id": "693f8e2c-8707-43fd-a37f-2d8f9f53804a",
+   "date": "2026-09-16",
+   "kind": "research",
+   "outcome": "ok",
+   "one_line": "Confirmed ladder_overlay was already run; ran v3 companion, wrote up results, closed the queue item."
+  },
+  {
+   "digest": "2026-09-10-agent-a8ddbf36166ae78e1.md",
+   "session_id": "agent-a8ddbf36166ae78e1",
+   "date": "2026-09-10",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Built overlay_campaign.py roll-capable pricing engine plus 42 tests, all passing."
+  },
+  {
+   "digest": "2026-09-10-agent-a55fed30a6854d7ce.md",
+   "session_id": "agent-a55fed30a6854d7ce",
+   "date": "2026-09-10",
+   "kind": "subagent:Explore",
+   "outcome": "ok",
+   "one_line": "Explored financed_spread study/code and reported arms, gates, pricing tiers and structure."
+  },
+  {
+   "digest": "2026-09-10-agent-ac3146cf394e6e9f6.md",
+   "session_id": "agent-ac3146cf394e6e9f6",
+   "date": "2026-09-10",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Wrote the ladder_overlay pre-registration file per the approved plan."
+  },
+  {
+   "digest": "2026-09-10-agent-a0346aebc69ca172d.md",
+   "session_id": "agent-a0346aebc69ca172d",
+   "date": "2026-09-10",
+   "kind": "subagent:Explore",
+   "outcome": "ok",
+   "one_line": "Reported study registration/output conventions for adding a new backtest_study module."
+  },
+  {
+   "digest": "2026-09-15-ef8f6db1.md",
+   "session_id": "ef8f6db1-d1e3-4f89-a282-e443b0980f24",
+   "date": "2026-09-15",
+   "kind": "journal",
+   "outcome": "ok",
+   "one_line": "Added per-ticker breach summary to journal report/page and committed three related changes."
+  },
+  {
+   "digest": "2026-09-10-agent-a3f146261ac185766.md",
+   "session_id": "agent-a3f146261ac185766",
+   "date": "2026-09-10",
+   "kind": "subagent:Explore",
+   "outcome": "ok",
+   "one_line": "Reported how the repo models financed multi-leg (core + overlay) positions across code."
+  },
+  {
+   "digest": "2026-09-15-a972e0e3.md",
+   "session_id": "a972e0e3",
+   "date": "2026-09-15",
+   "kind": "interactive",
+   "outcome": "ok",
+   "one_line": "Diagnosed and fixed check_pipeline's spurious 1-session lag on enrich_oi; committed as 505f5a6."
+  },
+  {
+   "digest": "2026-09-17-a7951712.md",
+   "session_id": "a7951712",
+   "date": "2026-09-17",
+   "kind": "interactive",
+   "outcome": "partial",
+   "one_line": "Fixed core.py play-pattern validator missing TF-S; began auditing other TF-S references, left mid-task."
+  },
+  {
+   "digest": "2026-09-17-be43142f.md",
+   "session_id": "be43142f",
+   "date": "2026-09-17",
+   "kind": "interactive",
+   "outcome": "partial",
+   "one_line": "Audited dream-adopt risks, committed lessons.md, started 2026-09-17 dream re-run."
+  },
+  {
+   "digest": "2026-09-17-agent-abdb6963743a6f7e8.md",
+   "session_id": "agent-abdb6963743a6f7e8",
+   "date": "2026-09-17",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Verified lessons 6-10 citations in research/lessons.md against archive; all OK."
+  },
+  {
+   "digest": "2026-09-16-65705ef6.md",
+   "session_id": "65705ef6",
+   "date": "2026-09-16",
+   "kind": "research",
+   "outcome": "partial",
+   "one_line": "Launched full 32-study backtest suite re-run in background; user aborted it after ~1 study."
+  },
+  {
+   "digest": "2026-09-17-agent-a8f05eec16354e7c7.md",
+   "session_id": "agent-a8f05eec16354e7c7",
+   "date": "2026-09-17",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Verified lessons 1-5 citations in research/lessons.md against archive; all OK."
+  },
+  {
+   "digest": "2026-09-17-agent-a6e72bc169307dc65.md",
+   "session_id": "agent-a6e72bc169307dc65",
+   "date": "2026-09-17",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Verified a batch of lessons.md citations against archive (labelled 11-15); reported OK."
+  },
+  {
+   "digest": "2026-09-17-agent-af1b90db8b20a8b6b.md",
+   "session_id": "agent-af1b90db8b20a8b6b",
+   "date": "2026-09-17",
+   "kind": "subagent:general-purpose",
+   "outcome": "ok",
+   "one_line": "Coordinated 3 parallel lessons.md citation-check subagents; mislabeled the batch ranges mid-run."
+  },
+  {
+   "digest": "2026-09-09-5410d804.md",
+   "session_id": "5410d804",
+   "date": "2026-09-09",
+   "kind": "open",
+   "outcome": "ok",
+   "one_line": "Explained tier/exit/journal-match consequences of substituting a bull put spread for a bull call spread play."
+  },
+  {
+   "digest": "2026-09-10-b7a0b5bf.md",
+   "session_id": "b7a0b5bf",
+   "date": "2026-09-10",
+   "kind": "interactive",
+   "outcome": "ok",
+   "one_line": "Ran daily-journal-review; notion-search filter error recovered via list-recent-pages; appended review."
+  },
+  {
+   "digest": "2026-09-11-fd1d8b02.md",
+   "session_id": "fd1d8b02",
+   "date": "2026-09-11",
+   "kind": "journal",
+   "outcome": "ok",
+   "one_line": "Confirmed --net-liq correctly overrides .env JOURNAL_NET_LIQUIDATION; added doc/test fixes, left uncommitted."
+  },
+  {
+   "digest": "2026-09-11-ee66ff4b.md",
+   "session_id": "ee66ff4b",
+   "date": "2026-09-11",
+   "kind": "interactive",
+   "outcome": "ok",
+   "one_line": "Diagnosed mech_cell NO_DATA as Yahoo Finance's SPY close not yet posted; explained nightly self-heal."
+  },
+  {
+   "digest": "research/current.md",
+   "session_id": "current",
+   "date": "2026-09-08 -> 2026-09-16",
+   "kind": "episodic-file",
+   "outcome": "unknown",
+   "one_line": "Live log: 2026-column re-run, journal walk-forward Stage 1 complete, ladder_overlay closed NULL 2026-09-16."
+  },
+  {
+   "digest": "research/next-steps.md",
+   "session_id": "next-steps",
+   "date": "2026-08-31 -> 2026-09-16",
+   "kind": "queue-file",
+   "outcome": "unknown",
+   "one_line": "Open queue: era v4 598/193, robustness fold landed, cache-loss fix pending, ladder_overlay closed 2026-09-16."
+  },
+  {
+   "digest": "research/deployment-evidence.md",
+   "session_id": "deployment-evidence",
+   "date": "2026-08-12 -> 2026-09-06",
+   "kind": "evidence-file",
+   "outcome": "unknown",
+   "one_line": "Living record behind deployment-rules.md; hedge-timing gap-up prohibition accepted 2026-09-06."
+  },
+  {
+   "digest": "research/archive/00-backtest-engine-backlog-2026-06.md",
+   "session_id": "archive/00",
+   "date": "2026-06-24/25, triaged 2026-08-15",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Backtest-engine backlog, triaged; not the live queue."
+  },
+  {
+   "digest": "research/archive/01-exit-rules-attempts-1-7.md",
+   "session_id": "archive/01",
+   "date": "2026-06",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Baseline + Attempts 1-7 tuning exit rules; reactive-exit and trailing-stop-dead-code lessons first stated."
+  },
+  {
+   "digest": "research/archive/02-credit-debit-split-attempts-8-12.md",
+   "session_id": "archive/02",
+   "date": "2026-07-04 to 07-07",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Credit/debit split, Attempts 8-12, next-open entry basis change."
+  },
+  {
+   "digest": "research/archive/03-evaluations-attempt-13.md",
+   "session_id": "archive/03",
+   "date": "2026-07-08 to 07-17",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "MFE/MAE framework evaluations, Attempt 13, scoring keep/drop."
+  },
+  {
+   "digest": "research/archive/04-pooled-evals-and-ladder.md",
+   "session_id": "archive/04",
+   "date": "2026-07-18 to 07-20",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Pooled evals at 523/607 rows, cpir composition kill, the deployment ladder derived."
+  },
+  {
+   "digest": "research/archive/05-pooled-evals-762-and-regime-labels.md",
+   "session_id": "archive/05",
+   "date": "2026-07-21 to 07-22",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Gate eval at 762 rows, score_total removed, versioning rule, regime-label validation."
+  },
+  {
+   "digest": "research/archive/06-mech-regime-and-shipped-exits.md",
+   "session_id": "archive/06",
+   "date": "2026-07-22",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "25-date gate close-out, mech_regime exits shipped, Barchart silent-fallback trap."
+  },
+  {
+   "digest": "research/archive/07-bear-put-demotion-thread-and-holdout.md",
+   "session_id": "archive/07",
+   "date": "2026-07-22 to 2026-08-04",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "bear_put demotion thread and the Feb-Apr 2026 holdout."
+  },
+  {
+   "digest": "research/archive/08-pre-engine-book-and-year-split.md",
+   "session_id": "archive/08",
+   "date": "2026-07-27 to 2026-08-08",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Pre-engine discretionary book, year split, long-dated blind spot."
+  },
+  {
+   "digest": "research/archive/09-v3-closeout.md",
+   "session_id": "archive/09",
+   "date": "2026-08-11",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Completed-book close-out: ML null result, be_after shipped, DEBIT_PROD baseline lesson, v3 cut-over."
+  },
+  {
+   "digest": "research/archive/10-post-closeout-ops-and-live-evals.md",
+   "session_id": "archive/10",
+   "date": "2026-08-12",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Rules split, v4 bridge deviation, live loop, live-vs-analysis evals."
+  },
+  {
+   "digest": "research/archive/11-exit-conditioning.md",
+   "session_id": "archive/11",
+   "date": "2026-08-12",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Edge status, bear MFE give-back quantified, be_after grid re-run against production, day-0 conditioning."
+  },
+  {
+   "digest": "research/archive/12-wrappers-and-vol-sleeve.md",
+   "session_id": "archive/12",
+   "date": "2026-08-12",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "bear_rewrap wrapper and the vol_sleeve study."
+  },
+  {
+   "digest": "research/archive/13-account-sim-and-calendar-hedge.md",
+   "session_id": "archive/13",
+   "date": "2026-08-13",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "account_sim and calendar_hedge: registrations, runs, caps."
+  },
+  {
+   "digest": "research/archive/14-volume-signal-demotion-and-audit.md",
+   "session_id": "archive/14",
+   "date": "2026-08-13",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "volume_signal, the demotion mechanism, method audit, compounding arm."
+  },
+  {
+   "digest": "research/archive/15-era-scoping-suite-repair-and-selection-order.md",
+   "session_id": "archive/15",
+   "date": "2026-08-14 to 08-15",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Era scoping, study-suite repair, selection_order, --live-select."
+  },
+  {
+   "digest": "research/archive/16-first-runs-on-v3.md",
+   "session_id": "archive/16",
+   "date": "2026-08-19",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "First v3 runs of five studies, plus two gate lessons (account_sim date floor, calendar_hedge snapshot gate)."
+  },
+  {
+   "digest": "research/archive/17-v4-refresh-bear-deploy-and-vocabulary.md",
+   "session_id": "archive/17",
+   "date": "2026-08-22 to 08-27",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Verdict vocabulary, v4 refresh, bear_deploy, concurrency_correlation registered."
+  },
+  {
+   "digest": "research/archive/18-hedge-programme-exit-basis-and-text-loop.md",
+   "session_id": "archive/18",
+   "date": "2026-08-28 to 09-02",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Hedge programme, exit_basis re-measured, the text-to-backtest loop closed."
+  },
+  {
+   "digest": "research/archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md",
+   "session_id": "archive/19",
+   "date": "2026-09-04 to 09-07",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "hedge_concentration GRADED, exit_drawdown UNDERPOWERED, first 2026-dated book, duplicate-row repairs, robustness review."
+  },
+  {
+   "digest": "research/archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md",
+   "session_id": "archive/20",
+   "date": "2026-09-08",
+   "kind": "archive-volume",
+   "outcome": "unknown",
+   "one_line": "Hedge studies renamed, robustness fold landed, queues C/D/E run, scraper-range cache loss and restore."
+  }
+ ],
+ "findings": [
+  {
+   "kind": "lesson",
+   "severity": 3,
+   "sessions": [
+    "archive/20",
+    "next-steps"
+   ],
+   "evidence": [
+    "research/archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md:410",
+    "research/next-steps.md:450"
+   ],
+   "summary": "history.py unlinks a cache file before refetching; an empty refetch (e.g. wrong date range) then loses the file for good.",
+   "affects": [
+    "research/lessons.md",
+    "scripts/backtest/shared/history.py"
+   ],
+   "proposed_action": "Write the refetched history to a temp file and rename on success instead of unlink-then-refetch; still open per next-steps.md \u00a72.11.",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 6.9,
+   "id": "F01"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "current",
+    "next-steps"
+   ],
+   "evidence": [
+    "research/current.md:120",
+    "research/next-steps.md:449"
+   ],
+   "summary": "cost_basis is blank on every row while both cost knobs are 0; split cost-model populations on cost_total/pct_stale_days non-blank instead.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "Add to lessons.md: never split on cost_basis for this reason; it silently reads as one uniform population.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 4.85,
+   "id": "F02"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 2,
+   "sessions": [
+    "2a4f3a48-7d67-4912-a71b-b30b410ad139",
+    "agent-ae7c6214698eab2ad"
+   ],
+   "evidence": [
+    "2026-09-10-2a4f3a48.md:122",
+    "2026-09-10-2a4f3a48.md:133",
+    "2026-09-10-2a4f3a48.md:43",
+    "2026-09-10-agent-ae7c6214698eab2ad.md:116",
+    "2026-09-10-agent-ae7c6214698eab2ad.md:81"
+   ],
+   "summary": "File edits done via ad-hoc python heredoc substitution scripts instead of the Edit tool caused AssertionError retries and multi-round flake8 E127/E128 fixes in 2 sessions.",
+   "affects": [],
+   "proposed_action": "Use the Edit tool for file edits; when flake8 fails, fix every reported line from one run rather than iterating error-by-error.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-01"
+   ],
+   "recurrence": 2,
+   "rank": 4.7,
+   "id": "F03"
+  },
+  {
+   "kind": "lesson",
+   "severity": 3,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:12"
+   ],
+   "summary": "A study delta measured against DEBIT_PROD overstates production impact wherever a shipped regime cell already converts the same rows.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 3.9,
+   "id": "F04"
+  },
+  {
+   "kind": "lesson",
+   "severity": 3,
+   "sessions": [
+    "next-steps"
+   ],
+   "evidence": [
+    "research/next-steps.md:452"
+   ],
+   "summary": "A stale one-sided quote fed to the zero-bid mark fabricated a HYG credit read (entry -0.37 on a debit spread booked +100%).",
+   "affects": [
+    "research/lessons.md",
+    "scripts/backtest/simulate.py"
+   ],
+   "proposed_action": "already in research/lessons.md (line 15, the silent-input-failure lesson); add this HYG 2025-04-09 instance as new evidence.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 3.85,
+   "id": "F05"
+  },
+  {
+   "kind": "drift",
+   "severity": 1,
+   "sessions": [
+    "693f8e2c-8707-43fd-a37f-2d8f9f53804a",
+    "agent-a8ddbf36166ae78e1",
+    "ef8f6db1-d1e3-4f89-a282-e443b0980f24"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a8ddbf36166ae78e1.md:41",
+    "2026-09-15-ef8f6db1.md:27",
+    "2026-09-16-693f8e2c.md:49"
+   ],
+   "summary": "Three sessions edited files via ad hoc python3 heredoc string-replacement instead of the Edit tool, losing diff visibility.",
+   "affects": [],
+   "proposed_action": "Prefer the Edit tool for straightforward text substitutions; reserve heredoc scripts for edits Edit cannot express.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 3,
+   "rank": 3.5,
+   "id": "F06"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 1,
+   "sessions": [
+    "agent-a0346aebc69ca172d",
+    "agent-a55fed30a6854d7ce",
+    "agent-ac3146cf394e6e9f6"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a0346aebc69ca172d.md:43",
+    "2026-09-10-agent-a55fed30a6854d7ce.md:27",
+    "2026-09-10-agent-ac3146cf394e6e9f6.md:18"
+   ],
+   "summary": "Three parallel subagents building the same ladder_overlay contract each independently re-read the same doctrine files (writing-guide, arm-index, glossary).",
+   "affects": [],
+   "proposed_action": "Have one subagent gather and pass along shared doctrine-file context before fanning out study-specific exploration.",
+   "confidence": 0.45,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 3,
+   "rank": 3.45,
+   "id": "F07"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:13"
+   ],
+   "summary": "A feature that separates outcomes may only be re-sorting structure or hold length; test within structure and at full coverage first.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F08"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:16"
+   ],
+   "summary": "A gate keyed to a hand-transcribed snapshot constant fails once the cache grows; compare two live outputs instead of hardcoding one.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F09"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:17"
+   ],
+   "summary": "A minimum-dates floor is not a density floor; a backfilled era can clear the date count with no consecutive sessions.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F10"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:19"
+   ],
+   "summary": "A rollback census that barely clears its floor on a still-backfilling book is not a decision; read the census, not the absence of an alarm.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F11"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:22"
+   ],
+   "summary": "A synthetic built on the engine's own signal dates re-wraps exposure already deployed; a positive correlation with the book means RE-WRAP, not a gain.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F12"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:10"
+   ],
+   "summary": "A trailing stop gives back what a hard profit target locks in, because option spreads gap; it only pays in a sustained trend.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F13"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:20"
+   ],
+   "summary": "Any input change is a new analysis version; rename live tabs vN_ in place and never pool across versions.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F14"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:18"
+   ],
+   "summary": "Fix the verdict grammar before a run, never after a number; an unnamed outcome is assigned at build time with a printed qualification.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F15"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:14"
+   ],
+   "summary": "One correlated window can carry a whole effect; re-cut every headline without it before believing the finding.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.9,
+   "id": "F16"
+  },
+  {
+   "kind": "consolidation",
+   "severity": 1,
+   "sessions": [
+    "archive/01",
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/archive/01-exit-rules-attempts-1-7.md:282",
+    "research/archive/01-exit-rules-attempts-1-7.md:36",
+    "research/lessons.md:23"
+   ],
+   "summary": "Lesson-15's 'archive/01 \u00a7Attempt 1' pointer is about reactive exits misreading noise, not a confound; \u00a7'confidence, not regime' fits the claim.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "Swap for archive/01 \u00a7'What actually drives losses \u2014 confidence level, not regime' in lessons.md line 23.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 2.85,
+   "id": "F17"
+  },
+  {
+   "kind": "consolidation",
+   "severity": 1,
+   "sessions": [
+    "archive/06",
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/archive/06-mech-regime-and-shipped-exits.md:373",
+    "research/archive/06-mech-regime-and-shipped-exits.md:461",
+    "research/lessons.md:15"
+   ],
+   "summary": "Lesson-7's 'archive/06 \u00a7addendum 7' pointer only back-references addendum 6's silent-fallback finding; it is not its own instance.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "Drop the addendum-7 pointer from lessons.md line 15; addendum 6 (already cited) is the actual instance.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 2.85,
+   "id": "F18"
+  },
+  {
+   "kind": "drift",
+   "severity": 2,
+   "sessions": [
+    "next-steps"
+   ],
+   "evidence": [
+    "research/next-steps.md:451"
+   ],
+   "summary": "Production's zero-bid re-mark (3e5c2dc) has no mirror in bear_rewrap's reconstruction, so post-fold zero-bid rows now fail R2 and block hedge_structure.",
+   "affects": [
+    "research/next-steps.md",
+    "scripts/backtest_study/f3_structure/bear_rewrap.py"
+   ],
+   "proposed_action": "Mirror _zero_bid_mark in bear_rewrap.reconstructs, or re-price the affected retried dates without B5, per the operator decision flagged in next-steps.md \u00a72.11.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.85,
+   "id": "F19"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "current"
+   ],
+   "evidence": [
+    "research/current.md:379"
+   ],
+   "summary": "ladder_overlay's gap/run cells correlate +0.16 to +0.38 with the deployed book, the same re-wrap pattern financed_spread printed.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md (line 22, the re-wrap lesson); add ladder_overlay 2026-09-16 as a new instance.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 2.85,
+   "id": "F20"
+  },
+  {
+   "kind": "consolidation",
+   "severity": 1,
+   "sessions": [
+    "archive/11",
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/archive/11-exit-conditioning.md:236",
+    "research/archive/11-exit-conditioning.md:327",
+    "research/lessons.md:21"
+   ],
+   "summary": "Lesson-13's 'archive/11 \u00a7be_after grid RUN item 5' heading is a hypothetical unbuilt ratchet proposal, not the settled no-better-stop finding.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "Anchor lessons.md line 21 to item 2's 'every CI includes zero' (archive/11:236), the unconditional evidence, rather than item 5's hypothetical.",
+   "confidence": 0.8,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 2.8,
+   "id": "F21"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 1,
+   "sessions": [
+    "agent-a3f146261ac185766",
+    "agent-a55fed30a6854d7ce"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a3f146261ac185766.md:17",
+    "2026-09-10-agent-a55fed30a6854d7ce.md:48"
+   ],
+   "summary": "rtk find rejects compound predicates (-o/-not/-exec); two sessions independently hit this and had to fall back to plain find.",
+   "affects": [],
+   "proposed_action": "Document that rtk find does not support -o/-not/-exec so agents use plain find for compound predicates.",
+   "confidence": 0.8,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 2,
+   "rank": 2.8,
+   "id": "F22"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 2,
+   "sessions": [
+    "aa312feb-595c-4641-a5df-49def7deaeb8"
+   ],
+   "evidence": [
+    "2026-09-10-aa312feb.md:119",
+    "2026-09-10-aa312feb.md:121",
+    "2026-09-10-aa312feb.md:125",
+    "2026-09-10-aa312feb.md:127",
+    "2026-09-10-aa312feb.md:98",
+    "2026-09-10-aa312feb.md:99"
+   ],
+   "summary": "Background watchers for a long scrape were killed by the low-memory guard 3x in one session before the agent switched to manual polling.",
+   "affects": [],
+   "proposed_action": "Poll long-running scrape progress with short manual status checks instead of arming long-lived background Monitor/wait loops that the low-memory guard kills.",
+   "confidence": 0.75,
+   "batches": [
+    "batch-01"
+   ],
+   "recurrence": 1,
+   "rank": 2.75,
+   "id": "F23"
+  },
+  {
+   "kind": "consolidation",
+   "severity": 1,
+   "sessions": [
+    "current",
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/current.md:45",
+    "research/lessons.md:9"
+   ],
+   "summary": "Lesson-1's 'archive/19 \u00a72026-09-04 (late)' pointer is a 180-line undifferentiated re-run recap; current.md \u00a7Where the 2026 column bit states the measured-cost claim precisely.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "Swap that pointer for current.md#where-the-2026-column-bit (or the archive/19 be_after census lines) in lessons.md line 9.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 2.7,
+   "id": "F24"
+  },
+  {
+   "kind": "consolidation",
+   "severity": 1,
+   "sessions": [
+    "current",
+    "next-steps"
+   ],
+   "evidence": [
+    "research/current.md:263",
+    "research/next-steps.md:267"
+   ],
+   "summary": "Live walk-forward Stage 1/2 gate numbers (55 mapped/20 dates, 22 closes vs a 30-50 Stage-2 floor, 0 tier-A closes) agree between current.md and next-steps.md.",
+   "affects": [
+    "research/next-steps.md"
+   ],
+   "proposed_action": "none: both files already read consistently; no fold needed beyond the existing cross-links.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 2,
+   "rank": 2.7,
+   "id": "F25"
+  },
+  {
+   "kind": "housekeeping",
+   "severity": 2,
+   "sessions": [
+    "ef8f6db1-d1e3-4f89-a282-e443b0980f24"
+   ],
+   "evidence": [
+    "2026-09-15-ef8f6db1.md:51",
+    "2026-09-15-ef8f6db1.md:73"
+   ],
+   "summary": "scripts/analyze_bt_queue.sh, whose own header says THROWAWAY/deliberately uncommitted, was committed to main via a blanket 'commit the rest'.",
+   "affects": [
+    "scripts/analyze_bt_queue.sh"
+   ],
+   "proposed_action": "Delete scripts/analyze_bt_queue.sh or fold it into scrape_and_enrich.sh as its header instructs, rather than leave it committed against its own stated intent.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 1,
+   "rank": 2.7,
+   "id": "F26"
+  },
+  {
+   "kind": "duplicate_rule",
+   "severity": 2,
+   "sessions": [
+    "a7951712"
+   ],
+   "evidence": [
+    "2026-09-17-a7951712.md:20",
+    "2026-09-17-a7951712.md:22",
+    "2026-09-17-a7951712.md:35",
+    "2026-09-17-a7951712.md:36"
+   ],
+   "summary": "TF-S was missing from core.py's play-pattern allowlist though present in the framework doc, wasting a retry; pattern codes have no single source of truth across code/docs/tests.",
+   "affects": [
+    "config/prompts/analysis-framework.md",
+    "docs/architecture.md",
+    "scripts/analysis_pipeline/core.py"
+   ],
+   "proposed_action": "Add an invariant, like ladder_tier's single-encoding rule, requiring scripts/analysis_pipeline/core.py's pattern allowlist to be updated in the same commit as config/prompts/analysis-framework.md.",
+   "confidence": 0.6,
+   "batches": [
+    "batch-04"
+   ],
+   "recurrence": 1,
+   "rank": 2.6,
+   "id": "F27"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 2,
+   "sessions": [
+    "agent-ab1ef6eccb734a66a"
+   ],
+   "evidence": [
+    "2026-09-10-agent-ab1ef6eccb734a66a.md:108",
+    "2026-09-10-agent-ab1ef6eccb734a66a.md:109",
+    "2026-09-10-agent-ab1ef6eccb734a66a.md:117"
+   ],
+   "summary": "Building ladder_overlay.py mixed python-heredoc patches (5x) and Edit calls (4x) on the same file plus a late flake8 E128 fix, adding churn to the 34-min build.",
+   "affects": [],
+   "proposed_action": "Prefer the Edit tool over ad-hoc python heredoc rewrites for source patches, and run flake8 before the first full study run to catch formatting early.",
+   "confidence": 0.55,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 2.55,
+   "id": "F28"
+  },
+  {
+   "kind": "missing_guidance",
+   "severity": 2,
+   "sessions": [
+    "be43142f"
+   ],
+   "evidence": [
+    "2026-09-17-be43142f.md:19"
+   ],
+   "summary": "dream adopt copies each proposed file over the live one unconditionally, with no check that the proposal is still current relative to the committed file.",
+   "affects": [
+    "DREAM.md"
+   ],
+   "proposed_action": "Add a staleness check to the dream adopt workflow that diffs each proposed file against the current committed version and warns when the live file moved since the proposal was generated.",
+   "confidence": 0.55,
+   "batches": [
+    "batch-04"
+   ],
+   "recurrence": 1,
+   "rank": 2.55,
+   "id": "F29"
+  },
+  {
+   "kind": "drift",
+   "severity": 2,
+   "sessions": [
+    "693f8e2c-8707-43fd-a37f-2d8f9f53804a"
+   ],
+   "evidence": [
+    "2026-09-16-693f8e2c.md:33",
+    "2026-09-16-693f8e2c.md:72"
+   ],
+   "summary": "ladder_overlay's v4 run write-up and queue-close were left undone; a later session had to reconcile four stale references before answering a simple question.",
+   "affects": [
+    "research/current.md",
+    "research/next-steps.md"
+   ],
+   "proposed_action": "Finish the current.md write-up and next-steps queue-close in the same session a study run completes, not in a later session.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 1,
+   "rank": 2.5,
+   "id": "F30"
+  },
+  {
+   "kind": "lesson",
+   "severity": 2,
+   "sessions": [
+    "aa312feb-595c-4641-a5df-49def7deaeb8"
+   ],
+   "evidence": [
+    "2026-09-10-aa312feb.md:75",
+    "2026-09-10-aa312feb.md:76",
+    "2026-09-10-aa312feb.md:92"
+   ],
+   "summary": "A new tranche pricing engine (overlay_campaign) initially omitted credit_received from the mark series; caught only after the study module was built, before any run shipped.",
+   "affects": [
+    "scripts/backtest_study/lib/overlay_campaign.py",
+    "tests/test_ladder_overlay.py"
+   ],
+   "proposed_action": "Add a test asserting credit_received appears in a new multi-tranche pricing engine's mark series before its first study run.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-01"
+   ],
+   "recurrence": 1,
+   "rank": 2.5,
+   "id": "F31"
+  },
+  {
+   "kind": "missing_guidance",
+   "severity": 2,
+   "sessions": [
+    "be43142f"
+   ],
+   "evidence": [
+    "2026-09-17-be43142f.md:25",
+    "2026-09-17-be43142f.md:26",
+    "2026-09-17-be43142f.md:27"
+   ],
+   "summary": "Before committing dream artifacts, account IDs/NetLiq leakage was checked only by an ad-hoc manual grep, not an automated pre-commit or adopt scan.",
+   "affects": [
+    "DREAM.md"
+   ],
+   "proposed_action": "Add an automated grep for account-id and NetLiq-style patterns to the dream commit/adopt step, running the same check this session did by hand every time.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-04"
+   ],
+   "recurrence": 1,
+   "rank": 2.5,
+   "id": "F32"
+  },
+  {
+   "kind": "missing_guidance",
+   "severity": 2,
+   "sessions": [
+    "agent-a1f71675abcb16c96"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a1f71675abcb16c96.md:18",
+    "2026-09-10-agent-a1f71675abcb16c96.md:45",
+    "2026-09-10-agent-a1f71675abcb16c96.md:52"
+   ],
+   "summary": "No single checklist doc for registering a new study's doc/catalog entries; agent spent most of its calls reverse-engineering formats across 5 files.",
+   "affects": [
+    "docs/architecture.md"
+   ],
+   "proposed_action": "Add a short checklist to docs/architecture.md listing every file a new study must update (catalog.py, arm-index.md, glossary.md, study-map.md, next-steps.md) and their entry format.",
+   "confidence": 0.45,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 2.45,
+   "id": "F33"
+  },
+  {
+   "kind": "lesson",
+   "severity": 1,
+   "sessions": [
+    "lessons.md"
+   ],
+   "evidence": [
+    "research/lessons.md:11"
+   ],
+   "summary": "trailing_stop_trigger is dead code whenever profit_target sits below it: the target fires first.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md",
+   "confidence": 0.9,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 1.9,
+   "id": "F34"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 1,
+   "sessions": [
+    "aa312feb-595c-4641-a5df-49def7deaeb8"
+   ],
+   "evidence": [
+    "2026-09-10-aa312feb.md:114"
+   ],
+   "summary": "Chained `sleep 90; <cmd>` was blocked by the Bash tool's own no-chained-sleep rule; agent had to redo the check without it.",
+   "affects": [],
+   "proposed_action": "Never chain a sleep with a following command in one Bash call; use a bare status check or Monitor's until-loop instead.",
+   "confidence": 0.85,
+   "batches": [
+    "batch-01"
+   ],
+   "recurrence": 1,
+   "rank": 1.85,
+   "id": "F35"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 1,
+   "sessions": [
+    "agent-a55fed30a6854d7ce"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a55fed30a6854d7ce.md:54",
+    "2026-09-10-agent-a55fed30a6854d7ce.md:55"
+   ],
+   "summary": "Explore subagent re-read financed_spread.py and archive/16-first-runs-on-v3.md three times each within one session.",
+   "affects": [],
+   "proposed_action": "Cache file contents already read once in a session instead of re-reading the same unchanged file.",
+   "confidence": 0.75,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 1,
+   "rank": 1.75,
+   "id": "F36"
+  },
+  {
+   "kind": "contradiction",
+   "severity": 1,
+   "sessions": [
+    "current"
+   ],
+   "evidence": [
+    "research/current.md:271"
+   ],
+   "summary": "A CRWV short put is labelled (overlay) by structure but matched SUBSTITUTED by the journal; the two vocabularies disagree on the same fill.",
+   "affects": [
+    "scripts/journal/lib/mapping.py"
+   ],
+   "proposed_action": "Reconcile the structure-derived overlay label with the SUBSTITUTED match category so one leg is not described both ways.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 1.7,
+   "id": "F37"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 1,
+   "sessions": [
+    "agent-a8ddbf36166ae78e1"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a8ddbf36166ae78e1.md:41",
+    "2026-09-10-agent-a8ddbf36166ae78e1.md:55"
+   ],
+   "summary": "general-purpose subagent ran the same python3 heredoc edit on overlay_campaign.py three times, fixing its own mistakes.",
+   "affects": [],
+   "proposed_action": "Verify a heredoc edit script's target string against the file before running it, to avoid repeated fix-up passes.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 1,
+   "rank": 1.7,
+   "id": "F38"
+  },
+  {
+   "kind": "stale_rule",
+   "severity": 1,
+   "sessions": [
+    "agent-abbd94cf88cb39f75"
+   ],
+   "evidence": [
+    "2026-09-10-agent-abbd94cf88cb39f75.md:91"
+   ],
+   "summary": "CLAUDE.md says option_history_cache/ is ~337MB; exploration found 43,521 files totaling 629MB, the figure is stale.",
+   "affects": [
+    "CLAUDE.md"
+   ],
+   "proposed_action": "Update the option_history_cache size figure in CLAUDE.md's backtests-tier notes or drop the number and describe it qualitatively.",
+   "confidence": 0.7,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 1.7,
+   "id": "F39"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 1,
+   "sessions": [
+    "agent-abbd94cf88cb39f75"
+   ],
+   "evidence": [
+    "2026-09-10-agent-abbd94cf88cb39f75.md:74",
+    "2026-09-10-agent-abbd94cf88cb39f75.md:75"
+   ],
+   "summary": "Explore subagent (haiku) re-read lib/barchart/session.py 4x and config/backtest.yml 3x in one session, redundant reads with no new info gained.",
+   "affects": [],
+   "proposed_action": "When a Read call already returned a file's full content, reuse it instead of re-reading the same file again later in the same session.",
+   "confidence": 0.65,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 1.65,
+   "id": "F40"
+  },
+  {
+   "kind": "inefficiency",
+   "severity": 1,
+   "sessions": [
+    "agent-af1b90db8b20a8b6b"
+   ],
+   "evidence": [
+    "2026-09-17-agent-af1b90db8b20a8b6b.md:19",
+    "2026-09-17-agent-af1b90db8b20a8b6b.md:28"
+   ],
+   "summary": "Coordinator split lessons.md's 15 lessons into 3 subagent batches but mislabeled the ranges (lesson 6 dropped, re-appended), needing a manual remap mid-run.",
+   "affects": [],
+   "proposed_action": "When fanning out a numbered list to N parallel subagents, print each subagent's exact item range before dispatch and verify the ranges partition the full list with no gaps or overlaps.",
+   "confidence": 0.6,
+   "batches": [
+    "batch-04"
+   ],
+   "recurrence": 1,
+   "rank": 1.6,
+   "id": "F41"
+  },
+  {
+   "kind": "lesson",
+   "severity": 1,
+   "sessions": [
+    "next-steps"
+   ],
+   "evidence": [
+    "research/next-steps.md:56"
+   ],
+   "summary": "Hardcoded date tables (mech_regime_recut, regime_gap_reread) go PARTLY stale as the book grows, the same failure class as a hardcoded gate constant.",
+   "affects": [
+    "research/lessons.md"
+   ],
+   "proposed_action": "already in research/lessons.md (line 16); generalize the wording to cover a hardcoded date list, not only a snapshot gate constant.",
+   "confidence": 0.6,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 1.6,
+   "id": "F42"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 1,
+   "sessions": [
+    "agent-ab498abf5112fd010"
+   ],
+   "evidence": [
+    "2026-09-10-agent-ab498abf5112fd010.md:66",
+    "2026-09-10-agent-ab498abf5112fd010.md:68"
+   ],
+   "summary": "Plan subagent's chained bash one-liners with a bare `echo ===` separator hit a zsh '(eval):1: == not found' error twice in one session.",
+   "affects": [],
+   "proposed_action": "Quote separator text (e.g. echo '===') instead of bare === when chaining shell commands with semicolons.",
+   "confidence": 0.6,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 1.6,
+   "id": "F43"
+  },
+  {
+   "kind": "housekeeping",
+   "severity": 1,
+   "sessions": [
+    "current"
+   ],
+   "evidence": [
+    "research/current.md:189"
+   ],
+   "summary": "current.md's 'What was pruned from this log' section (in a 432-line file) duplicates archive/README.md's volume table and grows every prune cycle uncapped.",
+   "affects": [
+    "research/current.md"
+   ],
+   "proposed_action": "Trim the pruned-log section to a single pointer per volume once README.md's table already names the same date range and topic.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-targets"
+   ],
+   "recurrence": 1,
+   "rank": 1.5,
+   "id": "F44"
+  },
+  {
+   "kind": "repeated_mistake",
+   "severity": 1,
+   "sessions": [
+    "agent-a3f146261ac185766"
+   ],
+   "evidence": [
+    "2026-09-10-agent-a3f146261ac185766.md:15",
+    "2026-09-10-agent-a3f146261ac185766.md:9"
+   ],
+   "summary": "Explore subagent told .codegraph/ and codegraph_explore were available instead ran ~22 manual find/grep/read calls, against the repo's CodeGraph-first rule.",
+   "affects": [
+    ".claude/CLAUDE.md"
+   ],
+   "proposed_action": "When delegating an explore task in a CodeGraph-indexed repo, tell the subagent explicitly to call codegraph_explore before grep/find.",
+   "confidence": 0.5,
+   "batches": [
+    "batch-03"
+   ],
+   "recurrence": 1,
+   "rank": 1.5,
+   "id": "F45"
+  },
+  {
+   "kind": "housekeeping",
+   "severity": 1,
+   "sessions": [
+    "agent-ad7ae247a65860450"
+   ],
+   "evidence": [
+    "2026-09-16-agent-ad7ae247a65860450.md:70",
+    "2026-09-16-agent-ad7ae247a65860450.md:74"
+   ],
+   "summary": "backtests/study_output/ladder_overlay-v4-latest-20260910.txt vanished/renamed; a later investigation had to rediscover it as ladder_overlay-latest.txt.",
+   "affects": [
+    "backtests/study_output/"
+   ],
+   "proposed_action": "Keep era-dated study-output snapshot filenames stable once referenced elsewhere, or note the rename in the study's record.",
+   "confidence": 0.45,
+   "batches": [
+    "batch-02"
+   ],
+   "recurrence": 1,
+   "rank": 1.45,
+   "id": "F46"
+  },
+  {
+   "kind": "denied_tool",
+   "severity": 1,
+   "sessions": [
+    "2a4f3a48-7d67-4912-a71b-b30b410ad139"
+   ],
+   "evidence": [
+    "2026-09-10-2a4f3a48.md:101",
+    "2026-09-10-2a4f3a48.md:98",
+    "2026-09-10-2a4f3a48.md:99"
+   ],
+   "summary": "AskUserQuestion used the undefined jargon 'working-state CSVs'; the user rejected it and asked 'what is this state', costing a clarification round.",
+   "affects": [],
+   "proposed_action": "Name things concretely in AskUserQuestion prompts (e.g. 'run-history CSVs') instead of abstract nouns like 'state' to avoid a clarification round.",
+   "confidence": 0.4,
+   "batches": [
+    "batch-01"
+   ],
+   "recurrence": 1,
+   "rank": 1.4,
+   "id": "F47"
+  },
+  {
+   "kind": "lesson",
+   "severity": 1,
+   "sessions": [
+    "ee66ff4b"
+   ],
+   "evidence": [
+    "2026-09-11-ee66ff4b.md:22",
+    "2026-09-11-ee66ff4b.md:42"
+   ],
+   "summary": "mech_cell NO_DATA on the newest date (Yahoo close not yet posted) isn't documented as self-healing via nightly backfill, so it can re-trigger the same question.",
+   "affects": [
+    "docs/architecture.md"
+   ],
+   "proposed_action": "Document in docs/architecture.md that mech_cell NO_DATA on the most recent date means the upstream close hadn't posted yet, and that the nightly backfill fills it automatically.",
+   "confidence": 0.4,
+   "batches": [
+    "batch-04"
+   ],
+   "recurrence": 1,
+   "rank": 1.4,
+   "id": "F48"
+  }
+ ],
+ "patterns": [
+  "F01",
+  "F02",
+  "F03",
+  "F06",
+  "F07",
+  "F17",
+  "F18",
+  "F21",
+  "F22",
+  "F24",
+  "F25"
+ ],
+ "observations": [
+  "F04",
+  "F05",
+  "F08",
+  "F09",
+  "F10",
+  "F11",
+  "F12",
+  "F13",
+  "F14",
+  "F15",
+  "F16",
+  "F19",
+  "F20",
+  "F23",
+  "F26",
+  "F27",
+  "F28",
+  "F29",
+  "F30",
+  "F31",
+  "F32",
+  "F33",
+  "F34",
+  "F35",
+  "F36",
+  "F37",
+  "F38",
+  "F39",
+  "F40",
+  "F41",
+  "F42",
+  "F43",
+  "F44",
+  "F45",
+  "F46",
+  "F47",
+  "F48"
+ ]
+}

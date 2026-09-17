@@ -1,0 +1,6 @@
+Regenerated from yesterday's unadopted draft (dreams/2026-09-16/proposed/research/overview.md), re-checked against current.md, next-steps.md and study-map.md as committed now; every heading of the committed file kept (DREAM.md first-run item 4). Dated 2026-09-17.
+Fixed vs the draft: `ladder_overlay` was "NOT YET RUN"/waiting on a scrape; it closed 2026-09-16, NULL on v4, six v3 cells NULL and four UNDERPOWERED (current.md:318-335, next-steps.md:473-486, study-map.md:127). Updated the Structure table row, added a detail paragraph (mirroring the bear_rewrap/financed_spread pattern), moved its queue item from "Still open" #11 to the "Closed, listed here only because their numbers are still cited" stubs, and flagged in "Where things stand" that this one verdict postdates the 2026-09-04 book everything else was read on.
+No other content in the draft was contradicted by the three committed sources (population, hedge programme, rollback triggers, standing rules all unchanged since 2026-09-16).
+No link to the two `2026-09-09 — journal —` current.md sections exists on this page, so no archive/21 redirect was needed.
+Every number added or kept traces to current.md, next-steps.md or study-map.md; none introduced from elsewhere.
+Checks: research-headings (headings diff vs HEAD is empty), no-account-overview (grep for the pattern: zero hits).
