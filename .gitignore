@@ -41,3 +41,8 @@ portfolio/output/
 # name at ANY depth, which silently excludes `scripts/journal/` — the pipeline's
 # own source code — from version control. Anchor it to the repo root.
 /journal/
+# Weekly dream scratch (see DREAM.md). Digests hold transcript excerpts and findings are
+# sub-agent output; both are rebuilt by the next run. REPORT.md, proposed/, checks.json and
+# ADOPTED.md under dreams/<date>/ stay tracked as the record of what was proposed and adopted.
+dreams/*/digests/
+dreams/*/findings/

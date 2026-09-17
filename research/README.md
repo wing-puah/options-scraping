@@ -11,7 +11,8 @@ produced it lives in `scripts/backtest_study/`. The rules it produced live in
 3. [`next-steps.md`](next-steps.md) for the queue.
 4. [`deployment-evidence.md`](deployment-evidence.md) for why each shipped rule exists.
 5. [`glossary.md`](glossary.md) for metrics, [`arm-index.md`](arm-index.md) for study-local labels such as `ARM P`.
-6. [`writing-guide.md`](writing-guide.md) before you write anything here.
+6. [`lessons.md`](lessons.md) before you write a core lesson. If the line is there, cite it.
+7. [`writing-guide.md`](writing-guide.md) before you write anything here.
 
 ## What lives where
 
@@ -30,6 +31,7 @@ produced it lives in `scripts/backtest_study/`. The rules it produced live in
 | [`writing-guide.md`](writing-guide.md) | How to write in this folder. Adopted 2026-09-05. | agent |
 | [`pre-registrations/`](pre-registrations/) | One file per study: the plan written before the run. Foldered `f1_selection/` to `f5_hedging/`. | agent, then frozen |
 | [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export era, quoted verbatim. | `make study-review` |
+| [`lessons.md`](lessons.md) | The core-lesson register: one line per lesson, citing the volume that learned it. Rewritten whole by the weekly dream (`../DREAM.md`), never appended; proposals for other files land in `../dreams/`. | dream |
 | [`archive/`](archive/) | The tuning log by period, 19 volumes. Old entries move here when `current.md` passes about 400 lines. | agent, status lines only |
 
 An agent writes everything in this folder, under

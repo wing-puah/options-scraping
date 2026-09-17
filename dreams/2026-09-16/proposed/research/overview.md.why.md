@@ -1,0 +1,6 @@
+Regenerated whole from current.md §State of play, next-steps.md and study-map.md, dated 2026-09-16; every heading of the current file kept (DREAM.md first-run item 4). It says it is a derived summary.
+Stale lines fixed: "gap-up prohibition still held" -> accepted 2026-09-06 (current.md:78-82); "live walk-forward, no recorded progress since 2026-08-13" -> journal replay and census (next-steps.md:252-275); §2.8 "still open" -> CLOSED 2026-09-02 (next-steps.md:349); parked `portfolio_delta` ceiling 1.50 -> ceiling 1.00 is the candidate (next-steps.md:331-335); rollback table from the 2026-08-24 census -> the 2026-09-04 reading (current.md:98-108); population -> the 2026-09-08 refresh with the "verdicts read on the 166-date book" caveat (current.md:11-43).
+Added: trigger_entry, text_features, exit_from_text, exit_drawdown, ladder_overlay, concurrency_correlation rows (study-map.md:97-100, :116-118, :127, :136); §2.9-§2.13 under Still open; standing rules synced to next-steps.md §3; lessons.md in the reading order.
+Dropped: per-year figures and the six staged_exit CIs that appear in none of the three sources; the "20 stuck backfill partials" count (not in next-steps.md).
+No dollar amounts, account ids or NetLiq figures. Links checked with scripts/check_doc_links.py on an overlay copy.
+Checks: research-headings, no-account-overview.

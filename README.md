@@ -26,6 +26,7 @@ Prose lives in exactly two tracked places — `docs/` (how the system works, how
 | What did study X actually print, on which population?         | `research/study-results/<family>/<study>.md` — append-only, one section per (era, sha) |
 | How is a study result graded before it's believed?            | `research/replication-protocol.md` — the two-analyst A/B procedure                     |
 | What does this study metric mean?                             | `research/glossary.md`                                                                 |
+| Have we learned this lesson before?                          | `research/lessons.md` — one line per core lesson with the archive volume that learned it; rewritten weekly by the dream (`DREAM.md`) |
 | Where were we, what's next?                                   | `research/next-steps.md` (handoff), `research/analysis-roadmap.md` (design rationale)  |
 | What was the ML combination search, and what came of it?      | `research/pre-registrations/f1_selection/ml_combination.md` — pre-registered and executed 2026-08-11, NULL RESULT |
 | Was this old backtest-engine TODO ever done?                  | `research/archive/00-backtest-engine-backlog-2026-06.md` — the 2026-06 list, triaged 2026-08-15, archived 2026-08-31 (mostly superseded or refuted; **not** the live queue) |
