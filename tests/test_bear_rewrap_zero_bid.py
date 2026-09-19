@@ -10,6 +10,13 @@ A stored row written BEFORE the fold was priced without B5, so the mirror
 follows the row's write time (`priced_with_b5`); everything priced fresh takes
 the production rule.
 
+Since commit 09aa02c there is a SECOND basis on the same pattern: a one-sided
+ENTRY quote is filled on the side the leg trades (`_entry_side_mark` — sold at
+the bid, bought at the ask), which displaced `_zero_bid_mark` at entry and left
+the daily path alone. So a row has two write-time-keyed bases, and the entry
+tests below pin all three regimes a stored row can be in: pre-B5/pre-side,
+post-B5/pre-side, and post-side.
+
 Synthetic cache only — `bear_rewrap.leg_details` is monkeypatched.
 """
 from datetime import date, datetime, timedelta
@@ -47,6 +54,27 @@ def cache(monkeypatch):
 
 def test_the_rule_is_imported_from_production_not_restated():
     assert BR._zero_bid_mark is SIM._zero_bid_mark
+    assert BR._entry_side_mark is SIM._entry_side_mark
+
+
+@pytest.mark.parametrize("stamp,expected", [
+    ("2026-09-08 22:02:15", False),   # last write before the side rule shipped
+    ("2026-09-19 12:50:44", False),
+    ("2026-09-19 12:50:45", True),    # commit 09aa02c
+    ("2026-09-19 16:45:19", True),    # the 2025-04-09 re-price
+    ("", True),                        # unstamped: current production rule
+])
+def test_priced_with_side_follows_the_row_write_time(stamp, expected):
+    assert BR.SIDE_SINCE == datetime(2026, 9, 19, 12, 50, 45)
+    assert BR.priced_with_side({"created_datetime": stamp}) is expected
+
+
+def test_the_two_bases_are_independent():
+    """A row written between the two commits is B5 on its marks and NOT
+    side-aware on its entry — the reason there are two constants."""
+    between = {"created_datetime": "2026-09-08 17:36:58"}
+    assert BR.priced_with_b5(between) is True
+    assert BR.priced_with_side(between) is False
 
 
 @pytest.mark.parametrize("row,expected", [
@@ -80,7 +108,10 @@ def test_zero_volume_entry_takes_the_re_mark_even_at_zero(cache):
     cache(SHORT, {D0: _row(0.80, bid="1.0", ask="1.2"),
                   D1: _row(0.45, bid="0", ask="0")})
     assert BR.entry_price_of(SHORT, D1) == 0.0
-    assert BR.entry_price_of(SHORT, D1, b5=False) == 0.45
+    assert BR.entry_price_of(SHORT, D1, b5=False, side=False) == 0.45
+    # Both bases agree here: nothing is offered, so the side rule's bid and the
+    # liquidation rule's ask/2 are the same 0.
+    assert BR.entry_price_of(SHORT, D1, side=True) == 0.0
 
 
 def test_a_positive_open_still_wins_over_the_re_mark(cache):
@@ -93,8 +124,16 @@ def test_entry_carry_forward_re_marks_the_carried_snap(cache):
     # has no row that day, and the carried D0 snap is bid 0 / ask 2.68.
     cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97")})
     cache(SHORT, {D0: _row(0.45, bid="0", ask="2.68", open_="0.65")})
-    assert BR.net_entry([LONG, SHORT], D1) == pytest.approx(-0.37)
-    assert BR.net_entry([LONG, SHORT], D1, b5=False) == pytest.approx(0.52)
+    # Pre-side basis: the liquidation rule pays ask/2 as premium RECEIVED on a
+    # leg being sold, which is what took the real HYG row to a -0.37 credit.
+    assert BR.net_entry([LONG, SHORT], D1, side=False) == pytest.approx(-0.37)
+    assert BR.net_entry([LONG, SHORT], D1, b5=False, side=False) == pytest.approx(0.52)
+    # Side basis: nothing is bid, so nothing is received and the spread is the
+    # 0.97 debit production now records. This is the reconstruction that
+    # `hedge_structure`'s R2 needs, and it holds only through the CARRIED snap —
+    # the short leg has no row on D1 at all.
+    assert BR.net_entry([LONG, SHORT], D1, side=True) == pytest.approx(0.97)
+    assert BR.net_entry([LONG, SHORT], D1) == pytest.approx(0.97)  # side is the default
 
 
 @pytest.mark.parametrize("stamp,expected", [
@@ -112,16 +151,24 @@ def test_priced_with_b5_follows_the_row_write_time(stamp, expected):
 
 def test_basis_of_sets_the_default_for_every_pricer_inside_it(cache):
     cache(SHORT, {D0: _row(0.45, bid="0", ask="2.68")})
-    pre = {"created_datetime": "2026-08-14 20:42:47"}
-    post = {"created_datetime": "2026-09-08 17:36:58"}
-    assert BR.entry_price_of(SHORT, D1) == pytest.approx(1.34)       # no basis: B5
+    pre = {"created_datetime": "2026-08-14 20:42:47"}    # pre-B5, pre-side
+    post = {"created_datetime": "2026-09-08 17:36:58"}   # post-B5, PRE-side
+    side = {"created_datetime": "2026-09-19 16:45:19"}   # post-side
+    assert BR.entry_price_of(SHORT, D1) == 0.0           # no basis: current rule
     with BR.basis_of(pre):
         assert BR.entry_price_of(SHORT, D1) == pytest.approx(0.45)
         with BR.basis_of(post):
             assert BR.entry_price_of(SHORT, D1) == pytest.approx(1.34)
+        with BR.basis_of(side):
+            assert BR.entry_price_of(SHORT, D1) == 0.0
         assert BR.net_marks([SHORT], [D1]) == [pytest.approx(-0.45)]
-        assert BR.entry_price_of(SHORT, D1, b5=True) == pytest.approx(1.34)  # explicit wins
-    assert BR.entry_price_of(SHORT, D1) == pytest.approx(1.34)
+        # explicit wins over the basis, one flag at a time
+        assert BR.entry_price_of(SHORT, D1, b5=True) == pytest.approx(1.34)
+        assert BR.entry_price_of(SHORT, D1, side=True) == 0.0
+    assert BR.entry_price_of(SHORT, D1) == 0.0
+    # The daily mark is NOT side-aware on any basis: B5 still owns the path.
+    with BR.basis_of(side):
+        assert BR.net_marks([SHORT], [D1]) == [pytest.approx(-1.34)]
 
 
 def test_each_on_basis_restores_the_default_after_a_break(cache):
@@ -132,4 +179,63 @@ def test_each_on_basis_restores_the_default_after_a_break(cache):
         seen.append(BR.entry_price_of(SHORT, D1))
         break
     assert seen == [pytest.approx(0.45)]
-    assert BR.entry_price_of(SHORT, D1) == pytest.approx(1.34)
+    assert BR.entry_price_of(SHORT, D1) == 0.0
+    assert not BR._basis_stack and not BR._side_stack
+
+
+# ── the entry DAY is read off the row, never re-derived ──────────────────────
+
+
+class _FakeTrade:
+    """Just the three attributes `recorded_entry_date` touches."""
+
+    def __init__(self, dte, legs=(LONG, SHORT)):
+        self.row = {"dte_entry": dte}
+        self.legs = list(legs)
+
+
+@pytest.mark.parametrize("dte,expected", [
+    (46, date(2025, 4, 14)),      # HYG 2025-04-09: exp 2025-05-30 - 46
+    ("46", date(2025, 4, 14)),    # the CSV round-trip hands it back as a string
+    ("46.0", date(2025, 4, 14)),
+    (0, EXP),                     # filled on the expiry itself
+])
+def test_recorded_entry_date_reads_dte_entry(dte, expected):
+    assert BR.recorded_entry_date(_FakeTrade(dte)) == expected
+
+
+@pytest.mark.parametrize("dte", [None, "", "n/a"])
+def test_recorded_entry_date_is_none_without_a_usable_stamp(dte):
+    # The gate then falls back to the derived day rather than refusing the row.
+    assert BR.recorded_entry_date(_FakeTrade(dte)) is None
+
+
+def test_recorded_entry_date_uses_the_anchor_leg_not_the_short_one():
+    """`dte_entry` is stamped on the ANCHOR contract (`legs[0]`), so a diagonal
+    whose legs have different expiries must measure from the anchor's."""
+    far = Leg(-1, "AAA", date(2025, 7, 18), 72.0, "Put")
+    assert BR.recorded_entry_date(_FakeTrade(46, legs=(LONG, far))) == date(2025, 4, 14)
+    assert BR.recorded_entry_date(_FakeTrade(46, legs=(far, LONG))) == date(2025, 6, 2)
+
+
+def test_the_recorded_day_and_the_derived_day_can_disagree(cache):
+    """The HYG 2025-04-09 shape, which is why the gate reads rather than derives.
+
+    The long leg's first bar is D1 and the short leg's is D0, so production
+    filled on D1 and carried the short leg forward. `entry_date_for` waits for a
+    day BOTH legs have a bar on — D2 — and rebuilds a different spread. The
+    cache gained the bars that make the two diverge only AFTER the row was
+    priced, so the derived day cannot be trusted for a stored row.
+    """
+    D2 = D0 + timedelta(days=2)
+    cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97"),
+                 D2: _row(0.75, bid="0", ask="2.90", open_="0.75")})
+    cache(SHORT, {D0: _row(0.45, bid="0", ask="2.68", open_="0.65"),
+                  D2: _row(0.28, bid="0", ask="2.39", open_="0.28")})
+
+    assert BR.entry_date_for([LONG, SHORT], [D0, D1, D2]) == D2
+    assert BR.recorded_entry_date(_FakeTrade((EXP - D1).days)) == D1
+
+    # The derived day rebuilds a 0.47 debit; the recorded one the true 0.97.
+    assert BR.net_entry([LONG, SHORT], D2, True, True) == pytest.approx(0.47)
+    assert BR.net_entry([LONG, SHORT], D1, True, True) == pytest.approx(0.97)

@@ -23,10 +23,10 @@ This block is the authoritative summary of where the research stands.
 | Field | Value |
 |---|---|
 | Era | `v4`, the 193-date backfilled book |
-| Exports | all three re-pulled 2026-09-08; deduplicated, and every result row joins its play |
+| Exports | re-pulled 2026-09-08, then again 2026-09-19 after 2025-04-09 was re-priced; deduplicated, and every result row joins its play |
 | Real results | 598 over 193 dates |
 | Proxy rows | 1,665 |
-| Analysis rows | 2,677 over 228 dates, one analysis run per date |
+| Analysis rows | 2,781 over 237 dates on the 2026-09-19 export, one analysis run per date |
 | Pooled study book | 1,374 rows over 208 dates, being 598 real plus 776 tweak |
 | Signal dates | 2024-01-10 → 2026-05-07 |
 | 2026 signal dates | 29 carry pooled rows, 26 of them real; 2026-01-06 to 2026-05-07, 161 pooled rows |
@@ -119,9 +119,11 @@ nothing has not been checked, and that is not the same as "not met". The
   columns and the pre-entry grid fix; every other row predates it. Split them on
   `cost_total` or `pct_stale_days` being non-blank — NOT on `cost_basis`, which
   is blank everywhere while both cost knobs are 0.
-- **Every `BacktestProxy` row is blank in `pct_stale_days`, `cost_total` and
-  `cost_basis`.** `proxy.py::_evaluate` never copies them onto the row. Open, one
-  line, [`next-steps.md`](next-steps.md) §2.11.
+- **Almost every `BacktestProxy` row is blank in `pct_stale_days`, `cost_total`
+  and `cost_basis`.** `proxy.py::_evaluate` never copied them onto the row; fixed
+  2026-09-19, but NOT backfilled, so only the 9 rows re-priced on 2025-04-09
+  carry them. Treat the rest as "did not run under the cost model", which is
+  true of them. [`next-steps.md`](next-steps.md) §2.11.
 - **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
   analysis run than their own play.** The backtest stamps each play with the
   newest `MARKET` row on its date, and 2025-09-18 was analysed twice, so those
@@ -216,6 +218,97 @@ blocks any work; each has its full entry in an archive volume.
   errata fold, queues C/D/E, the sleeve-sizing fold onto
   `lib/hedge_criteria.sleeve_pick`, and the far-call fetch that restored 178
   lost cache files while `hedge_structure` stayed blocked at R2.
+
+---
+
+## 2026-09-19 (later still) — the 2025-04-09 re-price, and the two mirror drifts it exposed; `hedge_structure` unblocked
+
+**`hedge_structure` runs again: R2 is 1,322 / 1,322 and the study reaches a
+verdict for the first time since 2026-09-08.** Nothing ships — H0 FILL is NOT
+MET and H2 is NOT EVALUABLE on a power floor (n=2 on the worst-decile dates).
+Getting there took the stored HYG row re-priced and TWO drifts fixed in the
+research mirror.
+
+_Population: v4, the 2026-09-19 16:45 exports (598 results rows, 1,665 proxy
+rows, 2,781 analysis rows). The book is the 2026-09-08 one with 2025-04-09
+re-priced._
+
+### The re-price
+
+`proxy --date 2025-04-09 --redo --cache-only` replaced all 9 rows on that date.
+Two changed materially.
+
+| Ticker | Before | After | Why |
+|---|---|---|---|
+| HYG | −0.37 entry, CREDIT, +100% | +0.97 entry, BEAR_HE, −100% | the side-aware entry rule (09aa02c) |
+| SPY | `underlying_trend`, blank P&L | `strike_expiry_tweak`, 6.20 entry, −77% | the cache is deeper than it was |
+
+SPY is a side effect of the date-level `--redo`, not of the pricing change: the
+restored and re-fetched cache now carries a priceable pair, so a direction-only
+verdict became a real priced row. The other seven are unchanged but for the cost
+columns, which populate for the first time.
+
+### Drift 1 — the mirror priced the ENTRY with a liquidation rule
+
+`bear_rewrap` imported `_zero_bid_mark` and applied it at entry. `09aa02c`
+displaced it there with `_entry_side_mark`, and production's next branch is the
+PLAIN mark, so `_zero_bid_mark` is now unreachable at entry. The mirror
+therefore needs a SECOND write-time basis beside `B5_SINCE`:
+
+| Row written | Daily marks | Entry fill |
+|---|---|---|
+| before 2026-09-08 15:05:25 | plain mark | plain mark |
+| 09-08 15:05:25 → 09-19 12:50:45 | B5 re-mark | B5 re-mark |
+| after 2026-09-19 12:50:45 | B5 re-mark | side-aware |
+
+The boundary is not a judgement call: nothing was written between 2026-09-08
+22:02:15 and the 16:45:19 re-price.
+
+### Drift 2 — the mirror DERIVED the entry day instead of reading it
+
+This is the one that mattered, and it is the more general lesson.
+`entry_date_for` picks the first grid day on which EVERY leg has a cached bar.
+Production picked its day from the bars it held AT PRICING TIME, off the ANCHOR
+leg alone, and carried the other legs forward. Those are different questions,
+and the cache has since gained bars production never saw — the
+`HISTORY_START_DATE` fix, the far-call fetch, and the 178 restored files.
+
+On HYG they diverge: production filled 2025-04-14 off the long leg's first bar;
+the mirror waited until 04-16 for both legs and rebuilt a 0.47 debit against the
+stored 0.97.
+
+**The day never needed deriving — it is recorded.** `dte_entry` is stamped as
+`(expiration − entry_day).days` on the anchor, so the day reads back exactly.
+The gate now reads it.
+
+| | agree | differ |
+|---|---|---|
+| recorded vs derived entry day, 1,325 records | 1,324 | 1 (HYG 2025-04-09) |
+
+That 1,324 is why the drift went unnoticed for so long, and why a rule change
+would have been the wrong fix: the first rule I tried — mirror production's
+anchor rule — reproduced HYG and broke 13 `bull_put_spread` rows that pass
+today, because for those the anchor leg has bars now that it did not have then.
+Reading the stamp is immune to that; re-deriving never can be.
+
+A SUBSTITUTION has no recorded entry day — it was never traded — so it keeps
+deriving one.
+
+### What moved
+
+Both gates now pass everything: bear debit 483/483, full universe 1,325/1,325.
+
+| Study | Before | After | Verdict |
+|---|---|---|---|
+| `bear_rewrap` `long_diag` | dR +0.153, CI [+0.025, +0.281] | dR +0.159, CI [+0.035, +0.288] | unchanged, still clear of 0 |
+| `bear_rewrap` `long_put` | dR −0.027, CI spans 0 | dR −0.022, CI spans 0 | unchanged null |
+| `bear_rewrap` `wider` | dR −0.065, CI spans 0 | dR −0.064, CI spans 0 | unchanged null |
+| `financed_spread` baseline | n=918 | n=919 | unchanged |
+
+The cell counts move because the BOOK was re-priced, not because the mirror was.
+The mirror change is verdict-neutral by construction: the gate read 482 ok / 1
+fail both with and without the side basis, and the recorded-day fix moves one
+row.
 
 ---
 
