@@ -63,7 +63,19 @@ async def fetch_option_histories(
                     )
                     series_map.pop(c["key"], None)
                     details_map.pop(c["key"], None)
-                    cache.unlink()
+                    # The file is NOT unlinked here. It was until 2026-09-19,
+                    # and a refetch that returned no rows then kept nothing: the
+                    # scraper was re-issuing the page's default three-month
+                    # `startDate`, which is empty for an expired contract, and
+                    # 178 cache files were destroyed that way between the
+                    # 2026-09-05 snapshot and 2026-09-08. The range is fixed in
+                    # lib/barchart/session.py, but a shallow cache is still the
+                    # only copy of scraped history that exists — losing it on a
+                    # failed fetch is never an improvement over keeping it. The
+                    # new text replaces it atomically below, on success only.
+                    # The maps are still popped, so a failed refetch prices as
+                    # no-data exactly as before: shallow history is dropped
+                    # from THIS run, not from the disk.
                     to_scrape.append(c)
         elif not cache_only:
             to_scrape.append(c)
@@ -92,7 +104,12 @@ async def fetch_option_histories(
                 continue
             cache = barchart_options.cache_path(
                 HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            cache.write_text(csv_text, encoding="utf-8")
+            # Stage then os.replace, the same way export_tabs.py installs a
+            # pulled tab: a cache file is never half-written, and an existing
+            # one is only ever superseded by a complete fetch.
+            staged = cache.with_suffix(cache.suffix + ".tmp")
+            staged.write_text(csv_text, encoding="utf-8")
+            os.replace(staged, cache)
             _load_cache(c, csv_text)
             await asyncio.sleep(2)
 

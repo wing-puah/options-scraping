@@ -219,6 +219,59 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-19 (later) — the option-history cache is no longer deleted before a refetch, and proxy rows carry the cost columns
+
+**Two code fixes from the [§2.11](next-steps.md#s2-11) queue. Neither changes a
+price, a verdict or a recorded row.** The first stops a failed refetch from
+destroying a cache file; the second stops the proxy writer from dropping three
+columns it already computes.
+
+_No population: these are code-behaviour claims, pinned in `tests/`, not data
+claims. Suite 3,757 green._
+
+### The cache is kept until a complete fetch replaces it
+
+`scripts/backtest/shared/history.py` unlinked a cache file whose history did not
+reach back far enough, then refetched. When the refetch returned no rows, nothing
+was kept. That is how 178 files were lost between the 2026-09-05 snapshot and
+2026-09-08 ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)).
+
+The file is now never unlinked on the way in. A fetched file is staged beside the
+cache and installed with `os.replace`, the same way
+[`export_tabs.py`](../scripts/export_tabs.py) installs a pulled tab.
+
+The run's own behaviour is unchanged. A shallow series is still dropped from the
+in-memory maps, so a play that needed the earlier dates still prices as no-data.
+The fix is about what survives on disk, not what a run prices on.
+
+The underlying trigger was already gone: the scraper was re-issuing the page's
+default three-month `startDate`, fixed in `lib/barchart/session.py`. The unlink
+was the second half of that loss and stayed fragile on its own.
+`tests/test_backtest_history_cache.py` pins all four cases.
+
+### Proxy rows carry `pct_stale_days`, `cost_total` and `cost_basis`
+
+`proxy.py::_evaluate` copied `_RESULT_COLS + _BASIS_COLS` off the simulation and
+never `_COST_COLS`, so all 1,665 stored proxy rows are blank in those three
+columns even on the priced tiers. `BacktestResults` carried them. This is the
+same shape as the `exit_basis` gap fixed 2026-09-02, and the comment two lines
+above the copy loop describes it.
+
+| | `BacktestResults` | `BacktestProxy` before | `BacktestProxy` after |
+|---|---|---|---|
+| `pct_stale_days` | written | blank | written |
+| `cost_total` | written | blank | written |
+| `cost_basis` | blank while both cost knobs are 0 | blank | blank while both cost knobs are 0 |
+
+`cost_basis` staying blank is the costs-off convention, not a remaining gap.
+
+**The fix does not backfill.** The 1,665 rows already on the tab stay blank until
+a `--redo` re-run, so a study that splits the proxy book on `cost_total` reads
+every stored row as "not run under the cost model" — which is true of all of
+them today.
+
+---
+
 ## 2026-09-19 — backtest entry pricing — a sold leg with no bid fills at 0, and a debit that prices to a credit is refused
 
 **Two production changes to `scripts/backtest/`: entry pricing is side-aware on a

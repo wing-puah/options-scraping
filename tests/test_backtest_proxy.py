@@ -633,3 +633,52 @@ def test_unevaluable_rows_carry_no_basis(cache_dir):
 
     assert row["proxy_method"] == "unevaluable"
     assert row.get("exit_basis", "") == ""
+
+
+# ── 11. Cost columns reach the proxy row ────────────────────────────────────────
+
+def test_evaluate_copies_cost_columns_onto_a_priced_row(cache_dir):
+    """`_COST_COLS` joined the `_evaluate` copy loop on 2026-09-19.
+
+    `_simulate` always stamped `pct_stale_days` / `cost_total` / `cost_basis`,
+    and `_PROXY_KEY_ORDER` always declared them, but the loop copied only
+    `_RESULT_COLS + _BASIS_COLS`, so every priced proxy row reached the tab
+    blank in all three while BacktestResults carried them — the same shape as
+    the `exit_basis` gap fixed 2026-09-02.
+    """
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 9.8, 10.2),
+        ("2026-06-03", 250.0, "45.0", "0.55", 15.0, 17.0),
+    ])
+
+    # Costs ON, so `cost_total` and `cost_basis` are both non-default and a
+    # blank cell cannot be mistaken for the costs-off convention.
+    sim_cfg = dict(_SIM_CFG, commission_per_contract=0.65,
+                   slippage_frac_of_spread=0.25)
+    row = bt._evaluate(play, None, c, _CFG, sim_cfg, _SPREAD_PCT,
+                       "2026-07-06T10:00:00", False)
+
+    assert row["proxy_method"] == "strike_expiry_tweak"
+    assert row["cost_total"] > 0
+    assert row["cost_basis"] != ""
+    assert row["pct_stale_days"] != ""
+
+
+def test_evaluate_leaves_cost_basis_blank_when_costs_are_off(cache_dir):
+    """Costs off writes `cost_basis` empty and `cost_total` 0.0 — the same
+    convention BacktestResults uses, so the copy must not invent a value."""
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+    ])
+
+    row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-07-06T10:00:00", False)
+
+    assert row["cost_basis"] == ""
+    assert row["pct_stale_days"] != ""

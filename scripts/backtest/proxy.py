@@ -626,7 +626,13 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         # loop until 2026-09-02, so it never reached the row. The whole proxy
         # tab was blank in that column, in every era — a study stratifying by
         # exit profile would have silently read the proxy book as one basis.
-        for k in _RESULT_COLS + _BASIS_COLS:
+        # _COST_COLS joined the loop 2026-09-19 for exactly the same reason:
+        # declared in _PROXY_KEY_ORDER and stamped by _simulate on the priced
+        # tiers, but left out of the copy, so all 1,665 proxy rows were blank in
+        # `pct_stale_days` and `cost_total` while BacktestResults carried them.
+        # `cost_basis` still writes empty while both cost knobs are 0 — that is
+        # the same convention BacktestResults uses, not another gap.
+        for k in _RESULT_COLS + _BASIS_COLS + _COST_COLS:
             if k in result and result[k] != "":
                 row[k] = result[k]
         row["created_datetime"] = created_datetime  # methods may blank it
