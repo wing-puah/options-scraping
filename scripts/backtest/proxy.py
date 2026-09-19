@@ -387,7 +387,12 @@ def _skip_reason(play, reason) -> str:
     """Why this play went untested in the real backtest. ``unsupported`` /
     ``no_strike`` / ``no_expiry`` when the play never built; otherwise inspect the
     anchor's cache file: ``no_history`` (no file, or data doesn't reach the signal
-    window) vs ``unpriced`` (data present at signal but the real sim skipped it)."""
+    window) vs ``unpriced`` (data present at signal but the real sim skipped it).
+
+    A priced tier may REFUSE the play afterwards for a more specific reason —
+    ``debit_priced_to_credit`` — and :func:`_note_refusal` then overwrites what
+    this returns. This function only ever sees the cache, so it cannot know that.
+    """
     if reason is not None:
         return reason[0]
     ac = _anchor_contract(play)
@@ -447,7 +452,7 @@ def _method1(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
         return None, pool
     result = _simulate(c, snapped, entry_row, {}, series_map, sim_cfg,
                        structure=play.structure, anchor_idx=anchor_idx,
-                       barchart_details=details_map)
+                       barchart_details=details_map, refusal=play.refusal)
     if not result:
         return None, pool
     detail = "; ".join(tweaks) if tweaks else "all legs had listed history"
@@ -481,7 +486,7 @@ def _method2(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
     bs_cfg = {**sim_cfg, "entry_sources": ["bs"], "exit_sources": ["bs"]}
     result = _simulate(c, play.legs, entry_row, {}, {}, bs_cfg,
                        structure=play.structure, anchor_idx=play.anchor_idx,
-                       price_fn=price_fn, iv_fn=iv_fn)
+                       price_fn=price_fn, iv_fn=iv_fn, refusal=play.refusal)
     if not result:
         return None, pool
     sigma = _asof(iv_series, c["signal_date"]) or entry_iv or 0
@@ -562,6 +567,29 @@ def _identity_cols(c: dict, play) -> dict:
     }
 
 
+def _note_refusal(row: dict, play) -> dict:
+    """Stamp a priced-tier REFUSAL onto the finished proxy row.
+
+    `skip_reason` answers "why did the real backtest never test this play?". When
+    a proxy method priced the entry and then refused it — currently only
+    `simulate.DEBIT_CREDIT_REFUSAL`, a debit structure priced to a net credit —
+    that refusal IS the answer, and it is more specific than the cache-derived
+    `unpriced` this row started with, so it replaces it. The reason is also
+    appended to `proxy_detail`, because the row can still carry a direction-only
+    verdict from method 3 and the reader must see which tier refused and why.
+
+    A play whose priced tiers all succeeded leaves `play.refusal` empty and the
+    row untouched.
+    """
+    reason = play.refusal.get("reason") if play is not None else None
+    if not reason:
+        return row
+    row["skip_reason"] = reason
+    detail = play.refusal.get("detail", "")
+    row["proxy_detail"] = f"{row['proxy_detail']} | {reason}: {detail}".strip(" |")
+    return row
+
+
 def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
               allow_probe) -> dict:
     """Run the fallback chain for one candidate and return its ``BacktestProxy`` row."""
@@ -576,6 +604,7 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         return row
 
     row["skip_reason"] = _skip_reason(play, None)
+    play.refusal = {}
 
     pool = _cache_contracts(c["ticker"])
     step = _infer_strike_step([p["strike"] for p in pool]) or _strike_step(
@@ -604,12 +633,12 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         row["legs"] = used_legs
         row["proxy_method"] = proxy_method
         row["proxy_detail"] = detail
-        return row
+        return _note_refusal(row, play)
 
     row["proxy_method"] = "unevaluable"
     row["proxy_detail"] = "no usable options history for any fallback"
     row["legs"] = row["legs_original"]
-    return row
+    return _note_refusal(row, play)
 
 
 # ─── Untested join + idempotency ────────────────────────────────────────────────

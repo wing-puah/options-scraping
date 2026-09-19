@@ -85,6 +85,12 @@ class Play(ABC):
         self.anchor = anchor          # (ticker, opt_type, strike, exp) | None
         self.anchor_idx = anchor_idx
         self.contracts = contracts or []  # [(ticker, opt_type, strike, exp), ...]
+        # Filled by `_simulate` when a pricing attempt is REFUSED for a reason
+        # worth recording (currently only `debit_priced_to_credit`), as opposed
+        # to merely unpriceable. Lives on the Play because it is the one object
+        # both writers hold: `core.py` tallies it, `proxy.py` writes it into the
+        # row's `skip_reason`. Empty = no refusal.
+        self.refusal: dict = {}
 
     # ── Pass 1 ──────────────────────────────────────────────────────────────────
     @classmethod
@@ -118,13 +124,20 @@ class Play(ABC):
 
     def _simulate(self, c, legs, entry_row, barchart_series, sim_cfg, anchor_idx,
                   barchart_details=None):
-        """Run :func:`_simulate`, logging a uniform skip when it can't price."""
+        """Run :func:`_simulate`, logging a uniform skip when it can't price.
+
+        A REFUSED position (see ``Play.refusal``) has already logged its own
+        reason, so it is not re-logged as an anonymous ``simulate={}``.
+        """
+        self.refusal = {}
         result = _simulate(c, legs, entry_row, {}, barchart_series, sim_cfg,
                            structure=self.structure, anchor_idx=anchor_idx,
-                           barchart_details=barchart_details)
+                           barchart_details=barchart_details,
+                           refusal=self.refusal)
         if not result:
-            log.warning("SKIP simulate={}  %s %s | %s",
-                        c["signal_date"], c["ticker"], self.structure)
+            if not self.refusal:
+                log.warning("SKIP simulate={}  %s %s | %s",
+                            c["signal_date"], c["ticker"], self.structure)
             return None
         return result
 
@@ -441,7 +454,8 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None, structure_ve
       • ``skipped``      — per-category skip tally
     """
     plays, contracts, needed_dates = [], {}, {}
-    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0, "vetoed": 0}
+    skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0,
+               "vetoed": 0, "debit_priced_to_credit": 0}
     for c in candidates:
         play, skip = classify_and_build(c, spread_pct, tf_s_override, structure_veto)
         if skip:

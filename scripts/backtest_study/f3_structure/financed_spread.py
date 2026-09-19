@@ -795,7 +795,8 @@ def build(pop: list[tuple[dict, str]], shapes: tuple[str, ...]) -> dict:
     active = [c for c in CELLS if c[0] in shapes]
     f4_active = any(c[0] == "F4" for c in active)
 
-    for rec, dirn in pop:
+    # Every price in the body is on the stored row's B5 basis (bear_rewrap.basis_of).
+    for rec, dirn in BR.each_on_basis(pop, lambda item: item[0]["t"].row):
         ok, why = BR.reconstructs(rec)
         g1[why] += 1
         if not ok:
@@ -927,7 +928,7 @@ def build(pop: list[tuple[dict, str]], shapes: tuple[str, ...]) -> dict:
                         cell=cell, ticker=rec["ticker"], date=rec["date"],
                         entry_net=t.entry_net, credit=credit, contracts=n_prod,
                         buyback=buyback, base_legs=legs[:-1], short_leg=short_leg,
-                        grid=base_t.grid, entry_day=ed)
+                        grid=base_t.grid, entry_day=ed, basis_row=base_t.row)
 
             cells[cell].append(dict(
                 date=rec["date"], ticker=rec["ticker"], structure=rec["structure"],
@@ -1170,12 +1171,13 @@ def report_f4_example(built: dict) -> None:
     print(f"""  entry_net {ex['entry_net']:+.4f} = debit legs - {unit} x credit {ex['credit']:.4f}
   {ex['short_leg'].strike:g}{ex['short_leg'].opt_type[0]} exp {ex['short_leg'].expiration}   contracts {ex['contracts']}
   trigger {b_why} on {b_day} at a mark of {b_cost:.4f}""")
-    managed = f4_net_marks(ex["base_legs"], ex["short_leg"], ex["grid"],
-                           ex["buyback"])
-    held = f4_net_marks(ex["base_legs"], ex["short_leg"], ex["grid"],
-                        f4_buyback(ex["short_leg"], ex["grid"], ex["entry_day"],
-                                   ex["credit"], ex["contracts"], "hold"))
-    own = dict(BR.leg_series(ex["short_leg"]))
+    with BR.basis_of(ex["basis_row"]):
+        managed = f4_net_marks(ex["base_legs"], ex["short_leg"], ex["grid"],
+                               ex["buyback"])
+        held = f4_net_marks(ex["base_legs"], ex["short_leg"], ex["grid"],
+                            f4_buyback(ex["short_leg"], ex["grid"], ex["entry_day"],
+                                       ex["credit"], ex["contracts"], "hold"))
+        own = dict(BR.leg_series(ex["short_leg"]))
     idx = [i for i, d in enumerate(ex["grid"]) if d == b_day][0]
     lo, hi = max(0, idx - 2), min(len(ex["grid"]), idx + 4)
     print(f"\n  {'day':<12} {'leg mark':>9} {'managed net':>12} {'hold net':>10} "

@@ -219,6 +219,162 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-19 — backtest entry pricing — a sold leg with no bid fills at 0, and a debit that prices to a credit is refused
+
+**Two production changes to `scripts/backtest/`: entry pricing is side-aware on a
+one-sided quote, and a debit structure that prices to a net credit is no longer
+written at all.** Nothing about study conclusions ships — this changes what the
+ENGINE does, so the next run of either writer will differ from the tab on a small
+number of rows. No recorded row was re-priced; that stays an operator decision.
+
+_Population: v4, the 2026-09-08 22:38 exports (598 results rows, 1,665 proxy
+rows). Row counts below were taken over both exports._
+
+### The rule
+
+Two separate rules, in the order the engine applies them.
+
+**Entry pricing.** A leg whose entry-day quote has no bid is filled on the side it
+actually trades: the BID, which is 0, when the leg is SOLD, and the ASK when it is
+BOUGHT. Before, entry reused `_zero_bid_mark` — a LIQUIDATION rule, written for
+daily marks and sign-independent — which handed a leg being sold half the ask as
+premium RECEIVED.
+
+The scope is deliberately narrow. The rule governs only an entry that falls
+through to the quote-derived mark. An entry-day `Open` print still wins ahead of
+it, and a genuine two-sided quote prices exactly as before. A row with no Bid and
+no Ask column at all is NO QUOTE DATA, not a zero bid, and keeps its existing
+fallback — that distinction is the whole change and is pinned by test.
+
+**The gate.** A structure whose canonical name fixes it as a DEBIT
+(`bull_call_spread`, `bear_put_spread`, `long_call`, `long_put`) that prices to
+`entry_net < 0` is not priceable. No row is written. The real backtest tallies it
+`debit_priced_to_credit`; the proxy puts that in `skip_reason` and appends the
+reason to `proxy_detail`. The gate runs before the exit profile is chosen, so
+`exit_basis = CREDIT` can no longer be reached from a fabricated credit.
+
+### What it changes on the three known rows
+
+| Row | Before | After |
+|---|---|---|
+| HYG 2025-04-09 (proxy) | entry −0.37, `exit_basis` CREDIT, +100% | entry **+0.97**, `exit_basis` BEAR_HE, **−100%** |
+| SMH 2024-07-17 (proxy) | entry −0.50, `exit_basis` CREDIT, +448% | **refused**, `debit_priced_to_credit` |
+| IWM 2024-03-25 (results) | entry −2.89, `exit_basis` CREDIT, −108% | **refused**, `debit_priced_to_credit` |
+
+HYG is the one the entry rule fixes: the short 72P had no bar on the fill day, so
+the entry carried its 04-10 `bid 0 / ask 2.68` snap and `ask/2` gave 1.34. It now
+prices at 0 and the spread is a 0.97 debit, tagged `barchart_side`.
+
+SMH and IWM are different: both legs printed, two-sided, on the entry day, so the
+entry rule does not touch them. SMH's short 235P printed 8.05 against its own 7.00
+ask — a bad print. IWM's legs are strike-inverted for their label: a bear put
+spread long the 204P and short the 210P is not one, which is a CLASSIFICATION
+defect, not a quote defect. The gate catches both because the arithmetic is the
+same. **The classifier was not fixed here**; that is a separate item.
+
+### What was deliberately not done
+
+Legs quoted `bid == 0` on the entry day but filled at an `Open` print number 22
+rows in BacktestResults and 27 in BacktestProxy. Extending the side-aware rule
+over the `Open` print would reprice all of them — and 21 of the 22 and 26 of the
+27 PREDATE the B5 fold, so it would rewrite four months of already-recorded
+pre-fold evidence. That was not asked for and was not done.
+
+| Shape | BacktestResults | BacktestProxy | of which pre-B5 |
+|---|---|---|---|
+| entry through the zero-bid path (repriced by this change) | 0 | 1 | 0 |
+| `bid == 0` at entry but filled at an `Open` print (untouched) | 22 | 27 | 21 / 26 |
+
+The exit fill was also left alone. `_price_leg` still uses `_zero_bid_mark` on
+every daily mark, including the one the exit is taken at, and the same asymmetry
+exists there: closing a LONG leg into a 0 bid receives `ask/2` rather than 0. The
+case for changing it is weaker — a liquidation mark is the right question for a
+mark-to-market path, and the exit day is picked by rules that read that path — but
+it is not settled, and it is filed rather than decided.
+
+### What happens next
+
+[`next-steps.md`](next-steps.md) §2.11: the HYG fabricated-credit row is closed,
+one row is added for the exit-side asymmetry, and one for the strike-inverted
+`bear_put_spread` classification. `hedge_structure`'s R2 blocker is NOT closed —
+the stored HYG row still holds −0.37 and only a re-price changes that.
+
+## 2026-09-17 — bear_rewrap pricer — B5 zero-bid re-mark mirrored, R2 at 1,320 / 1,321
+
+**The research pricer now marks a zero-bid leg the way production does, and
+`hedge_structure`'s R2 drops from five failures to one.** Nothing ships. The one
+remaining failure is not a B5 row: it is the HYG 2025-04-09 row already filed as
+a fabricated credit, and it fails on its entry day. `hedge_structure` stays
+blocked at R2 until that row is decided.
+
+_Population: v4, the 2026-09-08 22:38 exports (598 results rows, 1,665 proxy
+rows); `hedge_structure` R2 over 1,321 ticker-dates._
+
+**The rule.** Production (`scripts/backtest/simulate.py::_zero_bid_mark`, the
+B5 fix merged in 3e5c2dc) marks a leg quoted bid 0 at ask/2, or at 0 when
+nothing is offered. It applies to the daily marks, to a carried-forward snap,
+and to a zero-volume entry day. A row with no mid and no Latest is never
+re-marked, because production never loads it.
+
+**The implementation.** `bear_rewrap.py` imports `_zero_bid_mark` rather than
+restating it, through one helper, `row_mark`. `leg_series`, `entry_price_of`,
+`net_entry` and `net_marks` all go through it. Research importing production is
+the existing direction; production still imports nothing from research.
+
+**Why the basis follows the stored row.** B5 on every row broke rows that were
+priced before the fold. No column records which rule a row was priced under:
+`cost_basis` is blank on all rows and the cost columns are blank on every proxy
+row. The write time does. Rows stamped at or after the merge, 2026-09-08
+15:05:25, get B5. Older rows keep the plain mark. On this export no row was
+written between 10:31:15 and 15:21:14 that day, so the cut decides no real row.
+
+| R2 on 1,321 ticker-dates | Pass | Fail |
+|---|---|---|
+| Old mirror, no B5 | 1,316 | 5 (4 mark, 1 entry) |
+| B5 applied to every row | 1,143 | 178 (177 pre-fold rows now fail) |
+| B5 on rows written after the merge | 1,320 | 1 (HYG entry) |
+
+**Variants share the baseline's basis.** A study that prices a substitute,
+overlay or financed leg against a stored row prices it on that row's basis
+(`bear_rewrap.basis_of`; `financed_spread` and `ladder_overlay` wrap their row
+loops). A first run without this marked substitutes with B5 against pre-fold
+baselines. It moved `bear_rewrap`'s `long_diag` dR from +0.154 to +0.119 and
+its CI across zero. That move came from mixing two mark rules in one comparison,
+not from the structure, so it was discarded. A price with no stored row behind it,
+such as a `hedge_structure` sleeve, takes the production rule.
+
+**The residual failure.** Production filled HYG on 04-14, the long leg's first
+bar, and carried the short 72P's 04-10 snap (bid 0 / ask 2.68, re-marked to
+1.34). The net was −0.37 on a bear put spread. `entry_date_for` needs a bar on
+every leg, so it picks 04-16 and gets 0.47. On 04-14 the mirror reproduces −0.37
+and 35 / 35 marks. Mirroring production's entry day would pass R2 by admitting
+the fabricated credit, so it was not done.
+
+**What the re-runs moved.** Each study's verdicts are unchanged. The only
+movement is the rows the fixed gate now admits.
+
+| Study | Rows admitted before → after | Verdict lines |
+|---|---|---|
+| `bear_rewrap` | 480 → 481 (XLF 2025-04-09) | unchanged; `long_diag` dR +0.154 → +0.153, CI [+0.025, +0.281] |
+| `financed_spread` | 916 → 918 | unchanged; F0 dR −0.155 → −0.140 |
+| `ladder_overlay` | 446 → 447 cores | unchanged; G1 and G1b PASS |
+| `hedge_structure` | R2 1,316 → 1,320 | still R2 FAIL; H0 not printed |
+
+**Unresolved.**
+- HYG 2025-04-09 blocks `hedge_structure`. The default is to leave R2
+  all-or-nothing and the row as stored. Re-pricing it after the §2.11 carried-snap
+  fix would clear R2. Choosing that is the operator's call.
+- `hedge_structure`'s checkpoint store (`synth_results.csv`) is keyed on the
+  cache, not on the mark rule. Rows it built before today used the plain mark.
+  When R2 clears, run the study with `--redo` so no sleeve mixes the two rules.
+- `lib/hedge_instrument.py` restates the plain mark for the hedge puts, and its
+  pre-registration names that rule. It prices no stored row and was left alone.
+
+**Queue.** [`next-steps.md` §2.11](next-steps.md#s2-11): the B5-mirror row is
+resolved, and the HYG row now also names the R2 block.
+
+---
+
 ## 2026-09-09 — journal — the July to mid-August fills are journalled; the live walk-forward has 55 mapped rows over 20 signal dates
 
 **The journal is the live walk-forward's Stage 1 collector, and it now covers

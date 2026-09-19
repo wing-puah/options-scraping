@@ -608,7 +608,8 @@ def build(pop: list[tuple[dict, LT.CoreSpec]], cells: tuple[Cell, ...],
     out_cells: dict[str, list[dict]] = defaultdict(list)
     g1b: list[dict] = []
 
-    for rec, core in pop:
+    # Every price in the body is on the stored row's B5 basis (bear_rewrap.basis_of).
+    for rec, core in BR.each_on_basis(pop, lambda item: item[0]["t"].row):
         ok, why = BR.reconstructs(rec)
         g1[why] += 1
         if not ok:

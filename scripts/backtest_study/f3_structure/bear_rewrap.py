@@ -62,7 +62,8 @@ import argparse
 import statistics
 import sys
 from collections import Counter, defaultdict
-from datetime import date
+from contextlib import contextmanager
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -73,6 +74,7 @@ from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
+from scripts.backtest.simulate import _zero_bid_mark  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
@@ -98,6 +100,16 @@ RECON_MIN_MATCH = 0.95     # share of priced days that must agree
 
 SUBSTITUTIONS = ("long_put", "wider", "long_diag")
 
+# When production started marking a zero-bid leg by `_zero_bid_mark` (robustness
+# review B5): the merge of 3e5c2dc onto main, local time, the clock
+# `created_datetime` is stamped in. A stored book row written before this was
+# priced with the plain mid-else-Latest mark, one written at or after it with
+# B5. No column says which (`cost_basis`/`cost_total` are blank on every
+# BacktestProxy row, before and after), so the write time is the row's basis.
+# On the 2026-09-08 export the book has no row written between 10:31:15 and
+# 15:21:14 that day, so the boundary is not a judgement call on any real row.
+B5_SINCE = datetime(2026, 9, 8, 15, 5, 25)
+
 
 # ── cache access ─────────────────────────────────────────────────────────────
 
@@ -121,10 +133,93 @@ def leg_details(leg: Leg) -> dict[date, dict]:
     return _details_cache[key]
 
 
-def leg_series(leg: Leg) -> list[tuple[date, float]]:
-    """Sorted `[(date, mark)]` for one contract — the shape `_price_asof` wants."""
-    return sorted((d, r["_mark"]) for d, r in leg_details(leg).items()
-                  if r.get("_mark") is not None)
+def priced_with_b5(row: dict) -> bool:
+    """Was this stored book row priced under the B5 zero-bid re-mark?
+
+    Keyed on `created_datetime` against `B5_SINCE`. A row with no parseable
+    stamp is taken as B5 (the rule production applies now); no row on the
+    2026-09-08 exports lacks one.
+    """
+    raw = str(row.get("created_datetime") or "").strip()
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S") >= B5_SINCE
+    except ValueError:
+        return True
+
+
+_basis_stack: list[bool] = []
+
+
+@contextmanager
+def basis_of(row: dict):
+    """Price on `row`'s B5 basis inside the block (`priced_with_b5`).
+
+    Every pricer below takes `b5=None` to mean "the innermost basis_of, else
+    B5". Studies that price variants against a stored book row enter this once
+    per row, so the reconstruction and every variant compared with it share the
+    row's basis without threading a flag through each helper.
+    """
+    _basis_stack.append(priced_with_b5(row))
+    try:
+        yield
+    finally:
+        _basis_stack.pop()
+
+
+def each_on_basis(items, row_of):
+    """Yield `items`, each inside `basis_of(row_of(item))`.
+
+    A drop-in for `for rec in recs:` that keeps the loop body unindented.
+    """
+    for item in items:
+        with basis_of(row_of(item)):
+            yield item
+
+
+def _resolve_b5(b5: bool | None) -> bool:
+    if b5 is not None:
+        return b5
+    return _basis_stack[-1] if _basis_stack else True
+
+
+def row_mark(row: dict | None, b5: bool | None = None) -> float | None:
+    """The production mark for one cached history row, or None when it has none.
+
+    `_mark` (mid(Bid,Ask) -> Latest) re-marked by the production zero-bid rule,
+    `scripts/backtest/simulate.py::_zero_bid_mark` (robustness review B5,
+    3e5c2dc): bid 0 / ask 0 -> 0.0, bid 0 / ask > 0 -> ask/2. IMPORTED, not
+    restated, so the mirror cannot drift from the rule it mirrors (research may
+    import production; production never imports research).
+
+    Only rows that HAVE a `_mark` are re-marked. Production loads its details
+    with `require_mark=True`, so a row with no mid and no Latest never reaches
+    `_zero_bid_mark` there: it is absent and the leg carries the prior mark
+    forward. This cache keeps such rows (`require_mark=False`) and must skip
+    them the same way.
+
+    `b5=False` returns the plain `_mark`, the pre-fold mark. `b5=None` takes
+    the innermost `basis_of`, else B5. A caller pricing against a stored book
+    row uses that row's basis, so the reconstruction AND anything compared with
+    it share it; a price with no stored row behind it takes the production rule.
+    """
+    if row is None or row.get("_mark") is None:
+        return None
+    zb = _zero_bid_mark(row) if _resolve_b5(b5) else None
+    return row["_mark"] if zb is None else zb
+
+
+def leg_series(leg: Leg, b5: bool | None = None) -> list[tuple[date, float]]:
+    """Sorted `[(date, mark)]` for one contract — the shape `_price_asof` wants.
+
+    Each mark is `row_mark`, so a carried-forward zero-bid day is carried at its
+    B5 re-mark, exactly as `_simulate._price_leg` re-marks the snap it carries.
+    """
+    out = []
+    for d, r in leg_details(leg).items():
+        m = row_mark(r, b5)
+        if m is not None:
+            out.append((d, m))
+    return sorted(out)
 
 
 def cached_puts(ticker: str, expiration: date) -> list[float]:
@@ -168,7 +263,7 @@ def entry_date_for(legs: list[Leg], grid: list[date]) -> date | None:
     return None
 
 
-def entry_price_of(leg: Leg, day: date) -> float | None:
+def entry_price_of(leg: Leg, day: date, b5: bool | None = None) -> float | None:
     """One leg's fill: that day's Open, else its EOD mark, else the most recent
     prior mark carried forward.
 
@@ -182,6 +277,8 @@ def entry_price_of(leg: Leg, day: date) -> float | None:
     day, priced by production off the prior day's mark) failed `reconstructs`
     as `entry_unpriced` and stopped `hedge_structure` at R2 — a gate on the
     STUDY's fidelity to production, which is exactly what it exists to catch.
+    Since 2026-09-17 every mark here is `row_mark` (the B5 zero-bid re-mark);
+    before that five post-fold rows failed R2 the same way.
     """
     row = leg_details(leg).get(day)
     if row is not None:
@@ -191,24 +288,28 @@ def entry_price_of(leg: Leg, day: date) -> float | None:
             op = 0.0
         if op > 0:
             return op
-        mark = row.get("_mark")
-        if mark and mark > 0:
+        # Zero-volume open: that day's mark, B5-re-marked when the contract is
+        # bid-less (`row_mark`). Production returns the re-mark even when it is
+        # 0.0 (a 0x0 quote), so this tests for None, not for > 0.
+        mark = row_mark(row, b5)
+        if mark is not None:
             return mark
-    return _price_asof({"k": leg_series(leg)}, "k", day, leg.expiration)
+    return _price_asof({"k": leg_series(leg, b5)}, "k", day, leg.expiration)
 
 
-def net_entry(legs: list[Leg], day: date) -> float | None:
+def net_entry(legs: list[Leg], day: date, b5: bool | None = None) -> float | None:
     """Signed net entry price across legs, or None if any leg cannot be filled."""
     total = 0.0
     for leg in legs:
-        p = entry_price_of(leg, day)
+        p = entry_price_of(leg, day, b5)
         if p is None:
             return None
         total += leg.qty * p
     return total
 
 
-def net_marks(legs: list[Leg], grid: list[date]) -> list[float | None]:
+def net_marks(legs: list[Leg], grid: list[date],
+              b5: bool | None = None) -> list[float | None]:
     """The daily signed net value over `grid`, carry-forward priced and clamped.
 
     Same two rules as `_simulate` steps 2-4: `_price_asof` carries the most
@@ -217,7 +318,7 @@ def net_marks(legs: list[Leg], grid: list[date]) -> list[float | None]:
     single leg (`long_put`) and for multi-expiration legs (`long_diag`) is the
     correct production behaviour, not an omission.
     """
-    series = {id(leg): leg_series(leg) for leg in legs}
+    series = {id(leg): leg_series(leg, b5) for leg in legs}
     clamp = _defined_risk_bounds(legs)
     out: list[float | None] = []
     for day in grid:
@@ -249,17 +350,22 @@ def synth_trade(rec: dict, legs: list[Leg], structure: str) -> Trade | None:
     rebuilt by `Trade` from the legs' nearest expiry, which is why `long_diag`
     only ever rolls the LONG leg — moving the near leg would change the path
     window and the comparison would no longer be like-for-like.
+
+    The substitution is marked on the SAME basis as the stored baseline it is
+    compared against (`priced_with_b5`): a B5-marked substitution against a
+    pre-fold baseline would measure the mark convention, not the structure.
     """
     base: Trade = rec["t"]
     grid = base.grid
+    b5 = priced_with_b5(base.row)
     ed = entry_date_for(legs, grid)
     if ed is None:
         return None
-    net = net_entry(legs, ed)
+    net = net_entry(legs, ed, b5)
     if net is None or abs(net) <= 1e-9:
         return None
 
-    marks = net_marks(legs, grid)
+    marks = net_marks(legs, grid, b5)
     if all(m is None for m in marks):
         return None
 
@@ -300,13 +406,14 @@ def reconstructs(rec: dict) -> tuple[bool, str]:
     ed = entry_date_for(legs, base.grid)
     if ed is None:
         return False, "no_common_entry_day"
-    net = net_entry(legs, ed)
+    b5 = priced_with_b5(base.row)       # mirror the basis the row was priced on
+    net = net_entry(legs, ed, b5)
     if net is None:
         return False, "entry_unpriced"
     if abs(net - base.entry_net) > RECON_TOL:
         return False, "entry_mismatch"
 
-    marks = net_marks(legs, base.grid)
+    marks = net_marks(legs, base.grid, b5)
     both = [(a, b) for a, b in zip(marks, base.marks)
             if a is not None and b is not None]
     if not both:

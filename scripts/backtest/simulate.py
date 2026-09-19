@@ -10,6 +10,7 @@ from .helpers import (
     _weekday_grid,
     _defined_risk_bounds, _max_loss_per_unit,
 )
+from .classify import DEBIT_STRUCTURES
 from .legs import format_legs, merge_legs
 
 log = logging.getLogger("backtest")
@@ -80,6 +81,57 @@ def _zero_bid_mark(row) -> float | None:
     if bid is None or bid > 0 or ask is None:
         return None
     return 0.0 if ask <= 0 else ask / 2
+
+
+def _entry_side_mark(row, qty) -> float | None:
+    """The ENTRY mark for a leg whose entry-day quote is ONE-SIDED, or None to
+    leave that leg's entry pricing unchanged (2026-09-19).
+
+    `_zero_bid_mark` above is a LIQUIDATION rule and stays that, for the daily
+    mark-to-market it was written for. At ENTRY it is the wrong rule, because it
+    is sign-independent: on a 0 × ask market it hands a leg being SOLD half the
+    ask as premium RECEIVED. Nothing is bid, so nothing is received. On the HYG
+    2025-04-09 proxy row that turned a six-day-old `bid 0 / ask 2.68` snap on the
+    short 72P into 1.34 of credit, took the bear put spread's entry to −0.37, and
+    `_exit_basis` then keyed it CREDIT and booked +100%
+    (research/next-steps.md §2.11).
+
+    An entry fill happens on the side the leg actually trades, so:
+
+    SCOPE. It governs the QUOTE-DERIVED entry mark only — the branch
+    `_zero_bid_mark` used to own. An entry-day `Open` print still wins ahead of it
+    (see `_entry_price_leg`), so the only entries this rule changes are the ones
+    that had no print to fill on. Rules:
+
+      quote is two-sided (bid > 0)        → None   (mid / the source chain below,
+                                                    UNCHANGED — this rule does not
+                                                    convert the book to touch
+                                                    pricing)
+      no quote at all (no Ask column)     → None   (no quote data is not a zero
+                                                    bid: the existing fallback or
+                                                    skip behaviour decides)
+      bid absent or 0, leg SOLD (qty < 0) → 0.0    (the BID. Nothing is bid, so no
+                                                    credit is received.)
+      bid absent or 0, leg BOUGHT (qty>0) → ask    (the ASK, clamped at 0)
+
+    A REAL zero bid is a quote whose bid side is 0; that is a number, and 0.0 is
+    the right mark for it. NO QUOTE DATA is the absence of one and must never be
+    read as "bid 0, therefore it sells for 0" — hence the `ask is None` guard,
+    which is what separates the two cases.
+
+    This is touch pricing, the same side `simulation.slippage_frac_of_spread` at
+    0.5 would fill at — but it is a PRICE, not a cost: it applies whatever the
+    cost knobs say, and the caller nulls the leg's quoted spread so slippage is
+    not charged a second time on a leg already filled at the touch.
+    """
+    bid, ask = _bid_ask(row)
+    if ask is None:
+        return None          # no quote data — not a zero-bid market
+    if bid is not None and bid > 0:
+        return None          # genuine two-sided quote — pricing unchanged
+    if qty < 0:
+        return 0.0           # sold at the bid, and the bid is 0
+    return ask if ask > 0 else 0.0
 
 
 def _leg_spread(row) -> float | None:
@@ -162,6 +214,39 @@ def _regime_override(sim_cfg: dict, signal_date) -> tuple[str, dict] | None:
         return None
     override = cells.get(cell)
     return (cell, override) if isinstance(override, dict) else None
+
+
+# ─── The debit-priced-to-a-credit gate ────────────────────────────────────────
+
+#: `skip_reason` / refusal code for a debit structure whose entry priced negative.
+DEBIT_CREDIT_REFUSAL = "debit_priced_to_credit"
+
+
+def _refuse_debit_priced_to_credit(structure: str, entry_net: float) -> bool:
+    """True when this position is NOT PRICEABLE: a structure whose name fixes it
+    as a DEBIT priced to a net CREDIT at entry (2026-09-19).
+
+    You pay to open a bull call spread, a bear put spread or a long option. A
+    negative entry net on one of them is never a cheap fill — it is a leg priced
+    off a quote that does not exist, and every number downstream inherits it: the
+    credit sizing profile, `_exit_basis`'s CREDIT label, and a realized P&L
+    computed against a premium that was never received. The gate runs BEFORE
+    `_effective_sim_cfg`, so no such row can reach the credit exit profile or be
+    labelled CREDIT.
+
+    The structure set is `classify.DEBIT_STRUCTURES`, which derives from
+    `lib/structure_names.canonical_debit_spreads()` — the classifier's own
+    vocabulary, not a list written here.
+
+    NOT MIRRORED for credit structures priced to a debit. That shape is real: a
+    bull put spread whose short leg is quoted below its long is a bad quote too,
+    but it is also what an inverted or crossed market looks like on a genuinely
+    illiquid pair, and it does not corrupt the basis — `_exit_basis` returns PROD
+    and the position sizes on premium paid, both of which are conservative. The
+    asymmetry is deliberate: the debit case fabricates income out of nothing,
+    which is the failure that gets built on. See research/next-steps.md §2.11.
+    """
+    return entry_net < 0 and structure in DEBIT_STRUCTURES
 
 
 _BEAR_DEBIT_STRUCTURES = ("bear_put_spread", "long_put")
@@ -575,7 +660,7 @@ def _iron_condor_strikes(
 
 def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_cfg,
               structure="", anchor_idx=0, price_fn=None, iv_fn=None,
-              barchart_details=None):
+              barchart_details=None, refusal=None):
     """Simulate one position expressed as a list of signed Legs.
 
     For each leg, pricing follows the source priority from sim_cfg['exit_sources']:
@@ -600,6 +685,13 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     day (e.g. a term-structure-aware IV curve); falls back to the fixed entry IV
     when absent or when it returns None for a given day. Default None keeps the
     fixed-`iv` behavior unchanged.
+
+    ``refusal`` is an optional dict the caller owns: when the position is refused
+    for a REASON worth recording (rather than merely unpriceable), it is filled
+    with ``{"reason", "detail"}`` before ``{}`` is returned. Every other skip
+    leaves it untouched, so an empty dict means "unpriced" as it always did. Both
+    writers pass the Play's own dict, which is how `core.py` tallies the refusal
+    and `proxy.py` puts it in the row's `skip_reason`.
     """
     legs = merge_legs(legs)
     if not legs:
@@ -635,13 +727,21 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         None when this run has no details map / no row that day."""
         return (barchart_details or {}).get(key, {}).get(day)
 
-    def _price_leg(leg, day, d, sources=None):
+    def _price_leg(leg, day, d, sources=None, entry_qty=None):
         """``(price, source_tag, quoted_spread)``.
 
         The spread is the leg's quoted bid/ask width in option points on the day
         the mark came from, or None when that day has no two-sided quote — it is
         what the slippage term is charged against. Barchart marks are tagged
         `barchart_stale` once carried forward past `max_carry_days`.
+
+        ``entry_qty`` is the leg's SIGNED quantity when this call is pricing an
+        ENTRY, and None on every daily mark. It switches the one-sided-quote rule
+        from the liquidation mark (`_zero_bid_mark`) to the side-aware fill
+        (`_entry_side_mark`): a leg being sold into a 0-bid market is filled at
+        0, not at half the ask. This branch is the one the HYG 2025-04-09 row
+        came through — no bar on the fill day, so the entry fell back to a
+        CARRIED snap and was re-marked by the liquidation rule.
         """
         if sources is None:
             sources = exit_sources
@@ -651,12 +751,20 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 p, snap = _snap_asof(barchart_series, key, day, leg.expiration)
                 if p is not None:
                     row = _detail_row(key, snap)
-                    zb = _zero_bid_mark(row)
-                    if zb is not None:
-                        p = zb
+                    spread = _leg_spread(row)
+                    if entry_qty is None:
+                        zb = _zero_bid_mark(row)
+                        if zb is not None:
+                            p = zb
+                        tag = "barchart"
+                    else:
+                        side = _entry_side_mark(row, entry_qty)
+                        tag = "barchart"
+                        if side is not None:
+                            p, spread, tag = side, None, "barchart_side"
                     stale = (max_carry_days is not None and snap is not None
                              and (day - snap).days > max_carry_days)
-                    return p, ("barchart_stale" if stale else "barchart"), _leg_spread(row)
+                    return p, (tag + "_stale" if stale else tag), spread
             elif src == "reappearance":
                 p = _price_asof(contract_index, key, day, leg.expiration)
                 if p is not None:
@@ -693,17 +801,23 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 op = _to_float(row.get("Open"))
                 if op and op > 0:
                     return op, "barchart_open", spread
-                # Zero-volume day: fall back to that day's mark, re-marked when the
-                # contract is bid-less (B5) exactly as the daily path does. A leg
-                # quoted 0×0 at entry is worth 0 and says so, rather than falling
-                # through to an older day's mark.
-                zb = _zero_bid_mark(row)
-                if zb is not None:
-                    return zb, "barchart", spread
+                # DELIBERATELY BELOW the Open print. The side-aware rule only
+                # governs an entry that falls through to the QUOTE-derived mark —
+                # the branch `_zero_bid_mark` used to own. A leg quoted bid 0 on
+                # the entry day but filled at a real Open print keeps that print:
+                # 22 rows in BacktestResults and 27 in BacktestProxy are of that
+                # shape and 21 / 26 of them predate B5, so repricing them is a
+                # separate operator decision, not this change (2026-09-19).
+                # The spread is dropped with the side mark: the leg is already at
+                # the touch, so slippage must not be charged on it twice.
+                side = _entry_side_mark(row, leg.qty)
+                if side is not None:
+                    return side, "barchart_side", None
                 mk = row.get("_mark")
                 if mk and mk > 0:
                     return mk, "barchart", spread
-        return _price_leg(leg, entry_date, entry_d, sources=entry_sources)
+        return _price_leg(leg, entry_date, entry_d, sources=entry_sources,
+                          entry_qty=leg.qty)
 
     entry_prices, entry_tags = [], []
     entry_spread_units, entry_spread_complete = 0.0, True
@@ -720,6 +834,19 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     entry_net = sum(leg.qty * p for leg, p in zip(legs, entry_prices))
     if abs(entry_net) <= 1e-9:
+        return {}
+
+    # A DEBIT structure that priced to a credit is NOT PRICEABLE. Refused here,
+    # before `_effective_sim_cfg` and `_exit_basis`, so such a row can never take
+    # the credit sizing/exit profile or be labelled CREDIT.
+    if _refuse_debit_priced_to_credit(structure, entry_net):
+        detail = (f"{structure} priced to a net CREDIT of {entry_net:.4f} at entry "
+                  f"({' '.join(f'{lg.qty:+d}@{p:g}' for lg, p in zip(legs, entry_prices))})")
+        log.warning("SKIP %-22s %s %s | %s", DEBIT_CREDIT_REFUSAL,
+                    signal_date, ticker, detail)
+        if refusal is not None:
+            refusal["reason"] = DEBIT_CREDIT_REFUSAL
+            refusal["detail"] = detail
         return {}
 
     # Credit structures get their own sizing (structural max loss, not premium

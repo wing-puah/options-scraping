@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from lib.structure_names import canonical_spread_names
+from lib.structure_names import canonical_debit_spreads, canonical_spread_names
 
 from .config import _UNSUPPORTED_PATTERNS
 from .helpers import _to_float, _opt_price, _row_iv, _parse_expiration
@@ -142,6 +142,23 @@ def _extract_horizon_dte(play_text: str, explicit: object = None) -> int | None:
 
 
 # ─── Play classification ───────────────────────────────────────────────────────
+
+# Structures whose NAME alone fixes their polarity as a DEBIT: you pay to open
+# them, so a negative entry net is not a cheap fill, it is a mispriced leg.
+# The two verticals come from `lib/structure_names.canonical_debit_spreads()` —
+# the one (option type, debit|credit) table — so this is not a second string
+# list; the long single-legs are debits by definition (you buy the option).
+#
+# DELIBERATELY NARROW. `straddle` / `strangle` / `butterfly` / `condor` /
+# `calendar` / `diagonal` / `explicit_legs` are NOT here: their polarity is set
+# by how the play is written (`is_credit` off the text's credit words, or the
+# signed legs), not by the structure name, so a negative entry on one of them is
+# not by itself evidence of a bad quote. The credit structures are absent for the
+# mirror reason — see `simulate._refuse_debit_priced_to_credit`.
+DEBIT_STRUCTURES = frozenset(
+    {name.replace(" ", "_") for name in canonical_debit_spreads()}
+    | {"long_call", "long_put"})
+
 
 def classify_play(play_text: str) -> dict:
     """

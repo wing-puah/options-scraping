@@ -93,7 +93,13 @@ simulation:
   #                              the touch; 0.25 = midway between mid and touch.
   #                              A leg with no two-sided quote that day is charged
   #                              nothing and the row's `cost_basis` says which side
-  #                              was unpriced — never a guessed spread.
+  #                              was unpriced — never a guessed spread. A leg the
+  #                              ENTRY already filled at the touch because its quote
+  #                              was one-sided (`barchart_side`, 2026-09-19) is one
+  #                              of those: its spread is dropped so slippage is not
+  #                              charged twice on a fill that is already adverse.
+  #                              That side-aware entry is a PRICE, not a cost — it
+  #                              applies whatever these two knobs say.
   #
   # The cost-sensitivity study (research/robustness-review.md N1) is what these are
   # for: at what cost per leg does the Tier A/B edge stop excluding zero.
@@ -368,6 +374,14 @@ simulation:
   #                signal date within the staleness window falls back to the
   #                signal day's EOD mark instead of being dropped. entry_source
   #                tags the basis per leg (barchart_open vs barchart).
+  #                A leg that falls through to the quote-derived mark and finds a
+  #                ONE-SIDED quote (no bid) is filled on the side it trades — the
+  #                BID, i.e. 0, when sold, the ASK when bought — and tagged
+  #                `barchart_side` (2026-09-19). Not configurable: it is what a
+  #                fill IS. The Open print still wins ahead of it, and a two-sided
+  #                quote prices exactly as before. See
+  #                `simulate.py::_entry_side_mark`, whose docstring also says why
+  #                the daily-mark rule (`_zero_bid_mark`, B5) stays different.
   #   signal_eod — the signal day's end-of-day mark (legacy; reproduces old runs).
   entry_timing: next_open
 

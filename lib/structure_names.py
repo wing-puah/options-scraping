@@ -56,6 +56,21 @@ def _replace(m: re.Match) -> str:
     return name
 
 
+def canonical_debit_spreads() -> frozenset[str]:
+    """The canonical vertical NAMES whose qualifier is ``debit`` —
+    ``{"bull call spread", "bear put spread"}``.
+
+    Read off the same ``(option type, debit|credit) → name`` table the rewrite
+    uses, so a vertical added there reaches every caller that needs to know a
+    structure's polarity. `scripts/backtest/classify.py::DEBIT_STRUCTURES` is the
+    one consumer: the backtest refuses to write a row for a DEBIT structure that
+    prices to a net credit at entry, and that refusal must key on the same
+    vocabulary the classifier names a structure with, not a second string list.
+    """
+    return frozenset(name for (_opt, qual), name in _CANONICAL.items()
+                     if qual == "debit")
+
+
 def canonical_spread_names(text: str) -> str:
     """Rewrite qualifier-infixed vertical names to their canonical form.
 

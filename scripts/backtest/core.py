@@ -321,7 +321,11 @@ def _run_simulations(plays, barchart_series, barchart_details,
     for play in plays:
         result = play.simulate(barchart_series, barchart_details, sim_cfg, spread_pct)
         if result is None:
-            skipped["unpriced"] += 1
+            # A REFUSAL is tallied under its own reason, not pooled into
+            # `unpriced`: `debit_priced_to_credit` means the data was there and
+            # was wrong, which is a different thing from having no data.
+            key = play.refusal.get("reason", "unpriced")
+            skipped[key] = skipped.get(key, 0) + 1
             continue
         result["created_datetime"] = created_datetime
         result["market_regime"] = _regime_prefix(market_regime.get(play.c["date"], ""))
@@ -428,9 +432,10 @@ def main() -> None:
                                market_regime, sim_cfg, spread_pct, skipped)
 
     log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, "
-             "%d unpriced, %d vetoed)",
+             "%d unpriced, %d vetoed, %d debit_priced_to_credit)",
              len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
-             skipped["unpriced"], skipped["vetoed"])
+             skipped["unpriced"], skipped["vetoed"],
+             skipped.get("debit_priced_to_credit", 0))
 
     # Delete-then-append, in that order: the new rows must never be able to land
     # beside the old ones, which is the exact failure --redo exists to prevent.

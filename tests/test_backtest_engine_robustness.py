@@ -321,8 +321,11 @@ def test_b3_pct_real_days_counts_leg_days_not_days():
     if ANY leg was. Leg-days make it 0.50."""
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"),
                  ("-1", "NVDA", "2026-07-17", 270, "Call"))
-    series = {KEY: [(date(2026, 6, 2), 10.0), (date(2026, 6, 3), 11.0)]}
-    details = {KEY: {date(2026, 6, 2): _row(10.0), date(2026, 6, 3): _row(11.0)}}
+    # The 250 long must out-price the BS-modelled 270 short (~10.7 at S=255), or
+    # the vertical prices to a net credit and is refused as unpriceable
+    # (simulate._refuse_debit_priced_to_credit). This test is about LEG-DAYS.
+    series = {KEY: [(date(2026, 6, 2), 20.0), (date(2026, 6, 3), 21.0)]}
+    details = {KEY: {date(2026, 6, 2): _row(20.0), date(2026, 6, 3): _row(21.0)}}
     cfg = _cfg(path_cap_days=2, entry_sources=["barchart", "bs"],
                exit_sources=["barchart", "bs"], profit_target=None, stop_loss=None)
     res = sim._simulate(_cand(), legs, _entry_row(date(2026, 6, 2)), {}, series, cfg,

@@ -713,7 +713,11 @@ def test_simulate_spread_short_leg_falls_back_to_bs():
                  ("-1", "MRVL", "2026-07-17", 320, "Call"))
     entry_row = _flow_row("MRVL", "Call", "300", "10.0", "800000")
     long_key = ("MRVL", "Call", 300.0, "2026-07-17")
-    barchart_series = {long_key: [(date(2026, 6, 1), 10.0), (date(2026, 6, 4), 16.0)]}
+    # The long leg has to be worth MORE than the BS-modelled 320 short (~16.1 at
+    # S=305): a bull call spread that prices to a net credit is refused outright
+    # (simulate._refuse_debit_priced_to_credit), and this test is about the
+    # SOURCE TAG, not about an inverted vertical.
+    barchart_series = {long_key: [(date(2026, 6, 1), 25.0), (date(2026, 6, 4), 30.0)]}
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "entry_sources": ["barchart", "bs"]}
 

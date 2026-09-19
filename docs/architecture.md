@@ -193,7 +193,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               carried past `simulation.max_price_carry_days` (default 5) is
                               tagged `barchart_stale` and counted in `pct_stale_days` (B3); a
                               zero-bid contract is marked `ask/2`, or 0 when nothing is offered,
-                              instead of falling through to its last trade (B5); and
+                              instead of falling through to its last trade (B5 — a LIQUIDATION
+                              rule, and DAILY MARKS ONLY since 2026-09-19); and
                               `simulation.commission_per_contract` +
                               `slippage_frac_of_spread` charge a round trip against the realized
                               columns only — BOTH DEFAULT 0, so the COST TERM alone changes no
@@ -203,11 +204,28 @@ scripts/                    ← entry points, each maps to a workflow step
                               `proxy._PROXY_KEY_ORDER`, so `cost_basis` is the last column on both
                               tabs; the BacktestResults/BacktestProxy tab HEADERS must gain the
                               three before the next append (`align_tab_headers.py --dry-run`).
-                              An empty `cost_basis` means the realized columns are GROSS
+                              An empty `cost_basis` means the realized columns are GROSS.
+                              ENTRY pricing is SIDE-AWARE on a one-sided quote (2026-09-19,
+                              `_entry_side_mark`): a leg whose entry-day quote has no bid is
+                              filled on the side it trades — BID (0) when sold, ASK when
+                              bought — because B5's sign-independent `ask/2` handed a leg
+                              being SOLD half the ask as premium RECEIVED. Scope is narrow and
+                              deliberate: it governs only the entry that falls through to the
+                              quote-derived mark, so an entry-day `Open` print still wins and a
+                              two-sided quote is untouched. `entry_source` gains
+                              `barchart_side`. Then a GATE: a structure whose canonical name
+                              fixes it as a DEBIT (`classify.DEBIT_STRUCTURES`, off
+                              `lib/structure_names.canonical_debit_spreads()`) that prices to
+                              `entry_net < 0` is NOT PRICEABLE — refused before
+                              `_effective_sim_cfg`, so it can never take the credit profile or
+                              be labelled `exit_basis = CREDIT`. `core.py` tallies it as
+                              `debit_priced_to_credit`; `proxy.py` writes that into the row's
+                              `skip_reason`. Not mirrored for credit-priced-to-debit
   backtest/proxy.py         — proxy-backtests plays the real backtest never covered: diffs the
                               analysis tab against BacktestResults (identity =
                               signal_date+ticker+play-prefix), records WHY skipped
-                              (`unsupported`/`no_strike`/`no_expiry`/`no_history`/`unpriced`),
+                              (`unsupported`/`no_strike`/`no_expiry`/`no_history`/`unpriced`/
+                              `debit_priced_to_credit`),
                               then evaluates via a fallback chain — (1) snap legs to nearest
                               listed contract with history (bounded by proxy.max_strike_steps/
                               max_expiry_deviation_days, real-first), (2) Black-Scholes off a
