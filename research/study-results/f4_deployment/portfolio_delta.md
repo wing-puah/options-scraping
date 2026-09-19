@@ -100,3 +100,27 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   >>> CANDIDATE-FOR-INDEPENDENT-WINDOW — B ceiling 1.00 clears the full adoption-eligibility conjunction. Queued for an independent window and NOTHIN…
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:51:04 · git 8e9b6a7 (main, working tree clean) · exit 0 · 29.3s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00, B ceiling 1.50, B ceiling 2.00, H* target 1.50, H* target 2.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [1.0,2.0), [2.0,inf)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 0 of 417   per-date net/equity range [+0.00, +2.49]
+  >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
+  QUALIFICATION on the label above (printed because the catch-all fired, not
+  because the wording matched): B ceiling 1.00, B ceiling 1.50 DID clear criterion (7)
+  — it sits above ARM N's 95th percentile — and then failed the rest of the
+  conjunction. NOISE is carrying it as the catch-all rather than a fifth label
+  being invented after the number was seen. Read the per-arm checklist above:
+  it is the whole result, and nothing on it is adoption-eligible.
+```
+

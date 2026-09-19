@@ -124,3 +124,27 @@ VERDICT (pre-registered grammar, pre-registrations/f4_deployment/hedge_timing.md
   ARM H4-DECLINE     : NULL
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-20 00:38:46 · git 8e9b6a7 (main, working tree clean) · exit 0 · 9.0s
+command     python -m scripts.backtest_study.f5_hedging.hedge_timing
+excerpt     verdict
+
+```
+VERDICT (pre-registered grammar, pre-registrations/f5_hedging/hedge_timing.md)
+  ARM H1-CHOP        : NULL
+  ARM H3-CHOP        : NULL
+  ARM H4-CHOP        : NULL
+  ARM H2-CHOP        : NULL   (control, not a headline)
+  ARM H1-GAP         : NULL
+  ARM H3-GAP         : CONTRARY
+  ARM H4-GAP         : NULL
+  ARM H2-GAP         : TIMING-CANDIDATE   (control, not a headline)
+  ARM H1-DECLINE     : NULL
+  ARM H3-DECLINE     : NULL
+  ARM H4-DECLINE     : NULL
+```
+

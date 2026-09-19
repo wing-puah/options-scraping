@@ -83,3 +83,19 @@ VERDICT (grammar pre-registered; operationalizations coded before first run)
 G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:35:02 · git 8e9b6a7 (main, working tree clean) · exit 0 · 12.5s
+command     python -m scripts.backtest_study.f2_management.volume_signal
+excerpt     verdict
+
+```
+VERDICT (grammar pre-registered; operationalizations coded before first run)
+  components: H1a readable=True r_sep=+0.0025  exit_ok=False  amihud_collapse=False  mfe/mae mirrored=True
+  VERDICT: PATH-VOL-PROXY — MFE and MAE move together with no R separation.
+G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
+```
+

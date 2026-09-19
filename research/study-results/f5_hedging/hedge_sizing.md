@@ -113,3 +113,21 @@ VERDICT (pre-registered rules, pre-registrations/f4_deployment/bear_deploy.md)
   D5 gated sleeve (POST-HOC): 2 candidate gate(s)
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-20 00:37:57 · git 8e9b6a7 (main, working tree clean) · exit 0 · 33.1s
+command     python -m scripts.backtest_study.f5_hedging.hedge_sizing
+excerpt     verdict
+
+```
+VERDICT (pre-registered rules, pre-registrations/f5_hedging/hedge_sizing.md)
+  D1 joint selection x exit : candidate(s) found — 4
+  D2 hedge is real          : NOT MET
+  D3 always-on sizing       : NOT MET at any size
+  D4 conditional pick       : NOT MET
+  D5 gated sleeve (POST-HOC): 2 candidate gate(s)
+```
+

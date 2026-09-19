@@ -196,3 +196,23 @@ ARM X — EXIT CENSUS (H4: ENDOGENOUS — a fast exit is why some holds contain 
     profit_target            59
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:26:24 · git 8e9b6a7 (main, working tree clean) · exit 0 · 74.0s
+command     python -m scripts.backtest_study.f1_selection.macro_event_study
+excerpt     tail
+
+```
+    first event LATE   in hold:   79 rows /  63 dates  mean R +0.187
+  MID   (18-39d): 383 rows
+    first event EARLY  in hold:  335 rows / 156 dates  mean R -0.012
+    first event MID    in hold:   47 rows /  30 dates  mean R -0.239
+    first event LATE   in hold:    1 rows /   1 dates  mean R +0.750
+  LONG  (> 39d): 395 rows
+    first event EARLY  in hold:  395 rows / 176 dates  mean R +0.012
+G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design. iv units: decimal fractions throughout (G3).
+```
+

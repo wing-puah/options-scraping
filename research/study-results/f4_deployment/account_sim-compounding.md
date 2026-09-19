@@ -137,3 +137,27 @@ VERDICT (PRIMARY dense episodes population — the primary)
   did not name this combination and previously printed "NO VERDICT MATCHES"
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:50:29 · git 8e9b6a7 (main, working tree clean) · exit 0 · 6.0s
+command     python -m scripts.backtest_study.f4_deployment.account_sim --compounding
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes population — the primary)
+  A1  MET
+  A2  MET
+  A3  NOT MET
+  A4  MET
+  A5  NOT MET
+  A6  MET
+  >>> NOT FEASIBLE AT $25,000 — BLOWUP RISK (A1 holds, A3 fails) <<<
+  2026-08-14 AMENDMENT (labelled, not a redefinition — see the comment above
+  print_verdict): the pre-registered grammar (FEASIBLE = A1^A2^A3^A5^A6;
+  FEASIBLE-BUT-DEGRADED = A1^A3 with A2 failing; NOT FEASIBLE AT $25,000 = A1 fails)
+  did not name this combination and previously printed "NO VERDICT MATCHES"
+```
+

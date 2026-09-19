@@ -124,3 +124,27 @@ VERDICT SUMMARY — every cell in the frozen grid, regardless of outcome
                        losers) but the confirmed entry comes AFTER the move it
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:30:16 · git 8e9b6a7 (main, working tree clean) · exit 0 · 19.8s
+command     python -m scripts.backtest_study.f1_selection.trigger_entry
+excerpt     verdict
+
+```
+VERDICT SUMMARY — every cell in the frozen grid, regardless of outcome
+  arm  cell        entered  dates    DeltaR  verdict
+  T    N=1             677    197   -0.0039  LATE-ENTRY
+  T    N=3             767    201   -0.0323  LATE-ENTRY
+  T    N=5             806    204   -0.0427  LATE-ENTRY
+  tally: {'LATE-ENTRY': 3}
+  Verdict grammar (registration §"Verdicts, worded now"), EXHAUSTIVE and
+  evaluated in this order, first match wins:
+    UNDERPOWERED       a floor was not met; census published, nothing read.
+    LATE-ENTRY         DeltaR <= 0 AND the E2-shape census reproduces at shipped
+                       pricing: the signal works (the trigger sorts winners from
+                       losers) but the confirmed entry comes AFTER the move it
+```
+

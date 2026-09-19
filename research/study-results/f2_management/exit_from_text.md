@@ -76,3 +76,27 @@ VERDICT SUMMARY — every cell, every arm, regardless of outcome
   E1  CROSS  bear_put_spread|BEAR_HE               buf0%/ne_strike   UNDERPOWERED
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:31:08 · git 8e9b6a7 (main, working tree clean) · exit 0 · 98.4s
+command     python -m scripts.backtest_study.f2_management.exit_from_text
+excerpt     verdict
+
+```
+VERDICT SUMMARY — every cell, every arm, regardless of outcome
+  arm family cell                                  grid              verdict
+  E1  ALL    ALL                                   buf0%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf0%/eq_strike   NOT A CRITERION (pooled): NULL
+  E1  ALL    ALL                                   buf0%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf1%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf1%/eq_strike   NOT A CRITERION (pooled): NULL
+  E1  ALL    ALL                                   buf1%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf2%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf2%/eq_strike   NOT A CRITERION (pooled): NULL
+  E1  ALL    ALL                                   buf2%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  CROSS  bear_put_spread|BEAR_HE               buf0%/eq_strike   UNDERPOWERED
+```
+

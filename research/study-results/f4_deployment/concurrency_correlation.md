@@ -76,3 +76,27 @@ VERDICT
     K 5 / same-direction-and-sector gain +0.0080 R   criteria met ----
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:50:35 · git 8e9b6a7 (main, working tree clean) · exit 0 · 28.7s
+command     python -m scripts.backtest_study.f4_deployment.concurrency_correlation
+excerpt     verdict
+
+```
+VERDICT
+  arms run (PRIMARY): 13   powered past X1: 12   clearing X2/X3/X6/X7: 0
+    C ceiling 5                  gain +0.0370 R   criteria met ----
+    C ceiling 8                  gain +0.0047 R   criteria met ----
+    C ceiling 12                 gain +0.0150 R   criteria met ----
+    C ceiling 20                 gain +0.0030 R   criteria met ----
+    K 2 / same-direction         gain -0.0072 R   criteria met ----
+    K 3 / same-direction         gain +0.0416 R   criteria met ----
+    K 5 / same-direction         gain +0.0370 R   criteria met ----
+    K 2 / same-direction-and-sector gain +0.0218 R   criteria met ----
+    K 3 / same-direction-and-sector gain +0.0432 R   criteria met ----
+    K 5 / same-direction-and-sector gain +0.0663 R   criteria met 236-
+```
+

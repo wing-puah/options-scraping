@@ -52,3 +52,27 @@ VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO 
   ARM B (blind taxonomy labels):
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:28:28 · git 8e9b6a7 (main, working tree clean) · exit 0 · 107.7s
+command     python -m scripts.backtest_study.f1_selection.text_features
+excerpt     verdict
+
+```
+VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO PRE-REGISTERED VERDICT MATCHES)
+  ARM A (deterministic text features):
+    invalidation_type            UNDERPOWERED   cells=16 powered=0
+    invalidation_inside_strikes  UNDERPOWERED   cells=12 powered=0
+    trigger_conditional          NULL           cells=16 powered=1
+    invalidation_level           NULL           cells=16 powered=3
+    trigger_level                NULL           cells=16 powered=3
+    numeric_specificity          NULL           cells=16 powered=3
+    thesis_len                   NULL           cells=15 powered=2
+    alt_ratio                    NULL           cells=16 powered=2
+    hallucination_rate           UNDERPOWERED   cells=16 powered=0
+  ARM B (blind taxonomy labels):
+```
+

@@ -123,3 +123,19 @@ CELL TALLY — population all   (no verdict is read from it)
   RATIFIED population — never from this tally and never per population.
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:51:43 · git 8e9b6a7 (main, working tree clean) · exit 0 · 2743.5s
+command     python -m scripts.backtest_study.f5_hedging.hedge_portfolio
+excerpt     matched
+
+```
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  VERDICT — the mechanism question, over the hedge cells: UNDERPOWERED
+  VERDICT — ARM M, the measurement, which is not power-gated: MEASUREMENT-ONLY
+```
+

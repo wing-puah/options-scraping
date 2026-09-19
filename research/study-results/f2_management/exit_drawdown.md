@@ -96,3 +96,27 @@ VERDICT SUMMARY
   PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 8e9b6a7 — recorded 2026-09-20
+<!-- key era=v4 sha=8e9b6a7 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 23:30:46 · git 8e9b6a7 (main, working tree clean) · exit 0 · 21.9s
+command     python -m scripts.backtest_study.f2_management.exit_drawdown
+excerpt     verdict
+
+```
+VERDICT SUMMARY
+  population: PRIMARY  (PRIMARY — the cut the verdicts are read from)
+  ARM W/wf         UNDERPOWERED
+  ARM W/prod       UNDERPOWERED
+  ARM U/a          UNDERPOWERED
+  ARM U/b          UNDERPOWERED
+  ARM O/oi         UNDERPOWERED
+  ARM O/vol        UNDERPOWERED
+  ARM P/half       UNDERPOWERED
+  ARM D/throttle   SECONDARY-UNDERPOWERED
+  ARM W arm-level token: UNDERPOWERED
+  PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
+```
+
