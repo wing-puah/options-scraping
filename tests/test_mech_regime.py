@@ -175,11 +175,12 @@ def test_exit_basis_in_both_key_orders():
     (core.py:45-48), so what this guards is that `exit_basis` is never MOVED or
     dropped, and that anything added after it is appended at the very end. The
     2026-09-07 robustness fix appended `pct_stale_days`/`cost_total`/`cost_basis`
-    after it (B1/B3); `cost_basis` must stay last on both tabs so a realized
-    figure is never read without the column saying whether costs were charged."""
+    after it (B1/B3), and 2026-09-19 appended `exit_fill` after those. Each fold
+    goes on the END: a realized figure must never be read without the columns
+    saying whether costs were charged and how the exit was filled."""
     from scripts.backtest.core import _KEY_ORDER
     from scripts.backtest.proxy import _PROXY_KEY_ORDER
-    tail = ["exit_basis", "pct_stale_days", "cost_total", "cost_basis"]
+    tail = ["exit_basis", "pct_stale_days", "cost_total", "cost_basis", "exit_fill"]
     assert "exit_basis" in _KEY_ORDER
     assert "exit_basis" in _PROXY_KEY_ORDER
     assert _KEY_ORDER[-len(tail):] == tail

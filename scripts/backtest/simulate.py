@@ -425,7 +425,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
                     contracts, cap_reached_expiry, max_loss_abs=None,
                     time_exit_day=None, trailing_stop_trigger=None,
                     trailing_stop_pct=None, loss_days_exit=None,
-                    be_after=None) -> dict:
+                    be_after=None, grid_fillable=None) -> dict:
     """Turn a day-by-day signed-value grid into the path string, realized exit, and MFE/MAE.
 
     Day indices (`days_held`, `mfe_day`, `mae_day`) are 1-based positions in the
@@ -464,6 +464,25 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
       6. loss_days_exit — N consecutive trading days in loss
       7. time_exit_day  — calendar days from entry; graceful time-based close
 
+    THE TRIGGER AND THE FILL ARE TWO DIFFERENT DAYS (2026-09-19). The rules above
+    scan the MARKED path and fire on the first day a condition is crossed; that
+    day is unchanged by anything here. But a position cannot be traded out into a
+    market with no bid, and `_zero_bid_mark` values such a day at `ask/2`, so
+    booking the exit there credits a long leg for a price nobody was bidding.
+    When `grid_fillable` says the trigger day has no two-sided quote, the FILL is
+    carried to the next priced day that does, and `days_held` becomes that day —
+    the position really was still open. `exit_fill` records which happened:
+
+      same_day        the trigger day was fillable (the overwhelming majority)
+      deferred_<n>    carried n grid days to the next two-sided quote
+      no_two_sided    the trigger fired and no fillable day ever arrived, so the
+                      fill stays on the trigger day's mark, as it was before this
+                      rule. The row is flagged rather than silently repriced.
+
+    `grid_fillable=None` disables the whole rule and reproduces the pre-2026-09-19
+    behaviour exactly, which is what the frozen research harness and every stored
+    row predate.
+
     The be_stop slot is LOAD-BEARING: it sits between dollar_stop and stop_loss
     to mirror the frozen research harness (scripts/backtest_study/lib/harness.py
     `replay`, pt → trail → underlying → dollar → be_stop → sl → tef). Every
@@ -496,7 +515,7 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
         out.update({"realized_pnl_pct": "", "realized_pnl_abs": "", "days_held": "",
                     "exit_reason": "no_data", "mfe_pct": "", "mfe_abs": "", "mfe_day": "",
                     "mae_pct": "", "mae_abs": "", "mae_day": "", "pnl_at_cap_pct": "",
-                    "pct_real_days": "", "pct_stale_days": ""})
+                    "pct_real_days": "", "pct_stale_days": "", "exit_fill": ""})
         return out
 
     mfe, mae, mfe_day, mae_day = -1e18, 1e18, None, None
@@ -536,11 +555,25 @@ def _summarize_path(grid_marks, entry_net, profit_target, stop_loss,
             elif time_exit_day is not None and d >= time_exit_day:
                 exit_reason, realized_p, days_held = "time_exit", p, grid_idx
 
+    # Defer the FILL off an unfillable trigger day. Done before the cap_open /
+    # expired fallback below, which has no later day to move to by construction.
+    exit_fill = "same_day"
+    if (exit_reason is not None and days_held is not None
+            and grid_fillable is not None and not grid_fillable[days_held - 1]):
+        nxt = next((i for i in range(days_held, len(grid_marks))
+                    if grid_marks[i][2] is not None and grid_fillable[i]), None)
+        if nxt is None:
+            exit_fill = "no_two_sided"
+        else:
+            exit_fill = f"deferred_{nxt + 1 - days_held}"
+            realized_p, days_held = grid_marks[nxt][2], nxt + 1
+
     if exit_reason is None:
         _, _, last_p, _ = priced[-1]
         realized_p, days_held = last_p, last_priced_idx
         exit_reason = "expired" if cap_reached_expiry else "cap_open"
 
+    out["exit_fill"] = exit_fill
     realized_pnl = pnl_of(realized_p)
     cap_p = priced[-1][2]
     # LEG-days, not days (robustness review B3/B7). The old count called a day
@@ -728,7 +761,14 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return (barchart_details or {}).get(key, {}).get(day)
 
     def _price_leg(leg, day, d, sources=None, entry_qty=None):
-        """``(price, source_tag, quoted_spread)``.
+        """``(price, source_tag, quoted_spread, one_sided)``.
+
+        ``one_sided`` is True when the quote this mark came from had NO BID —
+        the market `_zero_bid_mark` / `_entry_side_mark` exist for. Nothing can
+        be filled into such a market, so `_summarize_path` uses it to defer an
+        exit FILL to the next day that has a two-sided quote (2026-09-19). It is
+        a property of the quote, not of the mark: a leg priced by
+        `reappearance` or `bs` has no quote to judge and reports False.
 
         The spread is the leg's quoted bid/ask width in option points on the day
         the mark came from, or None when that day has no two-sided quote — it is
@@ -754,31 +794,33 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                     spread = _leg_spread(row)
                     if entry_qty is None:
                         zb = _zero_bid_mark(row)
+                        one_sided = zb is not None
                         if zb is not None:
                             p = zb
                         tag = "barchart"
                     else:
                         side = _entry_side_mark(row, entry_qty)
+                        one_sided = side is not None
                         tag = "barchart"
                         if side is not None:
                             p, spread, tag = side, None, "barchart_side"
                     stale = (max_carry_days is not None and snap is not None
                              and (day - snap).days > max_carry_days)
-                    return p, (tag + "_stale" if stale else tag), spread
+                    return p, (tag + "_stale" if stale else tag), spread, one_sided
             elif src == "reappearance":
                 p = _price_asof(contract_index, key, day, leg.expiration)
                 if p is not None:
-                    return p, "real", None
+                    return p, "real", None, False
             elif src == "bs":
                 S = price_fn(ticker, day)
                 if S is None:
-                    return None, None, None
+                    return None, None, None, False
                 sigma = iv_fn(day) if iv_fn is not None else iv
                 if sigma is None:
                     sigma = iv
                 return (_bs_price(S, leg.strike, _T(leg, d), r, sigma, leg.opt_type),
-                        "bs", None)
-        return None, None, None
+                        "bs", None, False)
+        return None, None, None, False
 
     # Step 1 — entry price for each leg, every leg on the SAME entry day (the
     # anchor's _entry_date: the next trading day under entry_timing "next_open",
@@ -816,8 +858,10 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 mk = row.get("_mark")
                 if mk and mk > 0:
                     return mk, "barchart", spread
+        # The entry does not use `one_sided` — `_entry_side_mark` has already
+        # priced the leg on the side it trades, above and in `_price_leg`.
         return _price_leg(leg, entry_date, entry_d, sources=entry_sources,
-                          entry_qty=leg.qty)
+                          entry_qty=leg.qty)[:3]
 
     entry_prices, entry_tags = [], []
     entry_spread_units, entry_spread_complete = 0.0, True
@@ -901,22 +945,32 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     #
     # `d` is SIGNAL-relative as it always was: the argument to `_T` (time-to-expiry
     # for the BS fallback) and the clock the time exit measures.
-    grid_marks, grid_spread_units = [], []
+    # `grid_fillable[i]` — could the WHOLE position be traded out on that day?
+    # False when any leg's mark came from a quote with no bid: there is no bid to
+    # sell a long into and no offer worth paying on a dead market, so an exit
+    # cannot be FILLED there even though it can be MARKED there (2026-09-19).
+    # The marks themselves are untouched — `_zero_bid_mark` is still the
+    # liquidation mark the path is valued at, and the exit rules still scan that
+    # path. This only moves WHERE the fill is taken once a rule has fired.
+    grid_marks, grid_spread_units, grid_fillable = [], [], []
     for day in _weekday_grid(signal_date, end_date):
         d = (day - signal_date).days
         if day < entry_date:
             grid_marks.append((day, d, None, "pre_entry"))
             grid_spread_units.append(None)
+            grid_fillable.append(False)
             continue
         value, tags = 0.0, []
         spread_units, spread_complete = 0.0, True
+        day_one_sided = False
         for leg in legs:
-            p, tag, spread = _price_leg(leg, day, d)
+            p, tag, spread, one_sided = _price_leg(leg, day, d)
             if p is None:
                 value = None
                 break
             value += leg.qty * p
             tags.append(tag)
+            day_one_sided = day_one_sided or one_sided
             if spread is None:
                 spread_complete = False
             else:
@@ -926,6 +980,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         grid_marks.append((day, d, value, "+".join(tags) if value is not None else ""))
         grid_spread_units.append(
             spread_units if (value is not None and spread_complete) else None)
+        grid_fillable.append(value is not None and not day_one_sided)
 
     # Step 5 — daily_price_csv + realized exit + MFE/MAE.
     contracts = _size_contracts(entry_net, legs, eff_cfg)
@@ -994,6 +1049,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         trailing_stop_pct=trailing_stop_pct,
         loss_days_exit=loss_days_exit,
         be_after=be_after,
+        grid_fillable=grid_fillable,
     ))
 
     # Transaction costs (robustness review B1). Charged ONCE, against the realized

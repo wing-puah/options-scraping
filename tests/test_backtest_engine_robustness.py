@@ -383,6 +383,10 @@ def test_b5_bidless_leg_with_a_live_offer_is_marked_at_half_the_ask():
 # tab with nothing on the row saying costs were charged.
 
 _NEW_TAIL = ["pct_stale_days", "cost_total", "cost_basis"]
+# Every column appended since `exit_basis`, in append order. The invariant is
+# that the schema GROWS AT THE END and nothing before it ever moves, so each
+# fold adds to this list rather than replacing it.
+_APPENDED_TAIL = ["exit_basis"] + _NEW_TAIL + ["exit_fill"]
 
 
 def test_new_columns_are_end_appended_to_both_key_orders():
@@ -390,10 +394,9 @@ def test_new_columns_are_end_appended_to_both_key_orders():
     from scripts.backtest.proxy import _PROXY_KEY_ORDER
 
     for order in (_KEY_ORDER, _PROXY_KEY_ORDER):
-        assert order[-3:] == _NEW_TAIL, order[-6:]
-        # end-APPENDED: `exit_basis`, the previous tail, is still immediately
-        # before them, so no existing column moved.
-        assert order[-4] == "exit_basis"
+        # end-APPENDED: every fold since `exit_basis` sits at the tail in append
+        # order, so no existing column has ever moved.
+        assert order[-len(_APPENDED_TAIL):] == _APPENDED_TAIL, order[-8:]
         assert len(order) == len(set(order))
 
 
@@ -414,7 +417,7 @@ def test_cost_columns_survive_the_csv_writer(tmp_path):
     with out.open(newline="", encoding="utf-8") as f:
         header = next(_csv.reader(f))
         row = next(_csv.DictReader(f, fieldnames=header))
-    assert header[-3:] == _NEW_TAIL
+    assert header[-len(_APPENDED_TAIL):] == _APPENDED_TAIL
     assert row["cost_total"] == "1.3"
     assert row["cost_basis"] == "commission_only"
     assert row["pct_stale_days"] == str(res["pct_stale_days"])
@@ -452,10 +455,113 @@ def test_tab_header_alignment_plan_adds_exactly_the_three_columns():
                        ("BacktestProxy", _PROXY_KEY_ORDER)):
         target = ath.schema_for(tab)
         assert target == list(order)
-        old_header = [c for c in target if c not in _NEW_TAIL]
+        # A tab still on the header from before BOTH folds: the plan must be a
+        # pure end-append of the cost columns and then `exit_fill`.
+        added = _NEW_TAIL + ["exit_fill"]
+        old_header = [c for c in target if c not in added]
         rows = [[f"{c}-v" for c in old_header]]
         relocations, blockers = ath.plan(old_header, rows, target)
         # Pure end-append: nothing to move, nothing orphaned.
         assert blockers == []
         assert relocations == {}
-        assert [c for c in target if c not in old_header] == _NEW_TAIL
+        assert [c for c in target if c not in old_header] == added
+
+
+# ── the exit FILL defers off a one-sided quote (2026-09-19) ───────────────────
+#
+# `_zero_bid_mark` is the LIQUIDATION mark and stays the value the path is
+# carried at. It is not a price anything can be traded out at: on a `bid 0` day
+# it marks a long leg at ask/2, and booking the exit there credits a price
+# nobody was bidding. Once a rule has fired, the FILL is therefore carried to the
+# next priced day with a two-sided quote, `days_held` becomes that day, and
+# `exit_fill` says what happened. The trigger day and the marked path are
+# untouched.
+
+_D = {n: date(2026, 6, n) for n in (1, 2, 3, 4, 5, 8, 9, 10)}
+
+
+def _exit_case(day_rows, cfg=None):
+    """One long call, entered 06-02, with `day_rows` = {date: (mark, bid, ask)}."""
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    series = {KEY: sorted((d, v[0]) for d, v in day_rows.items())}
+    details = {KEY: {d: _row(v[0], bid=v[1], ask=v[2]) for d, v in day_rows.items()}}
+    return _run(legs, series, details, cfg or _cfg(path_cap_days=9),
+                entry_date=_D[2])
+
+
+def test_a_fillable_trigger_day_is_taken_as_it_always_was():
+    # 06-03 crosses the +50% target on a two-sided quote: fill there, unchanged.
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1), _D[3]: (16.0, 15.9, 16.1),
+                      _D[4]: (17.0, 16.9, 17.1)})
+    assert res["exit_reason"] == "profit_target"
+    assert res["days_held"] == 2
+    assert res["exit_fill"] == "same_day"
+    assert res["realized_pnl_pct"] == pytest.approx(0.6)
+
+
+def test_the_fill_defers_to_the_next_two_sided_day():
+    """The trigger fires on a bid-less day, so the fill waits for a real market.
+
+    06-03 is quoted `bid 0 / ask 32`, which `_zero_bid_mark` values at 16.0 and
+    which crosses the target. Nothing is bid, so nothing can be sold there. The
+    next two-sided day is 06-05 at 12.0, and that is where the position closes.
+    """
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
+                      _D[3]: (16.0, 0, 32.0),      # one-sided -> marks 16.0
+                      _D[4]: (14.0, 0, 28.0),      # still one-sided
+                      _D[5]: (12.0, 11.9, 12.1)})  # the first fillable day
+    assert res["exit_reason"] == "profit_target"   # the TRIGGER is unchanged
+    assert res["exit_fill"] == "deferred_2"
+    assert res["days_held"] == 4                   # 06-05, not 06-03
+    assert res["realized_pnl_pct"] == pytest.approx(0.2)
+    # The marked PATH is untouched — 06-03 still carries its liquidation mark,
+    # so MFE still sees the peak the position really reached on paper.
+    assert res["daily_price_csv"].split(",")[1] == "16.0000"
+    assert res["mfe_pct"] == pytest.approx(0.6)
+
+
+def test_a_trigger_with_no_fillable_day_left_says_so_and_does_not_reprice():
+    """No two-sided quote ever arrives, so the fill stays on the trigger mark —
+    the pre-2026-09-19 behaviour — and the row is FLAGGED rather than quietly
+    priced at something unobtainable."""
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
+                      _D[3]: (16.0, 0, 32.0),
+                      _D[4]: (18.0, 0, 36.0)})
+    assert res["exit_reason"] == "profit_target"
+    assert res["exit_fill"] == "no_two_sided"
+    assert res["days_held"] == 2
+    assert res["realized_pnl_pct"] == pytest.approx(0.6)
+
+
+def test_a_dead_market_is_not_fillable_either():
+    """`bid 0 / ask 0` marks at 0.0 and is no more tradable than `bid 0 / ask N`."""
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
+                      _D[3]: (0.0, 0, 0),          # dead: stop_loss fires here
+                      _D[4]: (2.0, 1.9, 2.1)})
+    assert res["exit_reason"] == "stop_loss"
+    assert res["exit_fill"] == "deferred_1"
+    assert res["days_held"] == 3
+    assert res["realized_pnl_pct"] == pytest.approx(-0.8)
+
+
+def test_cap_open_is_not_deferred():
+    """`cap_open`/`expired` take the LAST priced day by construction — there is no
+    later day to move to, so the rule never applies and the tag stays same_day."""
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1), _D[3]: (11.0, 0, 22.0)},
+                     cfg=_cfg(path_cap_days=2))
+    assert res["exit_reason"] in ("cap_open", "expired")
+    assert res["exit_fill"] == "same_day"
+
+
+def test_the_deferred_fill_day_is_what_costs_are_charged_against():
+    """`_apply_costs` indexes the quoted-spread grid by `days_held`, so moving the
+    fill must move the day slippage is charged on — not leave it on the trigger."""
+    cfg = _cfg(path_cap_days=9, commission_per_contract=0.0,
+               slippage_frac_of_spread=0.5)
+    res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
+                      _D[3]: (16.0, 0, 32.0),
+                      _D[5]: (12.0, 11.0, 13.0)}, cfg=cfg)
+    assert res["exit_fill"] == "deferred_2"
+    # entry spread 0.2 + exit spread 2.0 (06-05's, not 06-03's), × 0.5 × 100.
+    assert res["cost_total"] == pytest.approx(0.5 * (0.2 + 2.0) * 100)
+    assert res["cost_basis"] == "full"

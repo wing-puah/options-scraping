@@ -72,6 +72,16 @@ _KEY_ORDER = [
     # realized figure without this pair is the un-labelled-basis failure
     # `exit_basis` exists for. See docs/backtest-reference.md.
     "pct_stale_days", "cost_total", "cost_basis",
+    # How the realized exit was FILLED (2026-09-19). `same_day` = the trigger day
+    # had a two-sided quote; `deferred_<n>` = it did not, so the fill was carried
+    # n grid days to the next day that did and `days_held` is that later day;
+    # `no_two_sided` = no fillable day ever arrived and the fill stayed on the
+    # trigger mark, as it did before this rule. EMPTY = written before
+    # 2026-09-19, when the exit always filled on the trigger day.
+    # Appended at the VERY END for the positional-append reason above — the
+    # BacktestResults tab header must gain it (`align_tab_headers.py --dry-run`).
+    # See simulate.py::_summarize_path and docs/backtest-reference.md.
+    "exit_fill",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent

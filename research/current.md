@@ -221,6 +221,72 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-19 (fourth) — the exit FILLS on the next two-sided day, not on the trigger day's bid-less mark
+
+**The exit trigger and the exit fill are now two different days.** A rule fires
+on the marked path as it always did; if that day has no bid on every leg, the
+FILL is carried to the next priced day that does, `days_held` becomes that day,
+and a new `exit_fill` column says which happened. Nothing is backfilled.
+
+_Population: v4. Measured on both tabs, and A/B'd on the April 2025 proxy rows._
+
+### The rule
+
+`_zero_bid_mark` values a leg quoted `bid 0 / ask N` at `ask/2`. That is the
+right LIQUIDATION mark for a mark-to-market path and the wrong price for a FILL,
+because nothing is bid — the same confusion between the two jobs that
+[the entry fix](#2026-09-19--backtest-entry-pricing--a-sold-leg-with-no-bid-fills-at-0-and-a-debit-that-prices-to-a-credit-is-refused)
+corrected at the other end of the trade.
+
+| `exit_fill` | Meaning |
+|---|---|
+| `same_day` | the trigger day was fillable |
+| `deferred_n` | carried n grid days to the next two-sided quote |
+| `no_two_sided` | no fillable day ever arrived; the fill stays on the trigger mark and the row is flagged |
+| `""` | written before 2026-09-19 |
+
+The marked path, MFE/MAE and which rule fired are all untouched. A deferral
+moves WHEN the position closed and AT WHAT, never WHY. `cap_open` / `expired`
+take the last priced day by construction and are never deferred.
+
+### Scale, measured both ways
+
+| Measure | Result |
+|---|---|
+| one-sided exit-day leg quotes, both tabs | 79 / 2,707 (2.9%) |
+| rows with at least one | 72 / 1,375 (5.2%) |
+| April 2025 proxy rows moved, rule OFF vs ON, one cache | 3 / 61 (4.9%) |
+
+The A/B is the honest number: same code, same cache, only the rule toggled. All
+three movers are HYG bear put spreads, and they move in BOTH directions —
+−0.379 → −0.571, −0.843 → −0.519, −0.552 → +0.698. This is not a bias. It
+replaces a price nobody was bidding with one that was there.
+
+The −0.552 → +0.698 row is the shape to understand: a trailing stop triggered on
+day 6 into a dead market and could not be filled until day 10, by which time the
+position had recovered. That is what being unable to get out actually does, and
+it cuts the other way just as often.
+
+### A separate divergence, found while measuring
+
+Re-pricing April 2025 under current code moved **8 of 57** stored proxy rows,
+and only 3 of those are the exit-fill rule. The other 5 are the entry rule of
+`09aa02c` plus a cache that is deeper than the one those rows were priced on.
+Two are large:
+
+| Row | Stored | Re-priced now |
+|---|---|---|
+| TLT 2025-04-01 | `profit_target`, day 2, +100% | `expired`, day 38, −754% |
+| QQQ 2025-04-28 | `stop_loss`, day 30, −75% | `direction_only`, unpriced |
+
+**Not diagnosed, and not this change.** It is recorded because it says something
+the queue should know: the stored book no longer reproduces under current code
+on more rows than the mirror work implied, so a full re-price would move more
+than the exit-fill rule alone. TLT at −754% in particular is a credit row whose
+entry moved; it wants a look before anyone re-prices the book on purpose.
+
+---
+
 ## 2026-09-19 (later still) — the 2025-04-09 re-price, and the two mirror drifts it exposed; `hedge_structure` unblocked
 
 **`hedge_structure` runs again: R2 is 1,322 / 1,322 and the study reaches a

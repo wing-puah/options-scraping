@@ -182,6 +182,45 @@ nothing to segregate on would repeat it.
 | **cost_total** | Dollars of commission + slippage charged on the ROUND TRIP for the whole position (all legs, all contracts, both sides). `commission_per_contract × Σ\|qty\| × contracts × 2`, plus `slippage_frac_of_spread × Σ(\|qty\|·spread) × 100 × contracts` once per side, where `spread` is that leg's quoted ask − bid on the day the side's mark came from. Slippage is always adverse. `0.0` when both knobs are 0 (the default), in which case nothing is netted. |
 | **cost_basis** | What the charge was actually able to see. `""` = costs are off (both knobs 0). `commission_only` = no slippage configured. `full` = commission plus slippage against a real quoted spread on both sides. `no_spread_entry` / `no_spread_exit` / `no_spread_entry_exit` = that side had no two-sided quote (a Black-Scholes or reappearance mark, or a cache row with no Bid/Ask), so **no slippage was charged there** — a stated gap, never a guessed spread. |
 
+## How the exit was FILLED — `exit_fill`
+
+Shipped 2026-09-19, appended at the very end of both backtest tabs.
+
+The exit rules scan the MARKED path and fire on the first day a condition is
+crossed. That day is the TRIGGER. It is not always a day the position could
+actually be traded out on: `_zero_bid_mark` values a leg quoted `bid 0 / ask N`
+at `ask/2`, which is the right liquidation mark for a mark-to-market path and
+the wrong price for a FILL, because nothing is bid. Booking the exit there
+credits a long leg at a price nobody was offering to pay.
+
+So the trigger and the fill are two different days. When the trigger day has no
+two-sided quote on every leg, the fill is carried to the next priced day that
+does, `days_held` becomes that later day, and this column says what happened.
+
+| Value | Meaning |
+|--------|-----------|
+| **same_day** | The trigger day was fillable. The overwhelming majority of rows. |
+| **deferred_`n`** | The trigger day was not fillable, so the fill was carried `n` grid days to the next day that was. `days_held`, the realized P&L and the day slippage is charged on are all that later day's. |
+| **no_two_sided** | The trigger fired and no fillable day ever arrived before the path ended. The fill stays on the trigger day's mark — the pre-2026-09-19 behaviour — and the row is FLAGGED rather than silently priced at something unobtainable. |
+| **`""`** | Written before 2026-09-19, when the exit always filled on the trigger day. |
+
+What does NOT change: the marked path, `daily_price_csv`, MFE/MAE, and which
+rule fired. A deferral moves WHEN the position closed and AT WHAT, not WHY.
+
+`cap_open` and `expired` are never deferred — they take the last priced day by
+construction, so there is no later day to move to.
+
+**Scale.** Measured on both tabs before the rule shipped, 79 of 2,707 exit-day
+leg quotes were one-sided (2.9%), touching 72 of 1,375 rows (5.2%). Re-pricing
+April 2025 with the rule on and off, on one cache, moved 3 of 61 proxy rows
+(4.9%) — all HYG bear put spreads, and in BOTH directions (−0.38 → −0.57,
+−0.84 → −0.52, −0.55 → +0.70). It is not a systematic bias in either direction;
+it replaces an unobtainable price with a real one.
+
+**This was not backfilled.** Every row written before 2026-09-19 is blank here
+and was filled on its trigger day. Re-pricing the recorded book is a separate
+decision.
+
 ## Model score & horizon (joined off the analysis row)
 
 Carried straight off the analysis row (not produced by simulation), so each

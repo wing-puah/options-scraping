@@ -117,8 +117,12 @@ _BASIS_COLS = ["exit_basis"]
 # the BacktestProxy tab header must gain them in this order. `cost_basis` empty =
 # costs are off and the realized columns are GROSS. See docs/backtest-reference.md.
 _COST_COLS = ["pct_stale_days", "cost_total", "cost_basis"]
+# How the realized exit was filled — same values and same empty-means-pre-2026-09-19
+# convention as BacktestResults. Proxy rows run the SAME simulation, so the two tabs
+# stay comparable; appended at the VERY END for the positional-append reason above.
+_FILL_COLS = ["exit_fill"]
 _PROXY_KEY_ORDER = (_IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS
-                    + _BASIS_COLS + _COST_COLS)
+                    + _BASIS_COLS + _COST_COLS + _FILL_COLS)
 
 _ENTRY_STALENESS_DAYS = 5  # same near-entry rule the real backtest applies
 
@@ -632,7 +636,7 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         # `pct_stale_days` and `cost_total` while BacktestResults carried them.
         # `cost_basis` still writes empty while both cost knobs are 0 — that is
         # the same convention BacktestResults uses, not another gap.
-        for k in _RESULT_COLS + _BASIS_COLS + _COST_COLS:
+        for k in _RESULT_COLS + _BASIS_COLS + _COST_COLS + _FILL_COLS:
             if k in result and result[k] != "":
                 row[k] = result[k]
         row["created_datetime"] = created_datetime  # methods may blank it
