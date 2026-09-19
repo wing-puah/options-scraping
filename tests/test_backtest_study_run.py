@@ -671,3 +671,39 @@ def test_input_inventory_counts_csv_rows_not_lines(tmp_path, monkeypatch):
     monkeypatch.setattr(study_runner, "_input_csvs", lambda era: ["book.csv"])
     (line,) = study_runner._input_inventory("current")
     assert line.strip().startswith("2 rows"), line
+
+
+# ──────────────────────────── tools, not studies ─────────────────────────────
+#
+# A subcommand-driven tool declares `BULK_RUN = False`; `run --all` skips it,
+# `run <name>` still invokes it. Distinct from retirement (the tool is live).
+
+def test_main_all_skips_a_bulk_run_false_tool_but_runs_the_rest(monkeypatch, capsys):
+    monkeypatch.setattr(study_runner, "discover",
+                        lambda: {"study_a": "a", "tool_b": "b"})
+    monkeypatch.setattr(study_runner, "_bulk_run", lambda n: n != "tool_b")
+    runs = _stub_run_one(monkeypatch, lambda stem: 0)
+    _stub_charts(monkeypatch)
+
+    rc = study_runner.main(["run", "--all", "--no-handoff"])
+
+    assert rc == 0
+    assert runs == [("study_a", [], "study_a")]
+    assert "SKIPPING tool_b (tool, BULK_RUN = False)" in capsys.readouterr().out
+
+
+def test_main_runs_a_bulk_run_false_tool_when_named(monkeypatch):
+    monkeypatch.setattr(study_runner, "discover", lambda: {"tool_b": "b"})
+    monkeypatch.setattr(study_runner, "_bulk_run", lambda n: False)
+    runs = _stub_run_one(monkeypatch, lambda stem: 0)
+    _stub_charts(monkeypatch)
+
+    assert study_runner.main(["run", "tool_b", "--no-handoff"]) == 0
+    assert runs == [("tool_b", [], "tool_b")]
+
+
+def test_prompt_eval_is_the_one_real_bulk_run_false_tool():
+    """Pins the real declaration through the real AST reader, so a rewrite of
+    the constant into something `_bulk_run` cannot see fails here."""
+    names = study_runner.discover()
+    assert [n for n in names if not study_runner._bulk_run(n)] == ["prompt_eval"]

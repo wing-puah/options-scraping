@@ -39,6 +39,13 @@ their own eyes. Nothing is retired today. The two studies that were
 once their verdicts were recorded in `research/study-map.md`; the mechanism is
 kept for a future retirement where the module is still worth reading.
 
+Tools, not studies. A module that only does something with a subcommand
+(`prompt_eval`: `dates` / `variance` / `run` / ...) has nothing to print when
+`run --all` invokes it bare. It declares a module-level `BULK_RUN = False`,
+read by `ast` like `DESIGNED_REFUSAL_EXIT_CODES`, and `run --all` skips it with
+one notice line. `run <name>` still invokes it. This is NOT retirement: the
+tool is live, so the study map must not label it retired.
+
 Designed refusals. Some studies exit non-zero ON PURPOSE — a pre-registered
 calibration or power gate not cleared, or (like `v4_bridge.py`) a guard that
 refuses to compare a book against itself. `README.md` calls this out: "a
@@ -339,6 +346,22 @@ def _refusal_codes(name: str) -> frozenset[int]:
             return era_mod.DESIGNED_REFUSAL_EXIT_CODES
     # No declaration of its own — still inherits the era refusals.
     return era_mod.DESIGNED_REFUSAL_EXIT_CODES
+
+
+def _bulk_run(name: str) -> bool:
+    """False when `name` declares `BULK_RUN = False` — a tool driven by
+    subcommands that `run --all` should not invoke bare. See "Tools, not
+    studies" in this module's docstring. Parsed with `ast`, never imported,
+    for the same reason as `_refusal_codes`."""
+    path = study_paths().get(name)
+    if path is None or not path.exists():
+        return True
+    for node in ast.parse(path.read_text()).body:
+        if (isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "BULK_RUN" for t in node.targets)
+                and isinstance(node.value, ast.Constant) and node.value.value is False):
+            return False
+    return True
 
 
 def _git(*args: str) -> str:
@@ -688,6 +711,11 @@ def main(argv: list[str] | None = None) -> int:
         names = [n for n in names if n not in retired]
         for n in skipped:
             print(f"SKIPPING {n} (retired): {retired[n]}\n")
+        tools = [n for n in names if not _bulk_run(n)]
+        names = [n for n in names if n not in tools]
+        for n in tools:
+            print(f"SKIPPING {n} (tool, BULK_RUN = False): run it by subcommand — "
+                  f"`python3 -m scripts.backtest_study run {n} -- --help`\n")
     else:
         for n in names:
             if n in retired:

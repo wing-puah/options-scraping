@@ -248,11 +248,10 @@ STUDIES: dict[str, Study] = {
                 "backtest config with `sheet_tab: null`, compared with `boot_ci_paired_by_date` + "
                 "`pf_paired_by_date`; MET is a v5-bump PROPOSAL, never a ship. Smoke on 2025-06-12 "
                 "(haiku): four local files + manifest, tab row count identical before and after. "
-                "Read the `-latest.txt` on disk knowing what it is: `prompt_eval` takes a "
-                "subcommand, so the bulk `run --all` invocation is a DESIGNED refusal — "
-                "`prompt_eval: error: the following arguments are required: cmd`, `exit code 2 "
-                "after 1.4s` — and not a failed study. The scored run of record is the PROD "
-                "variance floor (2026-09-03), which is not this artifact.",
+                "It is a tool driven by subcommands, so `run --all` skips it (`BULK_RUN = False`, "
+                "2026-09-17); any `-latest.txt` on disk is an older bare invocation's argparse "
+                "refusal, not a result. The scored run of record is the PROD variance floor "
+                "(2026-09-03).",
     ),
     "macro_event_study": Study(
         family="selection", state="open",

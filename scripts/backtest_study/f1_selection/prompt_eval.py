@@ -92,6 +92,11 @@ from scripts.backtest_study.lib.book import load_book  # noqa: E402
 # {4, 5, 6} are this harness's own, below.
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3, 4, 5, 6}
 
+# A tool driven by subcommands, not a study: `run --all` skips it rather than
+# invoking it bare into argparse's "required: cmd" error. Plain `False` literal —
+# the runner reads it by AST parse.
+BULK_RUN = False
+
 EXIT_ISOLATION = 4       # an argv, config or path that could reach Sheets / escape the run dir
 EXIT_MISSING_INPUT = 5   # a prerequisite the registration names is absent (candidate dir, variance set)
 EXIT_STALE_RUN_DIR = 6   # the run dir already holds an arm's output; the proxy writer would eat it
