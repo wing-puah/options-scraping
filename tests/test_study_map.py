@@ -16,10 +16,13 @@ import dataclasses
 import re
 from pathlib import Path
 
+from collections import Counter
+
 import pytest
 
 from scripts.backtest_study import run as study_runner
 from scripts.study_map import build, catalog, digest, render, summary, tuning
+from scripts import study_results  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -722,3 +725,97 @@ def test_a_negated_title_is_still_not_a_conclusion(title):
     """Widening to plurals must not widen past the disclaimer that keeps an
     in-sample cut off the record (exit_drawdown, 2026-09-05)."""
     assert summary._NOT_A_CONCLUSION_TITLE.search(title), title
+
+
+# ── truncation is VISIBLE, and a cut grid is described by a tally ────────────
+
+def _grid_body(n_rows: int) -> str:
+    rows = "\n".join(
+        f"  E1  ALL  cell{i:03d}   buf0%/breakeven   "
+        + ("UNDERPOWERED" if i % 3 else "NOT A CRITERION (pooled): NULL")
+        for i in range(n_rows))
+    return ("working\n"
+            "==============================================================================\n"
+            "VERDICT SUMMARY — every cell\n"
+            "==============================================================================\n"
+            + rows + "\n")
+
+
+def test_a_long_verdict_block_is_quoted_to_the_raised_cap(tmp_path):
+    write_report(tmp_path, "demo", _grid_body(200))
+    run = summary.summarize("demo", tmp_path)
+    assert run.excerpt_kind == "verdict"
+    # 12 was the old cap and cut 11 of 13 studies mid-block.
+    assert len(run.excerpt) == summary.MAX_EXCERPT_LINES == 40
+
+
+def test_truncation_is_reported_not_silent(tmp_path):
+    """A section that quotes 40 of 202 lines and does not SAY SO reads as
+    complete — which is how three readers came to report a recorder truncation
+    as ambiguity in the study itself."""
+    write_report(tmp_path, "demo", _grid_body(200))
+    run = summary.summarize("demo", tmp_path)
+
+    assert run.excerpt_total == 201          # the banner title + 200 rows
+    assert run.excerpt_omitted == 201 - 40
+    section = study_results.render_section("demo", run)
+    assert "40 of 201 block lines; 161 not quoted" in section
+    assert "tally" in section
+    # The fence itself stays a pure verbatim quote — the note is OUTSIDE it.
+    fenced = section.split("```")[1]
+    assert "not quoted" not in fenced and "tally" not in fenced
+
+
+def test_a_block_that_fits_says_nothing_extra(tmp_path):
+    """No truncation note and no tally when the quote is already complete —
+    the common case must not gain noise."""
+    write_report(tmp_path, "demo", _grid_body(5))
+    run = summary.summarize("demo", tmp_path)
+
+    assert run.excerpt_omitted == 0
+    section = study_results.render_section("demo", run)
+    assert "not quoted" not in section
+    assert "\ntally " not in section
+
+
+def test_the_tally_counts_the_last_token_on_each_line():
+    """The verdict is conventionally the LAST field, so
+    `NOT A CRITERION (pooled): NULL` is a NULL cell with a qualifier."""
+    tally = summary.tally_tokens([
+        "  cell a   UNDERPOWERED",
+        "  cell b   NOT A CRITERION (pooled): NULL",
+        "  cell c   NOT A CRITERION (pooled): CONTRARY",
+    ])
+    assert tally == Counter({"UNDERPOWERED": 1, "NULL": 1, "CONTRARY": 1})
+
+
+def test_the_tally_does_not_double_count_a_nested_token():
+    """`NOT MET` must not also count as `MET`, and `PRECONDITION-NULL` must not
+    also count as `NULL` — the alternation is longest-first for this reason."""
+    assert summary.tally_tokens(["  A3 NO BLOWUP   NOT MET"]) == Counter({"NOT MET": 1})
+    assert summary.tally_tokens(["  Stage 1: PRECONDITION-NULL"]) == \
+        Counter({"PRECONDITION-NULL": 1})
+    assert summary.tally_tokens(["  A1 EDGE SURVIVAL   MET"]) == Counter({"MET": 1})
+
+
+def test_the_tally_ignores_lines_with_no_verdict_token():
+    """Headers and prose are not cells. The renderer prints the covered count
+    beside the total so a DRIFTED vocabulary shows up as a gap, not a wrong
+    tally."""
+    tally = summary.tally_tokens([
+        "VERDICT SUMMARY — every cell",
+        "  arm family cell     grid     verdict",
+        "  cell a   UNDERPOWERED",
+    ])
+    assert tally == Counter({"UNDERPOWERED": 1})
+
+
+def test_extract_and_conclusion_block_cannot_drift(tmp_path):
+    """`extract` quotes the head of the block `summarize` measures. If the two
+    found different blocks, the truncation count and tally would describe text
+    the excerpt was not cut from."""
+    body = _grid_body(60).splitlines()
+    block = summary.conclusion_block(body)
+    excerpt, kind = summary.extract(body, 0)
+    assert kind == "verdict"
+    assert [summary._clip(ln) for ln in block[:summary.MAX_EXCERPT_LINES]] == excerpt

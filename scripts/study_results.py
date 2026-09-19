@@ -435,7 +435,24 @@ def render_section(name: str, run: RunSummary, today: date | None = None) -> str
     ]
     if run.missing_inputs:
         lines.append("missing     " + " · ".join(run.missing_inputs))
-    lines += [f"excerpt     {kind}", ""]
+    # The truncation is stated OUTSIDE the fence, so the fence stays a pure
+    # verbatim quote. Until 2026-09-20 a block was cut to the cap in silence and
+    # the section read as complete; 13 of 35 studies were sitting exactly at it.
+    if run.excerpt_omitted:
+        lines.append(f"excerpt     {kind}  ({len(run.excerpt)} of "
+                     f"{run.excerpt_total} block lines; "
+                     f"{run.excerpt_omitted} not quoted)")
+        # A COUNT of the study's own verdict words, standing in for the lines
+        # that did not fit. Order-independent, so re-ordering a grid is not a
+        # change; `covered` exposes a vocabulary that has drifted as a gap.
+        if run.excerpt_tally:
+            covered = sum(run.excerpt_tally.values())
+            tal = ", ".join(f"{k} {v}" for k, v in run.excerpt_tally.most_common())
+            lines.append(f"tally       {tal}  ({covered} of "
+                         f"{run.excerpt_total} lines carried a token)")
+    else:
+        lines.append(f"excerpt     {kind}")
+    lines.append("")
 
     if run.excerpt:
         fence = _fence(run.excerpt)

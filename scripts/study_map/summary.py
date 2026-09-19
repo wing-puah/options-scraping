@@ -52,6 +52,7 @@ report-parsing layer:
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -63,7 +64,48 @@ from . import catalog
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "backtests" / "study_output"
 
-MAX_EXCERPT_LINES = 12
+# Read ONLY by the conclusion-banner branch of `extract`. Raised 12 -> 40 on
+# 2026-09-20: 13 of 35 studies were sitting exactly AT 12, i.e. silently cut
+# mid-block, and three separate readers reported that truncation as ambiguity in
+# the STUDY. 40 quotes 11 of those 13 whole (their blocks are 13-32 lines) for
+# about 11 KB per suite run. The two that stay truncated enumerate a parameter
+# grid rather than state an answer (`exit_from_text` 358 cells, `staged_exit`
+# 107) and are served by the tally below instead — nobody reads 358 quoted rows.
+MAX_EXCERPT_LINES = 40
+
+# The verdict vocabulary, longest-first so a regex alternation consumes the
+# LONGEST match at any position: `PRECONDITION-NULL` must not also count as
+# `NULL`, and `NOT MET` must not also count as `MET`.
+_VERDICT_TOKENS = tuple(sorted((
+    "NOT EVALUABLE", "NOT A CRITERION", "NOT FEASIBLE", "NOT MET",
+    "PRECONDITION-NULL", "MEASUREMENT-ONLY", "TIMING-CANDIDATE",
+    "ORDERING-IS-NOISE", "PATH-VOL-PROXY", "MECHANISM-FOUND",
+    "SECONDARY-UNDERPOWERED", "UNDERPOWERED", "STAYS GATED", "LATE-ENTRY",
+    "DEPLOYABLE", "RE-WRAP", "CANDIDATE", "CONTRARY", "HARMFUL", "CLEARED",
+    "ADOPT", "NOISE", "NULL", "MET",
+), key=len, reverse=True))
+_TOKEN_RE = re.compile(r"\b(?:" + "|".join(re.escape(x) for x in _VERDICT_TOKENS) + r")\b")
+
+
+def tally_tokens(block: list[str]) -> "Counter[str]":
+    """How many lines of `block` end in each verdict token.
+
+    A COUNT of the study's own words, never a paraphrase of them — which is what
+    lets it sit beside a verbatim excerpt without breaking the quoting rule. The
+    LAST token on a line wins, because the verdict is conventionally the last
+    field: `NOT A CRITERION (pooled): NULL` is a NULL cell with a qualifier.
+    Lines carrying no token (headers, prose) are not counted, and the caller
+    prints the covered-line count so a vocabulary that has drifted shows up as a
+    gap rather than as a wrong tally.
+    """
+    out: Counter[str] = Counter()
+    for line in block:
+        found = list(_TOKEN_RE.finditer(line))
+        if found:
+            out[found[-1].group(0)] += 1
+    return out
+
+
 MAX_LINE_CHARS = 150
 
 _RULE = re.compile(r"^={10,}$")
@@ -141,6 +183,13 @@ class RunSummary:
     elapsed: str = ""
     excerpt: list[str] = field(default_factory=list)
     excerpt_kind: str = ""
+    # How much of the conclusion block the excerpt actually carries. Zero on
+    # every kind but `verdict`. A record that quotes 12 of 358 lines and does
+    # not SAY SO reads as complete, which is how three readers came to report a
+    # recorder truncation as ambiguity in the study (2026-09-20).
+    excerpt_total: int = 0
+    excerpt_omitted: int = 0
+    excerpt_tally: Counter = field(default_factory=Counter)
     digest_title: str = ""
     digest_path: Path | None = None
     charts_path: Path | None = None
@@ -253,6 +302,21 @@ def _nonempty_tail(lines: list[str], n: int) -> list[str]:
     return kept[-n:]
 
 
+def conclusion_block(body: list[str]) -> list[str]:
+    """The LAST conclusion banner's section, WHOLE and unclipped, or [].
+
+    `extract` quotes the head of this and `summarize` measures it, so the two
+    cannot disagree about what the block was — the truncation count and the
+    tally describe exactly the text the excerpt was cut from.
+    """
+    for title, start in reversed(_banner_sections(body)):
+        if _CONCLUSION_TITLE.search(title) and not _NOT_A_CONCLUSION_TITLE.search(title):
+            chunk = [ln for ln in [title] + _section_body(body, start) if ln.strip()]
+            if len(chunk) > 1:
+                return chunk
+    return []
+
+
 def extract(body: list[str], exit_code: int | None,
            refusal_codes: frozenset[int] = frozenset()) -> tuple[list[str], str]:
     """`(excerpt_lines, kind)` — see the module docstring for the five kinds.
@@ -264,13 +328,9 @@ def extract(body: list[str], exit_code: int | None,
     """
     is_refusal = exit_code is not None and exit_code in refusal_codes
 
-    sections = _banner_sections(body)
-    for title, start in reversed(sections):
-        if _CONCLUSION_TITLE.search(title) and not _NOT_A_CONCLUSION_TITLE.search(title):
-            chunk = [title] + _section_body(body, start)
-            chunk = [ln for ln in chunk if ln.strip()][:MAX_EXCERPT_LINES]
-            if len(chunk) > 1:
-                return [_clip(ln) for ln in chunk], "verdict"
+    block = conclusion_block(body)
+    if block:
+        return [_clip(ln) for ln in block[:MAX_EXCERPT_LINES]], "verdict"
 
     if exit_code not in (0, None):
         for i in range(len(body) - 1, -1, -1):
@@ -335,6 +395,13 @@ def summarize(name: str, out_dir: Path = OUT_DIR) -> RunSummary:
             report.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
     out.refused = out.exit_code is not None and out.exit_code in refusal_codes
     out.excerpt, out.excerpt_kind = extract(body, out.exit_code, refusal_codes)
+    if out.excerpt_kind == "verdict":
+        block = conclusion_block(body)
+        out.excerpt_total = len(block)
+        out.excerpt_omitted = max(0, len(block) - MAX_EXCERPT_LINES)
+        # Tallied over the WHOLE block, not the quoted head — the point is to
+        # describe what was cut off.
+        out.excerpt_tally = tally_tokens(block)
     return out
 
 
