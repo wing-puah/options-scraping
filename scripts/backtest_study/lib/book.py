@@ -121,6 +121,7 @@ from lib.mech_regime import MechLabeler  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade, _to_float  # noqa: E402
 from scripts.backtest_study.lib import basis_audit  # noqa: E402
+from scripts.backtest_study.lib import prefill_audit  # noqa: E402
 from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
     calib as _calib_full, classify as _classify, unreachable_reasons,
 )
@@ -293,6 +294,8 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
     cdt = ac_row.get("created_datetime") if ac_row is not None else None
     post13c = (cdt >= POST13C_CUTOFF) if (cdt is not None and pd.notna(cdt)) else None
 
+    prefill_verdict = prefill_audit.audit_trade(t, _to_float(row.get("days_held")))
+
     E = _to_float(row.get("pnl_at_cap_pct"))
     R = _to_float(row.get("realized_pnl_pct"))
     is_credit = not (t.entry_net > 0)
@@ -359,6 +362,13 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
         exit_basis=stored_basis,
         basis_verdict=basis_verdict,
         basis_trusted=basis_verdict in basis_audit.TRUSTED,
+        # Did this row book its exit BEFORE it was filled? Audited, never gated
+        # (lib/prefill_audit.py) — the pre-2026-09-08 rows that priced their
+        # pre-fill grid days by carry-forward can carry a realized P&L that is
+        # not a trade. A study pooling stored outcomes filters on
+        # `fill_trusted`; one that re-replays from marks is unaffected.
+        prefill_verdict=prefill_verdict,
+        fill_trusted=prefill_verdict in prefill_audit.TRUSTED,
         model_dir=model_direction(market_regime),
         model_vol=model_vol(market_regime),
         stock_dir=model_direction(regime),
@@ -525,6 +535,8 @@ def load_book(results_csv: str | Path | None = None,
     # a study that stratifies by exit profile filters on `basis_trusted`
     # itself, and one that does not is unaffected.
     diag["basis_coherence"] = Counter(r["basis_verdict"] for r in records)
+    # Same contract: tallied after the source filter, reporting only.
+    diag["prefill_coherence"] = Counter(r["prefill_verdict"] for r in records)
 
     dates = sorted({r["date"] for r in records})
     diag["date_range"] = (dates[0], dates[-1]) if dates else (None, None)
@@ -568,6 +580,11 @@ def _print_validate(records: list[dict], diag: dict) -> None:
     print(f"debit calibration: {dc['exact']}/{dc['n']} exact, {dc['near']} near-rounding-tie, "
           f"{dc['boundary_tie']} boundary-tie, {dc['hard']} hard")
     print(basis_audit.format_tally(diag["basis_coherence"], len(records)))
+    print(prefill_audit.format_tally(diag["prefill_coherence"], len(records)))
+    for r in sorted((r for r in records if not r["fill_trusted"]),
+                    key=lambda r: (r["date"], r["ticker"])):
+        print(f"    exit before fill: {r['date']} {r['ticker']:5} {r['structure']:18} "
+              f"days_held={r['days_held']} exit={r['exit_reason']} R={r['R']}")
     print(f"proxy debit rows excluded (non-exact calibration)={diag['n_proxy_excluded_non_exact']}")
     print(f"credit rows admitted UNGATED (calibrated=False)={diag['n_credit_ungated']}")
     if diag.get("mech_table_warning"):

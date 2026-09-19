@@ -1052,6 +1052,18 @@ INFRA: dict[str, str] = {
                           "unlabelled, so v3 studies are untouched. Built 2026-09-02 so a "
                           "study can stratify by exit profile without trusting the label "
                           "blind. Contrast lib/replay_basis.py, which does gate.",
+    "lib/prefill_audit.py": "Did this stored row book its exit BEFORE it was filled? "
+                            "Reports, never gates, beside lib/basis_audit.py. Until the "
+                            "robustness fold's B2 landed 2026-09-08 the engine priced "
+                            "pre-fill grid days by carry-forward, so an exit could fire "
+                            "on a day the position did not exist — TLT 2025-04-01 booked "
+                            "+100% two days before its own fill and re-prices to -754%. "
+                            "The fill day is READ off dte_entry (anchor expiration minus "
+                            "it), never re-derived from the option cache, which has grown "
+                            "since those rows were priced. 14 rows of the v4 book are "
+                            "flagged; a study pooling stored outcomes filters on "
+                            "fill_trusted, one that re-replays from marks is unaffected. "
+                            "Built 2026-09-19.",
     "lib/replay_basis.py": "ONE classifier for stored-row-vs-replay disagreement: exact / "
                            "near-rounding-tie / superseded-basis / HARD. Extracted 2026-08-24 "
                            "from exit_switch_mech_study so its harness gate, "

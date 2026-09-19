@@ -3,6 +3,7 @@ loader. All fixtures are tiny synthetic CSVs written to tmp_path; nothing here
 touches the real (gitignored, untracked) backtests/to_evaluate/ exports or the
 network, so these must stay green regardless of what's on the laptop.
 """
+from collections import Counter
 from datetime import date, timedelta
 
 import pytest
@@ -301,3 +302,37 @@ def test_sources_filter_overrides_include_bs(paths):
 
     records, _ = _load(paths, include_bs=True, sources={"bs"})
     assert [r["source"] for r in records] == ["bs"]
+
+
+# ── exit-after-fill audit rides along on every record ───────────────────────
+
+def test_records_carry_the_prefill_verdict_and_the_tally(paths):
+    """`load_book` stamps the audit on every row and tallies it, the same
+    contract as `basis_verdict` — reporting only, nothing dropped."""
+    _write_csv(paths["results"], [_stamp_calibrating(_row(ticker="AAA"), book.DEBIT_PROD)])
+    records, diag = _load(paths)
+
+    assert len(records) == 1
+    r = records[0]
+    assert r["prefill_verdict"] == "ok"      # fixture fills on grid day 1
+    assert r["fill_trusted"] is True
+    assert diag["prefill_coherence"] == Counter({"ok": 1})
+
+
+def test_a_row_that_exited_before_its_fill_is_flagged_but_kept(paths):
+    """The TLT 2025-04-01 shape. The row must still be RETURNED — gating the
+    book on this would silently shrink every study's population."""
+    row = _stamp_calibrating(_row(ticker="BBB"), book.DEBIT_PROD)
+    # Move the recorded fill three grid days in without touching the path, so
+    # the stored exit now predates it.
+    t = Trade(dict(row))
+    row["dte_entry"] = str((t.legs[0].expiration - t.grid[2]).days)
+    row["days_held"] = "1"
+    _write_csv(paths["results"], [row])
+
+    records, diag = _load(paths)
+
+    assert len(records) == 1                 # kept, not dropped
+    assert records[0]["prefill_verdict"] == "pre_entry_exit"
+    assert records[0]["fill_trusted"] is False
+    assert diag["prefill_coherence"] == Counter({"pre_entry_exit": 1})
