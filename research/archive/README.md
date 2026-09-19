@@ -43,6 +43,7 @@ code they name is now under `scripts/backtest_study/`.
 | [`18-hedge-programme-exit-basis-and-text-loop.md`](18-hedge-programme-exit-basis-and-text-loop.md) | 2026-08-28 to 09-02 | The hedge programme, `exit_basis` re-measured, the text loop closed |
 | [`19-2026-column-exit-drawdown-and-duplicate-repairs.md`](19-2026-column-exit-drawdown-and-duplicate-repairs.md) | 2026-09-04 to 09-07 | `hedge_concentration` GRADED, `exit_drawdown` UNDERPOWERED, the 2026 column, duplicate-row repairs |
 | [`20-hedge-programme-reorg-queues-cde-and-cache-loss.md`](20-hedge-programme-reorg-queues-cde-and-cache-loss.md) | 2026-09-08 | Hedge studies renamed, robustness fold landed, queues C/D/E, the scraper-range cache loss and restore |
+| [`21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md`](21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md) | 2026-09-09 to 09-17 | `ladder_overlay` CLOSED null on both eras, the journal walk-forward's first mapped rows, `live_loop/` folded into the journal, B5 mirrored into `bear_rewrap` |
 
 ## Section index
 
