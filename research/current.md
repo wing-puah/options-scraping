@@ -221,6 +221,69 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-19 (fifth) — TLT 2025-04-01 is not a new defect: it is a phantom pre-entry exit, and 16 others like it
+
+**The −754% is the CORRECT number.** The stored +100% was a `profit_target`
+booked two grid days BEFORE the position was filled, on a Black-Scholes mark.
+That is the phantom pre-entry P&L the robustness fold's B2 removed on
+2026-09-08, and TLT is one of 17 legacy rows still carrying it.
+
+_Population: v4, the 2026-09-19 exports. 1,375 rows across both tabs carry a
+path and a `days_held`._
+
+### What actually happened
+
+The entry did not move. It is byte-identical in both rows — `px=0.6` on the
+short 89P, `px=0.25` on the long 86P, both `barchart_open`, `entry_option_price`
+−0.35. The hypothesis filed earlier that day, that a −754% credit row meant its
+entry had moved, was wrong.
+
+| Grid day | Stored row | Current code |
+|---|---|---|
+| 1 | −1.6790, `bs+bs` | blank, `pre_entry` |
+| 2 | **0.0000**, `barchart+bs` → `profit_target`, +100% | blank, `pre_entry` |
+| 3 | −0.4650, `barchart+barchart` | −0.4650, the FILL |
+| … | | runs to expiry |
+| 38 | −2.9900 | −2.9900 → `expired`, −754% |
+
+`dte_entry` puts the fill on grid day 3. The stored row exited on day 2, at a
+net of exactly zero produced with one leg modelled. A bull put spread sold for
+0.35 credit against a 3.00 width finishing at −2.99 is max loss, and
+`pnl_on_risk_pct` −0.9962 says so.
+
+### The census
+
+Recovering each row's fill day from `dte_entry` and comparing it with
+`days_held` finds every row of this shape exactly:
+
+| | Count |
+|---|---|
+| rows with a path and a `days_held` | 1,375 |
+| exit booked BEFORE the fill | **17** (15 proxy, 2 results) |
+| of those, priced by `bs` on ≥1 leg that day | 13 |
+| **created AFTER the 2026-09-08 fold** | **0** |
+
+The newest is stamped 2026-09-07 00:18:58. **The fix holds** — no row written
+since can carry this. The 17 are legacy rows to re-price or exclude, not a live
+defect, and their P&L is where the damage sits: +4.97, +4.48, +3.60, +2.03,
++1.93 and −4.24, −2.35 among them, all on days the position did not exist.
+
+### QQQ 2025-04-28 is a different and benign cause
+
+Not pricing at all: the proxy's expiry SNAP moved, 2025-08-29 → 2025-10-24, as
+the cache gained contracts. The new pick has no usable history for that strike
+pair, so the row falls to `underlying_trend` and prints no P&L. Nothing is
+mispriced; a different contract was chosen.
+
+### What this changes for the queue
+
+A deliberate re-price of the book is now better understood, not blocked. The
+three causes that move a stored row are separated: the exit-fill rule (3 of 61
+on April 2025), `09aa02c`'s entry rule, and these 17 phantom exits. Only the
+last is a defect in the stored numbers, and it is bounded and enumerable.
+
+---
+
 ## 2026-09-19 (fourth) — the exit FILLS on the next two-sided day, not on the trigger day's bid-less mark
 
 **The exit trigger and the exit fill are now two different days.** A rule fires

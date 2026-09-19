@@ -111,3 +111,16 @@ excerpt     matched
   token; reports published before 2026-08-22 say POWER-STOPPED and mean the
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 6d8dfc6 — recorded 2026-09-19
+<!-- key era=v4 sha=6d8dfc6 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 16:59:24 · git 6d8dfc6 (main, working tree dirty) · exit 0 · 523.1s
+command     python -m scripts.backtest_study.f3_structure.financed_spread
+excerpt     matched
+
+```
+  token; reports published before 2026-08-22 say POWER-STOPPED and mean the
+```
+

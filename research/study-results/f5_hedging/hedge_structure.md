@@ -125,3 +125,23 @@ VERDICT
   a candidate. Nothing here changes config/backtest.yml.
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 6d8dfc6 — recorded 2026-09-19
+<!-- key era=v4 sha=6d8dfc6 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-19 17:26:15 · git 6d8dfc6 (main, working tree dirty) · exit 0 · 15.4s
+command     python -m scripts.backtest_study.f5_hedging.hedge_structure --redo
+excerpt     verdict
+
+```
+VERDICT
+  H0 FILL           NOT MET
+  H2 (primary)      NOT EVALUABLE
+  H2 under hold     NOT EVALUABLE   (sensitivity — may not change the verdict)
+  Ship ceiling per the pre-registration: an optional second hedge sleeve
+  in docs/deployment-rules.md §4, requiring H0 MET and H0b not flipping
+  the verdict and H2 MET and H3 deployable at f >= 0.25. Anything less is
+  a candidate. Nothing here changes config/backtest.yml.
+```
+
