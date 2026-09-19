@@ -669,3 +669,56 @@ def test_a_negated_verdict_banner_is_not_the_excerpt(tmp_path):
     assert run.excerpt_kind == "verdict"
     assert run.excerpt[0].strip() == "VERDICT SUMMARY"
     assert not any("in-sample best" in ln for ln in run.excerpt)
+
+
+# ── the banner title must match the PLURAL too ───────────────────────────────
+
+PLURAL_VERDICT_BODY = """\
+  a cell is POWER-STOPPED when it has too few dates; reports published
+  before 2026-08-22 say POWER-STOPPED and mean the same thing
+  >= 8 shared dates required; fewer means E3 is NOT EVALUABLE and the cell
+==============================================================================
+VERDICTS
+==============================================================================
+  F0 own           NULL
+  F3 off1          NULL
+  F4-d20 $100      RE-WRAP
+"""
+
+
+def test_a_plural_verdicts_banner_is_a_conclusion(tmp_path):
+    """`\\bVERDICT\\b` does not match `VERDICTS` — \\b wants a non-word character
+    after the T. `financed_spread` and `ladder_overlay` title their banner
+    `VERDICTS`, fell through to the `matched` fallback, and recorded a line of
+    the report's own PROSE as their answer for four runs. The per-era record
+    exists to detect a verdict change; an excerpt of docstring prose cannot.
+    """
+    write_report(tmp_path, "demo", PLURAL_VERDICT_BODY)
+    run = summary.summarize("demo", tmp_path)
+
+    assert run.excerpt_kind == "verdict"
+    assert run.excerpt[0].startswith("VERDICTS")
+    # The cell tokens are what a later run is diffed against.
+    assert any("F4-d20 $100      RE-WRAP" in ln for ln in run.excerpt)
+    # …and the prose that used to win is NOT the excerpt.
+    assert not any("POWER-STOPPED and mean" in ln for ln in run.excerpt)
+    assert not any("NOT EVALUABLE and the cell" in ln for ln in run.excerpt)
+
+
+@pytest.mark.parametrize("title", [
+    "VERDICTS", "VERDICT", "CONCLUSIONS", "CONCLUSION",
+    "DECISIONS", "DECISION", "BOTTOM LINES", "FINAL READS", "WHAT SHIPS",
+])
+def test_every_conclusion_title_singular_and_plural(title):
+    assert summary._CONCLUSION_TITLE.search(title), title
+
+
+@pytest.mark.parametrize("title", [
+    "DISCLOSURE, in-sample — NO VERDICT IS READ FROM ANYTHING BELOW",
+    "NO VERDICTS ARE READ FROM THIS SECTION",
+    "NOT A VERDICT",
+])
+def test_a_negated_title_is_still_not_a_conclusion(title):
+    """Widening to plurals must not widen past the disclaimer that keeps an
+    in-sample cut off the record (exit_drawdown, 2026-09-05)."""
+    assert summary._NOT_A_CONCLUSION_TITLE.search(title), title

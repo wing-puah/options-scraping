@@ -74,16 +74,29 @@ _MISSING_INPUT = re.compile(r"^\s*MISSING\s+(.*)$")
 
 # A banner title is a line sandwiched between two rules. These are the titles
 # under which a study is stating its answer rather than showing its work.
+# The PLURAL forms are load-bearing. `\bVERDICT\b` does not match `VERDICTS`,
+# because \b requires a non-word character after the T — so `financed_spread`
+# and `ladder_overlay`, whose banner is titled `VERDICTS`, fell past this rule
+# into the `matched` fallback and recorded a line of the report's own
+# explanatory PROSE ("...say POWER-STOPPED and mean the", "...means E3 is NOT
+# EVALUABLE and the cell") as their answer. Both studies' per-era records were
+# useless as change detectors for four runs because of the missing S
+# (found 2026-09-20 comparing a suite re-run against the previous one).
 _CONCLUSION_TITLE = re.compile(
-    r"\b(VERDICT|CONCLUSION|DECISION|BOTTOM LINE|WHAT SHIPS|FINAL READ)\b", re.I)
+    r"\b(VERDICTS?|CONCLUSIONS?|DECISIONS?|BOTTOM LINES?|WHAT SHIPS|FINAL READS?)\b",
+    re.I)
 
 # ...unless the title itself disclaims it. `DISCLOSURE, in-sample — NO VERDICT IS
 # READ FROM ANYTHING BELOW` contains the word VERDICT and is the LAST banner of
 # a report that prints a disclosed secondary cut after its verdict summary;
 # quoting it as the study's answer put in-sample numbers on the record
 # (exit_drawdown, 2026-09-05). A negated title is never a conclusion.
+# Widened to plurals IN STEP with _CONCLUSION_TITLE above. If the positive rule
+# learns a plural and the disclaimer does not, a banner titled `NO VERDICTS ARE
+# READ FROM ANYTHING BELOW` becomes a conclusion — the exact in-sample leak the
+# disclaimer exists to stop. The two must move together.
 _NOT_A_CONCLUSION_TITLE = re.compile(
-    r"\bNO\s+(VERDICT|CONCLUSION|DECISION)\b|\bNOT\s+A\s+VERDICT\b", re.I)
+    r"\bNO\s+(VERDICTS?|CONCLUSIONS?|DECISIONS?)\b|\bNOT\s+A\s+VERDICT\b", re.I)
 
 # Lines that carry a pre-registered criterion's outcome. Deliberately narrow:
 # a false positive here puts an arbitrary table row on the page under a heading
