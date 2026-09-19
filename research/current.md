@@ -221,6 +221,56 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-19 (sixth) — the 14 pre-fill exits are now detected, not just counted
+
+**`scripts/backtest_study/lib/prefill_audit.py` finds every stored row whose
+exit was booked before its fill, on every `load_book` call.** It reports and
+never gates, the same contract as
+[`basis_audit.py`](../scripts/backtest_study/lib/basis_audit.py).
+
+_Population: v4, the 2026-09-19 exports. 14 of the 1,325-row pooled book._
+
+### Why a detector rather than a fix
+
+The defect is already fixed — B2 stamps pre-fill grid days `pre_entry`, and no
+row written since 2026-09-08 can carry it. What was missing is that the rows
+written BEFORE the fix are still in the book and nothing found them. A census
+run by hand once is not a check; it does not run again next week.
+
+| | Count |
+|---|---|
+| pooled book | 1,325 |
+| `ok` | 1,311 |
+| `pre_entry_exit` | **14** |
+| unanswerable | 0 |
+
+The 17 found in the raw tabs become 14 here: three never reach the book, dropped
+by the proxy calibration gate or for having no path.
+
+### The fill day is READ, never re-derived
+
+`entry_day = legs[0].expiration - dte_entry`, off the row's own stamp. Deriving
+it from the option cache would be wrong, because that cache has grown since
+these rows were priced — the `HISTORY_START_DATE` fix, the far-call fetch and
+178 restored files. That is the same mistake that cost a separate hunt earlier
+the same day, in `bear_rewrap`'s mirror, and the module says so where someone
+would otherwise repeat it.
+
+One case is deliberately NOT flagged: a fill at or before the grid's first day
+is position 1. That is the legacy `entry_timing: signal_eod` shape, where the
+fill IS the signal day and the grid starts after it, so no exit on the grid can
+precede it. Treating it as unanswerable would have blanked the audit on a whole
+timing convention rather than cleared it.
+
+### What a study should do
+
+`python3 -m scripts.backtest_study.lib.book --validate` prints the tally and
+names every offending row. A study that pools stored outcomes filters on
+`fill_trusted`; one that re-replays from marks never reads the stored outcome
+and is unaffected either way.
+
+---
+
 ## 2026-09-19 (fifth) — TLT 2025-04-01 is not a new defect: it is a phantom pre-entry exit, and 16 others like it
 
 **The −754% is the CORRECT number.** The stored +100% was a `profit_target`
