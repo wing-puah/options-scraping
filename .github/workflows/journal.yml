@@ -8,9 +8,16 @@ name: Daily Trade Journal
 #
 # Scheduled well after 16:00 ET close in EITHER daylight regime: EST close is
 # 21:00 UTC, EDT close is 20:00 UTC, so 22:15 UTC is close+1h15m (EST) to
-# close+2h15m (EDT) — enough buffer for the day's Flex statement to settle
-# (IBKR's Flex Web Service can answer "generation in progress" for a few
-# minutes after close; `lib/ibkr/flex.py::FlexClient` already retries that).
+# close+2h15m (EDT) — enough buffer for the Flex Web Service to stop answering
+# "generation in progress" (`lib/ibkr/flex.py::FlexClient` already retries that).
+#
+# IT IS NOT ENOUGH FOR THE DAY'S OWN FILLS, AND CANNOT BE. IBKR's processing
+# cycle publishes a session the morning ET AFTER it closes: a trades query
+# answered at 03:19 UTC on 2026-09-19 — 23:19 ET Friday, close+7h — still ended
+# at 2026-09-17. So this run journals the PREVIOUS session, which is why
+# `scripts/check_pipeline.py::JOURNAL_STAGE` carries lag_sessions=1. Moving this
+# cron a couple of hours later does not fix that; only running it the NEXT
+# morning ET would, and that is a different design (it would journal D on D+1).
 #
 # Data sources: IBKR Flex (trades + open positions, IBKR_FLEX_TOKEN et al.) and
 # Barchart (EOD greeks for the open book when Flex doesn't carry them,

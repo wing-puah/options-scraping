@@ -20,7 +20,8 @@ Same split as tests/test_check_pipeline.py and tests/test_scraper.py.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from check_pipeline import MISSING, NOT_DUE, OK, PARTIAL, UNKNOWN, StageSpec, _judge, _max_date_column
+from check_pipeline import (JOURNAL_STAGE, MISSING, NOT_DUE, OK, PARTIAL, UNKNOWN,
+                            StageSpec, _judge, _max_date_column, evaluate)
 from scrape_flow import _REJECTED, _SKIPPED, _dead_prefixes, run_live
 
 
@@ -216,3 +217,41 @@ class TestJournalStage:
                              "error": "APIError: 503"}}
         f = _judge(JOURNAL, SESSION, state)
         assert f.verdict == UNKNOWN
+
+
+class TestJournalStageBrokerLag:
+    """THE BROKER-LAG TRAP: IBKR publishes a session's fills the morning ET
+    AFTER it closes, so the 22:15 UTC journal run can only ever mark the
+    PREVIOUS session. Judging the newest one was a nightly false alarm."""
+
+    SESSIONS = ["2026-09-16", "2026-09-17", "2026-09-18"]
+
+    def test_the_shipped_stage_carries_a_one_session_lag(self):
+        assert JOURNAL_STAGE.lag_sessions == 1
+
+    def test_newest_session_is_not_due_not_missing(self):
+        # The real 2026-09-19 watchdog state: the journal ran on the 18th and
+        # marked the 17th, because the 18th did not exist at IBKR yet.
+        state = {"journal": {"configured": True, "last_marked": "2026-09-17",
+                             "source": "OpenBook"}}
+        by_session = {f.session: f for f in
+                      evaluate(state, [JOURNAL_STAGE], self.SESSIONS)}
+        assert by_session["2026-09-18"].verdict == NOT_DUE
+        assert by_session["2026-09-17"].verdict == OK
+        assert by_session["2026-09-16"].verdict == OK
+
+    def test_the_lag_does_not_swallow_a_real_stoppage(self):
+        # A journal that stopped a week ago is still caught — the lag buys one
+        # session of grace, not amnesty.
+        state = {"journal": {"configured": True, "last_marked": "2026-09-08",
+                             "source": "OpenBook"}}
+        verdicts = {f.session: f.verdict for f in
+                    evaluate(state, [JOURNAL_STAGE], self.SESSIONS)}
+        assert verdicts["2026-09-16"] == MISSING
+        assert verdicts["2026-09-17"] == MISSING
+
+    def test_lag_stays_inside_the_lookback_window(self):
+        # config/pipeline-health.yml::lookback_sessions is 3; a lag equal to it
+        # would leave the stage judged on nothing at all.
+        from check_pipeline import load_config
+        assert JOURNAL_STAGE.lag_sessions < load_config().lookback_sessions

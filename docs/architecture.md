@@ -352,11 +352,14 @@ the chain ever complete BEFORE 23:00 UTC on the session's own date, that session
 not-due rather than missing — a less informative run, never a false alarm.
 
 `lag_sessions` is the false-alarm defence — the newest N sessions of a stage report `not-due`,
-never `MISSING`. **No shipped stage uses one.** `enrich_oi` carried `lag_sessions: 1` on a
-stale "needs D+1" claim until 2026-09-15; OI change is D vs D-1 and lands the same evening, and
-the primary watchdog run chains off Enrich OI's completion, so the lag only left the newest
-session permanently unchecked. Lag is counted in SESSIONS, not calendar days, so
-a Monday check walks back to Friday rather than into the weekend.
+never `MISSING`. **Exactly one shipped stage uses one: `JOURNAL_STAGE`, at 1.** Its evidence is
+IBKR's, not this repo's, and IBKR publishes a session's fills the morning ET after the close,
+not the evening of it — see the journal stage below. No stage defined in this YAML carries a
+lag: `enrich_oi` carried `lag_sessions: 1` on a stale "needs D+1" claim until 2026-09-15, but OI
+change is D vs D-1 and lands the same evening, and the primary watchdog run chains off Enrich
+OI's completion, so that lag only left the newest session permanently unchecked. Lag is counted
+in SESSIONS, not calendar days, so a Monday check walks back to Friday rather than into the
+weekend.
 
 ### Exit codes
 
@@ -768,8 +771,9 @@ conclusion.
 
 **Schedule.** `.github/workflows/journal.yml` runs `python3 -m scripts.journal` (the bare `run`
 command — never `recommend`, so no model call happens here) at 22:15 UTC every weekday:
-close+1h15m in EST, close+2h15m in EDT, safely after both the 16:00 ET close and the Flex
-statement's post-close settle window. Before this workflow (added 2026-09-07,
+close+1h15m in EST, close+2h15m in EDT. That clears the 16:00 ET close and the Flex web
+service's "generation in progress" window, but NOT IBKR's own processing cycle — the run
+journals the PREVIOUS session, not the one that just closed (THE BROKER-LAG TRAP, below). Before this workflow (added 2026-09-07,
 research/robustness-review.md P8) the journal only ran when someone ran it by hand — reports
 existed for 2026-08-25, 08-26, 08-28, 08-31 and 09-03 and no other date. It needs the full
 Playwright requirements set (`lib/greeks.py` backfills EOD greeks Flex doesn't carry) plus the
@@ -785,7 +789,20 @@ the stage table in code (not in `config/pipeline-health.yml`) reports MISSING wh
 OpenBook tab's `as_of_date` nor TradeJournal's newest `date` covers the session being checked.
 It needs `TRADE_JOURNAL_SPREADSHEET_ID` in whichever workflow runs `check_pipeline.py`; until
 `pipeline-health.yml`'s own env carries that secret, the stage reports `not-due` there rather
-than a false MISSING. It is also a KNOWN, ACCEPTED blind spot on a genuinely flat book: OpenBook
+than a false MISSING.
+
+**It carries `lag_sessions: 1`, and is the only shipped stage that does** — THE BROKER-LAG TRAP.
+The journal dates itself from the newest session IBKR has actually PUBLISHED fills for
+(`flexparse.parse`: `trade_date` = the last session present in the statement), and IBKR's
+processing cycle lands the morning ET after the close. Measured 2026-09-19: a Flex trades query
+answered at 03:19 UTC — 23:19 ET Friday, close+7h — ended at 2026-09-17, with Friday 09-18 not
+in it at all. The 22:15 UTC journal run therefore marks D-1 at best, while the watchdog runs at
+01:45 UTC on D+1; at lag 0 it demanded a mark for D that cannot exist yet and reported MISSING
+every night. The same lag is why the operator sees a session dated two LOCAL days back when
+running `make journal` by hand in the SGT morning (SGT morning = previous evening ET, before the
+cycle): running in the SGT evening is what gets the previous session.
+
+The stage is also a KNOWN, ACCEPTED blind spot on a genuinely flat book: OpenBook
 is a MIRROR that a flat book CLEARS (`s05b_bookwriter.py`), and both OpenBook's and
 TradeJournal's own `_meta` stamps are skipped on empty content — so a run that found nothing new
 on an already-flat day is indistinguishable from the journal never having run. This catches the

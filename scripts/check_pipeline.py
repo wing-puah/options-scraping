@@ -17,7 +17,7 @@ So this script asserts the EVIDENCE instead of the exit status: for every recent
 trading session, did each stage leave what it is supposed to leave, and is it as
 complete as it is supposed to be. A gap exits non-zero, which is the email.
 
-Two traps this is built around — both would render the check worse than useless:
+Three traps this is built around — each would render the check worse than useless:
 
   1. THE STALE-CALENDAR TRAP. The obvious "was there a session?" source is
      `spy-vix-daily.csv`, but Compile Flow WRITES that file. A dead pipeline
@@ -31,6 +31,14 @@ Two traps this is built around — both would render the check worse than useles
      snapshots once they are verified present in the compiled file. For any past
      session `snapshots == 0` is the HEALTHY steady state, so scrape evidence
      must accept a compiled file in their place.
+
+  3. THE BROKER-LAG TRAP. The journal stage is the one stage whose evidence
+     comes from OUTSIDE this repo, and IBKR does not publish a session's fills
+     the evening it closes. A Flex fetch at 03:19 UTC on 2026-09-19 — 23:19 ET
+     on Friday, over seven hours past that Friday's close — still carried no
+     row dated 2026-09-18. `journal.yml` runs at 22:15 UTC, so the journal can
+     only ever mark the PREVIOUS session, and judging it on the newest one is a
+     guaranteed nightly false alarm. Hence JOURNAL_STAGE's one-session lag.
 
 Verdict logic (`evaluate`/`summarise`) is pure and unit-tested; everything that
 touches Drive, Sheets, yfinance or the clock lives in the I/O half below.
@@ -117,7 +125,22 @@ class Finding(NamedTuple):
 
 # Appended to whatever config/pipeline-health.yml defines (see `main()`) rather
 # than living in it, per the comment on JOURNAL_SPREADSHEET_ENV above.
-JOURNAL_STAGE = StageSpec(name="journal", kind="journal_marked", lag_sessions=0,
+#
+# lag_sessions=1 — THE BROKER-LAG TRAP, and the ONLY shipped stage that carries
+# a lag. Every other stage's evidence is produced by this repo on the session's
+# own evening, so its newest session is fair to judge. The journal's is not: it
+# dates itself from the newest session IBKR has actually PUBLISHED fills for
+# (`flexparse.parse`: trade_date = the last session present in the statement),
+# and IBKR's processing cycle lands the morning ET AFTER the close, not the
+# evening of it. Measured 2026-09-19: a Flex trades query answered at 03:19 UTC
+# (23:19 ET Friday, close+7h) ended at 2026-09-17 — Friday 09-18 was simply not
+# in it. `journal.yml` fires at 22:15 UTC on session D and so marks D-1 at best;
+# this watchdog then runs at 01:45 UTC on D+1. With lag 0 it demanded a mark for
+# D that cannot exist yet, and reported MISSING every single night — the exact
+# cry-wolf failure `lag_sessions` exists to prevent. Raising this to 2 would
+# leave the stage judged on ONE session of the 3-session window, and to 3 would
+# stop it being judged at all (config/pipeline-health.yml::lookback_sessions).
+JOURNAL_STAGE = StageSpec(name="journal", kind="journal_marked", lag_sessions=1,
                           min_complete=1.0, prefixes=(), field="")
 
 
@@ -267,7 +290,10 @@ def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
             return Finding(stage.name, session, OK, f"marked through {marked} ({j['source']})")
         return Finding(stage.name, session, MISSING,
                        f"latest mark is {marked} ({j['source']}) — session {session} "
-                       "not covered")
+                       "not covered. Either the schedule stopped, or nothing has been "
+                       "filled since: the journal dates itself from the newest session "
+                       "IBKR has published fills for, so a genuinely quiet stretch "
+                       "freezes this mark too (flexparse.parse)")
 
     return Finding(stage.name, session, UNKNOWN, f"unknown stage kind {stage.kind!r}")
 
@@ -298,9 +324,12 @@ def evaluate(state: dict, stages, sessions: list[str],
 
     A stage's newest `lag_sessions` sessions are reported not-due rather than
     missing — the grace for a stage whose evidence structurally lands a session
-    late. No shipped stage currently needs one. Lag is counted in SESSIONS, not calendar days, so a Friday check never walks
-    back into the weekend. `settled` (default: all of them) further excludes any
-    session whose end-of-day chain has not plausibly run yet.
+    late. Exactly one shipped stage needs it: `JOURNAL_STAGE`, whose evidence is
+    IBKR's, not this repo's, and lands a session late by the broker's processing
+    cycle (see THE BROKER-LAG TRAP in the module docstring). Lag is counted in
+    SESSIONS, not calendar days, so a Friday check never walks back into the
+    weekend. `settled` (default: all of them) further excludes any session whose
+    end-of-day chain has not plausibly run yet.
     """
     n_settled = len(sessions) if settled is None else len(settled)
     findings: list[Finding] = []
