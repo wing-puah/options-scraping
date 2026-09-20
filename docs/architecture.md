@@ -534,6 +534,19 @@ fraction, dense-episode definition, A2/A3/A5 thresholds, and the compounding arm
 there are no per-parameter CLI flags. Nothing under `gates:` — the gates are logic checks with
 nothing to configure.
 
+The **capital ladder** prints on every not-feasible primary verdict. That includes the
+2026-08-14 blowup-risk label (A1 holds, A3 fails). The trigger reads the verdict string
+(`is_not_feasible`) and is never re-derived from A1.
+
+Registered rungs are `grids.capital_ladder` ({25k, 35k, 50k}), and the registered summary line
+is unchanged. Each rung also prints its max drawdown and an A3 column. That column is scored
+by `a3_no_blowup`, the one body `evaluate()` uses, against the rung's own capital. The A3
+summary line beside the registered one is a disclosed addition, not a registered result.
+
+`grids.capital_ladder_posthoc` holds rungs beyond the registered set. It is optional, and an
+empty list prints nothing. Those rungs print in their own post-hoc block, labelled as not
+pre-registered, and are never merged into the registered list.
+
 The gates are **G2–G5**, and there is deliberately no G1. It was a checksum of the deployed
 book line (`220 positions / 90 dates / $63,553`) against constants in
 `config/account-sim.yml`; removed 2026-08-15 because those constants fingerprinted ONE export

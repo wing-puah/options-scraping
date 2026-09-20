@@ -85,9 +85,19 @@ grids:
   per_position: [0.15, 0.25, 0.40, null]
   net:          [1.00, 1.50, 2.50, null]
 
-  # Rungs tried when the edge criterion (A1) fails, to answer "at what account
-  # size would this have worked?". Printed only in that case.
+  # Rungs tried whenever the primary VERDICT is NOT FEASIBLE — either label:
+  # A1 failing, or the 2026-08-14 BLOWUP RISK one (A1 holds, A3 fails). They
+  # answer "at what account size would this have worked?" and are printed only
+  # in that case. This list is PRE-REGISTERED at {25k, 35k, 50k}; do not widen
+  # it (see capital_ladder_posthoc below).
   capital_ladder: [25000, 35000, 50000]
+
+  # POST-HOC extension of the ladder, NOT pre-registered. Printed in its own
+  # labelled block, below the registered rungs and never merged into them,
+  # because no registered rung passes A3 on the current book and an extension
+  # folded into the registered list would read as a registered result.
+  # Optional: omit the key or give [] to print no post-hoc block.
+  capital_ladder_posthoc: [75000, 100000, 150000, 250000]
 
 # ── The bear hedge sleeve (ARM H) ──────────────────────────────────────────────
 # One bear-debit position per day, taken AFTER the day's signal picks so it can

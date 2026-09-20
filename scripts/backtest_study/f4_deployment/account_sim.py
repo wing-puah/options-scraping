@@ -184,6 +184,12 @@ class Settings:
     per_pos_grid: tuple[float, ...]
     net_grid: tuple[float, ...]
     capital_ladder: tuple[float, ...]
+    # Rungs BEYOND the registered {25k, 35k, 50k}, printed in their own
+    # POST-HOC block (see `print_capital_ladder_posthoc`). A separate field on
+    # purpose: appending them to `capital_ladder` would make an unregistered
+    # rung set read as the registered operator note. Empty = no block, and the
+    # key is OPTIONAL so a copied config predating it still loads.
+    capital_ladder_posthoc: tuple[float, ...]
     hedge_risk_fraction: float
     episode_max_gap: int
     episode_min_dates: int
@@ -260,6 +266,33 @@ def _grid(values, path: str, name: str) -> tuple[float, ...]:
     return tuple(float("inf") if v is None else float(v) for v in values)
 
 
+def _posthoc_ladder(raw: dict, path: str) -> tuple[float, ...]:
+    """`grids.capital_ladder_posthoc` — optional, but validated when present.
+
+    `null` is NOT accepted here (unlike a cap grid): an infinite account is
+    not a rung. Missing or empty both mean "print no post-hoc block".
+    """
+    grids = raw.get("grids")
+    values = grids.get("capital_ladder_posthoc") if isinstance(grids, dict) else None
+    if values is None:
+        return ()
+    if not isinstance(values, list):
+        raise ConfigError(f"{path}: grids.capital_ladder_posthoc must be a list "
+                          f"(omit the key, or give [], for no post-hoc rungs)")
+    out = []
+    for v in values:
+        try:
+            cap = float(v)
+        except (TypeError, ValueError):
+            raise ConfigError(f"{path}: grids.capital_ladder_posthoc entries must "
+                              f"be positive numbers — got {v!r}") from None
+        if not cap > 0:
+            raise ConfigError(f"{path}: grids.capital_ladder_posthoc entries must "
+                              f"be positive numbers — got {v!r}")
+        out.append(cap)
+    return tuple(out)
+
+
 def load_settings(path: Path = DEFAULT_CONFIG, *,
                   compound_enabled: bool = False) -> Settings:
     """Read the study's configuration.
@@ -322,6 +355,10 @@ def load_settings(path: Path = DEFAULT_CONFIG, *,
         net_grid=_grid(_req(raw, p, "grids", "net"), p, "grids.net"),
         capital_ladder=_grid(_req(raw, p, "grids", "capital_ladder"), p,
                              "grids.capital_ladder"),
+        # OPTIONAL, unlike every other key here: the post-hoc rungs are an
+        # unregistered extension, so a config that omits them is complete and
+        # simply prints no post-hoc block. An empty list means the same.
+        capital_ladder_posthoc=_posthoc_ladder(raw, p),
         hedge_risk_fraction=float(_req(raw, p, "hedge", "risk_fraction")),
         episode_max_gap=int(_req(raw, p, "population", "episode_max_gap")),
         episode_min_dates=int(_req(raw, p, "population", "episode_min_dates")),
@@ -2131,6 +2168,23 @@ COMPOUND_A2_A5_WARNING = """     WARNING: under compounding, A2/A5 are ratios ag
      TRANSFER to this arm; they must not carry weight here."""
 
 
+def a3_no_blowup(sim: Sim, st: Settings) -> tuple[bool, float]:
+    """The A3 clause — ONE body, returning (met, max drawdown in dollars).
+
+    `evaluate()` and the capital ladder both call this rather than each
+    spelling the clause out: a ladder rung's A3 column that re-derived the
+    test could drift from the criterion the VERDICT is read off, and a rung
+    would then advertise a drawdown the criterion would have refused. The
+    drawdown bar is measured against `sim.cfg.capital` — the capital THAT
+    simulation ran on, which on a ladder rung is the rung, not `st.capital`.
+    """
+    _, vals = equity_curve(sim.signal_pos)
+    mdd = max_drawdown(vals)
+    over = bool(sim.ledger.violations)
+    met = (not over) and abs(mdd) <= st.maxdd_fraction * sim.cfg.capital
+    return met, mdd
+
+
 def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     hdr(f"[{label}] CRITERIA A1-A6")
     rows = sim.rows()
@@ -2159,11 +2213,9 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     if sim.cfg.compound:
         print(COMPOUND_A2_A5_WARNING)
 
-    # A3 NO BLOWUP
-    _, vals = equity_curve(sim.signal_pos)
-    mdd = max_drawdown(vals)
-    over = bool(sim.ledger.violations)
-    a3 = (not over) and abs(mdd) <= st.maxdd_fraction * sim.cfg.capital
+    # A3 NO BLOWUP — the clause itself lives in `a3_no_blowup`, so the capital
+    # ladder's A3 column is the same test and not a second copy of it.
+    a3, mdd = a3_no_blowup(sim, st)
     print(f"  A3 NO BLOWUP      maxDD ${mdd:,.0f} = {abs(mdd) / sim.cfg.capital:.1%} of "
           f"capital;  ledger violations {len(sim.ledger.violations)}")
     print(f"     {'MET' if a3 else 'NOT MET'}  (needs no over-reservation and DD "
@@ -2222,6 +2274,11 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     return res
 
 
+# The two NOT FEASIBLE labels differ only after the capital, so this prefix
+# is what "the verdict is NOT FEASIBLE" means in code — see `is_not_feasible`.
+NOT_FEASIBLE_PREFIX = "NOT FEASIBLE AT $"
+
+
 # 2026-08-14 AMENDMENT — verdict grammar closed to total (labelled, not a
 # silent redefinition; moves NO threshold, NO measured number, and NO
 # meaning of A1-A6).
@@ -2252,12 +2309,27 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
 # themselves the BLOWUP check runs first (A3 is the more severe failure),
 # leaving "FEASIBILITY NOT CONFIRMED" as the true catch-all for A1^A2^A3 with
 # A5 and/or A6 failing.
+def is_not_feasible(verdict: str) -> bool:
+    """Is this verdict string a NOT FEASIBLE one?
+
+    Read off the verdict `print_verdict` returned, never re-derived from
+    A1-A6: the registration ties the capital ladder to the VERDICT ("on NOT
+    FEASIBLE ... the report prints the smallest capital ..."), and both
+    NOT FEASIBLE labels — the plain one (A1 fails) and the 2026-08-14
+    BLOWUP RISK one (A1 holds, A3 fails) — share this prefix and no other
+    label does. Gating on `not res["A1"]` instead, as the code did until
+    2026-09-20, was NARROWER than the registration and silently withheld the
+    ladder on every A1^!A3 run.
+    """
+    return verdict.startswith(NOT_FEASIBLE_PREFIX)
+
+
 def print_verdict(res: dict, label: str, st: Settings) -> str:
     hdr(f"VERDICT ({label} population — the primary)")
     for k in ("A1", "A2", "A3", "A4", "A5", "A6"):
         print(f"  {k}  {'MET' if res[k] else 'NOT MET'}")
-    not_feasible = f"NOT FEASIBLE AT ${st.capital:,.0f}"
-    blowup = f"NOT FEASIBLE AT ${st.capital:,.0f} — BLOWUP RISK (A1 holds, A3 fails)"
+    not_feasible = f"{NOT_FEASIBLE_PREFIX}{st.capital:,.0f}"
+    blowup = f"{not_feasible} — BLOWUP RISK (A1 holds, A3 fails)"
     not_confirmed = ("FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5 and/or A6 "
                       "fail; stability/robustness not established on this "
                       "window)")
@@ -2355,39 +2427,115 @@ def print_structure_universe(recs_frozen, picked_frozen, recs_wide,
   against that concentration before it is read as instability.""")
 
 
+def _ladder_rung(cap: float, day_lists, label: str, st: Settings,
+                 cache: dict) -> dict:
+    """Simulate ONE ladder rung, print its line, return which criteria it met.
+
+    A1 and A2 are the registered pair; A3 comes from `a3_no_blowup`, the same
+    body `evaluate()` scores the criterion with, so a rung cannot claim a
+    drawdown the verdict's own clause would refuse.
+    """
+    cfg = st.cfg(f"{label} ${cap:,.0f}", capital=cap)
+    s = simulate(day_lists, cfg, cache=cache)
+    b2 = simulate(day_lists, st.cfg("B2", capital=cap, **UNCONSTRAINED),
+                  cache=cache)
+    rows = s.rows()
+    mean_R = fmean([r["R"] for r in rows])
+    lo, _ = P.boot_ci_by_date(rows, key="R") if rows else (float("nan"),) * 2
+    _, pos_y, years = P.sign_stable(rows, key="R") if rows else (None, 0, {})
+    a1 = bool(rows) and mean_R > 0 and lo > 0 and pos_y == len(years) and years
+    same = s.dates
+    b2_same = sum(p.dollars for p in b2.signal_pos if p.rec["date"] in same)
+    ratio = pct_ratio(s.dollars, b2_same)
+    a2 = ratio >= st.attrition_floor
+    a3, mdd = a3_no_blowup(s, st)
+    # rstrip: a rung with no inexact-stop note would otherwise end in the
+    # padding of its A3 column — invisible trailing whitespace in a
+    # fixed-width artifact a reader is meant to be able to verify by eye.
+    print((f"  ${cap:>7,.0f}  n={len(rows):>4}  ${s.dollars:>10,.0f}  "
+           f"meanR {mean_R:+.3f} CI-lo {lo:+.3f}  attrition {ratio:>5.0%}  "
+           f"maxDD {abs(mdd) / cap:>5.1%}  "
+           f"A1 {'MET' if a1 else 'no':<3}  A2 {'MET' if a2 else 'no':<3}  "
+           f"A3 {'MET' if a3 else 'no':<3}"
+           + (f"  [{s.stop_inexact} inexact-stop positions]"
+              if s.stop_inexact else "")).rstrip())
+    return {"A1": bool(a1), "A2": bool(a2), "A3": bool(a3)}
+
+
+def _smallest_passing(caps, met: dict, *keys: str):
+    """The first rung (rungs are read in config order) meeting every key."""
+    for cap in caps:
+        if all(met[cap][k] for k in keys):
+            return cap
+    return None
+
+
 def print_capital_ladder(day_lists_by_pop, label: str, st: Settings,
                          cache: dict) -> None:
     rungs = ", ".join(f"${c / 1000:g}k" for c in st.capital_ladder)
-    hdr("CAPITAL LADDER — operator note, printed only because A1 failed")
+    hdr("CAPITAL LADDER — operator note, printed because the verdict is "
+        "NOT FEASIBLE")
     print(f"""  Same anti-tuning rule: this is the smallest capital in {{{rungs}}} at
   which A1 AND A2 pass, not a recommendation to trade any of them. A rung whose
   dollar stop does not divide the frozen $1,000 harness stop evenly (e.g. $700
   on a $35k rung at 2%) is rounded UP to a TIGHTER stop, the conservative
-  direction, and the affected position count is printed.""")
-    day_lists, picked = day_lists_by_pop
-    smallest = None
-    for cap in st.capital_ladder:
-        cfg = st.cfg(f"{label} ${cap:,.0f}", capital=cap)
-        s = simulate(day_lists, cfg, cache=cache)
-        b2 = simulate(day_lists, st.cfg("B2", capital=cap, **UNCONSTRAINED),
-                      cache=cache)
-        rows = s.rows()
-        mean_R = fmean([r["R"] for r in rows])
-        lo, _ = P.boot_ci_by_date(rows, key="R") if rows else (float("nan"),) * 2
-        _, pos_y, years = P.sign_stable(rows, key="R") if rows else (None, 0, {})
-        a1 = bool(rows) and mean_R > 0 and lo > 0 and pos_y == len(years) and years
-        same = s.dates
-        b2_same = sum(p.dollars for p in b2.signal_pos if p.rec["date"] in same)
-        ratio = pct_ratio(s.dollars, b2_same)
-        a2 = ratio >= st.attrition_floor
-        print(f"  ${cap:>7,.0f}  n={len(rows):>4}  ${s.dollars:>10,.0f}  "
-              f"meanR {mean_R:+.3f} CI-lo {lo:+.3f}  attrition {ratio:>5.0%}  "
-              f"A1 {'MET' if a1 else 'no':<3}  A2 {'MET' if a2 else 'no':<3}"
-              + (f"  [{s.stop_inexact} inexact-stop positions]" if s.stop_inexact else ""))
-        if a1 and a2 and smallest is None:
-            smallest = cap
-    print(f"\n  smallest capital passing A1 AND A2: "
+  direction, and the affected position count is printed.
+
+  The maxDD and A3 columns and the A3 summary line below are DISCLOSED
+  ADDITIONS (2026-09-20), not part of the registered operator note: the
+  registration names A1 AND A2 only, and a verdict can be NOT FEASIBLE on A3
+  alone. No threshold moved — A3 here is `a3_no_blowup`, the clause
+  `evaluate()` scores, measured against the RUNG's capital. Read a rung that
+  passes A1 AND A2 while failing A3 as an account size that keeps the edge and
+  still breaches the drawdown bar, never as a feasible one.""")
+    day_lists, _picked = day_lists_by_pop
+    met = {cap: _ladder_rung(cap, day_lists, label, st, cache)
+           for cap in st.capital_ladder}
+    smallest = _smallest_passing(st.capital_ladder, met, "A1", "A2")
+    print("\n  smallest capital passing A1 AND A2: "
           + (f"${smallest:,.0f}" if smallest else "none of the three"))
+    smallest_a3 = _smallest_passing(st.capital_ladder, met, "A1", "A2", "A3")
+    print("  smallest capital passing A1 AND A2 AND A3 (disclosed addition): "
+          + (f"${smallest_a3:,.0f}" if smallest_a3 else "none of the three"))
+    print_capital_ladder_posthoc(day_lists, label, st, cache)
+
+
+def print_capital_ladder_posthoc(day_lists, label: str, st: Settings,
+                                 cache: dict) -> None:
+    """Rungs BEYOND the registered set — its own section, its own banner.
+
+    Never appended to the registered ladder above: the registration fixes the
+    rung set at {25k, 35k, 50k}, and silently widening that list would make a
+    post-hoc search read as the pre-registered note. A separate config key
+    (`grids.capital_ladder_posthoc`), a separate block, and the same banner
+    discipline `--compounding` carries. Empty list = nothing printed.
+    """
+    if not st.capital_ladder_posthoc:
+        return
+    rungs = ", ".join(f"${c / 1000:g}k" for c in st.capital_ladder_posthoc)
+    hdr("CAPITAL LADDER, POST-HOC EXTENSION — NOT PRE-REGISTERED")
+    print(f"""  THESE RUNGS ARE NOT PRE-REGISTERED. The registration
+  (research/pre-registrations/f4_deployment/account_sim.md) fixes the ladder
+  at {{25k, 35k, 50k}}; these are a POST-HOC extension of it:
+
+    {{{rungs}}}
+
+  They are printed because no registered rung answers "at what account size
+  would this have worked?" and the honest answer is outside the registered
+  set. Disclosed, not adopted: nothing here may be quoted as a registered
+  result, and the same anti-tuning rule binds — a rung that passes is not a
+  recommendation to trade it, and a search over a widened rung set is exactly
+  what the registered set exists to bound.""")
+    met = {cap: _ladder_rung(cap, day_lists, label, st, cache)
+           for cap in st.capital_ladder_posthoc}
+    none_txt = "none of these rungs"
+    smallest = _smallest_passing(st.capital_ladder_posthoc, met, "A1", "A2")
+    print("\n  smallest POST-HOC capital passing A1 AND A2: "
+          + (f"${smallest:,.0f}" if smallest else none_txt))
+    smallest_a3 = _smallest_passing(st.capital_ladder_posthoc, met,
+                                    "A1", "A2", "A3")
+    print("  smallest POST-HOC capital passing A1 AND A2 AND A3: "
+          + (f"${smallest_a3:,.0f}" if smallest_a3 else none_txt))
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2588,7 +2736,11 @@ def main(argv=None) -> int:
 
     verdict = print_verdict(res_primary, "PRIMARY dense episodes", st)
 
-    if not res_primary["A1"]:
+    # The REGISTERED trigger is the verdict, not A1: "on NOT FEASIBLE ... the
+    # report prints the smallest capital ...". Gating on `not res["A1"]` here
+    # was narrower and withheld the ladder on the A1^!A3 (BLOWUP RISK) verdict,
+    # which is the one the run has printed since the drawdown breach.
+    if is_not_feasible(verdict):
         pop = [r for r in recs if r["date"] in ep_dates]
         print_capital_ladder(
             (P.ordered_by_day(pop, P.ladder_rank, P.ladder_eligible),

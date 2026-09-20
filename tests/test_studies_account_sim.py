@@ -19,6 +19,7 @@ import itertools
 import sys
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -46,6 +47,7 @@ def make_settings(**over) -> Settings:
                 per_pos_grid=(0.15, 0.25, 0.40, float("inf")),
                 net_grid=(1.00, 1.50, 2.50, float("inf")),
                 capital_ladder=(25_000.0, 35_000.0, 50_000.0),
+                capital_ladder_posthoc=(),
                 hedge_risk_fraction=0.5, episode_max_gap=5,
                 episode_min_dates=10, attrition_floor=0.60,
                 maxdd_fraction=0.25, ratio_tolerance=0.15,
@@ -995,6 +997,37 @@ def test_load_settings_reads_the_shipped_config():
     assert st.source == account_sim.DEFAULT_CONFIG
 
 
+def test_posthoc_ladder_key_is_optional(tmp_path):
+    """A config predating the post-hoc rungs still loads, and prints no block
+    — the extension is disclosed, never required."""
+    cfg = copy.deepcopy(_full_config_dict())
+    assert "capital_ladder_posthoc" not in cfg["grids"]
+    p = tmp_path / "cfg.yml"
+    p.write_text(yaml.safe_dump(cfg))
+    assert load_settings(p).capital_ladder_posthoc == ()
+
+    cfg["grids"]["capital_ladder_posthoc"] = []
+    p.write_text(yaml.safe_dump(cfg))
+    assert load_settings(p).capital_ladder_posthoc == ()
+
+    cfg["grids"]["capital_ladder_posthoc"] = [75_000, 100_000]
+    p.write_text(yaml.safe_dump(cfg))
+    st = load_settings(p)
+    assert st.capital_ladder_posthoc == (75_000.0, 100_000.0)
+    # Never merged into the registered rung set.
+    assert st.capital_ladder == (25_000.0, 35_000.0, 50_000.0)
+
+
+@pytest.mark.parametrize("bad", [[None], ["50k"], [0], [-1], {"a": 1}])
+def test_posthoc_ladder_rejects_a_non_capital_entry(tmp_path, bad):
+    cfg = copy.deepcopy(_full_config_dict())
+    cfg["grids"]["capital_ladder_posthoc"] = bad
+    p = tmp_path / "cfg.yml"
+    p.write_text(yaml.safe_dump(cfg))
+    with pytest.raises(ConfigError, match="capital_ladder_posthoc"):
+        load_settings(p)
+
+
 def test_load_settings_missing_file_raises_config_error(tmp_path):
     with pytest.raises(ConfigError):
         load_settings(tmp_path / "does-not-exist.yml")
@@ -1463,3 +1496,139 @@ def test_verdict_grammar_labels_the_a3_blowup_case(capsys):
     capsys.readouterr()
     assert verdict.startswith(f"NOT FEASIBLE AT ${st.capital:,.0f}")
     assert "BLOWUP RISK" in verdict
+
+
+# ── capital ladder ──────────────────────────────────────────────────────────
+#
+# The registration ties the ladder to the VERDICT ("on NOT FEASIBLE ... the
+# report prints the smallest capital in {25k, 35k, 50k} at which A1^A2 pass"),
+# so these pin the trigger against the verdict grammar, the registered summary
+# line against its exact wording, and the post-hoc rungs against leaking into
+# either. Every rung here is a STUB — no simulation, no export: the point is
+# what the section says, not what this book happens to pay.
+
+# The registered line, byte for byte. Any edit to it is an edit to the
+# pre-registered operator note, which is not an editorial change.
+REGISTERED_LADDER_LINE = "  smallest capital passing A1 AND A2: "
+
+
+def _stub_rungs(monkeypatch, outcomes: dict) -> list:
+    """Replace the per-rung simulation with a lookup, recording the order."""
+    seen = []
+
+    def fake_rung(cap, day_lists, label, st, cache):
+        seen.append(cap)
+        print(f"  ${cap:>7,.0f}  stub rung")
+        return outcomes[cap]
+    monkeypatch.setattr(account_sim, "_ladder_rung", fake_rung)
+    return seen
+
+
+def _met(a1=True, a2=True, a3=True) -> dict:
+    return {"A1": a1, "A2": a2, "A3": a3}
+
+
+def test_capital_ladder_trigger_is_the_verdict_not_a1(capsys):
+    """The ladder prints on EVERY NOT FEASIBLE verdict, including A1^!A3.
+
+    `main` gates on `is_not_feasible(verdict)`; gating on `not res["A1"]` (the
+    code until 2026-09-20) is narrower and withheld the ladder on the BLOWUP
+    RISK verdict, which is the one A1^!A3 produces.
+    """
+    st = make_settings()
+    for a1, a2, a3, a5, a6 in itertools.product([True, False], repeat=5):
+        res = {"A1": a1, "A2": a2, "A3": a3, "A4": True, "A5": a5, "A6": a6}
+        verdict = account_sim.print_verdict(res, "TEST", st)
+        capsys.readouterr()
+        assert account_sim.is_not_feasible(verdict) == (not a1 or not a3), (
+            f"{res} -> {verdict!r}")
+    # The case that regressed: edge intact, drawdown bar breached.
+    blowup = account_sim.print_verdict(
+        {"A1": True, "A2": True, "A3": False, "A4": True, "A5": True,
+         "A6": True}, "TEST", st)
+    capsys.readouterr()
+    assert account_sim.is_not_feasible(blowup)
+
+
+def test_capital_ladder_registered_line_is_unchanged(monkeypatch, capsys):
+    st = make_settings()
+    _stub_rungs(monkeypatch, {25_000.0: _met(a1=False),
+                              35_000.0: _met(a3=False),
+                              50_000.0: _met()})
+    account_sim.print_capital_ladder(([], []), "TEST", st, {})
+    out = capsys.readouterr().out
+    # Registered wording, verbatim.
+    assert "which A1 AND A2 pass, not a recommendation to trade any of them." in out
+    assert f"{REGISTERED_LADDER_LINE}$35,000" in out
+    # A2-only, as registered: the $35k rung fails A3 and is still the answer
+    # to the registered question.
+    assert "smallest capital passing A1 AND A2 AND A3 (disclosed addition): $50,000" in out
+
+
+def test_capital_ladder_registered_line_says_none_when_no_rung_passes(
+        monkeypatch, capsys):
+    st = make_settings()
+    _stub_rungs(monkeypatch, {c: _met(a1=False) for c in st.capital_ladder})
+    account_sim.print_capital_ladder(([], []), "TEST", st, {})
+    out = capsys.readouterr().out
+    assert f"{REGISTERED_LADDER_LINE}none of the three" in out
+    assert ("smallest capital passing A1 AND A2 AND A3 (disclosed addition): "
+            "none of the three") in out
+
+
+def test_capital_ladder_posthoc_block_is_labelled_and_separate(
+        monkeypatch, capsys):
+    st = make_settings(capital_ladder_posthoc=(75_000.0, 100_000.0))
+    outcomes = {c: _met(a3=False) for c in st.capital_ladder}
+    outcomes[75_000.0] = _met(a3=False)
+    outcomes[100_000.0] = _met()
+    seen = _stub_rungs(monkeypatch, outcomes)
+    account_sim.print_capital_ladder(([], []), "TEST", st, {})
+    out = capsys.readouterr().out
+
+    assert seen == [25_000.0, 35_000.0, 50_000.0, 75_000.0, 100_000.0]
+    # Registered summary comes FIRST and covers registered rungs only.
+    reg_line = out.index(f"{REGISTERED_LADDER_LINE}$25,000")
+    banner = out.index("CAPITAL LADDER, POST-HOC EXTENSION — NOT PRE-REGISTERED")
+    assert reg_line < banner
+    assert "THESE RUNGS ARE NOT PRE-REGISTERED." in out
+    # The post-hoc rungs never appear inside the registered block, and the
+    # post-hoc summary is separately labelled.
+    assert "$75,000" not in out[:banner] and "$100,000" not in out[:banner]
+    assert "smallest POST-HOC capital passing A1 AND A2: $75,000" in out
+    assert "smallest POST-HOC capital passing A1 AND A2 AND A3: $100,000" in out
+    # A post-hoc rung can never satisfy the registered line.
+    assert f"{REGISTERED_LADDER_LINE}$75,000" not in out
+
+
+def test_capital_ladder_posthoc_empty_prints_no_block(monkeypatch, capsys):
+    st = make_settings(capital_ladder_posthoc=())
+    seen = _stub_rungs(monkeypatch, {c: _met() for c in st.capital_ladder})
+    account_sim.print_capital_ladder(([], []), "TEST", st, {})
+    out = capsys.readouterr().out
+    assert seen == list(st.capital_ladder)
+    assert "POST-HOC" not in out
+    assert "smallest POST-HOC capital" not in out
+    assert f"{REGISTERED_LADDER_LINE}$25,000" in out
+
+
+def test_ladder_a3_column_is_the_criterion_clause_on_the_rung_capital():
+    """`a3_no_blowup` is the ONE body, and it measures against the capital the
+    SIMULATION ran on — the rung — not the configured account."""
+    st = make_settings(capital=25_000.0, maxdd_fraction=0.25)
+    pos = [SimpleNamespace(exit_sess=1, dollars=+1_000.0),
+           SimpleNamespace(exit_sess=2, dollars=-9_000.0)]
+    sim_25k = SimpleNamespace(signal_pos=pos, ledger=SimpleNamespace(violations=[]),
+                              cfg=_cfg(capital=25_000.0))
+    sim_50k = SimpleNamespace(signal_pos=pos, ledger=SimpleNamespace(violations=[]),
+                              cfg=_cfg(capital=50_000.0))
+    met_25, mdd_25 = account_sim.a3_no_blowup(sim_25k, st)
+    met_50, mdd_50 = account_sim.a3_no_blowup(sim_50k, st)
+    assert mdd_25 == mdd_50 == pytest.approx(-9_000.0)
+    assert met_25 is False        # 36% of $25k, over the 25% bar
+    assert met_50 is True         # 18% of $50k
+    # An over-reservation fails it whatever the drawdown.
+    sim_viol = SimpleNamespace(signal_pos=pos,
+                               ledger=SimpleNamespace(violations=["leak"]),
+                               cfg=_cfg(capital=50_000.0))
+    assert account_sim.a3_no_blowup(sim_viol, st)[0] is False
