@@ -13,28 +13,30 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 ## 0. Repo state — read first
 
 - **Era and population.** `v4`, the 193-date backfilled book, all three exports
-  re-pulled 2026-09-08 after queues C, D and E finished. `BacktestResults` is
-  598 rows over 193 dates; `AnalysisClaude` is 2,677 rows over 228 dates with
-  one analysis run per date. Both are deduplicated, tab and export agree on
-  each, and every result row joins its play except two kept on purpose. Counts
-  and the date range: [the population](current.md#the-population).
+  re-pulled 2026-09-19. The results tab is 598 rows over 193 dates. The
+  analysis tab is 2,781 rows over 237 dates, with one analysis run per date.
+  Both are deduplicated, tab and export agree on each, and every result
+  row joins its play except two kept on purpose. Counts and the date range:
+  [the population](current.md#the-population).
 - **Most of the queue waits on genuinely new dates.** `AnalysisClaude` carries
-  2026-08-11 → 2026-09-04 from the daily pipeline with no backtest rows, because
+  2026-08-11 → 2026-09-18 from the daily pipeline with no backtest rows, because
   those options have not expired. §2.2 and §2.6 wait on them. The 42 dates
   queues C, D and E just added do NOT qualify — they sit inside
   `[2024-01, 2026-05]`, the same correlated window
   ([where the 2026 column bit](current.md#where-the-2026-column-bit)).
-- **Tests green; the SUITE IS STALE — re-run it deliberately.** The last full
-  study-suite run was 2026-09-04 on the 166-date book: every non-retired study
-  ran, and the one gate stop was a study-side pricer gap fixed the same session
+- **Tests green, and the suite ran 2026-09-19 on these exports.** Every
+  non-retired study ran, and 18 of 31 verdicts moved
+  ([entry](current.md#2026-09-20--suite-re-run-read-in-full--18-of-31-verdicts-moved-two-touch-shipped-rules),
+  [per-study rows](study-map.md#operator-reading-2026-09-20)). The previous
+  full run was 2026-09-04 on the 166-date book
   ([`current.md` 2026-09-04 late](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed)).
-  Every export has moved several times since, and no study has run on any of
-  them: `BacktestResults` lost 16 duplicate rows and gained 4 re-priced ones
-  (2026-09-06), then lost the 12 stale rows and gained the daily pipeline's
-  (2026-09-07), then gained the 42 queue dates (2026-09-08); `AnalysisClaude`
-  lost the 37 rows of a duplicated analysis run (2026-09-07) and gained the same
-  42 dates. The population is now settled — nothing under *Waiting on the
-  operator* changes it, and this is the book to re-run on.
+- **How this book was built.** `BacktestResults` lost 16 duplicate rows and
+  gained 4 re-priced ones on 2026-09-06. It then lost the 12 stale rows and
+  gained the daily pipeline's on 2026-09-07. It gained the 42 queue dates on
+  2026-09-08, and `BacktestProxy` had its 9 rows on 2025-04-09 re-priced on
+  2026-09-19. The analysis tab lost the 37 rows of a duplicated run on
+  2026-09-07 and gained the same 42 dates. The population moves next only when
+  the operator decides one of the re-price items below.
 - **The option-history cache LOST 178 FILES between the 2026-09-05 snapshot and
   2026-09-08, and the scraper was asking Barchart for three months of history.**
   Found 2026-09-08 ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The captured price-history feed request
@@ -52,12 +54,13 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
   with real rows and `03-12` with analysis rows only. `03-06` and `03-27` are in
   no export and were never in the neutral-date selection, so both tables stay
   half-empty however the suite is re-run.
-- **Robustness review, 2026-09-07 — read it before the suite is re-run.**
-  [`robustness-review.md`](robustness-review.md). Two of its items change every
-  number the re-run would print: the backtest has no cost model, and it can book
-  P&L on days before the fill. Both were BUILT 2026-09-07 in a worktree and
-  LANDED on main 2026-09-08 (`3e5c2dc`) after the queue-D campaign stopped, so
-  the next suite run picks them up. Re-run once. Status of every item: §2.11.
+- **Robustness review, 2026-09-07.** [`robustness-review.md`](robustness-review.md).
+  Two of its items changed every number a run prints: the backtest had no cost
+  model, and it could book P&L on days before the fill. Both were built
+  2026-09-07 in a worktree and landed on main 2026-09-08 (`3e5c2dc`), so the
+  2026-09-19 suite run read code that carries them. Only the rows written
+  since carry the columns, which is why the book mixes pricing regimes. Status
+  of every item: §2.11.
 - **Rescaled tickers.** `backtests/underlying_ohlc_cache/rescaled_tickers.txt`
   lists 13 tickers after the 2026-09-05 rebuild, NVDA and GE newly among them.
   Every OHLC consumer withholds absolute dollars and cross-series comparisons on
@@ -81,12 +84,12 @@ Decisions owed. None of these is a study.
    tab already holds
    ([record](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row)).
 
-3. **DONE 2026-09-08** — queues C (13 dates, 2026), D (24, pre-2026) and E (5,
-   the moved right edge) run: 42 dates added, 35 priced, `BacktestResults` 598
-   rows over 193 dates, the 2026 column 11 → 26 dates with five March sessions
-   inside the drawdown; seven of the 42 produced only `BacktestProxy` rows (the
-   pricer, not a half-run date) and nothing has been measured until the suite
-   re-runs
+3. **DONE 2026-09-08** — queues C, D and E are run. C added 13 dates inside
+   2026. D added 24 before it, and E 5 at the moved right edge. That is 42
+   dates, of which 35 priced. The results tab is 598 rows over 193 dates. The
+   2026 column went from 11 to 26 dates, with five March sessions inside the
+   drawdown. Seven of the 42 produced only `BacktestProxy` rows, which is the
+   pricer rather than a half-run date. The suite measured them on 2026-09-19
    ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-fifth--queues-c-d-and-e-are-run-42-dates-added-and-the-2026-column-now-samples-march)).
 
 4. **RESOLVED 2026-09-08** — `exit_drawdown` ARM P's dollars ban is SCOPED:
@@ -95,6 +98,54 @@ Decisions owed. None of these is a study.
    UNDERPOWERED
    ([pre-registration](pre-registrations/f2_management/exit_drawdown.md), ARM
    P's STATUS bullet).
+
+5. **OPEN — `account_sim` prints `NOT FEASIBLE AT $25,000`.** Decide whether to
+   change capital or sizing, or to accept the drawdown. Every registered rung
+   fails A3, and the first capital that passes is $75,000, which the report
+   prints as post-hoc. Default if nothing is decided: nothing changes and the
+   study keeps printing the verdict
+   ([entry](current.md#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3)).
+
+6. **OPEN — the 14 pre-fill rows.** Exclude them through `fill_trusted`, or
+   re-price them with `--redo`. Excluding is the recommendation, because the
+   choice barely moves the book: mean +0.0427 excluded against +0.0457
+   re-priced. Default: they stay in the book, detected and flagged but not
+   filtered
+   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+
+7. **OPEN — re-price the six wrong-strike rows.** They are `NVDA` 2024-11-26,
+   `IWM` 2024-03-25 and `SPY` 2025-05-09 on `BacktestResults`, and `FCX`
+   2024-08-23, `PINS` 2024-02-27 and `IWM` 2024-02-06 on `BacktestProxy`. It
+   needs `--redo` with a date bound, which deletes the stored rows and then
+   appends. Default: they stay priced on strikes their own header does not name
+   ([entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed)).
+
+8. **OPEN — the whole-book re-price.** It is blocked on a Barchart refetch
+   first: 80 `BacktestResults` rows cannot be priced offline, 57 of them having
+   no cache file and 20 a shallow one. Default: leave the book as stored, and
+   read every number against the mixed pricing regimes
+   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+
+9. **OPEN — the 49 `Open`-fill rows.** Leave the entry-day `Open` fill alone,
+   or extend the side rule over it and re-price what moves. The census is 22
+   results and 27 proxy rows, 17 of them `HYG`. Six would flip sign and three
+   overlap the 14 pre-fill rows. Default: leave them, because almost all of
+   them predate the B5 fold
+   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+
+10. **OPEN — `bear_arm` prints `REVERT CONDITION FIRED`.** The report asks for
+    a production config change on the bear-debit `be_after 0.50` stop, which
+    was already reverted on 2026-08-24. Confirm that nothing further is owed,
+    or name what is. Default: no config change
+    ([record](study-results/f1_selection/bear_arm.md)).
+
+11. **OPEN — the shipped BEAR_HE clause reads negative.**
+    `exit_switch_structure_study` Q2 prints Δ=−4.5205 with 47% retained on the
+    shipped key. That is an observation rather than a registered trigger: the
+    census in `exit_switch_mech_study` is underpowered at 8 affected dates of
+    25. Decide whether to re-read [§5](../docs/deployment-rules.md#s5) before
+    the next deploy; the default is that it stands
+    ([operator reading](study-map.md#operator-reading-2026-09-20)).
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
@@ -129,7 +180,7 @@ One line each. Do not re-open; follow the link for the detail.
 |---|---|---|---|
 | `AnalysisClaude` doubled dates | 2026-09-07 | 37 rows of the earlier run deleted on 3 dates; the pipeline now REFUSES a date it has analysed. One decision left behind, §0 | [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07--the-three-doubled-analysis-dates-are-repaired-the-pipeline-now-refuses-a-date-it-has-analysed) |
 | Neutral-date campaign, queue b | 2026-09-04 | COMPLETE; exports refreshed to 166 dates; suite re-run; nothing ships | [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed) |
-| `concurrency_correlation` | 2026-09-04 | NOISE on both eras | §2.0 |
+| `concurrency_correlation` | 2026-09-04 | NOISE on both eras; `RESTATEMENT` on 2026-09-19, still nothing queued | §2.0 |
 | `hedge_concentration` | 2026-09-04 | PRECONDITION-NULL, graded | §2.1 |
 | `trigger_entry` | 2026-09-04 | LATE-ENTRY on v4 and v3 | [record](study-results/f1_selection/trigger_entry.md) |
 | Text thread as an edge search | 2026-09-04 | `text_features` NULL, `exit_from_text` E1 CONTRARY, `prompt_eval` variance floor set. §2.9 survives as a stability item only | [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md#2026-09-02--the-text--backtest-loop-built-and-first-run-text-is-the-last-untested-column-family-and-it-nulls-the-models-own-stop-is-contrary-on-bull-calls), [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04--hedge_concentration-graded-and-21-closed-concurrency_correlation-built-and-first-run-noise) |
@@ -147,13 +198,18 @@ The numbers are stable labels, not a ranking. Pick-up order is roughly §2.2,
 §2.5, §2.10, §2.9, then the parked items as dates arrive.
 
 <a id="s2-0"></a>
-### 2.0 `concurrency_correlation` — CLOSED 2026-09-04
+### 2.0 `concurrency_correlation` — CLOSED, nothing ships
 
-CLOSED 2026-09-04. NOISE on both eras, nothing ships, nothing is queued: no arm
-clears X2 or X3 in either era, so no arm is ADOPT-eligible, and 4 of the 8 arms
-powered in both eras flip sign, so the verdict is era-stable and the per-arm
-gains are not ([record](study-results/f4_deployment/concurrency_correlation.md),
-[summary](current.md#concurrency_correlation-is-closed),
+CLOSED and still closed. The 2026-09-19 run prints `RESTATEMENT`: K 5 /
+same-direction-and-sector clears X2 and X3, then loses the gain under the X7
+delta control, so it restates `portfolio_delta`'s ARM B and ARM D rather than
+adding anything. No arm clears the whole conjunction and nothing is queued.
+
+One thing did change. X4, the era-stability criterion, prints `PENDING` by
+construction on a single-era run, so the 2026-09-04 hand settlement of it is
+withdrawn. Nothing rested on it: every arm was already capped below adoption
+([record](study-results/f4_deployment/concurrency_correlation.md),
+[entry](current.md#2026-09-20--suite-re-run-read-in-full--18-of-31-verdicts-moved-two-touch-shipped-rules),
 [arm labels](arm-index.md#concurrency_correlation)).
 
 <a id="s2-1"></a>
@@ -174,8 +230,10 @@ parked in §2.7.
 <a id="s2-2"></a>
 ### 2.2 v4 composition bridge — OPEN, waits on new dates
 
-`v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`, and on the 166-date
-book all five pre-registered composition tests shift
+`v4_bridge` prints `VERDICT: LADDER UNVALIDATED ON v4`, and on the 2026-09-19
+book four of the five pre-registered composition tests shift. The exception is
+credit share, which is within noise; structure mix, plays per day, bear share
+and ladder tier mix all move
 ([record](study-results/f1_selection/v4_bridge.md)). Per the
 [pre-registration](pre-registrations/f1_selection/v4_bridge.md): keep deploying
 under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
@@ -216,15 +274,15 @@ lives in the underlying's path, not the option mark
 breakeven stop was reverted 2026-08-24 when its rollback trigger fired
 ([`deployment-evidence.md`](deployment-evidence.md#the-bear-debit-peak-triggered-breakeven-stop-shipped-2026-08-11--reverted-2026-08-24)).
 
-- **The trigger** fired 08-24, un-fired 08-27, and fires again 09-04 on the 2026
-  column alone. The stop is already reverted, so there is nothing to do, and
-  nothing un-reverts without a fresh registration. The lesson is that a 60-row
-  floor on a backfilling book is not a decision procedure (§2.6).
-- **Held, not queued:** [`bear_arm` B2](arm-index.md#bear_arm)'s exit-fix
-  criteria are MET for the first time by `sl .50`. A correlated-window read
-  holds a rule and promotes nothing
-  ([two firsts](current.md#two-firsts-that-hold-rather-than-ship),
-  [record](study-results/f1_selection/bear_arm.md)).
+- **The trigger** fired 08-24, un-fired 08-27, fired again 09-04 on the 2026
+  column alone, and on 2026-09-19 fires on all three of its clauses. The stop
+  is already reverted, so there is nothing to do, and nothing un-reverts
+  without a fresh registration. The lesson is that a 60-row floor on a
+  backfilling book is not a decision procedure (§2.6).
+- **No longer held:** [`bear_arm` B2](arm-index.md#bear_arm)'s exit-fix
+  criteria were met by `sl .50` on 2026-09-04 and are `NOT met` on 2026-09-19,
+  at Δ=+0.030 with CI [−0.003, +0.061]
+  ([record](study-results/f1_selection/bear_arm.md)).
 
 <a id="s2-5"></a>
 ### 2.5 Live walk-forward — the journal is collecting it; Stage 2 is not written
@@ -278,14 +336,20 @@ relevant study run. The table of triggers and floors is
 [`deployment-evidence.md` §Open pre-registered rollback triggers](deployment-evidence.md#open-pre-registered-rollback-triggers);
 the plan is the
 [pre-registration](pre-registrations/f2_management/rollback_triggers.md).
-Reading on the 166-date book:
+Reading on the 2026-09-19 book:
 
 | Trigger | Reading | What it waits on |
 |---|---|---|
-| bear-debit `be_after 0.50` | fires again on the 2026 column; already reverted (§2.4) | nothing |
-| LVOL tef-null | STAYS GATED; the 08-24 CLEARED did not survive two exports, so the operator's hold was right | new dates |
-| BEAR_HE trail | UNDERPOWERED, 1 affected date of 25 | new dates |
+| bear-debit `be_after 0.50` | all three clauses fire on 242 arming rows over 134 dates; already reverted (§2.4) | an operator confirmation, item 10 in §0 |
+| LVOL tef-null | `STAYS GATED` on 80 affected dates, median −0.011; one of its four clauses fails | new dates |
+| BEAR_HE trail | `UNDERPOWERED`, 8 affected dates of 25 | new dates |
 | credit sl-none | 0 fresh `bull_put` rows of 15; the window starts after 2026-07-13, unreachable by backfill | live dates after July 2026 |
+
+The `be_after` census has now given four answers on four runs, which is the
+lesson recorded in §2.4: a 60-row floor on a backfilling book is not a
+decision procedure. The LVOL cell's one failing clause is the median among
+affected dates; the 08-24 `CLEARED` never survived two exports, so the
+operator's hold was right.
 
 <a id="s2-7"></a>
 ### 2.7 Parked or blocked long-term
@@ -302,14 +366,18 @@ Each of these is blocked on what its bullet names; none is scheduled.
   **Debit side only** (operator, 2026-09-05): the credit knobs above do not wait
   on this
   ([`current.md` 2026-09-05](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-05-later--overviewmd-and-glossarymd-rewritten-for-a-reader-who-has-lost-the-thread-the-long-dated-blind-spot-is-scoped-debit-only)).
-- **Per-regime exit switch** — STAYS GATED on the 166-date book; two of six
-  criteria still fail
+- **Per-regime exit switch** — `STAYS GATED` on the 2026-09-19 book. The
+  mech-keyed switch fails two of six criteria; the structure-keyed one now
+  fails four of six, and its Q2 line reads the shipped BEAR_HE clause
+  negative, which is item 11 in §0
   ([mech](study-results/f2_management/exit_switch_mech_study.md),
   [structure](study-results/f2_management/exit_switch_structure_study.md)).
-- **`portfolio_delta` ARM B ceiling 1.00** — clears the adoption conjunction on
-  the dense-episode population off a correlated window:
-  CANDIDATE-FOR-INDEPENDENT-WINDOW, nothing ships. Ceiling 1.50 dropped out
-  2026-09-04 ([record](study-results/f4_deployment/portfolio_delta.md),
+- **`portfolio_delta` ARM B ceiling 1.00 — CLOSED 2026-09-19.** The study
+  prints `NOISE` and no ceiling clears, so the parked
+  CANDIDATE-FOR-INDEPENDENT-WINDOW is withdrawn and nothing waits on a window.
+  Criterion 1 alone fails. Its paired mean gain is +0.0519 R, on a CI of
+  [−0.0333, +0.1407]
+  ([record](study-results/f4_deployment/portfolio_delta.md),
   [arm labels](arm-index.md#portfolio_delta)).
 - **`exit_drawdown`'s design** — parked on dates, not design. Any CANDIDATE
   from it would need the independent window, never a re-cut of these dates.
@@ -332,11 +400,17 @@ Each of these is blocked on what its bullet names; none is scheduled.
 
 CLOSED 2026-09-02, do not build. `exit_from_text` answered it: the model's own
 invalidation level as an underlying-close stop is CONTRARY on
-`bull_call_spread` / LVOL and NULL or UNDERPOWERED elsewhere on v4, and the v3
-`bear_put_spread` re-read was NULL at every buffer on the 166-date book
-(2026-09-04), 2026 negative ([record](study-results/f2_management/exit_from_text.md),
+`bull_call_spread` / LVOL and NULL or UNDERPOWERED elsewhere on v4. The
+`bear_put_spread` cells are still NULL on the 2026-09-19 book, but the only
+criterion they now fail is the CI, and the year column is positive at the 1%
+and 2% buffers ([record](study-results/f2_management/exit_from_text.md),
 [arm labels](arm-index.md#exit_from_text); the original gap and its two parser
 cautions: [archive/00](archive/00-backtest-engine-backlog-2026-06.md)).
+
+The study did print its first `CANDIDATE` on 2026-09-19, but on E2 rather than
+E1. E2 is an intake filter and can never ship as an exit rule, so this section
+stays closed
+([entry](current.md#2026-09-20--suite-re-run-read-in-full--18-of-31-verdicts-moved-two-touch-shipped-rules)).
 
 <a id="s2-9"></a>
 ### 2.9 `prompt_eval` — a STABILITY item, not an edge item
@@ -418,28 +492,133 @@ committed ([log](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2
 
 The `3e5c2dc` merge landed 2026-09-08, after the queue-D campaign stopped with
 six failed dates. Both results-tab headers gained `pct_stale_days`,
-`cost_total` and `cost_basis`, and the suite is 3,502 green. The six failed
+`cost_total` and `cost_basis`, and the suite is 3,878 green. The six failed
 queue-D dates (2025-03-19, 03-24, 03-27, 04-09, 04-23, 04-28) were retried after
 the merge and all six priced, so they are the only rows in the book that ran
 under the cost model and the pre-entry grid fix.
 
-**Two things the merge left, found 2026-09-08 when the queues finished.**
+**What the merge left.** Found 2026-09-08 when the queues finished; the list
+has grown since. One line each, with the entry that holds the story.
 
-| Item | What is wrong | Fix |
-|---|---|---|
-| The split is not readable on `cost_basis` | `_apply_costs` writes `cost_basis` empty whenever both cost knobs are 0, which they are, so it is blank on all 598 rows. Split the two populations on `cost_total` or `pct_stale_days` being non-blank instead — 14 rows, the six retried dates. | prose only; done here |
-| `history.py` unlinks a cache file before a refetch that can fail — RESOLVED 2026-09-19 | The refetch path unlinked a shallow cache file, then kept nothing when the feed returned no rows. Under the page's default three-month `startDate` every expired contract's refetch was empty, and 178 files were lost since the 2026-09-05 snapshot (restored 2026-09-08, [record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The range was already fixed in `session.py`; the unlink was the other half. The file is now never unlinked on the way in, and a fetched file is staged and installed with `os.replace` the way `export_tabs.py` installs a pulled tab. The run prices exactly as before — a shallow series is still dropped from the in-memory maps. `tests/test_backtest_history_cache.py`. [Entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns). | done |
-| B5's zero-bid re-mark is not mirrored by `bear_rewrap`'s reconstruction — RESOLVED 2026-09-17 | The mirror now imports `simulate.py::_zero_bid_mark` and applies it on the basis the stored row was priced on: rows written at or after the 3e5c2dc merge (2026-09-08 15:05:25) get B5, older rows keep the plain mark. Applying B5 to every row broke 177 pre-fold reconstructions, so the basis has to follow the row. Every variant a study prices against a stored row uses the same basis (`bear_rewrap.basis_of`). R2 is now 1,320 / 1,321; the one failure is the HYG 2025-04-09 row in the next line, which fails on its entry DAY, not on B5. [Entry](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-17--bear_rewrap-pricer--b5-zero-bid-re-mark-mirrored-r2-at-1320--1321). | done |
-| B5 on a stale one-sided quote fabricates a credit — RESOLVED 2026-09-19 | HYG 2025-04-09 proxy row: short 72P had no bar on the fill day, the carried 04-10 snap was `bid 0 / ask 2.68`, `_zero_bid_mark` gave 1.34, entry went to −0.37 on a bear put spread, `_exit_basis` then keyed CREDIT and booked +100%. Fixed at the source rather than by blocking the carry: ENTRY pricing is now side-aware on a one-sided quote (`simulate.py::_entry_side_mark` — a leg being SOLD fills at the bid, which is 0; a leg being BOUGHT pays the ask), and a DEBIT structure priced to `entry_net < 0` is refused outright (`_refuse_debit_priced_to_credit`), so no fabricated credit can reach the CREDIT exit profile again. `_zero_bid_mark` is unchanged for daily marks. Re-priced on the real cache, HYG is +0.97 debit / BEAR_HE / −100%; SMH 2024-07-17 and IWM 2024-03-25 are refused. [Entry](current.md#2026-09-19--backtest-entry-pricing--a-sold-leg-with-no-bid-fills-at-0-and-a-debit-that-prices-to-a-credit-is-refused). | **DONE 2026-09-19.** The stored row was re-priced (`proxy --date 2025-04-09 --redo --cache-only`, 9 rows replaced) and now reads +0.97 / BEAR_HE / −100%. `hedge_structure` R2 is **1,322 / 1,322 (PASS)** and the study runs to a verdict for the first time since 2026-09-08. [Entry](current.md#2026-09-19-later-still--the-2025-04-09-re-price-and-the-two-mirror-drifts-it-exposed-hedge_structure-unblocked). |
-| `bear_rewrap`'s mirror DERIVED the entry day instead of reading it — RESOLVED 2026-09-19 | Re-pricing HYG moved its R2 failure from the PRICE to the DAY. The mirror took the entry day from today's cache (`entry_date_for`: the first grid day EVERY leg has a bar). Production took it from the bars it had AT PRICING TIME, and this cache has since gained bars it never saw — the `HISTORY_START_DATE` fix, the far-call fetch and the 178 restored files. On HYG the two diverge: production filled 2025-04-14 off the long leg's first bar and carried the short leg forward; the mirror waited until 04-16 and rebuilt a 0.47 debit against the stored 0.97. The day is RECORDED, so the gate now reads it (`recorded_entry_date`: anchor `expiration − dte_entry`) rather than re-deriving it. Across the 1,325-row universe the recorded and derived days agree on 1,324 — which is why the drift went unnoticed. A SUBSTITUTION has no recorded day and keeps deriving one. The second drift, fixed alongside: the mirror applied `_zero_bid_mark` at ENTRY, which `_entry_side_mark` displaced in 09aa02c, so `bear_rewrap` now carries a SECOND write-time basis (`SIDE_SINCE` / `priced_with_side`) beside `B5_SINCE`. Both are needed — at the right day the side basis reconstructs 0.97 exactly and the old rule gives −0.37. | done. R2 1,322/1,322; full universe gate 1,325/1,325. No verdict moved in `bear_rewrap` (`long_diag` dR +0.153 → +0.159, CI still clear of 0), `financed_spread` or `ladder_overlay`; the cell counts move because the BOOK was re-priced (+2 bear rows), not the mirror. |
-| The exit fill keeps the sign-independent liquidation mark — RESOLVED 2026-09-19 | The 2026-09-19 entry change stops at the entry. Every daily mark, including the one the exit is taken at, still uses `_zero_bid_mark`, so closing a LONG leg into a 0 bid receives `ask/2` rather than 0. A liquidation mark is defensible for a mark-to-market path — and the exit DAY is chosen by rules that read that path — so this is not obviously wrong, only unexamined. **Census taken 2026-09-19:** across both tabs, 79 of 2,707 exit-day leg quotes are one-sided (2.9%), touching 72 of 1,375 rows (5.2%). Approximate — the exit day is reconstructed from `days_held` over a business-day grid rather than read from the stored grid — so treat it as an order of magnitude, not a row list. | **DONE 2026-09-19** — built as directed. The trigger day is unchanged; when it has no two-sided quote the FILL carries to the next priced day that does, and `days_held` becomes that day. The two open questions are settled in code: no fillable day ever arriving leaves the fill on the trigger mark and tags the row `no_two_sided` rather than repricing it silently, and the moved fill day IS the day costs are charged against. New `exit_fill` column on both tabs (`same_day` / `deferred_n` / `no_two_sided` / blank=pre-rule); headers realigned, pure end-append. A/B on one cache moved 3 of 61 April-2025 proxy rows (4.9%), in both directions. NOT backfilled. [Entry](current.md#2026-09-19-fourth--the-exit-fills-on-the-next-two-sided-day-not-on-the-trigger-days-bid-less-mark) · [column](../docs/backtest-reference.md#how-the-exit-was-filled--exit_fill) |
-| A third of the suite was SILENTLY truncated in its own record — FIXED 2026-09-20 | `summary.py` cut the conclusion block to `MAX_EXCERPT_LINES = 12` with no marker, so a section quoting 12 of 358 lines read as complete. **13 of 35 studies sat exactly at the cap**, and three separate readers reported that truncation as ambiguity in the STUDY (`staged_exit` "only 10 grid cells are recorded", `text_features` "ARM B is not determinable", `exit_from_text`). Three changes: the cap is 40, which quotes 11 of the 13 WHOLE for ~11 KB a suite run; the section now STATES what it cut (`40 of 357 block lines; 317 not quoted`); and a block that is still cut carries a tally of the study's own verdict words (`UNDERPOWERED 294, NULL 27, CONTRARY 15, CANDIDATE 4`). The tally is a COUNT, not a paraphrase, and is rendered OUTSIDE the fence so the quote stays verbatim. The two that stay truncated enumerate a parameter grid rather than state an answer — nobody reads 358 quoted rows, which is the argument for the tally over raising the cap further. | done. Same caveat as the line below: the recorder keys on (era, sha, inputs), so the `8e9b6a7` sections keep their truncated excerpts and the first sections carrying the note and tally are the NEXT suite run's. |
-| Two per-era records carried a JUNK excerpt and could not detect a verdict change — FIXED 2026-09-20 | `scripts/study_map/summary.py::_CONCLUSION_TITLE` matched `\bVERDICT\b`, which does NOT match the plural `VERDICTS` — `\b` wants a non-word character after the T. `financed_spread` and `ladder_overlay` title their banner `VERDICTS`, so both fell through to the `matched` fallback and recorded a line of the report's own explanatory PROSE ("...say POWER-STOPPED and mean the", "...means E3 is NOT EVALUABLE and the cell") as their answer, for four runs. Found 2026-09-20 comparing the suite re-run against the previous one: the record could not answer whether either study had moved. Both now record their real `VERDICTS` block, every cell token. The disclaimer regex was widened IN STEP — widening the positive rule alone would have made `NO VERDICTS ARE READ FROM ANYTHING BELOW` a conclusion, which is the in-sample leak it exists to stop (a test caught that). | done. **The `8e9b6a7` sections of those two records still hold the junk excerpt** — the recorder keys on (era, sha, inputs), so it cannot be rewritten in place and the fix lands a commit later. The first usable before/after for those two is the NEXT suite run. |
-| The stored book no longer reproduces under current code — DIAGNOSED 2026-09-19 | Re-pricing April 2025 moved **8 of 57** stored proxy rows. Three are the exit-fill rule; the other five are `09aa02c`'s entry rule plus a cache deeper than the one those rows were priced on. Two are large: TLT 2025-04-01 `profit_target` day 2 +100% → `expired` day 38 **−754%**, and QQQ 2025-04-28 `stop_loss` day 30 −75% → `direction_only` (unpriced). | **TLT is B2, already fixed — the re-priced number is the right one.** The hypothesis in the line above ("its entry moved") was WRONG: the entry is byte-identical (`px=0.6` / `px=0.25`, both `barchart_open`, `entry_option_price −0.35`). What moved is that the stored row booked a `profit_target` on GRID DAY 2 at a net of `0.0000` sourced `barchart+bs` — **two days before its own fill**, whose entry index is 3. That is exactly the phantom pre-entry P&L the robustness fold's B2 removed, and the current code correctly blanks those days (`pre_entry`), runs the path to expiry and books the real outcome: max loss, `pnl_on_risk_pct` −0.9962 against a −3.00 width. **Census: 17 of 1,375 rows book an exit before their fill** (15 proxy, 2 results; 13 priced by `bs` on at least one leg that day; P&L up to +4.97 and −4.24). **All 17 predate the 2026-09-08 fold and 0 postdate it**, so the fix holds and no new row can carry it — these are legacy rows to re-price or exclude, not a live defect. **They are now DETECTED: `scripts/backtest_study/lib/prefill_audit.py` (2026-09-19) stamps `prefill_verdict` / `fill_trusted` on every `load_book` record and tallies `diag["prefill_coherence"]`; `python3 -m scripts.backtest_study.lib.book --validate` prints the tally and names every offending row. 14 of the 1,325-row pooled book are flagged** (the other 3 of the 17 never reach the book). Reports, never gates — a study pooling stored outcomes filters on `fill_trusted`, one that re-replays from marks is unaffected. QQQ 2025-04-28 is a SEPARATE and benign cause: the proxy's expiry snap moved (2025-08-29 → 2025-10-24) as the cache grew, and the new pick has no usable history, so the row falls to `underlying_trend`. [Entry](current.md#2026-09-19-fifth--tlt-2025-04-01-is-not-a-new-defect-it-is-a-phantom-pre-entry-exit-and-16-others-like-it). |
-| A `bear_put_spread` can be built strike-inverted | IWM 2024-03-25 (BacktestResults) is labelled `bear_put_spread` with legs long 204P / short 210P — long the LOWER strike, which is a bull put spread's leg order. The row priced to a −2.89 credit and was labelled CREDIT. The 2026-09-19 gate now refuses it, so nothing is written, but the CLASSIFIER still builds it that way and the gate only catches the cases whose arithmetic inverts. | check `legs_from_structure` / `_short_strike` against the canonical leg order for each vertical; count how many stored rows have an inverted pair |
-| A leg quoted `bid == 0` can still fill at that day's `Open` print | The 2026-09-19 entry rule sits BELOW the entry-day `Open` fill, so it only reaches legs that had no print. A census of the 2026-09-08 exports found legs quoted `bid 0` with an ask on the entry day but filled at a print on **22 of 598** BacktestResults rows (3.7%) and **27 of 776** priced BacktestProxy rows (3.5%): 3 sign flips each, median move 0.65 / 0.99 points, max 4.06 / 4.89, concentrated in illiquid ETF puts (HYG dominates both, then LQD, XLI, XLE, EEM, FXI). A print on a contract nobody bids for is as questionable as the mid was. NOT changed, deliberately: **21 of 22 and 26 of 27 of those rows PREDATE the B5 fold**, so extending the rule there re-prices four months of already-recorded pre-fold evidence. | operator decision: leave the `Open` fill alone, or extend the side rule over it and re-price the affected rows — with a before/after, never silently |
-| The debit-to-credit gate also fires on BS-modelled legs | `_refuse_debit_priced_to_credit` cannot tell a modelled mark from a quoted one, and in the proxy's method-2 `bs` tier a modelled SHORT leg can legitimately price above a real long leg. Such a play is now refused rather than written. `proxy.bs_fallback` is OFF by default, so no row in the current book is affected — but a deliberate `bs_fallback: true` study will see fewer rows than it did before 2026-09-19. Two committed test fixtures built exactly this shape and had to be corrected. **Measured 2026-09-19: effectively moot.** BS-tagged leg-days are 17 of 33,548 in BacktestResults (0.05%) and 101 of 47,010 in BacktestProxy (0.21%); 591 of 598 results rows are 100% real-priced. The `bs` tier is off in the proxy (`bs_fallback: false` since 2026-08-11), studies load `include_bs=False`, and BS survives only as the last entry in `exit_sources: [barchart, reappearance, bs]`. | note it in any `bs_fallback` study's write-up. No exemption is worth building for a population this size unless such a study is actually registered. |
-| Proxy rows carry none of the three columns — RESOLVED 2026-09-19 | `proxy.py::_evaluate` copied `_RESULT_COLS + _BASIS_COLS` from the simulation and never `_COST_COLS`, so all 1,665 proxy rows are blank in them even on priced tiers. Same shape as the `exit_basis` gap fixed 2026-09-02, described in the comment two lines above the copy loop. `_COST_COLS` is now in the loop; `cost_basis` still writes empty while both cost knobs are 0, which is the costs-off convention BacktestResults uses. [Entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns). | done in code. NOT backfilled: the 1,665 stored rows stay blank until a `--redo` re-run, so the proxy book still reads as "no row ran under the cost model" |
+| Item | Status | Date | Story |
+|---|---|---|---|
+| The split is not readable on `cost_basis` | prose only, done | 2026-09-08 | below |
+| `history.py` unlinks a cache file before a refetch that can fail | RESOLVED | 2026-09-19 | [entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns) |
+| Proxy rows carry none of the three cost columns | RESOLVED in code, not backfilled | 2026-09-19 | [entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns) |
+| B5's zero-bid re-mark is not mirrored by `bear_rewrap` | RESOLVED | 2026-09-17 | [archive/21](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-17--bear_rewrap-pricer--b5-zero-bid-re-mark-mirrored-r2-at-1320--1321) |
+| B5 on a stale one-sided quote fabricates a credit | RESOLVED; the stored row re-priced | 2026-09-19 | [entry](current.md#2026-09-19--backtest-entry-pricing--a-sold-leg-with-no-bid-fills-at-0-and-a-debit-that-prices-to-a-credit-is-refused), [re-price](current.md#2026-09-19-later-still--the-2025-04-09-re-price-and-the-two-mirror-drifts-it-exposed-hedge_structure-unblocked) |
+| `bear_rewrap`'s mirror derived the entry day instead of reading it | RESOLVED, verdict-neutral | 2026-09-19 | [entry](current.md#2026-09-19-later-still--the-2025-04-09-re-price-and-the-two-mirror-drifts-it-exposed-hedge_structure-unblocked) |
+| The exit fill keeps the sign-independent liquidation mark | RESOLVED, not backfilled | 2026-09-19 | [entry](current.md#2026-09-19-fourth--the-exit-fills-on-the-next-two-sided-day-not-on-the-trigger-days-bid-less-mark), [column](../docs/backtest-reference.md#how-the-exit-was-filled--exit_fill) |
+| The 17 legacy rows whose exit was booked before their fill | DETECTED, 14 reach the book | 2026-09-19 | [diagnosis](current.md#2026-09-19-fifth--tlt-2025-04-01-is-not-a-new-defect-it-is-a-phantom-pre-entry-exit-and-16-others-like-it), [detector](current.md#2026-09-19-sixth--the-14-pre-fill-exits-are-now-detected-not-just-counted) |
+| The stored book no longer reproduces under current code | MEASURED; four decisions owed | 2026-09-20 | [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows), §0 items 6 to 9 |
+| A third of the suite was truncated in its own record | FIXED | 2026-09-20 | below |
+| Two per-era records carried a junk excerpt | FIXED | 2026-09-20 | below |
+| A `bear_put_spread` can be built strike-inverted | RESOLVED | 2026-09-20 | [entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed), below |
+| Six `bear put spread` plays classify as `bear_call_spread` | OPEN | 2026-09-20 | below |
+| A leg quoted `bid == 0` can still fill at that day's `Open` print | OPEN, operator decision | 2026-09-08 | below, §0 item 9 |
+| The debit-to-credit gate also fires on BS-modelled legs | OPEN note, effectively moot | 2026-09-19 | below |
+
+The rest of this section is the detail that lives nowhere else.
+
+**The `cost_basis` split.** `_apply_costs` writes `cost_basis` empty whenever
+both cost knobs are 0, which they are, so it is blank on every
+`BacktestResults` row. Split the two populations on `cost_total` or
+`pct_stale_days` being non-blank instead. That is 14 rows, the six retried
+queue-D dates.
+
+**A third of the suite was truncated in its own record.** The recorder cut the
+conclusion block at `MAX_EXCERPT_LINES = 12` with no marker, so a section
+quoting 12 of 358 lines read as complete. Thirteen of 35 studies sat exactly
+at the cap, and three separate readers reported that truncation as ambiguity
+in the study: `staged_exit` ("only 10 grid cells are recorded"),
+`text_features` ("ARM B is not determinable") and `exit_from_text`.
+
+Fixed 2026-09-20 in three parts. The cap is now 40 lines, which quotes 11 of
+the 13 whole. That costs about 11 KB a suite run. The section now states what
+it cut
+(`40 of 357 block lines; 317 not quoted`). A block that is still cut carries a
+tally of the study's own verdict words
+(`UNDERPOWERED 294, NULL 27, CONTRARY 15, CANDIDATE 4`). The tally is a count
+rather than a paraphrase, and it renders outside the fence so the quote stays
+verbatim. The two that stay truncated enumerate a parameter grid rather than
+state an answer, which is the argument for a tally over a higher cap.
+
+**Two per-era records carried a junk excerpt and could not detect a verdict
+change.** The title regex in `scripts/study_map/summary.py` matched
+`\bVERDICT\b`, which does not match the plural `VERDICTS`, because `\b` wants
+a non-word character after the T. Both `financed_spread` and `ladder_overlay`
+title their banner `VERDICTS`. So both fell through to the `matched` fallback
+and recorded a line of the report's own explanatory prose as their answer, for
+four runs. One of them reads "...say POWER-STOPPED and mean the".
+
+Found 2026-09-20 comparing the suite re-run against the previous one, when the
+record could not answer whether either study had moved. Both now record their
+real `VERDICTS` block, every cell token. The disclaimer regex was widened in
+step, because widening the positive rule alone would have made
+`NO VERDICTS ARE READ FROM ANYTHING BELOW` a conclusion — the in-sample leak
+it exists to stop, and a test caught it.
+
+Both fixes land a commit later than the run they were found on. The recorder
+keys on (era, sha, inputs), so the `8e9b6a7` sections keep their truncated and
+junk excerpts, and the first usable before/after is the next suite run's.
+
+**A `bear_put_spread` can be built strike-inverted — resolved 2026-09-20.**
+`IWM` 2024-03-25 on `BacktestResults` is labelled `bear_put_spread` with legs
+long 204P / short 210P, which is a bull put spread's leg order. It priced to a
+−2.89 credit and was labelled CREDIT. The root cause turned out to be strike
+extraction rather than leg order: those strikes came from the play's
+narrative, while its header names a 200/185 bear put. The parser now reads the
+header, and a vertical whose strikes are in the wrong order for its direction
+is refused with `skip_reason = inverted_vertical`.
+
+**Six `bear put spread` plays classify as `bear_call_spread`.** Their
+narrative mentions bear call spreads and the classifier takes the label from
+it. They are AVGO, ITB, LLY, MU, TLT and SMH. All six are vetoed before
+pricing, so nothing prices wrong today. Count them again after any change to
+the structure parser.
+
+**A leg quoted `bid == 0` can still fill at that day's `Open` print.** The
+2026-09-19 entry rule sits below the entry-day `Open` fill, so it reaches only
+legs that had no print. A census of the 2026-09-08 exports found legs quoted
+`bid 0` with an ask on the entry day that filled at a print anyway.
+
+| Tab | Rows | Share | Sign flips | Median move | Max move | Predate the B5 fold |
+|---|---|---|---|---|---|---|
+| `BacktestResults` | 22 of 598 | 3.7% | 3 | 0.65 | 4.06 | 21 of 22 |
+| `BacktestProxy`, priced | 27 of 776 | 3.5% | 3 | 0.99 | 4.89 | 26 of 27 |
+
+They concentrate in illiquid ETF puts: HYG dominates both, then LQD, XLI, XLE,
+EEM and FXI. A print on a contract nobody bids for is as questionable as the
+mid was. This was deliberately not changed, because almost every one of those
+rows predates the B5 fold, so extending the rule there would re-price four
+months of already-recorded pre-fold evidence. The decision is item 9 in §0:
+leave the `Open` fill alone, or extend the side rule with a before and after.
+
+**The exit-fill census is approximate.** It reconstructs the exit day from
+`days_held` over a business-day grid rather than reading it from the stored
+grid, so its counts are an order of magnitude and not a row list.
+
+**The debit-to-credit gate also fires on BS-modelled legs.**
+`_refuse_debit_priced_to_credit` cannot tell a modelled mark from a quoted
+one, and in the proxy's method-2 `bs` tier a modelled short leg can
+legitimately price above a real long leg. Such a play is now refused rather
+than written. Two committed test fixtures built exactly this shape and had to
+be corrected. A deliberate `bs_fallback: true` study will see fewer rows than
+it did before 2026-09-19.
+
+Measured 2026-09-19, it is effectively moot.
+
+| Population | BS-tagged leg-days |
+|---|---|
+| `BacktestResults` | 17 of 33,548 (0.05%) |
+| `BacktestProxy` | 101 of 47,010 (0.21%) |
+
+591 of 598 results rows are 100% real-priced. The `bs` tier is off in the
+proxy (`bs_fallback: false` since 2026-08-11), studies load `include_bs=False`,
+and BS survives only as the last entry in
+`exit_sources: [barchart, reappearance, bs]`. Note this in any `bs_fallback`
+study's write-up. No exemption is worth building for a population this size
+unless such a study is actually registered.
 
 The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md),
 [`mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) and

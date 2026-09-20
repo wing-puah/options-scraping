@@ -8,92 +8,87 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
-Population refreshed 2026-09-08; every verdict below was read on 2026-09-04.
-Nothing new ships. The whole suite was re-run on the first book that carries
-2026 signal dates, and no headline verdict moved. Two studies produced a
-first-time candidate and both are held, because the new dates are a correlated
-backfill window rather than a fresh one.
+The suite was re-run on 2026-09-19 and **18 of 31 verdicts moved**. Nothing
+ships. Two of the moves bear on shipped rules, and seven decisions now wait on
+the operator: those two, the capital question, and four about the stored book
+([entry](#2026-09-20--suite-re-run-read-in-full--18-of-31-verdicts-moved-two-touch-shipped-rules)).
 
 This block is the authoritative summary of where the research stands.
-[`overview.md`](overview.md) restates parts of it, and [`next-steps.md`](next-steps.md)
-§0 points here. If either disagrees with this block, this block wins.
+[`overview.md`](overview.md) restates parts of it, and
+[`next-steps.md`](next-steps.md) §0 points here. If either disagrees with this
+block, this block wins.
 
 ### The population
 
 | Field | Value |
 |---|---|
 | Era | `v4`, the 193-date backfilled book |
-| Exports | re-pulled 2026-09-08, then again 2026-09-19 after 2025-04-09 was re-priced; deduplicated, and every result row joins its play |
+| Exports | re-pulled 2026-09-19, deduplicated; every result row joins its play but two |
 | Real results | 598 over 193 dates |
 | Proxy rows | 1,665 |
-| Analysis rows | 2,781 over 237 dates on the 2026-09-19 export, one analysis run per date |
-| Pooled study book | 1,374 rows over 208 dates, being 598 real plus 776 tweak |
+| Analysis rows | 2,781 over 237 dates, one analysis run per date |
+| Pooled study book | 1,325 rows over 207 dates, being 598 real plus 727 tweak |
 | Signal dates | 2024-01-10 → 2026-05-07 |
-| 2026 signal dates | 29 carry pooled rows, 26 of them real; 2026-01-06 to 2026-05-07, 161 pooled rows |
+| 2026 signal dates | 29 carry pooled rows, 26 of them real; 2026-01-06 to 2026-05-07, 155 pooled rows |
 
-Every verdict summarised below was read on the 166-date book of 2026-09-04. The
-42 dates of queues C, D and E landed on 2026-09-08 and NO study has run since,
-so the numbers in the tables below are the last recorded ones, not this book's
-([the queue entry](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-fifth--queues-c-d-and-e-are-run-42-dates-added-and-the-2026-column-now-samples-march)).
-
-This is the first book with 2026 signal dates, so every `ex_2026_*` cut and
-every "positive in every year" clause runs for the first time. It is also the
-first that samples the March 2026 drawdown, on five priced sessions. Queue b,
-the neutral-date campaign, and queues C, D and E, which finished its selection,
-are all complete and closed.
+Every number below was read on a book that mixes pricing regimes. The cost
+model, the entry side rule and the exit-fill rule each reached only part of it,
+and a cache-only re-price moves 370 of 2,234 stored rows
+([census](#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
 ### Where the 2026 column bit
 
-Every study still prints the verdict word it printed on the 140-date book. What
-moved is underneath the verdict: the per-year clause now has a 2026 column, that
-column is negative in most cells, and it is the first look out of sample in time
-that any rule has had on `v4`. [meanR](glossary.md#meanr) and
-[CI](glossary.md#ci) are defined in the glossary. Arm labels are study-local, so
-each is given with its study.
+The 2026 column is negative in most per-year cells and still costs cells their
+year clause. It is no longer the only thing moving verdicts: on
+`portfolio_delta` the duplicate and stale-row repairs of 2026-09-06 and 09-07
+carried most of the drop, and the 39 added dates the rest. Per-study rows are
+in the [study map](study-map.md#operator-reading-2026-09-20).
+[meanR](glossary.md#meanr) and [CI](glossary.md#ci) are defined in the
+glossary; arm labels are study-local, so each is given with its study.
 
-| Study | Arm or cut | What changed | Record |
+| Study | Arm or cut | What it prints now | Record |
 |---|---|---|---|
-| `next_day_move` | [ARM R](arm-index.md#next_day_move), bear-debit | lost its `**` on all three cuts | [record](study-results/f2_management/next_day_move.md) |
-| `exit_from_text` | [E2](arm-index.md#exit_from_text), pooled | the pooled candidate is gone | [record](study-results/f2_management/exit_from_text.md) |
-| `portfolio_delta` | [ARM B](arm-index.md#portfolio_delta) ceiling 1.50 | dropped out, so only ceiling 1.00 clears | [record](study-results/f4_deployment/portfolio_delta.md) |
-| `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cuts | two of them fail | [record](study-results/f1_selection/emission_timing.md) |
-| `bear_rewrap` | `long_diag` year criterion | 5/5 fell to 4/5, and in the same run its portfolio checks were `MET` for the first time | [record](study-results/f3_structure/bear_rewrap.md) |
-| bear-debit `be_after` | rollback census | re-fired on 199 arming rows over 110 dates, 2026 −0.0431 | [plan](pre-registrations/f2_management/rollback_triggers.md) |
+| `next_day_move` | [ARM R](arm-index.md#next_day_move) bear debit | `worse than -0.5 sigma` has its `**` back and clears all six criteria | [record](study-results/f2_management/next_day_move.md) |
+| `exit_from_text` | [E2](arm-index.md#exit_from_text) | a first `CANDIDATE`, and the pooled cell clears again | [record](study-results/f2_management/exit_from_text.md) |
+| `portfolio_delta` | [ARM B](arm-index.md#portfolio_delta) | `NOISE`; no ceiling clears, criterion 1 alone failing at +0.0519 R, CI [−0.0333, +0.1407] | [record](study-results/f4_deployment/portfolio_delta.md) |
+| `concurrency_correlation` | [K 5](arm-index.md#concurrency_correlation) same direction and sector | `RESTATEMENT` of `portfolio_delta`; X4 prints `PENDING`, so the 2026-09-04 hand settlement is withdrawn | [record](study-results/f4_deployment/concurrency_correlation.md) |
+| `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cut 2 | repeats that had already moved against the play clear all six, at −0.2579 | [record](study-results/f1_selection/emission_timing.md) |
+| `bear_rewrap` | [long_diag](arm-index.md#bear_rewrap) | 4 of 5 again, failing the year clause; the P1 portfolio check is met on no substitution | [record](study-results/f3_structure/bear_rewrap.md) |
+| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | `NOT met`: `sl .50` Δ=+0.030, CI [−0.003, +0.061] | [record](study-results/f1_selection/bear_arm.md) |
+| `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000`; A1 and A2 hold at every rung | [entry](#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3) |
+| `exit_switch_structure_study` | Q1 and Q2 | `STAYS GATED`, now failing four of six; Q2 reads the shipped BEAR_HE clause at Δ=−4.5205, 47% retained | [record](study-results/f2_management/exit_switch_structure_study.md) |
 
-`be_after` was already reverted on 2026-08-24, so its census re-firing asks for
-nothing. That census has now given three answers on three runs: a 60-row floor
-on a backfilling book is not a decision procedure.
+Two of these bear on shipped rules. The `bear_arm` rollback census fires all
+three of its clauses, and the report asks for a production config change on a
+stop that was reverted in 2026-08. In `exit_switch_structure_study` the Q2
+line is an observation rather than a registered trigger, because the census
+that would fire is underpowered. Both are filed in
+[`next-steps.md`](next-steps.md) under
+*Waiting on the operator*, with `account_sim`'s capital question.
 
 ### Two firsts that hold rather than ship
 
-Both sit in the correlated window, so neither promotes a rule.
+Both 2026-09-04 firsts are gone: `bear_arm` B2 no longer meets its criteria,
+and `financed_spread`'s `RE-WRAP` token left F3 off1, which is now `NULL`. Two
+other cells clear in their place, and neither promotes a rule.
 
 | Study | Arm | What it prints |
 |---|---|---|
-| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | criteria `MET` for the first time: `sl .50 (tighter)` Δ=+0.039, CI [+0.004, +0.071], [LOO](glossary.md#loo) min +0.035, and the bear-specificity control holds |
-| `financed_spread` | [F3](arm-index.md#financed_spread) off1 | `RE-WRAP` at 6/7, failing only the anti-re-wrap E3 correlation; its fixed-contracts control spans zero |
+| `exit_from_text` | [E2](arm-index.md#exit_from_text) MECH LVOL N=3 | a first `CANDIDATE`, ΔR +0.071, CI [+0.011, +0.128], every criterion passing. An intake filter, never an exit rule |
+| `financed_spread` | [F4-d20 $100](arm-index.md#financed_spread) | `RE-WRAP` at 6/7, failing only the anti-re-wrap E3 correlation at +0.180; its fixed-contracts control excludes zero |
 
 ### The hedge programme
 
 The trigger studies are closed and the instrument is unchanged. The gap-up
 prohibition in [§4](../docs/deployment-rules.md#s4) was accepted on 2026-09-06
-and rests on `hedge_timing`'s paired-[R](glossary.md#r) arms alone. The sleeve
-stays, so finding an indicator for when to open a hedge is now an open queue
-item with nothing in it ([`next-steps.md`](next-steps.md) §2.10).
+and now rests on `hedge_timing`'s H3-GAP arm alone, because H1-GAP moved from
+`CONTRARY` to `NULL` on this run. The sleeve stays, so finding an indicator for
+when to open a hedge is an open queue item with nothing in it
+([`next-steps.md`](next-steps.md) §2.10).
 
 The spine is [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md):
 the four studies grouped by the question each answers, what each one last
 printed, why each stopped, and what would unblock it.
-
-### `concurrency_correlation` is closed
-
-No arm clears [X2 or X3](arm-index.md#concurrency_correlation) in either era, so
-no arm is or can be `ADOPT`-eligible. [X4](arm-index.md#concurrency_correlation),
-the era-stability criterion, was settled by hand: `NOISE` on both eras. The `v3` companion ran on 795 rows over
-118 dates, powered 8 of 13 arms, and printed the same sentence. 4 of the 8 arms
-powered in both eras flip sign, so the verdict is era-stable while the per-arm
-gains are not. The thread is closed, and the run is in the
-[record](study-results/f4_deployment/concurrency_correlation.md).
 
 ### Rollback triggers
 
@@ -103,49 +98,48 @@ nothing has not been checked, and that is not the same as "not met". The
 
 | Trigger | On this export |
 |---|---|
-| LVOL tef-null | `STAYS GATED` on 73 affected dates, median −0.033. The 2026-08-24 `CLEARED` did not survive two exports, so the operator's hold was right |
-| BEAR_HE trail | `UNDERPOWERED` at 1 date of 25 |
+| LVOL tef-null | `STAYS GATED` on 106 rows over 80 affected dates, median −0.011; one of its four clauses fails, the median among affected dates |
+| BEAR_HE trail | `UNDERPOWERED` at 8 affected dates of 25 |
+| bear-debit `be_after` | 242 arming rows over 134 dates, and all three clauses fire |
 | credit sl-none | 0 of 15, and unreachable by backfill because the window starts after 2026-07-13 |
+
+`be_after` was already reverted on 2026-08-24, so the shipped stop is off
+whatever the census says. The report prints `REVERT CONDITION FIRED` and asks
+for a production config change all the same, which is an operator decision
+rather than a new finding.
 
 ### Known defects in this export, not repaired
 
-- **The exports are refreshed and deduplicated.** All three were re-pulled on
-  2026-09-08 after queues C, D and E finished. `BacktestResults` holds 598 rows
-  over 193 dates, and no identity key repeats on it or on `BacktestProxy`. Tab
-  and export agree on each. The suite has NOT been re-run on them.
-  Details: [`next-steps.md`](next-steps.md) §0.
 - **The rows did not all run under one code version.** The six queue-D dates
-  retried on 2026-09-08 ran after merge `3e5c2dc`, so they carry the cost
-  columns and the pre-entry grid fix; every other row predates it. Split them on
-  `cost_total` or `pct_stale_days` being non-blank — NOT on `cost_basis`, which
-  is blank everywhere while both cost knobs are 0.
+  retried on 2026-09-08 carry the cost columns and the pre-entry grid fix;
+  every other row predates it. Split them on `cost_total` or `pct_stale_days`
+  being non-blank — not on `cost_basis`, which is blank everywhere while both
+  cost knobs are 0.
 - **Almost every `BacktestProxy` row is blank in `pct_stale_days`, `cost_total`
-  and `cost_basis`.** `proxy.py::_evaluate` never copied them onto the row; fixed
-  2026-09-19, but NOT backfilled, so only the 9 rows re-priced on 2025-04-09
-  carry them. Treat the rest as "did not run under the cost model", which is
-  true of them. [`next-steps.md`](next-steps.md) §2.11.
-- **The 5 surviving 2025-09-18 rows carry a `market_regime` from a LATER
-  analysis run than their own play.** The backtest stamps each play with the
-  newest `MARKET` row on its date, and 2025-09-18 was analysed twice, so those
-  rows read `BULL + C-VOL` where the run that proposed them read `RANGE +
-  L-VOL`. That follows from keeping the newer copy, and is not repaired. Any
-  regime cut on 2025-09-18 sees the later label.
-- **RESOLVED.** The 12 `BacktestResults` rows whose play no longer existed were
-  dropped on 2026-09-07, so no result row joins the wrong play any more. Record:
-  [2026-09-07 later](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07-later--the-12-stale-backtest-rows-are-dropped-and-the-backtest-can-no-longer-double-a-row).
-- **Two rows on 2025-07-29 still cannot join, and are KEPT on purpose.** `COIN`
-  and `EEM` have no `AnalysisClaude` row, from a cause unrelated to the repair:
-  the analysis rows that proposed them went missing separately, so the backtest
-  row is now the only surviving record that those plays were ever proposed. They
-  fail the join outright rather than landing on another play, which studies
-  already count as unjoined. Dropping them would destroy evidence to tidy a
-  count.
+  and `cost_basis`.** `proxy.py::_evaluate` never copied them onto the row;
+  fixed 2026-09-19 but not backfilled, so only the 9 rows re-priced on
+  2025-04-09 carry them. [`next-steps.md`](next-steps.md) §2.11.
+- **Four groups of stored rows are wrong or unverifiable**: the 14 pre-fill
+  exits, the six wrong-strike rows, the 49 `Open`-fill rows, and 80
+  `BacktestResults` rows that cannot be priced offline at all. Each is a
+  decision in [`next-steps.md`](next-steps.md) under *Waiting on the operator*;
+  the numbers are in the
+  [census](#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows).
+- **Six `bear put spread` plays classify as `bear_call_spread`**, because their
+  narrative mentions bear call spreads. All six are vetoed before pricing, so
+  nothing prices wrong today
+  ([entry](#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed)).
+- **The 5 surviving 2025-09-18 rows carry a `market_regime` from a later
+  analysis run than their own play.** That date was analysed twice and the
+  backtest stamps the newest `MARKET` row, so the rows read `BULL + C-VOL`
+  where the run that proposed them read `RANGE + L-VOL`.
+- **Two rows on 2025-07-29 cannot join, and are kept on purpose.** `COIN` and
+  `EEM` lost the analysis rows that proposed them, so the backtest row is the
+  only surviving record of the play. Studies count them as unjoined.
 - 2025-12-26 produced no analysis rows.
-- `text_features` [ARM B](arm-index.md#text_features) label coverage fell to
-  89.3%, because the label cache does not cover the new rows.
-
-Detail is in the 2026-09-04 entry below and in
-[`next-steps.md`](next-steps.md) §0.
+- `text_features` [ARM B](arm-index.md#text_features) label coverage is 74.9%,
+  992 of 1,325 priced rows, because the label cache does not cover the new
+  rows.
 
 ### The open queue
 
@@ -155,7 +149,7 @@ cell `NULL`
 ([entry](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-16--ladder_overlay--nothing-ships-no-ladder-or-naked-put-cell-beats-the-plain-spread-on-v4-or-v3)).
 
 - The v4 composition bridge and the rollback triggers wait on genuinely new
-  dates. Those are the live analysis dates 2026-08-11 → 2026-09-01, which have
+  dates. Those are the live analysis dates 2026-08-11 → 2026-09-18, which have
   no backtest rows until their options expire.
 - `prompt_eval` ([§2.9](next-steps.md#s2-9)) is open but is not an edge search.
   It tests whether a prompt gives the same regime label on the same inputs,
@@ -168,12 +162,11 @@ cell `NULL`
 Each is a way to misread the data that has already caught someone once. None
 blocks any work; each has its full entry in an archive volume.
 
-- **`exit_basis` is era-scoped, not corrupt.** The column is unlabelled and
-  scrambled on `v3` and earlier, and those exports are frozen
-  ([archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md)).
-  It is clean on `v4`, re-measured 2026-09-02 at 485/485 labelled and
-  internally consistent. `BacktestProxy` carries it only for rows written after
-  the 2026-09-02 writer fix.
+- **`exit_basis` is era-scoped, not corrupt.** It is unlabelled and scrambled
+  on the frozen `v3` exports
+  ([archive/15](archive/15-era-scoping-suite-repair-and-selection-order.md)),
+  and clean on `v4`, re-measured 2026-09-02 at 485/485 labelled. `BacktestProxy`
+  carries it only for rows written after the 2026-09-02 writer fix.
 - **Studies are era-scoped.** The bare export name does not name a population;
   `lib/era.py` is the single encoding (archive/15).
 - **Arm labels are study-local.** Cite `emission_timing ARM P`, never a bare
@@ -183,10 +176,9 @@ blocks any work; each has its full entry in an archive volume.
   (archive/17).
 - **The `hedge_portfolio` registration describes the wrong stratum.** Its
   plan-time observations describe the `real` stratum, not the ratified book.
-  The RATIFICATION that says so was folded out of `hedge-exposure-errata.md`
-  into the registration itself on 2026-09-02, and now lives in
-  [Population and basis](pre-registrations/f5_hedging/hedge_portfolio.md).
-  The errata file is deleted; dated entries below keep its name as history.
+  The ruling that says so was folded out of `hedge-exposure-errata.md` into
+  [the registration](pre-registrations/f5_hedging/hedge_portfolio.md) on
+  2026-09-02. The errata file is deleted; dated entries below keep its name.
 
 ### What was pruned from this log
 
@@ -207,19 +199,268 @@ blocks any work; each has its full entry in an archive volume.
   [archive/19](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md),
   and 2026-09-08, into
   [archive/20](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md).
-  Archive 19 holds `hedge_concentration` GRADED, `concurrency_correlation`'s
-  first run, the first book with 2026 dates, `exit_drawdown`'s registration
-  and UNDERPOWERED run, the overview/glossary rewrite, the gap-up hedge
-  prohibition, the SPY and stale-row duplicate repairs with their two new
-  write guards, the 40 unrun pre-registered dates, the robustness review, and
-  the hedge-programme criteria consolidation. Archive 20 holds the hedge
-  studies' rename, the robustness fold landing on main, the hedge-programme
-  plan's deletion into `f5_hedging/README.md`, `exit_drawdown`'s ARM P ACK and
-  errata fold, queues C/D/E, the sleeve-sizing fold onto
-  `lib/hedge_criteria.sleeve_pick`, and the far-call fetch that restored 178
-  lost cache files while `hedge_structure` stayed blocked at R2.
+- Archive 19 holds `hedge_concentration` GRADED, `concurrency_correlation`'s
+  first run, the first book with 2026 dates, and `exit_drawdown`'s
+  registration and UNDERPOWERED run. It also holds the overview/glossary
+  rewrite, the gap-up hedge prohibition, and the SPY and stale-row duplicate
+  repairs with their two new write guards. Last are the 40 unrun
+  pre-registered dates, the robustness review, and the hedge-programme
+  criteria consolidation.
+- Archive 20 holds the hedge studies' rename, the robustness fold landing on
+  main, and the hedge-programme plan's deletion into `f5_hedging/README.md`.
+  It also holds `exit_drawdown`'s ARM P ACK and errata fold, queues C/D/E, and
+  the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
+  far-call fetch that restored 178 lost cache files while `hedge_structure`
+  stayed blocked at R2.
 
 ---
+
+## 2026-09-20 (fifth) — check_prose — unreadable prose is rejected when it is written
+
+**A hook now checks every edit to `research/` and `docs/` prose against the
+[writing guide](writing-guide.md#the-automatic-check).** Nothing in the
+research changes.
+
+**What it does.** `scripts/check_prose.py` counts words per table cell, per
+sentence and per paragraph, figures per sentence, heading length and capitals
+used for emphasis. It runs after every Edit or Write, in the main session and
+in subagents. A failure goes back to the writer, who rewrites the block.
+
+**What it does not do.** It cannot rewrite text, and it does not see edits made
+through the shell. `make check-prose` covers those. It reports only the blocks
+an edit touched, because the older files fail it wholesale.
+
+**Next.** [`next-steps.md`](next-steps.md) §2.11 was the worst case and was
+rewritten the same day. No new item.
+
+## 2026-09-20 (fourth) — account_sim — the capital ladder prints again; no registered rung passes A3
+
+**The drawdown fits the 25% bar from $75,000 up, and at no registered
+capital.** Nothing ships: $75,000 is a post-hoc rung, printed in its own
+labelled block.
+
+_Era v4 · exports 2026-09-19 · report: `backtests/study_output/account_sim-latest.txt`
+· [pre-registration](pre-registrations/f4_deployment/account_sim.md)._
+
+**The rule.** The registration prints the ladder "On NOT FEASIBLE". Since the
+2026-08-14 amendment that includes the case where
+[A1](arm-index.md#account_sim) holds and A3 fails.
+
+**What the code did.** It printed the ladder only when A1 failed, so today's
+verdict printed no ladder. The ladder also tested A1 and A2 only.
+
+**What changed.** The trigger is now the verdict itself. Each rung prints its
+max drawdown and A3, from the same clause `evaluate()` uses. The registered
+line about A1 and A2 is unchanged, word for word. Rungs above $50,000 come from
+a new `grids.capital_ladder_posthoc` list and print under a post-hoc banner.
+
+| Capital | Max drawdown | A3 | Set |
+|---|---|---|---|
+| $25,000 | 35.0% | no | registered |
+| $35,000 | 26.7% | no | registered |
+| $50,000 | 27.1% | no | registered |
+| $75,000 | 22.1% | yes | post-hoc |
+| $100,000 | 19.2% | yes | post-hoc |
+| $150,000 | 19.7% | yes | post-hoc |
+| $250,000 | 21.4% | yes | post-hoc |
+
+A1 and A2 hold at every rung. The primary block did not move: the report diff
+is the ladder, the config echo and the run stamp.
+
+**Why capital matters at all.** Sizing is proportional, so drawdown as a share
+of capital should not depend on capital. The exception is the one-contract
+floor. At $25,000 the risk budget is $500, and most picks risk more than that
+on a single contract. The floor still buys that contract, so a position carries
+up to 3% of capital instead of the configured 2%.
+
+**Where the drawdown is.** It is a January–April 2025 cluster, not the March
+2026 sessions. The peak is 2025-01-10 and the trough 2025-04-09, across 28
+one-contract bull call spreads. The worst single position is COIN at −$878.
+
+**When it flipped.** The last FEASIBLE run was 2026-09-05 on 535 rows. The
+first failing run was 2026-09-08 on 598 rows, and every run since is
+numerically identical. The cost columns are not the cause: they are zero on
+every row. Population growth and the re-marks landed in the same three days,
+and the 09-05 export is gone, so the two cannot be separated.
+
+**Open decision.** What to do about a book that is not feasible at the
+operator's capital is not settled. The measured options at $25,000 are below;
+none is a recommendation, and choosing one to clear the bar would be tuning.
+
+| Knob | Value | Max drawdown | Cost |
+|---|---|---|---|
+| `risk_per_trade_pct` | 2% → 1.25% | 18.0% | smaller positions |
+| `risk_per_trade_pct` | 2% → 1.5% | 25.1% | still fails |
+| `caps.net` | 2.50 → 1.50 | 20.3% | positions 211 → 142 |
+| `max_positions_per_day` | 3 → 2 | 26.7% | still fails |
+
+**Next.** Filed in [`next-steps.md`](next-steps.md) under *Waiting on the
+operator*.
+
+## 2026-09-20 (third) — backtest classifier — six priced rows used strikes from the narrative; fixed
+
+**The strike parser could take its numbers from a play's narrative instead of
+its header, and six priced rows were priced on the wrong strikes.** The parser
+is fixed. The six stored rows are not re-priced.
+
+_Era v4 · exports 2026-09-19 · 2,545 play texts, 2,263 stored rows checked._
+
+**The bug.** `classify.py::_extract_strikes` tried a three-strike pattern on
+the whole play text before the two-strike one. A narrative such as "open
+interest at 204/210/211" matched first. Nothing checked the result against the
+structure, so a wrong pair that happened to be validly ordered passed every
+gate.
+
+| Date | Ticker | Tab | Header says | Priced on |
+|---|---|---|---|---|
+| 2024-11-26 | NVDA | BacktestResults | bull call 145/160 | 140/145 |
+| 2024-03-25 | IWM | BacktestResults | bear put 200/185 | 204/210 |
+| 2025-05-09 | SPY | BacktestResults | bear put 550/510 | 530/510 |
+| 2024-08-23 | FCX | BacktestProxy | bull call 45/50 | 45/47 |
+| 2024-02-27 | PINS | BacktestProxy | bull call 36/40 | 36/39 |
+| 2024-02-06 | IWM | BacktestProxy | bull call 196/210 | 201/208 |
+
+The three proxy rows are not strike tweaks. `proxy_detail` shows the tweak
+changed the expiry only, or tweaked the strikes the parser had already grabbed.
+None of the six is among the 14 pre-fill rows or the 49 `Open`-fill rows.
+
+**The fix.** Strikes come from the header, the text before the second `|`. The
+whole text is the fallback when the header has none, which happens on 5 of
+2,545 texts. A vertical whose strikes are in the wrong order for its direction
+is refused with `skip_reason = inverted_vertical`, the same way a debit priced
+to a credit is refused. After the header fix no real text names a vertical
+inverted, so the refusal drops nothing today.
+
+**Effect on classification.** 12 of 2,545 texts classify to different strikes.
+No structure label and no credit flag moves. All 12 butterfly and condor plays
+are unchanged. `shared/identity.py` is untouched, so row identity is the same.
+
+**Not fixed.** Six `bear put spread` plays are classified `bear_call_spread`
+because their narrative mentions bear call spreads. All six are already vetoed
+before pricing, so nothing prices wrong today. Filed in §2.11.
+
+**Next.** The six rows join the re-price decision in the entry below.
+`tests/test_backtest.py` gained 18 tests; the suite is 3,878 green.
+
+## 2026-09-20 (later) — stored book — a cache-only re-price moves 370 of 2,234 rows
+
+**The stored book does not reproduce under current code, and most of the
+movement comes from the cache rather than the code.** Nothing was written: this
+is a measurement, run from the cache with every Sheets writer disabled.
+
+_Era v4 · exports 2026-09-19 · code `80b0f3f` · 598 BacktestResults + 1,636 of
+1,665 BacktestProxy rows · per-row table and scripts:
+`backtests/reprice_census_20260920/`._
+
+| Tab | Rows | Moved | Moved > 0.10 [R](glossary.md#r) | Sign flips | Lost pricing | Newly priced |
+|---|---|---|---|---|---|---|
+| BacktestResults | 598 | 135 | 38 | 20 | 80 | 0 |
+| BacktestProxy | 1,636 | 235 | 77 | 31 | 21 | 53 |
+
+**Causes, moved rows.**
+
+| Cause | Rows | Code or cache |
+|---|---|---|
+| Exit fill deferred to the next two-sided day | 61 | code (`51c95bd`) |
+| Same entry, different exit path | 60 | cache is deeper |
+| No local cache file | 57 | cache gap |
+| Newly priceable | 53 | cache is deeper |
+| Entry side rule | 41 | code (`09aa02c`) |
+| Entry day moved | 39 | cache is deeper |
+| Other unpriceable | 24 | cache gap |
+| Falls to `underlying_trend` | 19 | cache is deeper |
+| Exit booked before the fill | 14 | code (B2) |
+| Refused, debit priced to a credit | 1 | code |
+
+So about 117 rows move because the code changed, and the rest because the cache
+did. A row that moved is not always a row that was wrong. HYG and LQD dominate
+the largest moves, on thin one-sided quotes.
+
+**The 14 pre-fill rows.** All 14 re-price cleanly, all 14 move, and 9 flip
+sign. The choice between excluding and re-pricing them barely matters to the
+book:
+
+| Book | [meanR](glossary.md#meanr) | Rows |
+|---|---|---|
+| Stored as it is | +0.0395 | 1,364 |
+| The 14 excluded | +0.0427 | 1,350 |
+| The 14 re-priced | +0.0457 | 1,364 |
+| Whole book re-priced, rows priced both times | +0.0329 → +0.0210 | 1,263 |
+| The 14 alone | −0.2709 → +0.3377 | 14 |
+
+**The `Open`-fill rows.** The census of 49 rows reproduces: 22 results and 27
+proxy. 17 are HYG. Six would flip sign under the side rule, and three overlap
+the 14. The shift in their mean cannot be estimated from the entry price alone,
+because several stored entries are near zero.
+
+**What blocks an honest full re-price.** 80 BacktestResults rows cannot be
+priced offline at all. 57 have no cache file and 20 have a shallow one, the
+damage the three-month `startDate` default left. A full re-price needs a
+Barchart refetch first.
+
+**Recommendation, not yet decided.** Exclude the 14 through `fill_trusted`
+rather than `--redo` them. Re-price the six wrong-strike rows, because those
+are wrong rather than old. Leave the whole-book re-price until the cache gap is
+refetched.
+
+**Next.** All three decisions are filed in [`next-steps.md`](next-steps.md)
+under *Waiting on the operator*.
+
+## 2026-09-20 — suite re-run read in full — 18 of 31 verdicts moved, two touch shipped rules
+
+**The 2026-09-19 suite run moved far more than the two verdicts first
+reported.** Nothing ships and no rule is changed here. Two results bear on
+shipped rules and wait on the operator.
+
+_Era v4 · exports 2026-09-19 · 598 real / 1,665 proxy rows · code `8e9b6a7` ·
+every report under `backtests/study_output/` · recorded in
+[study-results](study-results/)._
+
+**In production.** Nothing changes. `docs/deployment-rules.md` is not edited.
+
+**What was stale.** Commit `f27724d` recorded the run but no hand-written
+surface was updated. [`study-map.md`](study-map.md), `catalog.py`,
+[`overview.md`](overview.md) and
+[`deployment-evidence.md`](deployment-evidence.md) now quote the new run. The per-study rows are in the
+[study map](study-map.md#operator-reading-2026-09-20).
+
+| Of 31 catalogued studies | Count |
+|---|---|
+| Moved a verdict token or a registered criterion | 18 |
+| Moved numbers only | 9 |
+| Unchanged | 4 |
+
+**The two that touch a shipped rule.**
+
+| Study | What it prints now | Rule | Standing |
+|---|---|---|---|
+| `exit_switch_structure_study` | `shipped BEAR_HE clause  Δ=-4.5205`, `retained 47%`; 09-04 read +0.7735 and 0% | [§5](../docs/deployment-rules.md#s5) BEAR_HE trail | an observation; the registered rollback census is still underpowered at 8 of 25 dates |
+| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix `NOT met`, and `REVERT CONDITION FIRED` | bear exit profile | the report asks for a production config change |
+
+**Other moves worth knowing.**
+
+| Study | Move |
+|---|---|
+| `account_sim` | FEASIBLE → `NOT FEASIBLE AT $25,000`; entry above |
+| `portfolio_delta` | CANDIDATE → `NOISE`; criterion 1 alone fails at `+0.0519 R CI95 [-0.0333, +0.1407]` |
+| `concurrency_correlation` | NOISE → `RESTATEMENT`; it restates `portfolio_delta` and does not ship |
+| `exit_from_text` | first `CANDIDATE`, `E2 MECH LVOL N=3`; an intake filter, so a proposal only |
+| `hedge_timing` | H1-GAP CONTRARY → `NULL`; the [§4](../docs/deployment-rules.md#s4) gap-up prohibition now rests on H3-GAP alone |
+| `trigger_entry` | tally now `{'LATE-ENTRY': 3}` |
+
+**Why `portfolio_delta` moved.** The candidate was never robust: its interval
+cleared zero by 0.0131 on one arm. Restricting the new export to the old 166
+dates already fails criterion 1, at `+0.0771 R CI95 [-0.0093, +0.1727]`. So the
+duplicate and stale-row repairs of 2026-09-06 and 09-07 carried most of the
+drop, and the 39 added dates the rest. The study code did not move the verdict.
+Nothing in production depended on it.
+
+**Caveats.** Every one of these was read on a book that mixes pricing regimes
+(entry below). The moves were found by comparing the catalog with the newest
+record, and the quoted lines were checked against the reports.
+
+**Next.** The State of play block above is rewritten to this run. Two decisions
+are filed under *Waiting on the operator* in [`next-steps.md`](next-steps.md).
 
 ## 2026-09-19 (sixth) — the 14 pre-fill exits are now detected, not just counted
 

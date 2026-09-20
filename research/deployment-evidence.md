@@ -398,9 +398,15 @@ dollars. So **40.2% is not a correction factor to apply to their figures**, and
 the `real` stratum shows the gap can run the other way and be small. What
 transfers is the basis, not the number.
 
+**Re-measured 2026-09-19.** The gap on the same ratified population reads
+**27.0%**, against the 40.2% recorded here on 2026-08-31. The verdict token is
+unchanged at MEASUREMENT-ONLY, and the two readings together make the point
+this section already makes: the gap is a property of the book on the day it
+was measured, not a constant.
+
 **What it does.** Quote it with the rule. The drawdown leg of D3 / `hedge_structure`
 H3 / `hedge_timing` H4 is measured on an instrument that, on a book measured the
-same way, missed 40% of the drawdown. D3's own margins are $571 of drawdown
+same way, missed a double-digit percentage of the drawdown. D3's own margins are $571 of drawdown
 improvement and an $86 formal failure on the worst date — margins a measurement
 basis carrying a double-digit-percent question mark cannot support in either
 direction. Any future re-read that wants to **conclude** about drawdown should
@@ -684,6 +690,18 @@ H1) and no longer on the do-nothing-dollars arm H4. The "gating bought no
 drawdown protection" half of the draft's wording is no longer carried, and the
 shipped rule does not claim it. The strict 4–5-day streak is still UNDERPOWERED
 (N=4 samples 4 dates, N=5 samples 2).
+
+**Re-run 2026-09-19 (the re-priced book).** The prohibition now rests on
+**H3-GAP alone**, and nothing about the shipped wording changes.
+
+H3-GAP is marginally firmer at −0.510, CI [−0.820, −0.190], with its years,
+both window cuts and every LOO fold agreeing. H1-GAP went **back to NULL**:
+its own interval re-crossed zero, and the registered mirror rule fired because
+the beta control H2-GAP became a TIMING-CANDIDATE in its own right. The
+deployed ladder does distinctly better on gap-up days, so the between-date
+bear underperformance there reads as directional beta rather than hedge
+timing. H4-GAP is still NULL, and the strict-streak census is still
+UNDERPOWERED.
 
 **Open question, queued by the operator (2026-08-28): can any hedge mechanism
 reduce max drawdown at all?** H4's tables say the current sleeve cannot: max
