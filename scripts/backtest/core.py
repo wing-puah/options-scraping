@@ -442,10 +442,11 @@ def main() -> None:
                                market_regime, sim_cfg, spread_pct, skipped)
 
     log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, "
-             "%d unpriced, %d vetoed, %d debit_priced_to_credit)",
+             "%d unpriced, %d vetoed, %d debit_priced_to_credit, %d inverted_vertical)",
              len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
              skipped["unpriced"], skipped["vetoed"],
-             skipped.get("debit_priced_to_credit", 0))
+             skipped.get("debit_priced_to_credit", 0),
+             skipped.get("inverted_vertical", 0))
 
     # Delete-then-append, in that order: the new rows must never be able to land
     # beside the old ones, which is the exact failure --redo exists to prevent.

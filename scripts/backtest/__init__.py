@@ -1,7 +1,8 @@
 # Re-export symbols used by the test suite (import backtest as bt).
 from .classify import (  # noqa: F401
     classify_play, _match_entry, _extract_strikes, _extract_expiration,
-    _entry_row_from_history,
+    _entry_row_from_history, _play_header, refuse_inverted_vertical,
+    INVERTED_VERTICAL_REFUSAL,
 )
 from .helpers import (  # noqa: F401
     _parse_expiration, _opt_price, _row_iv, _reappearance_price,

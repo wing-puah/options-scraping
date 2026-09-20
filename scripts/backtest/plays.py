@@ -18,7 +18,8 @@ import logging
 from abc import ABC, abstractmethod
 
 from .classify import (classify_play, _extract_all_expirations,
-                       _entry_row_from_history, _resolve_expiry)
+                       _entry_row_from_history, _resolve_expiry,
+                       INVERTED_VERTICAL_REFUSAL, refuse_inverted_vertical)
 from .config import HISTORY_CACHE
 from .helpers import _contract_key, _to_float, _short_strike
 from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
@@ -340,6 +341,11 @@ class SingleOrVerticalPlay(Play):
         if not strikes:
             return None, ("no_strike", "no strikes in play text")
         structure = play_cls["structure"]
+        # A vertical whose two named strikes run the wrong way for its direction
+        # is refused, not reordered — the pair did not come from this structure.
+        inverted = refuse_inverted_vertical(structure, strikes)
+        if inverted:
+            return None, (INVERTED_VERTICAL_REFUSAL, inverted)
         K = strikes[0]
         exp_date, skip = _resolve_expiry(c, opt_type, K, HISTORY_CACHE)
         if exp_date is None:
@@ -426,7 +432,8 @@ def classify_and_build(c, spread_pct, tf_s_override=None, structure_veto=()):
     """Classify + build ONE candidate. Returns (play|None, reason|None),
     reason = (category, message) with the existing categories
     unsupported/no_strike/no_expiry/unpriced, plus ``vetoed`` for structures
-    named in config ``entry.structure_veto``.
+    named in config ``entry.structure_veto`` and ``inverted_vertical`` for a
+    vertical whose named strikes run the wrong way for its direction.
 
     Factored out of :func:`build_matched_plays` so a single candidate can be
     classified+built in isolation (re-exported from ``scripts/backtest/shared``
@@ -455,7 +462,8 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None, structure_ve
     """
     plays, contracts, needed_dates = [], {}, {}
     skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0,
-               "vetoed": 0, "debit_priced_to_credit": 0}
+               "vetoed": 0, "debit_priced_to_credit": 0,
+               INVERTED_VERTICAL_REFUSAL: 0}
     for c in candidates:
         play, skip = classify_and_build(c, spread_pct, tf_s_override, structure_veto)
         if skip:

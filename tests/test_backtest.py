@@ -266,6 +266,116 @@ def test_classify_carries_strikes():
     assert out["strikes"] == [107.5, 115.0]
 
 
+# ── header-first strike extraction ──────────────────────────────────────────────
+#
+# Play text is `[TAG]\nCODE | <structure> <strikes> | <narrative…>`. The narrative
+# quotes the FLOW's strike ladders as evidence; those are never the play's strikes.
+# The triple pattern (A/B/C, for butterflies) is tried first and matched anywhere,
+# so before the header fix a narrative ladder silently outranked the named spread.
+
+_NARRATIVE_LADDER_PLAY = (
+    "[HEDGE]\nPU | bear put spread 200/185 | Explicit ToOpen put opening into "
+    "near-zero open interest at 204/210/211 across 39-144 DTE is genuine new "
+    "protection under a tape at its highs."
+)
+
+
+def test_play_header_is_everything_before_the_second_pipe():
+    assert bt._play_header(_NARRATIVE_LADDER_PLAY) == (
+        "[HEDGE]\nPU | bear put spread 200/185 ")
+
+
+def test_play_header_falls_back_to_whole_text_without_two_pipes():
+    assert bt._play_header("ZZ | long 82 straddle") == "ZZ | long 82 straddle"
+
+
+def test_extract_strikes_prefers_header_over_narrative_ladder():
+    assert bt._extract_strikes(_NARRATIVE_LADDER_PLAY) == [200.0, 185.0]
+
+
+def test_classify_narrative_ladder_does_not_reach_the_legs():
+    out = bt.classify_play(_NARRATIVE_LADDER_PLAY)
+    assert out["structure"] == "bear_put_spread"
+    assert out["strikes"] == [200.0, 185.0]
+
+
+def test_narrative_slash_group_never_overrides_header_strikes():
+    """Regression: any narrative slash-group, of any width, loses to the header."""
+    for ladder in ("204/210", "204/210/211", "204/210/211/212"):
+        play = (f"[DIRECTIONAL]\nTF | bull call spread 45/50 | repeated size at "
+                f"{ladder} in one expiry confirms the bid.")
+        assert bt._extract_strikes(play) == [45.0, 50.0], ladder
+
+
+def test_extract_strikes_butterfly_header_keeps_three():
+    play = ("[VOLATILITY]\nDP | butterfly 95/100/105 | pinning under a 90/110 "
+            "open-interest wall.")
+    out = bt.classify_play(play)
+    assert out["structure"] == "butterfly"
+    assert out["strikes"] == [95.0, 100.0, 105.0]
+
+
+def test_extract_strikes_iron_condor_header_keeps_four():
+    play = ("[VOLATILITY]\nVC | iron condor 90/100/155/165 | premium sold against "
+            "a 120/130 gamma pocket.")
+    out = bt.classify_play(play)
+    assert out["structure"] == "iron_condor"
+    assert out["strikes"] == [90.0, 100.0, 155.0, 165.0]
+
+
+def test_extract_strikes_falls_back_to_whole_text_when_header_has_none():
+    play = ("[DIRECTIONAL]\nTF | long calls, longer dated | the day's opening size "
+            "lands at 225 and nowhere else.")
+    assert bt._extract_strikes(play) == [225.0]
+
+
+# ── the inverted-vertical refusal ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("structure,strikes", [
+    ("bull_call_spread", [45.0, 50.0]),    # debit call: buy low, sell high
+    ("bear_call_spread", [510.0, 520.0]),  # credit call: sell low, buy high
+    ("bear_put_spread", [200.0, 185.0]),   # debit put: buy high, sell low
+    ("bull_put_spread", [190.0, 185.0]),   # credit put: sell high, buy low
+])
+def test_canonical_vertical_order_is_accepted(structure, strikes):
+    assert bt.refuse_inverted_vertical(structure, strikes) is None
+
+
+@pytest.mark.parametrize("structure,strikes", [
+    ("bull_call_spread", [50.0, 45.0]),
+    ("bear_call_spread", [520.0, 510.0]),
+    ("bear_put_spread", [185.0, 200.0]),
+    ("bull_put_spread", [185.0, 190.0]),
+])
+def test_inverted_vertical_is_refused(structure, strikes):
+    detail = bt.refuse_inverted_vertical(structure, strikes)
+    assert detail and structure in detail
+
+
+def test_equal_strikes_are_refused_as_a_zero_width_spread():
+    assert bt.refuse_inverted_vertical("bull_call_spread", [50.0, 50.0])
+
+
+def test_single_strike_vertical_is_not_refused():
+    # The contra leg is synthesized from spread_pct in the canonical direction.
+    assert bt.refuse_inverted_vertical("bear_put_spread", [200.0]) is None
+
+
+def test_non_vertical_structures_are_not_subject_to_the_order_rule():
+    assert bt.refuse_inverted_vertical("butterfly", [105.0, 100.0, 95.0]) is None
+    assert bt.refuse_inverted_vertical("straddle", [500.0]) is None
+
+
+def test_build_refuses_an_inverted_vertical_with_a_skip_reason():
+    c = {"date": "2026-01-05", "signal_date": date(2026, 1, 5), "ticker": "ZZ",
+         "play": "[DIRECTIONAL]\nTF | bull call spread 50/45 | inverted on purpose.",
+         "horizon": "45"}
+    play, skip = bt.classify_and_build(c, 0.05)
+    assert play is None
+    assert skip[0] == bt.INVERTED_VERTICAL_REFUSAL
+    assert "bull_call_spread" in skip[1]
+
+
 # ── Expires (ISO datetime) parsing ──────────────────────────────────────────────
 
 def test_parse_expiration_iso_datetime():

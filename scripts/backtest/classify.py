@@ -69,13 +69,43 @@ def _extract_all_expirations(play_text: str, ref: date) -> list[date]:
 _PC = r"[PCpc]?"  # optional put/call suffix after a strike digit
 
 
+def _play_header(play_text: str) -> str:
+    """The play's HEADER segment — everything up to the SECOND ``|``.
+
+    A play reads ``[TAG]\\nCODE | <structure> <strikes> | <narrative…>``. The
+    strikes that DEFINE the trade live in that middle field. The narrative after
+    the second ``|`` quotes the FLOW's own strike ladders as evidence
+    ('…near-zero open interest at 204/210/211…'), and those are not the play.
+
+    Returns the whole (Alt-stripped) text when the two-pipe shape is absent, so
+    the caller can fall back to matching against everything.
+    """
+    text = _primary_text(play_text or "")
+    parts = text.split("|")
+    return "|".join(parts[:2]) if len(parts) >= 3 else text
+
+
 def _extract_strikes(play_text: str) -> list[float]:
     """Pull the strike(s) the play names: 4-strike IC, 2-strike spread, or single.
+
+    HEADER FIRST. The patterns below match the first slash-group anywhere in the
+    text, and the widest one (a triple A/B/C, for butterflies) is tried first —
+    so on IWM 2024-03-25 the narrative's '204/210/211' beat the header's named
+    '200/185' and the play was priced as a 204/210 put spread under a
+    `bear_put_spread` label. Matching the header alone removes that whole class
+    of narrative grab; the fallback to the whole text keeps the handful of
+    header-less plays ('long 82 straddle') classifying exactly as before.
+    """
+    header = _extract_strikes_in(_play_header(play_text))
+    return header if header else _extract_strikes_in(_primary_text(play_text))
+
+
+def _extract_strikes_in(play_text: str) -> list[float]:
+    """The strike patterns themselves, matched against whatever text is handed in.
 
     Handles both slash-separated quads (A/B/C/D) and IC-pair format
     (short A[P]/B[C], long C[P]/D[C]) where strikes carry optional P/C suffixes.
     """
-    play_text = _primary_text(play_text)
     # IC-pair format: "short NNNp/NNNc, long NNNp/NNNc"
     m4_ic = re.search(
         rf"(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}\s*,\s*\w+\s+(\d+(?:\.\d+)?){_PC}\s*/\s*(\d+(?:\.\d+)?){_PC}",
@@ -158,6 +188,54 @@ def _extract_horizon_dte(play_text: str, explicit: object = None) -> int | None:
 DEBIT_STRUCTURES = frozenset(
     {name.replace(" ", "_") for name in canonical_debit_spreads()}
     | {"long_call", "long_put"})
+
+
+# ─── The inverted-vertical gate ───────────────────────────────────────────────
+
+#: `skip_reason` / refusal code for a vertical whose two named strikes sit the
+#: wrong way round for the structure they are labelled with.
+INVERTED_VERTICAL_REFUSAL = "inverted_vertical"
+
+#: Canonical order of the two strikes a vertical names, as `strikes[0]` (the
+#: anchor, `K`) against `strikes[1]` (the contra leg, `K_short`). True = the
+#: anchor sits BELOW the contra strike. This is the same direction
+#: `helpers._short_strike` synthesises when the text names only one strike:
+#: call verticals step UP from the anchor (`K*(1+spread_pct)`), put verticals
+#: step DOWN (`K*(1-spread_pct)`).
+_ANCHOR_BELOW_CONTRA = {
+    "bull_call_spread": True,    # debit  — buy the lower call,  sell the higher
+    "bear_call_spread": True,    # credit — sell the lower call, buy the higher
+    "bear_put_spread": False,    # debit  — buy the higher put,  sell the lower
+    "bull_put_spread": False,    # credit — sell the higher put, buy the lower
+}
+
+
+def refuse_inverted_vertical(structure: str, strikes: list) -> str | None:
+    """Detail string when this vertical's named strikes are NOT in canonical
+    order for its direction; ``None`` when they are (or the rule does not apply).
+
+    REFUSE, never reorder. A pair the wrong way round means the two strikes did
+    not come from the structure they are attached to — the classifier read them
+    off something else — so sorting them builds a position the play never named,
+    at strikes taken from a sentence about someone else's flow. A refusal lands
+    where every other build-time skip lands: `skip_reason` on the BacktestProxy
+    row, tallied by `core.py`. Mirrors `simulate._refuse_debit_priced_to_credit`,
+    which likewise refuses an impossible position rather than repairing it.
+
+    Only fires when the TEXT named both strikes. With one strike,
+    `helpers._short_strike` synthesises the contra leg in the canonical
+    direction and no inversion is possible.
+    """
+    below = _ANCHOR_BELOW_CONTRA.get(structure)
+    if below is None or len(strikes) < 2:
+        return None
+    k_long, k_short = strikes[0], strikes[1]
+    ok = k_long < k_short if below else k_long > k_short
+    if ok:
+        return None
+    want = "below" if below else "above"
+    return (f"{structure} names {k_long:g}/{k_short:g}: the anchor strike must sit "
+            f"{want} the contra strike for this structure")
 
 
 def classify_play(play_text: str) -> dict:
