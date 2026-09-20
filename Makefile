@@ -89,6 +89,13 @@ align-headers:
 check-doc-links:
 	$(PY) scripts/check_doc_links.py $(ARGS)
 
+# Readability of research/ + docs/ prose against research/writing-guide.md. Defaults to the
+# blocks touched since HEAD, because the files predate the check; ARGS="research/current.md"
+# checks whole files.
+.PHONY: check-prose
+check-prose:
+	$(PY) scripts/check_prose.py $(if $(ARGS),$(ARGS),--since HEAD)
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze: 
@@ -494,6 +501,7 @@ help:
 	@echo ""
 	@echo "  make check-doc-links   verify cross-links inside README.md/CLAUDE.md/GEMINI.md/docs/**/research/**"
 	@echo "  make check-doc-links ARGS=\"--strict\"  also fail on links into the generated site/ (normally a warning)"
+	@echo "  make check-prose       readability of the research/ + docs/ blocks touched since HEAD (writing-guide limits)"
 	@echo ""
 	@echo "  make clean        delete every regenerable file (scratch + study output)"
 	@echo "  make clean-dry    preview it, delete nothing"

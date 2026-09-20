@@ -93,6 +93,38 @@ means after reading it once? If not, restructure it rather than adding more
 explanation. Be rigorous in the underlying logic, but make the rigour visible
 through structure rather than dense prose.
 
+## The automatic check
+
+`scripts/check_prose.py` measures the countable parts of this guide. It cannot
+rewrite anything: it names the block and the limit, and the writer fixes it.
+
+| Rule it enforces | Limit |
+|---|---|
+| Words in one table cell | 40 |
+| Words in one sentence | 45 |
+| Words in one paragraph or list item | 110 |
+| Figures in one sentence outside a table (dates and § refs excluded) | 3 |
+| Characters in a heading | 100 |
+| Ordinary words in capitals (`NOT`, `NEVER`, `ONLY`…) per block | 1 |
+
+It runs in two places.
+
+- **As a Claude Code hook** (`.claude/settings.json`, after every Edit or
+  Write). A failure is sent back to the agent, which rewrites the block before
+  it moves on. This covers subagents too.
+- **By hand**, with `make check-prose`. This covers edits made through the
+  shell, which the hook does not see. Pass `ARGS="research/current.md"` to check
+  whole files.
+
+Both report only the blocks an edit touched. The older files fail the check
+wholesale, so the rule is to leave every block you touch readable, not to fix
+the file first. A long table cell is the usual failure: keep the verdict and
+the number in the cell, and move the story to a paragraph or a linked entry.
+
+The check skips `archive/`, `study-results/` and `pre-registrations/`, for the
+reasons under [What not to rewrite](#what-not-to-rewrite). Passing it is
+necessary, not sufficient: [the test](#the-test) above still applies.
+
 ## The entry template for `current.md`
 
 ```markdown
