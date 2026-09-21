@@ -105,6 +105,11 @@ Decisions owed. None of these is a study.
    prints as post-hoc. Default if nothing is decided: nothing changes and the
    study keeps printing the verdict
    ([entry](current.md#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3)).
+   The work that informs the choice is ordered in
+   [`account-sim-feasibility-plan.md`](account-sim-feasibility-plan.md). Its
+   Phase 0 prints what the study already computes and needs no decision first.
+   The registered arm F2, which refuses picks one contract cannot fit, prints
+   8.7% and has never been graded.
 
 6. **OPEN — the 14 pre-fill rows.** Exclude them through `fill_trusted`, or
    re-price them with `--redo`. Excluding is the recommendation, because the

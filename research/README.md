@@ -28,6 +28,7 @@ produced it lives in `scripts/backtest_study/`. The rules it produced live in
 | [`replication-protocol.md`](replication-protocol.md) | The two-analyst replication protocol for grading a study report. | agent |
 | [`analysis-roadmap.md`](analysis-roadmap.md) | The longer-range plan for the analysis pipeline itself. | agent |
 | [`robustness-review.md`](robustness-review.md) | One-page audit of what can be trusted in the analysis, backtest and production loop, and what beyond the queue would improve returns and risk. Rows flip to `FIXED <date>`; a new review replaces the file. | agent |
+| [`account-sim-feasibility-plan.md`](account-sim-feasibility-plan.md) | The ordered plan for `account_sim`'s `NOT FEASIBLE AT $25,000` verdict: findings, what is ruled out, phases, and the routes left to the operator. Written 2026-09-20. | agent |
 | [`writing-guide.md`](writing-guide.md) | How to write in this folder. Adopted 2026-09-05. | agent |
 | [`pre-registrations/`](pre-registrations/) | One file per study: the plan written before the run. Foldered `f1_selection/` to `f5_hedging/`. | agent, then frozen |
 | [`study-results/`](study-results/) | One append-only file per study: what it last printed, per export era, quoted verbatim. | `make study-review` |

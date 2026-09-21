@@ -55,7 +55,7 @@ glossary; arm labels are study-local, so each is given with its study.
 | `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cut 2 | repeats that had already moved against the play clear all six, at −0.2579 | [record](study-results/f1_selection/emission_timing.md) |
 | `bear_rewrap` | [long_diag](arm-index.md#bear_rewrap) | 4 of 5 again, failing the year clause; the P1 portfolio check is met on no substitution | [record](study-results/f3_structure/bear_rewrap.md) |
 | `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | `NOT met`: `sl .50` Δ=+0.030, CI [−0.003, +0.061] | [record](study-results/f1_selection/bear_arm.md) |
-| `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000`; A1 and A2 hold at every rung | [entry](#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3) |
+| `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000`; A1 and A2 hold at every rung | [entry](#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3), [plan](account-sim-feasibility-plan.md) |
 | `exit_switch_structure_study` | Q1 and Q2 | `STAYS GATED`, now failing four of six; Q2 reads the shipped BEAR_HE clause at Δ=−4.5205, 47% retained | [record](study-results/f2_management/exit_switch_structure_study.md) |
 
 Two of these bear on shipped rules. The `bear_arm` rollback census fires all
@@ -214,6 +214,61 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-09-20 (sixth) — account_sim — re-run identical; the floor carries the drawdown; a plan is filed
+
+**The re-run prints the same verdict, and most of the 35.0% is the
+one-contract floor.** Nothing ships. The work is ordered in
+[`account-sim-feasibility-plan.md`](account-sim-feasibility-plan.md).
+
+_Era v4 · exports 2026-09-19 · report `backtests/study_output/account_sim-latest.txt`
+at git `1c163c5`, recorded in
+[study-results](study-results/f4_deployment/account_sim.md) · evidence folder
+`backtests/feasibility_plan_20260920/` (gitignored)._
+
+**The re-run.** The report differs from the previous print only in its run
+stamp and git line. The compounding arm also fails A3.
+
+| Arm | Max drawdown | [A3](arm-index.md#account_sim) |
+|---|---|---|
+| Fixed capital, PRIMARY | 35.0% | not met |
+| Fixed capital, SECONDARY | 40.8% | not met |
+| Compounding, PRIMARY | 34.2% | not met |
+
+**What the investigation found.** Figures marked _exploratory_ come from
+scratch scripts over the positions CSV, not from the study.
+
+| Finding | Figure |
+|---|---|
+| Positions whose one contract costs more than the $500 budget | 124 of 211 |
+| Max drawdown with exact fractional contracts, any capital | 23.9% (_exploratory_) |
+| Share of the window loss carried by floor positions | 90% (17 of 28 exits) |
+| Second-deepest PRIMARY drawdown, July–August 2024 | 22.4% |
+| SECONDARY drawdown from 2025-11-03, never recovered | 38.4% |
+| Registered arm F2 (refuse the floor), PRIMARY | 8.7%, meanR +0.319, 137 positions |
+
+**Three things the plan rests on.**
+
+- Arm F2 is registered and printed on every run, and it has never been scored
+  against A1–A6. It costs 39% of the dollars. Its A4 and A5 are unknown, and an
+  _exploratory_ A1 fails on SECONDARY's thin 2026 slice.
+- The run uses `caps.net` 2.50. The registration names (0.25, 1.50) as the
+  headline cell and carries no note of the 2026-08-13 change.
+- Lowering `risk_per_trade_pct` is mostly a tighter dollar stop, because most
+  positions are already at one contract. The knob table in the fourth entry
+  below called it "smaller positions"; that description is wrong.
+
+**What is ruled out.** A value from the knob table, a Kelly or
+volatility-scaled budget, a concentration cap, another de-risk trigger, and an
+entry-side regime gate. The plan gives the reason for each.
+
+**The 2026-09-05 flip.** Of the 28 window positions, 27 were priced in August
+2026, before the last feasible print. The walk took different rows as the book
+grew. The 09-05 export is gone, so this cannot be proved.
+
+**Next.** [Item 5](next-steps.md#waiting-on-the-operator) stays open and
+points at the plan. The first steps print what the study already computes and
+need no registration.
 
 ## 2026-09-20 (fifth) — check_prose — unreadable prose is rejected when it is written
 

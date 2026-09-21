@@ -161,3 +161,33 @@ VERDICT (PRIMARY dense episodes population — the primary)
   did not name this combination and previously printed "NO VERDICT MATCHES"
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 1c163c5 — recorded 2026-09-20
+<!-- key era=v4 sha=1c163c5 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-20 12:15:53 · git 1c163c5 (main, working tree clean) · exit 0 · 9.7s
+command     python -m scripts.backtest_study.f4_deployment.account_sim --compounding
+excerpt     verdict
+
+```
+CAPITAL LADDER — operator note, printed because the verdict is NOT FEASIBLE
+  Same anti-tuning rule: this is the smallest capital in {$25k, $35k, $50k} at
+  which A1 AND A2 pass, not a recommendation to trade any of them. A rung whose
+  dollar stop does not divide the frozen $1,000 harness stop evenly (e.g. $700
+  on a $35k rung at 2%) is rounded UP to a TIGHTER stop, the conservative
+  direction, and the affected position count is printed.
+  The maxDD and A3 columns and the A3 summary line below are DISCLOSED
+  ADDITIONS (2026-09-20), not part of the registered operator note: the
+  registration names A1 AND A2 only, and a verdict can be NOT FEASIBLE on A3
+  alone. No threshold moved — A3 here is `a3_no_blowup`, the clause
+  `evaluate()` scores, measured against the RUNG's capital. Read a rung that
+  passes A1 AND A2 while failing A3 as an account size that keeps the edge and
+  still breaches the drawdown bar, never as a feasible one.
+  $ 25,000  n= 253  $    35,233  meanR +0.281 CI-lo +0.170  attrition  204%  maxDD 34.2%  A1 MET  A2 MET  A3 no   [241 inexact-stop positions]
+  $ 35,000  n= 266  $    28,010  meanR +0.241 CI-lo +0.129  attrition  109%  maxDD 31.0%  A1 MET  A2 MET  A3 no   [265 inexact-stop positions]
+  $ 50,000  n= 276  $    63,442  meanR +0.285 CI-lo +0.157  attrition   94%  maxDD 24.3%  A1 MET  A2 MET  A3 MET
+  smallest capital passing A1 AND A2: $25,000
+  smallest capital passing A1 AND A2 AND A3 (disclosed addition): $50,000
+```
+
