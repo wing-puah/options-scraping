@@ -146,6 +146,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 |---|---|---|
 | [`f4_deployment/holdout_seal.md`](f4_deployment/holdout_seal.md) | `holdout_seal` — a COMMITMENT, not a study: seals every signal date on or after 2026-08-11 from research-tier outcome reads until 40 of them have priced. Waits on the operator choosing between its two named options (seal everything, or additionally exempt `v4_bridge`'s five composition tests) before it can be accepted. | draft |
 | [`f4_deployment/account_sim.md`](f4_deployment/account_sim.md) | `account_sim` | graded |
+| [`f4_deployment/ruin_bound.md`](f4_deployment/ruin_bound.md) | `ruin_bound` — which cap cell and guardrail earns the most while P(ruin) and the p95/p99 drawdown stay under bounds the operator fills in first? A re-simulating block bootstrap plus stress overlays. Waits on the whole-book re-price and full cost coverage. | draft |
 | [`f4_deployment/selection_order.md`](f4_deployment/selection_order.md) | `selection_order` | run |
 | [`f4_deployment/portfolio_delta.md`](f4_deployment/portfolio_delta.md) | `portfolio_delta` | graded |
 | [`f4_deployment/concurrency_correlation.md`](f4_deployment/concurrency_correlation.md) | `concurrency_correlation` — **module NOT yet written** (registered 2026-08-22; the plan exists before the code on purpose — see the file's own "dead ends" table for the v3 cuts it must not re-find) | registered |

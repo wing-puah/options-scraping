@@ -122,6 +122,11 @@ Decisions owed. None of these is a study.
    - **Sizing throttles closed 2026-09-22.** A Turtle-ladder or ARM D-shaped
      drawdown throttle does not fix this
      ([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)).
+   - **A draft registration for "accept a deeper drawdown, but guard against
+     ruin".** [`ruin_bound`](pre-registrations/f4_deployment/ruin_bound.md)
+     picks a cap cell and guardrail by a rule fixed in advance. The operator
+     fills its bounds before any code is written. It runs only after item 8
+     and full cost coverage.
 
 6. **OPEN — the 14 pre-fill rows.** Exclude them through `fill_trusted`, or
    re-price them with `--redo`. Excluding is the recommendation, because the
