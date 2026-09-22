@@ -128,45 +128,50 @@ Decisions owed. None of these is a study.
      fills its bounds before any code is written. It runs only after item 8
      and full cost coverage.
 
-6. **OPEN — the 14 pre-fill rows.** Exclude them through `fill_trusted`, or
-   re-price them with `--redo`. Excluding is the recommendation, because the
-   choice barely moves the book: mean +0.0427 excluded against +0.0457
-   re-priced. Default: they stay in the book, detected and flagged but not
-   filtered
-   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+6. **DECIDED 2026-09-22 — re-price the pre-fill rows.** Stale or incorrect
+   data should not sit on the sheet, so exclusion is no longer the plan: the
+   fuller census widened the count from 14 to 17. Waits on item 8's
+   Barchart refetch
+   ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
+   [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
-7. **OPEN — re-price the six wrong-strike rows.** They are `NVDA` 2024-11-26,
-   `IWM` 2024-03-25 and `SPY` 2025-05-09 on `BacktestResults`, and `FCX`
-   2024-08-23, `PINS` 2024-02-27 and `IWM` 2024-02-06 on `BacktestProxy`. It
-   needs `--redo` with a date bound, which deletes the stored rows and then
-   appends. Default: they stay priced on strikes their own header does not name
-   ([entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed)).
+7. **DECIDED 2026-09-22 — re-price the six wrong-strike rows.** They are `NVDA`
+   2024-11-26, `IWM` 2024-03-25 and `SPY` 2025-05-09 on `BacktestResults`, and
+   `FCX` 2024-08-23, `PINS` 2024-02-27 and `IWM` 2024-02-06 on `BacktestProxy`.
+   Same operator ruling as item 6: re-price, do not leave them
+   ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
+   [entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed)).
 
-8. **OPEN — the whole-book re-price.** It is blocked on a Barchart refetch
-   first: 80 `BacktestResults` rows cannot be priced offline, 57 of them having
-   no cache file and 20 a shallow one. Default: leave the book as stored, and
-   read every number against the mixed pricing regimes
-   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+8. **OPEN, cost model now ON — the whole-book re-price.** The backtest prices
+   net of $0.65 a contract plus 25% of the quoted spread from 2026-09-22
+   onward (`8831f96`); every stored row stays gross until this re-price runs.
+   Still blocked on a Barchart refetch: 80 `BacktestResults` rows cannot be
+   priced offline, 57 with no cache file and 20 a shallow one. The `--redo`
+   plan itself is written, not run
+   ([decision + plan](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
+   [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
-9. **OPEN — the 49 `Open`-fill rows.** Leave the entry-day `Open` fill alone,
-   or extend the side rule over it and re-price what moves. The census is 22
-   results and 27 proxy rows, 17 of them `HYG`. Six would flip sign and three
-   overlap the 14 pre-fill rows. Default: leave them, because almost all of
-   them predate the B5 fold
-   ([census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+9. **DECIDED 2026-09-22 — re-price the 49 `Open`-fill rows.** The entry rule
+   is now side-aware ahead of the `Open` print (`0a68bdf`); the operator's
+   ruling is to re-price rather than leave them, same as items 6 and 7. Waits
+   on item 8
+   ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
+   [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
 10. **OPEN — `bear_arm` prints `REVERT CONDITION FIRED`.** The report asks for
     a production config change on the bear-debit `be_after 0.50` stop, which
-    was already reverted on 2026-08-24. Confirm that nothing further is owed,
-    or name what is. Default: no config change
+    was already reverted on 2026-08-24. The operator still deploys bear debits
+    and closes them fast; that belief is now a draft study, not a config
+    change: [`bear_fast_exit`](pre-registrations/f2_management/bear_fast_exit.md)
+    (§2.4). Default: no config change
     ([record](study-results/f1_selection/bear_arm.md)).
 
 11. **OPEN — the shipped BEAR_HE clause reads negative.**
     `exit_switch_structure_study` Q2 prints Δ=−4.5205 with 47% retained on the
     shipped key. That is an observation rather than a registered trigger: the
     census in `exit_switch_mech_study` is underpowered at 8 affected dates of
-    25. Decide whether to re-read [§5](../docs/deployment-rules.md#s5) before
-    the next deploy; the default is that it stands
+    25. Stays open behind the same bear-debit question as item 10; the
+    default is that §5 stands
     ([operator reading](study-map.md#operator-reading-2026-09-20)).
 
 <a id="s0c"></a>

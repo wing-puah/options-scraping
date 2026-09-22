@@ -215,6 +215,100 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-22 (evening) — journal repair lands, cost model on, five queue items decided
+
+A refused Barchart login no longer kills a journal run, the forked
+TradeJournal is merged into one 156-row book, and the backtest cost model is
+switched on. The operator also resolved five items in
+[next-steps.md](next-steps.md#s0). No study ran; these are commits landing on
+`main` plus the operator's own decisions.
+
+_Commits `5c4c818` through `8831f96`, `main`, 2026-09-22. Reprice census:
+`backtests/study_output/reprice-targets-2026-09-22.csv`._
+
+**Journal: a Barchart login refusal degrades instead of failing.**
+`BarchartAuthError` closes the browser and lets the run continue without
+greeks (`5c4c818`). CI now chains three retry jobs on fresh runners,
+degrading only the journal's last attempt; scrapers retry the same way with
+no degrade path (`36d3a61`).
+
+**TradeJournal: the forked halves are merged.** After 2026-09-08, the local
+`trades.csv` held 149 rows (07-01 to 09-08) and Drive's copy held 30 (09-09
+to 09-17), while the tab carried their 179-row union. Dedup keyed on the pull
+filename rather than the fill ids, so the 08-14, 08-28 and 09-14 sessions
+were written two to five times over (`9aeb036`).
+
+`python3 -m scripts.journal repair --merge-drive --apply` (`aa30549`) merged
+the two files and re-derived the pre-fix CLOSE rows from their original
+pulls. Zero rows were refused, and the tab, the local CSV and Drive now all
+hold 156 rows.
+
+| What the repair did | Count |
+|---|---|
+| Duplicate rows collapsed | 23 (11 local, 12 Drive) |
+| Pre-fix CLOSE rows re-derived | 10 |
+
+| Row | Tier before | Tier after |
+|---|---|---|
+| GLD bull call | VETO | B |
+| IWM bear put | B | C |
+| GLD 445C buy-back | SUBSTITUTED B | NONE |
+| NVDA 245C buy-back | SUBSTITUTED B | OVERLAY |
+| TSM 470C buy-back | SUBSTITUTED B | OVERLAY |
+
+`journal/open_book.csv` is forked the same way, 84 local rows against 171 on
+Drive, and is not repaired yet.
+
+**Operator decisions on the queue.** Five [next-steps.md](next-steps.md#s0)
+items were resolved or given a plan; none ships without more work.
+
+| §0 item | Decision |
+|---|---|
+| 6, 7, 9 | Re-price all of them; stale or wrong-strike rows should not sit on the sheet |
+| 8 | Cost model on, $0.65 a contract plus 25% of the quoted spread, per leg per side (`8831f96`); a whole-book `--redo` follows the SPY backfill and a Barchart refetch |
+| 5 | Draft [`ruin_bound`](pre-registrations/f4_deployment/ruin_bound.md): pick a cap cell and a guardrail by a rule fixed before any run |
+| 10, 11 | Bear debits stay in use; the fast-exit draft is the study, not a config change |
+
+**The re-price plan, not yet run.** `reprice_targets.py` (`0a68bdf`) is the
+offline census behind items 6, 7 and 9. The stored book has not moved; the
+script only writes the `--redo` plan.
+
+| Category | Rows |
+|---|---|
+| Pre-fill | 17 (up from the earlier count of 14) |
+| Wrong-strike | 6 |
+| `Open`-fill | 49 |
+| Total | 67 rows over 61 dates |
+| Need a fresh Barchart fetch first | 6 |
+
+The same commit makes a one-sided entry-day quote fill on its own side ahead
+of the `Open` print, mirrored in `bear_rewrap`'s own write-time basis; no
+stored row reconstructs differently under either change. A dated
+`scripts.backtest --redo` now also deletes a proxy row whose play has since
+priced on `BacktestResults`, so a re-price cannot leave a play on both tabs
+(`ec9d515`).
+
+**Stage 2 stays unbuilt.** The live-vs-tier P&L tally still has no
+pre-registration.
+
+| Tier | Closes |
+|---|---|
+| A | 2 |
+| B | 4 |
+| C | 14 |
+| VETO | 2 |
+| Total | 22 over 12 signal dates |
+
+That is below the 25-date and 30-to-50-row floors in
+[§2.5](next-steps.md#s2-5).
+
+**Next.** [`next-steps.md`](next-steps.md) §0's re-price items stay open
+pending the SPY backfill and the Barchart refetch. The capital item waits on
+the operator's `ruin_bound` blanks, and the bear items wait on the
+`bear_fast_exit` registration.
+
+---
+
 ## 2026-09-22 (later) — bear debits — a fast exit cuts the loss, still loses after costs
 
 A bear debit closed within a few sessions, or at a small profit, loses less
