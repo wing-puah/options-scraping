@@ -37,12 +37,14 @@ REUSE (cite, don't copy)
     rows; writing that would satisfy "this exists" forever while pricing
     nothing. Imported, not re-defined, so the two collectors can never
     silently disagree about the threshold.
-  - The BARCHART_EMAIL / BARCHART_PASSWORD / COOKIES_PATH env-var reads and
-    the ``fetched / failed / no_bars / unparsed`` outcome vocabulary mirror
-    ``fetch_counterpart_history.py._scrape`` verbatim.
+  - The BARCHART_EMAIL / BARCHART_PASSWORD / COOKIES_PATH env-var reads
+    mirror ``fetch_counterpart_history.py._scrape`` verbatim.
 
 Nothing in ``fetch_counterpart_history.py`` or ``lib/barchart/session.py``
-is modified — both are imported and used exactly as they already exist.
+is modified — both are imported and used exactly as they already exist. The
+2026-09-22 independent review's item 7/8 fixes read ``lib.barchart.session``'s
+WARNING/ERROR log records (see ``_HistorySniffHandler``) rather than change
+its return values, specifically so that file stays untouched.
 
 THE PLAN (contract universe)
 -----------------------------
@@ -50,8 +52,12 @@ For each symbol:
   1. Expiries = every Friday (weekly + monthly are the same list; Barchart
      doesn't need told which) whose DTE window ``[expiry - dte_max,
      expiry - dte_min]`` intersects ``[--from, --to]``. A Friday landing on
-     an NYSE holiday resolves to the Thursday before it (see
-     ``_NYSEHolidayCalendar`` — an ASSUMPTION, documented there).
+     an NYSE holiday resolves to the Thursday before it (``_nyse_holidays``
+     — an ASSUMPTION, documented there; corrected 2026-09-22 for Juneteenth
+     pre-2022 and the New Year's Saturday shift, see its docstring).
+     Expiries on or after today are EXCLUDED by default (``--include-open-
+     expiries`` to include them) — the chain for a contract that hasn't
+     expired yet can still change, so it must never be marked terminal.
   2. For each such expiry, the quote-date window is that DTE span clipped to
      ``[--from, --to]``. The underlying's daily CLOSE range over exactly
      those quote dates (not the whole span) sets the strike band — a strike
@@ -61,40 +67,63 @@ For each symbol:
      PER-SYMBOL grid table below (an assumption — see its docstring).
   4. Puts and/or calls per ``--rights``.
 
-Underlying closes come from ``~/claude_playground/agent-trading/data/history/
-<SYM>.csv`` (read-only — this script never writes there) when that file
-exists and covers the window; otherwise yfinance, itself cached under
-``backtests/underlying_close_cache/<SYM>.csv`` so a second run never re-hits
-the network for the same symbol. The yfinance path is NOT exercised by the
-2021-12-01..2026-09-18 SPY/QQQ/IWM/GLD/TLT/SMH/XLE/XLF dry run this script
-ships with — the desk's CSVs already cover that whole span for all eight.
+Underlying closes come ONLY from ``~/claude_playground/agent-trading/data/
+history/<SYM>.csv`` (read-only — this script never writes there). There is
+no network fallback (removed 2026-09-22, review item 9 — the previous
+yfinance fallback cached only the FIRST expiry's window forever, silently
+mis-covering every later one, and any fallback risks a dry run quietly
+reaching the network): a missing/empty desk CSV for a requested symbol is a
+loud ``UnderlyingDataUnavailable``, not a silently narrower plan.
 
 IDEMPOTENCY / APPEND-ONLY
 --------------------------
 Unlike ``fetch_counterpart_history.py`` (which overwrites), this collector
-NEVER overwrites an existing cache file — a contract already in
-``option_history_cache/`` is skipped outright. A manifest CSV,
-``backtests/option_history_cache_backfill_manifest.csv`` (a sibling of
-``option_history_cache/``, not inside it — CLAUDE.md's cache-loss incident
-notes at ~187-192 are about files INSIDE that directory getting unlinked
-before a refetch; this manifest is never in the fetch path of any other
-script), records every attempted contract with its outcome. A contract
-already marked ``fetched`` or ``no_bars`` in the manifest is never
-re-requested — ``no_bars`` means "confirmed, via a real request, that this
-strike never listed," and re-asking doesn't change that answer. ``failed``/
-``unparsed`` rows ARE retried on the next run (those usually mean a
-transient network/parse hiccup, not "this doesn't exist").
+NEVER overwrites an existing cache file. A contract's outcome is one of:
+``fetched`` (new file written), ``exists`` (the file appeared — another run,
+a race — between planning and the write; nothing lost, nothing touched),
+``no_bars`` (a REAL request confirmed 0 rows — never re-requested),
+``failed``/``unparsed`` (an ambiguous or transient miss — retried on the
+next run), ``unavailable`` (``failed``/``unparsed`` on 2 SEPARATE runs —
+terminal; see item 7 below). "Terminal" (never re-requested) is: the cache
+file exists AND is COMPLETE (see ``file_completeness``), OR the manifest's
+last recorded outcome for it is ``no_bars``/``unavailable`` AND the contract
+has already expired (item 3/4).
+
+A manifest, ``backtests/option_history_cache_backfill_manifest.csv`` (a
+sibling of ``option_history_cache/``, not inside it — CLAUDE.md's cache-loss
+incident notes at ~187-192 are about files INSIDE that directory getting
+unlinked before a refetch; this manifest is never in the fetch path of any
+other script), is an APPEND-ONLY log — one CSV line per attempt, fsync'd
+immediately, never rewritten wholesale (2026-09-22 review item 5). The
+loader takes the LAST recorded outcome per contract and tolerates a
+truncated final line (a crash mid-append). A single-run ``fcntl.flock`` over
+a sibling ``.lock`` file refuses a second concurrent ``run_fetch``.
+
+PARTIAL FILES (review item 6)
+------------------------------
+A pre-existing cache file whose last row sits > 10 calendar days before an
+ALREADY-EXPIRED contract's expiry, or whose first row starts after its
+planned DTE window began, is real data but not full coverage. It is reported
+in the dry run as ``partial`` (a column of its own, separate from
+``covered``/``pending``), is NEVER overwritten, and is left alone by a real
+run UNLESS ``--refetch-partial`` is given — which fetches it into a SIBLING
+directory, ``backtests/option_history_cache_refetch/`` (same filenames, same
+no-clobber atomic write), for an operator to decide how to merge later.
 
 SAFETY
 ------
-The fetch loop stops cleanly after ``--fail-stop`` (default 10) consecutive
-``failed``/``unparsed`` outcomes, or immediately if ``BarchartSession``
-raises a login failure (``RuntimeError`` from ``__aenter__``) — in both
-cases the manifest already reflects every contract attempted so far, so
-re-running the SAME command resumes exactly where it stopped.
-``--max-contracts`` caps how many contracts (cached/attempted or not) the
-PLAN itself considers, applied after sorting by (symbol, expiry, strike,
-right) so it is deterministic across runs. Run
+The fetch loop stops cleanly (without raising) after ``--fail-stop``
+(default 10) CONSECUTIVE ambiguous failures (an exception, a non-blocking
+HTTP error, or an unclassifiable ``None`` — never a confirmed ``no_bars``),
+or immediately — before ``--fail-stop`` is ever reached — on a BLOCKING HTTP
+status (401/403/429, sniffed from ``lib.barchart.session``'s own log
+records, see item 7/8) or a ``BarchartSession`` login failure (``RuntimeError``
+from ``__aenter__``). In every case the manifest already reflects every
+contract attempted so far, so re-running the SAME command resumes exactly
+where it stopped. ``--max-contracts`` caps how many PENDING (not yet
+covered/partial) contracts one invocation fetches — already-covered or
+partial contracts never count against it, and a dry run reports how many of
+the total pending set that cap would leave for a later run. Run
 ``python3 scripts/backup_research_caches.py push`` BY HAND after any real
 (``--execute``) run that wrote new cache files (CLAUDE.md; that script is
 hand-run by design, never auto-invoked by a collector).
@@ -109,12 +138,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import csv
+import fcntl
 import logging
 import math
 import os
 import sys
-from collections import Counter
+import uuid
+from collections import Counter, namedtuple
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -136,11 +168,20 @@ log = logging.getLogger("backfill_chain")
 
 MANIFEST_PATH = ROOT / "backtests" / "option_history_cache_backfill_manifest.csv"
 MANIFEST_FIELDS = ("symbol", "expiration", "strike", "right", "outcome",
-                   "rows", "first_date", "last_date", "timestamp")
+                   "rows", "first_date", "last_date", "attempts", "timestamp")
 
-# Manifest outcomes that must never be re-requested: "fetched" is on disk
-# already, "no_bars" is a real, already-asked answer of "never listed."
-_TERMINAL_OUTCOMES = frozenset({"fetched", "no_bars"})
+# Manifest outcomes that make a contract terminal PURELY off the manifest
+# (i.e. when the cache file itself is absent). "fetched"/"exists" are NOT
+# here — item 4 of the 2026-09-22 review: terminality for those comes from
+# the file actually being present and complete, not from the manifest row,
+# so a `fetched` row whose file later went missing is pending again.
+_TERMINAL_OUTCOMES = frozenset({"no_bars", "unavailable"})
+
+# HTTP statuses that mean "stop the whole run now," not "this one contract
+# failed" (2026-09-22 review item 8) — sniffed from lib.barchart.session's
+# log records (see _HistorySniffHandler); never raised as exceptions by that
+# module, so this can't be caught via a try/except on fetch_history_fast.
+_BLOCKING_HTTP_STATUSES = frozenset({401, 403, 429})
 
 TYPE_NAME = {"C": "Call", "P": "Put"}
 
@@ -153,7 +194,31 @@ _DEFAULT_COOKIES = str(ROOT / "cookies" / "barchart_session.json")
 SECONDS_PER_CONTRACT = 2.0
 
 AGENT_TRADING_HISTORY_DIR = Path.home() / "claude_playground" / "agent-trading" / "data" / "history"
-UNDERLYING_CLOSE_CACHE = ROOT / "backtests" / "underlying_close_cache"
+
+# Sibling of HISTORY_CACHE, never the same directory — review item 6.
+REFETCH_CACHE_DIR = ROOT / "backtests" / "option_history_cache_refetch"
+
+# A planned contract plus the quote-date window its expiry needs closes for
+# (review item 6's "first row is after the start of the planned DTE window"
+# check needs this; review item 3's "exclude expiries >= today" needs
+# `expiration`). `contract_of()` strips it back to the bare 4-field identity
+# every cache/manifest/fetch function keys on.
+PlanEntry = namedtuple("PlanEntry", "symbol expiration strike right window_start")
+
+
+def contract_of(entry: "PlanEntry") -> tuple:
+    return (entry.symbol, entry.expiration, entry.strike, entry.right)
+
+
+class UnderlyingDataUnavailable(RuntimeError):
+    """No readable close history for a symbol (review item 9 — the yfinance
+    fallback that used to paper over this was removed; a missing/empty desk
+    CSV is now a loud failure, not a silently narrower plan)."""
+
+
+class RunLockHeld(RuntimeError):
+    """Another run_fetch already holds the manifest's single-run lock
+    (review item 5)."""
 
 
 # ─── Per-symbol strike grid (ASSUMPTION) ───────────────────────────────────────
@@ -218,19 +283,49 @@ def _nyse_holidays(lo: date, hi: date) -> set[date]:
     US federal holiday calendar (already a `pandas` dependency — no new
     install) MINUS Columbus Day and Veterans Day (federal holidays the NYSE
     stays open for) PLUS Good Friday (an NYSE closure with no federal
-    holiday). It does not model one-off closures (9/11, hurricane closures,
-    a funeral) since those aren't derivable from a rule — only the Friday
+    holiday), with two corrections found by the 2026-09-22 independent
+    review:
+
+      - Juneteenth was only signed into federal law on 2021-06-17, but the
+        NYSE did not add it to ITS holiday calendar until 2022 — the federal
+        calendar's Friday-shifted 2021-06-18 observance was an ORDINARY
+        NYSE trading day. The rule is applied only from 2022 onward here.
+      - The federal "nearest workday" rule shifts New Year's Day back to
+        the preceding Friday when Jan 1 falls on a Saturday (e.g.
+        2021-12-31 for 2022's Jan 1). NYSE's own written rule explicitly
+        does NOT do this for New Year's specifically — unlike Christmas and
+        Independence Day, which DO shift Saturday->Friday — precisely so
+        the exchange never closes on the last trading day of the year. Any
+        Dec-31 date the federal rule produces (the only way one can appear
+        here) is stripped.
+
+    This still does not model one-off closures (9/11, hurricane closures, a
+    funeral) since those aren't derivable from a rule — only the Friday
     expiries this script's plan touches are ever checked against it, and a
     misclassified one-off would at most shift one expiry by a day.
     """
+    import pandas as pd
     from pandas.tseries.holiday import AbstractHolidayCalendar, GoodFriday, USFederalHolidayCalendar
 
+    non_juneteenth = [r for r in USFederalHolidayCalendar.rules
+                      if r.name not in ("Columbus Day", "Veterans Day",
+                                       "Juneteenth National Independence Day")]
+    juneteenth_rule = next(r for r in USFederalHolidayCalendar.rules
+                           if r.name == "Juneteenth National Independence Day")
+
     class _NYSEHolidayCalendar(AbstractHolidayCalendar):
-        rules = [r for r in USFederalHolidayCalendar.rules
-                if r.name not in ("Columbus Day", "Veterans Day")] + [GoodFriday]
+        rules = non_juneteenth + [GoodFriday]
 
     idx = _NYSEHolidayCalendar().holidays(start=str(lo), end=str(hi))
-    return {d.date() if hasattr(d, "date") else d for d in idx}
+    out = {d.date() if hasattr(d, "date") else d for d in idx}
+
+    june_start = max(lo, date(2022, 1, 1))
+    if june_start <= hi:
+        june = juneteenth_rule.dates(pd.Timestamp(june_start), pd.Timestamp(hi))
+        out |= {d.date() if hasattr(d, "date") else d for d in june}
+
+    out = {d for d in out if not (d.month == 12 and d.day == 31)}
+    return out
 
 
 def candidate_expiries(lo: date, hi: date) -> list[date]:
@@ -259,34 +354,8 @@ def _read_agent_trading_closes(symbol: str):
         df["date"] = pd.to_datetime(df["date"]).dt.date
         return df.set_index("date")["close"]
     except Exception as e:
-        log.warning("%s: agent-trading history unreadable (%s) — falling back", symbol, e)
+        log.warning("%s: agent-trading history unreadable (%s)", symbol, e)
         return None
-
-
-def _read_yfinance_closes(symbol: str, lo: date, hi: date):
-    """Fallback when the desk's CSV is absent/unreadable, cached to
-    ``backtests/underlying_close_cache/<SYM>.csv`` so a second call never
-    re-hits the network. NOT exercised by this script's default dry run —
-    every symbol it ships with is fully covered by the desk's CSVs."""
-    import pandas as pd
-
-    cache_file = UNDERLYING_CLOSE_CACHE / f"{symbol}.csv"
-    if cache_file.exists():
-        df = pd.read_csv(cache_file)
-        df["date"] = pd.to_datetime(df["date"]).dt.date
-        return df.set_index("date")["close"]
-
-    import yfinance as yf  # imported lazily — never needed by the shipped dry run
-    data = yf.download(symbol, start=str(lo), end=str(hi + timedelta(days=1)), progress=False)
-    if data is None or data.empty:
-        return None
-    closes = data["Close"]
-    if hasattr(closes, "squeeze"):
-        closes = closes.squeeze()
-    out = pd.DataFrame({"date": [d.date() for d in closes.index], "close": closes.values})
-    UNDERLYING_CLOSE_CACHE.mkdir(parents=True, exist_ok=True)
-    out.to_csv(cache_file, index=False)
-    return out.set_index("date")["close"]
 
 
 def closes_in_window(symbol: str, lo: date, hi: date, *, cache: dict,
@@ -294,26 +363,34 @@ def closes_in_window(symbol: str, lo: date, hi: date, *, cache: dict,
     """Daily closes for ``symbol`` within ``[lo, hi]`` inclusive.
 
     ``close_provider(symbol) -> Series | None`` is injectable (tests pass a
-    synthetic one); it defaults to agent-trading's CSV, then yfinance,
-    memoised per symbol in ``cache`` for the life of one process/plan.
+    synthetic one); it defaults to agent-trading's CSV — the ONLY source
+    (review item 9: no network fallback). Raises ``UnderlyingDataUnavailable``
+    if the symbol has no usable series at all; returns an empty list (not an
+    error) when the series exists but this particular window has no rows in
+    it — a normal, expected case for a window outside the CSV's covered span.
     """
     if symbol not in cache:
         provider = close_provider or _read_agent_trading_closes
         series = provider(symbol)
-        if (series is None or len(series) == 0) and close_provider is None:
-            series = _read_yfinance_closes(symbol, lo, hi)
+        if series is None or len(series) == 0:
+            raise UnderlyingDataUnavailable(
+                f"{symbol}: no readable close history (checked "
+                f"{AGENT_TRADING_HISTORY_DIR / (symbol + '.csv')}) — the yfinance "
+                "fallback was removed 2026-09-22 (review item 9); a dry run must "
+                "never touch the network, so a missing/empty desk CSV is a loud "
+                "failure now, not a silently narrower plan")
         cache[symbol] = series
     series = cache[symbol]
-    if series is None:
-        return []
     window = series[(series.index >= lo) & (series.index <= hi)]
     return [float(v) for v in window.values]
 
 
 # ─── Contract identity / cache path (mirrors fetch_counterpart_history.py) ────
 
-def contract_path(symbol: str, expiration: date, strike: float, right: str) -> Path:
-    return cache_path(HISTORY_CACHE, symbol, expiration, strike, TYPE_NAME[right])
+def contract_path(symbol: str, expiration: date, strike: float, right: str, *,
+                  cache_dir: Path | None = None) -> Path:
+    return cache_path(cache_dir if cache_dir is not None else HISTORY_CACHE,
+                      symbol, expiration, strike, TYPE_NAME[right])
 
 
 def _key(symbol: str, expiration: date, strike: float, right: str) -> tuple:
@@ -335,13 +412,19 @@ def expiry_quote_window(expiry: date, dte_min: int, dte_max: int,
 
 def plan_for_symbol(symbol: str, from_date: date, to_date: date, dte_min: int,
                     dte_max: int, band: float, rights: list[str], *,
-                    close_cache: dict, close_provider=None) -> list[tuple]:
-    """Every ``(symbol, expiration, strike, right)`` this symbol's plan wants,
-    sorted. Expiries with no underlying-close coverage in their quote window
-    contribute nothing (never invent a strike band from no data)."""
-    contracts: set[tuple] = set()
+                    close_cache: dict, close_provider=None,
+                    today: date | None = None,
+                    include_open_expiries: bool = False) -> list[PlanEntry]:
+    """Every ``PlanEntry`` this symbol's plan wants, sorted. Expiries with no
+    underlying-close coverage in their quote window contribute nothing
+    (never invent a strike band from no data). Expiries on/after `today` are
+    excluded unless `include_open_expiries` (review item 3)."""
+    today = today or date.today()
+    entries: set[PlanEntry] = set()
     expiries = candidate_expiries(from_date + timedelta(days=dte_min),
                                   to_date + timedelta(days=dte_max))
+    if not include_open_expiries:
+        expiries = [e for e in expiries if e < today]
     for expiry in expiries:
         window = expiry_quote_window(expiry, dte_min, dte_max, from_date, to_date)
         if window is None:
@@ -353,142 +436,366 @@ def plan_for_symbol(symbol: str, from_date: date, to_date: date, dte_min: int,
         lo, hi = min(closes) * (1 - band), max(closes) * (1 + band)
         for strike in strike_grid(symbol, lo, hi):
             for right in rights:
-                contracts.add((symbol, expiry, strike, right))
-    return sorted(contracts, key=lambda c: (c[0], c[1], c[2], c[3]))
+                entries.add(PlanEntry(symbol, expiry, strike, right, window[0]))
+    return sorted(entries, key=lambda e: (e.symbol, e.expiration, e.strike, e.right))
 
 
 def build_plan(symbols: list[str], from_date: date, to_date: date, dte_min: int,
               dte_max: int, band: float, rights: list[str], *,
-              close_provider=None) -> dict[str, list[tuple]]:
-    """``{symbol: [contracts...]}`` — the full universe, before any
-    already-cached/already-attempted/--max-contracts filtering."""
+              close_provider=None, today: date | None = None,
+              include_open_expiries: bool = False) -> dict[str, list[PlanEntry]]:
+    """``{symbol: [PlanEntry...]}`` — the full universe, before any
+    covered/partial/--max-contracts filtering."""
     close_cache: dict = {}
     return {
         symbol: plan_for_symbol(symbol, from_date, to_date, dte_min, dte_max, band,
-                                rights, close_cache=close_cache, close_provider=close_provider)
+                                rights, close_cache=close_cache, close_provider=close_provider,
+                                today=today, include_open_expiries=include_open_expiries)
         for symbol in symbols
     }
 
 
-# ─── Manifest I/O ───────────────────────────────────────────────────────────────
+# ─── Manifest I/O (append-only — review item 5) ────────────────────────────────
 
 def load_manifest(path: Path) -> dict[tuple, dict]:
+    """Reads the append-only manifest, keeping the LAST recorded row per
+    contract (rows later in the file win — this is how "last outcome wins"
+    is expressed without rewriting the file). Tolerates a truncated final
+    line (a crash mid-append): a row missing a required identity field is
+    silently skipped rather than raised."""
     if not path.exists():
         return {}
     out = {}
     with open(path) as fh:
         for row in csv.DictReader(fh):
-            k = (row["symbol"], row["expiration"], row["strike"], row["right"])
-            out[k] = {f: row.get(f, "") or "" for f in MANIFEST_FIELDS}
+            symbol = row.get("symbol")
+            expiration = row.get("expiration")
+            strike = row.get("strike")
+            right = row.get("right")
+            if not (symbol and expiration and strike and right):
+                continue  # truncated/corrupt row — the prior good state stands
+            k = (symbol, expiration, strike, right)
+            out[k] = {f: (row.get(f) or "") for f in MANIFEST_FIELDS}
     return out
 
 
-def write_manifest(path: Path, rows: dict[tuple, dict]) -> None:
+def append_manifest_row(path: Path, row: dict) -> None:
+    """Appends one attempt as a single fsync'd CSV line — never rewrites the
+    file (review item 5). Writes the header once, the first time the file is
+    created."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".csv.tmp")
-    with open(tmp, "w", newline="") as fh:
+    is_new = not path.exists()
+    with open(path, "a", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=MANIFEST_FIELDS)
-        w.writeheader()
-        for k in sorted(rows):
-            w.writerow({f: rows[k].get(f, "") for f in MANIFEST_FIELDS})
-    tmp.replace(path)  # atomic on the same filesystem: never a half-written manifest on disk
+        if is_new:
+            w.writeheader()
+        w.writerow({f: row.get(f, "") for f in MANIFEST_FIELDS})
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+@contextlib.contextmanager
+def _run_lock(manifest_path: Path):
+    """A single-run advisory lock over manifest writes (review item 5).
+    `flock` is process-scoped and released automatically if the process
+    dies, so a crashed run never leaves a stale lock behind."""
+    lock_path = manifest_path.with_name(manifest_path.name + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "a")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as e:
+        fh.close()
+        raise RunLockHeld(
+            f"another backfill_chain run already holds the lock at {lock_path} — "
+            "refusing to start a second one concurrently") from e
+    try:
+        yield
+    finally:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        fh.close()
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def is_terminal(contract: tuple, manifest: dict[tuple, dict]) -> bool:
-    """True if the contract must never be re-requested: it is already on
-    disk, or the manifest already recorded a `fetched`/`no_bars` outcome for
-    it (a real, already-asked answer)."""
+# ─── Completeness / classification (review items 3, 4, 6) ─────────────────────
+
+def file_completeness(path: Path, expiration: date, window_start: date, *,
+                      today: date | None = None) -> str:
+    """``"absent" | "complete" | "partial"`` (review item 6). A partial file
+    is real data — NEVER overwritten by this script — but must not read as
+    full coverage: a shallow file that stops well short of an
+    already-expired contract's last trading day, or that starts after the
+    DTE window it was meant to cover, silently reads downstream as "priced"
+    when it isn't. An unreadable or near-empty (< MIN_USABLE_BARS) file is
+    also reported partial rather than absent/complete — conservative: never
+    claim covered, never treat as safe to blindly overwrite either."""
+    if not path.exists():
+        return "absent"
+    try:
+        details = parse_history_details(path.read_text(), require_mark=False)
+    except Exception:
+        return "partial"
+    if len(details) < MIN_USABLE_BARS:
+        return "partial"
+    days = sorted(details)
+    today = today or date.today()
+    if expiration < today and (expiration - days[-1]).days > 10:
+        return "partial"
+    if days[0] > window_start:
+        return "partial"
+    return "complete"
+
+
+def classify(entry: PlanEntry, manifest: dict[tuple, dict], *,
+            today: date | None = None) -> str:
+    """``"covered" | "partial" | "pending"`` for one planned contract
+    (review items 3, 4, 6). "covered" is the only status a real run treats
+    as done; "partial" is real data on disk, never overwritten and never
+    re-requested except via ``--refetch-partial``."""
+    today = today or date.today()
+    contract = contract_of(entry)
+    status = file_completeness(contract_path(*contract), entry.expiration,
+                               entry.window_start, today=today)
+    if status == "complete":
+        return "covered"
+    if status == "partial":
+        return "partial"
+    # status == "absent": an unexpired contract's chain can still change, so
+    # neither a no_bars nor an unavailable manifest row may terminate it
+    # (review item 3) — it stays pending until it expires.
+    if entry.expiration >= today:
+        return "pending"
+    row = manifest.get(_key(*contract))
+    if row and row.get("outcome") in _TERMINAL_OUTCOMES:
+        return "covered"
+    return "pending"
+
+
+def categorize(entries: list[PlanEntry], manifest: dict[tuple, dict], *,
+              today: date | None = None) -> tuple[list, list, list]:
+    """``(covered, partial, pending)`` — the three-way split (review items 4, 6)."""
+    covered, partial, pending = [], [], []
+    buckets = {"covered": covered, "partial": partial, "pending": pending}
+    for e in entries:
+        buckets[classify(e, manifest, today=today)].append(e)
+    return covered, partial, pending
+
+
+# ─── Atomic, no-clobber cache write (review item 1) ────────────────────────────
+
+def _atomic_write_new(path: Path, text: str) -> bool:
+    """Writes ``text`` to ``path`` iff it doesn't already exist — atomically,
+    and without ever truncating a file that appeared there since planning
+    ran (review item 1). A unique tmp file is written and fsync'd first (so
+    a crash mid-write never leaves a corrupt tmp mistaken for real data),
+    then hard-linked onto ``path``: ``os.link`` is atomic and raises
+    ``FileExistsError`` if the target already exists, so two processes
+    racing on the same contract can never have one clobber the other.
+    Returns True if this call created the file, False if it already existed
+    (nothing lost either way — the existing file is untouched)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    try:
+        with open(tmp, "w") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        try:
+            os.link(tmp, path)
+            return True
+        except FileExistsError:
+            return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+# ─── HTTP-status / clean-empty sniffing (review items 7, 8) ───────────────────
+#
+# lib.barchart.session.BarchartSession.fetch_history_fast collapses an HTTP
+# error, a clean 200-with-zero-rows response, and an internal exception all
+# into the same bare `None` return — none of it is modified here (it isn't
+# ours to touch), but its own WARNING/ERROR log calls DO distinguish these
+# cases, so a Handler attached only for the duration of one fetch recovers
+# that information without changing session.py's code or behaviour at all.
+
+_SESSION_LOGGER_NAME = "lib.barchart.session"
+
+
+class _HistorySignal:
+    __slots__ = ("kind", "http_status")
+
+    def __init__(self):
+        self.kind: str | None = None   # None | "http_error" | "empty" | "exception"
+        self.http_status: int | None = None
+
+
+class _HistorySniffHandler(logging.Handler):
+    """Watches ``lib.barchart.session``'s known WARNING/ERROR message shapes
+    for the duration of one fetch. The LAST matching record wins — when the
+    fast re-issue path fails and falls back to a full navigation
+    (``fetch_history_csv``), that fallback's own outcome is what actually
+    produced the final `None`, and it always logs after the re-issue
+    attempt's own message."""
+    _HTTP_MSGS = ("History feed returned HTTP %d for '%s'",
+                 "Re-issued feed HTTP %d for '%s' — re-navigating")
+    _EMPTY_MSGS = ("History feed returned no rows for '%s'",
+                  "Re-issued feed returned no rows for '%s' — re-navigating")
+
+    def __init__(self, signal: _HistorySignal):
+        super().__init__(level=logging.WARNING)
+        self._signal = signal
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.msg in self._HTTP_MSGS and record.args:
+            self._signal.kind = "http_error"
+            self._signal.http_status = record.args[0]
+        elif record.msg in self._EMPTY_MSGS:
+            self._signal.kind = "empty"
+        elif record.levelno >= logging.ERROR:
+            self._signal.kind = "exception"
+
+
+async def _fetch_one(session, contract: tuple, timeout_ms: int) -> tuple[str | None, _HistorySignal]:
     symbol, expiration, strike, right = contract
-    if contract_path(symbol, expiration, strike, right).exists():
-        return True
-    row = manifest.get(_key(symbol, expiration, strike, right))
-    return bool(row) and row.get("outcome") in _TERMINAL_OUTCOMES
-
-
-def categorize(contracts: list[tuple], manifest: dict[tuple, dict]) -> tuple[list, list]:
-    """``(terminal, pending)`` — split a contract list by whether it needs a
-    request at all."""
-    terminal, pending = [], []
-    for c in contracts:
-        (terminal if is_terminal(c, manifest) else pending).append(c)
-    return terminal, pending
+    signal = _HistorySignal()
+    sniffer_logger = logging.getLogger(_SESSION_LOGGER_NAME)
+    handler = _HistorySniffHandler(signal)
+    sniffer_logger.addHandler(handler)
+    try:
+        csv_text = await session.fetch_history_fast(
+            option_history_url(symbol, expiration, strike, TYPE_NAME[right]), timeout_ms)
+    except Exception as e:
+        signal.kind = "exception"
+        log.error("history scrape failed for %s: %s",
+                  contract_path(symbol, expiration, strike, right).stem, safe_err(e))
+        csv_text = None
+    finally:
+        sniffer_logger.removeHandler(handler)
+    return csv_text, signal
 
 
 # ─── Fetch ────────────────────────────────────────────────────────────────────
 
-async def _fetch_one(session, contract: tuple, timeout_ms: int) -> str | None:
-    symbol, expiration, strike, right = contract
-    try:
-        return await session.fetch_history_fast(
-            option_history_url(symbol, expiration, strike, TYPE_NAME[right]), timeout_ms)
-    except Exception as e:
-        log.error("history scrape failed for %s: %s",
-                  contract_path(symbol, expiration, strike, right).stem, safe_err(e))
-        return None
-
-
 async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_path: Path, *,
                     fail_stop: int = 10, headless: bool = True, timeout_ms: int = 30000,
-                    sleep_s: float = 0.4, session=None) -> dict:
-    """Fetch every pending contract, writing its CSV to the cache (never
-    overwriting) and the manifest row IMMEDIATELY after each attempt, so a
-    crash or a clean stop loses at most the in-flight contract and a re-run
-    resumes exactly where this one stopped.
+                    sleep_s: float = 0.4, session=None, cache_dir: Path | None = None) -> dict:
+    """Fetches every pending ``(symbol, expiration, strike, right)`` contract,
+    writing its CSV to the cache (atomically, NEVER overwriting — review
+    item 1) and appending one manifest row IMMEDIATELY after each attempt
+    (review item 5), so a crash or a clean stop loses at most the in-flight
+    contract and a re-run resumes exactly where this one stopped.
 
-    Stops cleanly (does not raise) after `fail_stop` CONSECUTIVE
-    failed/unparsed outcomes, or if the session itself fails to log in
-    (RuntimeError from BarchartSession.__aenter__, caught here when this
-    function owns session construction).
+    Stops cleanly (does not raise) after ``fail_stop`` CONSECUTIVE ambiguous
+    failures (review item 7); stops IMMEDIATELY, before that count is ever
+    reached, on a blocking HTTP status (401/403/429 — review item 8) or a
+    session login failure (``RuntimeError`` from ``BarchartSession.__aenter__``,
+    caught here when this function owns session construction). A contract
+    that never listed (a confirmed clean-empty feed) is recorded ``no_bars``
+    and does NOT count as a failure at all. An ambiguous failure
+    (exception / non-blocking HTTP error / unclassifiable) is recorded
+    ``failed``/``unparsed`` on its first and second occurrence ACROSS
+    SEPARATE RUNS (the manifest's persisted ``attempts`` count), then
+    ``unavailable`` (terminal) on the second — review item 7b.
+
+    Raises ``RunLockHeld`` immediately, before touching anything, if another
+    run already holds the manifest's lock (review item 5).
     """
-    HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
+    resolved_cache_dir = cache_dir if cache_dir is not None else HISTORY_CACHE
+    resolved_cache_dir.mkdir(parents=True, exist_ok=True)
     stats = Counter()
 
     async def run(sess) -> None:
         consecutive_failures = 0
         for i, contract in enumerate(pending, 1):
             symbol, expiration, strike, right = contract
-            name = contract_path(symbol, expiration, strike, right).stem
+            path = contract_path(symbol, expiration, strike, right, cache_dir=resolved_cache_dir)
+            name = path.stem
             k = _key(symbol, expiration, strike, right)
+            prior_attempts = int((manifest.get(k, {}).get("attempts") or "0") or "0")
             row = {"symbol": symbol, "expiration": expiration.isoformat(),
                   "strike": f"{strike:.2f}", "right": right, "timestamp": _now_iso()}
 
-            csv_text = await _fetch_one(sess, contract, timeout_ms)
+            csv_text, signal = await _fetch_one(sess, contract, timeout_ms)
+
             if not csv_text:
-                row.update(outcome="failed", rows="0", first_date="", last_date="")
-                stats["failed"] += 1
-                consecutive_failures += 1
-                log.warning("[%d/%d] %s: no data", i, len(pending), name)
+                if signal.kind == "http_error" and signal.http_status in _BLOCKING_HTTP_STATUSES:
+                    row.update(outcome="failed", rows="0", first_date="", last_date="",
+                              attempts=str(prior_attempts + 1))
+                    manifest[k] = row
+                    append_manifest_row(manifest_path, row)
+                    remaining = len(pending) - i
+                    log.error(
+                        "stopping immediately — HTTP %d fetching %s (%d/%d); "
+                        "%d contract(s) remain; the manifest at %s reflects every "
+                        "attempt up to here, so re-running the same command "
+                        "resumes from here", signal.http_status, name, i, len(pending),
+                        remaining, manifest_path)
+                    stats[f"stopped_http_{signal.http_status}"] = 1
+                    return
+                if signal.kind == "empty":
+                    row.update(outcome="no_bars", rows="0", first_date="", last_date="",
+                              attempts="0")
+                    stats["no_bars"] += 1
+                    consecutive_failures = 0
+                    log.info("[%d/%d] %s: no bars (confirmed empty feed) — not written",
+                             i, len(pending), name)
+                else:
+                    new_attempts = prior_attempts + 1
+                    outcome = "unavailable" if new_attempts >= 2 else "failed"
+                    row.update(outcome=outcome, rows="0", first_date="", last_date="",
+                              attempts=str(new_attempts))
+                    stats[outcome] += 1
+                    consecutive_failures += 1
+                    log.warning("[%d/%d] %s: no data (%s)%s", i, len(pending), name,
+                               signal.kind or "unclassified",
+                               " — marked unavailable after 2 failed runs"
+                               if outcome == "unavailable" else "")
             else:
                 try:
                     details = parse_history_details(csv_text, require_mark=False)
                 except Exception as e:
-                    row.update(outcome="unparsed", rows="0", first_date="", last_date="")
-                    stats["unparsed"] += 1
+                    new_attempts = prior_attempts + 1
+                    outcome = "unavailable" if new_attempts >= 2 else "unparsed"
+                    row.update(outcome=outcome, rows="0", first_date="", last_date="",
+                              attempts=str(new_attempts))
+                    stats[outcome] += 1
                     consecutive_failures += 1
                     log.warning("[%d/%d] %s: unparseable (%s)", i, len(pending), name, safe_err(e))
                 else:
                     if len(details) < MIN_USABLE_BARS:
                         row.update(outcome="no_bars", rows=str(len(details)),
-                                  first_date="", last_date="")
+                                  first_date="", last_date="", attempts="0")
                         stats["no_bars"] += 1
                         consecutive_failures = 0
                         log.info("[%d/%d] %s: no bars — not written", i, len(pending), name)
                     else:
-                        contract_path(symbol, expiration, strike, right).write_text(csv_text)
                         days = sorted(details)
-                        row.update(outcome="fetched", rows=str(len(details)),
-                                  first_date=days[0].isoformat(), last_date=days[-1].isoformat())
-                        stats["fetched"] += 1
-                        consecutive_failures = 0
-                        log.info("[%d/%d] %s: %d bars %s..%s", i, len(pending), name,
-                                len(details), days[0], days[-1])
+                        try:
+                            created = _atomic_write_new(path, csv_text)
+                        except Exception as e:
+                            new_attempts = prior_attempts + 1
+                            outcome = "unavailable" if new_attempts >= 2 else "failed"
+                            row.update(outcome=outcome, rows="0", first_date="", last_date="",
+                                      attempts=str(new_attempts))
+                            stats[outcome] += 1
+                            consecutive_failures += 1
+                            log.error("[%d/%d] %s: cache write failed (%s)",
+                                     i, len(pending), name, safe_err(e))
+                        else:
+                            outcome = "fetched" if created else "exists"
+                            row.update(outcome=outcome, rows=str(len(details)),
+                                      first_date=days[0].isoformat(),
+                                      last_date=days[-1].isoformat(), attempts="0")
+                            stats[outcome] += 1
+                            consecutive_failures = 0
+                            log.info("[%d/%d] %s: %s, %d bars %s..%s", i, len(pending), name,
+                                    outcome, len(details), days[0], days[-1])
 
             manifest[k] = row
-            write_manifest(manifest_path, manifest)
+            append_manifest_row(manifest_path, row)
 
             if consecutive_failures >= fail_stop:
                 remaining = len(pending) - i
@@ -503,48 +810,51 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
             if sleep_s:
                 await asyncio.sleep(sleep_s)
 
-    if session is not None:
-        await run(session)
-    else:
-        email = os.getenv("BARCHART_EMAIL", "")
-        password = os.getenv("BARCHART_PASSWORD", "")
-        if not (email and password):
-            log.error("BARCHART_EMAIL/BARCHART_PASSWORD not set — cannot scrape")
-            return dict(stats)
-        cookies_path = Path(os.getenv("COOKIES_PATH", _DEFAULT_COOKIES))
-        try:
-            async with BarchartSession(email, password, cookies_path, headless) as sess:
-                await run(sess)
-        except RuntimeError as e:
-            log.error(
-                "login failed — stopping cleanly (%s). The manifest at %s already "
-                "reflects every contract attempted before the failure; re-run the "
-                "same command to resume", safe_err(e), manifest_path)
-            stats["login_failure"] = 1
+    with _run_lock(manifest_path):
+        if session is not None:
+            await run(session)
+        else:
+            email = os.getenv("BARCHART_EMAIL", "")
+            password = os.getenv("BARCHART_PASSWORD", "")
+            if not (email and password):
+                log.error("BARCHART_EMAIL/BARCHART_PASSWORD not set — cannot scrape")
+                return dict(stats)
+            cookies_path = Path(os.getenv("COOKIES_PATH", _DEFAULT_COOKIES))
+            try:
+                async with BarchartSession(email, password, cookies_path, headless) as sess:
+                    await run(sess)
+            except RuntimeError as e:
+                log.error(
+                    "login failed — stopping cleanly (%s). The manifest at %s already "
+                    "reflects every contract attempted before the failure; re-run the "
+                    "same command to resume", safe_err(e), manifest_path)
+                stats["login_failure"] = 1
     return dict(stats)
 
 
 # ─── Reporting ───────────────────────────────────────────────────────────────────
 
-def print_dry_run(plan: dict[str, list[tuple]], manifest: dict[tuple, dict], *,
-                  max_contracts: int | None, sleep_s: float) -> dict:
-    """Per-symbol plan report: contract count, already-terminal, pending, and
-    an estimated duration for the pending set. Returns the per-symbol stats
+def print_dry_run(plan: dict[str, list[PlanEntry]], manifest: dict[tuple, dict], *,
+                  max_contracts: int | None, sleep_s: float,
+                  today: date | None = None) -> dict:
+    """Per-symbol plan report: universe / covered / partial / pending, and an
+    estimated duration for the pending set. Returns the per-symbol stats
     dict (also useful to callers/tests, not just printed)."""
     report: dict[str, dict] = {}
     total_pending = 0
-    for symbol, contracts in plan.items():
-        terminal, pending = categorize(contracts, manifest)
-        report[symbol] = {"universe": len(contracts), "already_covered": len(terminal),
-                          "pending": len(pending)}
+    for symbol, entries in plan.items():
+        covered, partial, pending = categorize(entries, manifest, today=today)
+        report[symbol] = {"universe": len(entries), "covered": len(covered),
+                          "partial": len(partial), "pending": len(pending)}
         total_pending += len(pending)
-        log.info("%-6s  universe=%-5d  already_covered=%-5d  pending=%-5d",
-                 symbol, len(contracts), len(terminal), len(pending))
+        log.info("%-6s  universe=%-6d  covered=%-6d  partial=%-5d  pending=%-6d",
+                 symbol, len(entries), len(covered), len(partial), len(pending))
 
     if max_contracts is not None and total_pending > max_contracts:
-        log.info("--max-contracts %d: a real run would fetch only the first %d of %d "
-                 "pending contracts (deterministic order: symbol, expiry, strike, right)",
-                 max_contracts, max_contracts, total_pending)
+        log.info("--max-contracts %d caps the PENDING set a real run would fetch this "
+                 "invocation to the first %d of %d (deterministic order: symbol, "
+                 "expiry, strike, right) — covered/partial contracts never count "
+                 "against it", max_contracts, max_contracts, total_pending)
         total_pending = min(total_pending, max_contracts)
 
     est_seconds = total_pending * max(sleep_s, 0) + total_pending * SECONDS_PER_CONTRACT
@@ -581,10 +891,18 @@ def main() -> None:
     parser.add_argument("--band", type=float, default=0.10, help="Moneyness band, e.g. 0.10 = ±10%%.")
     parser.add_argument("--rights", default="P,C", help="Comma-separated subset of P,C.")
     parser.add_argument("--max-contracts", type=int, default=None,
-                        help="Cap on pending contracts a real run fetches this invocation.")
+                        help="Cap on PENDING contracts (not yet covered/partial) a "
+                             "real run fetches this invocation.")
     parser.add_argument("--sleep", type=float, default=0.4, help="Seconds between fetches.")
     parser.add_argument("--fail-stop", type=int, default=10,
-                        help="Stop after this many consecutive failures.")
+                        help="Stop after this many consecutive ambiguous failures.")
+    parser.add_argument("--include-open-expiries", action="store_true",
+                        help="Include expiries on/after today (excluded by default — "
+                             "review item 3, their chain can still change).")
+    parser.add_argument("--refetch-partial", action="store_true",
+                        help="Also fetch PARTIAL contracts, into the sibling "
+                             "backtests/option_history_cache_refetch/ dir (never the "
+                             "primary cache) — review item 6.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Default behaviour: print the plan, scrape nothing "
                              "(kept as an explicit flag for readability; --execute "
@@ -608,7 +926,7 @@ def main() -> None:
                          f"STRIKE_GRID in this file")
 
     plan = build_plan(symbols, args.from_date, args.to_date, args.dte_min, args.dte_max,
-                      args.band, rights)
+                      args.band, rights, include_open_expiries=args.include_open_expiries)
     manifest = load_manifest(MANIFEST_PATH)
 
     log.info("plan: %s .. %s  dte=[%d,%d]  band=%.2f  rights=%s",
@@ -619,24 +937,39 @@ def main() -> None:
         return
 
     all_pending: list[tuple] = []
+    all_partial: list[tuple] = []
     for symbol in symbols:
-        _terminal, pending = categorize(plan[symbol], manifest)
-        all_pending.extend(pending)
+        _covered, partial, pending = categorize(plan[symbol], manifest)
+        all_pending.extend(contract_of(e) for e in pending)
+        all_partial.extend(contract_of(e) for e in partial)
     all_pending.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
+    all_partial.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
     if args.max_contracts is not None:
         all_pending = all_pending[:args.max_contracts]
 
-    if not all_pending:
-        log.info("Nothing to fetch — every planned contract is already cached or attempted.")
+    if not all_pending and not (args.refetch_partial and all_partial):
+        log.info("Nothing to fetch — every planned contract is covered, partial, "
+                 "or already attempted.")
         return
 
-    log.info("fetching %d contract(s)", len(all_pending))
-    stats = asyncio.run(run_fetch(all_pending, manifest, MANIFEST_PATH,
-                                  fail_stop=args.fail_stop, headless=not args.no_headless,
-                                  sleep_s=args.sleep))
-    log.info("done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats.items())))
-    log.info("remember to run `python3 scripts/backup_research_caches.py push` by hand "
-             "now that the cache has grown")
+    if all_pending:
+        log.info("fetching %d contract(s)", len(all_pending))
+        stats = asyncio.run(run_fetch(all_pending, manifest, MANIFEST_PATH,
+                                      fail_stop=args.fail_stop, headless=not args.no_headless,
+                                      sleep_s=args.sleep))
+        log.info("done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats.items())))
+
+    if args.refetch_partial and all_partial:
+        log.info("--refetch-partial: re-fetching %d partial contract(s) into %s "
+                 "(never touching the primary cache)", len(all_partial), REFETCH_CACHE_DIR)
+        stats2 = asyncio.run(run_fetch(all_partial, manifest, MANIFEST_PATH,
+                                       fail_stop=args.fail_stop, headless=not args.no_headless,
+                                       sleep_s=args.sleep, cache_dir=REFETCH_CACHE_DIR))
+        log.info("refetch-partial done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats2.items())))
+
+    if all_pending:
+        log.info("remember to run `python3 scripts/backup_research_caches.py push` by "
+                 "hand now that the cache has grown")
 
 
 if __name__ == "__main__":
