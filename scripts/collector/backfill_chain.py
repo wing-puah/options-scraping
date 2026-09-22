@@ -169,9 +169,9 @@ log = logging.getLogger("backfill_chain")
 MANIFEST_PATH = ROOT / "backtests" / "option_history_cache_backfill_manifest.csv"
 MANIFEST_FIELDS = ("symbol", "expiration", "strike", "right", "outcome",
                    "rows", "first_date", "last_date", "attempts",
-                   "first_attempt_at", "timestamp")
+                   "first_attempt_at", "reason", "timestamp")
 
-# review item 3 (2026-09-26 re-review): `unavailable` requires BOTH at least
+# review item 3 (2026-09-22 re-review): `unavailable` requires BOTH at least
 # this many recorded attempts AND at least this much wall-clock time between
 # the first and the most recent one — two runs during one short outage must
 # never permanently blacklist a contract.
@@ -184,6 +184,14 @@ UNAVAILABLE_MIN_SPAN = timedelta(hours=24)
 # session/listing lag than a genuinely unlisted strike, so it must never be
 # recorded `no_bars` (permanently skip-worthy); it is `failed` instead.
 NEAR_MONEY_BAND = 0.03
+
+# review item 2 (2026-09-22 third review, "the non-existent expiry wall"): if
+# this many CONSECUTIVE near-the-money contracts of one (symbol, expiry) all
+# come back a confirmed clean-empty feed within one run, the expiry itself
+# almost certainly never listed (an unmodelled one-off closure, or a weekly
+# that didn't exist yet) — the rest of that expiry is skipped for the REST OF
+# THIS RUN rather than burning --fail-stop budget on it.
+EXPIRY_EMPTY_STREAK_DEFAULT = 4
 
 # Manifest outcomes that make a contract terminal PURELY off the manifest
 # (i.e. when the cache file itself is absent). "fetched"/"exists" are NOT
@@ -237,6 +245,17 @@ class UnderlyingDataUnavailable(RuntimeError):
 class RunLockHeld(RuntimeError):
     """Another run_fetch already holds the manifest's single-run lock
     (review item 5)."""
+
+
+class ManifestSchemaMismatch(RuntimeError):
+    """``append_manifest_row`` was asked to append onto a manifest file whose
+    on-disk header doesn't match the code's current ``MANIFEST_FIELDS`` —
+    e.g. the file a 171419c-era pilot is still writing (2026-09-22 third
+    review, item 1). Appending onto it directly would write a row with the
+    WRONG number of fields for that header, corrupting every row after it.
+    ``run_fetch`` calls ``migrate_manifest_schema`` once, under the lock,
+    before any append, so this should only ever surface if something calls
+    ``append_manifest_row`` directly without going through ``run_fetch``."""
 
 
 # ─── Per-symbol strike grid (ASSUMPTION) ───────────────────────────────────────
@@ -476,14 +495,45 @@ def build_plan(symbols: list[str], from_date: date, to_date: date, dte_min: int,
 
 # ─── Manifest I/O (append-only — review item 5) ────────────────────────────────
 
+def _read_manifest_header(path: Path) -> tuple[str, ...] | None:
+    """The literal header row on disk, or None if the file doesn't exist or
+    is empty."""
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+    with open(path, newline="") as fh:
+        try:
+            header = next(csv.reader(fh))
+        except StopIteration:
+            return None
+    return tuple(header)
+
+
 def load_manifest(path: Path) -> dict[tuple, dict]:
     """Reads the append-only manifest, keeping the LAST recorded row per
     contract (rows later in the file win — this is how "last outcome wins"
     is expressed without rewriting the file). Tolerates a truncated final
     line (a crash mid-append): a row missing a required identity field is
-    silently skipped rather than raised."""
+    silently skipped rather than raised.
+
+    Detects — and only LOGS, never writes — a header that doesn't match the
+    code's current ``MANIFEST_FIELDS`` (e.g. a still-running 171419c-era
+    pilot's manifest, which predates the ``first_attempt_at``/``reason``
+    columns — 2026-09-22 third review, item 1). ``csv.DictReader`` parses
+    whatever header is actually there BY NAME regardless, so the returned
+    rows are still correct for every column that exists in the file; a
+    missing column just comes back as ``""``. Only ``run_fetch`` — while
+    holding the lock, before any fetch — actually migrates the file
+    (``migrate_manifest_schema``), because that's the only place it's safe
+    to rewrite it.
+    """
     if not path.exists():
         return {}
+    header = _read_manifest_header(path)
+    if header is not None and header != MANIFEST_FIELDS:
+        log.warning(
+            "manifest schema mismatch: %s has header %s, code expects %s — reading "
+            "it is still safe (columns match by name), but a real run will migrate "
+            "it once, under the lock, before any fetch", path, header, MANIFEST_FIELDS)
     out = {}
     with open(path) as fh:
         for row in csv.DictReader(fh):
@@ -498,6 +548,43 @@ def load_manifest(path: Path) -> dict[tuple, dict]:
     return out
 
 
+def migrate_manifest_schema(path: Path) -> bool:
+    """If ``path`` exists with a header different from the current
+    ``MANIFEST_FIELDS``, rewrites it ONCE — atomically (tmp + rename) — onto
+    the current schema (2026-09-22 third review, item 1). Old rows are
+    mapped by COLUMN NAME, never by position, so a reordered or narrower old
+    schema still lands correctly; a missing ``first_attempt_at`` is filled
+    from that row's own ``timestamp`` (the best available evidence of when
+    its first recorded attempt happened — conservative, since it can only
+    UNDERcount the elapsed time and so only ever DELAY an ``unavailable``
+    promotion, never wrongly hasten one). Returns True if a migration was
+    performed. Must only be called while holding the manifest's run lock.
+    """
+    header = _read_manifest_header(path)
+    if header is None or header == MANIFEST_FIELDS:
+        return False
+    log.warning("manifest schema migration: %s has header %s, code expects %s — "
+               "rewriting it once onto the current schema", path, header, MANIFEST_FIELDS)
+    migrated_rows = []
+    with open(path, newline="") as fh:
+        for raw in csv.DictReader(fh):
+            new_row = {f: (raw.get(f) or "") for f in MANIFEST_FIELDS}
+            if not new_row.get("first_attempt_at"):
+                new_row["first_attempt_at"] = raw.get("timestamp") or ""
+            migrated_rows.append(new_row)
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.migrate.tmp"
+    with open(tmp, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=MANIFEST_FIELDS)
+        w.writeheader()
+        for r in migrated_rows:
+            w.writerow(r)
+        fh.flush()
+        os.fsync(fh.fileno())
+    tmp.replace(path)  # atomic on the same filesystem
+    log.warning("manifest schema migration: rewrote %d row(s) at %s", len(migrated_rows), path)
+    return True
+
+
 def append_manifest_row(path: Path, row: dict) -> None:
     """Appends one attempt as a single fsync'd CSV line — never rewrites the
     file (review item 5). Writes the header once, the first time the file is
@@ -505,10 +592,22 @@ def append_manifest_row(path: Path, row: dict) -> None:
     non-empty, and does NOT end in a newline (a crash mid-append left a
     truncated final line — see ``load_manifest``'s tolerance for that), a
     newline is written first so the new row never gets concatenated onto the
-    garbled fragment (re-review item 5, 2026-09-26)."""
+    garbled fragment (re-review item 5, 2026-09-22).
+
+    Raises ``ManifestSchemaMismatch`` rather than appending onto a file whose
+    on-disk header differs from ``MANIFEST_FIELDS`` — appending blindly would
+    write a row with the WRONG number of fields for that header (2026-09-22
+    third review, item 1). ``run_fetch`` always migrates first, under the
+    lock, so this should not fire in normal use.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     needs_header = True
     if path.exists() and path.stat().st_size > 0:
+        existing_header = _read_manifest_header(path)
+        if existing_header is not None and existing_header != MANIFEST_FIELDS:
+            raise ManifestSchemaMismatch(
+                f"{path} has header {existing_header}, code expects {MANIFEST_FIELDS} — "
+                "call migrate_manifest_schema(path) first")
         needs_header = False
         with open(path, "rb") as fh:
             fh.seek(-1, os.SEEK_END)
@@ -675,7 +774,7 @@ class _HistorySniffHandler(logging.Handler):
     """Watches ``lib.barchart.session``'s known WARNING/ERROR message shapes
     for the duration of one fetch.
 
-    NOT last-message-wins (fixed 2026-09-26 re-review, item 1): an HTTP
+    NOT last-message-wins (fixed 2026-09-22 re-review, item 1): an HTTP
     error (especially a blocking one) MUST decide the outcome even if the
     fast re-issue path then falls back to a full navigation
     (``fetch_history_csv``) that itself logs "no rows" — e.g. a 429 on the
@@ -737,7 +836,7 @@ async def _fetch_one(session, contract: tuple, timeout_ms: int) -> tuple[str | N
 def _ambiguous_outcome(prior_attempts: int, prior_first_attempt_at: str, now_iso: str,
                        fallback_outcome: str) -> tuple[str, int, str]:
     """``(outcome, new_attempts, first_attempt_at)`` for an ambiguous failure
-    (review item 3, re-reviewed 2026-09-26): promotion to ``unavailable``
+    (review item 3, re-reviewed 2026-09-22): promotion to ``unavailable``
     (terminal) requires BOTH ``UNAVAILABLE_MIN_ATTEMPTS`` recorded attempts
     AND at least ``UNAVAILABLE_MIN_SPAN`` between the FIRST attempt and this
     one — so two runs during one short outage can never permanently
@@ -760,12 +859,19 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                     fail_stop: int = 10, no_bars_stop: int = 25, headless: bool = True,
                     timeout_ms: int = 30000, sleep_s: float = 0.4, session=None,
                     cache_dir: Path | None = None,
-                    near_money: dict[tuple, bool] | None = None) -> dict:
+                    near_money: dict[tuple, bool] | None = None,
+                    expiry_empty_streak_stop: int = EXPIRY_EMPTY_STREAK_DEFAULT) -> dict:
     """Fetches every pending ``(symbol, expiration, strike, right)`` contract,
     writing its CSV to the cache (atomically, NEVER overwriting — review
     item 1) and appending one manifest row IMMEDIATELY after each attempt
     (review item 5), so a crash or a clean stop loses at most the in-flight
     contract and a re-run resumes exactly where this one stopped.
+
+    Before any fetch, while already holding the manifest's run lock, calls
+    ``migrate_manifest_schema`` and reloads ``manifest`` if it migrated
+    anything (2026-09-22 third review, item 1) — so a manifest still being
+    written by an older/newer schema is normalized exactly once, safely,
+    before this run's own appends.
 
     Stops cleanly (does not raise) after ``fail_stop`` CONSECUTIVE ambiguous
     failures, or after ``no_bars_stop`` CONSECUTIVE confirmed-empty results
@@ -794,6 +900,23 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
     one, then ``unavailable`` (terminal, unless a later run passes
     ``--retry-unavailable`` at the planning stage) — review item 3.
 
+    "The non-existent expiry wall" (2026-09-22 third review, item 2): if
+    ``expiry_empty_streak_stop`` CONSECUTIVE near-the-money contracts of the
+    SAME ``(symbol, expiration)`` each come back a confirmed clean-empty
+    feed (no HTTP error, no exception — a real "no rows" response) within
+    this run, that expiry almost certainly never listed at all (an
+    unmodelled one-off closure, or an ETF weekly that didn't exist yet).
+    The REST of that expiry's contracts are then skipped for the remainder
+    of THIS run — without a fetch — recorded ``failed`` with
+    ``reason="expiry_empty"``. Neither the streak-establishing contracts nor
+    the later skipped ones count toward ``--fail-stop`` for the SKIPPED
+    ones specifically (the streak-establishing ones do, same as any other
+    ambiguous failure); all of them still count as attempts toward
+    ``unavailable``. A blocking HTTP status or an exception among the first
+    ``expiry_empty_streak_stop`` breaks the streak and is handled exactly as
+    it always was (counts toward ``--fail-stop``/stops immediately), so a
+    real outage spanning multiple expiries still stops the run as before.
+
     Raises ``RunLockHeld`` immediately, before touching anything, if another
     run already holds the manifest's lock (review item 5).
     """
@@ -805,17 +928,35 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
     async def run(sess) -> None:
         consecutive_failures = 0
         consecutive_no_bars = 0
+        expiry_empty_streak: dict[tuple, int] = {}
+        expiry_walled: set[tuple] = set()
+
+        def _update_expiry_streak(expiry_key: tuple, *, clean_empty: bool) -> None:
+            if not clean_empty:
+                expiry_empty_streak.pop(expiry_key, None)
+                return
+            n = expiry_empty_streak.get(expiry_key, 0) + 1
+            expiry_empty_streak[expiry_key] = n
+            if n >= expiry_empty_streak_stop:
+                expiry_walled.add(expiry_key)
+                log.warning(
+                    "expiry wall: %s %s — %d consecutive near-the-money contracts "
+                    "confirmed empty; skipping the rest of this expiry for the "
+                    "remainder of this run (still pending next run)",
+                    expiry_key[0], expiry_key[1], n)
+
         for i, contract in enumerate(pending, 1):
             symbol, expiration, strike, right = contract
             path = contract_path(symbol, expiration, strike, right, cache_dir=resolved_cache_dir)
             name = path.stem
             k = _key(symbol, expiration, strike, right)
+            expiry_key = (symbol, expiration)
             prior = manifest.get(k, {})
             prior_attempts = int((prior.get("attempts") or "0") or "0")
             prior_first_attempt_at = prior.get("first_attempt_at") or ""
             now_iso = _now_iso()
             row = {"symbol": symbol, "expiration": expiration.isoformat(),
-                  "strike": f"{strike:.2f}", "right": right, "timestamp": now_iso}
+                  "strike": f"{strike:.2f}", "right": right, "reason": "", "timestamp": now_iso}
 
             def _record_ambiguous(fallback_outcome: str) -> str:
                 outcome, new_attempts, first_at = _ambiguous_outcome(
@@ -823,6 +964,18 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                 row.update(outcome=outcome, rows="0", first_date="", last_date="",
                           attempts=str(new_attempts), first_attempt_at=first_at)
                 return outcome
+
+            if expiry_key in expiry_walled:
+                outcome = _record_ambiguous("failed")
+                row["reason"] = "expiry_empty"
+                manifest[k] = row
+                append_manifest_row(manifest_path, row)
+                stats[outcome] += 1
+                stats["skipped_expiry_wall"] += 1
+                log.info("[%d/%d] %s: skipped — expiry wall (%s %s confirmed empty "
+                         "%d times in a row)", i, len(pending), name, symbol,
+                         expiration.isoformat(), expiry_empty_streak_stop)
+                continue
 
             csv_text, signal = await _fetch_one(sess, contract, timeout_ms)
             is_near_money = near_money.get(contract, False)
@@ -853,15 +1006,31 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                     consecutive_no_bars += 1
                     log.info("[%d/%d] %s: no bars (confirmed empty feed) — not written",
                              i, len(pending), name)
-                else:
+                elif signal.kind == "empty":
+                    # A clean, unambiguous "no rows" for a NEAR-money strike:
+                    # a liquid underlying should always list this, so it is
+                    # an ambiguous failure, not a confirmed absence — and it
+                    # feeds the expiry-wall streak (review item 2).
                     outcome = _record_ambiguous("failed")
                     stats[outcome] += 1
                     consecutive_failures += 1
                     consecutive_no_bars = 0
-                    near_note = " (near-the-money — a liquid underlying should list this)" \
-                        if is_near_money and signal.kind != "http_error" else ""
-                    log.warning("[%d/%d] %s: no data (%s)%s%s", i, len(pending), name,
-                               signal.kind or "unclassified", near_note,
+                    _update_expiry_streak(expiry_key, clean_empty=True)
+                    log.warning("[%d/%d] %s: no data (empty, near-the-money — a liquid "
+                               "underlying should list this)%s", i, len(pending), name,
+                               " — marked unavailable" if outcome == "unavailable" else "")
+                else:
+                    # exception / non-blocking HTTP error / unclassifiable —
+                    # NOT a clean empty, so it breaks any expiry-wall streak
+                    # and always counts toward --fail-stop, same as before.
+                    outcome = _record_ambiguous("failed")
+                    stats[outcome] += 1
+                    consecutive_failures += 1
+                    consecutive_no_bars = 0
+                    if is_near_money:
+                        _update_expiry_streak(expiry_key, clean_empty=False)
+                    log.warning("[%d/%d] %s: no data (%s)%s", i, len(pending), name,
+                               signal.kind or "unclassified",
                                " — marked unavailable" if outcome == "unavailable" else "")
             else:
                 try:
@@ -871,6 +1040,8 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                     stats[outcome] += 1
                     consecutive_failures += 1
                     consecutive_no_bars = 0
+                    if is_near_money:
+                        _update_expiry_streak(expiry_key, clean_empty=False)
                     log.warning("[%d/%d] %s: unparseable (%s)", i, len(pending), name, safe_err(e))
                 else:
                     if len(details) < MIN_USABLE_BARS and not is_near_money:
@@ -885,6 +1056,7 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                         stats[outcome] += 1
                         consecutive_failures += 1
                         consecutive_no_bars = 0
+                        _update_expiry_streak(expiry_key, clean_empty=False)
                         log.warning("[%d/%d] %s: too few bars near-the-money — treating as a "
                                    "failure, not no_bars", i, len(pending), name)
                     else:
@@ -919,6 +1091,8 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                             stats[outcome] += 1
                             consecutive_failures = 0
                             consecutive_no_bars = 0
+                            if is_near_money:
+                                _update_expiry_streak(expiry_key, clean_empty=False)
                             log.info("[%d/%d] %s: %s, %d bars %s..%s", i, len(pending), name,
                                     outcome, len(details), days[0], days[-1])
 
@@ -949,6 +1123,9 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                 await asyncio.sleep(sleep_s)
 
     with _run_lock(manifest_path):
+        if migrate_manifest_schema(manifest_path):
+            manifest.clear()
+            manifest.update(load_manifest(manifest_path))
         if session is not None:
             await run(session)
         else:
@@ -1038,6 +1215,11 @@ def main() -> None:
     parser.add_argument("--no-bars-stop", type=int, default=25,
                         help="Stop after this many consecutive confirmed-empty "
                              "(no_bars) results.")
+    parser.add_argument("--expiry-empty-streak", type=int, default=EXPIRY_EMPTY_STREAK_DEFAULT,
+                        help="Skip the rest of an expiry's contracts, this run only, "
+                             "after this many consecutive near-the-money contracts of "
+                             "it all come back a confirmed clean-empty feed (the "
+                             "'non-existent expiry' wall).")
     parser.add_argument("--include-open-expiries", action="store_true",
                         help="Include expiries on/after today (excluded by default — "
                              "review item 3, their chain can still change).")
@@ -1111,7 +1293,8 @@ def main() -> None:
         stats = asyncio.run(run_fetch(all_pending, manifest, MANIFEST_PATH,
                                       fail_stop=args.fail_stop, no_bars_stop=args.no_bars_stop,
                                       headless=not args.no_headless, sleep_s=args.sleep,
-                                      near_money=near_money_map))
+                                      near_money=near_money_map,
+                                      expiry_empty_streak_stop=args.expiry_empty_streak))
         log.info("done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats.items())))
 
     if args.refetch_partial and all_partial:
@@ -1120,7 +1303,8 @@ def main() -> None:
         stats2 = asyncio.run(run_fetch(all_partial, manifest, MANIFEST_PATH,
                                        fail_stop=args.fail_stop, no_bars_stop=args.no_bars_stop,
                                        headless=not args.no_headless, sleep_s=args.sleep,
-                                       cache_dir=REFETCH_CACHE_DIR, near_money=near_money_map))
+                                       cache_dir=REFETCH_CACHE_DIR, near_money=near_money_map,
+                                       expiry_empty_streak_stop=args.expiry_empty_streak))
         log.info("refetch-partial done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats2.items())))
 
     if all_pending:

@@ -15,6 +15,7 @@ Everything is synthetic and written to tmp_path; no network, no real cache,
 no Playwright/Barchart launch anywhere in this file.
 """
 import asyncio
+import csv
 import logging
 from datetime import date, datetime, timedelta, timezone
 
@@ -328,7 +329,7 @@ def test_manifest_round_trip_via_append(_isolate):
     _, manifest_path, _ = _isolate
     row = {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
           "outcome": "fetched", "rows": "10", "first_date": "2024-01-02",
-          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "",
+          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "", "reason": "",
           "timestamp": "2026-09-01T00:00:00+00:00"}
     bc.append_manifest_row(manifest_path, row)
     loaded = bc.load_manifest(manifest_path)
@@ -340,11 +341,10 @@ def test_manifest_round_trip_via_append(_isolate):
 def test_append_repairs_a_truncated_final_line_before_appending(_isolate):
     _, manifest_path, _ = _isolate
     manifest_path.write_text(
-        "symbol,expiration,strike,right,outcome,rows,first_date,last_date,attempts,"
-        "first_attempt_at,timestamp\nSPY,2024-06-21,450.00")  # no trailing newline
+        ",".join(bc.MANIFEST_FIELDS) + "\nSPY,2024-06-21,450.00")  # no trailing newline
     row = {"symbol": "QQQ", "expiration": "2024-06-21", "strike": "400.00", "right": "P",
           "outcome": "fetched", "rows": "5", "first_date": "2024-01-02",
-          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "",
+          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "", "reason": "",
           "timestamp": "2026-09-01T00:01:00+00:00"}
     bc.append_manifest_row(manifest_path, row)
     text = manifest_path.read_text()
@@ -604,6 +604,219 @@ def test_consecutive_no_bars_stop(_isolate):
                               session=_EmptyFeedSession()))
     assert stats["no_bars"] == 3
     assert stats["stopped_consecutive_no_bars"] == 1
+
+
+# --- item 1 (third review): manifest schema migration --------------------------
+
+_LEGACY_171419C_HEADER = ("symbol", "expiration", "strike", "right", "outcome", "rows",
+                          "first_date", "last_date", "attempts", "timestamp")
+
+
+def _write_legacy_manifest(path, rows):
+    """A manifest in the EXACT 171419c-era 10-column format (no
+    first_attempt_at, no reason) — what the running pilot still writes."""
+    with open(path, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=_LEGACY_171419C_HEADER)
+        w.writeheader()
+        for r in rows:
+            w.writerow({f: r.get(f, "") for f in _LEGACY_171419C_HEADER})
+
+
+def test_load_manifest_warns_but_correctly_parses_a_legacy_171419c_file(_isolate, caplog):
+    _, manifest_path, _ = _isolate
+    _write_legacy_manifest(manifest_path, [
+        {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
+         "outcome": "failed", "rows": "0", "first_date": "", "last_date": "",
+         "attempts": "2", "timestamp": "2026-09-01T00:00:00+00:00"}])
+    with caplog.at_level(logging.WARNING):
+        loaded = bc.load_manifest(manifest_path)
+    row = loaded[("SPY", "2024-06-21", "450.00", "C")]
+    assert row["outcome"] == "failed" and row["attempts"] == "2"
+    assert row["first_attempt_at"] == ""   # the bug: absent under the old schema
+    assert any("schema mismatch" in r.message for r in caplog.records)
+    # load_manifest only reads — the file on disk must be untouched.
+    assert bc._read_manifest_header(manifest_path) == _LEGACY_171419C_HEADER
+
+
+def test_migrate_manifest_schema_rewrites_header_and_backfills_first_attempt_at(_isolate):
+    _, manifest_path, _ = _isolate
+    _write_legacy_manifest(manifest_path, [
+        {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
+         "outcome": "failed", "rows": "0", "first_date": "", "last_date": "",
+         "attempts": "2", "timestamp": "2026-09-20T00:00:00+00:00"}])
+    migrated = bc.migrate_manifest_schema(manifest_path)
+    assert migrated is True
+    assert bc._read_manifest_header(manifest_path) == bc.MANIFEST_FIELDS
+    loaded = bc.load_manifest(manifest_path)
+    row = loaded[("SPY", "2024-06-21", "450.00", "C")]
+    assert row["attempts"] == "2"
+    assert row["first_attempt_at"] == "2026-09-20T00:00:00+00:00"  # backfilled from timestamp
+    assert row["reason"] == ""
+
+
+def test_migrate_manifest_schema_is_a_noop_on_the_current_schema(_isolate):
+    _, manifest_path, _ = _isolate
+    bc.append_manifest_row(manifest_path, {"symbol": "SPY", "expiration": "2024-06-21",
+                                           "strike": "450.00", "right": "C", "outcome": "fetched",
+                                           "rows": "1", "first_date": "", "last_date": "",
+                                           "attempts": "0", "first_attempt_at": "", "reason": "",
+                                           "timestamp": "t"})
+    before = manifest_path.read_text()
+    assert bc.migrate_manifest_schema(manifest_path) is False
+    assert manifest_path.read_text() == before
+
+
+def test_append_refuses_to_write_onto_a_mismatched_header(_isolate):
+    _, manifest_path, _ = _isolate
+    _write_legacy_manifest(manifest_path, [])
+    with pytest.raises(bc.ManifestSchemaMismatch):
+        bc.append_manifest_row(manifest_path, {"symbol": "SPY", "expiration": "2024-06-21",
+                                                "strike": "450.00", "right": "C",
+                                                "outcome": "fetched"})
+
+
+def test_run_fetch_migrates_a_legacy_manifest_before_fetching_and_unavailable_now_works(_isolate):
+    """End-to-end: the exact bug the third review found. Against a
+    171419c-format manifest whose row already has attempts=2 and a
+    timestamp >24h old, a fresh run_fetch (a) migrates the file, (b) reloads
+    the caller's `manifest` dict in place, and (c) a third failed attempt
+    NOW correctly promotes to `unavailable` — before this fix it never
+    would have, because first_attempt_at kept resetting to "now"."""
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    stale = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat(timespec="seconds")
+    _write_legacy_manifest(manifest_path, [
+        {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
+         "outcome": "failed", "rows": "0", "first_date": "", "last_date": "",
+         "attempts": "2", "timestamp": stale}])
+
+    manifest = bc.load_manifest(manifest_path)  # main()'s pre-lock read, BEFORE migration
+    stats = _run(bc.run_fetch([contract], manifest, manifest_path, sleep_s=0,
+                              session=_ScriptedSession([None])))
+
+    assert stats["unavailable"] == 1
+    assert bc._read_manifest_header(manifest_path) == bc.MANIFEST_FIELDS
+    row = bc.load_manifest(manifest_path)[bc._key(*contract)]
+    assert row["outcome"] == "unavailable" and row["attempts"] == "3"
+    # the caller's dict (passed by reference) was updated in place too
+    assert manifest[bc._key(*contract)]["outcome"] == "unavailable"
+
+
+# --- item 2 (third review): the non-existent-expiry wall -----------------------
+
+def test_expiry_wall_skips_the_rest_without_fetching(_isolate):
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(8)]
+    near_money = {c: True for c in contracts}
+
+    class _EmptyFeedSession:
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch_history_fast(self, url, timeout_ms):
+            self.calls += 1
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    session = _EmptyFeedSession()
+    stats = _run(bc.run_fetch(contracts, {}, manifest_path, sleep_s=0, fail_stop=100,
+                              session=session, near_money=near_money,
+                              expiry_empty_streak_stop=4))
+    assert session.calls == 4          # only the streak-establishing 4 were fetched
+    assert stats["skipped_expiry_wall"] == 4
+    assert stats["failed"] == 8        # 4 fetched-empty + 4 skipped, all `failed`
+
+    rows = bc.load_manifest(manifest_path)
+    reasons = [rows[bc._key(*c)]["reason"] for c in contracts[4:]]
+    assert all(r == "expiry_empty" for r in reasons)
+    assert all(rows[bc._key(*c)]["attempts"] == "1" for c in contracts)  # all count as attempts
+
+
+def test_expiry_wall_skips_do_not_count_toward_fail_stop(_isolate):
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(20)]
+    near_money = {c: True for c in contracts}
+
+    # fail_stop=10 is bigger than the streak threshold (4) but far smaller
+    # than the 20 near-money contracts: if the 16 SKIPPED ones counted
+    # toward it, the run would stop long before reaching the (synthetic)
+    # second expiry below. The 4 streak-ESTABLISHING contracts alone must
+    # not exceed fail_stop either, so it must reach the second expiry.
+    contracts_two_expiries = contracts + [("SPY", date(2024, 7, 19), 440.0, "C")]
+
+    class _MixedSession:
+        def __init__(self):
+            self.calls = []
+
+        async def fetch_history_fast(self, url, timeout_ms):
+            self.calls.append(url)
+            # Only the 4 streak-establishing contracts of the walled expiry
+            # are ever actually fetched (the other 16 are skipped locally);
+            # anything after that is the second expiry's own contract.
+            if len(self.calls) <= 4:
+                _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+                return None
+            return _history_csv([date(2024, 3, 1) + timedelta(days=i) for i in range(10)])
+
+    session = _MixedSession()
+    stats = _run(bc.run_fetch(contracts_two_expiries, {}, manifest_path, sleep_s=0,
+                              fail_stop=10, session=session, near_money=near_money,
+                              expiry_empty_streak_stop=4))
+    assert "stopped_consecutive_failures" not in stats
+    assert stats.get("fetched") == 1   # the second expiry's contract was reached and fetched
+
+
+def test_http_error_among_near_money_contracts_breaks_the_streak_and_stops(_isolate):
+    """A real outage (blocking HTTP) among the first N near-money contracts
+    of an expiry must still stop the run immediately — the wall logic must
+    never swallow it."""
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(6)]
+    near_money = {c: True for c in contracts}
+
+    class _Session:
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch_history_fast(self, url, timeout_ms):
+            self.calls += 1
+            if self.calls == 2:
+                _SESSION_LOG.warning("History feed returned HTTP %d for '%s'", 429, url)
+            else:
+                _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    session = _Session()
+    stats = _run(bc.run_fetch(contracts, {}, manifest_path, sleep_s=0, session=session,
+                              near_money=near_money, expiry_empty_streak_stop=4))
+    assert stats["stopped_http_429"] == 1
+    assert session.calls == 2   # stopped immediately, never reached a streak of 4
+
+
+def test_far_from_money_contracts_do_not_participate_in_the_wall(_isolate):
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(8)]
+    near_money = {c: False for c in contracts}  # none near-the-money
+
+    class _EmptyFeedSession:
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch_history_fast(self, url, timeout_ms):
+            self.calls += 1
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    session = _EmptyFeedSession()
+    stats = _run(bc.run_fetch(contracts, {}, manifest_path, sleep_s=0, session=session,
+                              near_money=near_money, expiry_empty_streak_stop=4))
+    assert session.calls == 8            # every contract fetched, no wall
+    assert stats["no_bars"] == 8
+    assert "skipped_expiry_wall" not in stats
 
 
 # --- item 4: the sniffed message strings really are session.py's own ----------
