@@ -200,3 +200,33 @@ CAPITAL LADDER — operator note, printed because the verdict is NOT FEASIBLE
   smallest capital passing A1 AND A2 AND A3 (disclosed addition): none of the three
 ```
 
+
+## era v4 · inputs 271c4b5 · sha 4c7db30 — recorded 2026-09-22
+<!-- key era=v4 sha=4c7db30 inputs=271c4b5 -->
+
+population  598 results · 1,665 proxy · 2,781 analysis · 827 spy_vix_daily_full  (inputs dated 2026-09-16 11:32 … 2026-09-19 16:45)
+run         2026-09-22 16:27:38 · git 4c7db30 (main, working tree clean) · exit 0 · 16.8s
+command     python -m scripts.backtest_study.f4_deployment.account_sim
+excerpt     verdict
+
+```
+CAPITAL LADDER — operator note, printed because the verdict is NOT FEASIBLE
+  Same anti-tuning rule: this is the smallest capital in {$25k, $35k, $50k} at
+  which A1 AND A2 pass, not a recommendation to trade any of them. A rung whose
+  dollar stop does not divide the frozen $1,000 harness stop evenly (e.g. $700
+  on a $35k rung at 2%) is rounded UP to a TIGHTER stop, the conservative
+  direction, and the affected position count is printed.
+  The maxDD and A3 columns and the A3 summary line below are DISCLOSED
+  ADDITIONS (2026-09-20), not part of the registered operator note: the
+  registration names A1 AND A2 only, and a verdict can be NOT FEASIBLE on A3
+  alone. No threshold moved — A3 here is `a3_no_blowup`, the clause
+  `evaluate()` scores, measured against the RUNG's capital. Read a rung that
+  passes A1 AND A2 while failing A3 as an account size that keeps the edge and
+  still breaches the drawdown bar, never as a feasible one.
+  $ 25,000  n= 211  $    28,049  meanR +0.277 CI-lo +0.150  attrition  116%  maxDD 35.0%  A1 MET  A2 MET  A3 no
+  $ 35,000  n= 249  $    32,439  meanR +0.267 CI-lo +0.155  attrition  125%  maxDD 26.7%  A1 MET  A2 MET  A3 no   [247 inexact-stop positions]
+  $ 50,000  n= 253  $    44,975  meanR +0.246 CI-lo +0.111  attrition   73%  maxDD 27.1%  A1 MET  A2 MET  A3 no
+  smallest capital passing A1 AND A2: $25,000
+  smallest capital passing A1 AND A2 AND A3 (disclosed addition): none of the three
+```
+
