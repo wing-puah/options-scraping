@@ -23,6 +23,7 @@ Fully offline — every pull is built inline, nothing reads journal/ or Sheets.
 from __future__ import annotations
 
 import csv
+import io
 
 import pandas as pd
 import pytest
@@ -31,6 +32,7 @@ from scripts.journal import s02_reconcile as reconcile
 from scripts.journal import s04a_report as report
 from scripts.journal import s04b_page as page
 from scripts.journal.lib import analysis as A
+from scripts.journal.lib import flexparse
 from scripts.journal.lib import rawpull
 from scripts.journal.lib import relabel
 from scripts.journal.s03_risk import BookRisk
@@ -603,3 +605,103 @@ def test_rederive_leaves_a_close_without_a_recorded_suffix_unflagged(tmp_path):
 
     assert summary["overlay_unknown"] == 0
     assert all(d.overlay_dropped is False for d in diffs)
+
+
+def test_rederive_keeps_the_suffix_on_a_row_the_fixed_pipeline_wrote(tmp_path):
+    """A BUY-to-close of a sold financing call, journalled AFTER the fix.
+
+    The fixed pipeline named it from the oriented legs (a short call) and ran
+    the overlay test against that day's real book, so the suffix is genuine.
+    Its base label already equals the re-derived one, which a pre-fix row's
+    never does. Shape of the 2026-07-21 NVDA row from the 2026-09-09 replay.
+    """
+    label, regime = "single short call (overlay)", "RANGE + L-VOL"
+    # the tier the fixed pipeline would have recorded, so only the label is
+    # under test here
+    tier = mapping.ladder_tier(mapping._live_to_canonical(label), regime,
+                               31.0, None)[0]
+    csv_path = _write_csv(tmp_path / "trades.csv", [
+        {"date": "2026-07-21", "ticker": "NVDA", "structure": label,
+         "action": "CLOSE", "net_price": "0.82", "tier": tier,
+         "market_regime": regime, "dte_at_entry": "31",
+         "legs": "NVDA:2026-08-21:240:C +1"},
+    ])
+
+    diffs, summary = relabel.rederive(csv_path)
+
+    assert diffs == []
+    assert summary["unchanged"] == 1
+    assert summary["overlay_unknown"] == 0
+
+
+# --------------------------------------------------------------------------
+# 7. The Flex transport end to end: every vertical, closed and opened
+#
+# Sections 1-5 build rawpull fills by hand. The journal's only broker transport
+# is Flex, so the orientation must also hold on what `flexparse.parse()` makes
+# of an export row, where `Open/CloseIndicator` is the only close signal.
+# --------------------------------------------------------------------------
+_FLEX_HEADER = (
+    "Description,UnderlyingSymbol,Open/CloseIndicator,Quantity,TradePrice,"
+    "CostBasis,FifoPnlRealized,Strike,Expiry,DateTime,Put/Call,AssetClass,"
+    "Symbol,TradeID,Conid,Buy/Sell")
+
+
+def _flex_row(tid, conid, oc, side, strike, right, price, pnl):
+    qty = "1" if side == "BUY" else "-1"
+    return (f"NVDA {strike} {right},NVDA,{oc},{qty},{price},0,{pnl},{strike},"
+            f"2026-10-16,2026-08-28;103000,{right},OPT,NVDA,{tid},{conid},{side}")
+
+
+def _flex_event(oc, low_side, high_side, right):
+    """One two-leg order on the 170/180 strikes, parsed from Flex text."""
+    pnl = "100" if oc == "C" else "0"
+    text = "\n".join([
+        _FLEX_HEADER,
+        _flex_row("t1", "1", oc, low_side, 170, right, "8.00", pnl),
+        _flex_row("t2", "2", oc, high_side, 180, right, "3.00", pnl),
+    ]) + "\n"
+    events = reconcile.reconcile(flexparse.parse(io.StringIO(text)),
+                                 ac_df=_empty_ac())
+    assert len(events) == 1
+    return events[0]
+
+
+# (position held, its low-strike side, its high-strike side, right)
+_VERTICALS = [
+    ("bull_call_spread", "BUY", "SELL", "C"),
+    ("bear_call_spread", "SELL", "BUY", "C"),
+    ("bull_put_spread", "BUY", "SELL", "P"),
+    ("bear_put_spread", "SELL", "BUY", "P"),
+]
+_FLIP = {"BUY": "SELL", "SELL": "BUY"}
+
+
+@pytest.mark.parametrize("held,low,high,right", _VERTICALS)
+def test_a_flex_close_names_the_vertical_it_closes(held, low, high, right):
+    """Closing reverses each leg's side; the label must not follow the sides."""
+    ev = _flex_event("C", _FLIP[low], _FLIP[high], right)
+
+    assert ev.action == "CLOSE"
+    assert ev.structure == held
+    # §1.2 vetoes a bear call spread on sight: only the one genuinely held may
+    # be vetoed, never a bull call spread wearing its mirror-image label
+    assert (ev.tier == "VETO") == (held == "bear_call_spread")
+
+
+@pytest.mark.parametrize("held,low,high,right", _VERTICALS)
+def test_a_flex_open_is_named_from_its_own_sides(held, low, high, right):
+    ev = _flex_event("O", low, high, right)
+
+    assert ev.action == "OPEN"
+    assert ev.structure == held
+
+
+def test_a_flex_close_and_its_open_agree_and_keep_opposite_cash():
+    opened = _flex_event("O", "BUY", "SELL", "C")
+    closed = _flex_event("C", "SELL", "BUY", "C")
+
+    assert opened.structure == closed.structure == "bull_call_spread"
+    assert opened.net_price == pytest.approx(5.0)     # paid a debit
+    assert closed.net_price == pytest.approx(-5.0)    # received a credit
+    assert closed.tier != "VETO"

@@ -34,6 +34,14 @@ live pipeline cannot emit. So the suffix is dropped and the row is counted in
 argument: a genuine overlay close (BUY-to-close a short leg) was recorded
 WITHOUT a suffix and re-derives without one.
 
+THAT ARGUMENT HOLDS FOR PRE-FIX ROWS ONLY. The CSV is append-only, so it also
+holds rows the FIXED pipeline wrote (the 2026-09-09 July-August replay among
+them), and there a suffix on a BUY-to-close was computed against the real book
+and is genuine. Such a row is recognised by its base label already equalling the
+re-derived one — a pre-fix label is the mirror image and never does — and it is
+left alone. Until 2026-09-22 all 8 overlay closes in `journal/trades.csv` were
+misreported as dropped suffixes this way; none of them was pre-fix.
+
 ONE ENCODING, STILL. The label comes from `mapping.classify_structure()` and
 the tier from `mapping.ladder_tier()`, with `mapping.position_legs()` doing the
 CLOSE orientation the live pipeline does. There is no second copy of any of
@@ -194,16 +202,26 @@ def _rederive_row(row: dict, index: int) -> tuple[Relabel | None, str]:
     pos_legs = mapping.position_legs(_legs_to_objects(parsed), closing=True)
     # No open book — the book as it stood that day is not recoverable from this
     # CSV, so the overlay test cannot run and the re-derived label never carries
-    # the suffix. A RECORDED one is dropped rather than carried: see the module
-    # docstring — on a CLOSE it can only have been read off the fill's sign, and
+    # the suffix. A RECORDED one on a PRE-FIX row is dropped rather than
+    # carried: see the module docstring — it was read off the fill's sign, and
     # re-appending it would print a label the live pipeline cannot emit. The
-    # drop is reported, not silent.
+    # drop is reported, not silent. A post-fix row keeps its suffix (below).
     new_structure, *_rest = mapping.classify_structure(pos_legs)
     reoriented = _reorient_side(new_structure, row.get("net_price"))
     if reoriented == "":
         return None, "not_rederivable"
     if reoriented is not None:
         new_structure = reoriented
+
+    # A row the FIXED pipeline wrote already names the closed position, and a
+    # suffix on it was computed against that day's real book. Its base label
+    # equals the re-derived one; a pre-fix row's never does, because the bug
+    # named the mirror image. Keep such a suffix — dropping it misreported
+    # every post-fix overlay close as a pre-fix artefact.
+    if (recorded_overlay
+            and old_structure[:-len(_OVERLAY_SUFFIX)] == new_structure):
+        new_structure = old_structure
+        recorded_overlay = False
 
     old_tier = (row.get("tier") or "").strip()
     # Same precedence `s02_reconcile._assign_tier` applies, minus the
