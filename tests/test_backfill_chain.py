@@ -730,7 +730,12 @@ def test_expiry_wall_skips_the_rest_without_fetching(_isolate):
     rows = bc.load_manifest(manifest_path)
     reasons = [rows[bc._key(*c)]["reason"] for c in contracts[4:]]
     assert all(r == "expiry_empty" for r in reasons)
-    assert all(rows[bc._key(*c)]["attempts"] == "1" for c in contracts)  # all count as attempts
+    # 2026-09-22 fourth review, item 1: a wall-SKIPPED contract was never
+    # actually requested, so it must NOT count as an attempt — only the 4
+    # streak-establishing contracts (which WERE genuinely fetched) do.
+    assert all(rows[bc._key(*c)]["attempts"] == "1" for c in contracts[:4])
+    assert all(rows[bc._key(*c)]["attempts"] == "0" for c in contracts[4:])
+    assert all(rows[bc._key(*c)]["first_attempt_at"] == "" for c in contracts[4:])
 
 
 def test_expiry_wall_skips_do_not_count_toward_fail_stop(_isolate):
@@ -817,6 +822,102 @@ def test_far_from_money_contracts_do_not_participate_in_the_wall(_isolate):
     assert session.calls == 8            # every contract fetched, no wall
     assert stats["no_bars"] == 8
     assert "skipped_expiry_wall" not in stats
+
+
+# --- item 1 (fourth review): a wall-skip is never a real attempt ---------------
+
+def test_wall_skip_across_many_runs_never_matures_to_unavailable(_isolate):
+    """The exact bug the fourth review found: repeated runs that each only
+    SKIP a contract via the expiry wall (never actually request it) must
+    never promote it to `unavailable`, no matter how many runs or how much
+    time passes — a skip carries no new evidence at all."""
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(4)]
+    skipped_contract = ("SPY", expiry, 500.0, "C")
+    near_money = {c: True for c in contracts}
+    near_money[skipped_contract] = True
+
+    class _EmptyFeedSession:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    manifest: dict = {}
+    for _ in range(5):  # far more than UNAVAILABLE_MIN_ATTEMPTS
+        manifest = bc.load_manifest(manifest_path) if manifest_path.exists() else {}
+        _run(bc.run_fetch(contracts + [skipped_contract], manifest, manifest_path, sleep_s=0,
+                          fail_stop=100, session=_EmptyFeedSession(),
+                          near_money=near_money, expiry_empty_streak_stop=4))
+
+    row = bc.load_manifest(manifest_path)[bc._key(*skipped_contract)]
+    assert row["reason"] == "expiry_empty"
+    assert row["attempts"] == "0"
+    assert row["first_attempt_at"] == ""
+    assert row["outcome"] != "unavailable"
+
+
+def test_wall_skip_preserves_prior_attempts_and_first_attempt_at(_isolate):
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    contracts = [("SPY", expiry, 440.0 + i, "C") for i in range(4)]
+    skipped_contract = ("SPY", expiry, 500.0, "C")
+    near_money = {c: True for c in contracts}
+    near_money[skipped_contract] = True
+
+    stale = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+    manifest = {bc._key(*skipped_contract): {"outcome": "failed", "attempts": "2",
+                                             "first_attempt_at": stale}}
+
+    class _EmptyFeedSession:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    _run(bc.run_fetch(contracts + [skipped_contract], manifest, manifest_path, sleep_s=0,
+                      fail_stop=100, session=_EmptyFeedSession(), near_money=near_money,
+                      expiry_empty_streak_stop=4))
+    row = bc.load_manifest(manifest_path)[bc._key(*skipped_contract)]
+    assert row["attempts"] == "2"                  # unchanged, not "3"
+    assert row["first_attempt_at"] == stale          # unchanged
+    assert row["reason"] == "expiry_empty"
+
+
+# --- item 2 (fourth review): a fetched/exists result always blocks the wall ---
+
+def test_a_fetched_far_from_money_contract_prevents_the_wall_forming(_isolate):
+    """A far-from-money contract's SUCCESSFUL fetch is still direct evidence
+    the expiry lists — it must reset the near-money empty streak even
+    though it isn't itself near-the-money (previously gated on
+    is_near_money, so this case was silently ignored)."""
+    _, manifest_path, _ = _isolate
+    expiry = date(2024, 6, 21)
+    # 3 near-money empties, then 1 FAR fetched success, then 3 more
+    # near-money empties: without the fix this totals a streak of 6 and
+    # walls at 4; with the fix the far success resets it, so no wall forms
+    # (only 3 consecutive at the end, one short of the threshold).
+    near_contracts_a = [("SPY", expiry, 440.0 + i, "C") for i in range(3)]
+    far_contract = ("SPY", expiry, 900.0, "C")
+    near_contracts_b = [("SPY", expiry, 460.0 + i, "C") for i in range(3)]
+    contracts = near_contracts_a + [far_contract] + near_contracts_b
+    near_money = {c: True for c in near_contracts_a + near_contracts_b}
+    near_money[far_contract] = False
+
+    days = [date(2024, 3, 1) + timedelta(days=i) for i in range(10)]
+
+    class _Session:
+        async def fetch_history_fast(self, url, timeout_ms):
+            if "900.00" in url:
+                return _history_csv(days)
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    stats = _run(bc.run_fetch(contracts, {}, manifest_path, sleep_s=0, fail_stop=100,
+                              session=_Session(), near_money=near_money,
+                              expiry_empty_streak_stop=4))
+    assert "skipped_expiry_wall" not in stats
+    assert stats["fetched"] == 1
+    assert stats["failed"] == 6   # all 6 near-money empties genuinely fetched, none skipped
 
 
 # --- item 4: the sniffed message strings really are session.py's own ----------

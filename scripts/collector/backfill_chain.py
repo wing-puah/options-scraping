@@ -966,11 +966,19 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                 return outcome
 
             if expiry_key in expiry_walled:
-                outcome = _record_ambiguous("failed")
-                row["reason"] = "expiry_empty"
+                # NOT a real attempt (2026-09-22 fourth review, item 1): this
+                # contract was never actually requested, so it must not
+                # advance `attempts`/`first_attempt_at` — doing so let a
+                # never-fetched contract mature into `unavailable` after 3
+                # skipped runs, which is exactly backwards. Carry the prior
+                # attempts/first_attempt_at forward UNCHANGED (same pattern
+                # as the blocking-HTTP and write-OSError stops).
+                row.update(outcome="failed", rows="0", first_date="", last_date="",
+                          attempts=str(prior_attempts), first_attempt_at=prior_first_attempt_at,
+                          reason="expiry_empty")
                 manifest[k] = row
                 append_manifest_row(manifest_path, row)
-                stats[outcome] += 1
+                stats["failed"] += 1
                 stats["skipped_expiry_wall"] += 1
                 log.info("[%d/%d] %s: skipped — expiry wall (%s %s confirmed empty "
                          "%d times in a row)", i, len(pending), name, symbol,
@@ -1091,8 +1099,14 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                             stats[outcome] += 1
                             consecutive_failures = 0
                             consecutive_no_bars = 0
-                            if is_near_money:
-                                _update_expiry_streak(expiry_key, clean_empty=False)
+                            # A real fetched/exists result is direct evidence
+                            # the expiry DOES list — this must break/block
+                            # walling it regardless of whether THIS strike
+                            # happened to be near-the-money (2026-09-22
+                            # fourth review, item 2; unlike the ambiguous-
+                            # failure branches above, which only matter for
+                            # near-money strikes in the first place).
+                            _update_expiry_streak(expiry_key, clean_empty=False)
                             log.info("[%d/%d] %s: %s, %d bars %s..%s", i, len(pending), name,
                                     outcome, len(details), days[0], days[-1])
 
