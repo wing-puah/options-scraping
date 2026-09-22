@@ -878,19 +878,29 @@ conclusion.
 ## Daily trade journal — data contracts
 
 **Schedule.** `.github/workflows/journal.yml` runs `python3 -m scripts.journal` (the bare `run`
-command — never `recommend`, so no model call happens here) at 22:15 UTC every weekday:
+command, never `recommend`, so no model call happens here) at 22:15 UTC every weekday —
 close+1h15m in EST, close+2h15m in EDT. That clears the 16:00 ET close and the Flex web
-service's "generation in progress" window, but NOT IBKR's own processing cycle — the run
-journals the PREVIOUS session, not the one that just closed (THE BROKER-LAG TRAP, below). Before this workflow (added 2026-09-07,
-research/robustness-review.md P8) the journal only ran when someone ran it by hand — reports
-existed for 2026-08-25, 08-26, 08-28, 08-31 and 09-03 and no other date. It needs the full
-Playwright requirements set (`lib/greeks.py` backfills EOD greeks Flex doesn't carry) plus the
-IBKR Flex secrets and the same Google OAuth2 token every other workflow here uses, scoped to
-BOTH `GOOGLE_SPREADSHEET_ID` (the AnalysisClaude read) and `TRADE_JOURNAL_SPREADSHEET_ID` (the
-TradeJournal/OpenBook writes). `journal/` stays gitignored and is never committed or uploaded as
-a workflow artifact. The scheduled run is `--quiet` and requires `JOURNAL_DRIVE_FOLDER_ID`: an
-Actions log is readable by anyone with repo access and kept for 90 days, and the report names
-tickers, position sizes and P&L — so it goes to Drive instead (see The Drive mirror below).
+service's "generation in progress" window. It does not clear IBKR's own processing cycle, so
+the run journals the PREVIOUS session, not the one that just closed (THE BROKER-LAG TRAP,
+below).
+
+The workflow runs as three chained jobs, not one. Each attempt is a fresh runner: a new IP
+usually clears a refused Barchart login. The first two attempts retry on that basis; the third
+and last falls back to journalling without greeks rather than lose the day (see "A refused
+Barchart login does not lose the day", below).
+
+Before this workflow (added 2026-09-07, research/robustness-review.md P8) the journal only ran
+by hand: reports existed for 2026-08-25, 08-26, 08-28, 08-31 and 09-03, no other date.
+
+It needs the full Playwright requirements set: `lib/greeks.py` backfills EOD greeks Flex
+doesn't carry. It also needs the IBKR Flex secrets and the Google OAuth2 token every other
+workflow here uses. That token is scoped to `GOOGLE_SPREADSHEET_ID` (the AnalysisClaude read)
+and to `TRADE_JOURNAL_SPREADSHEET_ID` (the TradeJournal/OpenBook writes).
+
+`journal/` stays gitignored and is never committed or uploaded as a workflow artifact. The
+scheduled run is `--quiet` and requires `JOURNAL_DRIVE_FOLDER_ID`. An Actions log is readable
+by anyone with repo access and kept for 90 days, and the report names tickers, position sizes
+and P&L — so it goes to Drive instead (see The Drive mirror, below).
 
 `scripts/check_pipeline.py::JOURNAL_STAGE` covers the watchdog side: a "journal" row appended to
 the stage table in code (not in `config/pipeline-health.yml`) reports MISSING when neither the
@@ -1164,12 +1174,26 @@ spread is the case worth noticing, not averaging over.
   is consulted, so a spurious one-day gap is possible — the safe direction to be wrong in.
   The remedy is always a fresh export in `portfolio/input/`, never re-scoping the saved
   query.
-- *A refused Barchart login does not lose the day.* Barchart sometimes refuses a fresh
-  login from a GitHub runner's IP. `BarchartSession` then raises `BarchartAuthError`.
-  `pull_flex()` catches only that error. The pull continues as `--no-greeks` would: every
-  greek stays `unavailable` and the exposure totals are a FLOOR. It also sets
-  `greeks_unavailable`, which `_source_caveats` prints as a SOURCE LIMITS line. Any other
-  enrichment error still crashes the run.
+- *A refused Barchart login does not lose the day — by default.* Barchart sometimes refuses
+  a fresh login from a GitHub runner's IP. `BarchartSession` then raises `BarchartAuthError`.
+  `pull_flex()` catches only that error and degrades, as `--no-greeks` would: every greek
+  stays `unavailable` and the exposure totals are a FLOOR. It also sets `greeks_unavailable`,
+  which `_source_caveats` prints as a SOURCE LIMITS line. Any other enrichment error still
+  crashes the run.
+- *`JOURNAL_GREEKS_REQUIRED` turns that degrade into a hard failure instead.* Set it (see
+  `config.py::GREEKS_REQUIRED_ENV`) and `pull_flex()` re-raises `BarchartAuthError` rather
+  than degrading.
+- `__main__.py` maps that raise to exit code `EXIT_BARCHART_AUTH` (5). Every
+  Barchart-touching scraper exits with the same number on the same error, via
+  `lib/barchart/session.py::BARCHART_AUTH_EXIT_CODE` — one constant, so the two sides can't
+  drift apart.
+- `.github/workflows/journal.yml` runs three chained jobs, each a fresh runner: a new IP
+  usually clears the refusal. The first two set the flag, so a refusal retries instead of
+  degrading. The third and last omits it, so a refusal there still degrades rather than
+  losing the day.
+- `scrape.yml`, `enrich-oi.yml` and `fetch-counterpart-iv.yml` chain the same three
+  fresh-runner attempts on the same exit code. Their scripts have no degrade path, so a
+  refusal on the third attempt just fails, as it always has.
 - `lib/ibkr/flex.py::FlexClient` — the token-authenticated Flex Web Service transport:
   `SendRequest` → ReferenceCode → `GetStatement`, polling through IBKR error 1019
   ("generation in progress" — the only retryable code). Transport and parsing only, no

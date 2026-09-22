@@ -16,6 +16,25 @@ name: Enrich OI
 #
 # Needs the full requirements (Playwright) + Barchart creds to scrape per-contract
 # price history; writes the enriched CSVs back to Drive (no Sheets access needed).
+#
+# FRESH-RUNNER RETRY ON A REFUSED BARCHART LOGIN (added 2026-09-22). Barchart
+# intermittently refuses a fresh login from a GitHub-hosted runner's IP —
+# silent stay-on-/login, every in-process retry of one run failing together
+# (lib/barchart/session.py::BarchartSession._LOGIN_ATTEMPTS already retries
+# within one run; this is what to do once THAT is exhausted). A NEW runner
+# (new IP) usually clears it, so the operator's decision is: retry on a fresh
+# runner. None of the three scripts below has a degrade path, so all three
+# attempts run the identical three steps; the LAST one just fails as this
+# workflow always has if it also hits the refusal — see each job's `if:`. Each
+# script exits BARCHART_AUTH_EXIT_CODE (5, shared with every other
+# Barchart-touching entry point via lib/barchart/session.py) on an unhandled
+# BarchartAuthError. This job runs THREE such scripts in sequence (steps 2/3
+# run with `if: always()` even if step 1 failed), so the "Evaluate" step
+# combines all three captured exit codes: any one of them landing on a REAL
+# (non-5) failure fails the job without a retry; a 5 with no real failure
+# among the three retries the WHOLE job (all three scripts) on a fresh runner
+# — cheap, since each script's own resume marker means an already-enriched
+# contract/ticker is skipped on the next attempt.
 
 on:
   # Chain off Compile Flow so the day's compiled file exists before we enrich D-1.
@@ -30,12 +49,14 @@ on:
         type: string
 
 jobs:
-  enrich:
+  attempt-1:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     # On the workflow_run trigger, only proceed if Compile Flow succeeded. Manual
     # runs (workflow_dispatch) always proceed.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      exit_code: ${{ steps.evaluate.outputs.exit_code }}
 
     steps:
       - uses: actions/checkout@v5
@@ -64,10 +85,262 @@ jobs:
         # no-op when the required revision is already cached, so this stays cheap.
         run: playwright install --with-deps chromium
 
-      - name: Enrich compiled flow with next-day OI + EOD greeks
+      - name: Enrich compiled flow with next-day OI + EOD greeks (attempt 1/3)
         # Manual run with a date → that date; otherwise the latest enrichable date
         # only (no --backfill: a full historical sweep risks the job timeout).
-        # Headless scrape via BarchartSession.
+        # Headless scrape via BarchartSession. Masks a nonzero exit from failing
+        # the JOB outright — the "Evaluate" step (after all three scripts) decides.
+        id: run_oi
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Enrich compiled flow with per-ticker IV percentile (latest date only, attempt 1/3)
+        # Append each ticker's Barchart options-overview IV / IV rank / IV percentile
+        # (as of trade date D) as columns on the compiled flow file — the per-name
+        # rich/cheap read framework Step 4 uses to pick debit (TF) vs credit (TF-S).
+        # Latest date ONLY (no --backfill): IV is as-of D (available same evening, no
+        # D+1 wait), and a full sweep would re-scrape every historical date and risk
+        # the timeout. Resume is per-ticker via the iv_pct_enriched_on marker written
+        # into the compiled file. Manual date input respected. Runs even if the OI
+        # step above failed (always()) — same masking as that step.
+        id: run_ivpct
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Enrich compiled flow with price/earnings catalyst (latest date only, attempt 1/3)
+        # Append each ticker's price history + earnings-catalyst columns (as of trade
+        # date D) that ground the pipeline-computed score_price/score_catalyst Step-5
+        # rubric components. Latest date ONLY (no --backfill): as-of D, available same
+        # evening, and a full sweep would re-scrape every historical date and risk the
+        # timeout. Resume is per-ticker via the price_catalyst_enriched_on marker
+        # written into the compiled file. Manual date input respected. Same
+        # always()/masking as the two steps above.
+        id: run_catalyst
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Evaluate this attempt
+        id: evaluate
+        if: always()
+        run: |
+          rc_oi="${{ steps.run_oi.outputs.rc }}"
+          rc_ivpct="${{ steps.run_ivpct.outputs.rc }}"
+          rc_catalyst="${{ steps.run_catalyst.outputs.rc }}"
+          echo "Exit codes — enrich_oi=$rc_oi fetch_iv_percentile=$rc_ivpct fetch_price_catalyst=$rc_catalyst"
+          real_failure=0
+          auth_refused=0
+          for rc in "$rc_oi" "$rc_ivpct" "$rc_catalyst"; do
+            if [ -z "$rc" ]; then continue; fi
+            if [ "$rc" = "5" ]; then
+              auth_refused=1
+            elif [ "$rc" != "0" ]; then
+              real_failure=1
+            fi
+          done
+          if [ "$real_failure" = "1" ]; then
+            echo "exit_code=1" >> "$GITHUB_OUTPUT"
+            echo "::error::A real (non-Barchart-auth) failure occurred on attempt 1/3 — failing without a retry."
+            exit 1
+          fi
+          if [ "$auth_refused" = "1" ]; then
+            echo "exit_code=5" >> "$GITHUB_OUTPUT"
+            echo "::warning::Barchart login refused during attempt 1/3 — retrying the whole job on a fresh runner (attempt 2/3)."
+            exit 0
+          fi
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+          echo "Attempt 1/3 OK."
+          exit 0
+
+  attempt-2:
+    needs: attempt-1
+    # Only when attempt 1 hit the Barchart auth refusal specifically — a
+    # success (exit_code '0') or any OTHER failure already ended the workflow
+    # via attempt-1's own "Evaluate" step (see its comment). Also naturally
+    # skipped when attempt-1's own gate (workflow_dispatch / Compile Flow
+    # succeeded) was false, since attempt-1 then never ran and set no output.
+    if: needs.attempt-1.outputs.exit_code == '5'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      exit_code: ${{ steps.evaluate.outputs.exit_code }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+
+      - name: Enrich compiled flow with next-day OI + EOD greeks (attempt 2/3)
+        id: run_oi
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Enrich compiled flow with per-ticker IV percentile (latest date only, attempt 2/3)
+        id: run_ivpct
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Enrich compiled flow with price/earnings catalyst (latest date only, attempt 2/3)
+        id: run_catalyst
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+        env:
+          BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
+          BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+          GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SCRAPE_HEADLESS: 'true'
+
+      - name: Evaluate this attempt
+        id: evaluate
+        if: always()
+        run: |
+          rc_oi="${{ steps.run_oi.outputs.rc }}"
+          rc_ivpct="${{ steps.run_ivpct.outputs.rc }}"
+          rc_catalyst="${{ steps.run_catalyst.outputs.rc }}"
+          echo "Exit codes — enrich_oi=$rc_oi fetch_iv_percentile=$rc_ivpct fetch_price_catalyst=$rc_catalyst"
+          real_failure=0
+          auth_refused=0
+          for rc in "$rc_oi" "$rc_ivpct" "$rc_catalyst"; do
+            if [ -z "$rc" ]; then continue; fi
+            if [ "$rc" = "5" ]; then
+              auth_refused=1
+            elif [ "$rc" != "0" ]; then
+              real_failure=1
+            fi
+          done
+          if [ "$real_failure" = "1" ]; then
+            echo "exit_code=1" >> "$GITHUB_OUTPUT"
+            echo "::error::A real (non-Barchart-auth) failure occurred on attempt 2/3 — failing without a retry."
+            exit 1
+          fi
+          if [ "$auth_refused" = "1" ]; then
+            echo "exit_code=5" >> "$GITHUB_OUTPUT"
+            echo "::warning::Barchart login refused during attempt 2/3 — trying the final attempt (3/3) on one more fresh runner."
+            exit 0
+          fi
+          echo "exit_code=0" >> "$GITHUB_OUTPUT"
+          echo "Attempt 2/3 OK."
+          exit 0
+
+  attempt-3:
+    needs: [attempt-1, attempt-2]
+    # Only when attempt 2 ACTUALLY RAN (not skipped) and itself hit the auth
+    # refusal. Any other outcome already ended the workflow.
+    if: needs.attempt-2.result == 'success' && needs.attempt-2.outputs.exit_code == '5'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+
+      - name: Enrich compiled flow with next-day OI + EOD greeks (final attempt 3/3)
+        # No exit-code capture: none of these scripts has a degrade path, so
+        # this is the last runner — if it also hits the refusal (or anything
+        # else), the job fails exactly as this workflow always has.
         run: python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
@@ -76,14 +349,7 @@ jobs:
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           SCRAPE_HEADLESS: 'true'
 
-      - name: Enrich compiled flow with per-ticker IV percentile (latest date only)
-        # Append each ticker's Barchart options-overview IV / IV rank / IV percentile
-        # (as of trade date D) as columns on the compiled flow file — the per-name
-        # rich/cheap read framework Step 4 uses to pick debit (TF) vs credit (TF-S).
-        # Latest date ONLY (no --backfill): IV is as-of D (available same evening, no
-        # D+1 wait), and a full sweep would re-scrape every historical date and risk
-        # the timeout. Resume is per-ticker via the iv_pct_enriched_on marker written
-        # into the compiled file. Manual date input respected.
+      - name: Enrich compiled flow with per-ticker IV percentile (latest date only, final attempt 3/3)
         if: ${{ always() }}
         run: python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
@@ -93,13 +359,7 @@ jobs:
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           SCRAPE_HEADLESS: 'true'
 
-      - name: Enrich compiled flow with price/earnings catalyst (latest date only)
-        # Append each ticker's price history + earnings-catalyst columns (as of trade
-        # date D) that ground the pipeline-computed score_price/score_catalyst Step-5
-        # rubric components. Latest date ONLY (no --backfill): as-of D, available same
-        # evening, and a full sweep would re-scrape every historical date and risk the
-        # timeout. Resume is per-ticker via the price_catalyst_enriched_on marker
-        # written into the compiled file. Manual date input respected.
+      - name: Enrich compiled flow with price/earnings catalyst (latest date only, final attempt 3/3)
         if: ${{ always() }}
         run: python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:

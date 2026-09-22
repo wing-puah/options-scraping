@@ -133,6 +133,15 @@ NET_LIQUIDATION_ENV = "JOURNAL_NET_LIQUIDATION"
 # contract so a re-run of the same session costs no scraping.
 GREEKS_CACHE_DIR = ROOT / "backtests" / "option_history_cache"
 
+# Set (to any non-empty, non-"0"/"false" value) to make a Barchart login refusal
+# a HARD failure of the pull instead of the s01_pull.py degrade-without-greeks
+# path: `pull_flex` re-raises `BarchartAuthError` rather than catching it. Used
+# by journal.yml's first N-1 CI attempts, each a fresh runner (new IP) — see the
+# workflow for why a fresh runner usually clears a refusal a retry on the SAME
+# runner would not. The final attempt in that chain runs WITHOUT this set, so a
+# refusal there still degrades rather than losing the day.
+GREEKS_REQUIRED_ENV = "JOURNAL_GREEKS_REQUIRED"
+
 # --------------------------------------------------------------------------
 # Matching
 # --------------------------------------------------------------------------

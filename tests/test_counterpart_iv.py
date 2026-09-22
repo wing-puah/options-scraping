@@ -2,6 +2,8 @@
 from datetime import date
 from unittest.mock import MagicMock
 
+import pytest
+
 from lib.counterpart_iv import build_iv_lookup, contract_key, needed_counterparts
 from lib.drive_client import FlowCorpus
 
@@ -149,3 +151,33 @@ def test_counterpart_latest_date_is_last_of_full_list():
     client = MagicMock()
     dates = fetch_counterpart_iv._compiled_dates(client, index)
     assert fetch_counterpart_iv._latest_compiled_date(client, index) == dates[-1] == "2026-06-10"
+
+
+# --------------------------------------------------------------------------
+# _main_with_auth_exit — the shared exit code on a refused Barchart login
+# --------------------------------------------------------------------------
+def test_main_with_auth_exit_maps_a_refused_login_to_the_shared_exit_code(monkeypatch):
+    """A distinct exit code, not a traceback's default 1, so a chained CI job
+    (see .github/workflows/fetch-counterpart-iv.yml) can tell 'retry on a
+    fresh runner' apart from a real bug."""
+    from lib.barchart import BarchartAuthError
+
+    def boom():
+        raise BarchartAuthError("Barchart authentication failed.")
+
+    monkeypatch.setattr(fetch_counterpart_iv, "main", boom)
+
+    with pytest.raises(SystemExit) as exc_info:
+        fetch_counterpart_iv._main_with_auth_exit()
+
+    assert exc_info.value.code == fetch_counterpart_iv.BARCHART_AUTH_EXIT_CODE
+    assert fetch_counterpart_iv.BARCHART_AUTH_EXIT_CODE == 5
+
+
+def test_main_with_auth_exit_leaves_a_clean_run_alone(monkeypatch):
+    calls = []
+    monkeypatch.setattr(fetch_counterpart_iv, "main", lambda: calls.append(1))
+
+    fetch_counterpart_iv._main_with_auth_exit()  # must not raise/exit
+
+    assert calls == [1]

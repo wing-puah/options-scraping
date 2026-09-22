@@ -61,7 +61,7 @@ load_dotenv(Path(__file__).parents[2] / ".env")
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from lib.barchart import BarchartSession
+from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.barchart.iv_history import parse_iv_history
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
@@ -339,6 +339,14 @@ def main() -> None:
             try:
                 results.append(enrich_prefix(client, prefix, d, headless=headless,
                                              dry_run=args.dry_run, force=args.force))
+            except BarchartAuthError:
+                # NOT swallowed into a per-(prefix, date) "error" status: a
+                # refused LOGIN is IP-level, so every remaining pending
+                # (prefix, date) pair in this run would fail the same way — the
+                # loop below would just burn through them one at a time. Let it
+                # propagate to main()'s __name__ guard, which exits with the
+                # shared code so a chained CI job retries on a fresh runner.
+                raise
             except Exception:
                 log.exception("%s %s: enrichment failed — skipping (already-scraped tickers "
                                "for this date remain checkpointed; re-run to retry)", prefix, d)
@@ -389,5 +397,17 @@ def main() -> None:
                   f"{', '.join(avail) if avail else '(none)'}")
 
 
+def _main_with_auth_exit() -> None:
+    """Run `main()`, mapping an unhandled `BarchartAuthError` to
+    `BARCHART_AUTH_EXIT_CODE` instead of Python's default-uncaught-exception 1
+    — see scrape_flow.py::_run_with_auth_exit for why. Split out from the
+    `__main__` guard so it is unit-testable."""
+    try:
+        main()
+    except BarchartAuthError as exc:
+        log.error("Barchart login refused (%s) — exiting %d", exc, BARCHART_AUTH_EXIT_CODE)
+        sys.exit(BARCHART_AUTH_EXIT_CODE)
+
+
 if __name__ == "__main__":
-    main()
+    _main_with_auth_exit()

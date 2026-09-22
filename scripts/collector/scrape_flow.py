@@ -31,7 +31,7 @@ _ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(_ROOT))
 
 from lib.logger import setup_logging
-from lib.barchart import BarchartSession
+from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.csv_utils import flow_staleness_report, parse_csv
 from lib.drive_client import (
     StorageClient, classify_flow_name, file_name, get_drive_client, trading_day,
@@ -450,5 +450,22 @@ async def main() -> None:
         sys.exit(1)
 
 
+def _run_with_auth_exit() -> None:
+    """Run `main()` to completion, mapping an unhandled `BarchartAuthError` to
+    `BARCHART_AUTH_EXIT_CODE` instead of Python's default-uncaught-exception 1.
+
+    Every login attempt in the run stayed on /login — often specific to this
+    runner's IP (see BarchartSession._LOGIN_ATTEMPTS). A chained CI job greps
+    for exactly this exit code to retry on a fresh runner rather than treat it
+    as a bug in this pipeline. Split out from the `__main__` guard so it is
+    unit-testable (see tests/test_scrape_flow.py).
+    """
+    try:
+        asyncio.run(main())
+    except BarchartAuthError as exc:
+        log.error("Barchart login refused (%s) — exiting %d", exc, BARCHART_AUTH_EXIT_CODE)
+        sys.exit(BARCHART_AUTH_EXIT_CODE)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    _run_with_auth_exit()

@@ -24,6 +24,10 @@ _ENV_FALLBACKS = (
     "IBKR_FLEX_QUERY_TRADES_ID",
     "IBKR_FLEX_OPEN_POSITIONS_QUERY_ID",
     "TRADE_JOURNAL_SPREADSHEET_ID",
+    # CI-only flag (journal.yml's fresh-runner retry) — a stray local value
+    # would make the degrade-path tests in test_journal_flex_wiring.py raise
+    # instead of degrade, depending on whose machine they run on.
+    "JOURNAL_GREEKS_REQUIRED",
 )
 
 

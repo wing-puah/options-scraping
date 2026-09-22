@@ -57,7 +57,10 @@ refused us: a bad token, an unknown query, or the Flex Web Service's per-token
 rate limit (error 1018), which a default run now meets far more often than the
 old read-from-disk one did. 4 the Drive mirror failed on a `--quiet` run, which
 means the output went nowhere at all — the local files are still written, but
-re-run it or read them off this machine.
+re-run it or read them off this machine. 5 Barchart refused the login and
+JOURNAL_GREEKS_REQUIRED was set (see config.py) — a CI workflow's signal to
+retry on a fresh runner rather than journal without greeks; unset, the same
+refusal degrades to a greeks-less journal and exits 0 instead.
 """
 
 from __future__ import annotations
@@ -70,6 +73,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from lib.barchart.session import BARCHART_AUTH_EXIT_CODE, BarchartAuthError
 from lib.ibkr.flex import FlexError
 
 from . import s03_risk as risk
@@ -78,8 +82,8 @@ from . import s05_writer as writer
 from . import s05b_bookwriter as bookwriter
 from .lib import analysis, book, drive_sync, flexparse, rawpull
 from .config import (CARDS_DIR, DRIVE_FOLDER_ENV, FLEX_INPUT_DIR,
-                     FLEX_INPUT_GLOB, NET_LIQUIDATION_ENV, RAW_DIR, REPORTS_DIR,
-                     ROOT, SITE_DIR, BookContext)
+                     FLEX_INPUT_GLOB, GREEKS_REQUIRED_ENV, NET_LIQUIDATION_ENV,
+                     RAW_DIR, REPORTS_DIR, ROOT, SITE_DIR, BookContext)
 
 # Repo convention: the entry point loads .env (see scripts/build_baseline.py,
 # scripts/auth_drive.py). Without this, IBKR_FLEX_TOKEN / the two query ids /
@@ -92,6 +96,13 @@ log = logging.getLogger("journal")
 EXIT_USAGE = 2
 EXIT_BROKER = 3
 EXIT_DRIVE = 4
+# Shared with every Barchart-touching scraper (lib/barchart/session.py::
+# BARCHART_AUTH_EXIT_CODE) — a CI workflow greps for this exact number to tell
+# "Barchart refused the login" apart from any other failure and retry on a
+# fresh runner. Only reachable with JOURNAL_GREEKS_REQUIRED set (config.py);
+# otherwise a refused login degrades to a greeks-less journal instead (see
+# s01_pull.py::pull_flex) and this code is never returned.
+EXIT_BARCHART_AUTH = BARCHART_AUTH_EXIT_CODE
 
 # The Flex service's own code for "you have asked for too many statements".
 # Named because the remedy is nothing like the other failures': wait, then
@@ -724,6 +735,15 @@ def main(argv=None) -> int:
                       "re-run, or use --offline to journal from the exports in "
                       "portfolio/input/ meanwhile.")
         return EXIT_BROKER
+    except BarchartAuthError as exc:
+        # Only reachable with JOURNAL_GREEKS_REQUIRED set — see s01_pull.py's
+        # _greeks_required(). A distinct exit code, not EXIT_BROKER: this is
+        # Barchart refusing a fresh login (often IP-specific), not IBKR, and a
+        # CI workflow greps for exactly this number to retry on a fresh runner
+        # rather than treat it as a bug in this pipeline.
+        log.error("Barchart login refused and %s is set — refusing to journal "
+                  "without greeks (%s)", GREEKS_REQUIRED_ENV, exc)
+        return EXIT_BARCHART_AUTH
 
 
 if __name__ == "__main__":

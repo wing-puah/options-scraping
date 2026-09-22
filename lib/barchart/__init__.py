@@ -9,6 +9,6 @@ corporate_actions). The pure-logic modules that merely *consume* Barchart data â
 keeps working; submodules are imported by their full path
 (``from lib.barchart.options import ...``).
 """
-from lib.barchart.session import BarchartAuthError, BarchartSession
+from lib.barchart.session import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 
-__all__ = ["BarchartAuthError", "BarchartSession"]
+__all__ = ["BARCHART_AUTH_EXIT_CODE", "BarchartAuthError", "BarchartSession"]

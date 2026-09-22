@@ -363,3 +363,64 @@ def test_any_other_enrichment_failure_still_crashes(monkeypatch):
     _enrich_raising(monkeypatch, RuntimeError("something else broke"))
     with pytest.raises(RuntimeError, match="something else"):
         pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
+
+
+# --------------------------------------------------------------------------
+# JOURNAL_GREEKS_REQUIRED — CI's "fail loudly instead of degrading" override
+# --------------------------------------------------------------------------
+def test_greeks_required_env_forces_a_raise_instead_of_a_degrade(monkeypatch):
+    """The CI fresh-runner retry (journal.yml attempts 1-2) sets this so a
+    refused login is a HARD failure — mapped by __main__.py to
+    EXIT_BARCHART_AUTH — rather than the normal degrade-without-greeks path."""
+    from lib.barchart import BarchartAuthError
+
+    monkeypatch.setenv("JOURNAL_GREEKS_REQUIRED", "1")
+    _enrich_raising(monkeypatch, BarchartAuthError("Barchart authentication failed."))
+    with pytest.raises(BarchartAuthError):
+        pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
+
+
+@pytest.mark.parametrize("value", ["0", "false", "False", ""])
+def test_greeks_required_env_falsy_values_still_degrade(monkeypatch, value):
+    """Only an explicit truthy value opts in — an unset/blank/'0'/'false' var
+    (the default, and the final journal.yml attempt) keeps today's behaviour:
+    journal without greeks rather than lose the day."""
+    from lib.barchart import BarchartAuthError
+
+    if value:
+        monkeypatch.setenv("JOURNAL_GREEKS_REQUIRED", value)
+    else:
+        monkeypatch.delenv("JOURNAL_GREEKS_REQUIRED", raising=False)
+    _enrich_raising(monkeypatch, BarchartAuthError("Barchart authentication failed."))
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
+    assert "login refused" in raw["greeks_unavailable"]
+
+
+def test_greeks_required_helper_parses_common_spellings(monkeypatch):
+    for truthy in ("1", "true", "True", "yes", "on"):
+        monkeypatch.setenv("JOURNAL_GREEKS_REQUIRED", truthy)
+        assert pull_mod._greeks_required() is True
+    for falsy in ("0", "false", "False", ""):
+        monkeypatch.setenv("JOURNAL_GREEKS_REQUIRED", falsy)
+        assert pull_mod._greeks_required() is False
+    monkeypatch.delenv("JOURNAL_GREEKS_REQUIRED", raising=False)
+    assert pull_mod._greeks_required() is False
+
+
+# --------------------------------------------------------------------------
+# main() — a re-raised BarchartAuthError maps to EXIT_BARCHART_AUTH
+# --------------------------------------------------------------------------
+def test_main_exits_with_the_shared_code_on_a_hard_barchart_refusal(monkeypatch):
+    """cmd_run reaches greek enrichment (via _fetch/pull_flex) before any
+    report, page, Sheets or Drive write — see s01_pull.py::pull_flex and
+    __main__.py::cmd_run's call order — so this exit happens before anything
+    is half-written. --dry-run keeps the assertion network-free: _drive_pull
+    no-ops on a dry run, and pull_flex is monkeypatched below before any real
+    Flex/Barchart call would happen."""
+    from lib.barchart import BarchartAuthError
+
+    def boom(*a, **kw):
+        raise BarchartAuthError("Barchart authentication failed.")
+
+    monkeypatch.setattr(pull_mod, "pull_flex", boom)
+    assert cli.main(["--dry-run"]) == cli.EXIT_BARCHART_AUTH

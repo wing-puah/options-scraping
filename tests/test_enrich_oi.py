@@ -11,6 +11,8 @@ import enrich_oi
 from compile_flow import FLOW_PREFIXES
 from enrich_oi import (
     ALL_COLUMNS,
+    BARCHART_AUTH_EXIT_CODE,
+    BarchartAuthError,
     ENRICH_COLUMNS,
     MARKER_COLUMN,
     _clear_columns,
@@ -539,3 +541,31 @@ def test_enrich_prefix_force_rescrapes_marked(monkeypatch):
                         headless=True, dry_run=False, force=True)
     assert res["status"] == "enriched"
     assert seen_pending["n"] == 1  # the marked contract is pending again under --force
+
+
+# --------------------------------------------------------------------------
+# _main_with_auth_exit — the shared exit code on a refused Barchart login
+# --------------------------------------------------------------------------
+def test_main_with_auth_exit_maps_a_refused_login_to_the_shared_exit_code(monkeypatch):
+    """A distinct exit code, not a traceback's default 1, so a chained CI job
+    (see .github/workflows/enrich-oi.yml) can tell 'retry on a fresh runner'
+    apart from a real bug."""
+    def boom():
+        raise BarchartAuthError("Barchart authentication failed.")
+
+    monkeypatch.setattr(enrich_oi, "main", boom)
+
+    with pytest.raises(SystemExit) as exc_info:
+        enrich_oi._main_with_auth_exit()
+
+    assert exc_info.value.code == BARCHART_AUTH_EXIT_CODE
+    assert BARCHART_AUTH_EXIT_CODE == 5
+
+
+def test_main_with_auth_exit_leaves_a_clean_run_alone(monkeypatch):
+    calls = []
+    monkeypatch.setattr(enrich_oi, "main", lambda: calls.append(1))
+
+    enrich_oi._main_with_auth_exit()  # must not raise/exit
+
+    assert calls == [1]

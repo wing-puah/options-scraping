@@ -78,7 +78,7 @@ load_dotenv(Path(__file__).parents[2] / ".env")
 sys.path.insert(0, str(Path(__file__).parents[2]))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options, underlying as barchart_underlying
-from lib.barchart import BarchartSession
+from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.barchart.corporate_actions import parse_corporate_actions
 from lib.csv_utils import parse_csv
 from lib.drive_client import get_drive_client
@@ -454,5 +454,17 @@ def main() -> None:
                   f"{', '.join(avail) if avail else '(none)'}")
 
 
+def _main_with_auth_exit() -> None:
+    """Run `main()`, mapping an unhandled `BarchartAuthError` to
+    `BARCHART_AUTH_EXIT_CODE` instead of Python's default-uncaught-exception 1
+    — see scrape_flow.py::_run_with_auth_exit for why. Split out from the
+    `__main__` guard so it is unit-testable."""
+    try:
+        main()
+    except BarchartAuthError as exc:
+        log.error("Barchart login refused (%s) — exiting %d", exc, BARCHART_AUTH_EXIT_CODE)
+        sys.exit(BARCHART_AUTH_EXIT_CODE)
+
+
 if __name__ == "__main__":
-    main()
+    _main_with_auth_exit()

@@ -310,3 +310,17 @@ def test_refused_login_raises_auth_error_and_closes_the_browser(tmp_path, monkey
         asyncio.run(enter())
     assert issubclass(BarchartAuthError, RuntimeError)
     assert pw.browser.closed and pw.stopped
+
+
+# ── BARCHART_AUTH_EXIT_CODE — shared with every entry point ─────────────────
+
+def test_auth_exit_code_is_exported_and_matches_journals_copy():
+    """scripts/journal/__main__.py::EXIT_BARCHART_AUTH imports this constant
+    directly rather than hardcoding 5, so the two can't drift — pin the value
+    itself here since that IS the CI contract (a workflow greps for it)."""
+    from lib.barchart import BARCHART_AUTH_EXIT_CODE as via_package
+    from lib.barchart.session import BARCHART_AUTH_EXIT_CODE as via_module
+    from scripts.journal import __main__ as journal_main
+
+    assert via_package == via_module == 5
+    assert journal_main.EXIT_BARCHART_AUTH == via_module

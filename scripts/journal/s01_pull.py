@@ -35,13 +35,21 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .lib import flexparse, rawpull
-from .config import FLEX_INPUT_DIR, FLEX_INPUT_GLOB, GREEKS_CACHE_DIR, RAW_DIR
+from .config import (FLEX_INPUT_DIR, FLEX_INPUT_GLOB, GREEKS_CACHE_DIR,
+                     GREEKS_REQUIRED_ENV, RAW_DIR)
 
 log = logging.getLogger(__name__)
+
+
+def _greeks_required() -> bool:
+    """Whether GREEKS_REQUIRED_ENV asks for a hard failure instead of the
+    degrade-without-greeks path — see its definition in config.py."""
+    return os.getenv(GREEKS_REQUIRED_ENV, "").strip().lower() not in ("", "0", "false")
 
 
 def raw_path(trade_date: str, now: datetime | None = None):
@@ -213,6 +221,16 @@ def pull_flex(sources=None, *, use_web_service: bool,
                                  as_of=as_of or date.fromisoformat(parsed["trade_date"]),
                                  cache_dir=GREEKS_CACHE_DIR)
     except BarchartAuthError as exc:
+        if _greeks_required():
+            # GREEKS_REQUIRED_ENV asks for the opposite of the degrade below: CI
+            # runs an early attempt on a fresh runner (new IP) with this set, so
+            # a refusal here should fail the run loudly (a distinct exit code —
+            # see __main__.py's EXIT_BARCHART_AUTH) rather than quietly ship a
+            # floored report, so the workflow can retry on ANOTHER fresh runner
+            # before falling back to the degrade path on its last attempt.
+            log.error("Barchart login refused (%s) and %s is set — refusing to "
+                      "journal without greeks", exc, GREEKS_REQUIRED_ENV)
+            raise
         # A refused Barchart LOGIN degrades to the `enrich=False` pull above; it
         # does not lose the day's fills. Barchart intermittently refuses a fresh
         # login from a GitHub runner's IP (silent stay-on-/login, all retries of

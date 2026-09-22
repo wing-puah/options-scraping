@@ -34,6 +34,16 @@ class BarchartAuthError(RuntimeError):
     """
 
 
+#: The exit code every entry point that can raise :class:`BarchartAuthError`
+#: uncaught uses to signal it — distinct from a plain crash (1), argparse's
+#: usage error (2), or any script-local failure code. A CI workflow greps for
+#: exactly this number to tell "Barchart refused the login from this runner's
+#: IP, try a fresh one" apart from a real bug, which must fail loudly and NOT
+#: be retried. Shared here, not redefined per script, so the number can't drift
+#: between the scrapers and scripts/journal/__main__.py's EXIT_BARCHART_AUTH.
+BARCHART_AUTH_EXIT_CODE = 5
+
+
 class BarchartSession:
     _BASE = "https://www.barchart.com"
     _USER_AGENT = (

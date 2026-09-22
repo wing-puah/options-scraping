@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import scrape_flow
-from scrape_flow import is_market_hours, _download_and_upload, _collected_dates, _SKIPPED
+from scrape_flow import (BARCHART_AUTH_EXIT_CODE, BarchartAuthError, is_market_hours,
+                         _download_and_upload, _collected_dates, _SKIPPED)
 
 ET = ZoneInfo("America/New_York")
 
@@ -314,3 +315,35 @@ def test_manifest_records_accepted_payload(tmp_path, _isolate_manifest):
     assert recorded[0]["verdict"] == "ok"
     assert recorded[0]["requested_date"] == "2026-06-02"
     assert recorded[0]["sha256"]
+
+
+# --------------------------------------------------------------------------
+# _run_with_auth_exit — the shared exit code on a refused Barchart login
+# --------------------------------------------------------------------------
+def test_run_with_auth_exit_maps_a_refused_login_to_the_shared_exit_code(monkeypatch):
+    """A distinct exit code, not a traceback's default 1, so a chained CI job
+    (see .github/workflows/scrape.yml) can tell 'retry on a fresh runner'
+    apart from a real bug."""
+    async def boom():
+        raise BarchartAuthError("Barchart authentication failed.")
+
+    monkeypatch.setattr(scrape_flow, "main", boom)
+
+    with pytest.raises(SystemExit) as exc_info:
+        scrape_flow._run_with_auth_exit()
+
+    assert exc_info.value.code == BARCHART_AUTH_EXIT_CODE
+    assert BARCHART_AUTH_EXIT_CODE == 5
+
+
+def test_run_with_auth_exit_leaves_a_clean_run_alone(monkeypatch):
+    calls = []
+
+    async def ok():
+        calls.append(1)
+
+    monkeypatch.setattr(scrape_flow, "main", ok)
+
+    scrape_flow._run_with_auth_exit()  # must not raise/exit
+
+    assert calls == [1]
