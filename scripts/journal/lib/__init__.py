@@ -24,6 +24,9 @@ Anything shared, or subordinate to one step, lives here instead:
     relabel.py    OFF-LINE DIAGNOSTIC, not part of the flow: which already-
                   journalled rows the CLOSE-orientation fix would relabel.
                   Prints; never writes trades.csv, never touches Sheets
+    repair.py     the WRITING repair relabel only describes: collapses duplicate
+                  fills and re-derives pre-fix CLOSE rows from their pulls, in
+                  the CSV, the TradeJournal tab and Drive together (--apply)
 
 NOT THE REPO-ROOT `lib/`. That one holds modules shared across the WHOLE repo
 (Barchart scrapers, Drive/Sheets clients, `structure_names.py`). These are

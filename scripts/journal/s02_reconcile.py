@@ -50,6 +50,11 @@ from .lib.rawpull import fill_to_leg, greeks_map, open_legs
 
 log = logging.getLogger(__name__)
 
+# Written into `notes` on every CLOSE the fixed pipeline orients. A CLOSE row
+# WITHOUT it was written before 2026-09-07 and carries the mirror-image label;
+# `lib/repair.py` reads it as that discriminator, so the wording is a contract.
+CLOSE_ORIENTED_NOTE = "structure names the position this group closes"
+
 
 # --------------------------------------------------------------------------
 # Entry point
@@ -442,7 +447,7 @@ def _build_event(legs: list[Leg], open_book: list[Leg], greeks: dict,
     # money names the transaction, and the journal records what was paid.
     net_price = mapping.net_price(legs)
     if closing:
-        notes.append(f"structure names the position this group closes "
+        notes.append(f"{CLOSE_ORIENTED_NOTE} "
                      f"({struct_label}), read from the legs' resulting position "
                      "rather than the fills' own signs")
     elif action in ("ROLL", "PARTIAL"):

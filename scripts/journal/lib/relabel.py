@@ -11,7 +11,9 @@ written under it. This module says WHICH of those rows the fix would change.
 IT ONLY PRINTS. Nothing here writes `journal/trades.csv`, and nothing here
 touches Sheets or the network — the journal's local CSV is the append-only
 record and rewriting it in place is not something a diagnostic gets to do.
-Repairing the rows is a separate, deliberate act by the operator.
+Repairing the rows is a separate, deliberate act by the operator:
+`lib/repair.py` (`python3 -m scripts.journal repair`) does it from the
+original pulls, and is a dry run unless given `--apply`.
 
 WHAT IT CAN AND CANNOT RE-DERIVE. `trades.csv` records the group's legs (the
 canonical `TICKER:YYYY-MM-DD:STRIKE:C +N` grammar) and its NET price, not each

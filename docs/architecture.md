@@ -948,6 +948,10 @@ scripts/journal/
                     Exposed as `python3 -m scripts.journal relabel`
                     (__main__.py dispatches to relabel.main() before its own
                     argument parsing runs, since relabel owns its own --csv flag)
+    repair.py       the WRITING half, NOT a step: collapses duplicate fills and
+                    re-derives pre-fix CLOSE rows by re-running reconcile on
+                    their pulls; dry run unless --apply. Exposed as
+                    `python3 -m scripts.journal repair`
 ```
 
 ### The Drive mirror
@@ -1224,16 +1228,25 @@ long — which cannot be an overlay. Carrying it would print `single long call (
 label the live pipeline can never emit. The mirror case (a genuine overlay close recorded
 without a suffix) is undetectable offline for the same reason.
 
-**The pre-2026-09-07 CLOSE rows are a known-inverted cohort, not yet repaired.** Running the
-diagnostic against `journal/trades.csv` as it stands today: 18 CLOSE rows carry an inverted
-`structure` label and 3 of those also carry an inverted `tier` (the GLD/IWM rows quoted
-above — a VETOed bear-call-spread label that was really a B-tier bull call spread closing,
-and a B-tier bull-put-spread label that was really a C-tier bear put spread closing).
-Repairing them is a deliberate, separate act by the operator (rewrite `journal/trades.csv`
-and the TradeJournal tab by hand from the diagnostic's output) — nothing in this pipeline
-does it automatically, and no study or report currently excludes this cohort, so a reader
-joining pre-2026-09-07 CLOSE rows into a structure- or tier-keyed analysis is joining on the
-inverted label until that repair happens.
+**The pre-2026-09-07 CLOSE rows are a known-inverted cohort, not yet repaired.** The
+diagnostic flags 18 CLOSE rows with an inverted `structure`. Three also carry an inverted
+`tier`: two GLD rows VETOed as a bear call spread were a B-tier bull call spread closing, and
+an IWM B-tier bull put spread was a C-tier bear put spread closing. No study or report
+excludes this cohort. A structure- or tier-keyed join on pre-2026-09-07 CLOSE rows reads the
+inverted label until the repair is applied.
+
+`python3 -m scripts.journal repair` is that repair (`scripts/journal/lib/repair.py`). It
+re-runs reconcile on each pre-fix CLOSE row's original pull, so the label, the match and the
+tier all come from the live code path. The money columns must come back equal, or the row is
+refused. It also collapses fills journalled more than once, keeping the first row. It is a dry
+run unless `--apply`, and idempotent.
+
+`--apply` rewrites `journal/trades.csv`, replaces the TradeJournal tab from it, and replaces
+Drive's `_history/trades.csv`. Drive's previous copy is kept beside it as
+`trades-pre-repair-<stamp>.csv`. It refuses unless every fill on the tab and on Drive is
+already in the CSV. `--merge-drive` first appends the Drive rows whose fills the CSV lacks.
+The replace is deliberate: an edited archive is not an append, so `drive_sync` would
+otherwise read the repaired file as a fork.
 
 **Open book** (`lib/book.py`) — legs group by (underlying, expiry). A vertical reassembles; a
 calendar/diagonal is reported as two positions and the report says so. Grouping by

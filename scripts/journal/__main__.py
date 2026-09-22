@@ -15,6 +15,8 @@ Entry point for the daily trade journal.
     python3 -m scripts.journal pull-page           fetch the latest page back from Drive
     python3 -m scripts.journal relabel             P1 label-fix diagnostic; journal/trades.csv
     python3 -m scripts.journal relabel --csv PATH  same, against a different trades CSV
+    python3 -m scripts.journal repair              dry-run the TradeJournal row repair
+                                                   (--merge-drive, --apply: lib/repair.py)
 
 `relabel` is OFFLINE-ONLY and PRINT-ONLY (see `scripts/journal/lib/relabel.py`):
 it says which already-journalled rows the 2026-09-07 CLOSE-orientation fix
@@ -680,6 +682,11 @@ def main(argv=None) -> int:
     if raw_argv[:1] == ["relabel"]:
         from .lib import relabel
         return relabel.main(raw_argv[1:])
+    # `repair` likewise owns its flags. Unlike relabel it WRITES, but only
+    # with --apply — see scripts/journal/lib/repair.py.
+    if raw_argv[:1] == ["repair"]:
+        from .lib import repair
+        return repair.main(raw_argv[1:])
 
     args = _parse_args(argv)
     _setup_logging(args.verbose)
