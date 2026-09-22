@@ -103,8 +103,14 @@ simulation:
   #
   # The cost-sensitivity study (research/robustness-review.md N1) is what these are
   # for: at what cost per leg does the Tier A/B edge stop excluding zero.
-  commission_per_contract: 0.0
-  slippage_frac_of_spread: 0.0
+  #
+  # TURNED ON 2026-09-22 (operator decision, next-steps §0 items 2/8): the
+  # cost point in research/pre-registrations/f2_management/cost_sensitivity.md
+  # (ARM X; that file is still a DRAFT). Every row written from here on is net of
+  # costs; rows written before carry cost_total blank/0 until the whole-book
+  # `--redo` re-price (after the Barchart refetch) rewrites them.
+  commission_per_contract: 0.65
+  slippage_frac_of_spread: 0.25
 
   # ── Quote staleness (robustness review B3) ────────────────────────────────────
   # How many CALENDAR days a Barchart mark may be carried forward before the day is
