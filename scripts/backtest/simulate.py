@@ -98,10 +98,10 @@ def _entry_side_mark(row, qty) -> float | None:
 
     An entry fill happens on the side the leg actually trades, so:
 
-    SCOPE. It governs the QUOTE-DERIVED entry mark only — the branch
-    `_zero_bid_mark` used to own. An entry-day `Open` print still wins ahead of it
-    (see `_entry_price_leg`), so the only entries this rule changes are the ones
-    that had no print to fill on. Rules:
+    SCOPE. It governs EVERY barchart entry fill whose quote is one-sided: the
+    quote-derived mark (the branch `_zero_bid_mark` used to own) and, since
+    2026-09-22, the entry-day `Open` print too, which it now PRECEDES (see
+    `_entry_price_leg`). Before 2026-09-22 the Open print won ahead of it. Rules:
 
       quote is two-sided (bid > 0)        → None   (mid / the source chain below,
                                                     UNCHANGED — this rule does not
@@ -825,6 +825,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     # Step 1 — entry price for each leg, every leg on the SAME entry day (the
     # anchor's _entry_date: the next trading day under entry_timing "next_open",
     # else the signal day). Under next_open a leg is filled at that day's Open,
+    # unless that day's quote is one-sided (then `_entry_side_mark`, 2026-09-22),
     # falling back to that day's EOD mark when Open is blank (zero-volume day);
     # without barchart_details (or for a leg with no row on the entry day) pricing
     # carries forward the most recent EOD mark on-or-before the entry day.
@@ -840,21 +841,23 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
             row = (barchart_details.get(_key(leg)) or {}).get(entry_date)
             if row is not None:
                 spread = _leg_spread(row)
-                op = _to_float(row.get("Open"))
-                if op and op > 0:
-                    return op, "barchart_open", spread
-                # DELIBERATELY BELOW the Open print. The side-aware rule only
-                # governs an entry that falls through to the QUOTE-derived mark —
-                # the branch `_zero_bid_mark` used to own. A leg quoted bid 0 on
-                # the entry day but filled at a real Open print keeps that print:
-                # 22 rows in BacktestResults and 27 in BacktestProxy are of that
-                # shape and 21 / 26 of them predate B5, so repricing them is a
-                # separate operator decision, not this change (2026-09-19).
+                # AHEAD of the Open print (2026-09-22, operator decision on
+                # next-steps §0 item 9). A leg whose entry-day quote is ONE-SIDED
+                # is filled on the side it trades even when the day printed an
+                # Open: a SOLD leg into a 0 bid receives 0, a BOUGHT leg pays the
+                # ask. Until 2026-09-22 the Open print won ahead of this rule, and
+                # 49 stored rows (22 BacktestResults, 27 BacktestProxy, 17 of them
+                # HYG) were filled at a print the day's own quote did not support.
+                # A two-sided quote, or a row with no quote data at all, still
+                # fills at the Open print exactly as before.
                 # The spread is dropped with the side mark: the leg is already at
                 # the touch, so slippage must not be charged on it twice.
                 side = _entry_side_mark(row, leg.qty)
                 if side is not None:
                     return side, "barchart_side", None
+                op = _to_float(row.get("Open"))
+                if op and op > 0:
+                    return op, "barchart_open", spread
                 mk = row.get("_mark")
                 if mk and mk > 0:
                     return mk, "barchart", spread

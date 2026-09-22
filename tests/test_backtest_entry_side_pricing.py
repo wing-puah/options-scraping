@@ -1,5 +1,5 @@
 """Side-aware ENTRY pricing on a one-sided quote, and the debit-priced-to-a-credit
-gate (2026-09-19).
+gate (2026-09-19; extended over the entry-day `Open` print 2026-09-22).
 
 The failure both fixes answer is one proxy row: HYG 2025-04-09. The short 72P had
 no bar on the fill day, so the entry fell through to a six-day-old `bid 0 / ask
@@ -10,9 +10,10 @@ entry went to −0.37, `_exit_basis` keyed it CREDIT, and it booked +100%.
 Two separate claims are pinned here:
 
   entry  a leg whose entry-day quote is ONE-SIDED is priced on the side it
-         trades — bid (0) when sold, ask when bought. Everything else is
-         untouched: a two-sided quote, an `Open` print, and a row with no quote
-         data at all all price exactly as they did before.
+         trades — bid (0) when sold, ask when bought — even when the day
+         printed an `Open` (since 2026-09-22). Everything else is untouched: a
+         two-sided quote, and a row with no quote data at all, price exactly as
+         they did before, Open print first.
   gate   a structure whose NAME fixes it as a debit, priced to a net credit, is
          refused rather than written, and the refusal is recorded.
 
@@ -176,19 +177,63 @@ def test_a_row_with_no_quote_columns_is_not_treated_as_a_zero_bid():
     assert _entry_net(res) == pytest.approx(0.60)     # 1.10 − 0.50, the marks
 
 
-def test_an_open_print_still_wins_over_a_one_sided_quote():
-    """Scope bound, deliberate: the side-aware rule governs only the entry that
-    falls through to the QUOTE-derived mark. A leg quoted bid 0 on the entry day
-    that nonetheless PRINTED keeps that print — 22 BacktestResults rows and 27
-    BacktestProxy rows are that shape, 21 and 26 of them predating B5, and
-    repricing four months of pre-fold evidence is a separate decision."""
-    details = {LONG_KEY: {ENTRY: _row(0.97, bid="0.90", ask="1.04", open_="0.97")},
-               SHORT_KEY: {ENTRY: _row(0.45, bid="0.00", ask="2.68", open_="0.45")}}
+def _open_print_case(long_quote, short_quote):
+    """Both legs PRINTED an Open on the entry day; the quotes are the variable."""
+    details = {LONG_KEY: {ENTRY: _row(0.97, open_="0.97", **long_quote)},
+               SHORT_KEY: {ENTRY: _row(0.45, open_="0.45", **short_quote)}}
     for d in (date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.0, bid="0.90", ask="1.10")
         details[SHORT_KEY][d] = _row(0.4, bid="0.35", ask="0.45")
+    return details
+
+
+def test_a_sold_leg_with_a_zero_bid_is_not_filled_at_its_open_print():
+    """next-steps §0 item 9, decided 2026-09-22. The short leg printed 0.45 at the
+    open, but the day's own quote is `0 × 2.68`: nothing is bid, so nothing is
+    received. The side rule now PRECEDES the Open print. Before, this entry was
+    0.97 − 0.45 = 0.52 — the shape of the 49 stored `Open`-fill rows."""
+    details = _open_print_case(dict(bid="0.90", ask="1.04"),
+                               dict(bid="0.00", ask="2.68"))
+    res = _run(_legs(("+1", 76), ("-1", 72)), details)
+    assert _entry_net(res) == pytest.approx(0.97)     # long at its Open, short at 0
+    assert res["entry_source"] == "barchart_open+barchart_side"
+
+
+def test_a_bought_leg_with_a_zero_bid_pays_the_ask_not_its_open_print():
+    details = _open_print_case(dict(bid="0.00", ask="1.20"),
+                               dict(bid="0.40", ask="0.50"))
+    res = _run(_legs(("+1", 76), ("-1", 72)), details)
+    assert _entry_net(res) == pytest.approx(1.20 - 0.45)   # ask, then short's Open
+    assert res["entry_source"] == "barchart_side+barchart_open"
+
+
+def test_an_open_print_still_wins_over_a_two_sided_quote():
+    """The extension claims ONLY a one-sided quote. A two-sided quote on the
+    entry day keeps the Open fill — this is not touch pricing."""
+    details = _open_print_case(dict(bid="0.90", ask="1.04"),
+                               dict(bid="0.40", ask="0.50"))
     res = _run(_legs(("+1", 76), ("-1", 72)), details)
     assert _entry_net(res) == pytest.approx(0.52)     # 0.97 − 0.45, both prints
+    assert res["entry_source"] == "barchart_open+barchart_open"
+
+
+def test_an_open_print_still_wins_when_the_row_has_no_quote_data():
+    """No Bid/Ask columns is NO QUOTE DATA, not a zero bid: the Open print fills."""
+    details = _open_print_case({}, {})
+    res = _run(_legs(("+1", 76), ("-1", 72)), details)
+    assert _entry_net(res) == pytest.approx(0.52)
+    assert "barchart_side" not in res["entry_source"]
+
+
+def test_the_side_rule_over_the_open_can_still_reach_the_debit_credit_gate():
+    """A bought leg on a `0 × 0` quote fills at 0 whatever it printed; with the
+    short leg's two-sided Open above it, the debit spread prices to a credit and
+    is refused rather than written."""
+    details = _open_print_case(dict(bid="0.00", ask="0.00"),
+                               dict(bid="0.40", ask="0.50"))
+    refusal = {}
+    assert _run(_legs(("+1", 76), ("-1", 72)), details, refusal=refusal) == {}
+    assert refusal["reason"] == "debit_priced_to_credit"
 
 
 # ── (f) the daily marks are still the liquidation rule ─────────────────────────

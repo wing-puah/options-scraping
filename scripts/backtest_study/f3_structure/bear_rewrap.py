@@ -125,6 +125,20 @@ B5_SINCE = datetime(2026, 9, 8, 15, 5, 25)
 # it. Daily marks are unaffected and stay on the B5 basis.
 SIDE_SINCE = datetime(2026, 9, 19, 12, 50, 45)
 
+# When the side-aware fill started to PRECEDE the entry-day `Open` print
+# (next-steps §0 item 9, operator decision 2026-09-22). Before it, a leg that
+# printed an Open filled at that print whatever its quote said; at and after it,
+# a one-sided quote is filled on the side the leg trades first, and only a
+# two-sided or quote-less row keeps the Open. A THIRD basis, on the same
+# write-time convention, because it moved the side rule's position without
+# changing the rule: a row written between SIDE_SINCE and this is side-aware on
+# a carried or zero-volume entry and NOT over a printed Open.
+#
+# The boundary is the change's authoring time. No stored row was written after
+# it on the pre-change code: the whole-book `--redo` that re-prices the 49
+# `Open`-fill rows waits for a Barchart refetch and runs after this is merged.
+OPEN_SIDE_SINCE = datetime(2026, 9, 22, 12, 0, 0)
+
 
 # ── cache access ─────────────────────────────────────────────────────────────
 
@@ -176,32 +190,50 @@ def priced_with_side(row: dict) -> bool:
         return True
 
 
+def priced_with_open_side(row: dict) -> bool:
+    """Did the side-aware fill PRECEDE the Open print when this row was priced?
+
+    Keyed on `created_datetime` against `OPEN_SIDE_SINCE`, exactly as the two
+    bases above. A row with no parseable stamp takes the rule production applies
+    now.
+    """
+    raw = str(row.get("created_datetime") or "").strip()
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S") >= OPEN_SIDE_SINCE
+    except ValueError:
+        return True
+
+
 _basis_stack: list[bool] = []
 _side_stack: list[bool] = []
+_open_side_stack: list[bool] = []
 
 
 @contextmanager
 def basis_of(row: dict):
-    """Price on `row`'s basis inside the block — BOTH bases.
+    """Price on `row`'s basis inside the block — ALL THREE bases.
 
-    `priced_with_b5` governs the daily mark, `priced_with_side` the entry fill.
-    They are separate because the two rules landed eleven days apart and the
-    later one displaced the earlier at entry only; a row written between them is
-    B5 on its marks and NOT side-aware on its entry.
+    `priced_with_b5` governs the daily mark, `priced_with_side` the entry fill,
+    and `priced_with_open_side` whether that fill precedes the Open print.
+    They are separate because the rules landed on different days and each later
+    one changed the entry only; a row written between the first two is B5 on its
+    marks and NOT side-aware on its entry.
 
-    Every pricer below takes `b5=None` / `side=None` to mean "the innermost
-    basis_of, else the rule production applies now". Studies that price variants
-    against a stored book row enter this once per row, so the reconstruction and
-    every variant compared with it share the row's basis without threading two
-    flags through each helper.
+    Every pricer below takes `b5=None` / `side=None` / `open_side=None` to mean
+    "the innermost basis_of, else the rule production applies now". Studies that
+    price variants against a stored book row enter this once per row, so the
+    reconstruction and every variant compared with it share the row's basis
+    without threading three flags through each helper.
     """
     _basis_stack.append(priced_with_b5(row))
     _side_stack.append(priced_with_side(row))
+    _open_side_stack.append(priced_with_open_side(row))
     try:
         yield
     finally:
         _basis_stack.pop()
         _side_stack.pop()
+        _open_side_stack.pop()
 
 
 def each_on_basis(items, row_of):
@@ -224,6 +256,12 @@ def _resolve_side(side: bool | None) -> bool:
     if side is not None:
         return side
     return _side_stack[-1] if _side_stack else True
+
+
+def _resolve_open_side(open_side: bool | None) -> bool:
+    if open_side is not None:
+        return open_side
+    return _open_side_stack[-1] if _open_side_stack else True
 
 
 def row_mark(row: dict | None, b5: bool | None = None) -> float | None:
@@ -360,7 +398,8 @@ def recorded_entry_date(base: Trade) -> date | None:
 
 
 def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
-                   side: bool | None = None) -> float | None:
+                   side: bool | None = None,
+                   open_side: bool | None = None) -> float | None:
     """One leg's fill: that day's Open, else its EOD mark, else the most recent
     prior mark carried forward.
 
@@ -387,10 +426,21 @@ def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
     series below is `leg_entry_series` rather than `leg_series`. HYG 2025-04-09
     is the row this branch reconstructs: long 76P at its 0.97 Open print, short
     72P sold into a 0 bid for 0.
+
+    On the OPEN-SIDE basis (`priced_with_open_side`, 2026-09-22) the side branch
+    moves AHEAD of the Open print: a one-sided quote fills on its side even when
+    the day printed, and only a two-sided or quote-less row keeps the Open.
+    Production's `_entry_price_leg` has that order now. `open_side` is only
+    meaningful with `side`; the later rule implies the earlier one.
     """
     use_side = _resolve_side(side)
+    use_open_side = use_side and _resolve_open_side(open_side)
     row = leg_details(leg).get(day)
     if row is not None:
+        if use_open_side:
+            sm = _entry_side_mark(row, leg.qty)
+            if sm is not None:
+                return sm
         try:
             op = float(str(row.get("Open", "")).replace(",", "") or 0)
         except ValueError:
@@ -419,11 +469,12 @@ def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
 
 
 def net_entry(legs: list[Leg], day: date, b5: bool | None = None,
-              side: bool | None = None) -> float | None:
+              side: bool | None = None,
+              open_side: bool | None = None) -> float | None:
     """Signed net entry price across legs, or None if any leg cannot be filled."""
     total = 0.0
     for leg in legs:
-        p = entry_price_of(leg, day, b5, side)
+        p = entry_price_of(leg, day, b5, side, open_side)
         if p is None:
             return None
         total += leg.qty * p
@@ -481,10 +532,11 @@ def synth_trade(rec: dict, legs: list[Leg], structure: str) -> Trade | None:
     grid = base.grid
     b5 = priced_with_b5(base.row)
     side = priced_with_side(base.row)
+    open_side = priced_with_open_side(base.row)
     ed = entry_date_for(legs, grid)
     if ed is None:
         return None
-    net = net_entry(legs, ed, b5, side)
+    net = net_entry(legs, ed, b5, side, open_side)
     if net is None or abs(net) <= 1e-9:
         return None
 
@@ -532,10 +584,11 @@ def reconstructs(rec: dict) -> tuple[bool, str]:
     ed = recorded_entry_date(base) or entry_date_for(legs, base.grid)
     if ed is None:
         return False, "no_common_entry_day"
-    # Mirror BOTH bases the row was priced on: B5 governs its marks, the
-    # side-aware fill its entry. See basis_of.
+    # Mirror EVERY basis the row was priced on: B5 governs its marks, the
+    # side-aware fill (and whether it precedes the Open) its entry. See basis_of.
     b5 = priced_with_b5(base.row)
-    net = net_entry(legs, ed, b5, priced_with_side(base.row))
+    net = net_entry(legs, ed, b5, priced_with_side(base.row),
+                    priced_with_open_side(base.row))
     if net is None:
         return False, "entry_unpriced"
     if abs(net - base.entry_net) > RECON_TOL:

@@ -1208,6 +1208,14 @@ INFRA: dict[str, str] = {
                             "flagged; a study pooling stored outcomes filters on "
                             "fill_trusted, one that re-replays from marks is unaffected. "
                             "Built 2026-09-19.",
+    "lib/reprice_targets.py": "Which stored rows are priced wrong, and can each be re-priced "
+                              "offline? A read-only census of the three sets the operator "
+                              "ruled on 2026-09-22: pre-fill exits, wrong-strike rows and "
+                              "entry-day Open fills on a one-sided quote. It re-prices every "
+                              "row on their dates in memory from the cache, flags legs the "
+                              "real --redo would refetch, and prints the date-bounded --redo "
+                              "plan without running it. Writes only "
+                              "backtests/study_output/reprice-targets-<date>.csv.",
     "lib/replay_basis.py": "ONE classifier for stored-row-vs-replay disagreement: exact / "
                            "near-rounding-tie / superseded-basis / HARD. Extracted 2026-08-24 "
                            "from exit_switch_mech_study so its harness gate, "

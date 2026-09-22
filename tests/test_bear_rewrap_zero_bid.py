@@ -17,6 +17,10 @@ the daily path alone. So a row has two write-time-keyed bases, and the entry
 tests below pin all three regimes a stored row can be in: pre-B5/pre-side,
 post-B5/pre-side, and post-side.
 
+Since 2026-09-22 there is a THIRD: the side-aware fill PRECEDES the entry-day
+`Open` print (`priced_with_open_side`). Before, a leg that printed an Open kept
+it whatever its quote said.
+
 Synthetic cache only — `bear_rewrap.leg_details` is monkeypatched.
 """
 from datetime import date, datetime, timedelta
@@ -114,9 +118,59 @@ def test_zero_volume_entry_takes_the_re_mark_even_at_zero(cache):
     assert BR.entry_price_of(SHORT, D1, side=True) == 0.0
 
 
-def test_a_positive_open_still_wins_over_the_re_mark(cache):
+def test_a_positive_open_wins_over_the_re_mark_before_the_open_side_basis(cache):
     cache(SHORT, {D1: _row(0.45, bid="0", ask="2.68", open_="0.65")})
-    assert BR.entry_price_of(SHORT, D1) == 0.65
+    assert BR.entry_price_of(SHORT, D1, open_side=False) == 0.65
+    assert BR.entry_price_of(SHORT, D1, side=False) == 0.65     # pre-side: same
+
+
+def test_the_open_side_basis_fills_a_one_sided_quote_ahead_of_the_open(cache):
+    """Mirror of production's `_entry_price_leg` since 2026-09-22."""
+    cache(SHORT, {D1: _row(0.45, bid="0", ask="2.68", open_="0.65")})
+    cache(LONG, {D1: _row(0.92, bid="0", ask="1.83", open_="0.97")})
+    assert BR.entry_price_of(SHORT, D1) == 0.0           # the default is current
+    assert BR.entry_price_of(SHORT, D1, open_side=True) == 0.0
+    assert BR.entry_price_of(LONG, D1, open_side=True) == pytest.approx(1.83)
+    # A two-sided quote keeps its Open on every basis.
+    cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97")})
+    assert BR.entry_price_of(LONG, D1, open_side=True) == pytest.approx(0.97)
+    # open_side implies side: without the side rule it cannot apply.
+    assert BR.entry_price_of(SHORT, D1, side=False, open_side=True) == 0.65
+
+
+def test_the_mirror_and_production_agree_on_an_open_print_entry(cache):
+    """Same one-sided-with-Open rows through `_simulate` and through the mirror."""
+    rows_long = {D1: _row(0.92, bid="0", ask="1.83", open_="0.97")}
+    rows_short = {D1: _row(0.30, bid="0.25", ask="0.35", open_="0.30")}
+    cache(LONG, rows_long)
+    cache(SHORT, rows_short)
+    mirror = BR.net_entry([LONG, SHORT], D1)
+    key = lambda leg: SIM._contract_key(leg.ticker, leg.opt_type, leg.strike,
+                                        leg.expiration.isoformat())
+    details = {key(LONG): rows_long, key(SHORT): rows_short}
+    for rows in details.values():
+        rows[D1 + timedelta(days=1)] = _row(1.0, bid="0.9", ask="1.1")
+    series = {k: sorted((d, r["_mark"]) for d, r in v.items()) for k, v in details.items()}
+    entry_row = {"Strike": 76.0, "DTE": (EXP - D1).days, "IV": "30", "Price~": "78",
+                 "Delta": "-0.4", "_entry_date": D1}
+    cand = {"ticker": "AAA", "signal_date": D0, "play": "bear put spread"}
+    cfg = {"profit_target": None, "stop_loss": None, "contracts": 1, "path_cap_days": 3,
+           "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+    res = SIM._simulate(cand, [LONG, SHORT], entry_row, {}, series, cfg,
+                        structure="bear_put_spread", price_fn=lambda tk, dt: None,
+                        barchart_details=details)
+    assert float(res["entry_option_price"]) == pytest.approx(mirror) == pytest.approx(1.53)
+
+
+@pytest.mark.parametrize("stamp,expected", [
+    ("2026-09-19 16:45:19", False),   # the 2025-04-09 re-price: side, not over Open
+    ("2026-09-22 11:59:59", False),
+    ("2026-09-22 12:00:00", True),
+    ("", True),
+])
+def test_priced_with_open_side_follows_the_row_write_time(stamp, expected):
+    assert BR.OPEN_SIDE_SINCE == datetime(2026, 9, 22, 12, 0, 0)
+    assert BR.priced_with_open_side({"created_datetime": stamp}) is expected
 
 
 def test_entry_carry_forward_re_marks_the_carried_snap(cache):
@@ -180,7 +234,7 @@ def test_each_on_basis_restores_the_default_after_a_break(cache):
         break
     assert seen == [pytest.approx(0.45)]
     assert BR.entry_price_of(SHORT, D1) == 0.0
-    assert not BR._basis_stack and not BR._side_stack
+    assert not BR._basis_stack and not BR._side_stack and not BR._open_side_stack
 
 
 # ── the entry DAY is read off the row, never re-derived ──────────────────────
@@ -237,5 +291,6 @@ def test_the_recorded_day_and_the_derived_day_can_disagree(cache):
     assert BR.recorded_entry_date(_FakeTrade((EXP - D1).days)) == D1
 
     # The derived day rebuilds a 0.47 debit; the recorded one the true 0.97.
-    assert BR.net_entry([LONG, SHORT], D2, True, True) == pytest.approx(0.47)
-    assert BR.net_entry([LONG, SHORT], D1, True, True) == pytest.approx(0.97)
+    # The row was priced 2026-09-19, before the side rule preceded the Open.
+    assert BR.net_entry([LONG, SHORT], D2, True, True, False) == pytest.approx(0.47)
+    assert BR.net_entry([LONG, SHORT], D1, True, True, False) == pytest.approx(0.97)

@@ -209,10 +209,10 @@ scripts/                    ← entry points, each maps to a workflow step
                               `_entry_side_mark`): a leg whose entry-day quote has no bid is
                               filled on the side it trades — BID (0) when sold, ASK when
                               bought — because B5's sign-independent `ask/2` handed a leg
-                              being SOLD half the ask as premium RECEIVED. Scope is narrow and
-                              deliberate: it governs only the entry that falls through to the
-                              quote-derived mark, so an entry-day `Open` print still wins and a
-                              two-sided quote is untouched. `entry_source` gains
+                              being SOLD half the ask as premium RECEIVED. Since 2026-09-22 it
+                              also PRECEDES an entry-day `Open` print (next-steps §0 item 9); a
+                              two-sided or quote-less row still fills at the Open, and a
+                              two-sided quote is never re-priced to the touch. `entry_source` gains
                               `barchart_side`. Then a GATE: a structure whose canonical name
                               fixes it as a DEBIT (`classify.DEBIT_STRUCTURES`, off
                               `lib/structure_names.canonical_debit_spreads()`) that prices to

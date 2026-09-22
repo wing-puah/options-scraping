@@ -269,12 +269,14 @@ score block — see the two rows below.
   simulation re-marks such a day off the quote instead: `0 × 0` → **0**, `0 × ask` →
   **ask/2** (robustness review B5). Bounded to days whose cached history row carries
   Bid/Ask; a row without them keeps the old mark.
+
   **DAILY MARKS ONLY since 2026-09-19.** That rule is a liquidation mark and it is
   sign-independent, so at ENTRY it handed a leg being SOLD half the ask as premium
   RECEIVED. An entry that falls through to the quote-derived mark is now priced on
   the side the leg trades: **bid (0) when sold, ask when bought**
-  (`simulate._entry_side_mark`, `entry_source` tag `barchart_side`). An entry-day
-  `Open` print still wins ahead of it and a two-sided quote is untouched.
+  (`simulate._entry_side_mark`, `entry_source` tag `barchart_side`). Since
+  2026-09-22 the rule also precedes an entry-day `Open` print. A two-sided quote
+  is untouched, and still fills at the Open.
 - **A debit structure that prices to a credit is refused.** `bull_call_spread`,
   `bear_put_spread`, `long_call` and `long_put` are debits by name
   (`classify.DEBIT_STRUCTURES`, derived from
