@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 
 import pytest
 
@@ -514,12 +515,12 @@ def test_evaluate_row_schema_and_decimal_percentages(cache_dir):
 
 # ── 10. --redo (re-evaluate frozen rows) ─────────────────────────────────────────
 
-def _run_main(monkeypatch, argv, cand, existing_keys):
+def _run_main(monkeypatch, argv, cand, existing_keys, tested_keys=frozenset()):
     """Drive proxy.main() with all sheet/network I/O stubbed; returns what it
     deleted and wrote."""
     calls = {"deleted": None, "written": None}
     monkeypatch.setattr(proxy, "load_analysis", lambda tab, s, e: ([cand], {}))
-    monkeypatch.setattr(proxy, "_load_tested_keys", lambda tab: set())
+    monkeypatch.setattr(proxy, "_load_tested_keys", lambda tab: set(tested_keys))
     monkeypatch.setattr(proxy, "_load_proxy_keys", lambda tab: existing_keys)
 
     def fake_delete(tab, match_fn):
@@ -574,6 +575,71 @@ def test_without_redo_existing_proxy_rows_stay_frozen(monkeypatch, cache_dir):
 
     assert calls["deleted"] is None
     assert not calls["written"]  # nothing re-evaluated
+
+
+# ── 10b. cross-tab duplicates (a play re-priced onto BacktestResults) ────────────
+# `scripts.backtest --redo` can price a play the proxy used to stand in for once
+# the history cache has grown. The proxy then skips it as tested, but its OLD
+# proxy row stays — the play sits on both tabs. --redo deletes that row (inside
+# its date bound); a plain run only warns.
+
+def test_redo_deletes_proxy_row_now_on_results_tab(monkeypatch, cache_dir, caplog):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    outside = bt._identity_key(date(2026, 5, 1), "AMD", "long call 100 Jun 20")
+
+    with caplog.at_level(logging.WARNING, logger="backtest"):
+        calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--redo", "--cache-only"],
+                          cand, {key, outside}, tested_keys={key, outside})
+
+    assert not calls["written"]  # the play is tested: nothing re-evaluated
+    tab, match_fn = calls["deleted"]
+    assert tab == "BacktestProxy"
+    # Sheets reparses the date into locale form (DD/MM); the key still matches.
+    assert match_fn({"signal_date": "01/06/2026", "ticker": "nvda", "play": cand["play"]})
+    # A cross-tab duplicate OUTSIDE the date bound is left alone.
+    assert not match_fn({"signal_date": "2026-05-01", "ticker": "AMD",
+                         "play": "long call 100 Jun 20"})
+    assert "NVDA" in caplog.text and "Deleting" in caplog.text
+
+
+def test_redo_dry_run_reports_cross_tab_duplicate_without_deleting(monkeypatch, cache_dir,
+                                                                    caplog):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+
+    with caplog.at_level(logging.WARNING, logger="backtest"):
+        calls = _run_main(monkeypatch,
+                          ["--date", SIGNAL.isoformat(), "--redo", "--cache-only", "--dry-run"],
+                          cand, {key}, tested_keys={key})
+
+    assert calls["deleted"] is None
+    assert "Would delete" in caplog.text
+
+
+def test_plain_run_warns_on_cross_tab_duplicate_but_never_deletes(monkeypatch, cache_dir,
+                                                                    caplog):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+
+    with caplog.at_level(logging.WARNING, logger="backtest"):
+        calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--cache-only"],
+                          cand, {key}, tested_keys={key})
+
+    assert calls["deleted"] is None
+    assert not calls["written"]
+    assert "ALSO on" in caplog.text and "--redo" in caplog.text
+
+
+def test_cross_tab_duplicates_respects_bound_and_unparsed_dates():
+    k_in = bt._identity_key(SIGNAL, "NVDA", "a")
+    k_out = bt._identity_key(date(2026, 7, 1), "NVDA", "a")
+    k_proxy_only = bt._identity_key(SIGNAL, "AMD", "b")
+    k_undated = (None, "SPY", "c")
+    got = proxy._cross_tab_duplicates({k_in, k_out, k_proxy_only, k_undated},
+                                      {k_in, k_out, k_undated}, SIGNAL, SIGNAL)
+    assert got == {k_in}
+    assert proxy._cross_tab_duplicates({k_in, k_out}, {k_in, k_out}, None, None) == {k_in, k_out}
 
 
 def test_redo_requires_date_bounds(monkeypatch):

@@ -673,6 +673,36 @@ def _load_proxy_keys(proxy_tab: str) -> set:
     return keys_from_tab(proxy_tab)
 
 
+def _in_bound(key: tuple, start: date | None, end: date | None) -> bool:
+    """True when an identity key's date lies inside ``[start, end]`` (either end
+    open when None). A key whose date did not parse is never in bound — a row we
+    cannot date is never deleted on a date-bounded run."""
+    d = key[0]
+    if not isinstance(d, date):
+        return False
+    return (start is None or d >= start) and (end is None or d <= end)
+
+
+def _cross_tab_duplicates(existing: set, tested: set,
+                          start: date | None, end: date | None) -> set:
+    """Proxy identity keys, inside the run's date bound, that are ALSO on the
+    results tab.
+
+    A play belongs on ONE tab. It reaches both when ``scripts.backtest --redo``
+    re-prices a date and can now price a play the proxy had to stand in for
+    (the history cache grew in between): the proxy's next run skips the play as
+    tested, but its old proxy row is still there. ``--redo`` deletes these rows;
+    a plain run only warns, because a plain run never deletes.
+    """
+    return {k for k in existing if k in tested and _in_bound(k, start, end)}
+
+
+def _log_cross_tab(keys: set, proxy_tab: str, tested_source: str, verb: str) -> None:
+    for d, ticker, prefix in sorted(keys, key=lambda k: (str(k[0]), k[1], k[2])):
+        log.warning("%s '%s' row also on '%s': %s %s %r",
+                    verb, proxy_tab, tested_source, d, ticker, prefix)
+
+
 # ─── Output ─────────────────────────────────────────────────────────────────────
 
 def _print_proxy_summary(rows: list[dict]) -> None:
@@ -719,7 +749,8 @@ def main() -> None:
                         help="Cache-only contract discovery; never scrape Barchart")
     parser.add_argument("--redo", action="store_true",
                         help="Re-evaluate plays already in BacktestProxy, deleting their "
-                             "existing rows first (requires --date or --start/--end)")
+                             "existing rows first, and delete proxy rows whose play is now "
+                             "on BacktestResults (requires --date or --start/--end)")
     args = parser.parse_args()
     if args.redo and not (args.date or args.start or args.end):
         parser.error("--redo requires --date or --start/--end to bound the re-evaluation")
@@ -776,13 +807,33 @@ def main() -> None:
         existing = _load_proxy_keys(proxy_tab)
     else:
         existing = _keys_from_csv(proxy_cfg.get("local_csv") or "backtests/proxy_results.csv")
+    # A proxy row whose play is now on the results tab is a cross-tab duplicate
+    # (see _cross_tab_duplicates). --redo deletes it from the proxy TAB; a plain
+    # run, a dry run and a local-only run (no sheet_tab) only report it.
+    cross_tab = _cross_tab_duplicates(existing, tested, start, end)
+    stale_keys: set = set()
     if args.redo:
         redo_keys = {k for k in (_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
                                  for c in untested) if k in existing}
         log.info("--redo: %d play(s) already in '%s' will be re-evaluated and replaced",
                  len(redo_keys), proxy_tab)
+        if cross_tab and proxy_tab:
+            stale_keys = cross_tab
+            log.warning("--redo: %d '%s' row(s) are now priced on '%s' and will be deleted",
+                        len(cross_tab), proxy_tab, tested_source)
+            _log_cross_tab(cross_tab, proxy_tab, tested_source,
+                           "Would delete (dry run)" if args.dry_run else "Deleting")
+        elif cross_tab:
+            log.warning("--redo: %d local proxy row(s) are ALSO in '%s'; local-only mode "
+                        "(sheet_tab: null) deletes nothing", len(cross_tab), tested_source)
+            _log_cross_tab(cross_tab, "local proxy CSV", tested_source, "Duplicate")
     else:
         redo_keys = set()
+        if cross_tab:
+            log.warning("%d '%s' row(s) in this date range are ALSO on '%s' — a play "
+                        "belongs on one tab; re-run with --redo to delete the proxy copies",
+                        len(cross_tab), proxy_tab, tested_source)
+            _log_cross_tab(cross_tab, proxy_tab, tested_source, "Duplicate")
         untested = [c for c in untested
                     if _identity_key(c["signal_date"], c["ticker"], c.get("play", "")) not in existing]
         log.info("%d untested plays remain after dropping ones already in '%s'",
@@ -796,11 +847,16 @@ def main() -> None:
                       sim_cfg, spread_pct, created, allow_probe)
             for c in untested]
 
-    if redo_keys and proxy_tab and not args.dry_run:
-        sheets_client.delete_rows_where(
+    # One Sheets pass deletes both the rows being replaced and the cross-tab
+    # duplicates. Both sets are empty on a plain run.
+    doomed = redo_keys | stale_keys
+    if doomed and proxy_tab and not args.dry_run:
+        n = sheets_client.delete_rows_where(
             proxy_tab,
             lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),
-                                    r.get("play", "")) in redo_keys)
+                                    r.get("play", "")) in doomed)
+        log.info("--redo: deleted %d row(s) from '%s' (%d to replace, %d now on '%s')",
+                 n, proxy_tab, len(redo_keys), len(stale_keys), tested_source)
 
     _write_proxy(rows, proxy_cfg, args.dry_run)
 

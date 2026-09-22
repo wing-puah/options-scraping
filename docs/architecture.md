@@ -1624,6 +1624,22 @@ reason the analysis guard sits before the first LLM call.
 duplicate it exists to prevent. It refuses to run unbounded, because an unbounded `--redo`
 rewrites the whole tab — that is a re-backtest of the book, not a repair.
 
+**A play belongs on one tab, and a re-price can move it.** `scripts.backtest --redo` may now
+price a play the proxy stood in for, because the history cache grew. The proxy then skips
+that play as tested, but its old proxy row stays. The proxy handles that cross-tab duplicate
+by mode:
+
+| Proxy run | Proxy row whose play is now on `BacktestResults` |
+|---|---|
+| `--redo` | deleted, inside the date bound only; each deletion is logged |
+| `--redo --dry-run` | logged as "would delete"; nothing deleted |
+| plain run | warned, never deleted |
+| `sheet_tab: null` | warned; the local CSV is not edited |
+
+So re-price a date in this order: `scripts.backtest --redo`, then `scripts.backtest.proxy
+--redo` on the same bound. The check reads `BacktestResults` as an input, as the proxy
+already does, so the dependency still runs proxy → results.
+
 **The identity key lives in `scripts/backtest/shared/identity.py` and there is exactly one
 copy.** It is `(analysis date, TICKER, 60-char play prefix)`: the date is parsed on both
 sides so the Sheets locale reparse (`6/25/2026` on the tab against `2026-06-25` in the
