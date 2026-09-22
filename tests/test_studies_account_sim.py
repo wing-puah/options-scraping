@@ -1632,3 +1632,613 @@ def test_ladder_a3_column_is_the_criterion_clause_on_the_rung_capital():
                                ledger=SimpleNamespace(violations=["leak"]),
                                cfg=_cfg(capital=50_000.0))
     assert account_sim.a3_no_blowup(sim_viol, st)[0] is False
+
+
+# ── DISCLOSURE blocks (Phase 0b, 2026-09-21) ────────────────────────────────
+#
+# Five printed additions that must change no number the study already prints:
+# the A3 mark-to-market basis, the full drawdown table, the four-cell A1-A6
+# grid, ARM H across the drawdown windows, and the dollar-stop overshoot. What
+# is pinned here is their BEHAVIOUR on hand-built curves — never a figure off
+# an export, which would fingerprint one book instead of testing a property.
+
+def _dd_sim(vals, *, capital=25_000.0, start=date(2025, 1, 6)):
+    """A sim whose positions book `vals[i]` on consecutive weekday sessions."""
+    positions = [SimpleNamespace(exit_sess=start + timedelta(days=i),
+                                 dollars=float(v), hedge=False)
+                 for i, v in enumerate(vals)]
+    return SimpleNamespace(signal_pos=positions, taken=positions,
+                           ledger=SimpleNamespace(violations=[]),
+                           cfg=_cfg(capital=capital))
+
+
+def test_drawdowns_deepest_first_and_dd1_is_the_a3_figure():
+    sim = _dd_sim([100, -50, 60, -200, 300])
+    dds = account_sim.drawdowns(sim)
+    _, vals = account_sim.equity_curve(sim.signal_pos)
+    assert [round(d.depth) for d in dds] == [-200, -50]
+    assert dds[0].depth == pytest.approx(account_sim.max_drawdown(vals))
+    deep, shallow = dds
+    assert deep.peak_sess == date(2025, 1, 8) and deep.trough_sess == date(2025, 1, 9)
+    assert deep.recovered == date(2025, 1, 10)
+    assert deep.n_exits == 1                     # only the -200 exit is inside
+    assert shallow.recovered == date(2025, 1, 8)
+
+
+def test_drawdowns_marks_an_unrecovered_episode_and_counts_its_exits():
+    sim = _dd_sim([100, -300, 50, -400, 600])
+    dds = account_sim.drawdowns(sim)
+    assert len(dds) == 1
+    dd = dds[0]
+    assert dd.depth == pytest.approx(-650)
+    assert dd.recovered is None                  # ends $50 below the old peak
+    assert dd.trough_sess == date(2025, 1, 9)
+    assert dd.n_exits == 3                       # sessions 2, 3 and 4
+
+
+def test_drawdowns_from_a_flat_start_have_no_peak_session():
+    """`max_drawdown` seeds the peak at 0.0, so a book that opens down is in a
+    drawdown from the start — the table has to say so rather than invent a peak."""
+    sim = _dd_sim([-100, 50])
+    dd = account_sim.drawdowns(sim)[0]
+    assert dd.peak_sess is None and dd.peak_label == "start"
+    assert dd.depth == pytest.approx(-100)
+    assert dd.n_exits == 1
+
+
+def test_drawdowns_of_a_curve_that_only_rises_is_empty():
+    assert account_sim.drawdowns(_dd_sim([10, 20, 30])) == []
+
+
+def test_print_drawdowns_refuses_a_table_that_disagrees_with_the_a3_clause():
+    """DD1 IS the A3 figure. A table that says otherwise is not a disclosure,
+    it is two different books printed as one."""
+    st = make_settings()
+    sim = _dd_sim([100, -300, 50])
+    wrong = [account_sim.Drawdown(peak_sess=date(2025, 1, 6),
+                                  trough_sess=date(2025, 1, 7),
+                                  depth=-1.0, recovered=None, n_exits=1)]
+    with pytest.raises(RuntimeError, match="disagrees with the A3 clause"):
+        account_sim.print_drawdowns(sim, "TEST", st, wrong)
+
+
+def test_print_drawdowns_states_its_floor_and_never_recovered(capsys):
+    st = make_settings()
+    sim = _dd_sim([100, -300, 50, -400, 600])
+    account_sim.print_drawdowns(sim, "TEST", st, account_sim.drawdowns(sim))
+    out = capsys.readouterr().out
+    assert "DISCLOSURE, NOT A CRITERION" in out
+    assert f"at least {account_sim.DD_LIST_FLOOR:.0%}" in out
+    assert "never recovered" in out
+    assert "DD1 is the A3 figure" in out
+    # The standing research-tier ban: a recovery DATE is fine, a duration is not.
+    for banned in ("annualis", "Sharpe", "time to recover", "days to recover"):
+        assert banned not in out
+
+
+def test_print_drawdowns_lists_only_the_rows_above_the_floor(capsys):
+    st = make_settings()
+    # One deep episode and one worth 1% of capital, both recovered.
+    sim = _dd_sim([1_000, -9_000, 9_000, -250, 500])
+    dds = account_sim.drawdowns(sim)
+    assert len(dds) == 2
+    account_sim.print_drawdowns(sim, "TEST", st, dds)
+    out = capsys.readouterr().out
+    assert "  DD1 " in out and "  DD2 " not in out
+    assert "2 drawdowns in all; 1 at or beyond" in out
+
+
+# ── 0b-i: the mark-to-market basis ──────────────────────────────────────────
+
+def test_mtm_disclosure_counts_an_unmarkable_position_rather_than_raising(capsys):
+    """A position with no daily path cannot be marked. The block reports how
+    many rather than forcing a curve that would silently stand for the book."""
+    st = make_settings()
+    sim = _dd_sim([100, -300])           # SimpleNamespace positions: no rec["t"]
+    for p in sim.signal_pos:
+        p.rec = {"date": "2025-01-06", "ticker": "TEST"}
+    account_sim.print_mtm_disclosure(sim, "TEST", st)
+    out = capsys.readouterr().out
+    assert "realized on close (A3)" in out
+    assert "positions with no usable daily path: 2" in out
+    assert "no position carries a usable daily path" in out
+
+
+def test_mtm_disclosure_prints_both_bases_for_a_markable_book(capsys):
+    """Both rows print, and the realized one is the A3 figure."""
+    st = make_settings()
+    marks = [2.00, 1.00, 2.40] + [2.40] * (_grid_len() - 3)
+    row = _hand_trade(marks, 1)
+    # `daily_pnl_csv` is cumulative dollars from entry, per SINGLE contract —
+    # the column mtm_curve marks a position on.
+    row["daily_pnl_csv"] = ",".join(f"{(m - 2.00) * 100:.2f}" for m in marks)
+    rec = {"t": Trade(row), "date": "2025-01-06", "ticker": "TEST",
+           "structure": "long_call", "credit": False}
+    pos = Pos(rec=rec, contracts=1, reserved=200.0, dn=0.0,
+              entry_sess=rec["t"].grid[0], exit_sess=rec["t"].grid[2],
+              days_held=3, R=0.20, dollars=40.0, exit_reason="time_exit")
+    sim = SimpleNamespace(signal_pos=[pos], taken=[pos],
+                          ledger=SimpleNamespace(violations=[]),
+                          cfg=_cfg(capital=25_000.0))
+    account_sim.print_mtm_disclosure(sim, "TEST", st)
+    out = capsys.readouterr().out
+    assert "mark to market" in out
+    # The marked curve sees the dip the realized curve books nothing for.
+    assert "1 of 1 positions reconciled, 0 mismatched" in out
+    assert "positions with no usable daily path: 0" in out
+
+
+# ── 0b-v: dollar-stop overshoot ─────────────────────────────────────────────
+
+def test_dollar_stop_block_counts_the_overshoot_past_the_stop(capsys):
+    st = make_settings()
+    cfg = _cfg(capital=25_000.0, risk_pct=0.02)       # a $500 stop
+    taken = [
+        _pos(_rec(), exit_reason="dollar_stop", dollars=-700.0),
+        _pos(_rec(), exit_reason="dollar_stop", dollars=-500.0),
+        _pos(_rec(), exit_reason="time_exit", dollars=-900.0),
+    ]
+    sim = Sim(cfg=cfg, taken=taken, ledger=Ledger(25_000.0))
+    account_sim.print_dollar_stop(sim, "TEST", st)
+    out = capsys.readouterr().out
+    assert "dollar-stop exits                    2 of 3 taken positions" in out
+    # Only the -$700 exit is beyond the stop; a loss exactly AT it is not.
+    assert "of those, losing more than $500      1" in out
+    assert "-200" in out                       # its overshoot
+    # A bigger loss on another exit reason is not a stop overshoot.
+    assert "worst single position, any exit reason      $-900" in out
+
+
+def test_dollar_stop_block_reports_cost_coverage(capsys):
+    st = make_settings()
+    row = dict(_hand_trade([2.0] * _grid_len(), 1))
+    with_cost = _rec()
+    with_cost["t"] = Trade({**row, "cost_total": "12.50"})
+    without = _rec()
+    without["t"] = Trade({**row, "cost_total": ""})
+    sim = Sim(cfg=_cfg(), taken=[_pos(with_cost), _pos(without)],
+              ledger=Ledger(25_000.0))
+    account_sim.print_dollar_stop(sim, "TEST", st)
+    out = capsys.readouterr().out
+    assert "carrying a non-blank `cost_total`: 1 of 2" in out
+
+
+# ── 0b-iii: A1-A6 on all four arm cells ─────────────────────────────────────
+
+CRITERIA_KEYS = ("A1", "A2", "A3", "A4", "A5", "A6")
+
+
+def _crit_sim(rows, *, capital=25_000.0, census=None):
+    """A `Sim` whose taken positions book `(date, R, dollars)`."""
+    taken = [_pos(_rec(date=d, credit=False), R=r, dollars=dol,
+                  exit_sess=date.fromisoformat(d))
+             for d, r, dol in rows]
+    sim = Sim(cfg=_cfg(capital=capital), taken=taken, ledger=Ledger(capital))
+    sim.census.update(census or {"taken": len(taken)})
+    return sim
+
+
+_CRIT_ROWS = [("2024-05-0%d" % i, 0.4, 400.0) for i in range(1, 6)] + \
+             [("2025-05-0%d" % i, 0.3, 300.0) for i in range(1, 6)]
+
+
+def test_evaluate_prints_the_figures_criteria_scores_computed(capsys):
+    """ONE body for the clauses: `evaluate` formats `criteria_scores`, and a
+    cell scored by the disclosure grid is scored by the same code the verdict
+    is read off."""
+    st = make_settings()
+    sim = _crit_sim(_CRIT_ROWS)
+    b2 = _crit_sim(_CRIT_ROWS)
+    scores = account_sim.criteria_scores(sim, b2, st)
+    res = account_sim.evaluate(sim, b2, "TEST", st)
+    out = capsys.readouterr().out
+    assert {k: bool(res[k]) for k in CRITERIA_KEYS} == \
+           {k: bool(scores[k]) for k in CRITERIA_KEYS}
+    assert f"maxDD ${scores['mdd']:,.0f}" in out
+    assert f"= {scores['ratio']:.0%}" in out
+
+
+def test_arm_criteria_grid_scores_every_cell_without_moving_the_verdict(capsys):
+    st = make_settings()
+    b2 = _crit_sim(_CRIT_ROWS)
+    arms = {key: _crit_sim(_CRIT_ROWS) for key, _label, _kw in account_sim.ARM_CELLS}
+    headline = account_sim.criteria_scores(arms["RF1"], b2, st)
+    scores = account_sim.print_arm_criteria(arms, b2, "TEST", st, headline)
+    out = capsys.readouterr().out
+    assert set(scores) == {k for k, _l, _kw in account_sim.ARM_CELLS}
+    for _key, label, _kw in account_sim.ARM_CELLS:
+        assert label in out
+    assert "DISCLOSURE, NOT A CRITERION" in out
+    assert "The verdict is the HEADLINE cell's" in out
+    assert "reproduces the verdict's own A1-A6: yes" in out
+    # No verdict vocabulary may appear here — the grid grades, it never labels.
+    assert "FEASIBLE" not in out
+
+
+def test_arm_criteria_grid_says_so_when_it_disagrees_with_the_verdict(capsys):
+    """The cross-check is a check, not a decoration."""
+    st = make_settings()
+    b2 = _crit_sim(_CRIT_ROWS)
+    arms = {key: _crit_sim(_CRIT_ROWS) for key, _label, _kw in account_sim.ARM_CELLS}
+    headline = dict.fromkeys(CRITERIA_KEYS, False)
+    account_sim.print_arm_criteria(arms, b2, "TEST", st, headline)
+    out = capsys.readouterr().out
+    assert "NO — the two disagree" in out
+
+
+def test_arm_cells_are_the_table_the_arms_section_simulates():
+    """One tuple names the cells, so the ARMS table and the criteria grid can
+    never label the same cell differently."""
+    keys = [k for k, _l, _kw in account_sim.ARM_CELLS]
+    assert keys == ["RF1", "RF2", "DF1", "DF2"]
+    knobs = {k: kw for k, _l, kw in account_sim.ARM_CELLS}
+    assert knobs["RF1"] == dict(downsize=False, take_floor=True)
+    assert knobs["DF2"] == dict(downsize=True, take_floor=False)
+
+
+# ── 0b-iv: ARM H across the drawdown windows ────────────────────────────────
+
+def test_in_window_excludes_the_peak_and_includes_the_trough():
+    dd = account_sim.Drawdown(peak_sess=date(2025, 1, 10),
+                              trough_sess=date(2025, 4, 9), depth=-1.0,
+                              recovered=None, n_exits=0)
+    assert not account_sim._in_window("2025-01-10", dd)     # the peak itself
+    assert account_sim._in_window("2025-01-13", dd)
+    assert account_sim._in_window("2025-04-09", dd)         # the trough
+    assert not account_sim._in_window("2025-04-10", dd)
+
+
+def test_in_window_from_a_flat_start_has_no_lower_bound():
+    dd = account_sim.Drawdown(peak_sess=None, trough_sess=date(2025, 1, 9),
+                              depth=-1.0, recovered=None, n_exits=0)
+    assert account_sim._in_window("2024-12-31", dd)
+    assert not account_sim._in_window("2025-01-10", dd)
+
+
+def test_hedge_drawdown_block_counts_fills_and_refusals_per_window(capsys):
+    st = make_settings()
+    dd = account_sim.Drawdown(peak_sess=date(2025, 1, 10),
+                              trough_sess=date(2025, 4, 9), depth=-5_000.0,
+                              recovered=None, n_exits=3)
+    inside = _pos(_rec(date="2025-02-03"), hedge=True, dollars=120.0,
+                  exit_sess=date(2025, 2, 10))
+    outside = _pos(_rec(date="2025-09-01"), hedge=True, dollars=-60.0,
+                   exit_sess=date(2025, 9, 8))
+    signal = _pos(_rec(date="2025-02-04"), dollars=400.0,
+                  exit_sess=date(2025, 2, 11))
+    sleeved = Sim(cfg=_cfg(), taken=[signal, inside, outside],
+                  ledger=Ledger(25_000.0))
+    sleeved.hedge_skipped = [(_rec(date="2025-03-03"), "caps"),
+                             (_rec(date="2025-08-03"), "caps")]
+    sleeved.census["hedge_rejected"] = 2
+    head = Sim(cfg=_cfg(), taken=[signal], ledger=Ledger(25_000.0))
+    account_sim.print_hedge_drawdowns(sleeved, head, "TEST", st, [dd])
+    out = capsys.readouterr().out
+    assert "DISCLOSURE, NOT A CRITERION" in out
+    # One fill and one refusal fall inside the window; the others do not.
+    assert "  DD1  2025-01-10..2025-04-09" in out
+    window = [ln for ln in out.splitlines() if ln.startswith("  DD1 ")][0]
+    assert window.split()[-3:] == ["1", "1", "120"]
+    assert "ALL  the whole run" in out
+    assert "refusals reconcile with the census: 2 == 2" in out
+
+
+def test_hedge_drawdown_block_says_so_with_no_sleeved_run(capsys):
+    st = make_settings()
+    account_sim.print_hedge_drawdowns(None, _dd_sim([10]), "TEST", st, [])
+    assert "no sleeved run for this population" in capsys.readouterr().out
+
+
+# ── the ARM H sleeve export ─────────────────────────────────────────────────
+
+def test_sleeve_rows_carry_the_fills_and_the_cap_refusals():
+    sleeve = _pos(_rec(), hedge=True)
+    signal = _pos(_rec())
+    sim = Sim(cfg=_cfg(), taken=[signal, sleeve], ledger=Ledger(25_000.0))
+    sim.hedge_skipped = [(_rec(ticker="TSLA"), "caps")]
+    rows = account_sim.sleeve_rows("primary", "RF1", sim)
+    assert [r["status"] for r in rows] == ["hedge", "skipped:hedge_caps"]
+    assert all(set(r) == set(POSITIONS_CSV_COLUMNS) for r in rows)
+    assert rows[0]["contracts"] == sleeve.contracts
+    assert rows[1]["ticker"] == "TSLA"
+    assert rows[1]["reject_reason"] == "hedge_caps"
+    assert rows[1]["contracts"] is None          # it was never opened
+    assert all(r["hedge"] for r in rows)
+
+
+def test_sleeve_rows_never_carry_a_signal_position():
+    sim = Sim(cfg=_cfg(), taken=[_pos(_rec())], ledger=Ledger(25_000.0))
+    assert account_sim.sleeve_rows("primary", "RF1", sim) == []
+
+
+def test_sleeve_artifact_follows_the_positions_stem_per_arm():
+    for compounding, structure in itertools.product([False, True], repeat=2):
+        stem, _arm = positions_artifact(compounding=compounding,
+                                        structure_universe=structure)
+        sleeve = account_sim.sleeve_artifact(compounding=compounding,
+                                             structure_universe=structure)
+        assert sleeve != stem
+        assert sleeve == stem.replace("account_sim-positions", "account_sim-sleeve")
+        assert sleeve.endswith("-latest.csv")
+    # Every arm still gets a distinct file.
+    names = {account_sim.sleeve_artifact(compounding=c, structure_universe=s)
+             for c, s in itertools.product([False, True], repeat=2)}
+    assert len(names) == 4
+
+
+def test_write_positions_csv_writes_the_sleeve_rows_through_the_same_writer(tmp_path):
+    sim = Sim(cfg=_cfg(), taken=[_pos(_rec(), hedge=True)],
+              ledger=Ledger(25_000.0))
+    sim.hedge_skipped = [(_rec(), "caps")]
+    path = tmp_path / "account_sim-sleeve-latest.csv"
+    n = write_positions_csv(path, {"primary": sim}, arm="RF1",
+                            rows_fn=account_sim.sleeve_rows)
+    assert n == 2
+    with open(path) as f:
+        got = list(csv.DictReader(f))
+    assert [r["status"] for r in got] == ["hedge", "skipped:hedge_caps"]
+    assert list(got[0]) == POSITIONS_CSV_COLUMNS
+
+
+def test_simulate_records_the_dates_behind_the_hedge_rejected_count():
+    """`census["hedge_rejected"]` is a bare count; the rows behind it are what
+    the per-window table and the sleeve CSV need."""
+    sim = Sim(cfg=_cfg())
+    assert sim.hedge_skipped == []
+    # Default (no sleeve) runs never touch it.
+    marks = [2.00] * _grid_len()
+    rec = {"t": Trade(_hand_trade(marks, 1)), "credit": False,
+           "structure": "long_call", "mech_cell": "PROD", "date": "2025-01-06",
+           "ticker": "TEST", "max_loss_per_contract": 200.0, "delta": 0.5}
+    out = simulate([("2025-01-06", [rec])], _cfg(), cache=new_cache())
+    assert out.hedge_skipped == []
+
+
+# ── the two wired disclosure layers (0c and the path bootstrap) ─────────────
+#
+# The clauses live in `lib/capital_adequacy.py` and `lib/path_bootstrap.py` and
+# are tested there. What is pinned here is the WIRING: which cuts the report
+# prints, that both are outcome-blind, and that the bootstrap's own caveats
+# survive into the report rather than being summarised away.
+
+def test_capital_adequacy_prints_both_cuts_and_names_each_population(capsys):
+    st = make_settings()
+    pop = [_rec(date="2025-01-06", structure="bull_call_spread",
+                max_loss_per_contract=400.0),
+           _rec(date="2025-01-06", structure="short_put",
+                max_loss_per_contract=30_000.0)]
+    # The ladder-eligible cut is the flattened ordered_by_day lists — here the
+    # spread alone, which is what the walk would have considered.
+    day_lists = [("2025-01-06", [pop[0]])]
+    account_sim.print_capital_adequacy(pop, day_lists, "TEST", st)
+    out = capsys.readouterr().out
+    assert "[TEST — the loaded book] CAPITAL ADEQUACY" in out
+    assert "[TEST — ladder-eligible candidates] CAPITAL ADEQUACY" in out
+    assert "CUT 1 of 2" in out and "CUT 2 of 2" in out
+    assert "plays 2 " in out and "plays 1 " in out
+    # Each cut states its OWN population; neither claims to be every emitted
+    # play, and the eligible cut never claims to precede ranking.
+    assert "Every play of the LOADED book" in out
+    assert "The LADDER-ELIGIBLE candidates" in out
+    assert "every emitted play" not in out
+    assert out.count("before ranking or sizing") == 0
+    assert "selects on a rule and never on a result." in out
+    # The two capital questions are cross-referenced, not conflated.
+    assert "NOT the CAPITAL LADDER section" in out
+    # The REGISTERED rungs, never the post-hoc ones.
+    for cap in st.capital_ladder:
+        assert f"${cap:>10,.0f}" in out
+
+
+def test_capital_adequacy_states_the_rows_the_loader_dropped(capsys):
+    """The denominator is stated, and the shares are labelled a FLOOR — a
+    dropped row is one that could not be priced through its exit, which is a
+    condition on post-entry data and plausibly on cost."""
+    st = make_settings()
+    pop = [_rec(max_loss_per_contract=400.0)]
+    diag = {"n_excluded_no_path_or_method": 12,
+            "n_trade_construction_failed": 3,
+            "n_proxy_excluded_non_exact": 7,
+            "n_dup_dropped": 1,
+            "counts_by_source": {"real": 10, "tweak": 5, "bs": 9},
+            "include_bs": False}
+    account_sim.print_capital_adequacy(pop, [("2025-01-06", pop)], "TEST", st,
+                                       diag)
+    out = capsys.readouterr().out
+    assert "Before this census, the LOADED book had already dropped" in out
+    assert "    12  no usable price path or method" in out
+    assert "     3  trade construction failed" in out
+    assert "     7  proxy debit rows failing exact calibration" in out
+    assert "     1  duplicates" in out
+    assert "     9  bs_options_hist (model-priced) rows" in out
+    assert "FLOOR" in out
+
+
+def test_capital_adequacy_omits_the_exclusion_line_without_a_diag(capsys):
+    st = make_settings()
+    pop = [_rec(max_loss_per_contract=400.0)]
+    account_sim.print_capital_adequacy(pop, [("2025-01-06", pop)], "TEST", st)
+    out = capsys.readouterr().out
+    assert "had already dropped" not in out
+
+
+def test_capital_adequacy_keeps_bs_rows_out_of_the_drop_line_when_included(capsys):
+    st = make_settings()
+    pop = [_rec(max_loss_per_contract=400.0)]
+    diag = {"n_excluded_no_path_or_method": 2,
+            "counts_by_source": {"real": 1, "tweak": 0, "bs": 9},
+            "include_bs": True}
+    account_sim.print_capital_adequacy(pop, [("2025-01-06", pop)], "TEST", st,
+                                       diag)
+    out = capsys.readouterr().out
+    assert "     2  no usable price path or method" in out
+    assert "bs_options_hist" not in out
+
+
+def test_capital_adequacy_uses_the_registered_ladder_not_the_posthoc_one(capsys):
+    st = make_settings(capital_ladder=(25_000.0,),
+                       capital_ladder_posthoc=(75_000.0, 100_000.0))
+    pop = [_rec(max_loss_per_contract=400.0)]
+    account_sim.print_capital_adequacy(pop, [("2025-01-06", pop)], "TEST", st)
+    out = capsys.readouterr().out
+    assert "$    25,000" in out
+    assert "75,000" not in out and "100,000" not in out
+
+
+def test_path_bootstrap_block_runs_both_cells_and_keeps_the_caveats(capsys):
+    st = make_settings()
+    arms = {key: _crit_sim(_CRIT_ROWS) for key, _l, _kw in account_sim.ARM_CELLS}
+    account_sim.print_path_bootstrap(arms, "TEST", st)
+    out = capsys.readouterr().out
+    assert "DISCLOSURE, NOT A CRITERION" in out
+    # The headline and F2 only — D is not bootstrapped.
+    assert "(R, F1)  HEADLINE" in out and "(R, F2)" in out
+    assert "(D, F1)" not in out and "(D, F2)" not in out
+    assert f"seed {account_sim.BOOTSTRAP_SEED}" in out
+    assert f"{account_sim.BOOTSTRAP_N} resamples" in out
+    # The module's own caveats must reach the report verbatim in substance.
+    assert "NOT re-simulated" in out
+    assert "noisy order statistic" in out
+    assert "NO DECISION RULE" in out
+    for banned in ("annualis", "Sharpe", "time to recover"):
+        assert banned not in out
+
+
+def test_path_bootstrap_block_is_reproducible_from_the_printed_seed(capsys):
+    """The seed and resample count are printed because they are what makes the
+    band checkable; a run that did not reproduce would make them decoration."""
+    st = make_settings()
+    arms = {key: _crit_sim(_CRIT_ROWS) for key, _l, _kw in account_sim.ARM_CELLS}
+    account_sim.print_path_bootstrap(arms, "TEST", st)
+    first = capsys.readouterr().out
+    account_sim.print_path_bootstrap(arms, "TEST", st)
+    assert capsys.readouterr().out == first
+
+
+# ── the DDn ids are ONE enumeration (code review I3) ────────────────────────
+
+def test_listed_drawdowns_ids_match_between_the_table_and_the_hedge_block(capsys):
+    """A window labelled DDn in the ARM H block must be the DDn the table
+    printed. Both read `listed_drawdowns`, so a drawdown below the listing
+    floor gets an id in NEITHER."""
+    st = make_settings()
+    # Three episodes; only two clear the 5%-of-$25k floor.
+    sim = _dd_sim([4_000, -9_000, 9_000, -2_000, 2_000, -200, 400])
+    dds = account_sim.drawdowns(sim)
+    listed = account_sim.listed_drawdowns(dds, sim.cfg.capital)
+    assert len(dds) == 3 and len(listed) == 2
+    assert [i for i, _d in listed] == [1, 2]
+
+    account_sim.print_drawdowns(sim, "TEST", st, dds)
+    table = capsys.readouterr().out
+    account_sim.print_hedge_drawdowns(
+        Sim(cfg=_cfg(), taken=[], ledger=Ledger(25_000.0)), sim, "TEST", st, dds)
+    hedge = capsys.readouterr().out
+
+    ids_table = [ln.split()[0] for ln in table.splitlines()
+                 if ln.startswith("  DD") and "is the A3 figure" not in ln]
+    ids_hedge = [ln.split()[0] for ln in hedge.splitlines()
+                 if ln.startswith("  DD")]
+    assert ids_table == ["DD1", "DD2"]
+    assert ids_hedge == ids_table
+    # …and each id names the same window in both blocks.
+    for i, d in listed:
+        assert f"{d.peak_label}..{d.trough_sess}" in hedge
+
+
+def test_hedge_block_says_so_when_no_drawdown_clears_the_floor(capsys):
+    st = make_settings()
+    sim = _dd_sim([100, -200, 300])          # 0.8% of $25k: below the floor
+    dds = account_sim.drawdowns(sim)
+    assert dds and not account_sim.listed_drawdowns(dds, sim.cfg.capital)
+    account_sim.print_hedge_drawdowns(
+        Sim(cfg=_cfg(), taken=[], ledger=Ledger(25_000.0)), sim, "TEST", st, dds)
+    out = capsys.readouterr().out
+    assert "no listed drawdown window to count across." in out
+    assert "  DD" not in out
+
+
+def test_hedge_block_refuses_when_the_refusal_rows_and_the_census_disagree():
+    st = make_settings()
+    sleeved = Sim(cfg=_cfg(), taken=[], ledger=Ledger(25_000.0))
+    sleeved.hedge_skipped = [(_rec(), "caps")]
+    sleeved.census["hedge_rejected"] = 4          # two records of one event
+    with pytest.raises(RuntimeError, match="disagree with the census"):
+        account_sim.print_hedge_drawdowns(sleeved, _dd_sim([10]), "TEST", st, [])
+
+
+# ── drawdown edge: a plateau at the peak ────────────────────────────────────
+
+def test_drawdown_peak_is_the_LAST_session_at_the_peak_level():
+    """A flat session at the running peak extends the peak rather than opening
+    a drawdown, so the peak date printed is the LAST session at that level —
+    the latest moment the book was whole."""
+    sim = _dd_sim([100, 0, 0, -300, 400])
+    dd = account_sim.drawdowns(sim)[0]
+    assert dd.peak_sess == date(2025, 1, 8)      # the third session, not the first
+    assert dd.depth == pytest.approx(-300)
+    assert dd.n_exits == 1                        # only the -300 exit is inside
+    assert dd.recovered == date(2025, 1, 10)
+
+
+# ── criteria on an empty book ───────────────────────────────────────────────
+
+def test_criteria_scores_on_an_empty_book_matches_what_evaluate_prints(capsys):
+    """An empty population must not crash either path, and the two must still
+    agree — the disclosure grid scores arm cells that CAN come back empty."""
+    st = make_settings()
+    empty = Sim(cfg=_cfg(), taken=[], ledger=Ledger(25_000.0))
+    b2 = _crit_sim(_CRIT_ROWS)
+    scores = account_sim.criteria_scores(empty, b2, st)
+    res = account_sim.evaluate(empty, b2, "TEST", st)
+    out = capsys.readouterr().out
+    assert {k: bool(res[k]) for k in CRITERIA_KEYS} == \
+           {k: bool(scores[k]) for k in CRITERIA_KEYS}
+    assert bool(scores["A1"]) is False and bool(scores["A6"]) is False
+    assert "no debit rows" in out
+
+
+# ── print_hedge returns the sim the sleeve export is written from ───────────
+
+def test_print_hedge_returns_the_sleeved_sim_that_feeds_the_csv(
+        monkeypatch, capsys):
+    """The whole path in one test: print_hedge runs the sleeve, returns THAT
+    Sim, and its rows are what the sleeve CSV and the window block read."""
+    st = make_settings()
+    sleeve_rec = _rec(ticker="SPY", structure="bear_put_spread")
+    refused_rec = _rec(ticker="TSLA", structure="bear_put_spread")
+
+    def fake_simulate(day_lists, cfg, bear_by_day=None, cache=None, **kw):
+        sim = Sim(cfg=cfg, ledger=Ledger(cfg.capital))
+        sim.taken.append(_pos(_rec(ticker="NVDA")))
+        if cfg.hedge:
+            sim.taken.append(_pos(sleeve_rec, hedge=True))
+            sim.hedge_skipped = [(refused_rec, "caps")]
+            sim.census["hedge_rejected"] = 1
+        return sim
+
+    monkeypatch.setattr(account_sim, "simulate", fake_simulate)
+    monkeypatch.setattr(account_sim, "session_series",
+                        lambda s: {date(2026, 3, 11): dict(reserved=1.0, gross=1.0,
+                                                           net=1.0, n=1)})
+    sleeved = account_sim.print_hedge([], {}, 25_000.0, "TEST", st, {})
+    capsys.readouterr()
+    assert sleeved is not None and sleeved.cfg.hedge
+    rows = account_sim.sleeve_rows("primary", "RF1-H", sleeved)
+    assert [r["ticker"] for r in rows] == ["SPY", "TSLA"]
+    assert [r["arm"] for r in rows] == ["RF1-H", "RF1-H"]
+    # The same Sim answers the window block without raising the census check.
+    account_sim.print_hedge_drawdowns(sleeved, sleeved, "TEST", st, [])
+    assert "refusals reconcile with the census: 1 == 1" in capsys.readouterr().out
+
+
+def test_print_hedge_returns_none_when_no_session_was_occupied(
+        monkeypatch, capsys):
+    """The documented None is reachable, and both callers guard on it."""
+    st = make_settings()
+    monkeypatch.setattr(account_sim, "simulate",
+                        lambda *a, **kw: Sim(cfg=_cfg(hedge=True),
+                                             ledger=Ledger(25_000.0)))
+    monkeypatch.setattr(account_sim, "session_series", lambda s: {})
+    assert account_sim.print_hedge([], {}, 25_000.0, "TEST", st, {}) is None
+    capsys.readouterr()

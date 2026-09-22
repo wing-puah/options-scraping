@@ -5,10 +5,18 @@ contract, not from the market or from concentration.** Nothing ships. This
 file is a plan: it orders the work, names what is ruled out, and leaves the
 choice of route to the operator.
 
+**Phase 0 ran on 2026-09-21.** So did steps 1, 3 and 5. The registered cap
+cell prints `FEASIBLE` and the verdict on record belongs to the cell the
+tracked config carries. What each step printed is in the
+[entry](current.md#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not);
+this file keeps the design and the queue.
+
 _Era v4 · exports 2026-09-19 · report `backtests/study_output/account_sim-latest.txt`
-(re-run 2026-09-20 12:15, identical to the 2026-09-08 print) ·
+(re-run 2026-09-21 16:51 with the disclosure blocks; the figures below are
+unchanged from the 2026-09-08 print) ·
 [pre-registration](pre-registrations/f4_deployment/account_sim.md) · evidence
-folder `backtests/feasibility_plan_20260920/` (gitignored)._
+folders `backtests/feasibility_plan_20260920/` and
+`backtests/feasibility_plan_20260921/` (both gitignored)._
 
 Written 2026-09-20 from a nine-agent workflow: five investigators, three
 planners, one critic. Every figure marked _exploratory_ came from a scratch
@@ -68,7 +76,12 @@ has never met the book's second-deepest drawdown.
 **A registered arm already clears the bar and has never been graded.** Arm F2
 refuses any pick whose one-contract max loss exceeds the budget. The
 registration calls the F1-against-F2 contrast "the study's central object".
-The report prints F2's row on every run and scores it against nothing.
+The report printed F2's row on every run and scored it against nothing.
+
+Step 0b-iii scored it on 2026-09-21, and F2 is weaker than this plan hoped. On
+the tracked cap cell it meets every criterion on PRIMARY and fails A1, A5 and
+A6 on SECONDARY. On the registered cell it fails A2 at 53% of B2. The graded
+table is in the [entry](current.md#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not).
 
 | Arm | n | Dates | Total | meanR | Max drawdown |
 |---|---|---|---|---|---|
@@ -88,6 +101,12 @@ operator raised `caps.net` to 2.50 on 2026-08-13
 ([record](archive/13-account-sim-and-calendar-hedge.md)). The registration
 carries no note of that change. The 1.50 cell is already known to print 20.3%
 on 142 positions, so it must be handled as conformance, never as a fix.
+
+Step 1 ran that cell on 2026-09-21. It prints `>>> FEASIBLE <<<`, meeting
+every criterion on both populations. That figure was already in the cap grid,
+so it is not new evidence — what is new is that the verdict on record belongs
+to an unregistered cap cell. Which cell the tracked config should carry is
+step 2, and it is the operator's.
 
 **Other findings.**
 
@@ -134,11 +153,30 @@ on 142 positions, so it must be handled as conformance, never as a fix.
 | Swap single names for cheaper ETFs | It changes what is traded. The edge would have to be re-established, and the change is a prompt version bump. |
 | A size grid for the bear sleeve | The sleeve is refused by the caps on 50 dates. Availability binds, not size. |
 | An entry-side regime gate | The losing positions were opened while the regime read bull. |
+| A drawdown-keyed sizing throttle, Turtle-ladder or [`exit_drawdown` ARM D](arm-index.md#exit_drawdown) shape | Eighteen exploratory configurations closed 2026-09-22: PRIMARY realized maxDD moves 35.0–35.7% against a 35.0% baseline, SECONDARY flips sign by basis, and the faithful contracts-only version is nearly inert at this capital ([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)). |
 
 ## The plan
 
 Steps run in order. A step marked _registration_ does not start until its
 pre-registration is committed.
+
+**What has run.** Every row below is DONE, on 2026-09-21, and recorded in the
+[entry](current.md#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not).
+The step tables that follow keep the design; this one says what came back.
+
+| Step | Result |
+|---|---|
+| 0a | No window row is a pre-fill or wrong-strike row. Four DD1 exits still cannot be re-priced offline, and a cache pull added no files. _exploratory_ |
+| 0b-i | Marked to market, PRIMARY reads 42.1% against the realized 35.0%. Every position reconciles |
+| 0b-ii | Four PRIMARY drawdowns past 5%, five on SECONDARY, one of which never recovers |
+| 0b-iii | F2's first graded read. It meets every criterion on PRIMARY and fails A1, A5 and A6 on SECONDARY |
+| 0b-iv | Availability binds the sleeve, not size: 9 fills against 15 cap refusals inside SECONDARY's second drawdown |
+| 0b-v | Every dollar-stop exit lost more than the stop, on both populations. `cost_total` covers 4 of 211 rows |
+| 0c | At $25,000 one contract fits 39% of ladder-eligible candidates. Half fit at $34,600 |
+| 0d | `selection_order` prints `ORDERING-IS-NOISE` on the current era |
+| 1 | The registered (0.25, 1.50) cell prints `>>> FEASIBLE <<<`, meeting every criterion on both populations |
+| 3 | The realized 35.0% sits at the 71st–82nd percentile of its own resampled paths. No decision rule attaches |
+| 5 | v3 prints `FEASIBILITY NOT CONFIRMED`, A3 met at 17.4%. It does not reproduce the v4 failure |
 
 ### Phase 0 — print what the study already knows
 
@@ -184,11 +222,13 @@ waits on the whole-book re-price in *Waiting on the operator* items 6–9.
 
 The step 6 registration carries three guards:
 
-- **A trial ledger.** More than 50 configurations have already been scored
+- **A trial ledger.** More than 70 configurations have now been scored
   against the 25% bar on this one path: four knob values, seven capital rungs,
-  the 16-cell cap grid, four arm cells on two populations, and this
-  investigation's sweeps. Each is listed and marked as seen. New arms on this
-  era are capped at three.
+  the 16-cell cap grid, four arm cells on two populations, this
+  investigation's sweeps, and the 18 Turtle-throttle reads closed 2026-09-22
+  ([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)).
+  Each is listed and marked as seen. New arms on this era are capped at
+  three.
 - **A deflated bar.** A candidate must put its drawdown under 25% at the median
   of its own block-bootstrap paths, not only on the realized path (Bailey and
   López de Prado, [SSRN 2460551](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2460551)).
@@ -213,10 +253,10 @@ None is recommended yet. Phase 0 and Phase 1 decide which are real.
 
 | Route | What it means | Evidence today | Cost or risk |
 |---|---|---|---|
-| A. Trade only what the budget affords (F2) | Skip a pick whose one contract risks more than 2% | Registered arm; 8.7% PRIMARY, 10.1% SECONDARY; _exploratory_ A1, A2, A3, A6 met on PRIMARY | −39% dollars, 107 → 82 dates; A4 and A5 unknown; A1 fails on SECONDARY's thin 2026 slice |
-| B. Return to the registered net cap | `caps.net` 2.50 → 1.50 | 20.3% on 142 positions | A2, A5 and A6 unknown; it is the operator's 2026-08-13 choice to reverse |
+| A. Trade only what the budget affords (F2) | Skip a pick whose one contract risks more than 2% | Registered arm, graded 2026-09-21: every criterion met on PRIMARY at the tracked cap cell; 8.7% there, 10.1% SECONDARY | −39% dollars, 107 → 82 dates; A4 and A5 now known and A5 is met; A1, A5 and A6 fail on SECONDARY; A2 fails at 53% on the registered cell |
+| B. Return to the registered net cap | `caps.net` 2.50 → 1.50 | Run 2026-09-21: `>>> FEASIBLE <<<`, every criterion met on both populations, 20.3% on 142 positions | Marked to market it reads 25.9% PRIMARY and 44.8% SECONDARY; 8–12% of resampled PRIMARY paths pass 25%; it is the operator's 2026-08-13 choice to reverse |
 | C. Re-strike to fit the budget (Arm W) | Narrower spreads, same tickers | None yet | Needs a scrape and a prompt or deploy-card change |
-| D. More capital | Removes the floor | Fractional limit 23.9% PRIMARY, 26.6% SECONDARY | The full book still fails at any capital |
+| D. More capital | Removes the floor | Fractional limit 23.9% PRIMARY, 26.6% SECONDARY. Outcome-blind adequacy: 39% of ladder-eligible candidates fit at $25,000, half at $34,600, 90% at $87,750 | The full book still fails at any capital, and the adequacy shares are a floor |
 | E. Lower risk or accept the drawdown | `risk_per_trade_pct` down, or A3 accepted | 18.0% at 1.25% | The knob is a tighter stop the study never tested as an exit rule |
 
 ## What is unresolved
@@ -224,7 +264,9 @@ None is recommended yet. Phase 0 and Phase 1 decide which are real.
 - **F2's A2 denominator.** The unconstrained baseline B2 keeps the one-contract
   floor, so F2 is compared with a book that still takes the picks it refuses.
   Whether that makes A2 too easy or too hard is not settled. The default is
-  the registered clause, unchanged.
+  the registered clause, unchanged. The 2026-09-21 grading did not settle it
+  either, and it now matters more: A2 is the clause F2 fails on the registered
+  cap cell.
 - **Running a new arm is not cheap.** `take_floor` and `downsize` are reachable
   only through the arms table. There is no flag or config key, and a
   non-default `--config` overwrites the default export and the site page.
@@ -248,6 +290,32 @@ None is recommended yet. Phase 0 and Phase 1 decide which are real.
 
 ## Next
 
-[Item 5](next-steps.md#waiting-on-the-operator) stays open and now points
-here. The first work is steps 0a and 0b. Neither needs a registration, and
-neither changes a number the study already prints.
+[Item 5](next-steps.md#waiting-on-the-operator) stays open and still points
+here. Four things remain.
+
+**Step 2 — the operator's.** Fold the 2026-08-13 cap change and the 2026-08-14
+verdict wording into the registration as `Resolved at build` tags, and decide
+which cap cell the tracked config carries. Nothing below starts cleanly until
+that is settled, because it fixes which cell the study's verdict describes.
+
+**Step 4 — not done.** The deploy card still has no one-contract affordability
+line. It is a code change on the production tier: a new column in
+`RECOMMENDATION_COLUMNS`, a matching header on the live Recommendations tab,
+and an entry in `docs/recommendations-reference.md`. An attention flag, never a
+verdict.
+
+**Phase 3 — still registration-gated, and its first question has changed.**
+With the registered cell meeting every criterion on its registered basis, the
+first question is whether any new arm is needed at all. Answer that before
+writing step 6's pre-registration. The three guards below it are unchanged, and
+the trial ledger still binds. More than 70 configurations have been scored
+against the 25% bar on this one path: the 2026-09-21 run added the
+registered cap cell and the four arm cells, and the 2026-09-22
+Turtle-throttle exploratory added 18 more, all closed unregistered
+([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)).
+
+**Phase 4 — served.** The operator card is this file plus the
+[2026-09-21 entry](current.md#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not),
+which together carry A3 on both bases, the drawdown table, the bootstrap band,
+the four arm grades, the capital-adequacy curve and the corrected reading of
+the risk knob. No separate card is owed.

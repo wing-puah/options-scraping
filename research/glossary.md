@@ -187,6 +187,13 @@ equity curve (`hedge_sizing.max_drawdown`, reused by `account_sim.py`),
 booked on the session a position exits. Open positions aren't marked to
 market on this curve, so maxDD *understates* true intra-position drawdown.
 
+### Mark-to-market basis
+the same book marked on every session a position
+was open (`lib/mtm_curve.py::book_curves`, target `position_dollars`),
+rather than booked on the session it exits. `account_sim` prints it as a
+DISCLOSURE beside the realized curve A3 is scored on. A drawdown read on
+one basis says nothing about the other, and no criterion reads this one.
+
 <a id="mfe"></a>
 ### MFE / MAE (Max Favorable / Adverse Excursion)
 the best (MFE) or
@@ -358,12 +365,13 @@ entry_underlying`, a position's dollar-equivalent exposure to the
 underlying moving $1. Signed, so long and short exposure offset.
 
 ### Per-position cap / net cap
-`caps.per_position` (0.25× equity) and
-`caps.net` (1.50× equity) in `config/account-sim.yml`: the max absolute
-delta-notional one position, or the whole open book's net delta-notional,
-may reach. `grids.per_position` / `grids.net` sweep other values for a
-monotonicity check ONLY — no grid cell's P&L may be adopted as a
-recommendation.
+`caps.per_position` and `caps.net` in
+`config/account-sim.yml`: the max absolute delta-notional one position,
+or the whole open book's net delta-notional, may reach. The registration
+names (0.25, 1.50) × equity as the headline cell; the tracked file has
+carried `caps.net` 2.50 since 2026-08-13. `grids.per_position` /
+`grids.net` sweep other values for a monotonicity check ONLY — no grid
+cell's P&L may be adopted as a recommendation.
 
 ### Reserved capital
 dollars set aside for an open position's
@@ -375,6 +383,15 @@ open/close.
 `risk_contracts()`: `max(1, budget /
 max_loss_per_contract)` — sizes so a position's worst-case structural
 loss consumes the risk budget, never the premium alone.
+
+### Capital adequacy
+the outcome-blind census (`lib/capital_adequacy.py`):
+the share of the LOADED book's plays whose ONE contract fits a given
+capital's risk budget. It reads no P&L and no exit reason, so it answers
+"what capital would this book need" and never "what would it have
+earned". Distinct from the capital ladder, which simulates each rung and
+scores it. The loader has already dropped the unpriceable rows, so every
+share it prints is a floor.
 
 ### Utilisation / occupancy
 `session_series()` reports reserved

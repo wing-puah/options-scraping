@@ -55,7 +55,7 @@ glossary; arm labels are study-local, so each is given with its study.
 | `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cut 2 | repeats that had already moved against the play clear all six, at −0.2579 | [record](study-results/f1_selection/emission_timing.md) |
 | `bear_rewrap` | [long_diag](arm-index.md#bear_rewrap) | 4 of 5 again, failing the year clause; the P1 portfolio check is met on no substitution | [record](study-results/f3_structure/bear_rewrap.md) |
 | `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | `NOT met`: `sl .50` Δ=+0.030, CI [−0.003, +0.061] | [record](study-results/f1_selection/bear_arm.md) |
-| `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000`; A1 and A2 hold at every rung | [entry](#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3), [plan](account-sim-feasibility-plan.md) |
+| `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000` on the tracked cap cell; the registered cell prints `FEASIBLE` | [entry](#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not), [plan](account-sim-feasibility-plan.md) |
 | `exit_switch_structure_study` | Q1 and Q2 | `STAYS GATED`, now failing four of six; Q2 reads the shipped BEAR_HE clause at Δ=−4.5205, 47% retained | [record](study-results/f2_management/exit_switch_structure_study.md) |
 
 Two of these bear on shipped rules. The `bear_arm` rollback census fires all
@@ -212,6 +212,293 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-09-22 — account_sim — a Turtle drawdown throttle is inert at $25,000, closed unregistered
+
+A Turtle-style position-size throttle does not shrink `account_sim`'s
+drawdown at $25,000, and eighteen exploratory reads close the question.
+Nothing ships and nothing is registered.
+
+_Era v4. Exports 2026-09-19. Tracked cell: 211 PRIMARY positions, 292
+SECONDARY. Registered cell: 142 PRIMARY, 206 SECONDARY. Exploratory scratch,
+not a study: `backtests/feasibility_plan_20260922/turtle_exploratory/run_turtle.py`
+→ `out.txt`, design memo `turtle_design_memo.md` (both gitignored). Plan:
+[account-sim-feasibility-plan.md](account-sim-feasibility-plan.md)._
+
+**In production.** Nothing changes. The shipped ladder
+([§1](../docs/deployment-rules.md#s1)) and the exit profile
+([§5](../docs/deployment-rules.md#s5)) stay as they are. No arm slot is
+spent, because nothing was registered.
+
+**Why this was tested.** [`exit_drawdown` ARM D](arm-index.md#exit_drawdown)
+is a flat ×0.5 sizing throttle on realized equity. Its one powered read
+already printed `SECONDARY-NULL`, $993 deeper than the shipped book.
+*Original Turtle Trading Rules* (Curtis Faith), Ch. 3 "Adjusting Trading
+Size," printed p. 17, describes a gentler step ladder that restores only at
+the year's starting equity, so this test asks whether ARM D's slower cousin
+fares any better.
+
+**The 18 configs.** Three mechanisms — contracts only (the faithful
+transcription), delta-cap scaling, and both together — run on two equity
+bases, mark-to-market and realized-on-close, across the tracked and
+registered cap cells and both populations. Eighteen reads in total, on the
+trial ledger below.
+
+| Cell | Variant | Basis | PRIMARY realized maxDD |
+|---|---|---|---|
+| tracked 0.25/2.50 | baseline | – | 35.0% |
+| tracked 0.25/2.50 | T/ladder | mtm | 35.7% |
+| tracked 0.25/2.50 | T/ladder | realized | 35.7% |
+| tracked 0.25/2.50 | T/caps | mtm | 35.0% |
+| tracked 0.25/2.50 | T/caps | realized | 35.0% |
+| tracked 0.25/2.50 | T/both | mtm | 35.7% |
+| tracked 0.25/2.50 | T/both | realized | 35.7% |
+
+PRIMARY spans 35.0–35.7% across all six variants against a 35.0% baseline.
+The baseline's own noise band, already on record, runs 21.0% to 34.7%
+(block-bootstrap, block length 10).
+
+| Cell | Variant | Basis | SECONDARY realized maxDD | Δ vs 40.8% baseline |
+|---|---|---|---|---|
+| tracked 0.25/2.50 | T/ladder | mtm | 41.5% | +0.7 |
+| tracked 0.25/2.50 | T/ladder | realized | 41.5% | +0.7 |
+| tracked 0.25/2.50 | T/caps | mtm | 37.9% | −2.9 |
+| tracked 0.25/2.50 | T/caps | realized | 45.7% | +4.9 |
+| tracked 0.25/2.50 | T/both | mtm | 38.0% | −2.8 |
+| tracked 0.25/2.50 | T/both | realized | 53.5% | +12.7 |
+
+SECONDARY moves −2.9 to +12.7 points across the six variants and flips sign
+by basis, so the mechanism reads as unstable rather than protective.
+
+**The faithful rule — contracts only — is nearly inert.** Scaling contracts
+alone changes eight to seventeen rows per read on the tracked cell, out of
+211 PRIMARY and 292 SECONDARY taken positions. Most of the book cannot get
+smaller: 177 of 211 PRIMARY positions already sit at the one-contract floor
+([capital adequacy](glossary.md#capital-adequacy)).
+
+**Every criterion movement is a failure the throttle caused, never an
+improvement.**
+
+| Cell | Population | Variant, basis | Clause | Baseline | With throttle |
+|---|---|---|---|---|---|
+| tracked 0.25/2.50 | SECONDARY | T/both, realized | A1 edge survival | met | fails |
+| tracked 0.25/2.50 | SECONDARY | T/both, realized | A2 attrition | met | fails |
+| registered 0.25/1.50 | SECONDARY | T/ladder, realized | A3 no blowup | 23.5%, met | 25.4%, fails |
+
+The registered cell's own A3 bar is 25% of capital; the faithful ladder
+pushes SECONDARY's realized drawdown from 23.5% to 25.4%, over it.
+
+**Why, structurally.**
+
+- **The annual reference misses PRIMARY's second-deepest drawdown.** The
+  ladder log shows no step between the 2024-01-10 and 2025-01-16 REBASE
+  entries, on every tracked-cell variant, even though 2024-07-10 to
+  2024-08-26 is a 22.4%-of-capital drawdown by the study's own episode
+  table. A trigger keyed to the year's starting equity cannot fire inside a
+  year it never re-crosses.
+- **A late-window trigger buys one throttled entry.** The 2025-03-03 step
+  lands inside DD1 (2025-01-10 to 2025-04-09). Only one entry inside that
+  window falls after the step, before the window closes, costing $161
+  against baseline. Every contract-scaling variant agrees on that figure.
+- **Restoration lags for months.** Four of the six tracked-cell variants
+  restore to full size; the gap from the first throttle step runs four to
+  six months on those that do, and two never restore inside the run's
+  window. Size comes back only after the market's own recovery is already
+  underway.
+- **Cutting contracts frees cap headroom, so the book grows.** The clearest
+  case is the tracked cell's T/ladder read on the realized basis, where
+  taken positions rise from 211 to 217 even though the throttle is meant to
+  shrink risk.
+
+**Verdict.** Closed 2026-09-22. Nothing is registered and no arm slot is
+spent. The [feasibility plan](account-sim-feasibility-plan.md)'s trial
+ledger gains all eighteen configurations.
+
+**Next.** [`next-steps.md`](next-steps.md) item 5 notes the closure and
+still points at the [plan](account-sim-feasibility-plan.md). No new queue
+item opens.
+
+---
+
+## 2026-09-21 — account_sim — the registered cap cell prints FEASIBLE, the run on record does not
+
+The registered cap cell prints `>>> FEASIBLE <<<` on all six criteria. The
+`NOT FEASIBLE AT $25,000` verdict on record belongs to a different cell: since
+2026-08-13 the tracked config has carried a net cap the registration never
+named. Nothing ships. This is a conformance run, not a fix — the registration
+forbids adopting a cap value on its P&L, and reconciling the config with the
+registration is the operator's decision.
+
+_Era v4. Exports 2026-09-19, 598 real and 1,665 proxy rows over 193 dates.
+Reports: `backtests/study_output/account_sim-latest.txt` (the tracked cell) and
+`net150/account_sim-latest.txt` (the registered cell), both at git `d8713ce`
+with the working tree dirty. Evidence folder
+`backtests/feasibility_plan_20260921/` (gitignored). Plan:
+[account-sim-feasibility-plan.md](account-sim-feasibility-plan.md)._
+
+**In production.** Nothing changes. The shipped ladder
+([§1](../docs/deployment-rules.md#s1)) and the exit profile
+([§5](../docs/deployment-rules.md#s5)) are untouched, and no criterion,
+threshold, arm or verdict moved. The report gained seven disclosure blocks and
+the study gained two pure modules under `scripts/backtest_study/lib/`.
+
+**The two cap cells.** The registration fixes the headline at per-position 0.25
+× net 1.50. The tracked config carries 2.50, raised by the operator on
+2026-08-13 ([record](archive/13-account-sim-and-calendar-hedge.md)) with no
+`Resolved at build` note in the registration.
+
+| Cell, per-position × net | PRIMARY verdict | A3 realized | Positions | SECONDARY A3 |
+|---|---|---|---|---|
+| 0.25 × 2.50, the tracked config | `NOT FEASIBLE AT $25,000` | 35.0% | 211 | 40.8% |
+| 0.25 × 1.50, the registered cell | `FEASIBLE` | 20.3% | 142 | 23.5% |
+
+At the registered cell every criterion is met on both populations. At the
+tracked cell [A3](arm-index.md#account_sim) alone fails on both. The registered
+cell also turns the SECONDARY drawdown that never recovered into one that does:
+38.4% becomes 22.9%, recovered 2026-07-27.
+
+**Both bases.** A3's registered basis is realized on close, so every reading
+above is realized. On the
+[mark-to-market basis](glossary.md#mark-to-market-basis) — marked on every
+session a position was open — each book is deeper, and the registered cell's
+PRIMARY reading sits just above the bar. Every position reconciles on both
+bases, with no stale mark and no missing price path.
+
+| Book | Realized on close | Marked to market |
+|---|---|---|
+| Tracked cell, PRIMARY, 211 positions | 35.0% | 42.1% |
+| Tracked cell, SECONDARY, 292 | 40.8% | 67.0% |
+| Registered cell, PRIMARY, 142 | 20.3% | 25.9% |
+| Registered cell, SECONDARY, 206 | 23.5% | 44.8% |
+| v3 control, PRIMARY, 72 | 17.4% | 28.1% |
+| v3 control, SECONDARY, 160 | 25.1% | 35.2% |
+
+**The four arm cells, scored for the first time.**
+[F2](arm-index.md#account_sim) refuses any pick whose one contract costs more
+than the budget, and the registration calls the F1-against-F2 contrast the
+study's central object. Until this run the report tabulated F2's dollars
+against nothing.
+
+| Cap cell | Arm | PRIMARY | SECONDARY |
+|---|---|---|---|
+| 2.50 | (R, F1) headline | A3 fails | A3 fails |
+| 2.50 | (R, F2) | six of six met | A1, A5, A6 fail |
+| 2.50 | (D, F1) | A3 fails | A3 fails |
+| 2.50 | (D, F2) | A5 fails | A1, A5, A6 fail |
+| 1.50 | (R, F1) headline | six of six met | six of six met |
+| 1.50 | (R, F2) | A2 fails at 53% | A1, A2, A6 fail |
+| 1.50 | (D, F1) | six of six met | A3, A5 fail |
+| 1.50 | (D, F2) | A5 fails | A1, A5, A6 fail |
+
+F2 is weaker than the plan hoped. Its best reading is the tracked cell's
+PRIMARY, where it meets every criterion on 137 positions with
+[A2](arm-index.md#account_sim) at 77% of B2. At the registered cell it fails A2
+at 53%. The A2 denominator stays unresolved: B2 keeps the one-contract floor on
+every cell, so F2 is measured against a book that still takes the picks it
+refuses. That is the registered clause and it did not change.
+
+**The bootstrap band.** The realized drawdown is resampled in blocks of 5, 10
+and 20 exit sessions. One seed drives 2,000 draws on every cell, and the range
+below spans the three block lengths.
+
+| Cell and population | Realized | Its own percentile | Paths past 25% |
+|---|---|---|---|
+| Tracked, PRIMARY | 35.0% | 71st–82nd | 44–66% |
+| Tracked, SECONDARY | 40.8% | 55th–70th | 73–88% |
+| Registered, PRIMARY | 20.3% | 65th–79th | 8–12% |
+| Registered, SECONDARY | 23.5% | 52nd–63rd | 30–42% |
+| Tracked (R, F2), PRIMARY | 8.7% | 47th–66th | 0.0–0.1% |
+
+Three caveats travel with those numbers. The resample holds each session's
+dollar P&L as realized, so sizing, cap refusals and the dollar stop are not
+re-simulated. A single max drawdown is a noisy order statistic, and this block
+measures that noise and nothing else. There is no decision rule here: 25% is
+the operator's own tolerance rather than an estimate, and a wide band never
+licenses a pass. One seed drives every cell, so the bands are correlated and
+must never be differenced.
+
+**[Capital adequacy](glossary.md#capital-adequacy), outcome-blind.** This asks
+only whether one contract of a play fits 2% of a given capital. It reads no
+P&L, no exit reason and nothing about which plays the walk took. The cut below
+is the ladder-eligible candidates on the PRIMARY dates, which is the population
+A4 partitions.
+
+| Capital | Share one contract fits |
+|---|---|
+| $25,000 | 39%, 175 of 444 |
+| $35,000 | 51%, 225 of 444 |
+| $50,000 | 70%, 313 of 444 |
+| $34,600 | 50.0%, the smallest capital reaching half |
+| $56,450 | 75.0% |
+| $87,750 | 90.1% |
+
+Every share is a FLOOR and every capital a lower bound. Before the census the
+loaded book had already dropped 888 rows with no usable price path, 49 proxy
+debit rows failing exact calibration and one duplicate. Those drops condition
+on post-entry data and plausibly on cost. This is also not the capital ladder,
+which asks which rung's simulation meets the criteria — an outcome-dependent
+question. The two can disagree and neither answers the other.
+
+**The bear sleeve, per window.** [ARM H](arm-index.md#account_sim) is reported,
+never adopted; its live pick line was pulled on 2026-08-24. Availability binds
+rather than size: inside the SECONDARY drawdown from 2025-11-03 the sleeve
+filled 9 times, was refused 15 times by the caps, and lost $423. Over the whole
+run the sleeve costs $6,311 on PRIMARY and $6,812 on SECONDARY. It buys 2.4 and
+1.0 points of drawdown in return.
+
+**The dollar stop is not a bound.** It is checked on daily marks, never
+intraday, so a position that gaps through it books more than the stop.
+
+| Population | Dollar-stop exits | Losing more than $500 | Mean loss | Mean overshoot |
+|---|---|---|---|---|
+| PRIMARY | 37 of 211 | 37 | −$659 | −$159 |
+| SECONDARY | 61 of 292 | 61 | −$646 | −$146 |
+
+**What the cache cannot confirm** (all figures here _exploratory_, from scratch
+scripts in `census_join/`). No position in any drawdown window is one of the 14
+pre-fill rows or the six wrong-strike rows. One window row carries a leg filled
+at the `Open` price, on 2026-03-25, and it is immaterial. Four of DD1's 28
+exits — `NVDA` three times and `TLT` — can no longer be re-priced offline, and
+a Drive cache pull added no files. Two are missing a leg file outright and two
+carry the shallow three-month history, so they need a Barchart refetch rather
+than a pull.
+
+Those four rows carry −$1,475 of DD1's −$8,755, or 16.8%. Read that as about
+six of the 35 points resting on rows the cache cannot confirm. Do not read it
+as a drawdown without them: removing rows changes which picks the walk takes.
+
+**The v3 control** is a composition control, not an out-of-sample test — the
+same market path, a different set of plays. It does not reproduce the v4
+failure, because v3's dense episodes miss the January–February 2025 entries.
+A3 is met at 17.4% on 72 positions, and SECONDARY reads 25.1%, just past the
+bar. The verdict, quoted verbatim: `FEASIBILITY NOT CONFIRMED (A1-A3 hold; A5
+and/or A6 fail; stability/robustness not established on this window)`. The
+capital shortage is the same shape: 34% of ladder-eligible candidates fit one
+contract at $25,000.
+
+**`selection_order` on the current era**, quoted verbatim: `ORDERING-IS-NOISE —
+no arm separates from the O4 band. The adverse-ordering read from account_sim
+was an ARTIFACT of which picks the cap happened to exclude. Record it and CLOSE
+the thread.` So adverse ordering is not an explanation for anything above.
+
+**What is owed by the operator.**
+
+- **Fold two rulings into the registration**, as `Resolved at build` tags: the
+  2026-08-13 cap change and the 2026-08-14 verdict wording. Then decide which
+  cap cell the tracked config should carry. Written as what was decided and
+  when, never as "this passes A3". This is step 2 of the
+  [plan](account-sim-feasibility-plan.md).
+- **[Item 5](next-steps.md#waiting-on-the-operator) itself** — change capital or
+  sizing, or accept the drawdown. It stays open, restated to this run.
+- **The scrape decision** the four unpriceable rows wait on, which is
+  [item 8](next-steps.md#waiting-on-the-operator).
+
+**Next.** [`next-steps.md`](next-steps.md) item 5 stays open and is rewritten.
+The plan's Phase 0 is done. So are steps 1, 3 and 5. Step 2 is the operator's
+and step 4 is untouched. Phase 3 now starts from whether any new arm is needed
+at all.
 
 ---
 

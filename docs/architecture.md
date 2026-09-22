@@ -576,11 +576,88 @@ ONE `run account_sim` produces BOTH BASES as two arms of the same run:
 
 Each run exports deployed/skipped positions (incl. the market/ticker/mechanical regime block)
 to `account_sim-positions-latest.csv` (compounding arm:
-`account_sim-positions-compounding-latest.csv`). **G5 ENFORCES that selection/sizing never
-read an outcome field — keep it passing; it is what makes the sim safe to drive a
+`account_sim-positions-compounding-latest.csv`). ARM H's sleeve rows go to their own file,
+`account_sim-sleeve-latest.csv` (compounding arm:
+`account_sim-sleeve-compounding-latest.csv`) — one row per sleeve position, so the sleeve can
+be read without re-deriving it from the positions CSV. **G5 ENFORCES that selection/sizing
+never read an outcome field — keep it passing; it is what makes the sim safe to drive a
 live-position agent.** Every ARM gets its own CSV stem; a different `--config` does NOT — it
 overwrites the default export (the report records which config produced it), and any
 non-default `--config` run also rebuilds `site/account-sim-charts.html` from that arm.
+
+**`--config` and `--era` both overwrite the default artifacts, and neither is undone by
+re-running.** A non-default `--config` run and an `--era v3` run each write
+`account_sim-latest.txt`, `account_sim-compounding-latest.txt`, both positions CSVs, both
+sleeve CSVs, `account_sim-regime-latest.html` and the site chart pages under the SAME stems
+the default run uses. The report's provenance header names the config and the era it read, so
+a stray file is identifiable — but nothing restores it.
+
+The procedure is: copy the whole set aside first, run the arm, copy the arm's output into its
+own evidence folder, restore the default set, then `diff` the restored file against the copy
+to prove the restore. Do the diff: a restore nobody checked is not a restore. `ladder_overlay`
+follows the same convention — its `--era v3` output is filed as
+`ladder_overlay-v3-2026-09-16.txt` and the v4 report put back.
+
+The **disclosure blocks** (added 2026-09-21) print per population, alongside the registered
+sections and scored by nothing. Each one carries its own `DISCLOSURE, NOT A CRITERION` header,
+and the verdict, the criteria and the capital ladder read none of them:
+
+- **A3 on the mark-to-market basis** — the same book marked on every session it was open, from
+  `lib/mtm_curve.py::book_curves` with the `position_dollars` target, beside the realized
+  curve A3 is scored on. Prints its own reconciliation: positions matched, stale marks carried
+  forward, positions with no usable daily path.
+- **Every peak-to-trough drawdown** — DD1…DDn on the realized curve, ranked by depth, listed
+  down to 5% of starting capital and capped at 10 rows. Deliberately NOT keyed on the dense
+  episodes, because the two large drawdowns straddle the gap between two of them. The run
+  REFUSES to print if DD1 and the A3 figure disagree.
+- **A1–A6 on all four cells** (R/D × F1/F2) — `print_arms` already returns the four
+  simulations and `evaluate()` is pure, so the other three cells are scored without changing
+  the verdict, which stays the headline cell's. The block states inline that A2 and A5 are
+  ratios against B2, which keeps the one-contract floor on every cell including F2.
+- **ARM H across the drawdown windows** — the sleeve's own max drawdown per window, with fills
+  and cap refusals, reconciled against the census. A sleeve row is counted into a window by its
+  SIGNAL date, and the sleeved run holds a DIFFERENT signal book, because the sleeve spends
+  cash and cap headroom.
+- **Dollar-stop overshoot and cost coverage** — the stop is checked on daily marks, never
+  intraday, so this counts the exits that booked more than the stop and by how much. The cost
+  line prints how many taken positions carry a non-blank `cost_total`, so the missing cost
+  model is a stated fact rather than an assumption.
+- **Capital adequacy** — two cuts, the loaded book and the ladder-eligible candidates,
+  from `lib/capital_adequacy.py`.
+- **Block bootstrap of the max drawdown** — from `lib/path_bootstrap.py`.
+
+Two pure modules back the last two, both added 2026-09-21, both with no file I/O and no
+printing — `account_sim.py` wires them to the real book and prints their `format_block()`
+lines itself:
+
+- **`lib/capital_adequacy.py`** — the outcome-blind census. It reads only each play's
+  one-contract max loss, never a P&L column, an exit reason, or which plays the walk took, and
+  answers "what capital would this book need". The fit test is `cost <= budget + EPS`,
+  mirroring `admission()`'s own EPS-tolerant boundary and the same `EPS = 1e-9`.
+  - It prints a per-structure cost census and the share of plays one contract of which fits
+    2% of capital, at the ladder rungs and at the smallest capital reaching 50/75/90%.
+  - TWO cuts: the loaded book (the universe, holding structures the ladder never takes) and
+    the ladder-eligible candidates (the population A4 partitions, the deployment-relevant one).
+  - Every share is a FLOOR, because the loaded book had already dropped unpriceable and
+    model-priced rows, and that drop conditions on post-entry data.
+  - It is NOT the capital ladder, which asks an outcome-dependent question about realized
+    P&L. The two can disagree.
+- **`lib/path_bootstrap.py`** — the noise measurement. `max_drawdown` is a re-export of
+  `mtm_curve.max_drawdown`, the same function object A3 calls, never a second implementation,
+  and `max_drawdown_fraction` uses A3's own starting-capital denominator.
+  - Resampling is a moving/circular block bootstrap (Politis and Romano 1992): block starts
+    are drawn uniformly over every row, and a block running past the end wraps to row 0.
+  - `lib/forward_drawdown.py`'s `block_bootstrap` is deliberately NOT reused. It resamples
+    paired rows off a fixed grid to CI a state-vs-outcome statistic, rather than rebuilding an
+    ordered P&L path; only its generic `pctile` helper is borrowed.
+  - A block length at or beyond the series length is clamped and taken deterministically at
+    row 0, which makes "block length == n" reproduce the realized drawdown exactly. An empty
+    series raises rather than returning 0.0.
+  - One seed runs every block length, both cells and both populations, so the bands are
+    reproducible and CORRELATED — never difference two of them.
+  - Three caveats print with the block and must travel with the numbers anywhere else: P&L is
+    held as realized, a single max drawdown is a noisy order statistic, and no decision rule
+    attaches.
 
 Other arms:
 

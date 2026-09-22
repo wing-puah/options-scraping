@@ -104,6 +104,13 @@ from scripts.backtest_study.lib.harness import (  # noqa: E402
 # keeps the cycle from closing at import time.
 from scripts.backtest_study.lib import live_select  # noqa: E402
 from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
+# The MARK-TO-MARKET curve, for the A3 disclosure alone: A3 itself stays on the
+# realized-on-close basis `a3_no_blowup` scores (see `print_mtm_disclosure`).
+from scripts.backtest_study.lib import mtm_curve as MC  # noqa: E402
+# The two Phase-0 disclosure layers. Both are PURE: they take sequences and
+# return dataclasses plus printable lines, and this module supplies the book.
+from scripts.backtest_study.lib import capital_adequacy as CA  # noqa: E402
+from scripts.backtest_study.lib import path_bootstrap as PB  # noqa: E402
 
 EPS = 1e-9
 
@@ -800,6 +807,12 @@ class Sim:
     # its UNDERPOWERED-vs-evaluated status, would go wrong with nothing to
     # surface it. The study asserts its re-derivation against this list.
     throttle_dates: list = field(default_factory=list)
+    # ARM H sleeve candidates the caps REFUSED, as `(rec, reason)` — the ROWS
+    # behind `census["hedge_rejected"]`, which is a bare count. Kept out of
+    # `skipped` on purpose: that list is the SIGNAL walk's census and feeds the
+    # adverse-ordering block, the regime skip table and the positions CSV, none
+    # of which is about the sleeve. Always empty unless `cfg.hedge`.
+    hedge_skipped: list = field(default_factory=list)
 
     # -- derived views -------------------------------------------------------
     @property
@@ -1055,6 +1068,7 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                         take(rec, c, stop, hedge=True)
                     else:
                         sim.census["hedge_rejected"] += 1
+                        sim.hedge_skipped.append((rec, "caps"))
 
     for p in sorted(open_pos, key=lambda q: q.exit_sess):
         led.close(p.reserved, p.dollars, "final")
@@ -1195,6 +1209,33 @@ def positions_rows(population: str, arm: str, sim) -> list[dict]:
     return rows
 
 
+def sleeve_rows(population: str, arm: str, sim) -> list[dict]:
+    """One row per ARM H sleeve position, and one per sleeve row the caps
+    refused — the same `POSITIONS_CSV_COLUMNS` shape `positions_rows` writes.
+
+    The sleeve is invisible in `account_sim-positions-latest.csv`: that export
+    is written from the HEADLINE cell, which runs with no sleeve at all, so the
+    only negative-delta instrument in the study has never had a row anywhere.
+    Its own file rather than extra rows in that one, for the reason every arm
+    gets its own stem — a reader holding the positions export must not have to
+    work out which of its rows came from a different simulation.
+    """
+    rows = []
+    for p in sim.taken:
+        if not p.hedge:
+            continue
+        rows.append(_pos_row(
+            population, arm, "hedge", p.rec,
+            contracts=p.contracts, reserved=p.reserved, dn=p.dn,
+            entry_sess=p.entry_sess, exit_sess=p.exit_sess,
+            days_held=p.days_held, exit_reason=p.exit_reason, R=p.R,
+            dollars=p.dollars, downsized=p.downsized, hedge=True))
+    for rec, why in sim.hedge_skipped:
+        rows.append(_pos_row(population, arm, f"skipped:hedge_{why}", rec,
+                             hedge=True, reject_reason=f"hedge_{why}"))
+    return rows
+
+
 def positions_artifact(*, compounding: bool, structure_universe: bool,
                        live_select: bool = False) -> tuple[str, str]:
     """`(positions CSV filename, the `arm` column's value)` for this run's ARM.
@@ -1225,12 +1266,32 @@ def positions_artifact(*, compounding: bool, structure_universe: bool,
     return "-".join(parts) + "-latest.csv", arm
 
 
-def write_positions_csv(path, populations: dict, arm: str = "RF1") -> int:
+def sleeve_artifact(*, compounding: bool, structure_universe: bool,
+                    live_select: bool = False) -> str:
+    """The ARM H sleeve CSV's filename, derived from the positions one.
+
+    Derived rather than spelled out a second time: the sleeve export is the
+    SAME run's other half, so it must carry the same arm suffixes and can never
+    be allowed to name one arm while the positions file names another.
+    """
+    stem, _ = positions_artifact(compounding=compounding,
+                                 structure_universe=structure_universe,
+                                 live_select=live_select)
+    return stem.replace("account_sim-positions", "account_sim-sleeve", 1)
+
+
+def write_positions_csv(path, populations: dict, arm: str = "RF1",
+                        rows_fn=positions_rows) -> int:
     """`csv.DictWriter` over `POSITIONS_CSV_COLUMNS`; one row block per
-    `(population_label, sim)` pair in `populations`. Returns the row count."""
+    `(population_label, sim)` pair in `populations`. Returns the row count.
+
+    `rows_fn` is the row builder — `positions_rows` for the deployed book,
+    `sleeve_rows` for the ARM H export. Both emit the same columns, so one
+    writer serves both rather than a second copy of the header contract.
+    """
     rows = []
     for label, sim in populations.items():
-        rows.extend(positions_rows(label, arm, sim))
+        rows.extend(rows_fn(label, arm, sim))
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
@@ -1727,6 +1788,163 @@ def print_granularity(picked, cfg: Cfg) -> None:
               f"p90 {sorted(risks)[int(0.9 * len(risks))]:.1%}  max {max(risks):.1%}")
 
 
+# ── CAPITAL ADEQUACY (0c) ───────────────────────────────────────────────────
+#
+# The one OUTCOME-BLIND answer to "what capital does this book need": it reads
+# `max_loss_per_contract` and nothing else — no P&L, no exit reason, no record
+# of what the walk took. The clauses live in `lib/capital_adequacy.py`, which is
+# pure; this module hands it the book and prints its lines.
+
+# The shares the curve is inverted at. Not thresholds — nothing passes or fails
+# at 50/75/90%; they are the three points a reader asks for.
+ADEQUACY_TARGETS = (0.5, 0.75, 0.9)
+
+
+def loaded_book_exclusions(diag: dict | None) -> list[str]:
+    """The rows `lib/book.py::load_book` dropped BEFORE this census saw a cost.
+
+    Stated because they are the census's denominator, and because they are not
+    a neutral sample: a row is dropped when it could not be priced through its
+    exit or its trade could not be constructed — a condition on POST-ENTRY
+    data. That is not an outcome column, and no gate here reads one, but it is
+    survivorship at the population level and it plausibly correlates with cost.
+    Expensive, illiquid or far-dated structures are the ones most likely to go
+    missing, so the curve below is a FLOOR on the capital this book needs.
+    """
+    if not diag:
+        return []
+    counts = [
+        (diag.get("n_excluded_no_path_or_method", 0),
+         "no usable price path or method"),
+        (diag.get("n_trade_construction_failed", 0), "trade construction failed"),
+        (diag.get("n_proxy_excluded_non_exact", 0),
+         "proxy debit rows failing exact calibration"),
+        (diag.get("n_dup_dropped", 0), "duplicates"),
+    ]
+    if not diag.get("include_bs"):
+        counts.append((diag.get("counts_by_source", {}).get("bs", 0),
+                       "bs_options_hist (model-priced) rows"))
+    rows = [(n, what) for n, what in counts if n]
+    if not rows:
+        return []
+    out = ["  Before this census, the LOADED book had already dropped, "
+           "book-wide:"]
+    out += [f"    {n:>6}  {what}" for n, what in rows]
+    out.append(
+        "  Those rows are unpriceable or model-priced, not outcomes — but the "
+        "drop\n  conditions on post-entry data and plausibly on cost, so every "
+        "share below is a\n  FLOOR and every capital named is a LOWER bound on "
+        "what this book needs.")
+    return out
+
+
+def print_capital_adequacy(pop, day_lists, label: str, st: Settings,
+                           diag: dict | None = None) -> None:
+    """0c — the per-contract cost census and the capital-adequacy curve, on TWO
+    cuts of the same population.
+
+    CUT 1 is every play of the LOADED book on these dates — real + tweak tiers,
+    `bs_options_hist` excluded, and minus whatever `load_book` could not price
+    or construct (`loaded_book_exclusions` prints those counts). It is NOT
+    every play the analysis emitted, and the block must not say it is.
+
+    CUT 2 is the LADDER-ELIGIBLE candidate set — the flattened `ordered_by_day`
+    lists, which is exactly the population A4 partitions (the "N candidates"
+    line), before `max_positions_per_day`, before the caps and before cash. It
+    is the deployment-relevant cut: cut 1 still holds bear put spreads,
+    straddles and short puts that `ladder_eligible` never lets the walk see.
+
+    BOTH cuts are outcome-blind. Eligibility is a rule over tier and structure,
+    evaluated before any outcome exists, so narrowing to cut 2 selects on a
+    rule and never on a result.
+
+    The rungs are `grids.capital_ladder` — the REGISTERED {25k, 35k, 50k}, not
+    `capital_ladder_posthoc`, whose rungs are a post-hoc extension and carry
+    their own banner wherever they are printed.
+    """
+    step = "See research/account-sim-feasibility-plan.md step 0c."
+    cuts = (
+        ("the loaded book", list(pop),
+         "  Every play of the LOADED book on these dates (real + tweak tiers; "
+         "bs excluded),\n  by one-contract max loss. Answers only \"what capital "
+         f"would this book need\".\n  {step}",
+         "  CUT 1 of 2: the universe, not the book. It holds the structures the\n"
+         "  deployment ladder never takes — bear put spreads, straddles, short puts."),
+        ("ladder-eligible candidates", [r for _d, ranked in day_lists for r in ranked],
+         "  The LADDER-ELIGIBLE candidates on these dates — the rows the ranked "
+         "walk\n  considered, which is the population A4 partitions — by "
+         f"one-contract max loss.\n  {step}",
+         "  CUT 2 of 2, the deployment-relevant one. Eligibility is a RULE over "
+         "tier and\n  structure, evaluated before any outcome exists, so "
+         "narrowing to this cut\n  selects on a rule and never on a result."),
+    )
+    for cut_label, rows, population_note, note in cuts:
+        census = CA.cost_census([r["max_loss_per_contract"] for r in rows],
+                                groups=[r["structure"] for r in rows])
+        curve = CA.adequacy_curve(
+            [r["max_loss_per_contract"] for r in rows],
+            capitals=st.capital_ladder, risk_pct=st.risk_pct,
+            target_shares=ADEQUACY_TARGETS)
+        print("\n".join(CA.format_block(
+            census, curve, label=f"{label} — {cut_label}",
+            population_note=population_note,
+            notes=loaded_book_exclusions(diag))))
+        print(note)
+    print("""  NOT the CAPITAL LADDER section: that one asks which rung's SIMULATION meets
+  A1/A2 (and, as a disclosed addition, A3) — an outcome-dependent question about
+  this book's realized P&L. This asks only whether ONE CONTRACT of a play fits a
+  capital's risk budget. The two can disagree, and neither answers the other.""")
+
+
+# ── PATH BOOTSTRAP (step 3) ─────────────────────────────────────────────────
+#
+# How noisy the ONE max drawdown A3 is read off actually is. The resampler is
+# `lib/path_bootstrap.py`; it carries its own caveats and this block prints
+# them verbatim. NOTHING reads its output: no criterion, no verdict, no rung.
+
+# Fixed so a re-run reproduces the band exactly, and printed with every row.
+# Neither is a knob: a seed that moved per run would make the band unverifiable,
+# and the resample count is the resolution of a percentile, not a parameter of
+# the book.
+BOOTSTRAP_SEED = 20260921
+BOOTSTRAP_N = 2000
+
+
+def print_path_bootstrap(arms: dict, label: str, st: Settings) -> None:
+    """The block bootstrap of the max drawdown, on the headline cell and on F2.
+
+    Both cells, because F2 is the arm whose 8.7% the plan reads as the one that
+    clears the bar — and a single drawdown on 137 positions is the noisiest
+    number in this report, not the most trustworthy one.
+    """
+    hdr(f"[{label}] DISCLOSURE — BLOCK BOOTSTRAP OF THE MAX DRAWDOWN")
+    print(f"""  {DISCLOSURE} A3 is one max drawdown off ONE path. This
+  resamples that path in blocks and shows where the realized figure and the
+  {st.maxdd_fraction:.0%} bar sit in the resulting distribution. It is a measure of NOISE in
+  a number the study already prints — it does not re-simulate the account, it
+  scores nothing, and no verdict, rung or arm reads it.
+
+  ONE seed runs every block length, both cells and both populations (common
+  random numbers), which is what makes the bands reproducible and comparable.
+  It also makes them CORRELATED: two cells' percentiles are draws off the same
+  stream and must never be differenced as if they were independent samples.""")
+    for key, arm_label, _kw in ARM_CELLS:
+        if key not in ("RF1", "RF2"):
+            continue
+        sim = arms[key]
+        _, vals = equity_curve(sim.signal_pos)
+        sub(f"{arm_label} — {len(sim.signal_pos)} positions")
+        if not vals:
+            print("  no exit session: nothing to resample.")
+            continue
+        mdd = max_drawdown(vals)
+        bands = PB.bootstrap_drawdown_blocks(
+            vals, sim.cfg.capital, BOOTSTRAP_N, BOOTSTRAP_SEED,
+            reference_depths={"realized": abs(mdd) / sim.cfg.capital,
+                              f"{st.maxdd_fraction:.0%} bar": st.maxdd_fraction})
+        print("\n".join(PB.format_block(bands, label=arm_label)))
+
+
 def print_utilisation(sim: Sim, label: str) -> None:
     hdr(f"[{label}] UTILISATION — reserved capital and delta-notional")
     ser = session_series(sim)
@@ -1949,6 +2167,297 @@ def print_equity(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     return out
 
 
+# ── DISCLOSURE blocks (2026-09-21, Phase 0b of the feasibility plan) ─────────
+#
+# Five printed additions, on the same footing as the 2026-09-20 capital-ladder
+# columns: no new simulation parameter, no new arm, no number the study already
+# prints moved, and no verdict logic touched. Each says so in its own banner,
+# because a figure printed beside a registered one is read as registered unless
+# the report says otherwise.
+#
+# They exist because `research/account-sim-feasibility-plan.md` found four
+# things the study already knew and never printed: A3 is read on ONE basis and
+# ONE drawdown while the book has others near the bar; the registered arm F2 is
+# tabulated every run and scored against nothing; ARM H is the only
+# negative-delta instrument in the study and has no row in any export; and the
+# dollar stop is checked on daily marks, so it does not hold at $500.
+#
+# The standing bans still bind: no annualised figure, no Sharpe, no
+# time-to-recover. A drawdown's recovery DATE is printed; how long it took is
+# not, and must not be added.
+
+DISCLOSURE = "DISCLOSURE, NOT A CRITERION (2026-09-21)."
+
+
+@dataclass(frozen=True)
+class Drawdown:
+    """One peak-to-trough episode of the realized equity curve.
+
+    `depth` is dollars and <= 0, measured exactly as `max_drawdown` measures
+    it — cumulative P&L minus its running peak, with the peak seeded at 0.0, so
+    a book that opens down is in a drawdown from a flat start (`peak_sess` is
+    then `None`). `recovered` is the first session at which the curve regains
+    `peak`, or `None` when it never does. `n_exits` counts the positions that
+    booked P&L inside `(peak_sess, trough_sess]`.
+    """
+    peak_sess: date | None
+    trough_sess: date
+    depth: float
+    recovered: date | None
+    n_exits: int
+
+    @property
+    def peak_label(self) -> str:
+        return "start" if self.peak_sess is None else str(self.peak_sess)
+
+
+def drawdowns(sim: Sim) -> list[Drawdown]:
+    """Every peak-to-trough drawdown of `sim`'s realized curve, DEEPEST FIRST.
+
+    The curve and the definition are `a3_no_blowup`'s — `equity_curve` over the
+    signal positions, then the same running-peak walk `max_drawdown` performs —
+    so the first element's `depth` IS the A3 figure. `print_drawdowns` asserts
+    that rather than trusting it: two walks over one curve that disagree would
+    mean the table and the criterion are describing different books.
+
+    NOT keyed on the population's dense episodes: both of the book's large
+    drawdowns straddle the gap between two of them, so an episode-keyed table
+    would split the thing it is meant to show.
+    """
+    sessions, vals = equity_curve(sim.signal_pos)
+    exits = sorted(p.exit_sess for p in sim.signal_pos)
+    out: list[Drawdown] = []
+    peak = 0.0
+    peak_sess: date | None = None
+    cum = 0.0
+    open_peak: date | None = None
+    trough_sess: date | None = None
+    depth = 0.0
+
+    def close(recovered):
+        out.append(Drawdown(
+            peak_sess=open_peak, trough_sess=trough_sess, depth=depth,
+            recovered=recovered,
+            n_exits=sum(1 for e in exits
+                        if (open_peak is None or e > open_peak)
+                        and e <= trough_sess)))
+
+    for s, v in zip(sessions, vals):
+        cum += v
+        if cum >= peak:
+            if trough_sess is not None:
+                close(s)
+                trough_sess = None
+                depth = 0.0
+            peak, peak_sess = cum, s
+        else:
+            if trough_sess is None:
+                open_peak = peak_sess
+                trough_sess, depth = s, cum - peak
+            elif cum - peak < depth:
+                trough_sess, depth = s, cum - peak
+    if trough_sess is not None:
+        close(None)
+    return sorted(out, key=lambda d: d.depth)
+
+
+# What the drawdown table LISTS, as a share of starting capital. A floor, not a
+# threshold anything is read against: every episode is counted in the summary
+# line, and this only decides which ones get a row.
+DD_LIST_FLOOR = 0.05
+DD_LIST_CAP = 10
+
+
+def listed_drawdowns(dds: list[Drawdown], capital: float) -> list[tuple[int, Drawdown]]:
+    """`[(id, drawdown)]` — the rows the table PRINTS, with the ids it prints.
+
+    ONE body because two blocks speak about "DD1..DDn": the table itself and
+    the ARM H window count under it. Filtering twice let the hedge block label
+    a window DD5 that the table never listed, while its own header said "the
+    windows listed above" — an id that names two different episodes on one page
+    is worse than no id. The id is the position in the LISTED sequence, not in
+    the full set, which is why it cannot be re-derived from `dds` alone.
+    """
+    kept = [d for d in dds if abs(d.depth) >= DD_LIST_FLOOR * capital]
+    return list(enumerate(kept[:DD_LIST_CAP], 1))
+
+
+def print_drawdowns(sim: Sim, label: str, st: Settings,
+                    dds: list[Drawdown]) -> None:
+    """0b-ii — every peak-to-trough drawdown, not only the deepest one."""
+    hdr(f"[{label}] DISCLOSURE — EVERY PEAK-TO-TROUGH DRAWDOWN")
+    cap = sim.cfg.capital
+    print(f"""  {DISCLOSURE} A3 is read on the SINGLE deepest drawdown
+  of the realized curve. This lists every one of them, on that same curve and
+  the same running-peak definition, so DD1 IS the A3 figure — the run refuses
+  to print if the two disagree. No threshold moved and no verdict is read here.
+
+  Ranked by depth. A row is listed when its depth is at least {DD_LIST_FLOOR:.0%} of the
+  ${cap:,.0f} starting capital, at most {DD_LIST_CAP} rows; the summary line counts them all.
+  Deliberately NOT keyed on the dense episodes E1..En above: the book's two
+  large drawdowns straddle the gap between two episodes, so an episode-keyed
+  table would split exactly what it is meant to show.""")
+    if not dds:
+        print("\n  no drawdown: the curve never fell below its running peak.")
+        return
+    _, vals = equity_curve(sim.signal_pos)
+    mdd = max_drawdown(vals)
+    if abs(dds[0].depth - mdd) > 1e-6:
+        raise RuntimeError(
+            f"drawdown table disagrees with the A3 clause: DD1 {dds[0].depth:,.2f} "
+            f"vs max_drawdown {mdd:,.2f} on the same curve")
+    print(f"\n  {'id':<5}{'peak':<13}{'trough':<13}{'depth $':>11}"
+          f"{'of capital':>12}  {'recovered':<17}{'exits':>6}")
+    listed = listed_drawdowns(dds, cap)
+    for i, d in listed:
+        rec = str(d.recovered) if d.recovered else "never recovered"
+        print(f"  {'DD' + str(i):<5}{d.peak_label:<13}{str(d.trough_sess):<13}"
+              f"{d.depth:>11,.0f}{abs(d.depth) / cap:>12.1%}  {rec:<17}"
+              f"{d.n_exits:>6}")
+    never = sum(1 for d in dds if d.recovered is None)
+    # "listed or not": the count is over EVERY episode, and the one that never
+    # recovered is often below the listing floor — a reader scanning the rows
+    # above for it would otherwise conclude the line was wrong.
+    print(f"\n  {len(dds)} drawdowns in all; {len(listed)} at or beyond the "
+          f"{DD_LIST_FLOOR:.0%} floor; {never} never recovered (listed or not).")
+    print(f"  DD1 is the A3 figure: ${dds[0].depth:,.0f} = "
+          f"{abs(dds[0].depth) / cap:.1%} of capital (A3 bar "
+          f"{st.maxdd_fraction:.0%}).")
+    # STRICTLY beyond: A3 is met AT the bar (`<= maxdd_fraction * capital`), so
+    # an episode exactly on it has not breached anything.
+    over = [i for i, d in listed if abs(d.depth) > st.maxdd_fraction * cap]
+    print(f"  drawdowns beyond the A3 bar: {len(over)}"
+          + (f" (DD{', DD'.join(str(i) for i in over)})" if over else ""))
+
+
+def print_mtm_disclosure(sim: Sim, label: str, st: Settings) -> None:
+    """0b-i — the drawdown on the mark-to-market basis, beside the realized one.
+
+    The REGISTERED A3 is unchanged and stays what `a3_no_blowup` returns: the
+    realized-on-close curve, where a position's whole result lands on its exit
+    session. `lib/mtm_curve.book_curves` marks every open position on its own
+    daily path instead, which is the intra-position drawdown the realized curve
+    says in its own header that it cannot see.
+
+    `TARGET_POSITION` is the reconciliation target, not `TARGET_STORED`: this
+    book's positions were RE-SIZED and RE-EXITED by the frozen replay, so the
+    stored column describes a different position by construction. A position
+    whose path cannot be marked at all is EXCLUDED and COUNTED — the marked
+    curve is then reported as covering a subset, never forced to stand for the
+    whole book.
+    """
+    hdr(f"[{label}] DISCLOSURE — A3 ON THE MARK-TO-MARKET BASIS")
+    cap = sim.cfg.capital
+    print(f"""  {DISCLOSURE} A3 keeps its registered basis — the
+  realized-on-close curve of the section above, scored by `a3_no_blowup`. The
+  second row here is the same book marked to market every session it was open
+  (lib/mtm_curve.book_curves, target `{MC.TARGET_POSITION}`), which is the
+  intra-position path the realized curve states it cannot see. It is printed
+  because a drawdown bar read on one basis says nothing about the other; it is
+  not scored, and no verdict moves with it.""")
+
+    # `position_marks` runs twice per position — once here to find out WHICH
+    # rows cannot be marked, once inside `book_curves` to build the curve.
+    # Deliberate: `book_curves` takes positions, not marks, so the only way to
+    # name the offending row without changing `lib/mtm_curve.py`'s API is to
+    # probe first. The cost is one list walk over an already-parsed path.
+    markable, unmarkable = [], []
+    for p in sim.signal_pos:
+        try:
+            MC.position_marks(p)
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
+            unmarkable.append((p, str(exc)))
+        else:
+            markable.append(p)
+
+    sess, vals = equity_curve(sim.signal_pos)
+    mdd = max_drawdown(vals)
+    print(f"\n  {'basis':<26}{'positions':>10}{'sessions':>10}{'total $':>12}"
+          f"{'maxDD $':>11}{'of capital':>12}")
+    print(f"  {'realized on close (A3)':<26}{len(sim.signal_pos):>10}{len(sess):>10}"
+          f"{sum(vals):>12,.0f}{mdd:>11,.0f}{abs(mdd) / cap:>12.1%}")
+    if not markable:
+        print("  mark to market             — no position carries a usable daily "
+              "path; nothing to mark.")
+    else:
+        bc = MC.book_curves(markable, target=MC.TARGET_POSITION)
+        stats = MC.path_stats(bc.mtm, cap)
+        print(f"  {'mark to market':<26}{bc.n_positions:>10}{stats.n_sessions:>10}"
+              f"{stats.total:>12,.0f}{stats.max_dd:>11,.0f}"
+              f"{abs(stats.max_dd) / cap:>12.1%}")
+        print(f"\n  G-MTM reconciliation (target {bc.target}): "
+              f"{bc.n_reconciled} of {bc.n_positions} positions reconciled, "
+              f"{len(bc.mismatches)} mismatched")
+        if bc.mismatches:
+            print(f"  worst mismatch ${bc.worst_mismatch:,.2f} — the marked curve "
+                  f"does NOT reconcile; read the row above as unverified.")
+            for m in bc.mismatches[:5]:
+                print(f"    MISMATCH {m.date} {m.ticker} x{m.contracts}: "
+                      f"marked ${m.mtm_at_exit:,.2f} vs booked ${m.booked:,.2f}")
+        print(f"  stale marks carried forward on {bc.n_carried_forward} "
+              f"position-sessions (an unpriced day keeps the previous mark)")
+    print(f"  positions with no usable daily path: {len(unmarkable)}"
+          + (" — the marked row above covers the rest, not the whole book"
+             if unmarkable else ""))
+    for p, why in unmarkable[:5]:
+        print(f"    UNMARKABLE {p.rec.get('date')} {p.rec.get('ticker')}: {why}")
+
+
+def print_dollar_stop(sim: Sim, label: str, st: Settings) -> None:
+    """0b-v — how far the daily-mark dollar stop is overshot, and cost coverage.
+
+    The stop is a HARD per-position dollar limit in name only: `harness.replay`
+    tests it on daily marks, so a position that gaps through it books whatever
+    the next mark says. The plan measured that by hand; this prints it from the
+    run, beside the count of rows carrying a cost figure at all — the census
+    that says why a cost-applied drawdown is not computable yet.
+    """
+    hdr(f"[{label}] DISCLOSURE — DOLLAR-STOP OVERSHOOT AND COST COVERAGE")
+    stop = sim.cfg.stop
+    print(f"""  {DISCLOSURE} The ${stop:,.0f} stop is checked on DAILY
+  MARKS by the frozen replay, never intraday, so a position that gaps through
+  it books more than the stop. Nothing here changes a number the study prints:
+  these are the taken positions of the headline cell, grouped by exit reason.""")
+    if sim.cfg.compound:
+        print(f"""  UNDER COMPOUNDING the live stop is re-marked each {sim.cfg.mark_interval}; the
+  ${stop:,.0f} above is the STARTING one and is what the overshoot below is measured
+  against. The overshoot on this arm therefore CONFLATES two things — a stop
+  that moved with equity, and a position that gapped through the stop in force
+  that day — and cannot be read as the gap alone. The frozen book's block can.""")
+    taken = sim.signal_pos
+    stops = [p for p in taken if p.exit_reason == "dollar_stop"]
+    over = [p for p in stops if p.dollars < -stop - EPS]
+    losses = [p.dollars for p in stops]
+    overshoot = [p.dollars + stop for p in over]
+    print(f"\n  dollar-stop exits                {len(stops):>5} of {len(taken)} "
+          f"taken positions")
+    print(f"  of those, losing more than ${stop:,.0f}  {len(over):>5}")
+    if stops:
+        print(f"  loss on a dollar-stop exit       mean ${fmean(losses):>10,.0f}"
+              f"   worst ${min(losses):>10,.0f}")
+    if overshoot:
+        print(f"  overshoot beyond the stop        mean ${fmean(overshoot):>10,.0f}"
+              f"   worst ${min(overshoot):>10,.0f}")
+    if taken:
+        worst = min(p.dollars for p in taken)
+        print(f"  worst single position, any exit reason      ${worst:,.0f}")
+
+    sub("cost coverage — why no cost-applied drawdown is printed")
+    # Read through `getattr`, the same way `mtm_curve.stored_booked` reads a
+    # stored column: a record with no trade attached, or an export predating
+    # the column, is a row that carries no cost — never a crash in a block
+    # whose whole job is to count what is missing.
+    with_cost = sum(1 for p in taken
+                    if str((getattr(p.rec.get("t"), "row", None) or {})
+                           .get("cost_total") or "").strip())
+    print(f"  taken positions carrying a non-blank `cost_total`: {with_cost} of "
+          f"{len(taken)}")
+    print("""  The study applies NO cost model, and a drawdown computed on the rows that
+  do carry one would be a different book, not a costed version of this one. The
+  count is printed so the gap is a stated fact rather than an assumption; it
+  closes only with a whole-book re-price.""")
+
+
 # ── EQUITY MARKS (post-hoc friction model, printed only under compounding) ───
 # Same flagging discipline as "DEPLOYED BOOK BY REGIME" above: this section
 # DESCRIBES what an opt-in sizing arm did. It is not one of the pre-registered
@@ -2064,6 +2573,18 @@ def print_cap_grid(day_lists, base: Cfg, label: str, st: Settings,
   read off it either way.""")
 
 
+# The four arm cells, in report order: `(key, printed label, Cfg overrides)`.
+# ONE tuple because two consumers name these cells — the ARMS table and the
+# A1-A6 disclosure grid under it — and a cell labelled "(R, F2)" in one block
+# and built with different knobs in the other would be unreadable and unfalsifiable.
+ARM_CELLS = (
+    ("RF1", "(R, F1)  HEADLINE", dict(downsize=False, take_floor=True)),
+    ("RF2", "(R, F2)", dict(downsize=False, take_floor=False)),
+    ("DF1", "(D, F1)", dict(downsize=True, take_floor=True)),
+    ("DF2", "(D, F2)", dict(downsize=True, take_floor=False)),
+)
+
+
 def print_arms(day_lists, bear_by_day, capital: float, label: str,
                st: Settings, cache: dict) -> dict:
     hdr(f"[{label}] ARMS — R vs D, F1 vs F2, and ARM H")
@@ -2072,11 +2593,7 @@ def print_arms(day_lists, bear_by_day, capital: float, label: str,
     print(f"  {'arm':<28}{'n':>5}{'dates':>7}{'total $':>12}{'meanR':>9}"
           f"{'win':>7}{'maxDD $':>11}")
     out = {}
-    for key, arm_label, kw in (
-            ("RF1", "(R, F1)  HEADLINE", dict(downsize=False, take_floor=True)),
-            ("RF2", "(R, F2)", dict(downsize=False, take_floor=False)),
-            ("DF1", "(D, F1)", dict(downsize=True, take_floor=True)),
-            ("DF2", "(D, F2)", dict(downsize=True, take_floor=False))):
+    for key, arm_label, kw in ARM_CELLS:
         s = simulate(day_lists, st.cfg(label, capital=capital, **kw), cache=cache)
         rs = [p.R for p in s.signal_pos]
         _, vals = equity_curve(s.signal_pos)
@@ -2108,7 +2625,11 @@ def print_arms(day_lists, bear_by_day, capital: float, label: str,
 
 
 def print_hedge(day_lists, bear_by_day, capital: float, label: str,
-                st: Settings, cache: dict) -> None:
+                st: Settings, cache: dict) -> "Sim | None":
+    """The sleeve's exposure block. RETURNS the sleeved simulation (`None` when
+    the population occupied no session), so the disclosure block below it and
+    the sleeve CSV read the run this section described rather than a second,
+    separately built one."""
     hdr(f"[{label}] ARM H — the shipped bear sleeve on the constrained run")
     print(f"""  1 bear-debit position per signal date, chosen by |delta| DESCENDING
   (hedge_sizing D4 — its §4 pick line was PULLED 2026-08-24, the live pick is operator
@@ -2117,12 +2638,20 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
   day's signal picks so it can never displace one. This is
   the only way net-vs-gross delta-notional becomes measurable: almost every
   deployed pick is positive-delta, so without a sleeve net == gross.""")
+    sleeved = None
     for name, hedge in (("without sleeve", False), ("with sleeve", True)):
         s = simulate(day_lists, st.cfg(label, capital=capital, hedge=hedge),
                      bear_by_day=bear_by_day, cache=cache)
         ser = session_series(s)
         if not ser:
+            # Assigned BELOW this guard on purpose: a run that occupied no
+            # session held no position, so there is nothing for the disclosure
+            # block or the sleeve CSV to read. Returning it anyway would make
+            # the `None` this function documents unreachable and leave both
+            # callers' None-guards dead.
             continue
+        if hedge:
+            sleeved = s
         gross = fmean([v["gross"] / capital for v in ser.values()])
         net = fmean([abs(v["net"]) / capital for v in ser.values()])
         gmax = max(v["gross"] / capital for v in ser.values())
@@ -2138,6 +2667,94 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
               f"{gmax - nmax:+.2f}x")
         if hedge:
             print(f"    sleeve rejected by caps on {s.census['hedge_rejected']} dates")
+    return sleeved
+
+
+# How many drawdown windows ARM H is counted across. The plan asks for DD1-DD3
+# at least; the table above lists more, and counting the sleeve on all of them
+# costs nothing.
+HEDGE_DD_WINDOWS = 5
+
+
+def _in_window(day: str, dd: Drawdown) -> bool:
+    """Is this SIGNAL date inside `(peak, trough]` of a drawdown?
+
+    Keyed on the signal date rather than the entry session because a REFUSED
+    sleeve row has no entry session — it was never opened — and a window count
+    that used two different clocks for its two columns would not be one count.
+    """
+    d = date.fromisoformat(str(day)[:10])
+    return (dd.peak_sess is None or d > dd.peak_sess) and d <= dd.trough_sess
+
+
+def print_hedge_drawdowns(sim: Sim, head: Sim, label: str, st: Settings,
+                          dds: list[Drawdown]) -> None:
+    """0b-iv — ARM H's own drawdown, and its fills/refusals per drawdown window.
+
+    `sim` is the SLEEVED run `print_hedge` described; `head` is the headline
+    cell it is read against. The sleeve is the only negative-delta instrument
+    in the study and the report has never said what it did while the book was
+    falling — which is the one thing a hedge is for.
+    """
+    hdr(f"[{label}] DISCLOSURE — ARM H ACROSS THE DRAWDOWN WINDOWS")
+    cap = head.cfg.capital
+    print(f"""  {DISCLOSURE} ARM H is reported, never adopted: the
+  sleeve's live pick line was PULLED 2026-08-24 and hedge_sizing D4 is its
+  mechanical stand-in. Nothing here is a hedging rule or a sizing result. The
+  drawdowns are the windows listed above, on the headline cell's realized
+  curve, and a sleeve row is counted in a window by its SIGNAL date. The
+  `of capital` column is on the same basis A3 reads (bar {st.maxdd_fraction:.0%}), and is
+  scored against nothing.""")
+    if sim is None:
+        print("\n  no sleeved run for this population.")
+        return
+
+    _, head_vals = equity_curve(head.signal_pos)
+    sig = [p for p in sim.taken if not p.hedge]
+    hed = [p for p in sim.taken if p.hedge]
+    print(f"\n  {'book':<30}{'n':>5}{'total $':>12}{'maxDD $':>11}"
+          f"{'of capital':>12}")
+    for name, positions in (("headline, no sleeve", head.signal_pos),
+                            ("ARM H, signal positions", sig),
+                            ("ARM H, signal + sleeve", sim.taken)):
+        _, vals = equity_curve(positions)
+        mdd = max_drawdown(vals)
+        print(f"  {name:<30}{len(positions):>5}{sum(vals):>12,.0f}{mdd:>11,.0f}"
+              f"{abs(mdd) / cap:>12.1%}")
+    print(f"  {'of which the sleeve alone':<30}{len(hed):>5}"
+          f"{sum(p.dollars for p in hed):>12,.0f}")
+    print(f"  (the headline row is {max_drawdown(head_vals):,.0f}; the sleeved run "
+          f"holds a DIFFERENT signal book —\n  the sleeve spends cash and cap "
+          f"headroom, so the walk admits other rows.)")
+
+    sub("sleeve fills and cap refusals, per drawdown window")
+    # The SAME rows and the SAME ids the table above printed — `listed_drawdowns`
+    # is the one body, so a window called DD5 here is the DD5 a reader can find
+    # in that table. Capped at HEDGE_DD_WINDOWS; the table may list more.
+    windows = listed_drawdowns(dds, cap)[:HEDGE_DD_WINDOWS]
+    if not windows:
+        print("  no listed drawdown window to count across.")
+    else:
+        print(f"  {'id':<5}{'window':<27}{'fills':>7}{'refused':>9}{'sleeve $':>12}")
+        for i, dd in windows:
+            fills = [p for p in hed if _in_window(p.rec["date"], dd)]
+            refused = [r for r, _ in sim.hedge_skipped if _in_window(r["date"], dd)]
+            window = f"{dd.peak_label}..{dd.trough_sess}"
+            print(f"  {'DD' + str(i):<5}{window:<27}{len(fills):>7}{len(refused):>9}"
+                  f"{sum(p.dollars for p in fills):>12,.0f}")
+        print(f"  {'ALL':<5}{'the whole run':<27}{len(hed):>7}"
+              f"{len(sim.hedge_skipped):>9}{sum(p.dollars for p in hed):>12,.0f}")
+    # Refused rows and the census counter are two records of one event. If they
+    # disagree, every per-window refusal count above is unattributable — so the
+    # run stops rather than printing them, the same rigour the drawdown table
+    # applies to DD1.
+    if len(sim.hedge_skipped) != sim.census["hedge_rejected"]:
+        raise RuntimeError(
+            f"ARM H refusal records disagree with the census: "
+            f"{len(sim.hedge_skipped)} recorded rows vs "
+            f"{sim.census['hedge_rejected']} counted refusals")
+    print(f"  refusals reconcile with the census: "
+          f"{len(sim.hedge_skipped)} == {sim.census['hedge_rejected']}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2185,42 +2802,33 @@ def a3_no_blowup(sim: Sim, st: Settings) -> tuple[bool, float]:
     return met, mdd
 
 
-def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
-    hdr(f"[{label}] CRITERIA A1-A6")
+def criteria_scores(sim: Sim, b2: Sim, st: Settings) -> dict:
+    """Every A1-A6 met/not-met flag AND the figure behind it. Prints nothing.
+
+    ONE body for the clauses, for the same reason `a3_no_blowup` is one body:
+    `evaluate()` prints the verdict's criteria from this, and the four-cell arm
+    disclosure scores its cells with it, so an arm cell can never be graded by a
+    second copy of a clause that is free to drift from the registered one.
+    Splitting the computation out of `evaluate()` moved no threshold and no
+    printed figure — `evaluate()` below formats exactly what it formatted before.
+    """
     rows = sim.rows()
-    res = {}
 
     # A1 EDGE SURVIVAL
     mean_R = fmean([r["R"] for r in rows])
     lo, hi = P.boot_ci_by_date(rows, key="R") if rows else (float("nan"),) * 2
     _, pos_years, years = P.sign_stable(rows, key="R") if rows else (None, 0, {})
     a1 = bool(rows) and mean_R > 0 and lo > 0 and pos_years == len(years) and years
-    print(f"  A1 EDGE SURVIVAL  meanR {mean_R:+.3f}  CI95 [{lo:+.3f},{hi:+.3f}]  "
-          f"years " + "  ".join(f"{y}:{m:+.3f}" for y, m in years.items()))
-    print(f"     {'MET' if a1 else 'NOT MET'}  (needs mean>0, CI excluding zero, "
-          f"every year positive)")
-    res["A1"] = a1
 
     # A2 ATTRITION — same dates
     same = sim.dates
     b2_same = sum(p.dollars for p in b2.signal_pos if p.rec["date"] in same)
     ratio = pct_ratio(sim.dollars, b2_same)
     a2 = ratio >= st.attrition_floor
-    print(f"  A2 ATTRITION      constrained ${sim.dollars:,.0f} vs B2 on the same "
-          f"{len(same)} dates ${b2_same:,.0f}  = {ratio:.0%}")
-    print(f"     {'MET' if a2 else 'NOT MET'}  (needs >= {st.attrition_floor:.0%})")
-    res["A2"] = a2
-    if sim.cfg.compound:
-        print(COMPOUND_A2_A5_WARNING)
 
     # A3 NO BLOWUP — the clause itself lives in `a3_no_blowup`, so the capital
     # ladder's A3 column is the same test and not a second copy of it.
     a3, mdd = a3_no_blowup(sim, st)
-    print(f"  A3 NO BLOWUP      maxDD ${mdd:,.0f} = {abs(mdd) / sim.cfg.capital:.1%} of "
-          f"capital;  ledger violations {len(sim.ledger.violations)}")
-    print(f"     {'MET' if a3 else 'NOT MET'}  (needs no over-reservation and DD "
-          f"<= {st.maxdd_fraction:.0%})")
-    res["A3"] = a3
 
     # A4 ATTRIBUTION — computed by print_census, re-derived here
     c = sim.census
@@ -2228,10 +2836,6 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
     total = n_taken + sum(c[k] for k in CENSUS_EXCLUSIONS)
     a4 = (n_taken == len(sim.signal_pos)
           and total == sum(c[k] for k in CENSUS_BUCKETS))
-    print(f"  A4 ATTRIBUTION    {total} candidates partition exactly into "
-          f"{n_taken} taken + exclusions")
-    print(f"     {'MET' if a4 else 'NOT MET'}  (mismatch FAILS the run)")
-    res["A4"] = a4
 
     # A5 STABILITY
     cuts, cut_n = {}, {}
@@ -2243,10 +2847,70 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
                     if p.rec["date"][:7] not in months and p.rec["date"] in same)
         cuts[name] = pct_ratio(c_dol, b_dol)
         cut_n[name] = len(kept)
-    base_ratio = ratio
-    moves = {k: (v - base_ratio) for k, v in cuts.items()}
+    moves = {k: (v - ratio) for k, v in cuts.items()}
     a5 = all(abs(m) <= st.ratio_tolerance for m in moves.values() if m == m)
-    print(f"  A5 STABILITY      constrained/B2 ratio ALL {base_ratio:.0%} "
+
+    # A6 CREDIT SENSITIVITY — A1 on the debit-only subset
+    deb = [r for r in rows if not r["credit"]]
+    if deb:
+        d_mean = fmean([r["R"] for r in deb])
+        d_lo, d_hi = P.boot_ci_by_date(deb, key="R")
+        _, d_pos, d_years = P.sign_stable(deb, key="R")
+        a6 = d_mean > 0 and d_lo > 0 and d_pos == len(d_years) and bool(d_years)
+    else:
+        a6 = False
+        d_mean = d_lo = d_hi = float("nan")
+        d_years = {}
+
+    return dict(A1=a1, A2=a2, A3=a3, A4=a4, A5=a5, A6=a6,
+                rows=rows, mean_R=mean_R, lo=lo, hi=hi, years=years,
+                same=same, b2_same=b2_same, ratio=ratio, mdd=mdd,
+                n_taken=n_taken, total=total, cuts=cuts, cut_n=cut_n,
+                moves=moves, deb=deb, d_mean=d_mean, d_lo=d_lo, d_hi=d_hi,
+                d_years=d_years)
+
+
+def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
+    hdr(f"[{label}] CRITERIA A1-A6")
+    s = criteria_scores(sim, b2, st)
+    res = {}
+
+    # A1 EDGE SURVIVAL
+    a1 = s["A1"]
+    print(f"  A1 EDGE SURVIVAL  meanR {s['mean_R']:+.3f}  "
+          f"CI95 [{s['lo']:+.3f},{s['hi']:+.3f}]  "
+          f"years " + "  ".join(f"{y}:{m:+.3f}" for y, m in s["years"].items()))
+    print(f"     {'MET' if a1 else 'NOT MET'}  (needs mean>0, CI excluding zero, "
+          f"every year positive)")
+    res["A1"] = a1
+
+    # A2 ATTRITION — same dates
+    a2 = s["A2"]
+    print(f"  A2 ATTRITION      constrained ${sim.dollars:,.0f} vs B2 on the same "
+          f"{len(s['same'])} dates ${s['b2_same']:,.0f}  = {s['ratio']:.0%}")
+    print(f"     {'MET' if a2 else 'NOT MET'}  (needs >= {st.attrition_floor:.0%})")
+    res["A2"] = a2
+    if sim.cfg.compound:
+        print(COMPOUND_A2_A5_WARNING)
+
+    # A3 NO BLOWUP
+    a3, mdd = s["A3"], s["mdd"]
+    print(f"  A3 NO BLOWUP      maxDD ${mdd:,.0f} = {abs(mdd) / sim.cfg.capital:.1%} of "
+          f"capital;  ledger violations {len(sim.ledger.violations)}")
+    print(f"     {'MET' if a3 else 'NOT MET'}  (needs no over-reservation and DD "
+          f"<= {st.maxdd_fraction:.0%})")
+    res["A3"] = a3
+
+    # A4 ATTRIBUTION
+    a4 = s["A4"]
+    print(f"  A4 ATTRIBUTION    {s['total']} candidates partition exactly into "
+          f"{s['n_taken']} taken + exclusions")
+    print(f"     {'MET' if a4 else 'NOT MET'}  (mismatch FAILS the run)")
+    res["A4"] = a4
+
+    # A5 STABILITY
+    a5, cuts, moves, cut_n = s["A5"], s["cuts"], s["moves"], s["cut_n"]
+    print(f"  A5 STABILITY      constrained/B2 ratio ALL {s['ratio']:.0%} "
           f"(n={len(sim.signal_pos)});  " +
           "  ".join(f"{k.replace('ex_', 'ex-')} {v:.0%} ({m * 100:+.0f}pt, n={cut_n[k]})"
                     for k, (v, m) in ((k, (cuts[k], moves[k])) for k in cuts)))
@@ -2257,21 +2921,94 @@ def evaluate(sim: Sim, b2: Sim, label: str, st: Settings) -> dict:
         print(COMPOUND_A2_A5_WARNING)
 
     # A6 CREDIT SENSITIVITY — A1 on the debit-only subset
-    deb = [r for r in rows if not r["credit"]]
-    if deb:
-        d_mean = fmean([r["R"] for r in deb])
-        d_lo, d_hi = P.boot_ci_by_date(deb, key="R")
-        _, d_pos, d_years = P.sign_stable(deb, key="R")
-        a6 = d_mean > 0 and d_lo > 0 and d_pos == len(d_years) and bool(d_years)
-        print(f"  A6 CREDIT SENS.   debit-only n={len(deb)}  meanR {d_mean:+.3f}  "
-              f"CI95 [{d_lo:+.3f},{d_hi:+.3f}]  years " +
-              "  ".join(f"{y}:{m:+.3f}" for y, m in d_years.items()))
+    a6 = s["A6"]
+    if s["deb"]:
+        print(f"  A6 CREDIT SENS.   debit-only n={len(s['deb'])}  "
+              f"meanR {s['d_mean']:+.3f}  "
+              f"CI95 [{s['d_lo']:+.3f},{s['d_hi']:+.3f}]  years " +
+              "  ".join(f"{y}:{m:+.3f}" for y, m in s["d_years"].items()))
     else:
-        a6 = False
         print("  A6 CREDIT SENS.   no debit rows")
     print(f"     {'MET' if a6 else 'NOT MET'}  (A1 must hold on debit-only)")
     res["A6"] = a6
     return res
+
+
+def print_arm_criteria(arms: dict, b2: Sim, label: str, st: Settings,
+                       headline: dict) -> dict:
+    """0b-iii — A1-A6 scored on all FOUR arm cells, not only the headline.
+
+    The registration calls the F1-against-F2 contrast "the study's central
+    object", and the ARMS table has printed F2's row against nothing on every
+    run. Every cell here is scored by `criteria_scores`, the same body
+    `evaluate()` prints from, so this adds no clause and re-derives none.
+
+    THE VERDICT DOES NOT MOVE. It is read off the HEADLINE cell in its own
+    section, above; `headline` is passed in only to state whether the (R, F1)
+    cell here reproduces it, which it must.
+
+    The (R, F1) cell IS scored again here rather than reusing `headline`'s
+    figures, and that is the point: `arms["RF1"]` is a SEPARATE `simulate()`
+    run from the `head` sim `evaluate()` scored. Reusing the headline's dict
+    for this row would make the cross-check below compare a dict with itself —
+    it would pass on a day the two simulations had genuinely diverged, which is
+    the only thing it exists to catch. The cost is one extra bootstrap pair per
+    population.
+    """
+    # The title names the cells without the word "arm" in front of them:
+    # `tests/test_arm_index.py` reads "ARM <Word>" as a citation of an INDEXED
+    # arm label, and this block cites four existing ones rather than naming a
+    # new arm of its own.
+    hdr(f"[{label}] DISCLOSURE — A1-A6 ON ALL FOUR CELLS (R/D x F1/F2)")
+    print(f"""  {DISCLOSURE} The verdict is the HEADLINE cell's and is
+  printed in its own section. Scoring the other three cells changes no
+  threshold, no measured number and no label — it is printed because the
+  registration calls F1-against-F2 "the study's central object" and the report
+  has until now tabulated F2's dollars against nothing.
+
+  A2 and A5 are ratios against B2, the UNCONSTRAINED benchmark, which keeps the
+  one-contract floor on EVERY cell — F2 included. That is the registered clause,
+  unchanged: F2 is scored against a book that still takes the picks F2 refuses.
+  Whether that makes A2 easier or harder for F2 is not settled, and is not
+  settled here.""")
+
+    scores = {key: criteria_scores(sim, b2, st) for key, sim in arms.items()}
+    keys = ("A1", "A2", "A3", "A4", "A5", "A6")
+    print(f"\n  {'arm':<28}" + "".join(f"{k:>7}" for k in keys))
+    for key, arm_label, _kw in ARM_CELLS:
+        s = scores[key]
+        print(f"  {arm_label:<28}"
+              + "".join(f"{('MET' if s[k] else 'no'):>7}" for k in keys))
+
+    sub("the figure behind every cell")
+    for key, arm_label, _kw in ARM_CELLS:
+        s, sim = scores[key], arms[key]
+        print(f"\n  {arm_label}")
+        print(f"    A1  meanR {s['mean_R']:+.3f}  CI95 [{s['lo']:+.3f},{s['hi']:+.3f}]"
+              f"  years " + "  ".join(f"{y}:{m:+.3f}"
+                                      for y, m in s["years"].items()))
+        print(f"    A2  ${sim.dollars:,.0f} vs B2 ${s['b2_same']:,.0f} on the same "
+              f"{len(s['same'])} dates = {s['ratio']:.0%}")
+        print(f"    A3  maxDD ${s['mdd']:,.0f} = "
+              f"{abs(s['mdd']) / sim.cfg.capital:.1%} of capital;  ledger "
+              f"violations {len(sim.ledger.violations)}")
+        print(f"    A4  {s['total']} candidates partition into {s['n_taken']} "
+              f"taken + exclusions")
+        print(f"    A5  ratio ALL {s['ratio']:.0%} (n={len(sim.signal_pos)});  "
+              + "  ".join(
+                  f"{k.replace('ex_', 'ex-')} {s['cuts'][k]:.0%} "
+                  f"({s['moves'][k] * 100:+.0f}pt, n={s['cut_n'][k]})"
+                  for k in s["cuts"]))
+        if s["deb"]:
+            print(f"    A6  debit-only n={len(s['deb'])}  meanR {s['d_mean']:+.3f}  "
+                  f"CI95 [{s['d_lo']:+.3f},{s['d_hi']:+.3f}]")
+        else:
+            print("    A6  no debit rows")
+
+    same = all(bool(scores["RF1"][k]) == bool(headline[k]) for k in keys)
+    print(f"\n  cross-check — the (R, F1) cell reproduces the verdict's own "
+          f"A1-A6: {'yes' if same else 'NO — the two disagree'}")
+    return scores
 
 
 # The two NOT FEASIBLE labels differ only after the capital, so this prefix
@@ -2543,7 +3280,12 @@ def print_capital_ladder_posthoc(day_lists, label: str, st: Settings,
 # ════════════════════════════════════════════════════════════════════════════
 
 def report_population(recs, picked_all, dates_allowed, label: str,
-                      st: Settings, cache: dict) -> tuple[dict, Sim, Sim]:
+                      st: Settings, cache: dict,
+                      diag: dict | None = None) -> tuple[dict, Sim, Sim, Sim]:
+    """`diag` is `load_book`'s, threaded in so the CAPITAL ADEQUACY block can
+    state the rows the loader dropped before it saw a cost — the denominator of
+    every share it prints. Optional so a caller that has no book (a test) can
+    still run the block; the counts line is then simply absent."""
     capital = st.capital
     pop = [r for r in recs if r["date"] in dates_allowed]
     picked = [r for r in picked_all if r["date"] in dates_allowed]
@@ -2559,12 +3301,27 @@ def report_population(recs, picked_all, dates_allowed, label: str,
 
     print_baselines(picked, b2, base, label)
     print_granularity(picked, base)
+    # 0c, beside GRANULARITY because it answers the same shape of question on
+    # the other side of the account: granularity is what THIS capital buys of
+    # the deployed picks, adequacy is what capital the PLAYS would need.
+    print_capital_adequacy(pop, day_lists, label, st, diag)
     print_utilisation(head, label)
     print_census(head, label)
     print_adverse(head, label)
     print_equity(head, b2, label, st)
-    print_arms(day_lists, bear_by_day, capital, label, st, cache)
-    print_hedge(day_lists, bear_by_day, capital, label, st, cache)
+    # The DISCLOSURE blocks (Phase 0b, 2026-09-21) sit beside the section each
+    # one discloses against: the A3 bases and the drawdown table under EQUITY
+    # CURVE, the sleeve's windows under ARM H, and the four-cell criteria grid
+    # after the criteria themselves. `dds` is computed ONCE and threaded, so
+    # the windows ARM H is counted across are the rows the table printed.
+    dds = drawdowns(head)
+    print_mtm_disclosure(head, label, st)
+    print_drawdowns(head, label, st, dds)
+    print_dollar_stop(head, label, st)
+    arms = print_arms(day_lists, bear_by_day, capital, label, st, cache)
+    print_path_bootstrap(arms, label, st)
+    sleeved = print_hedge(day_lists, bear_by_day, capital, label, st, cache)
+    print_hedge_drawdowns(sleeved, head, label, st, dds)
     print_cap_grid(day_lists, base, label, st, cache)
     # Last in the population block, deliberately: both are post-hoc
     # descriptions, not criteria. `print_equity_marks` is a no-op unless the
@@ -2572,7 +3329,8 @@ def report_population(recs, picked_all, dates_allowed, label: str,
     print_regime(head, label)
     print_equity_marks(head, label, st)
     res = evaluate(head, b2, label, st)
-    return res, head, b2
+    print_arm_criteria(arms, b2, label, st, res)
+    return res, head, b2, sleeved
 
 
 def main(argv=None) -> int:
@@ -2729,10 +3487,10 @@ def main(argv=None) -> int:
         print(f"\nREFUSED — {refusal}")
         return era.EXIT_THIN_ERA
 
-    res_primary, head_primary, _ = report_population(
-        recs, picked, ep_dates, "PRIMARY dense episodes", st, cache)
-    _, head_secondary, _ = report_population(
-        recs, picked, all_dates, "SECONDARY full book", st, cache)
+    res_primary, head_primary, _, sleeve_primary = report_population(
+        recs, picked, ep_dates, "PRIMARY dense episodes", st, cache, diag)
+    _, head_secondary, _, sleeve_secondary = report_population(
+        recs, picked, all_dates, "SECONDARY full book", st, cache, diag)
 
     verdict = print_verdict(res_primary, "PRIMARY dense episodes", st)
 
@@ -2763,6 +3521,25 @@ def main(argv=None) -> int:
         {"primary": head_primary, "secondary": head_secondary},
         arm=arm_col)
     print(f"  positions CSV: {n_rows} rows -> backtests/study_output/{stem}")
+
+    # ARM H's own export (DISCLOSURE, 2026-09-21): the sleeve never appears in
+    # the positions CSV, which is written from the sleeve-less headline cell.
+    # Its own stem for the same reason every arm has one.
+    sleeve_stem = sleeve_artifact(
+        compounding=args.compounding,
+        structure_universe=args.structure_universe)
+    sleeve_sims = {name: s for name, s in
+                   (("primary", sleeve_primary), ("secondary", sleeve_secondary))
+                   if s is not None}
+    # `-H`, never the bare `RF1`: these rows come from the ARM H run, which is
+    # a DIFFERENT simulation from the one the positions CSV holds (the sleeve
+    # spends cash and cap headroom, so its signal book differs). A pooled
+    # reader keying on `arm` must be able to tell them apart.
+    n_sleeve = write_positions_csv(
+        ROOT / "backtests" / "study_output" / sleeve_stem, sleeve_sims,
+        arm=f"{arm_col}-H", rows_fn=sleeve_rows)
+    print(f"  ARM H sleeve CSV: {n_sleeve} rows -> "
+          f"backtests/study_output/{sleeve_stem}")
 
     if not res_primary["A4"]:
         return 1

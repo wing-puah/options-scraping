@@ -99,17 +99,29 @@ Decisions owed. None of these is a study.
    ([pre-registration](pre-registrations/f2_management/exit_drawdown.md), ARM
    P's STATUS bullet).
 
-5. **OPEN — `account_sim` prints `NOT FEASIBLE AT $25,000`.** Decide whether to
-   change capital or sizing, or to accept the drawdown. Every registered rung
-   fails A3, and the first capital that passes is $75,000, which the report
-   prints as post-hoc. Default if nothing is decided: nothing changes and the
-   study keeps printing the verdict
-   ([entry](current.md#2026-09-20-fourth--account_sim--the-capital-ladder-prints-again-no-registered-rung-passes-a3)).
-   The work that informs the choice is ordered in
-   [`account-sim-feasibility-plan.md`](account-sim-feasibility-plan.md). Its
-   Phase 0 prints what the study already computes and needs no decision first.
-   The registered arm F2, which refuses picks one contract cannot fit, prints
-   8.7% and has never been graded.
+5. **OPEN — the `NOT FEASIBLE AT $25,000` print belongs to an unregistered cap
+   cell.** The tracked config carries a net cap of 2.50 × equity, raised by the
+   operator on 2026-08-13. The registration's headline cell is (0.25, 1.50)
+   ([entry](current.md#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not),
+   [plan](account-sim-feasibility-plan.md)).
+
+   - **What the registered cell prints.** Run on 2026-09-21 it reads
+     `>>> FEASIBLE <<<`, meeting every criterion on both populations, at 20.3%
+     PRIMARY. Marked to market rather than realized on close, the same cell
+     reads 25.9% PRIMARY and 44.8% SECONDARY, past the bar on that basis.
+   - **First decision.** Fold the cap change and the 2026-08-14 verdict
+     wording into the registration as `Resolved at build` tags, and say which
+     cell the tracked config should carry.
+   - **Second decision.** Change capital or sizing, or accept the drawdown.
+   - **Neither the 1.50 cell nor the registered arm F2 may be adopted on its
+     P&L.** The registration forbids adopting a cap value that way. Both
+     figures had also been seen before this run: 20.3% in the cap grid, and
+     F2's 8.7% in the arms table on every run.
+   - **Default if nothing is decided.** Nothing changes, and the study keeps
+     printing the verdict on the tracked cell.
+   - **Sizing throttles closed 2026-09-22.** A Turtle-ladder or ARM D-shaped
+     drawdown throttle does not fix this
+     ([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)).
 
 6. **OPEN — the 14 pre-fill rows.** Exclude them through `fill_trusted`, or
    re-price them with `--redo`. Excluding is the recommendation, because the
