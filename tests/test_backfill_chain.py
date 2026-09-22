@@ -16,7 +16,7 @@ no Playwright/Barchart launch anywhere in this file.
 """
 import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -328,10 +328,41 @@ def test_manifest_round_trip_via_append(_isolate):
     _, manifest_path, _ = _isolate
     row = {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
           "outcome": "fetched", "rows": "10", "first_date": "2024-01-02",
-          "last_date": "2024-06-20", "attempts": "0", "timestamp": "2026-09-01T00:00:00+00:00"}
+          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "",
+          "timestamp": "2026-09-01T00:00:00+00:00"}
     bc.append_manifest_row(manifest_path, row)
     loaded = bc.load_manifest(manifest_path)
     assert loaded[("SPY", "2024-06-21", "450.00", "C")] == row
+
+
+# --- item 5 (re-review): newline repair before an append ------------------------
+
+def test_append_repairs_a_truncated_final_line_before_appending(_isolate):
+    _, manifest_path, _ = _isolate
+    manifest_path.write_text(
+        "symbol,expiration,strike,right,outcome,rows,first_date,last_date,attempts,"
+        "first_attempt_at,timestamp\nSPY,2024-06-21,450.00")  # no trailing newline
+    row = {"symbol": "QQQ", "expiration": "2024-06-21", "strike": "400.00", "right": "P",
+          "outcome": "fetched", "rows": "5", "first_date": "2024-01-02",
+          "last_date": "2024-06-20", "attempts": "0", "first_attempt_at": "",
+          "timestamp": "2026-09-01T00:01:00+00:00"}
+    bc.append_manifest_row(manifest_path, row)
+    text = manifest_path.read_text()
+    assert "450.00\nQQQ,2024-06-21,400.00" in text  # separated, not concatenated
+    loaded = bc.load_manifest(manifest_path)
+    assert loaded[("QQQ", "2024-06-21", "400.00", "P")]["outcome"] == "fetched"
+
+
+def test_append_writes_header_when_file_exists_but_empty(_isolate):
+    _, manifest_path, _ = _isolate
+    manifest_path.touch()
+    row = {"symbol": "SPY", "expiration": "2024-06-21", "strike": "450.00", "right": "C",
+          "outcome": "fetched", "rows": "1", "first_date": "", "last_date": "",
+          "attempts": "0", "first_attempt_at": "", "timestamp": "t"}
+    bc.append_manifest_row(manifest_path, row)
+    lines = manifest_path.read_text().splitlines()
+    assert lines[0].startswith("symbol,")
+    assert len(lines) == 2
 
 
 def test_manifest_append_never_rewrites_prior_rows(_isolate):
@@ -470,6 +501,121 @@ def test_no_bars_outcome_does_not_write_file(_isolate):
     assert not bc.contract_path(*contract).exists()
 
 
+# --- item 1 (re-review): HTTP error is sticky, not last-message-wins -----------
+
+def test_429_then_fallback_no_rows_is_blocked_not_no_bars(_isolate):
+    """The exact failure the re-review found: a 'Re-issued feed HTTP 429'
+    followed by the fallback navigation logging 'History feed returned no
+    rows' must NOT resolve to a confirmed-empty no_bars that resets the fail
+    counter — the 429 must decide the outcome."""
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+
+    class _Session:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("Re-issued feed HTTP %d for '%s' — re-navigating", 429, url)
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    stats = _run(bc.run_fetch([contract], {}, manifest_path, sleep_s=0, session=_Session()))
+    assert stats["stopped_http_429"] == 1
+    assert "no_bars" not in stats
+
+
+def test_empty_after_an_http_error_from_a_different_attempt_is_unaffected():
+    """The signal is per-fetch (a fresh _HistorySignal each _fetch_one call)
+    — an http_error from one contract must never leak into the next."""
+    signal_a = bc._HistorySignal()
+    handler_a = bc._HistorySniffHandler(signal_a)
+    handler_a.emit(logging.LogRecord("lib.barchart.session", logging.WARNING, "", 0,
+                                     "History feed returned HTTP %d for '%s'",
+                                     (429, "url1"), None))
+    signal_b = bc._HistorySignal()
+    handler_b = bc._HistorySniffHandler(signal_b)
+    handler_b.emit(logging.LogRecord("lib.barchart.session", logging.WARNING, "", 0,
+                                     "History feed returned no rows for '%s'", ("url2",), None))
+    assert signal_a.kind == "http_error" and signal_b.kind == "empty"
+
+
+# --- item 2 (re-review): near-the-money guard + no_bars consecutive stop -------
+
+def test_near_the_money_empty_is_failed_not_no_bars(_isolate):
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+
+    class _EmptyFeedSession:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    stats = _run(bc.run_fetch([contract], {}, manifest_path, sleep_s=0,
+                              session=_EmptyFeedSession(),
+                              near_money={contract: True}))
+    assert stats["failed"] == 1
+    assert "no_bars" not in stats
+    row = bc.load_manifest(manifest_path)[bc._key(*contract)]
+    assert row["outcome"] == "failed"
+
+
+def test_near_the_money_too_few_bars_is_failed_not_no_bars(_isolate):
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    session = _ScriptedSession([HEADER + "\n"])  # 0 parsed bars
+    stats = _run(bc.run_fetch([contract], {}, manifest_path, sleep_s=0, session=session,
+                              near_money={contract: True}))
+    assert stats["failed"] == 1
+    assert "no_bars" not in stats
+
+
+def test_far_from_money_empty_is_still_no_bars(_isolate):
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+
+    class _EmptyFeedSession:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    stats = _run(bc.run_fetch([contract], {}, manifest_path, sleep_s=0,
+                              session=_EmptyFeedSession(), near_money={contract: False}))
+    assert stats["no_bars"] == 1
+
+
+def test_plan_marks_strikes_within_3pct_of_a_window_close_as_near_money():
+    entries = bc.plan_for_symbol(
+        "SPY", date(2024, 1, 1), date(2024, 1, 31), 20, 60, 0.10, ["C"],
+        close_cache={}, close_provider=_provider(450.0), today=date(2026, 1, 1))
+    near = {e.strike: e.near_money for e in entries}
+    assert near[450.0] is True                    # exactly at the close
+    far_strikes = [s for s in near if abs(s - 450.0) / 450.0 > 0.03]
+    assert far_strikes and all(near[s] is False for s in far_strikes)
+
+
+def test_consecutive_no_bars_stop(_isolate):
+    _, manifest_path, _ = _isolate
+    contracts = [("SPY", date(2024, 6, 21), 450.0 + i, "C") for i in range(10)]
+
+    class _EmptyFeedSession:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned no rows for '%s'", url)
+            return None
+
+    stats = _run(bc.run_fetch(contracts, {}, manifest_path, sleep_s=0, no_bars_stop=3,
+                              session=_EmptyFeedSession()))
+    assert stats["no_bars"] == 3
+    assert stats["stopped_consecutive_no_bars"] == 1
+
+
+# --- item 4: the sniffed message strings really are session.py's own ----------
+
+def test_sniffed_messages_exist_verbatim_in_lib_barchart_session_source():
+    import inspect
+    from lib.barchart import session as barchart_session
+    src = inspect.getsource(barchart_session)
+    for msg in bc._HistorySniffHandler._HTTP_MSGS + bc._HistorySniffHandler._EMPTY_MSGS:
+        assert msg in src, f"{msg!r} not found verbatim in lib/barchart/session.py"
+
+
 def test_ambiguous_none_is_failed_on_first_attempt(_isolate):
     """No sniffable log record at all (e.g. a plain mock session) — an
     ambiguous None is `failed`, not `no_bars` (review item 7's fallback)."""
@@ -482,9 +628,10 @@ def test_ambiguous_none_is_failed_on_first_attempt(_isolate):
     assert row["outcome"] == "failed" and row["attempts"] == "1"
 
 
-def test_second_ambiguous_failure_on_a_separate_run_marks_unavailable(_isolate):
-    """review item 7b: failed/unparsed on 2 SEPARATE runs (manifest-persisted
-    `attempts`) -> unavailable (terminal)."""
+def test_two_failed_runs_do_not_promote_to_unavailable(_isolate):
+    """re-review item 3: two runs during one short outage must NOT
+    permanently blacklist a contract — unavailable now needs >=3 attempts
+    AND >=24h between the first and the last."""
     _, manifest_path, _ = _isolate
     contract = ("SPY", date(2024, 6, 21), 450.0, "C")
 
@@ -496,9 +643,80 @@ def test_second_ambiguous_failure_on_a_separate_run_marks_unavailable(_isolate):
     manifest2 = bc.load_manifest(manifest_path)
     stats2 = _run(bc.run_fetch([contract], manifest2, manifest_path, sleep_s=0,
                                session=_ScriptedSession([None])))
-    assert stats2["unavailable"] == 1
+    assert stats2["failed"] == 1
+    assert "unavailable" not in stats2
     row = bc.load_manifest(manifest_path)[bc._key(*contract)]
-    assert row["outcome"] == "unavailable"
+    assert row["outcome"] == "failed" and row["attempts"] == "2"
+
+
+def test_third_attempt_within_24h_still_does_not_promote(_isolate):
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    now = bc._now_iso()
+    manifest = {bc._key(*contract): {"outcome": "failed", "attempts": "2",
+                                     "first_attempt_at": now}}
+    stats = _run(bc.run_fetch([contract], manifest, manifest_path, sleep_s=0,
+                              session=_ScriptedSession([None])))
+    assert stats["failed"] == 1
+    assert "unavailable" not in stats
+
+
+def test_third_attempt_after_24h_promotes_to_unavailable(_isolate):
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    stale = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat(timespec="seconds")
+    manifest = {bc._key(*contract): {"outcome": "failed", "attempts": "2",
+                                     "first_attempt_at": stale}}
+    stats = _run(bc.run_fetch([contract], manifest, manifest_path, sleep_s=0,
+                              session=_ScriptedSession([None])))
+    assert stats["unavailable"] == 1
+    row = bc.load_manifest(manifest_path)[bc._key(*contract)]
+    assert row["outcome"] == "unavailable" and row["attempts"] == "3"
+
+
+def test_blocking_stop_does_not_increment_attempts(_isolate):
+    """re-review item 3: a blocking HTTP status is the session's fault, not
+    this contract's — its attempts count must not move."""
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    manifest = {bc._key(*contract): {"outcome": "failed", "attempts": "1",
+                                     "first_attempt_at": bc._now_iso()}}
+
+    class _Session:
+        async def fetch_history_fast(self, url, timeout_ms):
+            _SESSION_LOG.warning("History feed returned HTTP %d for '%s'", 429, url)
+            return None
+
+    _run(bc.run_fetch([contract], manifest, manifest_path, sleep_s=0, session=_Session()))
+    row = bc.load_manifest(manifest_path)[bc._key(*contract)]
+    assert row["attempts"] == "1"
+
+
+def test_write_oserror_stops_run_and_does_not_count_as_an_attempt(_isolate, monkeypatch):
+    """re-review item 3: an OSError from the cache write is an environment
+    problem, not a per-contract one — stop immediately, don't burn attempts."""
+    _, manifest_path, _ = _isolate
+    contract = ("SPY", date(2024, 6, 21), 450.0, "C")
+    days = [date(2024, 3, 1) + timedelta(days=i) for i in range(10)]
+
+    def _boom(path, text):
+        raise OSError("disk full")
+    monkeypatch.setattr(bc, "_atomic_write_new", _boom)
+
+    session = _ScriptedSession([_history_csv(days)])
+    stats = _run(bc.run_fetch([contract], {}, manifest_path, sleep_s=0, session=session))
+    assert stats["stopped_write_error"] == 1
+    row = bc.load_manifest(manifest_path)[bc._key(*contract)]
+    assert row["attempts"] == "0"
+    assert not bc.contract_path(*contract).exists()
+
+
+def test_retry_unavailable_flag_reincludes_it_as_pending(_isolate):
+    entry = _entry(expiration=date(2023, 1, 1))
+    manifest = {bc._key(*bc.contract_of(entry)): {"outcome": "unavailable", "attempts": "3"}}
+    assert bc.classify(entry, manifest, today=date(2024, 1, 1)) == "covered"
+    assert bc.classify(entry, manifest, today=date(2024, 1, 1),
+                       retry_unavailable=True) == "pending"
 
 
 def test_unavailable_is_terminal_for_an_expired_contract(_isolate):

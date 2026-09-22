@@ -168,7 +168,22 @@ log = logging.getLogger("backfill_chain")
 
 MANIFEST_PATH = ROOT / "backtests" / "option_history_cache_backfill_manifest.csv"
 MANIFEST_FIELDS = ("symbol", "expiration", "strike", "right", "outcome",
-                   "rows", "first_date", "last_date", "attempts", "timestamp")
+                   "rows", "first_date", "last_date", "attempts",
+                   "first_attempt_at", "timestamp")
+
+# review item 3 (2026-09-26 re-review): `unavailable` requires BOTH at least
+# this many recorded attempts AND at least this much wall-clock time between
+# the first and the most recent one — two runs during one short outage must
+# never permanently blacklist a contract.
+UNAVAILABLE_MIN_ATTEMPTS = 3
+UNAVAILABLE_MIN_SPAN = timedelta(hours=24)
+
+# review item 2: a strike within this fraction of ANY close in its expiry's
+# DTE window is near-the-money and, on a liquid underlying, always listed —
+# a confirmed-empty or near-empty response for one is more likely a stale
+# session/listing lag than a genuinely unlisted strike, so it must never be
+# recorded `no_bars` (permanently skip-worthy); it is `failed` instead.
+NEAR_MONEY_BAND = 0.03
 
 # Manifest outcomes that make a contract terminal PURELY off the manifest
 # (i.e. when the cache file itself is absent). "fetched"/"exists" are NOT
@@ -201,9 +216,12 @@ REFETCH_CACHE_DIR = ROOT / "backtests" / "option_history_cache_refetch"
 # A planned contract plus the quote-date window its expiry needs closes for
 # (review item 6's "first row is after the start of the planned DTE window"
 # check needs this; review item 3's "exclude expiries >= today" needs
-# `expiration`). `contract_of()` strips it back to the bare 4-field identity
-# every cache/manifest/fetch function keys on.
-PlanEntry = namedtuple("PlanEntry", "symbol expiration strike right window_start")
+# `expiration`; review item 2's near-the-money guard needs `near_money`).
+# `contract_of()` strips it back to the bare 4-field identity every
+# cache/manifest/fetch function keys on. `near_money` defaults False so
+# existing 5-positional-arg construction (tests, mainly) keeps working.
+PlanEntry = namedtuple("PlanEntry", "symbol expiration strike right window_start near_money",
+                       defaults=(False,))
 
 
 def contract_of(entry: "PlanEntry") -> tuple:
@@ -435,8 +453,9 @@ def plan_for_symbol(symbol: str, from_date: date, to_date: date, dte_min: int,
             continue
         lo, hi = min(closes) * (1 - band), max(closes) * (1 + band)
         for strike in strike_grid(symbol, lo, hi):
+            near = any(abs(strike - c) <= NEAR_MONEY_BAND * c for c in closes)
             for right in rights:
-                entries.add(PlanEntry(symbol, expiry, strike, right, window[0]))
+                entries.add(PlanEntry(symbol, expiry, strike, right, window[0], near))
     return sorted(entries, key=lambda e: (e.symbol, e.expiration, e.strike, e.right))
 
 
@@ -482,12 +501,26 @@ def load_manifest(path: Path) -> dict[tuple, dict]:
 def append_manifest_row(path: Path, row: dict) -> None:
     """Appends one attempt as a single fsync'd CSV line — never rewrites the
     file (review item 5). Writes the header once, the first time the file is
-    created."""
+    created (or the file exists but is empty). If the file exists, is
+    non-empty, and does NOT end in a newline (a crash mid-append left a
+    truncated final line — see ``load_manifest``'s tolerance for that), a
+    newline is written first so the new row never gets concatenated onto the
+    garbled fragment (re-review item 5, 2026-09-26)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    is_new = not path.exists()
+    needs_header = True
+    if path.exists() and path.stat().st_size > 0:
+        needs_header = False
+        with open(path, "rb") as fh:
+            fh.seek(-1, os.SEEK_END)
+            last_byte = fh.read(1)
+        if last_byte != b"\n":
+            with open(path, "a", newline="") as fh:
+                fh.write("\n")
+                fh.flush()
+                os.fsync(fh.fileno())
     with open(path, "a", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=MANIFEST_FIELDS)
-        if is_new:
+        if needs_header:
             w.writeheader()
         w.writerow({f: row.get(f, "") for f in MANIFEST_FIELDS})
         fh.flush()
@@ -550,11 +583,14 @@ def file_completeness(path: Path, expiration: date, window_start: date, *,
 
 
 def classify(entry: PlanEntry, manifest: dict[tuple, dict], *,
-            today: date | None = None) -> str:
+            today: date | None = None, retry_unavailable: bool = False) -> str:
     """``"covered" | "partial" | "pending"`` for one planned contract
     (review items 3, 4, 6). "covered" is the only status a real run treats
     as done; "partial" is real data on disk, never overwritten and never
-    re-requested except via ``--refetch-partial``."""
+    re-requested except via ``--refetch-partial``. ``retry_unavailable``
+    (review item 3) makes an ``unavailable`` manifest row NOT terminal — an
+    operator-requested re-check, unlike ``no_bars`` which is always terminal
+    (a real confirmed answer, not a give-up)."""
     today = today or date.today()
     contract = contract_of(entry)
     status = file_completeness(contract_path(*contract), entry.expiration,
@@ -569,18 +605,21 @@ def classify(entry: PlanEntry, manifest: dict[tuple, dict], *,
     if entry.expiration >= today:
         return "pending"
     row = manifest.get(_key(*contract))
-    if row and row.get("outcome") in _TERMINAL_OUTCOMES:
+    outcome = row.get("outcome") if row else None
+    if outcome in _TERMINAL_OUTCOMES:
+        if outcome == "unavailable" and retry_unavailable:
+            return "pending"
         return "covered"
     return "pending"
 
 
 def categorize(entries: list[PlanEntry], manifest: dict[tuple, dict], *,
-              today: date | None = None) -> tuple[list, list, list]:
+              today: date | None = None, retry_unavailable: bool = False) -> tuple[list, list, list]:
     """``(covered, partial, pending)`` — the three-way split (review items 4, 6)."""
     covered, partial, pending = [], [], []
     buckets = {"covered": covered, "partial": partial, "pending": pending}
     for e in entries:
-        buckets[classify(e, manifest, today=today)].append(e)
+        buckets[classify(e, manifest, today=today, retry_unavailable=retry_unavailable)].append(e)
     return covered, partial, pending
 
 
@@ -634,15 +673,24 @@ class _HistorySignal:
 
 class _HistorySniffHandler(logging.Handler):
     """Watches ``lib.barchart.session``'s known WARNING/ERROR message shapes
-    for the duration of one fetch. The LAST matching record wins — when the
-    fast re-issue path fails and falls back to a full navigation
-    (``fetch_history_csv``), that fallback's own outcome is what actually
-    produced the final `None`, and it always logs after the re-issue
-    attempt's own message."""
+    for the duration of one fetch.
+
+    NOT last-message-wins (fixed 2026-09-26 re-review, item 1): an HTTP
+    error (especially a blocking one) MUST decide the outcome even if the
+    fast re-issue path then falls back to a full navigation
+    (``fetch_history_csv``) that itself logs "no rows" — e.g. a 429 on the
+    re-issue, followed by a clean-looking empty response on the fallback
+    navigation, is a rate-limited/stale session, not a confirmed absence.
+    ``kind`` therefore only ever moves UP the priority order
+    ``empty < exception < http_error`` within one fetch; an ``http_error``
+    is sticky against a later ``empty``/``exception``, and among multiple
+    ``http_error`` records the LAST status code wins (the most recent
+    attempt's own code)."""
     _HTTP_MSGS = ("History feed returned HTTP %d for '%s'",
                  "Re-issued feed HTTP %d for '%s' — re-navigating")
     _EMPTY_MSGS = ("History feed returned no rows for '%s'",
                   "Re-issued feed returned no rows for '%s' — re-navigating")
+    _KIND_PRIORITY = {"empty": 0, "exception": 1, "http_error": 2}
 
     def __init__(self, signal: _HistorySignal):
         super().__init__(level=logging.WARNING)
@@ -650,12 +698,19 @@ class _HistorySniffHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         if record.msg in self._HTTP_MSGS and record.args:
-            self._signal.kind = "http_error"
-            self._signal.http_status = record.args[0]
+            new_kind, new_status = "http_error", record.args[0]
         elif record.msg in self._EMPTY_MSGS:
-            self._signal.kind = "empty"
+            new_kind, new_status = "empty", None
         elif record.levelno >= logging.ERROR:
-            self._signal.kind = "exception"
+            new_kind, new_status = "exception", None
+        else:
+            return
+
+        current = self._signal.kind
+        if current is None or self._KIND_PRIORITY[new_kind] >= self._KIND_PRIORITY[current]:
+            self._signal.kind = new_kind
+            if new_kind == "http_error":
+                self._signal.http_status = new_status
 
 
 async def _fetch_one(session, contract: tuple, timeout_ms: int) -> tuple[str | None, _HistorySignal]:
@@ -679,9 +734,33 @@ async def _fetch_one(session, contract: tuple, timeout_ms: int) -> tuple[str | N
 
 # ─── Fetch ────────────────────────────────────────────────────────────────────
 
+def _ambiguous_outcome(prior_attempts: int, prior_first_attempt_at: str, now_iso: str,
+                       fallback_outcome: str) -> tuple[str, int, str]:
+    """``(outcome, new_attempts, first_attempt_at)`` for an ambiguous failure
+    (review item 3, re-reviewed 2026-09-26): promotion to ``unavailable``
+    (terminal) requires BOTH ``UNAVAILABLE_MIN_ATTEMPTS`` recorded attempts
+    AND at least ``UNAVAILABLE_MIN_SPAN`` between the FIRST attempt and this
+    one — so two runs during one short outage can never permanently
+    blacklist a contract. ``first_attempt_at`` is set once (on the first
+    attempt) and carried forward unchanged after that."""
+    new_attempts = prior_attempts + 1
+    first_attempt_at = prior_first_attempt_at or now_iso
+    span_ok = False
+    try:
+        span_ok = (datetime.fromisoformat(now_iso) - datetime.fromisoformat(first_attempt_at)
+                  ) >= UNAVAILABLE_MIN_SPAN
+    except ValueError:
+        span_ok = False
+    outcome = ("unavailable" if new_attempts >= UNAVAILABLE_MIN_ATTEMPTS and span_ok
+              else fallback_outcome)
+    return outcome, new_attempts, first_attempt_at
+
+
 async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_path: Path, *,
-                    fail_stop: int = 10, headless: bool = True, timeout_ms: int = 30000,
-                    sleep_s: float = 0.4, session=None, cache_dir: Path | None = None) -> dict:
+                    fail_stop: int = 10, no_bars_stop: int = 25, headless: bool = True,
+                    timeout_ms: int = 30000, sleep_s: float = 0.4, session=None,
+                    cache_dir: Path | None = None,
+                    near_money: dict[tuple, bool] | None = None) -> dict:
     """Fetches every pending ``(symbol, expiration, strike, right)`` contract,
     writing its CSV to the cache (atomically, NEVER overwriting — review
     item 1) and appending one manifest row IMMEDIATELY after each attempt
@@ -689,41 +768,72 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
     contract and a re-run resumes exactly where this one stopped.
 
     Stops cleanly (does not raise) after ``fail_stop`` CONSECUTIVE ambiguous
-    failures (review item 7); stops IMMEDIATELY, before that count is ever
-    reached, on a blocking HTTP status (401/403/429 — review item 8) or a
+    failures, or after ``no_bars_stop`` CONSECUTIVE confirmed-empty results
+    (review item 2 — a near-the-money strike, per ``near_money``, is never
+    confirmed-empty in the first place; see below). Stops IMMEDIATELY,
+    before either counter is ever reached, on: a blocking HTTP status
+    (401/403/429, sniffed via ``_HistorySniffHandler`` — review item 8); an
+    ``OSError`` writing the cache file (disk full, read-only fs, ... — an
+    environment problem, not a per-contract one; re-review item 3); or a
     session login failure (``RuntimeError`` from ``BarchartSession.__aenter__``,
-    caught here when this function owns session construction). A contract
-    that never listed (a confirmed clean-empty feed) is recorded ``no_bars``
-    and does NOT count as a failure at all. An ambiguous failure
-    (exception / non-blocking HTTP error / unclassifiable) is recorded
-    ``failed``/``unparsed`` on its first and second occurrence ACROSS
-    SEPARATE RUNS (the manifest's persisted ``attempts`` count), then
-    ``unavailable`` (terminal) on the second — review item 7b.
+    caught here when this function owns session construction). NEITHER a
+    blocking-HTTP stop NOR a write-OSError stop counts as an "attempt" for
+    that contract (its manifest ``attempts`` is left unchanged) — re-review
+    item 3.
+
+    A contract that never listed (a confirmed clean-empty feed OR a parsed
+    response with too few bars) is recorded ``no_bars`` and does NOT count
+    as an ambiguous failure — UNLESS ``near_money`` says this strike sat
+    within ``NEAR_MONEY_BAND`` of a close during its DTE window, in which
+    case a liquid underlying should always have listed it, so the miss is
+    recorded ``failed`` (an ambiguous failure) instead (review item 2). An
+    ambiguous failure (exception / non-blocking HTTP error / unclassifiable
+    / a too-near-the-money "empty") is recorded ``failed``/``unparsed`` until
+    BOTH ``UNAVAILABLE_MIN_ATTEMPTS`` attempts have accumulated ACROSS
+    SEPARATE RUNS and ``UNAVAILABLE_MIN_SPAN`` has elapsed since the first
+    one, then ``unavailable`` (terminal, unless a later run passes
+    ``--retry-unavailable`` at the planning stage) — review item 3.
 
     Raises ``RunLockHeld`` immediately, before touching anything, if another
     run already holds the manifest's lock (review item 5).
     """
     resolved_cache_dir = cache_dir if cache_dir is not None else HISTORY_CACHE
     resolved_cache_dir.mkdir(parents=True, exist_ok=True)
+    near_money = near_money or {}
     stats = Counter()
 
     async def run(sess) -> None:
         consecutive_failures = 0
+        consecutive_no_bars = 0
         for i, contract in enumerate(pending, 1):
             symbol, expiration, strike, right = contract
             path = contract_path(symbol, expiration, strike, right, cache_dir=resolved_cache_dir)
             name = path.stem
             k = _key(symbol, expiration, strike, right)
-            prior_attempts = int((manifest.get(k, {}).get("attempts") or "0") or "0")
+            prior = manifest.get(k, {})
+            prior_attempts = int((prior.get("attempts") or "0") or "0")
+            prior_first_attempt_at = prior.get("first_attempt_at") or ""
+            now_iso = _now_iso()
             row = {"symbol": symbol, "expiration": expiration.isoformat(),
-                  "strike": f"{strike:.2f}", "right": right, "timestamp": _now_iso()}
+                  "strike": f"{strike:.2f}", "right": right, "timestamp": now_iso}
+
+            def _record_ambiguous(fallback_outcome: str) -> str:
+                outcome, new_attempts, first_at = _ambiguous_outcome(
+                    prior_attempts, prior_first_attempt_at, now_iso, fallback_outcome)
+                row.update(outcome=outcome, rows="0", first_date="", last_date="",
+                          attempts=str(new_attempts), first_attempt_at=first_at)
+                return outcome
 
             csv_text, signal = await _fetch_one(sess, contract, timeout_ms)
+            is_near_money = near_money.get(contract, False)
 
             if not csv_text:
                 if signal.kind == "http_error" and signal.http_status in _BLOCKING_HTTP_STATUSES:
+                    # Not this contract's fault — the SESSION is blocked.
+                    # attempts/first_attempt_at are left exactly as they
+                    # were (re-review item 3).
                     row.update(outcome="failed", rows="0", first_date="", last_date="",
-                              attempts=str(prior_attempts + 1))
+                              attempts=str(prior_attempts), first_attempt_at=prior_first_attempt_at)
                     manifest[k] = row
                     append_manifest_row(manifest_path, row)
                     remaining = len(pending) - i
@@ -735,62 +845,80 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                         remaining, manifest_path)
                     stats[f"stopped_http_{signal.http_status}"] = 1
                     return
-                if signal.kind == "empty":
+                if signal.kind == "empty" and not is_near_money:
                     row.update(outcome="no_bars", rows="0", first_date="", last_date="",
-                              attempts="0")
+                              attempts="0", first_attempt_at="")
                     stats["no_bars"] += 1
                     consecutive_failures = 0
+                    consecutive_no_bars += 1
                     log.info("[%d/%d] %s: no bars (confirmed empty feed) — not written",
                              i, len(pending), name)
                 else:
-                    new_attempts = prior_attempts + 1
-                    outcome = "unavailable" if new_attempts >= 2 else "failed"
-                    row.update(outcome=outcome, rows="0", first_date="", last_date="",
-                              attempts=str(new_attempts))
+                    outcome = _record_ambiguous("failed")
                     stats[outcome] += 1
                     consecutive_failures += 1
-                    log.warning("[%d/%d] %s: no data (%s)%s", i, len(pending), name,
-                               signal.kind or "unclassified",
-                               " — marked unavailable after 2 failed runs"
-                               if outcome == "unavailable" else "")
+                    consecutive_no_bars = 0
+                    near_note = " (near-the-money — a liquid underlying should list this)" \
+                        if is_near_money and signal.kind != "http_error" else ""
+                    log.warning("[%d/%d] %s: no data (%s)%s%s", i, len(pending), name,
+                               signal.kind or "unclassified", near_note,
+                               " — marked unavailable" if outcome == "unavailable" else "")
             else:
                 try:
                     details = parse_history_details(csv_text, require_mark=False)
                 except Exception as e:
-                    new_attempts = prior_attempts + 1
-                    outcome = "unavailable" if new_attempts >= 2 else "unparsed"
-                    row.update(outcome=outcome, rows="0", first_date="", last_date="",
-                              attempts=str(new_attempts))
+                    outcome = _record_ambiguous("unparsed")
                     stats[outcome] += 1
                     consecutive_failures += 1
+                    consecutive_no_bars = 0
                     log.warning("[%d/%d] %s: unparseable (%s)", i, len(pending), name, safe_err(e))
                 else:
-                    if len(details) < MIN_USABLE_BARS:
+                    if len(details) < MIN_USABLE_BARS and not is_near_money:
                         row.update(outcome="no_bars", rows=str(len(details)),
-                                  first_date="", last_date="", attempts="0")
+                                  first_date="", last_date="", attempts="0", first_attempt_at="")
                         stats["no_bars"] += 1
                         consecutive_failures = 0
+                        consecutive_no_bars += 1
                         log.info("[%d/%d] %s: no bars — not written", i, len(pending), name)
+                    elif len(details) < MIN_USABLE_BARS:
+                        outcome = _record_ambiguous("failed")
+                        stats[outcome] += 1
+                        consecutive_failures += 1
+                        consecutive_no_bars = 0
+                        log.warning("[%d/%d] %s: too few bars near-the-money — treating as a "
+                                   "failure, not no_bars", i, len(pending), name)
                     else:
                         days = sorted(details)
                         try:
                             created = _atomic_write_new(path, csv_text)
-                        except Exception as e:
-                            new_attempts = prior_attempts + 1
-                            outcome = "unavailable" if new_attempts >= 2 else "failed"
-                            row.update(outcome=outcome, rows="0", first_date="", last_date="",
-                                      attempts=str(new_attempts))
-                            stats[outcome] += 1
-                            consecutive_failures += 1
-                            log.error("[%d/%d] %s: cache write failed (%s)",
-                                     i, len(pending), name, safe_err(e))
+                        except OSError as e:
+                            # An environment problem (disk full, read-only
+                            # fs, ...), not a per-contract one: stop the
+                            # whole run rather than burn through fail_stop,
+                            # and don't count it as an attempt (re-review
+                            # item 3).
+                            row.update(outcome="failed", rows="0", first_date="", last_date="",
+                                      attempts=str(prior_attempts),
+                                      first_attempt_at=prior_first_attempt_at)
+                            manifest[k] = row
+                            append_manifest_row(manifest_path, row)
+                            remaining = len(pending) - i
+                            log.error(
+                                "stopping immediately — cache write failed for %s (%s); "
+                                "%d contract(s) remain; the manifest at %s reflects every "
+                                "attempt up to here, so re-running the same command "
+                                "resumes from here", name, safe_err(e), remaining, manifest_path)
+                            stats["stopped_write_error"] = 1
+                            return
                         else:
                             outcome = "fetched" if created else "exists"
                             row.update(outcome=outcome, rows=str(len(details)),
                                       first_date=days[0].isoformat(),
-                                      last_date=days[-1].isoformat(), attempts="0")
+                                      last_date=days[-1].isoformat(), attempts="0",
+                                      first_attempt_at="")
                             stats[outcome] += 1
                             consecutive_failures = 0
+                            consecutive_no_bars = 0
                             log.info("[%d/%d] %s: %s, %d bars %s..%s", i, len(pending), name,
                                     outcome, len(details), days[0], days[-1])
 
@@ -805,6 +933,16 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
                     "re-running the same command resumes from here",
                     fail_stop, remaining, manifest_path)
                 stats["stopped_consecutive_failures"] = 1
+                return
+
+            if consecutive_no_bars >= no_bars_stop:
+                remaining = len(pending) - i
+                log.warning(
+                    "stopping after %d consecutive no_bars — %d contract(s) remain; "
+                    "the manifest at %s already reflects every attempt so far, so "
+                    "re-running the same command resumes from here",
+                    no_bars_stop, remaining, manifest_path)
+                stats["stopped_consecutive_no_bars"] = 1
                 return
 
             if sleep_s:
@@ -836,14 +974,15 @@ async def run_fetch(pending: list[tuple], manifest: dict[tuple, dict], manifest_
 
 def print_dry_run(plan: dict[str, list[PlanEntry]], manifest: dict[tuple, dict], *,
                   max_contracts: int | None, sleep_s: float,
-                  today: date | None = None) -> dict:
+                  today: date | None = None, retry_unavailable: bool = False) -> dict:
     """Per-symbol plan report: universe / covered / partial / pending, and an
     estimated duration for the pending set. Returns the per-symbol stats
     dict (also useful to callers/tests, not just printed)."""
     report: dict[str, dict] = {}
     total_pending = 0
     for symbol, entries in plan.items():
-        covered, partial, pending = categorize(entries, manifest, today=today)
+        covered, partial, pending = categorize(entries, manifest, today=today,
+                                                retry_unavailable=retry_unavailable)
         report[symbol] = {"universe": len(entries), "covered": len(covered),
                           "partial": len(partial), "pending": len(pending)}
         total_pending += len(pending)
@@ -896,6 +1035,9 @@ def main() -> None:
     parser.add_argument("--sleep", type=float, default=0.4, help="Seconds between fetches.")
     parser.add_argument("--fail-stop", type=int, default=10,
                         help="Stop after this many consecutive ambiguous failures.")
+    parser.add_argument("--no-bars-stop", type=int, default=25,
+                        help="Stop after this many consecutive confirmed-empty "
+                             "(no_bars) results.")
     parser.add_argument("--include-open-expiries", action="store_true",
                         help="Include expiries on/after today (excluded by default — "
                              "review item 3, their chain can still change).")
@@ -903,6 +1045,9 @@ def main() -> None:
                         help="Also fetch PARTIAL contracts, into the sibling "
                              "backtests/option_history_cache_refetch/ dir (never the "
                              "primary cache) — review item 6.")
+    parser.add_argument("--retry-unavailable", action="store_true",
+                        help="Treat a manifest `unavailable` row as pending again, "
+                             "not terminal (an operator-requested re-check).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Default behaviour: print the plan, scrape nothing "
                              "(kept as an explicit flag for readability; --execute "
@@ -933,15 +1078,24 @@ def main() -> None:
              args.from_date, args.to_date, args.dte_min, args.dte_max, args.band, rights)
 
     if not args.execute:
-        print_dry_run(plan, manifest, max_contracts=args.max_contracts, sleep_s=args.sleep)
+        print_dry_run(plan, manifest, max_contracts=args.max_contracts, sleep_s=args.sleep,
+                      retry_unavailable=args.retry_unavailable)
         return
 
     all_pending: list[tuple] = []
     all_partial: list[tuple] = []
+    near_money_map: dict[tuple, bool] = {}
     for symbol in symbols:
-        _covered, partial, pending = categorize(plan[symbol], manifest)
-        all_pending.extend(contract_of(e) for e in pending)
-        all_partial.extend(contract_of(e) for e in partial)
+        _covered, partial, pending = categorize(plan[symbol], manifest,
+                                                 retry_unavailable=args.retry_unavailable)
+        for e in pending:
+            c = contract_of(e)
+            all_pending.append(c)
+            near_money_map[c] = e.near_money
+        for e in partial:
+            c = contract_of(e)
+            all_partial.append(c)
+            near_money_map[c] = e.near_money
     all_pending.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
     all_partial.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
     if args.max_contracts is not None:
@@ -955,16 +1109,18 @@ def main() -> None:
     if all_pending:
         log.info("fetching %d contract(s)", len(all_pending))
         stats = asyncio.run(run_fetch(all_pending, manifest, MANIFEST_PATH,
-                                      fail_stop=args.fail_stop, headless=not args.no_headless,
-                                      sleep_s=args.sleep))
+                                      fail_stop=args.fail_stop, no_bars_stop=args.no_bars_stop,
+                                      headless=not args.no_headless, sleep_s=args.sleep,
+                                      near_money=near_money_map))
         log.info("done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats.items())))
 
     if args.refetch_partial and all_partial:
         log.info("--refetch-partial: re-fetching %d partial contract(s) into %s "
                  "(never touching the primary cache)", len(all_partial), REFETCH_CACHE_DIR)
         stats2 = asyncio.run(run_fetch(all_partial, manifest, MANIFEST_PATH,
-                                       fail_stop=args.fail_stop, headless=not args.no_headless,
-                                       sleep_s=args.sleep, cache_dir=REFETCH_CACHE_DIR))
+                                       fail_stop=args.fail_stop, no_bars_stop=args.no_bars_stop,
+                                       headless=not args.no_headless, sleep_s=args.sleep,
+                                       cache_dir=REFETCH_CACHE_DIR, near_money=near_money_map))
         log.info("refetch-partial done: %s", "  ".join(f"{k}={v}" for k, v in sorted(stats2.items())))
 
     if all_pending:
