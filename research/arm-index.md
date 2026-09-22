@@ -212,6 +212,22 @@ _Registered in [`pre-registrations/f2_management/staged_exit.md`](pre-registrati
   study for this arm (contrast `ARM E`, which composes around the frozen
   one).
 
+#### `bear_fast_exit`
+
+_Drafted in [`pre-registrations/f2_management/bear_fast_exit.md`](pre-registrations/f2_management/bear_fast_exit.md)_
+
+**DRAFT — not registered.** The labels below are provisional until the
+operator accepts the file. The study asks whether a bear debit held only a few
+sessions, or closed at a small profit, is positive net of trading costs.
+
+- `ARM TP` (arm) — Small profit target: the shipped bear-debit exit with pt
+  0.10, 0.20 or 0.30.
+- `ARM TS` (arm) — Time stop: exit at the close of session N if still open,
+  for a short list of N fixed in the draft. Composes around the frozen
+  `harness.replay`, like `staged_exit` `ARM E`.
+- `ARM OP` (arm) — The operator's live habit as inferred from fills: pt 0.25
+  or the close of session 5, whichever comes first.
+
 #### `exit_from_text`
 
 _Registered in [`pre-registrations/f2_management/exit_from_text.md`](pre-registrations/f2_management/exit_from_text.md) · module `f2_management/exit_from_text.py`_

@@ -305,6 +305,13 @@ breakeven stop was reverted 2026-08-24 when its rollback trigger fired
   criteria were met by `sl .50` on 2026-09-04 and are `NOT met` on 2026-09-19,
   at Δ=+0.030 with CI [−0.003, +0.061]
   ([record](study-results/f1_selection/bear_arm.md)).
+- **Drafted 2026-09-22, waits on the operator:** a fast exit, meaning a small
+  profit target or a stop after a few sessions, was never tested on bear
+  debits.
+  [`bear_fast_exit`](pre-registrations/f2_management/bear_fast_exit.md) is
+  the draft. It runs only after the whole-book re-price (§0, item 8). The
+  exploratory read expects a loss cut that still loses after costs
+  ([entry](current.md#2026-09-22-later--bear-debits--a-fast-exit-cuts-the-loss-still-loses-after-costs)).
 
 <a id="s2-5"></a>
 ### 2.5 Live walk-forward — the journal is collecting it; Stage 2 is not written

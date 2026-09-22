@@ -215,6 +215,74 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-22 (later) — bear debits — a fast exit cuts the loss, still loses after costs
+
+A bear debit closed within a few sessions, or at a small profit, loses less
+than one run on the shipped exit, but it does not make money once trading
+costs are charged. This is an exploratory read, not a verdict. Nothing ships,
+and a study is drafted to test it properly.
+
+_Eras v4 and v3, never pooled. Exports 2026-09-19. Bear debit rows, real and
+tweak: 483 rows on v4, 199 dates. On v3, 332 rows, 109 dates. Scratch
+scripts in the session scratchpad, not committed. Draft:
+[`bear_fast_exit`](pre-registrations/f2_management/bear_fast_exit.md)._
+
+**In production.** Nothing changes. Bear debits stay vetoed as a selection
+([§1.4](../docs/deployment-rules.md#s1)) and keep the shipped exit
+([§5](../docs/deployment-rules.md#s5)).
+
+**Why this was asked.** The operator still deploys some bear debit spreads
+and closes them quickly. No bear-debit test had a profit target below 0.75 or
+a stop measured in sessions. The closest were
+[`staged_exit` ARM E](arm-index.md#staged_exit), whole book from session 5
+on, and [`next_day_move` ARM R](arm-index.md#next_day_move), a day-0 cut.
+
+**Evidence.** Paired against the shipped exit through the frozen harness.
+Net is at $0.65 per contract plus 25% of the quoted spread, per leg per side,
+on rows whose entry spread is at most half the debit.
+
+| Arm | Era | Δ gross vs shipped | [CI](glossary.md#ci) | Net [meanR](glossary.md#meanr) | Net CI |
+|---|---|---|---|---|---|
+| Shipped | v4 | — | — | −0.207 | [−0.301, −0.114] |
+| Close at session 3 | v4 | +0.112 | [+0.034, +0.191] | −0.061 | [−0.098, −0.021] |
+| pt +0.20 or session 3 | v4 | +0.116 | [+0.035, +0.199] | −0.066 | [−0.099, −0.032] |
+| Shipped | v3 | — | — | −0.172 | [−0.299, −0.038] |
+| pt +0.20 or session 3 | v3 | +0.111 | [−0.003, +0.220] | −0.087 | [−0.134, −0.041] |
+
+- Gross meanR under every fast exit is close to zero. The round trip costs
+  more than that, so every fast arm is negative net of cost on both eras.
+- The loss cut is real on v4 but thin on v3. On v3 real rows no fast exit
+  separates from the shipped one.
+- The cut comes from both tails: the fast exit stops the deep losers early
+  and also cuts the big winners short. Bear debits that end profitable peak
+  late, at a median of session 13 on v4.
+
+| Shipped outcome (v4) | Rows | Mean R, shipped | Mean R, pt +0.20 or session 3 |
+|---|---|---|---|
+| Winners above +0.50 R | 146 | +1.17 | +0.29 |
+| Losers at −0.50 R or worse | 259 | −0.79 | −0.11 |
+
+**The operator's live bear debits.** Classified from opening fills, because
+the journal mislabels some closing bull call spreads. The count is far too
+small to judge an edge.
+
+| Opened in | Opened | Closed | Median hold | Realized | Per dollar of debit |
+|---|---|---|---|---|---|
+| 2025-02 → 2026-09 | 31 | 29 | 5 calendar days | +$761 | +0.061 |
+| 2025 | 15 | 15 | 4 calendar days | +$1,759 | +0.395 |
+| 2026 | 16 | 14 | 5.5 calendar days | −$998 | −0.124 |
+
+Two cheap spreads that returned several times their debit carry the 2025
+figure.
+
+**Caveats.** The arms were read before the draft was written, so this book
+cannot confirm one; the draft requires a forward read on new dates. The cost
+model here is a scratch copy on a subset of rows. The study must charge cost
+on every row through `cost_sensitivity`'s quote fallback.
+
+**Next.** [`next-steps.md`](next-steps.md) §2.4 gains the draft, which waits on
+the operator and on the whole-book re-price.
+
 ## 2026-09-22 — account_sim — a Turtle drawdown throttle is inert at $25,000, closed unregistered
 
 A Turtle-style position-size throttle does not shrink `account_sim`'s

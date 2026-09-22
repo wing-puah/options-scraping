@@ -129,6 +129,7 @@ and look any label up in [`../arm-index.md`](../arm-index.md).
 | File | Study | Status |
 |---|---|---|
 | [`f2_management/cost_sensitivity.md`](f2_management/cost_sensitivity.md) | `cost_sensitivity` — at what cost per leg does the Tier A/B edge vanish? Waits on three prerequisites landing: the B1 cost knobs, the B2 pre-fill grid fix, and one `BacktestResults` suite re-run produced after both. | draft |
+| [`f2_management/bear_fast_exit.md`](f2_management/bear_fast_exit.md) | `bear_fast_exit` — is a bear debit closed within a few sessions, or at a small profit, positive net of trading costs? Waits on operator acceptance and the whole-book re-price. | draft |
 | [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
 | [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
 | [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
