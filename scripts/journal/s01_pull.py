@@ -205,9 +205,27 @@ def pull_flex(sources=None, *, use_web_service: bool,
                     "unpriced and the exposure totals will be a floor")
         return parsed
 
+    from lib.barchart.session import BarchartAuthError
+
     from .lib import greeks as greeks_mod
-    return greeks_mod.enrich(parsed, as_of=as_of or date.fromisoformat(parsed["trade_date"]),
-                             cache_dir=GREEKS_CACHE_DIR)
+    try:
+        return greeks_mod.enrich(parsed,
+                                 as_of=as_of or date.fromisoformat(parsed["trade_date"]),
+                                 cache_dir=GREEKS_CACHE_DIR)
+    except BarchartAuthError as exc:
+        # A refused Barchart LOGIN degrades to the `enrich=False` pull above; it
+        # does not lose the day's fills. Barchart intermittently refuses a fresh
+        # login from a GitHub runner's IP (silent stay-on-/login, all retries of
+        # one run failing together — see BarchartSession._LOGIN_ATTEMPTS), and
+        # the fills, the book and the Drive archives do not depend on it. What
+        # does is exposure, and that path is already safe: every greek stays
+        # None/unavailable, s03_risk excludes those positions from every total,
+        # and the report calls the totals a FLOOR. The run is not silent about
+        # it — `greeks_unavailable` becomes a SOURCE LIMITS line. Only the auth
+        # failure is caught: a parse bug or validate() refusal still crashes.
+        log.error("Barchart login refused (%s) — journalling WITHOUT greeks: every "
+                  "position is unpriced and the exposure totals are a floor", exc)
+        return {**parsed, "greeks_unavailable": f"Barchart login refused: {exc}"}
 
 
 def save(raw: dict, path=None):

@@ -252,3 +252,61 @@ def test_login_saves_cookies_on_success(tmp_path, monkeypatch):
     s, _ = build(tmp_path, [HOME])
     asyncio.run(s._authenticate())
     assert json.loads(cookies.read_text()) == [{"name": "session", "value": "x"}]
+
+
+# ── __aenter__: a refused login ───────────────────────────────────────────────
+
+class _FakeBrowser:
+    def __init__(self):
+        self.closed = False
+
+    async def new_context(self, **kw):
+        return FakeContext(FakePage([]))
+
+    async def close(self):
+        self.closed = True
+
+
+class _FakePlaywright:
+    def __init__(self):
+        self.browser = _FakeBrowser()
+        self.stopped = False
+        self.chromium = self
+
+    async def launch(self, **kw):
+        return self.browser
+
+    async def stop(self):
+        self.stopped = True
+
+
+def test_refused_login_raises_auth_error_and_closes_the_browser(tmp_path, monkeypatch):
+    """The journal degrades on exactly this error type, so it must be distinct —
+    and still a RuntimeError, which every older caller catches. `async with`
+    skips __aexit__ when __aenter__ raises, so __aenter__ must close up itself."""
+    import pytest
+
+    import lib.barchart.session as session_mod
+    from lib.barchart import BarchartAuthError
+
+    pw = _FakePlaywright()
+
+    class _Starter:
+        async def start(self):
+            return pw
+
+    monkeypatch.setattr(session_mod, "async_playwright", lambda: _Starter())
+
+    async def refuse(self):
+        return False
+
+    monkeypatch.setattr(BarchartSession, "_authenticate", refuse)
+
+    async def enter():
+        async with BarchartSession("e", "p", tmp_path / "c.json"):
+            pass
+
+    with pytest.raises(BarchartAuthError):
+        asyncio.run(enter())
+    assert issubclass(BarchartAuthError, RuntimeError)
+    assert pw.browser.closed and pw.stopped

@@ -24,6 +24,16 @@ log = logging.getLogger(__name__)
 HISTORY_START_DATE = "2020-01-01"
 
 
+class BarchartAuthError(RuntimeError):
+    """Barchart refused the login — every attempt stayed on /login.
+
+    A RuntimeError subclass, so every caller that caught the old bare
+    RuntimeError still does. It exists so a caller that can run WITHOUT Barchart
+    (the journal's greek enrichment) can catch exactly this failure and nothing
+    else — a scrape or parse bug must still crash.
+    """
+
+
 class BarchartSession:
     _BASE = "https://www.barchart.com"
     _USER_AGENT = (
@@ -87,7 +97,11 @@ class BarchartSession:
         self._context = await self._browser.new_context(user_agent=self._USER_AGENT)
         self._page = await self._context.new_page()
         if not await self._authenticate():
-            raise RuntimeError("Barchart authentication failed.")
+            # Close the browser before raising: `async with` never calls
+            # __aexit__ when __aenter__ raises, so without this the Playwright
+            # subprocess outlives the event loop ("Event loop is closed" noise).
+            await self.__aexit__(None, None, None)
+            raise BarchartAuthError("Barchart authentication failed.")
         return self
 
     async def __aexit__(self, *_) -> None:

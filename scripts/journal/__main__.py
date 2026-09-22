@@ -498,6 +498,12 @@ def _source_caveats(raw: dict) -> list[str]:
             f"Open positions were RECONSTRUCTED by netting{window}, not read from a "
             "broker positions endpoint. A position entered before that window would "
             "be missing or understated.")
+    if raw.get("greeks_unavailable"):
+        notes.append(
+            f"NO GREEKS this run ({raw['greeks_unavailable']}). Every open position "
+            "is unpriced, so every delta/exposure total below is a FLOOR, not the "
+            "book's exposure. The next run that gets past the Barchart login "
+            "re-marks the open book.")
     if raw.get("commissions_included") is False:
         notes.append(
             "This export carries no commission column, so net prices and realized "

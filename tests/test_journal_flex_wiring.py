@@ -315,3 +315,51 @@ def test_absent_commission_is_declared_rather_than_shown_as_zero():
     raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=False)
     notes = cli._source_caveats(raw)
     assert any("EXCLUDE commission" in n for n in notes)
+
+
+# --------------------------------------------------------------------------
+# A refused Barchart login degrades; any other enrichment failure does not
+# --------------------------------------------------------------------------
+def _enrich_raising(monkeypatch, exc):
+    import scripts.journal.lib.greeks as greeks_mod
+
+    def boom(raw, **_):
+        raise exc
+
+    monkeypatch.setattr(greeks_mod, "enrich", boom)
+
+
+def test_a_refused_barchart_login_still_journals_the_fills(monkeypatch):
+    """Run 35673363388: the runner's login was refused 3/3 and the whole journal
+    died, fills and all. The greeks are the only thing Barchart supplies, so the
+    pull continues with every greek unavailable — never a zero delta."""
+    from lib.barchart import BarchartAuthError
+
+    _enrich_raising(monkeypatch, BarchartAuthError("Barchart authentication failed."))
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
+    assert raw["trades"], "the fills must survive a refused login"
+    assert raw["greeks"]["100"]["source"] == "unavailable"
+    assert raw["greeks"]["100"]["delta"] is None
+    assert "login refused" in raw["greeks_unavailable"]
+
+
+def test_a_refused_login_is_declared_in_the_caveats(monkeypatch):
+    from lib.barchart import BarchartAuthError
+
+    _enrich_raising(monkeypatch, BarchartAuthError("Barchart authentication failed."))
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)
+    notes = cli._source_caveats(raw)
+    assert any("NO GREEKS" in n and "FLOOR" in n for n in notes)
+
+
+def test_an_enriched_pull_carries_no_greeks_caveat():
+    raw = pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=False)
+    assert not any("NO GREEKS" in n for n in cli._source_caveats(raw))
+
+
+def test_any_other_enrichment_failure_still_crashes(monkeypatch):
+    """Only the auth failure is caught — a parse bug or a validate() refusal must
+    not be quietly turned into an unpriced book."""
+    _enrich_raising(monkeypatch, RuntimeError("something else broke"))
+    with pytest.raises(RuntimeError, match="something else"):
+        pull_mod.pull_flex([flex_csv()], use_web_service=False, enrich=True)

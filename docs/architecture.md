@@ -1160,6 +1160,12 @@ spread is the case worth noticing, not averaging over.
   is consulted, so a spurious one-day gap is possible — the safe direction to be wrong in.
   The remedy is always a fresh export in `portfolio/input/`, never re-scoping the saved
   query.
+- *A refused Barchart login does not lose the day.* Barchart sometimes refuses a fresh
+  login from a GitHub runner's IP. `BarchartSession` then raises `BarchartAuthError`.
+  `pull_flex()` catches only that error. The pull continues as `--no-greeks` would: every
+  greek stays `unavailable` and the exposure totals are a FLOOR. It also sets
+  `greeks_unavailable`, which `_source_caveats` prints as a SOURCE LIMITS line. Any other
+  enrichment error still crashes the run.
 - `lib/ibkr/flex.py::FlexClient` — the token-authenticated Flex Web Service transport:
   `SendRequest` → ReferenceCode → `GetStatement`, polling through IBKR error 1019
   ("generation in progress" — the only retryable code). Transport and parsing only, no
