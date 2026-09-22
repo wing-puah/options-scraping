@@ -14,10 +14,19 @@ IDEMPOTENCY is per ROW, not per batch. `lib/sheets_client.compute_batch_fingerpr
 answers "was the last batch identical", which is the wrong question here: a
 re-run later in the day legitimately carries the morning's fills PLUS new ones,
 and that batch hashes differently while most of its rows are already written.
-So the real key is `source_ref` — the broker's own execution ids — and rows
-whose source_ref is already present are dropped before the append. Running the
-same date five times appends the first time and nothing after; running it again
-after new fills appends exactly the new fills.
+So the real key is the broker's own execution ids, read out of `source_ref` by
+`fill_identity()`, and rows whose fills are already present are dropped before
+the append. Running the same date five times appends the first time and nothing
+after; running it again after new fills appends exactly the new fills.
+
+THE IDENTITY IS THE FILLS, NOT THE PULL. `source_ref` is written as
+`<pull filename>:<sorted exec ids>` and keeps that shape — the filename says
+which pull a row came from. Until 2026-09-22 the whole string was the dedup key,
+so two pulls that both carried a fill wrote it twice: a statement window covers
+more than one session, and a run re-pulled on a weekend or an hour later sees
+the same fills under a new filename. The 2026-08-14, 08-28 and 09-14 sessions
+were journalled four, two and five times over that way. `fill_identity()` drops
+the filename, so the same exec ids are the same row whichever pull carried them.
 
 The fingerprint is still recorded in `_meta` as a cheap "when did this last
 change" marker, not as the dedup mechanism.
@@ -126,8 +135,46 @@ def read_csv_rows(path: Path | None = None) -> list[dict]:
         return list(csv.DictReader(fh))
 
 
+def fill_identity(source_ref) -> frozenset[str]:
+    """The broker execution ids a row records — the row's identity.
+
+    `source_ref` is `<pull filename>:<exec id>,<exec id>,...`. Everything up to
+    the LAST colon is the pull and is dropped: the in-process fallback name
+    carries an ISO timestamp with colons of its own, and exec ids carry none. A
+    ref with no colon at all is read as ids alone. Empty in, empty out.
+    """
+    ref = str(source_ref or "").strip()
+    if not ref:
+        return frozenset()
+    ids = ref.rsplit(":", 1)[-1]
+    return frozenset(i for i in (t.strip() for t in ids.split(",")) if i)
+
+
 def read_csv_source_refs(path: Path | None = None) -> set[str]:
     return {r.get("source_ref", "") for r in read_csv_rows(path) if r.get("source_ref")}
+
+
+def _identities(rows) -> set[frozenset[str]]:
+    return {fill_identity(r.get("source_ref")) for r in rows if r.get("source_ref")}
+
+
+def _warn_partial_overlap(rows: list[dict], known: set[frozenset[str]]) -> int:
+    """Count (and log) rows sharing SOME but not all fills with a recorded row.
+
+    Such a row is still written: the fill grouping changed between two pulls,
+    and which grouping is right is a question for a person, not a guess here.
+    """
+    seen_ids = {i for ident in known for i in ident}
+    n = 0
+    for r in rows:
+        ident = fill_identity(r.get("source_ref"))
+        if ident not in known and ident & seen_ids:
+            n += 1
+            log.warning("journal row %s shares fill id(s) %s with a row already "
+                        "recorded under a different grouping — written anyway, "
+                        "check it by hand", r.get("source_ref"),
+                        sorted(ident & seen_ids))
+    return n
 
 
 def append_csv(rows: list[dict], path: Path | None = None) -> int:
@@ -155,6 +202,11 @@ def read_sheet_source_refs(spreadsheet_id: str) -> set[str]:
     return {str(r.get("source_ref", "")) for r in rows if r.get("source_ref")}
 
 
+def read_sheet_identities(spreadsheet_id: str) -> set[frozenset[str]]:
+    """The fill identities already on the tab — see `fill_identity()`."""
+    return {fill_identity(ref) for ref in read_sheet_source_refs(spreadsheet_id)}
+
+
 def write(events: list[PositionEvent],
           risk_by_key: dict[str, PositionRisk] | None = None,
           net_liq: float | None = None,
@@ -174,9 +226,17 @@ def write(events: list[PositionEvent],
         return summary
 
     existing = read_csv_rows(csv_path)
-    seen = {r.get("source_ref", "") for r in existing if r.get("source_ref")}
-    fresh = [r for r in rows if r["source_ref"] and r["source_ref"] not in seen]
+    seen = _identities(existing)
+    fresh = []
+    for r in rows:
+        ident = fill_identity(r["source_ref"])
+        # `seen` grows as rows are accepted, so one batch cannot carry the same
+        # fills twice either.
+        if ident and ident not in seen:
+            fresh.append(r)
+            seen.add(ident)
     summary["skipped_duplicate"] = len(rows) - len(fresh)
+    summary["partial_overlap"] = _warn_partial_overlap(fresh, _identities(existing))
 
     missing_ref = [r for r in rows if not r["source_ref"]]
     if missing_ref:
@@ -204,7 +264,7 @@ def write(events: list[PositionEvent],
         return summary
 
     try:
-        already = read_sheet_source_refs(spreadsheet_id)
+        already = read_sheet_identities(spreadsheet_id)
         # Diff against EVERY local row (what was already on disk plus this
         # run's new ones), not just `fresh`. A row that reached the CSV on an
         # earlier run but never reached Sheets (an outage, a bad credential)
@@ -214,8 +274,14 @@ def write(events: list[PositionEvent],
         # never reconsiders it for Sheets. `existing` was read before this
         # run's rows were appended, so the union is exactly what the CSV now
         # holds, without a second file read.
-        to_send = [r for r in existing + fresh
-                  if r.get("source_ref") and r["source_ref"] not in already]
+        to_send = []
+        for r in existing + fresh:
+            ident = fill_identity(r.get("source_ref"))
+            if ident and ident not in already:
+                to_send.append(r)
+                # A CSV that still holds the same fills twice (written before
+                # the identity dropped the pull filename) sends them once.
+                already.add(ident)
         if to_send:
             # raw=True: the date column is part of the identity and must not be
             # locale-parsed into a sheet date.

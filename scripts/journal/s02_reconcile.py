@@ -392,7 +392,10 @@ def _pull_filename(raw: dict) -> str:
 
 
 def _source_ref(raw: dict, legs: list[Leg]) -> str:
-    """The TradeJournal/CSV dedup key: pull filename + every exec id, sorted.
+    """The TradeJournal/CSV row reference: pull filename + every exec id, sorted.
+
+    The writer dedups on the exec ids alone (`s05_writer.fill_identity`); the
+    filename is provenance, so the same fills seen by two pulls are one row.
 
     MUST be computed from the PRE-merge legs (`_build_event`'s `source_legs`).
     Two reasons, and the second is the load-bearing one: the merged leg's

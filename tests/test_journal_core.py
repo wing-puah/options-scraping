@@ -455,3 +455,48 @@ def test_market_regime_comes_from_the_market_row_only():
         "regime": ["RANGE + L-VOL", "ticker-specific BULL"]}))
     assert A.market_regime_by_date(df)["2026-08-10"] == "RANGE + L-VOL"
     assert list(A.plays_for_date(df, "2026-08-10")["ticker"]) == ["NVDA"]
+
+
+# --------------------------------------------------------------------------
+# Row identity = the broker fills, never the pull filename (2026-09-22)
+# --------------------------------------------------------------------------
+def test_fill_identity_drops_the_pull_filename():
+    assert writer.fill_identity("ibkr-2026-08-28-1342.json:117928868,117928842") == \
+        frozenset({"117928842", "117928868"})
+    # the in-process fallback name carries an ISO timestamp with colons
+    assert writer.fill_identity("ibkr-2026-08-28-2026-08-28T13:42:00+00:00:e1,e2") == \
+        frozenset({"e1", "e2"})
+    assert writer.fill_identity("x2") == frozenset({"x2"})
+    assert writer.fill_identity("") == frozenset()
+    assert writer.fill_identity(None) == frozenset()
+
+
+def test_the_same_fills_from_a_second_pull_are_not_rewritten(tmp_path):
+    """The 08-14/08-28/09-14 duplicates: one fill, several pulls, several rows."""
+    csv_path = tmp_path / "trades.csv"
+    writer.write([_event(source_ref="ibkr-2026-08-28-1342.json:e1,e2")],
+                 skip_sheets=True, csv_path=csv_path)
+    summary = writer.write([_event(source_ref="ibkr-2026-08-28-1518.json:e1,e2")],
+                           skip_sheets=True, csv_path=csv_path)
+    assert summary["csv_written"] == 0
+    assert summary["skipped_duplicate"] == 1
+    with open(csv_path, newline="", encoding="utf-8") as fh:
+        assert len(list(csv.DictReader(fh))) == 1
+
+
+def test_one_batch_cannot_carry_the_same_fills_twice(tmp_path):
+    csv_path = tmp_path / "trades.csv"
+    summary = writer.write([_event(source_ref="a.json:e1,e2"),
+                            _event(source_ref="b.json:e2,e1")],
+                           skip_sheets=True, csv_path=csv_path)
+    assert summary["csv_written"] == 1
+
+
+def test_a_partial_fill_overlap_is_written_and_counted(tmp_path):
+    csv_path = tmp_path / "trades.csv"
+    writer.write([_event(source_ref="a.json:e1,e2")], skip_sheets=True,
+                 csv_path=csv_path)
+    summary = writer.write([_event(source_ref="b.json:e2,e3")], skip_sheets=True,
+                           csv_path=csv_path)
+    assert summary["csv_written"] == 1
+    assert summary["partial_overlap"] == 1

@@ -1253,29 +1253,37 @@ is all-or-nothing across legs: a spread priced on one leg would report the naked
 delta, since the unpriced leg is precisely the hedge.
 
 **Output** — `journal/reports/<date>.md` and `site/journal-<date>.html`. Both OPEN with a
-per-ticker summary (the report's unnumbered `## At a glance`, the page's By ticker table), one
-row per ticker, breaches first: share-equivalent delta, signed delta-notional, % NetLiq, % of
-the per-ticker cap, the overage in dollars and share-equivalent delta (`Over Cap By`), `Room
-Left`, the earliest §5 exit-by, and the positions netted into the total. Status is BREACH /
-NEAR (≥ `CAP_NEAR_UTILISATION`) / OK / UNPRICED. Both render from
-`s04a_report._ticker_summaries()`, whose totals are `book.ticker_exposure`; each ticker's
-delta-notional is reconciled as `ticker_dn:<T>`. The page recomputes
-each figure from the records and reconciles against the report, writing nothing on a
-mismatch (`s03_risk.py::assess` and `s04b_page.py::_breach_count` are two DELIBERATE
-implementations of the cap rule — change both by hand, never share a helper). The charts are Cap utilisation
-and Match confidence side by side, then Delta-notional by position full-width beneath, plus a
-Recent recommendations panel — the last `PAGE_RECENT_REC_SESSIONS` analysis sessions'
-current-generation rows, read back via `recwriter.recent_rows()` and filtered to
-`session_date <=` the page's own session so a rebuilt historical page never shows a
-recommendation that did not exist yet. That panel is DELIBERATELY OUTSIDE the reconciled set
-`compute_figures()`/`reconcile()` cover: it reads back a different artefact
-(`journal/recommendations.csv`) answering a different question, has no counterpart in the
-markdown report, and is rendered only after the reconcile gate has already passed, so an
-unreadable recommendations record degrades to an empty-state sentence rather than blocking
-the page or raising `ReconcileError`. Rows go to the TradeJournal tab in
-`TRADE_JOURNAL_SPREADSHEET_ID` and `journal/trades.csv`, deduped per-row on `source_ref`
-(broker exec ids). The CSV is written first and its failure is fatal; a Sheets failure is
-reported but never loses a row.
+per-ticker summary: the report's unnumbered `## At a glance` and the page's By ticker table.
+There is one row per ticker, breaches first. Each row carries share-equivalent delta, signed
+delta-notional, % NetLiq, % of the per-ticker cap, and the overage in dollars and
+share-equivalent delta (`Over Cap By`). It also carries `Room Left`, the earliest §5 exit-by,
+and the positions netted into the total. Status is BREACH / NEAR (≥ `CAP_NEAR_UTILISATION`) /
+OK / UNPRICED.
+
+Both render from `s04a_report._ticker_summaries()`, whose totals are `book.ticker_exposure`;
+each ticker's delta-notional is reconciled as `ticker_dn:<T>`. The page recomputes each figure
+from the records and reconciles against the report, writing nothing on a mismatch.
+`s03_risk.py::assess` and `s04b_page.py::_breach_count` are two DELIBERATE implementations of
+the cap rule — change both by hand, never share a helper.
+
+The charts are Cap utilisation and Match confidence side by side, then Delta-notional by
+position full-width beneath. A Recent recommendations panel follows. It shows the last
+`PAGE_RECENT_REC_SESSIONS` analysis sessions' current-generation rows, read back via
+`recwriter.recent_rows()`. They are filtered to `session_date <=` the page's own session, so a
+rebuilt historical page never shows a recommendation that did not exist yet.
+
+That panel is DELIBERATELY OUTSIDE the reconciled set `compute_figures()`/`reconcile()` cover.
+It reads back a different artefact (`journal/recommendations.csv`) answering a different
+question, and has no counterpart in the markdown report. It is rendered only after the
+reconcile gate has already passed. So an unreadable recommendations record degrades to an
+empty-state sentence rather than blocking the page or raising `ReconcileError`.
+
+Rows go to the TradeJournal tab in `TRADE_JOURNAL_SPREADSHEET_ID` and `journal/trades.csv`.
+They are deduped per-row on the broker exec ids inside `source_ref`
+(`s05_writer.fill_identity()`). The pull filename in front of them is provenance, not
+identity. Until 2026-09-22 it was part of the key, so a fill seen by two pulls was written
+twice. The CSV is written first and its failure is fatal; a Sheets failure is reported but
+never loses a row.
 
 **Recommender** — `rank()` applies §1 VETO, §2 tiers, §3 geometry and cap headroom
 deterministically; §1.4 routes bear debit to the hedge sleeve only. Its duplicate-exposure

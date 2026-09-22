@@ -503,8 +503,9 @@ JOURNAL_COLUMNS = [
     "source_ref",
 ]
 
-# `source_ref` alone is globally unique (it carries the broker's exec ids), which
-# is what makes a re-run of the same date append zero rows. date/ticker are in
+# `source_ref` carries the broker's exec ids, and those ids — not the pull
+# filename in front of them — are the row identity (`s05_writer.fill_identity`),
+# which is what makes a re-run of the same date append zero rows. date/ticker are in
 # the key for readability when inspecting the _meta fingerprint.
 DEDUP_KEY_COLS = ["date", "ticker", "source_ref"]
 

@@ -363,3 +363,26 @@ def test_a_recommendation_already_on_sheets_is_not_resent(tmp_path, monkeypatch)
     summary = recwriter.write(candidates, [], ctx, csv_path=csv_path)
     assert summary["sheets_written"] == 0
     assert fake.sent == []
+
+
+def test_sheets_dedup_ignores_the_pull_filename(tmp_path, monkeypatch):
+    """A row already on the tab under another pull's filename is not resent,
+    and a CSV holding the same fills twice sends them once."""
+    monkeypatch.setenv("TRADE_JOURNAL_SPREADSHEET_ID", "sheet-id")
+    csv_path = tmp_path / "trades.csv"
+    fake = _FakeSheets(existing_refs={"ibkr-2026-08-28-1342.json:e1,e2"})
+    monkeypatch.setattr(writer, "sheets_client", fake)
+    summary = writer.write([_event(source_ref="ibkr-2026-08-28-1518.json:e1,e2")],
+                           csv_path=csv_path)
+    assert summary["sheets_written"] == 0
+    assert fake.sent == []
+
+    # A legacy CSV with one fill recorded under two pulls, tab empty.
+    legacy = tmp_path / "legacy.csv"
+    row = writer.to_row(_event(source_ref="p1.json:e9"))
+    dup = dict(row, source_ref="p2.json:e9")
+    writer.append_csv([row, dup], legacy)
+    fake2 = _FakeSheets()
+    monkeypatch.setattr(writer, "sheets_client", fake2)
+    writer.write([_event(source_ref="p3.json:e9")], csv_path=legacy)
+    assert [r["source_ref"] for r in fake2.sent] == ["p1.json:e9"]
