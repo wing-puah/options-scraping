@@ -1,6 +1,6 @@
 """Tests for scripts/study_map — the readable map of the backtest-study package.
 
-Two things are worth guarding, and they are different in kind:
+Three things are worth guarding, and they are different in kind:
 
   * **Drift.** The map's verdicts are hand-written. A new study file that nobody
     described is a map that quietly lies by omission, so the catalog must cover
@@ -9,6 +9,11 @@ Two things are worth guarding, and they are different in kind:
   * **Honesty of the quoted half.** The last-run block quotes reports. It must
     never present the tail of a report as a verdict, never invent a number, and
     never turn a failed run into a green one.
+  * **The Graded column.** `research/study-map.md`'s five family tables each
+    carry a Graded column naming what was counted. Where it cites an `ARM
+    <label>` directly, that label must be backticked inside the SAME study's
+    own section of `research/arm-index.md`, or the two files have quietly
+    drifted apart.
 """
 from __future__ import annotations
 
@@ -25,6 +30,63 @@ from scripts.study_map import build, catalog, digest, render, summary, tuning
 from scripts import study_results  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+STUDY_MAP = ROOT / "research" / "study-map.md"
+ARM_INDEX = ROOT / "research" / "arm-index.md"
+
+# Mirrors tests/test_arm_index.py's `_STUDY_HEADING` / section splitter —
+# copied rather than imported across test modules, per that file's own
+# `ARM <label>` token shape and heading convention.
+_STUDY_HEADING = re.compile(r"^#### `([a-z][a-z0-9_]*)`", re.M)
+_GRADED_ARM_TOKEN = re.compile(r"\bARM ([A-Z][A-Za-z0-9*-]*)")
+_FILE_CELL_LINK = re.compile(r"\[`[^`]*`\]\(([^)]+)\)")
+_FAMILY_TABLE_HEADER = "| File | The question | Graded | Verdict |"
+
+
+def _arm_index_sections(text: str) -> dict[str, str]:
+    """`research/arm-index.md`'s "by study" body, split into
+    {study_name: section_text}, each running up to the next level-4-or-higher
+    heading — the same split `tests/test_arm_index.py::_study_sections` does."""
+    headings = list(_STUDY_HEADING.finditer(text))
+    sections: dict[str, str] = {}
+    for i, m in enumerate(headings):
+        start = m.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        sections[m.group(1)] = text[start:end]
+    return sections
+
+
+def _family_table_rows(text: str) -> list[list[str]]:
+    """The row lines of every study-map.md table carrying a Graded column, one
+    list per table. The Infrastructure table (`| File | Role |`) and the
+    "Operator reading" table use different headers and are excluded — neither
+    carries a Graded column."""
+    lines = text.splitlines()
+    tables: list[list[str]] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == _FAMILY_TABLE_HEADER:
+            rows: list[str] = []
+            i += 2  # skip the header line and the `|---|---|---|---|` rule
+            while i < len(lines) and lines[i].startswith("|"):
+                rows.append(lines[i])
+                i += 1
+            tables.append(rows)
+        else:
+            i += 1
+    return tables
+
+
+def _study_slug(file_cell: str) -> str | None:
+    """The study slug from the File cell's link target — `arm-index.md#<slug>`
+    or `study-results/<family>/<slug>.md` — or None for an unlinked cell
+    (a DELETED row, or `hedge_structure.py`, printed as plain text)."""
+    m = _FILE_CELL_LINK.search(file_cell)
+    if not m:
+        return None
+    target = m.group(1)
+    if "#" in target:
+        return target.split("#", 1)[1]
+    return Path(target).stem
 
 
 def _mark_retired(monkeypatch) -> str:
@@ -95,6 +157,53 @@ def test_prose_companion_names_every_study():
     text = (ROOT / "research" / "study-map.md").read_text()
     missing = [n for n in catalog.STUDIES if n not in text]
     assert not missing, f"study-map.md does not mention: {missing}"
+
+
+def test_graded_column_tokens_exist_in_arm_index():
+    """Every family table carries a Graded column, and where its cell names an
+    `ARM <label>` directly, that label must be backticked in the SAME study's
+    own `#### `<slug>`` section of research/arm-index.md.
+
+    Today no Graded cell cites an `ARM <label>` — the column counts objects by
+    type ("3 arms", "5 cells", "see index") rather than naming one — so the
+    coverage loop below runs and passes vacuously. It still must run: a future
+    edit that adds a citation is exactly the drift this guards against.
+    """
+    text = STUDY_MAP.read_text(encoding="utf-8")
+    tables = _family_table_rows(text)
+    assert len(tables) == 5, (
+        f"expected 5 family tables with a Graded column (selection, management, "
+        f"structure, deployment, hedging), found {len(tables)}"
+    )
+    for rows in tables:
+        assert rows, "a family table with a Graded header has no rows"
+
+    sections = _arm_index_sections(ARM_INDEX.read_text(encoding="utf-8"))
+
+    checked = 0
+    for rows in tables:
+        for row in rows:
+            cells = [c.strip() for c in row.strip("|").split(" | ")]
+            if len(cells) != 4:
+                continue
+            file_cell, _question, graded_cell, _verdict = cells
+            for token in _GRADED_ARM_TOKEN.findall(graded_cell):
+                checked += 1
+                slug = _study_slug(file_cell)
+                assert slug is not None, (
+                    f"Graded cell {graded_cell!r} cites `ARM {token}` but its File "
+                    f"cell {file_cell!r} has no arm-index.md link to resolve a study from"
+                )
+                section = sections.get(slug)
+                assert section is not None, (
+                    f"{slug} cites `ARM {token}` in its Graded cell but has no "
+                    f"`#### `{slug}`` section in research/arm-index.md"
+                )
+                assert f"`ARM {token}`" in section, (
+                    f"study-map.md's Graded cell for {slug} cites `ARM {token}`, which "
+                    f"is not backticked in {slug}'s research/arm-index.md section"
+                )
+    assert checked >= 0  # documents that a 0-token run is an expected pass, not a skip
 
 
 def test_retired_field_defaults_to_none():

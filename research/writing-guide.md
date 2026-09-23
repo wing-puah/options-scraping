@@ -144,10 +144,10 @@ _Era v4 · exports 2026-09-04 20:31 · 535 real / 1,303 proxy rows · report:
 
 **Evidence.**
 
-| Cell | Verdict | Δ max drawdown | CI | Dates |
+| Object | Verdict | Δ max drawdown | CI | Dates |
 |---|---|---|---|---|
 | [ARM W/wf](arm-index.md#exit_drawdown) | UNDERPOWERED | — | — | 9 |
-| ARM O/vol (`all` cut) | NULL | +0.4 pts | [−1.1, +1.9] | 41 |
+| ARM O/vol, `all` scope | NULL | +0.4 pts | [−1.1, +1.9] | 41 |
 
 **Caveats.** The `all` cut has no verdict standing; it was disclosed, not
 registered.
@@ -172,6 +172,7 @@ silently rotting.
 |---|---|---|
 | a metric or term | `[meanR](glossary.md#meanr)` | the term's own `###` heading in `glossary.md` |
 | an arm, gate, or criterion | `[hedge_timing ARM R](arm-index.md#hedge_timing)` | the study's `####` heading in `arm-index.md`, which is the bare study slug |
+| a sub-arm or cell | `[exit_drawdown ARM U/a](arm-index.md#exit_drawdown-arm-u)` | the inline `<a id="<study>-arm-<letter>">` on the parent arm's bullet in `arm-index.md`; the study heading when the arm has none |
 | a deployment rule | `[§1.4](../docs/deployment-rules.md#s1)` | an explicit `<a id="sN">` above each numbered section of the card |
 | a study's plan | `[pre-registration](pre-registrations/f5_hedging/hedge_timing.md)` | file path; the family folder mirrors `scripts/backtest_study/` |
 | what a study last printed | `[record](study-results/f5_hedging/hedge_timing.md)` | file path |
@@ -185,6 +186,16 @@ implementation; run it on a heading when unsure.
 
 Heading text that is a link target should therefore be short and stable. Put
 file paths and qualifiers in the first line under the heading, not in it.
+
+### Naming the rows of a results table
+
+A table that reports per-label results names its rows under an `Object`
+column holding the qualified citation token (`exit_drawdown ARM O/vol`).
+Add an `Object type` column when the rows are not all arms. Never head the
+column `Arm`, `Arm or cut`, or `cut` — the object types are the closed list
+at [`arm-index.md#object-types`](arm-index.md#object-types).
+`deployment-evidence.md`'s `Cut` columns mean tier cuts (A/B/C); that is a
+different thing and this rule does not apply to them.
 
 ## What not to rewrite
 

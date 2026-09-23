@@ -12,12 +12,42 @@ STUDY so everything a study owns sits together. **Citing an arm outside its
 own study, always qualify it with the study** — `emission_timing ARM P`, never
 a bare `ARM P`.
 
+<a id="object-types"></a>
+## Object types
+
+Not every label below is an arm. The index uses twelve object types, and
+"arm" stops being the catch-all noun for anything carrying a study-local
+letter. The table gives each type's meaning and whether it earns its own
+verdict.
+
+| Object type | What it is | Graded? | Example |
+|---|---|---|---|
+| arm | one independently-verdicted question inside a study | own verdict | `exit_drawdown ARM U` |
+| sub-arm | a named half or setting of one arm (other prose may call it a variant) | with its parent, never alone | `exit_drawdown ARM U/a` |
+| cell | one parameter combination inside an arm | only as part of its arm's verdict | `financed_spread F4` |
+| control | a comparator candidates are read against, not a candidate itself | no verdict of its own | `trigger_entry ARM L` |
+| descriptive cut | a reported observation, disclosed but not graded | no | `next_day_move ARM D` |
+| population scope | the same design run on a subset of the book | its arms are graded on that subset | `hedge_portfolio --admitted` |
+| run | an alternative RUN of one study, usually a CLI flag, not a separate question | the run's arms are | `account_sim --compounding` |
+| gate | a hard pass/fail precondition checked before any result prints | pass/fail, then stop | `account_sim G2` |
+| criterion | a pre-registered numeric bar, MET / NOT MET once gates pass | MET / NOT MET | `hedge_sizing D2` |
+| hypothesis | a pre-registered claim, here always also an arm under another letter | as its arm | `macro_event_study H1` |
+| prose | printed report text or a code comment that only reads like a label | no | `ARM VERDICT` |
+| axis | a dimension that composes cells, only in `ladder_overlay`, not itself graded | no | `ladder_overlay T0` |
+
+Every label bullet below carries its object type in parentheses right after
+the label and before the dash. A bare grep for a letter tells you nothing
+until you read that tag.
+
+See [`glossary.md`](glossary.md) §9 for the verdict grammar arms are graded
+under.
+
 ## Collisions, up front
 
-- **`P`** — **four** arms: `emission_timing`, `macro_event_study`,
-  `bear_giveback`, `bear_rewrap` — plus `P1`/`P2` sub-parts in `bear_rewrap`
-  (the arm's own two halves) and `hedge_structure` (an unrelated `P1`, the
-  hedge sleeve itself).
+- **`P`** — **six** arms: `emission_timing`, `macro_event_study`,
+  `bear_giveback`, `bear_rewrap`, `hedge_portfolio`, `exit_drawdown` — plus
+  `P1`/`P2` sub-parts in `bear_rewrap` (the arm's own two halves) and
+  `hedge_structure` (an unrelated `P1`, the hedge sleeve itself).
 - **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
   `trigger_entry`) — and `hedge_sizing`'s `D1`–`D5`, which are criteria, not
   `ARM D`.
@@ -34,12 +64,13 @@ a bare `ARM P`.
   random-universe base-rate null). Nothing alike beyond the letter.
 - **`L`** — two arms: `emission_timing` (fill lag) and `trigger_entry` (the
   unconditional-lag control, deliberately matched to it).
-- **`H`** — two arms (`account_sim`, `hedge_structure`); `H1`–`H4` hypotheses
-  in `macro_event_study`; `H0`–`H5` criteria in `hedge_structure`, which
-  *also* has its own `ARM H` — unrelated to its criteria of the same letter;
-  and `H0`–`H4` arms in `hedge_timing`, which are neither of those — there
-  they are the census plus four hypotheses, each run once per trigger family
-  and suffixed with it (`ARM H3-CHOP`).
+- **`H`** — two arms (`account_sim`, `hedge_structure`). It also labels
+  `H1`–`H4` hypotheses in `macro_event_study` and `H0`–`H5` criteria in
+  `hedge_structure`, which *also* has its own `ARM H` — unrelated to its
+  criteria of the same letter. It further labels `H0`–`H4` arms in
+  `hedge_timing`, neither of those: there they are the census plus four
+  hypotheses, each run once per trigger family and suffixed with it
+  (`ARM H3-CHOP`).
 - **`B1` / `B2`** — `bear_arm`'s two criteria (selection conditioning, exit
   fit) vs `ml_combination`'s two regression baselines. Same document
   registered both on 2026-08-11, and they mean nothing alike.
@@ -75,12 +106,12 @@ studies' labels appear mid-prose only.
 
 _Registered in [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/f1_selection/bear_arm.md) · module `f1_selection/bear_arm.py`_
 
-- `B1` `B2` (criterion) — Bear criteria, NOT arms and NOT `ml_combination`'s
-  baselines of the same letters below: `B1` is selection conditioning ("is
-  there a bear subset, definable at decision time, that is not negative"),
-  `B2` is exit fit (is PROD mis-tuned for bear rows). `B2` shipped
-  `be_after: 0.50` in 2026-08-11 and its own rollback trigger reverted it on
-  2026-08-24.
+- `B1` `B2` (criterion) — Bear criteria, not arms and not
+  `ml_combination`'s baselines of the same letters below. Selection
+  conditioning is `B1`: is there a bear subset, definable at decision time,
+  that is not negative. Exit fit is `B2`: is PROD mis-tuned for bear rows.
+  This `B2` shipped `be_after: 0.50` in 2026-08-11, and its own rollback
+  trigger reverted it on 2026-08-24.
 
 #### `emission_timing`
 
@@ -88,9 +119,10 @@ _Registered in [`pre-registrations/f1_selection/emission_timing.md`](pre-registr
 
 - `ARM L` (arm) — Fill lag — does an entry filled 1, 2 or 3 sessions after
   the signal lose the edge?
-- `ARM P` (arm) — Persistence — does a re-emitted play (2nd/3rd/4th+ of a
-  ticker+structure) perform worse than the first emission? One of `ARM P`'s
-  four owners repo-wide (see Collisions, above).
+- `ARM P` (arm) <a id="emission_timing-arm-p"></a> — Persistence — does a
+  re-emitted play (2nd/3rd/4th+ of a ticker+structure) perform worse than
+  the first emission? One of `ARM P`'s six owners repo-wide (see
+  Collisions, above).
 
 #### `text_features`
 
@@ -113,13 +145,14 @@ _Registered in [`pre-registrations/f1_selection/text_features.md`](pre-registrat
 
 _Registered in [`pre-registrations/f1_selection/prompt_eval.md`](pre-registrations/f1_selection/prompt_eval.md) · module `f1_selection/prompt_eval.py`_
 
-- `PROD` / `CANDIDATE` (arm) — The two prompt arms: the committed
+- `PROD` `CANDIDATE` (arm) — The two prompt arms: the committed
   framework + method files vs a named, committed snapshot; sha256 recorded.
-- `VARIANCE` `BACKFILL` `LIVE` (date set, not an arm) — declared in that
-  order: PROD repeats for the noise floor; ~40 matured signal dates chosen by
-  rule (SECONDARY — both arms share the backfill lookahead); every new live
-  date the candidate is run on (PRIMARY, supersedes BACKFILL at 25 dates).
-- `draft` (mode, not an arm) — a headless model proposes a prompt diff from
+- `VARIANCE` `BACKFILL` `LIVE` (population scope) — not an arm. Declared in
+  that order: PROD repeats for the noise floor; ~40 matured signal dates
+  chosen by rule (SECONDARY — both arms share the backfill lookahead); every
+  new live date the candidate is run on (PRIMARY, supersedes BACKFILL at 25
+  dates).
+- `draft` (run) — not an arm: a headless model proposes a prompt diff from
   `text_features`' robustness list; a record, never auto-applied.
 
 #### `macro_event_study`
@@ -131,8 +164,9 @@ _Registered in [`pre-registrations/f1_selection/macro_event_study.md`](pre-regis
   H4→`ARM X`. Reports cite both forms.
 - `ARM I` (arm) — Entry IV behaviour (H1 PRIMARY) — `vrp` on sessions near
   a scheduled event vs control.
-- `ARM P` (arm) — Outcomes (H2) — mean R and E by entry-proximity bucket,
-  within structure. One of `ARM P`'s four owners repo-wide.
+- `ARM P` (arm) <a id="macro_event_study-arm-p"></a> — Outcomes (H2) — mean
+  R and E by entry-proximity bucket, within structure. One of `ARM P`'s six
+  owners repo-wide.
 - `ARM V` (arm) — Market context (H3) — VIX level and 1-day change by
   event-relative session.
 - `ARM V-price` (arm) — Amendment 1 (2026-08-19) — the SPY-price companion
@@ -144,13 +178,13 @@ _Registered in [`pre-registrations/f1_selection/macro_event_study.md`](pre-regis
 
 _Registered in [`pre-registrations/f1_selection/ml_combination.md`](pre-registrations/f1_selection/ml_combination.md) · module `f1_selection/ml_combination.py`_
 
-- `B0` (baseline) — The benchmark: the shipped score-free ladder's top-3/day
+- `B0` (control) — The benchmark: the shipped score-free ladder's top-3/day
   A-then-B replay, out-of-fold. Everything else is scored against it.
-- `B1` `B2` (baseline) — COLLIDES with `bear_arm`'s criteria above and means
-  something unrelated: `B1` is logistic regression on E>0 with structure ×
-  market-direction × vol only ("does the model rediscover the ladder?"), `B2`
-  elastic-net on E with the full feature set ("is there anything linear left").
-- `M1` `M2` `M3` (model) — Gradient boosting on E, the same on binary E>0, and
+- `B1` `B2` (control) — COLLIDES with `bear_arm`'s criteria above: `B1` is
+  logistic regression on E>0 with structure × market-direction × vol only
+  (does the model rediscover the ladder?); `B2` is elastic-net on E with the
+  full feature set (is there anything linear left).
+- `M1` `M2` `M3` (arm) — Gradient boosting on E, the same on binary E>0, and
   a single depth-3 tree. Only `M3` may ship, "because only it reduces to a
   human checklist"; a black-box score may at most tie-break within a tier.
 
@@ -163,13 +197,14 @@ _Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrat
   stated trigger level in the stated direction, re-priced and re-sized through
   the frozen harness; never crossing within N = NOT ENTERED. N ∈ {1, 3, 5}.
   Unrelated to `staged_exit`'s `ARM T` (tighten / arm-trail) — see Collisions.
-- `ARM L` (arm) — Unconditional lag CONTROL: every in-scope row filled at a
-  fixed session k ∈ {1, 3}, no gate, so a ΔR the control reproduces is a LAG
-  finding and not a trigger finding. Named after and matched to
+- `ARM L` (control) — Unconditional lag CONTROL: every in-scope row filled
+  at a fixed session k ∈ {1, 3}, no gate, so a ΔR the control reproduces is
+  a LAG finding and not a trigger finding. Named after and matched to
   `emission_timing`'s `ARM L` above, which is a different study's arm.
-- `ARM C` (arm) — Confound CONTROL: `ARM T`'s ΔR stratified by entry-session
-  conformity band, reusing `next_day_move.DAY0_PNL_BANDS` and its `MIN_CELL_N`
-  verbatim. Feeds criterion 8; carries no verdict of its own.
+- `ARM C` (control) — Confound CONTROL: `ARM T`'s ΔR stratified by
+  entry-session conformity band, reusing `next_day_move.DAY0_PNL_BANDS` and
+  its `MIN_CELL_N` verbatim. Feeds criterion 8; carries no verdict of its
+  own.
 - `ARM D` (arm) — Deployment READ: the shipped top-3/day ladder with
   NOT-ENTERED rows made INELIGIBLE (the slot frees to the next-ranked play),
   trigger-priced against the shipped picks, R only.
@@ -180,9 +215,9 @@ _Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrat
 
 _Module `f2_management/bear_giveback.py`_
 
-- `ARM P` (arm) — Production baseline — the `be_after` threshold measured
-  against the SHIPPED production exit. One of `ARM P`'s four owners
-  repo-wide.
+- `ARM P` (arm) <a id="bear_giveback-arm-p"></a> — Production baseline —
+  the `be_after` threshold measured against the SHIPPED production exit.
+  One of `ARM P`'s six owners repo-wide.
 - `ARM S` (arm) — Deployment reference stats — n / win rate / profit
   factor / mean R by cut. COLLIDES with `hedge_structure`'s own `ARM S`
   (its structure sweep) — unrelated.
@@ -193,12 +228,12 @@ _Module `f2_management/bear_giveback.py`_
 
 _Module `f2_management/next_day_move.py`_
 
-- `ARM C` (arm) — Confound control — `ARM U`'s method (see `bear_giveback`,
-  above — a different study's unrelated arm despite the shared letter)
-  moved to day 0; hold the day-0 mark fixed and repeat the conformity cut
-  inside day-0 P&L bands.
-- `ARM D` (arm) — Descriptive — conform vs non-conform, cut by regime,
-  structure, side.
+- `ARM C` (control) — Confound control — `ARM U`'s method (see
+  `bear_giveback`, above — a different study's unrelated arm despite the
+  shared letter) moved to day 0; hold the day-0 mark fixed and repeat the
+  conformity cut inside day-0 P&L bands.
+- `ARM D` (descriptive cut) — Descriptive — conform vs non-conform, cut by
+  regime, structure, side.
 - `ARM R` (arm) — The rule — a pre-registered day-0 cut, graded against
   shipped production.
 
@@ -206,11 +241,11 @@ _Module `f2_management/next_day_move.py`_
 
 _Registered in [`pre-registrations/f2_management/staged_exit.md`](pre-registrations/f2_management/staged_exit.md)_
 
-- `ARM E` (arm) — Terminal "exit now" — pure composition around the FROZEN
-  `harness.replay`, no fork or copy.
-- `ARM T` (arm) — Tighten / arm-trail — `harness.replay` is COPIED into the
-  study for this arm (contrast `ARM E`, which composes around the frozen
-  one).
+- `ARM E` (arm) <a id="staged_exit-arm-e"></a> — Terminal "exit now" — pure
+  composition around the FROZEN `harness.replay`, no fork or copy.
+- `ARM T` (arm) <a id="staged_exit-arm-t"></a> — Tighten / arm-trail —
+  `harness.replay` is COPIED into the study for this arm (contrast `ARM E`,
+  which composes around the frozen one).
 
 #### `bear_fast_exit`
 
@@ -251,21 +286,35 @@ Five arms, every threshold chosen WALK-FORWARD on train dates only. The overlay
 mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
 `f4_deployment/account_sim.py` and changes no row's exit.
 
-- `ARM W` (arm) — Walk-forward knob control: the pt × sl × tef grid
-  (36 points, PROD is one of them) selected per block. The honesty baseline
-  every other arm is read against. One of `ARM W`'s owners repo-wide.
-- `ARM U` (arm) — Underlying ATR stop for DEBIT verticals: exit on the first
-  close against the position by ≥ k·ATR14, ATR FROZEN at entry, k ∈ {1.5, 2.0,
-  3.0}, added to sl .75 (a) or replacing it (b).
-- `ARM O` (arm) — Flow-unwind exit off the entry long leg's own `Open Int`
-  path, read LAGGED one session, X ∈ {0.25, 0.40}; plus one volume-climax
-  variant (3× the EXPANDING post-entry median and an adverse mark).
-- `ARM P` (arm) — Partial scale-out: half the contracts at the shipped pt,
-  half with pt=None, as two synthetic positions. Exact, nothing to select.
-  Quoted in R, not dollars. One of `ARM P`'s owners repo-wide.
-- `ARM D` (arm) — SECONDARY drawdown THROTTLE (sizing, not exit): half budget
-  while marked equity is ≥ d below its running peak, d ∈ {0.05, 0.10}. Can
-  never ship from this study; has its own "affected" definition for G0.
+- `ARM W` (arm) <a id="exit_drawdown-arm-w"></a> — Walk-forward knob
+  control: the pt × sl × tef grid (36 points, PROD is one of them) selected
+  per block. The honesty baseline every other arm is read against. One of
+  `ARM W`'s owners repo-wide.
+  - `ARM W/wf` `ARM W/prod` (sub-arm) — the walk-forward pick and the PROD
+    grid point, printed and graded together with `ARM W`, never alone.
+- `ARM U` (arm) <a id="exit_drawdown-arm-u"></a> — Underlying ATR stop for
+  DEBIT verticals: exit on the first close against the position by ≥
+  k·ATR14, ATR FROZEN at entry, k ∈ {1.5, 2.0, 3.0}.
+  - `ARM U/a` `ARM U/b` (sub-arm) — a adds the stop to sl .75; b replaces
+    sl with it. Graded with `ARM U`, never alone.
+- `ARM O` (arm) <a id="exit_drawdown-arm-o"></a> — Flow-unwind exit off the
+  entry long leg's own `Open Int` path, read LAGGED one session, X ∈ {0.25,
+  0.40}.
+  - `ARM O/oi` `ARM O/vol` (sub-arm) — oi is the Open Int unwind; vol is
+    the volume-climax variant (3× the EXPANDING post-entry median and an
+    adverse mark). Graded with `ARM O`, never alone.
+- `ARM P` (arm) <a id="exit_drawdown-arm-p"></a> — Partial scale-out: half
+  the contracts at the shipped pt, half with pt=None, as two synthetic
+  positions. Exact, nothing to select. Quoted in R, not dollars. One of
+  `ARM P`'s owners repo-wide.
+  - `ARM P/half` (sub-arm) — the printed cell for this arm, graded with
+    `ARM P`, never alone.
+- `ARM D` (arm) <a id="exit_drawdown-arm-d"></a> — SECONDARY drawdown
+  THROTTLE (sizing, not exit): half budget while marked equity is ≥ d
+  below its running peak, d ∈ {0.05, 0.10}. Can never ship from this
+  study; has its own "affected" definition for G0.
+  - `ARM D/throttle` (sub-arm) — the printed cell for this arm, graded
+    with `ARM D`, never alone.
 
 ### ③ Structure — which wrapper
 
@@ -273,9 +322,10 @@ mechanics for W/U/O/P live in `lib/exit_overlays.py`; ARM D is a sizing hook in
 
 _Module `f3_structure/bear_rewrap.py`_
 
-- `ARM P` (arm) — Portfolio contribution — P1 worst-decile, P2 correlation.
-  The merge this arm validated is what `financed_spread` and `account_sim`
-  cite. One of `ARM P`'s four owners repo-wide.
+- `ARM P` (arm) <a id="bear_rewrap-arm-p"></a> — Portfolio contribution —
+  P1 worst-decile, P2 correlation. The merge this arm validated is what
+  `financed_spread` and `account_sim` cite. One of `ARM P`'s six owners
+  repo-wide.
   - `P1` `P2` (sub-arm) — `ARM P`'s own two halves (worst-decile,
     correlation), graded together with their parent, never alone. Not to be
     confused with `hedge_structure`'s own `P1` below, which is unrelated.
@@ -285,7 +335,7 @@ _Module `f3_structure/bear_rewrap.py`_
 
 _Registered in [`pre-registrations/f3_structure/financed_spread.md`](pre-registrations/f3_structure/financed_spread.md)_
 
-- `F0` `F1` `F2` `F3` `F4` (arm) — Financing structures. `F0` strike-aligned
+- `F0` `F1` `F2` `F3` `F4` (cell) — Financing structures. `F0` strike-aligned
   control (machinery pilot, runs first); `F1` opposite-delta credit spread;
   `F2` naked short leg; `F3` same-direction financed vertical; `F4`
   diagonal financing (amendment 1, 2026-08-19). `F1`/`F2` COLLIDE with
@@ -302,28 +352,29 @@ graded cell `NULL` on v4, six `NULL` and four `UNDERPOWERED` on v3
 ([record](study-results/f3_structure/ladder_overlay.md),
 [`next-steps.md` §2.13](next-steps.md#s2-13)).
 
-- `L-BASE` `L-F4` `L-T0` `L-GAP` `L-RUN` `L-T0-TEF` `L-GAP-TEF` `L-RUN-TEF`
-  (arm) — the 8 PRIMARY ladder cells, all |Δ| 0.20 calls, `BHOLD` breach.
-  `L-BASE` is the core alone (`TNEVER`) — the baseline every other cell's ΔR
-  is paired against, never a candidate itself. `L-F4` is the `G1b`
-  replication anchor (below), not a candidate in its own right. `L-T0`
-  `L-GAP` `L-RUN` vary the trigger, rolling (`R1`); the `-TEF` cells repeat
-  those three with the profit target dropped (`X-TEF` core exit). `L-F4`
-  reproduces `financed_spread` [`ARM F4`](#financed_spread)-d20-hold's mark
-  series exactly (gate `G1b`) — it is a machinery check, not a new arm on
-  F4's ground.
-- `N-CORE` `N-ROLL` (arm) — the 2 naked-put cells; both REPLACE the core
+- `L-BASE` `L-F4` `L-T0` `L-GAP` `L-RUN` `L-T0-TEF` `L-GAP-TEF` `L-RUN-TEF` (cell) —
+  the 8 PRIMARY ladder cells, all |Δ| 0.20 calls, `BHOLD` breach.
+  The core alone (`TNEVER`) is `L-BASE`, the baseline every other cell's ΔR
+  pairs against — never a candidate itself. Three cells vary the trigger,
+  rolling (`R1`): `L-T0`, `L-GAP`, `L-RUN`. The `-TEF` cells repeat those
+  three with the profit target dropped (`X-TEF` core exit). One cell is the
+  `G1b` replication anchor and not a candidate: `L-F4` reproduces
+  `financed_spread` [`ARM F4`](#financed_spread)-d20-hold's mark series
+  exactly, a machinery check and not a new arm on F4's ground.
+- `N-CORE` `N-ROLL` (cell) — the 2 naked-put cells; both REPLACE the core
   rather than wrap it. `N-CORE` sells a put at the core's own long strike
   and expiry (`T0`/`R0`). `N-ROLL` rolls a |Δ| 0.30 put on the same slot
   schedule as the ladder cells (`T0`/`R1`). Both UNBOUNDED below the
   strike; `G3` carries a margin census, never a criterion.
-- `S-D30` `S-BBUY` `S-BUP` `S-XEXP` `S-GAP103` `S-DTE60` `S-MODEL` (arm) —
-  7 SENSITIVITY cells, printed with n, never a criterion: `S-D30` at |Δ|
-  0.30 (PRIMARY is 0.20); `S-BBUY`/`S-BUP` vary the breach policy (buy
-  back / buy back and re-sell); `S-XEXP` holds to the 120-day path cap
-  instead of §5; `S-GAP103` is the `TGAP` trigger at 1.03× instead of
-  1.015×; `S-DTE60` restricts the `T0` cell to cores ≥60 DTE; `S-MODEL`
-  ×{1.00, 0.75, 1.25} is the `[MODEL]` tier (below).
+- `S-D30` `S-BBUY` `S-BUP` `S-XEXP` `S-GAP103` `S-DTE60` `S-MODEL` (cell) —
+  7 SENSITIVITY cells, printed with n, never a criterion. Delta widens at
+  `S-D30`: |Δ| 0.30 against a PRIMARY of 0.20. Breach policy varies at
+  `S-BBUY`/`S-BUP`: buy back, or buy back and re-sell. Hold period changes
+  at `S-XEXP`: the 120-day path cap instead of §5. Trigger tightens at
+  `S-GAP103`: the `TGAP` level moves to 1.03× from 1.015×. DTE floor
+  applies at `S-DTE60`: the `T0` cell restricts to cores ≥60 DTE. Score
+  weight sweeps at `S-MODEL`: the `[MODEL]` tier (below) runs at ×{1.00,
+  0.75, 1.25}.
 - `T0` `TGAP` `TRUN` `TNEVER` (axis) — the trigger a tranche is sold on: at
   entry, on a gap-up (open ≥1.015× prior close), on a sustained rise (3
   consecutive higher closes, close ≥1.04× entry close), or never.
@@ -352,14 +403,15 @@ graded cell `NULL` on v4, six `NULL` and four `UNDERPOWERED` on v3
   `settle_mark`/`settle_intrinsic` split, breach cost in R, share of exits
   taken by `dollar_stop`. Criterion 8 is read against this census.
 - `E1` `E2` `E3` (gate) — exposure reads printed alongside ΔR for every
-  PRIMARY and naked-put cell, and re-checked as gates in the bar for a
-  candidate: `E1` Δ(net delta) at entry (geometry check — must go more
-  negative), `E2` Δ(net vega) (every ladder cell is structurally short
-  vega), `E3` correlation of the cell's mean R against the deployed top-3
-  sleeve's mean R (≥8 shared dates required; positive = **RE-WRAP**
-  regardless of ΔR). COLLIDES with `exit_from_text`'s own [`E1`/`E2`/`E3`
-  above](#exit_from_text) (invalidation-stop / entry-filter / time-exit
-  arms) — unrelated; qualify every citation with its study.
+  PRIMARY and naked-put cell, re-checked as gates in the bar for a
+  candidate. Entry geometry is `E1`: Δ(net delta) at entry must go more
+  negative. Vega structure is `E2`: Δ(net vega), since every ladder cell is
+  structurally short vega. Sleeve correlation is `E3`: the cell's mean R
+  against the deployed top-3 sleeve's mean R (≥8 shared dates required);
+  positive = **RE-WRAP** regardless of ΔR. COLLIDES with
+  `exit_from_text`'s own [`E1`/`E2`/`E3` above](#exit_from_text)
+  (invalidation-stop / entry-filter / time-exit arms) — unrelated; qualify
+  every citation with its study.
 - **BREACH-DOMINATED** / **AWAITING SCRAPE** (verdict) — two tokens this
   study adds to the verdict grammar ([glossary.md](glossary.md) §9).
   BREACH-DOMINATED: criteria 1–7 pass and criterion 8 flips sign — the
@@ -379,10 +431,10 @@ _Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrati
   descending, ≤ ½ size.
 - `ARM R` (arm) — Reject on admission failure (vs `ARM D` downsize) — drop
   a candidate a cap would breach.
-- `F1` `F2` (arm) — COLLIDES with `financed_spread`'s F1/F2 above and means
-  something unrelated: the 1-contract-floor question — `F1` takes a
+- `F1` `F2` (cell) — COLLIDES with `financed_spread`'s F1/F2 above and means
+  something unrelated: the 1-contract-floor question. `F1` takes a
   position at 1 contract even when its max loss exceeds budget (production
-  behaviour, the headline cell), `F2` refuses it.
+  behaviour, the headline cell). `F2` refuses it.
 - `--compounding` `--live-select` `--structure-universe` (run) — CLI
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
@@ -391,7 +443,8 @@ _Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrati
 
 _Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)_
 
-- `ARM B` (arm) — Net-delta ceiling band ∈ {1.0, 1.5, 2.0, 2.5, ∞} × equity.
+- `ARM B` (arm) — Net-delta ceiling band, tested at 1.0×, 1.5× and 2.0×
+  equity. Also tested at 2.5× equity and unlimited (∞).
 - `ARM D` (arm) — Dose-response (DESCRIPTIVE PRIMARY) — mean R by the open
   book's delta at entry.
 - `ARM H*` (arm) — Delta-TARGETED hedge-sleeve resizing — adjacent to
@@ -430,17 +483,18 @@ _Was `calendar_hedge` until 2026-09-08; renamed after the question it answers, l
 
 _Registered in [`pre-registrations/f5_hedging/hedge_structure.md`](pre-registrations/f5_hedging/hedge_structure.md) · module `f5_hedging/hedge_structure.py`_
 
-- `ARM H` (arm) — The hedge programme (`hedge_structure`'s own `P1` sleeve,
-  below) — runs first; `ARM S` runs only behind it. This study also uses
-  `H0`–`H5` as criteria (below); the two are unrelated despite the shared
-  letter.
-- `ARM S` (arm) — Structure sweep of untried wrappers, with sub-arms `S1`
-  put mirror, `S2` short-near-put, `S3` short-pulled-up bear vertical, `S6`
-  bull-put + bear-call wings. Runs only AFTER `ARM H` prints; nothing in it
-  can ship on its own. COLLIDES with `bear_giveback`'s own `ARM S` above —
-  unrelated.
-- `H0` `H0b` `H1` `H2` `H3` `H4` `H5` (criterion) — criteria, NOT
-  hypotheses and NOT `ARM H`: `H0` FILL, `H0b` FRESHNESS, `H1`–`H5`
+- `ARM H` (arm) <a id="hedge_structure-arm-h"></a> — The hedge programme
+  (`hedge_structure`'s own `P1` sleeve, below) — runs first; `ARM S` runs
+  only behind it. This study also uses `H0`–`H5` as criteria (below); the
+  two are unrelated despite the shared letter.
+- `ARM S` (arm) <a id="hedge_structure-arm-s"></a> — Structure sweep of
+  untried wrappers. Runs only AFTER `ARM H` prints; nothing in it can ship
+  on its own. COLLIDES with `bear_giveback`'s own `ARM S` above — unrelated.
+  - `S1` `S2` `S3` `S6` (sub-arm) — `S1` put mirror, `S2` short-near-put,
+    `S3` short-pulled-up bear vertical, `S6` bull-put + bear-call wings.
+    Graded together with `ARM S`, never alone.
+- `H0` `H0b` `H1` `H2` `H3` `H4` `H5` (criterion) — criteria, not
+  hypotheses and not `ARM H`: `H0` FILL, `H0b` FRESHNESS, `H1`–`H5`
   mirroring `hedge_sizing`'s `D1`–`D5` (below). COLLIDES in letter only with
   `macro_event_study`'s `H1`–`H4` hypotheses above — unrelated forms.
 - `P1` (sub-arm) — this study's own hedge sleeve itself, NOT `bear_rewrap`'s
@@ -459,16 +513,17 @@ question on the ADMITTED book, and its labels are indexed separately under
 [`hedge_concentration`](#hedge_concentration), which is the study it was merged
 from. The labels below are the WHOLE-BOOK arm's. Six tokens are spelled the same
 in both and mean the same role over a different population, so always say which
-arm.
+arm. This `--admitted` run is a population scope: the same design read on the
+ADMITTED book, not a second question ([Object types](#object-types)).
 
 Grid: 3 τ × 3 f = 9 cells per arm, fixed at registration and never expanded.
 `ARM C` here is NOT `concurrency_correlation`'s `ARM C` (a concurrency
 ceiling) and `ARM N` is the third `ARM N` in this family — same random-null
 role, different study.
 
-- `ARM M` (arm) — MEASUREMENT. The SAME unhedged book on both equity curves,
+- `ARM M` (arm) — MEASUREMENT. The same unhedged book on both equity curves,
   mark-to-market (from `daily_pnl_csv`) versus realized-on-close
-  (`account_sim.equity_curve`). Runs first and gates nothing. It is NOT
+  (`account_sim.equity_curve`). Runs first and gates nothing. It is not
   power-gated, so it is readable when the hedge cells are not: on the
   population the operator ratified 2026-08-31 it carries the study's
   **MEASUREMENT-ONLY** verdict — the two curves differ materially while no
@@ -477,14 +532,15 @@ role, different study.
   of them. See `research/pre-registrations/f5_hedging/hedge_portfolio.md`
   §Population and basis (RATIFICATION consolidated there 2026-09-02).
 - `ARM C` (arm) — Concentration-gated proxy put: hedge while the largest
-  cluster's share of book gross delta notional is ≥ τ ∈ {0.30, 0.35, 0.40},
-  sized at f ∈ {0.25, 0.50, 1.00} of a standard position's risk. Carries no
-  prose.
+  cluster's share of book gross delta notional is ≥ τ, tested at 0.30, 0.35
+  and 0.40. Sizing is f, tested at 0.25, 0.50 and 1.00 of a standard
+  position's risk. Carries no prose.
 - `ARM CS` (arm) — `ARM C` plus the analysis prose's `hedge-pressure ≥ 50`.
   PROSE-CONDITIONED; a date with no parse is NO SIGNAL.
-- `ARM P` (arm) — The prose-free counterpart on exactly `ARM CS`'s session set.
-  Written `**ARM P**` in `lib/hedge_instrument.py`, so the emphasis markers
-  travel with the token: `P**` is this same arm.
+- `ARM P` (arm) <a id="hedge_portfolio-arm-p"></a> — The prose-free
+  counterpart on exactly `ARM CS`'s session set. Written `**ARM P**` in
+  `lib/hedge_instrument.py`, so the emphasis markers travel with the
+  token: `P**` is this same arm. One of `ARM P`'s six owners repo-wide.
 - `ARM N` (arm) — Random-admission null, 200 seeds, matched on episode COUNT,
   episode LENGTHS and PROXY mix. An arm must beat its 95th percentile, not
   merely beat the unhedged book. COLLIDES with `portfolio_delta`'s and
@@ -509,29 +565,36 @@ _Registered in [`pre-registrations/f5_hedging/hedge_timing.md`](pre-registration
 Each arm is run once per TRIGGER FAMILY and printed suffixed with it —
 `ARM H1-CHOP`, `ARM H1-GAP`, `ARM H1-DECLINE`, and likewise for `H2`/`H3`/`H4`.
 The bare `H0`–`H4` below are the arms themselves; the suffix names which
-trigger the arm was run on, not a different question. NOT `hedge_structure`'s
-`H0`–`H5` (criteria) and NOT `macro_event_study`'s `H1`–`H4` (hypotheses).
+trigger the arm was run on, not a different question. Not `hedge_structure`'s
+`H0`–`H5` (criteria), and not `macro_event_study`'s `H1`–`H4` (hypotheses).
 
-- `ARM H0` (arm) — POWER CENSUS. Runs first and returns BEFORE any outcome
-  column is read: trigger dates, bear-carrying dates, bear rows, H3-paired
-  dates, and the same four on non-trigger dates. Every arm below early-returns
-  UNDERPOWERED off it without computing a statistic.
-- `ARM H1` (arm) — Between-date separation of bear R, trigger vs non-trigger,
-  date-clustered. NOT the primary: a date either fires or does not, so no
-  within-date pairing exists and a positive is confounded with "the market
-  fell". Printed as `ARM H1-CHOP` `ARM H1-GAP` `ARM H1-DECLINE`.
-- `ARM H2` (arm) — Beta control: the SAME separation on the DEPLOYED LADDER.
-  `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1 delta|, opposite-signed) turns a
-  positive into MARKET-TIMING-PROXY. Printed as `ARM H2-CHOP` `ARM H2-GAP`
-  `ARM H2-DECLINE`.
-- `ARM H3` (arm) — **PRIMARY.** Within-date paired (`hedge_sizing` D4's
-  method): date-mean bear R minus date-mean tier-A/B long R, headline = the
-  DIFFERENCE of that paired mean on trigger vs non-trigger dates. Printed as
-  `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE`.
-- `ARM H4` (arm) — Do-nothing baseline in DOLLARS (the only arm that may quote
-  `$`): sleeve policies over the deployed ladder's daily dollars, judged by
-  `hedge_sizing` D3's criterion. Printed as `ARM H4-CHOP` `ARM H4-GAP`
-  `ARM H4-DECLINE`.
+- `ARM H0` (arm) <a id="hedge_timing-arm-h0"></a> — POWER CENSUS. Runs
+  first and returns BEFORE any outcome column is read: trigger dates,
+  bear-carrying dates, bear rows, H3-paired dates, and the same four on
+  non-trigger dates. Every arm below early-returns UNDERPOWERED off it
+  without computing a statistic.
+- `ARM H1` (arm) <a id="hedge_timing-arm-h1"></a> — Between-date separation
+  of bear R, trigger vs non-trigger, date-clustered. NOT the primary: a
+  date either fires or does not, so no within-date pairing exists and a
+  positive is confounded with "the market fell".
+  - `ARM H1-CHOP` `ARM H1-GAP` `ARM H1-DECLINE` (sub-arm) — printed once
+    per trigger family, graded with `ARM H1`, never alone.
+- `ARM H2` (arm) <a id="hedge_timing-arm-h2"></a> — Beta control: the SAME
+  separation on the DEPLOYED LADDER. `h2_mirrors` (|H2 delta| ≥ 0.5 × |H1
+  delta|, opposite-signed) turns a positive into MARKET-TIMING-PROXY.
+  - `ARM H2-CHOP` `ARM H2-GAP` `ARM H2-DECLINE` (sub-arm) — printed once
+    per trigger family, graded with `ARM H2`, never alone.
+- `ARM H3` (arm) <a id="hedge_timing-arm-h3"></a> — **PRIMARY.** Within-date
+  paired (`hedge_sizing` D4's method): date-mean bear R minus date-mean
+  tier-A/B long R, headline = the DIFFERENCE of that paired mean on trigger
+  vs non-trigger dates.
+  - `ARM H3-CHOP` `ARM H3-GAP` `ARM H3-DECLINE` (sub-arm) — printed once
+    per trigger family, graded with `ARM H3`, never alone.
+- `ARM H4` (arm) <a id="hedge_timing-arm-h4"></a> — Do-nothing baseline in
+  DOLLARS (the only arm that may quote `$`): sleeve policies over the
+  deployed ladder's daily dollars, judged by `hedge_sizing` D3's criterion.
+  - `ARM H4-CHOP` `ARM H4-GAP` `ARM H4-DECLINE` (sub-arm) — printed once
+    per trigger family, graded with `ARM H4`, never alone.
 
 ### Queued — pre-registered, no module yet
 
@@ -547,11 +610,12 @@ verdict NOISE). Every arm below is now a run arm, not a plan arm. The three
 and excludes it from `ARM CK` rather than assuming it.
 
 - `ARM C` (arm) — Concurrency ceiling — refuse a pick whose entry session
-  already holds ≥ C open positions; grid C ∈ {5, 8, 12, 20}.
+  already holds ≥ C open positions. Grid C is tested at 5 and 8. Also
+  tested at 12 and 20.
 - `ARM CK` (arm) — The conjunction of `ARM C` and `ARM K`, run only if each
   clears independently.
-- `ARM D0` (arm) — Descriptive only — mean R by concurrency band at entry;
-  the shape is reported, no band is adopted.
+- `ARM D0` (descriptive cut) — Descriptive only — mean R by concurrency band
+  at entry; the shape is reported, no band is adopted.
 - `ARM K` (arm) — Clustering ceiling — refuse a pick when the open book
   already holds ≥ K sharing its direction (also run same-direction-and-
   sector, same-underlying); grid K ∈ {2, 3, 5}. COLLIDES with
@@ -561,17 +625,21 @@ and excludes it from `ARM CK` rather than assuming it.
   matched on affected count; an arm inside its [p5, p95] band is NOISE
   regardless of its own CI. COLLIDES with `portfolio_delta`'s own `ARM N`
   above — same role, different study.
-- `X1`–`X8` (criterion) — The eight ship criteria, all of which must hold
-  for `ADOPT`: `X1` power floor (≥ 25 changed dates), `X2` paired
-  within-date gain with a date-clustered CI clear of zero, `X3` gain above
-  `ARM N`'s p95, `X4` era stability (`X2` and `X3` hold on BOTH v3 and the
-  current era, same sign, within 0.15 R — not checkable in one run, since
-  `lib/era.py` binds a run to one era, so it is settled by a `--era v3`
-  companion run), `X5` same sign on PRIMARY and SECONDARY, `X6`
-  leave-one-out by date and by ticker, `X7` survives the delta-notional
-  control (else RESTATEMENT of `portfolio_delta`), `X8` dollars quoted
-  real+tweak only. Settled 2026-09-04: NOISE on both eras, no arm clears
-  `X2`/`X3`.
+- `X1–X8` (criterion) — Eight ship criteria, all required for `ADOPT`.
+  - The power floor, `X1`: ≥25 changed dates.
+  - Paired gain, `X2`: within-date gain with a date-clustered CI clear of
+    zero.
+  - Beats the null, `X3`: gain above `ARM N`'s p95.
+  - Era stability, `X4`: `X2` and `X3` hold on BOTH v3 and the current
+    era, same sign, within 0.15 R. Settled by a `--era v3` companion run,
+    since `lib/era.py` binds one run to one era.
+  - Same sign, `X5`: PRIMARY and SECONDARY agree.
+  - Leave-one-out, `X6`: stable by date and by ticker.
+  - Survives the control, `X7`: beats the delta-notional check, else
+    RESTATEMENT of `portfolio_delta`.
+  - Real dollars, `X8`: quoted real+tweak only.
+
+  Settled 2026-09-04: NOISE on both eras, no arm clears `X2`/`X3`.
 
 #### `hedge_concentration`
 
@@ -600,10 +668,11 @@ evaluated and no cell of the τ×f grid carries a number.
   must beat its 5th percentile.
 - `ARM K10` (arm) — `ARM K` at H = 10; a disclosed sensitivity, never
   concluded from.
-- `ARM C` (arm) — Stage 2 only: concentration-gated proxy put, τ ∈ {0.45,
-  0.55, 0.65} × f ∈ {0.25, 0.50, 1.00}, admitted through
-  `account_sim.admission()` in the ARM H pattern. NOT `concurrency_correlation`'s
-  `ARM C`. No prose arm exists in this study.
+- `ARM C` (arm) — Stage 2 only: concentration-gated proxy put. The τ grid
+  is tested at 0.45, 0.55 and 0.65. The f grid is tested at 0.25, 0.50 and
+  1.00, admitted through `account_sim.admission()` in the ARM H pattern.
+  Not `concurrency_correlation`'s `ARM C`. No prose arm exists in this
+  study.
 - `ARM N` (arm) — Stage 2 random-admission null, 200 seeds, matched on
   episode count, lengths and proxy mix. The fourth `ARM N` in this family.
 - `ARM R` (arm) — Stage 2 always-fillable reference: delta-equivalent SHORT
@@ -648,12 +717,13 @@ a mechanical bull call spread on the same dates and tickers.
   same ticker and date, inside the pick's DTE band. PRIMARY.
 - `ARM M2` (arm) — Matched-geometry counterpart: the vertical whose
   entry-dated delta and DTE are nearest the pick's. SECONDARY.
-- `ARM U` (arm) — Universe null: the `ARM M1` wrap on random flow-universe
-  tickers for that date, ≥1,000 date-clustered draws. The base-rate arm, and
-  the one that answers "long calls just worked". COLLIDES with
-  `bear_giveback`'s `ARM U` (the underlying's price path) and `exit_drawdown`'s
-  `ARM U` (the underlying ATR stop), both unrelated — qualify every citation
-  with its study. Not the printed prose `ARM UNIVERSE` below either.
+- `ARM U` (control) — Universe null: the `ARM M1` wrap on random
+  flow-universe tickers for that date, ≥1,000 date-clustered draws. The
+  base-rate arm, and the one that answers "long calls just worked". COLLIDES
+  with `bear_giveback`'s `ARM U` (the underlying's price path) and
+  `exit_drawdown`'s `ARM U` (the underlying ATR stop), both unrelated —
+  qualify every citation with its study. Not the printed prose `ARM UNIVERSE`
+  below either.
 - `ARM CEN` (arm) — Census: pair-build rates, redraw rates and band coverage
   by tier, structure and DTE band. Descriptive only, never a criterion.
 
@@ -670,29 +740,13 @@ UNDERPOWERED"` is a printed report line; `ARM SELECTION` marks
 `account_sim`'s `--compounding` switch in a code comment; `H ARM UNIVERSE`
 is a `hedge_structure` table header.
 
-### Kinds
-
-The kind noted in parentheses after each label:
-
-- **arm** — one independently-verdicted question inside a study; a study may
-  earn one verdict per arm ([`glossary.md`](glossary.md) §9). Most use the
-  `ARM <letter>` form; `financed_spread` and `selection_order` do not, and so
-  never turn up in an `ARM` search at all.
-- **sub-arm** — a named half of an arm. Graded with its parent, never alone.
-- **run** — an alternative RUN of one study (a CLI flag), not a separate
-  question ([`glossary.md`](glossary.md) §7).
-- **gate** — a hard pass/fail precondition checked before any result prints.
-- **criterion** — a feasibility question graded once gates pass.
-- **hypothesis** — a pre-registered claim; in this repo always ALSO an arm,
-  under a different letter.
-- **prose** — printed report text or a code comment that reads like a label.
-
 ## Keeping this file honest
 
 `tests/test_arm_index.py` fails if any `ARM <label>` token appears in a study
 module or a pre-registration without a mention here — so a newly registered
-arm cannot be added without landing in this index — and pins the four `ARM P`
-owners.
+arm cannot be added without landing in this index — and pins the six `ARM P`
+owners. It also refuses any label bullet whose object-type tag is missing or
+falls outside the closed list under [Object types](#object-types).
 
 What it does NOT check: the descriptions, which are the operator's own words,
 same as [`study-map.md`](study-map.md)'s verdicts. It also cannot enforce
@@ -704,6 +758,7 @@ stale; where this file disagrees with the code, the code is right.
 
 - [`glossary.md`](glossary.md) §9 — what an ARM is, and the verdict grammar
   arms are graded under. §7 — CLI arms.
+- [Object types](#object-types) — what each parenthesised tag means.
 - [`pre-registrations/`](pre-registrations/) — the arms' actual definitions,
   in full, immutable.
 - [`study-map.md`](study-map.md) — what each study asked and concluded.

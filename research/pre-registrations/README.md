@@ -97,6 +97,7 @@ map to standard experiment terms:
 | "Anti-tuning" | Anti-p-hacking: parameters frozen, no sweeping |
 | "What this is NOT" | Scope limitations |
 | "Ship criteria" (older files: "Ship ceiling") | Maximum admissible outcome — what, if anything, the study may cause to ship |
+| Object-type tag after a label, e.g. `(control)` | Object type — [see arm-index.md](../arm-index.md#object-types) |
 
 Verdict vocabulary, repo-wide (originally recorded in `financed_spread`'s
 build-time notes, moved here): "POWER-STOPPED" is read as **UNDERPOWERED —
@@ -112,6 +113,10 @@ globally, and single letters are deliberately kept: renaming one would break
 the audit chain `scripts/study_review/` grades against. **Qualify every
 citation with its study** — `emission_timing ARM P`, never a bare `ARM P` —
 and look any label up in [`../arm-index.md`](../arm-index.md).
+
+Not every label is an arm: the parenthesised tag in the index says which
+object type it is, and a registration's "Arms" section may register
+controls, cells and descriptive cuts under the same letters.
 
 ## ① Selection — `f1_selection/`
 

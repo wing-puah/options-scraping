@@ -27,6 +27,13 @@ What this does NOT check:
     historical record and quote arms as they printed, including retired ones;
     demanding an index mention for every arm ever cited would make the index
     a changelog rather than a lookup.
+
+The index also guarantees every label bullet is tagged with an object type
+from a closed list (arm, sub-arm, cell, control, descriptive cut, population
+scope, run, gate, criterion, hypothesis, prose, axis) — so "arm" stops being
+the universal noun for anything that carries a study-local letter. Adding a
+new object type means editing the table at `research/arm-index.md#object-types`
+AND the `OBJECT_TYPES` set below; the two must never drift apart.
 """
 from __future__ import annotations
 
@@ -48,6 +55,30 @@ BACKTICKED = re.compile(r"`([^`]+)`")
 
 # A study's own section: `#### `study_name` — <where defined>`.
 _STUDY_HEADING = re.compile(r"^#### `([a-z][a-z0-9_]*)`", re.M)
+
+# A label bullet, at any indent: `- `ARM U` ...` or `  - `ARM U/a` ...`.
+_LABEL_BULLET_LINE = re.compile(r"^\s*- `", re.M)
+
+# The parenthesised object-type tag right after a label bullet's backticked
+# label(s), before the ` — `: `- `ARM U` (sub-arm) — ...`.
+_LABEL_BULLET_TAG = re.compile(r"^\s*- (?:`[^`]+`\s*)+\(([a-z][a-z -]*)\)")
+
+# The closed vocabulary of object types a label bullet may be tagged with.
+# Keep in sync with the table under `## Object types` in arm-index.md.
+OBJECT_TYPES = {
+    "arm",
+    "sub-arm",
+    "cell",
+    "control",
+    "descriptive cut",
+    "population scope",
+    "run",
+    "gate",
+    "criterion",
+    "hypothesis",
+    "prose",
+    "axis",
+}
 
 
 def _sources() -> list[Path]:
@@ -134,3 +165,36 @@ def test_index_covers_the_known_collisions() -> None:
         "hedge_portfolio",
         "exit_drawdown",
     }, f"ARM P owners drifted: {sorted(owners)}"
+
+
+def test_every_label_bullet_carries_a_known_object_type() -> None:
+    """Every label bullet in the index must carry a parenthesised
+    object-type tag, right after the label and before the ` — `.
+
+    Only the body from the first `#### ` study heading onward is checked —
+    the card's own table and the "Collisions, up front" list above it are
+    not label bullets in the index's own sense.
+    """
+    text = re.sub(r"```.*?```", "", INDEX.read_text(encoding="utf-8"), flags=re.S)
+    first_heading = re.search(r"^#### ", text, re.M)
+    assert first_heading is not None, f"{INDEX} has no `#### ` study heading to start from"
+    body = text[first_heading.start():]
+
+    offenders = []
+    for lineno, line in enumerate(body.splitlines(), start=1):
+        if not _LABEL_BULLET_LINE.match(line):
+            continue
+        tag_match = _LABEL_BULLET_TAG.match(line)
+        if tag_match is None:
+            offenders.append(f"line {lineno}: no object-type tag -- {line.strip()!r}")
+            continue
+        tag = tag_match.group(1)
+        if tag not in OBJECT_TYPES:
+            offenders.append(f"line {lineno}: unknown object type {tag!r} -- {line.strip()!r}")
+
+    assert not offenders, (
+        "research/arm-index.md has label bullet(s) with a missing or unknown "
+        f"object-type tag. Every label bullet must be tagged `(<object type>)` "
+        f"from {sorted(OBJECT_TYPES)} right after the label, before the "
+        "` — `:\n" + "\n".join(offenders)
+    )
