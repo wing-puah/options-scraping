@@ -7,7 +7,7 @@
 #   - DONE or HALT marker present      -> exit (nothing to do / needs the operator)
 #   - collector already running        -> exit (its own flock would refuse a second run anyway)
 #   - inside a cooldown window         -> exit
-#   - otherwise run one --execute pass under caffeinate; the manifest makes it resume exactly
+#   - otherwise run one --execute pass under caffeinate -i -s (no idle sleep; no system sleep on AC power); the manifest makes it resume exactly
 #     where the last pass stopped. Then classify how it ended:
 #       nothing left to fetch           -> backup push, DONE marker, notify
 #       HTTP 401/403/429 or login fail  -> cooldown 2h; 3 blocked passes in a row -> HALT + notify
@@ -47,7 +47,7 @@ pgrep -f "python.*scripts/collector/backfill_chain.py" >/dev/null && exit 0
 cd "$ROOT" || exit 1
 run_log="$LOGDIR/run-$(date +%Y%m%d-%H%M%S).log"
 say "start pass: $SYMBOLS $FROM..$TO -> $run_log"
-caffeinate -i "$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" \
+caffeinate -i -s "$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" \
     --from "$FROM" --to "$TO" --execute > "$run_log" 2>&1
 rc=$?
 done_line=$(grep -E "backfill_chain.main\]  done:" "$run_log" | tail -1)
