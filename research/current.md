@@ -259,13 +259,19 @@ the fill-time mid. Flex records the fill price, not the quote.
 
 ### Left on the tabs, not yet repaired
 
-- **BacktestResults, 3 stray rows.** IBIT with `signal_date = "bot"`, written
-  12:52 by another session; an unparseable date escapes every `--redo` bound.
-  EEM and COIN 2025-07-29, still `cost_basis = full`, written 2026-08-21.
-- **BacktestProxy, 24 rows lost.** The re-run deleted 24 rows on 2024-09-16,
-  2025-07-29, 2025-09-10 and 2025-09-18 and wrote none back. Three of those
-  dates are the known double-analysis dates. 29 older uncosted rows remain on
-  those four dates.
+- **32 orphan rows, 3 on BacktestResults and 29 on BacktestProxy.** No play on
+  AnalysisClaude matches them, so no `--redo` can reach them. They stay
+  uncosted or on the old cost basis. Studies still load them.
+- **BacktestResults.** IBIT with `signal_date = "bot"`, written 12:52 by
+  another session. EEM and COIN 2025-07-29, `cost_basis = full`, written
+  2026-08-21.
+- **BacktestProxy.** All 29 are `no_history` rows from 2026-08-21 to 08-27.
+  They sit on 2024-09-16, 2025-07-29, 2025-09-10 and 2025-09-18. Three of
+  those are the known double-analysis dates, so those rows most likely
+  backtest the discarded run's plays. 2025-07-29 is not on that list, and why
+  its rows orphaned is unexplained. 7 of the 29 carry a realized P&L.
+- **No row was lost.** A first reading said the re-run dropped 24 proxy rows
+  on those dates. It did not: all 24 were rewritten at 13:06.
 - **A second proxy `--redo` ran at the same time,** from another session,
   12:53, without `--cache-only`. Its rows do not appear on the tab, and the
   tab has no duplicate keys.
