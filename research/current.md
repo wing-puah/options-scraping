@@ -220,7 +220,7 @@ blocks any work; each has its full entry in an archive volume.
 The backtest now charges commission and no slippage. The operator fills
 spreads at the combo mid on entry and on exit, so the 25%-of-spread charge
 was a cost the account does not pay. Both v4 tabs were re-priced. Net P&L
-on BacktestResults moved from −$50.2k to −$7.9k. Gross is unchanged, so the
+on BacktestResults moved from −$50.4k to −$7.1k. Gross is unchanged, so the
 book still shows no edge before costs.
 
 _Operator decision 2026-09-24 · `config/backtest.yml`
@@ -230,21 +230,26 @@ _Operator decision 2026-09-24 · `config/backtest.yml`
 
 ### The re-run
 
+Final tabs, after the 32 orphan rows below were deleted. "Before" is the
+pre-change snapshot restricted to the rows still on the tab.
+
 | Tab | Measure | Before (0.25) | After (commission only) |
 |---|---|---|---|
-| BacktestResults | Priced rows | 972 | 975 |
-| BacktestResults | Net P&L | −$50,207 | −$7,923 |
-| BacktestResults | Total cost | $51,410 | $7,718 |
-| BacktestResults | Win rate | 47.9% | 49.5% |
-| BacktestProxy | Priced rows | 706 | 706 |
-| BacktestProxy | Net P&L | −$51,984 | −$15,942 |
+| BacktestResults | Priced rows | 970 | 972 |
+| BacktestResults | Net P&L | −$50,373 | −$7,137 |
+| BacktestResults | Total cost | $51,410 | $7,214 |
+| BacktestResults | Gross P&L | +$1,037 | +$77 |
+| BacktestResults | Win rate | 47.9% | 49.6% |
+| BacktestProxy | Priced rows | 697 | 697 |
+| BacktestProxy | Net P&L | −$50,998 | −$14,955 |
 | BacktestProxy | Total cost | $42,530 | $6,487 |
-| BacktestProxy | Gross P&L | −$9,455 | −$9,455 |
+| BacktestProxy | Gross P&L | −$8,468 | −$8,468 |
 
-On the 970 BacktestResults rows that match by identity key, gross moved by
+On the 970 BacktestResults rows that match by identity key, gross moved on
 one row. GLD 2026-08-25 held one day longer because its cache gained a day.
-The whole-tab gross change is the three rows below. A commission-only row
-costs $2.60 at the median and $122.20 at most (HYG, 47 contracts).
+The rest of the gross change is two GLD rows that moved over from the proxy.
+A commission-only row costs $2.60 at the median and $122.20 at most (HYG, 47
+contracts).
 
 ### Why the change is not tuning
 
@@ -257,11 +262,13 @@ in the sweep. The registration is still a DRAFT.
 Not measured: mid orders that never fill, and the gap between the EOD mid and
 the fill-time mid. Flex records the fill price, not the quote.
 
-### Left on the tabs, not yet repaired
+### 32 orphan rows deleted
 
 - **32 orphan rows, 3 on BacktestResults and 29 on BacktestProxy.** No play on
-  AnalysisClaude matches them, so no `--redo` can reach them. They stay
-  uncosted or on the old cost basis. Studies still load them.
+  AnalysisClaude matched them, so no `--redo` could reach them. They were
+  uncosted or on the old cost basis, and studies loaded them. The operator
+  deleted them 2026-09-24. Both tabs now have 0 orphans and 0 duplicate keys.
+  Copies are in `_snapshot-*-pre-orphan-delete-20260924.csv`.
 - **BacktestResults.** IBIT with `signal_date = "bot"`, written 12:52 by
   another session. EEM and COIN 2025-07-29, `cost_basis = full`, written
   2026-08-21.
