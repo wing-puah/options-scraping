@@ -3,7 +3,8 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from lib.structure_names import canonical_debit_spreads, canonical_spread_names
+from lib.structure_names import (canonical_credit_spreads, canonical_debit_spreads,
+                                 canonical_spread_names)
 
 from .config import _UNSUPPORTED_PATTERNS
 from .helpers import _to_float, _opt_price, _row_iv, _parse_expiration
@@ -183,11 +184,17 @@ def _extract_horizon_dte(play_text: str, explicit: object = None) -> int | None:
 # `calendar` / `diagonal` / `explicit_legs` are NOT here: their polarity is set
 # by how the play is written (`is_credit` off the text's credit words, or the
 # signed legs), not by the structure name, so a negative entry on one of them is
-# not by itself evidence of a bad quote. The credit structures are absent for the
-# mirror reason — see `simulate._refuse_debit_priced_to_credit`.
+# not by itself evidence of a bad quote.
 DEBIT_STRUCTURES = frozenset(
     {name.replace(" ", "_") for name in canonical_debit_spreads()}
     | {"long_call", "long_put"})
+
+# The mirror: structures whose NAME fixes them as a CREDIT, so a positive entry
+# net is a mispriced leg (2026-09-23, `simulate._refuse_credit_priced_to_debit`).
+# Same narrowness, same single source of the vertical names.
+CREDIT_STRUCTURES = frozenset(
+    {name.replace(" ", "_") for name in canonical_credit_spreads()}
+    | {"short_call", "short_put"})
 
 
 # ─── The inverted-vertical gate ───────────────────────────────────────────────
@@ -219,8 +226,9 @@ def refuse_inverted_vertical(structure: str, strikes: list) -> str | None:
     off something else — so sorting them builds a position the play never named,
     at strikes taken from a sentence about someone else's flow. A refusal lands
     where every other build-time skip lands: `skip_reason` on the BacktestProxy
-    row, tallied by `core.py`. Mirrors `simulate._refuse_debit_priced_to_credit`,
-    which likewise refuses an impossible position rather than repairing it.
+    row, tallied by `core.py`. Mirrors `simulate._refuse_debit_priced_to_credit`
+    and `_refuse_credit_priced_to_debit`, which likewise refuse an impossible
+    position rather than repairing it.
 
     Only fires when the TEXT named both strikes. With one strike,
     `helpers._short_strike` synthesises the contra leg in the canonical

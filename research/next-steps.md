@@ -266,7 +266,15 @@ and ladder tier mix all move
 under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
 
 - **Unblocks when** the live 2026-08/09 dates price, or later ones. Backfill
-  dates do not count (§0).
+  dates do not count (§0), with one exception the operator ruled on 2026-09-22:
+  a backfilled date outside `[2024-01, 2026-05]` counts as v4 evidence, because
+  no shipped rule was fitted on it. June and July 2026 are the first such dates
+  ([entry](current.md#2026-09-23--junejuly-2026-backfill--24-dates-analysed-on-v4-11-priced-the-rest-pending)).
+  The model-recall caveat is resolved for them: the engine's default model is
+  `claude-opus-5`, whose knowledge cutoff is May 2026, so a June or July 2026
+  session sits after it and the analysis cannot be recall of that day's tape.
+  The cutoff is stated by the running agent's own session context; neither this
+  repo nor the `claude-api` skill documents it.
 - **Do not** lower `MIN_V4_DATES`, and do not point `--v4-csv` at a v3 export.
   Its exit 3 is the designed refusal (§0c(C)).
 
@@ -550,9 +558,29 @@ has grown since. One line each, with the entry that holds the story.
 | A `bear_put_spread` can be built strike-inverted | RESOLVED | 2026-09-20 | [entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed), below |
 | Six `bear put spread` plays classify as `bear_call_spread` | OPEN | 2026-09-20 | below |
 | A leg quoted `bid == 0` can still fill at that day's `Open` print | OPEN, operator decision | 2026-09-08 | below, §0 item 9 |
-| The debit-to-credit gate also fires on BS-modelled legs | OPEN note, effectively moot | 2026-09-19 | below |
+| The debit-to-credit gate also fires on BS-modelled legs | MOOT: BS abolished | 2026-09-23 | below |
+| A credit priced to a debit was sized on its fake premium (TLT 2025-04-04) | RESOLVED in code, not re-priced | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
+| One corrupt cache file (META 630P) set a position's underlying and greeks | RESOLVED, file quarantined | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
+| Junk quotes set the cost, the daily mark and the entry fill | RESOLVED in code, uncommitted, not re-priced | 2026-09-24 | [entry](current.md#2026-09-24-latest--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
+| Research mirrors do not follow the junk-quote rule | OPEN | 2026-09-24 | below |
+| Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-latest--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
+
+**Research mirrors do not follow the junk-quote rule (2026-09-24).** Production
+now judges every quote with `simulate._is_junk_quote`. These research paths
+still price the old way. None was changed.
+
+| Mirror | What it still does |
+|---|---|
+| `f3_structure/bear_rewrap.py` | Marks by `_zero_bid_mark`, fills entries by `_entry_side_mark`: a bought zero-bid leg pays the ask, a junk day marks at its mid |
+| `lib/overlay_campaign.py::CachePrices` | Prices through `bear_rewrap`, and `_row_spread` charges slippage on junk spreads |
+| `lib/hedge_instrument.py` | Marks off `_mark`, the raw mid |
+| `lib/reprice_targets.py` | Claims rows with `_entry_side_mark`, the pre-junk entry test |
+
+`tests/test_bear_rewrap_zero_bid.py::test_the_mirror_and_production_agree_on_an_open_print_entry`
+now fails for this reason: production refuses the bought zero-bid leg, the
+mirror pays the ask.
 
 **The `cost_basis` split.** `_apply_costs` writes `cost_basis` empty whenever
 both cost knobs are 0, which they are, so it is blank on every
@@ -631,6 +659,11 @@ leave the `Open` fill alone, or extend the side rule with a before and after.
 **The exit-fill census is approximate.** It reconstructs the exit day from
 `days_held` over a business-day grid rather than reading it from the stored
 grid, so its counts are an order of magnitude and not a row list.
+
+**Black-Scholes is abolished (2026-09-23).** The backtest has no model tier
+now, so the note below is moot for new rows. It stays because the stored rows
+it counts still exist. Re-pricing them is a `--redo` the operator has not
+ordered.
 
 **The debit-to-credit gate also fires on BS-modelled legs.**
 `_refuse_debit_priced_to_credit` cannot tell a modelled mark from a quoted

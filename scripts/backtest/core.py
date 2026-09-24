@@ -23,6 +23,7 @@ from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
 from .shared.history import fetch_option_histories
 from .shared.identity import find_untested, identity_key, keys_from_tab
 from .shared.results_io import write_results
+from .simulate import validate_pricing_config
 
 log = logging.getLogger("backtest")
 
@@ -82,6 +83,18 @@ _KEY_ORDER = [
     # BacktestResults tab header must gain it (`align_tab_headers.py --dry-run`).
     # See simulate.py::_summarize_path and docs/backtest-reference.md.
     "exit_fill",
+    # Did the simulated path outlive the price data (2026-09-23)? `path_status` =
+    # `complete` (the exit fired on a day every leg quoted), `carried` (it fired
+    # on a day at least one leg's mark was carried into) or `open_at_data_end`
+    # (the data ran out before any exit fired, so the row is marked at the last
+    # real quote instead of at the cap). `path_data_end` is that last real
+    # quote's date. BOTH EMPTY on every row written before 2026-09-23, where the
+    # question was never asked — never backfill a value onto a stored row.
+    # Appended at the VERY END for the positional-append reason above; the
+    # BacktestResults tab header must gain both, in this order
+    # (`python3 scripts/align_tab_headers.py --dry-run`).
+    # See simulate.py::_leg_data_end and docs/backtest-reference.md.
+    "path_status", "path_data_end",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -214,7 +227,7 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
 
 # ─── Output ────────────────────────────────────────────────────────────────────
 
-def _write_results(results, cfg, dry_run) -> None:
+def _write_results(results, cfg, dry_run, before_sheet=None) -> None:
     """Thin wrapper over :func:`scripts.backtest.shared.results_io.write_results`,
     supplying this CLI's fixed schema/output config (unchanged behavior)."""
     write_results(
@@ -224,6 +237,7 @@ def _write_results(results, cfg, dry_run) -> None:
         sheet_tab=cfg["output"].get("sheet_tab"),
         dry_run=dry_run,
         summary_fn=_print_summary,
+        before_sheet=before_sheet,
     )
 
 
@@ -298,7 +312,7 @@ def _print_summary(results) -> None:
         wtd = f", dollar-wtd return: {ra.sum()/real_cap_total*100:+.1f}%" if real_cap_total else ""
         print(f"  ↳ real-data subset: {win:.1f}% win, ${ra.mean():+,.0f} avg{wtd}  ({len(ra)} trades)")
     else:
-        print("  ↳ real-data subset: none (all Black-Scholes modelled)")
+        print("  ↳ real-data subset: none (no row carries a priced day)")
 
     def _sort_key(r: dict):
         v = r.get("realized_pnl_abs")
@@ -332,8 +346,10 @@ def _run_simulations(plays, barchart_series, barchart_details,
         result = play.simulate(barchart_series, barchart_details, sim_cfg, spread_pct)
         if result is None:
             # A REFUSAL is tallied under its own reason, not pooled into
-            # `unpriced`: `debit_priced_to_credit` means the data was there and
-            # was wrong, which is a different thing from having no data.
+            # `unpriced`: `debit_priced_to_credit` / `credit_priced_to_debit` /
+            # `non_monotonic_entry_quote` mean the data was there and was wrong,
+            # and `no_real_entry_price` names the leg that had none — each a
+            # different thing from the anchor having no data.
             key = play.refusal.get("reason", "unpriced")
             skipped[key] = skipped.get(key, 0) + 1
             continue
@@ -387,6 +403,9 @@ def main() -> None:
         start = date.fromisoformat(args.start) if args.start else None
         end = date.fromisoformat(args.end) if args.end else None
     sim_cfg = cfg["simulation"]
+    # Refused before any Sheets read or Barchart fetch: a config that asks for a
+    # model price (Black-Scholes, abolished 2026-09-23) must fail loudly.
+    validate_pricing_config(sim_cfg)
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
 
     if analysis_csv:
@@ -441,20 +460,20 @@ def main() -> None:
     results = _run_simulations(plays, barchart_series, barchart_details,
                                market_regime, sim_cfg, spread_pct, skipped)
 
-    log.info("Simulated %d plays (skipped: %d unsupported, %d no_strike, %d no_expiry, "
-             "%d unpriced, %d vetoed, %d debit_priced_to_credit, %d inverted_vertical)",
-             len(results), skipped["unsupported"], skipped["no_strike"], skipped["no_expiry"],
-             skipped["unpriced"], skipped["vetoed"],
-             skipped.get("debit_priced_to_credit", 0),
-             skipped.get("inverted_vertical", 0))
+    log.info("Simulated %d plays (skipped: %s)", len(results),
+             ", ".join(f"{n} {k}" for k, n in skipped.items()))
 
-    # Delete-then-append, in that order: the new rows must never be able to land
-    # beside the old ones, which is the exact failure --redo exists to prevent.
+    # Local CSV, then delete, then append — in that order. Delete-before-append
+    # keeps the new rows from ever landing beside the old ones (the failure
+    # --redo exists to prevent); CSV-before-delete keeps a Sheets failure from
+    # losing the simulated run.
     sheet_tab = (cfg.get("output") or {}).get("sheet_tab")
+    delete_old = None
     if redo_keys and sheet_tab and not args.dry_run:
-        sheets_client.delete_rows_where(
-            sheet_tab,
-            lambda r: identity_key(r.get("signal_date", ""), r.get("ticker", ""),
-                                   r.get("play", "")) in redo_keys)
+        def delete_old():
+            sheets_client.delete_rows_where(
+                sheet_tab,
+                lambda r: identity_key(r.get("signal_date", ""), r.get("ticker", ""),
+                                       r.get("play", "")) in redo_keys)
 
-    _write_results(results, cfg, args.dry_run)
+    _write_results(results, cfg, args.dry_run, before_sheet=delete_old)

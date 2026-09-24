@@ -25,7 +25,7 @@ from .helpers import _contract_key, _to_float, _short_strike
 from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
                    straddle_legs, strangle_legs, butterfly_legs, condor_legs,
                    calendar_legs, diagonal_legs)
-from .simulate import _simulate, _iron_condor_strikes
+from .simulate import ENTRY_REFUSALS, _simulate, _iron_condor_strikes
 
 log = logging.getLogger("backtest")
 
@@ -87,7 +87,7 @@ class Play(ABC):
         self.anchor_idx = anchor_idx
         self.contracts = contracts or []  # [(ticker, opt_type, strike, exp), ...]
         # Filled by `_simulate` when a pricing attempt is REFUSED for a reason
-        # worth recording (currently only `debit_priced_to_credit`), as opposed
+        # worth recording (one of `simulate.ENTRY_REFUSALS`), as opposed
         # to merely unpriceable. Lives on the Play because it is the one object
         # both writers hold: `core.py` tallies it, `proxy.py` writes it into the
         # row's `skip_reason`. Empty = no refusal.
@@ -223,8 +223,9 @@ class IronCondorPlay(Play):
         if exp is None:
             return None, skip
         # Always fetch the short-put anchor. When all 4 strikes are explicit, also
-        # fetch the wings; synthesized wings (from spread_pct) may not be listed and
-        # fall back to BS at price time.
+        # fetch the wings. Synthesized wings (from spread_pct) sit at strikes that
+        # are usually not listed, so they have no real price and the condor is
+        # refused at entry (`no_real_entry_price`) — there is no model fallback.
         contracts = [(c["ticker"], "Put", K, exp)]
         if len(ic_strikes) >= 4:
             K_lp, K_sp, K_sc, K_lc = sorted(ic_strikes)[:4]
@@ -462,8 +463,8 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None, structure_ve
     """
     plays, contracts, needed_dates = [], {}, {}
     skipped = {"unsupported": 0, "no_strike": 0, "no_expiry": 0, "unpriced": 0,
-               "vetoed": 0, "debit_priced_to_credit": 0,
-               INVERTED_VERTICAL_REFUSAL: 0}
+               "vetoed": 0, INVERTED_VERTICAL_REFUSAL: 0,
+               **{reason: 0 for reason in ENTRY_REFUSALS}}
     for c in candidates:
         play, skip = classify_and_build(c, spread_pct, tf_s_override, structure_veto)
         if skip:

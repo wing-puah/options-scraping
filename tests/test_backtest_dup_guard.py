@@ -162,8 +162,10 @@ def test_main_exits_before_the_barchart_fetch_when_every_play_is_a_duplicate(
 
 
 def test_redo_deletes_the_old_rows_before_appending_the_new_ones(tmp_path, monkeypatch):
-    """Order is the whole contract: if the append landed first, --redo would
-    produce exactly the duplicate it exists to prevent."""
+    """Order is the whole contract: local CSV, then delete, then append. If the
+    append landed first, --redo would produce exactly the duplicate it exists to
+    prevent; if the delete ran before the CSV, a Sheets failure in it would lose
+    the whole simulated run (2026-09-23)."""
     cfg_path = _write_cfg(tmp_path, monkeypatch)
     rows_csv = tmp_path / "rows.csv"
     rows_csv.write_text(
@@ -176,8 +178,20 @@ def test_redo_deletes_the_old_rows_before_appending_the_new_ones(tmp_path, monke
     calls = []
     monkeypatch.setattr(core.sheets_client, "delete_rows_where",
                         lambda tab, fn: calls.append(("delete", tab, fn(existing))))
-    monkeypatch.setattr(core, "_write_results",
-                        lambda results, cfg, dry_run: calls.append(("write", len(results))))
+    from scripts.backtest.shared import results_io
+    monkeypatch.setattr(results_io, "ROOT", tmp_path)
+    monkeypatch.setattr(results_io, "RESULTS_PATH", tmp_path / "backtests")
+    real_writer = results_io.csv.DictWriter
+
+    class _RecordingWriter(real_writer):
+        def writeheader(self):
+            calls.append(("csv",))
+            return super().writeheader()
+
+    monkeypatch.setattr(results_io.csv, "DictWriter", _RecordingWriter)
+    monkeypatch.setattr(results_io.sheets_client, "append_rows",
+                        lambda tab, rows: calls.append(("append", tab, len(rows))))
+    monkeypatch.setattr(core, "_print_summary", lambda results: None)
     monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: None)
     monkeypatch.setattr(core, "build_matched_plays",
                         lambda *a, **k: ([], {}, set(),
@@ -190,7 +204,8 @@ def test_redo_deletes_the_old_rows_before_appending_the_new_ones(tmp_path, monke
                                      "--date", "2026-06-25", "--redo"])
     core.main()
 
-    assert calls == [("delete", "BacktestResults", True), ("write", 1)]
+    assert calls == [("csv",), ("delete", "BacktestResults", True),
+                     ("append", "BacktestResults", 1)]
 
 
 def test_redo_deletes_nothing_on_a_dry_run(tmp_path, monkeypatch):

@@ -423,8 +423,22 @@ def delete_rows_where(tab: str, match_fn) -> int:
     rows = ws.get_all_records()
     # get_all_records row i (0-based) lives at sheet row i + 2 (1-based, after header)
     doomed = [i + 2 for i, r in enumerate(rows) if match_fn(r)]
-    for idx in reversed(doomed):
-        ws.delete_rows(idx)
+    # ONE batchUpdate, not one call per row: a per-row loop hit the 60-writes/min
+    # quota on 2026-09-23 after 66 of a --redo's deletes, leaving the tab
+    # half-deleted. Contiguous rows merge into one range; ranges run bottom-up
+    # inside the request so earlier indices stay valid as later ones go.
+    runs: list[list[int]] = []
+    for idx in doomed:
+        if runs and idx == runs[-1][1] + 1:
+            runs[-1][1] = idx
+        else:
+            runs.append([idx, idx])
+    if runs:
+        ss.batch_update({"requests": [
+            {"deleteDimension": {"range": {
+                "sheetId": ws.id, "dimension": "ROWS",
+                "startIndex": lo - 1, "endIndex": hi}}}
+            for lo, hi in reversed(runs)]})
     if doomed:
         log.info("Deleted %d row(s) from tab '%s'", len(doomed), tab)
     return len(doomed)

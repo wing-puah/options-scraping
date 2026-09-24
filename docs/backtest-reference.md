@@ -21,12 +21,12 @@ samples whatever holding horizons it wants from that path.
 | **ticker** | Underlying symbol. |
 | **structure** | Resolved trade structure label: `long_call`, `long_put`, `bull_call_spread`, `bear_put_spread`, `bull_put_spread`, `bear_call_spread`, `short_put`, `short_call`, `iron_condor`, or `explicit_legs` (the play named its legs directly). Kept as a grouping label; the authoritative position is `legs`. |
 | **legs** | The full position as one or more signed legs, one per line, in the form `<TICKER>:<YYYY-MM-DD>:<STRIKE>:<C\|P> <signed_qty>` — e.g. `NVDA:2026-07-17:250:C +1` / `NVDA:2026-07-17:270:C -1`. The signed quantity is **last** so the cell never starts with `+`/`-` (Google Sheets would coerce a leading sign into a formula); parsing also accepts the legacy quantity-first form. `qty` is the per-unit ratio (sign = long/short); a separate `contracts` column holds the risk-sized number of units. Each leg carries **its own expiration**, so calendar / diagonal / ratio spreads are representable. The position is fully generic in leg count — any structure (single leg, vertical, ratio, butterfly, condor, box, iron condor, …) is just a list of signed legs. To backtest a hand-authored structure, write its legs (one per line) in the play cell; it is recognised as `explicit_legs`, bypasses the freeform classifier, and same-contract legs are merged (e.g. `+2` / `-1` → `+1`). Replaces the old `k_long` / `k_short` / `expiration` / `opt_type` columns. |
-| **entry_leg_detail** | Per-leg raw entry breakdown (sits beside `legs`) so the netted `entry_option_price`, `iv_entry_pct` and `delta` can be validated leg-by-leg. One line per leg, aligned with `legs`: `<TICKER>:<EXP>:<STRIKE>:<C\|P> <±qty>  px=<raw price> iv=<entry IV %> delta=<delta> [<source>]`. `entry_option_price` = `Σ qty·px` and `delta` = `Σ qty·delta`. The anchor leg's `delta` is the real flow value; all other legs' deltas are Black-Scholes model deltas at the entry IV. Each line leads with the contract (never a sign) so the cell stays sheet-safe. |
+| **entry_leg_detail** | One line per leg, aligned with `legs`: `<leg>  px=<price> iv=<IV %> delta=<delta> S=<Price~> [<source>]`. Each leg's greeks come from its own history row. A blank `iv` or `delta` means no real value. See [No model prices](#no-model-prices-2026-09-23). |
 | **contracts** | Risk-sized number of units of the `legs` structure. Debit (`entry_option_price > 0`): fixed-fractional sizing on the premium paid (`abs(entry_option_price) × stop_loss`). Credit (`entry_option_price < 0`): sized on the structure's STRUCTURAL max loss (`max_loss_per_contract`, below), not the credit received — a thin credit on a wide/naked structure would otherwise be wildly oversized against the risk budget. When a credit's max loss can't be bounded (naked short call, multi-expiration credit), falls back to `1` and logs a warning. See `_size_contracts` in [`scripts/backtest/simulate.py`](../scripts/backtest/simulate.py). |
 | **dte_entry** | Days to expiration at entry (anchor leg), measured from the entry day — one less than the signal-date DTE when the entry is the next day's open. |
-| **iv_entry_pct** | Implied vol of the anchor contract at entry (%). |
-| **delta** | **Net position delta** at entry = `Σ qty·delta` over the legs (the anchor leg uses the real flow delta, other legs the Black-Scholes model delta at entry IV; the same per-leg deltas appear in `entry_leg_detail`). |
-| **entry_underlying** | Underlying price (`Price~`) at entry. |
+| **iv_entry_pct** | Implied vol of the anchor contract at entry, as a decimal fraction. Blank when the anchor row has no real IV (since 2026-09-23). |
+| **delta** | Net position delta at entry, `Σ qty·delta`, each leg's own cached Barchart delta. Blank when any leg lacks a real delta: all-or-nothing, never `0.0`. Rows before 2026-09-23 used a model delta on non-anchor legs. |
+| **entry_underlying** | Underlying at entry: the median of the legs' own `Price~` on the entry day. Before 2026-09-23 it was the anchor leg's `Price~` alone. |
 
 ## Entry pricing
 
@@ -34,7 +34,7 @@ samples whatever holding horizons it wants from that path.
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
 | **entry_premium_total** | `abs(entry_option_price) × 100 × contracts` — dollar cost/credit of the position. |
-| **entry_source** | How each leg was priced at entry, joined with `+` in leg order. `barchart_open` = the entry day's real Open (the `next_open` fill); `barchart` = real Barchart EOD mark (the entry day had a blank Open — zero-volume — or the fill fell back to the signal day's EOD because no later day existed in the staleness window); `barchart_side` = the entry-day quote was ONE-SIDED and the leg was filled on the side it trades, bid (0) when sold and ask when bought (2026-09-19); `barchart_side_stale` = the same, on a quote carried past `max_price_carry_days`; `real` = anchor flow `Trade` price; `bs` = Black-Scholes. E.g. `barchart_open`, `barchart_open+barchart`, `real+bs`. All legs are priced on ONE shared entry day. Every structure — including explicit multi-leg of any leg count — is priced real-first per leg; only *synthesized* iron condors (wings at non-listed strikes) are priced uniform-BS and report `bs` (all legs modelled at one IV for internal consistency). |
+| **entry_source** | Each leg's entry pricing, joined with `+` in leg order: `barchart_open` (Open print), `barchart` (EOD mark), `barchart_side` (junk quote, sold at the bid), `barchart_last` (junk quote, traded Latest), `real` (flow print). `bs` only before 2026-09-23. |
 | **market_regime** | The market-level regime for that date (from the MARKET row), truncated at the first em-dash — e.g. `BULL TREND`. |
 | **regime** | The play's ticker-specific regime label carried from the analysis row (not the market read). |
 | **play** | The play text (truncated to 300 chars). |
@@ -67,13 +67,13 @@ rule triggers — frozen at that day's mark (never a later live mark).
 | **realized_pnl_pct** | Realized P&L % at the exit, from the single signed formula `(V_exit − entry_net) / abs(entry_net)` where `V` is the position's signed net mark. Profit is positive for both debit and credit positions (a credit has `entry_net < 0` and profits as `V` rises toward 0). |
 | **realized_pnl_abs** | Realized P&L in dollars (`realized_pnl_pct × abs(entry_option_price) × 100 × contracts`). |
 | **days_held** | The 1-based index of the exit day in `daily_price_csv` — **SIGNAL-relative**, counted on the grid of weekdays AFTER the signal date. That origin has never moved and must not (see "No P&L before the fill" below): `time_exit_dte_fraction`, `path_cap_days`, the frozen research harness and the study loaders all count on the same clock. For the usual case — the fill IS the first weekday after the signal — it is also the trading days held. When the fill lands later, the days before it are blank (`pre_entry`) and this index exceeds the true holding period by the fill lag; `daily_source_csv` says exactly how many. |
-| **exit_reason** | Why the trade closed: `profit_target` (hit `+profit_target`), `stop_loss` (hit `−stop_loss`), `expired` (held to expiry with no trigger; path ran the full DTE), `cap_open` (still open at `path_cap_days` because DTE exceeded the cap), `no_data` (no day could be priced). |
+| **exit_reason** | Why the trade closed: `profit_target`, `stop_loss`, `expired` (held to expiry with no trigger), `cap_open` (still open at `path_cap_days`, or at the data end — see `path_status`), `no_data` (no day could be priced). |
 | **mfe_pct** | **Max Favorable Excursion** — the best P&L % the trade ever reached over the _whole_ path, independent of the exit rule. Use this to tune the profit target. |
 | **mfe_day** | Trading-day index (1-based) where MFE occurred — same signal-relative grid as `days_held`. Never lands on a `pre_entry` day (they carry no mark). |
 | **mae_pct** | **Max Adverse Excursion** — the worst P&L % over the whole path. Use this to tune the stop. |
 | **mae_day** | Trading-day index (1-based) where MAE occurred — same signal-relative grid as `days_held`. Never lands on a `pre_entry` day (they carry no mark). |
 | **pnl_at_cap_pct** | P&L % on the last priced day of the path (the "held to the end / never exited" comparison). |
-| **pct_real_days** | Fraction of priced **LEG-days** marked from **real** data (Barchart / flow reappearance) vs Black-Scholes. A data-quality gauge: low values mean the path is mostly modelled. Computed over PRICED days only, so `pre_entry` days (before the fill) and unpriceable days leave the denominator rather than diluting it. ⚠️ **Leg-days since 2026-09-07** (robustness review B3/B7). It used to count a DAY as real when ANY leg was real, so a vertical with one modelled leg scored the same 1.00 as one priced entirely from Barchart; it now counts one unit per leg per priced day, so that vertical reads 0.50. Affected 2 of 524 rows on the v4 book at the time of the change, and no study reads the exported column — but rows either side of that date are not the same statistic. |
+| **pct_real_days** | Share of priced leg-days marked from real data (Barchart or flow reappearance). Rows since 2026-09-23 always read 1.0. On older rows the rest are Black-Scholes leg-days. Counted per leg since 2026-09-07. |
 | **pct_stale_days** | Fraction of priced leg-days whose mark was **carried forward** past `simulation.max_price_carry_days` (default 5 calendar days) — the honesty check for a contract that stopped being quoted. A strike that vanishes (a split, a dead wing) used to be carried at its last price to the end of the path with nothing on the row saying so; one v4 row exits `cap_open` at +72% on 70 frozen days. Same priced-days denominator as `pct_real_days`, so `pre_entry` days are outside it. Those days are still REAL data (a frozen quote, not a model), so they stay in `pct_real_days` — this column and the `barchart_stale` tag in `daily_source_csv` are where the staleness shows. Blank on `no_data` rows. **New 2026-09-07** — blank on every earlier row. |
 
 ## The daily path
@@ -82,7 +82,7 @@ rule triggers — frozen at that day's mark (never a later live mark).
 |--------|-----------|
 | **daily_price_csv** | Comma-separated **signed net position mark (`Σ qty·price`), one value per trading day** from the weekday AFTER the signal date through `min(nearest-leg DTE, path_cap_days)`. Same signed units as `entry_option_price`. An **empty token** (`,,`) is a day with no mark — either no source could price it (any unpriceable leg blanks the whole day) or, since 2026-09-07, the position did not exist yet (`pre_entry` in `daily_source_csv`; see "No P&L before the fill"). Reconstruct the P&L path by splitting on `,`, dropping empties, and applying `(mark − entry_option_price) / abs(entry_option_price)` (see `pnl_path()` in [`scripts/chart_backtest.py`](../scripts/chart_backtest.py)). |
 | **daily_pnl_csv** | Comma-separated **absolute dollar P&L per SINGLE contract, one value per trading day**, on the exact same day grid + blank-token convention as `daily_price_csv`: `(mark − entry_option_price) · 100`. Per-contract — **NOT** scaled by `contracts` (that scaling lives in `realized_pnl_abs`/`mfe_abs`). GROSS of transaction costs, like every other path column. |
-| **daily_source_csv** | Where each day's mark came from, one token per day on the same grid, legs joined with `+` in leg order: `barchart` (the contract's own daily Barchart mark), `barchart_stale` (that mark carried forward past `simulation.max_price_carry_days` — real, but frozen; **new 2026-09-07**, never appears on earlier rows), `real` (flow `Trade` price on reappearance), `bs` (Black-Scholes), `pre_entry` (a grid day BEFORE the fill — deliberately unpriced, **new 2026-09-07**). Empty token = the day could not be priced at all. This is the only column that distinguishes the two kinds of blank in `daily_price_csv`. |
+| **daily_source_csv** | Each day's mark source, legs joined with `+`: `barchart`, `barchart_last` (junk day that traded), `barchart_stale` (carried past the bound, or over a junk day), `real` (flow), `pre_entry` (unpriced). `bs` only before 2026-09-23. Empty = unpriced. |
 
 ## No P&L before the fill (robustness review B2, 2026-09-07)
 
@@ -180,7 +180,7 @@ nothing to segregate on would repeat it.
 | Column | Definition |
 |--------|-----------|
 | **cost_total** | Dollars of commission + slippage charged on the ROUND TRIP for the whole position (all legs, all contracts, both sides). `commission_per_contract × Σ\|qty\| × contracts × 2`, plus `slippage_frac_of_spread × Σ(\|qty\|·spread) × 100 × contracts` once per side, where `spread` is that leg's quoted ask − bid on the day the side's mark came from. Slippage is always adverse. `0.0` when both knobs are 0 (the default), in which case nothing is netted. |
-| **cost_basis** | What the charge was actually able to see. `""` = costs are off (both knobs 0). `commission_only` = no slippage configured. `full` = commission plus slippage against a real quoted spread on both sides. `no_spread_entry` / `no_spread_exit` / `no_spread_entry_exit` = that side had no two-sided quote (a Black-Scholes or reappearance mark, or a cache row with no Bid/Ask), so **no slippage was charged there** — a stated gap, never a guessed spread. |
+| **cost_basis** | What the charge could see. `""` = costs off; `commission_only` = no slippage configured; `full` = slippage on both sides. `no_spread_<side>` = that side was short-charged: a leg with no quote zeroes the side's slippage, a junk-quote leg pays none. |
 
 ## How the exit was FILLED — `exit_fill`
 
@@ -221,6 +221,55 @@ it replaces an unobtainable price with a real one.
 and was filled on its trigger day. Re-pricing the recorded book is a separate
 decision.
 
+## The path may not outlive the data — `path_status`, `path_data_end`
+
+Shipped 2026-09-23, appended at the very end of both backtest tabs.
+
+**No exit rule may fire on a day after the last real quote.** `path_cap_days` is
+120 and the engine carries the last scrape forward over every later day, so a
+July signal used to simulate into November against frozen marks. Two things went
+wrong on such a row: a rule could fire on a session that had not happened, and a
+play with no exit was stamped `cap_open` at the cap as if the path had genuinely
+run that long. A local run of 24 backfilled June–July 2026 dates measured both.
+
+| Rows in that local run | Count |
+|---|---|
+| Simulated | 154 |
+| Genuine outcome | 133 |
+| `cap_open` on carried marks | 11 |
+| A rule fired after the last real quote | 10 |
+
+**The last real quote, for a position, is the earliest of its legs' last real
+sessions.** A spread is only as live as its deadest leg: once one leg stops
+printing, the net mark is part frozen. Taking the latest leg instead would let a
+still-quoted long leg license an exit priced off a short leg that has not traded
+for weeks. Interior gaps truncate nothing — this is each leg's last session, not
+a run of consecutive ones.
+
+A position still open at that point is marked there, not dropped. `days_held` is
+that day, the realized P&L is that day's mark, and `exit_reason` is `cap_open`
+rather than `expired`, because the path did not reach expiry.
+
+| Value of `path_status` | Meaning |
+|--------|-----------|
+| **complete** | The exit fired on a day every leg quoted for itself. |
+| **carried** | It fired on a day at least one leg's mark was carried into — an interior gap, the one case the rule cannot cleanly prevent. |
+| **open_at_data_end** | The data ran out before any exit fired, so the row is marked at the last real quote instead of at the cap. |
+| **`""`** | Written before 2026-09-23, when the question was never asked. |
+
+`path_data_end` is the ISO date of that last real quote. Blank on a `no_data`
+row and on every row written earlier.
+
+**What does not change.** The marked path, `daily_price_csv`, MFE/MAE and
+`pnl_at_cap_pct` are still measured over the whole grid, so a play that exits
+before the data ends is identical to what the engine produced before. That
+leaves `pnl_at_cap_pct` as the one figure still read off a possibly carried
+mark; `path_data_end` is how to tell whether it is.
+
+**This was not backfilled.** Both columns are blank on every stored row, and a
+blank means unknown rather than clean. Re-pricing the recorded book is a
+separate decision; a dated `--redo` is the cleanup.
+
 ## Model score & horizon (joined off the analysis row)
 
 Carried straight off the analysis row (not produced by simulation), so each
@@ -252,11 +301,11 @@ score block — see the two rows below.
 ## Notes
 
 - **Pricing priority per day** (`exit_sources` in `config/backtest.yml`): `barchart`
-  (real per-contract daily history, marked to Bid/Ask mid) → `reappearance` (real
-  flow `Trade` when the contract recurs) → `bs` (Black-Scholes, last resort).
-  Real marks are looked up **as-of** the day (most recent on-or-before), never
-  forward-looking. Days with no real mark carry the last real value forward; pure
-  no-data days are empty in `daily_price_csv`.
+  (real per-contract daily history, marked to Bid/Ask mid), then `reappearance` (real
+  flow `Trade` when the contract recurs). There is no model tier.
+  Real marks are looked up as-of the day (most recent on or before), never
+  forward-looking. Days with no new real mark carry the last real value forward;
+  pure no-data days are empty in `daily_price_csv`.
 - **A carried mark is bounded and labelled** (`simulation.max_price_carry_days`,
   default 5 calendar days): the price is still carried, but past the bound the day
   is tagged `barchart_stale` and counted in `pct_stale_days`. The bound applies to
@@ -277,6 +326,38 @@ score block — see the two rows below.
   (`simulate._entry_side_mark`, `entry_source` tag `barchart_side`). Since
   2026-09-22 the rule also precedes an entry-day `Open` print. A two-sided quote
   is untouched, and still fills at the Open.
+- **A junk quote is never a price (2026-09-24).** A quote is JUNK when
+  `bid <= 0`, or `ask − bid > mid`, or `ask − bid > 2 × W(bid)`.
+  `simulate._is_junk_quote` is the one test. W is the legacy Cboe maximum
+  bid/ask width (`QUOTE_WIDTH_LIMITS`); the 2× is a judgement call.
+
+  | Bid | W |
+  |---|---|
+  | under $2 | 0.25 |
+  | $2 to under $5 | 0.40 |
+  | $5 to under $10 | 0.50 |
+  | $10 to under $20 | 0.80 |
+  | $20 and up | 1.00 |
+ A row with no Ask is NO QUOTE, not
+  junk. HYG's 74P printed 0.11 against `0.09 × 5.00`; its mid was 2.545.
+
+  | Where | Rule on a junk quote |
+  |---|---|
+  | Cost | That leg-side pays commission only; `cost_basis` says `no_spread_<side>` |
+  | Daily and exit mark | The day's Latest if it traded (Volume > 0), tag `barchart_last` |
+  | Same, no trade | The last good mark, carried and tagged `barchart_stale` |
+  | Same, no bid | As above, but capped at the B5 mark: `ask/2`, or 0 |
+  | Entry, sold leg, no bid | 0 — nothing is bid |
+  | Entry, traded | The day's Open print, else its Latest |
+  | Entry, sold leg, a bid | The bid |
+  | Entry, bought leg, no trade | Refused: `junk_entry_quote` |
+
+  The cap keeps B5's intent. A bid-less contract is worth about nothing, so it
+  is never carried at an older, higher mark. A junk ask of 4.80 caps nothing.
+
+  Every zero-bid quote is junk, so this supersedes the entry rule above: a
+  bought leg no longer pays the ask. The exit-fill deferral (`exit_fill`) still
+  keys on a zero bid only.
 - **A debit structure that prices to a credit is refused.** `bull_call_spread`,
   `bear_put_spread`, `long_call` and `long_put` are debits by name
   (`classify.DEBIT_STRUCTURES`, derived from
@@ -286,17 +367,63 @@ score block — see the two rows below.
   row is written: the real backtest tallies it `debit_priced_to_credit`, the proxy
   puts that in `skip_reason` and appends the reason to `proxy_detail`. The gate runs
   before the exit profile is chosen, so `exit_basis = CREDIT` is unreachable from it.
-  Not mirrored for a credit structure priced to a debit — see the function docstring.
-- **BS-filled days hold entry IV constant**, so stretches priced by Black-Scholes
-  are smooth/deterministic in the underlying. `pct_real_days` tells you how much of
-  a path to trust.
+  The mirror is below, under "No model prices".
 - **Path cap**: `path_cap_days` (default 120) bounds far-dated/LEAP paths.
   `cap_open` rows were still alive at the cap — their `realized_pnl_pct` is the mark
-  at the cap, not a closed trade.
+  at the cap, not a closed trade. Since 2026-09-23 a path also stops at its data
+  end, and `path_status` says which of the two ended it.
 - All settings that shape these columns (`profit_target`, `stop_loss`,
-  `path_cap_days`, `exit_sources`, `spread_width_pct`, `contracts`, `risk_free_rate`,
+  `path_cap_days`, `exit_sources`, `spread_width_pct`, `contracts`,
   `commission_per_contract`, `slippage_frac_of_spread`, `max_price_carry_days`)
   live in [`config/backtest.yml`](../config/backtest.yml).
+
+## No model prices (2026-09-23)
+
+Black-Scholes is gone from the backtest. No price, delta or IV on a new row is
+model-generated. The operator ruled it on 2026-09-23.
+
+What happens when a real price is missing:
+
+| Where | Behaviour |
+|---|---|
+| Entry, a leg has no real price | The play is refused: `no_real_entry_price`, naming the leg |
+| A path day, a leg has no new quote | The last real mark is carried; past `max_price_carry_days` it is tagged `barchart_stale` |
+| Config lists `bs`, `risk_free_rate`, `uniform_bs_min_legs` or `proxy.bs_fallback: true` | The run refuses to start |
+
+Five entry refusals are written as `skip_reason` on the proxy row and tallied by
+the real backtest. They are checked in this order.
+
+| Reason | Fires when |
+|---|---|
+| `no_real_entry_price` | A leg has no real price on the entry day |
+| `junk_entry_quote` | A bought leg's entry quote is junk and the contract did not trade (2026-09-24) |
+| `debit_priced_to_credit` | A debit structure (`bull_call_spread`, `bear_put_spread`, long single legs) nets a credit |
+| `credit_priced_to_debit` | A credit structure (`bull_put_spread`, `bear_call_spread`, short single legs) nets a debit |
+| `non_monotonic_entry_quote` | Two same-expiry legs are priced against strike order |
+
+A credit priced to a debit used to be let through. That was not conservative.
+The sizer treats a debit's premium as its risk. TLT 2025-04-04, a 90/85 bull put
+spread, priced to a 0.35 debit off a stale 1.61 Open on the 85P. The sizer bought
+38 contracts against a true risk near $500 each.
+
+The strike-order check compares legs of one type and one expiry. A put never
+costs more than a higher-strike put, and a call never costs more than a
+lower-strike call. A leg filled at the touch on a one-sided quote is not judged.
+
+Per-leg greeks come from each leg's own history row. The row is the entry day's,
+or the row the leg's carried entry mark came from. Barchart's all-zero sentinel
+rows count as missing. The net `delta` is blank if any leg's delta is missing.
+
+`entry_underlying` is the median of the legs' `Price~`. It is never the
+underlying OHLC cache: that cache is split-adjusted and `Price~` is as-traded.
+
+A fetched history is refused when its `Price~` sits more than 25% from its
+sibling contracts' (same ticker and expiry) on shared dates. Nothing is written
+and nothing is unlinked. This guard exists because of
+`META_20270115_630.00P.csv`, now in `backtests/option_history_cache/_quarantine/`.
+
+Legacy `bs` rows remain in the frozen v1 to v3 exports. Studies drop them at read
+time; see `scripts/backtest_study/lib/book.py`.
 
 ## BacktestProxy — untested plays, proxy-evaluated
 
@@ -326,11 +453,27 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
 
 | Column | Definition |
 |--------|-----------|
-| **skip_reason** | Why the real backtest produced no row: `unsupported` (structure has no handler), `no_strike` / `no_expiry` (play text unparseable), `no_history` (contract's Barchart history missing or not covering the entry window), `unpriced` (history covers the window but the sim still couldn't price entry), `debit_priced_to_credit` (a debit structure priced to a net credit — the entry data was present and wrong; 2026-09-19, and `proxy_detail` carries the legs and the net). |
-| **proxy_method** | Which rung of the fallback chain produced the verdict: `strike_expiry_tweak` → `bs_options_hist` (**disabled since 2026-08-11**, `proxy.bs_fallback: false`) → `underlying_trend` → `unevaluable`. Rows written before that date can still carry `bs_options_hist`; they are model-priced and must be excluded from any evidence read. |
-| **proxy_detail** | Method-specific evidence. Tweaks are recorded as `orig → used` per leg; BS rows note the donor contract + entry sigma; trend rows carry `direction_correct=True/False` and the underlying move. |
+| **skip_reason** | Why the real backtest wrote no row. Build-time: `unsupported`, `no_strike`, `no_expiry`, `inverted_vertical`, `vetoed`. Cache: `no_history`, `unpriced`, `snap_priced` (see below). Entry refusals: the four listed under [No model prices](#no-model-prices-2026-09-23); `proxy_detail` carries the legs and the net. |
+| **proxy_method** | Which rung produced the verdict: `strike_expiry_tweak`, then `underlying_trend`, then `unevaluable`. Older rows can carry `bs_options_hist`, the deleted model tier; exclude them from any evidence read. |
+| **proxy_detail** | Method-specific evidence. Tweaks are recorded as `orig → used` per leg. Trend rows carry `direction_correct=True/False` and the underlying move. Legacy `bs_options_hist` rows note a donor contract and sigma. |
 | **legs / legs_original** | `legs` = the position actually priced (tweaked legs for method 1, the play's own legs otherwise); `legs_original` = the play's own legs. Same sheet-safe leg format as `BacktestResults`. |
 | _(result columns)_ | Same names and definitions as `BacktestResults` (`entry_*`, `realized_pnl_pct`, `exit_reason`, `mfe_*`/`mae_*`, `daily_price_csv`, …) so the two tabs union downstream. Blank for `underlying_trend` (P&L not computable — `exit_reason` = `direction_only`) and `unevaluable` rows. |
+
+**The cache reasons** name what the chain found, not only the named contract.
+
+| `skip_reason` | Meaning |
+|---|---|
+| `unpriced` | The named anchor has history at the signal date; the real backtest skipped it for another reason |
+| `snap_priced` | The named anchor had no history; method 1 then priced the play from real history |
+| `no_history` | The named anchor had no history, and the chain priced nothing real |
+
+A `snap_priced` row either moved a leg (`proxy_detail` shows `orig → used`) or
+priced the named contract after the probe fetched it (`all legs had listed history`).
+A `no_history` row is always `underlying_trend` or `unevaluable`.
+
+Rows written before 2026-09-24 still say `no_history` where they priced real.
+On those, read `proxy_method` first: `strike_expiry_tweak` means priced real.
+The label was set before the snap ran.
 
 **Fallback chain semantics** (one verdict per play, most-realistic first):
 
@@ -341,23 +484,16 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
    original expiration are pinned to ONE snapped expiration (a vertical can't
    silently become a diagonal); if the pin can't be satisfied the method fails
    over to 2 instead of pricing a mangled structure.
-2. `bs_options_hist` — **OFF by default since 2026-08-11** (`proxy.bs_fallback`).
-   The play's **actual** legs are Black-Scholes-priced per day using a nearby
-   donor contract's history: `Price~` as the underlying series and `IV/100` as a
-   per-day sigma. No yfinance anywhere. Disabled because these rows are
-   model-priced end to end (`pct_real_days` = 0 on every one), can never be
-   calibrated against a real mark (the chain is strictly ordered, so a play is
-   never priced both ways), and are tail-compressed — pooling them attenuates
-   every measured effect toward zero and injects model-priced dollars into the
-   deployment replay. Set `proxy.bs_fallback: true` only for a deliberate study,
-   and never pool the output with real+tweak evidence. Full measurement in
-   `research/current.md` (2026-08-11 addendum).
-3. `underlying_trend` — direction-only verdict from the donor's `Price~` path vs
-   the structure's bullish/bearish bias; neutral structures skip to 4. With the
-   BS rung off this is where directional plays without a snappable contract land.
-4. `unevaluable` — no usable options history at all, or the play never built.
+2. `underlying_trend` — direction-only verdict from the donor's `Price~` path vs
+   the structure's bullish/bearish bias; neutral structures skip to 3. This is
+   where directional plays without a snappable contract land.
+3. `unevaluable` — no usable options history at all, or the play never built.
 
-Exit rules, sizing and the risk-free rate come from the **same `simulation:` /
+The model rung `bs_options_hist` sat between 1 and 2. It was switched off on
+2026-08-11 and deleted on 2026-09-23. Its rows were model-priced end to end and
+attenuated every measured effect (`research/current.md`, 2026-08-11 addendum).
+
+Exit rules and sizing come from the **same `simulation:` /
 `credit:` blocks** the real backtest uses, so P&L columns are directly comparable.
 Contract discovery is cache-first (`backtests/option_history_cache/`); with
 `proxy.probe_barchart: true` (default) missing neighbors are scraped from Barchart

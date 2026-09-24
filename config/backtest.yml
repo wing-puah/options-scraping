@@ -366,10 +366,11 @@ simulation:
   history_timeout_ms: 15000
 
   # Entry pricing — all legs use the same source on one shared entry day.
-  # Barchart is the only accepted source: intraday flow prices and Black-Scholes
-  # are excluded because they can be taken at different execution times, making
-  # spread entry costs unreliable. A play is skipped if any leg has no Barchart
-  # history.
+  # Barchart is the only accepted source: intraday flow prices can be taken at
+  # different execution times, making spread entry costs unreliable. A play
+  # whose leg has no real price is REFUSED (skip reason `no_real_entry_price`).
+  # There is no model price: Black-Scholes was abolished 2026-09-23, and listing
+  # `bs` here or in exit_sources makes the run refuse to start.
   entry_sources: [barchart]
 
   # Entry TIMING — which day/quote the fill is taken at:
@@ -398,26 +399,21 @@ simulation:
   #                  backtests/option_history_cache/ so re-runs don't re-scrape.
   #   reappearance — REAL Trade price when the same contract recurs in a later
   #                  flow scrape on/after the checkpoint (free, but sparse).
-  #   bs           — Black-Scholes model (last resort, when no real data exists).
-  # To avoid all scraping, use: [reappearance, bs]  or just  [bs].
-  exit_sources: [barchart, reappearance, bs]
+  # A leg with no real mark on a path day carries its LAST REAL mark forward,
+  # tagged `barchart_stale` past max_price_carry_days (counted in
+  # pct_stale_days). No model price, ever: `bs` was abolished 2026-09-23 and is
+  # refused here.
+  exit_sources: [barchart, reappearance]
 
   # For spread structures: how far OTM to synthesise the short leg ONLY when the
   # play doesn't name an explicit short strike. The short leg is a real contract,
-  # so its Barchart history is fetched and netted out just like the long leg;
-  # Black-Scholes is the fallback only when that contract has no history (e.g. a
-  # synthesised strike that doesn't trade).
+  # so its Barchart history is fetched and netted out just like the long leg.
+  # A synthesised strike that doesn't trade has no history, and the play is
+  # refused at entry (`no_real_entry_price`).
   spread_width_pct: 0.02
 
-  # DEPRECATED / no longer consulted. Uniform Black-Scholes pricing (all legs at one
-  # IV) is now applied ONLY to *synthesized* iron condors, whose wings sit at
-  # non-listed strikes with no real history. Every other structure — including
-  # explicit user-specified multi-leg positions of any leg count — is priced
-  # real-first per leg (Barchart → reappearance → BS). Kept for back-compat; unused.
-  uniform_bs_min_legs: 4
-
-  # Risk-free rate for the Black-Scholes legs / fallback.
-  risk_free_rate: 0.05
+  # `uniform_bs_min_legs` and `risk_free_rate` fed the Black-Scholes pricer and
+  # were removed 2026-09-23. Setting either again makes the run refuse to start.
 
 # ── Structure override (TF-S hypothesis test) ───────────────────────────────────
 # EXPERIMENT, default OFF. When enabled, rewrites a TF *debit* vertical
@@ -451,8 +447,8 @@ output:
 # ── Proxy backtest (python3 -m scripts.backtest.proxy) ───────────────────────────
 # Diffs the analysis tab against BacktestResults to find plays that never produced
 # a result row, records WHY (skip_reason), and proxy-evaluates each via a fallback
-# chain (strike/expiry tweak → Black-Scholes off options history → underlying-trend
-# verdict) using the SAME simulation:/credit: exit rules above, so the numbers are
+# chain (strike/expiry tweak → underlying-trend verdict) using the SAME
+# simulation:/credit: exit rules above, so the numbers are
 # comparable. One row per untested play → the BacktestProxy tab (+ local CSV).
 proxy:
   sheet_tab: BacktestProxy               # destination tab (auto-created; idempotent by identity)
@@ -466,12 +462,5 @@ proxy:
   max_expiry_deviation_days: 14          # Method-1 snap bound (days off the leg's expiry)
   probe_barchart: true                   # scrape Barchart for nearby contracts missing from
                                          # cache (default on; --cache-only disables)
-  bs_fallback: false                     # Method-2 (bs_options_hist) Black-Scholes tier.
-                                         # OFF since 2026-08-11: its marks are model-priced,
-                                         # never calibratable (pct_real_days = 0 on every such
-                                         # row) and tail-compressed, so pooling them attenuates
-                                         # every measured effect toward zero and leaks fake $
-                                         # into the deployment replay. Directional plays now
-                                         # fall through to underlying_trend (blank P&L).
-                                         # Flip to true only for a deliberate study — never
-                                         # pool the output with real+tweak evidence.
+  # No `bs_fallback`: the Black-Scholes tier (bs_options_hist) was switched off
+  # 2026-08-11 and deleted 2026-09-23. `bs_fallback: true` is refused.

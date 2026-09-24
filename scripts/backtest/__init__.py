@@ -21,6 +21,6 @@ from .proxy import (  # noqa: F401
     _PROXY_KEY_ORDER, _identity_key,
     _load_tested_keys, _load_proxy_keys, _find_untested,
     _cache_contracts, _skip_reason,
-    _method1, _method2, _method3, _evaluate,
+    _method1, _method3, _evaluate,
     _infer_strike_step, _strike_step,
 )

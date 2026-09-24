@@ -69,7 +69,7 @@ def _weekdays(start, end):
 
 def _run(legs, series, details, cfg, entry_date=date(2026, 6, 4), structure="long_call"):
     return sim._simulate(_cand(), legs, _entry_row(entry_date), {}, series, cfg,
-                         structure=structure, price_fn=lambda tk, dt: None,
+                         structure=structure,
                          barchart_details=details)
 
 
@@ -270,7 +270,7 @@ def test_b1_no_quote_means_no_slippage_and_the_row_says_so():
         _cand(), legs, _entry_row(SIGNAL), {}, series,
         _cfg(path_cap_days=2, commission_per_contract=0.65,
              slippage_frac_of_spread=0.25),
-        structure="long_call", price_fn=lambda tk, dt: None)
+        structure="long_call")
 
     assert res["exit_reason"] == "profit_target"
     assert res["cost_basis"] == "no_spread_entry_exit"
@@ -318,22 +318,15 @@ def test_b3_null_bound_carries_forever_the_pre_fix_behaviour():
 
 def test_b3_pct_real_days_counts_leg_days_not_days():
     """A vertical with ONE modelled leg used to score 1.00 — a day counted as real
-    if ANY leg was. Leg-days make it 0.50."""
-    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"),
-                 ("-1", "NVDA", "2026-07-17", 270, "Call"))
-    # The 250 long must out-price the BS-modelled 270 short (~10.7 at S=255), or
-    # the vertical prices to a net credit and is refused as unpriceable
-    # (simulate._refuse_debit_priced_to_credit). This test is about LEG-DAYS.
-    series = {KEY: [(date(2026, 6, 2), 20.0), (date(2026, 6, 3), 21.0)]}
-    details = {KEY: {date(2026, 6, 2): _row(20.0), date(2026, 6, 3): _row(21.0)}}
-    cfg = _cfg(path_cap_days=2, entry_sources=["barchart", "bs"],
-               exit_sources=["barchart", "bs"], profit_target=None, stop_loss=None)
-    res = sim._simulate(_cand(), legs, _entry_row(date(2026, 6, 2)), {}, series, cfg,
-                        structure="bull_call_spread",
-                        price_fn=lambda tk, dt: 255.0, barchart_details=details)
+    if ANY leg was. Leg-days make it 0.50.
 
-    assert res["daily_source_csv"].split(",") == ["barchart+bs", "barchart+bs"]
-    assert res["pct_real_days"] == 0.5
+    The engine no longer produces a model leg (Black-Scholes abolished
+    2026-09-23), so the leg-day count is pinned on the summarizer directly with
+    the legacy `bs` tag that frozen v1–v3 rows still carry."""
+    grid = [(date(2026, 6, 2), 1, 5.0, "barchart+bs"),
+            (date(2026, 6, 3), 2, 5.5, "barchart+bs")]
+    out = sim._summarize_path(grid, 5.0, None, None, 1, False)
+    assert out["pct_real_days"] == 0.5
 
 
 # ── B5 — a zero bid must not fall through to the last trade ────────────────────
@@ -386,7 +379,8 @@ _NEW_TAIL = ["pct_stale_days", "cost_total", "cost_basis"]
 # Every column appended since `exit_basis`, in append order. The invariant is
 # that the schema GROWS AT THE END and nothing before it ever moves, so each
 # fold adds to this list rather than replacing it.
-_APPENDED_TAIL = ["exit_basis"] + _NEW_TAIL + ["exit_fill"]
+_APPENDED_TAIL = (["exit_basis"] + _NEW_TAIL + ["exit_fill"]
+                  + ["path_status", "path_data_end"])
 
 
 def test_new_columns_are_end_appended_to_both_key_orders():
@@ -457,7 +451,7 @@ def test_tab_header_alignment_plan_adds_exactly_the_three_columns():
         assert target == list(order)
         # A tab still on the header from before BOTH folds: the plan must be a
         # pure end-append of the cost columns and then `exit_fill`.
-        added = _NEW_TAIL + ["exit_fill"]
+        added = _NEW_TAIL + ["exit_fill", "path_status", "path_data_end"]
         old_header = [c for c in target if c not in added]
         rows = [[f"{c}-v" for c in old_header]]
         relocations, blockers = ath.plan(old_header, rows, target)
@@ -469,9 +463,9 @@ def test_tab_header_alignment_plan_adds_exactly_the_three_columns():
 
 # ── the exit FILL defers off a one-sided quote (2026-09-19) ───────────────────
 #
-# `_zero_bid_mark` is the LIQUIDATION mark and stays the value the path is
-# carried at. It is not a price anything can be traded out at: on a `bid 0` day
-# it marks a long leg at ask/2, and booking the exit there credits a price
+# A `bid 0` day is MARKED (since 2026-09-24 by the junk-quote rule: the day's
+# trade, else the last good mark capped by `_zero_bid_mark`), but it is not a
+# day anything can be traded out on: booking the exit there credits a price
 # nobody was bidding. Once a rule has fired, the FILL is therefore carried to the
 # next priced day with a two-sided quote, `days_held` becomes that day, and
 # `exit_fill` says what happened. The trigger day and the marked path are
@@ -481,10 +475,23 @@ _D = {n: date(2026, 6, n) for n in (1, 2, 3, 4, 5, 8, 9, 10)}
 
 
 def _exit_case(day_rows, cfg=None):
-    """One long call, entered 06-02, with `day_rows` = {date: (mark, bid, ask)}."""
+    """One long call, entered 06-02, with `day_rows` = {date: (mark, bid, ask)}.
+
+    A bid-less row with a live offer is a JUNK quote (2026-09-24), so its mark
+    is no longer `ask/2`: it is the day's `Latest` when the contract traded. The
+    fixture therefore makes such a day TRADE at `mark` (Volume 5) — a contract
+    that printed at `mark` and closed with no bid, which is the shape the fill
+    deferral exists for."""
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     series = {KEY: sorted((d, v[0]) for d, v in day_rows.items())}
-    details = {KEY: {d: _row(v[0], bid=v[1], ask=v[2]) for d, v in day_rows.items()}}
+
+    def _r(v):
+        row = _row(v[0], bid=v[1], ask=v[2])
+        if float(v[1]) == 0 and float(v[2]) > 0:
+            row.update(Latest=str(v[0]), Volume="5")
+        return row
+
+    details = {KEY: {d: _r(v) for d, v in day_rows.items()}}
     return _run(legs, series, details, cfg or _cfg(path_cap_days=9),
                 entry_date=_D[2])
 
@@ -502,9 +509,10 @@ def test_a_fillable_trigger_day_is_taken_as_it_always_was():
 def test_the_fill_defers_to_the_next_two_sided_day():
     """The trigger fires on a bid-less day, so the fill waits for a real market.
 
-    06-03 is quoted `bid 0 / ask 32`, which `_zero_bid_mark` values at 16.0 and
-    which crosses the target. Nothing is bid, so nothing can be sold there. The
-    next two-sided day is 06-05 at 12.0, and that is where the position closes.
+    06-03 traded at 16.0 and closed quoted `bid 0 / ask 32`; the junk-quote rule
+    marks it at that trade, which crosses the target. Nothing is bid, so nothing
+    can be sold there. The next two-sided day is 06-05 at 12.0, and that is
+    where the position closes.
     """
     res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
                       _D[3]: (16.0, 0, 32.0),      # one-sided -> marks 16.0
@@ -560,8 +568,141 @@ def test_the_deferred_fill_day_is_what_costs_are_charged_against():
                slippage_frac_of_spread=0.5)
     res = _exit_case({_D[2]: (10.0, 9.9, 10.1),
                       _D[3]: (16.0, 0, 32.0),
-                      _D[5]: (12.0, 11.0, 13.0)}, cfg=cfg)
+                      _D[5]: (12.0, 11.5, 12.5)}, cfg=cfg)
     assert res["exit_fill"] == "deferred_2"
-    # entry spread 0.2 + exit spread 2.0 (06-05's, not 06-03's), × 0.5 × 100.
-    assert res["cost_total"] == pytest.approx(0.5 * (0.2 + 2.0) * 100)
+    # entry spread 0.2 + exit spread 1.0 (06-05's, not 06-03's), × 0.5 × 100.
+    assert res["cost_total"] == pytest.approx(0.5 * (0.2 + 1.0) * 100)
     assert res["cost_basis"] == "full"
+
+
+# ── The path may not outlive the price data (2026-09-23) ──────────────────────
+#
+# Found by the June–July 2026 backfill. `path_cap_days` is 120 and `_snap_asof`
+# carries the last scrape forward, so a July signal simulated into November
+# against frozen quotes: 10 of 154 plays fired an exit rule on a day that had
+# not happened, and 11 more were stamped `cap_open` at the cap on carried marks.
+#
+# LAST REAL QUOTE, for a position, is the EARLIEST of its legs' last real
+# sessions — a spread is only as live as its deadest leg.
+
+_DATA_END_DAYS = _weekdays(date(2026, 6, 2), date(2026, 7, 1))
+
+
+def _flat_grid():
+    """22 weekday grid days, every one marked 10.0. Only the first four carry a
+    quote of their own; the rest are that Friday's mark carried forward."""
+    return [(d, (d - SIGNAL).days, 10.0, "barchart") for d in _DATA_END_DAYS]
+
+
+def test_summarize_path_no_rule_fires_after_the_last_real_quote():
+    """The defect and the fix on ONE grid, so the guard is what separates them.
+
+    A flat path cannot cross a % rule, but a TIME exit does not need the price to
+    move: at `time_exit_day=22` it fires on 06-23, eighteen days after the last
+    real quote on 06-05."""
+    grid = _flat_grid()
+
+    unguarded = sim._summarize_path(grid, 10.0, None, None, 1, False,
+                                    time_exit_day=22)
+    assert unguarded["exit_reason"] == "time_exit"
+    assert unguarded["days_held"] == 16          # 06-23, a fabricated exit
+    assert unguarded["path_status"] == ""        # neither input supplied
+    assert unguarded["path_data_end"] == ""
+
+    guarded = sim._summarize_path(grid, 10.0, None, None, 1, False,
+                                  time_exit_day=22, data_end_idx=4,
+                                  grid_real=[i < 4 for i in range(len(grid))],
+                                  path_data_end=date(2026, 6, 5))
+    assert guarded["exit_reason"] != "time_exit"
+    assert guarded["days_held"] == 4             # marked at the last real quote
+    assert guarded["path_status"] == "open_at_data_end"
+    assert guarded["path_data_end"] == "2026-06-05"
+    # The row still exists and still carries its P&L — it is labelled, not dropped.
+    assert guarded["realized_pnl_pct"] == 0.0
+
+
+def test_path_open_at_data_end_is_marked_at_the_last_real_quote():
+    """End to end: the contract stops printing on 06-05, the time exit is due on
+    06-23, and the row comes back open at the data end rather than closed."""
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
+    quoted = _weekdays(date(2026, 6, 2), date(2026, 6, 5))
+    series = {KEY: [(d, 10.0) for d in quoted]}
+    details = {KEY: {d: _row(10.0) for d in quoted}}
+    cfg = _cfg(path_cap_days=30, profit_target=None, stop_loss=None,
+               time_exit_dte_fraction=0.5)          # DTE 45 → time exit on day 22
+
+    res = _run(legs, series, details, cfg, entry_date=date(2026, 6, 2))
+
+    assert res["path_status"] == "open_at_data_end"
+    assert res["path_data_end"] == "2026-06-05"
+    assert res["exit_reason"] == "cap_open"
+    assert res["days_held"] == 4
+    # `expired` is also unreachable here: the path never got near the expiry.
+    assert res["exit_reason"] != "expired"
+
+
+def test_clean_exit_before_the_data_ends_stays_complete_and_unchanged():
+    """The overwhelming majority of rows. The guard must not touch them: the
+    exit, the day and the P&L are exactly what `test_b2_...` pins above."""
+    res = _late_fill_case()
+
+    assert res["path_status"] == "complete"
+    assert res["path_data_end"] == "2026-06-08"
+    assert res["exit_reason"] == "profit_target"
+    assert res["days_held"] == 5
+    assert res["realized_pnl_pct"] == 0.6
+    assert res["mfe_pct"] == 0.6 and res["mae_pct"] == 0.0
+
+
+def _two_leg_case(short_quotes, cap_days, **cfg_kw):
+    """A 250/270 bull call spread whose two legs stop printing on different days."""
+    legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"),
+                 ("-1", "NVDA", "2026-07-17", 270, "Call"))
+    long_quotes = {date(2026, 6, 2): 10.0, date(2026, 6, 3): 13.0,
+                   date(2026, 6, 4): 13.0, date(2026, 6, 5): 13.0,
+                   date(2026, 6, 8): 13.0, date(2026, 6, 9): 13.0,
+                   date(2026, 6, 10): 13.0}
+    series = {KEY: sorted(long_quotes.items()),
+              SHORT_KEY: sorted(short_quotes.items())}
+    details = {KEY: {d: _row(p) for d, p in long_quotes.items()},
+               SHORT_KEY: {d: _row(p) for d, p in short_quotes.items()}}
+    return _run(legs, series, details,
+                _cfg(path_cap_days=cap_days, **cfg_kw),
+                entry_date=date(2026, 6, 2), structure="bull_call_spread")
+
+
+def test_multi_leg_data_end_is_the_earliest_legs_last_quote():
+    """The long leg prints through 06-10, the short stops on 06-04. From 06-05
+    the net mark is part frozen, so 06-04 is where this POSITION's data ends."""
+    res = _two_leg_case({date(2026, 6, 2): 4.0, date(2026, 6, 3): 7.0,
+                         date(2026, 6, 4): 7.0},
+                        cap_days=14, profit_target=None, stop_loss=None)
+
+    assert res["path_data_end"] == "2026-06-04"     # not the long leg's 06-10
+    assert res["path_status"] == "open_at_data_end"
+    assert res["days_held"] == 3                    # 06-02, 06-03, 06-04
+
+
+def test_exit_on_a_day_a_leg_was_carried_into_is_labelled_carried():
+    """An INTERIOR gap is the one case the data end cannot prevent: the short leg
+    skips 06-03 but prints again on 06-04, so 06-03 is inside the data and its
+    mark is still carried. The exit fires there and the row says so."""
+    res = _two_leg_case({date(2026, 6, 2): 4.0, date(2026, 6, 4): 4.0,
+                         date(2026, 6, 5): 4.0},
+                        cap_days=4)
+
+    # entry 10 − 4 = 6; 06-03 marks 13 − 4 = 9, i.e. +50% → profit_target.
+    assert res["exit_reason"] == "profit_target"
+    assert res["days_held"] == 2
+    assert res["path_data_end"] == "2026-06-05"
+    assert res["path_status"] == "carried"
+
+
+def test_legacy_callers_leave_both_columns_blank():
+    """Requirement 4: unknown is blank, never backfilled. A caller that supplies
+    neither input — the frozen research harness's mirrors and every stored row —
+    gets two empty cells, not a guessed `complete`."""
+    grid = [(date(2026, 6, 2), 1, 5.0, "barchart"),
+            (date(2026, 6, 3), 2, 5.5, "barchart")]
+    out = sim._summarize_path(grid, 5.0, None, None, 1, False)
+    assert out["path_status"] == "" and out["path_data_end"] == ""

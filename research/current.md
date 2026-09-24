@@ -215,6 +215,407 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-09-24 (latest) — backtest pricing — a junk quote is no longer a price, a mark or a spread
+
+A quote with no bid, or wider than twice the legacy Cboe width limit, is now
+JUNK. The backtest no longer charges slippage on its spread, marks a day at its
+mid, or fills a bought leg at its ask. It ships in the working tree,
+uncommitted; no stored row and no Sheets tab changed. Total cost on the local
+re-run fell from $226k to $51k, and gross P&L fell to about zero.
+
+_Local re-run, `--cache-only`, `sheet_tab: null` · signals 2024-01-01 to
+2026-09-23 · before: `backtests/results.csv`, 1,020 rows (full-tab `--redo`
+of 2026-09-24, copied aside as `results_pre-junkquote_20260924.csv`) · after:
+993 rows · 985 rows match on (date, ticker, play, structure)._
+
+### The rule
+
+Two operator rulings, both 2026-09-24. A quote is junk when `bid <= 0`, or
+`ask − bid > mid`, or `ask − bid > 2 × W(bid)`. W is the legacy Cboe maximum
+bid/ask differential that market makers once had to quote inside (Cboe Rule 8.7
+bid/ask differentials); the table is in the reference linked below. **The 2×
+multiplier is a judgement call, not from the source**: the old limit bound a
+live quote, and an end-of-day snapshot is looser. The mid test stays because it
+catches tiny quotes the width test misses, such as `0.02 × 0.07`. One
+predicate, `simulate._is_junk_quote`, feeds every consumer. The full table is in
+[backtest-reference](../docs/backtest-reference.md#notes).
+
+- **Cost.** A junk leg-side pays commission only. `cost_basis` reads
+  `no_spread_<side>`.
+- **Marks.** A junk day marks at its `Latest` when the contract traded that
+  day. Otherwise the last good mark is carried and tagged `barchart_stale`.
+- **B5.** When a junk quote has no bid, the carried mark is capped at
+  `_zero_bid_mark` (`ask/2`, or 0). A dead contract is never carried at an
+  older, higher mark.
+- **Entry.** A sold leg into no bid fills at 0. A traded contract fills at its
+  print. A sold leg with a bid fills at the bid. A bought leg with no trade is
+  refused as `junk_entry_quote`.
+
+### The HYG row that exposed it
+
+HYG 2024-05-15, bull put spread 76/74, 5 contracts, 0.21 credit. The 74P was
+quoted `0.09 × 5.00` against a 0.11 trade. Its mid of 2.545 clamped the spread's
+value to 0, so the profit target fired on day one.
+
+| | Before | After |
+|---|---|---|
+| Exit | profit_target, day 1 | profit_target, day 20 |
+| Gross P&L | $105.00 | $85.00 |
+| `cost_total` | $1,250.50 | $23.00 |
+| `cost_basis` | full | no_spread_entry_exit |
+| Net P&L | −$1,145.50 | +$62.00 |
+
+### The re-run
+
+| Measure | Before | After |
+|---|---|---|
+| Rows | 1,020 | 993 |
+| Gross P&L, all rows | +$10,536 | +$20,546 |
+| Total cost, all rows | $226,303 | $131,784 |
+| Gross P&L, 985 matched rows | +$13,709 | +$18,474 |
+| Cost, 985 matched rows | $193,759 | $130,895 |
+| Matched rows whose net P&L moved > $1 | — | 98 |
+| Refused `junk_entry_quote` | — | 22 (12 HYG) |
+| Rows with cost > 50% of \|gross\| | — | 135 |
+
+| Ticker | Cost before | Cost after |
+|---|---|---|
+| HYG | $62,876 | $14,040 |
+| KRE | $10,592 | $3,852 |
+| EWZ | $9,043 | $2,428 |
+| XLE | $8,714 | $2,748 |
+| EEM | $4,654 | $924 |
+| MU | $6,592 | $6,516 |
+| SMH | $6,498 | $6,565 |
+| NVDA | $6,074 | $6,074 |
+
+Of the 35 rows that left, 22 are junk refusals. The rest are cache state, not
+this rule: GLD and MU contracts whose cached history no longer reaches the
+signal date on a `--cache-only` run. The 8 new rows are the same effect.
+
+### The width line, added the same day
+
+The first line (`spread > mid` alone) left quotes like HYG 2024-04-12's 76P,
+`1.88 × 5.00` against a 1.91 trade, as clean. Its mid fired the profit target
+on day one and it paid $1,872 of slippage. The width line makes it junk.
+
+| Measure | Mid line only | Mid + width line |
+|---|---|---|
+| Rows | 993 | 970 |
+| Gross P&L | +$20,546 | +$1,037 |
+| Total cost | $131,784 | $51,410 |
+| HYG cost | $14,040 | $4,684 |
+| Rows with cost > 50% of \|gross\| | 135 | 60 |
+| Refused `junk_entry_quote` | 22 | 48 (16 HYG) |
+| HYG 2024-04-12: exit | profit_target, day 1 | dollar_stop, day 44 |
+| HYG 2024-04-12: cost, net | $1,903, −$175 | $31, −$499 |
+
+Gross P&L fell because the mids of wide quotes had been booking profit
+targets. What cost remains sits mostly on large counts of cheap spreads (22 to
+33 contracts) against quotes inside the line.
+
+Research mirrors now diverge from production; none was changed. They are
+filed in [next-steps §2.11](next-steps.md#s2-11).
+
+---
+
+## 2026-09-23 (evening) — mtm_curve — the book equity curve was gross of costs, the rows were net
+
+The mark-to-market curve now charges each row's `cost_total`, so it reconciles
+against that row's own `realized_pnl_abs` again. Nothing ships: no study ran and
+no stored row changed. `tests/test_mtm_curve.py` still fails on the export, for
+a second and separate defect described below.
+
+_Era v4 · exports as pulled 2026-09-23 · 669 result rows, 1,396 pooled
+positions · no study run._
+
+### The defect in the curve
+
+`simulate.py::_apply_costs` charges commission and slippage once and subtracts
+the total from `realized_pnl_abs` and `realized_pnl_pct`. It leaves
+`daily_pnl_csv` gross, and says so. `lib/mtm_curve.py` builds the whole book
+equity curve from `daily_pnl_csv`, and gate G-MTM compares that curve's exit
+mark against `realized_pnl_abs`. Since the cost model was turned on
+(2026-09-22, commit 8831f96) the two are on different bases, so G-MTM read every
+transaction cost as a disagreement.
+
+| Row | Marked exit | Booked | Gap | Row's `cost_total` |
+|---|---|---|---|---|
+| INTC 2026-06-12 bull put spread | 360.00 | 344.40 | 15.60 | 15.60 |
+| MU 2026-07-07 bear put spread | -1,148.50 | -1,403.60 | 255.10 | 255.10 |
+
+Both rows hold one contract, and each gap is that row's own round-trip charge to
+the cent. All 71 mismatches on the export have this one cause.
+
+### The fix
+
+`book_curves` subtracts `row_cost(rec)` from a position's exit mark under target
+`stored_row`. The charge lands on the exit session, because that is the only day
+the row dates it: `_apply_costs` records one figure and no entry-side or
+exit-side split. Under target `position_dollars` the marks stay gross, since
+that target is a replay through the frozen harness, which predates the cost
+model. A row whose `cost_total` is blank is charged nothing, so every figure
+recorded before 2026-09-22 comes back unchanged. `BookCurves.n_cost_netted`
+counts the positions that were charged.
+
+### The second defect: the export's cost columns are corrupt
+
+The last four columns of `BacktestResults` did not survive the write to the tab.
+On the export, the 71 rows written 2026-09-22 carry a blank `pct_stale_days`,
+`cost_total`, `cost_basis` and `exit_fill`, and 16 of those values landed on
+unrelated rows, including rows written weeks earlier. The local run files
+`backtests/results_20260922_*.csv` hold the right values: on all 80 of their
+rows `cost_total` equals the marked exit minus the booked dollars, to the cent.
+
+| Check on the export | Rows |
+|---|---|
+| Netted of costs | 71 |
+| Of those, `cost_total` blank | 55 |
+| Of those, carrying another row's `cost_total` | 16 |
+| Older rows carrying a spilled `cost_total` | 54 |
+
+A repaired copy of the export, rebuilt from the local run files, reconciles
+1,396 of 1,396 positions at $0.00 and leaves the realized curve byte-identical
+to `account_sim.equity_curve`. That is the evidence the code fix is right. The
+repair was not installed: the tab itself still holds the corrupt copy, so the
+next `export_tabs.py` run would undo it.
+
+### What happens next
+
+One queue item, not yet written into [`next-steps.md`](next-steps.md) because
+another session holds that file. Repair the `BacktestResults` tab's last four
+columns from the local run files, then re-export. Until that lands,
+`hedge_portfolio` and `tests/test_mtm_curve.py` fail G-MTM, which is the right
+answer on a book whose rows contradict themselves.
+
+---
+
+## 2026-09-23 (later) — backtest engine — a simulated path may no longer outlive its price data
+
+No exit rule fires on a day after the last real quote. Nothing ships beyond the
+code change: no stored row was re-priced, no study ran, and the two new columns
+are blank on every row already written.
+
+_Era v4 · code change only, no export re-pulled · the defect was measured on the
+local run of 24 backfilled June–July 2026 dates recorded
+[above](#2026-09-23--junejuly-2026-backfill--24-dates-analysed-on-v4-11-priced-the-rest-pending)._
+
+**The defect.** `path_cap_days` is 120 and `_snap_asof` carries the last scrape
+forward over every later day, so a July signal simulated into November against
+frozen marks. The engine had no guard for it. Two kinds of row came out of that:
+a rule fired on a session that had not happened, or a play with no exit was
+stamped `cap_open` at the cap as if the path had genuinely run that long.
+
+| In the local run of 24 dates | Count |
+|---|---|
+| Simulated | 154 |
+| Genuine outcome | 133 |
+| `cap_open` on carried marks | 11 |
+| A rule fired after the last real quote | 10 |
+
+**The rule.** The last real quote, for a position, is the earliest of its legs'
+last real sessions. A spread is only as live as its deadest leg: once one leg
+stops printing, the net mark is part frozen. Interior gaps truncate nothing —
+this is each leg's last session, not a run of consecutive ones.
+
+**The behaviour.** A position still open when the data stops is marked there and
+kept. `days_held` and the realized P&L are that day's, and `exit_reason` is
+`cap_open` rather than `expired`, because the path did not reach expiry. The
+marked path, MFE/MAE and `pnl_at_cap_pct` still span the whole grid, so a play
+that exits before its data ends is unchanged.
+
+**The columns.** `path_status` and `path_data_end`, appended at the end of both
+backtest tabs. `path_data_end` is the ISO date of that last real quote.
+Definitions: [backtest-reference](../docs/backtest-reference.md).
+
+| `path_status` | The exit |
+|---|---|
+| `complete` | fired on a day every leg quoted for itself |
+| `carried` | fired on a day a leg's mark was carried into, which an interior gap can still produce |
+| `open_at_data_end` | never fired; the data stopped first |
+
+**Stored rows written before today may hold a fabricated exit, and nothing on
+them says so.** Both columns are blank there, and blank means unknown rather
+than clean. The known population is the June–July 2026 run in the table above:
+11 rows stamped `cap_open` on carried marks and 10 whose rule fired after the
+last quote. Two of those rows reached `BacktestResults` — `GLW` on 2026-07-16
+and `VLO` on 2026-07-30. No count is claimed for v3 or for earlier v4 dates,
+because the defect was never measured there.
+
+**Next.** [`next-steps.md`](next-steps.md) gains nothing new; the re-price
+decision on the stored book already sits with the operator. The tab headers owe
+the two columns before the next append, which is
+`python3 scripts/align_tab_headers.py`.
+
+## 2026-09-23 — backtest pricing — Black-Scholes is abolished; four entry refusals, real per-leg greeks
+
+The backtest no longer produces a model price, delta or IV. Nothing ships
+beyond that code change: no stored row was re-priced and no study ran. The
+operator ruled it; the proxy's `bs` tier was already off, and now the main
+backtest's is gone too.
+
+_Uncommitted working tree, `main`, 2026-09-23. Reference:
+[No model prices](../docs/backtest-reference.md#no-model-prices-2026-09-23)._
+
+### The rule
+
+| Case | Behaviour |
+|---|---|
+| Entry leg with no real price | Refused, `no_real_entry_price` |
+| Path day with no new quote | Last real mark carried, tagged stale past 5 days |
+| `bs` in a source list, or `proxy.bs_fallback: true` | The run refuses to start |
+
+### Two defects it exposed
+
+**A credit priced to a debit was sized on a fake premium.** TLT 2025-04-04, a
+90/85 bull put spread, filled the 85P at a stale 1.61 Open. Its quote was
+0.68/0.81. The entry netted a 0.35 debit, and the sizer bought 38 contracts
+against about $500 of risk each. The old docstring called this case
+conservative. It was the opposite. It is now refused as `credit_priced_to_debit`.
+
+**One corrupt cache file set a whole position's underlying and greeks.**
+`META_20270115_630.00P.csv` held another contract's history: `Price~` near $155
+against about $640 on every sibling. Non-anchor legs took a Black-Scholes delta
+at the anchor's IV and underlying, so that one file reached every leg. The file
+is quarantined in `backtests/option_history_cache/_quarantine/`, never deleted.
+
+### What changed in code
+
+| Change | Where |
+|---|---|
+| `bs` pricer, `_bs_delta`, yfinance underlying fetch deleted | `scripts/backtest/helpers.py`, `simulate.py` |
+| Proxy `bs_options_hist` rung deleted | `scripts/backtest/proxy.py` |
+| `credit_priced_to_debit` and `non_monotonic_entry_quote` refusals added | `simulate.py`, `classify.CREDIT_STRUCTURES` |
+| Each leg's `delta`, `iv`, `Price~` read from its own row | `simulate.py` |
+| `entry_underlying` = median of the legs' `Price~` | `simulate.py` |
+| A fetch more than 25% off its same-expiry siblings is refused | `shared/history.py` |
+
+The underlying OHLC cache was considered for `entry_underlying` and the guard,
+and rejected. It is split-adjusted while `Price~` is as-traded, so it disagrees
+with 2,112 good option files by exact split multiples.
+
+### Dry-run check
+
+| Date | Result |
+|---|---|
+| 2025-04-04 | TLT refused as `credit_priced_to_debit`; XLI refused as `no_real_entry_price` |
+| 2026-07-16 | META unpriced: its 630P anchor is quarantined; 7 plays priced with real greeks |
+
+Both runs were cache-only against a local-only config.
+
+### What is unresolved
+
+- The stored book was priced under the old rules. `bs`-tagged rows and the TLT
+  row stay in the tabs until a dated `--redo`. That is an operator decision.
+- A research sensitivity tier still prices by Black-Scholes:
+  `overlay_campaign.ModelPrices` (`ladder_overlay`'s `[MODEL]` arm). Its pricer
+  now lives in that module; production cannot import it.
+- The live META 630P history has not been re-scraped. The next non-cache-only
+  run will fetch it, and the sibling guard will judge it.
+
+## 2026-09-23 — June–July 2026 backfill — 24 dates analysed on v4, 11 priced, the rest pending
+
+June and July 2026 are now partly on the v4 book. Roughly half the sessions
+carry analysis rows, and under half of those carry result rows. Nothing ships,
+and no study ran. The operator ruled these dates admissible as v4 evidence, so
+the population behind every study export has moved and the suite is owed a
+re-run.
+
+_Era v4 · exports re-pulled 2026-09-23 · caches pushed as
+`research-caches-20260923-1202.tar.gz`._
+
+| Export after the run | Rows | Dates |
+|---|---|---|
+| `AnalysisClaude` | 3,084 | 263 |
+| `BacktestResults` | 669 | 204 |
+| `BacktestProxy` (unchanged) | 1,665 | 208 |
+
+**The operator ruling.** A backfilled session outside `[2024-01, 2026-05]`
+counts as v4 evidence, because no shipped rule was fitted on it. That is the
+exception to the "backfill dates do not count" line in
+[next-steps.md](next-steps.md#s2-2) §2.2, and June–July 2026 are the first
+dates it admits.
+
+**What ran.**
+
+| Step | Result |
+|---|---|
+| Sessions in scope | 43 (June–July, minus Juneteenth and the 3 July holiday) |
+| Analysed into `AnalysisClaude` | 24 dates, 279 rows, one run per date |
+| Refused as already analysed | 0 |
+| Failed | 0 |
+| Not attempted | 18, listed in `backtests/pending_analyze_dates_2026-06_07.txt` |
+| Backtested | 11 dates, 71 rows |
+| Proxy rows written | 0, see the frozen-tail finding below |
+
+The 18 pending dates were stopped by the operator part-way through, to save
+tokens, not by any guard. Enrichment for them is done except for four dates
+noted below, so a resume is a plain loop over that file.
+
+**The model-recall caveat is resolved for these dates.** The engine's default
+model is `claude-opus-5` (`scripts/analysis_pipeline/config.py`), whose
+knowledge cutoff is May 2026. A June or July 2026 session sits after that, so
+the analysis cannot be recall of that day's tape, unlike the 2024–2025
+backfill. Neither this repo nor the `claude-api` skill documents the cutoff;
+it is stated by the running agent's own session context, which is the weakest
+part of this claim.
+
+**A backtest of a play that has not expired prices its tail from a frozen
+quote.** This is the reason no proxy row was written and only 11 of 24 dates
+were priced. `path_cap_days` is 120, so a July signal can run to November, and
+`_snap_asof` carries the last real quote forward over every grid day past the
+last scrape. The path then reaches its cap and the row is stamped `cap_open`
+or `expired`, and a time exit can fire on a day that has not happened yet. A
+local-only run of all 24 dates showed the size of it.
+
+| Rows in the local run | Count |
+|---|---|
+| Simulated | 154 of 255 plays, the rest unpriced or vetoed |
+| Genuine outcome, path closed on or before 2026-09-21 | 133 |
+| Path runs past it: `cap_open` on carried marks | 11 |
+| Path runs past it: a rule fired on a day after the last quote | 10 |
+
+Only the 11 dates whose rows were all genuine were written to the tab. Two
+rows still slipped in, because re-scraping priced two contracts that had timed
+out in the local run: `GLW` on 2026-07-16 and `VLO` on 2026-07-30, both
+`cap_open` at day 86, both keyed `created_datetime` 2026-09-22. They are not
+final outcomes and the operator should decide whether to delete them; the
+already-backtested guard means a later re-price needs `--redo`.
+
+Two further columns read wrong on any row whose path outlives the data.
+`pct_stale_days` counts the frozen tail as stale days, so it is inflated even
+when the exit fired early, and `pnl_at_cap_pct` marks the cap at a carried
+quote. Proxy rows have the same defect: every one of the 30 evaluated locally
+sits on an expiry past the last quote, which is why none was written.
+
+**Data gaps found on the way.**
+
+| Gap | Dates |
+|---|---|
+| No flow on Drive at all, no date folder | 2026-06-08 |
+| Historical scrape capped at 501 rows per file | 2026-06-01 to 2026-06-05 |
+| Counterpart-IV and price-catalyst still unfilled after network errors | 06-25, 06-26, 06-29, 06-30 |
+
+Barchart never refused a login, even with the SPY backfill chain holding the
+same session. What failed was the network: 145 contract feeds timed out during
+the backtest scrape, and an overnight run hit repeated SSL and read timeouts.
+
+The 71 result rows were priced by the code at `f007ac2`. The working tree has
+since abolished the Black-Scholes tier, so a re-price of these dates under the
+new engine will not reproduce them.
+
+**One test now fails, and these rows are what exposed it.**
+`tests/test_mtm_curve.py::test_realized_basis_is_byte_identical_to_account_sim_equity_curve`
+reports one mismatch, `GLW` on 2026-07-29, of $15.60. That is the cost charge
+on the row: the research mark-to-market curve recomputes a gross path, while
+the stored row is now net of commission and slippage. These are the first
+cost-bearing rows in the export, so the gap had nothing to bite on before. The
+fix belongs with the cost-model work, not here.
+
+**Next.** [next-steps.md](next-steps.md#s2-2) §2.2 records the ruling. The
+suite re-run is owed on the moved population, and the 18 pending dates plus
+the unpriced plays stay open.
+
 ## 2026-09-22 (evening) — journal repair lands, cost model on, five queue items decided
 
 A refused Barchart login no longer kills a journal run, the forked

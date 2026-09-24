@@ -10,14 +10,17 @@ WHAT IS BORROWED AND WHAT IS NEW
 --------------------------------
 Borrowed verbatim BY IMPORT, never copied: `bear_rewrap.leg_details / leg_series /
 entry_price_of`, `financed_spread.cached_ticker_expiries / DIAG_*`,
-`lib.greeks.leg_greek`, `helpers._price_asof / _defined_risk_bounds / _bs_price`,
+`lib.greeks.leg_greek`, `helpers._price_asof / _defined_risk_bounds`,
 `harness.Trade`. `scripts.backtest_study.lib.ladder_targets` owns "which contracts does a
 campaign owe a core?" (`eligible_expiries`, `cached_strikes`, `core_of`, `CoreSpec`,
 `roll_chain`) and is reached through `_lt()` so the collector and the engine can
 never disagree about the target set.
 
 New here: the tranche lifecycle (trigger -> sale -> breach -> settlement -> roll),
-the multi-tranche net-mark algebra, and the MODEL pricing tier.
+the multi-tranche net-mark algebra, and the MODEL pricing tier. The Black-Scholes
+formula that tier needs is defined HERE (`_bs_price`), not borrowed: production
+(`scripts/backtest/`) deleted its copy on 2026-09-23, when model prices were
+abolished from the backtest. It lives on only in this research sensitivity tier.
 
 `harness.py` IS NOT EDITED AND IS NOT REPLACED. It prices nothing — it replays a
 mark series — so a campaign is expressed the `bear_rewrap` way: a SYNTHETIC ROW
@@ -48,6 +51,7 @@ Pure library: no network, no writes, no config mutation, no study logic.
 """
 from __future__ import annotations
 
+import math
 import sys
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -59,9 +63,11 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scipy.stats import norm  # noqa: E402
+
 from lib.parsing import to_float  # noqa: E402
 from scripts.backtest.helpers import (  # noqa: E402
-    _bs_price, _defined_risk_bounds, _price_asof,
+    _defined_risk_bounds, _price_asof,
 )
 from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest_study.f3_structure import bear_rewrap as BR  # noqa: E402
@@ -84,12 +90,30 @@ SETTLE_STALE_SESSIONS = 3
 N_CANDIDATES = FS.DIAG_N_CANDIDATES     # 4 nearest cached strikes beyond the outer
 DELTA_TOL = FS.DIAG_DELTA_TOL           # 0.10; closest candidate further off -> excluded
 
-#: `simulation.risk_free_rate` in config/backtest.yml, the SAME constant
-#: `scripts/backtest/simulate.py` hands `_bs_price` (`sim_cfg.get("risk_free_rate", 0.05)`).
-#: Transcribed rather than re-read so the MODEL tier cannot silently drift from the
-#: production pricer if the yaml is edited for a one-off run; a change there is a
-#: deliberate edit here too.
+#: The rate the MODEL tier prices at. It was transcribed from
+#: `simulation.risk_free_rate` in config/backtest.yml; that key was removed on
+#: 2026-09-23 with the production Black-Scholes pricer, so this is now the only
+#: copy. The registration's value, unchanged.
 RISK_FREE_RATE = 0.05
+
+
+def _bs_price(S: float, K: float, T: float, r: float, sigma: float,
+              option_type: str) -> float:
+    """Black-Scholes option price, T in years — the `[MODEL]` tier's pricer ONLY.
+
+    Moved here verbatim from `scripts/backtest/helpers.py` on 2026-09-23, when
+    the operator abolished model prices from the backtest. Nothing in production
+    may import it. Every mark it produces is tagged `tier="model"` and kept out
+    of every criterion by `assert_not_model`.
+    """
+    if T <= 0 or sigma <= 0:
+        return max(0, S - K) if option_type == "Call" else max(0, K - S)
+    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    if option_type == "Call":
+        return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
+    return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
 
 # spec vocabularies
 T0, TGAP, TRUN, TNEVER = "T0", "TGAP", "TRUN", "TNEVER"

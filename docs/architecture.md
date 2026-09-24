@@ -157,10 +157,10 @@ scripts/                    ← entry points, each maps to a workflow step
                               (`scripts/backtest/legs.py`: `TKR:exp:strike:C|P ±qty` per line,
                               serialized to the `legs` column; fully generic in leg count —
                               single/vertical/ratio/butterfly/condor/box/calendar/diagonal;
-                              same-contract legs merged) → per-leg pricing (Barchart history →
-                              flow reappearance → Black-Scholes), real-first at any leg count
-                              (uniform-BS ONLY for *synthesized* iron condors at non-listed
-                              strikes) → netted signed position value → unified P&L
+                              same-contract legs merged) → per-leg pricing from REAL quotes only
+                              (Barchart history → flow reappearance; NO model tier — Black-Scholes
+                              abolished 2026-09-23, `bs` in a source list is refused by
+                              `simulate.validate_pricing_config`) → netted signed position value → unified P&L
                               `(V−entry_net)/abs(entry_net)` over the path to min(nearest-leg
                               DTE, cap); daily marks clamped to the arbitrage-free range for
                               single-expiration defined-risk structures (`_defined_risk_bounds`)
@@ -220,17 +220,60 @@ scripts/                    ← entry points, each maps to a workflow step
                               `_effective_sim_cfg`, so it can never take the credit profile or
                               be labelled `exit_basis = CREDIT`. `core.py` tallies it as
                               `debit_priced_to_credit`; `proxy.py` writes that into the row's
-                              `skip_reason`. Not mirrored for credit-priced-to-debit
+                              `skip_reason`. Since 2026-09-23 three more entry refusals share
+                              that path (`simulate.ENTRY_REFUSALS`): `no_real_entry_price` (a leg
+                              with no real price — there is no model to fall back to),
+                              `credit_priced_to_debit` (the mirror, off
+                              `classify.CREDIT_STRUCTURES`; sizing a mispriced credit on its
+                              "premium" oversized TLT 2025-04-04 to 38 contracts), and
+                              `non_monotonic_entry_quote` (same-expiry legs priced against strike
+                              order). JUNK QUOTES (2026-09-24): `simulate._is_junk_quote` —
+                              `bid <= 0`, `ask − bid > mid`, or `ask − bid > 2 × W(bid)` with W the legacy
+                              Cboe width table `QUOTE_WIDTH_LIMITS` — is the ONE test for cost, marks and
+                              entry. A junk leg-side pays commission only (`cost_basis`
+                              `no_spread_<side>`). A junk day marks at its Latest when the
+                              contract traded (`barchart_last`), else carries the last good mark
+                              (`barchart_stale`), capped by `_zero_bid_mark` when there is no bid.
+                              At entry `_junk_entry_fill` sells into no bid at 0, fills a traded
+                              contract at its print, sells at a real bid, and refuses a bought
+                              leg with no trade (`junk_entry_quote`, the fifth refusal). Every
+                              zero-bid quote is junk, so a bought leg no longer pays the ask.
+                              `_zero_bid_mark` and `_entry_side_mark` keep their bodies because
+                              `backtest_study/f3_structure/bear_rewrap.py` imports both.
+                              Per-leg entry greeks (`delta`, `iv`, `entry_leg_detail`) are
+                              read off EACH leg's own history row, all-or-nothing into `delta`;
+                              `entry_underlying` is the MEDIAN of the legs' `Price~`, never the
+                              split-adjusted underlying OHLC cache. `shared/history.py` refuses a
+                              fetched history whose `Price~` is >25% off its same-expiry siblings
+                              (`underlying_mismatch`) — nothing written, nothing unlinked.
+                              THE PATH MAY NOT OUTLIVE THE PRICE DATA (2026-09-23). No exit rule
+                              fires on a day after the last real quote, and neither does the
+                              `exit_fill` deferral. A position still open at that point is marked
+                              there — `days_held` and the realized P&L are that day's,
+                              `exit_reason` is `cap_open` rather than `expired` — and the row is
+                              labelled, never dropped. `simulate._leg_data_end` defines the last
+                              real quote for a POSITION as the earliest of its legs' last real
+                              sessions, because a spread is only as live as its deadest leg;
+                              interior gaps truncate nothing. Two columns report it, appended at
+                              the END of both key orders after `exit_fill`: `path_status`
+                              (`complete` / `carried` / `open_at_data_end`) and `path_data_end`
+                              (the ISO date). Both are BLANK on every row written earlier, which
+                              means unknown, not clean — the tab HEADERS must gain the pair
+                              before the next append (`align_tab_headers.py --dry-run`). The
+                              marked path, MFE/MAE and `pnl_at_cap_pct` still span the whole
+                              grid, so a play that exits before its data ends is unchanged.
   backtest/proxy.py         — proxy-backtests plays the real backtest never covered: diffs the
                               analysis tab against BacktestResults (identity =
                               signal_date+ticker+play-prefix), records WHY skipped
                               (`unsupported`/`no_strike`/`no_expiry`/`no_history`/`unpriced`/
-                              `debit_priced_to_credit`),
+                              any of `simulate.ENTRY_REFUSALS`; a `no_history` play that
+                              the snap then prices real is relabelled `snap_priced`),
                               then evaluates via a fallback chain — (1) snap legs to nearest
                               listed contract with history (bounded by proxy.max_strike_steps/
-                              max_expiry_deviation_days, real-first), (2) Black-Scholes off a
-                              donor's `Price~`/`IV` history (OFF by default, `proxy.bs_fallback`),
-                              (3) direction-only trend verdict, (4) unevaluable — same exit
+                              max_expiry_deviation_days, real-first), (2) direction-only trend
+                              verdict, (3) unevaluable. The Black-Scholes rung
+                              (`bs_options_hist`) was deleted 2026-09-23; `proxy.bs_fallback: true`
+                              is refused — same exit
                               rules as the real backtest → BacktestProxy tab +
                               backtests/proxy_results.csv, idempotent; cache-first, scrapes
                               missing neighbors unless --cache-only

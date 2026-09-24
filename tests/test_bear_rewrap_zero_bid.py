@@ -157,7 +157,7 @@ def test_the_mirror_and_production_agree_on_an_open_print_entry(cache):
     cfg = {"profit_target": None, "stop_loss": None, "contracts": 1, "path_cap_days": 3,
            "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
     res = SIM._simulate(cand, [LONG, SHORT], entry_row, {}, series, cfg,
-                        structure="bear_put_spread", price_fn=lambda tk, dt: None,
+                        structure="bear_put_spread",
                         barchart_details=details)
     assert float(res["entry_option_price"]) == pytest.approx(mirror) == pytest.approx(1.53)
 

@@ -1,41 +1,11 @@
 import logging
-import math
 from datetime import date, datetime, timedelta
-
-import pandas as pd
-import yfinance as yf
-from scipy.stats import norm
 
 from lib.parsing import to_float as _to_float
 
 from .config import _EXPIRATION_FORMATS
 
 log = logging.getLogger("backtest")
-
-
-# ─── Black-Scholes (exit fallback only) ────────────────────────────────────────
-
-def _bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
-    """Black-Scholes option price. T in years."""
-    if T <= 0 or sigma <= 0:
-        intrinsic = max(0, S - K) if option_type == "Call" else max(0, K - S)
-        return intrinsic
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    if option_type == "Call":
-        return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
-    return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-
-
-def _bs_delta(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
-    """Black-Scholes delta. T in years. Used only to surface a per-leg model delta
-    for validation; the trade's own anchor delta still comes from the flow row."""
-    if T <= 0 or sigma <= 0:
-        if option_type == "Call":
-            return 1.0 if S > K else 0.0
-        return -1.0 if S < K else 0.0
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    return norm.cdf(d1) if option_type == "Call" else norm.cdf(d1) - 1.0
 
 
 # ─── Field parsing ─────────────────────────────────────────────────────────────
@@ -193,38 +163,6 @@ def _parse_analysis_date(raw: str) -> date | None:
         except ValueError:
             continue
     return None
-
-
-# ─── Underlying price (for BS exit fallback) ───────────────────────────────────
-
-_price_cache: dict[str, pd.DataFrame] = {}
-
-
-def _get_prices(ticker: str, signal_date: date, max_days: int) -> pd.DataFrame:
-    end = signal_date + timedelta(days=max_days + 10)
-    cache_key = f"{ticker}_{signal_date}_{max_days}"
-    if cache_key in _price_cache:
-        return _price_cache[cache_key]
-    try:
-        df = yf.download(ticker, start=signal_date.isoformat(), end=end.isoformat(),
-                         auto_adjust=True, progress=False)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        _price_cache[cache_key] = df
-        return df
-    except Exception:
-        log.exception("yfinance error for '%s'", ticker)
-        return pd.DataFrame()
-
-
-def _price_on_or_after(prices: pd.DataFrame, target: date):
-    if prices.empty:
-        return None
-    prices.index = pd.to_datetime(prices.index).normalize()
-    candidates = prices[prices.index >= pd.Timestamp(target)]
-    if candidates.empty:
-        return None
-    return float(candidates.iloc[0]["Close"])
 
 
 def _reappearance_price(contract_index, key, checkpoint: date, expiration: date | None):

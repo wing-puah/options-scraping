@@ -8,8 +8,66 @@ from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
 
 from ..config import RESULTS_PATH, HISTORY_CACHE
+from ..helpers import _to_float
 
 log = logging.getLogger("backtest")
+
+#: A fetched option history whose `Price~` sits further than this (median
+#: relative difference) from its SIBLINGS' `Price~` is refused. Every contract
+#: of one ticker and expiry reads the same underlying on the same day, so two
+#: honest files agree to within rounding; the file this guard was written for
+#: (META_20270115_630.00P, quarantined 2026-09-23) read ~$155 against ~$640.
+UNDERLYING_MISMATCH_FRAC = 0.25
+
+
+def _sibling_price_tilde(symbol: str, expiration: date, own: Path) -> dict:
+    """``{date: median Price~}`` across the cached files of the same ticker AND
+    expiry, excluding ``own``.
+
+    Siblings, not the underlying OHLC cache: that cache is split-ADJUSTED while
+    option-history `Price~` is as-traded, so on a split ticker (NVDA 10:1, XLE
+    2:1, ...) it disagrees with every good file by an exact multiple. Siblings
+    of one expiry were all traded on the same basis.
+    """
+    prefix = f"{symbol.upper().strip()}_{expiration.strftime('%Y%m%d')}_"
+    by_day: dict = {}
+    for path in HISTORY_CACHE.glob(prefix + "*.csv"):
+        if path.name == own.name:
+            continue
+        try:
+            rows = barchart_options.parse_history_details(
+                path.read_text(encoding="utf-8"), require_mark=False)
+        except Exception:
+            continue
+        for d, row in rows.items():
+            v = _to_float(row.get("Price~"))
+            if v is not None and v > 0:
+                by_day.setdefault(d, []).append(v)
+    return {d: sorted(vs)[len(vs) // 2] for d, vs in by_day.items()}
+
+
+def underlying_mismatch(details: dict, siblings: dict) -> str | None:
+    """Detail string when a history's `Price~` disagrees wildly with its
+    siblings' (``_sibling_price_tilde``) on overlapping dates, else None.
+
+    None also when there is nothing to compare — no sibling file, or no
+    overlapping date. No evidence is not a failure, so the guard never blocks
+    a contract it cannot check.
+    """
+    diffs = []
+    for d, row in details.items():
+        ref = siblings.get(d)
+        px = _to_float(row.get("Price~"))
+        if ref and px and px > 0:
+            diffs.append(abs(px - ref) / ref)
+    if not diffs:
+        return None
+    diffs.sort()
+    median = diffs[len(diffs) // 2]
+    if median <= UNDERLYING_MISMATCH_FRAC:
+        return None
+    return (f"Price~ is {median:.0%} (median over {len(diffs)} days) away from its "
+            f"sibling contracts' — the history belongs to another contract")
 
 
 # ─── Barchart historical option prices ─────────────────────────────────────────
@@ -86,7 +144,8 @@ async def fetch_option_histories(
     if not to_scrape:
         return series_map, details_map
     if not (email and password):
-        log.warning("BARCHART_EMAIL/PASSWORD not set — skipping Barchart history (BS fallback will be used)")
+        log.warning("BARCHART_EMAIL/PASSWORD not set — skipping Barchart history "
+                    "(legs without cached history will be refused at entry)")
         return series_map, details_map
 
     async with BarchartSession(email, password, cookies_path, headless) as session:
@@ -102,8 +161,20 @@ async def fetch_option_histories(
             if not csv_text:
                 series_map[c["key"]] = []
                 continue
+            # Refuse a history that is not this ticker's (2026-09-23). Nothing is
+            # written and nothing is unlinked: a shallow cache already on disk
+            # stays exactly as it was, and this run prices the contract as
+            # no-data.
             cache = barchart_options.cache_path(
                 HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
+            bad = underlying_mismatch(
+                barchart_options.parse_history_details(csv_text, require_mark=False),
+                _sibling_price_tilde(c["symbol"], c["expiration"], cache))
+            if bad:
+                log.error("REJECTED Barchart history for %s: %s — not cached",
+                          c["key"], bad)
+                series_map[c["key"]] = []
+                continue
             # Stage then os.replace, the same way export_tabs.py installs a
             # pulled tab: a cache file is never half-written, and an existing
             # one is only ever superseded by a complete fetch.

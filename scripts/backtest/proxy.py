@@ -15,25 +15,19 @@ Fallback chain (interpretable ``proxy_method``):
   1. ``strike_expiry_tweak`` — snap EVERY leg to the nearest listed contract that
      has history (bounded by ``max_strike_steps`` / ``max_expiry_deviation_days``)
      and price via the normal real-first path. Tweaks recorded ``orig → used``.
-  2. ``bs_options_hist`` — Black-Scholes the play's ACTUAL legs each day, using a
-     nearby cached contract's daily ``Price~`` as the underlying and ``IV/100`` as
-     sigma (the ÷100 ``enrich_oi`` convention), via ``_simulate``'s ``iv_fn``.
-     **OFF by default** (``proxy.bs_fallback``) — see the note below.
-  3. ``underlying_trend`` — direction-only verdict from ``Price~`` when no usable
+  2. ``underlying_trend`` — direction-only verdict from ``Price~`` when no usable
      option data exists: map structure → bullish/bearish, compare the underlying
      move over the path. ``exit_reason="direction_only"``; P&L columns blank.
-  4. ``unevaluable`` — no options history at all, or the play never built
+  3. ``unevaluable`` — no options history at all, or the play never built
      (unsupported / no_strike / no_expiry): identity + ``skip_reason`` only.
 
-Why method 2 is disabled by default (2026-08-11, measured on the 1,118-row pooled
-book; full entry in ``research/current.md``): no ``bs_options_hist``
-row has a single real price day (``pct_real_days`` 0.00 on all 301), and none is
-ever calibratable — the chain is strictly ordered, so a play priced by BS is never
-also priced for real. Its marks are tail-compressed (E sd 0.86 vs 1.38 real;
-``|E|>2`` at 2.3% vs 12.1%), so pooling them ATTENUATES every measured effect
-toward zero, and 64 of them had entered the top-3/day deployment replay. Setting
-``proxy.bs_fallback: true`` re-enables it for a deliberate study; anything it
-produces is model-priced and must never be pooled with real+tweak evidence.
+There is no model-priced tier. ``bs_options_hist`` (Black-Scholes the play's
+actual legs off a donor's ``Price~``/``IV``) sat between the two: switched off
+behind ``proxy.bs_fallback`` on 2026-08-11 (its marks were tail-compressed and
+never calibratable, so pooling them attenuated every effect), and DELETED on
+2026-09-23 when the operator abolished model prices from the backtest. A config
+that still sets ``proxy.bs_fallback: true`` is refused. Legacy ``bs_options_hist``
+rows remain in frozen exports; studies drop them at read time (``lib/book.py``).
 
 Contract discovery is cache-first, scrape-fallback: nearby-contract lookup scans
 ``backtests/option_history_cache/`` first, and when the cache has no usable
@@ -74,7 +68,7 @@ from .shared.identity import (
     keys_from_tab,
 )
 from .shared.results_io import write_results
-from .simulate import _simulate
+from .simulate import _simulate, validate_pricing_config
 
 log = logging.getLogger("backtest")
 
@@ -121,8 +115,15 @@ _COST_COLS = ["pct_stale_days", "cost_total", "cost_basis"]
 # convention as BacktestResults. Proxy rows run the SAME simulation, so the two tabs
 # stay comparable; appended at the VERY END for the positional-append reason above.
 _FILL_COLS = ["exit_fill"]
+# Whether the simulated path outlived the price data (2026-09-23) — same values
+# and same empty-means-written-earlier convention as BacktestResults. Proxy rows
+# run the SAME simulation and are MORE exposed to it: a proxy expiry past the
+# last scrape is the normal case, so every one of the 30 plays evaluated locally
+# on the June–July 2026 backfill sat past its data end. Appended at the VERY END
+# for the positional-append reason above.
+_PATH_COLS = ["path_status", "path_data_end"]
 _PROXY_KEY_ORDER = (_IDENTITY_COLS + _REASON_COLS + _RESULT_COLS + _SCORE_COLS
-                    + _BASIS_COLS + _COST_COLS + _FILL_COLS)
+                    + _BASIS_COLS + _COST_COLS + _FILL_COLS + _PATH_COLS)
 
 _ENTRY_STALENESS_DAYS = 5  # same near-entry rule the real backtest applies
 
@@ -351,8 +352,8 @@ def _rank_donors(pool: list[dict], anchor_leg: Leg, step: float):
 
 def _best_donor(anchor_leg: Leg, pool: list[dict], signal_date: date, cfg: dict,
                 sim_cfg: dict, step: float, allow_probe: bool):
-    """A cached contract that supplies a daily ``Price~``/``IV`` series for the BS /
-    trend methods. Prefers the anchor leg's option type + nearest strike/expiry, but
+    """A cached contract that supplies a daily ``Price~`` series for the trend
+    method. Prefers the anchor leg's option type + nearest strike/expiry, but
     unbounded (see :func:`_rank_donors`). Returns ``(cand, details, pool)`` or
     ``(None, None, pool)``."""
     def _best(p):
@@ -372,6 +373,13 @@ def _best_donor(anchor_leg: Leg, pool: list[dict], signal_date: date, cfg: dict,
 
 
 # ─── Skip-reason classification ─────────────────────────────────────────────────
+
+#: `skip_reason` for a play whose named anchor had no history when the chain
+#: began, but which the strike/expiry snap (method 1) then priced from REAL
+#: history — the named contract once the probe fetched it, or a listed neighbour
+#: (`proxy_detail` shows `orig → used` when a leg moved). Replaces the pre-chain
+#: `no_history`, which on such a row read as a failure (2026-09-24).
+SNAP_PRICED = "snap_priced"
 
 def _anchor_contract(play):
     """The play's anchor contract ``(ticker, opt_type, strike, exp)`` for cache
@@ -393,8 +401,13 @@ def _skip_reason(play, reason) -> str:
     anchor's cache file: ``no_history`` (no file, or data doesn't reach the signal
     window) vs ``unpriced`` (data present at signal but the real sim skipped it).
 
+    This is the PRE-CHAIN reason. When method 1 then prices a ``no_history``
+    play from real history, :func:`_evaluate` replaces it with ``SNAP_PRICED``,
+    so a ``no_history`` on a written row means the chain found nothing to price
+    real either.
+
     A priced tier may REFUSE the play afterwards for a more specific reason —
-    ``debit_priced_to_credit`` — and :func:`_note_refusal` then overwrites what
+    one of ``simulate.ENTRY_REFUSALS`` — and :func:`_note_refusal` then overwrites what
     this returns. This function only ever sees the cache, so it cannot know that.
     """
     if reason is not None:
@@ -428,7 +441,7 @@ def _method1(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
     the first leg of each expiry group snaps freely and pins the rest — so a
     vertical can't silently become a diagonal. Calendars/diagonals (distinct
     original expiries) keep their groups independent. A leg that can't snap under
-    the pin fails the method (→ fall through to BS on the actual legs)."""
+    the pin fails the method (→ fall through to the direction-only verdict)."""
     if not play.legs:
         return None, pool
     snapped, tweaks, details_map, series_map = [], [], {}, {}
@@ -461,44 +474,6 @@ def _method1(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
         return None, pool
     detail = "; ".join(tweaks) if tweaks else "all legs had listed history"
     return ("strike_expiry_tweak", detail, result, format_legs(snapped)), pool
-
-
-def _method2(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
-    """Black-Scholes the play's ACTUAL legs each day off a nearby donor's daily
-    ``Price~`` (underlying) and ``IV/100`` (sigma)."""
-    if not play.legs:
-        return None, pool
-    anchor_leg = play.legs[play.anchor_idx] if play.anchor_idx < len(play.legs) else play.legs[0]
-    cand, details, pool = _best_donor(
-        anchor_leg, pool, c["signal_date"], cfg, sim_cfg, step, allow_probe)
-    if cand is None:
-        return None, pool
-    entry_row = _covering_entry_row(cand, c["signal_date"], anchor_leg.strike, anchor_leg.expiration)
-    if entry_row is None:
-        return None, pool
-
-    price_series = _field_series(details, "Price~")
-    iv_series = [(d, v / 100) for d, v in _field_series(details, "IV")]
-    entry_iv = (_to_float(entry_row.get("IV")) or 0) / 100 or None
-
-    def price_fn(_tk, day):
-        return _asof(price_series, day)
-
-    def iv_fn(day):
-        return _asof(iv_series, day) or entry_iv
-
-    bs_cfg = {**sim_cfg, "entry_sources": ["bs"], "exit_sources": ["bs"]}
-    result = _simulate(c, play.legs, entry_row, {}, {}, bs_cfg,
-                       structure=play.structure, anchor_idx=play.anchor_idx,
-                       price_fn=price_fn, iv_fn=iv_fn, refusal=play.refusal)
-    if not result:
-        return None, pool
-    sigma = _asof(iv_series, c["signal_date"]) or entry_iv or 0
-    # BS entry stays at the signal date (entry@signal_eod): the donor series is EOD
-    # closes, so there is no "next open" to price — unlike the barchart entry path.
-    detail = (f"BS off donor {cand['strike']:g}{'C' if cand['opt_type'] == 'Call' else 'P'} "
-              f"exp {cand['expiration'].isoformat()} (entry sigma {sigma:.3f}, entry@signal_eod)")
-    return ("bs_options_hist", detail, result, format_legs(play.legs)), pool
 
 
 def _method3(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
@@ -550,6 +525,15 @@ def _method3(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe):
 
 # ─── Per-play evaluation ────────────────────────────────────────────────────────
 
+def validate_proxy_config(proxy_cfg: dict) -> None:
+    """Raise ``ValueError`` when the proxy config asks for the deleted
+    Black-Scholes tier (`bs_fallback: true`, abolished 2026-09-23)."""
+    if (proxy_cfg or {}).get("bs_fallback"):
+        raise ValueError(
+            "proxy.bs_fallback is set: the Black-Scholes tier (bs_options_hist) was "
+            "deleted on 2026-09-23 — no model prices in the backtest. Remove the key.")
+
+
 def _blank_row() -> dict:
     return {k: "" for k in _PROXY_KEY_ORDER}
 
@@ -575,8 +559,9 @@ def _note_refusal(row: dict, play) -> dict:
     """Stamp a priced-tier REFUSAL onto the finished proxy row.
 
     `skip_reason` answers "why did the real backtest never test this play?". When
-    a proxy method priced the entry and then refused it — currently only
-    `simulate.DEBIT_CREDIT_REFUSAL`, a debit structure priced to a net credit —
+    a proxy method priced the entry and then refused it — one of
+    `simulate.ENTRY_REFUSALS`: a leg with no real entry price, a polarity-fixed
+    structure priced to the wrong side, or legs quoted against strike order —
     that refusal IS the answer, and it is more specific than the cache-derived
     `unpriced` this row started with, so it replaces it. The reason is also
     appended to `proxy_detail`, because the row can still carry a direction-only
@@ -614,12 +599,11 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
     step = _infer_strike_step([p["strike"] for p in pool]) or _strike_step(
         play.legs[0].strike if play.legs else 100.0)
 
-    # Method 2 is opt-in: BS marks are model-priced, uncalibratable, and
-    # attenuating (module docstring). Off → directional plays fall to method 3's
-    # honest direction-only verdict, neutral ones to `unevaluable`.
-    chain = (_method1, _method2, _method3) if cfg.get("bs_fallback", False) \
-        else (_method1, _method3)
-    for method in chain:
+    # No model-priced tier (module docstring): directional plays that cannot be
+    # tweak-priced fall to method 3's direction-only verdict, neutral ones to
+    # `unevaluable`.
+    validate_proxy_config(cfg)
+    for method in (_method1, _method3):
         outcome, pool = method(play, c, cfg, sim_cfg, spread_pct, pool, step, allow_probe)
         if outcome is None:
             continue
@@ -636,13 +620,17 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
         # `pct_stale_days` and `cost_total` while BacktestResults carried them.
         # `cost_basis` still writes empty while both cost knobs are 0 — that is
         # the same convention BacktestResults uses, not another gap.
-        for k in _RESULT_COLS + _BASIS_COLS + _COST_COLS + _FILL_COLS:
+        for k in _RESULT_COLS + _BASIS_COLS + _COST_COLS + _FILL_COLS + _PATH_COLS:
             if k in result and result[k] != "":
                 row[k] = result[k]
         row["created_datetime"] = created_datetime  # methods may blank it
         row["legs"] = used_legs
         row["proxy_method"] = proxy_method
         row["proxy_detail"] = detail
+        # The pre-chain `no_history` described the named anchor only; method 1
+        # just priced the play from real history, so it is not a failure.
+        if row["skip_reason"] == "no_history" and proxy_method == "strike_expiry_tweak":
+            row["skip_reason"] = SNAP_PRICED
         return _note_refusal(row, play)
 
     row["proxy_method"] = "unevaluable"
@@ -719,7 +707,8 @@ def _print_proxy_summary(rows: list[dict]) -> None:
         print(f"  priced: {len(priced)}  |  win rate {wins / len(priced) * 100:.1f}%")
 
 
-def _write_proxy(rows: list[dict], proxy_cfg: dict, dry_run: bool) -> None:
+def _write_proxy(rows: list[dict], proxy_cfg: dict, dry_run: bool,
+                 before_sheet=None) -> None:
     write_results(
         rows,
         key_order=_PROXY_KEY_ORDER,
@@ -727,6 +716,7 @@ def _write_proxy(rows: list[dict], proxy_cfg: dict, dry_run: bool) -> None:
         sheet_tab=None if dry_run else proxy_cfg.get("sheet_tab"),
         dry_run=dry_run,
         summary_fn=_print_proxy_summary,
+        before_sheet=before_sheet,
     )
 
 
@@ -761,6 +751,10 @@ def main() -> None:
 
     proxy_cfg = cfg.get("proxy", {})
     sim_cfg = cfg["simulation"]
+    # Refused BEFORE any fetch or Sheets read: a config asking for a model price
+    # must fail loudly, not after an hour of scraping.
+    validate_proxy_config(proxy_cfg)
+    validate_pricing_config(sim_cfg)
     spread_pct = sim_cfg.get("spread_width_pct", 0.02)
     analysis_cfg = cfg.get("analysis", {}) or {}
     tab = args.tab or analysis_cfg.get("tab", "AnalysisClaude")
@@ -849,16 +843,20 @@ def main() -> None:
 
     # One Sheets pass deletes both the rows being replaced and the cross-tab
     # duplicates. Both sets are empty on a plain run.
+    # Runs after the local CSV is written and before the append (see
+    # results_io.write_results), so a Sheets failure never loses the run.
     doomed = redo_keys | stale_keys
+    delete_old = None
     if doomed and proxy_tab and not args.dry_run:
-        n = sheets_client.delete_rows_where(
-            proxy_tab,
-            lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),
-                                    r.get("play", "")) in doomed)
-        log.info("--redo: deleted %d row(s) from '%s' (%d to replace, %d now on '%s')",
-                 n, proxy_tab, len(redo_keys), len(stale_keys), tested_source)
+        def delete_old():
+            n = sheets_client.delete_rows_where(
+                proxy_tab,
+                lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),
+                                        r.get("play", "")) in doomed)
+            log.info("--redo: deleted %d row(s) from '%s' (%d to replace, %d now on '%s')",
+                     n, proxy_tab, len(redo_keys), len(stale_keys), tested_source)
 
-    _write_proxy(rows, proxy_cfg, args.dry_run)
+    _write_proxy(rows, proxy_cfg, args.dry_run, before_sheet=delete_old)
 
 
 if __name__ == "__main__":

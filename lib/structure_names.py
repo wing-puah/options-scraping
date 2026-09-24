@@ -71,6 +71,18 @@ def canonical_debit_spreads() -> frozenset[str]:
                      if qual == "debit")
 
 
+def canonical_credit_spreads() -> frozenset[str]:
+    """The canonical vertical NAMES whose qualifier is ``credit`` —
+    ``{"bull put spread", "bear call spread"}``.
+
+    The mirror of `canonical_debit_spreads`, read off the same table.
+    `scripts/backtest/classify.py::CREDIT_STRUCTURES` consumes it: the backtest
+    refuses a CREDIT structure that prices to a net debit at entry.
+    """
+    return frozenset(name for (_opt, qual), name in _CANONICAL.items()
+                     if qual == "credit")
+
+
 def canonical_spread_names(text: str) -> str:
     """Rewrite qualifier-infixed vertical names to their canonical form.
 

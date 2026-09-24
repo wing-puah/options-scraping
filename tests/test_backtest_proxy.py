@@ -6,8 +6,6 @@ import pytest
 import backtest as bt
 import backtest.plays as plays_mod
 import backtest.proxy as proxy
-from backtest.classify import _entry_row_from_history
-from backtest.helpers import _contract_key
 from lib.barchart import options as bo
 
 SIGNAL = date(2026, 6, 1)
@@ -15,8 +13,8 @@ EXP = date(2026, 6, 20)
 
 _CFG = {"max_strike_steps": 6, "max_expiry_deviation_days": 14}
 _SIM_CFG = {"contracts": 1, "profit_target": 0.5, "stop_loss": 1.0,
-            "entry_sources": ["barchart"], "exit_sources": ["barchart", "reappearance", "bs"],
-            "path_cap_days": 120, "risk_free_rate": 0.05}
+            "entry_sources": ["barchart"], "exit_sources": ["barchart", "reappearance"],
+            "path_cap_days": 120}
 _SPREAD_PCT = 0.02
 
 
@@ -159,7 +157,7 @@ def test_method1_snaps_to_nearest_cached_strike_and_prices_from_barchart(cache_d
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),    # signal-day mark 8.5
         ("2026-06-02", 250.0, "45.0", "0.55", 9.8, 10.2),   # entry Open 9.8
-        ("2026-06-03", 250.0, "45.0", "0.55", 15.0, 17.0),  # exit mark 16.0 (+63%)
+        ("2026-06-03", 250.0, "45.0", "0.55", 15.5, 16.5),  # exit mark 16.0 (+63%)
     ])
 
     pool = bt._cache_contracts("NVDA")
@@ -186,7 +184,7 @@ def test_method1_signal_eod_timing_reproduces_legacy_entry(cache_dir):
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),    # entry mark 8.5
-        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),  # exit mark 16.0 (+88%)
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.5, 16.5),  # exit mark 16.0 (+88%)
     ])
     pool = bt._cache_contracts("NVDA")
     eod_cfg = {**_SIM_CFG, "entry_timing": "signal_eod"}
@@ -259,7 +257,7 @@ def test_method1_keeps_vertical_legs_on_one_snapped_expiry(cache_dir):
 
 def test_method1_fails_over_when_pinned_expiry_has_no_short_leg(cache_dir):
     # Same setup minus the 260C@Jun26 file: the pin can't be satisfied, so method 1
-    # must fail (→ BS fallback on the actual legs) instead of building a diagonal
+    # must fail (→ the direction-only verdict) instead of building a diagonal
     # from the 250C@Jun26 + 260C@Jun20 that ARE individually available.
     c = _vertical_candidate()
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
@@ -280,93 +278,12 @@ def test_method1_fails_over_when_pinned_expiry_has_no_short_leg(cache_dir):
     assert outcome is None
 
 
-# ── 4. Method 2: Black-Scholes off a donor's Price~/IV history ──────────────────
+# ── 4. The Black-Scholes tier is gone ───────────────────────────────────────────
 
-def test_method2_prices_via_bs_off_donor_iv_and_records_sigma(cache_dir):
-    c = _long_call_candidate()
-    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
-    _write_history(cache_dir, "NVDA", EXP, 260.0, "Call", [
-        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
-        ("2026-06-02", 250.0, "70.0", "0.50", 9.0, 11.0),
-    ])
-    pool = bt._cache_contracts("NVDA")
-
-    outcome, pool = bt._method2(play, c, _CFG, _SIM_CFG, _SPREAD_PCT, pool, 5.0, allow_probe=False)
-
-    assert outcome is not None
-    proxy_method, detail, result, used_legs = outcome
-    assert proxy_method == "bs_options_hist"
-    assert result["entry_source"] == "bs"
-    assert "sigma 0.450" in detail  # entry-day (2026-06-01) IV = 45.0 / 100
-    assert used_legs == "NVDA:2026-06-20:250:C +1"
-
-
-def test_method2_iv_fn_varies_sigma_across_days_vs_a_fixed_iv_run(cache_dir):
-    # Same donor as above (day1 IV=45%, day2 IV=70%, Price~ held flat at 250 so any
-    # mark difference is attributable to sigma alone). Reconstruct the same
-    # synthetic entry_row _method2 would build, then compare a per-day-varying
-    # iv_fn against a fixed-sigma run using the identical price_fn.
-    donor_path = _write_history(cache_dir, "NVDA", EXP, 260.0, "Call", [
-        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
-        ("2026-06-02", 250.0, "70.0", "0.50", 9.0, 11.0),
-    ])
-    c = _long_call_candidate()
-    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
-    leg = play.legs[0]
-
-    details = bo.parse_history_details(donor_path.read_text(encoding="utf-8"))
-    key = _contract_key("NVDA", "Call", leg.strike, leg.expiration.isoformat())
-    entry_row = _entry_row_from_history({key: details}, key, SIGNAL, leg.strike, leg.expiration)
-    assert entry_row is not None
-
-    price_series = [(date(2026, 6, 1), 250.0), (date(2026, 6, 2), 250.0)]
-    iv_series = [(date(2026, 6, 1), 0.45), (date(2026, 6, 2), 0.70)]
-
-    def _asof(series, day):
-        best = None
-        for d, v in series:
-            if d <= day:
-                best = v
-        return best
-
-    def price_fn(_tk, day):
-        return _asof(price_series, day)
-
-    def iv_fn_varying(day):
-        return _asof(iv_series, day)
-
-    def iv_fn_fixed(day):
-        return 0.45
-
-    bs_cfg = {**_SIM_CFG, "entry_sources": ["bs"], "exit_sources": ["bs"]}
-    res_varying = bt._simulate(c, play.legs, entry_row, {}, {}, bs_cfg,
-                               structure=play.structure, anchor_idx=play.anchor_idx,
-                               price_fn=price_fn, iv_fn=iv_fn_varying)
-    res_fixed = bt._simulate(c, play.legs, entry_row, {}, {}, bs_cfg,
-                             structure=play.structure, anchor_idx=play.anchor_idx,
-                             price_fn=price_fn, iv_fn=iv_fn_fixed)
-
-    assert res_varying and res_fixed
-    assert res_varying["daily_price_csv"] != res_fixed["daily_price_csv"]
-
-
-# ── 5. iv_fn back-compat ─────────────────────────────────────────────────────────
-
-def test_simulate_iv_fn_omitted_matches_explicit_none():
-    cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
-            "market_regime": ""}
-    legs = [bt.Leg(1, "NVDA", date(2026, 7, 17), 250.0, "Call")]
-    entry_row = {"Strike": "250", "DTE": "46", "IV": "40%", "Price~": "250",
-                 "Trade": "", "Delta": "0.5"}
-    sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1, "exit_sources": ["bs"]}
-
-    res_omitted = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
-                               structure="long_call", price_fn=lambda tk, dt: 300.0)
-    res_explicit_none = bt._simulate(cand, legs, entry_row, {}, {}, sim_cfg,
-                                     structure="long_call", price_fn=lambda tk, dt: 300.0,
-                                     iv_fn=None)
-
-    assert res_omitted == res_explicit_none
+def test_method2_bs_tier_no_longer_exists():
+    # Deleted 2026-09-23: model prices were abolished from the backtest.
+    assert not hasattr(proxy, "_method2")
+    assert not hasattr(bt, "_method2")
 
 
 # ── 6. Method 3: direction-only verdict ──────────────────────────────────────────
@@ -425,11 +342,10 @@ def test_evaluate_unevaluable_when_play_never_built():
     assert row["daily_price_csv"] == ""
 
 
-def test_evaluate_skips_bs_tier_by_default_and_falls_to_underlying_trend(cache_dir):
-    # Donor 30 strike-steps away: outside Method 1's snap bound (max_strike_steps 6)
-    # but valid for Method 2, whose donor ranking is unbounded. With bs_fallback
-    # unset (the shipped default) Method 2 must be skipped entirely, so this
-    # bullish play lands on Method 3's direction-only verdict with blank P&L.
+def test_evaluate_falls_to_underlying_trend_when_no_snappable_contract(cache_dir):
+    # Donor 30 strike-steps away: outside Method 1's snap bound (max_strike_steps 6).
+    # There is no model tier between the two, so this bullish play lands on
+    # Method 3's direction-only verdict with blank P&L.
     c = _long_call_candidate()
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
@@ -445,20 +361,14 @@ def test_evaluate_skips_bs_tier_by_default_and_falls_to_underlying_trend(cache_d
     assert row["realized_pnl_pct"] == ""
 
 
-def test_evaluate_uses_bs_tier_when_bs_fallback_enabled(cache_dir):
-    # Same fixture, bs_fallback on -> Method 2 wins before Method 3 is reached.
+def test_evaluate_refuses_bs_fallback_config(cache_dir):
+    # `bs_fallback: true` asks for the deleted Black-Scholes tier: refused loudly.
     c = _long_call_candidate()
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
-    _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
-        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
-        ("2026-06-02", 260.0, "45.0", "0.50", 9.0, 11.0),
-    ])
-
-    row = bt._evaluate(play, None, c, {**_CFG, "bs_fallback": True}, _SIM_CFG,
-                       _SPREAD_PCT, "2026-08-11T10:00:00", False)
-
-    assert row["proxy_method"] == "bs_options_hist"
-    assert row["entry_source"] == "bs"
+    with pytest.raises(ValueError, match="bs_fallback"):
+        bt._evaluate(play, None, c, {**_CFG, "bs_fallback": True}, _SIM_CFG,
+                     _SPREAD_PCT, "2026-08-11T10:00:00", False)
+    proxy.validate_proxy_config({**_CFG, "bs_fallback": False})  # off is harmless
 
 
 def test_evaluate_unevaluable_when_fallback_chain_exhausted(cache_dir):
@@ -477,6 +387,70 @@ def test_evaluate_unevaluable_when_fallback_chain_exhausted(cache_dir):
     assert row["proxy_method"] == "unevaluable"
     assert row["proxy_detail"] == "no usable options history for any fallback"
     assert row["legs"] == row["legs_original"]
+
+
+def test_evaluate_relabels_no_history_when_the_snap_prices_a_neighbour(cache_dir):
+    # The named 250C has no cache, so the pre-chain reason is `no_history`; the
+    # snap then prices the 255C from real history. The written row must not
+    # read as a failure: `no_history` becomes `snap_priced`.
+    c = _long_call_candidate()
+    play, reason = bt.classify_and_build(c, _SPREAD_PCT)
+    assert bt._skip_reason(play, None) == "no_history"
+    _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 9.8, 10.2),
+        ("2026-06-03", 250.0, "45.0", "0.55", 15.0, 17.0),
+    ])
+
+    row = bt._evaluate(play, reason, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-07-06T10:00:00", False)
+
+    assert row["proxy_method"] == "strike_expiry_tweak"
+    assert row["entry_source"] == "barchart_open"
+    assert row["skip_reason"] == proxy.SNAP_PRICED == "snap_priced"
+    assert "→" in row["proxy_detail"]
+
+
+def test_evaluate_relabels_no_history_when_the_probe_fetches_the_named_contract(
+        cache_dir, monkeypatch):
+    # The anchor's own contract is missing before the chain; the probe scrapes
+    # it (stubbed here) and method 1 prices it with no tweak at all.
+    c = _long_call_candidate()
+    play, reason = bt.classify_and_build(c, _SPREAD_PCT)
+
+    def fake_probe(leg, signal_date, cfg, sim_cfg, step):
+        _write_history(cache_dir, "NVDA", EXP, 250.0, "Call", [
+            ("2026-06-01", 250.0, "45.0", "0.50", 8.0, 9.0),
+            ("2026-06-02", 250.0, "45.0", "0.50", 9.8, 10.2),
+            ("2026-06-03", 250.0, "45.0", "0.50", 15.0, 17.0),
+        ])
+        proxy._details_cache.clear()
+        return proxy._cache_contracts("NVDA")
+
+    monkeypatch.setattr(proxy, "_probe_pool", fake_probe)
+    row = bt._evaluate(play, reason, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-07-06T10:00:00", True)
+
+    assert row["proxy_method"] == "strike_expiry_tweak"
+    assert row["proxy_detail"] == "all legs had listed history"
+    assert row["skip_reason"] == "snap_priced"
+
+
+def test_evaluate_keeps_no_history_on_the_direction_only_tier(cache_dir):
+    # Method 1 cannot price (donor far outside the snap bound), so the play
+    # really found no real price: `no_history` stays.
+    c = _long_call_candidate()
+    play, reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 400.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.50", 9.0, 11.0),
+        ("2026-06-02", 260.0, "45.0", "0.50", 9.0, 11.0),
+    ])
+
+    row = bt._evaluate(play, reason, c, _CFG, _SIM_CFG, _SPREAD_PCT,
+                       "2026-08-11T10:00:00", False)
+
+    assert row["proxy_method"] == "underlying_trend"
+    assert row["skip_reason"] == "no_history"
 
 
 # ── 8. Dedup / idempotency ───────────────────────────────────────────────────────
@@ -528,7 +502,14 @@ def _run_main(monkeypatch, argv, cand, existing_keys, tested_keys=frozenset()):
         return 1
 
     monkeypatch.setattr(proxy.sheets_client, "delete_rows_where", fake_delete)
-    monkeypatch.setattr(proxy, "write_results", lambda rows, **kw: calls.update(written=rows))
+    def fake_write(rows, **kw):
+        # The real write_results runs the --redo delete between the local CSV
+        # and the Sheets append; mirror that slot here.
+        if kw.get("before_sheet") and not kw.get("dry_run"):
+            kw["before_sheet"]()
+        calls.update(written=rows)
+
+    monkeypatch.setattr(proxy, "write_results", fake_write)
     monkeypatch.setattr("sys.argv", ["proxy"] + argv)
     proxy.main()
     return calls

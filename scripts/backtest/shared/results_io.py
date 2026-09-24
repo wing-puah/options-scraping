@@ -15,7 +15,7 @@ ROOT = RESULTS_PATH.parent
 
 
 def write_results(results, *, key_order, local_csv=None, sheet_tab=None,
-                  dry_run=False, summary_fn=None) -> None:
+                  dry_run=False, summary_fn=None, before_sheet=None) -> None:
     """Write backtest results to a local CSV (archiving any previous file) and
     optionally append to a Google Sheets tab.
 
@@ -27,9 +27,19 @@ def write_results(results, *, key_order, local_csv=None, sheet_tab=None,
     is called with ``results`` at the end (mirrors the old unconditional
     ``_print_summary`` call, but only reached when there ARE results — same as
     before).
+
+    ``before_sheet``, if given, runs AFTER the local CSV is on disk and BEFORE
+    the Sheets append — the slot for a ``--redo`` delete. The order matters: a
+    Sheets failure in the delete must never lose a run that took hours to
+    simulate, which is what happened on 2026-09-23 when the delete ran first.
+    It is not called on a dry run.
     """
     if not results:
         log.warning("No results to write")
+        # A --redo whose every play is now refused must still remove the old
+        # rows — otherwise a refused play keeps its stale row forever.
+        if before_sheet is not None and not dry_run:
+            before_sheet()
         return
 
     RESULTS_PATH.mkdir(exist_ok=True)
@@ -52,6 +62,9 @@ def write_results(results, *, key_order, local_csv=None, sheet_tab=None,
             writer.writeheader()
             writer.writerows(results)
         log.info("Wrote %d results to '%s'", len(results), csv_path)
+
+        if before_sheet is not None:
+            before_sheet()
 
         if sheet_tab:
             sheets_client.append_rows(
