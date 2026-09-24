@@ -561,9 +561,9 @@ has grown since. One line each, with the entry that holds the story.
 | The debit-to-credit gate also fires on BS-modelled legs | MOOT: BS abolished | 2026-09-23 | below |
 | A credit priced to a debit was sized on its fake premium (TLT 2025-04-04) | RESOLVED in code, not re-priced | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
 | One corrupt cache file (META 630P) set a position's underlying and greeks | RESOLVED, file quarantined | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
-| Junk quotes set the cost, the daily mark and the entry fill | RESOLVED in code, uncommitted, not re-priced | 2026-09-24 | [entry](current.md#2026-09-24-latest--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
+| Junk quotes set the cost, the daily mark and the entry fill | RESOLVED in code, uncommitted, not re-priced | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 | Research mirrors do not follow the junk-quote rule | OPEN | 2026-09-24 | below |
-| Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-latest--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
+| Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
 

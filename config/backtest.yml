@@ -109,8 +109,16 @@ simulation:
   # (ARM X; that file is still a DRAFT). Every row written from here on is net of
   # costs; rows written before carry cost_total blank/0 until the whole-book
   # `--redo` re-price (after the Barchart refetch) rewrites them.
+  #
+  # SLIPPAGE SET TO 0 on 2026-09-24 (operator decision): the operator fills
+  # spreads at the combo MID on both entry and exit, so a per-leg share of the
+  # quoted spread charges a cost that is not paid. Commission is the one cost
+  # certainly paid. Rows now read `cost_basis = commission_only`. The 0.25
+  # point survives as a sensitivity cell in the cost_sensitivity sweep.
+  # Unmeasured: mid orders that never fill, and the gap between the EOD mid and
+  # the fill-time mid. Flex records the fill price, not the quote.
   commission_per_contract: 0.65
-  slippage_frac_of_spread: 0.25
+  slippage_frac_of_spread: 0
 
   # ── Quote staleness (robustness review B3) ────────────────────────────────────
   # How many CALENDAR days a Barchart mark may be carried forward before the day is

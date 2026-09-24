@@ -22,8 +22,7 @@ round trip on a two-leg vertical is of the same order. So the question is not
 
 Two things are asked, in order:
 
-1. **The registered point.** At $0.65 per contract plus 25% of the quoted
-   spread per leg per side, do Tier A and Tier B each still show
+1. **The registered point.** At $0.65 per contract and no slippage, do Tier A and Tier B each still show
    [meanR](../../glossary.md#meanr) > 0 with a date-clustered
    [CI](../../glossary.md#ci) excluding zero?
 2. **The contour.** Across a declared sweep of
@@ -129,9 +128,18 @@ cost study as a sensitivity", and that is what this registration does with it.
 - **`ARM Z` — ZERO-COST CONTROL.** The book exactly as it prints today, no
   cost charged. Reference only. It carries no verdict and is never quoted as a
   result of this study.
-- **`ARM X` — THE REGISTERED COST POINT. PRIMARY.** $0.65 per contract plus
-  25% of the quoted spread, per leg, per side. Every criterion below is graded
-  on this arm and no other.
+- **`ARM X` — THE REGISTERED COST POINT. PRIMARY.** $0.65 per contract, per
+  leg, per side. No slippage. Every criterion below is graded on this arm and
+  no other.
+
+  Why no slippage: the operator fills spreads at the combo mid, on entry and on
+  exit. A per-leg share of the quoted spread is a cost the account does not pay.
+  This point was 25% of the spread until 2026-09-24. It changed AFTER the v4 book
+  was seen net of that 25% (−$50.2k). The reason is the operator's execution,
+  not that result. The 25% point stays in `ARM SW` as sensitivity.
+
+  Not covered: mid orders that never fill, and the gap between the EOD mid and
+  the fill-time mid. Flex records the fill price, not the quote.
 - **`ARM SW` — THE SWEEP. SENSITIVITY ONLY.** The grid below, run to locate
   each tier's breakeven contour. `ARM SW` may never produce a verdict, a
   shipped rule or a recommended cost level.
@@ -201,8 +209,9 @@ run exits zero. Every other gate refuses and prints nothing.
   flag the operator passes.
 - **G4 QUOTE PROVENANCE. VERDICT-PRODUCING, NOT A REFUSAL — the one gate that
   does not exit non-zero.** The fallback share is printed per arm. `ARM X`
-  FAILS G4 if more than 25% of its charged legs are priced from fallback 2 or
-  are UNCOSTABLE. A cost study whose costs are mostly guessed is not a cost
+  charges no slippage, so it reads no quote and passes G4 trivially. Any
+  `ARM SW` cell with slippage above 0 FAILS G4 if more than 25% of its
+  charged legs are priced from fallback 2 or are UNCOSTABLE. A cost study whose costs are mostly guessed is not a cost
   study — but the census of what is missing is the useful output of that
   failure, and a refusal would print no census at all. So on failure the run
   prints the per-arm quote census, prints NO outcome number, grades no
@@ -260,8 +269,8 @@ reverse.
 ## Anti-tuning
 
 **No cost level may be chosen because it makes the edge survive.** The
-registered point is $0.65 per contract plus 25% of the quoted spread per leg
-per side, fixed here, before any run. The sweep is a shape and never a menu.
+registered point is $0.65 per contract per leg per side, no slippage. It was
+set from the operator's fills, not from any run. The sweep is a shape and never a menu.
 
 If `ARM X` gives VANISHES and some lower point on the `ARM SW` grid gives
 SURVIVES, the verdict is VANISHES. The lower point is reported as part of the

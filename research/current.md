@@ -215,7 +215,64 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
-## 2026-09-24 (latest) — backtest pricing — a junk quote is no longer a price, a mark or a spread
+## 2026-09-24 (latest) — backtest costs — commission only; the operator fills spreads at the mid
+
+The backtest now charges commission and no slippage. The operator fills
+spreads at the combo mid on entry and on exit, so the 25%-of-spread charge
+was a cost the account does not pay. Both v4 tabs were re-priced. Net P&L
+on BacktestResults moved from −$50.2k to −$7.9k. Gross is unchanged, so the
+book still shows no edge before costs.
+
+_Operator decision 2026-09-24 · `config/backtest.yml`
+`slippage_frac_of_spread` 0.25 → 0, commission stays $0.65 · `--redo
+--cache-only`, signals 2024-01-10 to 2026-09-23 · before:
+`_snapshot-*-pre-commission-only-20260924.csv` in `backtests/to_evaluate/`._
+
+### The re-run
+
+| Tab | Measure | Before (0.25) | After (commission only) |
+|---|---|---|---|
+| BacktestResults | Priced rows | 972 | 975 |
+| BacktestResults | Net P&L | −$50,207 | −$7,923 |
+| BacktestResults | Total cost | $51,410 | $7,718 |
+| BacktestResults | Win rate | 47.9% | 49.5% |
+| BacktestProxy | Priced rows | 706 | 706 |
+| BacktestProxy | Net P&L | −$51,984 | −$15,942 |
+| BacktestProxy | Total cost | $42,530 | $6,487 |
+| BacktestProxy | Gross P&L | −$9,455 | −$9,455 |
+
+On the 970 BacktestResults rows that match by identity key, gross moved by
+one row. GLD 2026-08-25 held one day longer because its cache gained a day.
+The whole-tab gross change is the three rows below. A commission-only row
+costs $2.60 at the median and $122.20 at most (HYG, 47 contracts).
+
+### Why the change is not tuning
+
+The [cost_sensitivity](pre-registrations/f2_management/cost_sensitivity.md)
+anti-tuning rule bars a cost level chosen to make the edge survive. This one
+rests on the operator's order practice, not on a result. It was still made
+after the −$50.2k was seen, and the registration says so. The 25% point stays
+in the sweep. The registration is still a DRAFT.
+
+Not measured: mid orders that never fill, and the gap between the EOD mid and
+the fill-time mid. Flex records the fill price, not the quote.
+
+### Left on the tabs, not yet repaired
+
+- **BacktestResults, 3 stray rows.** IBIT with `signal_date = "bot"`, written
+  12:52 by another session; an unparseable date escapes every `--redo` bound.
+  EEM and COIN 2025-07-29, still `cost_basis = full`, written 2026-08-21.
+- **BacktestProxy, 24 rows lost.** The re-run deleted 24 rows on 2024-09-16,
+  2025-07-29, 2025-09-10 and 2025-09-18 and wrote none back. Three of those
+  dates are the known double-analysis dates. 29 older uncosted rows remain on
+  those four dates.
+- **A second proxy `--redo` ran at the same time,** from another session,
+  12:53, without `--cache-only`. Its rows do not appear on the tab, and the
+  tab has no duplicate keys.
+
+---
+
+## 2026-09-24 (earlier) — backtest pricing — a junk quote is no longer a price, a mark or a spread
 
 A quote with no bid, or wider than twice the legacy Cboe width limit, is now
 JUNK. The backtest no longer charges slippage on its spread, marks a day at its
