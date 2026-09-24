@@ -45,14 +45,22 @@ so each token is:
     grid aligned. Blanks are carried forward here (a stale mark, not a zeroed
     position) and counted, so the caller can report them rather than discover
     them. On the v4 export there are none inside any `[entry, exit]` window.
+  * **GROSS of transaction costs.** `simulate.py::_apply_costs` charges
+    commission + slippage once and nets it out of `realized_pnl_abs` and
+    `realized_pnl_pct` only — its docstring lists `daily_pnl_csv` under "what
+    stays GROSS". So from the day the cost model was turned on (2026-09-22) the
+    marked path and the booked dollars are on two different bases, and the
+    charge has to be applied here before they are compared. See `row_cost`.
 
 The grid runs PAST the exit (to expiry or the 120-day path cap); only
 `[entry_sess, exit_sess]` is used.
 
 --- Reconciliation (G-MTM) ---------------------------------------------------
-Cumulative MTM at a position's exit index must equal the dollars the BOOK
-recorded for it — `realized_pnl_abs`, the column `simulate.py` wrote, read off
-the row and never off the caller.
+Cumulative MTM at a position's exit index, CHARGED the row's `cost_total`, must
+equal the dollars the BOOK recorded for it — `realized_pnl_abs`, the column
+`simulate.py` wrote, read off the row and never off the caller. Without that
+charge the gate compares a gross mark against a net booking and reports the
+transaction cost as a disagreement.
 
 That target matters, and it is the 2026-08-29 errata's F2. This gate used to
 compare `mtm_at_exit` against `pos.dollars`, which `hedge_portfolio` filled from
@@ -190,6 +198,11 @@ class BookCurves:
     removed, reopened per-position whenever a record has no independent
     stored outcome to check against. A caller reporting "two independent
     columns" must not say so while this is non-zero.
+
+    `n_cost_netted` counts positions whose marked path was charged the row's
+    stored `cost_total` so it would be on the same basis as `realized_pnl_abs`
+    (`row_cost`). Zero means every position on the curve is GROSS of
+    transaction costs — which is what every pre-2026-09-22 row is.
     """
     mtm: Curve
     realized: Curve
@@ -198,6 +211,7 @@ class BookCurves:
     n_reconciled: int
     n_carried_forward: int
     n_degraded: int = 0
+    n_cost_netted: int = 0
     mismatches: list[Mismatch] = field(default_factory=list)
     target: str = TARGET_STORED
 
@@ -261,6 +275,31 @@ def stored_booked(rec) -> float | None:
     v = rec.get("R_dol")
     try:
         return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def row_cost(rec) -> float | None:
+    """The round-trip transaction charge stored on one record (`cost_total`).
+
+    `simulate.py::_apply_costs` charges commission + slippage ONCE and subtracts
+    it from `realized_pnl_abs` / `realized_pnl_pct`, leaving `daily_pnl_csv`
+    gross. The marked exit is therefore the booked dollars PLUS this figure, and
+    G-MTM has to charge it before comparing them or it reads a basis difference
+    as a disagreement.
+
+    None when the column is absent, blank or unparseable — which is every row
+    written before the cost model was turned on (2026-09-22). Nothing is charged
+    on those, so every figure already recorded off them is reproduced exactly.
+    """
+    if not rec:
+        return None
+    row = getattr(rec.get("t"), "row", None) or {}
+    raw = row.get("cost_total")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return float(raw)
     except (TypeError, ValueError):
         return None
 
@@ -368,10 +407,25 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS,
 
     marks: list[tuple[object, list[date], list[float]]] = []
     carried_total = 0
+    n_cost_netted = 0
     axis: set[date] = set()
     for p in positions:
         sess, dol, carried = position_marks(p)
         carried_total += carried
+        # --- put the marked path on the STORED row's basis ------------------
+        # `daily_pnl_csv` is gross of transaction costs and `realized_pnl_abs`
+        # is net of them (`row_cost`), so under TARGET_STORED the charge is
+        # applied to the exit mark — the one day the row itself dates it, since
+        # `_apply_costs` charges the round trip once against the realized
+        # columns and records no entry/exit split to spread it over. Under
+        # TARGET_POSITION the target is a FROZEN-harness replay, which predates
+        # the cost model and books gross, so the marks stay gross there and no
+        # already-recorded replay figure moves.
+        if target == TARGET_STORED and dol:
+            cost = row_cost(getattr(p, "rec", None))
+            if cost:
+                dol[-1] -= cost
+                n_cost_netted += 1
         marks.append((p, sess, dol))
         axis.update(sess)
 
@@ -436,7 +490,8 @@ def book_curves(positions, *, tolerance: float = TOL_DOLLARS,
         realized=Curve(REALIZED, sessions, realized_daily, realized_levels),
         tolerance=tolerance, n_positions=len(positions),
         n_reconciled=n_reconciled, n_carried_forward=carried_total,
-        n_degraded=n_degraded, mismatches=mismatches, target=target)
+        n_degraded=n_degraded, n_cost_netted=n_cost_netted,
+        mismatches=mismatches, target=target)
 
 
 def _carry_gaps(levels: list[float], index: dict, sess: list[date],

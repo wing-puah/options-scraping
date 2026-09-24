@@ -232,6 +232,40 @@ def test_g_mtm_returns_the_offending_position_not_just_a_flag():
     assert bc.n_reconciled == 1
 
 
+def test_the_marked_exit_is_charged_the_rows_transaction_cost():
+    """`daily_pnl_csv` is GROSS and `realized_pnl_abs` is NET of the round trip
+    (`simulate._apply_costs`), so the exit mark must be charged `cost_total` or
+    G-MTM reports the cost as a disagreement. The charge lands on the exit
+    session — the only day the row dates it — and nowhere else."""
+    p = _pos([-10.0, 250.0], contracts=1, dollars=234.4)
+    p.rec["t"].row["cost_total"] = "15.60"
+    bc = M.book_curves([p])
+    assert bc.reconciles
+    assert bc.n_cost_netted == 1
+    assert bc.mtm.levels == [-10.0, pytest.approx(234.4)]
+
+
+def test_a_row_with_no_cost_column_is_left_gross():
+    """Every row written before the cost model carries a blank `cost_total`;
+    nothing is charged on those, so their recorded figures do not move."""
+    p = _pos([-10.0, 250.0])
+    assert M.row_cost(p.rec) is None
+    bc = M.book_curves([p])
+    assert bc.reconciles and bc.n_cost_netted == 0
+    assert bc.mtm.levels == [-10.0, 250.0]
+
+
+def test_the_replay_target_keeps_the_marks_gross():
+    """`TARGET_POSITION` reconciles against a FROZEN-harness replay, which
+    predates the cost model and books gross — charging the stored row's cost
+    there would move every recorded replay figure."""
+    p = _pos([-10.0, 250.0], contracts=1, dollars=250.0)
+    p.rec["t"].row["cost_total"] = "15.60"
+    bc = M.book_curves([p], target=M.TARGET_POSITION)
+    assert bc.reconciles and bc.n_cost_netted == 0
+    assert bc.mtm.levels == [-10.0, 250.0]
+
+
 def test_the_g_mtm_tolerance_is_an_argument_with_a_stated_default():
     """Not a magic number inside a comparison — a caller that loosens it has to
     say so, in its own report."""

@@ -194,6 +194,15 @@ Research tier (`backtest_study/`, `study_*`):
   mismatch exits non-zero. Never add a statistic the study refuses to print (no annualised
   figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
   the cut to the study first.
+- **`lib/mtm_curve.py` and `account_sim.equity_curve` are TWO implementations of the same
+  booked series, on purpose.** `tests/test_mtm_curve.py` reconciles them against the real
+  export; G-MTM reconciles the marked exit against the row's own stored columns. Keep both
+  and keep them INDEPENDENT — one must never call the other, and the comparison is never
+  loosened to get a green test. Mind the BASIS: `daily_pnl_csv` is gross of transaction costs while
+  `realized_pnl_abs` is net of them, so `book_curves` charges the row's `cost_total`
+  (`row_cost`) under `TARGET_STORED` and leaves the marks gross under `TARGET_POSITION`,
+  whose target is the pre-cost frozen harness. A G-MTM failure means the row's columns
+  disagree — read it, never widen the tolerance.
 
 Journal / production tier (`scripts/journal/`):
 
