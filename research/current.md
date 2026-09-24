@@ -269,9 +269,28 @@ the fill-time mid. Flex records the fill price, not the quote.
   uncosted or on the old cost basis, and studies loaded them. The operator
   deleted them 2026-09-24. Both tabs now have 0 orphans and 0 duplicate keys.
   Copies are in `_snapshot-*-pre-orphan-delete-20260924.csv`.
-- **BacktestResults.** IBIT with `signal_date = "bot"`, written 12:52 by
-  another session. EEM and COIN 2025-07-29, `cost_basis = full`, written
-  2026-08-21.
+- **BacktestResults.** IBIT with `signal_date = "bot"`, and EEM and COIN
+  2025-07-29, `cost_basis = full`, written 2026-08-21.
+- **The "bot" row was damaged on the Sheet, not written that way.** Another
+  session's `--redo` wrote it as IBIT 2025-07-16. Its first 47 columns still
+  matched that row. Its last six (`pct_stale_days` to `path_data_end`) came
+  from a different row. No code in the repo writes "bot".
+
+  | Cell | As the run wrote it | On the Sheet |
+  |---|---|---|
+  | `signal_date` | 2025-07-16 | bot |
+  | `cost_total` | $36.60 | $450.80 |
+  | `cost_basis` | full | no_spread_exit |
+  | `path_data_end` | 2025-08-29 | 2026-09-16 |
+  | Last six columns from | IBIT 2025-07-16 | LQD 2026-07-13 |
+  | Time | written 12:52 | damaged before the 13:06 re-run |
+
+  The pattern matches the 2026-09-23 partial-range sort in the Sheets UI,
+  plus a typed cell.
+- **The rest of the tab is clean.** The 13:06 `--redo` rewrote every other
+  row. The final tab matches that run's output cell for cell on 972 rows. The
+  "bot" row survived only because no `--redo` date range covers an
+  unparseable date.
 - **BacktestProxy.** All 29 are `no_history` rows from 2026-08-21 to 08-27.
   They sit on 2024-09-16, 2025-07-29, 2025-09-10 and 2025-09-18. Three of
   those are the known double-analysis dates, so those rows most likely
