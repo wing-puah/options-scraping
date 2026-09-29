@@ -165,6 +165,15 @@ Nothing in this subsection may change after a number is seen.
   helpers by import: `scripts/backtest/helpers.py::_price_asof`,
   `_defined_risk_bounds`, `_bs_price`, `_max_loss_per_unit`;
   `lib/greeks.py::leg_greek`; `lib/underlying.py::load_bars`.
+  _Resolved at build (2026-09-24)._ `bear_rewrap.py` has been edited since this
+  was written, only to follow production's pricer: the B5 zero-bid mark, the
+  side-aware and `open_side` entry fills, and the junk-quote rule, each applied
+  per row on its write-time basis, plus production's shared entry and junk-mark
+  functions imported from `scripts/backtest/simulate.py` (`open_print_allowed`,
+  `entry_day_fill`, `carried_entry_fill`, `last_good_mark`, `junk_day_mark`) in
+  place of restated copies. No gate, bar, arm or published cell mean changed
+  meaning. The only output change is reconstruction on same-day entries, from 5
+  mismatches to 0 (1,154/1,159 → 1,159/1,159).
 - **Strike pick.** `financed_spread.build_f4`'s rule, unchanged: candidates are
   the 4 nearest CACHED strikes strictly beyond the core's outer leg at the
   chosen expiry — never an invented strike — and the pick is the candidate
@@ -575,6 +584,11 @@ BREACH-DOMINATED cell closes its own thread for these dates.
 - `lib/harness.py` is untouched. `financed_spread.py` and `bear_rewrap.py` are
   imported, never refactored — their published cell means are pinned by other
   studies.
+  _Resolved at build (2026-09-24)._ `bear_rewrap.py` was edited only to follow
+  production's pricer; see the note under *Pricing path* above. On the same
+  date `overlay_campaign._row_spread` began calling production's
+  `simulate._leg_spread`, so a junk quote is charged commission only, as
+  production charges it. No published cell mean changed meaning.
 - Tests: `tests/test_overlay_campaign.py` and `tests/test_ladder_legs.py`, on
   hand fixtures, following `tests/test_financed_spread_f4.py`'s cache-fixture
   pattern. A test pins `eligible_expiries(...)[0] == near_expiry_for(...)`.

@@ -197,6 +197,14 @@ Each gate exits non-zero on failure.
   `lib/replay_basis.classify`, printed in the header. The 2026-08-27 HYG
   `boundary_tie` class (fixed in `dee8201`) is part of that vocabulary and is
   reported, not folded into `hard`.
+  Resolved at build (2026-09-28), operator ruling: since the 2026-09-24
+  re-price a stored row is net of `cost_total` and stops at `path_data_end`.
+  The comparison adds the row's cost back and replays the path cut at
+  `path_data_end` (`lib/replay_basis.py`), so an `open_at_data_end` row
+  matches as the `cap_open` outcome it is; a row with blank `cost_basis` is
+  compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`)
+  is its own `deferred_fill` class, kept as an outcome and never compared.
+  The gate's bar is unchanged.
 - **G2 — SPY series cross-check.** The two SPY series must agree: daily log-return
   Pearson correlation ≥ 0.99 AND same-signed daily direction on ≥ 99% of
   overlapping dates. Disagreeing dates are listed. Failure ⇒ **NOT EVALUABLE**,

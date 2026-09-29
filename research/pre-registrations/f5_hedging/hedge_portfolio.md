@@ -279,6 +279,15 @@ Grid: 3 τ × 3 f = 9 cells per arm. Fixed here; not expanded later.
   the band rule. Unfillable sessions are carried at f=0, never dropped. Below
   60%, the proxy-put arms are **NOT EVALUABLE** (not "failed") and only ARM R
   is read.
+  Resolved at build (2026-09-28), operator ruling: "fillable" is production's
+  entry rule, imported from `scripts/backtest/simulate.py` into
+  `lib/hedge_instrument.py`. A put bought at the session close is a same-day
+  entry, so `open_print_allowed` keeps the Open print out and
+  `carried_entry_fill` prices the session's own row: the mark on a clean
+  quote, the day's trade print on a junk quote that traded, and no fill on a
+  junk quote that did not (`_is_junk_quote`). Until then any `_mark` on the
+  session counted, junk quotes included. Daily marks follow `junk_day_mark`.
+  The gate's name, its 60% bar and the f=0 carry are unchanged.
 - **G-POWER** — **≥25 trigger DATES** (date-clustered, not sessions) per cell.
   Below that the cell is UNDERPOWERED and carries no verdict.
   **UNDERPOWERED is not a lean.**
@@ -384,6 +393,8 @@ _Not part of the registration._
   `DOMINANT_WINDOWS`, `underlying.rescaled_tickers` as an instrument filter,
   `vol_sleeve._strike_index` for the option-cache filename convention, and
   `lib/barchart/options.py::_mark` for what counts as a usable price.
+  Resolved at build (2026-09-28): the usable price is now production's entry
+  fill and daily mark, not the raw `_mark` (see G-FILL above).
 - `harness.py` is FROZEN and prices ONE position — use it as the per-position
   primitive inside the book loop, exactly as `account_sim` does. Do not edit it.
 - Known defect to inherit-fix: hedge sizing that floors at

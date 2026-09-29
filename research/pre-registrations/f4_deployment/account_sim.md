@@ -117,6 +117,14 @@ Four gates; a failure exits non-zero.
 - **G2 — replay identity:** every deployed pick re-replayed at stored
   contracts, scale=1, must match stored `(exit_reason, days_held, round(R,4))`
   for calibrated debit rows.
+  Resolved at build (2026-09-28), operator ruling: since the 2026-09-24
+  re-price a stored row is net of `cost_total` and stops at `path_data_end`.
+  The comparison adds the row's cost back and replays the path cut at
+  `path_data_end` (`lib/replay_basis.py`), so an `open_at_data_end` row
+  matches as the `cap_open` outcome it is; a row with blank `cost_basis` is
+  compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`)
+  is its own `deferred_fill` class, kept as an outcome and never compared.
+  The gate's bar is unchanged.
 - **G3 — ledger self-check:** at every session
   `cash + Σreserved == 25,000 + Σrealized-to-date`.
 - **G4 — selection identity:** the unconstrained pick set equals

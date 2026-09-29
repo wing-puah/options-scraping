@@ -35,6 +35,16 @@ exits = frozen `harness.replay` under `DEBIT_PROD`. Nothing in `harness.py`,
 `vol_sleeve.py`, `bear_rewrap.py`, `config/backtest.yml`, or
 `docs/deployment-rules.md` is edited.
 
+_Resolved at build (2026-09-24)._ `bear_rewrap.py` has been edited since this
+was written, only to follow production's pricer: the B5 zero-bid mark, the
+side-aware and `open_side` entry fills, and the junk-quote rule, each applied
+per row on its write-time basis, plus production's shared entry and junk-mark
+functions imported from `scripts/backtest/simulate.py` (`open_print_allowed`,
+`entry_day_fill`, `carried_entry_fill`, `last_good_mark`, `junk_day_mark`) in
+place of restated copies. No gate, bar, arm or published cell mean changed
+meaning. The only output change is reconstruction on same-day entries, from 5
+mismatches to 0 (1,154/1,159 → 1,159/1,159).
+
 **Eligible dates and candidates.** Only dates where the ladder actually
 deployed. A candidate must be **fillable on the ladder's own entry session** —
 both legs cached on `grid[0]`, NOT the loose ≤5-day entry-lag rule `vol_sleeve`

@@ -121,6 +121,14 @@ Five gates; failing any of them is a non-zero exit.
 - G1 calibration: `replay(DEBIT_PROD)` reproduces stored
   `(exit_reason, days_held, round(R,4))` on every calibrated debit row;
   `debit_calib` / `n_credit_ungated` quoted.
+  Resolved at build (2026-09-28), operator ruling: since the 2026-09-24
+  re-price a stored row is net of `cost_total` and stops at `path_data_end`.
+  The comparison adds the row's cost back and replays the path cut at
+  `path_data_end` (`lib/replay_basis.py`), so an `open_at_data_end` row
+  matches as the `cap_open` outcome it is; a row with blank `cost_basis` is
+  compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`)
+  is its own `deferred_fill` class, kept as an outcome and never compared.
+  The gate's bar is unchanged.
 - G2 coverage BEFORE any conditional number: volume-feature hit-rates,
   `by_source` split, O/S join hit-rate, rescaled-withheld counts.
 - G3 `MIN_CELL_N = 20`; thinner cells print n and are not read.

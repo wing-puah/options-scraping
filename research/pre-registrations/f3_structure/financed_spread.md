@@ -270,6 +270,15 @@ No target was added or removed after any outcome was seen.
   `legs_manifest.csv` (hedge_structure ARM S depends on that one).
 - `bear_rewrap` is imported as a module (the `hedge_structure` precedent), never
   refactored — its published cell means are pinned by `hedge_structure`.
+  _Resolved at build (2026-09-24)._ `bear_rewrap.py` has been edited since this
+  was written, only to follow production's pricer: the B5 zero-bid mark, the
+  side-aware and `open_side` entry fills, and the junk-quote rule, each applied
+  per row on its write-time basis, plus production's shared entry and junk-mark
+  functions imported from `scripts/backtest/simulate.py` (`open_print_allowed`,
+  `entry_day_fill`, `carried_entry_fill`, `last_good_mark`, `junk_day_mark`) in
+  place of restated copies. No gate, bar, arm or published cell mean changed
+  meaning. The only output change is reconstruction on same-day entries, from 5
+  mismatches to 0 (1,154/1,159 → 1,159/1,159).
 - New shared helper `scripts/backtest_study/lib/greeks.py` (per-leg greeks from
   the cache; missing leg → None, never 0) serves E1/E2 here and G-DELTA in
   `portfolio_delta`.
