@@ -117,7 +117,7 @@ STUDIES: dict[str, Study] = {
         family="selection", state="shipped",
         question="Does a deterministic regime label — a pure function of SPY/VIX history at "
                  "the signal date — beat the model's free-text regime?",
-        verdict="Overlay adopted. `mech_cell` is a column now, and it is what keys the shipped "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `VERDICT RULE: OR-veto passes this criterion (newly-vetoed subset net-negative or zero)`, where 09-19 read `OR-VETO REJECTED`. Earlier reads follow. Overlay adopted. `mech_cell` is a column now, and it is what keys the shipped "
                 "BEAR_HE exit override. The OR-veto extension stays rejected on the 2026-09-19 "
                 "suite run (sha 8e9b6a7, `Pooled priced book: 1375`, `unique signal dates in "
                 "pooled book: 208`): `VERDICT RULE: OR-VETO REJECTED "
@@ -155,7 +155,7 @@ STUDIES: dict[str, Study] = {
         family="selection", state="shipped",
         question="B1 — is there any bear subset, definable at decision time, that is not "
                  "negative? B2 — or is the exit simply mis-tuned?",
-        verdict="B1 is still NO and B2's ONE clear has been WITHDRAWN. On the 2026-09-19 suite "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): B2 on bear debits is now `pre-registered EXIT FIX criteria (CI excludes zero AND every LOO fold positive): MET` (`sl .50 (tighter)  Δ=+0.033 CI[+0.004, +0.059]`), and the census still prints `REVERT CONDITION FIRED`. Operator decision; no config change. Earlier reads follow. B1 is still NO and B2's ONE clear has been WITHDRAWN. On the 2026-09-19 suite "
                 "run (sha b460c86, `book: 1325 priced rows (real+tweak), 485 bear, 199 bear "
                 "dates`) B1 reads `combinations evaluated: 496  (with n>=40: 236)` / `survivors "
                 "of the full pre-registered rule: 0` against `expected false survivors at a "
@@ -236,7 +236,7 @@ STUDIES: dict[str, Study] = {
                  "and whether its cited flow figures exist in the feed — separate outcome "
                  "within structure x tier, or raise mean R AND profit factor as a gate on "
                  "the shipped ladder?",
-        verdict="Every feature is `NULL` or `UNDERPOWERED` in all three arms, and it has said so "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `Features reaching CANDIDATE in ARM A/B: ['invalidation_level', 'trigger_level']`, on ARM B label coverage of 51.1%. Earlier reads follow. Every feature is `NULL` or `UNDERPOWERED` in all three arms, and it has said so "
                 "on every run since the first (2026-09-02). On the 2026-09-19 suite run (sha "
                 "8e9b6a7, `era=v4  priced rows=1325  dates=207`) both findings lists are still "
                 "empty: `PROMPT-ROBUSTNESS FINDINGS ... none` and `ENTRY-GATE CANDIDATES ... "
@@ -519,7 +519,7 @@ STUDIES: dict[str, Study] = {
         question="Share volume is the one column on disk no study has read. Does an "
                  "unusual-O/S ratio (flow contracts / share volume) condition exits — "
                  "or anything — or is it just liquidity in a costume?",
-        verdict="NULL — `VERDICT: PATH-VOL-PROXY — MFE and MAE move together with no R "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `VERDICT: NULL — the volume column is CLOSED; the live pipeline never pays the version bump.` Earlier reads follow. NULL — `VERDICT: PATH-VOL-PROXY — MFE and MAE move together with no R "
                 "separation.`, unchanged on the 2026-09-19 suite run (sha 8e9b6a7, `book: 1325 "
                 "rows`): `components: H1a readable=True r_sep=+0.0025  exit_ok=False  "
                 "amihud_collapse=False  mfe/mae mirrored=True`. The separation term flipped sign "
@@ -578,7 +578,7 @@ STUDIES: dict[str, Study] = {
                  "underlying-close stop at the invalidation level (E1), entering only "
                  "when the trigger was met (E2, a selection effect), and the emitted "
                  "horizon as the time exit (E3)?",
-        verdict="There is a CANDIDATE for the first time, and it is an INTAKE cell, not an exit "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `E2  MECH   LVOL  N=3  NULL` — the 09-19 CANDIDATE is gone. Earlier reads follow. There is a CANDIDATE for the first time, and it is an INTAKE cell, not an exit "
                 "rule. On the 2026-09-19 suite run (sha 8e9b6a7, `book: 1325 rows  era=v4 ... "
                 "n_dates=207`) the tally reads `tally: {'UNDERPOWERED': 293, "
                 "'NOT A CRITERION (pooled)': 9, 'NULL': 21, 'CONTRARY': 11, 'CANDIDATE': 1}`, "
@@ -619,7 +619,7 @@ STUDIES: dict[str, Study] = {
                  "one session, plus one volume-climax variant), P (partial scale-out, "
                  "exact), and D (a SECONDARY drawdown THROTTLE on sizing, which can never "
                  "ship from an f2 study).",
-        verdict="Every PRIMARY cell is UNDERPOWERED, on the 2026-09-19 suite run (sha 8e9b6a7, "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): ARM U/a and U/b `REACTIVE-AGAIN`, O/vol `NULL`, `SECONDARY-NULL`; nothing ships. Earlier reads follow. Every PRIMARY cell is UNDERPOWERED, on the 2026-09-19 suite run (sha 8e9b6a7, "
                 "`book: 1325 rows`, PRIMARY `baseline book: 104 positions / 47 dates   max DD "
                 "$-7,698 (-30.8% of capital)`) exactly as on 09-05 and exactly as the "
                 "registration named IN ADVANCE. The VERDICT SUMMARY is unchanged word for word: "
@@ -681,7 +681,7 @@ STUDIES: dict[str, Study] = {
         question="Does a time-STAGED exit — evaluate ONCE at fixed session X on P&L vs the "
                  "original entry, then exit / tighten / arm a trail — work where the "
                  "reactive drawdown-from-peak rules of Attempts 1/2/10 did not?",
-        verdict="NULL in substance on both arms — on era v3 (2026-08-19, 795/118) and again on "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `VERDICT: REACTIVE-AGAIN` on one cell (`E 5 R >= +0.50 exit now`), which closes the thread for these dates. Earlier reads follow. NULL in substance on both arms — on era v3 (2026-08-19, 795/118) and again on "
                 "the 2026-09-19 suite run (sha 8e9b6a7, `book: 1325 rows  era=v4`), the "
                 "best-powered "
                 "run yet: `54 of 96 cells clear the floor; 42 are UNDERPOWERED.` — `tally: "
@@ -743,7 +743,7 @@ STUDIES: dict[str, Study] = {
         question="Does financing a book debit vertical with a credit position pay — an "
                  "opposite-delta credit spread, a naked short leg, or a same-direction "
                  "credit vertical?",
-        verdict="Nothing ships, and the RE-WRAP token has MOVED. On the 2026-09-19 suite run (sha "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): every cell `NULL`, including `F4-d20 $100`, the 09-19 `RE-WRAP`. Earlier reads follow. Nothing ships, and the RE-WRAP token has MOVED. On the 2026-09-19 suite run (sha "
                 "8e9b6a7; `era v4   book 1325 rows / 207 dates   2024-01-10 .. 2026-05-07`, "
                 "`kept 920  (bull 447 / bear 473)   of 1325 book rows`) every cell is `NULL` "
                 "except one — and it is no longer `F3 off1`, which held the token on 2026-09-04 "
@@ -808,7 +808,7 @@ STUDIES: dict[str, Study] = {
         family="deployment", state="open",
         question="The ladder assumes infinite capital. Does a real $25,000 account — paying "
                  "for positions, holding reserve, respecting a delta cap — still produce a book?",
-        verdict="The edge survives the caps; the DRAWDOWN does not. The verdict MOVED on the "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `>>> NOT FEASIBLE AT $25,000 <<<` on both arms, now with A1 failing on the year 2026 as well as A3 (`maxDD $-18,711 = 74.8% of capital`). Earlier reads follow. The edge survives the caps; the DRAWDOWN does not. The verdict MOVED on the "
                 "2026-09-19 suite run (sha 8e9b6a7, `deployed signal dates: 174  (2024-01-10 .. "
                 "2026-04-16)`, PRIMARY `total: 5 episodes, 127 dates, 320 deployed picks`): where "
                 "2026-09-04 printed `>>> FEASIBLE <<<`, this run prints `>>> NOT FEASIBLE AT "
@@ -873,7 +873,7 @@ STUDIES: dict[str, Study] = {
         question="max_positions_per_day caps the FLOW of new positions; nothing caps the "
                  "STOCK of open ones. Does the SIZE and internal SIMILARITY of the open "
                  "book degrade per-position outcome, independently of what was selected?",
-        verdict="The NOISE banner is GONE and the thread re-opens. On the 2026-09-19 suite run "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `>>> NOISE — all 13 powered arms sit inside ARM N's band.` Earlier reads follow. The NOISE banner is GONE and the thread re-opens. On the 2026-09-19 suite run "
                 "(sha 8e9b6a7) the report prints `>>> RESTATEMENT — K 5 / "
                 "same-direction-and-sector clears X2 and X3 but loses the gain under the delta "
                 "control (X7). It is a restatement of portfolio_delta's ARM B / ARM D and does "
@@ -921,7 +921,7 @@ STUDIES: dict[str, Study] = {
                  "delta-notional binds before cash; this asks whether the level itself is "
                  "a lever — dose-response, a ceiling band, and a delta-TARGETED hedge "
                  "sleeve, against a seeded random-admission null band.",
-        verdict="The candidate is GONE. On the 2026-09-19 suite run (sha 8e9b6a7, `deployed picks "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `>>> DELTA-DOSE-RESPONSE — ARM D shows a monotone, n-sufficient relationship between open-book delta at session open and the outcome of positions opened there.` DESCRIPTIVE, never an automatic cap. Earlier reads follow. The candidate is GONE. On the 2026-09-19 suite run (sha 8e9b6a7, `deployed picks "
                 "417 over 174 dates  (2024-01-10 .. 2026-04-16)`, `PRIMARY   dense episodes: 5 "
                 "episodes, 127 dates`) the label moved from CANDIDATE-FOR-INDEPENDENT-WINDOW to "
                 "`>>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not "
@@ -959,7 +959,7 @@ STUDIES: dict[str, Study] = {
         question="Bear selection is unfixable — but is bear worth holding as a HEDGE? Four "
                  "estimands: D1 joint selection×exit, D2 hedge contribution, D3 sizing, "
                  "D4 conditional pick.",
-        verdict="The hedge case is still NOT MET and D1 has MOVED. On the 2026-09-19 suite run "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `D1 joint selection x exit : NOT MET`; no D5 gate survives. Earlier reads follow. The hedge case is still NOT MET and D1 has MOVED. On the 2026-09-19 suite run "
                 "(sha 8e9b6a7, `book 1325 priced rows / 207 dates`, `bear 485 rows / 199 dates`, "
                 "`deployed ladder sleeve 417 rows / 174 dates (top-3/day, tiers A/B)`) the block "
                 "reads `D1 joint selection x exit : candidate(s) found — 4`, `D2 hedge is real   "
@@ -1033,7 +1033,7 @@ STUDIES: dict[str, Study] = {
         question="The bear hedge sleeve is deployed on discretionary triggers — chop, a SPY "
                  "gap-up, a 4-5-day SPY down-run. Does any of them, made mechanical, pick a "
                  "day on which the hedge earns more than the SAME day's ladder-eligible long?",
-        verdict="The §4 gap-up prohibition now rests on the PRIMARY arm ALONE: its between-date "
+        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): `VERDICT H3-GAP: CONTRARY` holds (the §4 gap-up prohibition keeps its support); H1-GAP `NULL`; H4-CHOP, H4-GAP and H4-DECLINE `UNSTABLE`. Earlier reads follow. The §4 gap-up prohibition now rests on the PRIMARY arm ALONE: its between-date "
                 "mirror moved back to NULL because the beta control absorbed it. On the "
                 "2026-09-19 suite run (sha 8e9b6a7, `era v4   book 1325 priced rows / 207 dates`, "
                 "`bear sleeve 483 rows / 199 dates`, `deployed ladder 417 rows / 174 dates`) the "

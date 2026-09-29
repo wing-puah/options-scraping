@@ -56,3 +56,29 @@ excerpt     matched
   >= 8 shared dates required; fewer means E3 is NOT EVALUABLE and the cell
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 13:27:56 · git de5a6f3 (main, working tree dirty) · exit 0 · 2627.5s
+command     python -m scripts.backtest_study.f3_structure.ladder_overlay
+excerpt     verdict
+
+```
+VERDICTS
+  L-BASE          NULL
+  L-F4            NULL
+  L-T0            NULL
+  L-GAP           NULL
+  L-RUN           NULL
+  L-T0-TEF        NULL
+  L-GAP-TEF       NULL
+  L-RUN-TEF       NULL
+  N-CORE          NULL
+  N-ROLL          NULL
+  CANDIDATE is not a ship. Nothing ships from a research-tier study, and a
+  RE-WRAP or BREACH-DOMINATED cell closes its own thread for these dates.
+per-row per-cell results: 2837 rows -> backtests/study_output/ladder_overlay-rows.csv
+```
+

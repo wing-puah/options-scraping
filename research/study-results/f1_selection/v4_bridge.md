@@ -88,3 +88,16 @@ excerpt     matched
 VERDICT: LADDER UNVALIDATED ON v4
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 12:55:11 · git de5a6f3 (main, working tree dirty) · exit 0 · 1.9s
+command     python -m scripts.backtest_study.f1_selection.v4_bridge
+excerpt     matched
+
+```
+VERDICT: LADDER UNVALIDATED ON v4
+```
+

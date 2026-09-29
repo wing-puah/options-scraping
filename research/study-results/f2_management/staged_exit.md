@@ -148,3 +148,56 @@ VERDICT SUMMARY — every cell in the frozen grid
   E    10  R >= +0.25   exit now                       224        138  -
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 12:59:09 · git de5a6f3 (main, working tree dirty) · exit 0 · 183.6s
+command     python -m scripts.backtest_study.f2_management.staged_exit
+excerpt     verdict  (40 of 106 block lines; 66 not quoted)
+tally       UNDERPOWERED 41, CANDIDATE 1  (42 of 106 lines carried a token)
+
+```
+VERDICT SUMMARY — every cell in the frozen grid
+  arm   X  condition    action                    aff rows  aff dates  verdict
+  E     5  R >= +0.50   exit now                        63         51  REACTIVE-AGAIN
+  E     5  R >= +0.25   exit now                       290        171  -
+  E     5  R <= -0.25   exit now                       342        181  -
+  E     5  R <= -0.50   exit now                       106         74  -
+  E     5  $ >= +250    exit now                       268        166  -
+  E     5  $ >= +500    exit now                       103         78  -
+  E     5  $ <= -250    exit now                       356        188  -
+  E     5  $ <= -500    exit now                       126         93  -
+  E    10  R >= +0.50   exit now                        99         84  -
+  E    10  R >= +0.25   exit now                       302        182  -
+  E    10  R <= -0.25   exit now                       374        196  -
+  E    10  R <= -0.50   exit now                       162        112  -
+  E    10  $ >= +250    exit now                       271        169  -
+  E    10  $ >= +500    exit now                       123         95  -
+  E    10  $ <= -250    exit now                       374        199  -
+  E    10  $ <= -500    exit now                       163        114  -
+  E    15  R >= +0.50   exit now                        86         68  -
+  E    15  R >= +0.25   exit now                       258        162  -
+  E    15  R <= -0.25   exit now                       375        201  -
+  E    15  R <= -0.50   exit now                       165        120  -
+  E    15  $ >= +250    exit now                       223        154  -
+  E    15  $ >= +500    exit now                        96         79  -
+  E    15  $ <= -250    exit now                       370        201  -
+  E    15  $ <= -500    exit now                       161        120  -
+  E    20  R >= +0.50   exit now                        80         66  -
+  E    20  R >= +0.25   exit now                       224        144  -
+  E    20  R <= -0.25   exit now                       323        192  -
+  E    20  R <= -0.50   exit now                       152        116  -
+  E    20  $ >= +250    exit now                       195        138  -
+  E    20  $ >= +500    exit now                        88         73  -
+  E    20  $ <= -250    exit now                       311        189  -
+  E    20  $ <= -500    exit now                       138        109  -
+  T     5  R >= +0.50   tighten stop to -0.40            7          7  UNDERPOWERED
+  T     5  R >= +0.50   arm trail 0.50/0.50             30         26  UNDERPOWERED
+  T     5  R >= +0.25   tighten stop to -0.40           65         57  -
+  T     5  R >= +0.25   arm trail 0.50/0.50            100         75  -
+  T     5  R <= -0.25   tighten stop to -0.40          313        170  -
+  T     5  R <= -0.25   arm trail 0.50/0.50             23         23  UNDERPOWERED
+```
+

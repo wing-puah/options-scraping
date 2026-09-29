@@ -100,3 +100,56 @@ VERDICT SUMMARY — every cell, every arm, regardless of outcome
   E1  CROSS  bear_put_spread|BEAR_HE               buf0%/eq_strike   UNDERPOWERED
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 12:56:10 · git de5a6f3 (main, working tree dirty) · exit 0 · 148.8s
+command     python -m scripts.backtest_study.f2_management.exit_from_text
+excerpt     verdict  (40 of 367 block lines; 327 not quoted)
+tally       UNDERPOWERED 302, CONTRARY 26, NULL 21, CANDIDATE 1  (350 of 367 lines carried a token)
+
+```
+VERDICT SUMMARY — every cell, every arm, regardless of outcome
+  arm family cell                                  grid              verdict
+  E1  ALL    ALL                                   buf0%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf0%/eq_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf0%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf1%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf1%/eq_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf1%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf2%/breakeven   UNDERPOWERED
+  E1  ALL    ALL                                   buf2%/eq_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  ALL    ALL                                   buf2%/ne_strike   NOT A CRITERION (pooled): CONTRARY
+  E1  CROSS  bear_put_spread|BEAR_HE               buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|BEAR_HE               buf1%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|BEAR_HE               buf2%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|LVOL                  buf0%/eq_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|LVOL                  buf0%/ne_strike   NULL
+  E1  CROSS  bear_put_spread|LVOL                  buf1%/eq_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|LVOL                  buf1%/ne_strike   NULL
+  E1  CROSS  bear_put_spread|LVOL                  buf2%/eq_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|LVOL                  buf2%/ne_strike   NULL
+  E1  CROSS  bear_put_spread|PROD                  buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|PROD                  buf1%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|PROD                  buf2%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|RB_EVOL               buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|RB_EVOL               buf1%/ne_strike   UNDERPOWERED
+  E1  CROSS  bear_put_spread|RB_EVOL               buf2%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|BEAR_HE              buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|BEAR_HE              buf1%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|BEAR_HE              buf2%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|LVOL                 buf0%/eq_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|LVOL                 buf0%/ne_strike   CONTRARY
+  E1  CROSS  bull_call_spread|LVOL                 buf1%/eq_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|LVOL                 buf1%/ne_strike   CONTRARY
+  E1  CROSS  bull_call_spread|LVOL                 buf2%/eq_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|LVOL                 buf2%/ne_strike   CONTRARY
+  E1  CROSS  bull_call_spread|PROD                 buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|PROD                 buf1%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|PROD                 buf2%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|RB_EVOL              buf0%/ne_strike   UNDERPOWERED
+  E1  CROSS  bull_call_spread|RB_EVOL              buf1%/ne_strike   UNDERPOWERED
+```
+

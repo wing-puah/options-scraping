@@ -124,3 +124,21 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   it is the whole result, and nothing on it is adoption-eligible.
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 14:13:26 · git de5a6f3 (main, working tree dirty) · exit 0 · 40.0s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00, B ceiling 1.50, B ceiling 2.00, B ceiling inf, H* target 1.50, H* target 2.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [0.5,1.0), [1.0,2.0), [2.0,inf)   shape: MONOTONE
+  census: long-only book: True   negative-delta picks 0 of 569   per-date net/equity range [+0.00, +2.48]
+  >>> DELTA-DOSE-RESPONSE — ARM D shows a monotone, n-sufficient relationship between open-book delta at session open and the outcome of positions op…
+```
+

@@ -89,3 +89,18 @@ excerpt     matched
     VERDICT: LVOL (tef null) STAYS GATED.
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 12:58:43 · git de5a6f3 (main, working tree dirty) · exit 0 · 5.7s
+command     python -m scripts.backtest_study.f2_management.exit_switch_mech_study
+excerpt     matched
+
+```
+    NOT EVALUABLE on this book: 12 of 25 affected dates — the census above IS the recorded result (pre-registration §Census-first rule: 'a trigger wh…
+    VERDICT: mech-keyed per-regime exit switch STAYS GATED.
+    VERDICT: LVOL (tef null) STAYS GATED.
+```
+

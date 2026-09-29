@@ -91,3 +91,23 @@ G3 — NO-DAY-0-MOVE ASSERTION (runs first; it is a guard, not a report)
 G2 — SIZING CENSUS (contracts per lag; NO dollar figure is quoted across lags, anywhere)
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 14:19:14 · git de5a6f3 (main, working tree dirty) · exit 0 · 31.4s
+command     python -m scripts.backtest_study.f1_selection.emission_timing
+excerpt     verdict
+
+```
+VERDICTS (worded in the pre-registration; nothing here is a ship)
+  ARM P: NULL (no persistence effect) — no cell separates repeats from firsts
+  ARM L: LAG-TOLERANT (PUBLISHABLE OPERATIONAL FINDING) — no lag in {1,2,3} separates from
+      L=0 under the conjunction: THE SIGNAL DOES NOT DECAY WITHIN THREE SESSIONS. A missed
+      same-day fill is not a lost trade. This is a finding in its own right, not a null.
+  Worst-decile reads are FORBIDDEN as criteria by the registration (the 2026-08-13
+  nine-date decile wall) and are not computed anywhere in this study.
+  No annualised figure, Sharpe, or time-to-recover is printed above, by design.
+```
+

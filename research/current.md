@@ -8,6 +8,12 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**The suite reads the re-priced book again (2026-09-28), and 13 verdicts
+moved.** The loader rulings are built, every calibration gate passes, and the
+run is recorded
+([entry](#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again)).
+The tables below still describe the 09-19 book until this block is rewritten.
+
 The suite was re-run on 2026-09-19 and **18 of 31 verdicts moved**. Nothing
 ships. Two of the moves bear on shipped rules, and seven decisions now wait on
 the operator: those two, the capital question, and four about the stored book
@@ -212,6 +218,304 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-09-28 — loader rulings and suite re-run — the book reads again
+
+**The suite reads the re-priced book again, and 13 verdicts moved.** The
+operator's three loader rulings and the mirror ruling are built, every
+calibration gate passes, and the suite was re-run and recorded. This entry
+supersedes the [2026-09-27 entry](#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads),
+whose run was never recorded.
+
+**In production.** Nothing changes. Two moves bear on shipped rules and are
+flagged below for the operator; neither edits
+[`deployment-rules.md`](../docs/deployment-rules.md).
+
+| Provenance | Value |
+|---|---|
+| Era, exports | v4, pulled 2026-09-27 15:57 |
+| Rows | 1,012 real, 2,029 proxy, 3,346 analysis |
+| Pooled book | 1,795 rows over 280 dates, 2024-01-10 to 2026-09-22 |
+| Code | `de5a6f3` plus the uncommitted work of 09-24 to 09-28 |
+| Records | [study-results](study-results/), one new v4 section per study |
+
+### The rulings as built
+
+Each is folded as `Resolved at build (2026-09-28)` into the
+[architecture](../docs/architecture.md) and the registrations whose gate it
+changes.
+
+| Ruling | What the code does now | Where |
+|---|---|---|
+| Add the row's cost back | The replay is compared with the stored figure plus `cost_total`, in production's own rounding. Blank `cost_basis` compares as before. | `lib/replay_basis.py::reproduces_pnl` |
+| `open_at_data_end` rows stay as `cap_open` | Every replay runs on the Trade cut at `path_data_end`, the calibration's and every study's. `carried` rows are compared on the same cut. | `replay_basis.bounded`, `lib/book.py` |
+| Count how much is marks | `load_book` prints a `book outcomes:` line into every report that loads the book. | `book.path_outcomes` |
+| Deferred fills are a superseded basis | Their own `deferred_fill` class: kept, counted, never compared. `no_two_sided` rows are compared, because production filled them on the trigger day. | `replay_basis.classify` |
+| Mirrors follow production | `hedge_instrument` fills and marks through `simulate`'s shared functions. `open_fill_legs` asks what `entry_day_fill` would do. | `lib/hedge_instrument.py`, `lib/reprice_targets.py` |
+
+| Returned book, 1,795 rows | Count |
+|---|---|
+| `open_at_data_end`, a mark at the data end | 192 |
+| `carried` | 126 |
+| Deferred exit fills | 43 |
+| `no_two_sided` | 21 |
+
+### Calibration before and after
+
+| Debit rows | 09-27 loader | 09-28 loader |
+|---|---|---|
+| Real, 762 | 3 reproduce, 745 hard | 722 reproduce; 25 deferred, 14 superseded, 1 boundary tie, 0 hard |
+| Proxy tweak, 575 | 0 reproduce | 541 reproduce, 14 deferred admitted, 1 hard |
+| Credit, 250 | not reported | 247 exact, 3 deferred |
+
+The one hard proxy row is AAPL 2025-04-09, a `dollar_stop` and `stop_loss`
+tie at the same pnl. The boundary-tie check nudges only the pt and sl
+thresholds, so it stays excluded; nothing was loosened to admit it.
+
+### What moved
+
+Every run exited 0 after three fixes made during the run (below). Drivers:
+population (a), the 09-24 re-price (b), today's loader basis (c). No move can
+split (a) from (b), because both changed in one run.
+
+| Study | 09-19 | 09-28 | Likely driver |
+|---|---|---|---|
+| `bear_arm` B2 | `NOT met` | `MET`, `sl .50` Δ=+0.033 | (b) or (c) |
+| `mech_regime_recut` | `OR-VETO REJECTED` | `OR-veto passes this criterion` | not separable |
+| `text_features` | every feature NULL | `invalidation_level`, `trigger_level` CANDIDATE | (a); label coverage 51.1% |
+| `exit_drawdown` | 7 `UNDERPOWERED` | U/a, U/b `REACTIVE-AGAIN` | (a) |
+| `exit_from_text` E2 | `CANDIDATE` | `NULL` | not separable |
+| `staged_exit` | NULL in substance | `REACTIVE-AGAIN` | (c) or (a) |
+| `volume_signal` | `PATH-VOL-PROXY` | `NULL — the volume column is CLOSED` | not separable |
+| `financed_spread` | F4-d20 $100 `RE-WRAP` | every cell `NULL` | not separable |
+| `account_sim` | A1 holds, A3 fails | `NOT FEASIBLE`, A1 fails too | (a) and (b); 2026 at −0.260 |
+| `concurrency_correlation` | `RESTATEMENT` | `NOISE` | not separable |
+| `portfolio_delta` | `NOISE` | `DELTA-DOSE-RESPONSE`, descriptive | (a) |
+| `hedge_sizing` | D1 4 candidates | D1 `NOT MET` | not separable |
+| `hedge_timing` H4 | `NULL` | `UNSTABLE` | (b): H4 is the dollar arm |
+
+Unchanged tokens: `bear_position_study`, `emission_timing`,
+`macro_event_study`, `trigger_entry`, `v4_bridge`, `exit_switch_*`,
+`selection_order`, `ladder_overlay`, `hedge_portfolio` (both),
+`hedge_structure`, `bear_rewrap`. The rest moved numbers only. Verbatim
+lines are in each record and in `catalog.py`.
+
+### Moves that touch shipped rules
+
+- **Gap-up prohibition, [§4](../docs/deployment-rules.md#s4).**
+  `hedge_timing` H3-GAP is `CONTRARY` again, −0.457 CI [−0.744, −0.177]. The
+  09-27 `NULL` was a loader artifact, so the prohibition keeps its support.
+- **Bear debit stop.** `bear_arm` B2 now meets its exit-fix criteria at
+  `sl .50`, while the rollback census still prints
+  `REVERT CONDITION FIRED`. The 2026 cell alone straddles zero. Operator
+  decision; the default is no config change.
+- **BEAR_HE clause.** `exit_switch_structure_study` Q2 reads Δ=−5.0875
+  with 23% retained. It is still an observation, because its census is
+  underpowered at 12 affected dates.
+- **Ladder.** A and B still beat C, but VETO rows now average the same as A
+  (`regime_gap_reread`). No study prints a verdict on a `bull_call_spread`
+  tier cell.
+
+### Fixes made during the run
+
+- `trigger_entry` G-SYNTH failed on 275 rows, because
+  `emission_timing.synth_trade` rebuilt from the cut Trade. It now builds
+  from the uncut row and cuts the synthetic at the same date.
+- `account_sim`'s chart pages refused the report, because the loader's
+  stderr line landed inside the CONFIGURATION block. The book now loads
+  before that block prints.
+- `config/macro-events.yml` gained the Jul 2026 FOMC minutes, released
+  2026-08-19 per the Fed's calendar page, so `macro_event_study` G0 passes.
+  `make mech-regime` now runs through 2026-09-25.
+
+### Unresolved
+
+- **Variant replays of open rows stop at the data end.** The loader hands
+  studies the cut Trade, which follows production's rule. The default was
+  chosen so a `cap_open` outcome stays one under every profile; reverting
+  means handing `t` uncut in `book.py`.
+- **`prompt_eval`** was skipped as designed; it needs its own invocation.
+- The AAPL 2025-04-09 dollar-stop tie is one excluded proxy row.
+
+**Next.** [`next-steps.md`](next-steps.md) §2.11 closes the loader and
+mirror items. The two rule-bearing moves wait on the operator.
+
+---
+
+## 2026-09-27 — suite re-run — ten studies stop, and the other 22 read a book the loader misreads
+
+**The first suite run on the re-priced book cannot be read.** The re-price
+changed what a stored row means, and the research book loader still compares
+each row with the frozen harness on the old terms. So 745 of 762 real debit
+rows fail calibration, and 575 proxy rows fall out of the pooled book. Ten
+studies stop on their gates. The other 22 print, but on a book that is not the
+one they name.
+
+**In production.** Nothing changes. No verdict in `catalog.py` was edited, and
+nothing was appended to [study-results](study-results/). A verdict printed on
+this book would be recorded as the v4 answer and then have to be disowned.
+
+| Provenance | Value |
+|---|---|
+| Era, exports | v4, pulled 2026-09-27 15:57 |
+| Rows | 1,012 real, 2,029 proxy, 3,346 analysis |
+| Pooled book | 1,241 rows over 269 dates; 1,325 over 207 on 09-19 |
+| Code | `de5a6f3` plus the uncommitted mirror work |
+| Reports | `backtests/study_output/`; the 09-19 set was copied aside first |
+
+### Why the calibration fails
+
+The loader replays every stored debit row under the frozen
+[harness](../scripts/backtest_study/lib/harness.py) and admits it only if the
+exit, the day and `realized_pnl_pct` match. Three changes since 09-19 break
+that match, and none is a pricing error.
+
+| Cause | Real debit rows | Proxy debit rows |
+|---|---|---|
+| Stored P&L is net of commission; the replay is gross | 559 | 469 |
+| `path_status` is `open_at_data_end` | 119 | 32 |
+| `path_status` is `carried` | 51 | 44 |
+| The exit filled on a later day (`exit_fill` `deferred_n`) | 16 | 12 |
+| Reproduces, or differs only by an old exit rule | 17 | 18 |
+
+- **Cost.** Every row now carries `cost_basis` `commission_only`. The replay
+  matches the exit and the day, and misses the P&L by exactly the row's cost.
+  `lib/mtm_curve.py` already adds the cost back for the same reason
+  (2026-09-23), and the loader does not.
+- **Open rows.** 148 real rows and 44 proxy rows are positions still open
+  when their data ran out, stamped `cap_open` at `path_data_end`. Their stored
+  mark path still runs the full grid on carried marks, so the replay keeps
+  going past the data end. The real ones enter every study as closed outcomes.
+- **Deferred fills.** The frozen harness fills on the trigger day. Production
+  has filled on the next two-sided day since 2026-09-19.
+
+### What each study did
+
+| Study | Outcome | Cause |
+|---|---|---|
+| `bear_position_study`, `exit_switch_mech_study`, `exit_switch_structure_study` | `*** HARNESS VALIDATION FAILED — STOPPING per pre-registration. ***` | calibration |
+| `exit_mechanism_study`, and its credit arm | `CALIBRATION FAILED — variant numbers below are NOT trustworthy.` | calibration |
+| `account_sim`, and its compounding arm | `GATES: FAILED — G2`, on `calibrated debit picks re-replayed: 0` | calibration |
+| `exit_drawdown` | `*** G-CAL FAILED: account_sim's own G2-G5 did not pass` | inherits `account_sim` |
+| `trigger_entry` | crashed: `StatisticsError: fmean requires at least one data point` | no row passed its calibration gate |
+| `hedge_structure` | `reconstructs: 1239 / 1241  (99.8%)`, `R2 FAIL` | two open QQQ bear puts; see below |
+| `macro_event_study` | `*** G0 REFUSAL: calendar does not cover the book span for ['fomc_minutes'] — extend config/macro-events.yml, do not narrow the book. ***` | the book now ends 2026-09-22 |
+| `prompt_eval` | usage error, no sub-command | designed; not a study run |
+| 22 others | exit 0 | on the misread book |
+
+**The two `hedge_structure` failures are a different cause.** QQQ 2026-08-26
+and 2026-09-14 are open positions priced on 2026-09-24. The cache gained
+quotes for 09-23 and 09-24 after that, so the mirror's marks and the stored
+carried marks disagree from 09-23 on. A row priced on a still-growing cache
+will keep doing this until its options expire.
+
+### The 22 that printed
+
+None of these moves can be read. The population changed (+19 analysis dates,
++40 result rows) and the loader dropped three quarters of the proxy debit rows
+in the same run, so no move can be split into the two. They are listed so
+the next valid run has something to compare with.
+
+| Study | 09-19 record | This run |
+|---|---|---|
+| [`hedge_timing`](arm-index.md#hedge_timing) | H3-GAP `CONTRARY` | H3-GAP `NULL`; H4-CHOP and H4-GAP `UNSTABLE` |
+| [`hedge_sizing`](arm-index.md#hedge_sizing) | D1 candidates 4; D2, D3 `NOT MET` | D1 `NOT MET`; D2, D3 `MET` |
+| `mech_regime_recut` | `OR-VETO REJECTED` | `OR-veto passes this criterion` |
+| `volume_signal` | `PATH-VOL-PROXY` | `NULL` |
+| `selection_order` | `ORDERING-IS-NOISE` | `UNDERPOWERED` |
+| `concurrency_correlation` | `RESTATEMENT` | `NOISE` |
+| `hedge_portfolio` admitted arm | `PRECONDITION-NULL` | `UNDERPOWERED` |
+| [`financed_spread`](arm-index.md#financed_spread) | F4-d20 $100 `RE-WRAP` | F4-d10 pt50 and $100 `RE-WRAP`; every F4-d20 cell `UNDERPOWERED` |
+| [`exit_from_text`](arm-index.md#exit_from_text) | E2 MECH LVOL N=3 `CANDIDATE` | every cell `UNDERPOWERED`; 5 of 1,241 rows passed its gate |
+| `ladder_overlay` | every v4 cell `NULL` | L-F4, L-T0 and L-T0-TEF `UNDERPOWERED` |
+| `bear_arm`, `v4_bridge`, `hedge_portfolio`, `portfolio_delta`, `ml_combination`, `bear_rewrap` | — | same verdict tokens, numbers moved |
+| `text_features`, `staged_exit`, `next_day_move`, `bear_giveback`, `regime_gap_reread`, `emission_timing` | — | numbers only |
+
+The `hedge_timing` line matters most once the book is fixed. H3-GAP is the only
+support left for the gap-up prohibition in
+[§4](../docs/deployment-rules.md#s4). If a valid run also prints `NULL`, the
+prohibition has no study behind it.
+
+### What changed since the 09-19 run
+
+The re-price and the pricing rules are in the 2026-09-23 and 2026-09-24
+entries below. In one list:
+
+- **The whole book was re-priced on 2026-09-24.** It first ran at $0.65 a
+  contract plus 25% of the quoted spread, then again commission-only
+  ([entry](#2026-09-24-latest--backtest-costs--commission-only-the-operator-fills-spreads-at-the-mid)).
+  The end-of-data guard stamps `path_status` and `path_data_end`. BacktestResults went
+  from 603 to 972 rows.
+- **Repairs on the tabs.** Two concurrent sessions left 461 duplicate keys,
+  repaired by a `--cache-only --redo`. The 2025-07-29 EEM and COIN orphans and
+  the corrupt IBIT "bot" row were deleted. All 99 plays that left
+  BacktestResults are on BacktestProxy.
+- **Junk quotes** ([entry](#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread)).
+  A bought leg into a junk quote with no trade is refused as
+  `junk_entry_quote`. A junk side pays commission only.
+- **Proxy `skip_reason`.** A row the snap or probe priced from real history now
+  reads `snap_priced`, not `no_history`.
+- **The `bear_rewrap` mirror follows the junk rule.** Production's entry and
+  junk-mark choices are shared functions in `scripts/backtest/simulate.py`,
+  and the mirror imports them. Production output was byte-identical over
+  10,156 simulations. Reconstruction on the 09-24 book went from 1,154 to
+  1,159 of 1,159. `overlay_campaign._row_spread` now calls production's
+  `_leg_spread`. The three registrations that promised an unchanged
+  `bear_rewrap` carry a `Resolved at build (2026-09-24)` note.
+- **Nineteen analysis dates were added**, 2026-06-01 to 2026-07-14. That
+  brought AnalysisClaude to 3,346 rows and BacktestResults to 1,012.
+- **An unlisted-contract skip list.** `_unlisted.jsonl` records contracts
+  Barchart does not list, and `--retry-unlisted` overrides it. A dead contract
+  now costs 1 to 3 seconds instead of about 15
+  ([architecture](../docs/architecture.md)).
+
+### A descriptive read of the re-priced book
+
+Not a registered study, and computed on the 972-row export, before the 19 new
+dates. It was not recomputed on this export.
+
+| Cut | Result |
+|---|---|
+| Closed book | −$25 a trade, CI −$108 to +$59: no edge |
+| A/B against C ([ladder](glossary.md#tier-ladder-abcveto)) | holds |
+| `bull_call_spread` | +$167 a trade, CI +$32 to +$306, about half its old edge |
+| `bull_call_spread` by tier | neither tier clears zero alone; NVDA carries it |
+| 2026 loss | one CAR strangle, −$17.9k |
+| 2026 closed trades | 39% reached +10% MFE and still closed at a loss |
+
+### Unresolved
+
+- **The loader and the stored rows disagree.** Three rulings are owed before
+  the suite can run. Should calibration add the row's cost back, as
+  `mtm_curve` does? What is an `open_at_data_end` row to a study: excluded, or
+  an outcome? Is a deferred fill a superseded basis, like a `trailing_stop`
+  row? The default is that nothing runs. Each changes what a gate admits,
+  which is why none was changed here.
+- **Two research mirrors are deferred.** `lib/hedge_instrument.py` still marks
+  at the raw mid, and what G-FILL calls "fillable" depends on the ruling.
+  `lib/reprice_targets.py::open_fill_legs` still uses the pre-junk entry test.
+- **2026-06-29 has a partial counterpart IV.** Repeated SSL errors stopped
+  the fetch, so that date was analysed with some IV columns blank.
+- **The 06-01 to 06-08 scrapes hit the 500-row cap.** Six sessions' flow
+  files may be truncated, and their analyses read what survived.
+- **29 old proxy rows on the double-analysis dates were deleted** by another
+  session on 2026-09-24. Copies are in the `_snapshot-*` files.
+- **Legacy `no_history`.** Proxy rows written before 2026-09-24 keep the old
+  label, even when the snap priced them.
+- **The 7-ETF backfill supervisor is stuck** in a loop on GLD 2022-06-03
+  puts.
+- **`macro_event_study` needs its calendar extended** for `fomc_minutes`, and
+  the mech-regime table ends 2026-09-18 (`make mech-regime`).
+- **Operator decisions owed from the 09-19 run.** The `account_sim` capital
+  question, the `bear_arm` revert print and the BEAR_HE observation are still
+  open. The four stored-book re-price items are done
+  ([next-steps](next-steps.md) §0).
+
+**Next.** The loader rulings go to the top of
+[next-steps](next-steps.md#s2-11) §2.11. The suite re-runs, and records, after
+them.
 
 ---
 

@@ -24,6 +24,11 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
   queues C, D and E just added do NOT qualify — they sit inside
   `[2024-01, 2026-05]`, the same correlated window
   ([where the 2026 column bit](current.md#where-the-2026-column-bit)).
+- **The suite reads the re-priced book again (2026-09-28).** The three
+  loader rulings are built and the suite was re-run and recorded
+  ([entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again)).
+  The 2026-09-27 run it replaces was never recorded
+  ([entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads)).
 - **Tests green, and the suite ran 2026-09-19 on these exports.** Every
   non-retired study ran, and 18 of 31 verdicts moved
   ([entry](current.md#2026-09-20--suite-re-run-read-in-full--18-of-31-verdicts-moved-two-touch-shipped-rules),
@@ -128,21 +133,25 @@ Decisions owed. None of these is a study.
      fills its bounds before any code is written. It runs only after item 8
      and full cost coverage.
 
-6. **DECIDED 2026-09-22 — re-price the pre-fill rows.** Stale or incorrect
+6. **DONE 2026-09-24 by the whole-book re-price;** the loader now counts 0
+   pre-fill exits. **DECIDED 2026-09-22 — re-price the pre-fill rows.** Stale or incorrect
    data should not sit on the sheet, so exclusion is no longer the plan: the
    fuller census widened the count from 14 to 17. Waits on item 8's
    Barchart refetch
    ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
    [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
-7. **DECIDED 2026-09-22 — re-price the six wrong-strike rows.** They are `NVDA`
+7. **DONE 2026-09-24 by the whole-book re-price;** IWM 2024-03-25 now reads
+   200/185. **DECIDED 2026-09-22 — re-price the six wrong-strike rows.** They are `NVDA`
    2024-11-26, `IWM` 2024-03-25 and `SPY` 2025-05-09 on `BacktestResults`, and
    `FCX` 2024-08-23, `PINS` 2024-02-27 and `IWM` 2024-02-06 on `BacktestProxy`.
    Same operator ruling as item 6: re-price, do not leave them
    ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
    [entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed)).
 
-8. **OPEN, cost model now ON — the whole-book re-price.** The backtest prices
+8. **DONE 2026-09-24 — the whole book is re-priced, commission-only**
+   ([entry](current.md#2026-09-24-latest--backtest-costs--commission-only-the-operator-fills-spreads-at-the-mid)).
+   The text below is the plan as it stood. **OPEN, cost model now ON — the whole-book re-price.** The backtest prices
    net of $0.65 a contract plus 25% of the quoted spread from 2026-09-22
    onward (`8831f96`); every stored row stays gross until this re-price runs.
    Still blocked on a Barchart refetch: 80 `BacktestResults` rows cannot be
@@ -151,12 +160,17 @@ Decisions owed. None of these is a study.
    ([decision + plan](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
    [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
 
-9. **DECIDED 2026-09-22 — re-price the 49 `Open`-fill rows.** The entry rule
+9. **DONE 2026-09-24 by the whole-book re-price.** **DECIDED 2026-09-22 — re-price the 49 `Open`-fill rows.** The entry rule
    is now side-aware ahead of the `Open` print (`0a68bdf`); the operator's
    ruling is to re-price rather than leave them, same as items 6 and 7. Waits
    on item 8
    ([decision](current.md#2026-09-22-evening--journal-repair-lands-cost-model-on-five-queue-items-decided),
    [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows)).
+   Resolved at build (2026-09-28), operator ruling: the `open_fill` set in
+   `lib/reprice_targets.py` now means an `Open` fill that production's current
+   entry rule would not make. It imports `simulate.open_print_allowed` and
+   `entry_day_fill`, so it follows the junk-quote rule rather than the
+   one-sided test.
 
 10. **OPEN — `bear_arm` prints `REVERT CONDITION FIRED`.** The report asks for
     a production config change on the bear-debit `be_after 0.50` stop, which
@@ -546,13 +560,13 @@ has grown since. One line each, with the entry that holds the story.
 |---|---|---|---|
 | The split is not readable on `cost_basis` | prose only, done | 2026-09-08 | below |
 | `history.py` unlinks a cache file before a refetch that can fail | RESOLVED | 2026-09-19 | [entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns) |
-| Proxy rows carry none of the three cost columns | RESOLVED in code, not backfilled | 2026-09-19 | [entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns) |
+| Proxy rows carry none of the three cost columns | RESOLVED; backfilled by the 09-24 re-price | 2026-09-19 | [entry](current.md#2026-09-19-later--the-option-history-cache-is-no-longer-deleted-before-a-refetch-and-proxy-rows-carry-the-cost-columns) |
 | B5's zero-bid re-mark is not mirrored by `bear_rewrap` | RESOLVED | 2026-09-17 | [archive/21](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-17--bear_rewrap-pricer--b5-zero-bid-re-mark-mirrored-r2-at-1320--1321) |
 | B5 on a stale one-sided quote fabricates a credit | RESOLVED; the stored row re-priced | 2026-09-19 | [entry](current.md#2026-09-19--backtest-entry-pricing--a-sold-leg-with-no-bid-fills-at-0-and-a-debit-that-prices-to-a-credit-is-refused), [re-price](current.md#2026-09-19-later-still--the-2025-04-09-re-price-and-the-two-mirror-drifts-it-exposed-hedge_structure-unblocked) |
 | `bear_rewrap`'s mirror derived the entry day instead of reading it | RESOLVED, verdict-neutral | 2026-09-19 | [entry](current.md#2026-09-19-later-still--the-2025-04-09-re-price-and-the-two-mirror-drifts-it-exposed-hedge_structure-unblocked) |
 | The exit fill keeps the sign-independent liquidation mark | RESOLVED, not backfilled | 2026-09-19 | [entry](current.md#2026-09-19-fourth--the-exit-fills-on-the-next-two-sided-day-not-on-the-trigger-days-bid-less-mark), [column](../docs/backtest-reference.md#how-the-exit-was-filled--exit_fill) |
 | The 17 legacy rows whose exit was booked before their fill | DETECTED, 14 reach the book | 2026-09-19 | [diagnosis](current.md#2026-09-19-fifth--tlt-2025-04-01-is-not-a-new-defect-it-is-a-phantom-pre-entry-exit-and-16-others-like-it), [detector](current.md#2026-09-19-sixth--the-14-pre-fill-exits-are-now-detected-not-just-counted) |
-| The stored book no longer reproduces under current code | MEASURED; four decisions owed | 2026-09-20 | [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows), §0 items 6 to 9 |
+| The stored book no longer reproduces under current code | RESOLVED by the 09-24 re-price | 2026-09-20 | [census](current.md#2026-09-20-later--stored-book--a-cache-only-re-price-moves-370-of-2234-rows), §0 items 6 to 9 |
 | A third of the suite was truncated in its own record | FIXED | 2026-09-20 | below |
 | Two per-era records carried a junk excerpt | FIXED | 2026-09-20 | below |
 | A `bear_put_spread` can be built strike-inverted | RESOLVED | 2026-09-20 | [entry](current.md#2026-09-20-third--backtest-classifier--six-priced-rows-used-strikes-from-the-narrative-fixed), below |
@@ -561,26 +575,49 @@ has grown since. One line each, with the entry that holds the story.
 | The debit-to-credit gate also fires on BS-modelled legs | MOOT: BS abolished | 2026-09-23 | below |
 | A credit priced to a debit was sized on its fake premium (TLT 2025-04-04) | RESOLVED in code, not re-priced | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
 | One corrupt cache file (META 630P) set a position's underlying and greeks | RESOLVED, file quarantined | 2026-09-23 | [entry](current.md#2026-09-23--backtest-pricing--black-scholes-is-abolished-four-entry-refusals-real-per-leg-greeks) |
-| Junk quotes set the cost, the daily mark and the entry fill | RESOLVED in code, uncommitted, not re-priced | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
-| Research mirrors do not follow the junk-quote rule | OPEN | 2026-09-24 | below |
+| Junk quotes set the cost, the daily mark and the entry fill | RESOLVED, `ad701d7`; both tabs re-priced | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
+| Research mirrors do not follow the junk-quote rule | RESOLVED, all four import production's functions | 2026-09-28 | below |
+| The book loader misreads the re-priced rows | RESOLVED by the three loader rulings | 2026-09-28 | [entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again) |
+| Proxy `skip_reason` said `no_history` for snap-priced rows | RESOLVED for new rows; older rows keep the label | 2026-09-24 | [entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads) |
 | Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
 
-**Research mirrors do not follow the junk-quote rule (2026-09-24).** Production
-now judges every quote with `simulate._is_junk_quote`. These research paths
-still price the old way. None was changed.
+**RESOLVED 2026-09-28 — the three rulings below are built.** Calibration
+adds the cost back, the replay stops at `path_data_end`, and a deferred fill
+is its own class. Real debit rows reproducing went from 3 to 722 of 762
+([entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again)).
 
-| Mirror | What it still does |
+**The book loader misreads the re-priced rows (2026-09-27).** Every stored
+row is now net of commission and stops at its last real quote. The loader's
+calibration still compares it with the gross, full-length frozen replay, so
+745 of 762 real debit rows fail and 575 proxy debit rows leave the book. Three
+rulings are owed before the suite can run.
+
+| Ruling | Rows it touches | Default |
+|---|---|---|
+| Add the row's cost back before comparing, as `lib/mtm_curve.py` does | 559 real, 469 proxy | not changed |
+| Exclude `open_at_data_end` rows from outcome studies, or treat them as outcomes | 148 real, 44 proxy | admitted as outcomes |
+| Count a deferred exit fill as a superseded basis | 16 real, 12 proxy | HARD |
+
+`carried` rows (51 real, 44 proxy) fail with the open rows, on the same
+carried marks. The counts and the study-by-study outcome are in the
+[entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads).
+
+**Research mirrors do not follow the junk-quote rule (2026-09-24).** Production
+now judges every quote with `simulate._is_junk_quote`. On 2026-09-27
+`bear_rewrap` and `overlay_campaign` follow it through production's shared
+functions, uncommitted. The other two are deferred for an operator ruling.
+
+| Mirror | Status |
 |---|---|
-| `f3_structure/bear_rewrap.py` | Marks by `_zero_bid_mark`, fills entries by `_entry_side_mark`: a bought zero-bid leg pays the ask, a junk day marks at its mid |
-| `lib/overlay_campaign.py::CachePrices` | Prices through `bear_rewrap`, and `_row_spread` charges slippage on junk spreads |
-| `lib/hedge_instrument.py` | Marks off `_mark`, the raw mid |
-| `lib/reprice_targets.py` | Claims rows with `_entry_side_mark`, the pre-junk entry test |
+| `f3_structure/bear_rewrap.py` | DONE 2026-09-27: imports production's entry and junk-mark functions; 1,159 of 1,159 reconstruct on the 09-24 book |
+| `lib/overlay_campaign.py::CachePrices` | DONE 2026-09-27: prices through `bear_rewrap`; `_row_spread` calls production's `_leg_spread` |
+| `lib/hedge_instrument.py` | DONE 2026-09-28: entry fill and daily mark import production's functions; G-FILL reads them |
+| `lib/reprice_targets.py` | DONE 2026-09-28: `open_fill_legs` imports `entry_day_fill` and `open_print_allowed` |
 
 `tests/test_bear_rewrap_zero_bid.py::test_the_mirror_and_production_agree_on_an_open_print_entry`
-now fails for this reason: production refuses the bought zero-bid leg, the
-mirror pays the ask.
+failed for this reason until the mirror followed production.
 
 **The `cost_basis` split.** `_apply_costs` writes `cost_basis` empty whenever
 both cost knobs are 0, which they are, so it is blank on every

@@ -120,3 +120,46 @@ VERDICT SUMMARY
   PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 12:55:23 · git de5a6f3 (main, working tree dirty) · exit 0 · 46.7s
+command     python -m scripts.backtest_study.f2_management.exit_drawdown
+excerpt     verdict
+
+```
+VERDICT SUMMARY
+  population: PRIMARY  (PRIMARY — the cut the verdicts are read from)
+  ARM W/wf         UNDERPOWERED
+  ARM W/prod       UNDERPOWERED
+  ARM U/a          REACTIVE-AGAIN
+  ARM U/b          REACTIVE-AGAIN
+  ARM O/oi         UNDERPOWERED
+  ARM O/vol        NULL
+  ARM P/half       UNDERPOWERED
+  ARM D/throttle   SECONDARY-NULL
+  ARM W arm-level token: UNDERPOWERED
+  PROD-ROBUST is NOT claimed — too few dates to say whether PROD survived.
+  tally: {'UNDERPOWERED': 4, 'REACTIVE-AGAIN': 2, 'NULL': 1, 'SECONDARY-NULL': 1}
+  THE SECONDARY ERA IS v3, AND IT CARRIES NO VERDICT. It is RUN and
+  REPORTED separately —
+    python -m scripts.backtest_study run exit_drawdown --era v3
+  — and its report is archived as
+  backtests/study_output/exit_drawdown-v3-<date>.txt. Its cells
+  reach THIS run only through exit_drawdown-cells-v3.json, the
+  clause 5 referent named above the cells; when that file is absent clause 5 is
+  VACUOUS and says so. The two eras are NEVER pooled.
+  cells recorded for the other era's clause 5: backtests/study_output/exit_drawdown-cells-v4.json
+  Nothing ships from this research-tier study. A CANDIDATE queues an
+  independent-window confirmation (the live 2026-08/09 dates, once priced);
+  REACTIVE-AGAIN closes the thread for these dates; NULL is recorded as such;
+  UNDERPOWERED publishes its census and is not re-run on these dates. Every
+  ARM D token is prefixed SECONDARY- and none of them is an exit finding.
+  Clause 5 is read ACROSS the two eras: each run records its own PRIMARY cells
+  and reads the SECONDARY era's if that run has been recorded (the referent is
+  named above the cells). Where it printed VACUOUS, the v3 cell did not corroborate —
+  it was not asked — and any CANDIDATE carries that annotation into the write-up.
+```
+

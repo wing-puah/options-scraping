@@ -100,3 +100,31 @@ VERDICT
     K 5 / same-direction-and-sector gain +0.0663 R   criteria met 236-
 ```
 
+
+## era v4 · inputs 7373cdb · sha de5a6f3 — recorded 2026-09-28
+<!-- key era=v4 sha=de5a6f3 inputs=7373cdb -->
+
+population  1,012 results · 2,029 proxy · 3,346 analysis · 835 spy_vix_daily_full  (inputs dated 2026-09-27 15:57 … 2026-09-28 12:45)
+run         2026-09-28 14:12:37 · git de5a6f3 (main, working tree dirty) · exit 0 · 48.7s
+command     python -m scripts.backtest_study.f4_deployment.concurrency_correlation
+excerpt     verdict
+
+```
+VERDICT
+  arms run (PRIMARY): 13   powered past X1: 13   clearing X2/X3/X6/X7: 0
+    C ceiling 5                  gain +0.0098 R   criteria met ----
+    C ceiling 8                  gain +0.0497 R   criteria met --6-
+    C ceiling 12                 gain +0.0055 R   criteria met ----
+    C ceiling 20                 gain -0.0016 R   criteria met ----
+    K 2 / same-direction         gain -0.0274 R   criteria met ----
+    K 3 / same-direction         gain -0.0249 R   criteria met ----
+    K 5 / same-direction         gain +0.0069 R   criteria met ----
+    K 2 / same-direction-and-sector gain -0.0041 R   criteria met ----
+    K 3 / same-direction-and-sector gain -0.0373 R   criteria met ----
+    K 5 / same-direction-and-sector gain -0.0060 R   criteria met ----
+    K 2 / same-underlying        gain -0.0004 R   criteria met ----
+    K 3 / same-underlying        gain -0.0107 R   criteria met ----
+    K 5 / same-underlying        gain +0.0032 R   criteria met ----
+>>> NOISE — all 13 powered arms sit inside ARM N's band. Neither the SIZE of the open book nor its internal similarity degrades per-position outcome …
+```
+
