@@ -116,7 +116,7 @@ def test_the_exclusion_is_the_rescaled_list_not_a_name(caches):
 def test_an_excluded_instrument_yields_no_pick_and_no_arm_r_position(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     (ohlc / "rescaled_tickers.txt").write_text("PRX\n")
     U.rescaled_tickers.cache_clear()
     pick, reason = HI.select_put_verbose("PRX", SESSION)
@@ -129,7 +129,7 @@ def test_an_excluded_instrument_yields_no_pick_and_no_arm_r_position(caches):
 def test_band_rule_takes_a_contract_inside_both_windows(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4.0", ask="6.0")])
+    _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     pick = HI.select_put("PRX", SESSION, HI.RULE_BAND)
     assert pick is not None
     assert (pick.expiry, pick.strike) == (E45, 98.0)
@@ -142,7 +142,7 @@ def test_band_rule_takes_a_contract_inside_both_windows(caches):
 def test_band_rule_refuses_an_expiry_outside_25_75_dte(caches, expiry):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", expiry, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", expiry, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.NO_CONTRACT)
 
 
@@ -150,7 +150,7 @@ def test_band_rule_refuses_an_expiry_outside_25_75_dte(caches, expiry):
 def test_band_rule_refuses_a_strike_outside_plus_minus_5_percent(caches, strike):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, strike, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, strike, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.NO_CONTRACT)
 
 
@@ -160,7 +160,7 @@ def test_band_rule_ranks_by_expiry_anchor_then_nearest_strike(caches):
     for expiry in (E30, E45, E60):
         for strike in (96.0, 100.0, 104.0):
             _put(opt, "PRX", expiry, strike,
-                 [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+                 [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     pick = HI.select_put("PRX", SESSION, HI.RULE_BAND)
     assert (pick.expiry, pick.strike) == (E45, 100.0)
 
@@ -172,7 +172,7 @@ def test_band_rule_skips_an_unpriced_contract_for_a_priced_one(caches):
     _std_bars(ohlc)
     _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="0", ask="0",
                                            latest="0")])
-    _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     pick = HI.select_put("PRX", SESSION, HI.RULE_BAND)
     assert (pick.expiry, pick.strike) == (E45, 98.0)
 
@@ -196,7 +196,7 @@ def test_latest_is_the_fallback_when_there_is_no_two_sided_quote(caches):
 def test_no_spot_means_no_pick(caches):
     opt, ohlc = caches
     _bars(ohlc, "PRX", [(LATER, SPOT)])          # no bar on SESSION
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.NO_SPOT)
 
 
@@ -212,7 +212,7 @@ def test_nearest_rule_takes_the_nearest_quoted_strike_at_or_below_spot(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
     for strike in (90.0, 95.0, 105.0):
-        _put(opt, "PRX", E45, strike, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+        _put(opt, "PRX", E45, strike, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     pick = HI.select_put("PRX", SESSION, HI.RULE_NEAREST)
     assert pick.strike == 95.0
 
@@ -232,22 +232,22 @@ def test_nearest_rule_prefers_the_expiry_closest_to_45_dte(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
     for expiry in (E30, E45, E60, E200):
-        _put(opt, "PRX", expiry, 95.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+        _put(opt, "PRX", expiry, 95.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put("PRX", SESSION, HI.RULE_NEAREST).expiry == E45
 
 
 def test_nearest_rule_refuses_an_expiry_outside_20_120_dte(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E10, 95.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
-    _put(opt, "PRX", E200, 95.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E10, 95.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
+    _put(opt, "PRX", E200, 95.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_NEAREST) == (None, HI.NO_CONTRACT)
 
 
 def test_nearest_rule_never_reaches_above_spot(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 105.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 105.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_NEAREST) == (None, HI.NO_CONTRACT)
 
 
@@ -261,8 +261,8 @@ def _priced_pick(opt, ohlc, rows):
 
 def test_mark_on_carries_the_last_mark_forward(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6"),
-                                    _opt_row(LATER.isoformat(), bid="7", ask="9")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                    _opt_row(LATER.isoformat(), bid="7.8", ask="8.2")])
     assert HI.mark_on(pick, date(2025, 1, 9)) == pytest.approx(5.0)   # carried
     assert HI.mark_on(pick, LATER) == pytest.approx(8.0)
     assert HI.mark_on(pick, date(2025, 1, 20)) == pytest.approx(8.0)  # carried
@@ -270,20 +270,20 @@ def test_mark_on_carries_the_last_mark_forward(caches):
 
 def test_mark_on_is_none_before_the_entry_session(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.mark_on(pick, date(2025, 1, 2)) is None
 
 
 def test_mark_on_never_carries_a_post_expiry_row(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6"),
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
                                     _opt_row("2025-03-10", bid="90", ask="92")])
     assert HI.mark_on(pick, date(2025, 3, 20)) == pytest.approx(5.0)
 
 
 def test_pnl_path_is_none_on_an_unpriced_day_never_zero(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     path = HI.pnl_path(pick, [date(2025, 1, 2), SESSION], contracts=2)
     assert path[date(2025, 1, 2)] is None
     assert path[SESSION] == pytest.approx(0.0)
@@ -291,15 +291,15 @@ def test_pnl_path_is_none_on_an_unpriced_day_never_zero(caches):
 
 def test_pnl_and_cost_scale_by_contracts_and_100_shares(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6"),
-                                    _opt_row(LATER.isoformat(), bid="7", ask="9")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                    _opt_row(LATER.isoformat(), bid="7.8", ask="8.2")])
     assert HI.entry_cost(pick, 3) == pytest.approx(1500.0)
     assert HI.pnl_path(pick, [LATER], 3)[LATER] == pytest.approx(900.0)
 
 
 def test_price_path_returns_none_rather_than_the_entry_price(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.price_path(pick, [date(2025, 1, 2)])[date(2025, 1, 2)] is None
 
 
@@ -308,19 +308,19 @@ def test_price_path_returns_none_rather_than_the_entry_price(caches):
 def test_entry_delta_is_signed_and_scaled(caches):
     opt, ohlc = caches
     pick = _priced_pick(opt, ohlc,
-                        [_opt_row(SESSION.isoformat(), bid="4", ask="6", delta="-0.40")])
+                        [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2", delta="-0.40")])
     assert HI.entry_delta(pick, 2) == pytest.approx(-80.0)
 
 
 def test_entry_delta_is_none_when_the_greek_is_absent(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.entry_delta(pick, 2) is None
 
 
 def test_entry_delta_is_none_on_barcharts_all_zero_sentinel_row(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6",
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2",
                                              iv="0", delta="0")])
     assert HI.entry_delta(pick, 1) is None
 
@@ -330,7 +330,7 @@ def test_entry_delta_is_none_on_barcharts_all_zero_sentinel_row(caches):
 def test_delta_equivalent_position_is_short(caches):
     opt, ohlc = caches
     pick = _priced_pick(opt, ohlc,
-                        [_opt_row(SESSION.isoformat(), bid="4", ask="6", delta="-0.40")])
+                        [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2", delta="-0.40")])
     pos = HI.delta_equivalent_short(pick, 2)
     assert pos.shares == pytest.approx(-80.0)
     assert pos.entry_price == pytest.approx(SPOT)
@@ -339,7 +339,7 @@ def test_delta_equivalent_position_is_short(caches):
 
 def test_delta_equivalent_short_is_none_when_the_delta_is_missing(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.delta_equivalent_short(pick, 2) is None
 
 
@@ -376,8 +376,8 @@ def test_arm_r_is_fillable_where_the_put_is_not(caches):
 
 def test_harness_trade_builds_a_replayable_trade(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6"),
-                                    _opt_row(LATER.isoformat(), bid="7", ask="9")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                    _opt_row(LATER.isoformat(), bid="7.8", ask="8.2")])
     t = HI.harness_trade(pick, 2)
     assert t is not None
     assert len(t.marks) == len(t.grid)                # the Trade's own assertion
@@ -388,7 +388,7 @@ def test_harness_trade_builds_a_replayable_trade(caches):
 
 def test_harness_trade_refuses_a_sub_one_contract_lot(caches):
     opt, ohlc = caches
-    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     assert HI.harness_trade(pick, 0) is None
 
 
@@ -397,7 +397,7 @@ def test_harness_trade_refuses_a_sub_one_contract_lot(caches):
 def test_fill_coverage_keeps_unfillable_sessions_in_the_denominator(caches):
     opt, ohlc = caches
     _bars(ohlc, "PRX", [(SESSION, SPOT), (LATER, SPOT)])
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     cov = HI.fill_coverage([(SESSION, "PRX"), (LATER, "PRX")], HI.RULE_BAND)
     assert (cov.n, cov.filled) == (2, 1)
     assert cov.rate == pytest.approx(0.5)
@@ -407,7 +407,7 @@ def test_fill_coverage_keeps_unfillable_sessions_in_the_denominator(caches):
 def test_fill_coverage_counts_an_excluded_proxy_against_the_gate(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     (ohlc / "rescaled_tickers.txt").write_text("PRX\n")
     U.rescaled_tickers.cache_clear()
     cov = HI.fill_coverage([(SESSION, "PRX")], HI.RULE_BAND)
@@ -439,7 +439,7 @@ def test_per_proxy_rates_are_broken_out(caches):
     opt, ohlc = caches
     _bars(ohlc, "PRX", [(SESSION, SPOT)])
     _bars(ohlc, "OTH", [(SESSION, SPOT)])
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     cov = HI.fill_coverage([(SESSION, "PRX"), (SESSION, "OTH")], HI.RULE_BAND)
     assert cov.proxy_rate("PRX") == 1.0
     assert cov.proxy_rate("OTH") == 0.0
@@ -452,3 +452,58 @@ def test_the_committed_windows_are_what_the_preregistration_fixed():
     assert HI.BAND_STRIKE_PCT == 0.05
     assert (HI.NEAREST_DTE_LO, HI.NEAREST_DTE_HI) == (20, 120)
     assert HI.NEAREST_ANCHOR_DTE == 45
+
+
+# ── production's junk-quote rule (operator ruling, 2026-09-28) ───────────────
+# `hedge_instrument` imports `simulate.entry_day_fill` / `carried_entry_fill` /
+# `junk_day_mark` rather than restating them, so G-FILL's "fillable" and the
+# daily mark are production's. `4 x 6` is junk: its 2.00 width is past twice
+# the legacy Cboe width at a 4.00 bid (0.40 x 2).
+
+def test_a_junk_entry_quote_that_did_not_trade_is_refused(caches):
+    opt, ohlc = caches
+    _std_bars(ohlc)
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.JUNK_REFUSED)
+    cov = HI.fill_coverage([(SESSION, "PRX")], HI.RULE_BAND)
+    assert (cov.filled, cov.n, cov.by_reason) == (0, 1, {HI.JUNK_REFUSED: 1})
+
+
+def test_a_junk_entry_quote_that_traded_fills_at_its_print_not_the_mid(caches):
+    opt, ohlc = caches
+    _std_bars(ohlc)
+    _put(opt, "PRX", E45, 100.0,
+         [_opt_row(SESSION.isoformat(), bid="4", ask="6", latest="5.40")])
+    assert HI.select_put("PRX", SESSION).entry_mark == pytest.approx(5.40)
+
+
+def test_a_refused_contract_falls_through_to_a_clean_one(caches):
+    opt, ohlc = caches
+    _std_bars(ohlc)
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
+    pick = HI.select_put("PRX", SESSION, HI.RULE_BAND)
+    assert (pick.strike, pick.entry_mark) == (98.0, pytest.approx(5.0))
+
+
+def test_a_junk_day_carries_the_last_good_mark(caches):
+    opt, ohlc = caches
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                    _opt_row(LATER.isoformat(), bid="7", ask="9")])
+    assert HI.mark_on(pick, LATER) == pytest.approx(5.0)       # the mid 8.0 is junk
+
+
+def test_a_bidless_junk_day_is_capped_at_the_zero_bid_ceiling(caches):
+    opt, ohlc = caches
+    pick = _priced_pick(opt, ohlc, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                    _opt_row(LATER.isoformat(), bid="0", ask="0.05",
+                                             latest="4.90")])
+    # Latest 4.90 on Volume 10 is a trade that day, so production marks it there.
+    assert HI.mark_on(pick, LATER) == pytest.approx(4.90)
+    HI.clear_caches()
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2"),
+                                  _opt_row(LATER.isoformat(), bid="0", ask="0.05",
+                                           latest="0")])
+    # `latest=0` leaves no `_mark` at all, so production has no row that day and
+    # carries the session's mark; the B5 ceiling needs a row it can judge.
+    assert HI.mark_on(pick, LATER) == pytest.approx(5.0)

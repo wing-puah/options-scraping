@@ -67,6 +67,38 @@ def test_open_fill_reports_a_leg_it_cannot_check():
     assert RT.open_fill_legs(_row(), _FakeCache(partial)) == (0, 1)
 
 
+def test_open_fill_follows_the_junk_rule_not_the_one_sided_test():
+    """2026-09-28: the set is what production's `entry_day_fill` would not fill
+    at the Open. A wide two-sided quote on an untraded BOUGHT leg is refused
+    (junk by width), which the old one-sided test never claimed; a bid-less
+    quote on a contract that TRADED still fills at the Open, which it did."""
+    day = date(2025, 4, 10)
+    wide = {76.0: {day: {"Bid": "0.20", "Ask": "1.90", "Open": "0.97", "_mark": 1.05,
+                         "Volume": "0"}},
+            72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}}
+    assert RT.open_fill_legs(_row(), _FakeCache(wide)) == (1, 0)
+
+    traded = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}},
+              72.0: {day: {"Bid": "0.00", "Ask": "2.68", "Open": "0.45", "_mark": 1.34,
+                           "Volume": "12", "Latest": "0.44"}}}
+    # The sold 72P has no bid: `_junk_entry_fill` fills it at 0 ahead of any
+    # print, so it is still claimed even though it traded.
+    assert RT.open_fill_legs(_row(), _FakeCache(traded)) == (1, 0)
+    bought_traded = {76.0: {day: {"Bid": "0.00", "Ask": "1.90", "Open": "0.97",
+                                  "_mark": 0.95, "Volume": "5", "Latest": "0.98"}},
+                     72.0: traded[76.0]}
+    assert RT.open_fill_legs(_row(), _FakeCache(bought_traded)) == (0, 0)
+
+
+def test_a_same_day_entry_open_fill_is_claimed():
+    """`open_print_allowed`: an entry on the signal day never fills at the Open."""
+    day = date(2025, 4, 9)
+    same_day = _row(dte_entry=str((EXP - day).days))
+    rows = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}},
+            72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}}
+    assert RT.open_fill_legs(same_day, _FakeCache(rows)) == (2, 0)
+
+
 def test_a_leg_not_filled_at_the_open_is_not_an_open_fill():
     day = date(2025, 4, 10)
     detail = _row()["entry_leg_detail"].replace("[barchart_open]\nHYG", "[barchart]\nHYG")

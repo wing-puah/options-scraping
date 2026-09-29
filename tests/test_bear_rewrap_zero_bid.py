@@ -21,6 +21,15 @@ Since 2026-09-22 there is a THIRD: the side-aware fill PRECEDES the entry-day
 `Open` print (`priced_with_open_side`). Before, a leg that printed an Open kept
 it whatever its quote said.
 
+Since 2026-09-24 there is a FOURTH, which displaces the other three: every
+quote is judged by `simulate._is_junk_quote` (`priced_with_junk`). A bought leg
+into a junk quote that did not trade is REFUSED (`junk_entry_quote`), and a
+junk day marks at its Latest if it traded, else the last good mark capped by
+`_zero_bid_mark`. Since 2026-09-24 the mirror restates none of it: the entry
+choice (`entry_day_fill` / `carried_entry_fill`, gated by `open_print_allowed`)
+and the junk daily mark (`junk_day_mark`) are module-level in `simulate.py`,
+called by `_simulate` and IMPORTED here, and pinned against `_simulate` below.
+
 Synthetic cache only — `bear_rewrap.leg_details` is monkeypatched.
 """
 from datetime import date, datetime, timedelta
@@ -128,38 +137,150 @@ def test_the_open_side_basis_fills_a_one_sided_quote_ahead_of_the_open(cache):
     """Mirror of production's `_entry_price_leg` since 2026-09-22."""
     cache(SHORT, {D1: _row(0.45, bid="0", ask="2.68", open_="0.65")})
     cache(LONG, {D1: _row(0.92, bid="0", ask="1.83", open_="0.97")})
-    assert BR.entry_price_of(SHORT, D1) == 0.0           # the default is current
-    assert BR.entry_price_of(SHORT, D1, open_side=True) == 0.0
-    assert BR.entry_price_of(LONG, D1, open_side=True) == pytest.approx(1.83)
-    # A two-sided quote keeps its Open on every basis.
+    assert BR.entry_price_of(SHORT, D1, junk=False) == 0.0
+    assert BR.entry_price_of(SHORT, D1, open_side=True, junk=False) == 0.0
+    assert BR.entry_price_of(LONG, D1, open_side=True, junk=False) == pytest.approx(1.83)
+    # A two-sided quote keeps its Open on every pre-junk basis.
     cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97")})
-    assert BR.entry_price_of(LONG, D1, open_side=True) == pytest.approx(0.97)
+    assert BR.entry_price_of(LONG, D1, open_side=True, junk=False) == pytest.approx(0.97)
     # open_side implies side: without the side rule it cannot apply.
     assert BR.entry_price_of(SHORT, D1, side=False, open_side=True) == 0.65
 
 
-def test_the_mirror_and_production_agree_on_an_open_print_entry(cache):
-    """Same one-sided-with-Open rows through `_simulate` and through the mirror."""
-    rows_long = {D1: _row(0.92, bid="0", ask="1.83", open_="0.97")}
-    rows_short = {D1: _row(0.30, bid="0.25", ask="0.35", open_="0.30")}
+def test_the_junk_basis_refuses_a_bought_leg_into_a_junk_quote(cache):
+    """Mirror of production's `_junk_entry_fill` since 2026-09-24.
+
+    `0.01 x 1.83` is two-sided but JUNK (spread 1.82 > mid 0.92): its Open no
+    longer fills a BOUGHT leg that did not trade. A SOLD leg into no bid still
+    receives 0, and a leg that traded fills at its Open print.
+    """
+    cache(SHORT, {D1: _row(0.45, bid="0", ask="2.68", open_="0.65")})
+    cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97")})
+    assert BR.entry_price_of(SHORT, D1) == 0.0           # the default is current
+    assert BR.entry_price_of(LONG, D1) is None           # junk_entry_quote
+    assert BR.entry_price_of(LONG, D1, junk=True) is None
+    assert BR.net_entry([LONG, SHORT], D1) is None
+    traded = {**_row(0.92, bid="0.01", ask="1.83", open_="0.97"),
+              "Volume": "12", "Latest": "0.95"}
+    cache(LONG, {D1: traded})
+    assert BR.entry_price_of(LONG, D1) == pytest.approx(0.97)
+    # The junk basis implies every entry basis before it.
+    assert BR.entry_price_of(LONG, D1, open_side=False) == pytest.approx(0.97)
+    cache(LONG, {D1: _row(0.92, bid="0.01", ask="1.83", open_="0.97")})
+    assert BR.entry_price_of(LONG, D1, open_side=False) == pytest.approx(0.97)
+    assert BR.entry_price_of(LONG, D1, side=False) == pytest.approx(0.97)
+
+
+def test_the_junk_basis_refuses_a_carried_junk_snap_for_a_bought_leg(cache):
+    # No row on the entry day: the carried D0 snap is judged, without its Open.
+    cache(LONG, {D0: _row(0.92, bid="0", ask="1.83", open_="0.97")})
+    assert BR.entry_price_of(LONG, D1) is None
+    assert BR.entry_price_of(LONG, D1, junk=False) == pytest.approx(1.83)
+    cache(LONG, {D0: _row(0.92, bid="0.90", ask="0.94", open_="0.97")})
+    assert BR.entry_price_of(LONG, D1) == pytest.approx(0.92)   # clean: its mark
+
+
+def _production(details, cap=3, signal=D0, entry=D1):
+    """`_simulate` over `details` (per leg), plus the refusal it recorded."""
+    by_key = {SIM._contract_key(leg.ticker, leg.opt_type, leg.strike,
+                                leg.expiration.isoformat()): rows
+              for leg, rows in details.items()}
+    series = {k: sorted((d, r["_mark"]) for d, r in v.items() if r["_mark"] is not None)
+              for k, v in by_key.items()}
+    entry_row = {"Strike": 76.0, "DTE": (EXP - entry).days, "IV": "30", "Price~": "78",
+                 "Delta": "-0.4", "_entry_date": entry}
+    cand = {"ticker": "AAA", "signal_date": signal, "play": "bear put spread"}
+    cfg = {"profit_target": None, "stop_loss": None, "contracts": 1, "path_cap_days": cap,
+           "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+    refusal: dict = {}
+    res = SIM._simulate(cand, list(details), entry_row, {}, series, cfg,
+                        structure="bear_put_spread", barchart_details=by_key,
+                        refusal=refusal)
+    return res, refusal
+
+
+_TRADED = {"Volume": "40", "Latest": "0.95"}
+
+
+@pytest.mark.parametrize("long_d1,expected", [
+    # JUNK and did not trade: production refuses, the mirror cannot fill.
+    (_row(0.92, bid="0", ask="1.83", open_="0.97"), None),
+    # One-sided with an Open, but the contract TRADED: both fill at the Open.
+    ({**_row(0.92, bid="0", ask="1.83", open_="0.97"), **_TRADED}, 0.67),
+    # A clean two-sided quote: both fill at the Open, as before the rule.
+    (_row(0.92, bid="0.90", ask="0.94", open_="0.97"), 0.67),
+], ids=["junk_refused", "junk_traded_open", "clean_open"])
+def test_the_mirror_and_production_agree_on_an_open_print_entry(cache, long_d1, expected):
+    """Same entry-day rows through `_simulate` and through the mirror.
+
+    Since 2026-09-24 production judges the entry quote with `_is_junk_quote`
+    first: a BOUGHT leg into a junk quote with no trade is refused
+    (`junk_entry_quote`), and the mirror must refuse it too rather than pay the
+    ask or the Open.
+    """
+    d2 = D1 + timedelta(days=1)
+    rows_long = {D1: long_d1, d2: _row(1.0, bid="0.95", ask="1.05")}
+    rows_short = {D1: _row(0.30, bid="0.25", ask="0.35", open_="0.30"),
+                  d2: _row(0.25, bid="0.20", ask="0.30")}
     cache(LONG, rows_long)
     cache(SHORT, rows_short)
     mirror = BR.net_entry([LONG, SHORT], D1)
-    key = lambda leg: SIM._contract_key(leg.ticker, leg.opt_type, leg.strike,
-                                        leg.expiration.isoformat())
-    details = {key(LONG): rows_long, key(SHORT): rows_short}
-    for rows in details.values():
-        rows[D1 + timedelta(days=1)] = _row(1.0, bid="0.9", ask="1.1")
-    series = {k: sorted((d, r["_mark"]) for d, r in v.items()) for k, v in details.items()}
-    entry_row = {"Strike": 76.0, "DTE": (EXP - D1).days, "IV": "30", "Price~": "78",
-                 "Delta": "-0.4", "_entry_date": D1}
-    cand = {"ticker": "AAA", "signal_date": D0, "play": "bear put spread"}
-    cfg = {"profit_target": None, "stop_loss": None, "contracts": 1, "path_cap_days": 3,
-           "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
-    res = SIM._simulate(cand, [LONG, SHORT], entry_row, {}, series, cfg,
-                        structure="bear_put_spread",
-                        barchart_details=details)
-    assert float(res["entry_option_price"]) == pytest.approx(mirror) == pytest.approx(1.53)
+    res, refusal = _production({LONG: rows_long, SHORT: rows_short})
+    if expected is None:
+        assert res == {}
+        assert refusal["reason"] == SIM.JUNK_ENTRY_REFUSAL
+        assert mirror is None
+    else:
+        assert float(res["entry_option_price"]) == pytest.approx(mirror) \
+            == pytest.approx(expected)
+
+
+def test_the_mirror_and_production_agree_on_junk_daily_marks(cache):
+    """The daily path: a junk day marks at its Latest when it traded, else the
+    last good mark capped by `_zero_bid_mark`; a wide junk quote WITH a bid and
+    nothing good behind it leaves the day unpriced, and stays so while carried.
+    """
+    grid = [D1 + timedelta(days=k) for k in range(8)]    # D1 is a Friday
+    days = [d for d in grid if d.weekday() < 5]
+    rows_long = {
+        days[0]: _row(1.00, bid="0.95", ask="1.05", open_="1.00"),
+        days[1]: _row(1.20, bid="0.10", ask="2.30"),                      # junk: carry 1.00
+        days[2]: {**_row(1.10, bid="0.10", ask="2.10"), **_TRADED},       # junk, traded: 0.95
+        days[3]: _row(0.30, bid="0", ask="0.60"),                         # no bid: cap 0.30
+        days[4]: _row(0.80, bid="0.75", ask="0.85"),
+    }
+    rows_short = {
+        days[0]: _row(0.30, bid="0.25", ask="0.35", open_="0.30"),
+        days[1]: _row(0.28, bid="0.24", ask="0.32"),
+        days[2]: _row(0.26, bid="0.22", ask="0.30"),
+        days[3]: _row(0.24, bid="0.20", ask="0.28"),
+        days[4]: _row(0.22, bid="0.18", ask="0.26"),
+    }
+    cache(LONG, rows_long)
+    cache(SHORT, rows_short)
+    res, _ = _production({LONG: rows_long, SHORT: rows_short}, cap=10)
+    prod = [None if t == "" else float(t) for t in res["daily_price_csv"].split(",")]
+    grid_days = [D0 + timedelta(days=k) for k in range(1, 30)]
+    grid_days = [d for d in grid_days if d.weekday() < 5][:len(prod)]
+    mirror = BR.net_marks([LONG, SHORT], grid_days)
+    both = [(a, b) for a, b in zip(mirror, prod) if b is not None]
+    assert len(both) >= 5
+    for a, b in both:
+        assert a == pytest.approx(b, abs=1e-4)
+    # The junk marks themselves, per leg.
+    series = dict(BR.leg_series(LONG))
+    assert series[days[1]] == pytest.approx(1.00)
+    assert series[days[2]] == pytest.approx(0.95)
+    assert series[days[3]] == pytest.approx(0.30)
+    # Off the junk basis the junk day marks at its mid, as before.
+    assert dict(BR.leg_series(LONG, junk=False))[days[1]] == pytest.approx(1.20)
+
+
+def test_a_junk_day_with_no_real_value_is_unpriced_and_carried_unpriced(cache):
+    cache(LONG, {D0: _row(1.20, bid="0.10", ask="2.30")})   # wide, bid > 0, nothing behind
+    assert BR.net_marks([LONG], [D0, D1]) == [None, None]
+    assert BR.leg_series(LONG) == []
+    assert BR.net_marks([LONG], [D0, D1], junk=False) == [pytest.approx(1.20)] * 2
 
 
 @pytest.mark.parametrize("stamp,expected", [
@@ -171,6 +292,56 @@ def test_the_mirror_and_production_agree_on_an_open_print_entry(cache):
 def test_priced_with_open_side_follows_the_row_write_time(stamp, expected):
     assert BR.OPEN_SIDE_SINCE == datetime(2026, 9, 22, 12, 0, 0)
     assert BR.priced_with_open_side({"created_datetime": stamp}) is expected
+
+
+@pytest.mark.parametrize("stamp,expected", [
+    ("2026-09-22 22:40:00", False),   # last write before the junk rule
+    ("2026-09-24 11:48:04", False),
+    ("2026-09-24 11:48:05", True),    # the whole-tab --redo on the junk code
+    ("2026-09-24 13:06:02", True),    # the commission-only re-price
+    ("", True),
+])
+def test_priced_with_junk_follows_the_row_write_time(stamp, expected):
+    assert BR.JUNK_SINCE == datetime(2026, 9, 24, 11, 48, 5)
+    assert BR.priced_with_junk({"created_datetime": stamp}) is expected
+
+
+def test_the_junk_rule_is_imported_from_production_not_restated():
+    assert BR._is_junk_quote is SIM._is_junk_quote
+    assert BR.entry_day_fill is SIM.entry_day_fill
+    assert BR.carried_entry_fill is SIM.carried_entry_fill
+    assert BR.junk_day_mark is SIM.junk_day_mark
+    assert BR.open_print_allowed is SIM.open_print_allowed
+
+
+@pytest.mark.parametrize("entry,signal,timing,expected", [
+    (D1, D0, "next_open", True),
+    (D1, D1, "next_open", False),     # same-day entry: the Open is lookahead
+    (D1, D0, "signal_eod", False),
+])
+def test_open_print_allowed_only_after_the_signal_day(entry, signal, timing, expected):
+    assert SIM.open_print_allowed(entry, signal, timing) is expected
+
+
+def test_the_mirror_and_production_agree_on_a_same_day_entry(cache):
+    """A same-day entry (no bar after the signal yet) fills at the EOD mark in
+    production, never the Open that printed before the signal existed. The
+    mirror takes the Open only when it is not told the signal date."""
+    d2 = D1 + timedelta(days=1)
+    rows_long = {D1: _row(0.92, bid="0.90", ask="0.94", open_="1.10"),
+                 d2: _row(1.0, bid="0.95", ask="1.05")}
+    rows_short = {D1: _row(0.30, bid="0.25", ask="0.35", open_="0.40"),
+                  d2: _row(0.25, bid="0.20", ask="0.30")}
+    cache(LONG, rows_long)
+    cache(SHORT, rows_short)
+    res, _ = _production({LONG: rows_long, SHORT: rows_short}, signal=D1, entry=D1)
+    assert float(res["entry_option_price"]) == pytest.approx(0.62)      # 0.92 - 0.30
+    assert BR.net_entry([LONG, SHORT], D1, signal_date=D1) == pytest.approx(0.62)
+    for kw in ({"junk": False}, {"open_side": False}, {"side": False},
+               {"b5": False, "side": False}):
+        assert BR.net_entry([LONG, SHORT], D1, signal_date=D1, **kw) == pytest.approx(0.62)
+    assert BR.net_entry([LONG, SHORT], D1) == pytest.approx(0.70)       # 1.10 - 0.40
+    assert BR.net_entry([LONG, SHORT], D1, signal_date=D0) == pytest.approx(0.70)
 
 
 def test_entry_carry_forward_re_marks_the_carried_snap(cache):
@@ -186,8 +357,11 @@ def test_entry_carry_forward_re_marks_the_carried_snap(cache):
     # 0.97 debit production now records. This is the reconstruction that
     # `hedge_structure`'s R2 needs, and it holds only through the CARRIED snap —
     # the short leg has no row on D1 at all.
-    assert BR.net_entry([LONG, SHORT], D1, side=True) == pytest.approx(0.97)
-    assert BR.net_entry([LONG, SHORT], D1) == pytest.approx(0.97)  # side is the default
+    assert BR.net_entry([LONG, SHORT], D1, side=True, junk=False) == pytest.approx(0.97)
+    assert BR.net_entry([LONG, SHORT], D1, junk=False) == pytest.approx(0.97)
+    # Junk basis (the default): `0.01 x 1.83` is junk and the long did not
+    # trade, so production refuses the position as `junk_entry_quote`.
+    assert BR.net_entry([LONG, SHORT], D1) is None
 
 
 @pytest.mark.parametrize("stamp,expected", [
@@ -235,6 +409,7 @@ def test_each_on_basis_restores_the_default_after_a_break(cache):
     assert seen == [pytest.approx(0.45)]
     assert BR.entry_price_of(SHORT, D1) == 0.0
     assert not BR._basis_stack and not BR._side_stack and not BR._open_side_stack
+    assert not BR._junk_stack
 
 
 # ── the entry DAY is read off the row, never re-derived ──────────────────────

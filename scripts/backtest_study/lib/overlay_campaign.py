@@ -70,6 +70,7 @@ from scripts.backtest.helpers import (  # noqa: E402
     _defined_risk_bounds, _price_asof,
 )
 from scripts.backtest.legs import Leg  # noqa: E402
+from scripts.backtest.simulate import JUNK_SPREAD, _leg_spread  # noqa: E402
 from scripts.backtest_study.f3_structure import bear_rewrap as BR  # noqa: E402
 from scripts.backtest_study.f3_structure import financed_spread as FS  # noqa: E402
 from scripts.backtest_study.lib import greeks as GK  # noqa: E402
@@ -458,13 +459,18 @@ def _leg_key(leg: Leg) -> tuple:
 
 
 def _row_spread(row: dict | None) -> float | None:
-    """Ask - Bid in option points, or None when the row is not two-sided."""
+    """Ask - Bid in option points, or None when the side is charged no slippage.
+
+    PRODUCTION's rule, imported: `simulate._leg_spread`. None when the row has
+    no usable two-sided quote, and None too for a JUNK quote
+    (`_is_junk_quote`, 2026-09-24), which production charges commission only.
+    `costs_of` counts both as a missing spread, so the side's `basis` reads
+    `no_spread_<side>` — the label `_apply_costs` gives a junk side.
+    """
     if not row:
         return None
-    bid, ask = to_float(row.get("Bid")), to_float(row.get("Ask"))
-    if bid is None or ask is None or ask < bid:
-        return None
-    return ask - bid
+    spread = _leg_spread(row)
+    return None if spread == JUNK_SPREAD else spread
 
 
 def _close_asof(bars: dict, day: date) -> float | None:

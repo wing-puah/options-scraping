@@ -74,7 +74,10 @@ from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
-from scripts.backtest.simulate import _entry_side_mark, _zero_bid_mark  # noqa: E402
+from scripts.backtest.simulate import (  # noqa: E402
+    _entry_side_mark, _is_junk_quote, _zero_bid_mark,
+    carried_entry_fill, entry_day_fill, junk_day_mark, open_print_allowed,
+)
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
 )
@@ -138,6 +141,22 @@ SIDE_SINCE = datetime(2026, 9, 19, 12, 50, 45)
 # it on the pre-change code: the whole-book `--redo` that re-prices the 49
 # `Open`-fill rows waits for a Barchart refetch and runs after this is merged.
 OPEN_SIDE_SINCE = datetime(2026, 9, 22, 12, 0, 0)
+
+# When production started judging every quote with `simulate._is_junk_quote`
+# (operator rulings 2026-09-24, commit ad701d7). A FOURTH basis on the same
+# write-time convention, and it displaces the three above rather than joining
+# them: every zero-bid quote is junk, so `_junk_entry_fill` owns the one-sided
+# entry that `_entry_side_mark` used to, and `_junk_day_mark` owns the zero-bid
+# daily mark that `_zero_bid_mark` used to (as its ceiling).
+#
+# The boundary is the FIRST write under the rule, not the commit: the whole-tab
+# `--redo` that ad701d7's message records stamped both tabs at 2026-09-24
+# 11:48:05, fifty minutes before the commit at 12:42:54. The commit time would
+# put those rows on the old basis. Nothing on either tab was written between
+# 2026-09-22 22:40:00 and that run, so the boundary is not a judgement call on
+# any real row. The rows on the export studies read now were re-written again at
+# 13:06 (commission-only costs, which moves no mark and no entry).
+JUNK_SINCE = datetime(2026, 9, 24, 11, 48, 5)
 
 
 # ── cache access ─────────────────────────────────────────────────────────────
@@ -204,36 +223,54 @@ def priced_with_open_side(row: dict) -> bool:
         return True
 
 
+def priced_with_junk(row: dict) -> bool:
+    """Was this stored book row priced under the junk-quote rule?
+
+    Keyed on `created_datetime` against `JUNK_SINCE`, exactly as the three
+    bases above. A row with no parseable stamp takes the rule production
+    applies now.
+    """
+    raw = str(row.get("created_datetime") or "").strip()
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S") >= JUNK_SINCE
+    except ValueError:
+        return True
+
+
 _basis_stack: list[bool] = []
 _side_stack: list[bool] = []
 _open_side_stack: list[bool] = []
+_junk_stack: list[bool] = []
 
 
 @contextmanager
 def basis_of(row: dict):
-    """Price on `row`'s basis inside the block — ALL THREE bases.
+    """Price on `row`'s basis inside the block — ALL FOUR bases.
 
     `priced_with_b5` governs the daily mark, `priced_with_side` the entry fill,
-    and `priced_with_open_side` whether that fill precedes the Open print.
-    They are separate because the rules landed on different days and each later
-    one changed the entry only; a row written between the first two is B5 on its
-    marks and NOT side-aware on its entry.
+    `priced_with_open_side` whether that fill precedes the Open print, and
+    `priced_with_junk` whether the junk-quote rule owns both the entry fill and
+    the daily mark. They are separate because the rules landed on different
+    days; a row written between the first two is B5 on its marks and NOT
+    side-aware on its entry.
 
-    Every pricer below takes `b5=None` / `side=None` / `open_side=None` to mean
-    "the innermost basis_of, else the rule production applies now". Studies that
-    price variants against a stored book row enter this once per row, so the
-    reconstruction and every variant compared with it share the row's basis
-    without threading three flags through each helper.
+    Every pricer below takes `b5=None` / `side=None` / `open_side=None` /
+    `junk=None` to mean "the innermost basis_of, else the rule production
+    applies now". Studies that price variants against a stored book row enter
+    this once per row, so the reconstruction and every variant compared with it
+    share the row's basis without threading four flags through each helper.
     """
     _basis_stack.append(priced_with_b5(row))
     _side_stack.append(priced_with_side(row))
     _open_side_stack.append(priced_with_open_side(row))
+    _junk_stack.append(priced_with_junk(row))
     try:
         yield
     finally:
         _basis_stack.pop()
         _side_stack.pop()
         _open_side_stack.pop()
+        _junk_stack.pop()
 
 
 def each_on_basis(items, row_of):
@@ -264,6 +301,12 @@ def _resolve_open_side(open_side: bool | None) -> bool:
     return _open_side_stack[-1] if _open_side_stack else True
 
 
+def _resolve_junk(junk: bool | None) -> bool:
+    if junk is not None:
+        return junk
+    return _junk_stack[-1] if _junk_stack else True
+
+
 def row_mark(row: dict | None, b5: bool | None = None) -> float | None:
     """The production mark for one cached history row, or None when it has none.
 
@@ -290,18 +333,67 @@ def row_mark(row: dict | None, b5: bool | None = None) -> float | None:
     return row["_mark"] if zb is None else zb
 
 
-def leg_series(leg: Leg, b5: bool | None = None) -> list[tuple[date, float]]:
+def _priced_rows(leg: Leg) -> dict[date, dict]:
+    """`leg_details` as PRODUCTION loads it: only rows that carry a `_mark`.
+
+    Production parses its details with `require_mark=True`, so a row with no mid
+    and no Latest is absent there — not junk, not a quote, simply not a day.
+    """
+    return {d: r for d, r in leg_details(leg).items() if r.get("_mark") is not None}
+
+
+def _junk_day_mark(leg: Leg, rows: dict[date, dict], row_day: date) -> float | None:
+    """The daily mark of a JUNK-quoted day, or None when it has no real value.
+
+    PRODUCTION's rule, imported: `simulate.junk_day_mark` over this contract's
+    series and rows as production loads them (`_priced_rows`), which is what
+    `_simulate._price_leg` calls. Nothing is restated here — the traded-Latest
+    step, the carried last good mark and the B5 ceiling all live there.
+    """
+    series = [(d, rows[d]["_mark"]) for d in sorted(rows)]
+    marked = junk_day_mark(rows[row_day], row_day, series, rows, leg.expiration)
+    return None if marked is None else marked[0]
+
+
+def _mark_series(leg: Leg, b5: bool | None = None,
+                 junk: bool | None = None) -> list[tuple[date, float | None]]:
+    """`leg_series`, keeping a JUNK day with no real value as `(date, None)`.
+
+    Production prices such a day as unpriceable, and every later day carried
+    from that snap with it (`_price_leg` re-judges the carried snap's row), so
+    the leg — and the whole position — has no value there. A None in the series
+    is exactly what `_price_asof` then carries.
+    """
+    if not (_resolve_b5(b5) and _resolve_junk(junk)):
+        marks = ((d, row_mark(r, b5)) for d, r in leg_details(leg).items())
+        return sorted((d, m) for d, m in marks if m is not None)
+    rows = _priced_rows(leg)
+    out: list[tuple[date, float | None]] = []
+    for d in sorted(rows):
+        r = rows[d]
+        if _is_junk_quote(r):
+            out.append((d, _junk_day_mark(leg, rows, d)))
+        else:
+            out.append((d, r["_mark"]))
+    return out
+
+
+def leg_series(leg: Leg, b5: bool | None = None,
+               junk: bool | None = None) -> list[tuple[date, float]]:
     """Sorted `[(date, mark)]` for one contract — the shape `_price_asof` wants.
 
-    Each mark is `row_mark`, so a carried-forward zero-bid day is carried at its
-    B5 re-mark, exactly as `_simulate._price_leg` re-marks the snap it carries.
+    Off the junk basis each mark is `row_mark`, so a carried-forward zero-bid day
+    is carried at its B5 re-mark, exactly as `_simulate._price_leg` re-marked
+    the snap it carried before 2026-09-24.
+
+    On the JUNK basis (`priced_with_junk`) a clean quote marks at its `_mark` and
+    a junk one at `_junk_day_mark`. The junk basis implies B5 — the later rule
+    can only apply where the earlier one does — so `b5=False` turns both off.
+    A junk day with no real value is DROPPED here, so a caller carrying this
+    series forward carries the previous mark where production has none; only
+    `net_marks` (via `_mark_series`) keeps the gap.
     """
-    out = []
-    for d, r in leg_details(leg).items():
-        m = row_mark(r, b5)
-        if m is not None:
-            out.append((d, m))
-    return sorted(out)
+    return [(d, m) for d, m in _mark_series(leg, b5, junk) if m is not None]
 
 
 def leg_entry_series(leg: Leg, b5: bool | None = None,
@@ -316,7 +408,7 @@ def leg_entry_series(leg: Leg, b5: bool | None = None,
     entirely. Off the side basis this is `leg_series` unchanged.
     """
     if not _resolve_side(side):
-        return leg_series(leg, b5)
+        return leg_series(leg, b5, junk=False)
     out = []
     for d, r in leg_details(leg).items():
         if r.get("_mark") is None:
@@ -397,11 +489,56 @@ def recorded_entry_date(base: Trade) -> date | None:
     return base.legs[0].expiration - timedelta(days=dte)
 
 
+def _open_ok(day: date, signal_date: date | None) -> bool:
+    """May this entry fill at `day`'s Open print? PRODUCTION's rule, imported:
+    `simulate.open_print_allowed` under `entry_timing: next_open` (the book's
+    config) — only when the entry day is AFTER the signal day.
+
+    `signal_date=None` is a caller pricing a day off the harness grid, which
+    starts the weekday AFTER the signal (`_weekday_grid`), so the answer there
+    is always yes.
+    """
+    return signal_date is None or open_print_allowed(day, signal_date)
+
+
+def _junk_basis_entry(leg: Leg, day: date,
+                      signal_date: date | None = None) -> float | None:
+    """`entry_price_of` on the JUNK basis — production's entry choice, IMPORTED.
+
+    `simulate.entry_day_fill` on the entry day's own row (a junk quote by
+    `_junk_entry_fill` with the Open print, else the Open, else the mark),
+    only when `open_print_allowed`; otherwise, or with no row that day,
+    `simulate.carried_entry_fill` on the newest snap on or before the day
+    (junk fill WITHOUT its Open print, else the snap's mark) — the two calls
+    `_simulate._entry_price_leg` / `_price_leg` make, in that order. None when
+    production refuses (`junk_entry_quote`) or has no price. Rows are read as
+    production loads them (`_priced_rows`).
+    """
+    rows = _priced_rows(leg)
+    fill = entry_day_fill(rows.get(day), leg.qty, open_print=_open_ok(day, signal_date))
+    if fill is not None:
+        return fill[0]                  # None is the junk_entry_quote refusal
+    snaps = [d for d in sorted(rows) if d <= day and d <= leg.expiration]
+    if not snaps:
+        return None
+    snap = rows[snaps[-1]]
+    return carried_entry_fill(snap, snap["_mark"], leg.qty)[0]
+
+
 def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
                    side: bool | None = None,
-                   open_side: bool | None = None) -> float | None:
+                   open_side: bool | None = None,
+                   junk: bool | None = None,
+                   signal_date: date | None = None) -> float | None:
     """One leg's fill: that day's Open, else its EOD mark, else the most recent
     prior mark carried forward.
+
+    The Open print is read only when `day` is AFTER `signal_date`
+    (`_open_ok`, production's `open_print_allowed`, on EVERY basis — the rule
+    predates them all). A same-day entry falls straight through to the carried
+    mark, which for a day with a row is that day's EOD mark. Pass the signal
+    date whenever `day` can be the signal day itself: a RECORDED entry day can
+    (`recorded_entry_date`), a grid day cannot.
 
     Mirrors `_simulate._entry_price_leg` under `entry_timing: next_open` in ALL
     of its branches — Open when it is positive (the row tags these
@@ -430,12 +567,24 @@ def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
     On the OPEN-SIDE basis (`priced_with_open_side`, 2026-09-22) the side branch
     moves AHEAD of the Open print: a one-sided quote fills on its side even when
     the day printed, and only a two-sided or quote-less row keeps the Open.
-    Production's `_entry_price_leg` has that order now. `open_side` is only
-    meaningful with `side`; the later rule implies the earlier one.
+    Production's `_entry_price_leg` has that order until 2026-09-24. `open_side`
+    is only meaningful with `side`; the later rule implies the earlier one.
+
+    On the JUNK basis (`priced_with_junk`, 2026-09-24) `_junk_entry_fill` —
+    IMPORTED — prices any junk entry quote ahead of everything else, on the
+    entry day's own row (with its Open print) or on the carried snap (without).
+    A BOUGHT leg into a junk quote that did not trade is REFUSED, and this
+    returns None exactly where production refuses `junk_entry_quote`. It implies
+    the three entry bases before it, so `side=False` or `open_side=False` turns
+    it off too.
     """
     use_side = _resolve_side(side)
     use_open_side = use_side and _resolve_open_side(open_side)
-    row = leg_details(leg).get(day)
+    if use_open_side and _resolve_junk(junk):
+        return _junk_basis_entry(leg, day, signal_date)
+    # Pre-junk bases (legacy rules production no longer has) keep their own
+    # order below; the Open-after-signal gate is production's on every basis.
+    row = leg_details(leg).get(day) if _open_ok(day, signal_date) else None
     if row is not None:
         if use_open_side:
             sm = _entry_side_mark(row, leg.qty)
@@ -470,11 +619,15 @@ def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
 
 def net_entry(legs: list[Leg], day: date, b5: bool | None = None,
               side: bool | None = None,
-              open_side: bool | None = None) -> float | None:
-    """Signed net entry price across legs, or None if any leg cannot be filled."""
+              open_side: bool | None = None,
+              junk: bool | None = None,
+              signal_date: date | None = None) -> float | None:
+    """Signed net entry price across legs, or None if any leg cannot be filled
+    — including a leg production REFUSES (`junk_entry_quote`). `signal_date`
+    gates the Open print as in `entry_price_of`."""
     total = 0.0
     for leg in legs:
-        p = entry_price_of(leg, day, b5, side, open_side)
+        p = entry_price_of(leg, day, b5, side, open_side, junk, signal_date)
         if p is None:
             return None
         total += leg.qty * p
@@ -482,7 +635,8 @@ def net_entry(legs: list[Leg], day: date, b5: bool | None = None,
 
 
 def net_marks(legs: list[Leg], grid: list[date],
-              b5: bool | None = None) -> list[float | None]:
+              b5: bool | None = None,
+              junk: bool | None = None) -> list[float | None]:
     """The daily signed net value over `grid`, carry-forward priced and clamped.
 
     Same two rules as `_simulate` steps 2-4: `_price_asof` carries the most
@@ -490,8 +644,12 @@ def net_marks(legs: list[Leg], grid: list[date],
     to the structure's arbitrage-free range. The clamp returning None for a
     single leg (`long_put`) and for multi-expiration legs (`long_diag`) is the
     correct production behaviour, not an omission.
+
+    On the junk basis a junk day with no real value leaves the leg — and so the
+    day — unpriced, and stays unpriced while that snap is carried
+    (`_mark_series`), as production's `_price_leg` does.
     """
-    series = {id(leg): leg_series(leg, b5) for leg in legs}
+    series = {id(leg): _mark_series(leg, b5, junk) for leg in legs}
     clamp = _defined_risk_bounds(legs)
     out: list[float | None] = []
     for day in grid:
@@ -533,14 +691,15 @@ def synth_trade(rec: dict, legs: list[Leg], structure: str) -> Trade | None:
     b5 = priced_with_b5(base.row)
     side = priced_with_side(base.row)
     open_side = priced_with_open_side(base.row)
+    junk = priced_with_junk(base.row)
     ed = entry_date_for(legs, grid)
     if ed is None:
         return None
-    net = net_entry(legs, ed, b5, side, open_side)
+    net = net_entry(legs, ed, b5, side, open_side, junk, base.signal_date)
     if net is None or abs(net) <= 1e-9:
         return None
 
-    marks = net_marks(legs, grid, b5)
+    marks = net_marks(legs, grid, b5, junk)
     if all(m is None for m in marks):
         return None
 
@@ -587,14 +746,15 @@ def reconstructs(rec: dict) -> tuple[bool, str]:
     # Mirror EVERY basis the row was priced on: B5 governs its marks, the
     # side-aware fill (and whether it precedes the Open) its entry. See basis_of.
     b5 = priced_with_b5(base.row)
+    junk = priced_with_junk(base.row)
     net = net_entry(legs, ed, b5, priced_with_side(base.row),
-                    priced_with_open_side(base.row))
+                    priced_with_open_side(base.row), junk, base.signal_date)
     if net is None:
         return False, "entry_unpriced"
     if abs(net - base.entry_net) > RECON_TOL:
         return False, "entry_mismatch"
 
-    marks = net_marks(legs, base.grid, b5)
+    marks = net_marks(legs, base.grid, b5, junk)
     both = [(a, b) for a, b in zip(marks, base.marks)
             if a is not None and b is not None]
     if not both:

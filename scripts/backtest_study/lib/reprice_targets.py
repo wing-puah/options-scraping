@@ -14,9 +14,12 @@ THE THREE SETS
                 the row was priced on (results: `legs`; proxy: `legs_original`,
                 the pre-tweak parse). Fixed in code by 90bea63 (header strikes).
   open_fill     a leg was filled at its entry-day `Open` print
-                (`[barchart_open]` in `entry_leg_detail`) while that day's quote
-                was ONE-SIDED (`simulate._entry_side_mark` claims it). Fixed in
-                code 2026-09-22: the side rule now precedes the Open print.
+                (`[barchart_open]` in `entry_leg_detail`) that production's
+                CURRENT entry rule would not fill there: a same-day entry, or a
+                junk quote `simulate.entry_day_fill` fills another way
+                (`open_fill_legs`). Defined by the one-sided test
+                (`_entry_side_mark`) from 2026-09-22 to 2026-09-28, when the
+                operator moved it onto the junk rule.
 
 WHY WHOLE DATES
 ---------------
@@ -212,8 +215,28 @@ class Cache:
 
 
 def open_fill_legs(row: dict, cache: Cache) -> tuple[int, int]:
-    """`(one_sided_open_legs, undeterminable_open_legs)` for one stored row."""
+    """`(open_legs_production_would_not_fill_at_the_open, undeterminable_open_legs)`.
+
+    A leg stored as `[barchart_open]` is claimed when production's CURRENT entry
+    rule would not fill it at that print. The rule is IMPORTED, never restated
+    (operator ruling 2026-09-28): `simulate.open_print_allowed` (a same-day
+    entry fills at the EOD mark, never the Open) and `simulate.entry_day_fill`
+    on the entry day's own row, which judges the quote with `_is_junk_quote` and
+    fills a junk leg by `_junk_entry_fill` — a sold leg into no bid at 0, an
+    untraded sold leg at its bid, an untraded bought leg refused. A junk quote
+    on a day the contract traded still fills at the Open, so it is not claimed.
+
+    Until 2026-09-28 this claimed a leg whenever `_entry_side_mark` did, the
+    2026-09-22 one-sided test. The junk rule of 2026-09-24 replaced it in
+    production, so the `open_fill` set now means "the stored Open fill is not
+    what production does today".
+    """
     ed = recorded_entry_day(row)
+    try:
+        signal = date.fromisoformat(str(row.get("signal_date", ""))[:10])
+    except ValueError:
+        signal = None
+    open_ok = ed is not None and signal is not None and SIM.open_print_allowed(ed, signal)
     hit = unknown = 0
     for leg, tag in entry_leg_tags(row.get("entry_leg_detail", "")):
         if tag != "barchart_open":
@@ -221,7 +244,9 @@ def open_fill_legs(row: dict, cache: Cache) -> tuple[int, int]:
         day_row = (cache.details(leg) or {}).get(ed) if ed else None
         if day_row is None:
             unknown += 1
-        elif SIM._entry_side_mark(day_row, leg.qty) is not None:
+            continue
+        fill = SIM.entry_day_fill(day_row, leg.qty, open_print=open_ok)
+        if fill is None or fill[1] != "barchart_open":
             hit += 1
     return hit, unknown
 

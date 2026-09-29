@@ -260,6 +260,121 @@ def _junk_entry_fill(row, qty, open_print: bool = True):
     return None, JUNK_ENTRY_REFUSAL
 
 
+# ─── Shared pricing rules (production AND the research re-pricers) ────────────
+# The entry-price choice and the junk-quote daily mark, as pure functions of the
+# quote rows. `_simulate` calls them, and `backtest_study/f3_structure/
+# bear_rewrap.py` IMPORTS them, so the re-pricer cannot drift from production
+# (it had: it took the Open print on a same-day entry, 2026-09-24). Change one
+# here and both follow; never restate them in a mirror.
+
+def open_print_allowed(entry_date, signal_date, entry_timing: str = "next_open") -> bool:
+    """May the entry fill at the entry day's ``Open`` print?
+
+    Only under ``entry_timing: next_open`` and only when the entry day is AFTER
+    the signal day. A SAME-DAY entry (`_entry_row_from_history` falls back to the
+    signal day when no later bar exists yet) fills at the EOD mark: that day's
+    Open printed before the EOD-built signal existed, so filling at it would be
+    lookahead.
+    """
+    return entry_timing == "next_open" and entry_date > signal_date
+
+
+def entry_day_fill(row, qty, *, open_print: bool):
+    """One leg's ENTRY fill off the entry day's OWN history row.
+
+    ``(price, tag)``, ``(None, JUNK_ENTRY_REFUSAL)`` when a bought leg meets a
+    junk quote with no trade, or None to FALL THROUGH to the carried mark
+    (`carried_entry_fill`). None whenever ``open_print`` is False
+    (`open_print_allowed`) or there is no row: the carried path then finds the
+    same day's row as its snap and fills it at the EOD mark. In order:
+
+      1. a JUNK quote             → `_junk_entry_fill` (with the Open print)
+      2. a positive Open print    → the Open (`barchart_open`)
+      3. a positive `_mark`       → the EOD mark (`barchart`)
+    """
+    if not open_print or row is None:
+        return None
+    fill = _junk_entry_fill(row, qty, open_print=True)
+    if fill is not None:
+        return fill
+    op = _to_float(row.get("Open"))
+    if op and op > 0:
+        return op, "barchart_open"
+    mk = row.get("_mark")
+    if mk and mk > 0:
+        return mk, "barchart"
+    return None
+
+
+def carried_entry_fill(row, mark, qty):
+    """One leg's ENTRY fill off the snap the barchart source carried to the
+    entry day (on or before it), when `entry_day_fill` fell through.
+
+    ``row`` is the quote the day is judged by and ``mark`` the snap's series
+    mark. ``(price, tag)``: `_junk_entry_fill` on that row WITHOUT its Open
+    print (an old session's Open is not an entry fill) when the quote is junk,
+    else ``(mark, "barchart")``. The tag is ``"barchart"`` exactly when the
+    plain mark was used, which is the only case `_price_leg` may re-tag stale.
+    """
+    fill = _junk_entry_fill(row, qty, open_print=False)
+    if fill is not None:
+        return fill
+    return mark, "barchart"
+
+
+def last_good_mark(series, details, before, expiration=None):
+    """``(mark, date)`` of the newest barchart snap strictly before ``before``
+    whose quote is usable: a non-junk quote (its series mark), or a junk quote
+    on a day the contract traded (its Latest). None when there is none.
+
+    ``series`` is the contract's sorted ``[(date, mark)]`` and ``details`` its
+    ``{date: row}``; a snap with no detail row counts as a usable quote.
+    """
+    details = details or {}
+    for snap_date, mark in reversed(series or []):
+        if snap_date >= before or (expiration and snap_date > expiration):
+            continue
+        row = details.get(snap_date)
+        if not _is_junk_quote(row):
+            return mark, snap_date
+        traded = _traded_price(row)
+        if traded is not None:
+            return traded, snap_date
+    return None
+
+
+def junk_day_mark(row, q_day, series, details, expiration=None):
+    """The DAILY mark for a contract whose quote on ``q_day`` is junk (2026-09-24).
+
+    ``(price, tag, snap)``, or None when there is no real value at all:
+
+      1. the contract traded on q_day → that day's Latest (`barchart_last`)
+      2. else the last good mark (`last_good_mark`), carried and tagged
+         `barchart_stale` whatever its age — a junk day is never a quote —
+      3. B5 CEILING: when the junk quote has NO BID, `_zero_bid_mark` (ask/2,
+         or 0 when nothing is offered) caps step 2. A bid-less contract is
+         worth about nothing on liquidation, so it is never carried at an
+         older, higher mark; a junk ask of 4.80 caps nothing on a 0.11
+         option, a `0 x 0.05` quote marks it at 0.025. When the ceiling
+         binds, or there is no good mark to carry, the mark is the
+         ceiling, tagged `barchart` off the day's own quote.
+
+    A wide junk quote WITH a bid and no good mark behind it is unpriceable
+    from barchart; the next source is tried. ``series`` / ``details`` are the
+    contract's, as `last_good_mark` takes them.
+    """
+    traded = _traded_price(row)
+    if traded is not None:
+        return traded, "barchart_last", q_day
+    good = last_good_mark(series, details, q_day, expiration)
+    ceiling = _zero_bid_mark(row)
+    if good is not None and (ceiling is None or good[0] <= ceiling):
+        return good[0], "barchart_stale", good[1]
+    if ceiling is not None:
+        return ceiling, "barchart", q_day
+    return None
+
+
 def _cost_knobs(cfg: dict) -> tuple[float, float]:
     """``(commission_per_contract, slippage_frac_of_spread)`` — the transaction-cost
     model (robustness review B1). BOTH DEFAULT TO 0, so an unconfigured run and
@@ -1093,50 +1208,12 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         None when this run has no details map / no row that day."""
         return (barchart_details or {}).get(key, {}).get(day)
 
-    def _last_good_mark(key, before, expiration):
-        """``(mark, date)`` of the newest barchart snap strictly before ``before``
-        whose quote is usable: a non-junk quote (its mid), or a junk quote on a
-        day the contract traded (its Latest). None when there is none."""
-        for snap_date, mark in reversed(barchart_series.get(key) or []):
-            if snap_date >= before or (expiration and snap_date > expiration):
-                continue
-            row = _detail_row(key, snap_date)
-            if not _is_junk_quote(row):
-                return mark, snap_date
-            traded = _traded_price(row)
-            if traded is not None:
-                return traded, snap_date
-        return None
-
     def _junk_day_mark(key, leg, row, q_day):
-        """The DAILY mark for a leg whose quote on ``q_day`` is junk (2026-09-24).
-
-        ``(price, tag, snap)``, or None when there is no real value at all:
-
-          1. the contract traded on q_day → that day's Latest (`barchart_last`)
-          2. else the last good mark (`_last_good_mark`), carried and tagged
-             `barchart_stale` whatever its age — a junk day is never a quote —
-          3. B5 CEILING: when the junk quote has NO BID, `_zero_bid_mark` (ask/2,
-             or 0 when nothing is offered) caps step 2. A bid-less contract is
-             worth about nothing on liquidation, so it is never carried at an
-             older, higher mark; a junk ask of 4.80 caps nothing on a 0.11
-             option, a `0 x 0.05` quote marks it at 0.025. When the ceiling
-             binds, or there is no good mark to carry, the mark is the
-             ceiling, tagged `barchart` off the day's own quote.
-
-        A wide junk quote WITH a bid and no good mark behind it is unpriceable
-        from barchart; the next source is tried.
-        """
-        traded = _traded_price(row)
-        if traded is not None:
-            return traded, "barchart_last", q_day
-        good = _last_good_mark(key, q_day, leg.expiration)
-        ceiling = _zero_bid_mark(row)
-        if good is not None and (ceiling is None or good[0] <= ceiling):
-            return good[0], "barchart_stale", good[1]
-        if ceiling is not None:
-            return ceiling, "barchart", q_day
-        return None
+        """The daily mark of a junk-quoted day: the module-level `junk_day_mark`
+        over this contract's series and detail rows (shared with the research
+        re-pricer, which imports it)."""
+        return junk_day_mark(row, q_day, barchart_series.get(key),
+                             (barchart_details or {}).get(key, {}), leg.expiration)
 
     def _price_leg(leg, day, d, sources=None, entry_qty=None):
         """``(price, source_tag, quoted_spread, one_sided, snap)``.
@@ -1187,10 +1264,13 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 one_sided = _zero_bid_mark(row) is not None
                 tag = "barchart"
                 if entry_qty is not None:
-                    fill = _junk_entry_fill(row, entry_qty, open_print=False)
-                    if fill is not None:
-                        # A refusal comes back as (None, JUNK_ENTRY_REFUSAL).
-                        return fill[0], fill[1], spread, one_sided, q_day
+                    # `carried_entry_fill`: a junk quote fills by `_junk_entry_fill`
+                    # (a refusal comes back as (None, JUNK_ENTRY_REFUSAL)) and is
+                    # returned as is; the plain mark comes back tagged `barchart`
+                    # and takes the stale re-tag below, as before.
+                    fp, ftag = carried_entry_fill(row, p, entry_qty)
+                    if ftag != "barchart":
+                        return fp, ftag, spread, one_sided, q_day
                 elif _is_junk_quote(row):
                     marked = _junk_day_mark(key, leg, row, q_day)
                     if marked is None:
@@ -1221,33 +1301,27 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     entry_date = (entry_row.get("_entry_date") or signal_date) if barchart_details \
         else signal_date
     entry_d = (entry_date - signal_date).days
-    use_open = entry_timing == "next_open" and entry_date > signal_date
+    # The Open print only AFTER the signal day (`open_print_allowed`).
+    use_open = open_print_allowed(entry_date, signal_date, entry_timing)
 
     def _entry_price_leg(leg):
         """``(price, source_tag, quoted_spread)`` for one leg on the entry day."""
         if use_open and "barchart" in entry_sources:
             row = (barchart_details.get(_key(leg)) or {}).get(entry_date)
             if row is not None:
-                spread = _leg_spread(row)
-                # A JUNK entry-day quote (2026-09-24) is filled by
-                # `_junk_entry_fill`, AHEAD of the Open print: a SOLD leg into
+                # `entry_day_fill`: a JUNK entry-day quote (2026-09-24) is filled
+                # by `_junk_entry_fill`, AHEAD of the Open print: a SOLD leg into
                 # no bid receives 0 (the 2026-09-22 one-sided rule, which every
                 # zero-bid quote now reaches through this test); otherwise the
                 # day's trade print when the contract traded; otherwise a sold
                 # leg at its bid and a bought leg REFUSED — a junk ask is never
                 # a fill. A clean two-sided quote, or a row with no quote data,
-                # still fills at the Open print exactly as before. The junk
+                # still fills at the Open print, else the day's mark. The junk
                 # leg's spread is `JUNK_SPREAD`, so it is charged commission
                 # only.
-                fill = _junk_entry_fill(row, leg.qty, open_print=True)
+                fill = entry_day_fill(row, leg.qty, open_print=True)
                 if fill is not None:
-                    return fill[0], fill[1], spread
-                op = _to_float(row.get("Open"))
-                if op and op > 0:
-                    return op, "barchart_open", spread
-                mk = row.get("_mark")
-                if mk and mk > 0:
-                    return mk, "barchart", spread
+                    return fill[0], fill[1], _leg_spread(row)
         # The entry does not use `one_sided` — `_junk_entry_fill` has already
         # priced the leg on the side it trades, above and in `_price_leg`.
         return _price_leg(leg, entry_date, entry_d, sources=entry_sources,

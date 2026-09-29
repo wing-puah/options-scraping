@@ -25,12 +25,26 @@ Both are fixed in the pre-registration and may not be edited here:
 
 WHAT COUNTS AS FILLABLE
 -----------------------
-`lib/barchart/options.py::_mark` — mid(Bid,Ask) when both are > 0, else Latest
-when > 0. A contract with no mark on the session is NOT fillable, and this
-module returns **None** rather than a fabricated fill. Per the pre-registration
-those sessions are carried by the study at f=0 and counted AGAINST the fill
-gate, never dropped from the population (`hedge_structure`'s standing rule that
-a hedge unavailable exactly when needed is not a hedge).
+PRODUCTION's entry rule, imported from `scripts/backtest/simulate.py` and never
+restated (operator ruling, Resolved at build 2026-09-28). A put is bought at the
+session's close, so it is a SAME-DAY entry and `open_print_allowed` keeps the
+Open print out; `carried_entry_fill` then fills it off the session's own row:
+the EOD mark on a clean quote, the day's trade print on a junk quote
+(`_is_junk_quote`) when the contract traded, and REFUSED on a junk quote that
+did not trade, because a junk ask is never a fill. A contract with no row on
+the session, or a refused one, is NOT fillable, and this module returns
+**None** rather than a fabricated fill. Per the pre-registration those
+sessions are carried by the study at f=0 and counted AGAINST the fill gate,
+never dropped from the population (`hedge_structure`'s standing rule that a
+hedge unavailable exactly when needed is not a hedge).
+
+Until 2026-09-28 "fillable" meant any `_mark` on the session (mid, else
+Latest), which admitted junk quotes. The gate's name and its 0.60 bar are
+unchanged; only the price it reads moved.
+
+The daily mark follows production too: a clean quote's `_mark`, a junk quote's
+`junk_day_mark` (the traded Latest, else the last good mark carried, capped by
+the B5 zero-bid ceiling), and None where production has no real value.
 
 THE INSTRUMENT EXCLUSION IS A FUNCTION CALL, NOT A NAME LIST
 ------------------------------------------------------------
@@ -84,6 +98,10 @@ if str(ROOT) not in sys.path:
 
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
+from scripts.backtest.simulate import (  # noqa: E402
+    _is_junk_quote, carried_entry_fill, entry_day_fill, junk_day_mark,
+    open_print_allowed,
+)
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest_study.lib import greeks as G  # noqa: E402
@@ -110,6 +128,7 @@ NO_SPOT = "no_spot"
 RESCALED = "instrument_rescaled"
 NO_CONTRACT = "no_contract_in_rule"
 NO_MARK = "no_usable_price"
+JUNK_REFUSED = "junk_entry_quote"          # quoted, but production would not fill it
 BAD_RULE = "unknown_rule"
 FILLED = "filled"
 
@@ -145,8 +164,9 @@ def _put_index(ticker: str) -> dict[date, tuple[float, ...]]:
 
 
 @lru_cache(maxsize=None)
-def _contract_marks(ticker: str, expiry: date, strike: float) -> dict[date, float]:
-    """`{date: mark}` for one cached PUT — `_mark` only, missing rows absent."""
+def _contract_rows(ticker: str, expiry: date, strike: float) -> dict[date, dict]:
+    """`{date: history row}` for one cached PUT, as PRODUCTION loads it: only
+    rows that carry a `_mark` (`require_mark=True`)."""
     path = cache_path(HISTORY_CACHE, ticker, expiry, strike, "Put")
     if not path.exists():
         return {}
@@ -154,7 +174,46 @@ def _contract_marks(ticker: str, expiry: date, strike: float) -> dict[date, floa
         details = parse_history_details(path.read_text(), require_mark=True)
     except Exception:
         return {}
-    return {d: r["_mark"] for d, r in details.items() if r.get("_mark") is not None}
+    return {d: r for d, r in details.items() if r.get("_mark") is not None}
+
+
+@lru_cache(maxsize=None)
+def _contract_marks(ticker: str, expiry: date, strike: float
+                    ) -> dict[date, float | None]:
+    """`{date: daily mark}` for one cached PUT, on production's junk rule.
+
+    A clean quote is its `_mark`; a junk quote is `simulate.junk_day_mark`
+    over the contract's own series, or None when production has no real value
+    that day. A None is kept, not dropped: production carries it as
+    unpriceable, and so does `mark_on`.
+    """
+    rows = _contract_rows(ticker, expiry, strike)
+    series = [(d, rows[d]["_mark"]) for d in sorted(rows)]
+    out: dict[date, float | None] = {}
+    for d, r in sorted(rows.items()):
+        if _is_junk_quote(r):
+            marked = junk_day_mark(r, d, series, rows, expiry)
+            out[d] = None if marked is None else marked[0]
+        else:
+            out[d] = r["_mark"]
+    return out
+
+
+def entry_fill(ticker: str, expiry: date, strike: float, session: date
+               ) -> float | None:
+    """The price production would pay for ONE long put bought at `session`'s
+    close, or None when it would not fill (no row that day, or a junk quote
+    with no trade). Production's two calls, in its order: `entry_day_fill`
+    (which the same-day `open_print_allowed` turns off), then
+    `carried_entry_fill` on the session's own row."""
+    row = _contract_rows(ticker, expiry, strike).get(session)
+    if row is None:
+        return None
+    fill = entry_day_fill(row, +1, open_print=open_print_allowed(session, session))
+    if fill is None:
+        fill = carried_entry_fill(row, row["_mark"], +1)
+    price = fill[0]
+    return price if price is not None and price > 0 else None
 
 
 @lru_cache(maxsize=None)
@@ -173,6 +232,7 @@ def clear_caches() -> None:
     which cache state produced it.
     """
     _put_index.cache_clear()
+    _contract_rows.cache_clear()
     _contract_marks.cache_clear()
     _contract_series.cache_clear()
 
@@ -277,7 +337,9 @@ def select_put_verbose(ticker: str, session: date, rule: str = RULE_BAND
     """`(pick | None, reason)` — the pick plus WHY there is not one.
 
     `reason` is `FILLED` on success, else one of `RESCALED` / `NO_SPOT` /
-    `NO_CONTRACT` / `NO_MARK` / `BAD_RULE`. A caller that only wants the pick
+    `NO_CONTRACT` / `NO_MARK` / `JUNK_REFUSED` / `BAD_RULE`. `JUNK_REFUSED`
+    means some candidate had a quote on the session and production would not
+    fill any of them (`entry_fill`); `NO_MARK` means none was quoted at all. A caller that only wants the pick
     should use `select_put`; the reason exists so the study can report the
     shape of its unfillable sessions instead of a bare count.
     """
@@ -293,14 +355,16 @@ def select_put_verbose(ticker: str, session: date, rule: str = RULE_BAND
              else _nearest_candidates(ticker, session, spot))
     if not cands:
         return None, NO_CONTRACT
+    refused = False
     for expiry, strike in cands:
-        mark = _contract_marks(ticker, expiry, strike).get(session)
+        mark = entry_fill(ticker, expiry, strike, session)
         if mark is None:
+            refused = refused or session in _contract_rows(ticker, expiry, strike)
             continue
         return PutPick(ticker=ticker, session=session, expiry=expiry,
                        strike=strike, rule=rule, entry_mark=mark,
                        spot=spot), FILLED
-    return None, NO_MARK
+    return None, (JUNK_REFUSED if refused else NO_MARK)
 
 
 def select_put(ticker: str, session: date, rule: str = RULE_BAND) -> PutPick | None:
@@ -319,7 +383,9 @@ def mark_on(pick: PutPick, day: date) -> float | None:
 
     Mirrors `scripts/backtest/helpers.py::_price_asof`: the most recent mark on
     or before `day`, and never a mark stamped after the contract expired. None
-    before the entry session and when nothing has printed yet.
+    before the entry session and when nothing has printed yet, and None while
+    the latest snap is a junk day production could not value (see
+    `_contract_marks`).
     """
     if day < pick.session:
         return None
