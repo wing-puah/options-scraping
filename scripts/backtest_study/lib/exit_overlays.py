@@ -87,6 +87,7 @@ from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest_study.lib.harness import (  # noqa: E402
     MAX_LOSS_ABS, Trade, replay,
 )
+from scripts.backtest_study.lib.replay_basis import bounded  # noqa: E402
 from scripts.backtest_study.lib.underlying import (  # noqa: E402
     Bar, entry_day, load_bars,
 )
@@ -533,7 +534,8 @@ def _resized(t: Trade, contracts: int) -> Trade:
     """
     row = dict(t.row)
     row["contracts"] = str(int(contracts))
-    return Trade(row)
+    # Re-cut at `path_data_end`, as the loader's Trade was (ruling 2026-09-28).
+    return bounded(Trade(row))
 
 
 def partial_scaleout(t: Trade, prof: dict,
@@ -809,7 +811,7 @@ def replay_overlaid(rec: dict, contracts: int, stop: float, spec: Overlay,
         assert exact, f"scaling identity non-integral: {scaled_exact}"
     row = dict(rec["t"].row)
     row["contracts"] = str(scaled)
-    t2 = Trade(row)
+    t2 = bounded(Trade(row))
     rp = replay(t2, **prof)
     # ─────────────────────────────────────────────────────────────────────────
 

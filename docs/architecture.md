@@ -516,6 +516,18 @@ in the family folders concluded.
   enforces the era, and applies the date floor. `diag` carries `era`, `n_dates`, `date_range`.
   `--validate` passes `min_dates=0` — the diagnostic's job is to describe whatever book is
   there, including one too thin to study.
+- `lib/replay_basis.py` — the one classifier for "does a stored row reproduce under a
+  profile". Resolved at build (2026-09-28), three operator rulings on the re-priced book:
+  - The stored P&L is net of `cost_total`, so the comparison adds the cost back in
+    production's own rounding (`reproduces_pnl`). A row with blank `cost_basis` is compared
+    as before.
+  - `bounded(t)` cuts a Trade at `path_data_end`, where production's exit scan stops. The
+    loader hands studies that cut Trade, so an `open_at_data_end` row stays a `cap_open`
+    outcome in every replay. `mtm_curve` reads it through `uncut_grid_len`.
+  - A deferred exit fill is its own `deferred_fill` class: kept as an outcome, never
+    compared. `no_two_sided` rows are compared as normal.
+  `load_book` prints the returned book's `open_at_data_end`, `carried`, deferred and
+  `no_two_sided` counts to stderr, so every report that loads the book carries them.
 - `lib/underlying.py` — daily stock bars (real OHLC → `Price~` close-only fallback; the all-legs
   widening harness.py must not get). `lib/underlying_features.py` — as-of-entry price-STATE
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry

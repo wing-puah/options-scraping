@@ -1006,7 +1006,8 @@ def main(argv=None) -> int:
     recs, tally = calibration_gate(rows)
     print(f"\n  {tally['exact']} exact, {tally['near']} near, "
           f"{tally['superseded']} superseded-basis, {tally['boundary_tie']} "
-          f"boundary-tie, {tally['hard']} HARD  of {len(rows)}")
+          f"boundary-tie, {tally['deferred_fill']} deferred-fill, {tally['hard']} HARD  "
+          f"of {len(rows)}")
     print(f"  ADMITTED: {len(recs)} rows / {n_dates(recs)} dates "
           f"({len(recs) / len(rows):.1%} of the book)")
     if not recs:

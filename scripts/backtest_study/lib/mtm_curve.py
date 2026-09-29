@@ -339,10 +339,15 @@ def position_marks(pos) -> tuple[list[date], list[float], int]:
     t = pos.rec["t"]
     grid = t.grid
     tokens = _pnl_tokens(t.row)
-    if len(tokens) != len(grid):
+    # A Trade cut at its data end (`replay_basis.bounded`, 2026-09-28) keeps
+    # the row's full-length token string; check against the uncut grid, then
+    # read only the days the cut kept. No position exits past them.
+    uncut = getattr(t, "uncut_grid_len", len(grid))
+    if len(tokens) != uncut:
         raise ValueError(
             f"{pos.rec.get('ticker')} {pos.rec.get('date')}: "
-            f"{len(tokens)} daily_pnl_csv tokens vs {len(grid)} grid days")
+            f"{len(tokens)} daily_pnl_csv tokens vs {uncut} grid days")
+    tokens = tokens[:len(grid)]
 
     dh = pos.days_held
     if dh is None:

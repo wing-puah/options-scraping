@@ -1334,10 +1334,11 @@ def main(argv=None) -> int:
     recs, tally = calibration_gate(rows)
     print(f"\n  {tally['exact']} exact, {tally['near']} near-rounding-tie, "
           f"{tally['superseded']} superseded-basis, {tally['boundary_tie']} boundary-tie, "
-          f"{tally['hard']} HARD  of {len(rows)}")
+          f"{tally['deferred_fill']} deferred-fill, {tally['hard']} HARD  of {len(rows)}")
     for side in ("debit", "credit"):
         bits = "  ".join(f"{k}={tally[(side, k)]}" for k in
-                         ("exact", "near", "superseded", "boundary_tie", "hard"))
+                         ("exact", "near", "superseded", "boundary_tie", "deferred_fill",
+                          "hard"))
         print(f"  {side:<7} {bits}")
     print(f"  ADMITTED to the variant arms: {len(recs)} rows / "
           f"{len({r['date'] for r in recs})} dates "

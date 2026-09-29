@@ -38,6 +38,7 @@ from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
 )
 from scripts.backtest_study.lib.book import DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
+from scripts.backtest_study.lib import replay_basis as RB  # noqa: E402
 from scripts.backtest_study.lib.underlying import load_bars  # noqa: E402
 
 MIN_CELL_N = 20
@@ -102,10 +103,12 @@ def gate_calibration(recs: list[dict], diag: dict) -> list[dict]:
     for r in pop:
         t = r["t"]
         rp = replay(t, **DEBIT_PROD)
+        # On the row's own basis (lib/replay_basis, ruling 2026-09-28): `t` is
+        # the loader's bounded Trade, and the stored pnl is net of its cost.
         want = (t.row["exit_reason"], int(float(t.row["days_held"])),
-                round(float(t.row["realized_pnl_pct"]), 4))
+                RB.stored_gross_pct(t))
         got = (rp["exit_reason"], rp["days_held"], round(rp["pnl_pct"], 4))
-        if want != got:
+        if want[:2] != got[:2] or not RB.reproduces_pnl(t, rp["pnl_pct"]):
             hard.append((r, want, got))
     print(f"  replay identity re-check on the exit-arm population: "
           f"{len(pop) - len(hard)}/{len(pop)} exact")

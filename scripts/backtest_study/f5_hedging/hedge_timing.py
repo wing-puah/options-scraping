@@ -907,7 +907,8 @@ def main() -> int:
     sub("G1 — book calibration (lib/replay_basis.classify, via load_book)")
     dc = diag["debit_calib"]
     print(f"  debit rows {dc['n']}: exact {dc['exact']}  near-rounding-tie {dc['near']}  "
-          f"boundary-tie {dc['boundary_tie']}  superseded {dc['superseded']}  hard {dc['hard']}")
+          f"boundary-tie {dc['boundary_tie']}  superseded {dc['superseded']}  "
+          f"deferred-fill {dc['deferred_fill']}  hard {dc['hard']}")
     print(f"  proxy debit rows excluded (non-exact) {diag['n_proxy_excluded_non_exact']}   "
           f"credit rows admitted UNGATED {diag['n_credit_ungated']}")
     print("  boundary_tie is its OWN class (the 2026-08-27 HYG 1-ulp pt/sl tie, fixed in")

@@ -42,7 +42,9 @@ from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD  # noqa: E40
 from scripts.backtest_study.lib.harness import (  # noqa: E402
     MAX_LOSS_ABS, PATH_CAP_DAYS, Trade, _pct, _to_float, replay,
 )
-from scripts.backtest_study.lib.replay_basis import classify, unreachable_reasons  # noqa: E402
+from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
+    bounded, classify, unreachable_reasons,
+)
 from scripts.backtest_study.lib import triggers  # noqa: E402
 
 # --- the two books, and why only ONE of them is era-resolved ----------------
@@ -101,7 +103,9 @@ def load_trades(path: Path, side: str, load_underlying: bool = False) -> list[Tr
             continue
         if (side == "debit") != (e > 0):
             continue
-        out.append(Trade(r, load_underlying=load_underlying))
+        # Cut at `path_data_end` (lib/replay_basis.bounded, ruling 2026-09-28),
+        # so no variant fires on a carried mark past the data end.
+        out.append(bounded(Trade(r, load_underlying=load_underlying)))
     out.sort(key=lambda t: (t.signal_date, t.ticker))
     return out
 
@@ -130,11 +134,13 @@ def calibrate(trades: list[Trade], prod: dict, label: str) -> bool:
     print("=" * 100)
     unreachable = unreachable_reasons(prod)
     tally = Counter()
-    sup_rows, tie_rows, hard_rows = [], [], []
+    sup_rows, tie_rows, hard_rows, dfr_rows = [], [], [], []
     for t in trades:
         kind, want, got = classify(t, prod, unreachable)
         tally[kind] += 1
-        if kind == "superseded":
+        if kind == "deferred_fill":
+            dfr_rows.append((t, want, got))
+        elif kind == "superseded":
             sup_rows.append((t, want, got))
         elif kind == "boundary_tie":
             tie_rows.append((t, want, got))
@@ -142,8 +148,14 @@ def calibrate(trades: list[Trade], prod: dict, label: str) -> bool:
             hard_rows.append((t, want, got))
     print(f"  → {tally['exact']} exact, {tally['near']} near-rounding-tie, "
           f"{tally['superseded']} superseded-basis, "
-          f"{tally['boundary_tie']} boundary-tie, {tally['hard']} HARD "
-          f"of {len(trades)}")
+          f"{tally['boundary_tie']} boundary-tie, {tally['deferred_fill']} deferred-fill, "
+          f"{tally['hard']} HARD of {len(trades)}")
+    if dfr_rows:
+        print("  deferred-fill rows (exit filled on a later two-sided day; a superseded "
+              "basis the frozen harness cannot check — kept, never compared):")
+        for t, want, got in dfr_rows:
+            print(f"    {t.signal_date} {t.ticker:5s} {t.structure:18s} "
+                  f"exit_fill={t.row.get('exit_fill')} stored={want} replay={got}")
     if sup_rows:
         print(f"  superseded-basis rows (stored under a shipped override; "
               f"unreachable under this profile: {sorted(unreachable)}):")

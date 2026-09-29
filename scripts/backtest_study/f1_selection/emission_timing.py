@@ -62,6 +62,7 @@ from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.lib import underlying as U  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import PATH_CAP_DAYS, Trade, replay  # noqa: E402
+from scripts.backtest_study.lib.replay_basis import bounded  # noqa: E402
 
 # The runner promotes -latest.txt on these codes instead of deleting it. It
 # finds this by AST parse, so it must stay a PLAIN SET LITERAL — a
@@ -434,6 +435,13 @@ def synth_trade(rec: dict, lag: int) -> tuple[Trade | None, int, str]:
     bug and fails the run.
     """
     t = rec["t"]
+    # The loader's Trade is cut at `path_data_end` (replay_basis.bounded,
+    # ruling 2026-09-28). Build the synthetic from the UNCUT row, then cut it
+    # at the same date below, so lag 0 reproduces the stored trade and a
+    # truncated path still ends `cap_open` rather than claiming expiry.
+    cut = getattr(t, "uncut_grid_len", None) is not None
+    if cut:
+        t = Trade(dict(t.row))
     grid, marks = t.grid, t.marks
     if lag >= len(marks):
         return None, 0, "grid_shorter_than_lag"
@@ -471,6 +479,8 @@ def synth_trade(rec: dict, lag: int) -> tuple[Trade | None, int, str]:
     row["daily_price_csv"] = csv_path
     try:
         st = Trade(row)
+        if cut:
+            st = bounded(st)
     except (AssertionError, ValueError, KeyError) as exc:
         fail(f"G1: Trade construction failed for {rec['ticker']} {rec['date']} "
              f"lag {lag}: {exc!r}. A silently dropped row would make the lag "

@@ -67,6 +67,24 @@ row:
   G2) still skips them, and the count lands in
   `diag["n_proxy_admitted_non_exact"]`.
 
+  THE ROW'S OWN BASIS (operator rulings, Resolved at build 2026-09-28). The
+  2026-09-24 re-price made three differences between a stored row and a
+  frozen-harness replay that are not pricing failures, and 745 of 762 real
+  debit rows failed calibration on them. `lib/replay_basis.py` now owns all
+  three: the comparison adds the row's `cost_total` back (a row with blank
+  `cost_basis` is compared as before); every replay runs on `bounded(t)`, the
+  Trade cut at `path_data_end`, so an `open_at_data_end` row stays in as the
+  `cap_open` outcome production booked and a `carried` row is compared on the
+  days its data covers; and a deferred exit fill (`exit_fill` = `deferred_<n>`)
+  is its own `deferred_fill` bucket, kept as an outcome and never compared.
+  The record's `t` IS the bounded Trade, so a study that re-replays a row can
+  never fire an exit on a carried mark past the data end either. Proxy
+  `deferred_fill` rows are admitted (`calibrated=False`), counted in
+  `diag["n_proxy_admitted_deferred"]`. `diag["path_outcomes"]` counts the
+  returned book's `open_at_data_end` / `carried` / deferred / `no_two_sided`
+  rows, and `load_book` prints that line to stderr so every study report that
+  loads the book shows how much of its outcome is marks rather than closes.
+
   CREDIT — there is no single credit PROD that calibrates the accumulated
   sheet. Attempt 13 (2026-07-13) removed the credit stop (sl 1x -> None);
   `CREDIT_PROD` below is the POST-Attempt-13 profile, but `BacktestResults`
@@ -123,7 +141,8 @@ from scripts.backtest_study.lib.harness import Trade, _to_float  # noqa: E402
 from scripts.backtest_study.lib import basis_audit  # noqa: E402
 from scripts.backtest_study.lib import prefill_audit  # noqa: E402
 from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
-    calib as _calib_full, classify as _classify, unreachable_reasons,
+    KINDS as _CALIB_KINDS, bounded, calib as _calib_full, classify as _classify,
+    unreachable_reasons,
 )
 
 # Resolved for the era this PROCESS was asked for (`STUDY_ERA`, default
@@ -380,6 +399,33 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
     return rec
 
 
+# --- how much of the book is marks rather than closes ------------------------
+
+def path_outcomes(records: list[dict]) -> Counter:
+    """`path_status` and `exit_fill` tallies over a returned book: the rows
+    whose outcome is a mark at the data end, a fill on a carried mark, a fill
+    moved to a later day, or a fill on a day with no two-sided quote."""
+    out = Counter()
+    for r in records:
+        row = r["t"].row
+        ps = (row.get("path_status") or "").strip()
+        ef = (row.get("exit_fill") or "").strip()
+        if ps in ("open_at_data_end", "carried"):
+            out[ps] += 1
+        if ef.startswith("deferred_"):
+            out["deferred_fill"] += 1
+        elif ef == "no_two_sided":
+            out["no_two_sided"] += 1
+    return out
+
+
+def format_path_outcomes(po: Counter, n: int) -> str:
+    return (f"book outcomes: {n} rows; {po['open_at_data_end']} open_at_data_end "
+            f"(cap_open marks at the data end, not closes), {po['carried']} carried, "
+            f"{po['deferred_fill']} deferred exit fills (calibration skipped), "
+            f"{po['no_two_sided']} no_two_sided")
+
+
 # --- main loader ---------------------------------------------------------------
 
 def load_book(results_csv: str | Path | None = None,
@@ -439,8 +485,8 @@ def load_book(results_csv: str | Path | None = None,
         "n_proxy_admitted_non_exact": 0,
         "n_credit_ungated": 0,
         "require_proxy_calibration": require_proxy_calibration,
-        "debit_calib": {"n": 0, "exact": 0, "near": 0, "superseded": 0,
-                        "boundary_tie": 0, "hard": 0},
+        "debit_calib": {"n": 0, **{k: 0 for k in _CALIB_KINDS}},
+        "n_proxy_admitted_deferred": 0,
         "include_bs": include_bs,
     }
 
@@ -454,7 +500,7 @@ def load_book(results_csv: str | Path | None = None,
                 diag["n_excluded_no_path_or_method"] += 1
                 continue
             try:
-                t = Trade(r)
+                t = bounded(Trade(r))
             except (AssertionError, ValueError, KeyError):
                 diag["n_trade_construction_failed"] += 1
                 continue
@@ -480,7 +526,7 @@ def load_book(results_csv: str | Path | None = None,
                 diag["n_dup_dropped"] += 1
                 continue
             try:
-                t = Trade(r)
+                t = bounded(Trade(r))
             except (AssertionError, ValueError, KeyError):
                 diag["n_trade_construction_failed"] += 1
                 continue
@@ -516,8 +562,13 @@ def load_book(results_csv: str | Path | None = None,
             calibrated = False
             diag["n_credit_ungated"] += 1
         else:
-            exact, near = _calib(t, DEBIT_PROD)
-            if not exact:
+            kind, _want, _got = _classify(t, DEBIT_PROD, _UNREACHABLE_DEBIT)
+            exact = kind == "exact"
+            if kind == "deferred_fill":
+                # A superseded basis the harness cannot check, kept as an
+                # outcome (operator ruling 2026-09-28), never calibrated.
+                diag["n_proxy_admitted_deferred"] += 1
+            elif not exact:
                 if require_proxy_calibration:
                     diag["n_proxy_excluded_non_exact"] += 1
                     continue
@@ -537,6 +588,9 @@ def load_book(results_csv: str | Path | None = None,
     diag["basis_coherence"] = Counter(r["basis_verdict"] for r in records)
     # Same contract: tallied after the source filter, reporting only.
     diag["prefill_coherence"] = Counter(r["prefill_verdict"] for r in records)
+
+    diag["path_outcomes"] = path_outcomes(records)
+    print(format_path_outcomes(diag["path_outcomes"], len(records)), file=sys.stderr)
 
     dates = sorted({r["date"] for r in records})
     diag["date_range"] = (dates[0], dates[-1]) if dates else (None, None)
@@ -578,14 +632,17 @@ def _print_validate(records: list[dict], diag: dict) -> None:
           f"construction failures={diag['n_trade_construction_failed']}")
     dc = diag["debit_calib"]
     print(f"debit calibration: {dc['exact']}/{dc['n']} exact, {dc['near']} near-rounding-tie, "
-          f"{dc['boundary_tie']} boundary-tie, {dc['hard']} hard")
+          f"{dc['superseded']} superseded-basis, {dc['boundary_tie']} boundary-tie, "
+          f"{dc['deferred_fill']} deferred-fill, {dc['hard']} hard")
+    print(format_path_outcomes(diag["path_outcomes"], len(records)))
     print(basis_audit.format_tally(diag["basis_coherence"], len(records)))
     print(prefill_audit.format_tally(diag["prefill_coherence"], len(records)))
     for r in sorted((r for r in records if not r["fill_trusted"]),
                     key=lambda r: (r["date"], r["ticker"])):
         print(f"    exit before fill: {r['date']} {r['ticker']:5} {r['structure']:18} "
               f"days_held={r['days_held']} exit={r['exit_reason']} R={r['R']}")
-    print(f"proxy debit rows excluded (non-exact calibration)={diag['n_proxy_excluded_non_exact']}")
+    print(f"proxy debit rows excluded (non-exact calibration)={diag['n_proxy_excluded_non_exact']}  "
+          f"admitted as deferred fills={diag['n_proxy_admitted_deferred']}")
     print(f"credit rows admitted UNGATED (calibrated=False)={diag['n_credit_ungated']}")
     if diag.get("mech_table_warning"):
         print(f"WARNING: {diag['mech_table_warning']}")

@@ -103,6 +103,7 @@ from scripts.backtest_study.lib.harness import (  # noqa: E402
 # BACK into this module through deferred function-level imports, which is what
 # keeps the cycle from closing at import time.
 from scripts.backtest_study.lib import live_select  # noqa: E402
+from scripts.backtest_study.lib import replay_basis as RB  # noqa: E402
 from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 # The MARK-TO-MARKET curve, for the A3 disclosure alone: A3 itself stays on the
 # realized-on-close basis `a3_no_blowup` scores (see `print_mtm_disclosure`).
@@ -456,7 +457,9 @@ def blind_records(recs: list[dict]) -> list[BlindRec]:
         row = {k: v for k, v in r["t"].row.items()
                if k not in LOOKAHEAD_ROW_COLUMNS}
         b = BlindRec(r)
-        dict.__setitem__(b, "t", Trade(row))
+        # Bounded like the loader's own Trade, so the blind replay and the
+        # sighted one walk the same days (lib/replay_basis.bounded).
+        dict.__setitem__(b, "t", RB.bounded(Trade(row)))
         out.append(b)
     return out
 
@@ -690,7 +693,10 @@ def replay_sized(rec: dict, contracts: int, stop: float,
         assert exact, f"scaling identity non-integral: {scaled_exact}"
     row = dict(rec["t"].row)
     row["contracts"] = str(scaled)
-    t2 = Trade(row)
+    # Re-cut at `path_data_end`: the loader hands over a bounded Trade, and a
+    # Trade rebuilt from its row would otherwise walk the carried marks past
+    # the data end again (lib/replay_basis.bounded, ruling 2026-09-28).
+    t2 = RB.bounded(Trade(row))
     rp = replay(t2, **prof)
     out = dict(exit_reason=rp["exit_reason"], days_held=rp["days_held"],
                R=rp["pnl_pct"],
@@ -1342,7 +1348,7 @@ def print_book_calibration(diag, picked) -> None:
     dc = diag["debit_calib"]
     print(f"  debit_calib      n={dc['n']}  exact={dc['exact']}  "
           f"near={dc['near']}  superseded={dc.get('superseded', 0)}  "
-          f"hard={dc['hard']}")
+          f"deferred-fill={dc.get('deferred_fill', 0)}  hard={dc['hard']}")
     print(f"  n_credit_ungated {diag['n_credit_ungated']}  (admitted WITHOUT the "
           f"exact-replay gate — book.py's credit caveat)")
     b1_n = len(picked)
@@ -1378,7 +1384,10 @@ def run_gates(recs, picked, st: Settings, cache: dict,
   $1,000) at the STORED contract count, under DEBIT_PROD — the profile that
   GENERATED the stored rows. It must reproduce (exit_reason, days_held,
   round(R,4)) exactly. Calibrating against the shipped per-row merge (profile_for)
-  instead would be testing an exit change, not the identity.""")
+  instead would be testing an exit change, not the identity. R is compared on
+  the row's own basis (lib/replay_basis, ruling 2026-09-28): the stored figure
+  is net of `cost_total`, so `want` shows it with the cost added back and the
+  match is production's own rounding of the gross replay into the net.""")
     n_ok = n_bad = 0
     bad_examples = []
     for rec in picked:
@@ -1388,11 +1397,11 @@ def run_gates(recs, picked, st: Settings, cache: dict,
         rp = replay_sized(rec, c, MAX_LOSS_ABS, profile=dict(DEBIT_PROD),
                           cache=cache)
         want = (rec["exit_reason"], int(rec["days_held"]),
-                round(_pct(rec["t"].row["realized_pnl_pct"]), 4))
+                RB.stored_gross_pct(rec["t"]))
         got = (rp["exit_reason"], rp["days_held"], round(rp["R"], 4))
         if selftest:
             got = (got[0], got[1] + 1, got[2])
-        if want == got:
+        if want[:2] == got[:2] and RB.reproduces_pnl(rec["t"], rp["R"]):
             n_ok += 1
         else:
             n_bad += 1
@@ -3420,13 +3429,15 @@ def main(argv=None) -> int:
     # Printed before anything is computed: the whole parameter surface of this
     # run, so the report is self-describing and nothing downstream has to open
     # the config file separately to say what was simulated.
-    print_configuration(st, cfg_name)
-
     # The FROZEN book is always the gate basis: G2 replays against the profile
     # that generated the stored rows and G4 pins selection against
     # `top_k_per_day`. Neither identity is allowed to move because an arm
-    # widened the universe.
+    # widened the universe. Loaded BEFORE the configuration is printed: the
+    # loader writes its diagnostics (the `book outcomes:` line, a stale
+    # mech-table WARNING) to stderr, and inside the CONFIGURATION block the
+    # chart parser would read them as config rows and refuse the page.
     recs, diag = load_book(include_bs=args.include_bs)
+    print_configuration(st, cfg_name)
     picked = P.top_k_per_day(recs, P.ladder_rank, k=st.max_per_day,
                              eligible_fn=P.ladder_eligible)
 

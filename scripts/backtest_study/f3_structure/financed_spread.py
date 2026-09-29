@@ -1705,7 +1705,8 @@ def report_header(recs: list[dict], diag: dict, pop: list, why: Counter,
         f"{k}={v}" for k, v in sorted(Counter(r["source"] for r in recs).items())))
     dc = diag["debit_calib"]
     print(f"  debit_calib      n={dc['n']}  exact={dc['exact']}  "
-          f"near-rounding-tie={dc['near']}  hard={dc['hard']}")
+          f"near-rounding-tie={dc['near']}  deferred-fill={dc.get('deferred_fill', 0)}  "
+          f"hard={dc['hard']}")
     print(f"  n_credit_ungated {diag['n_credit_ungated']}   (credit rows are "
           "admitted WITHOUT the exact-replay\n                   calibration gate — "
           "see lib/book.py's docstring; a credit-signed\n                   "

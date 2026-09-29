@@ -91,7 +91,8 @@ from scripts.backtest_study.lib import era  # noqa: E402
 # as of 2026-08-24; every study now reads the same two dicts.
 from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD  # noqa: E402
 from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
-    _REASON_REQUIRES, NEAR_MISS_TOL, calib as _calib_full, classify as _classify,
+    _REASON_REQUIRES, NEAR_MISS_TOL, bounded, calib as _calib_full, classify as _classify,
+    replay_dollars, stored_gross_dollars,
     unreachable_reasons,
 )
 from scripts.backtest_study.lib import triggers  # noqa: E402
@@ -321,20 +322,25 @@ def load_debit_trades(check_era: bool = True):
         e = _to_float(r.get("entry_option_price"))
         if e is None or e <= 0 or not r.get("daily_price_csv"):
             continue
-        t = Trade(r)
+        # Cut at `path_data_end` (lib/replay_basis.bounded, ruling 2026-09-28):
+        # every replay of this row, the gate's and every variant's, stops
+        # where production's exit scan stopped.
+        t = bounded(Trade(r))
         t.source = "real"
         real.append(t)
     real_keys = {(t.signal_date.isoformat(), t.ticker, t.structure) for t in real}
 
     # real-book calibration (the harness-validation gate)
-    ok = nm = sup = tie = hard = 0
-    hard_rows, sup_rows, tie_rows = [], [], []
+    ok = nm = sup = tie = hard = dfr = 0
+    hard_rows, sup_rows, tie_rows, dfr_rows = [], [], [], []
     stored = rep = stored_all = rep_all = 0.0
     for t in real:
         kind, want, got = _classify(t, DEBIT_PROD, unreachable)
         t.calibrated = kind == "exact"
-        rep_dol = t.dollars(replay(t, **DEBIT_PROD)["pnl_pct"])
-        stored_dol = float(t.row["realized_pnl_abs"])
+        # Both sides GROSS (ruling 2026-09-28): the stored figure with the
+        # row's cost added back, against a replay of the data-bounded path.
+        rep_dol = replay_dollars(t, DEBIT_PROD)
+        stored_dol = stored_gross_dollars(t)
         if kind == "exact":
             ok += 1
         elif kind == "near":
@@ -348,6 +354,11 @@ def load_debit_trades(check_era: bool = True):
             # its dollars are EXPECTED to differ from the stored row's.
             tie += 1
             tie_rows.append((t, want, got))
+        elif kind == "deferred_fill":
+            # Filled on a later two-sided day; the frozen harness fills on the
+            # trigger day. Kept as an outcome, excluded from the cent check.
+            dfr += 1
+            dfr_rows.append((t, want, got))
         else:
             hard += 1
             hard_rows.append((t, want, got))
@@ -357,16 +368,16 @@ def load_debit_trades(check_era: bool = True):
             stored += stored_dol
             rep += rep_dol
     diag["real_calib"] = dict(n=len(real), ok=ok, near=nm, superseded=sup,
-                              boundary_tie=tie, hard=hard,
+                              boundary_tie=tie, deferred_fill=dfr, hard=hard,
                               hard_rows=hard_rows, superseded_rows=sup_rows,
-                              boundary_rows=tie_rows,
+                              boundary_rows=tie_rows, deferred_rows=dfr_rows,
                               stored=stored, replay=rep,
                               stored_all=stored_all, replay_all=rep_all)
 
     # proxy rows
     prox_rows = list(csv.DictReader(open(BP_PATH)))
     tweak, bs = [], []
-    n_dup = n_excl = n_nopath = 0
+    n_dup = n_excl = n_nopath = n_deferred = 0
     excl_rows = []
     excl_kinds = Counter()
     for r in prox_rows:
@@ -382,11 +393,19 @@ def load_debit_trades(check_era: bool = True):
             n_dup += 1
             continue
         try:
-            t = Trade(r)
+            t = bounded(Trade(r))
         except AssertionError:
             n_excl += 1
             continue
         kind, want, got = _classify(t, DEBIT_PROD, unreachable)
+        if kind == "deferred_fill":
+            # Kept as an outcome, never calibrated (ruling 2026-09-28) — the
+            # same admission `lib/book.py` gives these rows.
+            t.calibrated = False
+            t.source = "tweak" if method == "strike_expiry_tweak" else "bs"
+            (tweak if t.source == "tweak" else bs).append(t)
+            n_deferred += 1
+            continue
         if kind != "exact":
             # PROXY ADMISSION IS UNCHANGED: any non-exact proxy row stays
             # excluded. This is a pre-registered POPULATION choice, not the
@@ -404,7 +423,7 @@ def load_debit_trades(check_era: bool = True):
         (tweak if t.source == "tweak" else bs).append(t)
     diag["proxy"] = dict(n_dup=n_dup, n_excl=n_excl, n_nopath=n_nopath,
                          n_tweak=len(tweak), n_bs=len(bs), excl_rows=excl_rows,
-                         excl_kinds=dict(excl_kinds))
+                         excl_kinds=dict(excl_kinds), n_deferred=n_deferred)
 
     trades = real + tweak + bs
     trades.sort(key=lambda t: (t.signal_date, t.ticker))
@@ -442,7 +461,15 @@ def harness_gate(diag, study=""):
     tag = f" ({study})" if study else ""
     print(f"    row calibration{tag}: {rc['ok']}/{rc['n']} exact, {rc['near']} rounding-tie, "
           f"{rc['superseded']} superseded-basis, "
-          f"{rc.get('boundary_tie', 0)} boundary-tie, {rc['hard']} HARD")
+          f"{rc.get('boundary_tie', 0)} boundary-tie, "
+          f"{rc.get('deferred_fill', 0)} deferred-fill, {rc['hard']} HARD")
+    if rc.get("deferred_fill"):
+        print("    deferred-fill rows (exit filled on a later two-sided day; a superseded "
+              "basis the frozen\n    harness cannot check — kept as outcomes, excluded "
+              "from the cent check below):")
+        for t, want, got in rc["deferred_rows"]:
+            print(f"      DEFERRED-FILL {t.signal_date} {t.ticker:6} {t.structure:18} "
+                  f"exit_fill={t.row.get('exit_fill')} stored={want} replay={got}")
     if rc.get("boundary_tie"):
         print("    boundary-tie rows (1-ulp pt/sl tie; production's unrounded pnl "
               "survived the boundary the rounded replay fires on — reproduces in "
@@ -719,6 +746,9 @@ def main():
               f"designed proxy handling, not folded into any table.)")
         print(f"   breakdown: {kinds}  — 'superseded' are BEAR_HE-dated rows carrying the "
               f"shipped trail, same cause as the real book's; proxy admission is unchanged.")
+    if px.get("n_deferred"):
+        print(f"  ({px['n_deferred']} proxy rows with a deferred exit fill ADMITTED uncalibrated — "
+              f"kept as outcomes per the 2026-09-28 ruling.)")
 
     post13c_recs = [r for r in recs if r["post13c"] is True]
     print(f"\npost-13c debit rows (AC-join): {len(post13c_recs)}  "
