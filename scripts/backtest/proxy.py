@@ -61,6 +61,7 @@ from .plays import _choose_anchor
 from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
 from .shared.history import fetch_option_histories
+from .shared import unlisted
 from .shared.identity import (
     find_untested as _find_untested,
     identity_key as _identity_key,
@@ -741,9 +742,18 @@ def main() -> None:
                         help="Re-evaluate plays already in BacktestProxy, deleting their "
                              "existing rows first, and delete proxy rows whose play is now "
                              "on BacktestResults (requires --date or --start/--end)")
+    parser.add_argument("--retry-unlisted", action="store_true",
+                        help="Probe contracts recorded as unlisted on Barchart "
+                             "(backtests/option_history_cache/_unlisted.jsonl) instead of "
+                             "skipping them — an operator-requested re-check; "
+                             "BACKTEST_RETRY_UNLISTED=1 does the same")
     args = parser.parse_args()
     if args.redo and not (args.date or args.start or args.end):
         parser.error("--redo requires --date or --start/--end to bound the re-evaluation")
+    if args.retry_unlisted:
+        # The probe path (_probe_pool) is several calls deep; the env var is how
+        # fetch_option_histories reads the switch without threading it through.
+        os.environ[unlisted.RETRY_ENV] = "1"
 
     cfg_path = Path(__file__).resolve().parent.parent.parent / args.config
     with cfg_path.open() as f:

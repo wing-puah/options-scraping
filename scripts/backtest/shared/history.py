@@ -9,6 +9,7 @@ from lib.barchart import BarchartSession
 
 from ..config import RESULTS_PATH, HISTORY_CACHE
 from ..helpers import _to_float
+from . import unlisted
 
 log = logging.getLogger("backtest")
 
@@ -76,12 +77,17 @@ async def fetch_option_histories(
     contracts: list[dict], headless: bool, timeout_ms: int = 15000,
     needed_dates: dict[tuple, date] | None = None,
     cache_only: bool = False,
+    retry_unlisted: bool | None = None,
 ) -> tuple[dict[tuple, list], dict[tuple, dict]]:
     """Scrape (and cache) per-contract Barchart price history.
 
     contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
     needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
       row is more than 5 days after the needed date, the cache is stale and re-scraped.
+    retry_unlisted: ignore the negative cache (`shared/unlisted.py`) and probe
+      known-unlisted contracts again; None reads BACKTEST_RETRY_UNLISTED.
+      A contract skipped as known-unlisted is priced exactly like a failed
+      fetch (`series_map[key] = []`) — it just costs no network call.
     Returns (series_map, details_map):
       series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
       details_map: {contract_key: {date: row_dict}}      — for building entry rows
@@ -96,6 +102,21 @@ async def fetch_option_histories(
     series_map: dict[tuple, list] = {}
     details_map: dict[tuple, dict] = {}
     to_scrape: list[dict] = []
+
+    unlisted_path = HISTORY_CACHE / unlisted.FILENAME
+    known_unlisted = {} if cache_only else unlisted.load(unlisted_path)
+    retry = unlisted.retry_requested(retry_unlisted)
+    n_skipped_unlisted = 0
+
+    def _queue(c: dict) -> None:
+        nonlocal n_skipped_unlisted
+        if not retry and unlisted.should_skip(known_unlisted.get(unlisted.contract_id(c))):
+            # Exactly what a failed fetch leaves behind, minus the network call.
+            series_map[c["key"]] = []
+            details_map.pop(c["key"], None)
+            n_skipped_unlisted += 1
+            return
+        to_scrape.append(c)
 
     def _load_cache(c: dict, text: str) -> None:
         series_map[c["key"]] = barchart_options.parse_history_series(text)
@@ -134,13 +155,17 @@ async def fetch_option_histories(
                     # The maps are still popped, so a failed refetch prices as
                     # no-data exactly as before: shallow history is dropped
                     # from THIS run, not from the disk.
-                    to_scrape.append(c)
+                    _queue(c)
         elif not cache_only:
-            to_scrape.append(c)
+            _queue(c)
         else:
             log.debug("--cache-only: no cache for %s, skipping", c["key"])
 
-    log.info("Barchart history: %d cached, %d to scrape", len(series_map), len(to_scrape))
+    log.info("Barchart history: %d cached, %d to scrape",
+             len(series_map) - n_skipped_unlisted, len(to_scrape))
+    if n_skipped_unlisted:
+        log.info("%d contracts skipped as known-unlisted (%s; --retry-unlisted to "
+                 "re-probe)", n_skipped_unlisted, unlisted_path.name)
     if not to_scrape:
         return series_map, details_map
     if not (email and password):
@@ -148,19 +173,62 @@ async def fetch_option_histories(
                     "(legs without cached history will be refused at entry)")
         return series_map, details_map
 
+    tracker = unlisted.TRACKER
+    changes: dict[str, dict | None] = {}
+    try:
+        await _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms,
+                      series_map, details_map, _load_cache, tracker,
+                      known_unlisted, changes, unlisted_path)
+    except BaseException:
+        # The session itself failed (login refused, browser died): that is
+        # trouble around every NO_FEED still pending, never evidence.
+        tracker.note(None)
+        raise
+    finally:
+        _commit_unlisted(tracker, known_unlisted, changes, unlisted_path)
+    return series_map, details_map
+
+
+def _commit_unlisted(tracker, known: dict, changes: dict, path: Path) -> None:
+    """Record every entry the tracker now confirms, and write the file. Runs in
+    a `finally` after the scrape, so nothing here may raise: a skip-list failure
+    must never cost a run its prices."""
+    try:
+        n = unlisted.commit(tracker.confirmed(), path, changes, known)
+        if n:
+            log.info("%d contract(s) recorded as unlisted on Barchart → %s", n, path.name)
+        unlisted.apply(path, changes)
+    except Exception:  # noqa: BLE001 — never fail a run over a skip-list
+        log.exception("Could not update %s (the run's prices are unaffected)", path)
+
+
+async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms,
+                  series_map, details_map, _load_cache, tracker, known_unlisted,
+                  changes, unlisted_path=None) -> None:
     async with BarchartSession(email, password, cookies_path, headless) as session:
+        # Opening at all means the login was verified (BarchartSession raises
+        # otherwise) — the proof a marker-less 404 page later leans on.
+        tracker.note(unlisted.SESSION_OPEN, session=session)
         for i, c in enumerate(to_scrape, 1):
             url = barchart_options.option_history_url(
                 c["symbol"], c["expiration"], c["strike"], c["opt_type"])
             log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
             try:
                 csv_text = await session.fetch_history_csv(url, timeout_ms)
+                outcome = getattr(session, "last_history_outcome", None)
             except Exception:
                 log.exception("Barchart history scrape failed for %s", c["key"])
-                csv_text = None
+                csv_text, outcome = None, None
+            if csv_text and outcome is None:
+                outcome = unlisted.HISTORY_OK
+            tracker.note(outcome, c, session=session, path=unlisted_path,
+                         logged_in=getattr(session, "last_history_logged_in", None))
             if not csv_text:
                 series_map[c["key"]] = []
                 continue
+            cid = unlisted.contract_id(c)
+            if cid in known_unlisted or cid in changes:
+                changes[cid] = None          # it lists now: forget it
             # Refuse a history that is not this ticker's (2026-09-23). Nothing is
             # written and nothing is unlinked: a shallow cache already on disk
             # stays exactly as it was, and this run prices the contract as
@@ -183,5 +251,3 @@ async def fetch_option_histories(
             os.replace(staged, cache)
             _load_cache(c, csv_text)
             await asyncio.sleep(2)
-
-    return series_map, details_map

@@ -381,6 +381,11 @@ def main() -> None:
                              "--date or --start/--end). Without it such plays are skipped: "
                              "the tab appends, and a re-priced row can disagree with the "
                              "first about the exit, the basis and the P&L.")
+    parser.add_argument("--retry-unlisted", action="store_true",
+                        help="Probe contracts recorded as unlisted on Barchart "
+                             "(backtests/option_history_cache/_unlisted.jsonl) instead of "
+                             "skipping them — an operator-requested re-check; "
+                             "BACKTEST_RETRY_UNLISTED=1 does the same")
     args = parser.parse_args()
     # Same bound proxy.py's --redo carries: an unbounded --redo would delete and
     # rewrite the whole tab, which is a re-backtest of the book and not a repair.
@@ -454,7 +459,7 @@ def main() -> None:
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
         barchart_series, barchart_details = asyncio.run(fetch_option_histories(
             list(contracts.values()), headless, history_timeout_ms, needed_dates,
-            cache_only=args.cache_only))
+            cache_only=args.cache_only, retry_unlisted=args.retry_unlisted or None))
 
     # Pass 3 — resolve entry + simulate each Play polymorphically.
     results = _run_simulations(plays, barchart_series, barchart_details,

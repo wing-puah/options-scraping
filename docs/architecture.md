@@ -246,6 +246,8 @@ scripts/                    ← entry points, each maps to a workflow step
                               split-adjusted underlying OHLC cache. `shared/history.py` refuses a
                               fetched history whose `Price~` is >25% off its same-expiry siblings
                               (`underlying_mismatch`) — nothing written, nothing unlinked.
+                              `shared/unlisted.py` is the NEGATIVE cache beside it:
+                              `option_history_cache/_unlisted.jsonl` (see §Cleaning).
                               THE PATH MAY NOT OUTLIVE THE PRICE DATA (2026-09-23). No exit rule
                               fires on a day after the last real quote, and neither does the
                               `exit_fill` deferral. A position still open at that point is marked
@@ -1773,6 +1775,32 @@ loader reads by filename — an input, not a cache), and `live_loop/` (point-in-
 snapshots that cannot be refetched for a past date). The frozen `v1_*`/`v2_*` evidence
 exports and the hand-written date-list `*.md`s are not matched by any glob, and the pin
 scan is the backstop if one ever is.
+
+`option_history_cache/_unlisted.jsonl` is the negative cache: contracts Barchart does not
+list. It lives inside the protected tree, so the cleaner never deletes it and
+`backup_research_caches.py` archives it with the CSVs. Losing it costs hours of 15s
+timeouts, not data.
+
+| Aspect | Rule |
+|---|---|
+| Written by | `scripts/backtest/shared/unlisted.py`, from `fetch_option_histories` |
+| Key | cache-file stem, e.g. `DRAM_20280915_59.00C` (ticker, expiry, strike, right) |
+| Fields | `first_seen`, `last_checked`, `n_checks`, `reason` |
+| Recorded | `no_feed`: page loaded 2xx, logged in, no feed fired; `http_404`: the page answered 404 |
+| Never recorded | `net::ERR_*`/DNS/SSL, page 403/429/5xx, any feed status, login failures, "no rows" |
+| Marker-less 404 | recorded only if the same session was logged in earlier |
+| Page 404 cost | returns at once; no 15s wait for the feed |
+| Online proof, both | no fetch failure within 2 min either side |
+| Online proof, `no_feed` | also a later 2xx page and a live feed within 30 min |
+| Online proof, `http_404` | a live feed within 30 min, either side; pending ones are flushed at exit |
+| Why a 404 needs feed proof | a route change 404s every contract with no trouble in the run |
+| Writes | merged under a `flock` on `_unlisted.jsonl.lock`, staged per process |
+| Bad line | skipped on read, so dropped on the next write; never a crash |
+| Re-check | after 30 days; expired and confirmed twice, after 180 days |
+| Effect of a skip | identical to a failed fetch; one count line per call |
+| Override | `--retry-unlisted` on `scripts.backtest` and `.proxy`, or `BACKTEST_RETRY_UNLISTED=1` |
+
+A contract that later fetches rows is removed from the file.
 
 Two exclusions worth knowing:
 

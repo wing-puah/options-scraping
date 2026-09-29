@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from playwright.async_api import async_playwright, Page, BrowserContext
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from lib.logger import safe_err
 
@@ -22,6 +23,23 @@ log = logging.getLogger(__name__)
 #: months back; anything earlier is accepted, and the cache needs a contract's
 #: whole life (the book's earliest signal date is 2024-01-10).
 HISTORY_START_DATE = "2020-01-01"
+
+# ─── Price-history fetch outcomes ─────────────────────────────────────────────
+# `fetch_history_csv` / `fetch_history_fast` return CSV text or None; a None
+# alone cannot say WHY. They also set `BarchartSession.last_history_outcome` to
+# one of these, so a caller can tell "Barchart does not list this contract"
+# apart from "the network, the login or the server failed". Only
+# HISTORY_NO_FEED and HISTORY_PAGE_404 are evidence about the contract; every
+# other failure is about the fetch (scripts/backtest/shared/unlisted.py records
+# those two and nothing else). A 404 from the FEED is http_error, never http_404.
+HISTORY_OK = "ok"                # feed returned rows
+HISTORY_NO_ROWS = "no_rows"      # feed observed, HTTP 200, empty `data`
+HISTORY_NO_FEED = "no_feed"      # page loaded 2xx, logged in, promptly; no feed fired
+HISTORY_NAV_ERROR = "nav_error"  # page.goto raised: net::ERR_*, DNS, SSL, timeout, closed
+HISTORY_HTTP_ERROR = "http_error"  # page or feed answered non-2xx (other than a page 404)
+HISTORY_PAGE_404 = "http_404"    # the contract's PAGE answered 404; no feed fired
+HISTORY_SESSION = "session"      # landed on /login, or no logged-in marker on the page
+HISTORY_ERROR = "error"          # anything else (feed parse failure, slow page, ...)
 
 
 class BarchartAuthError(RuntimeError):
@@ -42,6 +60,15 @@ class BarchartAuthError(RuntimeError):
 #: be retried. Shared here, not redefined per script, so the number can't drift
 #: between the scrapers and scripts/journal/__main__.py's EXIT_BARCHART_AUTH.
 BARCHART_AUTH_EXIT_CODE = 5
+
+
+class _PageNotFound(Exception):
+    """Raised inside the expect_request block to leave it at once on a page 404.
+
+    An exception out of the block CANCELS Playwright's waiter; a normal exit
+    would await it for the full timeout (~15s per dead contract, seen live
+    2026-09-27 — 33 of 33 unlisted contracts in one probe round).
+    """
 
 
 class BarchartSession:
@@ -100,6 +127,13 @@ class BarchartSession:
         # Cached (augmented_feed_url, headers) from the last successful price-history
         # navigation, so further contracts can re-issue the feed without a page load.
         self._history_feed: tuple[str, dict] | None = None
+        # Why the last fetch_history_csv / fetch_history_fast returned what it
+        # did — one of the HISTORY_* constants above, None before any fetch.
+        self.last_history_outcome: str | None = None
+        # ("page" | "feed", status) of the last non-2xx answer, else None; and
+        # whether the page carried the logged-in marker (None = not checked).
+        self.last_history_http: tuple[str, int] | None = None
+        self.last_history_logged_in: bool | None = None
 
     async def __aenter__(self) -> "BarchartSession":
         self._playwright = await async_playwright().start()
@@ -391,15 +425,36 @@ class BarchartSession:
         response, so there is no pagination to walk. Returns CSV text in the same
         column schema as the old download (so callers/cache stay unchanged), or None.
         """
+        self.last_history_outcome = None
+        self.last_history_http = None
+        self.last_history_logged_in = None
         log.info("Navigating to '%s'", url)
+        started = time.monotonic()
+        nav_resp = None
+        nav_secs: float | None = None
         try:
             async with self._page.expect_request(
                 lambda r: "core-api/v1/historical/get" in r.url, timeout=timeout_ms
             ) as req_info:
-                await self._page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+                nav_resp = await self._page.goto(
+                    url, wait_until="domcontentloaded", timeout=timeout_ms)
+                nav_secs = time.monotonic() - started
+                if nav_resp is not None and nav_resp.status == 404:
+                    raise _PageNotFound()
             req = await req_info.value
-        except Exception:
-            log.exception("Did not observe the price-history feed request on '%s'", url)
+        except _PageNotFound:
+            outcome = await self._classify_page_404()
+            self.last_history_outcome = outcome
+            log.warning("Price-history page answered 404 on '%s' — not waiting for "
+                        "the feed [outcome=%s page_status=404]", url, outcome)
+            return None
+        except Exception as e:
+            outcome = await self._classify_missing_feed(e, nav_resp, nav_secs, timeout_ms)
+            self.last_history_outcome = outcome
+            http = (f" {self.last_history_http[0]}_status={self.last_history_http[1]}"
+                    if self.last_history_http else "")
+            log.exception("Did not observe the price-history feed request on '%s' "
+                          "[outcome=%s%s]", url, outcome, http)
             return None
 
         headers = await req.all_headers()
@@ -412,21 +467,91 @@ class BarchartSession:
         try:
             resp = await self._get_with_retry(api_url, pass_headers, timeout_ms)
             if not resp.ok:
-                log.warning("History feed returned HTTP %d for '%s'", resp.status, url)
+                self.last_history_outcome = HISTORY_HTTP_ERROR
+                self.last_history_http = ("feed", resp.status)
+                log.warning("History feed returned HTTP %d for '%s' [outcome=%s "
+                            "feed_status=%d]", resp.status, url, HISTORY_HTTP_ERROR,
+                            resp.status)
                 return None
             payload = await resp.json()
         except Exception:
+            self.last_history_outcome = HISTORY_ERROR
             log.exception("History feed fetch/parse failed for '%s'", url)
             return None
 
         rows = payload.get("data") or []
         if not rows:
+            self.last_history_outcome = HISTORY_NO_ROWS
             log.warning("History feed returned no rows for '%s'", url)
             return None
 
         csv_text = self._history_rows_to_csv(rows)
+        self.last_history_outcome = HISTORY_OK
         log.info("Scraped %d price-history rows from '%s'", len(rows), url)
         return csv_text
+
+    async def _classify_page_404(self) -> str:
+        """HISTORY_PAGE_404, or HISTORY_SESSION when the 404 landed on /login.
+
+        The server's own answer that this contract's page does not exist.
+        Barchart's 404 page may render without the account header, so the
+        marker is REPORTED (``last_history_logged_in``), not required; the
+        caller then asks that the same session was logged in earlier. Never
+        raises.
+        """
+        self.last_history_http = ("page", 404)
+        try:
+            if "/login" in self._page.url:
+                return HISTORY_SESSION
+            self.last_history_logged_in = (
+                await self._page.query_selector(self._LOGIN_MARKER) is not None)
+        except Exception:
+            self.last_history_logged_in = False
+        return HISTORY_PAGE_404
+
+    async def _classify_missing_feed(self, exc: BaseException, nav_resp,
+                                     nav_secs: float | None, timeout_ms: int) -> str:
+        """Why the price-history feed request was not observed.
+
+        HISTORY_NO_FEED — "Barchart does not list this contract" — needs POSITIVE
+        evidence that the page itself was fine: the navigation finished (so no
+        net::ERR_*, DNS, SSL or closed-browser error, all of which RAISE from
+        goto), answered 2xx, finished within half the timeout (so a slow page
+        cannot pass for a silent one), did not land on /login, and carries the
+        logged-in header marker; and the wait then expired as a plain Playwright
+        timeout. Anything short of that is a fetch failure, never a fact about
+        the contract. Never raises.
+
+        The one non-2xx that IS evidence: the contract's PAGE answering 404
+        (HISTORY_PAGE_404), unless it landed on /login. 403, 429 and 5xx stay
+        HISTORY_HTTP_ERROR, and so does any status from the FEED.
+        """
+        if nav_secs is None:
+            return HISTORY_NAV_ERROR
+        if not isinstance(exc, PlaywrightTimeoutError) or nav_resp is None:
+            return HISTORY_ERROR
+        try:
+            status = nav_resp.status
+        except Exception:
+            return HISTORY_ERROR
+        if not 200 <= status < 300:
+            self.last_history_http = ("page", status)
+        if status == 404:
+            return await self._classify_page_404()
+        if not 200 <= status < 300:
+            return HISTORY_HTTP_ERROR
+        if nav_secs * 1000 > timeout_ms / 2:
+            return HISTORY_ERROR
+        try:
+            if "/login" in self._page.url:
+                return HISTORY_SESSION
+            if await self._page.query_selector(self._LOGIN_MARKER) is None:
+                self.last_history_logged_in = False
+                return HISTORY_SESSION
+        except Exception:
+            return HISTORY_SESSION
+        self.last_history_logged_in = True
+        return HISTORY_NO_FEED
 
     async def fetch_history_fast(self, page_url: str, timeout_ms: int = 30000) -> str | None:
         """Like fetch_history_csv but WITHOUT a per-contract page load.
@@ -457,6 +582,7 @@ class BarchartSession:
                 rows = payload.get("data") or []
                 if rows:
                     log.info("Re-issued price-history feed for '%s' — %d rows", page_url, len(rows))
+                    self.last_history_outcome = HISTORY_OK
                     return self._history_rows_to_csv(rows)
                 log.warning("Re-issued feed returned no rows for '%s' — re-navigating", page_url)
             else:
