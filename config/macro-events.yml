@@ -27,7 +27,7 @@ meta:
   # compile date; the others end with their last published schedule entry.
   verified_through:
     fomc: 2027-12-31
-    fomc_minutes: 2026-08-19
+    fomc_minutes: 2026-09-28   # re-verified 2026-09-28 (was 2026-08-19); see the Jul 2026 entry
     cpi: 2026-12-31
     nfp: 2026-12-31
     pce: 2026-12-31
@@ -96,6 +96,11 @@ events:
   - {date: 2026-04-08, type: fomc_minutes, release_et: "14:00", label: "Mar 2026 minutes"}
   - {date: 2026-05-20, type: fomc_minutes, release_et: "14:00", label: "Apr 2026 minutes"}
   - {date: 2026-07-08, type: fomc_minutes, release_et: "14:00", label: "Jun 2026 minutes"}
+  # Added 2026-09-28 from federalreserve.gov/monetarypolicy/fomccalendars.htm,
+  # fetched that day: "July 28-29 ... Minutes ... (Released August 19, 2026)".
+  # The Sep 15-16 meeting showed no release date; by the three-week rule its
+  # minutes fall about 2026-10-07, after verified_through, so none is entered.
+  - {date: 2026-08-19, type: fomc_minutes, release_et: "14:00", label: "Jul 2026 minutes"}
   # -- CPI (BLS, 08:30 ET) ---------------------------------------------------
   - {date: 2023-06-13, type: cpi, release_et: "08:30", label: "May 2023 CPI"}
   - {date: 2023-07-12, type: cpi, release_et: "08:30", label: "Jun 2023 CPI"}
