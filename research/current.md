@@ -9,7 +9,8 @@ labels in [`arm-index.md`](arm-index.md), house style in
 ## State of play
 
 **The suite reads the re-priced book again (2026-09-28), and 13 verdicts
-moved.** On 2026-09-29 the operator ruled on the five items it raised, and
+moved.** On 2026-10-01 a bigger stop failed to rescue the 1-contract floor
+([entry](#2026-10-01--entry-window-and-narrow_to_fits-cached-cells)). On 2026-09-29 the operator ruled on the five items it raised, and
 the registered `account_sim` cell re-ran `NOT FEASIBLE`
 ([entry](#2026-09-29--operator-rulings-the-150-cell-and-the-2026-column)). The loader rulings are built, every calibration gate passes, and the
 run is recorded
@@ -220,6 +221,51 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-01 — entry window, and `narrow_to_fit`'s cached cells
+
+**A bigger stop does not rescue the 1-contract floor.** Every cached
+take-the-floor cell of [`narrow_to_fit`](pre-registrations/f4_deployment/narrow_to_fit.md)
+reads `NOT FEASIBLE`, because A1's CI crosses zero. The headline F3 cells wait
+on the substitute-leg scrape.
+
+**In production.** The backtest now refuses a leg with no real quote by the
+5th trading day after the signal, as `stale_leg_at_entry`. A leg first quoted
+later inside that window moves the entry to that day. The redo of the affected
+dates is not run yet.
+
+### Rulings
+
+| Item | Ruling |
+|---|---|
+| Entry window | 5 trading days; a late entry inside it is allowed |
+| Seeded skip-list entries | Drop all 2,703; the redo re-checks them |
+| `narrow_to_fit` | Registered; headline `(R, F3, $1,000)` |
+
+### Cached cells, primary, ARM R
+
+| Cell | Cap net | n | A1 meanR [CI] | A3 maxDD |
+|---|---|---|---|---|
+| F1, $500 | 1.50 | 226 | +0.099 [−0.015, +0.211] | 50.4% |
+| F1, $1,000 | 1.50 | 181 | +0.111 [−0.037, +0.253] | 33.9% |
+| F4, $500 sizing, $1,000 stop | 1.50 | 213 | +0.094 [−0.048, +0.226] | 31.1% |
+| F2, $500 | 1.50 | 158 | +0.200 [+0.071, +0.326] | 11.0% |
+| F2, $1,000 | 1.50 | 170 | +0.178 [+0.037, +0.308] | 34.9% |
+
+- The $1,000 stop alone cuts maxDD from 50.4% to 31.1%. It does not lift A1.
+- F2 at $500 still passes every gate but A5. It stays a post-hoc comparator.
+- The 2.50 cap cell reads the same way. The full report is
+  `backtests/study_output/narrow_to_fit-cached-20261001.txt`.
+- The cached cells ran before the registration was committed. Their text was
+  final when they ran, and the headline cells have not run.
+
+### Unresolved
+
+- **The F3 scrape is not funded.** It is about 867 contracts, about 3.6 h.
+- **`bear_rewrap` does not apply the entry window**
+  ([next-steps §2.11](next-steps.md#s2-11)).
 
 ---
 
