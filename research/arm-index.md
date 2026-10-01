@@ -439,6 +439,23 @@ _Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrati
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
 
+#### `narrow_to_fit`
+
+_Registered in [`pre-registrations/f4_deployment/narrow_to_fit.md`](pre-registrations/f4_deployment/narrow_to_fit.md)_
+
+Registered 2026-10-01. The study asks whether narrowing an unaffordable
+spread until it fits beats refusing it. Every cell runs under `account_sim`
+`ARM R`; the headline is `F3` at the $1,000 budget.
+
+- `F1` `F2` (control) — `account_sim`'s floor cells, re-run here at $500
+  and $1,000. Same meaning as in `account_sim`.
+- `F3` (cell) — Narrow-to-fit: keep the anchor leg and expiry, move the other
+  leg inward to the widest listed strike that fits the budget; refuse if none
+  does. The headline at $1,000; secondary at $500. Needs a scrape.
+- `F4` (cell) — Take the floor at the $500 budget with a $1,000 dollar stop.
+  Isolates the stop effect from the size effect. COLLIDES with
+  `financed_spread`'s `F4`, which is unrelated.
+
 #### `portfolio_delta`
 
 _Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-registrations/f4_deployment/portfolio_delta.md)_
