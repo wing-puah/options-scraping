@@ -261,6 +261,23 @@ dates is not run yet.
 - The cached cells ran before the registration was committed. Their text was
   final when they ran, and the headline cells have not run.
 
+### Profit factor
+
+| Cell | n | PF ($) | PF (R) | A3 maxDD |
+|---|---|---|---|---|
+| F1, $500 | 226 | 1.04 | 1.32 | 50.4% |
+| F1, $1,000 | 181 | 1.20 | 1.32 | 33.9% |
+| F4, $500 sizing, $1,000 stop | 213 | 1.20 | 1.26 | 31.1% |
+| F2, $500 | 158 | 1.75 | 1.73 | 11.0% |
+| F2, $1,000 | 170 | 1.36 | 1.64 | 34.9% |
+
+PF ($) is gross winning dollars over gross losing dollars; PF (R) is the same on per-trade R, ignoring size. The 2.50 cell and SECONDARY are in `narrow_to_fit-cached-pf-20261001.csv`.
+
+- F2 at $500 has the best PF on both bases.
+- F1 at $500 earns less per dollar lost than per R lost. The likely cause is
+  the 1-contract floor's oversize positions. That cause is inferred, not
+  tested.
+
 ### Unresolved
 
 - **The F3 scrape is not funded.** It is about 867 contracts, about 3.6 h.
