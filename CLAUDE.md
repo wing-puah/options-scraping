@@ -67,7 +67,8 @@ python3 scripts/auth_drive.py   # one-time Drive OAuth2
 SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow    # or --mode unusual
 python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
-python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file
+python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file;
+                                                      # also thins unusual snapshots to the richest one
 python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
 python3 scripts/collector/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
 python3 scripts/collector/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)

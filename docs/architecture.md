@@ -76,7 +76,10 @@ scripts/                    ← entry points, each maps to a workflow step
                               enrichment --backfill restores them
   gc_flow.py                — garbage-collect raw snapshots: re-verifies every raw trade is in
                               the compiled file, then trashes the raws (recoverable). --all
-                              sweeps all compiled dates. Daily after compile (GitHub Actions)
+                              sweeps all compiled dates. Daily after compile (GitHub Actions).
+                              Second pass, for the unusual sections (nothing compiles those):
+                              keeps the day's RICHEST snapshot and trashes the extras —
+                              a thinning pass, no coverage proof; --skip-unusual turns it off
   build_baseline.py         — one market-level aggregate row per trading date (lib/baseline.py)
                               → BaselineDaily tab. Idempotent by date; --backfill self-heals
   backfill_mech_cell.py     — fill `mech_cell` on analysis rows that predate the column or were
@@ -1524,6 +1527,7 @@ python3 scripts/gc_flow.py                            # today (ET)
 python3 scripts/gc_flow.py --last 3                  # the 3 most recent compiled dates (what CI runs)
 python3 scripts/gc_flow.py --all                     # sweep every compiled date
 python3 scripts/gc_flow.py --all --dry-run           # report what would be trashed
+python3 scripts/gc_flow.py --all --skip-unusual      # flow pass only, no unusual thinning
 
 # Append daily market-baseline rows to the BaselineDaily tab
 python3 scripts/build_baseline.py                     # latest Drive date
