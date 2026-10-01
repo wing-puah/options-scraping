@@ -9,7 +9,9 @@ labels in [`arm-index.md`](arm-index.md), house style in
 ## State of play
 
 **The suite reads the re-priced book again (2026-09-28), and 13 verdicts
-moved.** The loader rulings are built, every calibration gate passes, and the
+moved.** On 2026-09-29 the operator ruled on the five items it raised, and
+the registered `account_sim` cell re-ran `NOT FEASIBLE`
+([entry](#2026-09-29--operator-rulings-the-150-cell-and-the-2026-column)). The loader rulings are built, every calibration gate passes, and the
 run is recorded
 ([entry](#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again)).
 The tables below still describe the 09-19 book until this block is rewritten.
@@ -218,6 +220,93 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-09-29 — operator rulings, the 1.50 cell and the 2026 column
+
+**Nothing ships, and the registered 1.50 cap cell is no longer feasible.**
+The operator ruled on the five open items from the
+[09-28 entry](#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again).
+A re-run of the registered cell on the 09-28 book fails A1 and A3. In 2026 the
+A/B ladder reads flat, and its losses sit in one pocket.
+
+**In production.** Nothing changes.
+
+### Rulings
+
+| Item | Ruling |
+|---|---|
+| Bear debit stop | No config change. The census is about `be_after`, off since 2026-08-24. `sl .50` is not adopted |
+| `path_data_end` cut | Kept in every study's replays |
+| VETO rows in `regime_gap_reread` | No registration. The study's real-only and post-13c cuts now print the pooled numbers, so fix the split first |
+| BEAR_HE clause | [§5](../docs/deployment-rules.md#s5) stands; an observation until its census is powered |
+| `account_sim` cap cell | Open; the re-run below changes the question |
+
+### The registered 1.50 cell on the 09-28 book
+
+Run once with a copied config. The `-latest` files and site pages were
+restored after it, and the report is not recorded.
+
+| Primary, $25k, (R, F1) | Net cap 1.50 | Net cap 2.50 |
+|---|---|---|
+| Positions / dates | 226 / 135 | 321 / 170 |
+| A1 meanR, CI | +0.099 [−0.015, +0.211] | +0.106 [+0.003, +0.206] |
+| A1 2026 | −0.205 | −0.260 |
+| A3 maxDD | 50.4% | 74.8% |
+| Verdict | `NOT FEASIBLE` | `NOT FEASIBLE` |
+
+On 09-21 the same cell read `FEASIBLE` at 20.3% on 142 positions. The book
+has since gained June to September 2026 and the 09-24 re-price. No rung of the
+capital ladder passes A1 under 1.50. (R, F2) meets A1, A2, A3, A4 and A6 under
+both caps, failing A5; adopting it would need a new registration.
+
+### The 2026 column, descriptive
+
+Stored `realized_pnl_pct`, `load_book` defaults, date-clustered CI.
+
+| Tier A+B | n | meanR [CI] |
+|---|---|---|
+| 2024 | 279 | +0.170 [+0.041, +0.296] |
+| 2025 | 240 | +0.218 [+0.073, +0.354] |
+| 2026 | 229 | −0.066 [−0.212, +0.073] |
+| 2026, real `bull_call_spread` | 129 | +0.129 [+0.027, +0.232] |
+| 2026, tweak `bull_put_spread` | 21 | −1.045 |
+| 2026, clipped at −1 R | 229 | +0.02 (2025: +0.26) |
+| 2026, the 20 rows past −1 R | 20 | −40 R summed (all 229: −15 R) |
+
+- A+B no longer separates from tier C in 2026.
+- The loss is credit-tail severity: a handful of rows past −1 R outweigh
+  the rest. The worst 12 are tier-B `bull_put_spread`, most of them GLD and AMD.
+- Selection holds: median MFE is +0.89 against +1.00 in 2025.
+- Clipped at −1 R, 2026 is still weaker than 2025: flat, not negative.
+- 103 of the 229 rows are marks rather than closed trades.
+
+### Unresolved
+
+- **`pnl_at_cap_pct` is not a current mark on `open_at_data_end` rows.** It
+  runs on carried marks, and differs by more than one point on 58 of 148
+  rows (operator count, 2026-09-28).
+- **Two rows were entered after their last real quote.** GLD
+  `bull_call_spread` (signal 2026-09-18, data end 08-14) and FSLR
+  `bear_put_spread` (signal 09-15, data end 07-06). No other stored row has
+  `path_data_end` before its signal date. Proposed rule, not built: refuse
+  an entry when `path_data_end` precedes the entry day, as
+  `stale_leg_at_entry`. Operator ruling owed.
+- **The open rows concentrate in SMH.** Five of the ten largest
+  `open_at_data_end` losers are SMH `bear_put_spread` rows, −$4,233
+  together. They are one bet, not five.
+- **The unlisted skip-list holds 2,703 seeded entries** that never passed the
+  evidence gate; 651 carry a 2026-09-25 first-seen date, the outage day.
+  Operator ruling owed on dropping them.
+- **The study loader carries a second tier encoding.**
+  `lib/book.py::ladder_tier` is a port, not an import, of
+  `mapping.ladder_tier()`, and it lacks the credit-in-RANGE+L-VOL veto. Every
+  tier cut in the research tier, the 2026 table above included, uses it.
+  Pointing it at `mapping` changes study output, so it waits on the operator.
+- **The backfill supervisor is not stuck; it is stopped.** Nothing has run it
+  since 2026-09-24. Its GLD empties are deep in-the-money puts that the
+  near-money filter admitted, not 404s or a range bug.
 
 ---
 

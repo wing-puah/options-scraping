@@ -124,6 +124,10 @@ Decisions owed. None of these is a study.
      F2's 8.7% in the arms table on every run.
    - **Default if nothing is decided.** Nothing changes, and the study keeps
      printing the verdict on the tracked cell.
+   - **Re-run 2026-09-29 on the 09-28 book: the 1.50 cell is NOT FEASIBLE
+     too.** A1 fails, its CI crossing zero, and A3 fails at 50.4%. The cap choice no longer decides feasibility; whether F2
+     should be the primary arm is a question for a new registration
+     ([entry](current.md#2026-09-29--operator-rulings-the-150-cell-and-the-2026-column)).
    - **Sizing throttles closed 2026-09-22.** A Turtle-ladder or ARM D-shaped
      drawdown throttle does not fix this
      ([entry](current.md#2026-09-22--account_sim--a-turtle-drawdown-throttle-is-inert-at-25000-closed-unregistered)).
@@ -172,7 +176,12 @@ Decisions owed. None of these is a study.
    `entry_day_fill`, so it follows the junk-quote rule rather than the
    one-sided test.
 
-10. **OPEN — `bear_arm` prints `REVERT CONDITION FIRED`.** The report asks for
+10. **DECIDED 2026-09-29 — no config change.** The census concerns `be_after`,
+    which is already off; `sl .50` meets B2 (Δ=+0.033) but 2026 straddles zero,
+    and it is not adopted
+    ([entry](current.md#2026-09-29--operator-rulings-the-150-cell-and-the-2026-column)).
+    The text below is the item as it stood.
+    **OPEN — `bear_arm` prints `REVERT CONDITION FIRED`.** The report asks for
     a production config change on the bear-debit `be_after 0.50` stop, which
     was already reverted on 2026-08-24. The operator still deploys bear debits
     and closes them fast; that belief is now a draft study, not a config
@@ -180,7 +189,11 @@ Decisions owed. None of these is a study.
     (§2.4). Default: no config change
     ([record](study-results/f1_selection/bear_arm.md)).
 
-11. **OPEN — the shipped BEAR_HE clause reads negative.**
+11. **DECIDED 2026-09-29 — §5 stands; logged as an observation.** Q2 now
+    reads Δ=−5.0875, 23% retained, on a census of 12 affected dates. It is
+    revisited only when that census is powered.
+    The text below is the item as it stood.
+    **OPEN — the shipped BEAR_HE clause reads negative.**
     `exit_switch_structure_study` Q2 prints Δ=−4.5205 with 47% retained on the
     shipped key. That is an observation rather than a registered trigger: the
     census in `exit_switch_mech_study` is underpowered at 8 affected dates of
