@@ -16,17 +16,22 @@
 #       regression looks like, so it halts on purpose rather than marking more real contracts
 #       no_bars)
 #                                       -> cooldown 15 min; 3 broken passes in a row -> HALT + notify
-#       other stop (fail-stop, no-bars, sleep/timeouts) -> cooldown 15 min
+#       other stop (fail-stop, no-bars, sleep/timeouts) -> cooldown 15 min; but the SAME stop reason
+#       on the SAME last contract with no progress (fetched=0, unavailable=0) STUCK_HALT_PASSES
+#       (default 3) passes in a row -> HALT + notify (a pass stuck on one contract never advances)
 #       >= BACKUP_EVERY new files since the last backup -> backup push
 #
 # Remove state/HALT to let it continue; remove state/DONE (or change SYMBOLS) to start a new job.
 # Never edit this file in place while a pass runs (bash reads scripts as it executes):
 # write a copy and mv it over.
 set -u
-ROOT="$HOME/claude_playground/options-trading"
-PY="$ROOT/.venv/bin/python"
-STATE="$ROOT/backtests/backfill_supervisor"
-LOGDIR="$ROOT/logs/backfill"
+# The BACKFILL_* path/command overrides below are test seams; defaults are unchanged.
+ROOT="${BACKFILL_ROOT:-$HOME/claude_playground/options-trading}"
+PY="${BACKFILL_PY:-$ROOT/.venv/bin/python}"
+STATE="${BACKFILL_STATE:-$ROOT/backtests/backfill_supervisor}"
+LOGDIR="${BACKFILL_LOGDIR:-$ROOT/logs/backfill}"
+CAFFEINATE="${BACKFILL_CAFFEINATE-caffeinate -i -s}"
+STUCK_HALT_PASSES="${STUCK_HALT_PASSES:-3}"
 SYMBOLS="${BACKFILL_SYMBOLS:-SPY}"
 FROM="${BACKFILL_FROM:-2022-02-01}"
 TO="${BACKFILL_TO:-2026-09-18}"
@@ -41,13 +46,13 @@ halt() { echo "$1" > "$STATE/HALT"; notify "HALTED: $1. Remove $STATE/HALT to re
 
 [ -f "$STATE/HALT" ] && exit 0
 [ -f "$STATE/DONE" ] && [ "$(cat "$STATE/DONE")" = "$SYMBOLS $FROM $TO" ] && exit 0
-pgrep -f "python.*scripts/collector/backfill_chain.py" >/dev/null && exit 0
+[ -z "${BACKFILL_SKIP_PGREP:-}" ] && pgrep -f "python.*scripts/collector/backfill_chain.py" >/dev/null && exit 0
 [ "$(date +%s)" -lt "$(getn cooldown_until)" ] && exit 0
 
 cd "$ROOT" || exit 1
 run_log="$LOGDIR/run-$(date +%Y%m%d-%H%M%S).log"
 say "start pass: $SYMBOLS $FROM..$TO -> $run_log"
-caffeinate -i -s "$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" \
+$CAFFEINATE "$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" \
     --from "$FROM" --to "$TO" --execute > "$run_log" 2>&1
 rc=$?
 done_line=$(grep -E "backfill_chain.main\]  done:" "$run_log" | tail -1)
@@ -71,7 +76,7 @@ if grep -q "Nothing to fetch" "$run_log"; then
     counts=$("$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" --from "$FROM" \
              --to "$TO" 2>&1 | grep -iE "partial|pending" | tail -3 | tr '\n' ' ')
     echo "$SYMBOLS $FROM $TO" > "$STATE/DONE"
-    rm -f "$STATE/blocked_count" "$STATE/broken_count" "$STATE/cooldown_until"
+    rm -f "$STATE/blocked_count" "$STATE/broken_count" "$STATE/cooldown_until" "$STATE/last_stop_key" "$STATE/stuck_count"
     say "final plan counts: $counts"
     notify "$SYMBOLS backfill complete. $counts (unavailable: see manifest)"
     exit 0
@@ -95,5 +100,17 @@ else
     rm -f "$STATE/broken_count"
     [ "$fetched" -gt 0 ] && rm -f "$STATE/blocked_count"
     putn cooldown_until $(( $(date +%s) + 900 ))
+    # Stuck detector: same stop reason + same last contract attempted, and no progress.
+    reason=$(echo "$done_line" | grep -oE "stopped_[a-z_0-9]+" | head -1)
+    last=$(grep -oE "\[[0-9]+/[0-9]+\] [A-Za-z0-9._-]+" "$run_log" | tail -1 | sed -E 's/^\[[0-9]+\/[0-9]+\] //')
+    if [ -n "$reason" ] && [ "$fetched" -eq 0 ] && [ "$(st unavailable)" -eq 0 ]; then
+        key="$reason ${last:-unknown}"
+        if [ "$(cat "$STATE/last_stop_key" 2>/dev/null)" = "$key" ]; then n=$(( $(getn stuck_count) + 1 )); else n=1; fi
+        echo "$key" > "$STATE/last_stop_key"; putn stuck_count "$n"
+        say "stopped ($key) with no progress: $n/$STUCK_HALT_PASSES"
+        [ "$n" -ge "$STUCK_HALT_PASSES" ] && halt "stuck: $n passes in a row ended '$key' with no progress; last log $run_log"
+    else
+        rm -f "$STATE/last_stop_key" "$STATE/stuck_count"
+    fi
 fi
 exit 0
