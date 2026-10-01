@@ -229,10 +229,16 @@ class Settings:
     # purpose: a `Settings` built without the bytes it came from could echo a
     # setup nobody can check against the run.
     source_text: str
+    # OPTIONAL `account.dollar_stop`: a per-position dollar stop separate from
+    # the sizing budget (`narrow_to_fit` cell F4, registered 2026-10-01). None
+    # — the key absent or null — means the stop IS the budget, which is every
+    # registered `account_sim` cell and keeps the default report byte-identical.
+    dollar_stop: float | None = None
 
     @property
     def budget(self) -> float:
-        """Risk budget per position — also the hard per-position dollar stop.
+        """Risk budget per position — also the hard per-position dollar stop
+        unless `dollar_stop` is set.
 
         The STATIC value, off configured capital. Under compounding `simulate()`
         re-marks it per day; this stays the header/reference figure.
@@ -253,8 +259,14 @@ class Settings:
                     hedge_risk_fraction=self.hedge_risk_fraction,
                     compound=self.compound_enabled,
                     mark_interval=self.mark_interval,
-                    budget_ceiling=self.budget_ceiling)
+                    budget_ceiling=self.budget_ceiling,
+                    stop_abs=self.dollar_stop)
         return Cfg(label=label, **{**base, **over})
+
+    @property
+    def stop(self) -> float:
+        """The STATIC per-position dollar stop: `dollar_stop`, else the budget."""
+        return self.budget if self.dollar_stop is None else self.dollar_stop
 
 
 def _req(node: dict, path: str, *keys):
@@ -383,7 +395,20 @@ def load_settings(path: Path = DEFAULT_CONFIG, *,
         budget_ceiling=ceiling,
         source=path,
         source_text=text,
+        dollar_stop=_dollar_stop(raw, p),
     )
+
+
+def _dollar_stop(raw: dict, path: str) -> float | None:
+    """OPTIONAL `account.dollar_stop` — absent or null = the stop is the budget."""
+    v = (raw.get("account") or {}).get("dollar_stop")
+    if v is None:
+        return None
+    v = float(v)
+    if v <= 0:
+        raise ConfigError(f"{path}: account.dollar_stop must be > 0 "
+                          f"(or null for stop = budget) — got {v!r}")
+    return v
 
 
 # ── outcome-blindness (G5) ──────────────────────────────────────────────────
@@ -751,6 +776,9 @@ class Cfg:
     # (G3's identity keeps the starting capital) and is independent of
     # `compound`: it can throttle a static budget or a re-marked one.
     dd_throttle: tuple | None = None
+    # `narrow_to_fit` F4: a dollar stop separate from the sizing budget. None
+    # (the default, every registered `account_sim` cell) = stop is the budget.
+    stop_abs: float | None = None
 
     @property
     def budget(self) -> float:
@@ -766,7 +794,10 @@ class Cfg:
         """The STATIC per-position dollar stop — it tracks `budget`.
 
         As with `budget`, `simulate()` re-marks the live value when `compound`.
+        `stop_abs`, when set, replaces it (`narrow_to_fit` F4).
         """
+        if self.stop_abs is not None:
+            return self.stop_abs
         return self.capital * self.risk_pct
 
 
@@ -971,7 +1002,10 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 period = key
                 marked = cfg.capital + led.realized
                 raw_budget = sizing_budget(marked, cfg.risk_pct, cfg.budget_ceiling)
-                raw_stop = raw_budget
+                # Keeps a decoupled stop in the same ratio to the re-marked
+                # budget; with `stop_abs` None this is the budget itself.
+                raw_stop = (raw_budget if cfg.stop_abs is None
+                            else raw_budget * cfg.stop_abs / cfg.budget)
                 ruined = marked <= 0
                 sim.marks.append((entry_sess, marked, raw_budget,
                                   cfg.per_pos_cap * marked, cfg.net_cap * marked))
@@ -1683,8 +1717,12 @@ def print_configuration(st: Settings, cfg_name) -> None:
     # would otherwise have to do the multiplication to know what stops a
     # position out in dollars.
     print(_cfg_row("every position, on top of the above",
-                   f"hard dollar stop at ${st.budget:,.0f} "
-                   f"(account.risk_per_trade_pct x account.capital){marked}; expiry"))
+                   (f"hard dollar stop at ${st.budget:,.0f} "
+                    f"(account.risk_per_trade_pct x account.capital){marked}; expiry"
+                    if st.dollar_stop is None else
+                    f"hard dollar stop at ${st.stop:,.0f} "
+                    f"(account.dollar_stop, decoupled from the "
+                    f"${st.budget:,.0f} sizing budget){marked}; expiry")))
 
 
 def print_population(recs, picked, episodes, st: Settings) -> None:

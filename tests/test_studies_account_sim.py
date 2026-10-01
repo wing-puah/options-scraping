@@ -2242,3 +2242,50 @@ def test_print_hedge_returns_none_when_no_session_was_occupied(
     monkeypatch.setattr(account_sim, "session_series", lambda s: {})
     assert account_sim.print_hedge([], {}, 25_000.0, "TEST", st, {}) is None
     capsys.readouterr()
+
+
+# ── decoupled dollar stop (narrow_to_fit F4, registered 2026-10-01) ─────────
+
+def test_stop_defaults_to_the_budget_and_the_default_book_is_unchanged():
+    """`stop_abs` absent, named None, or equal to the budget all give the
+    same book — the registered `account_sim` path is byte-identical."""
+    assert _cfg().stop == _cfg().budget == pytest.approx(500.0)
+    day_lists = _two_month_day_lists()
+    default = simulate(day_lists, _cfg())
+    named_none = simulate(day_lists, _cfg(stop_abs=None))
+    equal = simulate(day_lists, _cfg(stop_abs=500.0))
+    assert book_signature(default) == book_signature(named_none)
+    assert book_signature(default) == book_signature(equal)
+    assert make_settings().stop == make_settings().budget
+    assert make_settings().cfg("x").stop_abs is None
+
+
+def test_decoupled_stop_moves_the_stop_and_leaves_sizing_alone():
+    """A $800 loss on one contract stops out at a $500 stop and runs on at a
+    $1,000 stop; contracts come from the $500 budget either way."""
+    sig = date(2025, 1, 6)
+    rec = _fat_rec(sig, mlpc=400.0, mark=42.0)   # R -0.16 = -$800 / contract
+    tight = simulate([(sig.isoformat(), [rec])], _cfg())
+    wide = simulate([(sig.isoformat(), [_fat_rec(sig, mlpc=400.0, mark=42.0)])],
+                    _cfg(stop_abs=1_000.0))
+    (pt,), (pw,) = tight.signal_pos, wide.signal_pos
+    assert pt.contracts == pw.contracts == 1
+    assert pt.exit_reason == "dollar_stop"
+    assert pw.exit_reason != "dollar_stop"
+    assert _cfg(stop_abs=1_000.0).budget == pytest.approx(500.0)
+
+
+def test_dollar_stop_key_is_optional_and_validated(tmp_path):
+    cfg = copy.deepcopy(_full_config_dict())
+    p = tmp_path / "cfg.yml"
+    p.write_text(yaml.safe_dump(cfg))
+    assert load_settings(p).dollar_stop is None
+    cfg["account"]["dollar_stop"] = 1000
+    p.write_text(yaml.safe_dump(cfg))
+    st = load_settings(p)
+    assert st.stop == 1000.0 and st.budget == pytest.approx(500.0)
+    assert st.cfg("x").stop == 1000.0
+    cfg["account"]["dollar_stop"] = -5
+    p.write_text(yaml.safe_dump(cfg))
+    with pytest.raises(ConfigError, match="dollar_stop"):
+        load_settings(p)
