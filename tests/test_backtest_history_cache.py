@@ -905,3 +905,191 @@ def test_exit_flush_drops_pending_no_feed(cache_dir, monkeypatch):
 def test_the_exit_flush_is_registered():
     import inspect
     assert "atexit.register(flush_at_exit)" in inspect.getsource(unlisted)
+
+
+# ── Dead browser and network outage (2026-09-29) ─────────────────────────────
+# One run made 3,028 TargetClosedError calls against a dead browser, and long
+# runs died to Mac sleep. `fetch_option_histories` reopens a dead session a
+# bounded number of times, then stops; and raises NetworkOutage when the share
+# of network-failure fetches passes a threshold. Neither may cache, or record
+# as unlisted, a contract it did not really fetch.
+
+_CLOSED = "TargetClosedError: Target page, context or browser has been closed"
+_OFFLINE = "Error: Page.goto: net::ERR_INTERNET_DISCONNECTED at https://x"
+
+
+@pytest.fixture(autouse=True)
+def _no_pause(monkeypatch):
+    monkeypatch.setattr(history, "FETCH_PAUSE_S", 0)
+
+
+def _flaky_factory(behaviour, log):
+    """A BarchartSession class. `behaviour(n_open, n_call)` -> "ok" | "dead" |
+    "raise" | "offline" | "no_feed"; n_open counts sessions opened so far."""
+    opened = []
+
+    class _S:
+        def __init__(self, *a, **k):
+            self.last_history_outcome = None
+            self.last_history_error = None
+            self.n_calls = 0
+
+        async def __aenter__(self):
+            if behaviour(len(opened) + 1, -1) == "open_fails":
+                raise RuntimeError("cannot reopen")
+            opened.append(self)
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def fetch_history_csv(self, url, timeout_ms):
+            self.n_calls += 1
+            log.append(url)
+            self.last_history_error = None
+            what = behaviour(len(opened), self.n_calls)
+            if what == "raise":
+                raise PlaywrightError(_CLOSED)
+            if what == "dead":
+                self.last_history_outcome = bs.HISTORY_NAV_ERROR
+                self.last_history_error = _CLOSED
+                return None
+            if what == "offline":
+                self.last_history_outcome = bs.HISTORY_NAV_ERROR
+                self.last_history_error = _OFFLINE
+                return None
+            if what == "no_feed":
+                self.last_history_outcome = bs.HISTORY_NO_FEED
+                return None
+            self.last_history_outcome = bs.HISTORY_OK
+            return _one_row("1.00")
+
+    _S.opened = opened
+    return _S
+
+
+def _flaky_fetch(cache_dir, monkeypatch, n, behaviour, **kw):
+    log = []
+    cls = _flaky_factory(behaviour, log)
+    monkeypatch.setenv("BARCHART_EMAIL", "x@example.com")
+    monkeypatch.setenv("BARCHART_PASSWORD", "pw")
+    monkeypatch.delenv(unlisted.RETRY_ENV, raising=False)
+    monkeypatch.setattr(history, "BarchartSession", cls)
+    contracts = [_contract(100.0 + i) for i in range(n)]
+    try:
+        out = asyncio.run(history.fetch_option_histories(contracts, headless=True, **kw))
+    except history.NetworkOutage:
+        raise
+    return out, log, cls, contracts
+
+
+def _cache_files(cache_dir):
+    return sorted(p.name for p in cache_dir.glob("*.csv"))
+
+
+@pytest.mark.parametrize("kind", ["dead", "raise"])
+def test_a_dead_browser_is_reopened_once_and_the_run_continues(
+        cache_dir, monkeypatch, kind):
+    # session 1 dies on its 4th call; session 2 is healthy.
+    def behaviour(n_open, n_call):
+        return kind if (n_open == 1 and n_call == 4) else "ok"
+    (series, _), log, cls, contracts = _flaky_fetch(cache_dir, monkeypatch, 10, behaviour)
+    assert len(cls.opened) == 2
+    assert len(log) == 11                      # the dead call is retried, not skipped
+    assert all(series[c["key"]] for c in contracts)
+    assert len(_cache_files(cache_dir)) == 10
+    assert _entries(cache_dir) == {}
+
+
+def test_the_session_is_reopened_a_bounded_number_of_times_then_fetching_stops(
+        cache_dir, monkeypatch):
+    # every session dies on its 2nd call: 1 good fetch each, then death.
+    def behaviour(n_open, n_call):
+        return "dead" if n_call == 2 else "ok"
+    (series, _), log, cls, contracts = _flaky_fetch(cache_dir, monkeypatch, 500, behaviour)
+    assert len(cls.opened) == 1 + history.MAX_SESSION_REOPENS
+    assert len(log) < 10 < len(contracts)      # nowhere near 500 calls
+    fetched = _cache_files(cache_dir)
+    assert len(fetched) == 3                   # one good fetch per session
+    # unfetched contracts price as a failed fetch: empty series, no cache, no skip-list
+    unfetched = [c for c in contracts if not series[c["key"]]]
+    assert len(unfetched) == 497
+    assert _entries(cache_dir) == {}
+    assert not (cache_dir / unlisted.FILENAME).exists()
+
+
+def test_a_reopen_that_fails_stops_the_run_without_caching_or_recording(
+        cache_dir, monkeypatch):
+    def behaviour(n_open, n_call):
+        if n_call == -1 and n_open >= 2:
+            return "open_fails"
+        return "dead" if n_call == 2 else "ok"
+    (series, _), log, cls, contracts = _flaky_fetch(cache_dir, monkeypatch, 50, behaviour)
+    assert len(log) == 2
+    assert len(_cache_files(cache_dir)) == 1
+    assert all(series[c["key"]] == [] for c in contracts[1:])
+    assert _entries(cache_dir) == {}
+
+
+def test_a_dead_browser_never_touches_an_existing_cache_file(cache_dir, monkeypatch):
+    c = _contract(100.0)
+    p = bo.cache_path(cache_dir, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
+    p.write_text(_shallow_csv(), encoding="utf-8")
+    before = p.read_text(encoding="utf-8")
+    (series, _), log, cls, _ = _flaky_fetch(
+        cache_dir, monkeypatch, 1, lambda o, n: "dead",
+        needed_dates={c["key"]: date(2000, 1, 1)})
+    assert p.read_text(encoding="utf-8") == before
+    assert _entries(cache_dir) == {}
+
+
+def _mixed(share_every):
+    """Every `share_every`-th call fails offline; the rest are no_feed-free OKs."""
+    def behaviour(n_open, n_call):
+        return "offline" if n_call % share_every == 0 else "ok"
+    return behaviour
+
+
+def test_a_network_outage_raises_and_records_nothing_as_unlisted(cache_dir, monkeypatch):
+    # every 2nd fetch offline = 50% > 25%, tripped at the 20th outcome.
+    with pytest.raises(history.NetworkOutage) as e:
+        _flaky_fetch(cache_dir, monkeypatch, 100, _mixed(2))
+    assert e.value.n_total == 20 and e.value.n_failed == 10
+    assert _entries(cache_dir) == {}
+
+
+def test_no_feed_among_network_failures_is_not_recorded_when_the_guard_trips(
+        cache_dir, monkeypatch):
+    def behaviour(n_open, n_call):
+        return "no_feed" if n_call % 3 == 1 else "offline"
+    with pytest.raises(history.NetworkOutage):
+        _flaky_fetch(cache_dir, monkeypatch, 100, behaviour)
+    assert _entries(cache_dir) == {}
+
+
+def test_below_the_threshold_the_guard_stays_quiet(cache_dir, monkeypatch):
+    # every 5th offline = 20% < 25%
+    (series, _), log, _, contracts = _flaky_fetch(cache_dir, monkeypatch, 60, _mixed(5))
+    assert len(log) == 60
+
+
+def test_the_guard_waits_for_the_minimum_number_of_fetches(cache_dir, monkeypatch):
+    (series, _), log, _, _ = _flaky_fetch(cache_dir, monkeypatch, 19,
+                                          lambda o, n: "offline")
+    assert len(log) == 19
+
+
+def test_the_threshold_is_env_overridable(cache_dir, monkeypatch):
+    monkeypatch.setenv(history.OUTAGE_SHARE_ENV, "0.9")
+    (series, _), log, _, _ = _flaky_fetch(cache_dir, monkeypatch, 40, _mixed(2))
+    assert len(log) == 40
+
+
+def test_a_dead_browser_is_not_counted_as_a_network_failure():
+    assert history.is_dead_session(_CLOSED)
+    assert not history.is_network_failure(bs.HISTORY_NAV_ERROR, _CLOSED)
+    assert history.is_network_failure(bs.HISTORY_NAV_ERROR, _OFFLINE)
+    assert history.is_network_failure(bs.HISTORY_NAV_ERROR,
+                                      "TimeoutError: Page.goto: Timeout 15000ms exceeded")
+    assert not history.is_network_failure(bs.HISTORY_HTTP_ERROR, _OFFLINE)
+    assert not history.is_network_failure(bs.HISTORY_NAV_ERROR, None)

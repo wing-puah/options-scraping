@@ -134,6 +134,10 @@ class BarchartSession:
         # whether the page carried the logged-in marker (None = not checked).
         self.last_history_http: tuple[str, int] | None = None
         self.last_history_logged_in: bool | None = None
+        # "ExcType: message" of the exception behind the last NAV_ERROR / ERROR
+        # outcome, else None. `fetch_option_histories` reads it to tell a dead
+        # browser and an offline network apart from a contract-level failure.
+        self.last_history_error: str | None = None
 
     async def __aenter__(self) -> "BarchartSession":
         self._playwright = await async_playwright().start()
@@ -428,6 +432,7 @@ class BarchartSession:
         self.last_history_outcome = None
         self.last_history_http = None
         self.last_history_logged_in = None
+        self.last_history_error = None
         log.info("Navigating to '%s'", url)
         started = time.monotonic()
         nav_resp = None
@@ -451,6 +456,7 @@ class BarchartSession:
         except Exception as e:
             outcome = await self._classify_missing_feed(e, nav_resp, nav_secs, timeout_ms)
             self.last_history_outcome = outcome
+            self.last_history_error = f"{type(e).__name__}: {e}"[:500]
             http = (f" {self.last_history_http[0]}_status={self.last_history_http[1]}"
                     if self.last_history_http else "")
             log.exception("Did not observe the price-history feed request on '%s' "
@@ -474,8 +480,9 @@ class BarchartSession:
                             resp.status)
                 return None
             payload = await resp.json()
-        except Exception:
+        except Exception as e:
             self.last_history_outcome = HISTORY_ERROR
+            self.last_history_error = f"{type(e).__name__}: {e}"[:500]
             log.exception("History feed fetch/parse failed for '%s'", url)
             return None
 

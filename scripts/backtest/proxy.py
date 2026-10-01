@@ -41,6 +41,7 @@ import argparse
 import asyncio
 import logging
 import os
+import sys
 from datetime import date, datetime
 from pathlib import Path
 
@@ -60,7 +61,7 @@ from .legs import Leg, format_legs, merge_legs
 from .plays import _choose_anchor
 from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
-from .shared.history import fetch_option_histories
+from .shared.history import EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories
 from .shared import unlisted
 from .shared.identity import (
     find_untested as _find_untested,
@@ -300,6 +301,8 @@ def _probe_pool(leg: Leg, signal_date: date, cfg: dict, sim_cfg: dict,
     try:
         asyncio.run(fetch_option_histories(contracts, headless, timeout_ms, needed,
                                            cache_only=False))
+    except NetworkOutage:
+        raise                       # main() aborts before any write
     except Exception:
         log.exception("Barchart probe failed for %s", leg.ticker)
     _details_cache.clear()  # freshly-scraped files must be re-read
@@ -847,9 +850,16 @@ def main() -> None:
     structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
     # NB: pass the proxy: sub-config — the snap bounds (max_strike_steps /
     # max_expiry_deviation_days) are read off this dict, not the full cfg.
-    rows = [_evaluate(*classify_and_build(c, spread_pct, None, structure_veto), c, proxy_cfg,
-                      sim_cfg, spread_pct, created, allow_probe)
-            for c in untested]
+    try:
+        rows = [_evaluate(*classify_and_build(c, spread_pct, None, structure_veto), c,
+                          proxy_cfg, sim_cfg, spread_pct, created, allow_probe)
+                for c in untested]
+    except NetworkOutage as e:
+        # Every probe fetch happens inside this comprehension; every write
+        # (local CSV, --redo delete, append) comes after it. Nothing written.
+        log.error("network outage: %d of %d fetches failed with network errors "
+                  "— nothing was written; re-run when online", e.n_failed, e.n_total)
+        sys.exit(EXIT_NETWORK_OUTAGE)
 
     # One Sheets pass deletes both the rows being replaced and the cross-tab
     # duplicates. Both sets are empty on a plain run.

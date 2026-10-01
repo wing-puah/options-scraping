@@ -1814,6 +1814,19 @@ timeouts, not data.
 
 A contract that later fetches rows is removed from the file.
 
+`fetch_option_histories` also guards against a dead browser and a dead network:
+
+| Aspect | Rule |
+|---|---|
+| Dead browser | `TargetClosedError`, "browser has been closed", or a `nav_error`/`error` whose `last_history_error` says so |
+| Response | reopen the session (same login path), up to 2 times per call, retrying the same contract |
+| After the budget, or a failed reopen | stop with one error line; the rest price as a failed fetch |
+| Left unfetched | never cached as empty, never recorded as unlisted, existing cache files untouched |
+| Network outage | after 20 fetches, more than 25% failing with `net::ERR_*`, DNS or timeouts raises `NetworkOutage` |
+| Tuning | `BACKTEST_OUTAGE_MAX_SHARE` (0.25), `BACKTEST_OUTAGE_MIN_FETCHES` (20) |
+| Callers | `scripts.backtest` and `.proxy` exit 6 before any write; 5 stays the Barchart login refusal |
+| Skip-list | the `finally` commit still runs and drops the poisoned evidence |
+
 Two exclusions worth knowing:
 
 - `site/journal-*.html` is excluded from the `site` target. `make study-docs` rebuilds the

@@ -20,7 +20,7 @@ from .plays import build_matched_plays
 from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 from .shared.analysis_io import load_analysis as _load_analysis
 from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
-from .shared.history import fetch_option_histories
+from .shared.history import EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories
 from .shared.identity import find_untested, identity_key, keys_from_tab
 from .shared.results_io import write_results
 from .simulate import validate_pricing_config
@@ -457,9 +457,16 @@ def main() -> None:
         headless = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
         history_timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
         log.info("Fetching Barchart history for %d distinct contract(s)", len(contracts))
-        barchart_series, barchart_details = asyncio.run(fetch_option_histories(
-            list(contracts.values()), headless, history_timeout_ms, needed_dates,
-            cache_only=args.cache_only, retry_unlisted=args.retry_unlisted or None))
+        try:
+            barchart_series, barchart_details = asyncio.run(fetch_option_histories(
+                list(contracts.values()), headless, history_timeout_ms, needed_dates,
+                cache_only=args.cache_only, retry_unlisted=args.retry_unlisted or None))
+        except NetworkOutage as e:
+            # The only fetch of the run, and it precedes every write (the local
+            # CSV, the --redo delete, append_rows): nothing has been written.
+            log.error("network outage: %d of %d fetches failed with network errors "
+                      "— nothing was written; re-run when online", e.n_failed, e.n_total)
+            sys.exit(EXIT_NETWORK_OUTAGE)
 
     # Pass 3 — resolve entry + simulate each Play polymorphically.
     results = _run_simulations(plays, barchart_series, barchart_details,

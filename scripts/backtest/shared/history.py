@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -19,6 +20,69 @@ log = logging.getLogger("backtest")
 #: honest files agree to within rounding; the file this guard was written for
 #: (META_20270115_630.00P, quarantined 2026-09-23) read ~$155 against ~$640.
 UNDERLYING_MISMATCH_FRAC = 0.25
+
+#: Seconds between successful history fetches (a test seam).
+FETCH_PAUSE_S = 2
+
+#: A dead browser is reopened at most this many times per `fetch_option_histories`
+#: call; the next death (or a reopen that fails) stops the fetching.
+MAX_SESSION_REOPENS = 2
+
+#: Outage guard. After ``OUTAGE_MIN_FETCHES`` fetch outcomes, a share of
+#: network-failure outcomes above ``BACKTEST_OUTAGE_MAX_SHARE`` raises
+#: :class:`NetworkOutage`.
+OUTAGE_MIN_FETCHES = 20
+OUTAGE_MAX_SHARE_DEFAULT = 0.25
+OUTAGE_SHARE_ENV = "BACKTEST_OUTAGE_MAX_SHARE"
+OUTAGE_MIN_ENV = "BACKTEST_OUTAGE_MIN_FETCHES"
+
+#: Exit code of `scripts.backtest` and `scripts.backtest.proxy` on a network
+#: outage. 5 is BARCHART_AUTH_EXIT_CODE (login refused); 1 crash; 2 usage.
+EXIT_NETWORK_OUTAGE = 6
+
+_DEAD_SESSION_RE = re.compile(
+    r"TargetClosedError|Target page, context or browser has been closed"
+    r"|browser has been closed|has been disconnected|browser.{0,20}disconnected"
+    r"|Connection closed|Browser closed", re.I)
+_NETWORK_ERR_RE = re.compile(
+    r"net::ERR_|NameResolution|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED"
+    r"|ERR_NAME_NOT_RESOLVED|Timeout \d+ms exceeded|TimeoutError", re.I)
+
+
+class NetworkOutage(RuntimeError):
+    """Too many fetches failed with network errors: the machine is offline (or
+    asleep), and the run's evidence is poisoned. Callers must abort before any
+    write; `n_failed` of `n_total` fetches failed."""
+
+    def __init__(self, n_failed: int, n_total: int):
+        self.n_failed, self.n_total = n_failed, n_total
+        super().__init__(f"network outage: {n_failed} of {n_total} fetches failed "
+                         f"with network errors")
+
+
+def is_dead_session(text: str | None) -> bool:
+    """True when an exception's text says the Playwright browser is gone."""
+    return bool(text) and _DEAD_SESSION_RE.search(text) is not None
+
+
+def is_network_failure(outcome: str | None, error: str | None) -> bool:
+    """True for a NAV_ERROR / ERROR outcome whose error text is a network or
+    timeout error (and not a dead browser, which has its own path)."""
+    if outcome not in (unlisted.HISTORY_NAV_ERROR, unlisted.HISTORY_ERROR) or not error:
+        return False
+    return not is_dead_session(error) and _NETWORK_ERR_RE.search(error) is not None
+
+
+def _outage_limits() -> tuple[int, float]:
+    try:
+        share = float(os.getenv(OUTAGE_SHARE_ENV, OUTAGE_MAX_SHARE_DEFAULT))
+    except ValueError:
+        share = OUTAGE_MAX_SHARE_DEFAULT
+    try:
+        n = int(os.getenv(OUTAGE_MIN_ENV, OUTAGE_MIN_FETCHES))
+    except ValueError:
+        n = OUTAGE_MIN_FETCHES
+    return n, share
 
 
 def _sibling_price_tilde(symbol: str, expiration: date, own: Path) -> dict:
@@ -202,27 +266,83 @@ def _commit_unlisted(tracker, known: dict, changes: dict, path: Path) -> None:
         log.exception("Could not update %s (the run's prices are unaffected)", path)
 
 
+async def _open_session(email, password, cookies_path, headless, tracker):
+    """Open a BarchartSession (login or cookie reuse) and note it as logged in.
+    Opening at all means the login was verified (BarchartSession raises
+    otherwise) — the proof a marker-less 404 page later leans on."""
+    session = BarchartSession(email, password, cookies_path, headless)
+    await session.__aenter__()
+    tracker.note(unlisted.SESSION_OPEN, session=session)
+    return session
+
+
+async def _close_session(session) -> None:
+    try:
+        await session.__aexit__(None, None, None)
+    except Exception:  # noqa: BLE001 — a dead browser may refuse to close
+        log.debug("closing the Barchart session failed", exc_info=True)
+
+
 async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms,
                   series_map, details_map, _load_cache, tracker, known_unlisted,
                   changes, unlisted_path=None) -> None:
-    async with BarchartSession(email, password, cookies_path, headless) as session:
-        # Opening at all means the login was verified (BarchartSession raises
-        # otherwise) — the proof a marker-less 404 page later leans on.
-        tracker.note(unlisted.SESSION_OPEN, session=session)
-        for i, c in enumerate(to_scrape, 1):
+    min_fetches, max_share = _outage_limits()
+    n_fetches = n_net = reopens = 0
+    session = await _open_session(email, password, cookies_path, headless, tracker)
+    try:
+        i = 0
+        while i < len(to_scrape):
+            c = to_scrape[i]
             url = barchart_options.option_history_url(
                 c["symbol"], c["expiration"], c["strike"], c["opt_type"])
-            log.info("[%d/%d] Barchart history: %s", i, len(to_scrape), url)
+            log.info("[%d/%d] Barchart history: %s", i + 1, len(to_scrape), url)
+            error = None
             try:
                 csv_text = await session.fetch_history_csv(url, timeout_ms)
                 outcome = getattr(session, "last_history_outcome", None)
-            except Exception:
+                error = getattr(session, "last_history_error", None)
+            except Exception as e:
                 log.exception("Barchart history scrape failed for %s", c["key"])
                 csv_text, outcome = None, None
+                error = f"{type(e).__name__}: {e}"
             if csv_text and outcome is None:
                 outcome = unlisted.HISTORY_OK
             tracker.note(outcome, c, session=session, path=unlisted_path,
                          logged_in=getattr(session, "last_history_logged_in", None))
+            if not csv_text and is_dead_session(error):
+                # The browser is gone. This contract was not fetched: it is
+                # left exactly as a failed fetch leaves it (no cache file, no
+                # skip-list entry) and is retried on a fresh session.
+                await _close_session(session)
+                if reopens >= MAX_SESSION_REOPENS:
+                    log.error("Barchart browser died again after %d reopen(s) — "
+                              "STOPPING: %d of %d contract(s) left unfetched "
+                              "(nothing cached or recorded as unlisted for them)",
+                              reopens, len(to_scrape) - i, len(to_scrape))
+                    session = None
+                    break
+                reopens += 1
+                log.warning("Barchart browser died (%s) — reopening the session "
+                            "(%d of %d)", error, reopens, MAX_SESSION_REOPENS)
+                try:
+                    session = await _open_session(
+                        email, password, cookies_path, headless, tracker)
+                except Exception:  # noqa: BLE001
+                    log.exception("Could not reopen the Barchart session — STOPPING: "
+                                  "%d of %d contract(s) left unfetched (nothing "
+                                  "cached or recorded as unlisted for them)",
+                                  len(to_scrape) - i, len(to_scrape))
+                    session = None
+                    break
+                continue                      # same contract, new session
+            n_fetches += 1
+            if is_network_failure(outcome, error):
+                n_net += 1
+            if n_fetches >= min_fetches and n_net / n_fetches > max_share:
+                log.error("Network outage: %d of %d fetches failed with network "
+                          "errors", n_net, n_fetches)
+                raise NetworkOutage(n_net, n_fetches)
+            i += 1
             if not csv_text:
                 series_map[c["key"]] = []
                 continue
@@ -250,4 +370,10 @@ async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms
             staged.write_text(csv_text, encoding="utf-8")
             os.replace(staged, cache)
             _load_cache(c, csv_text)
-            await asyncio.sleep(2)
+            await asyncio.sleep(FETCH_PAUSE_S)
+    finally:
+        if session is not None:
+            await _close_session(session)
+    # A stop leaves the rest priced as no-data, like a failed fetch.
+    for c in to_scrape[i:]:
+        series_map.setdefault(c["key"], [])
