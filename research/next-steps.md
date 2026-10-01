@@ -12,6 +12,62 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 <a id="s0"></a>
 ## 0. Repo state — read first
 
+<a id="pick-up"></a>
+### Pick up here — 2026-10-01 handoff
+
+Three runs are owed, in this order. Each needs the operator's machine, on
+AC power and online. Run them one at a time, because they share the Barchart
+session; two concurrent runs once left 461 duplicate keys.
+
+| Step | What | Why | Cost |
+|---|---|---|---|
+| 1 | Drop the seeded skip-list entries | The operator ruled to drop them on 2026-10-01; the redo re-checks them | seconds |
+| 2 | Redo the dates the entry window changed | `2d25deb` refuses 2 rows and prices 32 more | ~1 h |
+| 3 | Scrape the substitute short legs | `narrow_to_fit`'s headline F3 cells need them | ~3.6 h |
+
+**Step 1.** The auto-mode classifier refused this rewrite, because the file
+has no git history. The command keeps a backup first. It should print
+`4480 -> 1777`.
+
+```bash
+cd ~/claude_playground/options-trading
+F=backtests/option_history_cache/_unlisted.jsonl
+cp $F ${F%.jsonl}.pre-drop-20261001.jsonl
+python3 -c "import json;F='$F';r=[l for l in open(F) if l.strip()];k=[l for l in r if not json.loads(l)['reason'].startswith('seeded_from_log')];open(F,'w').writelines(k);print(len(r),'->',len(k))"
+```
+
+**Step 2.** Run the backtest before the proxy, because the proxy reads
+`BacktestResults` as the set already tested. A network outage exits 6 with
+nothing written. A redo re-prices every play on its date, so a few unrelated
+rows may move. Then re-pull the exports with `scripts/export_tabs.py`.
+
+```bash
+source .venv/bin/activate
+caffeinate -i -s bash -c '
+for d in 2026-09-18 2026-09-15 2026-08-25 2026-03-04 2025-10-22 2025-04-01 2025-03-03 2025-01-27 2024-12-10 2024-09-03; do
+  python3 -m scripts.backtest --config config/backtest.yml --date $d --redo || exit $?
+done
+for d in 2026-09-18 2026-09-15 2026-08-25 2026-03-04 2025-10-22 2025-04-01 2025-03-03 2025-01-27 2024-12-10 2024-09-03 \
+         2026-07-14 2026-07-06 2026-07-02 2026-06-11 2026-06-04 2026-03-12 2025-12-22 2025-12-09 2025-11-12 2025-10-06 \
+         2025-09-10 2025-09-02 2025-08-06 2025-02-12 2025-02-04 2024-10-07 2024-10-02 2024-06-06 2024-05-15 2024-04-11 2024-04-03; do
+  python3 -m scripts.backtest.proxy --config config/backtest.yml --date $d --redo || exit $?
+done'
+```
+
+**Step 3.** Nothing fetches the substitute legs yet. The census and the strike
+rule are in the
+[registration](pre-registrations/f4_deployment/narrow_to_fit.md): about 867
+contracts, the target strike plus the next wider one. The fetch, then the F3
+arm in `account_sim`, are the next builds. Run `backup_research_caches.py push`
+after the scrape.
+
+**Where things stand.**
+
+- The cached `narrow_to_fit` cells all read `NOT FEASIBLE`
+  ([entry](current.md#2026-10-01--entry-window-and-narrow_to_fits-cached-cells)).
+- The profit factor per cell is in that entry, and in
+  `backtests/study_output/narrow_to_fit-cached-pf-20261001.csv`.
+
 - **Era and population.** `v4`, the 193-date backfilled book, all three exports
   re-pulled 2026-09-19. The results tab is 598 rows over 193 dates. The
   analysis tab is 2,781 rows over 237 dates, with one analysis run per date.
