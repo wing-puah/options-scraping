@@ -236,7 +236,20 @@ scripts/                    ← entry points, each maps to a workflow step
                               (`barchart_stale`), capped by `_zero_bid_mark` when there is no bid.
                               At entry `_junk_entry_fill` sells into no bid at 0, fills a traded
                               contract at its print, sells at a real bid, and refuses a bought
-                              leg with no trade (`junk_entry_quote`, the fifth refusal). Every
+                              leg with no trade (`junk_entry_quote`, the fifth refusal).
+                              ENTRY WINDOW (operator ruling 2026-10-01): every leg needs a real
+                              quote from the signal day to the 5th trading day after it
+                              (`simulation.stale_entry_max_trading_days`, default
+                              `STALE_ENTRY_MAX_TRADING_DAYS`; null = off). A leg whose first
+                              fresh quote is after the anchor's entry day moves the whole entry
+                              to that day, and `dte_entry` shrinks with it. A leg whose quotes
+                              all precede the signal refuses the play as `stale_leg_at_entry`,
+                              the sixth refusal and the first checked (GLD 2026-09-18 had
+                              filled a leg off a 08-14 mark). The rule is the pure function
+                              `simulate.fresh_entry_date`, called once in `_simulate`, so the
+                              real backtest, the proxy and `reprice_targets` share it.
+                              `bear_rewrap._junk_basis_entry` carries its own snap and does
+                              NOT apply it. Detail: `docs/backtest-reference.md`. Every
                               zero-bid quote is junk, so a bought leg no longer pays the ask.
                               `_zero_bid_mark` and `_entry_side_mark` keep their bodies because
                               `backtest_study/f3_structure/bear_rewrap.py` imports both.

@@ -742,6 +742,14 @@ The drafts are [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sens
 [`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md). `holdout_seal`
 names the conflict with §2.2 and §2.6 and leaves the choice open.
 
+**`bear_rewrap` does not apply the entry window.** Production refuses a play
+as `stale_leg_at_entry` when a leg has no quote by the 5th trading day after
+the signal (operator ruling 2026-10-01). A re-priced stored row follows
+production, because the mirror reads its stored `dte_entry`. A substitution
+does not: `entry_date_for` picks the first day every leg has a row, with no
+5-day bound. `financed_spread`, `ladder_overlay` and `overlay_campaign` inherit
+the gap. Fix by importing `simulate.fresh_entry_date`, never by copying it.
+
 <a id="s2-12"></a>
 ### 2.12 Hedge programme follow-ups — both picked up 2026-09-08; one read still blocked
 

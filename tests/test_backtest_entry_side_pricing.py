@@ -129,7 +129,9 @@ def test_entry_side_mark_and_zero_bid_mark_disagree_by_sign():
 
 def _carried_quote_case(short_qty_first=True, bid="0.00", ask="2.68"):
     long_rows = {ENTRY: _row(0.97, bid="0.90", ask="1.04", open_="0.97")}
-    short_rows = {date(2026, 5, 27): _row(0.45, bid=bid, ask=ask)}
+    # The carried snap sits ON the signal day: a pre-signal one would now move
+    # the entry to 06-03 under the entry window (`fresh_entry_date`, 2026-10-01).
+    short_rows = {SIGNAL: _row(0.45, bid=bid, ask=ask)}
     details = {LONG_KEY: long_rows, SHORT_KEY: short_rows}
     for rows in (long_rows, short_rows):
         for d in (date(2026, 6, 3), date(2026, 6, 4)):
@@ -148,7 +150,8 @@ def test_short_leg_with_a_zero_bid_contributes_nothing_at_entry():
 
 
 def _bought_zero_bid_carried(**long_kw):
-    details = {LONG_KEY: {date(2026, 5, 27): _row(0.45, bid="0.00", ask="2.68", **long_kw)},
+    # Carried from the signal day, as in `_carried_quote_case`.
+    details = {LONG_KEY: {SIGNAL: _row(0.45, bid="0.00", ask="2.68", **long_kw)},
                SHORT_KEY: {ENTRY: _row(0.30, bid="0.25", ask="0.35", open_="0.30")}}
     for d in (date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.0, bid="0.90", ask="1.10")

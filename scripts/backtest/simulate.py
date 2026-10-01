@@ -509,9 +509,67 @@ CREDIT_DEBIT_REFUSAL = "credit_priced_to_debit"
 #: lower-strike call).
 NON_MONOTONIC_REFUSAL = "non_monotonic_entry_quote"
 
+#: `skip_reason` / refusal code for a position with a leg whose last real quote
+#: precedes the signal and which prints no fresh quote inside the entry window
+#: (`STALE_ENTRY_MAX_TRADING_DAYS`). Operator ruling 2026-10-01.
+STALE_LEG_REFUSAL = "stale_leg_at_entry"
+
+#: The ENTRY WINDOW, in trading days after the signal day (operator ruling
+#: 2026-10-01). Every leg needs a real quote dated on the signal day (day 0) or
+#: on one of the next N trading days. A leg that has none waits: the whole
+#: position enters on the day its LAST leg first quotes. A leg whose real
+#: quotes all precede the signal, and none arrive by day N, refuses the
+#: position as `stale_leg_at_entry`. A trading day is a weekday — the engine has
+#: no holiday calendar (`_weekday_grid`). Config:
+#: `simulation.stale_entry_max_trading_days`; null turns the gate off (the
+#: pre-2026-10-01 behaviour, where such a leg filled at its old mark).
+STALE_ENTRY_MAX_TRADING_DAYS = 5
+
 #: Every refusal code `_simulate` can record, in check order.
-ENTRY_REFUSALS = (NO_REAL_ENTRY_PRICE, JUNK_ENTRY_REFUSAL, DEBIT_CREDIT_REFUSAL,
-                  CREDIT_DEBIT_REFUSAL, NON_MONOTONIC_REFUSAL)
+ENTRY_REFUSALS = (STALE_LEG_REFUSAL, NO_REAL_ENTRY_PRICE, JUNK_ENTRY_REFUSAL,
+                  DEBIT_CREDIT_REFUSAL, CREDIT_DEBIT_REFUSAL, NON_MONOTONIC_REFUSAL)
+
+
+def entry_window_end(signal_date, max_trading_days: int = STALE_ENTRY_MAX_TRADING_DAYS):
+    """The last day of the entry window: the ``max_trading_days``-th weekday
+    after the signal day (the signal day itself is day 0)."""
+    day, left = signal_date, max_trading_days
+    while left > 0:
+        day += timedelta(days=1)
+        if day.weekday() < 5:
+            left -= 1
+    return day
+
+
+def fresh_entry_date(leg_quote_days, signal_date, entry_date,
+                     max_trading_days: int = STALE_ENTRY_MAX_TRADING_DAYS):
+    """``(entry_day, stale_leg_index)`` — the entry-window rule (2026-10-01).
+
+    ``leg_quote_days`` holds, per leg, the days that leg has a real quote (any
+    order). ``entry_date`` is the day the anchor chose
+    (`classify._entry_row_from_history`). For each leg:
+
+      1. a quote on a day in [signal day, window end] → its FIRST such day is
+         that leg's earliest fresh quote;
+      2. none, but a quote BEFORE the signal → STALE: returns
+         ``(None, leg index)``, and the caller refuses `stale_leg_at_entry`;
+      3. no quote at all up to the window end → not judged here; the entry
+         pricing refuses it as `no_real_entry_price`, as before.
+
+    Otherwise the entry day is the later of ``entry_date`` and every leg's
+    earliest fresh quote, so no leg fills off a quote older than the signal.
+    It never passes the window end: the anchor's own day is at most 5 calendar
+    days out, which is inside 5 trading days.
+    """
+    end = entry_window_end(signal_date, max_trading_days)
+    day = entry_date
+    for i, days in enumerate(leg_quote_days):
+        fresh = [d for d in days if signal_date <= d <= end]
+        if fresh:
+            day = max(day, min(fresh))
+        elif any(d < signal_date for d in days):
+            return None, i
+    return day, None
 
 
 def _refuse_debit_priced_to_credit(structure: str, entry_net: float) -> bool:
@@ -1327,6 +1385,19 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return _price_leg(leg, entry_date, entry_d, sources=entry_sources,
                           entry_qty=leg.qty)[:3]
 
+    def _entry_quote_days(leg):
+        """The days this leg has a real quote under `entry_sources`, up to its
+        expiry: a mark in its series, or a Barchart history row (a junk row may
+        carry no mark, and the entry fill still reads it)."""
+        key, days = _key(leg), set()
+        for src in entry_sources:
+            if src == "barchart":
+                days.update(d for d, _ in barchart_series.get(key) or [])
+                days.update((barchart_details or {}).get(key) or {})
+            elif src == "reappearance":
+                days.update(d for d, _ in contract_index.get(key) or [])
+        return [d for d in days if d <= leg.expiration]
+
     def _leg_greek_row(leg):
         """``(day, row)`` — the history row this leg's entry greeks are read from:
         its own row ON the entry day, else the row its carried entry mark came
@@ -1349,6 +1420,33 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     def _cp(leg):
         return "C" if leg.opt_type == "Call" else "P"
+
+    # The entry window (operator ruling 2026-10-01, `fresh_entry_date`): every
+    # leg needs a real quote on the signal day or within the next
+    # `stale_entry_max_trading_days` trading days. A leg that first quotes later
+    # than the anchor's day moves the whole entry to that day; a leg whose
+    # quotes all precede the signal refuses the position. Without this, such a
+    # leg filled off its last pre-signal mark (GLD 2026-09-18: a 08-14 mark).
+    # A pricing property of the data, so read off the base config.
+    max_wait = sim_cfg.get("stale_entry_max_trading_days", STALE_ENTRY_MAX_TRADING_DAYS)
+    if max_wait is not None:
+        fresh_day, stale_i = fresh_entry_date(
+            [_entry_quote_days(leg) for leg in legs], signal_date, entry_date, max_wait)
+        if stale_i is not None:
+            leg = legs[stale_i]
+            last = max(d for d in _entry_quote_days(leg) if d < signal_date)
+            return _refuse(STALE_LEG_REFUSAL,
+                           f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:"
+                           f"{_cp(leg)} last real quote {last}, none from signal "
+                           f"{signal_date} to {entry_window_end(signal_date, max_wait)}")
+        if fresh_day > entry_date:
+            log.info("entry window: %s %s enters %s, not %s, waiting for a leg's "
+                     "first quote after the signal", signal_date, ticker,
+                     fresh_day, entry_date)
+            dte_entry -= (fresh_day - entry_date).days
+            entry_date = fresh_day
+            entry_d = (entry_date - signal_date).days
+            use_open = open_print_allowed(entry_date, signal_date, entry_timing)
 
     entry_prices, entry_tags = [], []
     entry_spread_units, entry_spread_complete, entry_spread_junk = 0.0, True, False

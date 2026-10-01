@@ -374,7 +374,8 @@ score block — see the two rows below.
   end, and `path_status` says which of the two ended it.
 - All settings that shape these columns (`profit_target`, `stop_loss`,
   `path_cap_days`, `exit_sources`, `spread_width_pct`, `contracts`,
-  `commission_per_contract`, `slippage_frac_of_spread`, `max_price_carry_days`)
+  `commission_per_contract`, `slippage_frac_of_spread`, `max_price_carry_days`,
+  `stale_entry_max_trading_days`)
   live in [`config/backtest.yml`](../config/backtest.yml).
 
 ## No model prices (2026-09-23)
@@ -390,11 +391,12 @@ What happens when a real price is missing:
 | A path day, a leg has no new quote | The last real mark is carried; past `max_price_carry_days` it is tagged `barchart_stale` |
 | Config lists `bs`, `risk_free_rate`, `uniform_bs_min_legs` or `proxy.bs_fallback: true` | The run refuses to start |
 
-Five entry refusals are written as `skip_reason` on the proxy row and tallied by
+Six entry refusals are written as `skip_reason` on the proxy row and tallied by
 the real backtest. They are checked in this order.
 
 | Reason | Fires when |
 |---|---|
+| `stale_leg_at_entry` | A leg's real quotes all precede the signal, and none arrives in the entry window (2026-10-01) |
 | `no_real_entry_price` | A leg has no real price on the entry day |
 | `junk_entry_quote` | A bought leg's entry quote is junk and the contract did not trade (2026-09-24) |
 | `debit_priced_to_credit` | A debit structure (`bull_call_spread`, `bear_put_spread`, long single legs) nets a credit |
@@ -424,6 +426,40 @@ and nothing is unlinked. This guard exists because of
 
 Legacy `bs` rows remain in the frozen v1 to v3 exports. Studies drop them at read
 time; see `scripts/backtest_study/lib/book.py`.
+
+### The entry window (2026-10-01)
+
+**Every leg needs a real quote dated on or after the signal.** The operator
+ruled it on 2026-10-01. Two rows had filled a leg off a quote weeks older than
+their signal.
+
+| Row | Signal | Leg's last real quote |
+|---|---|---|
+| GLD `bull_call_spread` 410/440 | 2026-09-18 | 08-14, on the 440C |
+| FSLR `bear_put_spread` 200/170 | 2026-09-15 | 07-06, on the 170P |
+
+The window runs from the signal day (day 0) to the fifth trading day after
+it. A trading day is a weekday; the engine has no holiday calendar.
+
+| A leg's quotes | What happens |
+|---|---|
+| One on or before the entry day, inside the window | Nothing changes |
+| The first inside the window falls after the entry day | The whole play enters on that later day |
+| None inside the window, older ones before the signal | Refused: `stale_leg_at_entry` |
+| None at all up to the window's end | Refused as before: `no_real_entry_price` |
+
+The anchor still picks the entry day, within 5 calendar days of the signal.
+The window can only move that day later, never past day 5. A later entry
+shortens `dte_entry` to match, and the days before it are `pre_entry`.
+
+The rule lives in `simulate.fresh_entry_date`, called by `_simulate`. Both
+writers price through it. The window length is
+`simulation.stale_entry_max_trading_days` (default 5, from
+`STALE_ENTRY_MAX_TRADING_DAYS`); null turns the gate off.
+
+Before 2026-10-01 such a leg filled at its last old mark. A leg with no mark
+at all by the entry day was refused `no_real_entry_price`, even when its first
+quote came a day later.
 
 ## BacktestProxy — untested plays, proxy-evaluated
 

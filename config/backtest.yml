@@ -381,6 +381,15 @@ simulation:
   # `bs` here or in exit_sources makes the run refuse to start.
   entry_sources: [barchart]
 
+  # Entry WINDOW (operator ruling 2026-10-01) — in TRADING days (weekdays) after
+  # the signal day. Every leg needs a real quote on the signal day or one of the
+  # next N trading days. A leg that first quotes after the anchor's entry day
+  # moves the whole entry to that day. A leg whose quotes all precede the signal,
+  # with none inside the window, refuses the play (skip reason
+  # `stale_leg_at_entry`): GLD 2026-09-18 filled a leg off a 08-14 mark.
+  # null = off (the old leg filled at its last pre-signal mark).
+  stale_entry_max_trading_days: 5
+
   # Entry TIMING — which day/quote the fill is taken at:
   #   next_open  — the NEXT trading day's Open (the analysis is produced after the
   #                close, so the realistic fill is the next open). A leg whose Open
