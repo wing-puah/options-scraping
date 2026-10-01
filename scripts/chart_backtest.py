@@ -11,12 +11,28 @@ Reads the BacktestResults CSV (one row per play) and writes:
 
 Usage:
     python3 scripts/chart_backtest.py [--csv PATH [--csv PATH ...]] [--out DIR]
+                                      [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+
+    --start/--end keep only rows whose signal_date lies in [start, end]
+    (inclusive); start > end is refused. The filtered row count and date range
+    are printed and put in the dashboard and tier-chart titles. Via make:
+        make chart-evaluate ARGS="--start 2026-01-01"
+    (ARGS is forwarded by chart, chart-all and chart-evaluate). Note that
+    chart-evaluate always writes to backtests/charts/to_evaluate/, so a
+    filtered run OVERWRITES the full-book PNGs there; pass --out (a later
+    --out wins) for a separate directory.
+
+Also writes backtest_tier.png: results by ladder tier (A/B/C/VETO/untiered).
+The exports carry no tier column, so it is computed per row by
+scripts/journal/lib/mapping.py::ladder_tier() (the only encoding of the tier
+rules) from structure, market_regime, dte_entry and delta.
 
     Repeat --csv to combine multiple BacktestResults-shaped CSVs (e.g. the
     real backtest plus the proxy backtest) into one dataset; each row is
     tagged with a `source` column (the CSV's stem).
 """
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +43,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.journal.lib import mapping  # noqa: E402  (the ONE ladder_tier encoding)
 
 # Trading-day holding horizons sampled from the daily price path (replaces the
 # old calendar-day d{N}_* checkpoint columns; the backtest now stores only the
@@ -213,6 +232,153 @@ def load_many(csv_paths: list[Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 
 
+def filter_dates(df: pd.DataFrame, start: str | None, end: str | None) -> pd.DataFrame:
+    """Keep rows whose signal_date is in [start, end], both bounds inclusive.
+    Raises ValueError on an unparseable date or start > end. The applied
+    bounds are recorded in df.attrs['date_filter'] for chart titles."""
+    def _parse(label, val):
+        if val is None:
+            return None
+        try:
+            return pd.Timestamp(pd.to_datetime(val, format="%Y-%m-%d")).normalize()
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"--{label} must be YYYY-MM-DD, got {val!r}") from exc
+    lo, hi = _parse("start", start), _parse("end", end)
+    if lo is not None and hi is not None and lo > hi:
+        raise ValueError(f"--start {start} is after --end {end}")
+    out = df
+    if lo is not None:
+        out = out[out["signal_date"] >= lo]
+    if hi is not None:
+        # signal_date may carry a time part; include the whole end day
+        out = out[out["signal_date"] < hi + pd.Timedelta(days=1)]
+    out = out.copy()
+    if lo is not None or hi is not None:
+        out.attrs["date_filter"] = (f"filtered {start or '…'} → {end or '…'}")
+    return out
+
+
+def range_label(df: pd.DataFrame) -> str:
+    """'N rows, YYYY-MM-DD–YYYY-MM-DD' (+ filter tag) for titles and stdout."""
+    if df.empty:
+        return f"0 rows{' · ' + df.attrs['date_filter'] if df.attrs.get('date_filter') else ''}"
+    tag = f" · {df.attrs['date_filter']}" if df.attrs.get("date_filter") else ""
+    return (f"{len(df)} rows, {df.signal_date.min():%Y-%m-%d}–"
+            f"{df.signal_date.max():%Y-%m-%d}{tag}")
+
+
+TIER_ORDER = ["A", "B", "C", "VETO", "untiered"]
+TIER_COLORS = {"A": C_BULL, "B": C_BAR, "C": C_MED, "VETO": C_RANGE, "untiered": "#888"}
+
+
+def add_tier(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a `tier` column (A/B/C/VETO, else 'untiered') by calling
+    mapping.ladder_tier() — never re-implementing the tier rules here. A row
+    missing structure or market_regime cannot be tiered honestly (the regime
+    drives the vetoes) and is labelled 'untiered'. `delta` is passed as the
+    bull_put short-leg delta when present (as backtest_study/lib/book.py does)."""
+    df = df.copy()
+    tiers = []
+    for _, r in df.iterrows():
+        st, mr = r.get("structure"), r.get("market_regime")
+        if not isinstance(st, str) or not st or not isinstance(mr, str) or not mr:
+            tiers.append("untiered")
+            continue
+        d = pd.to_numeric(r.get("delta"), errors="coerce")
+        dte = pd.to_numeric(r.get("dte_entry"), errors="coerce")
+        tier, _partial, _why = mapping.ladder_tier(
+            st, mr, dte_proxy=dte, short_leg_delta=None if pd.isna(d) else float(d))
+        tiers.append(tier if tier in ("A", "B", "C", "VETO") else "untiered")
+    df["tier"] = tiers
+    return df
+
+
+def tier_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-tier n, mean realized P&L %, mean $, win rate (%, of rows with a
+    realized value), median MFE $/MAE $. Tiers with no rows are omitted."""
+    if "tier" not in df.columns:
+        df = add_tier(df)
+    rows = []
+    for t in TIER_ORDER:
+        sub = df[df["tier"] == t]
+        if sub.empty:
+            continue
+        r = sub["realized_pnl"].dropna()
+        rows.append({
+            "tier": t, "n": len(sub), "n_realized": len(r),
+            "mean_pct": r.mean() if len(r) else np.nan,
+            "mean_abs": sub["realized_abs"].mean(),
+            "win_rate": (r > 0).mean() * 100 if len(r) else np.nan,
+            "med_mfe": pd.to_numeric(sub.get("mfe_abs"), errors="coerce").median(),
+            "med_mae": pd.to_numeric(sub.get("mae_abs"), errors="coerce").median(),
+        })
+    return pd.DataFrame(rows, columns=["tier", "n", "n_realized", "mean_pct", "mean_abs",
+                                       "win_rate", "med_mfe", "med_mae"])
+
+
+def build_tier(df: pd.DataFrame, out: Path) -> Path | None:
+    """Results by ladder tier: A n / mean P&L % / win rate; B mean MFE & MAE
+    (never realized alone); C cumulative realized $ by signal date."""
+    if df.empty:
+        return None
+    df = add_tier(df)
+    summ = tier_summary(df)
+    dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}")
+    fig, axes = plt.subplots(1, 3, figsize=(20, 6))
+    n_untiered = int((df["tier"] == "untiered").sum())
+    fig.suptitle(f"Results by ladder tier — {range_label(df)}"
+                 f" · untiered n={n_untiered}", fontsize=14, fontweight="bold")
+    x = np.arange(len(summ))
+    cols = [TIER_COLORS[t] for t in summ["tier"]]
+    labels = [f"{t}\nn={n}" for t, n in zip(summ["tier"], summ["n"])]
+
+    ax = axes[0]
+    ax.bar(x, summ["mean_pct"].fillna(0), color=cols)
+    for xi, m, w in zip(x, summ["mean_pct"], summ["win_rate"]):
+        if pd.notna(m):
+            ax.annotate(f"{m:+.1f}%\nwin {w:.0f}%", (xi, m), textcoords="offset points",
+                        xytext=(0, 8 if m >= 0 else -26), ha="center", fontsize=8)
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Mean realized P&L %")
+    ax.set_title("A · Mean realized P&L % and win rate by tier", fontweight="bold")
+    ax.grid(axis="y", color=GRID)
+
+    ax = axes[1]
+    w = 0.38
+    ax.bar(x - w / 2, summ["med_mfe"].fillna(0), w, color=C_BULL, label="median MFE $")
+    ax.bar(x + w / 2, summ["med_mae"].fillna(0), w, color=C_RANGE, label="median MAE $")
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.yaxis.set_major_formatter(dollar_fmt)
+    ax.set_title("B · Excursions by tier (median MFE / MAE $)", fontweight="bold")
+    ax.legend(fontsize=8)
+    ax.grid(axis="y", color=GRID)
+
+    ax = axes[2]
+    ax.axhline(0, color="#999", lw=0.8)
+    for t in summ["tier"]:
+        sub = df[(df["tier"] == t)].dropna(subset=["realized_abs"]).sort_values("signal_date")
+        if sub.empty:
+            continue
+        ax.plot(sub["signal_date"], sub["realized_abs"].cumsum(), "-", color=TIER_COLORS[t],
+                lw=1.8, label=f"{t} (n={len(sub)}, ${sub['realized_abs'].sum():+,.0f})")
+    ax.yaxis.set_major_formatter(dollar_fmt)
+    ax.set_title("C · Cumulative realized $ by tier (signal date)", fontweight="bold")
+    ax.legend(fontsize=8)
+    ax.grid(color=GRID)
+    fig.autofmt_xdate()
+
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_tier.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 DTE_BUCKETS = [(0, 21, "≤21d"), (21, 45, "22–45d"),
                (45, 90, "46–90d"), (90, 10000, ">90d")]
 
@@ -374,7 +540,8 @@ def build(df: pd.DataFrame, out: Path) -> Path:
     fig, axes = plt.subplots(3, 2, figsize=(15, 16))
     fig.suptitle(
         f"Options Backtest — {len(df)} plays, "
-        f"{df.signal_date.min():%b %Y}–{df.signal_date.max():%b %Y}",
+        f"{df.signal_date.min():%b %Y}–{df.signal_date.max():%b %Y}"
+        + (f" ({df.attrs['date_filter']})" if df.attrs.get("date_filter") else ""),
         fontsize=17,
         fontweight="bold",
         y=0.995,
@@ -1937,9 +2104,23 @@ def main():
                     help="Backtest config to read the debit/credit exit "
                          "profiles from, for the exit-rule sweep chart's "
                          "current-config markers.")
+    ap.add_argument("--start", help="keep signal_date >= YYYY-MM-DD (inclusive)")
+    ap.add_argument("--end", help="keep signal_date <= YYYY-MM-DD (inclusive)")
     args = ap.parse_args()
     csv_paths = [Path(p) for p in (args.csv or ["backtests/results.csv"])]
     df = load_many(csv_paths)
+    n_all = len(df)
+    try:
+        df = filter_dates(df, args.start, args.end)
+    except ValueError as exc:
+        ap.error(str(exc))
+    if args.start or args.end:
+        print(f"Date filter kept {len(df)} of {n_all} rows "
+              f"({args.start or '…'} → {args.end or '…'})")
+    if df.empty:
+        print("No rows in the requested date range — nothing to chart.")
+        return
+    print(f"Charting {range_label(df)}")
     exit_cfg = load_exit_config(args.config)
     print(f"Wrote {build(df, Path(args.out))}")
     print(f"Wrote {build_ev(df, Path(args.out))}")
@@ -1959,6 +2140,9 @@ def main():
     print(f"Wrote {build_time(df, Path(args.out))}")
     print(f"Wrote {build_regime(df, Path(args.out))}")
     print(f"Wrote {build_mfe_mae_dist(df, Path(args.out))}")
+    tier_png = build_tier(df, Path(args.out))
+    if tier_png:
+        print(f"Wrote {tier_png}")
 
 
 if __name__ == "__main__":
