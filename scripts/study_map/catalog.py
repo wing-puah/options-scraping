@@ -838,6 +838,20 @@ STUDIES: dict[str, Study] = {
                 "paragraph says to discount, because under compounding A2 and A5 are ratios "
                 "against a benchmark that is itself compounded.",
     ),
+    "narrow_to_fit": Study(
+        family="deployment", state="open",
+        question="When a pick's one-contract max loss is over budget, is it better to narrow "
+                 "the spread until it fits, or to refuse it? Headline (R, F3, $1,000); F4 "
+                 "splits the $1,000 stop from the $1,000 budget.",
+        verdict="2026-10-06 first run (v4, exports 2026-09-27): `>>> (R, F3, $1,000): "
+                "AWAITING SCRAPE <<<` and `>>> (R, F3, $500): AWAITING SCRAPE <<<`, from "
+                "`GN5 COVERAGE: 197 of 235 over-budget PRIMARY picks unpriced (84%; bar 10%) "
+                "-> FIRES`. Nearly all of them are `unproven`: a strike the walk must see is "
+                "not cached. The run exits 1 on `GN3: FAIL` — `FAIL 2026-09-18 GLD "
+                "bull_call_spread: builder refused (stale_leg_at_entry)`, the row the step-2 "
+                "redo re-prices. The cached cells reproduce the 2026-10-01 cached report "
+                "figure for figure, and both stop-basis lines print `NOT FEASIBLE`.",
+    ),
     "selection_order": Study(
         family="deployment", state="null",
         question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "

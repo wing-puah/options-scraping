@@ -145,6 +145,11 @@ scripts/                    ← entry points, each maps to a workflow step
                               filename convention, so the existing pricing path reads them with
                               no code change (makes VOL structures priceable). Resumable
                               (--limit N)
+  collector/fetch_substitute_legs.py
+                            — narrow_to_fit's F3 substitute strikes. Targets come from
+                              narrow_to_fit.substitute_targets; fetches go through
+                              backtest/shared/history.fetch_option_histories. The cache is
+                              the resume state. --dry-run, --limit N, --scope
   analysis_pipeline/        — full pipeline (run via `python3 -m scripts.analysis_pipeline`):
                               fetch → headless engine call (isolated session) → expand to
                               per-ticker rows → append to the engine's tab.
@@ -760,6 +765,53 @@ Other arms:
     cannot detect a model that remembers an outcome. The arm bounds that with two ledger
     walks off one model pass (demote_policy skip vs ignore) and prints the delta; read that
     before reading anything the judge layer touched.
+
+### narrow_to_fit
+
+Registered 2026-10-01. It asks whether narrowing an over-budget spread beats
+refusing it. Module `f4_deployment/narrow_to_fit.py`; the registration is the
+spec.
+
+**How it runs.** Seven cells, each a (floor rule, budget, dollar stop)
+triple, on `account_sim.simulate` in process.
+
+- `Settings` is copied with `dataclasses.replace`, never through a config
+  file, so no `account_sim` artifact is written.
+- The cap cells are the registered `(0.25, 1.50)` and `(0.25, 2.50)`. They
+  are constants, not `caps.net` from the config.
+- The report stem is `narrow_to_fit`.
+
+**The floor rule.** `Cfg.floor` takes `take`, `refuse` or `narrow`.
+
+- `None`, the default, derives the rule from `take_floor`. Every
+  `account_sim` cell runs that way, and its default report stays
+  byte-identical.
+- `narrow` needs a `narrower` passed to `simulate()`.
+- Its refusals land in `NARROW_EXCLUSIONS`, kept out of `CENSUS_BUCKETS`, so
+  no default census block gains a row.
+
+**F3 pricing.** The strike choice reads the entry day only. It fills each
+leg through the imported `entry_day_fill` / `carried_entry_fill` under
+`open_print_allowed`.
+
+- The narrowed path is built by production's own `_simulate` over the cache,
+  loaded the way `fetch_option_histories` loads it.
+- GN3 checks that builder against every over-budget stored row.
+- A grid strike the walk meets that is not cached, and that the skip-list
+  holds no evidence against, makes the pick `narrow_unpriced` (`unproven`).
+  It is never stepped over.
+- `seeded_from_log` skip-list entries are not evidence.
+
+**The scrape.** `scripts/collector/fetch_substitute_legs.py` imports
+`substitute_targets`. That census picks targets with a Black-Scholes estimate
+and never prices with it.
+
+- `--scope target_wider` (default) fetches the estimated strike plus the
+  next-wider one. `--scope between` fetches every grid strike between the
+  legs.
+- It fetches through `history.fetch_option_histories` with
+  `retry_unlisted=True`, after its own evidence-only skip-list filter.
+- Run `backup_research_caches.py push` after it.
 
 ### exit_drawdown and the exit-overlay layer
 
@@ -1588,6 +1640,7 @@ python3 -m scripts.backtest.proxy --config config/backtest-local.yml \
 python3 scripts/collector/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run
 python3 scripts/collector/fetch_counterpart_history.py --dry-run
 python3 scripts/collector/fetch_counterpart_history.py --limit 200   # resumable
+python3 scripts/collector/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list

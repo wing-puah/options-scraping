@@ -54,12 +54,30 @@ for d in 2026-09-18 2026-09-15 2026-08-25 2026-03-04 2025-10-22 2025-04-01 2025-
 done'
 ```
 
-**Step 3.** Nothing fetches the substitute legs yet. The census and the strike
-rule are in the
-[registration](pre-registrations/f4_deployment/narrow_to_fit.md): about 867
-contracts, the target strike plus the next wider one. The fetch, then the F3
-arm in `account_sim`, are the next builds. Run `backup_research_caches.py push`
-after the scrape.
+**Step 3.** Run it after step 2's re-export, because the targets come from
+the book. The fetcher is `scripts/collector/fetch_substitute_legs.py` and the
+study is `narrow_to_fit` (both built 2026-10-06). The dry-run printed 862
+contracts on 2026-10-06; the
+[registration](pre-registrations/f4_deployment/narrow_to_fit.md) census said
+867. A stop is safe: the same command resumes from the cache.
+
+```bash
+source .venv/bin/activate
+python3 scripts/collector/fetch_substitute_legs.py --dry-run | tail -3
+caffeinate -i -s python3 scripts/collector/fetch_substitute_legs.py
+python3 scripts/backup_research_caches.py push
+python3 -m scripts.backtest_study run narrow_to_fit
+```
+
+This scope will not clear GN5 on its own. The walk refuses a pick as
+`unproven` when a strike between the proposed one and the chosen one is not
+cached. The wider scope covers those strikes. Which scope to fund is the
+operator's decision.
+
+| Scope | Contracts | Over-budget picks at $1,000 left `unproven` | Time |
+|---|---|---|---|
+| default, target plus next-wider | 862 | 136 of 262 | ~3.6 h |
+| `--scope between` | 4,411 | only strikes whose fetch fails | ~18 h |
 
 **Where things stand.**
 

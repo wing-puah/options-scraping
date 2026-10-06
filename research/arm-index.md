@@ -455,6 +455,23 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
 - `F4` (cell) — Take the floor at the $500 budget with a $1,000 dollar stop.
   Isolates the stop effect from the size effect. COLLIDES with
   `financed_spread`'s `F4`, which is unrelated.
+- `GN0` `GN5` (gate) — The two gates that print rather than exit. GN0 is
+  power: the narrowed subset needs 25 dates and 60 positions. GN5 is
+  coverage: more than 10% of over-budget picks ending `narrow_unpriced`
+  prints AWAITING SCRAPE.
+- `GN1` `GN2` `GN3` `GN4` (gate) — Identities that exit non-zero. GN1:
+  forced-refuse F3 is F2. GN2: F4 with a $500 stop is F1. GN3: the builder
+  reproduces stored rows. GN4: the strike choice ignores data after the entry
+  day.
+- `GN6` (gate) — Nothing new and nothing hardcoded: no annualised figure,
+  Sharpe or time-to-recover.
+- `Q1` `N1` `N2` `N3` (criterion) — Is the headline cell feasible: FEASIBLE
+  on both cap cells, a median bootstrap maxDD of 25% or less, and shallower
+  inside every 10% drawdown window of `(R, F1, $500)`.
+- `Q2` `N4` `N5` (criterion) — Do the narrowed picks earn: a meanR CI above
+  zero, kept on both window cuts and in every year with 10 or more picks.
+- `narrow_no_fit` `narrow_tier_break` `narrow_unpriced` (prose) — The census
+  buckets F3 refuses into. `unproven` is a reason inside `narrow_unpriced`.
 
 #### `portfolio_delta`
 

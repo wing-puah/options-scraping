@@ -168,6 +168,14 @@ CENSUS_BUCKETS = CENSUS_TAKEN + CENSUS_EXCLUSIONS
 # the row carries no usable max loss at any size.
 BINDING_BUCKETS = ("cash", "per_pos_delta", "net_delta", "min1_refusal",
                    "day3_cap", "ruined")
+# `narrow_to_fit` F3's refusal buckets (registered 2026-10-01). Emitted ONLY
+# when a `Cfg` carries `floor="narrow"`, which no `account_sim` cell does, so
+# they are kept OUT of `CENSUS_EXCLUSIONS`: adding them there would print three
+# zero rows in every default census block. The study that sets the floor adds
+# them to its own partition check.
+NARROW_EXCLUSIONS = ("narrow_no_fit", "narrow_tier_break", "narrow_unpriced")
+# The three values `Cfg.floor` may take; None derives it from `take_floor`.
+FLOOR_RULES = ("take", "refuse", "narrow")
 
 
 # ── the configuration ───────────────────────────────────────────────────────
@@ -779,6 +787,22 @@ class Cfg:
     # `narrow_to_fit` F4: a dollar stop separate from the sizing budget. None
     # (the default, every registered `account_sim` cell) = stop is the budget.
     stop_abs: float | None = None
+    # `narrow_to_fit`: the floor rule as ONE of three values — "take" (F1),
+    # "refuse" (F2) or "narrow" (F3). None, the default and every
+    # `account_sim` cell, derives it from `take_floor`, so the two-valued bool
+    # keeps meaning exactly what it did. "narrow" needs a `narrower` passed to
+    # `simulate()`.
+    floor: str | None = None
+
+    @property
+    def floor_rule(self) -> str:
+        """The effective floor rule: `floor`, else `take_floor` as take/refuse."""
+        if self.floor is None:
+            return "take" if self.take_floor else "refuse"
+        if self.floor not in FLOOR_RULES:
+            raise ValueError(f"Cfg.floor must be one of {FLOOR_RULES} or None, "
+                             f"got {self.floor!r}")
+        return self.floor
 
     @property
     def budget(self) -> float:
@@ -884,7 +908,7 @@ def sleeve_rank(rec) -> float | None:
 
 def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
              selftest_leak: bool = False, cache: dict | None = None,
-             ranker=None, replayer=None) -> Sim:
+             ranker=None, replayer=None, narrower=None) -> Sim:
     """Event-loop the ladder through an account ledger.
 
     `day_lists` is `protocol.ordered_by_day(...)` output, already restricted to
@@ -930,7 +954,17 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     `d * restore_fraction` of peak. `dd_throttle=None` is a no-op and leaves
     this function byte-identical to the pre-ARM-D behaviour; it never touches
     `led.capital` either.
+
+    `narrower` belongs to `narrow_to_fit` F3 alone (`cfg.floor == "narrow"`)
+    and is required there, refused nowhere else. For a candidate whose
+    one-contract max loss exceeds the live budget it is called as
+    `narrower(rec, budget)` and returns `(narrowed_rec, None)` or
+    `(None, bucket)`, `bucket` one of `NARROW_EXCLUSIONS`. A narrowed record
+    then goes through the same sizing, admission and replay as any other; the
+    narrower must keep it alive, because the replay memo is keyed by `id()`.
     """
+    if cfg.floor_rule == "narrow" and narrower is None:
+        raise ValueError("Cfg.floor='narrow' needs a narrower passed to simulate()")
     if cache is None:
         cache = new_cache()
     sim = Sim(cfg=cfg)
@@ -1062,11 +1096,28 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 sim.skipped.append((rec, "unsizable", None))
                 n_today += 1
                 continue
-            if mlpc > budget and not cfg.take_floor:
+            if mlpc > budget and cfg.floor_rule == "refuse":
                 sim.census["min1_refusal"] += 1
                 sim.skipped.append((rec, "min1_refusal",
                                     replay_sized(rec, c, stop, cache=cache)))
                 continue
+            if mlpc > budget and cfg.floor_rule == "narrow":
+                # narrow_to_fit F3. `narrow_offered` and `narrowed` are tallies,
+                # not partition buckets: a narrowed pick lands in `taken` or a
+                # cap bucket below like any other.
+                sim.census["narrow_offered"] += 1
+                narrowed, bucket = narrower(rec, budget)
+                if narrowed is None:
+                    if bucket not in NARROW_EXCLUSIONS:
+                        raise ValueError(f"narrower returned bucket {bucket!r}")
+                    sim.census[bucket] += 1
+                    sim.skipped.append((rec, bucket,
+                                        replay_sized(rec, c, stop, cache=cache)))
+                    continue
+                sim.census["narrowed"] += 1
+                rec = narrowed
+                mlpc = rec["max_loss_per_contract"]
+                c = risk_contracts(mlpc, budget)
             unit_dn = signed_dn(rec, 1)
             ok, why = admission(c * mlpc, c * unit_dn, led.cash, net_open, cfg,
                                 equity=marked)
