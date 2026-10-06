@@ -197,7 +197,9 @@ STUDY_ARMS = {
 # land on `account_sim-compounding-latest.txt` and quietly replace the
 # compounding sensitivity with a differently-selected book.
 CALLER_ARMS = {
-    "account_sim": (("--live-select", "live-select"),),
+    # `--ticker-cap` (2026-10-06) is the per-ticker cap CONFORMANCE read: its
+    # own stem, no compounding pass, no chart pages.
+    "account_sim": (("--live-select", "live-select"), ("--ticker-cap", "ticker-cap")),
     # `--admitted` is BOTH an extra arm above and a caller arm here, and it has
     # to be. Without this entry an explicit `run hedge_portfolio -- --admitted`
     # would file the ADMITTED report under the bare `hedge_portfolio` stem —

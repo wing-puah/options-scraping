@@ -438,6 +438,11 @@ _Registered in [`pre-registrations/f4_deployment/account_sim.md`](pre-registrati
 - `--compounding` `--live-select` `--structure-universe` (run) — CLI
   arms — alternative RUNS of one study, not separate questions. Each
   writes its own report/CSV stem ([`glossary.md`](glossary.md) §7).
+- `--ticker-cap` (run) — The per-ticker cap CONFORMANCE read (operator
+  ruling 2026-10-06), not a new edge arm. The per-position cap binds on a
+  ticker's signed open total, as production does. Own report/CSV stem.
+- `ticker_delta` (prose) — The census bucket `--ticker-cap` refuses into: the
+  candidate fits the cap alone but not on top of its ticker's open positions.
 
 #### `narrow_to_fit`
 
@@ -472,6 +477,27 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
   zero, kept on both window cuts and in every year with 10 or more picks.
 - `narrow_no_fit` `narrow_tier_break` `narrow_unpriced` (prose) — The census
   buckets F3 refuses into. `unproven` is a reason inside `narrow_unpriced`.
+
+#### `pbo_ledger`
+
+_Not registered: an operator request of 2026-10-06. Module
+[`f4_deployment/pbo_ledger.py`](../scripts/backtest_study/f4_deployment/pbo_ledger.py)._
+
+The study re-runs the configurations on the feasibility plan's trial ledger
+and asks how likely the best-looking one was luck. It adds no arm. Its labels
+are the selection metrics and one gate.
+
+- `total` `maxdd` `meanR` `bar` (descriptive cut) — The four selection
+  metrics PBO is computed under: total return on starting capital, shallowest
+  max drawdown, mean R per position, and the 25% drawdown bar first, then
+  total return.
+- `RF2_250` `RF2_150` (control) — `account_sim` (R, F2) at $500 on the 2.50
+  and 1.50 net cap cells. The report follows their ranks in and out of sample.
+- `GP1` (gate) — Each configuration's series reproduces `account_sim`'s own
+  total dollars and A3 drawdown for that simulation, or the run exits 1.
+- `PBO` `lambda` (prose) — The probability of backtest overfitting and the
+  per-combination logit it is counted from (Bailey, Borwein, López de Prado
+  and Zhu, 2017).
 
 #### `portfolio_delta`
 

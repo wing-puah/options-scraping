@@ -852,6 +852,22 @@ STUDIES: dict[str, Study] = {
                 "redo re-prices. The cached cells reproduce the 2026-10-01 cached report "
                 "figure for figure, and both stop-basis lines print `NOT FEASIBLE`.",
     ),
+    "pbo_ledger": Study(
+        family="deployment", state="reference",
+        question="The feasibility plan's trial ledger scored more than 70 account-sizing "
+                 "configurations against the 25% drawdown bar on one path. How likely is it "
+                 "that the one chosen as best, in particular (R, F2, $500), was luck?",
+        verdict="2026-10-06 first run (v4, 1,795-row book, 280 dates; 51 ledger configurations "
+                "plus 8 `--ticker-cap` R cells, S = 16, 12,870 combinations): `PRIMARY | ledger"
+                "                N=51  PBO[total] 78.9%  PBO[maxdd] 0.0%  PBO[meanR] 44.9%  "
+                "PBO[bar] 50.0%`. Picking on total dollars is mostly luck; picking on drawdown is "
+                "not, because size sets the drawdown. (R, F2) $500 is the IS best in at most 22% "
+                "of combinations under any metric and ranks above the OOS median then except on "
+                "total. Adding the ticker-cap cells moves no PBO by more than 6 points; "
+                "ticker-cap (R, F2, $1,000) net 2.50 ranks first on the full path under total, "
+                "meanR (SECONDARY) and bar, with lambda <= 0 in 6-39% of the combinations that "
+                "pick it. Nothing ships.",
+    ),
     "selection_order": Study(
         family="deployment", state="null",
         question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "
@@ -1279,6 +1295,12 @@ INFRA: dict[str, str] = {
                    "states those counts and every share is a FLOOR. A None or non-positive "
                    "cost is EXCLUDED and counted, never read as zero. Pure: sequences in, "
                    "dataclasses and printable lines out, no I/O, and it carries no verdict.",
+    "lib/pbo.py": "The Probability of Backtest Overfitting by combinatorially symmetric "
+                  "cross-validation (Bailey, Borwein, López de Prado, Zhu 2017, Algorithm "
+                  "2.3). Pure: a T x N per-period performance matrix in, the logit "
+                  "distribution, PBO, degradation slope and probability of loss out. "
+                  "`pbo_ledger` is its first caller; any study that compares many "
+                  "configurations on one path can call it.",
     "lib/path_bootstrap.py": "The moving/circular BLOCK BOOTSTRAP of account_sim's A3 max "
                    "drawdown (feasibility plan step 3), at block lengths 5/10/20 with the "
                    "seed and resample count printed on the block header line. It re-exports "

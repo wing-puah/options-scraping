@@ -1144,7 +1144,7 @@ def test_main_forwards_the_compounding_flag_to_load_settings(monkeypatch, capsys
     nothing here touches the book."""
     seen = {}
 
-    def _fake(path, *, compound_enabled=False):
+    def _fake(path, *, compound_enabled=False, ticker_cap_enabled=False):
         seen["compound_enabled"] = compound_enabled
         raise ConfigError("stopped before the book is loaded")
 

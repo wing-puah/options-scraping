@@ -739,6 +739,23 @@ lines itself:
 
 Other arms:
 
+- `--ticker-cap` — a CONFORMANCE read, not an edge arm (operator ruling
+  2026-10-06). The per-position cap binds on a ticker's signed open total plus
+  the candidate, as `s03_risk.assess` does in production.
+  - Same exposure measure (`signed_dn` at entry) and equity basis as the
+    other caps. Written independently; the module never imports the journal.
+  - ARM R refuses into a new `ticker_delta` bucket. ARM D downsizes to fit the
+    ticker total. The ARM H sleeve is admitted on the same rule.
+  - A long and a short on one ticker net, so a candidate over the cap alone
+    can be admitted. The census prints that as `ticker_netted_in`.
+  - `ticker_delta` joins the A4 partition only when the arm is on, so the
+    default report stays byte-identical.
+  - Own report stem (`account_sim-ticker-cap-latest.txt`, a `CALLER_ARMS`
+    entry, no chart pages) and CSVs (`account_sim-positions-ticker-cap-latest.csv`,
+    `account_sim-sleeve-ticker-cap-latest.csv`). A `--config` copy run
+    directly still writes only those stems.
+  - Prints a without-vs-with block per arm cell, refusals by ticker and
+    refills, and a TRIAL LEDGER note marking the run as conformance.
 - `--structure-universe` — admits proxy debit rows the exact-replay gate withheld (stale
   trailing_stop exports, not unpriceable rows). Widens the CANDIDATE SET only; bs rows stay
   dropped, gates still run on the frozen book; separate artifact

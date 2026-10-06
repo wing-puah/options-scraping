@@ -176,6 +176,26 @@ BINDING_BUCKETS = ("cash", "per_pos_delta", "net_delta", "min1_refusal",
 NARROW_EXCLUSIONS = ("narrow_no_fit", "narrow_tier_break", "narrow_unpriced")
 # The three values `Cfg.floor` may take; None derives it from `take_floor`.
 FLOOR_RULES = ("take", "refuse", "narrow")
+# The `--ticker-cap` conformance arm's refusal bucket (operator ruling
+# 2026-10-06). Emitted ONLY when `Cfg.ticker_cap` is set, so it is kept out of
+# `CENSUS_EXCLUSIONS` for the same reason `NARROW_EXCLUSIONS` is: a zero row in
+# every default census block would break the default report's byte identity.
+# `census_exclusions(cfg)` adds it to the partition when the arm is on.
+TICKER_EXCLUSIONS = ("ticker_delta",)
+
+
+def census_exclusions(cfg) -> tuple[str, ...]:
+    """The exclusion buckets that partition THIS run's candidates."""
+    if getattr(cfg, "ticker_cap", False):
+        return CENSUS_EXCLUSIONS + TICKER_EXCLUSIONS
+    return CENSUS_EXCLUSIONS
+
+
+def binding_buckets(cfg) -> tuple[str, ...]:
+    """`BINDING_BUCKETS`, plus `ticker_delta` when the ticker cap is on."""
+    if getattr(cfg, "ticker_cap", False):
+        return BINDING_BUCKETS + TICKER_EXCLUSIONS
+    return BINDING_BUCKETS
 
 
 # ── the configuration ───────────────────────────────────────────────────────
@@ -242,6 +262,9 @@ class Settings:
     # — the key absent or null — means the stop IS the budget, which is every
     # registered `account_sim` cell and keeps the default report byte-identical.
     dollar_stop: float | None = None
+    # ARM SELECTION, like `compound_enabled`: set from `--ticker-cap`, never
+    # from the YAML. False keeps every default artifact byte-identical.
+    ticker_cap_enabled: bool = False
 
     @property
     def budget(self) -> float:
@@ -268,7 +291,8 @@ class Settings:
                     compound=self.compound_enabled,
                     mark_interval=self.mark_interval,
                     budget_ceiling=self.budget_ceiling,
-                    stop_abs=self.dollar_stop)
+                    stop_abs=self.dollar_stop,
+                    ticker_cap=self.ticker_cap_enabled)
         return Cfg(label=label, **{**base, **over})
 
     @property
@@ -322,7 +346,8 @@ def _posthoc_ladder(raw: dict, path: str) -> tuple[float, ...]:
 
 
 def load_settings(path: Path = DEFAULT_CONFIG, *,
-                  compound_enabled: bool = False) -> Settings:
+                  compound_enabled: bool = False,
+                  ticker_cap_enabled: bool = False) -> Settings:
     """Read the study's configuration.
 
     Every key is required. A config-driven study whose config was only half read
@@ -404,6 +429,7 @@ def load_settings(path: Path = DEFAULT_CONFIG, *,
         source=path,
         source_text=text,
         dollar_stop=_dollar_stop(raw, p),
+        ticker_cap_enabled=bool(ticker_cap_enabled),
     )
 
 
@@ -545,7 +571,8 @@ def sizing_budget(marked_equity: float, risk_pct: float,
 
 
 def admission(reserved: float, dn_signed: float, cash: float, net_open: float,
-              cfg: "Cfg", *, equity: float | None = None) -> tuple[bool, str | None]:
+              cfg: "Cfg", *, equity: float | None = None,
+              ticker_open: float | None = None) -> tuple[bool, str | None]:
     """`(ok, binding_constraint)` — the FIRST failing constraint, in fixed order.
 
     Fixed order cash -> per-position delta -> net delta is what makes A4's
@@ -555,12 +582,27 @@ def admission(reserved: float, dn_signed: float, cash: float, net_open: float,
     `cfg.capital` — the static, path-independent basis. Under compounding
     `simulate()` passes the re-marked equity instead, so the caps scale with the
     account the same way the budget does.
+
+    `ticker_open` is the `--ticker-cap` conformance arm (operator ruling
+    2026-10-06) and is None on every other path. Given, the per-position cap
+    binds on the TICKER's signed total — the open positions' signed
+    delta-notional on that ticker plus this candidate — which is the rule
+    production's risk step applies. It is written here independently and
+    never imported from the journal. A breach the candidate would also have
+    made alone stays `per_pos_delta`; one only the stack makes is
+    `ticker_delta`. Netting cuts both ways, as in production: a candidate
+    over the cap alone is admitted when an opposite-signed open position on
+    its ticker brings the total back under it.
     """
     eq = cfg.capital if equity is None else equity
     if cfg.enforce_cash and reserved > cash + EPS:
         return False, "cash"
-    if abs(dn_signed) > cfg.per_pos_cap * eq + EPS:
-        return False, "per_pos_delta"
+    cap = cfg.per_pos_cap * eq + EPS
+    if ticker_open is None:
+        if abs(dn_signed) > cap:
+            return False, "per_pos_delta"
+    elif abs(ticker_open + dn_signed) > cap:
+        return False, ("per_pos_delta" if abs(dn_signed) > cap else "ticker_delta")
     if abs(net_open + dn_signed) > cfg.net_cap * eq + EPS:
         return False, "net_delta"
     return True, None
@@ -568,15 +610,17 @@ def admission(reserved: float, dn_signed: float, cash: float, net_open: float,
 
 def solve_contracts(max_c: int, unit_reserved: float, unit_dn: float,
                     cash: float, net_open: float, cfg: "Cfg", *,
-                    equity: float | None = None) -> int:
+                    equity: float | None = None,
+                    ticker_open: float | None = None) -> int:
     """Largest integer contract count in [1, max_c] passing EVERY cap; 0 = none.
 
-    `equity` is forwarded to `admission()`; `None` keeps the static
-    `cfg.capital` basis.
+    `equity` and `ticker_open` are forwarded to `admission()`; `None` keeps the
+    static `cfg.capital` basis and the standalone per-position check. Under
+    `--ticker-cap`, ARM D therefore downsizes to fit the TICKER's total.
     """
     for c in range(max_c, 0, -1):
         ok, _ = admission(c * unit_reserved, c * unit_dn, cash, net_open, cfg,
-                          equity=equity)
+                          equity=equity, ticker_open=ticker_open)
         if ok:
             return c
     return 0
@@ -793,6 +837,10 @@ class Cfg:
     # keeps meaning exactly what it did. "narrow" needs a `narrower` passed to
     # `simulate()`.
     floor: str | None = None
+    # `--ticker-cap` (operator ruling 2026-10-06, a CONFORMANCE read): the
+    # per-position cap binds on the ticker's signed open total plus the
+    # candidate, as in production. False, the default, is every other cell.
+    ticker_cap: bool = False
 
     @property
     def floor_rule(self) -> str:
@@ -874,6 +922,10 @@ class Sim:
     # adverse-ordering block, the regime skip table and the positions CSV, none
     # of which is about the sleeve. Always empty unless `cfg.hedge`.
     hedge_skipped: list = field(default_factory=list)
+    # `--ticker-cap`: one `[rec, refilled]` per `ticker_delta` refusal, in walk
+    # order. `refilled` turns True when a LATER candidate on the same day is
+    # taken into the slot. Always empty unless `cfg.ticker_cap`.
+    ticker_refusals: list = field(default_factory=list)
 
     # -- derived views -------------------------------------------------------
     @property
@@ -974,6 +1026,14 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
     sim.ledger = led
     open_pos: list[Pos] = []
     net_open = 0.0
+
+    def ticker_open(rec) -> float | None:
+        """Signed open delta-notional on `rec`'s ticker; None unless the
+        `--ticker-cap` arm is on. Summed fresh from `open_pos` each call, so a
+        ticker with nothing open is exactly 0.0 rather than a float residue."""
+        if not cfg.ticker_cap:
+            return None
+        return sum(p.dn for p in open_pos if p.rec["ticker"] == rec["ticker"])
 
     def release_before(sess) -> None:
         nonlocal net_open
@@ -1077,6 +1137,7 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
             ranked = ranker(d, ranked, open_pos, led, net_open, marked)
 
         n_today = 0
+        pending_refusals: list = []     # `--ticker-cap` only; see Sim.ticker_refusals
         for rec in ranked:
             if ruined:
                 # RUIN GUARD — the account is wiped, so nothing can be opened.
@@ -1119,24 +1180,38 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 mlpc = rec["max_loss_per_contract"]
                 c = risk_contracts(mlpc, budget)
             unit_dn = signed_dn(rec, 1)
+            t_open = ticker_open(rec)
             ok, why = admission(c * mlpc, c * unit_dn, led.cash, net_open, cfg,
-                                equity=marked)
+                                equity=marked, ticker_open=t_open)
+            if (ok and t_open is not None
+                    and abs(c * unit_dn) > cfg.per_pos_cap * marked + EPS):
+                # A tally, not a bucket: over the cap alone, admitted because
+                # an opposite-signed open position on the ticker nets it.
+                sim.census["ticker_netted_in"] += 1
             if not ok and cfg.downsize:
                 c2 = solve_contracts(c, mlpc, unit_dn, led.cash, net_open, cfg,
-                                     equity=marked)
+                                     equity=marked, ticker_open=t_open)
                 if c2 > 0:
                     sim.downsize_reason[why] += 1
                     sim.census["taken_downsized"] += 1
                     take(rec, c2, stop, downsized=True)
                     n_today += 1
+                    if pending_refusals:
+                        pending_refusals.pop(0)[1] = True
                     continue
             if not ok:
                 sim.census[why] += 1
                 sim.skipped.append((rec, why, replay_sized(rec, c, stop, cache=cache)))
+                if why == "ticker_delta":
+                    entry = [rec, False]
+                    sim.ticker_refusals.append(entry)
+                    pending_refusals.append(entry)
                 continue
             sim.census["taken"] += 1
             take(rec, c, stop)
             n_today += 1
+            if pending_refusals:
+                pending_refusals.pop(0)[1] = True
 
         # ARM H — the shipped bear sleeve, AFTER the day's signal picks so it can
         # never displace one. Not counted against cfg.max_per_day.
@@ -1153,7 +1228,8 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                     c = max(1, int(cfg.hedge_risk_fraction * base))
                     ok, _ = admission(c * rec["max_loss_per_contract"],
                                       c * signed_dn(rec, 1),
-                                      led.cash, net_open, cfg, equity=marked)
+                                      led.cash, net_open, cfg, equity=marked,
+                                      ticker_open=ticker_open(rec))
                     if ok:
                         sim.census["hedge_taken"] += 1
                         take(rec, c, stop, hedge=True)
@@ -1328,7 +1404,8 @@ def sleeve_rows(population: str, arm: str, sim) -> list[dict]:
 
 
 def positions_artifact(*, compounding: bool, structure_universe: bool,
-                       live_select: bool = False) -> tuple[str, str]:
+                       live_select: bool = False,
+                       ticker_cap: bool = False) -> tuple[str, str]:
     """`(positions CSV filename, the `arm` column's value)` for this run's ARM.
 
     Separate artifact per ARM: no arm may silently overwrite the frozen book's
@@ -1354,11 +1431,16 @@ def positions_artifact(*, compounding: bool, structure_universe: bool,
     if live_select:
         parts.append("live-select")
         arm += "-live-select"
+    if ticker_cap:
+        # The `--ticker-cap` conformance arm (2026-10-06): last, so every
+        # existing stem keeps its spelling.
+        parts.append("ticker-cap")
+        arm += "-ticker-cap"
     return "-".join(parts) + "-latest.csv", arm
 
 
 def sleeve_artifact(*, compounding: bool, structure_universe: bool,
-                    live_select: bool = False) -> str:
+                    live_select: bool = False, ticker_cap: bool = False) -> str:
     """The ARM H sleeve CSV's filename, derived from the positions one.
 
     Derived rather than spelled out a second time: the sleeve export is the
@@ -1367,7 +1449,8 @@ def sleeve_artifact(*, compounding: bool, structure_universe: bool,
     """
     stem, _ = positions_artifact(compounding=compounding,
                                  structure_universe=structure_universe,
-                                 live_select=live_select)
+                                 live_select=live_select,
+                                 ticker_cap=ticker_cap)
     return stem.replace("account_sim-positions", "account_sim-sleeve", 1)
 
 
@@ -2081,7 +2164,7 @@ def print_census(sim: Sim, label: str) -> bool:
     # path-independent book). It is listed here — and summed below — because A4
     # asserts the buckets PARTITION every candidate: a bucket that exists in
     # simulate() but not in this enumeration would silently break that sum.
-    order = CENSUS_BUCKETS
+    order = CENSUS_TAKEN + census_exclusions(sim.cfg)
     total = sum(c[k] for k in order)
     for k in order:
         print(f"  {k:<18} {c[k]:>5}")
@@ -2096,10 +2179,10 @@ def print_census(sim: Sim, label: str) -> bool:
               "  ".join(f"{k}={v}" for k, v in sim.downsize_reason.items()))
     n_taken = c["taken"] + c["taken_downsized"]
     ok = (n_taken == len(sim.signal_pos)
-          and total == n_taken + sum(c[k] for k in CENSUS_EXCLUSIONS))
+          and total == n_taken + sum(c[k] for k in census_exclusions(sim.cfg)))
     print(f"  A4 sum check: taken {n_taken} == positions {len(sim.signal_pos)} and "
           f"buckets partition {n_cand} candidates -> {'OK' if ok else 'MISMATCH'}")
-    binding = [(k, c[k]) for k in BINDING_BUCKETS if c[k]]
+    binding = [(k, c[k]) for k in binding_buckets(sim.cfg) if c[k]]
     if binding:
         top = max(binding, key=lambda kv: kv[1])
         print(f"  MOST BINDING constraint: {top[0]} ({top[1]} of "
@@ -2704,7 +2787,8 @@ def print_arms(day_lists, bear_by_day, capital: float, label: str,
     n_refused = f2.census["min1_refusal"]
     examined = (sum(f2.census[k] for k in ("taken", "taken_downsized", "cash",
                                            "per_pos_delta", "net_delta",
-                                           "min1_refusal")))
+                                           "min1_refusal")
+                    + (TICKER_EXCLUSIONS if f2.cfg.ticker_cap else ())))
     print(f"\n  F1 vs F2 — the study's central object: F2 refuses the "
           f"{n_refused} sized candidates whose\n  1-contract max loss exceeds the "
           f"${capital * st.risk_pct:,.0f} budget "
@@ -2720,6 +2804,64 @@ def print_arms(day_lists, bear_by_day, capital: float, label: str,
           f"reject arm dropped;\n  total ${f1.dollars:,.0f} -> ${d1.dollars:,.0f} "
           f"({d1.dollars - f1.dollars:+,.0f})")
     return out
+
+
+TICKER_CAP_RULING = """\
+  OPERATOR RULING 2026-10-06 — a CONFORMANCE read, not a new edge arm.
+  Production's risk step caps a TICKER's signed total delta-notional at
+  caps.per_position x equity; this simulator's admission() checked each new
+  position alone, so several positions on one ticker could stack. --ticker-cap
+  makes the simulator match production: a candidate is admitted only if
+  |the ticker's signed open delta-notional + the candidate's| <= the cap, on
+  the same exposure measure (signed_dn at entry) and the same equity basis the
+  other caps use. ARM R refuses into the `ticker_delta` bucket; ARM D
+  downsizes to fit the ticker total. The ARM H sleeve is admitted on the same
+  rule. Implemented in research independently of scripts/journal/."""
+
+
+def print_ticker_cap(arms: dict, day_lists, label: str, st: Settings,
+                     cache: dict) -> None:
+    """`--ticker-cap` only: each arm cell with and without the ticker rule.
+
+    The "without" column is the same cell re-simulated with `ticker_cap=False`
+    in this process, so the two columns share one book, one config and one
+    replay memo. A CONFORMANCE read: no verdict reads this block.
+    """
+    hdr(f"[{label}] TICKER-CAP CONFORMANCE — each cell without vs with")
+    print("  CONFORMANCE READ (operator ruling 2026-10-06), scored by nothing. The")
+    print("  verdict is the headline cell's, which under --ticker-cap already")
+    print("  carries the rule. 'without' re-runs each cell with the rule off.\n")
+    b2 = simulate(day_lists, st.cfg(f"{label} B2", **UNCONSTRAINED), cache=cache)
+    print(f"  {'cell':<20}{'rule':<9}{'n':>5}{'total $':>10}{'meanR':>8}"
+          f"{'CI95':>18}{'maxDD%':>8}  A1-A6")
+    for key, arm_label, kw in ARM_CELLS:
+        with_ = arms[key]
+        without = simulate(day_lists, st.cfg(label, ticker_cap=False, **kw),
+                           cache=cache)
+        for tag, sim in (("without", without), ("with", with_)):
+            sc = criteria_scores(sim, b2, st)
+            flags = " ".join(("Y" if sc[k] else "n")
+                             for k in ("A1", "A2", "A3", "A4", "A5", "A6"))
+            ci = f"[{sc['lo']:+.3f},{sc['hi']:+.3f}]"
+            print(f"  {arm_label.split('  ')[0]:<20}{tag:<9}{len(sim.signal_pos):>5}"
+                  f"{sim.dollars:>10,.0f}{sc['mean_R']:>+8.3f}{ci:>18}"
+                  f"{abs(sc['mdd']) / sim.cfg.capital:>8.1%}  {flags}")
+    print()
+    for key, arm_label, _ in ARM_CELLS:
+        sim = arms[key]
+        refused = sim.ticker_refusals
+        by_t = Counter(r["ticker"] for r, _ in refused)
+        refilled = sum(1 for _, f in refused if f)
+        tickers = ", ".join(f"{t} {n}" for t, n in by_t.most_common()) or "none"
+        print(f"  {arm_label.split('  ')[0]:<10} ticker_delta refusals "
+              f"{len(refused)} (refilled {refilled}, slot left empty "
+              f"{len(refused) - refilled})  by ticker: {tickers}")
+        extra = []
+        if sim.downsize_reason.get("ticker_delta"):
+            extra.append(f"downsized to fit the ticker total "
+                         f"{sim.downsize_reason['ticker_delta']}")
+        extra.append(f"admitted only by netting {sim.census['ticker_netted_in']}")
+        print(f"  {'':<10} {'   '.join(extra)}")
 
 
 def print_hedge(day_lists, bear_by_day, capital: float, label: str,
@@ -2931,9 +3073,9 @@ def criteria_scores(sim: Sim, b2: Sim, st: Settings) -> dict:
     # A4 ATTRIBUTION — computed by print_census, re-derived here
     c = sim.census
     n_taken = sum(c[k] for k in CENSUS_TAKEN)
-    total = n_taken + sum(c[k] for k in CENSUS_EXCLUSIONS)
+    total = n_taken + sum(c[k] for k in census_exclusions(sim.cfg))
     a4 = (n_taken == len(sim.signal_pos)
-          and total == sum(c[k] for k in CENSUS_BUCKETS))
+          and total == sum(c[k] for k in CENSUS_TAKEN + census_exclusions(sim.cfg)))
 
     # A5 STABILITY
     cuts, cut_n = {}, {}
@@ -3417,6 +3559,8 @@ def report_population(recs, picked_all, dates_allowed, label: str,
     print_drawdowns(head, label, st, dds)
     print_dollar_stop(head, label, st)
     arms = print_arms(day_lists, bear_by_day, capital, label, st, cache)
+    if st.ticker_cap_enabled:
+        print_ticker_cap(arms, day_lists, label, st, cache)
     print_path_bootstrap(arms, label, st)
     sleeved = print_hedge(day_lists, bear_by_day, capital, label, st, cache)
     print_hedge_drawdowns(sleeved, head, label, st, dds)
@@ -3476,6 +3620,12 @@ def main(argv=None) -> int:
     ap.add_argument("--live-select-no-llm", action="store_true",
                     help="deterministic rank() only — no judge() call, no cache "
                          "read or write. Fully offline.")
+    ap.add_argument("--ticker-cap", action="store_true",
+                    help="CONFORMANCE arm (operator ruling 2026-10-06): the "
+                         "per-position cap binds on a TICKER's signed open "
+                         "total plus the candidate, as production's risk step "
+                         "does, instead of on each position alone. Its own "
+                         "report stem and positions/sleeve CSVs.")
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                     help=f"the simulation to run (default: "
                          f"{DEFAULT_CONFIG.relative_to(ROOT)}). Copy it and pass "
@@ -3483,7 +3633,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     try:
-        st = load_settings(args.config, compound_enabled=args.compounding)
+        st = load_settings(args.config, compound_enabled=args.compounding,
+                           ticker_cap_enabled=args.ticker_cap)
     except ConfigError as exc:
         print(f"CONFIG ERROR: {exc}")
         return 2
@@ -3514,6 +3665,10 @@ def main(argv=None) -> int:
               f"REALIZED equity at\n  each {st.mark_interval} boundary. POST-HOC "
               f"and NOT pre-registered — see the EQUITY\n  MARKS section's banner "
               f"before quoting any number below.")
+    if st.ticker_cap_enabled:
+        # Printed only when the arm is on, so the default report stays byte-stable.
+        print("  TICKER CAP: ENABLED (--ticker-cap)")
+        print(TICKER_CAP_RULING)
 
     # Printed before anything is computed: the whole parameter surface of this
     # run, so the report is self-describing and nothing downstream has to open
@@ -3542,6 +3697,11 @@ def main(argv=None) -> int:
     if args.gates_only:
         print("\n--gates-only: gates passed, stopping before the report.")
         return 0
+
+    if args.live_select and args.ticker_cap:
+        print("\n--live-select and --ticker-cap are separate arms and do not "
+              "combine; run them one at a time.")
+        return 2
 
     if args.live_select and args.structure_universe:
         # Refused rather than silently ignored: the two arms widen different
@@ -3605,6 +3765,13 @@ def main(argv=None) -> int:
              [r for r in picked if r["date"] in ep_dates]),
             "PRIMARY dense episodes", st, cache)
 
+    if st.ticker_cap_enabled:
+        hdr("TRIAL LEDGER")
+        print("""  The --ticker-cap run is a CONFORMANCE read (operator ruling 2026-10-06):
+  the simulator is brought into line with production's per-ticker cap. It is
+  NOT a new edge arm and does not count against the plan's three-new-arm cap
+  on this era. Every cell it scores is still marked SEEN against the 25% bar.""")
+
     hdr("CLOSE")
     print(f"  verdict: {verdict}")
     print("  Nothing in this report is a shippable rule. The cap values are a "
@@ -3614,7 +3781,8 @@ def main(argv=None) -> int:
     # One artifact per ARM — see `positions_artifact`.
     stem, arm_col = positions_artifact(
         compounding=args.compounding,
-        structure_universe=args.structure_universe)
+        structure_universe=args.structure_universe,
+        ticker_cap=args.ticker_cap)
     positions_csv_path = ROOT / "backtests" / "study_output" / stem
     n_rows = write_positions_csv(
         positions_csv_path,
@@ -3627,7 +3795,8 @@ def main(argv=None) -> int:
     # Its own stem for the same reason every arm has one.
     sleeve_stem = sleeve_artifact(
         compounding=args.compounding,
-        structure_universe=args.structure_universe)
+        structure_universe=args.structure_universe,
+        ticker_cap=args.ticker_cap)
     sleeve_sims = {name: s for name, s in
                    (("primary", sleeve_primary), ("secondary", sleeve_secondary))
                    if s is not None}

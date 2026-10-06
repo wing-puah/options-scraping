@@ -10,6 +10,9 @@ built is runnable in a real account, not whether it is right.
                         stateless: `config/account-sim.yml` IS the simulation.
                         Its arms (`--compounding`, `--structure-universe`,
                         `--live-select`) each file under their own report stem.
+    pbo_ledger.py       reference — the Probability of Backtest Overfitting
+                        (CSCV, lib/pbo.py) over the account-sizing trial
+                        ledger. Adds no arm and moves no verdict.
     selection_order.py  open · UNDERPOWERED at G0 — each re-ordering changes
                         only 7–14% of the deployed book, so the best-powered arm
                         reaches 11 affected dates against a floor of 25 declared
