@@ -658,6 +658,176 @@ floor on a still-backfilling book does not produce a stable trigger decision.
 The next reading that can carry weight is on genuinely new dates, not another
 backfill export.
 
+**Credit census (2026-10-06, v4 exports of 2026-09-27 15:57).** Only the
+credit sl-none row was re-read today. The other triggers keep their last
+recorded census above.
+
+| Trigger | Census | Outcome |
+|---|---|---|
+| Credit sl-none | 50 fresh `bull_put` rows over 23 dates, floor of 15 met | **NOT FIRED**, not settled: sl-none +$12,753 (meanR +0.278) against `sl 1x` +$10,781 (+0.148), Δ −$1,972 |
+
+The code is `exit_mechanism_study.py::credit_rollback_census`, run as
+`run exit_mechanism_study --side credit`. The 09-28 suite run already printed
+the floor as met on the same numbers, so the earlier "0 of 15" lines are
+superseded.
+
+| Detail | Value |
+|---|---|
+| Rows that change outcome | 5 of 50 |
+| Cause of the gap | 3 closed rows where the 1x stop sold the low before the recovery (INTC 07-17, AAPL 07-24, AAPL 07-27) |
+| Rows open at data end | 23 of 50 |
+| Open rows already past −1x credit | XLE 07-22, GLD 08-25 |
+| Gap if both finish at max loss | about +$16, break-even |
+| [MFE](glossary.md#mfe--mae-max-favorable--adverse-excursion) median / MAE median | +0.57x credit / −0.33x credit |
+| Pricing | all 50 rows 100% real days, commission-only |
+| Registered population (real plus 6 `strike_expiry_tweak` rows, 56 rows over 25 dates) | sl-none +$13,710 against +$10,910, Δ −$2,799 |
+
+The census code reads real rows only. Whether to add the tweak rows is an
+operator decision, to be decided. The entry-window `--redo`
+([`next-steps.md`](next-steps.md) §0 step 2) re-prices 5 of these rows. Re-read
+after the redo and re-export, and again when the open rows settle.
+
+
+---
+
+## Sizing and drawdown candidates — open (2026-10-06)
+
+Nothing here ships. Each item is marked **concrete** (measured, with its
+population stated) or **to be tested** (a hypothesis with no result yet). The
+operator's rule of 2026-10-06 applies to all of them: a candidate picked from
+many configurations needs a PBO read and forward grading before it counts.
+Entry in [`current.md`](current.md#2026-10-06--sizing-levers-ticker-cap-credit-census-overfitting).
+
+Population: v4 exports of 2026-09-27, the 2026-09-28 book, ARM R, $25k account.
+
+### Account feasibility status (concrete)
+
+| Cell | Result |
+|---|---|
+| Registered (0.25, 1.50), (R, F1, $500) | `NOT FEASIBLE`: A1 +0.099 [−0.015, +0.211], A3 50.4% |
+| Net cap 2.50, same cell | A3 74.8% |
+| [`narrow_to_fit`](arm-index.md#narrow_to_fit) cached cells | all `NOT FEASIBLE` (2026-10-01) |
+| $500 stop, net 1.50, DD1 | one-contract floor rows are −$12,204 of −$12,593 (97%) |
+| $1,000 stop, net 1.50, DD1 | diffuse long-tech debit losers; NVDA 8 rows −$3,919 of −$8,481 |
+
+### F2, refuse the unaffordable floor (to be tested, forward)
+
+F2 refuses a play whose one-contract floor exceeds the risk budget. In-sample
+and post-hoc, (R, F2, $500) reads as below.
+
+| Measure | Value |
+|---|---|
+| [meanR](glossary.md#meanr) [CI](glossary.md#ci) | +0.200 [+0.071, +0.326] |
+| [maxDD](glossary.md#maxdd) | 11.0% |
+| Years 2024 / 2025 / 2026 | +0.149 / +0.387 / +0.003 |
+| A5 | fails on instability: dropping 2025 Mar–Apr raises its A2 ratio from 74% to 92% |
+
+The operator ruled on 2026-10-06 that F2 is graded continuously on dates after
+acceptance, with an anytime-valid confidence sequence. The registration
+`research/pre-registrations/f4_deployment/refuse_floor_forward.md` is a draft
+awaiting acceptance.
+
+### `narrow_to_fit` F3 (to be tested)
+
+The F3 arm was built on 2026-10-06 (commit 16d0728). Its cells print
+`AWAITING SCRAPE`. The substitute-leg scrape is 862 contracts, or about 4,411
+with `--scope between` to prove the widest spread that fits. It waits on
+handoff steps 1 and 2. See [`narrow_to_fit`](arm-index.md#narrow_to_fit).
+
+### Per-ticker cap conformance (concrete, in-sample)
+
+`account_sim --ticker-cap` caps a ticker's signed total the way production
+`s03_risk` does. This is a conformance read, not a new arm. Evidence:
+`backtests/study_output/account_sim-ticker-cap-20261006.txt`. Primary, ARM R.
+
+| Cell | maxDD before → after | meanR before → after |
+|---|---|---|
+| (R, F1, $500), net 1.50 | 50.4% → 61.7% | +0.099 → +0.144 |
+| (R, F2, $500), net 1.50 | 11.0% → 11.2% | +0.200 → +0.230 |
+| (R, F1, $1,000), net 1.50 | 33.9% → 35.5% | +0.111 → +0.104 |
+| (R, F2, $1,000), net 1.50 | 34.9% → 19.7% | +0.178 → +0.207 |
+| (R, F2, $1,000), net 2.50 | 48.2% → 19.7% | +0.182 → +0.222 |
+
+All verdicts are unchanged (`NOT FEASIBLE` or `NOT CONFIRMED`). F2 at $1,000
+with the cap meets A3 in all four cells and fails A1 because 2026 is negative.
+NVDA is the most refused ticker, at 36 to 52 refusals per F1 cell. That
+configuration was chosen after seeing results, so it needs the PBO read below.
+
+### Probability of backtest overfitting (concrete)
+
+The [`pbo_ledger`](arm-index.md#pbo_ledger) study (new, `lib/pbo.py`) runs
+combinatorially symmetric cross-validation (Bailey, Borwein, López de Prado and
+Zhu, 2017, *Journal of Computational Finance*).
+
+| Setup | Value |
+|---|---|
+| Era | v4 |
+| Blocks (S) | 16 |
+| Splits | 12,870 |
+| Ledger configurations | 51 (59 with the 8 ticker-cap ones) |
+
+| Ledger | PBO total | PBO maxdd | PBO meanR | PBO bar |
+|---|---|---|---|---|
+| Primary | 78.9% | 0.0% | 44.9% | 50.0% |
+| Primary plus ticker-cap | 79.1% | 0.0% | 39.8% | 47.4% |
+| Secondary | 73.9% | 0.0% | 60.6% | 41.7% |
+| Secondary plus ticker-cap | 73.0% | 0.0% | 57.6% | 39.7% |
+
+Choosing the best sizing configuration on total return is mostly luck (PBO 74%
+to 79%). The 0% on maxdd holds only because sizing sets drawdown mechanically,
+so it says nothing about earnings. The degradation slope is −0.79 to −0.94.
+
+- (R, F2, $500) is rarely the in-sample best on total. When chosen, it ends at
+  or below the out-of-sample median every time. It holds its rank on drawdown.
+- Ticker-cap (R, F2, $1,000) at net 2.50 is the most stable top pick under
+  `bar`. The net 1.50 variant is not.
+
+| Ticker-cap (R, F2, $1,000), net 2.50, under `bar` | Share of splits |
+|---|---|
+| In-sample best | 24% to 27% |
+| Ends at or below the out-of-sample median | 6% to 7% |
+
+- Caveats: one market path; holds across block edges strain block
+  exchangeability; configurations are correlated, so effective N is below 51.
+
+### Resting stop orders (to be tested, live fills)
+
+Checking stops on daily closes overshoots the stop. The overshoot is a large
+share of DD1 in three cells.
+
+| Cell | Overshoot | Share of DD1 |
+|---|---|---|
+| $500, net 1.50 | −$2,716 | 22% |
+| $500, net 2.50 | −$4,805 | 26% |
+| $1,000, net 2.50 | −$2,539 | 20% |
+| $1,000, net 1.50 | — | 3% |
+
+The frozen harness cannot test intraday stops. The test is to tally the
+journal's real stop fills going forward.
+
+### Credit RANGE+L-VOL veto conformance (to be tested, operator ruling owed)
+
+Research `lib/book.py::ladder_tier` lacks production's veto. Book-wide the
+veto is net positive. This is a conformance item, not a drawdown fix.
+
+| DD1 cell | Effect of the veto |
+|---|---|
+| $500, net 1.50 | touches 3 rows, −$563 (4%) |
+| $1,000, net 1.50 | deepens it: removing those rows adds +$872 |
+
+### Earnings-in-hold exclusion (to be tested, forward only)
+
+The evidence is inconsistent, and a third of rows lack an earnings date.
+
+| Known-earnings losers | Share |
+|---|---|
+| $1,000 net 1.50 DD1 | 73% to 77% |
+| Base rate | 52% to 58% |
+| $500 2026 DD1 | 25% |
+
+ An in-sample test would spend
+the trial ledger, so this waits for forward data.
+
 ---
 
 ## Hedge-timing triggers (2026-08-28 — one prohibition, accepted 2026-09-06; one closed question, one untestable habit)

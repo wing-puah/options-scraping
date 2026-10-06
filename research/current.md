@@ -110,7 +110,7 @@ nothing has not been checked, and that is not the same as "not met". The
 | LVOL tef-null | `STAYS GATED` on 106 rows over 80 affected dates, median −0.011; one of its four clauses fails, the median among affected dates |
 | BEAR_HE trail | `UNDERPOWERED` at 8 affected dates of 25 |
 | bear-debit `be_after` | 242 arming rows over 134 dates, and all three clauses fire |
-| credit sl-none | 0 of 15, and unreachable by backfill because the window starts after 2026-07-13 |
+| credit sl-none | floor met on 2026-10-06 (50 rows over 23 dates); not fired, not settled ([evidence](deployment-evidence.md#open-pre-registered-rollback-triggers)) |
 
 `be_after` was already reverted on 2026-08-24, so the shipped stop is off
 whatever the census says. The report prints `REVERT CONDITION FIRED` and asks
@@ -221,6 +221,75 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-06 — sizing levers: ticker cap, credit census, overfitting
+
+**No sizing lever is proven, and picking one from the ledger is mostly luck.**
+Capping a ticker's signed total changes no verdict. The credit stop census now
+has its floor and does not fire. The probability of backtest overfitting on the
+sizing ledger is 74% to 79% on total return.
+
+**In production.** Nothing changes. Every item is filed in
+[deployment-evidence](deployment-evidence.md#sizing-and-drawdown-candidates--open-2026-10-06),
+marked concrete or to be tested.
+
+_Era v4 · exports 2026-09-27 15:57 · 2026-09-28 book · reports:
+`backtests/study_output/account_sim-ticker-cap-20261006.txt` and the
+`pbo_ledger` run._
+
+### Rulings
+
+| Item | Ruling |
+|---|---|
+| F2, refuse the floor | Graded continuously on post-acceptance dates; forward; registration is a draft |
+| Overfitting tests | Standing: a candidate from many configurations carries a PBO read plus forward grading |
+| Ticker cap | Read as conformance with production `s03_risk`, not a new arm |
+| F3 scrape scope | Owed |
+
+### Ticker cap, primary, ARM R
+
+| Cell | maxDD before → after | meanR before → after |
+|---|---|---|
+| (R, F1, $500), net 1.50 | 50.4% → 61.7% | +0.099 → +0.144 |
+| (R, F2, $500), net 1.50 | 11.0% → 11.2% | +0.200 → +0.230 |
+| (R, F1, $1,000), net 1.50 | 33.9% → 35.5% | +0.111 → +0.104 |
+| (R, F2, $1,000), net 1.50 | 34.9% → 19.7% | +0.178 → +0.207 |
+| (R, F2, $1,000), net 2.50 | 48.2% → 19.7% | +0.182 → +0.222 |
+
+### Credit sl-none census
+
+| Population | sl-none | `sl 1x` | Δ |
+|---|---|---|---|
+| Real rows, 50 over 23 dates (census code) | +$12,753 | +$10,781 | −$1,972 |
+| Registered, 56 rows over 25 dates | +$13,710 | +$10,910 | −$2,799 |
+
+`NOT FIRED`, not settled: 23 of 50 rows are still open. If XLE 07-22 and GLD
+08-25 both finish at max loss, the gap is about +$16.
+
+### Probability of backtest overfitting
+
+| Ledger | PBO total | PBO maxdd | PBO meanR | PBO bar |
+|---|---|---|---|---|
+| Primary | 78.9% | 0.0% | 44.9% | 50.0% |
+| Primary plus ticker-cap | 79.1% | 0.0% | 39.8% | 47.4% |
+| Secondary | 73.9% | 0.0% | 60.6% | 41.7% |
+| Secondary plus ticker-cap | 73.0% | 0.0% | 57.6% | 39.7% |
+
+The 0% on maxdd is mechanical, since sizing sets drawdown.
+
+### Unresolved
+
+- **Tweak rows in the credit census.** The code reads real rows only. The
+  default stays real-only until the operator decides.
+- **The F3 scrape scope.** 862 contracts, or about 4,411 with `--scope between`.
+- **F2 acceptance.** `refuse_floor_forward.md` is a draft.
+- **Four items to be tested:** resting stops, the credit veto, earnings-in-hold
+  exclusion, and F3. Details in deployment-evidence.
+
+**Next.** No queue change. The credit census is re-read after the entry-window
+redo ([`next-steps.md`](next-steps.md) §0 step 2).
 
 ---
 
