@@ -436,14 +436,14 @@ the chain ever complete BEFORE 23:00 UTC on the session's own date, that session
 not-due rather than missing — a less informative run, never a false alarm.
 
 `lag_sessions` is the false-alarm defence — the newest N sessions of a stage report `not-due`,
-never `MISSING`. **Exactly one shipped stage uses one: `JOURNAL_STAGE`, at 1.** Its evidence is
-IBKR's, not this repo's, and IBKR publishes a session's fills the morning ET after the close,
-not the evening of it — see the journal stage below. No stage defined in this YAML carries a
-lag: `enrich_oi` carried `lag_sessions: 1` on a stale "needs D+1" claim until 2026-09-15, but OI
-change is D vs D-1 and lands the same evening, and the primary watchdog run chains off Enrich
-OI's completion, so that lag only left the newest session permanently unchecked. Lag is counted
-in SESSIONS, not calendar days, so a Monday check walks back to Friday rather than into the
-weekend.
+never `MISSING`. **No shipped stage uses one.** Lag is counted in SESSIONS, not calendar days, so
+a Monday check walks back to Friday rather than into the weekend.
+
+The watchdog does not check the trade journal (removed 2026-10-06). The journal is production
+tier, and `journal.yml` fails loudly on its own. `enrich_oi` carried `lag_sessions: 1` until
+2026-09-15, on a stale "needs D+1" claim. OI change is D vs D-1 and lands the same evening. The
+primary watchdog run chains off Enrich OI's completion, so that lag only left the newest session
+permanently unchecked.
 
 ### Exit codes
 
@@ -1044,29 +1044,23 @@ scheduled run is `--quiet` and requires `JOURNAL_DRIVE_FOLDER_ID`. An Actions lo
 by anyone with repo access and kept for 90 days, and the report names tickers, position sizes
 and P&L — so it goes to Drive instead (see The Drive mirror, below).
 
-`scripts/check_pipeline.py::JOURNAL_STAGE` covers the watchdog side: a "journal" row appended to
-the stage table in code (not in `config/pipeline-health.yml`) reports MISSING when neither the
-OpenBook tab's `as_of_date` nor TradeJournal's newest `date` covers the session being checked.
-It needs `TRADE_JOURNAL_SPREADSHEET_ID` in whichever workflow runs `check_pipeline.py`; until
-`pipeline-health.yml`'s own env carries that secret, the stage reports `not-due` there rather
-than a false MISSING.
+`scripts/check_pipeline.py` does NOT check the journal. It had a journal stage until 2026-10-06.
+It was removed because the watchdog is collection tier and the journal is production tier. The
+journal's alarm is its own workflow failing.
 
-**It carries `lag_sessions: 1`, and is the only shipped stage that does** — THE BROKER-LAG TRAP.
-The journal dates itself from the newest session IBKR has actually PUBLISHED fills for
-(`flexparse.parse`: `trade_date` = the last session present in the statement), and IBKR's
-processing cycle lands the morning ET after the close. Measured 2026-09-19: a Flex trades query
-answered at 03:19 UTC — 23:19 ET Friday, close+7h — ended at 2026-09-17, with Friday 09-18 not
-in it at all. The 22:15 UTC journal run therefore marks D-1 at best, while the watchdog runs at
-01:45 UTC on D+1; at lag 0 it demanded a mark for D that cannot exist yet and reported MISSING
-every night. The same lag is why the operator sees a session dated two LOCAL days back when
-running `make journal` by hand in the SGT morning (SGT morning = previous evening ET, before the
-cycle): running in the SGT evening is what gets the previous session.
+**THE BROKER-LAG TRAP.** The journal dates itself from the newest session IBKR has PUBLISHED
+fills for (`flexparse.parse`: `trade_date` = the last session in the statement). IBKR's
+processing cycle lands the morning ET after the close, so the scheduled run marks D-1 at best.
 
-The stage is also a KNOWN, ACCEPTED blind spot on a genuinely flat book: OpenBook
-is a MIRROR that a flat book CLEARS (`s05b_bookwriter.py`), and both OpenBook's and
-TradeJournal's own `_meta` stamps are skipped on empty content — so a run that found nothing new
-on an already-flat day is indistinguishable from the journal never having run. This catches the
-CONFIRMED finding (the schedule stopping entirely), not every possible quiet day.
+| Measured 2026-09-19 | Value |
+|---|---|
+| Flex trades query answered | 03:19 UTC (23:19 ET Friday, close+7h) |
+| Newest session in it | 2026-09-17 (Friday 09-18 absent) |
+| Journal cron | 22:15 UTC on session D |
+
+The same lag is why a hand-run `make journal` in the SGT morning shows a session two LOCAL days
+back. SGT morning is the previous evening ET, before the cycle. Running in the SGT evening gets
+the previous session.
 
 **Package layout — the listing IS the flow.** Files are named `sNN_<step>.py` and run in that
 order, so `ls scripts/journal/` reads top-to-bottom as the pipeline instead of having to be

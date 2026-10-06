@@ -17,7 +17,7 @@ So this script asserts the EVIDENCE instead of the exit status: for every recent
 trading session, did each stage leave what it is supposed to leave, and is it as
 complete as it is supposed to be. A gap exits non-zero, which is the email.
 
-Three traps this is built around — each would render the check worse than useless:
+Two traps this is built around — each would render the check worse than useless:
 
   1. THE STALE-CALENDAR TRAP. The obvious "was there a session?" source is
      `spy-vix-daily.csv`, but Compile Flow WRITES that file. A dead pipeline
@@ -32,13 +32,9 @@ Three traps this is built around — each would render the check worse than usel
      session `snapshots == 0` is the HEALTHY steady state, so scrape evidence
      must accept a compiled file in their place.
 
-  3. THE BROKER-LAG TRAP. The journal stage is the one stage whose evidence
-     comes from OUTSIDE this repo, and IBKR does not publish a session's fills
-     the evening it closes. A Flex fetch at 03:19 UTC on 2026-09-19 — 23:19 ET
-     on Friday, over seven hours past that Friday's close — still carried no
-     row dated 2026-09-18. `journal.yml` runs at 22:15 UTC, so the journal can
-     only ever mark the PREVIOUS session, and judging it on the newest one is a
-     guaranteed nightly false alarm. Hence JOURNAL_STAGE's one-session lag.
+The daily trade journal is deliberately NOT a stage. It is production-tier, not
+collection-tier, its evidence lives in a separate private workbook, and
+`journal.yml` already fails loudly on its own (a Drive failure exits 4).
 
 Verdict logic (`evaluate`/`summarise`) is pure and unit-tested; everything that
 touches Drive, Sheets, yfinance or the clock lives in the I/O half below.
@@ -97,15 +93,6 @@ MAX_ANNOTATIONS = 10
 # volume regression (that would need its own, separately tuned gate).
 MIN_PREFIX_ROWS = 20
 
-# The journal ("did python3 -m scripts.journal run today") lives in a SEPARATE
-# spreadsheet (TRADE_JOURNAL_SPREADSHEET_ID) from everything else this script
-# checks, and reading it needs that env var wired into whichever workflow runs
-# this script. It is deliberately NOT a config/pipeline-health.yml stage (see
-# `main()`): appending it here in code lets the stage exist and degrade to
-# NOT_DUE (inert, never a false alarm) wherever the env var is absent, rather
-# than requiring every caller of this script to also carry that secret.
-JOURNAL_SPREADSHEET_ENV = "TRADE_JOURNAL_SPREADSHEET_ID"
-
 
 class StageSpec(NamedTuple):
     name: str
@@ -121,27 +108,6 @@ class Finding(NamedTuple):
     session: str
     verdict: str
     detail: str
-
-
-# Appended to whatever config/pipeline-health.yml defines (see `main()`) rather
-# than living in it, per the comment on JOURNAL_SPREADSHEET_ENV above.
-#
-# lag_sessions=1 — THE BROKER-LAG TRAP, and the ONLY shipped stage that carries
-# a lag. Every other stage's evidence is produced by this repo on the session's
-# own evening, so its newest session is fair to judge. The journal's is not: it
-# dates itself from the newest session IBKR has actually PUBLISHED fills for
-# (`flexparse.parse`: trade_date = the last session present in the statement),
-# and IBKR's processing cycle lands the morning ET AFTER the close, not the
-# evening of it. Measured 2026-09-19: a Flex trades query answered at 03:19 UTC
-# (23:19 ET Friday, close+7h) ended at 2026-09-17 — Friday 09-18 was simply not
-# in it. `journal.yml` fires at 22:15 UTC on session D and so marks D-1 at best;
-# this watchdog then runs at 01:45 UTC on D+1. With lag 0 it demanded a mark for
-# D that cannot exist yet, and reported MISSING every single night — the exact
-# cry-wolf failure `lag_sessions` exists to prevent. Raising this to 2 would
-# leave the stage judged on ONE session of the 3-session window, and to 3 would
-# stop it being judged at all (config/pipeline-health.yml::lookback_sessions).
-JOURNAL_STAGE = StageSpec(name="journal", kind="journal_marked", lag_sessions=1,
-                          min_complete=1.0, prefixes=(), field="")
 
 
 class HealthConfig(NamedTuple):
@@ -194,19 +160,6 @@ def _coverage_verdict(cov, min_complete: float, unit: str) -> tuple[str, str]:
     pct = done / total
     detail = f"{done}/{total} {unit} ({pct:.0%}, need {min_complete:.0%})"
     return (OK if pct >= min_complete else PARTIAL), detail
-
-
-def _max_date_column(header: list[str], rows: list[list[str]], col: str) -> str | None:
-    """The lexicographically-largest non-blank value of `col`, or None. Pure.
-
-    ISO dates (`YYYY-MM-DD`) sort correctly as plain strings, so "largest" is
-    genuinely "latest" for every column this is used on.
-    """
-    if not header or col not in header:
-        return None
-    i = header.index(col)
-    values = {r[i].strip() for r in rows if len(r) > i and r[i].strip()}
-    return max(values) if values else None
 
 
 def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
@@ -272,29 +225,6 @@ def _judge(stage: StageSpec, session: str, state: dict) -> Finding:
             return Finding(stage.name, session, OK, "row present")
         return Finding(stage.name, session, MISSING, f"no {BASELINE_TAB} row")
 
-    if stage.kind == "journal_marked":
-        j = state.get("journal") or {}
-        if not j.get("configured"):
-            return Finding(stage.name, session, NOT_DUE,
-                           f"{JOURNAL_SPREADSHEET_ENV} not set in this run's environment "
-                           "— the stage is wired into the code but not yet into this "
-                           "workflow's secrets (see check_pipeline.py::JOURNAL_STAGE)")
-        if j.get("error"):
-            return Finding(stage.name, session, UNKNOWN, f"could not read: {j['error']}")
-        marked = j.get("last_marked")
-        if marked is None:
-            return Finding(stage.name, session, MISSING,
-                           "no OpenBook or TradeJournal row found at all — the journal "
-                           "has left no evidence it has ever run")
-        if marked >= session:
-            return Finding(stage.name, session, OK, f"marked through {marked} ({j['source']})")
-        return Finding(stage.name, session, MISSING,
-                       f"latest mark is {marked} ({j['source']}) — session {session} "
-                       "not covered. Either the schedule stopped, or nothing has been "
-                       "filled since: the journal dates itself from the newest session "
-                       "IBKR has published fills for, so a genuinely quiet stretch "
-                       "freezes this mark too (flexparse.parse)")
-
     return Finding(stage.name, session, UNKNOWN, f"unknown stage kind {stage.kind!r}")
 
 
@@ -324,11 +254,9 @@ def evaluate(state: dict, stages, sessions: list[str],
 
     A stage's newest `lag_sessions` sessions are reported not-due rather than
     missing — the grace for a stage whose evidence structurally lands a session
-    late. Exactly one shipped stage needs it: `JOURNAL_STAGE`, whose evidence is
-    IBKR's, not this repo's, and lands a session late by the broker's processing
-    cycle (see THE BROKER-LAG TRAP in the module docstring). Lag is counted in
-    SESSIONS, not calendar days, so a Friday check never walks back into the
-    weekend. `settled` (default: all of them) further excludes any session whose
+    late. No shipped stage currently needs it. Lag is counted in SESSIONS, not
+    calendar days, so a Friday check never walks back into the weekend.
+    `settled` (default: all of them) further excludes any session whose
     end-of-day chain has not plausibly run yet.
     """
     n_settled = len(sessions) if settled is None else len(settled)
@@ -457,62 +385,6 @@ def _commit_age_days(as_of: date) -> int | None:
     return (as_of - committed).days
 
 
-def _read_tj_tab(spreadsheet_id: str, tab: str) -> tuple[list[str], list[list[str]]]:
-    """`(header, data_rows)` from `tab` in the TRADE_JOURNAL workbook.
-
-    A DIFFERENT spreadsheet from the one `lib.sheets_client.get_all_values`
-    reads (that one is hardwired to the default GOOGLE_SPREADSHEET_ID), so this
-    goes through `sheets_client._get_spreadsheet(spreadsheet_id)` — its explicit
-    argument exists for exactly this ("a caller can target a DIFFERENT workbook
-    without disturbing the default", per its own docstring) — rather than
-    reinventing an auth path. That keeps this read on the same
-    `RetryingHTTPClient` (429/503/connection-error retries) as every other
-    Sheets read in the repo, matching this file's existing pattern of importing
-    other modules' private helpers (`_source_file`, `_check_cp`, `_iv_fields`,
-    `_oi_fields`, `_price_fields`) rather than a hand-rolled client.
-    """
-    import gspread
-    from lib.sheets_client import _get_spreadsheet
-
-    ss = _get_spreadsheet(spreadsheet_id)
-    try:
-        ws = ss.worksheet(tab)
-    except gspread.exceptions.WorksheetNotFound:
-        return [], []
-    values = ws.get_all_values()
-    if not values or not values[0]:
-        return [], []
-    return values[0], values[1:]
-
-
-def _journal_last_marked(spreadsheet_id: str) -> tuple[str | None, str]:
-    """`(latest_date, source_tab)` — the newest evidence the journal has left.
-
-    OpenBook is a MIRROR (`scripts/journal/s05b_bookwriter.py`: every run
-    REPLACES it with the book exactly as marked), so its current `as_of_date`
-    is the date of the run that produced what is on it now — UNLESS that run's
-    book was flat, in which case the tab is cleared to zero rows and that
-    run leaves no trace here. TradeJournal is append-only but only grows on a
-    day with an actual fill. A run that found nothing new AND a book already
-    flat is therefore indistinguishable from the journal never having run —
-    a real, known blind spot (not fixable from here: both writers skip their
-    own `_meta` stamp on empty content too). This check exists to catch the
-    CONFIRMED finding — the schedule stopping entirely — not to prove every
-    single quiet day was covered.
-    """
-    header, rows = _read_tj_tab(spreadsheet_id, "OpenBook")
-    marked = _max_date_column(header, rows, "as_of_date")
-    if marked is not None:
-        return marked, "OpenBook"
-
-    header, rows = _read_tj_tab(spreadsheet_id, "TradeJournal")
-    marked = _max_date_column(header, rows, "date")
-    if marked is not None:
-        return marked, "TradeJournal"
-
-    return None, ""
-
-
 def collect_state(client, stages, sessions: list[str]) -> dict:
     """Fetch every fact `evaluate()` needs. All Drive/Sheets I/O happens here."""
     from lib import sheets_client
@@ -592,20 +464,8 @@ def collect_state(client, stages, sessions: list[str]) -> dict:
         except Exception as e:                               # noqa: BLE001
             log.warning("Could not read %s: %s", BASELINE_TAB, e)
 
-    journal: dict = {"configured": False, "last_marked": None, "source": "", "error": None}
-    if any(s.kind == "journal_marked" for s in stages):
-        spreadsheet_id = os.getenv(JOURNAL_SPREADSHEET_ENV)
-        if spreadsheet_id:
-            journal["configured"] = True
-            try:
-                marked, source = _journal_last_marked(spreadsheet_id)
-                journal["last_marked"], journal["source"] = marked, source
-            except Exception as e:                           # noqa: BLE001
-                log.warning("Could not read journal evidence: %s", e)
-                journal["error"] = str(e)
-
     return {"flow": flow, "enrich": enrich, "counterpart": counterpart, "baseline": baseline,
-            "flow_rows": flow_rows, "journal": journal}
+            "flow_rows": flow_rows}
 
 
 def main() -> int:
@@ -624,10 +484,6 @@ def main() -> int:
     except (OSError, ValueError, yaml.YAMLError) as e:
         log.error("bad config: %s", e)
         return EXIT_USAGE
-    # Appended in code, not in config/pipeline-health.yml — see JOURNAL_STAGE's
-    # comment. Degrades to NOT_DUE (never a false alarm) until the workflow
-    # that runs this script also carries TRADE_JOURNAL_SPREADSHEET_ID.
-    cfg = cfg._replace(stages=cfg.stages + (JOURNAL_STAGE,))
     try:
         as_of = date.fromisoformat(args.as_of) if args.as_of else date.today()
     except ValueError:

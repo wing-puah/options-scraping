@@ -11,7 +11,7 @@
          same evening as D. Message-only fix (enrich_oi.py, enrich-oi.yml);
          nothing here to unit test beyond "the false phrase is gone".
     P8 — the journal had no schedule. `.github/workflows/journal.yml` adds
-         one; `check_pipeline.py::JOURNAL_STAGE` covers the watchdog side.
+         one. The watchdog does NOT check the journal (removed 2026-10-06).
 
 Everything below exercises PURE logic against hand-built inputs — no Drive, no
 Sheets, no Barchart, no live event loop beyond what a mocked coroutine needs.
@@ -20,8 +20,7 @@ Same split as tests/test_check_pipeline.py and tests/test_scraper.py.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from check_pipeline import (JOURNAL_STAGE, MISSING, NOT_DUE, OK, PARTIAL, UNKNOWN,
-                            StageSpec, _judge, _max_date_column, evaluate)
+from check_pipeline import MISSING, OK, PARTIAL, StageSpec, _judge
 from scrape_flow import _REJECTED, _SKIPPED, _dead_prefixes, run_live
 
 
@@ -151,107 +150,3 @@ class TestRowFloor:
         }
         f = _judge(SCRAPE, SESSION, state)
         assert f.verdict == MISSING
-
-
-# ── check_pipeline — _max_date_column (pure) ───────────────────────────────
-
-class TestMaxDateColumn:
-    def test_picks_the_latest_iso_date(self):
-        header = ["ticker", "as_of_date"]
-        rows = [["AAPL", "2026-08-18"], ["MSFT", "2026-08-19"], ["NVDA", "2026-08-17"]]
-        assert _max_date_column(header, rows, "as_of_date") == "2026-08-19"
-
-    def test_none_when_column_absent(self):
-        assert _max_date_column(["ticker"], [["AAPL"]], "as_of_date") is None
-
-    def test_none_when_no_header(self):
-        assert _max_date_column([], [], "as_of_date") is None
-
-    def test_blank_values_ignored(self):
-        header = ["as_of_date"]
-        rows = [[""], ["2026-08-19"], ["  "]]
-        assert _max_date_column(header, rows, "as_of_date") == "2026-08-19"
-
-    def test_none_when_all_blank(self):
-        header = ["as_of_date"]
-        rows = [[""], ["  "]]
-        assert _max_date_column(header, rows, "as_of_date") is None
-
-
-# ── P8: check_pipeline — journal stage ─────────────────────────────────────
-
-JOURNAL = StageSpec("journal", "journal_marked", 0, 1.0, (), "")
-
-
-class TestJournalStage:
-    def test_not_due_when_env_not_configured(self):
-        state = {"journal": {"configured": False}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == NOT_DUE
-
-    def test_missing_when_configured_but_no_marks_at_all(self):
-        state = {"journal": {"configured": True, "last_marked": None, "source": ""}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == MISSING
-
-    def test_ok_when_marked_through_the_session(self):
-        state = {"journal": {"configured": True, "last_marked": "2026-08-20",
-                             "source": "OpenBook"}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == OK
-
-    def test_ok_when_marked_exactly_on_the_session(self):
-        state = {"journal": {"configured": True, "last_marked": SESSION,
-                             "source": "TradeJournal"}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == OK
-
-    def test_missing_when_last_mark_predates_the_session(self):
-        state = {"journal": {"configured": True, "last_marked": "2026-08-10",
-                             "source": "OpenBook"}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == MISSING
-
-    def test_unknown_when_the_read_itself_failed(self):
-        state = {"journal": {"configured": True, "last_marked": None, "source": "",
-                             "error": "APIError: 503"}}
-        f = _judge(JOURNAL, SESSION, state)
-        assert f.verdict == UNKNOWN
-
-
-class TestJournalStageBrokerLag:
-    """THE BROKER-LAG TRAP: IBKR publishes a session's fills the morning ET
-    AFTER it closes, so the 22:15 UTC journal run can only ever mark the
-    PREVIOUS session. Judging the newest one was a nightly false alarm."""
-
-    SESSIONS = ["2026-09-16", "2026-09-17", "2026-09-18"]
-
-    def test_the_shipped_stage_carries_a_one_session_lag(self):
-        assert JOURNAL_STAGE.lag_sessions == 1
-
-    def test_newest_session_is_not_due_not_missing(self):
-        # The real 2026-09-19 watchdog state: the journal ran on the 18th and
-        # marked the 17th, because the 18th did not exist at IBKR yet.
-        state = {"journal": {"configured": True, "last_marked": "2026-09-17",
-                             "source": "OpenBook"}}
-        by_session = {f.session: f for f in
-                      evaluate(state, [JOURNAL_STAGE], self.SESSIONS)}
-        assert by_session["2026-09-18"].verdict == NOT_DUE
-        assert by_session["2026-09-17"].verdict == OK
-        assert by_session["2026-09-16"].verdict == OK
-
-    def test_the_lag_does_not_swallow_a_real_stoppage(self):
-        # A journal that stopped a week ago is still caught — the lag buys one
-        # session of grace, not amnesty.
-        state = {"journal": {"configured": True, "last_marked": "2026-09-08",
-                             "source": "OpenBook"}}
-        verdicts = {f.session: f.verdict for f in
-                    evaluate(state, [JOURNAL_STAGE], self.SESSIONS)}
-        assert verdicts["2026-09-16"] == MISSING
-        assert verdicts["2026-09-17"] == MISSING
-
-    def test_lag_stays_inside_the_lookback_window(self):
-        # config/pipeline-health.yml::lookback_sessions is 3; a lag equal to it
-        # would leave the stage judged on nothing at all.
-        from check_pipeline import load_config
-        assert JOURNAL_STAGE.lag_sessions < load_config().lookback_sessions

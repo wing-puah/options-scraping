@@ -14,8 +14,7 @@ name: Daily Trade Journal
 # IT IS NOT ENOUGH FOR THE DAY'S OWN FILLS, AND CANNOT BE. IBKR's processing
 # cycle publishes a session the morning ET AFTER it closes: a trades query
 # answered at 03:19 UTC on 2026-09-19 — 23:19 ET Friday, close+7h — still ended
-# at 2026-09-17. So this run journals the PREVIOUS session, which is why
-# `scripts/check_pipeline.py::JOURNAL_STAGE` carries lag_sessions=1. Moving this
+# at 2026-09-17. So this run journals the PREVIOUS session. Moving this
 # cron a couple of hours later does not fix that; only running it the NEXT
 # morning ET would, and that is a different design (it would journal D on D+1).
 #
@@ -48,9 +47,8 @@ name: Daily Trade Journal
 # the secret below is required here, not optional — and a Drive failure exits 4
 # and fails this workflow, deliberately, for the same reason.
 #
-# The watchdog side of P8 (a missing daily journal mark failing
-# scripts/check_pipeline.py) is wired into that script directly rather than
-# into pipeline-health.yml's own env — see check_pipeline.py::JOURNAL_STAGE.
+# scripts/check_pipeline.py (the collection watchdog) does NOT check the
+# journal. This workflow's own failure email is the journal's alarm.
 #
 # FRESH-RUNNER RETRY ON A REFUSED BARCHART LOGIN (added 2026-09-22, run
 # 35673363388). Barchart intermittently refuses a fresh login from a
