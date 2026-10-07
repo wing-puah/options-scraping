@@ -830,6 +830,35 @@ and never prices with it.
   `retry_unlisted=True`, after its own evidence-only skip-list filter.
 - Run `backup_research_caches.py push` after it.
 
+### refuse_floor_forward
+
+Registered 2026-10-07. It grades `account_sim`'s F2 and `narrow_to_fit`'s
+(R, F3, $500) on signal dates from 2026-10-08 onward only. Module
+`f4_deployment/refuse_floor_forward.py`; the registration is the spec.
+
+**How it runs.** `load_book` loads the whole era first, so the era refusals
+still fire. The module then keeps only forward dates and runs a fresh $25,000
+account on them.
+
+- Cells run in process on `account_sim.simulate` through `narrow_to_fit`'s
+  `settings_for` and `cfg_for`. F3 uses `narrow_to_fit`'s own `Narrower`,
+  `Chain` and `unlisted_evidence`, never a copy.
+- No `account_sim` or `narrow_to_fit` artifact and no site page is written.
+  The report stem is `refuse_floor_forward`.
+- With no forward row loaded it prints the census and `STILL-OPEN`, logs the
+  look, and exits 4, a declared designed refusal.
+
+**The grade.** `lib/confidence_sequence.py` is the pure confidence sequence:
+ordered values in, every step and the running intersection out. The module
+feeds it one value per forward date, the mean R of that date's positions. It
+stops before the first date still holding a position open at the data end.
+
+**The look log.** Every run appends one JSON line to
+`research/study-results/f4_deployment/refuse_floor_forward-looks.jsonl`, a
+tracked file, with each sequence's dates and values. Gate FW4 reads the
+previous line and re-checks its interval. Never edit or truncate the file:
+it is the record of every look.
+
 ### exit_drawdown and the exit-overlay layer
 
 `scripts/backtest_study/lib/exit_overlays.py` is the shared machinery for judging an exit

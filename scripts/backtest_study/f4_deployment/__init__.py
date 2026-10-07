@@ -13,6 +13,11 @@ built is runnable in a real account, not whether it is right.
     pbo_ledger.py       reference — the Probability of Backtest Overfitting
                         (CSCV, lib/pbo.py) over the account-sizing trial
                         ledger. Adds no arm and moves no verdict.
+    refuse_floor_forward.py
+                        open · STILL-OPEN — a standing FORWARD grade of F2 and
+                        (R, F3, $500) on signal dates from 2026-10-08 only,
+                        through a confidence sequence read on every suite run.
+                        Exits 4 (designed) until a forward date prices.
     selection_order.py  open · UNDERPOWERED at G0 — each re-ordering changes
                         only 7–14% of the deployed book, so the best-powered arm
                         reaches 11 affected dates against a floor of 25 declared

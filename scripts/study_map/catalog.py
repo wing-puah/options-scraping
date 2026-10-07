@@ -894,6 +894,19 @@ STUDIES: dict[str, Study] = {
                 "1,795-row book printed `PBO[total] 78.9%` for the bare ledger; this run prints "
                 "78.4%. Nothing ships.",
     ),
+    "refuse_floor_forward": Study(
+        family="deployment", state="open",
+        question="On signal dates from 2026-10-08 onward only, do account_sim's F2 (refuse an "
+                 "unaffordable pick) and narrow_to_fit's (R, F3, $500) (narrow it to fit) keep "
+                 "a positive mean R and a survivable drawdown? A confidence sequence, valid "
+                 "under any number of looks, graded on every suite run.",
+        verdict="Registered 2026-10-07, built the same day. No forward date has priced yet, so "
+                "the module prints the census and STILL-OPEN for both cells and exits as a "
+                "designed refusal. The expected state is STILL-OPEN for months: about 175 "
+                "forward dates to confirm F2's in-sample effect and about 145 for F3's. "
+                "Nothing ships from it; a FORWARD-CONFIRMED line only lets the operator "
+                "consider a §2 change.",
+    ),
     "selection_order": Study(
         family="deployment", state="null",
         question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "
@@ -1321,6 +1334,13 @@ INFRA: dict[str, str] = {
                    "states those counts and every share is a FLOOR. A None or non-positive "
                    "cost is EXCLUDED and counted, never read as zero. Pure: sequences in, "
                    "dataclasses and printable lines out, no I/O, and it carries no verdict.",
+    "lib/confidence_sequence.py": "The ASYMPTOTIC CONFIDENCE SEQUENCE of Waudby-Smith, "
+                   "Arbour, Sinha, Kennedy, Ramdas (2024, Theorem 2.2): an interval around a "
+                   "running mean that covers the true mean at every count at once, so it can "
+                   "be read on every suite run with no multiple-look correction. Returns every "
+                   "step and the running intersection from a caller-chosen start; rho is tuned "
+                   "to a target t* by their Eq. (50). Pure, no verdict; refuse_floor_forward "
+                   "is its first caller.",
     "lib/pbo.py": "The Probability of Backtest Overfitting by combinatorially symmetric "
                   "cross-validation (Bailey, Borwein, López de Prado, Zhu 2017, Algorithm "
                   "2.3). Pure: a T x N per-period performance matrix in, the logit "
