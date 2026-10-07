@@ -234,6 +234,13 @@ class EvidenceTracker:
     """
     events: list[tuple] = field(default_factory=list)    # (t, outcome, session, logged_in)
     pending: list[tuple] = field(default_factory=list)   # (t, contract, reason, session, logged_in, path)
+    #: Confirmed before the events that proved them were trimmed; handed out by
+    #: the next `confirmed()`. Without it a long run kept only its last hour of
+    #: 404s: 206 of 277 were dropped on 2026-10-07.
+    ready: list[tuple] = field(default_factory=list)     # (contract, reason, path)
+    #: First time each session showed it was logged in. Kept apart from
+    #: `events` so trimming never erases a login a later 404 leans on.
+    logins: list[tuple] = field(default_factory=list)    # (session, t)
 
     def note(self, outcome: str | None, contract: dict | None = None,
              t: float | None = None, session: object = None,
@@ -242,18 +249,29 @@ class EvidenceTracker:
         self.events.append((t, outcome, session, logged_in))
         if outcome in EVIDENCE and contract is not None:
             self.pending.append((t, contract, outcome, session, logged_in, path))
+        if session is not None and (outcome in LOGGED_IN or logged_in is True) \
+                and not any(s is session for s, _ in self.logins):
+            self.logins.append((session, t))
         horizon = t - 2 * FEED_PROOF_WINDOW_S
         if self.events and self.events[0][0] < horizon:
-            self.events = [ev for ev in self.events if ev[0] >= horizon]
+            # Settle what the window can settle BEFORE dropping its events,
+            # and keep every event a still-pending entry may yet need.
+            self.ready.extend(self._qualify())
+            cut = min([horizon] + [p[0] - FEED_PROOF_WINDOW_S for p in self.pending])
+            self.events = [ev for ev in self.events if ev[0] >= cut]
 
     def _session_was_logged_in(self, session: object, t: float) -> bool:
         return session is not None and any(
-            s is session and te <= t and (o in LOGGED_IN or li is True)
-            for te, o, s, li in self.events)
+            s is session and ts <= t for s, ts in self.logins)
 
     def confirmed(self, final: bool = False) -> list[tuple[dict, str, Path | None]]:
-        """Pop ``(contract, reason, path)`` for pending entries that qualify.
+        """Pop ``(contract, reason, path)`` for pending entries that qualify,
+        plus any settled earlier in the run.
         ``final`` = the process is ending: no later event will come."""
+        out, self.ready = self.ready, []
+        return out + self._qualify(final)
+
+    def _qualify(self, final: bool = False) -> list[tuple[dict, str, Path | None]]:
         if not self.events:
             return []
         horizon = max(ev[0] for ev in self.events)
@@ -289,6 +307,8 @@ class EvidenceTracker:
     def reset(self) -> None:
         self.events.clear()
         self.pending.clear()
+        self.ready.clear()
+        self.logins.clear()
 
 
 def commit(confirmed: list[tuple[dict, str, Path | None]], default_path: Path | None = None,

@@ -13,71 +13,72 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 ## 0. Repo state — read first
 
 <a id="pick-up"></a>
-### Pick up here — 2026-10-01 handoff
+### Pick up here — 2026-10-07
 
-Three runs are owed, in this order. Each needs the operator's machine, on
-AC power and online. Run them one at a time, because they share the Barchart
-session; two concurrent runs once left 461 duplicate keys.
+The three runs the 2026-10-01 handoff owed are done. `narrow_to_fit` still
+prints `AWAITING SCRAPE` for both F3 cells. What blocks it now is a ruling,
+not a run.
 
-| Step | What | Why | Cost |
+| Step | Result |
+|---|---|
+| 1. Drop the seeded skip-list entries | `4480 -> 1777`; backup `_unlisted.pre-drop-20261001.jsonl` |
+| 2. Redo the 41 dates the entry window changed | 0 failures; exports re-pulled; GN3 passes |
+| 3a. Scrape the default scope | 626 of 891 fetched; pushed `research-caches-20261007-0056` |
+| 3b. Scrape `--scope between` | 1,564 of 3,777 fetched; pushed `research-caches-20261007-1528` |
+
+The `between` scrape, by outcome:
+
+| Outcome | Contracts |
+|---|---|
+| History returned | 1,564 |
+| Page loaded, feed had no rows | 1,934 |
+| Page 404 | 277 |
+| Feed error (pre-split NVDA strikes) | 2 |
+
+GN5 after the scrape, PRIMARY at net 1.50x:
+
+| Cell | Over-budget picks | `unproven` | GN5 unpriced share (bar 10%) |
 |---|---|---|---|
-| 1 | Drop the seeded skip-list entries | The operator ruled to drop them on 2026-10-01; the redo re-checks them | seconds |
-| 2 | Redo the dates the entry window changed | `2d25deb` refuses 2 rows and prices 32 more | ~1 h |
-| 3 | Scrape the substitute short legs | `narrow_to_fit`'s headline F3 cells need them | ~3.6 h |
+| (R, F3, $1,000), headline | 239 | 64 | 28% |
+| (R, F3, $500), secondary | 462 | 157 | 39% |
 
-**Step 1.** The auto-mode classifier refused this rewrite, because the file
-has no git history. The command keeps a backup first. It should print
-`4480 -> 1777`.
+Every remaining blocker was requested; the scrape and the walk share one
+strike grid. Two causes remain.
 
-```bash
-cd ~/claude_playground/options-trading
-F=backtests/option_history_cache/_unlisted.jsonl
-cp $F ${F%.jsonl}.pre-drop-20261001.jsonl
-python3 -c "import json;F='$F';r=[l for l in open(F) if l.strip()];k=[l for l in r if not json.loads(l)['reason'].startswith('seeded_from_log')];open(F,'w').writelines(k);print(len(r),'->',len(k))"
-```
+1. **206 of the 277 404s were never written to the skip-list.** The evidence
+   tracker trimmed its proof events after an hour and confirmed only at the
+   end of the run. Fixed 2026-10-07 in `scripts/backtest/shared/unlisted.py`,
+   with a regression test. A rerun of `--scope between` records them; at
+   $1,000 that takes `unproven` to about 43 (GN5 ~20%).
+2. **The 1,934 empty feeds are neither cached nor evidence.** The
+   [registration](pre-registrations/f4_deployment/narrow_to_fit.md) defines
+   a listed strike as one with history and an entry-day quote. It does not
+   rule on an expired contract whose page loads with an empty feed. That
+   reading is the operator's, made at build and tagged `Resolved at build`.
+   The GN5 bar does not move.
 
-**Step 2.** Run the backtest before the proxy, because the proxy reads
-`BacktestResults` as the set already tested. A network outage exits 6 with
-nothing written. A redo re-prices every play on its date, so a few unrelated
-rows may move. Then re-pull the exports with `scripts/export_tabs.py`.
+Where the empty-feed blockers at $1,000 sit:
 
-```bash
-source .venv/bin/activate
-caffeinate -i -s bash -c '
-for d in 2026-09-18 2026-09-15 2026-08-25 2026-03-04 2025-10-22 2025-04-01 2025-03-03 2025-01-27 2024-12-10 2024-09-03; do
-  python3 -m scripts.backtest --config config/backtest.yml --date $d --redo || exit $?
-done
-for d in 2026-09-18 2026-09-15 2026-08-25 2026-03-04 2025-10-22 2025-04-01 2025-03-03 2025-01-27 2024-12-10 2024-09-03 \
-         2026-07-14 2026-07-06 2026-07-02 2026-06-11 2026-06-04 2026-03-12 2025-12-22 2025-12-09 2025-11-12 2025-10-06 \
-         2025-09-10 2025-09-02 2025-08-06 2025-02-12 2025-02-04 2024-10-07 2024-10-02 2024-06-06 2024-05-15 2024-04-11 2024-04-03; do
-  python3 -m scripts.backtest.proxy --config config/backtest.yml --date $d --redo || exit $?
-done'
-```
+| Blocking strike | Picks | Likely meaning |
+|---|---|---|
+| On the expiry's listed strike lattice | 36 | listed, never traded |
+| Off the lattice | 7 | a strike-grid artifact |
 
-**Step 3.** Run it after step 2's re-export, because the targets come from
-the book. The fetcher is `scripts/collector/fetch_substitute_legs.py` and the
-study is `narrow_to_fit` (both built 2026-10-06). The dry-run printed 862
-contracts on 2026-10-06; the
-[registration](pre-registrations/f4_deployment/narrow_to_fit.md) census said
-867. A stop is safe: the same command resumes from the cache.
+What each reading leaves `unproven`, PRIMARY at net 1.50x:
 
-```bash
-source .venv/bin/activate
-python3 scripts/collector/fetch_substitute_legs.py --dry-run | tail -3
-caffeinate -i -s python3 scripts/collector/fetch_substitute_legs.py
-python3 scripts/backup_research_caches.py push
-python3 -m scripts.backtest_study run narrow_to_fit
-```
+| Reading | $1,000 | $500 |
+|---|---|---|
+| Now | 64 | 157 |
+| 404s recorded (rerun after the fix) | ~43 | ~126 |
+| 404s and empty feeds both count as no quote | 2 | 2 |
 
-This scope will not clear GN5 on its own. The walk refuses a pick as
-`unproven` when a strike between the proposed one and the chosen one is not
-cached. The wider scope covers those strikes. Which scope to fund is the
-operator's decision.
+GN0 power at $1,000 is a separate gate and reads after GN5 clears. It is
+short of positions, not dates.
 
-| Scope | Contracts | Over-budget picks at $1,000 left `unproven` | Time |
-|---|---|---|---|
-| default, target plus next-wider | 862 | 136 of 262 | ~3.6 h |
-| `--scope between` | 4,411 | only strikes whose fetch fails | ~18 h |
+| GN0 at $1,000 | Positions | Dates |
+|---|---|---|
+| Narrowed subset | 49 | 41 |
+| Needed | 60 | 25 |
 
 **Where things stand.**
 

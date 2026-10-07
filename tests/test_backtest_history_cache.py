@@ -695,6 +695,33 @@ def test_a_markerless_page_404_needs_its_own_session_logged_in_earlier():
     assert [r for _c, r, _p in t.confirmed(final=True)] == ["http_404"]
 
 
+def test_an_early_page_404_survives_a_long_run():
+    """A 404 from the first minutes of a five-hour scrape is still recorded at
+    the end. The tracker used to trim its proof events after an hour and keep
+    only the last hour's 404s (206 of 277 lost on 2026-10-07)."""
+    t = unlisted.EvidenceTracker()
+    s = object()
+    t.note(unlisted.SESSION_OPEN, session=s, t=0.0)
+    t.note(bs.HISTORY_OK, _contract(50.0), session=s, t=5.0)
+    t.note(bs.HISTORY_PAGE_404, _contract(59.0), session=s, logged_in=False, t=10.0)
+    for k in range(1, 4500):                       # one fetch every 4 s, ~5 h
+        t.note(bs.HISTORY_NO_ROWS, _contract(60.0), session=s, t=10.0 + 4 * k)
+    assert [c["strike"] for c, _r, _p in t.confirmed()] == [59.0]
+    assert len(t.events) < 4500                    # still trimmed
+
+
+def test_a_pending_no_feed_keeps_the_events_it_needs():
+    """A NO_FEED waiting on a later page load is not orphaned by the trim."""
+    t = unlisted.EvidenceTracker()
+    s = object()
+    t.note(unlisted.SESSION_OPEN, session=s, t=0.0)
+    t.note(bs.HISTORY_OK, _contract(50.0), session=s, t=5.0)
+    t.note(bs.HISTORY_NO_FEED, _contract(59.0), session=s, t=10.0)
+    t.note(bs.HISTORY_OK, _contract(61.0), session=s, t=200.0)
+    t.note(bs.HISTORY_OK, _contract(62.0), session=s, t=10.0 + 3 * unlisted.FEED_PROOF_WINDOW_S)
+    assert [r for _c, r, _p in t.confirmed()] == [bs.HISTORY_NO_FEED]
+
+
 def test_a_page_404_next_to_a_network_failure_is_not_recorded(cache_dir, monkeypatch):
     cs = [_contract(k) for k in (50.0, 59.0, 60.0, 61.0)]
     script = {50.0: bs.HISTORY_OK, 59.0: (bs.HISTORY_PAGE_404, True),
