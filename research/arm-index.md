@@ -209,6 +209,44 @@ _Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrat
   NOT-ENTERED rows made INELIGIBLE (the slot frees to the next-ranked play),
   trigger-priced against the shipped picks, R only.
 
+#### `ticker_class`
+
+_Registered in [`pre-registrations/f1_selection/ticker_class.md`](pre-registrations/f1_selection/ticker_class.md) · module `f1_selection/ticker_class.py`_
+
+Registered 2026-10-07. The study asks whether index-ETF plays are more
+reliable than single-stock plays with direction held fixed. The unit is a
+fixed ticker group, `G1`–`G7`, hashed before any outcome was read.
+
+- `G1` `G2` `G3` `G4` `G5` `G6` `G7` (cell) — The frozen ticker groups:
+  index, country, sector, non-equity, big tech, semis, rest. `S` is G5 ∪ G6 ∪
+  G7. G3 and G4 are context only. Unrelated to every other study's `G*` gates.
+- `P1` (arm) — PRIMARY: G1 against S, direction-standardised by G1's own
+  bear/bull mix. Unrelated to `bear_rewrap`'s `P1` and `hedge_structure`'s `P1`.
+- `S1` `S2` `S3` (arm) — G1 against G5, G6 and G7 on bear plays. Holm-adjusted
+  with `S4`.
+- `S4` (arm) — G1 against G2 on bull plays. G2's side needs only 30 positions.
+- `T1` `T2` (descriptive cut) — G1 against S inside tier C (standardised) and
+  tier B. Printed, never graded.
+- `C0` (descriptive cut) — All seven groups pooled and unadjusted. Its G1-vs-S
+  interval is what `MIX-ONLY` reads.
+- `R1` (population scope) — `P1` repeated on real rows only. Printed.
+- `GT0` (gate) — Power: every graded side needs 30 dates and 60 positions, or
+  the contrast prints `UNDERPOWERED`.
+- `GT1` (gate) — The era resolves and the header names it. Exits 3 as the
+  loader does.
+- `GT2` `GT3` `GT4` (gate) — Identities that exit 1. Every ticker maps to one
+  group. The table hash matches the registration. Group R sums to the book's R.
+- `1` `2` `3` (criterion) — The bar's first half. The meanR CI excludes zero,
+  Holm-adjusted for the S arms. The hit rate is not lower. G1's drawdown share
+  is not above its position share.
+- `4` `5` `6` (criterion) — The bar's stability half. The sign holds by window
+  and by year, then by half-year, then without each side's top ticker.
+- `INDEX-MORE-RELIABLE` `INDEX-LESS-RELIABLE` `MIX-ONLY` `NULL` `UNDERPOWERED` (prose) — The verdict words; the second prints with
+  "(CONTRARY)". A PBO above 0.50 makes every graded contrast `NULL`; 0.25 to
+  0.50 adds "selection fragile".
+- `STILL-OPEN` `FORWARD-CONFIRMED` `FORWARD-REFUTED` (prose) — The forward
+  read of `P1` on signal dates after 2026-10-07.
+
 ### ② Management — when to get out
 
 #### `bear_giveback`

@@ -128,6 +128,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`f1_selection/v4_bridge.md`](f1_selection/v4_bridge.md) | `v4_bridge` | run |
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
 | [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Waits on its pre-build census (§Dependencies — floors 1–5, read by the operator before any module is written or any backfill runs). | draft |
+| [`f1_selection/ticker_class.md`](f1_selection/ticker_class.md) | `ticker_class` — do index ETFs carry more reliable edge than single-stock groups, direction held fixed? | registered |
 
 ## ② Management — `f2_management/`
 

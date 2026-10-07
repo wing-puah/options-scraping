@@ -224,6 +224,69 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-07 — `ticker_class`: index ETFs are not more reliable
+
+**Index ETFs carry no more reliable edge than single stocks once direction is held
+fixed.** The primary contrast reads NULL. The four secondary contrasts read NULL or
+UNDERPOWERED. Picking a best group is fragile, with a PBO of 0.367. The v3 replication
+reads NULL as well, with a PBO of 0.845.
+
+**In production.** Nothing changes. A NULL files nothing, by the registration's ship
+criteria.
+
+_Era v4 · exports 2026-10-06 23:39 · reports: `backtests/study_output/ticker_class-latest.txt`
+and the v3 file beside it · registration
+[`ticker_class`](pre-registrations/f1_selection/ticker_class.md), labels in
+[arm-index](arm-index.md#ticker_class)._
+
+### Rulings
+
+| Item | Ruling |
+|---|---|
+| In-sample book | Signal dates before 2026-08-11: 1,721 rows over 251 dates |
+| Registration | Accepted 2026-10-07 with all seven recommendations |
+| Group table | Fixed and hashed before any outcome was read; GT3 checks the hash |
+| Trial ledger | A separate selection ledger, five trials, outside the three-arm cap |
+| Forward window | Signal dates after 2026-10-07; 2026-08-11 to 2026-10-07 is in neither window |
+
+### Contrasts, v4, net of cost
+
+| Object | G1 meanR | Comparison meanR | Difference, CI95 | Verdict |
+|---|---|---|---|---|
+| P1, G1 vs single stocks | −0.089 | −0.058 | −0.031 [−0.149, +0.086] | NULL |
+| S1, bear, G1 vs big tech | −0.187 | −0.170 | −0.017 [−0.194, +0.171] | NULL |
+| S2, bear, G1 vs semis | −0.187 | −0.177 | −0.010 [−0.182, +0.155] | NULL |
+| S3, bear, G1 vs rest | −0.187 | +0.018 | −0.205 [−0.382, −0.026] | NULL |
+| S4, bull, G1 vs country | +0.295 | +0.320 | −0.024 [−0.359, +0.321] | UNDERPOWERED |
+
+S3's CI is unadjusted. At its Holm level it is [−0.423, +0.025], so it is not CONTRARY.
+S4 fails power on the index side, which has 48 bull positions.
+
+### What did move
+
+| Reading | Value |
+|---|---|
+| G1 share of the book's drawdown episode, 2025-12 → 2026-08 | 46% of the R, on 12% of positions |
+| Median exit capture, bear: G1 / big tech / semis / rest | −1.22 / −0.66 / −0.67 / +0.10 |
+| P1 difference by year: 2024 / 2025 / 2026 | +0.055 / +0.105 / −0.382 |
+| v3 P1, bear in effect | +0.215 [+0.005, +0.427], voided by PBO |
+
+These are printed readings, not verdicts. The two eras disagree in sign on P1.
+
+### Unresolved
+
+- **Index bear puts and the drawdown.** G1 carries a large share of the 2025-12 → 2026-08
+  drawdown. This overlaps the existing [bear_position_study](study-results/f1_selection/bear_position_study.md)
+  demotion, since 80% of G1 is bear. No new cut is graded here.
+- **PBO ties.** 2,333 of 12,870 CSCV splits land exactly on the median, and PBO counts them
+  against the selection.
+- **The forward read** is STILL-OPEN with 0 forward dates.
+
+**Next.** No queue change. The forward grade re-runs P1 once each side has 30 signal
+dates after 2026-10-07.
+
+---
+
 ## 2026-10-06 — sizing levers: ticker cap, credit census, overfitting
 
 **No sizing lever is proven, and picking one from the ledger is mostly luck.**

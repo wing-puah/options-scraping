@@ -378,6 +378,22 @@ STUDIES: dict[str, Study] = {
                 "on the shipped card (`N=3         360    162    0.2442         0.0080        "
                 "[-0.0641, +0.0842]`). Nothing ships; E2 is closed as a shippable intake rule.",
     ),
+    "ticker_class": Study(
+        family="selection", state="null",
+        question="Is a play on a broad US index ETF (SPY, QQQ, IWM, DIA) more reliable than a "
+                 "single-stock play once direction is held fixed? Graded on meanR, hit rate, "
+                 "drawdown share and sign stability, with a PBO veto over the five graded groups.",
+        verdict="2026-10-07 first run (v4, 1,850-row book, in-sample 1,721 rows / 251 dates): "
+                "`P1  NULL`, `S1  NULL vs G5`, `S2  NULL vs G6`, `S3  NULL vs G7`, `S4  "
+                "UNDERPOWERED vs G2`. The primary contrast is flat: `meanR NET   G1 -0.089  S "
+                "-0.058  diff -0.031  CI95 [-0.149, +0.086]  p=0.6230`, every criterion not met. "
+                "The one clear interval is S3 against the rest of the single names on bear plays, "
+                "and it points the other way (`diff -0.205  CI95 [-0.382, -0.026]`) but fails "
+                "Holm (`adjusted p=0.1016`), so it is not CONTRARY. G1 carries `share of episode R"
+                "   46%` of the book's maxDD episode on `12%` of its positions. `PBO 0.367 (graded "
+                "N=5)`, selection fragile. The v3 replication (same path) reads NULL on P1, S1 and "
+                "S3 under `PBO 0.845`, and S2 UNDERPOWERED. Forward read STILL-OPEN. Nothing ships.",
+    ),
 
     # ② management
     "exit_mechanism_study": Study(
