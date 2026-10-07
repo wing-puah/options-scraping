@@ -471,6 +471,43 @@ is 0.122. On v3 the same months read positive.
 
 **Next.** No queue change. The forward draft stays a draft; the operator set it aside.
 
+### Addendum: root cause of the late loss, exploratory
+
+**The market shifted: no index sell-off came, and index bear spreads need one.** The loss is
+not in the model's picks or the backtest. Almost all of it falls in 2026-04-08 → 2026-08-10,
+after v3's last date.
+
+| v4 bear plays | G1 positions | G1 meanR | S meanR | Gap |
+|---|---|---|---|---|
+| Before 2025-12-01 | 135 | −0.114 | −0.142 | +0.028 |
+| 2025-12-01 → 2026-04-07 | 23 | −0.129 | +0.053 | −0.18, CI crosses 0 |
+| 2026-04-08 → 2026-08-10 | 31 | −0.547 | −0.015 | −0.53 [−0.74, −0.32] |
+
+| Market, from `spy_vix_daily_full.csv` | Before 2025-12-01 | 2026-04-08 → 2026-08-10 |
+|---|---|---|
+| Days followed by a 20-day SPY drop of 5% or more | 5.9% | 0% |
+| Worst 20-day SPY move | −12.3% | −3.4% |
+
+Over the late stretch SPY rose 14% and VIX fell from 21 to 15.5.
+
+| Candidate cause | Finding | Knowable at entry |
+|---|---|---|
+| No sell-off | Realised move in sigma units absorbs 84–89% of the G1 × period interaction | No |
+| Single-stock bears improved | About 37% of the gap change; skill or luck not separable | No |
+| Exit timing, Dec–Apr | Time exits fired before the March 2026 sell-off; 22 positions | No |
+| Strikes, tier, mix, pricing basis, cost, open marks | Unchanged, or the gap survives removing them | — |
+| Put richness, skew, VIX, momentum | Higher late, but they do not predict within the earlier period | Yes, but null |
+
+v3 is not counter-evidence. On the 13 dates both eras analysed, G1 bear reads the same:
+v3 −0.137, v4 −0.125.
+
+An index bear spread loses on average unless a crash arrives. A G1-vs-S contrast therefore
+mostly counts how many sell-offs fell in its sample. Its effective sample size is the
+number of sell-off episodes, not positions.
+
+**Next.** No queue change. Any future test of index bear plays needs power counted in
+sell-off episodes, and belongs with the hedge programme rather than selection.
+
 ---
 
 ## 2026-10-06 — sizing levers: ticker cap, credit census, overfitting
