@@ -31,8 +31,9 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 
 **Open, for the operator.**
 
-1. Whether (R, F3, $500) joins the F2 forward registration draft,
-   `refuse_floor_forward.md`. Until then it is a candidate, not a rule.
+1. Decided 2026-10-07: (R, F3, $500) joins F2 as a graded cell of
+   `refuse_floor_forward.md`, accepted the same day. It stays a candidate,
+   not a rule, until that grade confirms it.
 2. The cap cell stays at net 1.50. The F3 $500 cell at net 2.50 ranks first
    on the PBO ledger, but that cell is not the registered one.
 
@@ -229,6 +230,15 @@ Decisions owed. None of these is a study.
     25. Stays open behind the same bear-debit question as item 10; the
     default is that §5 stands
     ([operator reading](study-map.md#operator-reading-2026-09-20)).
+
+12. **DECIDED 2026-10-07 — F2 and (R, F3, $500) are graded forward.**
+    [`refuse_floor_forward`](pre-registrations/f4_deployment/refuse_floor_forward.md)
+    was ACCEPTED on 2026-10-07, with all ten open decisions answered as
+    recommended. It grades `account_sim` F2 and `narrow_to_fit`'s
+    (R, F3, $500) on every suite run, each with its own verdict line, through
+    a confidence sequence valid under repeated looks. The first forward date
+    is 2026-10-08. It was built in `dda11fb` and reads `STILL-OPEN` until a
+    forward date prices.
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
