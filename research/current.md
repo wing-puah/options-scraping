@@ -440,8 +440,12 @@ change is logged in it.
 operator set the forward study aside and asked for every existing date instead. This read
 spends the 2026-08-11 → 2026-09-22 dates the draft had kept unread. It grades nothing.
 
-_v4 all dates, 1,850 rows over 280 dates · v3, 790 rows over 118 dates · script and output
-in the session scratchpad._
+_Every v4 and v3 backtest date · script and output in the session scratchpad._
+
+| Era | Rows | Dates |
+|---|---|---|
+| v4, all dates | 1,850 | 280 |
+| v3 | 790 | 118 |
 
 | Era | Tests run | Smallest BH q | Survives BH q ≤ 0.10 | Survives Bonferroni |
 |---|---|---|---|---|
