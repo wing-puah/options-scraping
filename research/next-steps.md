@@ -240,6 +240,15 @@ Decisions owed. None of these is a study.
     is 2026-10-08. It was built in `dda11fb` and reads `STILL-OPEN` until a
     forward date prices.
 
+13. **OPEN — read and accept (or reject) the `index_bear_hedge` draft.**
+    [`index_bear_hedge`](pre-registrations/f5_hedging/index_bear_hedge.md)
+    grades the SPY/QQQ/IWM bear spreads as crash insurance: drawdown cut in
+    sell-offs against cost paid between them. It was drafted 2026-10-07 in
+    `e2f6694` and is parked until the operator has read it. Nothing is built.
+    The v4 book spans only 5 sell-off episodes. The main call is OD4: grade
+    those 5 now, or grade future sell-offs only. Six smaller decisions sit
+    beside it in the draft's Open decisions table.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
