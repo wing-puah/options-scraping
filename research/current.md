@@ -434,6 +434,39 @@ late-period loss sits inside LVOL. There, index bear puts hit 20% against 43% fo
 `load_book()` labels unmapped rows `PROD`, not `NONE`. The draft was corrected for that and the
 change is logged in it.
 
+### Addendum: regime, all dates, exploratory
+
+**No regime pattern survives the number of looks, and the two eras disagree in sign.** The
+operator set the forward study aside and asked for every existing date instead. This read
+spends the 2026-08-11 → 2026-09-22 dates the draft had kept unread. It grades nothing.
+
+_v4 all dates, 1,850 rows over 280 dates · v3, 790 rows over 118 dates · script and output
+in the session scratchpad._
+
+| Era | Tests run | Smallest BH q | Survives BH q ≤ 0.10 | Survives Bonferroni |
+|---|---|---|---|---|
+| v4 | 51 | 0.122 | none | none |
+| v3 | 45 | 0.099 | bear BEAR × H-VOL grid cell | none |
+
+The v3 survivor fails three robustness checks: median R, the exit-free E, and the later half
+all flip sign. v4 cannot test it, since its G1 side is thin there.
+
+| Bear plays, G1 − S | v4 all dates | v3 |
+|---|---|---|
+| BULL trend | −0.132 | −0.012 |
+| Non-BULL trend | −0.035 | +0.280 |
+| L-VOL | −0.088 | +0.120 |
+| H/E-VOL | −0.162 | +0.202 |
+
+On v4 every bear gap is negative. On v3, three of four are positive. Five of seven contrasts
+disagree in sign across eras. Closed positions only change no sign on v4.
+
+The strongest v4 reads are the 2025-12 → 2026-08 period: −0.410 non-BULL, −0.406 L-VOL. Both
+pass every robustness check they can take, but their boundary is outcome-informed and their q
+is 0.122. On v3 the same months read positive.
+
+**Next.** No queue change. The forward draft stays a draft; the operator set it aside.
+
 ---
 
 ## 2026-10-06 — sizing levers: ticker cap, credit census, overfitting
