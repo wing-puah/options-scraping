@@ -408,6 +408,32 @@ These are printed readings, not verdicts. The two eras disagree in sign on P1.
 **Next.** No queue change. The forward grade re-runs P1 once each side has 30 signal
 dates after 2026-10-07.
 
+### Addendum: regime, exploratory
+
+**The `mech_cell` regime does not explain the gap; the late-2025 period does.** This read is
+exploratory. It grades nothing and files nothing. The forward study
+[`ticker_class_regime`](pre-registrations/f1_selection/ticker_class_regime.md) was drafted and
+hashed before it ran.
+
+_Same in-sample book as above · script and output in the session scratchpad, not the repo ·
+raw CIs with no multiplicity control._
+
+| Cut, bear plays, G1 vs S | G1 / S positions | Difference, CI95 |
+|---|---|---|
+| LVOL | 149 / 210 | −0.088 [−0.242, +0.067] |
+| BEAR_HE | 27 / 46, thin | +0.109 [−0.185, +0.420] |
+| BEAR_HE minus LVOL | — | +0.197 [−0.142, +0.542] |
+| Before 2025-12-01 | 135 / 183 | +0.028 [−0.132, +0.197] |
+| 2025-12-01 → 2026-08-10 | 54 / 97, thin | −0.378 [−0.589, −0.165] |
+| LVOL, 2025-12-01 → 2026-08-10 | 41 / 71, thin | −0.406 [−0.621, −0.179] |
+| Bull plays, LVOL | 41 / 582, thin | +0.256 [+0.065, +0.437] |
+
+The 2025-12-01 boundary was taken from the drawdown episode, so it is outcome-informed. The
+late-period loss sits inside LVOL. There, index bear puts hit 20% against 43% for single stocks.
+
+`load_book()` labels unmapped rows `PROD`, not `NONE`. The draft was corrected for that and the
+change is logged in it.
+
 ---
 
 ## 2026-10-06 — sizing levers: ticker cap, credit census, overfitting

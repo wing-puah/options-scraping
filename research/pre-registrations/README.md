@@ -129,6 +129,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
 | [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Waits on its pre-build census (§Dependencies — floors 1–5, read by the operator before any module is written or any backfill runs). | draft |
 | [`f1_selection/ticker_class.md`](f1_selection/ticker_class.md) | `ticker_class` — do index ETFs carry more reliable edge than single-stock groups, direction held fixed? | registered |
+| [`f1_selection/ticker_class_regime.md`](f1_selection/ticker_class_regime.md) | `ticker_class_regime` — does the index-vs-single-stock gap on bear plays differ between BEAR_HE and LVOL? Forward dates only. | draft |
 
 ## ② Management — `f2_management/`
 
