@@ -556,6 +556,39 @@ _Registered in [`pre-registrations/f4_deployment/portfolio_delta.md`](pre-regist
   COLLIDES with `concurrency_correlation`'s own `ARM N` below — same role,
   different study.
 
+#### `refuse_floor_forward`
+
+_Registered in [`pre-registrations/f4_deployment/refuse_floor_forward.md`](pre-registrations/f4_deployment/refuse_floor_forward.md)_
+
+Registered 2026-10-07. It grades two registered cells on signal dates from
+2026-10-08 onward only, through a
+[confidence sequence](glossary.md#confidence-sequence) read on every suite run.
+Every cell runs under `account_sim` `ARM R`. It adds no arm.
+
+- `(R, F2, $500)` (cell) — `account_sim`'s F2: refuse a pick whose one
+  contract is over the $500 budget. Graded on both cap cells, its own verdict
+  line.
+- `(R, F3, $500)` (cell) — `narrow_to_fit`'s F3 at $500: narrow such a pick
+  to the widest listed spread that fits, refuse if none does. Graded on both
+  cap cells, its own verdict line.
+- `(R, F1, $500)` `(R, F2, $1,000)` (control) — Printed, not graded. F1 is
+  `account_sim`'s headline and the FWT comparator.
+- `FORWARD-CONFIRMED` `FORWARD-REFUTED` `STILL-OPEN` (prose) — The verdict
+  tokens, with `AWAITING SCRAPE` (F3 only) and `CS EMPTY`. Each graded cell's
+  line is the worse of its two cap cells.
+- `FW2` `FW3` `FW4` (gate) — FW2: no forward sequence holds a date before
+  2026-10-08, and the seen-book block holds none after. FW3: nothing
+  hardcoded. FW4: the previous look's interval is reproduced unless a changed
+  value explains it.
+- `GN5` (gate) — `narrow_to_fit`'s coverage gate, applied per look to the
+  forward F3 cell. It prints `AWAITING SCRAPE` for that look only.
+- `A2-reg` `A2-all` `A2-cap` (descriptive cut) — Printed context: the cell's
+  dollars against B2 on its own dates, on all B2 dates, and against B2 run
+  with the cell's own floor rule.
+- `FW5` `FWD` `FWT` (descriptive cut) — Printed context. FW5: A2-reg with each
+  forward month dropped. FWD: median block-bootstrap maxDD. FWT: the cell's
+  deepest drawdown inside each 10% drawdown of `(R, F1, $500)`.
+
 #### `selection_order`
 
 _Registered in [`pre-registrations/f4_deployment/selection_order.md`](pre-registrations/f4_deployment/selection_order.md)_

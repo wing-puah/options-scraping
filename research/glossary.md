@@ -97,6 +97,21 @@ vs the deployed ladder). Paired because comparing two book means
 independently would mostly measure which days each traded, not which is
 better.
 
+<a id="confidence-sequence"></a>
+### Confidence sequence
+An interval around a running mean that covers the true mean at every
+observation count at once, with the stated probability. It can be read after
+every new date, as often as the suite runs, with no correction for how often
+it was read. A fixed-sample CI read the same way excludes a true mean far more
+often than its stated rate.
+
+`lib/confidence_sequence.py` implements the asymptotic version of
+Waudby-Smith, Arbour, Sinha, Kennedy and Ramdas (2024, Theorem 2.2). The graded
+interval is the running intersection from the first count where the
+asymptotics are trusted: the largest lower bound and smallest upper bound so
+far. An empty intersection means the assumptions failed. First used by
+[`refuse_floor_forward`](arm-index.md#refuse_floor_forward).
+
 <a id="loo"></a>
 ### LOO / leave-one-date-out
 `protocol.loo_by_date`: drop one
