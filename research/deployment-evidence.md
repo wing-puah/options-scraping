@@ -707,6 +707,7 @@ Population: v4 exports of 2026-09-27, the 2026-09-28 book, ARM R, $25k account.
 | Registered (0.25, 1.50), (R, F1, $500) | `NOT FEASIBLE`: A1 +0.099 [−0.015, +0.211], A3 50.4% |
 | Net cap 2.50, same cell | A3 74.8% |
 | [`narrow_to_fit`](arm-index.md#narrow_to_fit) cached cells | all `NOT FEASIBLE` (2026-10-01) |
+| `narrow_to_fit` F3, graded 2026-10-07 | $1,000 `NULL`; $500 `NARROW-FEASIBLE`, in-sample |
 | $500 stop, net 1.50, DD1 | one-contract floor rows are −$12,204 of −$12,593 (97%) |
 | $1,000 stop, net 1.50, DD1 | diffuse long-tech debit losers; NVDA 8 rows −$3,919 of −$8,481 |
 
@@ -727,12 +728,26 @@ acceptance, with an anytime-valid confidence sequence. The registration
 `research/pre-registrations/f4_deployment/refuse_floor_forward.md` is a draft
 awaiting acceptance.
 
-### `narrow_to_fit` F3 (to be tested)
+### `narrow_to_fit` F3 (to be tested, forward)
 
-The F3 arm was built on 2026-10-06 (commit 16d0728). Its cells print
-`AWAITING SCRAPE`. The substitute-leg scrape is 862 contracts, or about 4,411
-with `--scope between` to prove the widest spread that fits. It waits on
-handoff steps 1 and 2. See [`narrow_to_fit`](arm-index.md#narrow_to_fit).
+Graded 2026-10-07 on the 2026-10-06 exports, after the substitute-leg scrape.
+The headline (R, F3, $1,000) is `NULL`. The secondary (R, F3, $500) is
+`NARROW-FEASIBLE`, in-sample. It is a candidate to be tested forward, beside
+F2, and it is not concrete. Entry in
+[`current.md`](current.md#2026-10-07--narrow_to_fit-graded-headline-null-500-narrow-feasible).
+
+| Measure, (R, F3, $500), PRIMARY, net 1.50 | Value |
+|---|---|
+| Narrowed subset [meanR](glossary.md#meanr) [CI](glossary.md#ci) | +0.248 [+0.113, +0.383] |
+| Median bootstrap [maxDD](glossary.md#maxdd) | 13.6% |
+| Narrowed subset, years 2024 / 2025 / 2026 | +0.286 / +0.409 / +0.095 |
+| In-sample PBO pick, any metric | 1% or less of splits |
+
+At net 2.50 the same rule ranks first of 63 configurations on total return,
+meanR and the drawdown bar. It is the in-sample pick in up to 69% of splits,
+and lands below the out-of-sample median in 0% to 2% of them
+([`pbo_ledger`](arm-index.md#pbo_ledger)). A forward grade is still owed;
+whether it joins the F2 draft registration is the operator's call.
 
 ### Per-ticker cap conformance (concrete, in-sample)
 

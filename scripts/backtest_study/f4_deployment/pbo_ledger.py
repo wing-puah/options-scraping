@@ -4,7 +4,7 @@ OPERATOR REQUEST 2026-10-06. Not pre-registered and not an arm: it adds no
 configuration and changes no verdict. It re-runs the account-sizing
 configurations the feasibility plan's trial ledger lists
 (`research/account-sim-feasibility-plan.md`, "A trial ledger") plus
-`narrow_to_fit`'s cached cells, on ONE calendar, and scores the selection by
+`narrow_to_fit`'s cells, on ONE calendar, and scores the selection by
 the Probability of Backtest Overfitting (`lib/pbo.py`; Bailey, Borwein,
 López de Prado, Zhu, J. Comput. Finance 2017, CSCV, S = 16).
 
@@ -12,6 +12,13 @@ Every configuration runs IN PROCESS on `account_sim.simulate` with a `Cfg`
 built by `Settings.cfg(...)` overrides. Nothing is read from or written to
 `config/account-sim.yml`, and no `account_sim` artifact or site page is
 written. The only output is this report.
+
+The narrow_to_fit F3 cells (added 2026-10-07, after the substitute-leg scrape)
+pass `narrow_to_fit.Narrower` into `simulate()` exactly as that study does:
+the narrower is IMPORTED, never re-implemented, so the F3 series here are
+the cells narrow_to_fit graded. They form a third configuration set, so the
+two earlier sets and their PBO are unchanged and the before/after is read off
+one report.
 
 Per configuration and population (PRIMARY dense episodes, SECONDARY full
 book, `account_sim`'s), the series is realized P&L booked on each EXIT
@@ -49,6 +56,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.backtest_study.f4_deployment import account_sim as AS  # noqa: E402
+from scripts.backtest_study.f4_deployment import narrow_to_fit as NF  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import mtm_curve as MC  # noqa: E402
 from scripts.backtest_study.lib import pbo as PBO  # noqa: E402
@@ -78,11 +86,13 @@ BASE = dict(capital=25000.0, per_pos_cap=0.25, net_cap=2.50, risk_pct=0.02,
 SWEEP_BUDGET = BASE["capital"] * BASE["risk_pct"]
 
 #: The configurations whose ranks the report follows: the post-hoc favourite.
-FOCUS = ("RF2_250", "RF2_150", "TC_F2HI_150", "TC_F2HI_250")
-#: The two configuration sets PBO is computed on. "ticker-cap" adds the
+#: (R, F3, $500) is narrow_to_fit's NARROW-FEASIBLE secondary (2026-10-07).
+FOCUS = ("RF2_250", "RF2_150", "TC_F2HI_150", "TC_F2HI_250", "F3LO_150", "F3LO_250")
+#: The configuration sets PBO is computed on. "ticker-cap" adds the
 #: `account_sim --ticker-cap` R cells scored 2026-10-06 (operator: they are
-#: now among the configurations looked at).
-SETS = ("ledger", "ledger + ticker-cap")
+#: now among the configurations looked at). "F3" adds narrow_to_fit's four F3
+#: cells, graded 2026-10-07; each set contains the one before it.
+SETS = ("ledger", "ledger + ticker-cap", "ledger + ticker-cap + F3")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -98,6 +108,12 @@ class Trial:
     transform: tuple | None = None      # ("burn"|"walk", k) or ("regime", dirs)
     turtle: tuple | None = None         # (basis, scale_contracts, scale_caps)
     ticker_cap: bool = False            # in the "ledger + ticker-cap" set only
+    f3: bool = False                    # in the "... + F3" set only
+
+    def in_set(self, set_name: str) -> bool:
+        if self.f3:
+            return set_name.endswith("+ F3")
+        return set_name != "ledger" or not self.ticker_cap
 
 
 def _cap(v: float) -> str:
@@ -174,6 +190,14 @@ def ledger() -> list[Trial]:
                                  "account_sim --ticker-cap, scored 2026-10-06",
                                  dict(net_cap=net, risk_pct=risk, take_floor=take,
                                       ticker_cap=True), ticker_cap=True))
+    # narrow_to_fit F3: narrow an over-budget pick to the widest strike that
+    # fits (`cfg_for` there: floor "narrow", take_floor True), both cap cells.
+    for net, tag in ((1.50, "150"), (2.50, "250")):
+        for bud, btag, risk in (("$500", "LO", 0.02), ("$1,000", "HI", 0.04)):
+            out.append(Trial(f"F3{btag}_{tag}", f"(R, F3, {bud}) net {net:.2f}",
+                             "narrow_to_fit F3, graded 2026-10-07",
+                             dict(net_cap=net, risk_pct=risk, floor="narrow"),
+                             f3=True))
     return out
 
 
@@ -184,8 +208,6 @@ NOT_REPRODUCED = (
      "the frozen harness stop is $1,000; replay_sized can scale it, not remove it"),
     ("Dropping the three worst positions",
      "chosen on outcome; not a configuration"),
-    ("(R, F3, $500) and (R, F3, $1,000)",
-     "need the substitute-leg scrape (narrow_to_fit: AWAITING SCRAPE)"),
     ("Step 5, the v3 control", "a different population, not the same calendar"),
     ("Steps 0b-i, 0c, 3 (MTM curve, adequacy, bootstrap)",
      "measurements of one configuration, not configurations"),
@@ -304,11 +326,14 @@ def _turtle_patch(state: dict, scale_contracts: bool, scale_caps: bool):
         AS.risk_contracts, AS.admission = orig_rc, orig_adm
 
 
-def run_trial(trial: Trial, day_lists, st: AS.Settings, cache: dict) -> AS.Sim:
+def run_trial(trial: Trial, day_lists, st: AS.Settings, cache: dict,
+              narrower=None) -> AS.Sim:
     over = {**BASE, "compound": False, "stop_abs": None, "ticker_cap": False,
             "dd_throttle": None, **trial.over}
     cfg = st.cfg(trial.label, **over)
     days = transform_days(day_lists, trial.transform) if trial.transform else day_lists
+    if cfg.floor_rule == "narrow":
+        return AS.simulate(days, cfg, cache=cache, narrower=narrower)
     if trial.turtle is None:
         return AS.simulate(days, cfg, cache=cache)
     basis, sc_c, sc_caps = trial.turtle
@@ -474,7 +499,7 @@ def print_cscv(pop: str, M: np.ndarray, kept, lab, padded: int) -> dict:
 
 
 def print_focus(pop: str, results: dict, kept, alias, lab, sc) -> None:
-    hdr(f"[{pop}] WHERE (R, F2) RANKS — IS against OOS")
+    hdr(f"[{pop}] WHERE (R, F2) AND (R, F3, $500) RANK — IS against OOS")
     N = len(kept)
     for fk in FOCUS:
         j = next((i for i, k in enumerate(kept) if k == fk or fk in alias[k]), None)
@@ -528,7 +553,7 @@ def main(argv=None) -> int:
     recs, diag = load_book(include_bs=False)
     print(f"""  era {diag.get('era')}   book {len(recs)} rows   {diag.get('n_dates')} dates   {diag.get('date_range')}
   Ledger: research/account-sim-feasibility-plan.md "A trial ledger", plus
-  narrow_to_fit's cached cells. Rebuilt on the CURRENT book; the ledger's own
+  narrow_to_fit's cells. Rebuilt on the CURRENT book; the ledger's own
   figures came from earlier exports and are not reproduced here.
   Base cell: capital ${BASE['capital']:,.0f}, risk {BASE['risk_pct']:.0%}, caps {caps},
   {BASE['max_per_day']} positions/day, ARM R, F1. A ledger row changes one thing from it;
@@ -556,12 +581,13 @@ def main(argv=None) -> int:
         print(f"  - {what}: {why}")
 
     cache = AS.new_cache()
+    narrower = NF.Narrower(NF.Chain(), NF.unlisted_evidence(), NF._sim_cfg())
     failures = []
     summary = {}
     for pop, dates in (("PRIMARY", ep_dates), ("SECONDARY", all_dates)):
         pop_recs = [r for r in recs if r["date"] in dates]
         day_lists = P.ordered_by_day(pop_recs, P.ladder_rank, P.ladder_eligible)
-        sims = {t.key: run_trial(t, day_lists, st, cache) for t in trials}
+        sims = {t.key: run_trial(t, day_lists, st, cache, narrower) for t in trials}
         poss = [p for s in sims.values() for p in s.signal_pos]
         cal = weekdays(min(p.entry_sess for p in poss), max(p.exit_sess for p in poss))
         index = {d: i for i, d in enumerate(cal)}
@@ -578,8 +604,7 @@ def main(argv=None) -> int:
         if failures:
             break
         for set_name in SETS:
-            keys = [t.key for t in trials
-                    if set_name != "ledger" or not t.ticker_cap]
+            keys = [t.key for t in trials if t.in_set(set_name)]
             kept, alias = dedupe(keys, cols)
             M_raw = np.stack([cols[k] for k in kept], axis=1)
             M, padded = PBO.pad_head(M_raw, S_HEAD)
@@ -600,7 +625,7 @@ def main(argv=None) -> int:
 
     hdr("CLOSE")
     for pop, (n, results) in summary.items():
-        print(f"  {pop:<31} N={n:<3} " + "  ".join(
+        print(f"  {pop:<36} N={n:<3} " + "  ".join(
             f"PBO[{name}] {r.pbo:.1%}" for name, r in results.items()))
     print("""  Caveats: one market path; CSCV assumes the S blocks are exchangeable,
   which serial dependence in open positions strains; many configurations

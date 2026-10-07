@@ -224,6 +224,129 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-07 — narrow_to_fit graded: headline NULL, $500 NARROW-FEASIBLE
+
+**Narrowing an unaffordable spread does not rescue the $1,000 cell, and at
+$500 it reads as feasible in-sample.** The headline (R, F3, $1,000) prints
+`NULL`. The secondary (R, F3, $500) prints `NARROW-FEASIBLE`, meeting all five
+criteria. The registration says the secondary never changes the headline.
+
+**In production.** Nothing ships. The report closes "Nothing in this report is
+a shippable rule." (R, F3, $500) becomes a candidate to be tested forward,
+beside F2.
+
+_Era v4 · exports 2026-10-06 23:39 · reports:
+`backtests/study_output/narrow_to_fit-latest.txt` and
+`pbo_ledger-latest.txt` · recorded in
+[study-results](study-results/f4_deployment/narrow_to_fit.md) · labels in
+[arm-index](arm-index.md#narrow_to_fit)._
+
+### The scrape that cleared GN5
+
+Two confirming passes of `fetch_substitute_legs.py --scope between` ran after
+commit `fc716c3`. That commit made an expired contract's empty feed count as
+evidence that the strike is unlisted. It counts only after two separate runs
+agree, as the registration's `Resolved at build (2026-10-07)` clause states.
+Commit `3412470` had already stopped the tracker dropping 404s older than an
+hour.
+
+| Pass | Empty strikes re-asked | Returned rows |
+|---|---|---|
+| 1 | about 1,934 | 2 |
+| 2 | 1,950 | 0 |
+
+An empty feed is therefore reliable evidence. The two strikes in pass 1 are
+probably the NVDA pre-split feed-error strikes, or one RKLB 2025-10-31 68.50C.
+
+| Skip-list entry | Count |
+|---|---|
+| `no_rows`, two checks | 1,623 |
+| `no_rows`, one check | 327 |
+| `http_404` | 3,271 |
+
+The cache was pushed as `research-caches-20261007-1954`.
+
+### Verdicts, PRIMARY
+
+| Object | Q1: N1 / N2 median maxDD / N3 | Q2: N4 meanR, CI95 | N5 | Verdict |
+|---|---|---|---|---|
+| (R, F3, $1,000), net 1.50 | no / 31.8% / no | +0.110 [−0.117, +0.338] | not met | `NULL` |
+| (R, F3, $500), net 1.50 | met / 13.6% / met | +0.248 [+0.113, +0.383] | met | `NARROW-FEASIBLE` |
+| (R, F1, $1,000), stop basis | no / 34.0% / no | — | — | `NOT FEASIBLE` |
+| F4, $500 budget, $1,000 stop | no / 31.5% / no | — | — | `NOT FEASIBLE` |
+
+[N1–N5](arm-index.md#narrow_to_fit) are the registered criteria;
+[meanR](glossary.md#meanr) and [maxDD](glossary.md#maxdd) are in the glossary.
+Both gates that print rather than exit now clear.
+
+| Gate | $1,000 | $500 | Bar |
+|---|---|---|---|
+| GN5, unpriced share of over-budget picks | 5% | 9% | 10% or less |
+| GN0, narrowed positions / dates | 70 / 58 | 198 / 141 | 60 / 25 |
+
+| Cell, PRIMARY | Positions | Total $ | meanR | maxDD $ |
+|---|---|---|---|---|
+| (R, F3, $500), net 1.50 | 304 | 24,661 | 0.221 | −3,882 |
+| (R, F3, $500), net 2.50 | 383 | 37,505 | 0.261 | −4,391 |
+| (R, F2, $500), net 1.50 | 163 | 12,837 | 0.207 | −2,808 |
+| (R, F1, $500), net 1.50 | 234 | 4,719 | 0.114 | −11,050 |
+
+### Overfitting read
+
+`pbo_ledger` now carries the four F3 cells as a third configuration set. The
+[probability of backtest overfitting](arm-index.md#pbo_ledger) (PBO) is the
+share of splits whose in-sample best lands at or below the out-of-sample
+median.
+
+| Set | N | PBO total | PBO maxdd | PBO meanR | PBO bar |
+|---|---|---|---|---|---|
+| PRIMARY, ledger | 51 | 78.4% | 0.0% | 41.4% | 53.8% |
+| PRIMARY, + ticker-cap | 59 | 69.4% | 0.0% | 32.4% | 42.2% |
+| PRIMARY, + ticker-cap + F3 | 63 | 47.0% | 0.2% | 33.6% | 23.8% |
+| SECONDARY, ledger | 51 | 71.5% | 0.0% | 58.2% | 40.6% |
+| SECONDARY, + ticker-cap | 59 | 55.7% | 0.0% | 47.5% | 29.0% |
+| SECONDARY, + ticker-cap + F3 | 63 | 35.0% | 0.0% | 33.9% | 15.5% |
+
+PBO falls because one F3 cell wins most splits and keeps winning out of
+sample. In PRIMARY, (R, F3, $500) at net 2.50 is the in-sample pick as below.
+
+| Metric | In-sample pick | Below OOS median when picked | Full-path rank |
+|---|---|---|---|
+| total | 48% | 0% | 1 of 63 |
+| maxdd | 4% | 2% | 9 of 63 |
+| meanR | 24% | 1% | 1 of 63 |
+| bar | 69% | 0% | 1 of 63 |
+
+SECONDARY reads the same way. The registered cap cell, (R, F3, $500) at net
+1.50, is almost never the in-sample pick, though it ranks near the top on the
+full path.
+
+| (R, F3, $500), net 1.50 | PRIMARY | SECONDARY |
+|---|---|---|
+| In-sample pick, any metric | 1% or less | 9% or less |
+| Full-path rank, of 63 | 3rd to 8th | 3rd to 7th |
+
+The bare-ledger PBO moved from 78.9% to 78.4% since 2026-10-06. That run read
+the earlier 1,795-row book, so the two are not the same population.
+
+### What this does not mean
+
+- **It is the secondary.** The headline is `NULL`, and the registration says
+  the secondary verdict never changes it.
+- **It is one of many.** The sizing ledger has scored more than 60
+  configurations on this one path. A low PBO says the F3 $500 cells rank
+  persistently here, not that they will earn on new dates.
+- **The 2026 year is weak.** N5 passes, but the narrowed subset's 2026 meanR,
+  +0.095, is the lowest of its three years.
+- **It is not shippable.** Only a forward grade on dates after acceptance can
+  make it a rule.
+
+**Next.** [`next-steps.md`](next-steps.md) §0 replaces the scrape state with
+this result. The operator decides whether (R, F3, $500) joins the F2 forward
+registration draft. The cap cell stays at 1.50.
+
+---
+
 ## 2026-10-07 — `ticker_class`: index ETFs are not more reliable
 
 **Index ETFs carry no more reliable edge than single stocks once direction is held

@@ -855,34 +855,44 @@ STUDIES: dict[str, Study] = {
                 "against a benchmark that is itself compounded.",
     ),
     "narrow_to_fit": Study(
-        family="deployment", state="open",
+        family="deployment", state="null",
         question="When a pick's one-contract max loss is over budget, is it better to narrow "
                  "the spread until it fits, or to refuse it? Headline (R, F3, $1,000); F4 "
                  "splits the $1,000 stop from the $1,000 budget.",
-        verdict="2026-10-06 first run (v4, exports 2026-09-27): `>>> (R, F3, $1,000): "
-                "AWAITING SCRAPE <<<` and `>>> (R, F3, $500): AWAITING SCRAPE <<<`, from "
-                "`GN5 COVERAGE: 197 of 235 over-budget PRIMARY picks unpriced (84%; bar 10%) "
-                "-> FIRES`. Nearly all of them are `unproven`: a strike the walk must see is "
-                "not cached. The run exits 1 on `GN3: FAIL` — `FAIL 2026-09-18 GLD "
-                "bull_call_spread: builder refused (stale_leg_at_entry)`, the row the step-2 "
-                "redo re-prices. The cached cells reproduce the 2026-10-01 cached report "
-                "figure for figure, and both stop-basis lines print `NOT FEASIBLE`.",
+        verdict="2026-10-07 graded run (v4, exports 2026-10-06, after the substitute-leg "
+                "scrape and two confirming passes): `headline (R, F3, $1,000): NULL` and "
+                "`secondary (R, F3, $500): NARROW-FEASIBLE`, with `gates: G2-G5 PASS  GN1 PASS  "
+                "GN2 PASS  GN3 PASS  GN4 PASS`. Coverage now clears: `GN5 COVERAGE: 11 of 238 "
+                "over-budget PRIMARY picks unpriced (5%; bar 10%) -> clear` at $1,000 and `41 of "
+                "445 ... (9%; bar 10%) -> clear` at $500. The headline fails Q1 (`net 1.50x  N1 no  "
+                "N2 median maxDD 31.8% no  N3 no`) and Q2 (`N4  meanR +0.110  CI95 "
+                "[-0.117,+0.338]`). The $500 cell meets every criterion: `net 1.50x  N1 MET  N2 "
+                "median maxDD 13.6% MET  N3 MET`, `N4  meanR +0.248  CI95 [+0.113,+0.383]`, `N5  "
+                "-> MET`. Both stop-basis lines print `NOT FEASIBLE`. The registration says the "
+                "secondary never changes the headline, and the report closes `Nothing in this "
+                "report is a shippable rule.` pbo_ledger (2026-10-07) puts (R, F3, $500) net 2.50 "
+                "first of 63 on the full path under total, meanR and bar; (R, F3, $500) net 1.50, "
+                "the registered cap cell, is the in-sample pick in at most 9% of combinations. "
+                "Owed: a forward grade.",
     ),
     "pbo_ledger": Study(
         family="deployment", state="reference",
         question="The feasibility plan's trial ledger scored more than 70 account-sizing "
                  "configurations against the 25% drawdown bar on one path. How likely is it "
                  "that the one chosen as best, in particular (R, F2, $500), was luck?",
-        verdict="2026-10-06 first run (v4, 1,795-row book, 280 dates; 51 ledger configurations "
-                "plus 8 `--ticker-cap` R cells, S = 16, 12,870 combinations): `PRIMARY | ledger"
-                "                N=51  PBO[total] 78.9%  PBO[maxdd] 0.0%  PBO[meanR] 44.9%  "
-                "PBO[bar] 50.0%`. Picking on total dollars is mostly luck; picking on drawdown is "
-                "not, because size sets the drawdown. (R, F2) $500 is the IS best in at most 22% "
-                "of combinations under any metric and ranks above the OOS median then except on "
-                "total. Adding the ticker-cap cells moves no PBO by more than 6 points; "
-                "ticker-cap (R, F2, $1,000) net 2.50 ranks first on the full path under total, "
-                "meanR (SECONDARY) and bar, with lambda <= 0 in 6-39% of the combinations that "
-                "pick it. Nothing ships.",
+        verdict="2026-10-07 run (v4, 1,850-row book, 280 dates; 51 ledger configurations, plus "
+                "8 `--ticker-cap` R cells, plus narrow_to_fit's 4 F3 cells; S = 16, 12,870 "
+                "combinations). Before F3: `PRIMARY | ledger + ticker-cap        N=59  PBO[total] "
+                "69.4%  PBO[maxdd] 0.0%  PBO[meanR] 32.4%  PBO[bar] 42.2%`. With F3: `PRIMARY | "
+                "ledger + ticker-cap + F3   N=63  PBO[total] 47.0%  PBO[maxdd] 0.2%  PBO[meanR] "
+                "33.6%  PBO[bar] 23.8%`. PBO falls because one F3 cell dominates: (R, F3, $500) "
+                "net 2.50 is the in-sample pick in 48% (total), 24% (meanR) and 69% (bar) of "
+                "PRIMARY combinations and lands below the OOS median in 0-1% of them. That says "
+                "the cell ranks persistently on this path, not that it will earn forward. "
+                "Picking on total dollars without F3 is still mostly luck; picking on drawdown "
+                "is not, because size sets the drawdown. The 2026-10-06 run on the earlier "
+                "1,795-row book printed `PBO[total] 78.9%` for the bare ledger; this run prints "
+                "78.4%. Nothing ships.",
     ),
     "selection_order": Study(
         family="deployment", state="null",

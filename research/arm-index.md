@@ -494,7 +494,8 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
   and $1,000. Same meaning as in `account_sim`.
 - `F3` (cell) — Narrow-to-fit: keep the anchor leg and expiry, move the other
   leg inward to the widest listed strike that fits the budget; refuse if none
-  does. The headline at $1,000; secondary at $500. Needs a scrape.
+  does. The headline at $1,000 graded `NULL`; the secondary at $500 graded
+  `NARROW-FEASIBLE` (2026-10-07).
 - `F4` (cell) — Take the floor at the $500 budget with a $1,000 dollar stop.
   Isolates the stop effect from the size effect. COLLIDES with
   `financed_spread`'s `F4`, which is unrelated.
@@ -531,6 +532,10 @@ are the selection metrics and one gate.
   total return.
 - `RF2_250` `RF2_150` (control) — `account_sim` (R, F2) at $500 on the 2.50
   and 1.50 net cap cells. The report follows their ranks in and out of sample.
+- `F3LO_150` `F3LO_250` `F3HI_150` `F3HI_250` (control) — `narrow_to_fit`'s
+  F3 cells, (R, F3) at $500 and $1,000 on the two net cap cells. Added
+  2026-10-07 as a third configuration set, so PBO is printed before and
+  after them. The report follows the two $500 cells' ranks.
 - `GP1` (gate) — Each configuration's series reproduces `account_sim`'s own
   total dollars and A3 drawdown for that simulation, or the run exits 1.
 - `PBO` `lambda` (prose) — The probability of backtest overfitting and the

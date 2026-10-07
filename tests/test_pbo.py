@@ -112,3 +112,31 @@ def test_input_validation(M, S, msg):
 def test_metric_shape_is_checked():
     with pytest.raises(ValueError, match="length"):
         pbo.cscv(np.zeros((8, 3)), S=4, metric=lambda sub: np.zeros(2))
+
+
+# ── pbo_ledger: the configuration sets ───────────────────────────────────────
+
+def test_ledger_sets_nest_and_f3_enters_only_the_last():
+    from scripts.backtest_study.f4_deployment import pbo_ledger as PL
+    trials = PL.ledger()
+    sets = {name: {t.key for t in trials if t.in_set(name)} for name in PL.SETS}
+    base, tc, f3 = (sets[n] for n in PL.SETS)
+    assert base < tc < f3
+    assert not any(k.startswith("TC_") for k in base)
+    assert f3 - tc == {"F3LO_150", "F3LO_250", "F3HI_150", "F3HI_250"}
+    for t in trials:
+        if t.f3:
+            assert t.over["floor"] == "narrow" and not t.ticker_cap
+    assert not any("F3" in what for what, _why in PL.NOT_REPRODUCED)
+
+
+def test_f3_trial_cfg_matches_narrow_to_fit_cells():
+    # The F3 trial must be the cell narrow_to_fit graded: narrow floor, take
+    # floor on, $500 = 2% and $1,000 = 4% of $25k, no separate dollar stop.
+    from scripts.backtest_study.f4_deployment import pbo_ledger as PL
+    by_key = {t.key: t for t in PL.ledger()}
+    lo, hi = by_key["F3LO_150"], by_key["F3HI_250"]
+    assert PL.BASE["capital"] * lo.over["risk_pct"] == 500.0
+    assert PL.BASE["capital"] * hi.over["risk_pct"] == 1000.0
+    assert (lo.over["net_cap"], hi.over["net_cap"]) == (1.50, 2.50)
+    assert "take_floor" not in lo.over and "stop_abs" not in lo.over

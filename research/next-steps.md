@@ -15,77 +15,31 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 <a id="pick-up"></a>
 ### Pick up here — 2026-10-07
 
-The three runs the 2026-10-01 handoff owed are done. `narrow_to_fit` still
-prints `AWAITING SCRAPE` for both F3 cells. What blocks it now is a ruling,
-not a run.
+`narrow_to_fit` is graded. The headline is `NULL`; the $500 secondary is
+`NARROW-FEASIBLE`, in-sample. Nothing ships
+([entry](current.md#2026-10-07--narrow_to_fit-graded-headline-null-500-narrow-feasible)).
 
-| Step | Result |
+| Item | State |
 |---|---|
-| 1. Drop the seeded skip-list entries | `4480 -> 1777`; backup `_unlisted.pre-drop-20261001.jsonl` |
-| 2. Redo the 41 dates the entry window changed | 0 failures; exports re-pulled; GN3 passes |
-| 3a. Scrape the default scope | 626 of 891 fetched; pushed `research-caches-20261007-0056` |
-| 3b. Scrape `--scope between` | 1,564 of 3,777 fetched; pushed `research-caches-20261007-1528` |
+| `--scope between` confirming passes | two done; empty feeds returned rows for 2, then 0 |
+| Cache backup | pushed `research-caches-20261007-1954` |
+| GN5 coverage | clears: 5% at $1,000, 9% at $500 (bar 10%) |
+| (R, F3, $1,000), headline | `NULL` |
+| (R, F3, $500), secondary | `NARROW-FEASIBLE` |
+| Stop-basis lines | `NOT FEASIBLE` |
+| `pbo_ledger` with F3 | PRIMARY PBO total 69.4% → 47.0% |
 
-The `between` scrape, by outcome:
+**Open, for the operator.**
 
-| Outcome | Contracts |
-|---|---|
-| History returned | 1,564 |
-| Page loaded, feed had no rows | 1,934 |
-| Page 404 | 277 |
-| Feed error (pre-split NVDA strikes) | 2 |
-
-GN5 after the scrape, PRIMARY at net 1.50x:
-
-| Cell | Over-budget picks | `unproven` | GN5 unpriced share (bar 10%) |
-|---|---|---|---|
-| (R, F3, $1,000), headline | 239 | 64 | 28% |
-| (R, F3, $500), secondary | 462 | 157 | 39% |
-
-Every remaining blocker was requested; the scrape and the walk share one
-strike grid. Two causes remain.
-
-1. **206 of the 277 404s were never written to the skip-list.** The evidence
-   tracker trimmed its proof events after an hour and confirmed only at the
-   end of the run. Fixed 2026-10-07 in `scripts/backtest/shared/unlisted.py`,
-   with a regression test. A rerun of `--scope between` records them; at
-   $1,000 that takes `unproven` to about 43 (GN5 ~20%).
-2. **The 1,934 empty feeds are neither cached nor evidence.** The
-   [registration](pre-registrations/f4_deployment/narrow_to_fit.md) defines
-   a listed strike as one with history and an entry-day quote. It does not
-   rule on an expired contract whose page loads with an empty feed. That
-   reading is the operator's, made at build and tagged `Resolved at build`.
-   The GN5 bar does not move.
-
-Where the empty-feed blockers at $1,000 sit:
-
-| Blocking strike | Picks | Likely meaning |
-|---|---|---|
-| On the expiry's listed strike lattice | 36 | listed, never traded |
-| Off the lattice | 7 | a strike-grid artifact |
-
-What each reading leaves `unproven`, PRIMARY at net 1.50x:
-
-| Reading | $1,000 | $500 |
-|---|---|---|
-| Now | 64 | 157 |
-| 404s recorded (rerun after the fix) | ~43 | ~126 |
-| 404s and empty feeds both count as no quote | 2 | 2 |
-
-GN0 power at $1,000 is a separate gate and reads after GN5 clears. It is
-short of positions, not dates.
-
-| GN0 at $1,000 | Positions | Dates |
-|---|---|---|
-| Narrowed subset | 49 | 41 |
-| Needed | 60 | 25 |
+1. Whether (R, F3, $500) joins the F2 forward registration draft,
+   `refuse_floor_forward.md`. Until then it is a candidate, not a rule.
+2. The cap cell stays at net 1.50. The F3 $500 cell at net 2.50 ranks first
+   on the PBO ledger, but that cell is not the registered one.
 
 **Where things stand.**
 
-- The cached `narrow_to_fit` cells all read `NOT FEASIBLE`
+- The cached `narrow_to_fit` cells of 2026-10-01 read `NOT FEASIBLE`
   ([entry](current.md#2026-10-01--entry-window-and-narrow_to_fits-cached-cells)).
-- The profit factor per cell is in that entry, and in
-  `backtests/study_output/narrow_to_fit-cached-pf-20261001.csv`.
 
 - **Era and population.** `v4`, the 193-date backfilled book, all three exports
   re-pulled 2026-09-19. The results tab is 598 rows over 193 dates. The
