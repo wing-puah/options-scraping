@@ -249,6 +249,31 @@ Decisions owed. None of these is a study.
     those 5 now, or grade future sell-offs only. Six smaller decisions sit
     beside it in the draft's Open decisions table.
 
+14. **OPEN — no price floor on a narrowed spread; operator to evaluate.**
+    `narrow_to_fit`'s walk accepts any narrowed spread whose max loss fits
+    the budget, however cheap. A near-zero net then sizes to many contracts.
+    The forward grade in item 12 imports the same walk. Found 2026-10-07; no
+    rule is proposed until the operator has read the evidence.
+
+    What the in-sample book shows, PRIMARY:
+
+    | Read | Result |
+    |---|---|
+    | Narrower built, never taken | MU 2026-09-21 at $0.06 on a 40-wide spread, sized to 83 contracts, R +331; five more near-zero fits |
+    | What kept them out | the cap cells only, not a rule |
+    | Taken, net under 10% of width | 1 at net 1.50: NBIS 2026-08-17, net 0.82 on 10 wide, R −1.00 |
+    | Largest taken contracts / \|R\| | 6 / 3.38 |
+    | $500 N4 as reported | +0.248 [+0.113, +0.383], 198 positions |
+    | $500 N4, net under 20% of width dropped | +0.235 [+0.105, +0.362], 184 positions |
+
+    The `NARROW-FEASIBLE` verdict does not depend on these fills. The risk is
+    forward: a looser cap or a different book could take one. Options include
+    a floor on net as a share of width, or none. Code:
+    `narrow_to_fit.py::choose_strike` (fit test l.424-428); production's
+    `_is_junk_quote` (`scripts/backtest/simulate.py:189`) checks quotes, not
+    net size. A floor would be a substance change to both registrations, so
+    the operator decides it, ideally before a forward date prices.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
