@@ -722,6 +722,35 @@ def test_a_pending_no_feed_keeps_the_events_it_needs():
     assert [r for _c, r, _p in t.confirmed()] == [bs.HISTORY_NO_FEED]
 
 
+def _no_rows_run(exp, trouble_at=None):
+    t = unlisted.EvidenceTracker()
+    s = object()
+    t.note(unlisted.SESSION_OPEN, session=s, t=0.0)
+    t.note(bs.HISTORY_OK, _contract(50.0, exp), session=s, t=5.0)
+    t.note(bs.HISTORY_NO_ROWS, _contract(59.0, exp), session=s, t=10.0)
+    if trouble_at is not None:
+        t.note(bs.HISTORY_NAV_ERROR, _contract(61.0, exp), session=s, t=trouble_at)
+    t.note(bs.HISTORY_OK, _contract(60.0, exp), session=s, t=400.0)
+    return [(c["strike"], r) for c, r, _p in t.confirmed(final=True)]
+
+
+def test_an_empty_feed_on_a_settled_expired_contract_is_recorded(monkeypatch):
+    monkeypatch.setattr(unlisted, "_today", lambda: date(2026, 10, 7))
+    assert _no_rows_run(date(2026, 9, 18)) == [(59.0, bs.HISTORY_NO_ROWS)]
+
+
+@pytest.mark.parametrize("exp", [date(2026, 10, 2), date(2026, 11, 20)])
+def test_an_empty_feed_on_a_live_or_just_expired_contract_is_not(monkeypatch, exp):
+    """Live: not traded YET. Expired under a week ago: history may still land."""
+    monkeypatch.setattr(unlisted, "_today", lambda: date(2026, 10, 7))
+    assert _no_rows_run(exp) == []
+
+
+def test_an_empty_feed_next_to_a_network_failure_is_not_recorded(monkeypatch):
+    monkeypatch.setattr(unlisted, "_today", lambda: date(2026, 10, 7))
+    assert _no_rows_run(date(2026, 9, 18), trouble_at=60.0) == []
+
+
 def test_a_page_404_next_to_a_network_failure_is_not_recorded(cache_dir, monkeypatch):
     cs = [_contract(k) for k in (50.0, 59.0, 60.0, 61.0)]
     script = {50.0: bs.HISTORY_OK, 59.0: (bs.HISTORY_PAGE_404, True),

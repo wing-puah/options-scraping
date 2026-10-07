@@ -289,6 +289,16 @@ def test_unlisted_evidence_ignores_seeded_entries(tmp_path):
     assert NTF.unlisted_evidence(p) == {"A_20250221_10.00C"}
 
 
+
+def test_unlisted_evidence_needs_two_confirmations_of_an_empty_feed(tmp_path):
+    p = tmp_path / "_unlisted.jsonl"
+    p.write_text(
+        '{"key": "A_20250221_10.00C", "expiry": "2025-02-21", "last_checked": '
+        '"2026-10-07", "n_checks": 1, "reason": "no_rows"}\n'
+        '{"key": "B_20250221_10.00C", "expiry": "2025-02-21", "last_checked": '
+        '"2026-10-08", "n_checks": 2, "reason": "no_rows"}\n')
+    assert NTF.unlisted_evidence(p) == {"B_20250221_10.00C"}
+
 # ── GN4 strike blindness ─────────────────────────────────────────────────────
 
 def test_gn4_cutting_substitutes_after_entry_never_moves_the_choice():

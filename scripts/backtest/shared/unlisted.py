@@ -14,8 +14,13 @@ failures, a 403/429/5xx page, and ANY non-2xx from the feed are never recorded,
 and even an evidence outcome is held PENDING until the browser is shown to be online around it
 (:class:`EvidenceTracker`) — the 2026-09-25 outage produced hundreds of
 `net::ERR_INTERNET_DISCONNECTED` failures that must not read as facts about a
-contract. "No rows" is not recorded either: it was the symptom of the
-three-month `startDate` bug (see lib/barchart/session.py HISTORY_START_DATE).
+contract. ``HISTORY_NO_ROWS`` (the feed fired and held no rows) is recorded
+ONLY for a contract that expired at least :data:`NO_ROWS_SETTLE_DAYS` ago, whose
+history can no longer grow. On a live contract it means "not traded yet", and
+before 2026-09-08 it was the symptom of the three-month `startDate` bug (see
+lib/barchart/session.py HISTORY_START_DATE), so it is never recorded there.
+A reader that needs high confidence should require two confirmations
+(``n_checks >= 2``) of a ``no_rows`` entry, as ``narrow_to_fit`` does.
 
 EXPIRY. An entry is re-checked after :data:`RECHECK_DAYS`; an EXPIRED contract
 confirmed unlisted :data:`EXPIRED_CONFIRMED_CHECKS` times waits
@@ -57,6 +62,9 @@ RETRY_ENV = "BACKTEST_RETRY_UNLISTED"
 RECHECK_DAYS = 30
 EXPIRED_CONFIRMED_DAYS = 180
 EXPIRED_CONFIRMED_CHECKS = 2
+#: A NO_ROWS is evidence only this many days after expiry, once Barchart's
+#: history for the contract is final.
+NO_ROWS_SETTLE_DAYS = 7
 
 #: A NO_FEED is discarded if any fetch failure (network, HTTP, login, error)
 #: happened within this many seconds of it, before or after.
@@ -116,6 +124,18 @@ def new_entry(c: dict, reason: str, stamp: str) -> dict:
         "n_checks": 1,
         "reason": reason,
     }
+
+
+def settled_expiry(c: dict, today: date | None = None) -> bool:
+    """True when ``c`` expired at least :data:`NO_ROWS_SETTLE_DAYS` ago."""
+    exp = c.get("expiration")
+    if isinstance(exp, str):
+        exp = date.fromisoformat(exp[:10])
+    elif isinstance(exp, datetime):
+        exp = exp.date()
+    if not isinstance(exp, date):
+        return False
+    return exp <= (today or _today()) - timedelta(days=NO_ROWS_SETTLE_DAYS)
 
 
 def _valid(e) -> bool:
@@ -211,7 +231,7 @@ def recorded(prior: dict | None, c: dict, reason: str) -> dict:
 class EvidenceTracker:
     """Holds each evidence outcome until it is shown not to be a fetch failure.
 
-    Both kinds are DROPPED (never recorded, re-probed next run) when any fetch
+    Every kind is DROPPED (never recorded, re-probed next run) when any fetch
     failure — network, HTTP, login, error, a session that would not open —
     lies within ``TROUBLE_WINDOW_S`` of them, either side. Beyond that:
 
@@ -247,7 +267,8 @@ class EvidenceTracker:
              logged_in: bool | None = None, path: Path | None = None) -> None:
         t = _now() if t is None else t
         self.events.append((t, outcome, session, logged_in))
-        if outcome in EVIDENCE and contract is not None:
+        if contract is not None and (outcome in EVIDENCE or (
+                outcome == HISTORY_NO_ROWS and settled_expiry(contract))):
             self.pending.append((t, contract, outcome, session, logged_in, path))
         if session is not None and (outcome in LOGGED_IN or logged_in is True) \
                 and not any(s is session for s, _ in self.logins):
@@ -286,6 +307,11 @@ class EvidenceTracker:
                 continue
             proof = any(abs(te - t) <= FEED_PROOF_WINDOW_S and o in FEED_PROOF
                         for te, o, _, _ in self.events)
+            if reason == HISTORY_NO_ROWS:
+                # The feed answered, so it is its own feed proof; the trouble
+                # window above is the whole gate, as for a clean page 404.
+                out.append((c, reason, path))
+                continue
             if reason == HISTORY_PAGE_404:
                 if not (logged_in is True or self._session_was_logged_in(session, t)):
                     continue

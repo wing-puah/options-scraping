@@ -137,6 +137,17 @@ the entry day. The unlisted skip-list
 ([entry](../../current.md#2026-09-29--operator-rulings-the-150-cell-and-the-2026-column)).
 A network error, 403 or 5xx never marks a strike unlisted.
 
+*Resolved at build (2026-10-07).* An expired contract whose page loads and
+whose feed holds no rows is a strike Barchart returns no history for. It
+counts as unlisted only when all three hold:
+
+- it expired at least 7 days before the fetch, so its history is final;
+- no fetch failure lies within two minutes of the answer;
+- two separate runs gave the same answer (`n_checks >= 2`).
+
+Until then it stays `unproven`. The 2026-10-07 scrape left 1,934 such
+answers, which no earlier text ruled on.
+
 ### Stop-decoupled floor (cell `F4`)
 
 `F4` sizes like F1 at the $500 budget, but its dollar stop is $1,000. It

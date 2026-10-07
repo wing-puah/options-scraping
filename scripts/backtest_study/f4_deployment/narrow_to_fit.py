@@ -136,6 +136,8 @@ ENTRY_TIMING = "next_open"
 BACKTEST_CONFIG = ROOT / "config" / "backtest.yml"
 UNLISTED_PATH = HISTORY_CACHE / UL.FILENAME
 SEEDED_PREFIX = "seeded_from_log"
+#: Independent runs that must agree before an empty feed proves a strike unlisted.
+NO_ROWS_CHECKS = 2
 
 #: `(key, label, budget-kind, dollar stop, floor rule, role)`. `budget-kind`
 #: "low" is the config's 2% budget, "high" is `HIGH_BUDGET`.
@@ -219,9 +221,21 @@ def unlisted_evidence(path: Path = UNLISTED_PATH) -> set[str]:
     `seeded_from_log` entries never passed the evidence gate (registration,
     "A listed strike ..."), so they are excluded: they are not evidence that a
     strike is unlisted, and a strike they name stays fetchable and unproven.
+
+    A `no_rows` entry (an expired contract whose feed held no rows) counts
+    only once two separate runs confirmed it (`n_checks >= 2`): one empty
+    answer is not yet proof that Barchart has no history for the strike
+    (registration, "A listed strike ...", resolved at build 2026-10-07).
     """
-    return {k for k, e in UL.load(path).items()
-            if not str(e.get("reason", "")).startswith(SEEDED_PREFIX)}
+    out = set()
+    for k, e in UL.load(path).items():
+        reason = str(e.get("reason", ""))
+        if reason.startswith(SEEDED_PREFIX):
+            continue
+        if reason == UL.HISTORY_NO_ROWS and int(e.get("n_checks") or 0) < NO_ROWS_CHECKS:
+            continue
+        out.add(k)
+    return out
 
 
 # ════════════════════════════════════════════════════════════════════════════
