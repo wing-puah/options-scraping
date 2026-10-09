@@ -8,6 +8,9 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-09: seven parked drafts were accepted by default and run; nothing
+ships** ([entry](#2026-10-09--parked-drafts-accepted-by-default-and-run)).
+
 **The suite reads the re-priced book again (2026-09-28), and 13 verdicts
 moved.** On 2026-10-01 a bigger stop failed to rescue the 1-contract floor
 ([entry](#2026-10-01--entry-window-and-narrow_to_fits-cached-cells)). On 2026-09-29 the operator ruled on the five items it raised, and
@@ -221,6 +224,411 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-09 — parked drafts accepted by default and run
+
+**Seven parked items were accepted on their drafters' defaults, built and run.
+Nothing ships.** Two studies find a loss that is cut but not removed. One gives
+the operator a sizing reading. Four wait: on the holdout seal, on forward
+dates, or on a fetch.
+
+**In production.** Nothing changes. Every default can be revisited by the
+operator; a revisit after a result is a new registration, never an edit.
+
+| Item | What it asks | As printed | Entry |
+|---|---|---|---|
+| `holdout_seal` (N5) | Hide outcomes on new dates until 40 have priced | `priced sealed dates: 0 of 40` | [entry](#2026-10-09--holdout_seal-accepted-by-default-sealed-from-2026-09-23) |
+| `narrow_to_fit` floor (item 14) | Refuse a narrowed debit under 20% of its width | `NULL` at $1,000, `NARROW-FEASIBLE` at $500, as before | [entry](#2026-10-09--narrow_to_fit-a-20-net-floor-changes-no-verdict) |
+| `index_bear_hedge` (item 13) | Do index bears pay as crash insurance? | `STILL-OPEN`, forward only | [entry](#2026-10-09--index_bear_hedge-forward-still-open-in-sample-the-insurance-cost-more-than-it-paid) |
+| `bear_fast_exit` (§2.4) | Does a fast bear-debit exit pay after costs? | `BLEED-CUT (C7 PENDING)` | [entry](#2026-10-09--bear_fast_exit--a-session-1-exit-cuts-the-bear-debit-loss-and-still-loses) |
+| `ruin_bound` (item 5) | Which cap cell keeps ruin under a fixed bound? | `SAFEST ELIGIBLE CELL: N250-F2 G-none` at $500 | [entry](#2026-10-09--ruin_bound--refusing-the-unaffordable-pick-keeps-ruin-away-nothing-passes-at-1000) |
+| `cost_sensitivity` (N1) | At what cost does the Tier A/B edge vanish? | `VANISHES` on both tiers | [entry](#2026-10-09--cost-sensitivity-n1-both-tiers-vanish-and-there-was-no-gross-edge-to-lose) |
+| `mechanical_benchmark` (N2) | Do the picks beat a mechanical call spread? | `NOT BUILT — AWAITING SCRAPE` | [entry](#2026-10-09--mechanical_benchmark--not-built-yet-awaiting-a-scrape-nothing-ships) |
+
+What the operator should look at:
+
+- **`ruin_bound` at $1,000.** No cell meets the bounds at the operator's own
+  sizing. At $500 only the F2 cells (refuse the unaffordable pick) pass.
+- **`cost_sensitivity`.** Neither tier clears zero even before costs on v4.
+- **`mechanical_benchmark`.** Its verdict waits on a fetch only the operator
+  can approve ([next-steps item 15](next-steps.md#pick-up)).
+
+---
+
+## 2026-10-09 — `holdout_seal` accepted by default: sealed from 2026-09-23
+
+**The holdout seal now starts on 2026-09-23, not 2026-08-11.** Research code
+reads no outcome on a signal date from 2026-09-23 on until 40 of those dates
+have priced and the one registered Tier A/B read has run. Nothing ships.
+
+_Registration: [`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md),
+accepted by default 2026-10-09 on the drafter's defaults · census of the
+2026-10-06 exports, counts only._
+
+**In production.** Nothing changes. The journal and the deploy card are
+outside the seal.
+
+**Why the start moved.** Runs from 2026-09-28 to 2026-10-07 printed outcomes
+on 2026-08-11 → 2026-09-22: `account_sim`'s episode E9, the 2026 column,
+`narrow_to_fit` and `pbo_ledger`. No export has held a priced row on
+2026-09-23 or later.
+
+| Export (2026-10-06) | Rows on sealed dates | Priced sealed dates |
+|---|---|---|
+| `BacktestResults` | 0 | 0 |
+| `BacktestProxy` | 10, on one date | 0 |
+| `AnalysisClaude` | 105, on 9 dates | — |
+
+**Who may read sealed dates.**
+
+| Reader | From | What |
+|---|---|---|
+| The unseal read | 2026-09-23 | Tier A and B meanR and PF on the deployed set, once |
+| `refuse_floor_forward` | 2026-10-08 | Its registered cells |
+| `ticker_class` | 2026-10-08 | Forward P1 only |
+| `narrow_to_fit` | 2026-10-08 | Its forward sign read, not yet built |
+| `v4_bridge` | any date | Its five composition tests, no outcome |
+
+The list is closed: a forward read accepted from today waits for the unseal.
+Only 2026-09-23 → 2026-10-07 stays unread by everyone. From 2026-10-08 the
+named readers print pooled cells, never the tier split.
+
+**The guard.** `lib/era.py` holds the dates and the reader list. `load_book`
+withholds sealed records by default and prints a `SEAL:` line. The four
+studies that open the exports themselves filter with `drop_sealed`.
+`tests/test_holdout_seal.py` fails on any study that resolves an export path
+without the filter. `make seal-census` prints the unseal count.
+
+**Next.** [§2.2](next-steps.md#s2-2) can run `v4_bridge` now on
+2026-08-11 → 2026-09-22. [§2.6](next-steps.md#s2-6)'s triggers read unsealed
+dates only until the unseal.
+
+---
+
+## 2026-10-09 — narrow_to_fit: a 20% net floor changes no verdict
+
+**A floor on a narrowed spread's net debit changes no `narrow_to_fit`
+verdict.** The registered no-floor rule stays the headline in both
+registrations. The floored line prints beside it as a declared secondary.
+
+**In production.** Nothing ships. The report closes "Nothing in this report
+is a shippable rule."
+
+_Era v4, exports `2026-10-06 23:39`, a 1,850-row book. Reports:
+`backtests/study_output/narrow_to_fit-latest.txt` (run `2026-10-09 22:58`)
+and `refuse_floor_forward-latest.txt`. Labels in
+[arm-index](arm-index.md#narrow_to_fit)._
+
+### The rule
+
+- A narrowed debit spread whose net debit is under 20% of its width is
+  refused into `narrow_no_fit`, reason `below_net_floor`. The walk does not
+  step on to a narrower strike.
+- Credit spreads are never floored. A tiny credit leaves max loss near the
+  width, so it cannot size up.
+- It answers [next-steps §0, item 14](next-steps.md#pick-up): MU 2026-09-21
+  fit at $0.06 on a 40-wide spread and sized to 83 contracts.
+- Both registrations carry it as `Resolved at build (2026-10-09)`. No signal
+  date on or after 2026-10-08 had a row in any export when it was fixed.
+
+### Verdicts, PRIMARY
+
+| Line | Role | Verdict | Narrowed subset N4 meanR [CI95] | Positions / dates |
+|---|---|---|---|---|
+| (R, F3, $1,000) | headline | `NULL` | +0.110 [−0.117, +0.338] | 70 / 58 |
+| (R, F3, $1,000) + 20% floor | declared secondary | `NULL` | +0.084 [−0.153, +0.322] | 67 / 55 |
+| (R, F3, $500) | secondary | `NARROW-FEASIBLE` | +0.248 [+0.113, +0.383] | 198 / 141 |
+| (R, F3, $500) + 20% floor | declared secondary | `NARROW-FEASIBLE` | +0.249 [+0.110, +0.388] | 187 / 133 |
+| `refuse_floor_forward` (R, F3, $500) + 20% floor | declared secondary | `STILL-OPEN` | no forward date yet | 0 / 0 |
+
+| Account, net 1.50, PRIMARY | n | Total $ | meanR | maxDD $ | N2 median maxDD |
+|---|---|---|---|---|---|
+| (R, F3, $1,000) | 203 | 21,576 | +0.184 | −9,685 | 31.8% |
+| (R, F3, $1,000) + 20% floor | 197 | 18,298 | +0.169 | −9,685 | 32.5% |
+| (R, F3, $500) | 304 | 24,661 | +0.221 | −3,882 | 13.6% |
+| (R, F3, $500) + 20% floor | 296 | 24,320 | +0.219 | −4,411 | 14.3% |
+
+| Picks the floor refused, PRIMARY | Count |
+|---|---|
+| At $1,000 | 12 |
+| At $500 | 31 |
+
+### What this does not mean
+
+- On this book the floored line is seen, not tested. The 20% was picked after
+  item 14's in-sample read. Its test is `refuse_floor_forward`'s forward
+  line.
+- The no-floor output is unchanged line for line from the 2026-10-07 run.
+
+**Next.** Next-steps item 14 closes. Nothing new is queued.
+
+---
+
+## 2026-10-09 — `index_bear_hedge`: forward STILL-OPEN; in-sample, the insurance cost more than it paid
+
+**Graded on future sell-offs only, the index bear sleeve reads `STILL-OPEN`.** No sell-off has
+started since acceptance, and the holdout seal keeps the forward window shut until it lifts.
+
+**In production.** Nothing ships. No verdict here can remove the
+[§4](../docs/deployment-rules.md#s4) bear sleeve.
+
+_Era v4 · exports 2026-10-06 23:39 · book 1,850 rows · report
+`backtests/study_output/index_bear_hedge-latest.txt` · recorded in
+[study-results](study-results/f5_hedging/index_bear_hedge.md) · labels in
+[arm-index](arm-index.md#index_bear_hedge). The v3 run is filed as
+`backtests/study_output/index_bear_hedge-v3-20261009.txt`._
+
+### The forward lines
+
+| Line | As printed |
+|---|---|
+| headline | `FORWARD VERDICT (headline, floor 5 episodes): STILL-OPEN` |
+| declared secondary | `FORWARD EARLY READ (declared secondary, floor 2 episodes): STILL-OPEN` |
+
+The registration was accepted by default on 2026-10-09 with OD4 set to forward only. Every
+open decision is answered beside the text it amends in the
+[registration](pre-registrations/f5_hedging/index_bear_hedge.md).
+
+### The in-sample description, which is not a verdict
+
+The sleeve cut the deployed book's drawdown in every sell-off on both eras, and lost more
+between sell-offs than it made inside them. These sell-offs may sit in the analysing model's
+training data, so the study prints them as a description and grades nothing (OD4).
+
+| Figure | v4 | v3, same sell-offs |
+|---|---|---|
+| evaluable E-DD5 episodes | 5 | 4 |
+| episodes where the sleeve cut drawdown | 5 | 4 |
+| sum of drawdown cut, `ΔDD_e` | +$51,428 | +$23,936 |
+| permutation p, one-sided | 0.001 | 0.002 |
+| carry outside episodes, `C` | −$84,041 | −$26,972 |
+| ten sessions after each trough | −$30,513 | −$21,864 |
+| NET over the span | −$43,947 | −$6,365 |
+| full-span [MTM](glossary.md#mark-to-market-basis) [maxDD](glossary.md#maxdd), book alone | −$52,075 | −$17,456 |
+| the same, hedged | −$67,770 | −$11,424 |
+| break-even sell-offs per 252 sessions, `f*` | 2.72 | 1.67 |
+| corr(sleeve, book) outside episodes | −0.579 | −0.596 |
+| observed sell-offs per 252 sessions, SPY/VIX file | 1.96 | 1.96 |
+| OD5 base rate, SPY since 1993 | 1.92 | 1.92 |
+
+- Sell-offs come about twice a year. On v4 the sleeve needs more than markets give to break
+  even. On v3 it needs fewer, but the post-trough sessions still make NET negative.
+- The post-trough loss is the bear spreads giving back their gains as the market bounces.
+  It counts on neither side of `f*`.
+- `RB1` to `RB4` hold on both eras and `RB5` is quiet: single-stock bears protected less
+  than index bears.
+
+### What it changes
+
+Item 13 in [`next-steps.md`](next-steps.md) closes. The forward read re-runs when the holdout
+seal lifts and a sell-off that starts after 2026-10-09 has closed its buffer.
+
+---
+
+## 2026-10-09 — `bear_fast_exit` — a session-1 exit cuts the bear-debit loss and still loses
+
+**Every fast exit loses less than the shipped bear-debit exit, and none pays
+after commission.** The registered verdict is `BLEED-CUT (C7 PENDING)`, carried
+by `TS 1` alone: exit at the entry-day close.
+
+**In production.** Nothing changes. A BLEED-CUT ships nothing, and the forward
+criterion C7 waits on the holdout seal.
+
+_Report `backtests/study_output/bear_fast_exit-20261009-225853.txt`, sha
+4699bd9, exports 2026-10-06 23:39. The registration was
+[accepted by default](pre-registrations/f2_management/bear_fast_exit.md)
+on 2026-10-09._
+
+| Era | Role | Bear-debit rows | Dates |
+|---|---|---|---|
+| v4 | Primary | 686 | 261 |
+| v3 | Replication | 329 | 109 |
+
+### Headline: $0.65 per contract, no slippage
+
+[Net R](glossary.md#net-r) with date-clustered [CIs](glossary.md#ci). ΔR is
+paired against the shipped exit.
+
+| Arm | v4 net meanR | v4 ΔR | v3 net meanR | v3 ΔR |
+|---|---|---|---|---|
+| Shipped | −0.144 [−0.215, −0.071] | — | −0.113 [−0.231, +0.010] | — |
+| TP 0.10 | −0.033 [−0.078, +0.012] | +0.111 [+0.056, +0.167] | −0.028 [−0.097, +0.038] | +0.085 [−0.014, +0.183] |
+| TP 0.20 | −0.050 [−0.102, +0.003] | +0.094 [+0.045, +0.145] | −0.036 [−0.113, +0.040] | +0.076 [−0.006, +0.160] |
+| TP 0.30 | −0.054 [−0.113, +0.006] | +0.090 [+0.047, +0.134] | −0.045 [−0.134, +0.043] | +0.068 [−0.000, +0.136] |
+| TS 1 | −0.017 [−0.049, +0.016] | +0.127 [+0.063, +0.190] | +0.018 [−0.017, +0.052] | +0.130 [+0.012, +0.246] |
+| TS 2 | −0.010 [−0.040, +0.022] | +0.134 [+0.071, +0.198] | +0.000 [−0.043, +0.044] | +0.113 [−0.001, +0.222] |
+| TS 3 | −0.011 [−0.042, +0.023] | +0.133 [+0.069, +0.199] | −0.022 [−0.074, +0.033] | +0.091 [−0.016, +0.194] |
+| TS 5 | −0.028 [−0.067, +0.013] | +0.116 [+0.057, +0.174] | −0.036 [−0.105, +0.033] | +0.077 [−0.023, +0.173] |
+| OP 0.25 or session 5 | −0.014 [−0.049, +0.023] | +0.130 [+0.068, +0.192] | −0.009 [−0.069, +0.049] | +0.104 [−0.007, +0.213] |
+
+What it says:
+
+- **Every arm cuts the v4 loss.** Each paired CI clears zero, and the C5
+  folds stay positive.
+- **No arm pays.** No net level clears zero on either era.
+- **Only `TS 1` replicates on v3, and only just.** Eight arms on two eras
+  give about one such pass by chance, which is why C7 is required.
+- **The declared 25%-of-spread line prints the same verdict.** Its levels sit
+  lower, close to the plan-time read.
+- **The hedge-sleeve conflict stands.** A fast exit removes the protection
+  the §4 sleeve is held for, and only
+  [`hedge_portfolio`](arm-index.md#hedge_portfolio) can price that.
+
+**Next.** The fast-exit bullet in [`next-steps.md`](next-steps.md) §2.4 is
+closed as a loss cut. C7 reads once, when the seal lifts. No new item.
+
+---
+
+## 2026-10-09 — `ruin_bound` — refusing the unaffordable pick keeps ruin away; nothing passes at $1,000
+
+**At $500 the safest eligible cell is net cap 2.50 with the F2 refusal and no
+guardrail (`SAFEST ELIGIBLE CELL: N250-F2 G-none`). At the operator's $1,000
+sizing no cell meets the bounds.** Nothing ships: the study is a reading for
+the operator, and `config/account-sim.yml` is unchanged.
+
+_Era v4, exports of `2026-10-06`. The book holds 1,850 rows on 280 dates,
+none on or after the seal. The
+[registration](pre-registrations/f4_deployment/ruin_bound.md) was accepted by
+default on `2026-10-09`. The run drew 5,000 paths, seed `20261009`._
+
+The study resamples the account walk in blocks. It asks which of 24
+configurations earns the most while ruin stays under fixed bounds. Ruin means
+losing half the account. The configurations are six cap cells times four
+guardrails ([arms](arm-index.md#ruin_bound)).
+
+| Cell, PRIMARY, L = 45, $500 | P(ruin) | p95 marked DD | p99 | Median $ over H |
+|---|---|---|---|---|
+| N250-F2 G-none (chosen) | 0.0% [0.0, 0.1] | 24.1% | 30.6% | +$14,268 |
+| N150-F2 G-none | 0.0% | 24.3% | 30.6% | +$11,345 |
+| N150-F1 G-none (registered headline) | 17.8% | 86.7% | 101.5% | +$6,062 |
+| N250-F1 G-none (tracked config) | 25.8% | 102.9% | 123.4% | +$10,408 |
+| N250-F2 G-none at $1,000 | 5.6% | 74.0% | 94.9% | +$24,551 |
+
+- **The ruin risk sits in the one-contract floor.** Every F1 cell fails the
+  bar at $500. Taking a pick whose one contract costs more than the budget
+  (F1) loses half the account on about one path in six.
+- **Refusing that pick (F2) keeps ruin near zero.** All eight N150-F2 and
+  N250-F2 configurations meet every clause on both populations at every block
+  length. N100-F2 fails only A1.
+- **No riskier cell earns its drawdown.** N150-F2 against S has a per-date CI
+  of [-31.4, +3.7] dollars, -$2,816 in total.
+- **The guardrails add little at $500.** On the eligible cells they rarely
+  fire. At $1,000 the kill switch cuts ruin to zero but leaves the p95
+  drawdown past 30%.
+
+Two gate rulings followed a 100-path smoke run and are tagged in the
+registration. The reserve now includes commission (R3), and R5 is read path by
+path up to the shock. On the 5,000-path run the full-H R5 order held in 288 of
+288 cells anyway. All gates pass, R2 matches `simulate()` on all 24 cells, and
+576 truncation checks pass.
+
+**Next.** [Next-steps item 5](next-steps.md#waiting-on-the-operator) gains this
+reading. Whether F2 should be the primary arm stays a question for a new
+registration. Nothing changes the tracked cap until the operator does it by
+hand.
+
+---
+
+## 2026-10-09 — cost sensitivity (N1): both tiers vanish, and there was no gross edge to lose
+
+**Neither tier has a measured edge on v4, net of costs or before them.**
+[`cost_sensitivity`](arm-index.md#cost_sensitivity) printed `VANISHES` for
+Tier A and Tier B at $0.65 per contract with no slippage. Both tiers' gross
+intervals already include zero, so commission does not remove an edge.
+
+**In production.** Nothing changes; the registration ships no rule. Under its
+`VANISHES` wording, exit tuning on both tiers stops until a later book shows an
+edge. Deployment stays an operator decision
+([deployment-evidence](deployment-evidence.md#caveats-on-the-ladder-as-a-whole)).
+
+_Era v4, exports `2026-10-06 23:39`, sha `4004356`. The deployed top-3/day set
+is 582 positions on 249 dates, `2024-01-10 → 2026-09-22`.
+[Record](study-results/f2_management/cost_sensitivity.md)._
+
+### Registration
+
+Accepted by default on 2026-10-09
+([registration](pre-registrations/f2_management/cost_sensitivity.md)). The
+draft predated the 2026-09-24 commission-only re-price, so the stored R is
+already net of the `ARM X` commission. The study adds `cost_total` back to get
+gross R and charges every arm on that.
+
+### ARM X, the graded arm
+
+[meanR](glossary.md#meanr), [CI](glossary.md#ci) and [PF](glossary.md#pf) are
+net of $0.65 per contract per leg per side.
+
+| Tier | Positions | Dates | Net meanR | 95% CI | Net PF | PF CI |
+|---|---|---|---|---|---|---|
+| A | 187 | 95 | +0.108 | [−0.016, +0.237] | 1.37 | [0.95, 1.98] |
+| B | 395 | 177 | +0.088 | [−0.026, +0.193] | 1.25 | [0.94, 1.67] |
+
+### The contour
+
+| Tier | Gross meanR (`ARM Z`) | Gross CI | Point estimate first below zero | Positions in slippage cells |
+|---|---|---|---|---|
+| A | +0.114 | [−0.010, +0.243] | slippage 0.50 of the spread, any commission | 180 of 187 |
+| B | +0.095 | [−0.019, +0.201] | slippage 0.50 of the spread, any commission | 371 of 395 |
+
+The quote census passed G4: 6.4% of leg-sides needed fallback 2 or were
+uncostable, against a 25% bar.
+
+### What did not grade
+
+- **C4, era stability.** The frozen v3 export has no `cost_basis`, so G3
+  refuses it. Both verdict lines agree anyway, because C1 and C2 fail first.
+- **C3, leave-one-out.** Not graded, since it only applies to a tier that
+  passed C1 or C2.
+
+### Next
+
+N1 closes in [next-steps](next-steps.md). It adds no new item. The missing
+gross edge on v4 is the existing "v4 transfer is unvalidated" caveat, now
+measured.
+
+---
+
+## 2026-10-09 — mechanical_benchmark — not built yet, awaiting a scrape; nothing ships
+
+The study cannot yet say whether the picks beat a mechanical call spread. Its
+census runs first and stops at `NOT BUILT — AWAITING SCRAPE`, because most
+counterpart legs are not cached. Nothing ships.
+
+_Era v4, with v3 as the stability read · exports 2026-10-06 23:39 · report:
+`backtests/study_output/mechanical_benchmark-latest.txt` · recorded in
+[study-results](study-results/f1_selection/mechanical_benchmark.md)._
+
+**In production.** Nothing changes.
+
+**What the census found (v4).**
+
+| Arm | Built | Awaiting fetch | Dropped | Contracts to fetch |
+|---|---|---|---|---|
+| [`ARM M1`](arm-index.md#mechanical_benchmark) | 168 | 275 | 139 | 399 |
+| `ARM M2` | 39 | 365 | 178 | 311 |
+| `ARM M2L` | 277 | 133 | 172 | 51 |
+| `ARM U` (universe wraps) | 1,162 | 51,107 | 56 | 32,106 |
+
+The population is 582 deployed picks on 249 dates. 111 of the drops are picks
+with DTE of 180 or more, which the registration puts out of scope.
+
+**Why it stops.** A pair whose nearest listed strike is not cached waits for a
+fetch instead of being built on another strike. The cached strikes are the ones
+the book traded, so reading the cached subset would bias the comparison toward
+zero. `ARM U` is the arm that decides the question, and it needs stock bars for
+1,978 universe tickers before its strikes can even be named.
+
+**The registration.** Accepted by default on the drafter's defaults. The
+rulings sit beside the text they amend in the
+[pre-registration](pre-registrations/f1_selection/mechanical_benchmark.md). Two
+matter most. The counterpart uses the pick's own expiry. The strike choice
+reads only rows dated on or before the signal date.
+
+**Next.** A new queue item in [`next-steps.md`](next-steps.md) (item 15): the
+operator decides whether to run the fetch, starting with the 710 same-ticker
+contracts.
 
 ---
 

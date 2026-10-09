@@ -56,9 +56,8 @@ under.
   `mechanical_benchmark` (the deployed picks themselves, a reference arm).
   Opposite ends of the system and nothing alike.
 - **`X`** — two arms: `macro_event_study` (the exit census, descriptive) and
-  `mechanical_benchmark`'s sibling draft `cost_sensitivity` (the registered
-  cost point, the one arm it grades on). One is a census, the other is the
-  whole verdict.
+  `cost_sensitivity` (the registered cost point, the one arm it grades on).
+  One is a census, the other is the whole verdict.
 - **`U`** — **three** arms: `bear_giveback` (the underlying's price path),
   `exit_drawdown` (the underlying ATR stop) and `mechanical_benchmark` (the
   random-universe base-rate null). Nothing alike beyond the letter.
@@ -123,6 +122,36 @@ _Registered in [`pre-registrations/f1_selection/emission_timing.md`](pre-registr
   re-emitted play (2nd/3rd/4th+ of a ticker+structure) perform worse than
   the first emission? One of `ARM P`'s six owners repo-wide (see
   Collisions, above).
+
+#### `mechanical_benchmark`
+
+_Registered in [`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) · module `f1_selection/mechanical_benchmark.py`_
+
+Accepted by default 2026-10-09. The first run prints `NOT BUILT — AWAITING
+SCRAPE`: most counterpart legs are not cached yet. The study asks whether the
+picks beat a mechanical bull call spread on the same dates and tickers.
+
+- `ARM T` (arm) — The deployed picks, replayed unchanged. Reference only.
+  COLLIDES with `staged_exit`'s and `trigger_entry`'s `ARM T`, which are
+  unrelated — qualify every citation with its study.
+- `ARM M1` (arm) — Fixed-geometry counterpart: ATM/+5% call vertical on the
+  same ticker, date and expiry as the pick. PRIMARY.
+- `ARM M2` (arm) — Matched-geometry counterpart: the long call whose
+  signal-date delta is nearest the pick's net position delta, short leg 5%
+  above it, same expiry. SECONDARY.
+- `ARM M2L` (arm) — Declared secondary of `ARM M2`: the long call's delta
+  matches the pick's bought leg instead of its net delta. Prints beside M2 and
+  carries no verdict.
+- `ARM U` (control) — Universe null: the `ARM M1` wrap on random
+  flow-universe tickers for that date, at the monthly expiry nearest the
+  pick's DTE, 1,000 seeded draws. The base-rate arm, and the one that answers
+  "long calls just worked". COLLIDES with `bear_giveback`'s `ARM U` (the
+  underlying's price path) and `exit_drawdown`'s `ARM U` (the underlying ATR
+  stop), both unrelated — qualify every citation with its study. Not the
+  printed prose `ARM UNIVERSE` below either.
+- `ARM CEN` (arm) — Census: built, dropped and awaiting-fetch counts by tier,
+  structure and DTE band, plus the five floors. Descriptive only, never a
+  criterion.
 
 #### `text_features`
 
@@ -249,6 +278,32 @@ fixed ticker group, `G1`–`G7`, hashed before any outcome was read.
 
 ### ② Management — when to get out
 
+#### `cost_sensitivity`
+
+_Module `f2_management/cost_sensitivity.py`; registered in [`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md)_
+
+Accepted by default 2026-10-09 and run the same day. The study asks at what
+cost per leg the Tier A/B edge vanishes. It printed `VANISHES` for both tiers.
+
+- `ARM Z` (control) — Zero-cost control: gross R, rebuilt by adding the
+  stored `cost_total` back. Reference only, never a result of this study.
+- `ARM X` (arm) — The registered cost point: $0.65 per contract per leg per
+  side, no slippage. The only arm any criterion is graded on. COLLIDES with
+  `macro_event_study`'s `ARM X` (its exit census), which is unrelated —
+  qualify every citation with its study.
+- `ARM SW` (arm) — The cost sweep, commission × slippage fraction. Sensitivity
+  only; it locates the breakeven contour and may never carry a verdict.
+- `ARM Q` (arm) — Quote availability: the census of missing or degenerate
+  quotes and the fixed three-step fallback ladder. A position with no usable
+  quote is uncostable and excluded, never charged zero.
+- `ARM GAP` (arm) — One adverse tick at a threshold exit on top of `ARM X`:
+  $0.05 per leg headline, $0.01 declared secondary. Folds
+  [`robustness-review.md`](robustness-review.md) B4 in as a sensitivity.
+- `G3` (gate) — Export provenance: refuses a row with no `cost_basis`, which
+  only post-B1/B2 code writes. Refuses the frozen v3 export.
+- `C4` (criterion) — Era stability. Ungraded while G3 refuses v3; the
+  headline counts that as not holding, the declared secondary drops it.
+
 #### `bear_giveback`
 
 _Module `f2_management/bear_giveback.py`_
@@ -287,19 +342,24 @@ _Registered in [`pre-registrations/f2_management/staged_exit.md`](pre-registrati
 
 #### `bear_fast_exit`
 
-_Drafted in [`pre-registrations/f2_management/bear_fast_exit.md`](pre-registrations/f2_management/bear_fast_exit.md)_
-
-**DRAFT — not registered.** The labels below are provisional until the
-operator accepts the file. The study asks whether a bear debit held only a few
-sessions, or closed at a small profit, is positive net of trading costs.
+_Registered in [`pre-registrations/f2_management/bear_fast_exit.md`](pre-registrations/f2_management/bear_fast_exit.md) · module `f2_management/bear_fast_exit.py`_
 
 - `ARM TP` (arm) — Small profit target: the shipped bear-debit exit with pt
-  0.10, 0.20 or 0.30.
-- `ARM TS` (arm) — Time stop: exit at the close of session N if still open,
-  for a short list of N fixed in the draft. Composes around the frozen
-  `harness.replay`, like `staged_exit` `ARM E`.
+  0.10, 0.20 or 0.30. Stop, `tef` and the BEAR_HE trail unchanged.
+- `ARM TS` (arm) — Session stop: exit at the close of session N if still
+  open. N takes the four values the registration lists. Session 1 is the
+  entry-day close. Composes around
+  the frozen `harness.replay`, like `staged_exit` `ARM E`, and writes the exit
+  reason `session_stop`.
 - `ARM OP` (arm) — The operator's live habit as inferred from fills: pt 0.25
   or the close of session 5, whichever comes first.
+- `C1` `C2` `C3` `C4` `C5` `C6` `C7` (criterion) — C1 and C2: net level above zero on v4 and v3. C3
+  and C4: paired net ΔR above zero on v4 and v3. C5: leave-one-date-out. C6:
+  window, year and tier cuts. C7: the forward read, PENDING under the holdout
+  seal.
+- `G0` `G1` `G2` `G3` `G4` `G5` `G6` (gate) — G0 power, G1 leak guard, G2 baseline is production, G3
+  post-re-price export, G4 quote provenance (secondary cost line only), G5 no
+  new statistic, G6 no hardcoded census.
 
 #### `exit_from_text`
 
@@ -499,6 +559,12 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
 - `F4` (cell) — Take the floor at the $500 budget with a $1,000 dollar stop.
   Isolates the stop effect from the size effect. COLLIDES with
   `financed_spread`'s `F4`, which is unrelated.
+- `F3 + 20% net floor` (cell) — Declared secondary: F3 with one more refusal: a
+  narrowed debit spread whose net debit is under 20% of its width goes to
+  `narrow_no_fit`, reason `below_net_floor`. Credit spreads are never
+  floored. Prints beside F3 at $1,000 and $500 and never moves a verdict
+  (resolved at build 2026-10-09). Both lines graded as F3 did on the seen
+  book.
 - `GN0` `GN5` (gate) — The two gates that print rather than exit. GN0 is
   power: the narrowed subset needs 25 dates and 60 positions. GN5 is
   coverage: more than 10% of over-budget picks ending `narrow_unpriced`
@@ -515,7 +581,42 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
 - `Q2` `N4` `N5` (criterion) — Do the narrowed picks earn: a meanR CI above
   zero, kept on both window cuts and in every year with 10 or more picks.
 - `narrow_no_fit` `narrow_tier_break` `narrow_unpriced` (prose) — The census
-  buckets F3 refuses into. `unproven` is a reason inside `narrow_unpriced`.
+  buckets F3 refuses into. `unproven` is a reason inside `narrow_unpriced`;
+  `below_net_floor` is a reason inside `narrow_no_fit`, on the floored line
+  only.
+
+#### `ruin_bound`
+
+_Registered in [`pre-registrations/f4_deployment/ruin_bound.md`](pre-registrations/f4_deployment/ruin_bound.md)_
+
+Accepted by default 2026-10-09. The study asks which cap cell and guardrail
+earns the most while P(ruin) and the p95/p99 marked drawdown stay under fixed
+bounds. It resamples the account walk in blocks. Every configuration runs
+under `account_sim` `ARM R`.
+
+- `N100-F1` `N150-F1` `N250-F1` `N100-F2` `N150-F2` `N250-F2` (arm) — The six
+  cap cells. The net cap is 1.00, 1.50 or 2.50 × equity. The per-position cap
+  is 0.25. Each is crossed with `account_sim`'s `F1` (take the one-contract
+  floor) or `F2` (refuse it).
+- `G-none` `G-M` `G-K` `G-C` (arm) — Guardrails. G-M refuses a pick that
+  lifts reserved capital past 0.50 × marked equity. G-K stops new entries
+  once equity is 25% below its peak. G-C pauses entries for 5 sessions after
+  a 5% down day.
+- `O0` `O1` `O2` `O3` (arm) — Overlays. O0 none; O1 a 10% gap on long delta
+  at the path's peak reserve; O2 every open position at max loss there; O3
+  resampling only signal sessions.
+- `R0` `R1` `R2` `R3` `R4` `R5` (gate) — Era, cost coverage, identity with `simulate()`, the
+  ledger, outcome blindness, and the overlay order.
+- `B1` `B2` `B3` `B4` `B5` `B6` (criterion) — The bounds. P(ruin) is at most 1% under `O0` and
+  5% under `O1` and `O3`. The marked drawdown is at most 30% at `p95` and 45%
+  at `p99`. The `O2` loss at `p99` is at most 60%. `account_sim`'s A1 must
+  also hold. Every bound must hold at every readable block length, on both
+  populations.
+- `S` (prose) — The safest eligible configuration, the one with the lowest
+  p95 drawdown. A riskier one displaces it only on a per-date dollar CI above
+  zero.
+- `HEADLINE` `DECLARED SECONDARY` (prose) — The $500 and the $1,000
+  budget-and-stop runs. Each prints its own verdict.
 
 #### `pbo_ledger`
 
@@ -571,6 +672,10 @@ Every cell runs under `account_sim` `ARM R`. It adds no arm.
 - `(R, F3, $500)` (cell) — `narrow_to_fit`'s F3 at $500: narrow such a pick
   to the widest listed spread that fits, refuse if none does. Graded on both
   cap cells, its own verdict line.
+- `(R, F3, $500) + 20% net floor` (cell) — Declared secondary: F3 with
+  `narrow_to_fit`'s net floor. Sequenced and given a verdict line like a
+  graded cell, at the same α but outside the four-sequence family. It never
+  moves F3's line (resolved at build 2026-10-09). Code key `F3_FL`.
 - `(R, F1, $500)` `(R, F2, $1,000)` (control) — Printed, not graded. F1 is
   `account_sim`'s headline and the FWT comparator.
 - `FORWARD-CONFIRMED` `FORWARD-REFUTED` `STILL-OPEN` (prose) — The verdict
@@ -732,6 +837,34 @@ trigger the arm was run on, not a different question. Not `hedge_structure`'s
   - `ARM H4-CHOP` `ARM H4-GAP` `ARM H4-DECLINE` (sub-arm) — printed once
     per trigger family, graded with `ARM H4`, never alone.
 
+#### `index_bear_hedge`
+
+_Registered in [`pre-registrations/f5_hedging/index_bear_hedge.md`](pre-registrations/f5_hedging/index_bear_hedge.md) · module `f5_hedging/index_bear_hedge.py`_
+
+Every label below is local to this study. `B` and `H` are not `hedge_sizing`'s criteria, and
+`H-raw` is not `hedge_timing`'s `ARM H` family.
+
+- `B` (arm) — the deployed book: top three per day from tiers A and B, minus any index
+  bear. The base, never graded.
+- `H` (arm) — `B` plus every index bear, one risk unit per signal date. The one graded arm.
+- `H-raw` (arm) — `H` with the index bears at recorded size. Printed, and read as `RB3`.
+- `H-stock` (arm) — `B` plus single-stock bears, one unit per date. Printed, and read as
+  `RB5`.
+- `E-DD5` (population scope) — the primary sell-off: SPY at least 5% below its
+  63-session high, from that high to the lowest close.
+- `E-DD8` `E-VIX25` `E-20D5` (population scope) — sensitivity definitions. None yields a
+  verdict on its own.
+- `M1` `M2` `M3` (criterion) — drawdown cut per episode, carry outside episodes, and the net
+  with its break-even episode rate `f*`.
+- `G-ERA` `G-MTM` `G-HASH` `G-CENSUS` (gate) — a failed gate refuses the run.
+- `G-OPEN` (gate) — marks one episode not evaluable when over 25% of its sleeve positions
+  are still open at the data end.
+- `RB1` `RB2` `RB3` `RB4` `RB5` (gate) — the robustness battery. Each can veto a
+  protective verdict and none can create one.
+- `FORWARD VERDICT` (prose) — the headline grade, on sell-offs that start after 2026-10-09,
+  floor 5 episodes.
+- `FORWARD EARLY READ` (prose) — the declared secondary, floor 2 episodes. Never a verdict.
+
 ### Queued — pre-registered, no module yet
 
 #### `concurrency_correlation`
@@ -814,59 +947,12 @@ evaluated and no cell of the τ×f grid carries a number.
 - `ARM R` (arm) — Stage 2 always-fillable reference: delta-equivalent SHORT
   in the proxy underlying; clause 7's control. NOT `account_sim`'s `ARM R`.
 
-#### `cost_sensitivity`
-
-_Drafted in [`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md)_
-
-**DRAFT — not registered.** The file carries a STATUS line saying so, and the
-labels below are provisional until the operator accepts it. The study asks at
-what cost per leg the Tier A/B edge vanishes; it cannot be built before the
-cost knobs and the pre-fill grid fix land and the suite is re-run once.
-
-- `ARM Z` (arm) — Zero-cost control: the book exactly as it prints today.
-  Reference only, never a result of this study.
-- `ARM X` (arm) — The registered cost point: $0.65 per contract plus 25% of
-  the quoted spread, per leg, per side. The only arm any criterion is graded
-  on. COLLIDES with `macro_event_study`'s `ARM X` (its exit census), which is
-  unrelated — qualify every citation with its study.
-- `ARM SW` (arm) — The cost sweep, commission × slippage fraction. Sensitivity
-  only; it locates the breakeven contour and may never carry a verdict.
-- `ARM Q` (arm) — Quote availability: the census of missing or degenerate
-  quotes and the fixed three-step fallback ladder. A position with no usable
-  quote is UNCOSTABLE and excluded, never charged zero.
-- `ARM GAP` (arm) — Adverse-fill sensitivity on close-marked exits; folds
-  [`robustness-review.md`](robustness-review.md) B4 in as a sensitivity.
-
-#### `mechanical_benchmark`
-
-_Drafted in [`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md)_
-
-**DRAFT — not registered**, and NOT BUILDABLE until a pre-build census clears
-its floors: most mechanical counterpart legs are not in
-`backtests/option_history_cache/` today. The study asks whether the picks beat
-a mechanical bull call spread on the same dates and tickers.
-
-- `ARM T` (arm) — The deployed picks, replayed unchanged. Reference only.
-  COLLIDES with `staged_exit`'s and `trigger_entry`'s `ARM T`, which are
-  unrelated — qualify every citation with its study.
-- `ARM M1` (arm) — Fixed-geometry counterpart: ATM/+5% call vertical on the
-  same ticker and date, inside the pick's DTE band. PRIMARY.
-- `ARM M2` (arm) — Matched-geometry counterpart: the vertical whose
-  entry-dated delta and DTE are nearest the pick's. SECONDARY.
-- `ARM U` (control) — Universe null: the `ARM M1` wrap on random
-  flow-universe tickers for that date, ≥1,000 date-clustered draws. The
-  base-rate arm, and the one that answers "long calls just worked". COLLIDES
-  with `bear_giveback`'s `ARM U` (the underlying's price path) and
-  `exit_drawdown`'s `ARM U` (the underlying ATR stop), both unrelated —
-  qualify every citation with its study. Not the printed prose `ARM UNIVERSE`
-  below either.
-- `ARM CEN` (arm) — Census: pair-build rates, redraw rates and band coverage
-  by tier, structure and DTE band. Descriptive only, never a criterion.
-
-Registered alongside these two, with no arms of its own:
+Registered alongside `cost_sensitivity` and `mechanical_benchmark`, with no
+arms of its own:
 [`pre-registrations/f4_deployment/holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md)
-— a DRAFT commitment to seal the live dates, not a study. It has no module, no
-report and no labels to index.
+— a commitment to seal the live dates from 2026-09-23, accepted by default
+2026-10-09, not a study. It has no module, no report and no labels to index;
+the guard is in `scripts/backtest_study/lib/era.py`.
 
 ## Not labels
 

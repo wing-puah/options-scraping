@@ -127,7 +127,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`f1_selection/ml_combination.md`](f1_selection/ml_combination.md) | `ml_combination` — ground rules + Phases 0–5 carried over from `ml-plan.md` (2026-08-11) | run |
 | [`f1_selection/v4_bridge.md`](f1_selection/v4_bridge.md) | `v4_bridge` | run |
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
-| [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Waits on its pre-build census (§Dependencies — floors 1–5, read by the operator before any module is written or any backfill runs). | draft |
+| [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Accepted by default 2026-10-09 and built; the first run is `NOT BUILT — AWAITING SCRAPE`, with the fetch plan printed. | accepted by default 2026-10-09 |
 | [`f1_selection/ticker_class.md`](f1_selection/ticker_class.md) | `ticker_class` — do index ETFs carry more reliable edge than single-stock groups, direction held fixed? | registered |
 | [`f1_selection/ticker_class_regime.md`](f1_selection/ticker_class_regime.md) | `ticker_class_regime` — does the index-vs-single-stock gap depend on trend or volatility regime? Seven graded contrasts, forward dates only, with a confirmation window. | draft |
 
@@ -135,8 +135,8 @@ controls, cells and descriptive cuts under the same letters.
 
 | File | Study | Status |
 |---|---|---|
-| [`f2_management/cost_sensitivity.md`](f2_management/cost_sensitivity.md) | `cost_sensitivity` — at what cost per leg does the Tier A/B edge vanish? Waits on three prerequisites landing: the B1 cost knobs, the B2 pre-fill grid fix, and one `BacktestResults` suite re-run produced after both. | draft |
-| [`f2_management/bear_fast_exit.md`](f2_management/bear_fast_exit.md) | `bear_fast_exit` — is a bear debit closed within a few sessions, or at a small profit, positive net of trading costs? Waits on operator acceptance and the whole-book re-price. | draft |
+| [`f2_management/cost_sensitivity.md`](f2_management/cost_sensitivity.md) | `cost_sensitivity` — at what cost per leg does the Tier A/B edge vanish? Accepted by default 2026-10-09; `VANISHES` on both tiers. | graded |
+| [`f2_management/bear_fast_exit.md`](f2_management/bear_fast_exit.md) | `bear_fast_exit` — is a bear debit closed within a few sessions, or at a small profit, positive net of trading costs? Accepted by default 2026-10-09. The first run prints `BLEED-CUT (C7 PENDING)` on `TS 1`; C7 waits on the holdout seal. | run |
 | [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
 | [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
 | [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
@@ -152,9 +152,9 @@ controls, cells and descriptive cuts under the same letters.
 
 | File | Study | Status |
 |---|---|---|
-| [`f4_deployment/holdout_seal.md`](f4_deployment/holdout_seal.md) | `holdout_seal` — a COMMITMENT, not a study: seals every signal date on or after 2026-08-11 from research-tier outcome reads until 40 of them have priced. Waits on the operator choosing between its two named options (seal everything, or additionally exempt `v4_bridge`'s five composition tests) before it can be accepted. | draft |
+| [`f4_deployment/holdout_seal.md`](f4_deployment/holdout_seal.md) | `holdout_seal` — a COMMITMENT, not a study: seals every signal date on or after 2026-09-23 from research-tier outcome reads until 40 have priced, then one Tier A/B read. Named readers: `refuse_floor_forward`, `ticker_class` forward P1, `narrow_to_fit` forward read, each from 2026-10-08. Enforced by `lib/era.py`. | accepted by default 2026-10-09 |
 | [`f4_deployment/account_sim.md`](f4_deployment/account_sim.md) | `account_sim` | graded |
-| [`f4_deployment/ruin_bound.md`](f4_deployment/ruin_bound.md) | `ruin_bound` — which cap cell and guardrail earns the most while P(ruin) and the p95/p99 drawdown stay under bounds the operator fills in first? A re-simulating block bootstrap plus stress overlays. Waits on the whole-book re-price and full cost coverage. | draft |
+| [`f4_deployment/ruin_bound.md`](f4_deployment/ruin_bound.md) | `ruin_bound` — which cap cell and guardrail earns the most while P(ruin) and the p95/p99 drawdown stay under bounds fixed first? A re-simulating block bootstrap plus stress overlays, at $500 (headline) and $1,000 (declared secondary). Accepted by default 2026-10-09 on the drafter's defaults; first run the same day: `SAFEST ELIGIBLE CELL: N250-F2 G-none` at $500, `NO CELL MEETS THE BOUNDS` at $1,000. | registered |
 | [`f4_deployment/narrow_to_fit.md`](f4_deployment/narrow_to_fit.md) | `narrow_to_fit` — when a pick's one contract is over budget, does narrowing the spread to fit beat refusing it? Splits `account_sim`'s F2 gain into affordability and selection, and adds the operator's $1,000 stop. Registered 2026-10-01 with a $1,000 headline budget; the narrowed cells wait on a substitute-leg scrape, the cached cells do not. | registered |
 | [`f4_deployment/refuse_floor_forward.md`](f4_deployment/refuse_floor_forward.md) | `refuse_floor_forward` — a standing forward grade of `account_sim`'s F2 and `narrow_to_fit`'s `(R, F3, $500)` on signal dates from 2026-10-08 onward, through a confidence sequence valid under repeated looks. Registered 2026-10-07. | registered |
 | [`f4_deployment/selection_order.md`](f4_deployment/selection_order.md) | `selection_order` | run |
@@ -168,6 +168,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`f5_hedging/hedge_sizing.md`](f5_hedging/hedge_sizing.md) | `hedge_sizing` — original D-rules carried over from `ml-plan.md` §addendum 2 + the 2026-08-24 v4 re-read (card-line decision rules; sleeve itself operator-policy, exempt) | graded |
 | [`f5_hedging/hedge_structure.md`](f5_hedging/hedge_structure.md) | `hedge_structure` | run |
 | [`f5_hedging/hedge_portfolio.md`](f5_hedging/hedge_portfolio.md) | `hedge_portfolio` — registered 2026-08-29, built, run and graded 2026-08-31 (era v4). The operator's queued max-drawdown question, specific to their own practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? The registration's population clause was originally self-contradictory; the operator ratified `all` (996 rows / 145 dates), consolidated into this file's own §Population and basis on 2026-09-02. Result: the mechanism question is UNDERPOWERED (all nine cells), ARM M is MEASUREMENT-ONLY (the close-bucketed curve understates this book's max drawdown by 40.2%). Nothing ships; the question stays open. | graded |
+| [`f5_hedging/index_bear_hedge.md`](f5_hedging/index_bear_hedge.md) | `index_bear_hedge` — accepted by default, built and run 2026-10-09. Grades SPY, QQQ and IWM bear spreads as crash insurance on sell-offs after acceptance only (OD4). Forward verdict STILL-OPEN behind the holdout seal. | registered |
 | [`f5_hedging/hedge_timing.md`](f5_hedging/hedge_timing.md) | `hedge_timing` — registered 2026-08-28, run and graded same day (era v4 + v3 replication). Does a mechanical trigger — chop, SPY gap-up, a 4–5-day down-run — pick a day the bear hedge beats the same day's ladder-eligible long? GAP-UP came back CONTRARY (hedge worse than the long, both money arms) — §4 prohibition drafted and HELD; chop and the broad decline NULL; the strict streak UNDERPOWERED as fixed in advance (2 book dates). | graded |
 
 

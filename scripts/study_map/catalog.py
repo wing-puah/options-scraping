@@ -394,6 +394,18 @@ STUDIES: dict[str, Study] = {
                 "N=5)`, selection fragile. The v3 replication (same path) reads NULL on P1, S1 and "
                 "S3 under `PBO 0.845`, and S2 UNDERPOWERED. Forward read STILL-OPEN. Nothing ships.",
     ),
+    "mechanical_benchmark": Study(
+        family="selection", state="open",
+        question="Do the deployed picks beat a mechanical bull call spread on the same dates: "
+                 "ATM/+5% on the same ticker and expiry (M1), a delta-matched one (M2), and the "
+                 "same wrap on a random ticker from the day's flow universe (U)?",
+        verdict="2026-10-09 first run (v4, exports 2026-10-06; v3 as the stability read): "
+                "`VERDICT: NOT BUILT — AWAITING SCRAPE`. The census is the result and no outcome "
+                "was read. `fetch plan: 40299 unique uncached call contracts`; the same-ticker "
+                "arms need `M1:current=399` and `M2:current=311`, ARM U needs `U:current=32106` plus "
+                "stock bars for 1978 universe tickers, and floor 3 reads `median priceable share "
+                "of the day's universe  now 0.018`.",
+    ),
 
     # ② management
     "exit_mechanism_study": Study(
@@ -551,6 +563,20 @@ STUDIES: dict[str, Study] = {
                 "217   -0.118`, every interval straddling zero, so the monotone post-hoc "
                 "carry-forward earlier entries mentioned has no referent. The column is closed; "
                 "the live pipeline never pays the version bump.",
+    ),
+    "cost_sensitivity": Study(
+        family="management", state="null",
+        question="Robustness N1: does the deployed Tier A/B edge survive realistic trading costs, "
+                 "and at what cost per leg does it vanish?",
+        verdict="2026-10-09 run (sha 4004356, v4 exports of 2026-10-06, `deployed top-3/day: 582 "
+                "positions on 249 dates`): `VERDICT (headline: ungraded C4 counts as not holding): "
+                "Tier A VANISHES · Tier B VANISHES`, and the declared secondary line is the same. "
+                "At $0.65 per contract neither tier clears zero: Tier A `net meanR +0.1079  95% "
+                "date-clustered CI [-0.0163, +0.2373]`, Tier B `net meanR +0.0876  95% "
+                "date-clustered CI [-0.0262, +0.1925]`. Cost is not what removes the edge: "
+                "`The zero-cost cell already crosses: the gross CI includes zero, so there is no "
+                "gross edge for a cost to remove.` C4 is ungraded because G3 refuses the frozen v3 "
+                "export. Nothing ships.",
     ),
     "next_day_move": Study(
         family="management", state="null",
@@ -723,6 +749,18 @@ STUDIES: dict[str, Study] = {
                 "switches, and the scheduled switch has a measured cost rather than merely no "
                 "gain.",
     ),
+    "bear_fast_exit": Study(
+        family="management", state="null",
+        question="Does a bear debit closed within a few sessions, or at a small profit, pay "
+                 "net of trading costs, and does it beat the shipped bear-debit exit?",
+        verdict="2026-10-09 first run (sha 4699bd9; v4 primary, 686 bear-debit rows on 261 "
+                "dates; v3 replication, 329 on 109): `VERDICT (headline, $0.65/contract, "
+                "slippage 0): BLEED-CUT (C7 PENDING)` on `TS 1` alone. Every fast arm cuts the "
+                "v4 loss against the shipped exit, and no arm's net level clears zero on either "
+                "era. Only `TS 1` (exit at the entry-day close) also clears C4 on v3. The "
+                "declared 25%-of-spread line prints the same verdict. C7 waits on the holdout "
+                "seal, and a BLEED-CUT ships nothing.",
+    ),
 
     # ③ structure
     "bear_rewrap": Study(
@@ -873,7 +911,24 @@ STUDIES: dict[str, Study] = {
                 "report is a shippable rule.` pbo_ledger (2026-10-07) puts (R, F3, $500) net 2.50 "
                 "first of 63 on the full path under total, meanR and bar; (R, F3, $500) net 1.50, "
                 "the registered cap cell, is the in-sample pick in at most 9% of combinations. "
+                "2026-10-09 re-run adds the 20% net-floor declared secondary (resolved at build): "
+                "`declared secondary (R, F3, $1,000) + 20% net floor: NULL` and `declared "
+                "secondary (R, F3, $500) + 20% net floor: NARROW-FEASIBLE`; the headline lines "
+                "are unchanged. "
                 "Owed: a forward grade.",
+    ),
+    "ruin_bound": Study(
+        family="deployment", state="open",
+        question="The operator will accept a deeper drawdown for more return if a guardrail "
+                 "prevents ruin. Among six cap cells x four guardrails, which earns the most "
+                 "while P(ruin of half the account), the p95 and p99 marked drawdown and a "
+                 "total-loss day stay under bounds fixed first? $500 headline, $1,000 "
+                 "declared secondary.",
+        verdict="2026-10-09 first run (v4, exports 2026-10-06, 5,000 paths): `HEADLINE ($500 "
+                "budget and stop): >>> SAFEST ELIGIBLE CELL: N250-F2 G-none <<<` and `DECLARED "
+                "SECONDARY ($1,000 budget and stop): NO CELL MEETS THE BOUNDS`. Every F1 cell "
+                "fails at $500 (N150-F1 G-none: P(ruin) 17.8%, p95 marked DD 86.7%); the chosen "
+                "cell reads 0.0% and 24.1%. All gates pass. A reading only; no cap moves.",
     ),
     "pbo_ledger": Study(
         family="deployment", state="reference",
@@ -904,6 +959,9 @@ STUDIES: dict[str, Study] = {
                 "the module prints the census and STILL-OPEN for both cells and exits as a "
                 "designed refusal. The expected state is STILL-OPEN for months: about 175 "
                 "forward dates to confirm F2's in-sample effect and about 145 for F3's. "
+                "Since 2026-10-09 a declared secondary, (R, F3, $500) + 20% net floor, is "
+                "sequenced beside F3 outside the alpha family; it prints `>>> (R, F3, $500) + "
+                "20% net floor: STILL-OPEN <<<  (both cap cells)  DECLARED SECONDARY`. "
                 "Nothing ships from it; a FORWARD-CONFIRMED line only lets the operator "
                 "consider a §2 change.",
     ),
@@ -1210,6 +1268,22 @@ STUDIES: dict[str, Study] = {
                   "about twice as diversified as what the operator actually holds, which "
                   "registered hedge_concentration to measure the admitted book directly.",
     ),
+    "index_bear_hedge": Study(
+        family="hedging", state="open",
+        question="Graded as crash insurance rather than on standalone R, do the book's index "
+                 "bear spreads (SPY, QQQ, IWM) cut the deployed book's mark-to-market drawdown "
+                 "in market-defined sell-offs by more than they cost between them? Graded on "
+                 "future E-DD5 sell-offs only (OD4).",
+        verdict="2026-10-09 first run (v4, 1,850-row book, 280 dates; sleeve 201 index bears): "
+                "`FORWARD VERDICT (headline, floor 5 episodes): STILL-OPEN` and `FORWARD EARLY "
+                "READ (declared secondary, floor 2 episodes): STILL-OPEN` — no sell-off has "
+                "started since acceptance, and the holdout seal keeps the forward window shut "
+                "until it lifts. The five in-sample v4 episodes print as a DESCRIPTION, never a "
+                "verdict: `sum dDD over 5 evaluable: +$51,428; positive in 5 of 5`, permutation "
+                "`one-sided p 0.001`, but `C -$84,041 over 523 outside sessions` and `NET "
+                "-$43,947`, with the full-span MTM maxDD worse hedged (`B -$52,075  H -$67,770`). "
+                "The v3 same-episode description reads the same way on 4 episodes. Nothing ships.",
+    ),
 }
 
 # ── infrastructure ────────────────────────────────────────────────────────────
@@ -1290,6 +1364,12 @@ INFRA: dict[str, str] = {
                            "from exit_switch_mech_study so its harness gate, "
                            "exit_mechanism_study's calibrate() and book.py's debit_calib "
                            "cannot drift. Interprets lib/harness.py's output; never replays.",
+    "lib/ruin_walk.py": "ruin_bound's vectorised account walk: a second, independent copy of "
+                        "account_sim.simulate()'s ARM R loop that walks every resampled path of "
+                        "one configuration in lock-step, with the registered guardrails (G-M, "
+                        "G-K, G-C) and overlays (O1, O2), plus the stationary block sampler. "
+                        "Gate R2 holds it equal to simulate() on the real book; simulate() is "
+                        "unchanged.",
     "lib/triggers.py": "The rollback-trigger power census: is_affected/affected (outcome-"
                        "triple disagreement), peak_pnl/arming_rows (trigger 3's literal "
                        "'reach peak >= threshold'), and census_line (n rows/dates, the "
