@@ -875,6 +875,36 @@ tracked file, with each sequence's dates and values. Gate FW4 reads the
 previous line and re-checks its interval. Never edit or truncate the file:
 it is the record of every look.
 
+### ruin_bound
+
+Accepted by default 2026-10-09. It asks which cap cell and guardrail earns
+the most while the chance of ruin stays under a bound fixed first. Module
+`f4_deployment/ruin_bound.py`; the registration is the spec. The result is a
+reading for the operator and moves no tracked cap.
+
+**How it runs.** 24 configurations (six cap cells × four guardrails), each on
+5,000 resampled paths. Every one runs under four overlays, at three block
+lengths, on PRIMARY and SECONDARY, and at two budgets ($500 headline, $1,000
+declared secondary).
+
+- `Settings` is copied with `dataclasses.replace`, as `narrow_to_fit` does, so
+  no `account_sim` artifact is written. The report stem is `ruin_bound`.
+- `build()` sizes each ladder-eligible candidate, replays it with
+  `account_sim.replay_sized` and marks it with `mtm_curve.position_marks`.
+  The table it returns is all the walk reads.
+- The walk is `lib/ruin_walk.py`: pure NumPy, every path of one configuration
+  in lock-step. It is a second copy of `simulate()`'s ARM R loop, held equal
+  to it by gate R2 on the real book. `simulate()` is unchanged.
+- Opening a position schedules its marks and its release on the path, so a
+  session costs O(paths). The overlays fit the same scheme, because each
+  path's shock session is fixed by its own O0 walk.
+- The resample fans out over worker processes (`--workers`, default cores
+  minus one). A full run takes about 40 minutes; `--paths N` is a smoke run
+  that prints no verdict.
+
+**The seal.** It reads signal dates before `era.SEAL_START` only, dropping
+any later row itself as well as through `load_book()`.
+
 ### exit_drawdown and the exit-overlay layer
 
 `scripts/backtest_study/lib/exit_overlays.py` is the shared machinery for judging an exit
