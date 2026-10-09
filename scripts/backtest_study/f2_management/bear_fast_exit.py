@@ -60,7 +60,7 @@ from __future__ import annotations
 import argparse
 import statistics
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -599,11 +599,11 @@ def print_census(ev: dict) -> None:
                                      sorted(Counter(r['source'] for r in bear).items())))
     sub("gates")
     g3 = ("n/a (v3 is frozen; fill_trusted is the guard)" if ev["g3_blank"] is None
-          else f"PASS — every bear row carries cost_total")
+          else "PASS — every bear row carries cost_total")
     print(f"  G1 LEAK GUARD       PASS — {ev['n_nonbear']} non-bear rows x {len(ARMS)} arms, "
           f"0 changed")
-    print(f"  G2 BASELINE         PASS — pt-at-baseline and N-beyond-path reproduce "
-          f"the baseline on every row")
+    print("  G2 BASELINE         PASS — pt-at-baseline and N-beyond-path reproduce "
+          "the baseline on every row")
     print(f"  G3 POST-RE-PRICE    {g3}")
     print("  G2 baseline profile, built from config/backtest.yml at run time:")
     for (bear_he, prof), n in sorted(ev["profile_cells"].items()):
