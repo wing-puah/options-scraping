@@ -13,37 +13,50 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 ## 0. Repo state — read first
 
 <a id="pick-up"></a>
-### Pick up here — 2026-10-07
+### Pick up here — 2026-10-10
 
-`narrow_to_fit` is graded. The headline is `NULL`; the $500 secondary is
-`NARROW-FEASIBLE`, in-sample. Nothing ships
-([entry](current.md#2026-10-07--narrow_to_fit-graded-headline-null-500-narrow-feasible)).
+Seven parked drafts were accepted by default and run on 2026-10-09. The
+operator no longer signs drafts: Claude accepts each on its recommended
+defaults, and the operator may revisit later. A revisit after a result is a
+new registration
+([entry](current.md#2026-10-09--parked-drafts-accepted-by-default-and-run)).
 
-| Item | State |
+The finding that matters most: on v4, neither Tier A nor Tier B has a mean R
+clearly above zero, even before costs. `cost_sensitivity` reads `VANISHES`.
+No rule changes on it.
+
+| Item | Result |
 |---|---|
-| `--scope between` confirming passes | two done; empty feeds returned rows for 2, then 0 |
-| Cache backup | pushed `research-caches-20261007-1954` |
-| GN5 coverage | clears: 5% at $1,000, 9% at $500 (bar 10%) |
-| (R, F3, $1,000), headline | `NULL` |
-| (R, F3, $500), secondary | `NARROW-FEASIBLE` |
-| Stop-basis lines | `NOT FEASIBLE` |
-| `pbo_ledger` with F3 | PRIMARY PBO total 69.4% → 47.0% |
+| `holdout_seal` | sealed from 2026-09-23; 0 of 40 dates priced |
+| item 14, price floor | 20% floor is a declared secondary; verdicts unchanged |
+| `index_bear_hedge` | `STILL-OPEN`; in-sample it cuts every sell-off but nets −$43,947 |
+| `bear_fast_exit` | `BLEED-CUT`; loses less, still loses after cost |
+| `ruin_bound` | $500 safe with the F2 refusal; $1,000 has no cell in bounds |
+| `cost_sensitivity` | `VANISHES` on both tiers |
+| `mechanical_benchmark` | not run; waits on a fetch, item 15 |
 
-**Open, for the operator.**
+**To do next, in order.**
 
-1. Decided 2026-10-07: (R, F3, $500) joins F2 as a graded cell of
-   `refuse_floor_forward.md`, accepted the same day. It stays a candidate,
-   not a rule, until that grade confirms it.
-2. The cap cell stays at net 1.50. The F3 $500 cell at net 2.50 ranks first
-   on the PBO ledger, but that cell is not the registered one.
-3. `holdout_seal` was accepted by default 2026-10-09. It seals signal dates
-   from 2026-09-23 until 40 have priced
-   ([entry](current.md#2026-10-09--holdout_seal-accepted-by-default-sealed-from-2026-09-23)).
-   The operator may revisit it; a revisit after a result is a new
-   registration.
-4. Seven parked drafts were accepted by default and run on 2026-10-09. The
-   numbered items below carry each outcome
-   ([entry](current.md#2026-10-09--parked-drafts-accepted-by-default-and-run)).
+1. **Operator: decide item 15**, the `mechanical_benchmark` fetch. The
+   same-ticker arm needs about 710 contracts. The random-ticker arm, which
+   answers the question, needs about 39,000 plus 1,978 tickers of history.
+   Default: nothing is fetched.
+2. **Operator, optional: the seal start.** It is 2026-09-23, not the draft's
+   2026-08-11, because earlier runs had read the earlier dates. Default: it
+   stands.
+3. **Operator, optional: read the `VANISHES` result** and the `ruin_bound`
+   $1,000 reading. Neither changes a rule; ask questions.
+4. **Claude: point the four new studies at the shared seal date.**
+   `index_bear_hedge`, `bear_fast_exit`, `ruin_bound` and
+   `mechanical_benchmark` each copy 2026-09-23. They should read it from
+   `scripts/backtest_study/lib/era.py`. Harmless today: the seal withholds 0
+   rows.
+5. **Claude: remove seven stale worktrees** under `.claude/worktrees/agent-*`,
+   from 2026-09-22. Every commit on them is already on main by patch id, and
+   none has local changes. Removal was refused by the permission classifier;
+   the operator runs `git worktree remove` and `git branch -D` on each.
+6. **Waits on dates:** the forward grades in item 12, §2.2, §2.6 and the
+   seal count. Run the suite once new dates price.
 
 **Where things stand.**
 
