@@ -1,11 +1,19 @@
 ## mechanical_benchmark — do the picks beat a mechanical bull call spread on the same dates?
 
-_Registered ____-__-__ (DRAFT — not registered; becomes immutable in substance when the operator accepts it)._
+_Registered 2026-10-09._
 
-**STATUS: DRAFT.** Until acceptance every number, arm, gate and verdict
-below may be edited. After acceptance none of them may. The registration
-date is filled in on acceptance and is the only date this file then
-carries.
+**STATUS: ACCEPTED BY DEFAULT 2026-10-09 on the drafter's recommended
+defaults; the operator may revisit (a revisit after a result is a NEW
+registration, never an edit).** Every open decision of the draft is answered
+beside the text it amends, tagged _Resolved at build (2026-10-09):_. Every default
+was fixed before any outcome column was read.
+
+**What this file now says, in one paragraph.** The census runs first, inside
+the study module, and decides whether anything else prints. On the cache as it
+stood on 2026-10-09 it does not pass: the M1 legs are a few hundred contracts
+away, and `ARM U` needs tens of thousands, plus stock bars for most of the
+flow universe. So the recorded result is `NOT BUILT — AWAITING SCRAPE`, with
+the fetch plan printed. No outcome has been read.
 
 ## Question
 
@@ -45,6 +53,17 @@ external comparator.
   exit profile ([§5](../../../docs/deployment-rules.md#s5)) and the same
   [path cap](../../glossary.md#path-cap). The comparison is exit-neutral by
   construction.
+
+  _Resolved at build (2026-10-09):_ the headline replays BOTH sides under
+  `DEBIT_PROD` (pt 0.90, sl 0.75, time exit 0.75), the debit row of §5, as G3
+  asks. That puts the credit picks (`bull_put_spread`, Tier B) under a debit
+  profile too. A declared secondary replays each side under its own §5 row:
+  `CREDIT_PROD` for a credit pick, the trail row on a mech `BEAR_HE` date,
+  else `DEBIT_PROD`. The secondary prints beside the headline and carries no
+  verdict. Both sides are cut at their data end (`replay_basis.bounded`).
+  The pick replays at its own contract count, as the book holds it. The
+  counterpart replays at 1 lot, as the geometry table says. Only the
+  harness's $1,000 dollar stop reads the count.
 - **Not a proposal to trade the mechanical wrap.** No outcome of this study
   ships a mechanical rule. A mechanical wrap that wins is a finding about the
   picks, not a new strategy.
@@ -54,6 +73,9 @@ external comparator.
   [`cost_sensitivity`](../f2_management/cost_sensitivity.md)'s question. If
   that study lands first, this one inherits its cost model unchanged; if not,
   both books are gross and the report says so on every table.
+
+  _Resolved at build (2026-10-09):_ `cost_sensitivity` is still a draft, so
+  both books are gross. The harness replays the stored marks, which are pre-cost.
 - **Not a claim about the operator's read.** What the operator actually traded
   is [next-steps §2.5](../../next-steps.md#s2-5)'s `operator_read`, which needs
   the journal.
@@ -78,16 +100,61 @@ The two arms differ only in how the strikes and expiry are chosen.
 | short strike | the listed strike nearest `entry_underlying × 1.05` | the listed strike 5% above the long strike, rounded to the nearest listed strike |
 | contracts | 1 | 1 |
 
+_Resolved at build (2026-10-09):_ the expiry rule compares the pick's
+`dte_entry` with a DTE taken on a different day. `dte_entry` is counted from
+the pick's recorded entry day, not the signal date. Both are now counted from
+the same day, so the pick's own expiry is always the nearest (distance 0). M1
+and M2 therefore use the pick's own expiry. Counting both from the signal date
+would instead pick a daily expiry one or two days earlier on SPY and QQQ,
+which the rule never meant.
+
+_Resolved at build (2026-10-09):_ "the pick's `delta`" has two honest meanings,
+so both print.
+
+| Arm | Delta target | Role |
+|---|---|---|
+| `ARM M2` | the pick's net position delta (the `delta` column's quantity), absolute | SECONDARY, as registered |
+| `ARM M2L` | the pick's bought leg's delta, absolute | declared secondary; no verdict |
+
+Both targets and every candidate delta are read on the signal date (see the
+next tag). The candidate is a call; its delta is compared with the target's
+absolute value, so a put pick's target is matched by a call of that size.
+
 Three rules bind both arms:
 
 - **Strikes and expiry are chosen from entry-dated information only.** The
   listed chain, the underlying close and the entry-dated delta. Nothing dated
   after the signal date may enter the choice (gate G2).
+
+  _Resolved at build (2026-10-09):_ "entry-dated" and "nothing after the
+  signal date" disagree, because the entry fills at the next session's open.
+  The stricter one holds. Every input to the choice is dated on or before the
+  signal date:
+
+  - the underlying is the median `Price~` of the pick's own legs on the signal
+    date, else of the ticker's other cached contracts that day;
+  - a strike is listed when its cached history has a row on or before the
+    signal date;
+  - a delta is the strike's `Delta` on the signal date.
+
+  The fill is on the pick's recorded entry day
+  (`bear_rewrap.recorded_entry_date`), so both sides of a pair enter on the
+  same session. G2 re-runs every choice on a cache cut at the signal date.
+  Any difference fails the run.
 - **No degenerate pair.** If the two chosen strikes collide, or the resulting
   width is zero, the pair is dropped and counted, never silently widened.
 - **A dropped pair is dropped on BOTH sides.** Every comparison is paired. A
   pick whose counterpart cannot be built leaves the comparison entirely, and
   its exclusion is reported by tier and DTE band (`ARM CEN`).
+
+_Resolved at build (2026-10-09):_ the full listed chain is not on disk. The
+study treats as listed every cached strike, plus every multiple of the finer
+of the cached spacing and the standard listing step. A pair whose nearest such
+strike is not cached, and that the skip-list holds no evidence against, is
+AWAITING FETCH. It is neither built on the next strike nor dropped. While any
+pair awaits, no outcome prints: the cached strikes are the ones the book
+traded, so the cached subset is not the registered population. A fetch that
+returns 404 puts the strike on the skip-list, and the walk then steps past it.
 
 `h ≥ 180` is out of scope. It is unpriceable with real data and the BS proxy
 tier is OFF ([next-steps §2.7](../../next-steps.md#s2-7)).
@@ -116,7 +183,30 @@ stocks can be reported separately.
 - The ticker's own flow score plays no part in the draw. Using it would put
   selection back into the benchmark.
 
+_Resolved at build (2026-10-09):_ how `ARM U` runs.
+
+- **Source.** The universe is `audit/<date>-rollup.csv`, the copy the analysis
+  fetch writes, with `backtests/analysis_inputs_cache/` as the fallback. The
+  mirror named above stops at 2026-04-07, and v4 dates need the audit copy.
+  `Section` (`etfs`, `stocks`) is the tag.
+- **Expiry.** A random ticker has no expiry of its own. It gets the standard
+  monthly expiry (third Friday, the Thursday before on a holiday) whose DTE
+  from the entry day is nearest the pick's, inside the pick's band. Weeklies are
+  not used, because which weeklies a name lists is not known from disk.
+- **Underlying.** The median `Price~` of the ticker's cached contracts on the
+  signal date. Stock bars are used only to plan a fetch, never to choose or
+  price.
+- **The draw.** Redrawing until priceable samples uniformly from the
+  priceable universe. So the paired comparison uses each slot's mean over its
+  priceable universe, and the 1,000 seeded draws give the band. The redraw rate
+  is `1 − priceable share`, per date and expiry. A date where it exceeds 25% is
+  unusable.
+
 ## Dependencies
+
+_Resolved at build (2026-10-09):_ the census is the study module's first
+stage, not a separate script. It prints counts only, and the module stops
+there unless every floor passes and nothing awaits a fetch.
 
 The study is NOT built until a census has been run and read. The mechanical
 legs are contracts the backtest never needed, so most of them are not in
@@ -145,6 +235,22 @@ and read by the operator:
 | 4 | Contracts that must be fetched to reach floors 1–3, as a count and as an estimated scrape volume | named, and approved by the operator before any fetch |
 | 5 | Share of pairs falling in each DTE band | printed; no floor, but a band with fewer than 10 pairs is not read |
 
+_Resolved at build (2026-10-09):_ four floors needed a ruling.
+
+| Floor | Problem | Ruling |
+|---|---|---|
+| 1 | Top-3 per day caps a date at 3 pairs, so "≥ 5 pairs" can never pass | Headline: dates with at least 1 priced M1 pair. Two declared secondary lines print beside it. |
+| 2 | Picks out of scope (DTE ≥ 180 or < 7) are dropped for every tier alike | Floor 2 counts in-scope picks only, and ignores pairs still awaiting a fetch |
+| 3 | A date can carry up to three expiries | A date's share is its lowest across its expiries |
+| 4 | Under the default policy no one approves a fetch | The count prints and the run stops at `NOT BUILT — AWAITING SCRAPE` |
+
+The two floor-1 secondary lines are dates whose every deployed pick is paired,
+and dates with at least 5 pairs. The second is always 0.
+
+Each floor prints two values: what the cache gives now, and the most a full
+fetch could give. A floor that fails even at that upper value is a definitive
+`NOT BUILT`.
+
 Floor 2 is the one that can kill the study rather than delay it. If the
 unbuildable share is tier-dependent, the benchmark is liquidity-selected and
 the comparison is confounded. In that case the census IS the result, it is
@@ -154,6 +260,12 @@ recorded as such, and it feeds the join-attrition question
 **No study code fetches.** Any backfill runs through
 `scripts/collector/fetch_counterpart_history.py` as a separate, operator-run
 step, and the option cache is pushed to Drive afterwards.
+
+_Resolved at build (2026-10-09):_ that collector fetches the other leg of a
+book row, a different target set. The backfill runs through a new collector,
+`scripts/collector/fetch_mechanical_legs.py`. It imports the study's own fetch
+plan and fetches through the backtest's loop, as `fetch_substitute_legs.py`
+does. It is still operator-run, and the cache is still pushed afterwards.
 
 ## Population and basis, fixed here
 
@@ -176,6 +288,12 @@ step, and the option cache is pushed to Drive afterwards.
   sweep the seal the moment a live date priced. The exclusion tracks the seal
   rather than a date list. If the operator declines `holdout_seal`, this clause
   is inert and the population is the whole era.
+
+  _Resolved at build (2026-10-09):_ `holdout_seal` was accepted on 2026-10-09
+  with its first sealed date at 2026-09-23. This study is not a named reader,
+  so every signal date from 2026-09-23 is withheld from every arm, and
+  `ARM U` never reads a sealed date. The module loads the book through
+  `load_book()` and applies `era.drop_sealed` again; it opens no export itself.
 - **Pairing.** By date, using `protocol.boot_ci_paired_by_date`. Never pooled
   across dates unpaired.
 - **Direction.** The mechanical wrap is a bull call vertical in every arm, on
@@ -183,6 +301,9 @@ step, and the option cache is pushed to Drive afterwards.
   a mechanic who only buys call spreads would have made", and a bear pick that
   loses to it is exactly the comparison being asked for. The bear subset is
   also reported on its own.
+
+  _Resolved at build (2026-10-09):_ the ladder deploys no bear structure, so
+  "bear picks" are the deployed rows whose model regime reads BEAR.
 
 ## Arms
 
@@ -247,6 +368,10 @@ All of C1–C5 for a selection claim. C1–C3 are the registered pass rule from
   Not "most". Every one.
 - **C3 BEATS THE BASE RATE.** The gain over `ARM U` exceeds `ARM U`'s p95
   band.
+
+  _Resolved at build (2026-10-09):_ C3 passes when the picks' mean R, over
+  the slots `ARM U` covers, is above the p95 of the random book's mean R
+  across the 1,000 draws.
 - **C4 TIER COHERENCE.** Tier A's gain is not smaller than Tier B's. The
   comparison is A-versus-B and never A-versus-C: the deployed set fixed in
   §Population is `ladder_eligible`, which is `tier in ("A", "B")`
@@ -255,7 +380,13 @@ All of C1–C5 for a selection claim. C1–C3 are the registered pass rule from
   whose top tier beats the mechanic by less than its second tier does is
   evidence against the ladder, and is reported as such rather than averaged
   away.
+
+  _Resolved at build (2026-10-09):_ C4 is graded on `ARM U`, the arm that
+  carries the selection claim. It prints for every arm.
 - **C5 ERA STABILITY.** C1 holds on both eras with the same sign.
+
+  _Resolved at build (2026-10-09):_ C5 is graded on `ARM U`. The v3 era runs
+  in the same process.
 
 ## Verdicts, worded now
 
@@ -280,6 +411,16 @@ All of C1–C5 for a selection claim. C1–C3 are the registered pass rule from
 - **UNDERPOWERED** — no arm clears C0. Census printed, nothing concluded.
 - **NOT BUILT** — the pre-build census fails its floors. The census is the
   recorded result.
+
+_Resolved at build (2026-10-09):_ two more labels.
+
+- `NOT BUILT — AWAITING SCRAPE` is the census when a floor could still pass
+  after the operator-run fetch.
+- Some outcomes match no worded verdict, for example M1 clearing C1 but not
+  C2. Those print `UNWORDED`, with the criteria met.
+
+`CONTRARY` takes precedence over the other powered verdicts, since it must
+reach the operator first.
 
 ## Anti-tuning
 
@@ -313,3 +454,10 @@ Not part of the registration. Implementation only.
   structure label so the mechanical wrap classifies identically to a real one.
 - `tests/` gets the geometry rules: band matching, degenerate-pair rejection,
   entry-dated-only selection, and the paired-drop symmetry.
+- Built 2026-10-09: `scripts/backtest_study/f1_selection/mechanical_benchmark.py`,
+  `scripts/collector/fetch_mechanical_legs.py`,
+  `tests/test_mechanical_benchmark.py`. Pricing is production's
+  `simulate._simulate` over the cache, loaded as `narrow_to_fit.Chain` loads
+  it. Entry fills, junk quotes and the debit-to-credit refusal are therefore
+  production's. No model price is used. G5 rebuilds the commission-only picks
+  at their own strikes and must match them.
