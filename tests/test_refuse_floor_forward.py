@@ -28,6 +28,17 @@ def test_registered_constants():
     assert M.ALPHA * len(M.GRADED) * len(M.CAPS) == pytest.approx(0.05)
 
 
+def test_the_floored_f3_line_is_a_declared_secondary_outside_the_family():
+    # Resolved at build 2026-10-09: sequenced and printed, never graded into
+    # the four-sequence alpha family, and narrowed under narrow_to_fit's floor.
+    assert M.SECONDARY == ("F3_FL",)
+    assert not set(M.SECONDARY) & set(M.GRADED)
+    assert M.SEQUENCED == M.GRADED + M.SECONDARY
+    row = {k: (kind, floor, graded) for k, _l, kind, floor, graded in M.CELLS}
+    assert row["F3_FL"] == ("low", "narrow", False) == row["F3"][:2] + (False,)
+    assert M.NF.NET_FLOOR_SHARE == 0.20
+
+
 def test_open_means_cap_open_at_the_data_end_only():
     assert M.is_open(pos("2026-10-08", 0.1, "cap_open", "open_at_data_end"))
     assert not M.is_open(pos("2026-10-08", 0.1, "cap_open", "complete"))    # path cap

@@ -148,6 +148,28 @@ counts as unlisted only when all three hold:
 Until then it stays `unproven`. The 2026-10-07 scrape left 1,934 such
 answers, which no earlier text ruled on.
 
+*Resolved at build (2026-10-09).* The registered rule above, with no price
+floor, stays the headline. A net floor prints beside it as a declared
+secondary line, and it never changes a verdict.
+
+- **The floored line.** The walk is the same. If the widest strike that fits
+  gives a debit spread whose net debit is under 20% of its width, the pick is
+  refused into `narrow_no_fit`, reason `below_net_floor`. The walk does not
+  step on to a narrower strike.
+- **Credit spreads are never floored.** A tiny credit leaves max loss near the
+  width, so it cannot size up.
+- **Why.** A near-zero net sizes to many contracts. MU 2026-09-21 fit at $0.06
+  on a 40-wide spread and sized to 83 contracts
+  ([next-steps §0, item 14](../../next-steps.md#pick-up)).
+- **Where it prints.** Beside `(R, F3, $1,000)` and `(R, F3, $500)`, graded
+  on the same N1–N5 and verdict table, and labelled declared secondary.
+- **On this book it is seen, not tested.** The 20% was picked after item 14's
+  in-sample read. Its clean test is the forward grade in
+  [`refuse_floor_forward`](refuse_floor_forward.md#cells).
+- **Fixed before any forward date priced.** On the 2026-10-06 exports no
+  signal date on or after 2026-10-08 has a row, and no date on or after
+  2026-09-23 has a priced one.
+
 ### Stop-decoupled floor (cell `F4`)
 
 `F4` sizes like F1 at the $500 budget, but its dollar stop is $1,000. It
@@ -299,6 +321,11 @@ Three new objects enter the
 which caps new arms on this era at three: the narrow rule `F3`, the $1,000
 level, and the decoupled stop `F4`. The ledger is printed with every report.
 
+*Resolved at build (2026-10-09).* Two declared secondary lines join the
+table: `(R, F3, $1,000) + 20% net floor` and `(R, F3, $500) + 20% net floor`
+([the floor](#narrow-to-fit-cell-family-f3)). They are not new arms and carry
+no verdict. The ledger prints them as seen on this book.
+
 ## Unit and metric
 
 - **Account metrics** are `account_sim`'s: total dollars, maxDD on the
@@ -367,6 +394,8 @@ window is cut.
 **`(R, F3, $500)`** is graded on N1–N5 and prints its own verdict line from
 the table below. **`(R, F1, $1,000)` and `F4`** are graded on N1–N3 and print
 the stop-basis line. None of them changes the headline verdict.
+*Resolved at build (2026-10-09):* each floored F3 line is graded on N1–N5
+like its cell and prints its own verdict line beside it.
 
 ## Verdicts, worded now
 
@@ -394,6 +423,8 @@ The stop-basis line reads one of three ways for each of
 
 - **The cells are fixed at seven,** as tabled under [Arms](#arms). No other
   budget, no other stop, and no D cells. A new cell is a new registration.
+  *Resolved at build (2026-10-09):* the two floored F3 lines are declared
+  secondaries, not cells. The floor share is fixed at 20% and is not re-tuned.
 - **A cell is never adopted on its P&L.** A verdict is read from the bar
   above, never from comparing totals across cells.
 - **The strike rule is fixed:** widest that fits, from entry-day fills. It is

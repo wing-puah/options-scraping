@@ -15,6 +15,12 @@ sizing budget, dollar stop):
     (R, F2, $500)    refuse  $500    $500     the post-hoc result in question
     F4               take    $500    $1,000   the stop effect alone
 
+plus, beside each F3 cell, a DECLARED SECONDARY line (resolved at build
+2026-10-09, next-steps §0 item 14): the same F3 walk with a net floor, under
+which a narrowed debit spread whose net debit is below `NET_FLOOR_SHARE` (20%)
+of its width is refused. The registered no-floor rule stays the headline; the
+floored lines never change a verdict.
+
 The cells run IN PROCESS on `account_sim.simulate`, with `Settings` copied
 by `dataclasses.replace` rather than a copied config file, so no account_sim
 artifact is written or overwritten. The floor rule is `Cfg.floor`; F3 passes
@@ -151,6 +157,22 @@ CELLS = (
     ("F4", "F4 ($500 budget, $1,000 stop)", "low", HIGH_BUDGET, "take", "cell"),
 )
 CELL_LABEL = {k: lab for k, lab, *_ in CELLS}
+
+#: The net floor on a narrowed DEBIT spread (registration, "Narrow-to-fit",
+#: resolved at build 2026-10-09; next-steps §0 item 14). A narrowed debit
+#: spread whose net debit is under this share of its width is refused into
+#: `narrow_no_fit` (reason `below_net_floor`) rather than sized to many
+#: contracts. NOT the registered rule: the headline cells keep no floor, and
+#: the floored cells print as DECLARED SECONDARY lines beside them. A credit
+#: spread is never floored — a near-zero credit leaves max loss near the width,
+#: so it cannot size up.
+NET_FLOOR_SHARE = 0.20
+#: The declared-secondary floored cells: key -> (registered cell it floors, label).
+FLOOR_CELLS = {
+    "F3_HI_FL": ("F3_HI", "(R, F3, $1,000) + 20% net floor"),
+    "F3_LO_FL": ("F3_LO", "(R, F3, $500) + 20% net floor"),
+}
+CELL_LABEL.update({k: lab for k, (_base, lab) in FLOOR_CELLS.items()})
 
 log = logging.getLogger("narrow_to_fit")
 
@@ -362,7 +384,8 @@ def entry_greek_row(chain: Chain, leg: Leg, entry_day: date) -> dict | None:
 
 @dataclasses.dataclass(frozen=True)
 class Choice:
-    """The outcome of one walk. `reason`: fit | no_fit | unproven | unpriced."""
+    """The outcome of one walk. `reason`: fit | no_fit | unproven | unpriced |
+    below_floor (only with a net floor)."""
     reason: str
     strike: float | None = None
     net: float | None = None
@@ -371,8 +394,21 @@ class Choice:
     steps: int = 0
 
 
+def below_net_floor(net: float, width: float, credit: bool,
+                    floor: float | None) -> bool:
+    """True when a narrowed DEBIT spread's net debit is under `floor` x width.
+
+    `floor` None is the registered rule (no floor). A credit spread is never
+    floored: a near-zero credit leaves its max loss near the width.
+    """
+    if floor is None or credit or width <= 0:
+        return False
+    return net < floor * width - 1e-9
+
+
 def choose_strike(rec: dict, budget: float, chain: Chain, evidence: set[str],
-                  roles: tuple[int, int], entry_day: date) -> Choice:
+                  roles: tuple[int, int], entry_day: date,
+                  net_floor: float | None = None) -> Choice:
     """Walk the mover inward from the proposed strike; widest that fits wins.
 
     Every grid strike is visited in order, nothing is skipped on a guess:
@@ -388,6 +424,13 @@ def choose_strike(rec: dict, budget: float, chain: Chain, evidence: set[str],
       * otherwise                           -> step on.
 
     Exhausting the grid is `no_fit`.
+
+    With `net_floor` set (the declared-secondary floor, `NET_FLOOR_SHARE`), the
+    widest strike that fits is still the choice, and the walk stops there: if
+    that spread's net debit is under `net_floor` x its width the result is
+    `below_floor` and the pick is refused. The walk never steps past it to a
+    narrower strike, so the floor only removes picks the registered rule
+    narrows; it never picks a different strike.
     """
     t: Trade = rec["t"]
     legs = list(t.legs)
@@ -425,6 +468,12 @@ def choose_strike(rec: dict, budget: float, chain: Chain, evidence: set[str],
         if ml is None or ml <= 0:
             return Choice("unpriced", detail=f"{stem} max loss unbounded", steps=steps)
         if ml <= budget + AS.EPS:
+            width = abs(anchor.strike - k)
+            if below_net_floor(net, width, bool(rec.get("credit")), net_floor):
+                return Choice("below_floor", strike=k, net=net, max_loss=ml,
+                              detail=f"{stem} net {net:.4f} under "
+                                     f"{net_floor:.0%} of width {width:g}",
+                              steps=steps)
             return Choice("fit", strike=k, net=net, max_loss=ml, steps=steps)
     return Choice("no_fit", steps=steps)
 
@@ -571,9 +620,11 @@ class Narrower:
     """
 
     def __init__(self, chain: Chain, evidence: set[str], sim_cfg: dict,
-                 force_refuse: bool = False):
+                 force_refuse: bool = False, net_floor: float | None = None):
         self.chain, self.evidence, self.sim_cfg = chain, evidence, sim_cfg
         self.force_refuse = force_refuse
+        #: None = the registered rule; NET_FLOOR_SHARE = the declared secondary.
+        self.net_floor = net_floor
         self.log: dict[tuple, Narrowing] = {}
 
     def __call__(self, rec: dict, budget: float):
@@ -594,9 +645,14 @@ class Narrower:
         entry_day = recorded_entry_date(t)
         if entry_day is None:
             return Narrowing(rec, budget, "narrow_unpriced", "no_recorded_entry_day")
-        ch = choose_strike(rec, budget, self.chain, self.evidence, roles, entry_day)
+        ch = choose_strike(rec, budget, self.chain, self.evidence, roles, entry_day,
+                           net_floor=self.net_floor)
         if ch.reason == "no_fit":
             return Narrowing(rec, budget, "narrow_no_fit", "no_fit", ch)
+        if ch.reason == "below_floor":
+            # Nothing fits the floored rule: the same bucket as no_fit, so
+            # account_sim's census partition is unchanged; the reason says why.
+            return Narrowing(rec, budget, "narrow_no_fit", "below_net_floor", ch)
         if ch.reason != "fit":
             return Narrowing(rec, budget, "narrow_unpriced", ch.reason, ch)
 
@@ -965,9 +1021,15 @@ def print_ledger(n_cells: int) -> None:
     2. the $1,000 budget level
     3. the decoupled stop F4
 
-  F1 and F2 at $500 were seen before registration (plan-time observations).""")
-    print(f"  cells scored by this run: {n_cells} (7 registered cells x 2 cap cells x "
-          f"2 populations, F3 only where GN5 lets it grade)")
+  F1 and F2 at $500 were seen before registration (plan-time observations).
+
+  Declared secondary, resolved at build 2026-10-09 (next-steps §0 item 14):
+  F3 at both budgets with a 20% net floor on a narrowed debit spread. It is
+  not a new arm and changes no verdict. It was chosen after the in-sample book
+  showed the near-zero fits, so on these dates it is SEEN, not a test.""")
+    print(f"  cells scored by this run: {n_cells} (7 registered cells + 2 floored "
+          f"F3 lines, x 2 cap cells x 2 populations, F3 only where GN5 lets it "
+          f"grade)")
 
 
 def main(argv=None) -> int:
@@ -1002,6 +1064,7 @@ def main(argv=None) -> int:
           f"{diag.get('n_dates')} dates  {diag.get('date_range')}")
 
     cell_st = {k: settings_for(st, kind, stop) for k, _l, kind, stop, _f, _r in CELLS}
+    cell_st.update({k: cell_st[base] for k, (base, _lab) in FLOOR_CELLS.items()})
 
     # ── G2-G5, account_sim's, on each settings basis the cached cells use ──
     gates_ok = True
@@ -1032,6 +1095,9 @@ def main(argv=None) -> int:
     evidence = unlisted_evidence()
     sim_cfg = _sim_cfg()
     narrower = Narrower(chain, evidence, sim_cfg)
+    # The declared secondary (resolved at build 2026-10-09): the same walk with
+    # the net floor. Its own memo, so its narrowed records never alias F3's.
+    floor_narrower = Narrower(chain, evidence, sim_cfg, net_floor=NET_FLOOR_SHARE)
     cache = AS.new_cache()
     exit_code = 0
 
@@ -1097,6 +1163,10 @@ def main(argv=None) -> int:
                 sims[(pop, cap, key)] = AS.simulate(
                     day_lists, cfg_for(s, label, floor, cap), cache=cache,
                     narrower=narrower if floor == "narrow" else None)
+            for key, (base, label) in FLOOR_CELLS.items():
+                sims[(pop, cap, key)] = AS.simulate(
+                    day_lists, cfg_for(cell_st[base], label, "narrow", cap),
+                    cache=cache, narrower=floor_narrower)
             for key in ("F1_LO", "F1_HI", "F4"):
                 s = cell_st[key]
                 b2s[(pop, cap, key)] = AS.simulate(
@@ -1157,9 +1227,11 @@ def main(argv=None) -> int:
     # ── F3 cells: census, GN5, GN0 ───────────────────────────────────────
     hdr("F3 CELLS — census and coverage (GN5) / power (GN0)")
     f3 = {}
-    for key in ("F3_HI", "F3_LO"):
-        b = HIGH_BUDGET if key == "F3_HI" else low
-        sub(f"{CELL_LABEL[key]}")
+    for key in ("F3_HI", "F3_LO", *FLOOR_CELLS):
+        base = FLOOR_CELLS.get(key, (key,))[0]
+        b = HIGH_BUDGET if base == "F3_HI" else low
+        sub(f"{CELL_LABEL[key]}"
+            f"{' — DECLARED SECONDARY (2026-10-09)' if key in FLOOR_CELLS else ''}")
         for pop, _dates in pops:
             for cap in caps:
                 c = print_census(sims[(pop, cap, key)],
@@ -1167,7 +1239,7 @@ def main(argv=None) -> int:
                 f3[(pop, cap, key)] = c
         prim_ids = {id(r) for r in recs if r["date"] in ep_dates}
         print("  PRIMARY narrowing reasons (each over-budget pick once):")
-        print_reasons(narrower, b, prim_ids)
+        print_reasons(floor_narrower if key in FLOOR_CELLS else narrower, b, prim_ids)
         head = f3[("PRIMARY", head_cap, key)]
         gn5 = head["share"] > GN5_MAX_UNPRICED
         print(f"  GN5 COVERAGE: {head['unpriced']} of {head['offered']} over-budget "
@@ -1194,8 +1266,9 @@ def main(argv=None) -> int:
         for cap in caps:
             s = scores.get(("PRIMARY", cap, key))
             if s is None:
+                base = FLOOR_CELLS.get(key, (key,))[0]
                 s = AS.criteria_scores(sims[("PRIMARY", cap, key)],
-                                       b2s[("PRIMARY", cap, "F1_HI" if key.endswith("HI")
+                                       b2s[("PRIMARY", cap, "F1_HI" if base.endswith("HI")
                                             else "F1_LO")], cell_st[key])
             n1 = feasible(s)
             med = n2_median(sims[("PRIMARY", cap, key)])
@@ -1227,9 +1300,16 @@ def main(argv=None) -> int:
               f"{CELL_LABEL['F1_LO']} ${ref_mdd:,.0f})\n")
 
     verdicts = {}
-    for key in ("F3_HI", "F3_LO"):
-        hdr(f"{CELL_LABEL[key]} — Q1 and Q2"
-            f"{' (HEADLINE)' if key == 'F3_HI' else ' (secondary)'}")
+    role = {"F3_HI": " (HEADLINE)", "F3_LO": " (secondary)",
+            "F3_HI_FL": " (DECLARED SECONDARY beside the headline, 2026-10-09)",
+            "F3_LO_FL": " (DECLARED SECONDARY beside the secondary, 2026-10-09)"}
+    for key in ("F3_HI", "F3_HI_FL", "F3_LO", "F3_LO_FL"):
+        hdr(f"{CELL_LABEL[key]} — Q1 and Q2{role[key]}")
+        if key in FLOOR_CELLS:
+            print(f"  The registered rule plus one refusal: a narrowed debit spread whose "
+                  f"net debit is\n  under {NET_FLOOR_SHARE:.0%} of its width is refused "
+                  f"(narrow_no_fit, below_net_floor).\n  It never changes the "
+                  f"{CELL_LABEL[FLOOR_CELLS[key][0]]} verdict.")
         gn5, gn0 = f3[key]["gn5"], f3[key]["gn0"]
         if not f3_gates_ok:
             failed = [g for g, ok in (("GN1", gn1), ("GN2", gn2), ("GN3", gn3),
@@ -1256,7 +1336,7 @@ def main(argv=None) -> int:
                 print("  Q2 — the narrowed subset, PRIMARY, headline cap cell")
                 npos = narrowed_positions(sims[("PRIMARY", head_cap, key)])
                 q2 = q2_grade(npos, CELL_LABEL[key])
-                f1_key = "F1_HI" if key == "F3_HI" else "F1_LO"
+                f1_key = "F1_HI" if FLOOR_CELLS.get(key, (key,))[0] == "F3_HI" else "F1_LO"
                 print_disclosures(npos, sims[("PRIMARY", head_cap, f1_key)])
             verdicts[key] = q2_verdict(False, gn0, ok1, q2)
         print(f"\n  >>> {CELL_LABEL[key]}: {verdicts[key]} <<<")
@@ -1264,7 +1344,9 @@ def main(argv=None) -> int:
     print_ledger(len(sims))
     hdr("CLOSE")
     print(f"  headline {CELL_LABEL['F3_HI']}: {verdicts['F3_HI']}")
+    print(f"  declared secondary {CELL_LABEL['F3_HI_FL']}: {verdicts['F3_HI_FL']}")
     print(f"  secondary {CELL_LABEL['F3_LO']}: {verdicts['F3_LO']}")
+    print(f"  declared secondary {CELL_LABEL['F3_LO_FL']}: {verdicts['F3_LO_FL']}")
     print(f"  gates: G2-G5 {'SKIPPED' if args.skip_gates else 'PASS'}"
           f"  GN1 {'PASS' if gn1 else 'FAIL'}  GN2 {'PASS' if gn2 else 'FAIL'}"
           f"  GN3 {'PASS' if gn3 else 'FAIL'}  GN4 {'PASS' if gn4 else 'FAIL'}")
