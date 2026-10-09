@@ -51,10 +51,8 @@ No rule changes on it.
    `mechanical_benchmark` each copy 2026-09-23. They should read it from
    `scripts/backtest_study/lib/era.py`. Harmless today: the seal withholds 0
    rows.
-5. **Claude: remove seven stale worktrees** under `.claude/worktrees/agent-*`,
-   from 2026-09-22. Every commit on them is already on main by patch id, and
-   none has local changes. Removal was refused by the permission classifier;
-   the operator runs `git worktree remove` and `git branch -D` on each.
+5. **DONE 2026-10-10 — seven stale worktrees removed.** Every commit on
+   them was already on main by patch id.
 6. **Waits on dates:** the forward grades in item 12, §2.2, §2.6 and the
    seal count. Run the suite once new dates price.
 
