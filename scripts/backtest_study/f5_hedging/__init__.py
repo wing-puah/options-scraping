@@ -34,6 +34,13 @@ or underpowered.
                         arms, and the admitted arm files under
                         `hedge_portfolio-admitted`.
 
+    index_bear_hedge.py open · forward STILL-OPEN (registered 2026-10-09) — do
+                        the book's index bear spreads pay for themselves as
+                        crash insurance on market-defined sell-offs? Graded on
+                        FUTURE E-DD5 episodes only (OD4); the five in-sample
+                        v4 episodes print as a description, never a verdict.
+                        Its forward window waits for the holdout seal to lift.
+
 Read `hedge_sizing` first: it is the only ship here, and the other three are its
 surviving questions — with what, when, and how much.
 
