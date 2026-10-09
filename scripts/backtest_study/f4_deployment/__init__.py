@@ -22,6 +22,12 @@ built is runnable in a real account, not whether it is right.
                         clears the seven-part conjunction and the 1.50 ceiling
                         drops out. The label queues an independent window and
                         nothing else; no ceiling may be adopted on its P&L.
+    ruin_bound.py       open — accepted by default 2026-10-09. Which cap cell
+                        and guardrail earns the most while P(ruin) and the
+                        p95/p99 marked drawdown stay under bounds fixed
+                        first? A stationary block bootstrap of the account
+                        walk (lib/ruin_walk.py) at $500 (headline) and
+                        $1,000 (declared secondary). A reading only.
     concurrency_correlation.py
                         open · NOISE — nothing caps the STOCK of open positions,
                         so does the size or internal similarity of the open book
