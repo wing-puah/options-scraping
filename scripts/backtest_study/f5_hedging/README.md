@@ -160,6 +160,22 @@ The projection column is not a recorded run. It was taken on staged tabs and
 appended to no record
 ([sizing](../../../research/archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07-fourth--hedge_structure--the-new-dates-do-not-unblock-it-two-cached-legs-have-gone-missing)).
 
+**Index bear spreads, graded as insurance (2026-10-09).** `index_bear_hedge`
+asks whether the book's SPY, QQQ and IWM bear spreads cut the deployed book's
+drawdown in market-defined sell-offs, and what they cost between them
+([pre-registration](../../../research/pre-registrations/f5_hedging/index_bear_hedge.md)).
+Only sell-offs that start after 2026-10-09 are graded. The in-sample episodes
+print as a description, never a verdict.
+
+| Line | As printed |
+|---|---|
+| headline | `FORWARD VERDICT (headline, floor 5 episodes): STILL-OPEN` |
+| declared secondary | `FORWARD EARLY READ (declared secondary, floor 2 episodes): STILL-OPEN` |
+
+The description on v4 shows the sleeve cut drawdown in all five episodes and
+lost more between them than it saved. That is a description of sell-offs the
+analysing model may have seen in training, not a finding.
+
 **What would unblock it.** [`next-steps.md`](../../../research/next-steps.md) §2.3 for the
 calendar, blocked on new dates and sized at roughly 320 deployed dates. The far
 call the calendar reads is fetched by `scripts/collector/fetch_far_legs.py`

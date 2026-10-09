@@ -776,9 +776,13 @@ def print_base_rate() -> float | None:
 
 
 def fetch_base_rate() -> int:
-    """Write `BASE_RATE_CSV` from yfinance: SPY and ^VIX daily closes."""
+    """Write `BASE_RATE_CSV` from yfinance: SPY and ^VIX daily closes.
+
+    The history ends where `SPY_VIX_CSV` ends, so the base rate covers no
+    session the study's own file does not.
+    """
     import yfinance as yf
-    end = (date.today() + timedelta(days=1)).isoformat()
+    end = (date.fromisoformat(load_series().dates[-1]) + timedelta(days=1)).isoformat()
     spy = yf.download("SPY", start=BASE_RATE_START, end=end, auto_adjust=False,
                       progress=False)
     vix = yf.download("^VIX", start=BASE_RATE_START, end=end, auto_adjust=False,
