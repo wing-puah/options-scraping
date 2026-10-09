@@ -232,6 +232,29 @@ they are not forward dates ([answer 2](#answers-2026-10-07)).
 F2 and F3 are two graded cells, and each gets its own verdict line. Neither
 verdict moves the other.
 
+*Resolved at build (2026-10-09).* F3 as registered, with no price floor,
+stays the headline. A declared secondary line prints beside its grade:
+`(R, F3, $500) + 20% net floor`.
+
+| Line | Rule | Role |
+|---|---|---|
+| `(R, F3, $500)` | `narrow_to_fit`'s walk, no floor | **HEADLINE**, graded |
+| `(R, F3, $500) + 20% net floor` | The same walk; a narrowed debit spread with net debit under 20% of width is refused | Declared secondary |
+
+- **What the floor does** is set out in
+  [`narrow_to_fit`](narrow_to_fit.md#narrow-to-fit-cell-family-f3), which owns
+  it. Credit spreads are never floored.
+- **How it is graded.** Same statistic, boundary, α, minimum counts, verdict
+  table and GN5 test as F3, on both cap cells. It prints its own sequence,
+  verdict line and look-log entry.
+- **What it cannot do.** It is outside the four-sequence family and never
+  moves F3's verdict. A ship of F3 still needs the headline line.
+- **Why now.** A near-zero net sizes to many contracts
+  ([next-steps §0, item 14](../../next-steps.md#pick-up)). This file imports
+  the walk, so the forward grade would inherit the risk.
+- **Fixed before any forward date priced.** On the 2026-10-06 exports no
+  signal date on or after 2026-10-08 has a row in any export.
+
 **Each cell's grade must hold on both cap cells.** Which cap cell the tracked
 config carries is still open
 ([next-steps, waiting item 5](../../next-steps.md#waiting-on-the-operator)),
@@ -320,6 +343,7 @@ The `ρ` line is the closed form of their Appendix B.2, Eq. (50).
 | Constant | Value | Why |
 |---|---|---|
 | α | 0.0125 per sequence, two-sided | Four graded sequences (F2 and F3, each on two cap cells). 0.05 split four ways (Bonferroni), so the family holds at 0.05 |
+| α, floored F3 line | 0.0125, outside the family | *Resolved at build (2026-10-09).* A declared secondary; the family's four sequences are unchanged |
 | `t*` | 150 dates | Where the interval is tightest. It changes width, never validity. 150 is near where the in-sample effects would be confirmed |
 | `ρ` | 0.27133 (`ρ²` = 0.073618) | Eq. (50) at α = 0.0125, `t*` = 150 |
 | Start of the intersection | the first `t` that meets the minimum counts | Before that the asymptotic approximation is not trusted |
@@ -604,6 +628,8 @@ own in-sample figure and never this grade.
 - **The cells are fixed** as tabled under [Cells](#cells): F2 and F3 graded
   at $500, F1 and F2 at $1,000 printed. No other budget, no ARM D cell, no
   other cap cell, no other floor rule. A new cell is a new registration.
+  *Resolved at build (2026-10-09):* the floored F3 line under [Cells](#cells)
+  is a declared secondary, not a graded cell. Its 20% share is fixed.
 - **The boundary is fixed:** α, `t*`, `ρ`, the minimum counts and the +0.10 R
   bar never change, in either direction.
 - **The F3 rule is fixed:** `narrow_to_fit`'s widest-that-fits strike rule

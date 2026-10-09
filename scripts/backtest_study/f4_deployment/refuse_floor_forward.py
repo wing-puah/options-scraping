@@ -12,6 +12,11 @@ TWO GRADED CELLS, each on both cap cells, each with its own verdict line:
 
 and two printed controls, `(R, F1, $500)` and `(R, F2, $1,000)`.
 
+Beside the F3 grade, a DECLARED SECONDARY line (resolved at build 2026-10-09,
+next-steps §0 item 14): `(R, F3, $500)` with narrow_to_fit's 20% net floor
+(`NF.NET_FLOOR_SHARE`), on the same sequence, alpha and verdict table. It is
+outside the four-sequence family and never moves the F3 verdict.
+
 The book is loaded whole by `load_book` (so `lib/era.py`'s refusals fire),
 then FILTERED to signal dates on or after `FIRST_FORWARD_DATE`. A fresh
 $25,000 account runs on that forward book alone: no position is carried in.
@@ -101,8 +106,14 @@ CELLS = (
     ("F3", "(R, F3, $500)", "low", "narrow", True),
     ("F1", "(R, F1, $500)", "low", "take", False),
     ("F2_HI", "(R, F2, $1,000)", "high", "refuse", False),
+    ("F3_FL", "(R, F3, $500) + 20% net floor", "low", "narrow", False),
 )
 GRADED = tuple(k for k, *_rest, g in CELLS if g)
+#: Declared secondary (resolved at build 2026-10-09): sequenced and given a
+#: verdict line like a graded cell, but outside the alpha family, and it never
+#: moves the headline. Narrowed with `NF.NET_FLOOR_SHARE`.
+SECONDARY = ("F3_FL",)
+SEQUENCED = GRADED + SECONDARY
 LABEL = {k: lab for k, lab, *_ in CELLS}
 
 LOOK_LOG = (ROOT / "research" / "study-results" / "f4_deployment"
@@ -473,12 +484,13 @@ def main(argv=None) -> int:
     if not fwd:
         hdr("VERDICTS")
         print("  No forward signal date has a loaded row. Every sequence holds t=0.")
-        for key in GRADED:
-            print(f"  >>> {LABEL[key]}: {OPEN} <<<  (both cap cells)")
+        for key in SEQUENCED:
+            tag = "  DECLARED SECONDARY" if key in SECONDARY else ""
+            print(f"  >>> {LABEL[key]}: {OPEN} <<<  (both cap cells){tag}")
         empty = {seq_key(k, c, pop): run_sequence([])
-                 for k in GRADED for c in CAPS for pop in ("PRIMARY", "SECONDARY")}
+                 for k in SEQUENCED for c in CAPS for pop in ("PRIMARY", "SECONDARY")}
         append_look(look_record(stamps, 0, 0, empty,
-                                {k: OPEN for k in GRADED}, None))
+                                {k: OPEN for k in SEQUENCED}, None))
         print(f"\n  Look logged to {_rel(LOOK_LOG)}.")
         print(f"  REFUSED (designed, exit {EXIT_NO_FORWARD}): nothing to grade until "
               f"the exports hold a signal date on or after {FIRST_FORWARD_DATE}.")
@@ -507,6 +519,14 @@ def main(argv=None) -> int:
     cell_st = {k: NF.settings_for(st, kind, None) for k, _l, kind, _f, _g in CELLS}
     chain, evidence = Chain(), unlisted_evidence()
     narrower = Narrower(chain, evidence, NF._sim_cfg())
+    floor_narrower = Narrower(chain, evidence, NF._sim_cfg(),
+                              net_floor=NF.NET_FLOOR_SHARE)
+
+    def narrower_for(key: str, floor: str):
+        if floor != "narrow":
+            return None
+        return floor_narrower if key in SECONDARY else narrower
+
     cache = AS.new_cache()
     sims, b2s, b2caps = {}, {}, {}
     for pop, dates in pops:
@@ -516,21 +536,21 @@ def main(argv=None) -> int:
             for key, label, _kind, floor, _g in CELLS:
                 sims[(pop, cap, key)] = AS.simulate(
                     day_lists, NF.cfg_for(cell_st[key], label, floor, cap), cache=cache,
-                    narrower=narrower if floor == "narrow" else None)
+                    narrower=narrower_for(key, floor))
             b2s[(pop, cap)] = AS.simulate(
                 day_lists, st.cfg("B2", compound=False, **AS.UNCONSTRAINED), cache=cache)
-            for key in GRADED:
+            for key in SEQUENCED:
                 floor = dict((k, f) for k, _l, _kd, f, _g in CELLS)[key]
                 b2caps[(pop, cap, key)] = AS.simulate(
                     day_lists, cell_st[key].cfg(f"B2 {key}", compound=False, floor=floor,
                                                 take_floor=(floor != "refuse"),
                                                 **AS.UNCONSTRAINED),
-                    cache=cache, narrower=narrower if floor == "narrow" else None)
+                    cache=cache, narrower=narrower_for(key, floor))
 
     # ── sequences ────────────────────────────────────────────────────────
     seqs, stops = {}, {}
     for (pop, cap, key), sim in sims.items():
-        if key not in GRADED:
+        if key not in SEQUENCED:
             continue
         obs, stop, n_open = date_observations(sim.signal_pos)
         seqs[seq_key(key, cap, pop)] = run_sequence(obs)
@@ -560,6 +580,13 @@ def main(argv=None) -> int:
     if gn5:
         print("  The fix is `scripts/collector/fetch_substitute_legs.py --scope between`,"
               " never a lower bar.")
+    cf = sims[("PRIMARY", HEAD_NET_CAP, "F3_FL")].census
+    share_fl = cf["narrow_unpriced"] / cf["narrow_offered"] if cf["narrow_offered"] else 0.0
+    gn5_fl = share_fl > GN5_MAX_UNPRICED
+    print(f"  declared secondary {LABEL['F3_FL']}: narrowed {cf['narrowed']}  "
+          f"no_fit {cf['narrow_no_fit']} (the floor's refusals land here)  "
+          f"unpriced {cf['narrow_unpriced']} ({share_fl:.0%}) -> "
+          f"{'FIRES' if gn5_fl else 'clear'}")
 
     # ── FW4 SEQUENCE CHECK ───────────────────────────────────────────────
     hdr("FW4 SEQUENCE CHECK — against the previous look in the log")
@@ -572,8 +599,9 @@ def main(argv=None) -> int:
 
     # ── per cell: sequences, verdicts, context ───────────────────────────
     verdicts = {}
-    for key in GRADED:
-        hdr(f"{LABEL[key]} — the forward grade")
+    for key in SEQUENCED:
+        hdr(f"{LABEL[key]} — the forward grade"
+            f"{' (DECLARED SECONDARY, 2026-10-09; never moves the F3 line)' if key in SECONDARY else ''}")
         line = CONFIRMED
         for cap in CAPS:
             sub(f"net {cap:.2f}x{' (registered)' if cap == HEAD_NET_CAP else ' (tracked)'}")
@@ -589,7 +617,8 @@ def main(argv=None) -> int:
                 if stop:
                     print(f"    stops before {stop}: {n_open} position(s) still open")
             prim = seqs[seq_key(key, cap, "PRIMARY")]
-            v = verdict(prim, breach, awaiting=(key == "F3" and gn5))
+            awaiting = (key == "F3" and gn5) or (key == "F3_FL" and gn5_fl)
+            v = verdict(prim, breach, awaiting=awaiting)
             if v == REFUTED_EDGE:
                 v += (" — upper bound below zero" if prim["run_hi"] < 0
                       else " — upper bound between 0 and +0.10")
@@ -628,8 +657,9 @@ def main(argv=None) -> int:
                             verdicts, dict(offered=offered, unpriced=unpriced,
                                            fires=gn5)))
     hdr("CLOSE")
-    for key in GRADED:
-        print(f"  {LABEL[key]}: {verdicts[key]}")
+    for key in SEQUENCED:
+        tag = "declared secondary " if key in SECONDARY else ""
+        print(f"  {tag}{LABEL[key]}: {verdicts[key]}")
     print(f"  gates: G2-G5 {'SKIPPED' if args.skip_gates else 'PASS'}  FW2 PASS  "
           f"FW4 {'PASS' if fw4 else 'FAIL'}  GN5 {'FIRES' if gn5 else 'clear'}")
     print(f"  look logged to {_rel(LOOK_LOG)}")

@@ -299,6 +299,66 @@ def test_unlisted_evidence_needs_two_confirmations_of_an_empty_feed(tmp_path):
         '"2026-10-08", "n_checks": 2, "reason": "no_rows"}\n')
     assert NTF.unlisted_evidence(p) == {"B_20250221_10.00C"}
 
+# ── the net floor (declared secondary, resolved at build 2026-10-09) ────────
+
+def _near_zero_pick():
+    """MU 2026-09-21's shape: one step inward, the narrowed debit spread is
+    $0.06 on a 40-wide spread — $6 of max loss, so it fits any budget and
+    sizes to dozens of contracts."""
+    ch = _chain({(100, "Call"): _days(6.06), (141, "Call"): _days(0.50),
+                 (140, "Call"): _days(6.00)})
+    rec = _pick(f"TEST:{EXPIRY}:100:C +1\nTEST:{EXPIRY}:141:C -1", 5.56,
+                "bull_call_spread", False)
+    return ch, rec, NTF.vertical_roles(list(rec["t"].legs), False)
+
+
+def test_near_zero_net_is_kept_without_the_floor():
+    ch, rec, roles = _near_zero_pick()
+    got = NTF.choose_strike(rec, 500.0, ch, set(), roles, ENTRY)
+    assert got.reason == "fit" and got.strike == 140.0
+    assert got.net == pytest.approx(0.06) and got.max_loss == pytest.approx(6.0)
+
+
+def test_near_zero_net_is_refused_under_the_floor():
+    ch, rec, roles = _near_zero_pick()
+    got = NTF.choose_strike(rec, 500.0, ch, set(), roles, ENTRY,
+                            net_floor=NTF.NET_FLOOR_SHARE)
+    assert NTF.NET_FLOOR_SHARE == 0.20
+    # The floor refuses the widest fit; it never walks on to a narrower strike.
+    assert got.reason == "below_floor" and got.strike == 140.0
+
+
+def test_the_floor_keeps_a_debit_at_or_above_a_fifth_of_width():
+    assert not NTF.below_net_floor(2.0, 10.0, False, 0.20)       # exactly 20%
+    assert NTF.below_net_floor(1.99, 10.0, False, 0.20)
+    assert not NTF.below_net_floor(0.06, 40.0, False, None)      # registered rule
+    # A credit spread is never floored: a tiny credit cannot size up.
+    assert not NTF.below_net_floor(-0.06, 40.0, True, 0.20)
+
+
+def test_the_floor_leaves_an_ordinary_narrowing_unchanged():
+    ch = _chain({(100, "Call"): _days(8.0), (110, "Call"): _days(1.0),
+                 (109, "Call"): _days(1.5), (108, "Call"): _days(2.0),
+                 (107, "Call"): _days(3.4), (106, "Call"): _days(4.0)})
+    for k, px in ((105, 4.5), (104, 5.0), (103, 5.6), (102, 6.3), (101, 7.1)):
+        ch.idx[("TEST", EXPIRY)].setdefault(float(k), set()).add("C")
+        ch._memo[("TEST", EXPIRY, float(k), "Call")] = _history(_days(px))
+    rec = _pick(f"TEST:{EXPIRY}:100:C +1\nTEST:{EXPIRY}:110:C -1", 7.0,
+                "bull_call_spread", False)
+    roles = NTF.vertical_roles(list(rec["t"].legs), False)
+    plain = NTF.choose_strike(rec, 500.0, ch, set(), roles, ENTRY)
+    floored = NTF.choose_strike(rec, 500.0, ch, set(), roles, ENTRY, net_floor=0.20)
+    assert (plain.reason, plain.strike) == (floored.reason, floored.strike) == ("fit", 107.0)
+
+
+def test_the_narrower_files_a_below_floor_pick_as_no_fit():
+    ch, rec, _roles = _near_zero_pick()
+    floored = NTF.Narrower(ch, set(), {}, net_floor=NTF.NET_FLOOR_SHARE)
+    n = floored.narrow(rec, 500.0)
+    assert (n.bucket, n.reason) == ("narrow_no_fit", "below_net_floor")
+    assert floored(rec, 500.0) == (None, "narrow_no_fit")
+
+
 # ── GN4 strike blindness ─────────────────────────────────────────────────────
 
 def test_gn4_cutting_substitutes_after_entry_never_moves_the_choice():
