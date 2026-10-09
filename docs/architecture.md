@@ -530,6 +530,22 @@ in the family folders concluded.
   Selected via `STUDY_ERA`, set for a whole run by `run --era v3`. `load_book(check_era=False)`
   is the escape hatch for a caller deliberately mixing eras (`v4_bridge`, and the studies that
   pin a v1/v2 comparison export); it must say why.
+
+  **The holdout seal also lives here.** Every result row on a signal date from `SEAL_START`
+  (2026-09-23) on is withheld from research code until the registered unseal read is
+  recorded ([`holdout_seal.md`](../research/pre-registrations/f4_deployment/holdout_seal.md)).
+
+  | Piece | What it does |
+  |---|---|
+  | `load_book(sealed_read=None)` | Drops sealed records before the date floor counts; `diag["seal"]` and one stderr line give the count |
+  | `drop_sealed` / `drop_sealed_frame` | The same filter, for a study that opens the exports itself |
+  | `SEALED_READERS` | The closed list of named readers, each with its own first date |
+  | `SEAL_LIFTED` | `None` while sealed; set in the commit that records the unseal read |
+  | `make seal-census` | Rows and priced dates in the sealed window, counts only, against 40 |
+
+  It withholds instead of refusing, because analysis rows enter the exports daily and a
+  refusal would stop the whole suite. `tests/test_holdout_seal.py` fails on any study module
+  that resolves an export path without the filter or a census-only entry.
 - `lib/harness.py` — FROZEN exit-replay engine. Do not edit: every recorded conclusion rests on
   it; changing it invalidates all prior tuning conclusions.
 - `lib/book.py` — pooled real+proxy book loader with dedup + the exact-replay calibration gate

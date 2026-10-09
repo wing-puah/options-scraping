@@ -457,7 +457,9 @@ def main(argv=None) -> int:
   NOTHING SHIPS FROM THIS STUDY. FW3: every count below is computed by this
   run; no annualised figure, Sharpe or time-to-recover is printed.""")
 
-    recs, diag = load_book(include_bs=False)
+    # A named reader of the holdout seal: it sees its forward dates, while the
+    # sealed gap before FIRST_FORWARD_DATE stays withheld (holdout_seal.md).
+    recs, diag = load_book(include_bs=False, sealed_read="refuse_floor_forward")
     print(f"  era {diag.get('era')}  book {len(recs)} rows  {diag.get('n_dates')} "
           f"dates  {diag.get('date_range')}")
     fwd = [r for r in recs if r["date"] >= FIRST_FORWARD_DATE]

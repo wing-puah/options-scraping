@@ -96,6 +96,12 @@ check-doc-links:
 check-prose:
 	$(PY) scripts/check_prose.py $(if $(ARGS),$(ARGS),--since HEAD)
 
+# The holdout seal's census (research/pre-registrations/f4_deployment/holdout_seal.md):
+# rows and priced dates in the sealed window, counts only, against the 40-date unseal condition.
+.PHONY: seal-census
+seal-census:
+	$(PY) -m scripts.backtest_study.lib.era
+
 # ── analysis ───────────────────────────────────────────────────────────────────
 .PHONY: analyze
 analyze: 
@@ -502,6 +508,7 @@ help:
 	@echo "  make check-doc-links   verify cross-links inside README.md/CLAUDE.md/GEMINI.md/docs/**/research/**"
 	@echo "  make check-doc-links ARGS=\"--strict\"  also fail on links into the generated site/ (normally a warning)"
 	@echo "  make check-prose       readability of the research/ + docs/ blocks touched since HEAD (writing-guide limits)"
+	@echo "  make seal-census       holdout seal: sealed rows and priced dates, counts only (unseal at 40)"
 	@echo ""
 	@echo "  make clean        delete every regenerable file (scratch + study output)"
 	@echo "  make clean-dry    preview it, delete nothing"

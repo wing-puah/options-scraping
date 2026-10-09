@@ -97,7 +97,9 @@ V1_CSV = ROOT / "backtests" / "v1_20260625_results.csv"
 
 def load_trades(path: Path, side: str, load_underlying: bool = False) -> list[Trade]:
     out = []
-    for r in csv.DictReader(open(path)):
+    # The holdout seal (lib/era.py): outcome rows on sealed dates are withheld.
+    rows, _seal = era.drop_sealed(list(csv.DictReader(open(path))))
+    for r in rows:
         e = _to_float(r.get("entry_option_price"))
         if e is None or not r.get("daily_price_csv"):
             continue

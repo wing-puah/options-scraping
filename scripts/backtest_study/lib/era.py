@@ -209,3 +209,159 @@ def require_dates(n_dates: int, era: str, minimum: int = MIN_ERA_DATES,
 def _refuse(code: int, message: str) -> None:
     print(f"\nREFUSED — {message}")
     sys.exit(code)
+
+
+# --- The holdout seal -----------------------------------------------------------
+# research/pre-registrations/f4_deployment/holdout_seal.md (accepted by default
+# 2026-10-09). THE SINGLE ENCODING of which signal dates the research tier may
+# not read outcomes on. `load_book` withholds them; a study that reads the
+# exports itself calls `drop_sealed` / `drop_sealed_frame`, and
+# `tests/test_holdout_seal.py` refuses a study module that does neither.
+#
+# The guard WITHHOLDS rather than refuses. Analysis rows on sealed dates enter
+# the exports the day they are emitted, so a refusal would stop the whole suite
+# at the next export re-pull; withholding keeps every study running on the
+# unsealed book and prints how much it held back.
+#
+# 2026-09-23 is the first signal date with no priced row in any export a study
+# has read: on the 2026-10-06 exports BacktestResults ends at 2026-09-22 and
+# BacktestProxy's ten 2026-09-23 rows are unpriced. Every date before it has
+# had outcomes printed (the registration lists the runs).
+SEAL_START = "2026-09-23"
+
+# The unseal condition: this many PRICED signal dates on or after SEAL_START
+# (a real BacktestResults row, or a `strike_expiry_tweak` BacktestProxy row,
+# with an entry price and a daily path). Checked by `seal_census`, counts only.
+UNSEAL_PRICED_DATES = 40
+
+# None while the seal stands. Set to the date of the recorded unseal read, in
+# the SAME commit that records it. Meeting the count does NOT lift the guard:
+# the registered read must be the first look, so the census only announces it.
+SEAL_LIFTED: str | None = None
+
+# The only readers allowed past the guard, each from its own first date. Closed
+# at acceptance: these three were accepted before the seal, with fixed cells
+# and their own forward windows. The gap 2026-09-23 -> 2026-10-07 is readable
+# by the seal's own read alone. A new name here after 2026-10-09 is a broken
+# seal, not an amendment — a new forward read waits for SEAL_LIFTED.
+SEALED_READERS: dict[str, str] = {
+    "holdout_seal": SEAL_START,          # the one read on unseal
+    "refuse_floor_forward": "2026-10-08",  # its forward population, accepted 2026-10-07
+    "ticker_class": "2026-10-08",          # forward P1, dates after 2026-10-07
+    "narrow_to_fit": "2026-10-08",         # its forward sign read, not yet built
+}
+
+
+def seal_floor(reader: str | None = None) -> str | None:
+    """First signal date `reader` may see on or after SEAL_START.
+
+    `None` means nothing is withheld (the seal is lifted). For an unnamed
+    reader the floor is unreachable, so every date from SEAL_START on is
+    withheld. An unknown reader name raises: a typo must not read as a grant.
+    """
+    if SEAL_LIFTED:
+        return None
+    if reader is None:
+        return "9999-12-31"
+    if reader not in SEALED_READERS:
+        raise ValueError(
+            f"{reader!r} is not a permitted sealed reader; the list is closed "
+            f"(holdout_seal.md). Permitted: {sorted(SEALED_READERS)}")
+    return SEALED_READERS[reader]
+
+
+def is_withheld(date: str, reader: str | None = None) -> bool:
+    """True when `date` (ISO, any suffix after the day ignored) is sealed for `reader`."""
+    floor = seal_floor(reader)
+    if floor is None:
+        return False
+    d = str(date or "").strip()[:10]
+    return SEAL_START <= d < floor
+
+
+def drop_sealed(rows, date_key: str = "signal_date",
+                reader: str | None = None) -> tuple[list, dict]:
+    """`(kept, info)`: `rows` (dicts) minus those on withheld dates.
+
+    `info` is census only: `{"rows": n, "dates": n, "reader": name}`.
+    """
+    kept, held = [], []
+    for r in rows:
+        (held if is_withheld(r.get(date_key, ""), reader) else kept).append(r)
+    return kept, {"rows": len(held),
+                  "dates": len({str(r.get(date_key, ""))[:10] for r in held}),
+                  "reader": reader}
+
+
+def drop_sealed_frame(df, date_key: str = "signal_date", reader: str | None = None):
+    """`(kept_df, info)` — `drop_sealed` for a pandas DataFrame (no pandas import here)."""
+    if date_key not in df.columns:
+        return df, {"rows": 0, "dates": 0, "reader": reader}
+    days = df[date_key].astype(str).str.slice(0, 10)
+    mask = days.map(lambda d: is_withheld(d, reader))
+    return df[~mask], {"rows": int(mask.sum()),
+                       "dates": int(days[mask].nunique()), "reader": reader}
+
+
+def seal_line(info: dict) -> str:
+    """One census line for a report or stderr."""
+    who = f" (reader {info['reader']})" if info.get("reader") else ""
+    if SEAL_LIFTED:
+        return f"SEAL: lifted {SEAL_LIFTED}; nothing withheld"
+    return (f"SEAL: withheld {info['rows']} rows on {info['dates']} signal dates "
+            f">= {SEAL_START}{who} — holdout_seal.md")
+
+
+def _priced(key: str, row: dict) -> bool:
+    if not (str(row.get("entry_option_price") or "").strip()
+            and str(row.get("daily_price_csv") or "").strip()):
+        return False
+    return key == "results" or row.get("proxy_method") == "strike_expiry_tweak"
+
+
+def seal_census(paths: dict[str, Path] | None = None) -> dict:
+    """Counts only, on the RAW exports: what the sealed window holds.
+
+    Reads no outcome column. `priced_dates` is the unseal condition's count.
+    """
+    paths = paths or resolve_paths(CURRENT)
+    out: dict = {"seal_start": SEAL_START, "lifted": SEAL_LIFTED,
+                 "need": UNSEAL_PRICED_DATES, "exports": {}}
+    priced: set[str] = set()
+    for key, path in paths.items():
+        col = "date" if key == "analysis" else "signal_date"
+        rows = dates = 0
+        seen: set[str] = set()
+        if path.exists():
+            with path.open(newline="") as fh:
+                for r in csv.DictReader(fh):
+                    d = str(r.get(col) or "").strip()[:10]
+                    if d < SEAL_START:
+                        continue
+                    rows += 1
+                    seen.add(d)
+                    if key != "analysis" and _priced(key, r):
+                        priced.add(d)
+            dates = len(seen)
+        out["exports"][key] = {"rows": rows, "dates": dates,
+                               "exists": path.exists()}
+    out["priced_dates"] = len(priced)
+    out["condition_met"] = len(priced) >= UNSEAL_PRICED_DATES
+    return out
+
+
+def print_seal_census(census: dict) -> None:
+    print(f"holdout_seal census — counts only. Sealed from {census['seal_start']}.")
+    if census["lifted"]:
+        print(f"  seal lifted {census['lifted']}")
+    for key, c in census["exports"].items():
+        state = "" if c["exists"] else "  (missing)"
+        print(f"  {key:<9} {c['rows']:>6} rows on {c['dates']:>4} sealed dates{state}")
+    print(f"  priced sealed dates: {census['priced_dates']} of {census['need']}")
+    if census["condition_met"] and not census["lifted"]:
+        print("  UNSEAL CONDITION MET — run the registered read before anything "
+              "else reads these dates.")
+
+
+if __name__ == "__main__":
+    print_seal_census(seal_census())

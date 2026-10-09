@@ -769,7 +769,9 @@ def criteria_line(c, c1p, c1n, c2, c3):
 
 
 def main(argv=None) -> int:
-    recs, diag = load_book()
+    # A named reader of the holdout seal: forward dates after FORWARD_AFTER;
+    # the sealed gap stays withheld, as ruling 5 wants (holdout_seal.md).
+    recs, diag = load_book(sealed_read="ticker_class")
     era = diag.get("era")
     v3 = era == "v3"
     hdr(f"ticker_class — index ETFs vs single-stock groups, direction held fixed   [era {era}]"

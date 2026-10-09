@@ -492,7 +492,9 @@ a set of signal dates no research-tier code may compute an
 outcome statistic on until a named count of them has priced. Census counts,
 the production journal, pipeline health checks and data collection stay
 permitted; R, E, meanR, PF, win%, maxDD, MFE/MAE, dollars and any interval
-built from them do not. The commitment, its unseal condition and the single
+built from them do not. The seal runs from 2026-09-23; three forward grades
+accepted before it read their own dates from 2026-10-08, and `lib/era.py`
+withholds the rest. The commitment, its unseal condition and the single
 read taken on unseal are in
 [`pre-registrations/f4_deployment/holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md).
 
