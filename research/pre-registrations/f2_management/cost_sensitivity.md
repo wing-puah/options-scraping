@@ -1,11 +1,16 @@
 ## cost_sensitivity — at what cost per leg does the Tier A/B edge vanish?
 
-_Registered ____-__-__ (DRAFT — not registered; becomes immutable in substance when the operator accepts it)._
+_Registered 2026-10-09. Immutable in substance from that date._
 
-**STATUS: DRAFT.** Until acceptance every number, arm, gate and verdict
-below may be edited. After acceptance none of them may. The registration
-date is filled in on acceptance and is the only date this file then
-carries.
+**STATUS: ACCEPTED BY DEFAULT 2026-10-09 on the drafter's recommended
+defaults; the operator may revisit (a revisit after a result is a NEW
+registration, never an edit).**
+
+Every open point is answered beside the text it amends, tagged
+**Resolved at build (2026-10-09)**. All of those defaults were fixed before the
+build read any outcome column. Where a choice was genuinely contested, it is a
+parameter and the report prints both: the headline, fixed here, and a declared
+secondary.
 
 ## Question
 
@@ -19,6 +24,15 @@ fee or slippage term exists anywhere in `scripts/backtest/`,
 shipped rest on gains of +0.02 to +0.04 [R](../../glossary.md#r). A realistic
 round trip on a two-leg vertical is of the same order. So the question is not
 "how much does cost shave off"; it is "is there anything left".
+
+> **Resolved at build (2026-10-09) — the book is no longer gross.** The
+> paragraph above describes 2026-09-07. B1 landed on 2026-09-08 and costs were
+> switched on 2026-09-22. On 2026-09-24 the whole v4 book was re-priced at $0.65
+> per contract with no slippage, because the operator fills spreads at the mid.
+> Every stored row now reads `cost_basis = commission_only`, so the stored R is
+> already net of the `ARM X` commission. The study still asks the same
+> question. It starts every arm from gross R and charges its own cost, as
+> [Population and basis](#population-and-basis-fixed-here) now says.
 
 Two things are asked, in order:
 
@@ -71,6 +85,11 @@ The study REFUSES to run against an export produced before the grid fix (gate
 G3). That refusal is the point: it costs a run to discover, which is cheaper
 than a wrong headline.
 
+> **Resolved at build (2026-10-09) — all three have landed.** B1 and B2 merged
+> together in `3e5c2dc` on 2026-09-08. The one re-run is the 2026-09-24
+> whole-book re-price, the first full re-run after both fixes. The 2026-10-06
+> exports post-date it.
+
 ## Population and basis, fixed here
 
 - **Population.** `lib/book.py::load_book()`, era-scoped by `lib/era.py`,
@@ -79,6 +98,12 @@ than a wrong headline.
   any arm.
 - **Era.** The current era (v4) is PRIMARY. v3 is run as the era-stability
   read and reported. The report header names the era it ran on.
+
+  > **Resolved at build (2026-10-09).** The v3 read runs in the same process
+  > as the v4 one, through the same gates. The frozen v3 export predates B1 and
+  > B2 and has no `cost_basis` column, so G3 refuses it. The report prints that
+  > refusal in place of the v3 numbers. What it does to C4 is under
+  > [C4](#bar-for-a-candidate).
 - **The date count is NOT fixed here.** The population is stated by rule: every
   signal date the era resolves at run time with at least one real-or-tweak row.
   No count is written into this file and none may be written into the module
@@ -96,13 +121,54 @@ than a wrong headline.
   live date priced. The exclusion tracks the seal rather than a date list. If
   the operator declines `holdout_seal`, this clause is inert and the population
   is the whole era.
+
+  > **Resolved at build (2026-10-09).** `holdout_seal` was accepted on
+  > 2026-10-09 with the seal starting 2026-09-23. This study is not one of its
+  > named readers. It reads the book only through `load_book()` without
+  > `sealed_read`, which withholds every sealed row, and it opens no export
+  > itself. Its population therefore ends at 2026-09-22 until the seal lifts.
+  > The report prints the loader's seal line.
 - **Cost basis.** A position's cost is charged per LEG, at entry and at exit,
   in dollars per contract, then divided by that position's entry cost basis
   (`abs(entry_option_price) × 100`) to become a delta in R. Leg count comes
   from the `legs` column and is cross-checked against `entry_leg_detail`.
+
+  > **Resolved at build (2026-10-09) — how the cost grid relates to the
+  > stored basis.** The stored R is net of production's charge, which is
+  > `cost_total`: $0.65 × Σ|qty| × contracts × 2 sides on every row.
+  >
+  > - **Gross first.** The study rebuilds gross R as stored R plus
+  >   `cost_total` / (|`entry_option_price`| × 100 × contracts). That undoes
+  >   exactly what `simulate._apply_costs` subtracted. `lib/replay_basis.py`
+  >   adds the cost back the same way for calibration.
+  > - **Every arm charges from gross.** `ARM Z` is gross R. `ARM X` and each
+  >   `ARM SW` cell charge their own cost onto gross R. `ARM X` recomputes the
+  >   commission from the leg count and never reuses `cost_total`.
+  > - **Where `ARM X` and the stored R differ.** Production charges an
+  >   `expired` row at both sides; this registration charges it at entry only.
+  >   So `ARM X` net R equals stored R on every row except `expired` ones,
+  >   where it is one side's commission higher. G2 checks both statements row
+  >   by row.
+  > - **The config knobs name the stored basis.** The module reads
+  >   `commission_per_contract` and `slippage_frac_of_spread` from
+  >   `config/backtest.yml` and G2 refuses if `cost_total` disagrees with them.
+  >   It does not take `ARM X` from the config. `ARM X` and the grid are
+  >   registered here, so a later config change cannot move them.
+  > - **Rows still open at the data end** (`cap_open`) are charged at both
+  >   sides, as production charges them. The position still has to be closed,
+  >   and charging that exit is the conservative choice.
 - **Quoted spread.** `Ask − Bid` from the leg's own row in
   `backtests/option_history_cache/<TICKER>_<YYYYMMDD>_<STRIKE><C|P>.csv`, on
   the entry date and on the exit date. Never interpolated across dates.
+
+  > **Resolved at build (2026-10-09).** The entry date is the recorded fill
+  > day, `legs[0].expiration − dte_entry`, read the way `lib/prefill_audit.py`
+  > reads it. The exit date is the grid day at `days_held`, the day production
+  > prices its exit spread. A quote counts as degenerate under the draft's
+  > three tests and also under production's junk-quote rule (2026-09-24),
+  > which post-dates the draft. In code, a quote is usable only when
+  > `simulate._leg_spread` returns a spread above zero. Without the junk rule
+  > the sweep would charge spreads production refuses to use.
 - **An expired or assigned leg is charged at entry only.** A leg that goes to
   expiry carries no exit cost. `exit_reason` `expired` decides this, not the
   price path.
@@ -149,6 +215,13 @@ cost study as a sensitivity", and that is what this registration does with it.
   | commission per contract | $0.00, $0.65, $1.00, $1.50 |
   | slippage, as a fraction of the quoted spread per leg per side | 0.00, 0.25, 0.50, 1.00 |
 
+  > **Resolved at build (2026-10-09).** The ($0.00, 0.00) cell is `ARM Z` and
+  > the ($0.65, 0.00) cell is `ARM X`; the report prints them once each and
+  > marks them in the grid. A cell with slippage above zero is costed only
+  > on positions whose every leg-side has a quote, directly or by fallback, so
+  > its position count can be lower than `ARM X`'s. Each cell prints its own
+  > count.
+
 - **`ARM Q` — QUOTE AVAILABILITY.** Census of legs whose entry or exit quote is
   missing or degenerate (`Bid` or `Ask` absent, `Ask ≤ Bid`, or `Bid = 0`).
   Such a leg is charged under one declared fallback, in this order, and the
@@ -162,6 +235,18 @@ cost study as a sensitivity", and that is what this registration does with it.
 
   Excluding a position is not the same as charging it nothing. The
   missing-greek rule is the model: an absent quote is `None`, never `0.0`.
+
+  > **Resolved at build (2026-10-09) — what each fallback reads.**
+  >
+  > - **Fallback 1, "its own priced path"**: the contract's usable spreads on
+  >   the position's grid days from the fill day through the exit day.
+  > - **Fallback 2, "the same ticker's other legs on the same date"**: every
+  >   other leg in the costed population on the same ticker, with a usable
+  >   quote on that date. That includes the position's own other legs and
+  >   other positions' legs. It never scans the cache for contracts the book
+  >   did not hold.
+  > - A leg-side that needs fallback 1 or 2 is tagged with it. A position with
+  >   any uncostable leg-side is uncostable as a whole.
 - **`ARM GAP` — ADVERSE-FILL SENSITIVITY.** On rows whose exit is
   `profit_target`, `trailing_stop`, `underlying_stop`, `dollar_stop`,
   `be_stop` or `stop_loss`, charge one additional adverse tick at exit on top
@@ -174,6 +259,15 @@ cost study as a sensitivity", and that is what this registration does with it.
   `cap_open` end the path rather than crossing a level, so there is nothing to
   fill through. Sensitivity only. It answers "does the close-only grid's
   symmetry hide the cost result", and it carries no verdict.
+
+  > **Resolved at build (2026-10-09) — the size of a tick.** The draft did not
+  > say. A tick is charged per leg, per contract, at exit, × |qty|. Two sizes
+  > are defensible, so the report prints both as declared lines:
+  >
+  > | Line | Tick per leg | Why |
+  > |---|---|---|
+  > | Headline | $0.05 | Standard minimum increment for an option at $3 or more outside the penny program; the larger, conservative choice |
+  > | Declared secondary | $0.01 | Penny-program and combo-order increment |
 
 ## Unit and metric
 
@@ -191,6 +285,20 @@ cost study as a sensitivity", and that is what this registration does with it.
   the net meanR CI lower bound is ≤ 0, quoted as the pair (commission,
   slippage fraction) and as the implied dollars per leg per side.
 
+> **Resolved at build (2026-10-09).**
+>
+> - **"Smallest" on a two-axis grid** means lowest implied dollars per leg per
+>   side: commission + fraction × the tier's mean quoted spread × 100. The mean
+>   spread is taken over the tier's leg-sides with a direct quote. The report
+>   also prints, for each commission row, the first slippage fraction that
+>   crosses, so the shape is visible. A tier that never crosses prints "no
+>   crossing on the grid".
+> - **E** (`pnl_at_cap_pct`) stays gross in production, so the report prints it
+>   once per tier, gross, labelled as such. It is never netted and never
+>   graded.
+> - **Selection is fixed before costs.** Top-3/day runs once on the loaded
+>   book. Costs change no pick.
+
 ## Gates
 
 Each gate exits non-zero on failure, with ONE exception declared here so it
@@ -204,9 +312,22 @@ run exits zero. Every other gate refuses and prints nothing.
 - **G2 COST IS CHARGED TWICE, NEVER ONCE.** Every costed position is charged at
   entry and at exit, except an expired leg, which is charged at entry only. The
   run recomputes the charge count independently and FAILS on any mismatch.
+
+  > **Resolved at build (2026-10-09).** G2 makes three checks and exits 5 on
+  > any failure. The side count from the charging code must equal a separate
+  > count read off `exit_reason`. The leg count from `legs` must equal the line
+  > count of `entry_leg_detail`. And on every `commission_only` row the stored
+  > `cost_total` must equal the config commission at both sides, within a
+  > cent. That proves the gross-R rebuild undoes what production charged.
+
 - **G3 GRID FIX PRESENT.** The run refuses an export produced before the B2
   pre-fill grid fix. The check is on the export's own provenance, not on a
   flag the operator passes.
+
+  > **Resolved at build (2026-10-09) — the provenance mark.** Only code that
+  > carries B1 and B2 writes `cost_basis`, because both landed in one merge.
+  > G3 refuses when the export has no `cost_basis` column, or when any row in
+  > the loaded population has it blank. It exits 4.
 - **G4 QUOTE PROVENANCE. VERDICT-PRODUCING, NOT A REFUSAL — the one gate that
   does not exit non-zero.** The fallback share is printed per arm. `ARM X`
   charges no slippage, so it reads no quote and passes G4 trivially. Any
@@ -216,6 +337,15 @@ run exits zero. Every other gate refuses and prints nothing.
   failure, and a refusal would print no census at all. So on failure the run
   prints the per-arm quote census, prints NO outcome number, grades no
   criterion, and records the verdict UNCOSTABLE.
+
+  > **Resolved at build (2026-10-09) — what a G4 failure blanks.** Every
+  > slippage cell reads the same quotes, so G4 passes or fails for all of
+  > them at once. Its share is fallback-2 plus uncostable leg-sides over all
+  > leg-sides the cells need a quote for. On failure the slippage cells print
+  > the census and `UNCOSTABLE` in place of numbers, and the contour runs over
+  > the commission axis only. `ARM X` reads no quote, so C0 to C4 are still
+  > graded on it. `UNCOSTABLE` is then the verdict of the sweep, not of the
+  > tiers.
 - **G5 NO NEW STATISTIC.** No annualised figure, no Sharpe, no
   time-to-recover, per the standing research-tier rule.
 - **G6 NO HARDCODED CENSUS.** Every count, share and range printed in prose is
@@ -246,6 +376,24 @@ reverse.
   ([LOO](../../glossary.md#loo)).
 - **C4 ERA STABILITY.** C1 and C2 hold on both eras with the same sign.
 
+> **Resolved at build (2026-10-09).**
+>
+> - **C0** counts the tier's deployed positions under `ARM X`, which can cost
+>   every position.
+> - **C3** passes when every leave-one-date-out fold and every
+>   leave-one-ticker-out fold keeps that tier's `ARM X` net meanR above zero.
+> - **C4 cannot be graded today.** G3 refuses the v3 export (see
+>   [Era](#population-and-basis-fixed-here)). Whether an ungraded C4 blocks
+>   SURVIVES is contested. The wording says SURVIVES needs C4 to hold, and an
+>   unread era has not held. Against that, C3 and C4 "can only downgrade", and
+>   an ungraded check has shown no failure. So it is a parameter and both lines
+>   print:
+>
+>   | Line | Ungraded C4 counts as | Best verdict possible today |
+>   |---|---|---|
+>   | Headline | not holding | FRAGILE |
+>   | Declared secondary | dropped from the verdict | SURVIVES |
+
 ## Verdicts, worded now
 
 - **SURVIVES** — C1 and C2 both hold, and C3 and C4 both hold. The edge is
@@ -265,6 +413,13 @@ reverse.
   cache does not carry enough real quotes to answer the question. The quote
   census is the recorded result, no criterion is graded, and the fix is a quote
   backfill, not a lower gate.
+
+> **Resolved at build (2026-10-09) — one verdict per tier.** The verdicts
+> above are worded for both tiers together, but [Ship criteria](#ship-criteria)
+> records a verdict per tier. So each tier is graded on its own: C0 first,
+> then its own C1 or C2, then C3 and C4. A tier below C0 is UNDERPOWERED while
+> the other tier is still graded. There is no combined token.
+> `UNCOSTABLE` belongs to the sweep (see G4).
 
 ## Anti-tuning
 
@@ -297,3 +452,6 @@ Not part of the registration. Implementation only.
 - Quotes come from the existing cache. The module performs no network fetch.
 - `tests/` gets the arithmetic: per-leg charge, the twice-not-once rule, the
   expired-leg exemption, and the fallback ladder's ordering.
+- Built 2026-10-09 as `scripts/backtest_study/f2_management/cost_sensitivity.py`,
+  tests in `tests/test_cost_sensitivity.py`. Exit codes: 2 and 3 from
+  `lib/era.py`, 4 for G3, 5 for G2.

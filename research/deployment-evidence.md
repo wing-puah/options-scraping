@@ -967,6 +967,12 @@ on dates chosen without a rule. Queued as
 - **The v4 transfer is unvalidated.** Every rule here was derived on the v3
   population; the pre-registered composition bridge (`current.md` §"v4
   emission-composition bridge") has not fired yet.
+- **Neither tier has a measured edge net of costs on v4 (2026-10-09).**
+  [`cost_sensitivity`](study-results/f2_management/cost_sensitivity.md) printed
+  `VANISHES` for Tier A and Tier B at $0.65 per contract. Neither tier's
+  interval excludes zero even before costs, so commission is not what removes
+  the edge. Under the registration, exit tuning on both tiers stops until a
+  later book shows an edge. Deployment stays an operator decision.
 
 ---
 

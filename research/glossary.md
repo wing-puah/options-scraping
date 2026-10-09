@@ -61,19 +61,22 @@ on `n`. See §3.
 
 <a id="net-r"></a>
 ### net R
-R after modelled trading costs: the stored R less commission and
-slippage, charged per LEG at entry and at exit, divided by the position's
-entry cost basis so it stays in R units. The backtest itself fills at the
-bid/ask mid and charges nothing, so every R in this repo is GROSS unless a
-report says otherwise. Registered in
-[`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md).
+R after trading costs: gross R less commission and slippage, charged per leg
+at entry and at exit, divided by the position's entry cost basis so it stays
+in R units. Since the 2026-09-24 re-price the stored R in the v4 results tabs
+is already net of $0.65 per contract with no slippage (`cost_basis =
+commission_only`). The frozen v3 tabs carry no cost and stay gross. The
+cost study rebuilds gross R from `cost_total` and charges each cost point on
+that, as
+[`pre-registrations/f2_management/cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md)
+says.
 
 <a id="cost-point"></a>
 ### cost point
 one (commission per contract, slippage as a fraction of the
-quoted spread) pair. The registered point is $0.65 per contract plus 25% of
-the quoted spread per leg per side; a sweep of other points is a sensitivity,
-never a verdict. The **breakeven contour** is the smallest cost point at which
+quoted spread) pair. The registered point is $0.65 per contract per leg per
+side with no slippage, because the operator fills spreads at the mid. A sweep
+of other points is a sensitivity, never a verdict. The **breakeven contour** is the smallest cost point at which
 a tier's net-R confidence interval no longer excludes zero — the answer to "at
 what cost does the edge vanish".
 
