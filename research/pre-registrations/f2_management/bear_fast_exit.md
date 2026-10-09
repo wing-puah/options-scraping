@@ -1,11 +1,16 @@
 ## bear_fast_exit — does a fast exit make a bear debit pay?
 
-_Registered ____-__-__ (DRAFT — NOT REGISTERED; becomes immutable in substance when the operator accepts it)._
+_Registered 2026-10-09. Immutable in substance from that date._
 
-**STATUS: DRAFT — NOT REGISTERED.** Until acceptance every number, arm, gate
-and verdict below may be edited. After acceptance none of them may. The
-registration date is filled in on acceptance and is the only date this file
-then carries. No module exists and none may be written before acceptance.
+**STATUS: ACCEPTED BY DEFAULT 2026-10-09 on the drafter's recommended
+defaults; the operator may revisit (a revisit after a result is a NEW
+registration, never an edit).**
+
+The open decisions were answered at build, before any outcome column was read.
+Each answer sits beside the text it amends, tagged _Resolved at build
+(2026-10-09)_. The module is
+`scripts/backtest_study/f2_management/bear_fast_exit.py`, with tests in
+`tests/test_bear_fast_exit.py`.
 
 ## Question
 
@@ -65,6 +70,11 @@ Also not:
   Rows with `fill_trusted` False are excluded.
 - **Eras.** v4 (`current`) is PRIMARY. v3 is the replication era, run with
   `--era v3`. The two are never pooled. Every report header names its era.
+
+  _Resolved at build (2026-10-09)._ One run grades both eras. The module loads
+  the requested era as primary and loads v3 beside it, each in its own section.
+  The joint verdict needs both, so a `--era v3` run prints v3 alone and no
+  verdict. That run never overwrites the primary report with a partial one.
 - **The date count is not fixed here.** It is every signal date the era
   resolves at run time with at least one row in scope. No count is written into
   this file or the module.
@@ -73,6 +83,14 @@ Also not:
   once, by the forward clause C7, after the seal releases them. If the
   operator declines the seal, C7 reads signal dates on or after 2026-08-11 as
   soon as the C7 floor is met.
+
+  _Resolved at build (2026-10-09)._ The seal stands, from 2026-09-23. This
+  file was accepted on 2026-10-09, so it is not one of the seal's named
+  readers (`era.SEALED_READERS`). No outcome is computed on a signal date on
+  or after 2026-09-23. `load_book` withholds those rows once the seal code
+  lands; the module also drops them itself and prints the count. C7 stays
+  PENDING until `era.SEAL_LIFTED` is set. It then reads dates on or after
+  2026-09-23, once. The fallback clause about a declined seal does not apply.
 
 ### The baseline is the shipped exit
 
@@ -89,6 +107,12 @@ The breakeven stop was reverted 2026-08-24, so the baseline carries none.
 be used. The module reads `structure_exit.enabled` and the `regime_exit`
 cells from `config/backtest.yml` at run time and prints the profile it built
 (gate G2).
+
+_Resolved at build (2026-10-09)._ The module builds each row's profile with
+production's own merge, `simulate.py::_effective_sim_cfg`, on the config as
+it stands at run time. It does not transcribe the table above. It refuses a
+config that sets a rule the frozen harness cannot replay, such as a portfolio
+trail.
 
 ### Cost is charged on every arm
 
@@ -112,6 +136,33 @@ day and pays a different exit spread.
 - **Wide quotes are reported, never dropped.** Positions whose entry quoted
   spread exceeds 50% of the debit are counted and their figures printed
   separately. They stay in the primary metric.
+
+_Resolved at build (2026-10-09)._ The cost point is contested, so both points
+print as declared lines.
+
+| Line | Cost | Grades |
+|---|---|---|
+| Headline | `config/backtest.yml` at run time: $0.65 per contract per leg per side, no slippage | The verdict |
+| Secondary | $0.65 plus 25% of the quoted spread per leg per side | Its own line only |
+
+- **Why the headline has no slippage.** `cost_sensitivity` `ARM X` changed on
+  2026-09-24 to $0.65 with no slippage, because the operator fills spreads at
+  the combo mid. The config changed the same day. This file was drafted on
+  2026-09-22 and quoted the old point.
+- **What it buys.** The headline baseline then pays exactly the `cost_total`
+  production stored on each v4 row.
+- **The secondary line** is the draft's literal number. The plan-time table
+  below was computed at that point, so it is the line to compare with it.
+- **Expired positions.** `_apply_costs` charges commission on both sides. The
+  module calls it with no exit day and then takes one side's commission back
+  out. A test pins that arithmetic.
+- **Quotes.** The headline reads no quote, so G4 grades the secondary line
+  only. On that line a quote is degenerate when production's `_leg_spread`
+  returns no spread or its junk marker (the 2026-09-24 junk-quote rule).
+  Degenerate and missing quotes take `ARM Q`'s ladder. Fallback 2 uses the
+  position's other legs on the same day.
+- **The entry quote** is read on the first priced grid day. The exit quote is
+  read on the arm's own exit day, never across dates.
 
 ## Plan-time observations, disclosed
 
@@ -227,6 +278,12 @@ position opened. An exit inside that session, at a price other than the close,
 cannot be replayed from daily marks. The live habit of closing within hours is
 approximated by the entry-day close, and the report says so.
 
+_Resolved at build (2026-10-09)._ Session N is grid day N, the same count as
+the harness's `days_held`. A grid day before the fill is unpriced (the B2
+grid fix), so it still counts as a session. The stop then falls back to the
+last priced mark at or before N, as written above. `ARM TS` writes the exit
+reason `session_stop`, so the exit mix shows how many rows the stop closed.
+
 ## Unit and metric
 
 - **Unit** is the signal date. Every CI is date-clustered, `BOOT_N = 10000`,
@@ -247,6 +304,10 @@ Each gate exits non-zero on failure, except G4, which prints a verdict.
 - **G0 POWER.** Per arm and era, at least 25 affected dates and 60 affected
   rows. An arm below either prints `UNDERPOWERED` and its census, and no
   outcome number.
+
+  _Resolved at build (2026-10-09)._ A row is affected when the arm changes its
+  `(exit_reason, days_held, round(pnl, 10))` against the baseline. The level
+  and delta are then computed over every bear-debit row, affected or not.
 - **G1 LEAK GUARD.** The arms run over the whole book with the bear keying
   inside the arm. Every non-bear row must come back unchanged
   `(exit_reason, days_held, round(pnl, 10))`. One changed row fails the run.
@@ -292,6 +353,12 @@ that question.
   because that window cannot power one. Below the floor C7 is PENDING, and a
   pending C7 means nothing ships.
 
+_Resolved at build (2026-10-09)._ C5 and C6 are checked on both eras for each
+question an arm is graded on. "Keeps the sign" means every leave-one-date-out
+fold, and every cut, stays above zero. The two pricing tiers are `real` and
+`strike_expiry_tweak`. C7 is PENDING while the seal stands (see
+[Population](#population-and-basis-fixed-here)).
+
 Eight arms on two questions and two eras will produce about one false
 positive by chance at α = 0.05. That is why every question needs both eras,
 C5, C6 and C7 together.
@@ -313,6 +380,15 @@ C5, C6 and C7 together.
 - **UNDERPOWERED** — G0 stops every arm. Census only.
 - **UNCOSTABLE** — G4 fires on v4. The quote census is the result; the fix is
   a quote backfill, not a lower gate.
+
+_Resolved at build (2026-10-09)._ Three gaps in the wording above, closed:
+
+- **C7 pending.** A PAYS or BLEED-CUT prints as `PAYS (C7 PENDING)` or
+  `BLEED-CUT (C7 PENDING)`. Nothing ships from either until C7 is read.
+- **Fragile cut.** An arm that clears C3 and C4 but fails C5 or C6 earns no
+  BLEED-CUT. The verdict is NULL, and the report names that arm.
+- **Two cost lines.** Each line prints its own verdict. Only the headline
+  line is the study's verdict.
 
 ## Anti-tuning
 
@@ -343,3 +419,8 @@ commit.
 | The option-history cache pulled (`backup_research_caches.py pull`) | The cost model reads `Bid`/`Ask` from it |
 | Operator acceptance of this file | No module before acceptance |
 | [`holdout_seal`](../f4_deployment/holdout_seal.md) decided | C7 reads sealed dates only after release |
+
+_Resolved at build (2026-10-09)._ All four are met. The re-price landed
+2026-09-24, and G3 checks it on every run. The cache is the shared
+`backtests/option_history_cache/`. This file was accepted by default on
+2026-10-09. The seal was decided with a start of 2026-09-23.

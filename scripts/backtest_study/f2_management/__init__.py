@@ -17,6 +17,9 @@ Where the edge actually is. Both shipped exit rules came from here.
     volume_signal.py                null — share volume is liquidity in a
                                     costume. Column closed.
     next_day_move.py                null — ARM C does not clear the confound.
+    bear_fast_exit.py               loss cut — a session-1 exit loses less than
+                                    the shipped bear-debit exit and still loses
+                                    net of commission; C7 waits on the seal.
 
 RETIRED means the inputs are gone for good, not that the verdict is void: the
 runner still runs one by explicit name, `run --all` skips it with a notice, and
