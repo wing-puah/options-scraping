@@ -436,7 +436,8 @@ def load_book(results_csv: str | Path | None = None,
              require_proxy_calibration: bool = True,
              era: str | None = None,
              check_era: bool = True,
-             min_dates: int | None = None) -> tuple[list[dict], dict]:
+             min_dates: int | None = None,
+             sealed_read: str | None = None) -> tuple[list[dict], dict]:
     """Load the pooled real+proxy book across ALL structures.
 
     Returns (records, diag). `diag["counts_by_source"]` reflects the FULL
@@ -461,8 +462,16 @@ def load_book(results_csv: str | Path | None = None,
     sets it explicitly, and `0` disables it for a caller whose job is to report
     on whatever is there (the `--validate` diagnostic below). Only applied when
     `check_era` is on.
+
+    `sealed_read` names a permitted reader of the holdout seal
+    (`era.SEALED_READERS`). By default every record on a sealed signal date is
+    WITHHELD, before the power floor counts dates, and `diag["seal"]` plus one
+    stderr line say how many. A named reader sees the sealed dates from its own
+    first date on. An unknown name raises. See
+    `research/pre-registrations/f4_deployment/holdout_seal.md`.
     """
     era = era or era_mod.requested_era()
+    era_mod.seal_floor(sealed_read)  # an unknown reader name raises before any read
     era_paths = era_mod.resolve_paths(era)
     results_csv = Path(results_csv) if results_csv else era_paths["results"]
     proxy_csv = Path(proxy_csv) if proxy_csv else era_paths["proxy"]
@@ -580,6 +589,10 @@ def load_book(results_csv: str | Path | None = None,
     allowed = set(sources) if sources is not None else (
         {"real", "tweak", "bs"} if include_bs else {"real", "tweak"})
     records = [r for r in records if r["source"] in allowed]
+
+    # The holdout seal, applied to the returned book. Census line only.
+    records, diag["seal"] = era_mod.drop_sealed(records, "date", sealed_read)
+    print(era_mod.seal_line(diag["seal"]), file=sys.stderr)
 
     # Tallied AFTER the source filter, so the line describes the book actually
     # returned. Reporting only: no row is dropped and no exception is raised —

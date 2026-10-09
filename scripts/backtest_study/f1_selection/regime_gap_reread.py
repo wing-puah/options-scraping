@@ -157,6 +157,12 @@ def subhdr(title):
 ac = pd.read_csv(AC_PATH)
 br = pd.read_csv(BR_PATH)
 bp = pd.read_csv(BP_PATH)
+# The holdout seal (lib/era.py): outcome rows on sealed dates are withheld.
+br, _seal_br = era.drop_sealed_frame(br, "signal_date")
+bp, _seal_bp = era.drop_sealed_frame(bp, "signal_date")
+print(era.seal_line({"rows": _seal_br["rows"] + _seal_bp["rows"],
+                     "dates": max(_seal_br["dates"], _seal_bp["dates"]),
+                     "reader": None}))
 
 ac = coerce_numeric_cols(ac, NUMERIC_COLS)
 br = coerce_numeric_cols(br, NUMERIC_COLS)

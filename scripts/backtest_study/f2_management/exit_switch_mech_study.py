@@ -318,7 +318,9 @@ def load_debit_trades(check_era: bool = True):
     unreachable = unreachable_reasons(DEBIT_PROD)
 
     real = []
-    for r in csv.DictReader(open(BR_PATH)):
+    # The holdout seal (lib/era.py): outcome rows on sealed dates are withheld.
+    br_rows, diag["seal_results"] = era.drop_sealed(list(csv.DictReader(open(BR_PATH))))
+    for r in br_rows:
         e = _to_float(r.get("entry_option_price"))
         if e is None or e <= 0 or not r.get("daily_price_csv"):
             continue
@@ -375,7 +377,7 @@ def load_debit_trades(check_era: bool = True):
                               stored_all=stored_all, replay_all=rep_all)
 
     # proxy rows
-    prox_rows = list(csv.DictReader(open(BP_PATH)))
+    prox_rows, diag["seal_proxy"] = era.drop_sealed(list(csv.DictReader(open(BP_PATH))))
     tweak, bs = [], []
     n_dup = n_excl = n_nopath = n_deferred = 0
     excl_rows = []
