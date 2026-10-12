@@ -135,7 +135,7 @@ Vetoes (§1) and tiers (§2–§3) are unchanged. Sizing is the only new rule.
 | In-sample cell (Tier A, falling market) | Mean R | 95% CI |
 |---|---|---|
 | v4 | +0.332 | [+0.133, +0.522] |
-| v3 | +0.383 | — |
+| v3 (gross) | +0.383 | [+0.194, +0.582] |
 
 - **Dip date:** SPY closed strictly below its 50-day SMA on the signal date
   (`spy_below_sma`, [§0 labels](#s0-labels)). The card prints it, or `NO_DATA`
@@ -146,8 +146,8 @@ Vetoes (§1) and tiers (§2–§3) are unchanged. Sizing is the only new rule.
 - On a dip date, deploy Tier A first.
 
 **Operator policy, not evidence.** The only replicated cell in `regime_map` is
-Tier A on falling-market dates. It loses to buy-and-hold outside stress
-windows. Why $500: `ruin_bound`
+Tier A on falling-market dates. Outside the two stress windows it no longer
+survives the multiple-testing correction. Why $500: `ruin_bound`
 found $500 with the refusal keeps ruin near zero; $1,000 on everything had no
 cell in bounds. The forward grade is pending in `dip_buy` and `regime_map`
 ([`research/current.md`](../research/current.md), 2026-10-12).
