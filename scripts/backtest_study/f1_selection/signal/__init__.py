@@ -6,4 +6,5 @@
     prompt_eval.py          harness scoring a candidate analysis prompt against the shipped one.
     trigger_entry.py        entering only on the model's stated trigger vs unconditionally.
     emission_timing.py      does re-emission (ARM P) or fill lag (ARM L) degrade a play?
+    direction_hit.py        does anything known at entry predict the underlying moving the play's way?
 """

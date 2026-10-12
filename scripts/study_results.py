@@ -472,13 +472,16 @@ def _file_header(name: str) -> str:
     drift out of step with both while looking authoritative.
     """
     study = catalog.STUDIES.get(name)
+    # The record sits at `<family>/<name>.md`, and a family may be nested
+    # (`f1_selection/signal`), so the link climbs one level per folder.
+    readme = "../" * len(family_of(name).split("/")) + "README.md"
     lines = [f"# {name} — per-era record", ""]
     if study is not None:
         lines += [f"**Question.** {study.question}", ""]
     lines += [
         "Append-only. One section per (export era, git sha); newest last. The "
         "excerpts are quoted verbatim from the study's own report — see "
-        "[README.md](../README.md) for why this folder exists.",
+        f"[README.md]({readme}) for why this folder exists.",
         "",
     ]
     return "\n".join(lines) + "\n"

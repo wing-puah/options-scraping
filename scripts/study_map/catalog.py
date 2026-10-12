@@ -417,6 +417,32 @@ STUDIES: dict[str, Study] = {
                 "of the same dates. v3 never switches. `PBO=0.161`. Forward `STILL-OPEN`. "
                 "Nothing ships.",
     ),
+    "regime_map": Study(
+        family="selection", state="open",
+        question="A descriptive map, not a selection rule: for each ladder tier (A, B, C, VETO) "
+                 "against each of six market labels (mech_cell, mech direction, mech vol, SPY vs "
+                 "its 50-day SMA, model direction, model vol), is meanR clearly above or below "
+                 "zero after BH, and does v3 give the same answer?",
+        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, v3 "
+                "beside it): `v4 net, graded cells: POSITIVE 2, NEGATIVE 1, NULL 45, THIN 28` "
+                "against `v3 gross, graded cells: POSITIVE 17, NEGATIVE 8, NULL 19, THIN 32`. "
+                "`>>> regime_map REPLICATED cells (v4 net vs v3 gross): 2: A x RM-MDIR=BEAR "
+                "POSITIVE, A x RM-SMA=below POSITIVE <<<`, both the dip_buy lead from another "
+                "door. Forward `{'STILL-OPEN': 2}`. Nothing ships.",
+    ),
+    "direction_hit": Study(
+        family="selection", state="null",
+        question="Does anything known at entry (17 fixed features: market labels, SPY and VIX, "
+                 "the rollup columns, DTE, index ETF, the underlying's own 20-day return and "
+                 "50-SMA position, sector) predict that the underlying moves the play's way "
+                 "over the hold? One walk-forward logistic model, graded by out-of-sample AUC.",
+        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, v3 "
+                "beside it): `>>> direction_hit MODEL (all directional, v4): NULL <<<` on `v4 OOS "
+                "AUC 0.525 CI95 [0.484, 0.563]; v3 OOS AUC 0.564; PBO 0.085`. The model is worse "
+                "than the base rate (`Brier skill=-0.077 [-0.123, -0.032]`), and the intercept "
+                "is the most-often in-sample best subset. Tier A/B secondary `NULL (AUC 0.519 "
+                "[0.468, 0.576])`. Forward `STILL-OPEN`. Nothing ships.",
+    ),
     "mechanical_benchmark": Study(
         family="selection", state="open",
         question="Do the deployed picks beat a mechanical bull call spread on the same dates: "

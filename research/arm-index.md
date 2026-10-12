@@ -74,7 +74,8 @@ under.
   fit) vs `ml_combination`'s two regression baselines. Same document
   registered both on 2026-08-11, and they mean nothing alike.
 - **`F1` / `F2`** — `financed_spread`'s financing structures vs
-  `account_sim`'s 1-contract-floor question. Unrelated.
+  `account_sim`'s 1-contract-floor question vs `direction_hit`'s features
+  `F1`–`F17`. Unrelated.
 - **`C`** — **six** arms (`text_features`, `next_day_move`, `hedge_portfolio`,
   `concurrency_correlation`, `hedge_concentration`, `trigger_entry`). **`N` `R`**
   — two arms each, different studies.
@@ -321,6 +322,52 @@ from trailing results known before each rebalance.
   hindsight. An upper bound, never a candidate.
 - `ADAPTS` `HURTS` `NULL` `STILL-OPEN` (prose) — The verdict words, on
   adapter minus `M0` in [slot R](glossary.md#slot-r) per date.
+
+#### `regime_map`
+
+_Registered in [`pre-registrations/f1_selection/regime/regime_map.md`](pre-registrations/f1_selection/regime/regime_map.md) · module `f1_selection/regime/regime_map.py`_
+
+Accepted by default 2026-10-12. A descriptive map: each ladder tier against
+each market label, one label family at a time. Each cell is graded against
+zero, with [BH](glossary.md#bh) across the era's whole map.
+
+- `RM-CELL` (arm) — Tier × `mech_cell`: LVOL, BEAR_HE, RB_EVOL, NONE.
+- `RM-MDIR` `RM-MVOL` (arm) — Tier × the mechanical direction and vol labels
+  behind `mech_cell`.
+- `RM-SMA` (arm) — Tier × SPY below or above its 50-day SMA, the
+  [dip date](glossary.md#dip-date) label.
+- `RM-RDIR` `RM-RVOL` (arm) — Tier × the model's own regime direction and
+  vol, parsed from `market_regime`.
+- Tier × level (cell) — One tier on one label level, written
+  `A x RM-SMA=below`. Graded tiers are A, B, C and VETO; `A+B` is printed
+  only. Each cell needs 30 positions and 10 dates.
+- `POSITIVE` `NEGATIVE` `NULL` `THIN` (prose) — The per-cell verdict words,
+  on BH q < 0.05. The raw-CI token prints beside them.
+- `REPLICATED` `CONTRADICTED` (prose) — v4 (net) and v3 (gross) print the
+  same, or opposite, non-null token.
+- `CONFIRMED` `NOT-CONFIRMED` `STILL-OPEN` (prose) — The forward read of a
+  replicated cell.
+
+#### `direction_hit`
+
+_Registered in [`pre-registrations/f1_selection/signal/direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md) · module `f1_selection/signal/direction_hit.py`_
+
+Accepted by default 2026-10-12. Does anything known at entry predict the
+[direction hit](glossary.md#direction-hit)? A univariate screen, then one
+walk-forward logistic model graded by out-of-sample [AUC](glossary.md#auc).
+
+- `F1…F17` (descriptive cut) — The 17 fixed entry-time features, each
+  screened alone with a permutation p and BH. A feature with q < 0.05 is
+  flagged `screen+`, which feeds no decision. Unrelated to `financed_spread`'s
+  and `account_sim`'s `F1`/`F2`.
+- The model (arm) — L2 logistic on all 17 features, C = 1.0, one fold per
+  month, trained only on rows whose exit came before the fold.
+- Tier A/B model (population scope) — The same model on Tier A/B rows only,
+  printed with its own token as a secondary.
+- Feature-group subsets (control) — 16 configurations over four groups,
+  read by PBO. The graded model is fixed, so PBO does not move its verdict.
+- `PREDICTS` `WEAK` `NULL` (prose) — The verdict words: v4 AUC CI clear of
+  0.5 and v3 above it, v4 only, or neither.
 
 ### ② Management — when to get out
 

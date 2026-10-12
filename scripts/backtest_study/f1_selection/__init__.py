@@ -4,10 +4,10 @@ Mostly null. 0 of 496 bear subsets, 0 of 15 ML cells. Selection is not tunable
 from the columns we have.
 
     regime/     market state and timing — mech_regime_recut (SHIPPED), regime_gap_reread
-                (reference baseline), macro_event_study, dip_buy, adaptive_ladder
+                (reference baseline), macro_event_study, dip_buy, adaptive_ladder, regime_map
     bear/       bear_position_study (null), bear_arm (SHIPPED, B2)
     signal/     what the analysis emits — ml_combination (null), text_features, prompt_eval,
-                trigger_entry, emission_timing
+                trigger_entry, emission_timing, direction_hit (null)
     benchmark/  yardsticks — ticker_class, mechanical_benchmark, v4_bridge (open)
 
 Each group's own `__init__.py` lists its studies and verdicts.

@@ -155,6 +155,29 @@ surviving MWU p as supporting evidence, not the standard. A HIGH p is still
 informative: the ladder's `A vs B p = .98` (`deployment-evidence.md`) says
 those two tiers are ordered but NOT separated — a watch item, still open.
 
+<a id="bh"></a>
+### BH (Benjamini–Hochberg)
+a correction for testing many cells at once. It turns each raw p into a
+q-value that controls the expected share of false finds among the cells
+called significant. Less strict than Holm, which controls the chance of
+any false find. Used by
+[`regime_map`](pre-registrations/f1_selection/regime/regime_map.md) and
+[`direction_hit`](pre-registrations/f1_selection/signal/direction_hit.md).
+
+<a id="auc"></a>
+### AUC
+the chance that a model scores a randomly chosen hit above a randomly
+chosen miss. 0.5 is a coin flip, 1.0 is perfect ranking. Ties count half.
+It says nothing about whether the probabilities themselves are right; see
+[Brier skill](#brier-skill).
+
+<a id="brier-skill"></a>
+### Brier skill
+`1 − Brier(model) / Brier(base)`, where Brier is the mean squared error of a
+predicted probability against the 0/1 outcome, and the base predicts the
+training data's own hit rate. Above 0, the model's probabilities beat that
+base rate; below 0, they are worse than knowing nothing.
+
 ### sign-stability
 `protocol.sign_stable`: mean of a key per year;
 checks every year has the same sign. A sign that flips across years is
@@ -221,6 +244,18 @@ independent of the exit rule (`mfe_pct`/`mae_pct`,
 the stop. **Asymmetry reads:** near-mirrored MFE/MAE across two groups
 usually reflects shared path volatility, not a real difference — read
 them alongside R, not as a standalone verdict.
+
+<a id="give-back"></a>
+### give-back
+MFE − R for one position, averaged over a cell: how much of the best
+open P&L the position handed back before it exited. Printed per cell by
+[`regime_map`](pre-registrations/f1_selection/regime/regime_map.md).
+
+<a id="capture"></a>
+### capture
+the sum of R over the sum of MFE, over a cell's positions whose MFE was
+above zero: the share of the peak open P&L the exits kept. Printed per
+cell by [`regime_map`](pre-registrations/f1_selection/regime/regime_map.md).
 
 ### Path cap
 `path_cap_days` (120, `config/backtest.yml` /
@@ -518,6 +553,13 @@ divided by 3, the top-3/day budget. An empty slot, or a date a gated rule sits
 out, earns 0. It lets a book that deploys on fewer dates be compared with one
 that deploys every day. Used by
 [`adaptive_ladder`](pre-registrations/f1_selection/regime/adaptive_ladder.md).
+
+<a id="direction-hit"></a>
+### direction hit
+1 when the underlying closed in the play's direction between the signal
+date's close and the exit day's close, else 0. Bull structures bet up,
+bear structures down. Defined by
+[`direction_hit`](pre-registrations/f1_selection/signal/direction_hit.md).
 
 ## 9. Verdict grammar
 

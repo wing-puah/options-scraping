@@ -8,6 +8,12 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-12: nothing known at entry predicts whether the underlying moves the play's way; `direction_hit` prints `NULL`**
+([entry](#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
+
+**2026-10-12: the regime map finds one condition both eras agree on: Tier A makes money on falling-market dates**
+([entry](#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)).
+
 **2026-10-12: a walk-forward rule-switching adapter prints `ADAPTS` on v4
 in-sample dates, from one switch onto a hindsight rule; v3 never switches,
 and the forward read waits behind the seal**
@@ -234,6 +240,156 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-12 — direction_hit: nothing known at entry predicts the underlying's direction
+
+**`direction_hit` prints `NULL`: a walk-forward model on 17 entry-time
+features ranks the plays that hit no better than chance on v4.** Its
+probabilities are worse than the base rate in every population. Nothing
+ships.
+
+_Registration: [`direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md),
+accepted by default 2026-10-12 and saved before the first run · era v4,
+exports 2026-10-06, 1,528 directional rows with a hit · v3 beside it, 782
+rows · report: `backtests/study_output/direction_hit-latest.txt` · recorded
+in [study-results](study-results/f1_selection/signal/direction_hit.md)._
+
+**In production.** Nothing changes. The [direction hit](glossary.md#direction-hit)
+decides most of R, and nothing the card can see at entry predicts it.
+
+### The base rate
+
+| Population | v4 hit | v3 hit |
+|---|---|---|
+| Bull plays | 58.7% | 62.7% |
+| Bear plays | 42.5% | 36.5% |
+| Tier A/B | 58.5% | 67.1% |
+| All directional | 52.4% | 50.4% |
+
+Bear plays lose the direction bet more often than they win it, in both eras.
+
+### The graded model
+
+| Object | Era | Out-of-sample rows, dates | [AUC](glossary.md#auc), CI95 | [Brier skill](glossary.md#brier-skill), CI95 |
+|---|---|---|---|---|
+| [`direction_hit`](arm-index.md#direction_hit) model, all directional | v4 | 1,140, 202 | 0.525 [0.484, 0.563] | −0.077 [−0.123, −0.032] |
+| Same | v3 | 584, 90 | 0.564 [0.514, 0.614] | −0.135 [−0.212, −0.054] |
+| Tier A/B, secondary | v4 | 453, 166 | 0.519 [0.468, 0.576] | −0.128 [−0.203, −0.051] |
+| Tier A/B, secondary | v3 | 169, 55 | 0.486 [0.389, 0.585] | −0.182 [−0.345, −0.006] |
+
+- **Worse than knowing nothing.** Every Brier skill is below zero. Predicting
+  the training months' own hit rate beats the model.
+- **No feature group helps.** [PBO](arm-index.md#pbo_ledger) is 0.085 on v4,
+  because the intercept-only model is the in-sample best in 72% of splits.
+- **The alternatives agree.** Stronger shrinkage (C = 0.1) gives AUC 0.524.
+  A fixed 10-session hit, which no exit touches, gives 0.522.
+- **v3 alone clears 0.5**, but its Brier skill is negative too.
+
+### The univariate screen
+
+Two of the 17 features pass [BH](glossary.md#bh) on v4. Neither is a usable
+signal.
+
+| Feature | v4 lift | v4 BH q | v3 lift, raw p |
+|---|---|---|---|
+| Index ETF (`F14`), hit where 1 minus where 0 | −0.099 | 0.038 | −0.070, 0.210 |
+| Sector (`F17`), between-level variance | +0.007 | 0.008 | +0.011, 0.001 |
+| Own 20-day return, aligned (`F15`, reversal) | +0.030 | 0.963 | −0.131, 0.002 |
+| Own close over its 50-day SMA (`F16`, trend) | −0.014 | 0.963 | −0.169, 0.000 |
+| cpir, aligned (`F9`) | 0.000 | 1.000 | +0.004, 0.967 |
+| iv_spread, aligned (`F10`) | +0.007 | 0.963 | −0.051, 0.292 |
+
+- **Sector is composition.** Metals plays hit 73% on v4 and rates plays 37%.
+  That is which underlyings trended in this sample, not a forward signal.
+- **Index ETFs hit less often**, 44% against 54%.
+  [`ticker_class`](arm-index.md#ticker_class) found them no different on R
+  with direction held fixed.
+- **The literature features are flat on v4.** Short-term reversal shows on
+  v3 only, and on v3 the trend feature points the wrong way for momentum.
+
+**Caveats.**
+
+- **Bars end in August 2026.** The stock-bar cache was last refreshed then, so
+  265 v4 directional rows (120 of them Tier A/B) have no bar at the signal or
+  the exit. Most are June to September 2026 signal dates.
+- **The feature list was drawn up after** the exploratory read had tested 26
+  features against R. The registration discloses it.
+- **The papers measured a broad universe.** They sorted many stocks by each
+  signal; this book holds only the analysis's own picks. A null here does not
+  contradict them.
+
+**Next.** A new [next-steps](next-steps.md#pick-up) item: refresh the stock-bar
+cache and re-run. The forward read is `STILL-OPEN` behind the seal.
+
+---
+
+## 2026-10-12 — regime_map: Tier A on falling-market dates is the one cell both eras agree on
+
+**Tier A makes money when SPY is below its 50-day SMA, and on mechanical
+BEAR dates, in both eras. No other tier and market condition replicates
+after correction.** These are the dates `dip_buy` waits on, seen from the
+map. Nothing ships.
+
+_Registration: [`regime_map.md`](pre-registrations/f1_selection/regime/regime_map.md),
+accepted by default 2026-10-12 and saved before the first run · era v4,
+exports 2026-10-06, 1,850 rows over 280 dates, R net of cost · v3 beside it,
+795 rows, R gross · report: `backtests/study_output/regime_map-latest.txt` ·
+recorded in [study-results](study-results/f1_selection/regime/regime_map.md)._
+
+**In production.** Nothing changes. The map describes; a rule taken from a
+cell needs its own registration, a PBO read and forward dates.
+
+### What was graded
+
+Each tier (A, B, C, VETO) against each of six market labels, one at a time:
+76 cells per era. Each cell is graded against zero, with [BH](glossary.md#bh)
+across the era's whole map. A cell needs 30 positions and 10 dates, or it
+prints `THIN` ([`regime_map`](arm-index.md#regime_map)).
+
+### The two replicated cells
+
+| Object | Era | Positions, dates | [meanR](glossary.md#meanr), CI95 | BH q | [MFE](glossary.md#mfe) / MAE | [Capture](glossary.md#capture) |
+|---|---|---|---|---|---|---|
+| `A x RM-MDIR=BEAR` | v4 net | 59, 30 | +0.367 [+0.167, +0.565] | 0.010 | +1.17 / −0.38 | 0.33 |
+| Same | v3 gross | 117, 46 | +0.393 [+0.205, +0.588] | 0.000 | +1.26 / −0.51 | 0.34 |
+| `A x RM-SMA=below` | v4 net | 65, 35 | +0.332 [+0.133, +0.522] | 0.019 | +1.12 / −0.40 | 0.33 |
+| Same | v3 gross | 119, 47 | +0.383 [+0.194, +0.582] | 0.000 | +1.26 / −0.51 | 0.33 |
+| `A x RM-SMA=above`, for contrast | v4 net | 148, 60 | +0.026 [−0.112, +0.167] | 0.737 | +0.83 / −0.57 | 0.12 |
+
+- **One finding, not two.** A mechanical BEAR date is always below the SMA.
+- **The gain is in the path.** On dip dates Tier A runs further in its favour,
+  falls less against it, and keeps a third of its peak instead of an eighth.
+- **Part of it is the sell-off windows.** Without them both v4 cells stay
+  positive on the raw CI but lose BH (q 0.160 and 0.192).
+
+### The rest of the map
+
+| Graded cells | `POSITIVE` | `NEGATIVE` | `NULL` | `THIN` |
+|---|---|---|---|---|
+| v4, net | 2 | 1 | 45 | 28 |
+| v3, gross | 17 | 8 | 19 | 32 |
+
+- **v4's one negative cell** is Tier C on the model's C-VOL dates, −0.261
+  [−0.371, −0.142]. v3 reads `NULL` there.
+- **Tier B in a calm bull tape is positive before correction.** On the raw
+  CI, eight cells replicate. Five are Tier B, mostly on calm or rising-market
+  labels, for example SPY above its SMA: +0.117 [+0.010, +0.218] on v4.
+- **v3 grades far more cells.** It is mostly sell-off dates, where tiers
+  separate sharply.
+
+**Caveats.**
+
+- **Not blind.** The exploratory read printed Tier A by these labels before
+  the registration was written; the registration says so.
+- **Tier C mixes in bear debits**, which the deploy card treats as hedge-only
+  ([§1.4](../docs/deployment-rules.md#s1)).
+- [`dip_buy DB1`](arm-index.md#dip_buy) stays the graded dip-minus-above
+  contrast. This map grades each half against zero only.
+
+**Next.** The two cells are read forward once the seal lifts. They join
+[next-steps item 6](next-steps.md#pick-up).
 
 ---
 

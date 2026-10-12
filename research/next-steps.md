@@ -34,6 +34,8 @@ No rule changes on it.
 | `ruin_bound` | $500 safe with the F2 refusal; $1,000 has no cell in bounds |
 | `cost_sensitivity` | `VANISHES` on both tiers |
 | `mechanical_benchmark` | not run; waits on a fetch, item 15 |
+| `regime_map` | two Tier A cells replicate, both falling-market dates; forward `STILL-OPEN` |
+| `direction_hit` | `NULL`; nothing at entry predicts the underlying's direction |
 
 **To do next, in order.**
 
@@ -54,9 +56,24 @@ No rule changes on it.
 6. **Waits on dates:** the forward grades in item 12, §2.2, §2.6, the
    seal count, `dip_buy`
    ([entry](current.md#2026-10-12--dip_buy-accepted-by-default-forward-still-open-behind-the-seal))
-   and `adaptive_ladder`
-   ([entry](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight)).
+   `adaptive_ladder`
+   ([entry](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight))
+   and the two replicated `regime_map` cells
+   ([entry](current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)).
    Run the suite once new dates price.
+7. **Optional: refresh the stock-bar cache and re-run `direction_hit`.**
+   The cache ends in August 2026, so 265 v4 rows have no bar at the signal
+   or the exit
+   ([entry](current.md#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
+   The refresh is a Barchart scrape (`fetch_underlying_ohlc.py`). Default: not
+   run until the operator asks.
+8. **Claude: retire the study book's own tier port.**
+   `scripts/backtest_study/lib/book.py::ladder_tier` lacks the §1.3 and §1.4
+   vetoes, so bear debits and RANGE + L-VOL credits land in Tier C. The
+   deploy card's §7 tables carry this, and say so. CLAUDE.md names
+   `mapping.ladder_tier()` the one encoding. Swapping it in moves every
+   study that reads `rec["tier"]`, so it needs a suite re-run. Found
+   2026-10-12.
 
 **Where things stand.**
 

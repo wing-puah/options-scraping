@@ -865,6 +865,17 @@ holdout seal. In-sample context, post hoc, net of cost:
 
 Entry in [`current.md`](current.md#2026-10-12--exploratory-read-v4-is-a-bull-tape-and-the-vetoes-are-its-only-ladder-edge).
 
+The [`regime_map`](pre-registrations/f1_selection/regime/regime_map.md) found
+the Tier A half of this lead in both eras, against zero and after BH. It is
+still to be tested forward. Tier B on dip dates did not replicate.
+
+| Cell | v4 net meanR [CI] | v3 gross meanR [CI] |
+|---|---|---|
+| Tier A, dip dates | +0.332 [+0.133, +0.522] | +0.383 [+0.194, +0.582] |
+| Tier B, dip dates | −0.001 [−0.559, +0.370] | +0.642 [+0.379, +0.812] |
+
+Entry in [`current.md`](current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on).
+
 ### A rule-switching adapter (to be tested, forward)
 
 Re-choosing the selection rule each month from trailing known results beat
