@@ -81,9 +81,8 @@ L_STEP = 5
 MIN_BLOCKS = 8
 PER_POS_CAP = 0.25
 HIGH_BUDGET = 1000.0
-#: The holdout seal's first sealed signal date. `era.SEAL_START` once the seal
-#: code is on the branch; the literal is the registered date until then.
-SEAL_START = str(getattr(era, "SEAL_START", "2026-09-23"))[:10]
+#: The holdout seal's first sealed signal date, from `lib/era.py`.
+SEAL_START = era.SEAL_START
 
 CELLS = (("N100-F1", 1.00, True), ("N150-F1", 1.50, True), ("N250-F1", 2.50, True),
          ("N100-F2", 1.00, False), ("N150-F2", 1.50, False), ("N250-F2", 2.50, False))

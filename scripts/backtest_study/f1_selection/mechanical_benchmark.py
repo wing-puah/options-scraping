@@ -113,10 +113,6 @@ FLOOR5_MIN_BAND_PAIRS = 10
 #: §5 BEAR_HE trail row (config/backtest.yml regime_exit.cells.BEAR_HE).
 BEAR_HE_PROD = dict(DEBIT_PROD, trig=0.50, trail=0.50)
 
-#: The seal's first date, used ONLY when `lib/era.py` predates the holdout
-#: seal (holdout_seal.md, accepted 2026-10-09). Once era carries
-#: `drop_sealed`, that is the one encoding and this is never read.
-_SEAL_START_FALLBACK = "2026-09-23"
 
 UNIVERSE_DIRS = (ROOT / "audit", ROOT / "backtests" / "analysis_inputs_cache")
 OUT_DIR = ROOT / "backtests" / "study_output"
@@ -605,14 +601,8 @@ class EraBuild:
 def apply_seal(records: list[dict]) -> tuple[list[dict], str]:
     """The holdout seal on the returned book (`era.drop_sealed`, keyed on
     `date`). Idempotent beside `load_book`'s own withholding."""
-    if hasattr(era, "drop_sealed"):
-        kept, info = era.drop_sealed(records, "date")
-        return kept, era.seal_line(info)
-    held = [r for r in records if str(r["date"])[:10] >= _SEAL_START_FALLBACK]
-    kept = [r for r in records if str(r["date"])[:10] < _SEAL_START_FALLBACK]
-    return kept, (f"SEAL: withheld {len(held)} rows on "
-                  f"{len({r['date'] for r in held})} signal dates >= "
-                  f"{_SEAL_START_FALLBACK} — holdout_seal.md (local guard)")
+    kept, info = era.drop_sealed(records, "date")
+    return kept, era.seal_line(info)
 
 
 def pick_spot(chain, spot_u, s: Slot) -> float | None:

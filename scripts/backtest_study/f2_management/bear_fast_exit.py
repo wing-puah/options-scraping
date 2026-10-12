@@ -87,9 +87,8 @@ BEAR_DEBIT = ("bear_put_spread", "long_put")
 REPLICATION_ERA = "v3"
 
 # --- the holdout seal --------------------------------------------------------
-# The authoritative seal lives in `lib/era.py` once it lands there; this copy
-# only makes the rule hold on a checkout that predates it. Same date, by rule.
-SEAL_START = "2026-09-23"
+# Read from `lib/era.py`, the one encoding of the seal (next-steps item 4).
+SEAL_START = era_mod.SEAL_START
 
 # --- arms, frozen by the registration ------------------------------------------
 # (label, family, profit-target override or None, session stop N or None)

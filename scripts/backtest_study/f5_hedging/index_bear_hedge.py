@@ -128,17 +128,9 @@ def seal_lifted() -> bool:
 def _apply_seal(recs: list[dict]) -> tuple[list[dict], dict]:
     """Withhold sealed signal dates — `era.drop_sealed` with no reader.
 
-    `load_book` already does this; repeating it is a no-op there and keeps the
-    study sealed on a checkout whose loader predates the guard.
+    `load_book` already does this; repeating it is a no-op there.
     """
-    drop = getattr(era, "drop_sealed", None)
-    if drop is not None:
-        return drop(recs, "date")
-    start = "2026-09-23"   # era.SEAL_START, for a loader that predates it
-    kept = [r for r in recs if str(r["date"])[:10] < start]
-    held = [r for r in recs if str(r["date"])[:10] >= start]
-    return kept, {"rows": len(held), "dates": len({r["date"] for r in held}),
-                  "reader": None}
+    return era.drop_sealed(recs, "date")
 
 
 # ════════════════════════════════════════════════════════════════════════════
