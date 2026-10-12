@@ -1,13 +1,17 @@
 # Deployment rules — the deploy-day card
 
 Which analysis plays get real capital. Read this on a deploy morning, do what it
-says. Every rule here is a confirmed backtest finding — the numbers, CIs and
+says. Every rule here is a confirmed backtest finding, except those marked
+operator policy — the numbers, CIs and
 rollback triggers behind them live in
 [`research/deployment-evidence.md`](../research/deployment-evidence.md).
 
 > **Derived on v3 rows; v4 transfer is not yet validated.** The pre-registered
 > composition bridge has not fired. Until it does, deploy under these rules
 > unchanged and expect them to be re-confirmed, not re-derived.
+>
+> **Sizing (§ Sizing) is operator policy adopted 2026-10-12 on in-sample
+> evidence;** its forward grade is pending.
 
 ---
 
@@ -19,7 +23,8 @@ rollback triggers behind them live in
   SPY/VIX table behind `mech_cell` is refreshed for you.
 - Read **`mech_cell`** off the analysis row. Do not hand-compute SPY vs its
   50-day SMA; the column is on every row and backfilled.
-- Budget: the analysis emits ~10 plays/day. **Deploy 1–3.**
+- Budget: the analysis emits ~10 plays/day. **Deploy 1–3.** Size per
+  [§ Sizing](#s2-sizing): full only for Tier A on a dip date, otherwise $500.
 - Entry basis: the **next trading day's OPEN**. Same-day fills were never
   modeled and are not covered by any rule here.
 
@@ -63,8 +68,9 @@ The stored cell combines them, first match wins:
 `PROD` in the §7.7 table is the backtest's stored fallback for a row with `NONE`
 or no usable label. It means "run the base exit config" — no cell override.
 
-`spy_below_sma` is a research-tier field (SPY strictly below its 50-day SMA,
-read by the `dip_buy` study, still to be tested). It governs nothing on this card.
+`spy_below_sma` is SPY strictly below its 50-day SMA on the signal date (the
+**dip date**, read by the `dip_buy` study). It governs only
+[§ Sizing](#s2-sizing); it changes no veto, tier or exit.
 
 <a id="s1"></a>
 
@@ -114,6 +120,46 @@ over budget — which is how a 1–3/day rule coexisted with a book that grew fr
 - Miss either condition and the play drops to Tier C.
 
 `|delta|` and DTE are not columns on the analysis row — read them in IBKR.
+
+<a id="s2-sizing"></a>
+
+## Sizing — operator policy (2026-10-12)
+
+Vetoes (§1) and tiers (§2–§3) are unchanged. Sizing is the only new rule.
+
+| Play | Size |
+|---|---|
+| Tier A on a **dip date** | Normal size, set by the $1,000 stop |
+| Tier B, or Tier A on a non-dip date | Small: $500 max risk per position |
+
+| In-sample cell (Tier A, falling market) | Mean R | 95% CI |
+|---|---|---|
+| v4 | +0.332 | [+0.133, +0.522] |
+| v3 | +0.383 | — |
+
+- **Dip date:** SPY closed strictly below its 50-day SMA on the signal date
+  (`spy_below_sma`, [§0 labels](#s0-labels)). The card prints it, or `NO_DATA`
+  when the SPY/VIX table does not reach the session. On `NO_DATA` the card
+  claims no size class: size small.
+- **Skip, do not force.** If one contract risks more than $500, skip the play.
+  Do not widen the budget or narrow the spread to fit.
+- On a dip date, deploy Tier A first.
+
+**Operator policy, not evidence.** The only replicated cell in `regime_map` is
+Tier A on falling-market dates. It loses to buy-and-hold outside stress
+windows. Why $500: `ruin_bound`
+found $500 with the refusal keeps ruin near zero; $1,000 on everything had no
+cell in bounds. The forward grade is pending in `dip_buy` and `regime_map`
+([`research/current.md`](../research/current.md), 2026-10-12).
+
+**Rollback:** if the `dip_buy` forward verdict is NULL or CONTRARY, revert to
+uniform $500 sizing.
+
+**Risk:** full size on dip days concentrates size exactly when markets fall.
+The §4 hedge sleeve stays at ≤ ½ a position.
+
+The card shows the size class per candidate. It is an annotation: it never
+re-sorts, drops or re-tiers a play. It is not stored in the Recommendations tab.
 
 <a id="s4"></a>
 

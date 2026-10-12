@@ -36,6 +36,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field, replace
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 
@@ -116,6 +117,9 @@ class Candidate:
     exit_by_earliest: date | None = None
     exit_by_latest: date | None = None
     exit_by_note: str = ""
+
+    # --- §2-sizing policy size class (annotate_size_class() only; display-only)
+    size_class: str = ""
 
     # --- judgment annotations (judge() only; rank() never sets these) -----
     trigger_verdict: str | None = None
@@ -731,6 +735,75 @@ def annotate_exit_by(candidates: list[Candidate], *, entry_date: date) -> None:
                               f"({rng[0]:.0f}–{rng[1]:.0f} DTE, {entered})")
 
 
+# --------------------------------------------------------------------------
+# Sizing policy annotation (deployment-rules.md §2-sizing) — display-only
+# --------------------------------------------------------------------------
+DIP = "DIP"
+NOT_DIP = "NOT_DIP"
+NO_DATA = "NO_DATA"
+MECH_REGIME_CSV = (Path(__file__).resolve().parents[2]
+                   / "backtests/mech_regime/spy_vix_daily_full.csv")
+SIZE_FULL = "full ($1,000 stop)"
+SIZE_SMALL = "small ($500 max risk; skip if one contract exceeds it)"
+SIZE_UNKNOWN = "unknown (dip status NO_DATA)"
+
+
+def dip_status(session: str, csv_path: Path | str = MECH_REGIME_CSV) -> str:
+    """`DIP` / `NOT_DIP` / `NO_DATA` for the signal date `session`.
+
+    DIP = SPY closed strictly below its 50-day SMA on `session`
+    (`MechLabeler.below_sma`). Never guesses: a missing table, a table that
+    ends before `session` (`covers()`), or a date with no SMA runway is
+    NO_DATA. `session` is already bounded by the as-of date in
+    `check_freshness`, so no later close can reach this.
+    """
+    from lib.mech_regime import MechLabeler
+    p = Path(csv_path)
+    if not p.exists():
+        return NO_DATA
+    try:
+        lab = MechLabeler.from_csv(p)
+        if not lab.covers(session):
+            return NO_DATA
+        below, _ = lab.below_sma(session)
+    except Exception:  # noqa: BLE001 - an unreadable table is NO_DATA, not a crash
+        return NO_DATA
+    if below is None:
+        return NO_DATA
+    return DIP if below else NOT_DIP
+
+
+def annotate_size_class(candidates: list[Candidate], status: str) -> None:
+    """Stamp the §2-sizing size class on each deploy candidate.
+
+    DISPLAY-ONLY: re-sorts nothing, drops nothing, changes no tier. Tier A on a
+    DIP date is full size; every other deploy is small; NO_DATA claims nothing.
+    Hedge-sleeve candidates keep their own §4 size and are left blank.
+    """
+    for c in candidates:
+        if c.role != "deploy":
+            continue
+        if status == NO_DATA:
+            c.size_class = SIZE_UNKNOWN
+        elif status == DIP and c.tier == "A":
+            c.size_class = SIZE_FULL
+        else:
+            c.size_class = SIZE_SMALL
+
+
+def _render_size_policy(status: str) -> list[str]:
+    if not status:
+        return []
+    shown = {DIP: "**DIP DATE** (SPY closed below its 50-day SMA)",
+             NOT_DIP: "not a dip date (SPY at/above its 50-day SMA)",
+             NO_DATA: "**NO_DATA** (mech table missing, ends before the session, "
+                      "or no SMA runway) — no size class claimed"}[status]
+    return [f"**Sizing (§2-sizing, operator policy — in-sample, forward grade pending):** {shown}.",
+            "Tier A on a dip date: full size. Every other deploy: small ($500 max "
+            "risk; skip a play whose one contract exceeds it). Annotation only.",
+            ""]
+
+
 def _render_deploy_candidate(i: int, c: Candidate) -> str:
     tag = "[DEPLOY]" if c.deploy else "[RESERVE]"
     lines = [
@@ -742,6 +815,7 @@ def _render_deploy_candidate(i: int, c: Candidate) -> str:
         f"  alternative interpretation: {_wrap_note(c.alternative_interpretation)}",
         f"  score_total: {_fmt_score(c.score_total)} (tie-break only, §6 — never a promotion signal)",
         f"  exit by: {c.exit_by_note or '—'}",
+        *([f"  size class: {c.size_class}"] if c.size_class else []),
         f"  duplicate exposure: {_fmt_bool(c.duplicate_exposure)}",
         f"  cap headroom: {_fmt_bool(c.headroom_ok)} — {c.headroom_note}",
         f"  reasons: {_render_reasons(c)}",
@@ -789,7 +863,7 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
            *, date: str, source: str = "", net_liq: float | None = None,
            as_of: str = "", staleness_days: int | None = None,
            stale_note: str = "", book_evaluable: bool = True,
-           book_note: str = "", book=None) -> str:
+           book_note: str = "", book=None, dip: str = "") -> str:
     """Render the full markdown deploy card.
 
     Stands on its own with `judgment=None` (the `--no-llm` path) — the
@@ -864,6 +938,7 @@ def render(candidates: list[Candidate], rejected: list[Rejected], judgment: dict
                      "this date; the ladder was applied per-row. Check the analysis book.")
         lines.append("")
 
+    lines.extend(_render_size_policy(dip))
     lines.extend(_book_concentration(book, deploy, book_evaluable))
     lines.append("")
 

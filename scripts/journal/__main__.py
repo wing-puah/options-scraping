@@ -608,6 +608,10 @@ def cmd_recommend(args) -> int:
     # every "next trading day" in this repo is: there is no holiday calendar.
     rec.annotate_exit_by(candidates, entry_date=_next_weekday(date.fromisoformat(as_of)))
 
+    # §2-sizing policy: print-only size class, never a sort/filter/tier change.
+    dip = rec.dip_status(session)
+    rec.annotate_size_class(candidates, dip)
+
     judged = None
     judge_status = "not_run"
     if not args.no_llm:
@@ -625,7 +629,7 @@ def cmd_recommend(args) -> int:
                       date=session, source=ac_source, net_liq=net_liq,
                       as_of=as_of, staleness_days=staleness, stale_note=stale_note,
                       book_evaluable=prov["evaluable"], book_note=prov["note"],
-                      book=book_risk)
+                      book=book_risk, dip=dip)
     # PRINT BEFORE PERSISTING. A disk error or a missing credential must never
     # cost you the card on screen — the record is a convenience, the card is the
     # product. Under --quiet there is no screen to lose it to, so the ordering

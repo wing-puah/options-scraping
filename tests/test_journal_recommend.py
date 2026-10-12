@@ -678,3 +678,67 @@ def test_rendered_card_shows_exit_by_for_both_deploy_and_hedge_candidates(monkey
     annotate_exit_by([deploy_c, hedge_c], entry_date=date(2026, 8, 17))
     card = render([deploy_c, hedge_c], [], None, date=DATE)
     assert card.count("exit by:") == 2
+
+
+# --------------------------------------------------------------------------
+# §2-sizing policy — dip-date size class (display-only annotation)
+# --------------------------------------------------------------------------
+def _mech_csv(tmp_path, closes_last_below: bool, n=60):
+    """SPY/VIX csv with n rows; the final close is below/above the 50-day SMA."""
+    from datetime import date as _d
+    rows = ["date,spy_close,vix_close"]
+    d = _d(2026, 1, 1)
+    for i in range(n):
+        spy = 100.0
+        if i == n - 1:
+            spy = 90.0 if closes_last_below else 110.0
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+        rows.append(f"{d.isoformat()},{spy},15.0")
+        last = d
+        d += timedelta(days=1)
+    p = tmp_path / "m.csv"
+    p.write_text("\n".join(rows) + "\n")
+    return p, last.isoformat()
+
+
+def test_dip_status_dip_not_dip_and_no_data(tmp_path):
+    from journal import s06_recommend as m
+    p, last = _mech_csv(tmp_path, True)
+    assert m.dip_status(last, p) == m.DIP
+    p2, last2 = _mech_csv(tmp_path, False)
+    assert m.dip_status(last2, p2) == m.NOT_DIP
+    # table ends before the session -> never an as-of guess
+    assert m.dip_status("2099-01-01", p2) == m.NO_DATA
+    # missing table
+    assert m.dip_status(last2, tmp_path / "nope.csv") == m.NO_DATA
+
+
+def test_size_class_policy_and_ordering_unchanged():
+    from journal import s06_recommend as m
+    a = _candidate("AAA", tier="A", score_total=90)
+    b = _candidate("BBB", tier="B", score_total=80)
+    h = _candidate("HHH", tier="B", role="hedge")
+    before = [(c.ticker, c.tier, c.deploy) for c in (a, b, h)]
+    m.annotate_size_class([a, b, h], m.DIP)
+    assert a.size_class == m.SIZE_FULL
+    assert b.size_class == m.SIZE_SMALL and h.size_class == ""
+    m.annotate_size_class([a, b], m.NOT_DIP)
+    assert a.size_class == m.SIZE_SMALL and b.size_class == m.SIZE_SMALL
+    m.annotate_size_class([a, b], m.NO_DATA)
+    assert a.size_class == m.SIZE_UNKNOWN and b.size_class == m.SIZE_UNKNOWN
+    assert [(c.ticker, c.tier, c.deploy) for c in (a, b, h)] == before
+
+
+def test_render_shows_size_class_and_is_unchanged_without_it():
+    from journal import s06_recommend as m
+    a = _candidate("AAA", tier="A")
+    plain = render([a], [], None, date=DATE)
+    assert "size class" not in plain and "Sizing" not in plain
+    m.annotate_size_class([a], m.DIP)
+    card = render([a], [], None, date=DATE, dip=m.DIP)
+    assert "DIP DATE" in card and f"size class: {m.SIZE_FULL}" in card
+    m.annotate_size_class([a], m.NO_DATA)
+    card = render([a], [], None, date=DATE, dip=m.NO_DATA)
+    assert "NO_DATA" in card and "no size class claimed" in card
+    assert m.SIZE_FULL not in card
