@@ -106,7 +106,11 @@ def compute_mech_table(csv_path: str | Path) -> list[dict]:
                 vol = "L-VOL"
 
         out.append({"date": r["date"], "mech_direction": direction,
-                    "mech_vol": vol, "dir_ok": sma is not None and ret_n is not None})
+                    "mech_vol": vol, "dir_ok": sma is not None and ret_n is not None,
+                    # SPY strictly below its 50-day SMA, the first half of the
+                    # BEAR test above; None with no SMA runway. Read by the
+                    # research tier (`dip_buy`), never by an exit or a gate.
+                    "spy_below_sma": (r["spy"] < sma) if sma is not None else None})
     return out
 
 
@@ -139,6 +143,18 @@ class MechLabeler:
         if not row["dir_ok"]:
             return (None, None, False, row["date"])
         return (row["mech_direction"], row["mech_vol"], True, row["date"])
+
+    def below_sma(self, d: str) -> tuple[bool | None, str | None]:
+        """(SPY below its 50-day SMA?, mapped_trading_date) as of date D.
+
+        Same as-of rule as `label()`. None when D predates the table or the
+        50-day runway. A caller labelling a live date gates on `covers()` too.
+        """
+        i = bisect.bisect_right(self._dates, str(d)) - 1
+        if i < 0:
+            return (None, None)
+        row = self._by_date[self._dates[i]]
+        return (row.get("spy_below_sma"), row["date"])
 
     def covers(self, d: str) -> bool:
         """True when the table actually reaches date D.

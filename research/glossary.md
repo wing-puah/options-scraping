@@ -501,6 +501,24 @@ withholds the rest. The commitment, its unseal condition and the single
 read taken on unseal are in
 [`pre-registrations/f4_deployment/holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md).
 
+<a id="dip-date"></a>
+### dip date
+a signal date on which SPY's close, as of the last trading day on or before
+it, is strictly below its 50-day simple moving average. It is the first half
+of `mech_cell`'s BEAR test, without the 20-day return. The label comes from
+`lib/mech_regime.py::MechLabeler.below_sma`, the same table and SMA as
+`mech_cell`. Used by
+[`dip_buy`](pre-registrations/f1_selection/dip_buy.md); the opposite is an
+"above" date.
+
+<a id="slot-r"></a>
+### slot R
+R per budget slot on one signal date: the summed R of the date's picks
+divided by 3, the top-3/day budget. An empty slot, or a date a gated rule sits
+out, earns 0. It lets a book that deploys on fewer dates be compared with one
+that deploys every day. Used by
+[`adaptive_ladder`](pre-registrations/f1_selection/adaptive_ladder.md).
+
 ## 9. Verdict grammar
 
 ### ARM

@@ -8,6 +8,16 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-12: a walk-forward rule-switching adapter prints `ADAPTS` on v4
+in-sample dates, from one switch onto a hindsight rule; v3 never switches,
+and the forward read waits behind the seal**
+([entry](#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight)).
+
+**2026-10-12: an exploratory read found v4 a bull tape where only the vetoes
+lift the ladder above random picks; its one lead, `dip_buy`, is registered
+and waits behind the seal**
+([entry](#2026-10-12--exploratory-read-v4-is-a-bull-tape-and-the-vetoes-are-its-only-ladder-edge)).
+
 **2026-10-09: seven parked drafts were accepted by default and run; nothing
 ships** ([entry](#2026-10-09--parked-drafts-accepted-by-default-and-run)).
 
@@ -224,6 +234,232 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-12 — adaptive_ladder: the walk-forward adapter beats M0 once, on a menu built in hindsight
+
+**The adapter prints `ADAPTS` on the in-sample v4 dates, but the whole gain
+is one switch to a rule the exploratory read had already picked.** In April
+2026 it left the shipped ladder for bull_call_spreads ranked lowest score
+first, and stayed there. Before that it held the shipped ladder. On v3 it
+never switches. Nothing ships.
+
+_Registration: [`adaptive_ladder.md`](pre-registrations/f1_selection/adaptive_ladder.md),
+accepted by default 2026-10-12 · era v4, exports 2026-10-06, 1,753 non-veto
+rows over 278 dates, 224 graded · v3 beside it, R gross of cost · report:
+`backtests/study_output/adaptive_ladder-latest.txt` · recorded in
+[study-results](study-results/f1_selection/adaptive_ladder.md)._
+
+**In production.** Nothing changes. A forward `ADAPTS` would at most let the
+operator consider a deployment-rules change.
+
+### What was graded
+
+A fixed procedure, not a rule. Six selection rules form the menu
+([`adaptive_ladder M0–M5`](arm-index.md#adaptive_ladder)). On the first
+signal date of each month the adapter scores every rule on positions whose
+exit came before that date, over the last 120 days. It switches when a
+challenger with 20 positions has a lower bound above the incumbent's mean.
+The graded figure is adapter minus `M0` in [slot R](glossary.md#slot-r) per
+date, with a month-block [CI](glossary.md#ci).
+
+### Walk-forward, v4, in-sample dates
+
+| Book | Positions | [meanR](glossary.md#meanr) | Slot R per date | Total R | Max drawdown, R |
+|---|---|---|---|---|---|
+| Adapter, default | 424 | +0.075 | +0.048 | +32.0 | 23.6 |
+| `M0`, shipped | 441 | +0.029 | +0.019 | +12.7 | 39.0 |
+| `M1`, ascending | 441 | +0.096 | +0.063 | +42.5 | 24.7 |
+| `M5`, oracle in hindsight | 385 | +0.137 | +0.078 | +52.7 | 14.1 |
+
+| Comparison | Adapter − `M0` per date, CI95 | Verdict |
+|---|---|---|
+| All 224 graded dates | +0.029 [+0.001, +0.064] | **`ADAPTS`** |
+| Ex Mar–Apr 2025 and Feb–Apr 2026 | +0.034 [+0.001, +0.074] | `ADAPTS`, not graded |
+| 2024 and 2025 | 0.000 | No switch |
+| 2026 | +0.064 [+0.007, +0.131] | `ADAPTS`, not graded |
+
+- **One switch.** `M0` to `M5` on 2026-04-02; `M0` held 64% of graded dates
+  and `M5` 36%.
+- **The lower bound sits at the floor.** The CI clears zero by 0.001.
+- **The grid agrees in sign, not in kind.** Of 12 configurations, 10 beat
+  `M0` on the point estimate and 4 clear zero. The plain-mean margin switches
+  11 to 30 times and clears zero in none.
+- **[PBO](arm-index.md#pbo_ledger) 0.16** over the 18 books. `M5` is the
+  in-sample best in half the splits.
+
+### Why this is weaker than it reads
+
+- **The menu is hindsight.** `M1`, `M3`, `M4` and `M5` came from reading these
+  dates on the same day. Static `M5` and `M1` beat `M0` in-sample by more than
+  the adapter does.
+- **v3 does not replicate.** The default never leaves `M0`, which is also the
+  hindsight best there. `M5` loses to `M0` on v3, −0.052 [−0.087, −0.013].
+- **The gain is one regime.** It is the 2026 tape, after a sell-off, on a
+  rule that bets on bull_call_spreads.
+
+**Forward.** `STILL-OPEN`: 0 of 30 forward dates, behind the seal. The rule
+held entering the forward window is `M5`.
+
+**Next.** `adaptive_ladder` joins the forward reads waiting on dates in
+[next-steps item 6](next-steps.md#pick-up).
+
+---
+
+## 2026-10-12 — exploratory read: v4 is a bull tape, and the vetoes are its only ladder edge
+
+**On v4 the Tier A/B ladder is a bet on direction, and the vetoes carry
+its whole lead over random picks.** A pick's R mostly tracks its underlying's
+move over the hold. Among non-vetoed plays the ladder sits at the median of
+random top-3 books, and below every random bull_call_spread book. This read is
+exploratory and unregistered. Nothing ships.
+
+_Era v4, exports 2026-10-06: 1,850 priced rows over 280 dates. Era v3 for
+contrast: 795 rows over 118 dates. Tiers from `mapping.ladder_tier` · scripts
+and outputs in the session scratchpad, not the repo · raw CIs, no
+multiplicity control unless stated._
+
+**In production.** Nothing changes. One lead was registered and run; see the
+[next entry](#2026-10-12--dip_buy-accepted-by-default-forward-still-open-behind-the-seal).
+
+### The tape
+
+v4 is mostly a rising market, and v3 is mostly a falling one. Any v3-to-v4
+comparison is partly a comparison of tapes.
+
+| Measure | v4 | v3 |
+|---|---|---|
+| Signal dates with SPY above its 50-day SMA | 78% | 33% |
+| Signal dates inside the Mar–Apr 2025 or Feb–Apr 2026 sell-offs | 12.5% | 53% |
+| Tier A+B picks whose underlying rose over the hold | 52% | 67% |
+
+### The ladder is a direction bet
+
+Tier A+B [R](glossary.md#r), regressed on the underlying's own return over
+the hold.
+
+| Era | Slope | R² | R at zero move, [CI95](glossary.md#ci) | Positions |
+|---|---|---|---|---|
+| v4 | +4.68 | 0.47 | +0.005 [−0.057, +0.059] | 741 |
+| v3 | +4.66 | 0.43 | +0.127 [+0.035, +0.238] | 294 |
+
+The slope is the same in both eras. What v4 lacks is the intercept: with no
+move, a v4 pick earns nothing. It also lacks the rising underlyings, so the
+v3-to-v4 gap is mostly the tape.
+
+### The vetoes carry the v4 edge
+
+Each null draws three random plays per date from a pool, 10,000 times. The
+table gives the percentile of the ladder's A/B-only top-3
+[meanR](glossary.md#meanr) in that null.
+
+| Null pool | v4, all dates | v4, ex sell-offs | v3, all dates | v3, ex sell-offs |
+|---|---|---|---|---|
+| Every play | 99.7 | 99.7 | 100.0 | 100.0 |
+| Every non-veto play | 55.3 | 42.3 | 97.2 | 48.6 |
+| Every bull_call_spread | 0.0 | 0.7 | 95.6 | 63.1 |
+
+- **The vetoes are the edge.** Against every play the ladder wins in both
+  eras. Against non-vetoed plays it wins only on v3, and only inside the
+  sell-off windows.
+- **The tie-break picks worse spreads on v4.** Within tier the ladder
+  ranks by `score_total`, highest first. Ranking lowest first lifts the v4
+  ladder's meanR from +0.084 to +0.131, per the `dip_buy` run below.
+
+### What survives the screen
+
+A permutation screen tested 26 features, shuffled within date, with BH
+correction. Only one survives on v4: bull_call_spread against every other
+structure, q 0.013.
+
+| Feature | v4 difference in meanR | v3 difference in meanR |
+|---|---|---|
+| bull_call_spread vs the rest | +0.189 | +0.424 |
+
+A [PBO](arm-index.md#pbo_ledger) read over 28 single-feature selection rules
+puts the selection's overfitting odds at 0.48 on v4 and 0.33 on v3. One rule
+ranked high in both: Tier A/B on a [dip date](glossary.md#dip-date). It is
+the most frequent in-sample winner on v3 and second on v4.
+
+| Tier A, v4 | meanR, CI95 |
+|---|---|
+| Dip dates | +0.332 [+0.14, +0.52] |
+| Above dates | +0.026 [−0.11, +0.17] |
+
+### Three hypotheses, one registered
+
+| Hypothesis | Where it went |
+|---|---|
+| Tier A/B do better on dip dates | Registered as [`dip_buy`](pre-registrations/f1_selection/dip_buy.md), forward only |
+| A positive cpir helps | A printed split inside `dip_buy`, never graded |
+| A lower `score_total` helps within bull_call_spread | A printed tie-break inside `dip_buy`, never graded |
+
+**Caveats.** Every lead here was found by looking at these dates, so none can
+be confirmed on them. The sell-off windows were chosen from the outcomes. The
+v4 book holds 195 positions marked open at the data end. The PBO rule medians
+used the full sample, a mild leak.
+
+**Next.** `dip_buy` waits on forward dates and the seal. No queue item closes.
+
+---
+
+## 2026-10-12 — dip_buy accepted by default: forward STILL-OPEN behind the seal
+
+**`dip_buy` prints `STILL-OPEN`: the forward dates it grades are sealed, and
+neither arm has a date yet.** It grades one population, v4 signal dates from
+the seal's start. The in-sample eras are printed as post hoc context only.
+Nothing ships.
+
+_Registration: [`dip_buy.md`](pre-registrations/f1_selection/dip_buy.md),
+accepted by default 2026-10-12 · era v4, exports 2026-10-06, v3 beside it ·
+report: `backtests/study_output/dip_buy-latest.txt` · recorded in
+[study-results](study-results/f1_selection/dip_buy.md)._
+
+**In production.** Nothing changes. A forward `SUPPORTED` would at most let
+the operator consider a deployment-rules change.
+
+### The registration's choices
+
+| Choice | Default |
+|---|---|
+| Dip label | `lib/mech_regime.py` `below_sma`: SPY close strictly below its 50-day SMA, as of the signal date |
+| Why not `mech_cell` | It does not encode this flag; its BEAR also needs a falling 20-day return |
+| Graded statistic | Tier A+B meanR, dip minus above, date-clustered CI |
+| Forward population | v4 signal dates on or after `era.SEAL_START`, readable once the seal lifts |
+| Floor per arm | 30 signal dates and 60 positions |
+| Verdict of record | The first run printing anything but `STILL-OPEN` |
+| Printed both ways, not graded | `score_total` tie-break order; cpir split at 0.92 |
+
+The study is not a named sealed reader, because the
+[seal](pre-registrations/f4_deployment/holdout_seal.md)'s list closed on
+2026-10-09. Its forward read waits for the unseal.
+
+**Expected wait.** SPY was below its SMA on 21% of v4 signal dates. At that
+rate the dip arm needs about 142 forward signal dates, roughly seven months.
+In a steady rally it may never fill.
+
+### In-sample context, post hoc
+
+| Object | v4 | v3 |
+|---|---|---|
+| [`dip_buy DB1`](arm-index.md#dip_buy), dip minus above | +0.096 [−0.164, +0.322] | +0.199 [−0.050, +0.428] |
+| Dip arm meanR | +0.192, 112 positions, 46 dates | +0.450, 161 positions, 53 dates |
+| Above arm meanR | +0.096, 630 positions, 197 dates | +0.252, 131 positions, 35 dates |
+| Ladder top-3 vs random bull_call_spreads, descending tie-break | 0.0th percentile | 94.8th percentile |
+| The same, ascending tie-break | 12.9th percentile | 85.9th percentile |
+
+The pooled sign agrees across eras, and neither interval clears zero. Tier A
+and Tier B split in opposite directions in the two eras, so the graded object
+is the pooled contrast.
+
+**Also changed.** `lib/mech_regime.py` gained the `spy_below_sma` field,
+the same SMA as before with no threshold moved. Four studies now read the seal
+date from `lib/era.py` instead of a copy, closing
+[next-steps item 4](next-steps.md#pick-up).
+
+**Next.** `dip_buy` joins the forward reads waiting on dates in
+[next-steps item 6](next-steps.md#pick-up).
 
 ---
 

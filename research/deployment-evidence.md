@@ -845,6 +845,43 @@ the trial ledger, so this waits for forward data.
 
 ---
 
+## Selection candidates — open (2026-10-12)
+
+Nothing here ships. The labels follow the sizing section above: **concrete**
+or **to be tested**.
+
+### Tier A/B on dip dates (to be tested, forward)
+
+Tier A/B positions may do better on a [dip date](glossary.md#dip-date), when
+SPY closed below its 50-day SMA. The rule was picked post hoc from 28
+candidates, so only forward dates can test it. It is registered as
+[`dip_buy`](pre-registrations/f1_selection/dip_buy.md) and waits behind the
+holdout seal. In-sample context, post hoc, net of cost:
+
+| Era, Tier A+B | Dip minus above, [meanR](glossary.md#meanr) [CI](glossary.md#ci) |
+|---|---|
+| v4 | +0.096 [−0.164, +0.322] |
+| v3 | +0.199 [−0.050, +0.428] |
+
+Entry in [`current.md`](current.md#2026-10-12--exploratory-read-v4-is-a-bull-tape-and-the-vetoes-are-its-only-ladder-edge).
+
+### A rule-switching adapter (to be tested, forward)
+
+Re-choosing the selection rule each month from trailing known results beat
+the shipped ladder on v4 in-sample dates, by one switch onto a rule picked in
+hindsight. v3 did not switch. It is registered as
+[`adaptive_ladder`](pre-registrations/f1_selection/adaptive_ladder.md) and
+waits behind the holdout seal.
+
+| Era | Adapter minus shipped, [slot R](glossary.md#slot-r) per date [CI](glossary.md#ci) |
+|---|---|
+| v4, net of cost | +0.029 [+0.001, +0.064] |
+| v3, gross | 0.000, no switch |
+
+Entry in [`current.md`](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight).
+
+---
+
 ## Hedge-timing triggers (2026-08-28 — one prohibition, accepted 2026-09-06; one closed question, one untestable habit)
 
 [`hedge_timing`](arm-index.md#hedge_timing) (f4, registered 2026-08-28, era v4 decisive + v3 replication,

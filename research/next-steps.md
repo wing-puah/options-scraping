@@ -46,15 +46,17 @@ No rule changes on it.
    stands.
 3. **Operator, optional: read the `VANISHES` result** and the `ruin_bound`
    $1,000 reading. Neither changes a rule; ask questions.
-4. **Claude: point the four new studies at the shared seal date.**
-   `index_bear_hedge`, `bear_fast_exit`, `ruin_bound` and
-   `mechanical_benchmark` each copy 2026-09-23. They should read it from
-   `scripts/backtest_study/lib/era.py`. Harmless today: the seal withholds 0
-   rows.
+4. **DONE 2026-10-12 — the four new studies read the seal date from
+   `lib/era.py`.** `index_bear_hedge`, `bear_fast_exit`, `ruin_bound` and
+   `mechanical_benchmark` no longer copy 2026-09-23.
 5. **DONE 2026-10-10 — seven stale worktrees removed.** Every commit on
    them was already on main by patch id.
-6. **Waits on dates:** the forward grades in item 12, §2.2, §2.6 and the
-   seal count. Run the suite once new dates price.
+6. **Waits on dates:** the forward grades in item 12, §2.2, §2.6, the
+   seal count, `dip_buy`
+   ([entry](current.md#2026-10-12--dip_buy-accepted-by-default-forward-still-open-behind-the-seal))
+   and `adaptive_ladder`
+   ([entry](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight)).
+   Run the suite once new dates price.
 
 **Where things stand.**
 

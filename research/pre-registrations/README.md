@@ -129,6 +129,8 @@ controls, cells and descriptive cuts under the same letters.
 | [`f1_selection/emission_timing.md`](f1_selection/emission_timing.md) | `emission_timing` | graded |
 | [`f1_selection/mechanical_benchmark.md`](f1_selection/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Accepted by default 2026-10-09 and built; the first run is `NOT BUILT — AWAITING SCRAPE`, with the fetch plan printed. | accepted by default 2026-10-09 |
 | [`f1_selection/ticker_class.md`](f1_selection/ticker_class.md) | `ticker_class` — do index ETFs carry more reliable edge than single-stock groups, direction held fixed? | registered |
+| [`f1_selection/dip_buy.md`](f1_selection/dip_buy.md) | `dip_buy` — do Tier A/B positions do better when SPY closed below its 50-day SMA? Picked post hoc from 28 rules on 2026-10-12, so graded on forward dates from the seal's start only. Accepted by default 2026-10-12; first run `STILL-OPEN` behind the holdout seal. | run |
+| [`f1_selection/adaptive_ladder.md`](f1_selection/adaptive_ladder.md) | `adaptive_ladder` — does re-choosing among six fixed selection rules from trailing known results beat the shipped ladder, walk-forward? Accepted by default 2026-10-12; first run `ADAPTS` on in-sample dates with a hindsight menu, forward `STILL-OPEN`. | run |
 | [`f1_selection/ticker_class_regime.md`](f1_selection/ticker_class_regime.md) | `ticker_class_regime` — does the index-vs-single-stock gap depend on trend or volatility regime? Seven graded contrasts, forward dates only, with a confirmation window. | draft |
 
 ## ② Management — `f2_management/`

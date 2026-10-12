@@ -394,6 +394,29 @@ STUDIES: dict[str, Study] = {
                 "N=5)`, selection fragile. The v3 replication (same path) reads NULL on P1, S1 and "
                 "S3 under `PBO 0.845`, and S2 UNDERPOWERED. Forward read STILL-OPEN. Nothing ships.",
     ),
+    "dip_buy": Study(
+        family="selection", state="open",
+        question="Among non-vetoed Tier A/B positions, is meanR higher when SPY closed below its "
+                 "50-day SMA on the signal date than when it closed above? Picked post hoc from "
+                 "28 rules, so only signal dates from the holdout seal's start are graded.",
+        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, v3 "
+                "beside it): `>>> dip_buy PRIMARY (forward, Tier A+B, below - above): "
+                "STILL-OPEN <<<`, because the forward dates are sealed and neither arm has a "
+                "date. In-sample context, post hoc: v4 `below - above = +0.096  CI95 [-0.164, "
+                "+0.322]`, v3 `below - above = +0.199  CI95 [-0.050, +0.428]`. Nothing ships.",
+    ),
+    "adaptive_ladder": Study(
+        family="selection", state="open",
+        question="Does a fixed procedure that re-picks one of six selection rules from trailing "
+                 "results known before each monthly rebalance beat the shipped ladder (M0), "
+                 "walk-forward, in R per budget slot per date?",
+        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, v3 "
+                "beside it): `>>> adaptive_ladder WALK-FORWARD (in-sample dates, v4, adapter - "
+                "M0): ADAPTS <<<`, on `+0.0287  CI95 [+0.0011, +0.0642]` from one switch "
+                "(`2026-04-02  M0 -> M5`); four of the six rules came from the exploratory read "
+                "of the same dates. v3 never switches. `PBO=0.161`. Forward `STILL-OPEN`. "
+                "Nothing ships.",
+    ),
     "mechanical_benchmark": Study(
         family="selection", state="open",
         question="Do the deployed picks beat a mechanical bull call spread on the same dates: "

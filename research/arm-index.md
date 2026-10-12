@@ -276,6 +276,52 @@ fixed ticker group, `G1`–`G7`, hashed before any outcome was read.
 - `STILL-OPEN` `FORWARD-CONFIRMED` `FORWARD-REFUTED` (prose) — The forward
   read of `P1` on signal dates after 2026-10-07.
 
+#### `dip_buy`
+
+_Registered in [`pre-registrations/f1_selection/dip_buy.md`](pre-registrations/f1_selection/dip_buy.md) · module `f1_selection/dip_buy.py`_
+
+Accepted by default 2026-10-12. The study asks whether Tier A/B positions do
+better on a [dip date](glossary.md#dip-date), when SPY closed below its 50-day
+SMA. The rule was picked post hoc, so only forward dates from the seal's
+start are graded, once the seal lifts.
+
+- `DB1` (arm) — The graded contrast: Tier A+B meanR on dip dates minus above
+  dates, forward only. Each arm needs 30 dates and 60 positions.
+- `DB-TB` (descriptive cut) — The `score_total` tie-break within tier, printed
+  descending and ascending.
+- `DB-CPIR` (descriptive cut) — `DB1` inside cpir above, and at or below, the
+  registered median 0.92.
+- `DB-DEP` (descriptive cut) — Ladder top-3/day against dip-gated top-3/day:
+  total R, meanR and per-date meanR.
+- `DB-NULL` (control) — Random non-veto bull_call_spreads on the same dates,
+  as many per date as the book picked.
+- `SUPPORTED` `CONTRARY` `NULL` `STILL-OPEN` (prose) — The verdict words. The
+  first run printing anything but `STILL-OPEN` is the verdict of record.
+
+#### `adaptive_ladder`
+
+_Registered in [`pre-registrations/f1_selection/adaptive_ladder.md`](pre-registrations/f1_selection/adaptive_ladder.md) · module `f1_selection/adaptive_ladder.py`_
+
+Accepted by default 2026-10-12. The study grades a procedure, not a rule: a
+fixed menu of six selection rules, and an adapter that re-picks one of them
+from trailing results known before each rebalance.
+
+- `M0` (arm) — The shipped card: Tier A/B top-3, `score_total` descending.
+  The baseline every other book is compared with.
+- `M1` (arm) — Tier A/B top-3, `score_total` ascending.
+- `M2` (arm) — Tier A/B top-3, random order within tier, as an exact
+  expected value.
+- `M3` (arm) — `M1` on [dip dates](glossary.md#dip-date) only.
+- `M4` (arm) — `M1`, but Tier A only on above dates.
+- `M5` (arm) — Non-veto bull_call_spreads, tier-blind, ascending.
+- `ADAPTER` (arm) — The graded book. Monthly rebalance, 120-day trailing
+  window, a challenger needs 20 positions and a lower bound above the
+  incumbent's mean. Eleven other configurations are printed, not graded.
+- `ORACLE` (control) — The best static rule on the graded dates, in
+  hindsight. An upper bound, never a candidate.
+- `ADAPTS` `HURTS` `NULL` `STILL-OPEN` (prose) — The verdict words, on
+  adapter minus `M0` in [slot R](glossary.md#slot-r) per date.
+
 ### ② Management — when to get out
 
 #### `cost_sensitivity`
