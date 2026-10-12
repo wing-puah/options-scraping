@@ -23,6 +23,49 @@ rollback triggers behind them live in
 - Entry basis: the **next trading day's OPEN**. Same-day fills were never
   modeled and are not covered by any rule here.
 
+<a id="s0-labels"></a>
+
+### Labels on the analysis row
+
+The card tells you to read two market labels. They are different things and they
+govern different jobs.
+
+| Label | Source | Governs |
+|---|---|---|
+| Model regime | The analysis model's own label on the row (BULL / BEAR / RANGE, plus a vol tag). Judgment, not a formula. | **Selection** — §1 vetoes and §2 tiers |
+| `mech_cell` | A fixed formula on SPY and VIX closes (`lib/mech_regime.py`). | **Exits** — §5 |
+
+Evidence that the two win on opposite jobs: `research/current.md`, section
+2026-07-22, addendum 4. Never use one for the other's job.
+
+**`mech_cell`** is causal: the label for date D uses only closes on or before D.
+It has two parts.
+
+| Part | Value | Rule |
+|---|---|---|
+| Direction | BULL | SPY > its 50-day SMA **and** 20-day return > 0 |
+| | BEAR | SPY < its 50-day SMA **and** 20-day return < 0 |
+| | RANGE | anything else |
+| Vol | E-VOL | VIX ≥ 30 **or** 5-day VIX change ≥ +25% |
+| | H-VOL | VIX ≥ 20 (and not E-VOL) |
+| | L-VOL | otherwise |
+
+The stored cell combines them, first match wins:
+
+| `mech_cell` | When |
+|---|---|
+| `BEAR_HE` | BEAR and (H-VOL or E-VOL) |
+| `LVOL` | any direction with L-VOL |
+| `RB_EVOL` | RANGE or BULL, with E-VOL |
+| `NONE` | labelled, but no override cell applies: in practice RANGE or BULL with H-VOL |
+| `NO_DATA` | no label: the SPY/VIX table is missing, ends before D, or D is inside the first 50 days of history |
+
+`PROD` in the §7.7 table is the backtest's stored fallback for a row with `NONE`
+or no usable label. It means "run the base exit config" — no cell override.
+
+`spy_below_sma` is a research-tier field (SPY strictly below its 50-day SMA,
+read by the `dip_buy` study, still to be tested). It governs nothing on this card.
+
 <a id="s1"></a>
 
 ## 1. VETO — never deploy, regardless of score
@@ -157,13 +200,27 @@ Three clauses that keep the table consistent:
 
 ## 7. Reference stats — what each cell has actually done
 
-**These are descriptive, not a selection rule** — in-sample summaries of the book
-the rules above were derived on. Read them to know what a deploy *normally*
-looks like and how much room a position needs, never to promote a play into a
-tier because its cell looks good here. §1–4 is the selection rule.
+**These are descriptive, not a selection rule** — in-sample summaries of the book.
+Read them to know what a deploy *normally* looks like and how much room a position
+needs, never to promote a play into a tier because its cell looks good here.
+§1–4 is the selection rule.
 
-<!-- Regenerate: `python -m scripts.backtest_study run bear_giveback --arms S`
-     Snapshot below: 2026-08-12, pooled real+tweak book, 795 rows, bs excluded. -->
+**The tables below are the v4 book.** The rules in §1–§6 were derived on v3, so
+several cells here read weaker than the rule's own evidence. That is a finding
+about transfer, not a reason to change a rule on a read of one table. The v3
+numbers stay in git history (this file before 2026-10-12) and in
+[`research/deployment-evidence.md`](../research/deployment-evidence.md).
+§7.1 keeps a compact v3 tier block for comparison.
+
+<!-- Regenerate: `python -m scripts.backtest_study run bear_giveback -- --arms S`
+     (study: scripts/backtest_study/f2_management/bear_giveback.py).
+     Snapshot below: run 2026-10-12, era v4, 1,850 rows (1,020 real + 830
+     strike_expiry_tweak, bs excluded), exports dated 2026-10-06, seal withheld 0 rows.
+     Prior snapshot: 2026-08-12, v3 pooled book, 795 rows. -->
+
+**Cost basis.** v4 rows are **net of commission** (`realized_pnl_abs` and `meanR`);
+the path columns (`MFE`, `MAE`) are gross. The v3 snapshot was gross of costs.
+Slippage is 0: spreads are filled at mid.
 
 **Column key**
 
@@ -179,26 +236,42 @@ tier because its cell looks good here. §1–4 is the selection rule.
 | `gb`    | give-back = \|MAE\| / MFE. **>1 = the average row went deeper under water than it ever showed green.**     |
 | `cap`   | capture = meanR / MFE. **Low `cap` with high `MFE` is an exit problem; low `MFE` is a selection problem.** |
 
-`win` and `PF` disagree constantly — read them together. `bull_put_spread` wins
-68% of the time and still has PF 0.94.
+`win` and `PF` disagree constantly — read them together. On v4 `bull_put_spread`
+wins 70% of the time and still has PF 0.92.
 
 <a id="s7-1"></a>
 
 ### 7.1 The book, and the ladder
 
-| Cell         |   n | win |       PF |  meanR |          $ |   MFE |   MAE |   gb |   cap |
-| ------------ | --: | --: | -------: | -----: | ---------: | ----: | ----: | ---: | ----: |
-| **all rows** | 795 | 50% |     1.04 | +0.034 |     +12.3k | +0.89 | −0.87 | 0.98 | +0.04 |
-| debit        | 593 | 45% |     1.06 | +0.034 |     +15.7k | +0.91 | −0.70 | 0.77 | +0.04 |
-| credit       | 202 | 63% |     0.92 | +0.033 |      −3.4k | +0.82 | −1.37 | 1.68 | +0.04 |
-| **Tier A**   | 131 | 63% | **2.29** | +0.400 | **+50.0k** | +1.30 | −0.49 | 0.38 | +0.31 |
-| **Tier B**   | 166 | 67% | **1.78** | +0.303 | **+32.1k** | +1.06 | −0.82 | 0.77 | +0.29 |
-| **Tier C**   | 408 | 43% |     0.79 | −0.098 |     −41.5k | +0.74 | −0.90 | 1.22 | −0.13 |
-| **VETO**     |  90 | 32% |     0.34 | −0.394 |     −28.3k | +0.61 | −1.38 | 2.28 | −0.65 |
+| Cell         |    n | win |   PF |  meanR |          $ |   MFE |   MAE |   gb |   cap |
+| ------------ | ---: | --: | ---: | -----: | ---------: | ----: | ----: | ---: | ----: |
+| **all rows** | 1850 | 50% | 0.99 | +0.013 |      −9.7k | +0.79 | −0.73 | 0.92 | +0.02 |
+| debit        | 1362 | 42% | 0.98 | −0.003 |     −15.3k | +0.80 | −0.64 | 0.79 | −0.00 |
+| credit       |  488 | 70% | 1.04 | +0.058 |      +5.6k | +0.75 | −0.99 | 1.31 | +0.08 |
+| **Tier A**   |  213 | 51% | 1.28 | +0.119 |     +22.6k | +0.92 | −0.52 | 0.56 | +0.13 |
+| **Tier B**   |  563 | 60% | 1.38 | +0.115 |     +71.7k | +0.83 | −0.71 | 0.86 | +0.14 |
+| **Tier C**   | 1064 | 44% | 0.80 | −0.058 |     −99.3k | +0.75 | −0.78 | 1.05 | −0.08 |
+| **VETO**     |   10 | 30% | 0.26 | −0.345 |      −4.8k | +0.24 | −0.70 | 2.93 | −1.45 |
 
-The ladder is monotone on every column. A and B carry the whole book; C and VETO
-together are −$69.8k. **The rules are a subtraction, not an addition** — the edge
-comes from not deploying C and VETO.
+**These tiers are not quite §1–§2.** The study book tiers rows with its own
+port in `scripts/backtest_study/lib/book.py`, which lacks the §1.3 and §1.4
+vetoes. Bear debits and RANGE + L-VOL credits therefore sit in Tier C here, not
+VETO. That is why VETO holds only 10 rows.
+
+The ladder separates A and B from C. It is **not** monotone: B beats A on win,
+PF and `$`. A and B are about level on `meanR`. Tier C carries the loss
+(−$99.3k), and the VETO cell is now only 10 rows. **The rules are still a
+subtraction** — the edge is in not deploying C — but the A-over-B ordering is
+not supported on v4.
+
+v3 frozen tiers, for comparison (795 rows, gross of costs):
+
+| Tier | n | win | PF | meanR | $ |
+|---|--:|--:|--:|--:|--:|
+| A | 131 | 63% | 2.29 | +0.400 | +50.0k |
+| B | 166 | 67% | 1.78 | +0.303 | +32.1k |
+| C | 408 | 43% | 0.79 | −0.098 | −41.5k |
+| VETO | 90 | 32% | 0.34 | −0.394 | −28.3k |
 
 <a id="s7-2"></a>
 
@@ -206,44 +279,45 @@ comes from not deploying C and VETO.
 
 | Structure | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| `bull_call_spread` | 242 | 60% | **2.05** | +0.329 | **+79.4k** | +1.24 | −0.51 | 0.41 | +0.27 |
-| `bull_put_spread` | 166 | 68% | 0.94 | +0.063 | −2.2k | +0.78 | −1.24 | 1.60 | +0.08 |
-| `bear_put_spread` | 327 | 37% | 0.74 | −0.114 | **−44.8k** | +0.73 | −0.82 | 1.11 | −0.15 |
-| `bear_call_spread` | 37 | 32% | **0.19** | −0.578 | −11.2k | +0.55 | −2.20 | **4.03** | −1.06 |
-| `long_call` | 8 | 0% | 0.00 | −0.522 | −8.2k | +0.74 | −0.72 | 0.98 | −0.71 |
-| `long_put` | 6 | 17% | 0.01 | −0.613 | −4.9k | +0.27 | −0.88 | 3.26 | −2.28 |
-| `straddle` | 5 | 60% | 3.97 | +0.402 | +3.5k | +0.76 | −0.37 | 0.48 | +0.53 |
-| `strangle` | 3 | 67% | 2.46 | +0.487 | +1.9k | +1.28 | −0.65 | 0.51 | +0.38 |
+| `bull_call_spread` | 612 | 54% | **1.40** | +0.140 | **+93.0k** | +0.87 | −0.54 | 0.62 | +0.16 |
+| `bull_put_spread` | 476 | 70% | 0.92 | +0.068 | −10.8k | +0.76 | −0.98 | 1.29 | +0.09 |
+| `bear_put_spread` | 677 | 33% | 0.76 | −0.135 | **−80.9k** | +0.76 | −0.74 | 0.98 | −0.18 |
+| `long_call` | 13 | 15% | 0.03 | −0.227 | −11.8k | +0.47 | −0.57 | 1.22 | −0.48 |
+| `long_put` | 9 | 22% | 0.36 | −0.160 | −5.4k | +0.51 | −0.54 | 1.06 | −0.32 |
+| `straddle` | 36 | 28% | 0.89 | −0.058 | −2.2k | +0.42 | −0.43 | 1.02 | −0.14 |
+| `strangle` | 13 | 31% | 0.26 | −0.005 | −19.2k | +0.67 | −0.57 | 0.86 | −0.01 |
 
-`bull_call_spread` alone is +$79.4k against a whole-book +$12.3k. `bear_call_spread`
-gives back 4× what it ever shows — that ratio is why it is intake-vetoed, and it is
-the worst `gb` on the board. Naked longs (n=14 combined) are a rounding error but
-have never worked. Straddle/strangle n is too small to read.
+Also in the book, all with n ≤ 6 (not readable): `short_put`, `butterfly`,
+`iron_condor`, `calendar`. `bear_call_spread` has no v4 rows (intake-vetoed, §1.1).
+
+`bull_call_spread` is +$93.0k against a whole-book −$9.7k. `bear_put_spread` is the
+largest loss, −$80.9k. Naked longs (n=22 combined) have never worked.
+Straddle/strangle `$` is dominated by a few large positions; do not read it.
+v3 for reference: `bull_call_spread` PF 2.05 / +$79.4k, `bear_call_spread` `gb` 4.03.
 
 <a id="s7-3"></a>
 
 ### 7.3 By model regime × structure
 
-The **model** regime (the free-text label on the analysis row) is the
-selection-relevant one. Structures with n < 3 in a cell omitted.
+The **model** regime (the label on the analysis row) is the selection-relevant
+one. Structures with n < 3 in a cell omitted.
 
 | Model regime | Structure | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| BULL | `bull_call_spread` | 100 | 56% | 1.78 | +0.237 | +26.4k | +1.14 | −0.55 | 0.48 | +0.21 |
-| BULL | `bull_put_spread` | 41 | 73% | 0.85 | +0.237 | −1.1k | +0.87 | −1.29 | 1.49 | +0.27 |
-| BULL | `bear_put_spread` | 42 | 29% | 0.56 | −0.239 | −11.9k | +0.58 | −0.92 | 1.58 | −0.41 |
-| BEAR | `bull_call_spread` | 31 | 65% | 2.14 | +0.400 | +9.7k | +1.48 | −0.42 | 0.28 | +0.27 |
-| BEAR | `bull_put_spread` | 28 | 57% | 0.63 | −0.200 | −2.9k | +0.70 | −0.88 | 1.25 | −0.29 |
-| BEAR | `bear_put_spread` | 115 | 40% | 0.79 | −0.105 | −11.7k | +0.72 | −0.80 | 1.10 | −0.14 |
-| BEAR | `bear_call_spread` | 18 | 33% | 0.24 | −0.483 | −5.3k | +0.57 | −2.03 | 3.53 | −0.84 |
-| RANGE | `bull_call_spread` | 111 | 62% | **2.28** | +0.392 | **+43.3k** | +1.26 | −0.51 | 0.41 | +0.31 |
-| RANGE | `bull_put_spread` | 97 | 69% | 1.07 | +0.066 | +1.8k | +0.76 | −1.32 | 1.74 | +0.09 |
-| RANGE | `bear_put_spread` | 170 | 36% | 0.77 | −0.089 | −21.2k | +0.78 | −0.80 | 1.03 | −0.11 |
-| RANGE | `bear_call_spread` | 16 | 31% | 0.15 | −0.592 | −4.8k | +0.47 | −2.43 | 5.20 | −1.27 |
+| BULL | `bull_call_spread` | 405 | 55% | 1.44 | +0.143 | +67.9k | +0.84 | −0.56 | 0.67 | +0.17 |
+| BULL | `bull_put_spread` | 273 | 69% | 0.82 | +0.051 | −14.9k | +0.77 | −1.00 | 1.30 | +0.07 |
+| BULL | `bear_put_spread` | 301 | 35% | 0.80 | −0.113 | −29.9k | +0.86 | −0.72 | 0.84 | −0.13 |
+| BEAR | `bull_call_spread` | 10 | 70% | 2.75 | +0.407 | +4.6k | +0.94 | −0.37 | 0.39 | +0.43 |
+| BEAR | `bull_put_spread` | 15 | 67% | 0.73 | +0.033 | −1.1k | +0.72 | −1.13 | 1.58 | +0.05 |
+| BEAR | `bear_put_spread` | 40 | 28% | 0.54 | −0.244 | −10.9k | +0.53 | −0.92 | 1.72 | −0.46 |
+| RANGE | `bull_call_spread` | 197 | 51% | 1.27 | +0.121 | +20.5k | +0.93 | −0.51 | 0.55 | +0.13 |
+| RANGE | `bull_put_spread` | 188 | 72% | 1.11 | +0.096 | +5.1k | +0.74 | −0.93 | 1.24 | +0.13 |
+| RANGE | `bear_put_spread` | 335 | 32% | 0.75 | −0.146 | −41.6k | +0.69 | −0.74 | 1.07 | −0.21 |
 
-`bull_call_spread` is the only structure that is PF > 1.7 in **every** model
-regime, including BEAR. That is the whole reason Tier A and B are both
-`bull_call_spread` cells.
+`bull_call_spread` has PF above 1 in **every** model regime, including BEAR
+(too thin to read). `bear_put_spread` has PF below 1 in every regime. The v3
+claim "PF > 1.7 in every regime" does not hold on v4. The structure ordering
+holds; the size of the edge does not.
 
 <a id="s7-4"></a>
 
@@ -253,43 +327,45 @@ All structures pooled.
 
 | Cell                         |   n |     win |       PF |  meanR |          $ |   MFE |   MAE |   gb |   cap |
 | ---------------------------- | --: | ------: | -------: | -----: | ---------: | ----: | ----: | ---: | ----: |
-| BULL + L-VOL                 | 117 |     44% |     0.81 | −0.062 |      −9.9k | +0.85 | −0.94 | 1.10 | −0.07 |
-| BULL + C-VOL                 |  74 |     65% |     1.80 | +0.351 |     +17.4k | +1.06 | −0.61 | 0.57 | +0.33 |
-| BEAR + E-VOL                 | 122 |     52% |     1.07 | +0.025 |      +3.0k | +0.91 | −0.75 | 0.82 | +0.03 |
-| **BEAR + H-VOL** ← §1.2 veto |  64 | **30%** | **0.39** | −0.350 | **−20.6k** | +0.61 | −1.07 | 1.75 | −0.57 |
-| BEAR + C-VOL                 |   9 |     67% |     2.22 | +0.440 |      +4.4k | +1.09 | −0.86 | 0.79 | +0.40 |
-| RANGE + E-VOL                | 212 |     52% |     1.14 | +0.087 |     +11.1k | +0.88 | −0.91 | 1.03 | +0.10 |
-| RANGE + H-VOL                |  60 |     37% |     0.63 | −0.196 |     −11.6k | +0.62 | −0.85 | 1.39 | −0.32 |
-| RANGE + L-VOL                |  54 |     46% |     1.08 | −0.114 |      +1.9k | +1.01 | −1.04 | 1.03 | −0.11 |
-| RANGE + C-VOL                |  73 |     59% |     1.50 | +0.250 |     +13.6k | +1.06 | −0.87 | 0.82 | +0.24 |
+| BULL + E-VOL                 |  50 |     46% |     0.63 | −0.052 |      −8.1k | +0.78 | −0.76 | 0.97 | −0.07 |
+| BULL + L-VOL                 | 852 |     52% |     1.05 | +0.044 |     +18.6k | +0.82 | −0.71 | 0.87 | +0.05 |
+| BULL + C-VOL                 | 123 |     52% |     0.98 | +0.071 |      −0.8k | +0.85 | −0.75 | 0.87 | +0.08 |
+| BEAR + E-VOL                 |  62 |     44% |     0.84 | −0.030 |      −4.8k | +0.67 | −0.88 | 1.31 | −0.04 |
+| **BEAR + H-VOL** ← §1.2 veto |  10 | **30%** | **0.26** | −0.345 |      −4.8k | +0.24 | −0.70 | 2.93 | −1.45 |
+| RANGE + E-VOL                | 332 |     46% |     1.04 | −0.010 |      +6.4k | +0.78 | −0.77 | 0.98 | −0.01 |
+| RANGE + H-VOL                |  39 |     44% |     0.47 | −0.186 |     −11.0k | +0.60 | −0.73 | 1.22 | −0.31 |
+| RANGE + L-VOL                | 327 |     49% |     1.03 | +0.007 |      +3.2k | +0.77 | −0.69 | 0.89 | +0.01 |
+| RANGE + C-VOL                |  54 |     43% |     0.60 | −0.130 |      −9.9k | +0.68 | −0.79 | 1.16 | −0.19 |
 
-BEAR + H-VOL is the worst pooled cell on the board — 30% win, PF 0.39, −$20.6k.
-That is §1.2, and it holds pooled across every structure.
+BEAR + H-VOL has the worst PF and `gb` on the board, but it is only 10 rows.
+v3 had 64 rows and −$20.6k. The v4 window has almost no BEAR + H-VOL days, so
+v4 neither confirms nor overturns §1.2. The largest `$` losses on v4 are
+RANGE + H-VOL, RANGE + C-VOL and BULL + E-VOL. Those are not vetoed, and this
+table is not a reason to veto them.
 
 <a id="s7-5"></a>
 
 ### 7.5 The Tier-A cell — `bull_call_spread` by regime × vol
 
-| Cell          | Tier |   n | win |   PF |  meanR |      $ |   MFE |   MAE |   gb |   cap |
-| ------------- | ---- | --: | --: | ---: | -----: | -----: | ----: | ----: | ---: | ----: |
-| RANGE + E-VOL | A    |  50 | 66% | 2.99 | +0.543 | +25.4k | +1.47 | −0.47 | 0.32 | +0.37 |
-| RANGE + H-VOL | A    |  13 | 77% | 9.80 | +0.644 | +10.4k | +1.08 | −0.25 | 0.23 | +0.60 |
-| RANGE + L-VOL | A    |  15 | 53% | 1.81 | +0.197 |  +3.7k | +1.26 | −0.68 | 0.54 | +0.16 |
-| RANGE + C-VOL | A    |  32 | 56% | 1.35 | +0.179 |  +4.9k | +1.02 | −0.60 | 0.59 | +0.18 |
-| BULL + C-VOL  | B    |  40 | 75% | 5.01 | +0.544 | +24.5k | +1.37 | −0.31 | 0.22 | +0.40 |
-| BULL + L-VOL  | B    |  60 | 43% | 1.07 | +0.033 |  +1.9k | +0.99 | −0.71 | 0.71 | +0.03 |
-| BEAR + E-VOL  | A    |  20 | 65% | 2.37 | +0.446 |  +6.8k | +1.56 | −0.38 | 0.25 | +0.29 |
-| BEAR + H-VOL  | VETO |   9 | 67% | 2.27 | +0.389 |  +2.9k | +1.50 | −0.43 | 0.29 | +0.26 |
+| Cell          |   n | win |   PF |  meanR |      $ |   MFE |   MAE |   gb |   cap |
+| ------------- | --: | --: | ---: | -----: | -----: | ----: | ----: | ---: | ----: |
+| RANGE + E-VOL |  74 | 46% | 1.10 | +0.071 |  +3.4k | +0.90 | −0.50 | 0.55 | +0.08 |
+| RANGE + L-VOL |  98 | 51% | 1.21 | +0.111 |  +7.3k | +0.90 | −0.50 | 0.56 | +0.12 |
+| RANGE + C-VOL |  18 | 56% | 1.64 | +0.110 |  +3.9k | +0.98 | −0.61 | 0.62 | +0.11 |
+| BULL + E-VOL  |   8 | 25% | 0.34 | −0.274 |  −2.7k | +0.39 | −0.75 | 1.94 | −0.71 |
+| BULL + L-VOL  | 345 | 54% | 1.35 | +0.122 | +47.4k | +0.81 | −0.56 | 0.69 | +0.15 |
+| BULL + C-VOL  |  52 | 62% | 2.52 | +0.344 | +23.1k | +1.13 | −0.54 | 0.48 | +0.30 |
+| BEAR + E-VOL  |   8 | 75% | 5.05 | +0.481 |  +4.8k | +1.06 | −0.35 | 0.33 | +0.46 |
 
-Two things to notice, both already reflected in the rules:
+Tier follows §2: RANGE and E-VOL cells are A, the rest B. Three things to notice:
 
-- **BULL + C-VOL (PF 5.01, n=40) is the strongest Tier-B cell** and beats most of
-  Tier A. It is B only because Tier A is defined as RANGE-or-E-VOL. Do not
-  reorder on this — n=40 in-sample, and the A-vs-B ordering was validated on the
-  tier as a whole (§7.1), not cell by cell.
-- **BEAR + H-VOL `bull_call_spread` (n=9) looks positive but is still vetoed.**
-  §1.2 vetoes the whole regime cell, which is −$20.6k pooled (§7.4). Nine rows do
-  not overturn that. This is the cell most likely to tempt an override — don't.
+- **BULL + C-VOL (PF 2.52, n=52) is the strongest large cell**, as in v3. It is B
+  only because Tier A is defined as RANGE-or-E-VOL. Do not reorder on this: the
+  tier ordering is judged on the tier as a whole (§7.1), not cell by cell.
+- **The Tier-A cells are the weakest cells here.** RANGE + E-VOL fell from
+  PF 2.99 on v3 to PF 1.10 on v4. This is the same fact as B beating A in §7.1.
+- **The v3 BEAR + H-VOL `bull_call_spread` cell (n=9) has no v4 rows.** Cells
+  with n=8 (BULL + E-VOL, BEAR + E-VOL) point opposite ways; read neither.
 
 <a id="s7-6"></a>
 
@@ -297,14 +373,14 @@ Two things to notice, both already reflected in the rules:
 
 | Cell | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| **in band** (0.08 ≤ \|δ\| ≤ 0.20, DTE ≤ 59) | 65 | **85%** | 1.95 | +0.418 | +5.9k | +0.94 | −1.23 | 1.31 | +0.45 |
-| — of those, DTE 45–59 | 52 | 87% | 1.70 | +0.439 | +3.6k | +0.93 | −1.08 | 1.16 | +0.47 |
-| out of band | 101 | 57% | 0.76 | −0.166 | −8.0k | +0.67 | −1.25 | 1.86 | −0.25 |
+| **in band** (0.08 ≤ \|δ\| ≤ 0.20, DTE ≤ 59) | 166 | 73% | 1.03 | +0.029 | +1.2k | +0.79 | −1.09 | 1.38 | +0.04 |
+| — of those, DTE 45–59 | 133 | 73% | 0.98 | −0.009 | −0.5k | +0.79 | −1.11 | 1.41 | −0.01 |
+| out of band | 310 | 69% | 0.87 | +0.089 | −12.0k | +0.74 | −0.91 | 1.24 | +0.12 |
 
-The gate is the entire `bull_put_spread` edge: in-band is PF 1.95 / +$5.9k,
-out-of-band is PF 0.76 / −$8.0k. The structure's flat headline in §7.2 is those
-two pooled. Note `gb` stays above 1 even in band — credits routinely go further
-against you than for you, which is exactly why row 4 of §5 carries no stop.
+The gate is weaker on v4. PF and `$` still favour in band over out of band. But
+`meanR` reverses, and the v3 win rate of 85% is now 73%. In band is roughly
+break-even, not an edge. On v3 it was far better (see git history).
+`gb` stays above 1 in band, which is why row 4 of §5 carries no stop.
 
 <a id="s7-7"></a>
 
@@ -312,40 +388,46 @@ against you than for you, which is exactly why row 4 of §5 carries no stop.
 
 `mech_cell`, not the model regime. This is the label §5 keys exits off, so read it
 to know what path a position is likely to walk, not to decide whether to deploy.
+`PROD` is the stored sentinel for "no override cell" (see §0 labels).
 
 | Mech cell | Structure | n | win | PF | meanR | $ | MFE | MAE | gb | cap |
 |---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| LVOL (n=291) | `bull_call_spread` | 125 | 54% | 1.58 | +0.192 | +26.9k | +1.07 | −0.62 | 0.58 | +0.18 |
-| | `bull_put_spread` | 61 | 67% | 0.63 | +0.027 | −5.7k | +0.79 | −1.61 | 2.03 | +0.03 |
-| | `bear_put_spread` | 91 | 46% | 1.18 | +0.088 | +7.3k | +0.95 | −0.82 | 0.85 | +0.09 |
-| | `bear_call_spread` | 6 | 17% | 0.00 | −1.290 | −3.8k | +0.51 | −2.39 | 4.73 | −2.55 |
-| BEAR_HE (n=449) | `bull_call_spread` | 95 | 64% | 2.58 | +0.463 | +38.8k | +1.35 | −0.43 | 0.32 | +0.34 |
-| | `bull_put_spread` | 90 | 67% | 1.25 | +0.063 | +5.1k | +0.77 | −0.95 | 1.23 | +0.08 |
-| | `bear_put_spread` | 218 | 35% | 0.66 | −0.164 | −40.3k | +0.67 | −0.81 | 1.21 | −0.25 |
-| | `bear_call_spread` | 31 | 35% | 0.27 | −0.440 | −7.5k | +0.55 | −2.16 | 3.91 | −0.80 |
-| RB_EVOL (n=17) | all | 17 | — | — | — | −7.3k | — | — | — | — |
-| PROD (n=38) | `bull_call_spread` | 18 | 78% | 5.90 | +0.655 | +14.0k | +1.76 | −0.26 | 0.15 | +0.37 |
-| | `bull_put_spread` | 10 | 90% | 1.26 | +0.626 | +0.3k | +0.91 | −1.50 | 1.66 | +0.69 |
-| | `bear_put_spread` | 10 | 10% | 0.23 | −0.566 | −6.7k | +0.47 | −0.95 | 2.01 | −1.19 |
+| LVOL (n=1512) | `bull_call_spread` | 545 | 53% | 1.37 | +0.126 | +78.4k | +0.83 | −0.55 | 0.66 | +0.15 |
+| | `bull_put_spread` | 378 | 70% | 0.87 | +0.064 | −14.9k | +0.75 | −0.98 | 1.31 | +0.09 |
+| | `bear_put_spread` | 520 | 35% | 0.88 | −0.098 | −31.3k | +0.82 | −0.72 | 0.87 | −0.12 |
+| BEAR_HE (n=189) | `bull_call_spread` | 30 | 70% | 2.36 | +0.405 | +10.6k | +1.49 | −0.47 | 0.31 | +0.27 |
+| | `bull_put_spread` | 53 | 74% | 1.25 | +0.030 | +2.8k | +0.78 | −0.96 | 1.23 | +0.04 |
+| | `bear_put_spread` | 97 | 28% | 0.40 | −0.297 | −35.3k | +0.50 | −0.86 | 1.71 | −0.59 |
+| RB_EVOL (n=65) | `bull_call_spread` | 12 | 33% | 0.49 | −0.178 | −3.3k | +0.91 | −0.67 | 0.73 | −0.20 |
+| | `bull_put_spread` | 19 | 63% | 0.98 | −0.089 | −0.1k | +0.74 | −1.13 | 1.52 | −0.12 |
+| | `bear_put_spread` | 30 | 40% | 0.76 | −0.066 | −3.3k | +0.68 | −0.69 | 1.02 | −0.10 |
+| PROD (n=84) | `bull_call_spread` | 25 | 60% | 2.14 | +0.275 | +7.3k | +1.00 | −0.41 | 0.41 | +0.28 |
+| | `bull_put_spread` | 26 | 77% | 1.47 | +0.321 | +1.4k | +0.85 | −0.87 | 1.02 | +0.38 |
+| | `bear_put_spread` | 30 | 20% | 0.36 | −0.329 | −10.9k | +0.50 | −0.76 | 1.53 | −0.66 |
 
-`bear_put_spread` in BEAR_HE is the single largest loss cell in the book
-(n=218, −$40.3k) — and `cap −0.25` against `MFE +0.67` says those positions
-**do** show green and then give it all back. That is the finding §5 rows 2–3
-exist to manage: it is an exit problem, not a selection one. RB_EVOL (n=17) is
-too thin to break out per structure.
+`bear_put_spread` in BEAR_HE is the largest loss cell in the book, as in v3.
+Its negative `cap` against a positive `MFE` says those positions show green and
+then give it back, so §5 rows 2–3 still address an exit problem. LVOL is 1512 of 1850 rows: the v4 window is mostly calm, so the
+override cells are thin. Cells with n < 30 are directional at best.
 
 <a id="s7-8"></a>
 
 ### 7.8 Reading these numbers safely
 
-- **In-sample.** Every cell here is the book the rules were fitted on. Expect
-  live results to be worse, not better.
+- **In-sample.** Every cell here is the book the rules were measured on, and
+  v4 is also the window the rules have been live in. Expect live results to be
+  worse, not better.
 - **Small n moves a lot.** Below ~30 rows, treat a cell as directional at best.
   n < 10 cells are printed for completeness only.
 - **`$` and `meanR` can disagree** — `$` is position-size weighted. When they
-  point opposite ways, one big position is doing the talking.
-- **v3 rows.** Same caveat as the rules themselves: derived on v3, not yet
-  re-confirmed on v4.
+  point opposite ways, one big position is doing the talking (§7.6 does this).
+- **v4 rows, with v3 as the frozen base.** These tables are v4 (regenerated
+  2026-10-12). The rules are v3-derived and not yet re-confirmed on v4. Where
+  the two disagree, §7 says so in the prose under the table. v3 and v4 rows are
+  never pooled. A v4 table reading weaker is not a rule change; changes go
+  through [`research/deployment-evidence.md`](../research/deployment-evidence.md).
+- **Costs differ by era.** v4 `$` and `meanR` are net of commission; v3 was gross.
+  Part of every v3-to-v4 gap is this.
 - **`bs_options_hist` proxy rows are excluded** (model-priced, attenuating).
   The book is real + `strike_expiry_tweak` only.
 
