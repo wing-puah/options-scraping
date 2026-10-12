@@ -173,7 +173,7 @@ def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
     """
     def _not_found(looked_at: str) -> SystemExit:
         available = sorted(
-            str(p.relative_to(config.PRE_REG_DIR)) for p in config.PRE_REG_DIR.glob("*/*.md")
+            str(p.relative_to(config.PRE_REG_DIR)) for p in config.PRE_REG_DIR.glob("*/**/*.md")
             if p.stem != "README")
         listed = "\n".join(f"  - {s}" for s in available) or "  (none found)"
         return SystemExit(

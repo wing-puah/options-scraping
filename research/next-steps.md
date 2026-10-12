@@ -104,8 +104,8 @@ No rule changes on it.
   The unlink is filed in [§2.11](#s2-11).
 - **RESOLVED 2026-09-07 — six missing option-history files, not two, restored from the `research-caches-20260905-1111.tar.gz` Drive snapshot; `hedge_structure` then read `reconstructs: 1180 / 1180 (100.0%)` and `R2 PASS` on that export, until the 2026-09-08 retries deleted three more (above; restored again)** ([record](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-07-fifth--hedge-programme--criteria-consolidated-two-studies-deleted)).
 - **Two hardcoded date tables are still PARTLY no-ops.**
-  [`mech_regime_recut`](study-results/f1_selection/mech_regime_recut.md) §(b)
-  and [`regime_gap_reread`](study-results/f1_selection/regime_gap_reread.md)
+  [`mech_regime_recut`](study-results/f1_selection/regime/mech_regime_recut.md) §(b)
+  and [`regime_gap_reread`](study-results/f1_selection/regime/regime_gap_reread.md)
   §0 both list `2026-03-06`, `03-12`, `03-20`, `03-27`. Queue C added `03-20`
   with real rows and `03-12` with analysis rows only. `03-06` and `03-27` are in
   no export and were never in the neutral-date selection, so both tables stay
@@ -240,7 +240,7 @@ Decisions owed. None of these is a study.
     and closes them fast; that belief is now a draft study, not a config
     change: [`bear_fast_exit`](pre-registrations/f2_management/bear_fast_exit.md)
     (§2.4). Default: no config change
-    ([record](study-results/f1_selection/bear_arm.md)).
+    ([record](study-results/f1_selection/bear/bear_arm.md)).
 
 11. **DECIDED 2026-09-29 — §5 stands; logged as an observation.** Q2 now
     reads Δ=−5.0875, 23% retained, on a census of 12 affected dates. It is
@@ -334,7 +334,7 @@ One line each. Do not re-open; follow the link for the detail.
 | Neutral-date campaign, queue b | 2026-09-04 | COMPLETE; exports refreshed to 166 dates; suite re-run; nothing ships | [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04-late--first-book-with-2026-dates-export-refreshed-suite-re-run-nothing-ships-the-year-clause-bites-campaign-b-closed) |
 | `concurrency_correlation` | 2026-09-04 | NOISE on both eras; `RESTATEMENT` on 2026-09-19, still nothing queued | §2.0 |
 | `hedge_concentration` | 2026-09-04 | PRECONDITION-NULL, graded | §2.1 |
-| `trigger_entry` | 2026-09-04 | LATE-ENTRY on v4 and v3 | [record](study-results/f1_selection/trigger_entry.md) |
+| `trigger_entry` | 2026-09-04 | LATE-ENTRY on v4 and v3 | [record](study-results/f1_selection/signal/trigger_entry.md) |
 | Text thread as an edge search | 2026-09-04 | `text_features` NULL, `exit_from_text` E1 CONTRARY, `prompt_eval` variance floor set. §2.9 survives as a stability item only | [archive/18](archive/18-hedge-programme-exit-basis-and-text-loop.md#2026-09-02--the-text--backtest-loop-built-and-first-run-text-is-the-last-untested-column-family-and-it-nulls-the-models-own-stop-is-contrary-on-bull-calls), [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04--hedge_concentration-graded-and-21-closed-concurrency_correlation-built-and-first-run-noise) |
 | `exit_drawdown` | 2026-09-05 | UNDERPOWERED on PRIMARY; the two powered `all` cells NULL | [record](study-results/f2_management/exit_drawdown.md), [`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-05--exit_drawdown-new-f2-walk-forward-exit-hypotheses-on-account-level-drawdown--underpowered-on-primary-the-two-powered-all-cells-are-null) |
 | `hedge_portfolio` | 2026-08-31 | UNDERPOWERED, and ARM M MEASUREMENT-ONLY; population `all` ratified | [record](study-results/f5_hedging/hedge_portfolio.md), [pre-registration](pre-registrations/f5_hedging/hedge_portfolio.md) |
@@ -386,8 +386,8 @@ parked in §2.7.
 book four of the five pre-registered composition tests shift. The exception is
 credit share, which is within noise; structure mix, plays per day, bear share
 and ladder tier mix all move
-([record](study-results/f1_selection/v4_bridge.md)). Per the
-[pre-registration](pre-registrations/f1_selection/v4_bridge.md): keep deploying
+([record](study-results/f1_selection/benchmark/v4_bridge.md)). Per the
+[pre-registration](pre-registrations/f1_selection/benchmark/v4_bridge.md): keep deploying
 under the v3-derived rules and do not re-derive the ladder on v4 rows yet.
 
 - **Unblocks when** the live 2026-08/09 dates price, or later ones. Backfill
@@ -446,7 +446,7 @@ breakeven stop was reverted 2026-08-24 when its rollback trigger fired
 - **No longer held:** [`bear_arm` B2](arm-index.md#bear_arm)'s exit-fix
   criteria were met by `sl .50` on 2026-09-04 and are `NOT met` on 2026-09-19,
   at Δ=+0.030 with CI [−0.003, +0.061]
-  ([record](study-results/f1_selection/bear_arm.md)).
+  ([record](study-results/f1_selection/bear/bear_arm.md)).
 - **Run 2026-10-09: a fast exit cuts the loss and still loses.**
   [`bear_fast_exit`](pre-registrations/f2_management/bear_fast_exit.md)
   prints `BLEED-CUT (C7 PENDING)` on `TS 1`, the entry-day close. No arm's
@@ -481,8 +481,8 @@ journal by tier. Census on 2026-09-09:
 
 **The operator-read test belongs here** — to pre-register before any code, f4,
 `operator_read`. `text_features` showed the signal text carries no
-machine-readable edge ([record](study-results/f1_selection/text_features.md)),
-but the operator reads it qualitatively to decide what to trade, so its value is
+machine-readable edge ([record](study-results/f1_selection/signal/text_features.md)).
+The operator reads it qualitatively to decide what to trade, so its value is
 realised in the PICK and only the journal can measure that.
 
 - **Design.** Among ladder-eligible plays per date, compare TAKEN (journal
@@ -593,9 +593,9 @@ stays closed
 
 OPEN but do not pick it up ahead of §2.2: it is a v5 prompt bump if adopted, and
 nothing in the book says it changes P&L. Harness built 2026-09-03
-([pre-registration](pre-registrations/f1_selection/prompt_eval.md)). The
+([pre-registration](pre-registrations/f1_selection/signal/prompt_eval.md)). The
 PROD × 3 variance run is DONE: floor 0.0419 on paired ΔR, below which no
-difference may be claimed ([record](study-results/f1_selection/prompt_eval.md)).
+difference may be claimed ([record](study-results/f1_selection/signal/prompt_eval.md)).
 
 - **The one candidate worth writing:** a WRITTEN decision rule for
   BULL/RANGE/BEAR over rollup fields the model already cites, so identical
@@ -604,7 +604,7 @@ difference may be claimed ([record](study-results/f1_selection/prompt_eval.md)).
   ([`current.md`](archive/19-2026-column-exit-drawdown-and-duplicate-repairs.md#2026-09-04--hedge_concentration-graded-and-21-closed-concurrency_correlation-built-and-first-run-noise)).
 - **Do not write** the "adopt `mech_regime`" candidate: mech-only selection is
   refuted on v3 and null on v4
-  ([record](study-results/f1_selection/mech_regime_recut.md)).
+  ([record](study-results/f1_selection/regime/mech_regime_recut.md)).
 - **Test repeatability before P&L.** Read the candidate's per-date regime labels
   and tier mix across three repeats against PROD's. Only a steady label goes on
   to the 40-date backfill score.
@@ -849,7 +849,7 @@ unless such a study is actually registered.
 All three drafts were accepted by default on 2026-10-09.
 [`cost_sensitivity.md`](pre-registrations/f2_management/cost_sensitivity.md)
 ran and printed `VANISHES` on both tiers.
-[`mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md)
+[`mechanical_benchmark.md`](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md)
 is built and prints `NOT BUILT — AWAITING SCRAPE` (§0 item 15).
 [`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md) seals
 dates from 2026-09-23, takes Option 2 for `v4_bridge`, and keeps the rollback
@@ -898,7 +898,7 @@ One line each, with the evidence.
 **Selection and scoring**
 
 - Trigger-gated entry is LATE-ENTRY; E2's census gap was the day-0 move, not
-  the text ([`trigger_entry`](study-results/f1_selection/trigger_entry.md)).
+  the text ([`trigger_entry`](study-results/f1_selection/signal/trigger_entry.md)).
 - The day-X / ±Y% / ±$Z exit formula is `staged_exit` and it is null; do not
   re-register it under a days or DTE anchor
   ([record](study-results/f2_management/staged_exit.md)).
@@ -909,7 +909,7 @@ One line each, with the evidence.
 - `score_total` is decision-irrelevant; selection is structure × regime × entry
   geometry ([`deployment-evidence.md`](deployment-evidence.md#why-the-tiers)).
 - The ML/selection search is closed; re-open on new columns only, tested within
-  structure ([`ml_combination`](study-results/f1_selection/ml_combination.md)).
+  structure ([`ml_combination`](study-results/f1_selection/signal/ml_combination.md)).
 - `bear_call_spread` is intake-vetoed; bear debit is selection-vetoed at
   [§1](../docs/deployment-rules.md#s1) and lives in the
   [§4](../docs/deployment-rules.md#s4) sleeve only

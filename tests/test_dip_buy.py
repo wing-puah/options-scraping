@@ -1,4 +1,4 @@
-"""dip_buy (research/pre-registrations/f1_selection/dip_buy.md): the dip label,
+"""dip_buy (research/pre-registrations/f1_selection/regime/dip_buy.md): the dip label,
 the gating, the tie-break and the verdict grammar, on synthetic data only.
 
 No figure here comes from an export: each test builds its own rows.
@@ -12,7 +12,7 @@ from datetime import date, timedelta
 import pytest
 
 from lib.mech_regime import MechLabeler, compute_mech_table
-from scripts.backtest_study.f1_selection import dip_buy as D
+from scripts.backtest_study.f1_selection.regime import dip_buy as D
 from scripts.backtest_study.lib import era
 
 

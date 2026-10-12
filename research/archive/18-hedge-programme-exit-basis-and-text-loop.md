@@ -954,8 +954,8 @@ entries).**
   commented examples in `config/backtest.yml`). Tab row count identical before
   and after the smoke call. `docs/architecture.md` §"Local-only prompt
   evaluation runs" states both invariants.
-- Three registrations (`f1_selection/text_features.md`,
-  `f2_management/exit_from_text.md`, `f1_selection/prompt_eval.md`), each with a
+- Three registrations (`f1_selection/signal/text_features.md`,
+  `f2_management/exit_from_text.md`, `f1_selection/signal/prompt_eval.md`), each with a
   dated build-time "wording corrections" tail, none of which moves a bar.
 
 **`exit_from_text` (f2) — first run, era v4 PRIMARY, 995/1,022 admitted (27
@@ -1122,7 +1122,7 @@ ENTERED number (the `next_day_move` ARM C confound). Registered `trigger_entry`
 
 **2026-09-04 — `trigger_entry` RUN (f1, era v4 PRIMARY sha 018be16 + v3): the
 trigger gate is LATE-ENTRY; E2's gap was the day-0 move.** Registration
-`pre-registrations/f1_selection/trigger_entry.md`; the entry is re-priced at the
+`pre-registrations/f1_selection/signal/trigger_entry.md`; the entry is re-priced at the
 crossing session's CLOSE via `emission_timing.synth_trade` through the
 unmodified frozen harness (no fork, no G-FORK), the shipped per-row profile
 replayed from the new anchor. Parse census reproduces E2 exactly (853 in scope
@@ -1164,4 +1164,4 @@ trigger-gated entry is not a rule** — the operator's "plays are not executed o
 their trigger" observation is true of the backtest and immaterial to the edge;
 the confirmation costs what it buys. Selection stays structure × model regime ×
 entry geometry, and the entry-mechanics thread is closed on these dates.
-Records: `study-results/f1_selection/trigger_entry.md` (v3 + v4).
+Records: `study-results/f1_selection/signal/trigger_entry.md` (v3 + v4).

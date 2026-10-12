@@ -304,7 +304,7 @@ def test_nonzero_exit_never_reads_as_ok(tmp_path):
 # ── designed refusals ─────────────────────────────────────────────────────────
 #
 # v4_bridge is the one study that declares DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
-# (scripts/backtest_study/f1_selection/v4_bridge.py) — these tests use its real name so the
+# (scripts/backtest_study/f1_selection/benchmark/v4_bridge.py) — these tests use its real name so the
 # read goes through run.py's actual `_refusal_codes()`, the same reader
 # `run --all` uses, rather than a mock of it.
 
@@ -644,7 +644,7 @@ def test_page_shows_refused_not_bad_styling_for_a_designed_refusal(tmp_path):
     # A refused card must route the reader to the era that COULD answer.
     # Without it the card is a dead end: reports are gitignored scratch, so the
     # record is the only place a past era's numbers survive.
-    assert "research/study-results/f1_selection/v4_bridge.md" in out
+    assert "research/study-results/f1_selection/benchmark/v4_bridge.md" in out
 
 
 def test_page_shows_retired_label_when_a_retired_study_has_no_report(tmp_path):

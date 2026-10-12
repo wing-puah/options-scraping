@@ -21,14 +21,14 @@ def test_slugify_basic():
 def test_slugify_backticks_and_em_dash():
     heading = (
         "`bear_arm` — [`pre-registrations/x.md`](pre-registrations/x.md), "
-        "`f1_selection/bear_arm.py`"
+        "`f1_selection/bear/bear_arm.py`"
     )
     slug = slugify(heading)
     # backticks, brackets, parens, dots and slashes are all stripped; the
     # em dash and the punctuation around it collapse to nothing (not a
     # letter/digit/space/hyphen/underscore); underscores inside identifiers
     # survive because the algorithm only strips '*' emphasis, not '_'.
-    assert slug == "bear_arm--pre-registrationsxmd-f1_selectionbear_armpy"
+    assert slug == "bear_arm--pre-registrationsxmd-f1_selectionbearbear_armpy"
     assert "`" not in slug and "[" not in slug and "(" not in slug
 
 

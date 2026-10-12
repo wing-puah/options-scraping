@@ -16,7 +16,7 @@ Module: `scripts/backtest_study/f5_hedging/index_bear_hedge.py`.
 
 ## Question
 
-[`ticker_class`](../f1_selection/ticker_class.md) graded index ETFs on standalone R and found
+[`ticker_class`](../f1_selection/benchmark/ticker_class.md) graded index ETFs on standalone R and found
 no reliability edge. The 2026-10-07 root-cause note in `research/current.md` explains the
 late index-bear loss as the market: no sell-off happened from 2026-04-08 to 2026-08-10. A bear
 spread that pays only in a sell-off is insurance, so it should be graded as insurance.
@@ -113,7 +113,7 @@ Graded as a hedge, do the book's index bear plays earn their keep? That has thre
 - `lib/hedge_criteria.py`: the `unharmed` rule and `max_drawdown`, imported and never
   re-implemented. Its signal-date bucketing is NOT used; MTM sessions replace it, per
   next-steps §2.10.
-- `scripts/backtest_study/f1_selection/ticker_class.py`: `group_of` and `direction`, imported.
+- `scripts/backtest_study/f1_selection/benchmark/ticker_class.py`: `group_of` and `direction`, imported.
   The group-table hash is checked at load.
 - _Resolved at build (2026-10-09):_ positions are built by
   `hedge_portfolio.book_positions`, at each row's own contract count and stored exit. A row

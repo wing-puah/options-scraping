@@ -103,7 +103,7 @@ studies' labels appear mid-prose only.
 
 #### `bear_arm`
 
-_Registered in [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/f1_selection/bear_arm.md) · module `f1_selection/bear_arm.py`_
+_Registered in [`pre-registrations/f1_selection/bear/bear_arm.md`](pre-registrations/f1_selection/bear/bear_arm.md) · module `f1_selection/bear/bear_arm.py`_
 
 - `B1` `B2` (criterion) — Bear criteria, not arms and not
   `ml_combination`'s baselines of the same letters below. Selection
@@ -114,7 +114,7 @@ _Registered in [`pre-registrations/f1_selection/bear_arm.md`](pre-registrations/
 
 #### `emission_timing`
 
-_Registered in [`pre-registrations/f1_selection/emission_timing.md`](pre-registrations/f1_selection/emission_timing.md)_
+_Registered in [`pre-registrations/f1_selection/signal/emission_timing.md`](pre-registrations/f1_selection/signal/emission_timing.md)_
 
 - `ARM L` (arm) — Fill lag — does an entry filled 1, 2 or 3 sessions after
   the signal lose the edge?
@@ -125,7 +125,7 @@ _Registered in [`pre-registrations/f1_selection/emission_timing.md`](pre-registr
 
 #### `mechanical_benchmark`
 
-_Registered in [`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md) · module `f1_selection/mechanical_benchmark.py`_
+_Registered in [`pre-registrations/f1_selection/benchmark/mechanical_benchmark.md`](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md) · module `f1_selection/benchmark/mechanical_benchmark.py`_
 
 Accepted by default 2026-10-09. The first run prints `NOT BUILT — AWAITING
 SCRAPE`: most counterpart legs are not cached yet. The study asks whether the
@@ -155,7 +155,7 @@ picks beat a mechanical bull call spread on the same dates and tickers.
 
 #### `text_features`
 
-_Registered in [`pre-registrations/f1_selection/text_features.md`](pre-registrations/f1_selection/text_features.md) · module `f1_selection/text_features.py`_
+_Registered in [`pre-registrations/f1_selection/signal/text_features.md`](pre-registrations/f1_selection/signal/text_features.md) · module `f1_selection/signal/text_features.py`_
 
 - `ARM A` (arm) — Deterministic text features (invalidation `price_only` vs
   `mixed`, `invalidation_inside_strikes`, `trigger_conditional`,
@@ -172,7 +172,7 @@ _Registered in [`pre-registrations/f1_selection/text_features.md`](pre-registrat
 
 #### `prompt_eval`
 
-_Registered in [`pre-registrations/f1_selection/prompt_eval.md`](pre-registrations/f1_selection/prompt_eval.md) · module `f1_selection/prompt_eval.py`_
+_Registered in [`pre-registrations/f1_selection/signal/prompt_eval.md`](pre-registrations/f1_selection/signal/prompt_eval.md) · module `f1_selection/signal/prompt_eval.py`_
 
 - `PROD` `CANDIDATE` (arm) — The two prompt arms: the committed
   framework + method files vs a named, committed snapshot; sha256 recorded.
@@ -186,7 +186,7 @@ _Registered in [`pre-registrations/f1_selection/prompt_eval.md`](pre-registratio
 
 #### `macro_event_study`
 
-_Registered in [`pre-registrations/f1_selection/macro_event_study.md`](pre-registrations/f1_selection/macro_event_study.md)_
+_Registered in [`pre-registrations/f1_selection/regime/macro_event_study.md`](pre-registrations/f1_selection/regime/macro_event_study.md)_
 
 - `H1` `H2` `H3` `H4` (hypothesis) — pre-registered claims, each mapped to
   an arm under a DIFFERENT letter: H1→`ARM I`, H2→`ARM P`, H3→`ARM V`,
@@ -205,7 +205,7 @@ _Registered in [`pre-registrations/f1_selection/macro_event_study.md`](pre-regis
 
 #### `ml_combination`
 
-_Registered in [`pre-registrations/f1_selection/ml_combination.md`](pre-registrations/f1_selection/ml_combination.md) · module `f1_selection/ml_combination.py`_
+_Registered in [`pre-registrations/f1_selection/signal/ml_combination.md`](pre-registrations/f1_selection/signal/ml_combination.md) · module `f1_selection/signal/ml_combination.py`_
 
 - `B0` (control) — The benchmark: the shipped score-free ladder's top-3/day
   A-then-B replay, out-of-fold. Everything else is scored against it.
@@ -219,7 +219,7 @@ _Registered in [`pre-registrations/f1_selection/ml_combination.md`](pre-registra
 
 #### `trigger_entry`
 
-_Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrations/f1_selection/trigger_entry.md) · module `f1_selection/trigger_entry.py`_
+_Registered in [`pre-registrations/f1_selection/signal/trigger_entry.md`](pre-registrations/f1_selection/signal/trigger_entry.md) · module `f1_selection/signal/trigger_entry.py`_
 
 - `ARM T` (arm) — Trigger-gated entry, the HEADLINE: enter only at the CLOSE of
   the first session k ∈ [1..N] whose underlying close crosses the model's own
@@ -240,7 +240,7 @@ _Registered in [`pre-registrations/f1_selection/trigger_entry.md`](pre-registrat
 
 #### `ticker_class`
 
-_Registered in [`pre-registrations/f1_selection/ticker_class.md`](pre-registrations/f1_selection/ticker_class.md) · module `f1_selection/ticker_class.py`_
+_Registered in [`pre-registrations/f1_selection/benchmark/ticker_class.md`](pre-registrations/f1_selection/benchmark/ticker_class.md) · module `f1_selection/benchmark/ticker_class.py`_
 
 Registered 2026-10-07. The study asks whether index-ETF plays are more
 reliable than single-stock plays with direction held fixed. The unit is a
@@ -278,7 +278,7 @@ fixed ticker group, `G1`–`G7`, hashed before any outcome was read.
 
 #### `dip_buy`
 
-_Registered in [`pre-registrations/f1_selection/dip_buy.md`](pre-registrations/f1_selection/dip_buy.md) · module `f1_selection/dip_buy.py`_
+_Registered in [`pre-registrations/f1_selection/regime/dip_buy.md`](pre-registrations/f1_selection/regime/dip_buy.md) · module `f1_selection/regime/dip_buy.py`_
 
 Accepted by default 2026-10-12. The study asks whether Tier A/B positions do
 better on a [dip date](glossary.md#dip-date), when SPY closed below its 50-day
@@ -300,7 +300,7 @@ start are graded, once the seal lifts.
 
 #### `adaptive_ladder`
 
-_Registered in [`pre-registrations/f1_selection/adaptive_ladder.md`](pre-registrations/f1_selection/adaptive_ladder.md) · module `f1_selection/adaptive_ladder.py`_
+_Registered in [`pre-registrations/f1_selection/regime/adaptive_ladder.md`](pre-registrations/f1_selection/regime/adaptive_ladder.md) · module `f1_selection/regime/adaptive_ladder.py`_
 
 Accepted by default 2026-10-12. The study grades a procedure, not a rule: a
 fixed menu of six selection rules, and an adapter that re-picks one of them

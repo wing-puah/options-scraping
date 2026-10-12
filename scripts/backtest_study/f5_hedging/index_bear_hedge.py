@@ -59,7 +59,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.f1_selection import ticker_class as TC  # noqa: E402
+from scripts.backtest_study.f1_selection.benchmark import ticker_class as TC  # noqa: E402
 from scripts.backtest_study.lib import era  # noqa: E402
 from scripts.backtest_study.lib import hedge_criteria as HC  # noqa: E402
 from scripts.backtest_study.lib import mtm_curve as M  # noqa: E402

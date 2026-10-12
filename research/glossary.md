@@ -486,7 +486,7 @@ pick: a two-leg debit call vertical on the same underlying and signal date,
 same expiry on both legs, chosen inside the pick's own DTE band. Fixed
 geometry takes ATM and +5% strikes; matched geometry takes the strike whose
 entry-dated delta is nearest the pick's. Both are frozen in
-[`pre-registrations/f1_selection/mechanical_benchmark.md`](pre-registrations/f1_selection/mechanical_benchmark.md)
+[`pre-registrations/f1_selection/benchmark/mechanical_benchmark.md`](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md)
 so a losing geometry cannot be re-chosen after the fact.
 
 <a id="sealed-window"></a>
@@ -508,7 +508,7 @@ it, is strictly below its 50-day simple moving average. It is the first half
 of `mech_cell`'s BEAR test, without the 20-day return. The label comes from
 `lib/mech_regime.py::MechLabeler.below_sma`, the same table and SMA as
 `mech_cell`. Used by
-[`dip_buy`](pre-registrations/f1_selection/dip_buy.md); the opposite is an
+[`dip_buy`](pre-registrations/f1_selection/regime/dip_buy.md); the opposite is an
 "above" date.
 
 <a id="slot-r"></a>
@@ -517,7 +517,7 @@ R per budget slot on one signal date: the summed R of the date's picks
 divided by 3, the top-3/day budget. An empty slot, or a date a gated rule sits
 out, earns 0. It lets a book that deploys on fewer dates be compared with one
 that deploys every day. Used by
-[`adaptive_ladder`](pre-registrations/f1_selection/adaptive_ladder.md).
+[`adaptive_ladder`](pre-registrations/f1_selection/regime/adaptive_ladder.md).
 
 ## 9. Verdict grammar
 

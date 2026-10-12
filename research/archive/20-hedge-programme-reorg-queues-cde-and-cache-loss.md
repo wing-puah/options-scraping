@@ -248,8 +248,8 @@ yet.
   pre-entry grid fix; the other 36 ran before it and may hold pre-entry P&L on
   about 4% of positions. A `--redo` is what levels them.
 - The two hardcoded 2026-03 date tables are still partly no-ops.
-  [`mech_regime_recut`](../study-results/f1_selection/mech_regime_recut.md) §(b) and
-  [`regime_gap_reread`](../study-results/f1_selection/regime_gap_reread.md) §0 both
+  [`mech_regime_recut`](../study-results/f1_selection/regime/mech_regime_recut.md) §(b) and
+  [`regime_gap_reread`](../study-results/f1_selection/regime/regime_gap_reread.md) §0 both
   list `2026-03-06`, `03-12`, `03-20`, `03-27`. The export now holds `03-20`
   with real rows and `03-12` with analysis rows only; `03-06` and `03-27` are in
   no export and were never in the selection.

@@ -50,7 +50,7 @@ Figures, populations and the export provenance are in one place: the
 - The v3 to v4 transfer of the deployment rules is unvalidated. `v4_bridge`
   prints `VERDICT: LADDER UNVALIDATED ON v4`, and four of its five
   pre-registered composition tests shift. Per its
-  [pre-registration](pre-registrations/f1_selection/v4_bridge.md), keep
+  [pre-registration](pre-registrations/f1_selection/benchmark/v4_bridge.md), keep
   deploying under the v3-derived rules and do not re-derive the ladder on v4
   rows yet ([`next-steps.md`](next-steps.md) [§2.2](next-steps.md#s2-2)).
 - The daily journal is collecting the live walk-forward. On 2026-09-09 the
@@ -138,24 +138,24 @@ Terms used: [n vs dates](glossary.md#n-vs-dates), [LOO](glossary.md#loo),
 
 | Study | Verdict | Why | Plan |
 |---|---|---|---|
-| [`bear_position_study`](study-results/f1_selection/bear_position_study.md) | **DEMOTE TO VETO** | all three pre-registered demote criteria fire on n=438 | — |
-| [`bear_arm`](study-results/f1_selection/bear_arm.md) | **NO** | 0 of 496 pre-defined bear subsets clear the rule | [plan](pre-registrations/f1_selection/bear_arm.md) |
-| [`ml_combination`](study-results/f1_selection/ml_combination.md) | **NULL RESULT** | 0 of 15 model × strategy cells beat the score-free ladder out of sample | [plan](pre-registrations/f1_selection/ml_combination.md) |
-| [`macro_event_study`](study-results/f1_selection/macro_event_study.md) | ARM X **DE-QUEUED** as `SURVIVAL-ARTIFACT` | the raw trigger no longer fires at all, and only the minutes cells are still uniformly underpowered | [plan](pre-registrations/f1_selection/macro_event_study.md) |
-| [`emission_timing`](study-results/f1_selection/emission_timing.md) [ARM P](arm-index.md#emission_timing "emission_timing ARM P: persistence — does a re-emitted play, the 2nd/3rd/4th of a ticker plus structure, do worse than the first emission?") | **NULL** headline, one candidate cell beneath it | the v3-primary read spans zero, but the moved-against-the-play cut now clears all six criteria | [plan](pre-registrations/f1_selection/emission_timing.md) |
-| [`trigger_entry`](study-results/f1_selection/trigger_entry.md) | **LATE-ENTRY** in every cell | entering only when the stated trigger is crossed picks a better book, and the confirmation costs more than it is worth | [plan](pre-registrations/f1_selection/trigger_entry.md) |
-| [`text_features`](study-results/f1_selection/text_features.md) | every feature **NULL** or **UNDERPOWERED** | the model's own prose separates nothing within structure × tier; the text thread is closed as an edge search | [plan](pre-registrations/f1_selection/text_features.md) |
+| [`bear_position_study`](study-results/f1_selection/bear/bear_position_study.md) | **DEMOTE TO VETO** | all three pre-registered demote criteria fire on n=438 | — |
+| [`bear_arm`](study-results/f1_selection/bear/bear_arm.md) | **NO** | 0 of 496 pre-defined bear subsets clear the rule | [plan](pre-registrations/f1_selection/bear/bear_arm.md) |
+| [`ml_combination`](study-results/f1_selection/signal/ml_combination.md) | **NULL RESULT** | 0 of 15 model × strategy cells beat the score-free ladder out of sample | [plan](pre-registrations/f1_selection/signal/ml_combination.md) |
+| [`macro_event_study`](study-results/f1_selection/regime/macro_event_study.md) | ARM X **DE-QUEUED** as `SURVIVAL-ARTIFACT` | the raw trigger no longer fires at all, and only the minutes cells are still uniformly underpowered | [plan](pre-registrations/f1_selection/regime/macro_event_study.md) |
+| [`emission_timing`](study-results/f1_selection/signal/emission_timing.md) [ARM P](arm-index.md#emission_timing "emission_timing ARM P: persistence — does a re-emitted play, the 2nd/3rd/4th of a ticker plus structure, do worse than the first emission?") | **NULL** headline, one candidate cell beneath it | the v3-primary read spans zero, but the moved-against-the-play cut now clears all six criteria | [plan](pre-registrations/f1_selection/signal/emission_timing.md) |
+| [`trigger_entry`](study-results/f1_selection/signal/trigger_entry.md) | **LATE-ENTRY** in every cell | entering only when the stated trigger is crossed picks a better book, and the confirmation costs more than it is worth | [plan](pre-registrations/f1_selection/signal/trigger_entry.md) |
+| [`text_features`](study-results/f1_selection/signal/text_features.md) | every feature **NULL** or **UNDERPOWERED** | the model's own prose separates nothing within structure × tier; the text thread is closed as an edge search | [plan](pre-registrations/f1_selection/signal/text_features.md) |
 
 Detail behind those clauses.
 
 | Study | Figure | What it means |
 |---|---|---|
 | `bear_position_study` | ex-window mean E −0.256, CI [−0.369, −0.135] | a selection verdict on E, the exit-free number; on R the same rows do not separate | — |
-| [`bear_arm` B1](arm-index.md#bear_arm "bear_arm criterion B1: selection conditioning — is there a bear subset, definable at decision time, that is not negative?") | 0 of 496 subsets | this is the "NO" in the table above | [plan](pre-registrations/f1_selection/bear_arm.md) |
-| [`bear_arm` B2](arm-index.md#bear_arm "bear_arm criterion B2: exit fit — is the base exit profile mis-tuned for bear rows? B2 shipped be_after 0.50 on 2026-08-11 and its own rollback trigger reverted it on 2026-08-24") | exit-fix criteria back to NOT met: `sl .50 (tighter)`, Δ=+0.030, CI [−0.003, +0.061] | the one clear it had on 2026-09-04 did not survive a re-price | [plan](pre-registrations/f1_selection/bear_arm.md) |
-| `ml_combination` | 2026 −0.163 | its "at least 2 of 3 years" clause passes on the two old years and fails on the new one, while the headline interval still spans zero | [plan](pre-registrations/f1_selection/ml_combination.md) |
-| [`emission_timing` ARM P](arm-index.md#emission_timing "emission_timing ARM P: persistence — does a re-emitted play, the 2nd/3rd/4th of a ticker plus structure, do worse than the first emission?") | candidates 1 → 2 | the moved-against-the-play cut regained the year criterion it failed on 2026-09-04 | [plan](pre-registrations/f1_selection/emission_timing.md) |
-| `text_features` [ARM B](arm-index.md#text_features "text_features ARM B: blind-labelled thesis type and confidence") | label coverage 74.9% | the label cache covers less of the book on every re-price, so no ARM B line is quotable until a live-label re-run | [plan](pre-registrations/f1_selection/text_features.md) |
+| [`bear_arm` B1](arm-index.md#bear_arm "bear_arm criterion B1: selection conditioning — is there a bear subset, definable at decision time, that is not negative?") | 0 of 496 subsets | this is the "NO" in the table above | [plan](pre-registrations/f1_selection/bear/bear_arm.md) |
+| [`bear_arm` B2](arm-index.md#bear_arm "bear_arm criterion B2: exit fit — is the base exit profile mis-tuned for bear rows? B2 shipped be_after 0.50 on 2026-08-11 and its own rollback trigger reverted it on 2026-08-24") | exit-fix criteria back to NOT met: `sl .50 (tighter)`, Δ=+0.030, CI [−0.003, +0.061] | the one clear it had on 2026-09-04 did not survive a re-price | [plan](pre-registrations/f1_selection/bear/bear_arm.md) |
+| `ml_combination` | 2026 −0.163 | its "at least 2 of 3 years" clause passes on the two old years and fails on the new one, while the headline interval still spans zero | [plan](pre-registrations/f1_selection/signal/ml_combination.md) |
+| [`emission_timing` ARM P](arm-index.md#emission_timing "emission_timing ARM P: persistence — does a re-emitted play, the 2nd/3rd/4th of a ticker plus structure, do worse than the first emission?") | candidates 1 → 2 | the moved-against-the-play cut regained the year criterion it failed on 2026-09-04 | [plan](pre-registrations/f1_selection/signal/emission_timing.md) |
+| `text_features` [ARM B](arm-index.md#text_features "text_features ARM B: blind-labelled thesis type and confidence") | label coverage 74.9% | the label cache covers less of the book on every re-price, so no ARM B line is quotable until a live-label re-run | [plan](pre-registrations/f1_selection/signal/text_features.md) |
 
 One candidate survives this family: `emission_timing`'s other half,
 [ARM L](arm-index.md#emission_timing "emission_timing ARM L: fill lag — does an entry filled 1, 2 or 3 sessions after the signal lose the edge?")

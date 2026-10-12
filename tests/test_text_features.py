@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/backtest_study/f1_selection/text_features.py`.
+"""Unit tests for `scripts/backtest_study/f1_selection/signal/text_features.py`.
 
 Four things are pinned here, and the first is the one the pre-registration
 names by test id: the ARM B labeller's input carries NO outcome and NO
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.f1_selection import text_features as TF  # noqa: E402
+from scripts.backtest_study.f1_selection.signal import text_features as TF  # noqa: E402
 
 
 # ── the leakage guard ───────────────────────────────────────────────────────
@@ -403,7 +403,7 @@ def test_gate_never_fires_on_a_not_evaluable_level():
 def test_designed_refusal_codes_are_a_plain_set_literal():
     """`run.py` finds these by AST parse; a frozenset(...) call is invisible to
     `ast.literal_eval` and the refusal would be misfiled as a failure."""
-    src = (ROOT / "scripts" / "backtest_study" / "f1_selection"
+    src = (ROOT / "scripts" / "backtest_study" / "f1_selection" / "signal"
            / "text_features.py").read_text()
     import ast
     tree = ast.parse(src)

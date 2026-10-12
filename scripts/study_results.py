@@ -33,8 +33,8 @@ somewhere: one file per study, one APPEND-ONLY section per (era, git sha).
 The folder tree MIRRORS `scripts/backtest_study/` — a study's record sits under
 the same family folder its module does:
 
-    scripts/backtest_study/f1_selection/bear_arm.py
-    research/study-results/f1_selection/bear_arm.md
+    scripts/backtest_study/f1_selection/bear/bear_arm.py
+    research/study-results/f1_selection/bear/bear_arm.md
 
 `f1` -> `f4` is the order a play moves through the system (pick it, manage it,
 wrap it, fund it), which is why the folders carry the numeric prefix at all, and
@@ -323,7 +323,7 @@ def family_of(name: str) -> str:
     """
     modules = study_runner.study_paths()
     path = modules.get(base_study(name))
-    return path.parent.name if path is not None else UNFILED
+    return path.parent.relative_to(study_runner.STUDY_DIR).as_posix() if path is not None else UNFILED
 
 
 def record_path(name: str, dest_dir: Path = DEST_DIR) -> Path:

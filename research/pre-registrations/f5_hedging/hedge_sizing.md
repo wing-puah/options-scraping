@@ -14,8 +14,8 @@ against either.
    `study_review`. It was removed on 2026-08-24 once its three studies had
    files of their own — its text is in git at
    `git show 42b5e46:research/ml-plan.md` — and its other two arms live in
-   [`../f1_selection/ml_combination.md`](../f1_selection/ml_combination.md) and
-   [`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md). The D-rules
+   [`../f1_selection/signal/ml_combination.md`](../f1_selection/signal/ml_combination.md) and
+   [`../f1_selection/bear/bear_arm.md`](../f1_selection/bear/bear_arm.md). The D-rules
    are quoted here verbatim.
 2. **The v4 re-read**, registered 2026-08-24. Everything belonging to it sits
    under the "v4 re-read" sub-heading below, or is dated inline.
@@ -48,7 +48,7 @@ The other two limits:
 - **Not a statement about naked puts.** The caveat's second half — bear rows
   are 88% `bear_put_spread` and only 6 are naked `long_put`, so conclusions are
   about bear *spreads* — is carried in
-  [`../f1_selection/bear_arm.md`](../f1_selection/bear_arm.md) and binds here
+  [`../f1_selection/bear/bear_arm.md`](../f1_selection/bear/bear_arm.md) and binds here
   too.
 - **Not a case for deleting the §4 sleeve.** Operator pre-commitment
   (2026-08-24, before grading): *"i still want bear positions as hedge."* The

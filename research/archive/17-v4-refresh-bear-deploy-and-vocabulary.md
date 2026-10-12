@@ -526,9 +526,9 @@ it: `bear_deploy` got a carried-over file on 08-24, while `ml_combination` and
 `bear_arm` remained ungradable except by hand-passing `--pre-reg`.
 
 Split (editorial only — every gate, bar, arm and verdict carried across as a
-VERBATIM quote, nothing reworded): `pre-registrations/f1_selection/ml_combination.md`
+VERBATIM quote, nothing reworded): `pre-registrations/f1_selection/signal/ml_combination.md`
 (ground rules 1–7, Phases 0–5, the ship decision, the kickoff's three settled
-choices) and `pre-registrations/f1_selection/bear_arm.md` (§Kickoff addendum,
+choices) and `pre-registrations/f1_selection/bear/bear_arm.md` (§Kickoff addendum,
 B1 selection + B2 exit, the standalone-vs-hedge caveat). `f5_hedging/hedge_sizing.md`
 already held §addendum 2's D-rules. `ml-plan.md` itself is DELETED rather than
 left as a pointer — two copies of one commitment is how they drift; its text is

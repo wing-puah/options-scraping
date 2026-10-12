@@ -42,7 +42,7 @@ ROOT = PKG_DIR.parents[1]
 
 
 def _modules(folder: str) -> list[Path]:
-    return sorted(p for p in (PKG_DIR / folder).glob("*.py")
+    return sorted(p for p in (PKG_DIR / folder).rglob("*.py")
                   if not p.stem.startswith("__"))
 
 

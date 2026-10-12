@@ -1033,8 +1033,8 @@ took away.
 were priced at backtest time, and deleting a play row reprices nothing. What
 changes is the join: [`text_features`](../arm-index.md#text_features) no longer
 reads the wrong play's text on 7 rows, and
-[`mech_regime_recut`](../study-results/f1_selection/mech_regime_recut.md) and
-[`regime_gap_reread`](../study-results/f1_selection/regime_gap_reread.md) will
+[`mech_regime_recut`](../study-results/f1_selection/regime/mech_regime_recut.md) and
+[`regime_gap_reread`](../study-results/f1_selection/regime/regime_gap_reread.md) will
 print a different join coverage.
 
 **Two rows were deliberately not dropped.** `2025-07-29` `COIN` and `EEM` also
@@ -1149,8 +1149,8 @@ survive — the second is now the one joining the wrong play.
 
 **What this affects.** Any study reading a play THROUGH the join:
 [`text_features`](../arm-index.md#text_features) reads the play text, and
-[`mech_regime_recut`](../study-results/f1_selection/mech_regime_recut.md) and
-[`regime_gap_reread`](../study-results/f1_selection/regime_gap_reread.md) print
+[`mech_regime_recut`](../study-results/f1_selection/regime/mech_regime_recut.md) and
+[`regime_gap_reread`](../study-results/f1_selection/regime/regime_gap_reread.md) print
 join coverage, so they will show 7 of 524 rows landing on a different row than
 before plus 5 no longer landing at all.
 

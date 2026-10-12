@@ -120,7 +120,7 @@ readers, each from its own first date.
 | Named reader | Reads sealed dates from | Why it is admitted |
 |---|---|---|
 | [`refuse_floor_forward`](refuse_floor_forward.md) | 2026-10-08 | Accepted 2026-10-07; its answer 8 asked to be named here |
-| [`ticker_class`](../f1_selection/ticker_class.md), forward P1 only | 2026-10-08 | Accepted 2026-10-07; its forward dates are after 2026-10-07 |
+| [`ticker_class`](../f1_selection/benchmark/ticker_class.md), forward P1 only | 2026-10-08 | Accepted 2026-10-07; its forward dates are after 2026-10-07 |
 | [`narrow_to_fit`](narrow_to_fit.md), forward sign read only | 2026-10-08 | Accepted 2026-10-01; its forward read waits on this decision. Not yet built |
 
 Three limits bind each named reader:
@@ -240,7 +240,7 @@ two sibling drafts would otherwise sweep it the moment a live date priced.
 | [next-steps §2.2](../../next-steps.md#s2-2) — `v4_bridge` composition bridge | "the live 2026-08/09 dates price"; backfill does not count | Its five tests are composition tests on EMITTED plays — structure mix, credit share, plays per day, bear share, ladder tier mix. None is a P&L figure. But §2.2 gates it on the dates PRICING, which implies it also wants priced rows. |
 | [next-steps §2.6](../../next-steps.md#s2-6) — rollback triggers | new dates; the credit `sl-none` window starts after 2026-07-13 and is unreachable by backfill | Yes. Every trigger reads gain versus PROD. All of them stay sealed under either option below. |
 | [`cost_sensitivity`](../f2_management/cost_sensitivity.md) — sibling DRAFT | the cost knobs, the pre-fill grid fix and one suite re-run; NOT new dates | Yes — per-tier net meanR and net PF. Its population is stated by rule over the era, so it would sweep sealed dates automatically. RESOLVED: its §Population now excludes sealed dates by rule while this seal stands. |
-| [`mechanical_benchmark`](../f1_selection/mechanical_benchmark.md) — sibling DRAFT | a pre-build census and a counterpart backfill; NOT new dates | Yes — paired meanR gain and PF. Same rule-stated population, same automatic sweep. RESOLVED: its §Population now excludes sealed dates by rule while this seal stands. |
+| [`mechanical_benchmark`](../f1_selection/benchmark/mechanical_benchmark.md) — sibling DRAFT | a pre-build census and a counterpart backfill; NOT new dates | Yes — paired meanR gain and PF. Same rule-stated population, same automatic sweep. RESOLVED: its §Population now excludes sealed dates by rule while this seal stands. |
 
 _Resolved at build (2026-10-09):_ what each item gets under the later start.
 

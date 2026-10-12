@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # would quietly exercise the unfiled fallback instead of the mirror these tests
 # are here to hold in place.
 STUDY = "bear_arm"
-FAMILY = "f1_selection"
+FAMILY = "f1_selection/bear"
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ HEADER = """\
 STUDY: {name}
 ==============================================================================
   run at    2026-08-15 23:45:14
-  command   python -m scripts.backtest_study.f1_selection.{name}
+  command   python -m scripts.backtest_study.f1_selection.bear.{name}
   git       {sha} (main, working tree dirty)
   python    3.11.2
   era       {era} (prefixed exports)
@@ -136,7 +136,7 @@ def test_the_section_states_the_facts_the_report_carried(tmp_path):
     assert "(inputs dated 2026-08-15 19:03)" in section
     assert "run         2026-08-15 23:45:14 · git 53b7167 (main, working tree dirty)" in section
     assert "exit 0 · 12.4s" in section
-    assert f"command     python -m scripts.backtest_study.f1_selection.{STUDY}" in section
+    assert f"command     python -m scripts.backtest_study.f1_selection.bear.{STUDY}" in section
     assert "excerpt     verdict" in section
 
 
@@ -241,7 +241,7 @@ def test_a_designed_refusal_is_labelled_as_one_not_as_a_failure(tmp_path):
     outcome = refuser(out, rec, include_refusals=True)
 
     assert outcome.excerpt_kind == "refusal"
-    text = (rec / "f1_selection" / "v4_bridge.md").read_text()
+    text = (rec / "f1_selection/benchmark" / "v4_bridge.md").read_text()
     assert "exit 2 (designed refusal)" in text
     assert "excerpt     refusal" in text
 
@@ -363,7 +363,7 @@ def test_include_refusals_records_them_for_the_audit_trail(tmp_path):
     write_report(out, "v4_bridge", body="REFUSED — era v4 has 10 dates.\n", rc=2)
 
     assert refuser(out, rec, include_refusals=True).action == "appended"
-    assert (rec / "f1_selection" / "v4_bridge.md").exists()
+    assert (rec / "f1_selection/benchmark" / "v4_bridge.md").exists()
     # ...and is itself idempotent, on the same key as everything else.
     assert refuser(out, rec, include_refusals=True).action == "already recorded"
 
@@ -427,8 +427,9 @@ def test_every_records_folder_equals_its_modules_folder():
     for name, module in study_runner.study_paths().items():
         if name in study_results.NON_STUDY_STEMS:
             continue           # lib/book.py — the runner's diagnostic, not a study
-        assert study_results.family_of(name) == module.parent.name, name
-        assert study_results.record_path(name).parent.name == module.parent.name, name
+        rel = module.parent.relative_to(study_runner.STUDY_DIR).as_posix()
+        assert study_results.family_of(name) == rel, name
+        assert study_results.record_path(name).parent.relative_to(study_results.DEST_DIR).as_posix() == rel, name
 
 
 def test_an_arm_stem_files_under_its_base_studys_family():

@@ -29,7 +29,7 @@ PRE_REG_DIR = TUNING_DIR / "pre-registrations"
 # Registrations live one level down, under the same family folders as
 # scripts/backtest_study/ (f1_selection … f5_hedging) — load_pre_registration()
 # globs for this, so a study's file is found regardless of which family holds it.
-PRE_REG_PATTERN = "*/{study}.md"
+PRE_REG_PATTERN = "*/**/{study}.md"
 
 # An ERRATA file records defects found in a pre-registration AFTER it was
 # committed. A registration is IMMUTABLE, so a self-contradictory clause, a

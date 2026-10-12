@@ -366,7 +366,7 @@ reverse.
   **UNDERPOWERED**: census only, no outcome number printed at all. The floor
   may not be lowered to make a tier readable. Given the v4 tier-mix shift
   recorded by
-  [`v4_bridge`](../f1_selection/v4_bridge.md), Tier A is expected to be the
+  [`v4_bridge`](../f1_selection/benchmark/v4_bridge.md), Tier A is expected to be the
   binding one.
 - **C1 TIER A NET-POSITIVE.** Tier A net meanR > 0 with its 95% date-clustered
   CI excluding zero, under `ARM X`.

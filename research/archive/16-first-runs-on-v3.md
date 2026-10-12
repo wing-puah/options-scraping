@@ -142,7 +142,7 @@ power-stopped. Blocked on dates, as before.
 
 New layer, built study-first (no pipeline/prompt change — a macro input into the
 analysis prompt would be a v5 bump, and nothing here authorises it).
-Pre-registration: `research/pre-registrations/f1_selection/macro_event_study.md`, committed at
+Pre-registration: `research/pre-registrations/f1_selection/regime/macro_event_study.md`, committed at
 325964e BEFORE the study was built. Infrastructure: `config/macro-events.yml`
 (188 events, FOMC decisions/minutes + CPI + NFP + PCE, 2023-06 → 2027-12,
 hand-transcribed 2026-08-19 from the official Fed/BLS/BEA schedules — the 2025
@@ -370,7 +370,7 @@ first honest test of whether the continuation share is a v3 selection artifact.
 
 **The headline is ARM L, and it is a finding rather than a null: a missed
 same-day fill is not a lost trade.**
-Pre-registration: `research/pre-registrations/f1_selection/emission_timing.md`, written
+Pre-registration: `research/pre-registrations/f1_selection/signal/emission_timing.md`, written
 before the module existed. Report:
 `backtests/study_output/emission_timing-latest.txt` (run 2026-08-19 17:10:53,
 git bfcd512, exit 0 after 15.0s).

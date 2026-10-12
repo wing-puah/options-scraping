@@ -277,8 +277,8 @@ def study_paths() -> dict[str, Path]:
     """
     out: dict[str, Path] = {}
     for family in FAMILY_DIRS:
-        for path in sorted((STUDY_DIR / family).glob("*.py")):
-            if not path.stem.startswith("__"):
+        for path in sorted((STUDY_DIR / family).rglob("*.py")):
+            if not path.stem.startswith("__") and "__pycache__" not in path.parts:
                 out[path.stem] = path
     for stem in sorted(RUNNABLE_LIB):
         out[stem] = STUDY_DIR / "lib" / f"{stem}.py"
@@ -298,7 +298,7 @@ def module_of(name: str) -> str:
     every study sat flat in this directory.
     """
     path = study_paths().get(name)
-    return f"{PKG}.{path.parent.name}.{name}" if path else f"{PKG}.{name}"
+    return f"{PKG}.{'.'.join(path.parent.relative_to(STUDY_DIR).parts)}.{name}" if path else f"{PKG}.{name}"
 
 
 def discover() -> dict[str, str]:
@@ -680,7 +680,8 @@ def main(argv: list[str] | None = None) -> int:
         width = max(len(n) for n in studies)
         print(f"Studies ({len(studies)}) — `python -m {PKG} run <name>`:\n")
         for folder in (*FAMILY_DIRS, "lib"):
-            names = [n for n in studies if paths[n].parent.name == folder]
+            names = [n for n in studies
+                     if paths[n].parent.relative_to(STUDY_DIR).parts[0] == folder]
             if not names:
                 continue
             print(f"  {folder}/")

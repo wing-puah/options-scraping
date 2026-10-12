@@ -4,7 +4,7 @@ Fetcher for the call legs `mechanical_benchmark`'s counterparts need.
 WHY THIS EXISTS
 ---------------
 `mechanical_benchmark` (research/pre-registrations/f1_selection/
-mechanical_benchmark.md, accepted by default 2026-10-09) pairs every deployed
+benchmark/mechanical_benchmark.md, accepted by default 2026-10-09) pairs every deployed
 pick with a mechanical bull call spread: ATM / +5% on the same ticker and
 expiry (M1), a delta-matched one (M2, M2L), and the M1 wrap on a random ticker
 from the day's flow universe (U). The option cache holds only the strikes the
@@ -64,7 +64,7 @@ from scripts.backtest.helpers import _contract_key  # noqa: E402
 from scripts.backtest.shared.history import (  # noqa: E402
     EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories,
 )
-from scripts.backtest_study.f1_selection import mechanical_benchmark as MB  # noqa: E402
+from scripts.backtest_study.f1_selection.benchmark import mechanical_benchmark as MB  # noqa: E402
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF  # noqa: E402
 
 log = logging.getLogger("fetch_mechanical_legs")

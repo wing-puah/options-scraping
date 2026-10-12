@@ -1,5 +1,5 @@
 """Pins `ticker_class`'s code behaviour against its registration
-(research/pre-registrations/f1_selection/ticker_class.md): the frozen group
+(research/pre-registrations/f1_selection/benchmark/ticker_class.md): the frozen group
 table and its hash (GT3), the first-match order, the direction rule, the
 direction-standardisation arithmetic, Holm, the GT4 reconcile, the maxDD
 episode and the blank-not-zero PBO matrix. Synthetic frames only: no figure
@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.backtest_study.f1_selection import ticker_class as TC  # noqa: E402
+from scripts.backtest_study.f1_selection.benchmark import ticker_class as TC  # noqa: E402
 from scripts.backtest_study.lib import pbo as PBO  # noqa: E402
 
 

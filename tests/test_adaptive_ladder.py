@@ -1,4 +1,4 @@
-"""adaptive_ladder (research/pre-registrations/f1_selection/adaptive_ladder.md):
+"""adaptive_ladder (research/pre-registrations/f1_selection/regime/adaptive_ladder.md):
 no lookahead, the switching margin, the warm-up, the verdict grammar and the
 menu gating, on synthetic data only. No figure here comes from an export.
 """
@@ -8,8 +8,8 @@ import math
 
 import numpy as np
 
-from scripts.backtest_study.f1_selection import adaptive_ladder as A
-from scripts.backtest_study.f1_selection import dip_buy as DB
+from scripts.backtest_study.f1_selection.regime import adaptive_ladder as A
+from scripts.backtest_study.f1_selection.regime import dip_buy as DB
 
 
 def _row(d, R, known, tier="A", score=10.0, dip=DB.ABOVE, structure="bull_call_spread",

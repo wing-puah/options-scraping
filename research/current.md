@@ -74,9 +74,9 @@ glossary; arm labels are study-local, so each is given with its study.
 | `exit_from_text` | [E2](arm-index.md#exit_from_text) | a first `CANDIDATE`, and the pooled cell clears again | [record](study-results/f2_management/exit_from_text.md) |
 | `portfolio_delta` | [ARM B](arm-index.md#portfolio_delta) | `NOISE`; no ceiling clears, criterion 1 alone failing at +0.0519 R, CI [−0.0333, +0.1407] | [record](study-results/f4_deployment/portfolio_delta.md) |
 | `concurrency_correlation` | [K 5](arm-index.md#concurrency_correlation) same direction and sector | `RESTATEMENT` of `portfolio_delta`; X4 prints `PENDING`, so the 2026-09-04 hand settlement is withdrawn | [record](study-results/f4_deployment/concurrency_correlation.md) |
-| `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cut 2 | repeats that had already moved against the play clear all six, at −0.2579 | [record](study-results/f1_selection/emission_timing.md) |
+| `emission_timing` | [ARM P](arm-index.md#emission_timing) sub-cut 2 | repeats that had already moved against the play clear all six, at −0.2579 | [record](study-results/f1_selection/signal/emission_timing.md) |
 | `bear_rewrap` | [long_diag](arm-index.md#bear_rewrap) | 4 of 5 again, failing the year clause; the P1 portfolio check is met on no substitution | [record](study-results/f3_structure/bear_rewrap.md) |
-| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | `NOT met`: `sl .50` Δ=+0.030, CI [−0.003, +0.061] | [record](study-results/f1_selection/bear_arm.md) |
+| `bear_arm` | [B2](arm-index.md#bear_arm) exit fix | `NOT met`: `sl .50` Δ=+0.030, CI [−0.003, +0.061] | [record](study-results/f1_selection/bear/bear_arm.md) |
 | `account_sim` | [A3](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000` on the tracked cap cell; the registered cell prints `FEASIBLE` | [entry](#2026-09-21--account_sim--the-registered-cap-cell-prints-feasible-the-run-on-record-does-not), [plan](account-sim-feasibility-plan.md) |
 | `exit_switch_structure_study` | Q1 and Q2 | `STAYS GATED`, now failing four of six; Q2 reads the shipped BEAR_HE clause at Δ=−4.5205, 47% retained | [record](study-results/f2_management/exit_switch_structure_study.md) |
 
@@ -245,11 +245,11 @@ is one switch to a rule the exploratory read had already picked.** In April
 first, and stayed there. Before that it held the shipped ladder. On v3 it
 never switches. Nothing ships.
 
-_Registration: [`adaptive_ladder.md`](pre-registrations/f1_selection/adaptive_ladder.md),
+_Registration: [`adaptive_ladder.md`](pre-registrations/f1_selection/regime/adaptive_ladder.md),
 accepted by default 2026-10-12 · era v4, exports 2026-10-06, 1,753 non-veto
 rows over 278 dates, 224 graded · v3 beside it, R gross of cost · report:
 `backtests/study_output/adaptive_ladder-latest.txt` · recorded in
-[study-results](study-results/f1_selection/adaptive_ladder.md)._
+[study-results](study-results/f1_selection/regime/adaptive_ladder.md)._
 
 **In production.** Nothing changes. A forward `ADAPTS` would at most let the
 operator consider a deployment-rules change.
@@ -391,7 +391,7 @@ the most frequent in-sample winner on v3 and second on v4.
 
 | Hypothesis | Where it went |
 |---|---|
-| Tier A/B do better on dip dates | Registered as [`dip_buy`](pre-registrations/f1_selection/dip_buy.md), forward only |
+| Tier A/B do better on dip dates | Registered as [`dip_buy`](pre-registrations/f1_selection/regime/dip_buy.md), forward only |
 | A positive cpir helps | A printed split inside `dip_buy`, never graded |
 | A lower `score_total` helps within bull_call_spread | A printed tie-break inside `dip_buy`, never graded |
 
@@ -411,10 +411,10 @@ neither arm has a date yet.** It grades one population, v4 signal dates from
 the seal's start. The in-sample eras are printed as post hoc context only.
 Nothing ships.
 
-_Registration: [`dip_buy.md`](pre-registrations/f1_selection/dip_buy.md),
+_Registration: [`dip_buy.md`](pre-registrations/f1_selection/regime/dip_buy.md),
 accepted by default 2026-10-12 · era v4, exports 2026-10-06, v3 beside it ·
 report: `backtests/study_output/dip_buy-latest.txt` · recorded in
-[study-results](study-results/f1_selection/dip_buy.md)._
+[study-results](study-results/f1_selection/regime/dip_buy.md)._
 
 **In production.** Nothing changes. A forward `SUPPORTED` would at most let
 the operator consider a deployment-rules change.
@@ -834,7 +834,7 @@ counterpart legs are not cached. Nothing ships.
 
 _Era v4, with v3 as the stability read · exports 2026-10-06 23:39 · report:
 `backtests/study_output/mechanical_benchmark-latest.txt` · recorded in
-[study-results](study-results/f1_selection/mechanical_benchmark.md)._
+[study-results](study-results/f1_selection/benchmark/mechanical_benchmark.md)._
 
 **In production.** Nothing changes.
 
@@ -858,7 +858,7 @@ zero. `ARM U` is the arm that decides the question, and it needs stock bars for
 
 **The registration.** Accepted by default on the drafter's defaults. The
 rulings sit beside the text they amend in the
-[pre-registration](pre-registrations/f1_selection/mechanical_benchmark.md). Two
+[pre-registration](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md). Two
 matter most. The counterpart uses the pick's own expiry. The strike choice
 reads only rows dated on or before the signal date.
 
@@ -1003,7 +1003,7 @@ criteria.
 
 _Era v4 · exports 2026-10-06 23:39 · reports: `backtests/study_output/ticker_class-latest.txt`
 and the v3 file beside it · registration
-[`ticker_class`](pre-registrations/f1_selection/ticker_class.md), labels in
+[`ticker_class`](pre-registrations/f1_selection/benchmark/ticker_class.md), labels in
 [arm-index](arm-index.md#ticker_class)._
 
 ### Rulings
@@ -1043,7 +1043,7 @@ These are printed readings, not verdicts. The two eras disagree in sign on P1.
 ### Unresolved
 
 - **Index bear puts and the drawdown.** G1 carries a large share of the 2025-12 → 2026-08
-  drawdown. This overlaps the existing [bear_position_study](study-results/f1_selection/bear_position_study.md)
+  drawdown. This overlaps the existing [bear_position_study](study-results/f1_selection/bear/bear_position_study.md)
   demotion, since 80% of G1 is bear. No new cut is graded here.
 - **PBO ties.** 2,333 of 12,870 CSCV splits land exactly on the median, and PBO counts them
   against the selection.
@@ -1056,7 +1056,7 @@ dates after 2026-10-07.
 
 **The `mech_cell` regime does not explain the gap; the late-2025 period does.** This read is
 exploratory. It grades nothing and files nothing. The forward study
-[`ticker_class_regime`](pre-registrations/f1_selection/ticker_class_regime.md) was drafted and
+[`ticker_class_regime`](pre-registrations/f1_selection/benchmark/ticker_class_regime.md) was drafted and
 hashed before it ran.
 
 _Same in-sample book as above · script and output in the session scratchpad, not the repo ·

@@ -855,7 +855,7 @@ or **to be tested**.
 Tier A/B positions may do better on a [dip date](glossary.md#dip-date), when
 SPY closed below its 50-day SMA. The rule was picked post hoc from 28
 candidates, so only forward dates can test it. It is registered as
-[`dip_buy`](pre-registrations/f1_selection/dip_buy.md) and waits behind the
+[`dip_buy`](pre-registrations/f1_selection/regime/dip_buy.md) and waits behind the
 holdout seal. In-sample context, post hoc, net of cost:
 
 | Era, Tier A+B | Dip minus above, [meanR](glossary.md#meanr) [CI](glossary.md#ci) |
@@ -870,7 +870,7 @@ Entry in [`current.md`](current.md#2026-10-12--exploratory-read-v4-is-a-bull-tap
 Re-choosing the selection rule each month from trailing known results beat
 the shipped ladder on v4 in-sample dates, by one switch onto a rule picked in
 hindsight. v3 did not switch. It is registered as
-[`adaptive_ladder`](pre-registrations/f1_selection/adaptive_ladder.md) and
+[`adaptive_ladder`](pre-registrations/f1_selection/regime/adaptive_ladder.md) and
 waits behind the holdout seal.
 
 | Era | Adapter minus shipped, [slot R](glossary.md#slot-r) per date [CI](glossary.md#ci) |

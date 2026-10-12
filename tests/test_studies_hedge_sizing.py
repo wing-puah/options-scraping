@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from scripts.backtest_study.f1_selection import bear_arm
+from scripts.backtest_study.f1_selection.bear import bear_arm
 from scripts.backtest_study.f5_hedging.hedge_sizing import cuts_pass, fmean
 from scripts.backtest_study.lib import protocol as P
 

@@ -171,7 +171,7 @@ POST13C_CUTOFF = pd.Timestamp("2026-07-13")
 
 
 # --- small ported helpers (verbatim from scripts/backtest_study/f2_management/exit_switch_mech_study.py
-#     and scripts/backtest_study/f1_selection/bear_position_study.py) -----------------------------------
+#     and scripts/backtest_study/f1_selection/bear/bear_position_study.py) -----------------------------------
 
 def norm_play(s) -> str:
     """60-char lowercased play prefix, used as the join key against AnalysisClaude."""
@@ -202,7 +202,7 @@ def model_vol(regime_str):
 
 def ladder_tier(rec: dict) -> str:
     """VETO / A / B / C per docs/deployment-rules.md. Verbatim port of
-    `ladder_tier()` from scripts/backtest_study/f1_selection/bear_position_study.py — keyed off the
+    `ladder_tier()` from scripts/backtest_study/f1_selection/bear/bear_position_study.py — keyed off the
     MODEL regime (market_regime free text), not the mechanical regime."""
     st, mr = rec["structure"], rec.get("market_regime") or ""
     mdir, mvol = model_direction(mr), model_vol(mr)

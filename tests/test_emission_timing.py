@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/backtest_study/f1_selection/emission_timing.py`.
+"""Unit tests for `scripts/backtest_study/f1_selection/signal/emission_timing.py`.
 
 Two things in that study are load-bearing and cannot be checked by reading its
 report, so they are pinned here:
@@ -30,7 +30,7 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study.f1_selection import emission_timing as ET
+from scripts.backtest_study.f1_selection.signal import emission_timing as ET
 from scripts.backtest_study.lib.harness import PATH_CAP_DAYS, Trade
 
 

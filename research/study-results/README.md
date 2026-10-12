@@ -50,8 +50,8 @@ tracked. This is that somewhere.
 
 A study's record sits under the same family folder its module does:
 
-    scripts/backtest_study/f1_selection/bear_arm.py
-    research/study-results/f1_selection/bear_arm.md
+    scripts/backtest_study/f1_selection/bear/bear_arm.py
+    research/study-results/f1_selection/bear/bear_arm.md
 
 `f1` → `f2` → `f3` → `f4` → `f5` is not alphabetical filing — it is **the order a
 play moves through the system: pick it, manage it, wrap it, fund it, protect

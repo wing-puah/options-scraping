@@ -182,7 +182,7 @@ TARGETS: tuple[Target, ...] = (
     ),
     Target(
         name="ml-study-relic",
-        # Orphaned: f1_selection/ml_combination.py writes to study_output/, not
+        # Orphaned: f1_selection/signal/ml_combination.py writes to study_output/, not
         # here. This is leftover `tee` output from before the runner existed; the
         # study's verdict is recorded in research/study-map.md and does not
         # depend on these files.

@@ -20,7 +20,7 @@ import sys
 import pandas as pd
 import pytest
 
-from backtest_study.f1_selection import v4_bridge as vb
+from backtest_study.f1_selection.benchmark import v4_bridge as vb
 from backtest_study.lib import era
 
 

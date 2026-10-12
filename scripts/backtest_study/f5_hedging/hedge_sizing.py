@@ -45,7 +45,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
-from scripts.backtest_study.f1_selection.bear_arm import BEAR_STRUCTURES, clause_vocabulary  # noqa: E402
+from scripts.backtest_study.f1_selection.bear.bear_arm import BEAR_STRUCTURES, clause_vocabulary  # noqa: E402
 from scripts.backtest_study.lib.book import CREDIT_PROD, DEBIT_PROD, load_book  # noqa: E402
 from scripts.backtest_study.lib.harness import replay  # noqa: E402
 # The ONE drawdown implementation in the research tier lives in `lib/`, beside

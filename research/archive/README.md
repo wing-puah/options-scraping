@@ -91,7 +91,7 @@ code they name is now under `scripts/backtest_study/`.
 | 2026-08-11 addendum — `mech_cell` BACKFILLED across the analysis tabs | [archive/09](09-v3-closeout.md) |
 | 2026-08-11 — ML combination search RUN: NULL RESULT; bear `be_after` finding | [archive/09](09-v3-closeout.md) |
 | 2026-08-11 — DEPLOY arm: hedge is real, `|delta| high` pick adopted | [archive/09](09-v3-closeout.md) |
-| 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION | [pre-registrations/f1_selection/v4_bridge.md](../pre-registrations/f1_selection/v4_bridge.md) |
+| 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION | [pre-registrations/f1_selection/benchmark/v4_bridge.md](../pre-registrations/f1_selection/benchmark/v4_bridge.md) |
 | 2026-08-11 — v3 CLOSE-OUT: three findings SHIPPED, production delta measured | [archive/09](09-v3-closeout.md) |
 | 2026-08-12 — deployment rules split: operator card vs evidence | [archive/10](10-post-closeout-ops-and-live-evals.md) |
 | 2026-08-12 — v4 bridge: RECORDED DEVIATION from the pre-registration | [archive/10](10-post-closeout-ops-and-live-evals.md) |

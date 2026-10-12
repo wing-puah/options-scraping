@@ -189,8 +189,8 @@ CENSUS_ONLY = {
     "lib/concentration.py": "parses analysis prose; outcomes come via load_book",
     "lib/text_corpus.py": "analysis text; outcomes come via load_book",
     "lib/live_select.py": "evaluation-method and structure census",
-    "f1_selection/prompt_eval.py": "era label and play counts; arm books via load_book",
-    "f1_selection/v4_bridge.py": "composition of emitted plays (analysis export only)",
+    "f1_selection/signal/prompt_eval.py": "era label and play counts; arm books via load_book",
+    "f1_selection/benchmark/v4_bridge.py": "composition of emitted plays (analysis export only)",
     "f4_deployment/refuse_floor_forward.py": "export row counts; its book via load_book",
 }
 _PATH_USE = re.compile(r"resolve_paths\(|DEFAULT_RESULTS_CSV|DEFAULT_PROXY_CSV|"

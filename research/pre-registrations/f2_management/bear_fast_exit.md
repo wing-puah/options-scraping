@@ -40,7 +40,7 @@ re-test a closed question under a new name.
 
 | Already tested | Where | Verdict | Why this study differs |
 |---|---|---|---|
-| Profit targets 0.75, 1.10, 1.25; trails; breakeven stops at 0.20–0.75; `tef` null/0.85; `sl .50` | [`bear_arm` B2](../../arm-index.md#bear_arm), [record](../../study-results/f1_selection/bear_arm.md) | `NOT met`; best is `sl .50` at Δ +0.030, CI [−0.003, +0.061] (2026-09-19) | No target below 0.75 and no stop measured in sessions |
+| Profit targets 0.75, 1.10, 1.25; trails; breakeven stops at 0.20–0.75; `tef` null/0.85; `sl .50` | [`bear_arm` B2](../../arm-index.md#bear_arm), [record](../../study-results/f1_selection/bear/bear_arm.md) | `NOT met`; best is `sl .50` at Δ +0.030, CI [−0.003, +0.061] (2026-09-19) | No target below 0.75 and no stop measured in sessions |
 | Breakeven stop at 0.20–0.40 against the shipped merge | [`bear_giveback` ARM P](../../arm-index.md#bear_giveback), [record](../../study-results/f2_management/bear_giveback.md) | No CI excludes zero | Same: nothing below one week |
 | Profit target 0.60 and up × stop × `tef`, walk-forward, whole book | [`exit_drawdown` ARM W](../../arm-index.md#exit_drawdown), [record](../../study-results/f2_management/exit_drawdown.md) | `UNDERPOWERED` | Account drawdown metric, not bear-keyed |
 | "At session X, if R is past ±Y, exit"; X ∈ {5, 10, 15, 20} | [`staged_exit` ARM E](../../arm-index.md#staged_exit), [pre-registration](staged_exit.md) | 0 of 40 powered cells clear; day-5 loss cuts harmful | Whole book, conditional on a band, never sessions 1–3 |

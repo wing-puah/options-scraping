@@ -2,7 +2,7 @@
 
 WHY THIS EXISTS
 ---------------
-`research/pre-registrations/f1_selection/trigger_entry.md` registers this file
+`research/pre-registrations/f1_selection/signal/trigger_entry.md` registers this file
 BEFORE the module existed, and makes it a precondition rather than a nicety:
 
     "`tests/test_trigger_entry.py` must exist and must pin: the k-indexing (a
@@ -40,8 +40,8 @@ from datetime import date
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study.f1_selection.emission_timing import synth_trade
-from scripts.backtest_study.f1_selection.trigger_entry import (
+from scripts.backtest_study.f1_selection.signal.emission_timing import synth_trade
+from scripts.backtest_study.f1_selection.signal.trigger_entry import (
     ARM_L_LAGS,
     TRIGGER_N,
     arm_t_outcome,

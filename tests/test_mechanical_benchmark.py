@@ -1,6 +1,6 @@
 """mechanical_benchmark's geometry rules, on synthetic chains.
 
-research/pre-registrations/f1_selection/mechanical_benchmark.md, Build notes:
+research/pre-registrations/f1_selection/benchmark/mechanical_benchmark.md, Build notes:
 band matching, degenerate-pair rejection, entry-dated-only selection and the
 paired-drop symmetry. No test reads the real exports or the option cache.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.backtest_study.f1_selection import mechanical_benchmark as MB
+from scripts.backtest_study.f1_selection.benchmark import mechanical_benchmark as MB
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF
 
 T = "AAA"

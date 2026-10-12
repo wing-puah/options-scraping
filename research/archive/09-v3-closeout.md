@@ -103,7 +103,7 @@ deploy) — a user decision, deliberately not taken here.
 ### 5. Next study: ML combination search — plan written, NOT run
 
 Pre-written plan, then `ml-plan.md`, now
-[`pre-registrations/f1_selection/ml_combination.md`](../pre-registrations/f1_selection/ml_combination.md):
+[`pre-registrations/f1_selection/signal/ml_combination.md`](../pre-registrations/f1_selection/signal/ml_combination.md):
 learn which structure ×
 regime × entry-geometry × enrichment combination best predicts play outcome,
 benchmark = the shipped score-free ladder's top-3/day replay, purged
@@ -227,8 +227,8 @@ correct.
 ## 2026-08-11 — ML combination search RUN: NULL RESULT; and the bear arm finds an EXIT fix, not a selection one
 
 Both arms of `ml-plan.md` — now
-[`ml_combination.md`](../pre-registrations/f1_selection/ml_combination.md) and
-[`bear_arm.md`](../pre-registrations/f1_selection/bear_arm.md) — executed
+[`ml_combination.md`](../pre-registrations/f1_selection/signal/ml_combination.md) and
+[`bear_arm.md`](../pre-registrations/f1_selection/bear/bear_arm.md) — executed
 against the same 08-11 exports.
 Code is now TRACKED under `scripts/backtest_study/` (`book.py` loader, `harness.py`
 replay port, `protocol.py` validation, `ml_combination.py`, `bear_arm.py`);
@@ -518,7 +518,7 @@ which is the Mar–Apr-2025 failure mode for the third time in this log.
 
 ---
 
-## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION → [`pre-registrations/f1_selection/v4_bridge.md`](../pre-registrations/f1_selection/v4_bridge.md)
+## 2026-08-11 — v4 emission-composition bridge: PRE-REGISTRATION → [`pre-registrations/f1_selection/benchmark/v4_bridge.md`](../pre-registrations/f1_selection/benchmark/v4_bridge.md)
 
 Moved out of this log: a pre-registration is an immutable artifact and this
 file is pruned into `archive/`. The section is unchanged, just relocated.

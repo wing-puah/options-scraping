@@ -1,4 +1,4 @@
-"""Unit tests for scripts/backtest_study/f1_selection/prompt_eval.py — the
+"""Unit tests for scripts/backtest_study/f1_selection/signal/prompt_eval.py — the
 candidate-prompt scoring harness.
 
 Nothing here touches the network, Google Sheets, or a real model: every
@@ -27,7 +27,7 @@ from datetime import date, timedelta
 import pytest
 
 from scripts.backtest.helpers import _weekday_grid
-from scripts.backtest_study.f1_selection import prompt_eval as PE
+from scripts.backtest_study.f1_selection.signal import prompt_eval as PE
 from scripts.backtest_study.lib import book
 from scripts.backtest_study.lib.harness import Trade, replay
 
