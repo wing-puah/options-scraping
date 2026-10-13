@@ -8,6 +8,9 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-13: the SOTA paper's 18.3% rests on one seed and a checkpoint picked on its test window; it adds no evidence for this book**
+([entry](#2026-10-13--external-read-sota-paper-adds-no-evidence-for-this-book)).
+
 **2026-10-13: neither a long earnings straddle nor a calendar pays; `earnings_vol` prints `NULL` on both arms**
 ([entry](#2026-10-13--earnings_vol-neither-earnings-structure-pays-and-the-calendars-edge-is-the-spread)).
 
@@ -246,6 +249,55 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-13 — external read: SOTA paper adds no evidence for this book
+
+**The paper's 18.3% is one seed on one six-month window, with the checkpoint
+picked on that window.** It does not show an LLM options edge, and nothing in
+this repo changes on it. The Reddit title's "183%" misreads the paper's 18.32%.
+
+_Source: Xie and Liu, "SOTA: Stock Options Trading Agents Guided by
+Option-Implied Return Distributions", [arXiv:2610.10407](https://arxiv.org/abs/2610.10407),
+7 October 2026. Read by Claude; not replicated._
+
+**In production.** Nothing changes.
+
+**What it claims.** A post-trained Qwen model picks a strategy family per name.
+Deterministic resolvers pick the contracts. The test is nine large caps plus
+SPY, 2025-03-03 to 2025-08-29.
+
+| Policy | Total return | Sharpe | Max drawdown |
+|---|---|---|---|
+| SOTA, no news | +18.32% | 1.60 | 8.96% |
+| SOTA, with news | −2.72% | −0.16 | 31.69% |
+| Best rule baseline | −5.22% | −13.46 | 5.22% |
+
+**Why it is weak evidence.**
+
+- **The checkpoint was chosen on the test window.** Every saved checkpoint was
+  scored on it and step 20 was reported. That is a pick from many configs with
+  no PBO read ([`pbo_ledger`](arm-index.md#pbo_ledger)).
+- **One seed, no confidence intervals.** The trade count is not reported.
+- **No buy-and-hold benchmark.** The window runs from the April 2025 sell-off
+  through the rebound, when long SPY also gained.
+- **The baselines lose 28–55%.** Beating them says little.
+- **Training-cutoff leakage is not addressed.**
+
+**Where it agrees with this repo.**
+
+- **News hurt** (−2.72%). This repo's text studies also read `NULL` on
+  news-driven text.
+- **Fills at mid plus $0.65 a contract**, the same cost basis as the
+  backtest.
+- **A related benchmark, LiveOption**
+  ([arXiv:2609.33470](https://arxiv.org/abs/2609.33470)), found LLM earnings
+  bets negative for all six models. Small 0DTE gains vanished once the
+  half-spread was charged. Both match `earnings_vol` and `cost_sensitivity`.
+
+**Next.** None from the paper. The programme plan is
+[next-steps](next-steps.md#plan-20261013).
 
 ---
 

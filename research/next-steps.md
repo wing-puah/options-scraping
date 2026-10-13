@@ -12,6 +12,75 @@ its number as a one-line stub with a link. Written 2026-08-31, cut to queue-only
 <a id="s0"></a>
 ## 0. Repo state — read first
 
+<a id="plan-20261013"></a>
+### Plan from 2026-10-13 — decide whether the flow layer earns its keep
+
+**The question.** The infrastructure is sound, but no tested edge survives on
+v4 except the vetoes and Tier A on dip dates. The plan spends effort only on
+the reads that decide whether to keep the flow-selection layer. No new idea
+studies until P1 and P2 are read.
+
+| Step | Who | What | Blocks |
+|---|---|---|---|
+| P0 | Operator | Write the kill rule below into a registration before any result | P1 read |
+| P1 | Claude, after a yes | `mechanical_benchmark` same-ticker fetch and run | P2 choice |
+| P2 | Operator | Choose ARM U, a SPY-only benchmark, or stop | the verdict |
+| P3 | Claude | Retire the study book's tier port (item 8) | the next suite re-run |
+| P4 | Both | Keep the daily loop running at the card's sizes | forward grades |
+| P5 | Claude | Suite re-run once sealed dates price | `dip_buy` read |
+| P6 | Claude, when asked | Housekeeping: item 7, item 11 | nothing |
+
+**P0 — the kill rule.** Drafted here; it is not doctrine until registered.
+It goes under `f4_deployment/` as `programme_gate.md`, accepted by default.
+
+- If the picks do not beat the mechanical spread in P1, and `dip_buy` grades
+  `NULL` or `CONTRARY`, retire the flow-selection layer.
+- Retiring it means trading a mechanical dip rule at $500, or stopping.
+- If either read is positive, keep the pipeline and keep both forward grades
+  running.
+
+**P1 — `mechanical_benchmark`, same-ticker arms.** Item 15 holds the commands.
+The arms are M1 and M2, 710 contracts on v4.
+
+1. Plug in to AC power and run `caffeinate -dims`. Check that no other
+   Barchart writer is running.
+2. Print the count with `fetch_mechanical_legs.py --arms M1,M2 --no-v3
+   --dry-run`. Ask the operator before fetching.
+3. Fetch in batches with `--limit`. Run `backup_research_caches.py push`
+   after each batch.
+4. Re-run the study. A fetch can expose a nearer strike, so repeat steps 2–4
+   until nothing awaits a fetch.
+5. Write the record, the `current.md` entry and the catalog verdict.
+
+The same-ticker arms test strike, expiry and timing on the book's own
+tickers. They do not test ticker choice. Only ARM U does.
+
+**P2 — the ticker-choice read.** Three options, recommended first.
+
+| Option | Cost | What it answers |
+|---|---|---|
+| SPY-only benchmark, a new registration | a few hundred SPY contracts | do the picks beat a SPY call spread on the same dates? |
+| ARM U as registered | about 39,000 contracts and 1,978 tickers of bars | do the picks beat random tickers? |
+| Stop at P1 | none | ticker choice stays untested |
+
+The SPY-only arm is a new study, so its registration must say it was
+proposed after `cost_sensitivity` and `direction_hit` were read.
+
+**P3 — the tier port.** Swap `book.py::ladder_tier` for
+`mapping.ladder_tier()`. It moves every study that reads `rec["tier"]`, so
+do it before P5, not after.
+
+**P4 — the daily loop.** Run `make analyze`, the backtest and the journal as
+usual. Size by the card: Tier A on a dip date at the $1,000 stop, everything
+else at $500. Run `backup_research_caches.py push` after every scrape.
+
+**P5 — the suite re-run.** Run it once new dates past 2026-09-23 price.
+`dip_buy` needs about seven more months of dates. Until then its forward
+grade stays `STILL-OPEN`.
+
+**External read, 2026-10-13.** The SOTA paper adds no evidence for this
+book ([entry](current.md#2026-10-13--external-read-sota-paper-adds-no-evidence-for-this-book)).
+
 <a id="pick-up"></a>
 ### Pick up here — 2026-10-10
 
