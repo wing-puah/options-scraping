@@ -610,6 +610,58 @@ graded cell `NULL` on v4, six `NULL` and four `UNDERPOWERED` on v3
   contracts a cell needs are not yet cached; the run exits 0, prints the
   census, and evaluates no criterion.
 
+#### `index_vrp`
+
+_Registered in [`pre-registrations/f3_structure/index_vrp.md`](pre-registrations/f3_structure/index_vrp.md) · module `f3_structure/index_vrp.py`_
+
+Accepted by default 2026-10-12. A monthly short-vol sleeve on real cached
+quotes, held to expiry, read against the deployed book's daily marks. Every
+label is local to this study. `M1`–`M3` are not `index_bear_hedge`'s.
+
+- `ARM S` (descriptive cut) — Short ATM straddle. Undefined risk, so no
+  verdict.
+- `ARM C` (arm) — Short [iron condor](glossary.md#iron-condor), shorts at
+  |delta| 0.16, wings 3% of spot out. Graded on SPY at mid.
+- `M1` (descriptive cut) — The [VRP](glossary.md#vrp) per underlying and
+  VIX tercile, in price and vol form. Prints `PREMIUM` or `NO-PREMIUM`.
+- `M2` (descriptive cut) — Arm P&L with MFE and MAE, worst five cycles.
+- `M3` (criterion) — The tail overlap with the book, read by `T1`–`T5`.
+- `T1` (criterion) — Mean sleeve P&L on the book's worst 5% of sessions.
+- `T2` (criterion) — Book and sleeve P&L summed over each stress window.
+- `T3` `T4` `T5` (descriptive cut) — Correlation, drawdown with bands, and
+  the O2 total-loss overlay. `T4` enters `DIVERSIFIES` only.
+- `W1` (descriptive cut) — The 2022 bear. No book, so a beta proxy only.
+- `W2` `W3` `W4` (population scope) — Aug 2024, Mar–Apr 2025, Feb–Apr 2026,
+  the graded windows.
+- Secondary reads (population scope) — GLD condor, natural fill, 0.30
+  delta, stored book, v3, and T1 blocks 5 and 20. Each prints a token.
+- `LOSES-TOGETHER` `DIVERSIFIES` `NO-TAIL-LINK` (prose) — The verdict words.
+
+#### `earnings_vol`
+
+_Registered in [`pre-registrations/f3_structure/earnings_vol.md`](pre-registrations/f3_structure/earnings_vol.md) · module `f3_structure/earnings_vol.py`_
+
+Accepted by default 2026-10-12, before its fetch and first run. Both
+structures enter at the close of session E − 5 and exit at the close of E.
+Every label is local to this study. `G1` is not `account_sim`'s.
+
+- `ARM S` (arm) — Long ATM straddle on the front expiry. Graded at mid.
+- `ARM K` (arm) — Long ATM [double calendar](glossary.md#double-calendar):
+  sell the front call and put, buy the back call and put. Graded at mid.
+- `M1` (criterion) — Mean return per arm, with a CI95 clustered by
+  earnings season. Median, win rate, PF, MFE and MAE print beside it.
+- Halves (criterion) — 2024-Q1 → 2025-Q2 and 2025-Q3 → 2026-Q3, split by
+  report date. Both means must be above zero.
+- Leave-one-season-out and per name (descriptive cut) — Printed, no
+  verdict.
+- `G1` (gate) — Correlation of the sleeve's daily P&L with the deployed
+  book's. Passes at ≤ 0; the ≤ 0.10 bar prints beside it.
+- Secondary reads (population scope) — Natural fill, unknown-session
+  events as `amc`, the run-up exit at E − 1, and the 0.10 gate. Each
+  prints a token.
+- PBO (descriptive cut) — 2 arms × 2 fills × 2 exits, context only.
+- `EDGE` `RE-WRAP` `CONTRARY` `NULL` (prose) — The verdict words.
+
 ### ④ Deployment — can I run it
 
 #### `account_sim`

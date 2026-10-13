@@ -151,6 +151,8 @@ controls, cells and descriptive cuts under the same letters.
 | File | Study | Status |
 |---|---|---|
 | [`f3_structure/financed_spread.md`](f3_structure/financed_spread.md) | `financed_spread` | graded |
+| [`f3_structure/index_vrp.md`](f3_structure/index_vrp.md) | `index_vrp` — does a monthly short SPY iron condor lose in the same windows and on the same days as the deployed ladder book? Accepted by default 2026-10-12, saved before the first run; `NO-TAIL-LINK`. | run |
+| [`f3_structure/earnings_vol.md`](f3_structure/earnings_vol.md) | `earnings_vol` — does a long straddle or a double calendar across earnings pay, without re-wrapping the book? Accepted by default 2026-10-12, before its fetch; first run 2026-10-13, `NULL` on both arms. | run |
 
 ## ④ Deployment — `f4_deployment/`
 

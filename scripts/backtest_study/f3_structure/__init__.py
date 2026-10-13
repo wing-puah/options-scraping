@@ -10,6 +10,14 @@ the book's own exposure again.
                         financed vertical prints RE-WRAP: a real gain that is the
                         book's own exposure again, so it fails the anti-re-wrap
                         clause it was registered against. Nothing ships.
+    index_vrp.py        NO-TAIL-LINK — a monthly short SPY iron condor on real
+                        cached quotes neither loses with the ladder book's worst
+                        sessions nor cushions them clearly (2026-10-12). Nothing ships.
+    earnings_vol.py     NULL on both arms (2026-10-13) — a long ATM straddle and a
+                        long ATM double calendar across 25 names' earnings. The
+                        calendar's +0.073 mean misses its season-clustered CI and
+                        turns CONTRARY at the natural fill. Neither moves with the
+                        book. Nothing ships.
 
 `hedge_structure.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
 with the rest of the hedge programme. So was the DELETED `vol_sleeve.py`, whose

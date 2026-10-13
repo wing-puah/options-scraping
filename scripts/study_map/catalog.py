@@ -905,6 +905,34 @@ STUDIES: dict[str, Study] = {
                   "cells; G1b's non-shared row categories). `S-D30` and `S-DTE60` UNDERPOWERED "
                   "on both eras.",
     ),
+    "index_vrp": Study(
+        family="structure", state="null",
+        question="On the deployed ladder book's worst days and in its stress windows, does a "
+                 "monthly short SPY iron condor on real cached quotes lose money alongside the "
+                 "book?",
+        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, 55 "
+                "SPY cycles, none dropped): `>>> index_vrp NO-TAIL-LINK (SPY condor d0.16, mid "
+                "fill, v4 deployed book) <<<`. The window clause holds (`book loses in 3 covered "
+                "window(s) ['W2', 'W3', 'W4']; sleeve loses in 2 of them`) but the tail clause "
+                "does not: `T1 -7.66 CI95 [-54.90, +44.31]`. Every secondary (GLD, natural fill, "
+                "0.30 delta, stored book, v3) prints `NO-TAIL-LINK`, and both premiums print "
+                "`NO-PREMIUM`. Nothing ships.",
+    ),
+    "earnings_vol": Study(
+        family="structure", state="null",
+        question="Across 11 earnings seasons on a fixed list of 25 names, does a long ATM "
+                 "straddle or a long ATM double calendar, entered 5 sessions before the report "
+                 "and closed the session after, earn a positive mean return whose daily P&L does "
+                 "not move with the deployed book?",
+        verdict="Accepted by default 2026-10-12 and first run 2026-10-13 (v4 exports of "
+                "2026-10-06, 272 in-sample events over 11 seasons, after a two-stage leg fetch): "
+                "`>>> earnings_vol ARM S NULL / ARM K NULL <<<`. The calendar comes closest: "
+                "`ARM K (mid, exit E, in-sample): n 161  mean +0.073  CI95 [-0.024, +0.170] over "
+                "11 seasons;  H1 +0.079  H2 +0.067;  G1 corr -0.018 -> PASS`, failing only the CI "
+                "clause. At the natural fill it prints `CONTRARY`, so its mean lives inside the "
+                "bid-ask spread. The straddle: `n 271  mean +0.019  CI95 [-0.085, +0.123]`. Both "
+                "pass G1. PBO 0.262 over the 8 printed configs. Nothing ships.",
+    ),
 
     # ④ deployment
     "account_sim": Study(

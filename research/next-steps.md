@@ -74,6 +74,17 @@ No rule changes on it.
    `mapping.ladder_tier()` the one encoding. Swapping it in moves every
    study that reads `rec["tier"]`, so it needs a suite re-run. Found
    2026-10-12.
+9. **DONE 2026-10-12 — `index_vrp` prints `NO-TAIL-LINK`.** Short index
+   vol is closed for this book
+   ([entry](current.md#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)).
+10. **DONE 2026-10-13 — `earnings_vol` prints `NULL` on both arms**
+    ([entry](current.md#2026-10-13--earnings_vol-neither-earnings-structure-pays-and-the-calendars-edge-is-the-spread)).
+    The leg planner and fetcher is `scripts/collector/fetch_earnings_legs.py`,
+    with its own manifest in `backtests/sweep_cache/`.
+11. **Claude, when asked: regroup `scripts/collector/`.** It holds 18 entries,
+    past the seven-plus-or-minus-two rule. GitHub Actions and the docs call
+    several of them by path, so the move must fix every workflow and
+    reference in one commit. Filed 2026-10-12 at the operator's choice.
 
 **Where things stand.**
 

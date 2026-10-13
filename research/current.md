@@ -8,6 +8,12 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-13: neither a long earnings straddle nor a calendar pays; `earnings_vol` prints `NULL` on both arms**
+([entry](#2026-10-13--earnings_vol-neither-earnings-structure-pays-and-the-calendars-edge-is-the-spread)).
+
+**2026-10-12: a short SPY condor loses in the book's bad months but not on its bad days; `index_vrp` prints `NO-TAIL-LINK`**
+([entry](#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)).
+
 **2026-10-12: nothing known at entry predicts whether the underlying moves the play's way; `direction_hit` prints `NULL`**
 ([entry](#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
 
@@ -240,6 +246,146 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-13 — earnings_vol: neither earnings structure pays, and the calendar's edge is the spread
+
+**`earnings_vol` prints `NULL` on both arms.** A long ATM straddle and a long
+ATM double calendar held across 25 names' earnings reports earn no return
+clear of zero over 11 seasons. Neither moves with the book. Nothing ships.
+
+_Registration: [`earnings_vol.md`](pre-registrations/f3_structure/earnings_vol.md),
+accepted by default 2026-10-12 and saved before the fetch and the first run ·
+era v4, exports 2026-10-06 · 272 in-sample events, 2024-Q1 → 2026-Q3 ·
+report: `backtests/study_output/earnings_vol-latest.txt` · recorded in
+[study-results](study-results/f3_structure/earnings_vol.md)._
+
+**In production.** Nothing changes. Earnings vol is not a non-directional
+sleeve for this book at mid fills, and it loses at natural fills.
+
+### The graded arms
+
+Return is P&L over the entry debit. CIs are clustered by earnings season (11
+clusters). [MFE and MAE](glossary.md#mfe) are shares of the debit.
+
+| Object | n | Mean | CI95 | Halves | MFE / MAE | Token |
+|---|---|---|---|---|---|---|
+| [`earnings_vol` ARM S](arm-index.md#earnings_vol), straddle, mid | 271 | +0.019 | [−0.085, +0.123] | +0.064 / −0.036 | +0.315 / −0.269 | `NULL` |
+| `earnings_vol` ARM K, [double calendar](glossary.md#double-calendar), mid | 161 | +0.073 | [−0.024, +0.170] | +0.079 / +0.067 | +0.361 / −0.296 | `NULL` |
+| ARM K, natural fill | 161 | −0.133 | [−0.225, −0.039] | −0.154 / −0.108 | +0.199 / −0.412 | `CONTRARY`, secondary |
+| ARM S, run-up exit (close before the report) | 272 | +0.020 | [−0.019, +0.068] | +0.033 / +0.004 | +0.107 / −0.085 | `NULL`, secondary |
+
+- **The calendar fails one clause.** Both halves are positive and the gate
+  passes; only the CI reaches below zero. That is the closest any vol cell in
+  this repo has come, and it is still not a result.
+- **Its edge is the bid-ask spread.** The same trades lose 13% of debit when
+  bought at the ask and sold at the bid. Four legs cross the spread twice.
+- **The straddle is flat.** It wins 39% of the time, and the report's move
+  pays for the run-up's decay and no more.
+
+### The gate
+
+| Object | Correlation with the book's daily MTM | CI95 | Token |
+|---|---|---|---|
+| `earnings_vol` G1, ARM S | −0.066 | [−0.159, +0.035] | PASS |
+| `earnings_vol` G1, ARM K | −0.018 | [−0.117, +0.092] | PASS |
+
+Unlike `vol_sleeve`, a calendar fixed by earnings dates does not re-wrap the
+book.
+
+**Caveats.**
+
+- **85 calendars could not be built.** The back weekly was not yet quoted on
+  the entry day, so ARM K keeps 161 of 272 events. The survivors lean towards
+  events whose back expiry was a monthly.
+- **The fetch ran twice.** The first plan took strikes from split-adjusted
+  closes (NFLX, NVDA, AVGO) and from a strike grid guessed from a sparse cache.
+  The planner was fixed and a second fetch probed the true nearest strike. No
+  outcome was read in between; the ruling is folded into the registration.
+- **The names are mega-caps.** Gao, Xing & Zhang (2018) found the straddle
+  premium in small, volatile, illiquid firms, so this null does not contradict
+  them.
+- **The motivating hint was post hoc.** `vol_sleeve`'s calendar × earnings cut
+  (archive/12) is not confirmed: the registered calendar here is `NULL`.
+- **[PBO](arm-index.md#pbo_ledger) is 0.262** over the 8 printed configs. The
+  graded calendar cell is the in-sample best in 77% of splits, which says it
+  was the strongest cell, not that it is real.
+
+**Next.** No new queue item. [`next-steps.md`](next-steps.md) item 10 closes.
+The two non-directional ideas this session tested are both `NULL`.
+
+---
+
+## 2026-10-12 — index_vrp: a short SPY condor shares the book's bad months, not its bad days
+
+**`index_vrp` prints `NO-TAIL-LINK`.** A monthly short SPY iron condor lost
+money in two of the three stress windows where the book lost. On the book's
+worst 5% of days it neither lost nor gained. Nothing ships.
+
+_Registration: [`index_vrp.md`](pre-registrations/f3_structure/index_vrp.md),
+accepted by default 2026-10-12 and saved before the first run · era v4,
+exports 2026-10-06 · deployed book: 253 positions, 707 sessions · sleeve:
+55 monthly cycles per underlying from 2022-03, real cached quotes · report:
+`backtests/study_output/index_vrp-latest.txt` · recorded in
+[study-results](study-results/f3_structure/index_vrp.md)._
+
+**In production.** Nothing changes. Short index vol is still rejected as a
+standalone trade (agent-trading 0047), and this study gives no reason to add
+it as a sleeve.
+
+### The premium
+
+Neither underlying shows a [variance risk premium](glossary.md#vrp) in this
+sample once the straddle is settled at expiry.
+
+| Underlying | Premium, share of spot | CI95 | IV − RV, vol points | Token |
+|---|---|---|---|---|
+| SPY | +0.0019 | [−0.0057, +0.0086] | +1.15 [−0.85, +2.69] | `NO-PREMIUM` |
+| GLD | −0.0053 | [−0.0140, +0.0030] | +0.16 | `NO-PREMIUM` |
+
+SPY's high-VIX tercile is the one cell with a clear premium in vol form,
++3.41 points, CI95 [+1.56, +5.33]. It holds 14 cycles and is a descriptive
+cut.
+
+### The overlap, graded
+
+Graded object: [`index_vrp` ARM C](arm-index.md#index_vrp), the SPY condor at
+0.16 delta, mid fill, against the deployed v4 book.
+
+| Measure | Book | Sleeve |
+|---|---|---|
+| W2 Aug 2024, window P&L | −$490 | +$266 |
+| W3 Mar–Apr 2025 | −$1,556 | −$2,082 |
+| W4 Feb–Apr 2026 | −$3,045 | −$959 |
+| T1, sleeve $ per session on the book's worst 5% | — | −7.66 [−54.90, +44.31] |
+| T3, daily correlation, all common sessions | — | −0.038 [−0.198, +0.130] |
+| T4, realized max drawdown on $25,000 | 58.2% | 55.7% combined |
+
+- **Same months, different days.** The condor lost in March–April 2025 and
+  February–April 2026, which meets the window clause. It lost at expiry
+  settlement, after the move, not on the days the book fell. So T1 straddles
+  zero and the verdict is `NO-TAIL-LINK`, not `LOSES-TOGETHER`.
+- **Every secondary prints the same token**: GLD, the natural fill, the 0.30
+  delta, the stored book, the unregistered 2.50 cap cell, and v3.
+- **2022 has no book.** The sleeve made +$484 there. A beta proxy fitted on
+  later data puts the book at −$6,743 in 2022; it is descriptive only.
+
+**Caveats.**
+
+- **T5 compares two different sessions.** The [O2](arm-index.md#ruin_bound)
+  overlay picks each book's own peak-reserve session: 2024-01-30 for the book
+  alone (57.1% of equity), 2026-06-05 with the sleeve (50.8%). The lower
+  combined figure reflects higher equity before the shock, not
+  diversification. A defined-risk condor can only add its max loss to an O2
+  shock.
+- **The SPY condor is roughly flat**: +$337 over 55 cycles at mid. Its five
+  worst cycles expired in 2022-05, 2023-11, 2025-04, 2025-05 and 2026-04.
+- **221 junk-quote marks** on the SPY condor fell back to `Latest`, mostly on
+  the far wings. The build rulings are folded into the registration.
+
+**Next.** No new queue item. Short index vol is closed for this book: it
+neither pays on these quotes nor hedges the book's worst days.
 
 ---
 

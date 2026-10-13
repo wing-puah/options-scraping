@@ -283,6 +283,29 @@ constant for the whole path, with the underlying taken from the OHLC
 close (`ladder_overlay`, `overlay_campaign.py`). Never pooled with
 cache-priced rows — a MODEL row reaching a criterion is a build error.
 
+<a id="vrp"></a>
+### VRP (variance risk premium)
+implied volatility minus the volatility the underlying then realizes. A
+positive premium means option sellers are paid on average for crash risk.
+[`index_vrp`](pre-registrations/f3_structure/index_vrp.md) prints it per
+cycle in two forms: the ATM straddle's credit less its expiry payoff, over
+spot; and entry IV less realized vol, in vol points.
+
+<a id="iron-condor"></a>
+### iron condor
+a short call spread plus a short put spread on one expiry. It collects a
+credit and loses at most the wider wing's width less that credit. In
+[`index_vrp`](pre-registrations/f3_structure/index_vrp.md) the shorts sit
+at |delta| 0.16 and the wings 3% of spot further out.
+
+<a id="double-calendar"></a>
+### double calendar
+a call calendar plus a put calendar at one strike. Each sells a near
+expiry and buys a later one, so the position is long the later expiry's
+vol and short the near one's. In
+[`earnings_vol`](pre-registrations/f3_structure/earnings_vol.md) the
+strike is ATM and the near expiry is the first after the report.
+
 ## 6. Exit reasons
 
 `harness.replay()`'s exact vocabulary, checked in this priority order every
