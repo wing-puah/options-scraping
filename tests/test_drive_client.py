@@ -226,6 +226,40 @@ def test_upload_updates_existing_file(mock_media, tmp_path):
     svc.files.return_value.create.assert_not_called()
 
 
+@patch("lib.drive_client.time.sleep")
+@patch("lib.drive_client.MediaFileUpload")
+def test_upload_retries_a_socket_timeout(mock_media, mock_sleep, tmp_path):
+    """A timed-out chunk PUT (not retried by num_retries) is retried whole."""
+    csv_file = tmp_path / "test.csv"
+    csv_file.write_text("Symbol,Volume\nAAPL,1000\n")
+
+    svc = make_svc(list_result=[{"id": "existing-id"}])
+    svc.files.return_value.update.return_value.execute.side_effect = [
+        TimeoutError("The read operation timed out"), {"id": "existing-id"}]
+    client = DriveClient(svc, "root-id")
+
+    assert client.upload(csv_file, "test.csv", "folder-id") == "existing-id"
+    assert mock_media.call_count == 2  # fresh media object per attempt
+    mock_sleep.assert_called_once()
+
+
+@patch("lib.drive_client.time.sleep")
+@patch("lib.drive_client.MediaFileUpload")
+def test_upload_does_not_retry_a_client_error(mock_media, mock_sleep, tmp_path):
+    from googleapiclient.errors import HttpError
+    csv_file = tmp_path / "test.csv"
+    csv_file.write_text("Symbol,Volume\nAAPL,1000\n")
+
+    svc = make_svc(list_result=[{"id": "existing-id"}])
+    svc.files.return_value.update.return_value.execute.side_effect = HttpError(
+        MagicMock(status=404), b"not found")
+    client = DriveClient(svc, "root-id")
+
+    with pytest.raises(HttpError):
+        client.upload(csv_file, "test.csv", "folder-id")
+    mock_sleep.assert_not_called()
+
+
 # ── list_files ────────────────────────────────────────────────────────────────
 
 def test_list_files_returns_sorted_results():

@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Protocol
@@ -23,6 +24,7 @@ from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -34,6 +36,8 @@ ET = ZoneInfo("America/New_York")
 # backoff (googleapiclient's built-in retry). Without it one transient 502 from
 # Drive killed an enrich_oi run after its full Barchart scrape (2026-10-15).
 _RETRIES = 5
+# Whole-upload attempts on top of that (see DriveClient.upload).
+_UPLOAD_ATTEMPTS = 4
 # Full Drive scope (not drive.file): drive.file only exposes files THIS OAuth client
 # created, so folders/files added via the web UI or copy-paste are invisible to it.
 # Full scope lets the pipeline read + re-upload such folders (e.g. hand-copied date
@@ -210,6 +214,29 @@ class DriveClient:
         HTML and JSONL) uploads a Barchart export.
         """
         log.info("Uploading '%s' from local path '%s' to Drive", name, local_path)
+        # num_retries covers a 5xx STATUS but not a dropped or timed-out socket
+        # on the chunk PUT (googleapiclient re-raises those at once), which killed
+        # an enrich_oi run on 2026-10-15. Retry the whole upload with a fresh
+        # media object, since a failed resumable upload is left in an error state.
+        for attempt in range(1, _UPLOAD_ATTEMPTS + 1):
+            try:
+                file_id = self._upload_once(local_path, name, folder_id, mimetype)
+                break
+            except (HttpError, OSError) as exc:
+                transient = (not isinstance(exc, HttpError)
+                             or exc.resp.status in (429, 500, 502, 503, 504))
+                if not transient or attempt == _UPLOAD_ATTEMPTS:
+                    raise
+                wait = 5 * 2 ** (attempt - 1)
+                log.warning("Upload of '%s' failed (%s: %s) — retrying in %ds "
+                            "(attempt %d/%d)", name, type(exc).__name__, exc,
+                            wait, attempt + 1, _UPLOAD_ATTEMPTS)
+                time.sleep(wait)
+        log.info("Upload complete: '%s'", name)
+        return file_id
+
+    def _upload_once(self, local_path: Path, name: str, folder_id: str,
+                     mimetype: str) -> str:
         media = MediaFileUpload(
             str(local_path), mimetype=mimetype, resumable=True)
         q = f"name = '{name}' and '{folder_id}' in parents and trashed = false"
@@ -227,7 +254,6 @@ class DriveClient:
                 media_body=media,
                 fields="id",
             ).execute(num_retries=_RETRIES)["id"]
-        log.info("Upload complete: '%s'", name)
         return file_id
 
     def download(self, file_id: str, name: str | None = None) -> str:
