@@ -506,9 +506,11 @@ re-checked on debit-only rows).
 ## 8. Selection & population
 
 ### Tier ladder A/B/C/VETO
-`book.ladder_tier()`, per
-`docs/deployment-rules.md`: **VETO** = never emitted
-(`bear_call_spread` always; BEAR + H-VOL regime always); **A** =
+`mapping.ladder_tier()`, per
+`docs/deployment-rules.md`; the study book reads it through
+`book.book_tier()` since 2026-10-13. **VETO** = never deployed
+(`bear_call_spread` always; BEAR + H-VOL regime always; a credit play in
+RANGE + L-VOL); **A** =
 highest-conviction (`bull_call_spread` in RANGE regime or E-VOL); **B** =
 `bull_call_spread` otherwise, or `bull_put_spread` meeting the delta/DTE
 constraint (0.08 ≤ |delta| ≤ 0.20, DTE ≤ 59); **C** = everything else,

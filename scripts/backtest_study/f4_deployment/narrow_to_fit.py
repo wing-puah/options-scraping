@@ -587,8 +587,8 @@ def leg_ivs(row: dict) -> list[float]:
 def tier_of(rec: dict, delta: float | None) -> str:
     """`mapping.ladder_tier()` with the pick's own inputs and `delta`.
 
-    `delta` is the POSITION's net entry delta — the quantity the book's own
-    ladder port keys §3 on (`book.ladder_tier` reads the row's `delta`) — so
+    `delta` is the POSITION's net entry delta — the quantity the book keys
+    §3 on (`book.book_tier` passes the row's `delta`) — so
     at the pick's original legs this is the tier the pick was admitted under.
     """
     dte = rec.get("dte")

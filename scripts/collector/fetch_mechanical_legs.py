@@ -19,6 +19,26 @@ can expose a nearer strike (or prove one unlisted), so the study and this
 collector alternate until nothing awaits. Every run recomputes the targets
 from the cache as it stands, so the loop is resumable.
 
+Which strikes an awaiting pair names is fetch ORDER only; it never changes
+what the study builds (registration, resolved at build 2026-10-13):
+  - M1 and ARM U: the nearest open strike to the target, one per leg.
+  - M2/M2L long leg (`delta_fetch`): when known deltas straddle the target
+    with at most `BRACKET_FILL` open strikes between them, all of those;
+    otherwise the `DELTA_FETCH_WIDTH` open strikes nearest the estimated
+    target strike (secant on the straddling deltas, else Black-Scholes from
+    k*'s own delta and IV), standard-grid strikes first.
+  - M2/M2L short leg (`listed_fetch`): the open strikes in walk order up to
+    the first on the standard grid, at most `LISTED_BATCH`.
+So a round names more than one strike per pair; the delta walks converge in
+a few rounds instead of one grid step per round.
+
+ARM SPY (`--arms SPY`) is a separate study, `spy_benchmark`
+(research/pre-registrations/f1_selection/benchmark/spy_benchmark.md,
+accepted by default 2026-10-14, post hoc): the M1 wrap on SPY at each deployed
+pick's own expiry. Its targets come from `spy_benchmark.fetch_targets`, which
+names strikes exactly as M1 does. It is not in the default `--arms` list, so
+a bare run fetches what it fetched before; name it to fetch it.
+
 ARM U also needs each universe ticker's underlying before it can name a
 strike. `--list-underlying` prints the tickers with no cached contract and no
 stock bars; fetch their bars first with
@@ -42,6 +62,7 @@ Usage:
   python3 scripts/collector/fetch_mechanical_legs.py --dry-run
   python3 scripts/collector/fetch_mechanical_legs.py --arms M1,M2 --limit 200
   python3 scripts/collector/fetch_mechanical_legs.py --list-underlying
+  python3 scripts/collector/fetch_mechanical_legs.py --arms SPY --no-v3 --dry-run
 """
 from __future__ import annotations
 
@@ -65,21 +86,42 @@ from scripts.backtest.shared.history import (  # noqa: E402
     EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories,
 )
 from scripts.backtest_study.f1_selection.benchmark import mechanical_benchmark as MB  # noqa: E402
+from scripts.backtest_study.f1_selection.benchmark import spy_benchmark as SB  # noqa: E402
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF  # noqa: E402
 
 log = logging.getLogger("fetch_mechanical_legs")
 
-ARMS = ("M1", "M2", "M2L", "U")
+#: mechanical_benchmark's arms: the default `--arms`.
+MB_ARMS = ("M1", "M2", "M2L", "U")
+#: Every arm this collector can fetch; SPY is spy_benchmark's, named explicitly.
+ARMS = MB_ARMS + ("SPY",)
 BACKUP_REMINDER = ("Next: python3 scripts/backup_research_caches.py push  "
                    "(the scraped cache has no other copy)")
 
 
 def plan(arms: tuple[str, ...], eras: tuple[str | None, ...]):
-    """`(targets, builds)` on the cache as it stands; selection only, no pricing."""
+    """`(targets, builds)` on the cache as it stands; selection only, no pricing.
+
+    `builds` are mechanical_benchmark's (empty when only SPY is asked for, so
+    a SPY-only plan never walks ARM U's universe). A contract two arms name is
+    listed once, under the first arm that named it."""
     chain = NTF.Chain()
     evidence = NTF.unlisted_evidence()
-    builds = [MB.build_era(e, chain, evidence, {}, price=False) for e in eras]
-    return MB.fetch_targets(builds, arms), builds
+    mb_arms = tuple(a for a in arms if a in MB_ARMS)
+    builds, targets = [], []
+    if mb_arms:
+        builds = [MB.build_era(e, chain, evidence, {}, price=False) for e in eras]
+        targets += MB.fetch_targets(builds, mb_arms)
+    if "SPY" in arms:
+        spy = [SB.build_era(e, chain, evidence, {}, price=False) for e in eras]
+        targets += SB.fetch_targets(spy)
+    seen, out = set(), []
+    for t in targets:
+        key = (t["ticker"], t["expiration"], t["strike"])
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out, builds
 
 
 def to_contracts(targets: list[dict]) -> list[dict]:
@@ -110,8 +152,9 @@ def main(argv=None) -> int:
     ap.add_argument("--list-underlying", action="store_true",
                     help="Print the ARM U tickers with no underlying known, "
                          "comma-separated, and exit.")
-    ap.add_argument("--arms", default=",".join(ARMS),
-                    help="Comma list of M1,M2,M2L,U (default all).")
+    ap.add_argument("--arms", default=",".join(MB_ARMS),
+                    help="Comma list of M1,M2,M2L,U,SPY (default M1,M2,M2L,U: "
+                         "mechanical_benchmark's; SPY is spy_benchmark's).")
     ap.add_argument("--no-v3", action="store_true", help="Primary era only.")
     ap.add_argument("--limit", type=int, default=None,
                     help="Fetch at most N contracts this run (resumable).")

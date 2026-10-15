@@ -129,8 +129,10 @@ _Registered in [`pre-registrations/f1_selection/signal/emission_timing.md`](pre-
 _Registered in [`pre-registrations/f1_selection/benchmark/mechanical_benchmark.md`](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md) · module `f1_selection/benchmark/mechanical_benchmark.py`_
 
 Accepted by default 2026-10-09. The first run prints `NOT BUILT — AWAITING
-SCRAPE`: most counterpart legs are not cached yet. The study asks whether the
-picks beat a mechanical bull call spread on the same dates and tickers.
+SCRAPE`: most counterpart legs are not cached yet. The 2026-10-14 v4 run
+prints `SAME-TICKER READ — ARM U NOT BUILT`, with `ARM M1` meeting `CONTRARY`.
+The study asks whether the picks beat a mechanical bull call spread on the
+same dates and tickers.
 
 - `ARM T` (arm) — The deployed picks, replayed unchanged. Reference only.
   COLLIDES with `staged_exit`'s and `trigger_entry`'s `ARM T`, which are
@@ -153,6 +155,35 @@ picks beat a mechanical bull call spread on the same dates and tickers.
 - `ARM CEN` (arm) — Census: built, dropped and awaiting-fetch counts by tier,
   structure and DTE band, plus the five floors. Descriptive only, never a
   criterion.
+- `SAME-TICKER READ — ARM U NOT BUILT` (prose) — The verdict line when
+  floors 1, 2 and 4a pass but `ARM U`'s floors 3 or 4b do not (ruling of
+  2026-10-13). It prints per-arm C0–C2 and `CONTRARY` for `ARM M1` and
+  `ARM M2`, and no study-level verdict, since each of those also reads
+  `ARM U`. It is what `programme_gate`'s `PG-M` reads.
+
+#### `spy_benchmark`
+
+_Registered in [`pre-registrations/f1_selection/benchmark/spy_benchmark.md`](pre-registrations/f1_selection/benchmark/spy_benchmark.md) · module `f1_selection/benchmark/spy_benchmark.py`_
+
+Accepted by default 2026-10-14, post hoc. It asks whether the deployed picks
+beat a SPY call spread bought on the same dates. Registered; it prints
+`NOT BUILT — AWAITING SCRAPE` until the SPY legs are fetched. It is not a
+`programme_gate` input.
+
+- `ARM SPY` (arm) — `mechanical_benchmark`'s `ARM M1` wrap on SPY: ATM/+5%
+  call vertical at the pick's own expiry, entered on the pick's entry day.
+  PRIMARY.
+- `ARM T` (arm) — The deployed picks, replayed unchanged. Reference only.
+  The same object as `mechanical_benchmark`'s `ARM T`.
+- `ARM CEN` (arm) — Census: built, dropped and awaiting counts, and the four
+  floors. Descriptive only.
+- `SB-UNIT` (sub-arm) — How a date with several picks pairs. `pick`, the
+  default and the verdict: one row per pick, SPY repeating across picks.
+  `date`, printed beside it: one row per date, mean pick R against the
+  top-ranked pick's SPY wrap.
+- `BEATS-SPY` `DOES-NOT-BEAT` `CONTRARY` `UNDERPOWERED` (prose) — The verdict
+  words, graded by `mechanical_benchmark`'s per-arm C0–C2 and `CONTRARY`
+  condition.
 
 #### `text_features`
 
@@ -1098,6 +1129,28 @@ arms of its own:
 — a commitment to seal the live dates from 2026-09-23, accepted by default
 2026-10-09, not a study. It has no module, no report and no labels to index;
 the guard is in `scripts/backtest_study/lib/era.py`.
+
+#### `programme_gate`
+
+_Registered in [`pre-registrations/f4_deployment/programme_gate.md`](pre-registrations/f4_deployment/programme_gate.md) · no module_
+
+Accepted by default 2026-10-13, before either input had an outcome. A
+commitment, not a study: it fixes which verdicts of two registered studies
+retire or keep the flow-selection layer. It changes no deployment rule.
+
+- `PG-M` (criterion) — The P1 read: do `mechanical_benchmark`'s `ARM M1` or
+  `ARM M2` clear C0–C2 on v4? Reads `BEATS`, `CONTRARY`, `DOES NOT BEAT`,
+  `UNDERPOWERED`, `NOT BUILT` or `NOT READ`.
+- `PG-D` (criterion) — The dip read: `dip_buy`'s verdict of record.
+  `SUPPORTED` is positive; `NULL` and `CONTRARY` are negative.
+- `PG-BACKSTOP` (criterion) — 2027-10-13. An input with no read by then
+  counts as not positive.
+- `KEEP` `RETIRE` `WAIT` `BACKSTOP` (prose) — The gate's verdict words. The
+  first read that is not `WAIT` is the verdict of record.
+
+`PG-ARMS`, `PG-UNPOWERED` and `PG-BACKSTOP` are also the parameters printed
+both ways. Defaults: `M1 or M2`; an unpowered P1 counts as not beating; at the
+backstop a missing read is not positive.
 
 ## Not labels
 

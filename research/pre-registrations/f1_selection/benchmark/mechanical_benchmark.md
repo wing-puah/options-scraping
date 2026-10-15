@@ -13,7 +13,9 @@ the study module, and decides whether anything else prints. On the cache as it
 stood on 2026-10-09 it does not pass: the M1 legs are a few hundred contracts
 away, and `ARM U` needs tens of thousands, plus stock bars for most of the
 flow universe. So the recorded result is `NOT BUILT — AWAITING SCRAPE`, with
-the fetch plan printed. No outcome has been read.
+the fetch plan printed. No outcome has been read. A ruling of 2026-10-13
+splits the floors by arm, so the same-ticker arms can be read before `ARM U`
+is built (see [Dependencies](#dependencies)).
 
 ## Question
 
@@ -141,6 +143,26 @@ Three rules bind both arms:
   (`bear_rewrap.recorded_entry_date`), so both sides of a pair enter on the
   same session. G2 re-runs every choice on a cache cut at the signal date.
   Any difference fails the run.
+
+  _Resolved at build (2026-10-15):_ a code bug in the second spot source is
+  fixed. This is not a rule change: the spot is still the median `Price~`
+  of cached contracts, read on the signal date only.
+
+  - **The bug.** `UniverseSpot` stopped after 20 probes, starting with the
+    pick's own expiry. When that expiry was not yet listed on the signal
+    date, every probe hit an unlisted strike and the pick dropped as
+    `no_spot_at_signal`. Other expiries were priced that day. On SPY
+    2025-03-03, 654 cached contracts carried `Price~` 583.77.
+  - **The fix.** The walk keeps the same order and runs until five calls
+    are priced or none are left. A spot the old walk read off five
+    contracts is unchanged. G2 still passes.
+  - **Found after P1 was recorded.** The P1 run of 2026-10-14 graded a
+    population this bug had trimmed. P1 will be re-run and recorded as a
+    correction beside the original.
+
+  | v4 `ARM M1` drops | P1, 2026-10-14 | After the fix |
+  |---|---|---|
+  | `no_spot_at_signal` | 35 | 8 |
 - **No degenerate pair.** If the two chosen strikes collide, or the resulting
   width is zero, the pair is dropped and counted, never silently widened.
 - **A dropped pair is dropped on BOTH sides.** Every comparison is paired. A
@@ -155,6 +177,30 @@ AWAITING FETCH. It is neither built on the next strike nor dropped. While any
 pair awaits, no outcome prints: the cached strikes are the ones the book
 traded, so the cached subset is not the registered population. A fetch that
 returns 404 puts the strike on the skip-list, and the walk then steps past it.
+
+_Resolved at build (2026-10-13):_ the `ARM M2` and `ARM M2L` walks now ask for
+different strikes first. This changes the fetch order only. What makes a pair
+built, dropped or awaiting, and which strike is chosen, is unchanged.
+
+- **Why.** The delta walk asked for one strike per run, the one next to the
+  current nearest strike. A pair far from its target needed dozens of fetch
+  rounds. The change was made mid-fetch, for cost, before any `ARM M1` or
+  `ARM M2` outcome printed.
+- **What changed.** An awaiting delta walk now asks for the strikes nearest
+  an estimate of the target strike. The estimate interpolates between two
+  known deltas either side of the target, or else uses Black-Scholes from the
+  nearest strike's own delta and IV. When the known deltas bracket the target,
+  it asks for every open strike between them at once, since the proof needs
+  each one. An awaiting short leg asks for its next few open strikes in walk
+  order, up to the first on the standard listing grid.
+- **How it was checked.** The old and new code built every pair on one cache
+  in one process, per era and arm, including `ARM U`. Status, reason and both
+  strikes matched on every pair. A test runs both orders on a synthetic chain
+  and gets the same built pair
+  (`test_fetch_order_cannot_change_a_build`).
+- **What it does not change.** The walk still steps at the finest cached
+  spacing. A strike off the standard grid inside the final bracket must still
+  be fetched or skip-listed before the pair builds.
 
 `h ≥ 180` is out of scope. It is unpriceable with real data and the BS proxy
 tier is OFF ([next-steps §2.7](../../../next-steps.md#s2-7)).
@@ -250,6 +296,34 @@ and dates with at least 5 pairs. The second is always 0.
 Each floor prints two values: what the cache gives now, and the most a full
 fetch could give. A floor that fails even at that upper value is a definitive
 `NOT BUILT`.
+
+_Resolved at build (2026-10-13):_ the floors are split by arm, so the
+same-ticker arms can be read without `ARM U`. The operator chose this after
+[`programme_gate`](../../f4_deployment/programme_gate.md) was registered and
+before any `ARM M1` or `ARM M2` outcome was printed. It lets that gate's P1
+read go ahead while `ARM U` is unbuilt.
+
+| Floor | Gates |
+|---|---|
+| 1, 2 | every arm; a floor-2 FAIL still kills the whole study |
+| 4a — no `ARM M1` or `ARM M2` pair awaits a fetch | the same-ticker arms `ARM M1`, `ARM M2`, `ARM M2L` |
+| 3, and 4b — no contract left to fetch for any arm | `ARM U`, the criteria graded on it (C3, C4, C5) and the study-level verdict |
+| 5 | nothing; printed only |
+
+- Floor 4 is now two lines. 4a counts only the `ARM M1` and `ARM M2` pairs
+  still awaiting a fetch; 4b is the old floor 4.
+- `ARM M2L` is graded only once none of its own pairs awaits a fetch. Until
+  then it prints "not graded".
+- C0–C2 and the `CONTRARY` condition are unchanged for the same-ticker arms.
+  The C0 power floor is not lowered.
+- An era is graded only on its own floors. A v3 run whose same-ticker pairs
+  still await a fetch prints no v3 outcome.
+- The census prints which arms each floor gates, on the floor's own line.
+
+When floors 1, 2 and 4a pass but 3 or 4b do not, the run prints the per-arm
+grades and the verdict `SAME-TICKER READ — ARM U NOT BUILT` (see
+[Verdicts](#verdicts-worded-now)). While floor 4a still awaits, the run
+prints `NOT BUILT — AWAITING SCRAPE`, as before.
 
 Floor 2 is the one that can kill the study rather than delay it. If the
 unbuildable share is tier-dependent, the benchmark is liquidity-selected and
@@ -421,6 +495,21 @@ _Resolved at build (2026-10-09):_ two more labels.
 
 `CONTRARY` takes precedence over the other powered verdicts, since it must
 reach the operator first.
+
+_Resolved at build (2026-10-13):_ one more label, for the same-ticker read
+under the split floors (see [Dependencies](#dependencies)).
+
+- `SAME-TICKER READ — ARM U NOT BUILT` prints when the same-ticker arms pass
+  their floors and `ARM U` does not. Beside it, `ARM M1` and `ARM M2` each
+  print C0, C1, C2, whether they clear C0–C2, and the `CONTRARY` condition.
+- No other worded verdict prints with it. `SELECTION-CONFIRMED`,
+  `STRUCTURE-ONLY`, `BASE-RATE`, `NULL`, `UNDERPOWERED`, `CONTRARY` and
+  `UNWORDED` are all decided over `ARM U` too, so each would claim something
+  about an arm that was not read.
+- An arm meeting the `CONTRARY` condition is still named on its own line, for
+  the operator, before any further study runs.
+- The label is not a verdict of record for the study. The full verdict waits
+  for `ARM U`.
 
 ## Anti-tuning
 

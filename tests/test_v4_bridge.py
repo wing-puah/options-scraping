@@ -120,7 +120,7 @@ def test_ladder_tier_matches_the_shipped_ladder():
     assert vb.ladder_tier("bull_call_spread", "BULL + L-VOL") == "B"
     assert vb.ladder_tier("bear_call_spread", "BULL + L-VOL") == "VETO"
     assert vb.ladder_tier("bull_call_spread", "BEAR + H-VOL") == "VETO"
-    # documented divergence from book.ladder_tier: no delta/dte on an analysis
+    # documented divergence from the retired book port: no delta/dte on an analysis
     # row, so bull_puts cannot reach Tier B here
     assert vb.ladder_tier("bull_put_spread", "BULL + L-VOL") == "C"
 

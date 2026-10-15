@@ -337,3 +337,73 @@ def test_a_row_that_exited_before_its_fill_is_flagged_but_kept(paths):
     assert records[0]["prefill_verdict"] == "pre_entry_exit"
     assert records[0]["fill_trusted"] is False
     assert diag["prefill_coherence"] == Counter({"pre_entry_exit": 1})
+
+
+# --- the tier comes from mapping.ladder_tier, never a local port -------------
+# CLAUDE.md Invariants: mapping.ladder_tier() is the ONLY encoding of
+# docs/deployment-rules.md §1-§3. book.book_tier is an adapter onto it; these
+# pin that every record's tier IS that function's output.
+
+from scripts.journal.lib import mapping  # noqa: E402
+
+_NAN = float("nan")
+
+
+@pytest.mark.parametrize("structure,regime,dte,delta", [
+    ("bull_call_spread", "RANGE + L-VOL", 45.0, 0.40),      # Tier A (RANGE)
+    ("bull_call_spread", "BULL + E-VOL", 30.0, 0.40),       # Tier A (E-VOL)
+    ("bull_call_spread", "BULL + L-VOL", 30.0, 0.40),       # Tier B
+    ("bull_call_spread", "BEAR + H-VOL", 30.0, 0.40),       # §1.2 veto
+    ("bear_call_spread", "BULL + L-VOL", 30.0, -0.20),      # §1.1 veto
+    ("bull_put_spread", "RANGE + L-VOL", 45.0, -0.15),      # §1.3 credit veto
+    ("short_put", "RANGE + L-VOL", 45.0, -0.15),            # §1.3, a single-leg credit
+    ("bull_put_spread", "BULL + L-VOL", 45.0, -0.15),       # §3 geometry holds
+    ("bull_put_spread", "BULL + L-VOL", 75.0, -0.15),       # §3 DTE fails
+    ("bull_put_spread", "BULL + L-VOL", 45.0, -0.35),       # §3 delta fails
+    ("bull_put_spread", "BULL + L-VOL", None, -0.15),       # DTE unknown
+    ("bull_put_spread", "BULL + L-VOL", 45.0, None),        # delta unknown
+    ("bear_put_spread", "BEAR + E-VOL", 30.0, -0.40),       # bear debit: §1.4 is rank()'s
+    ("long_put", "RANGE + L-VOL", 30.0, -0.50),
+    ("iron_condor", "RANGE + L-VOL", 30.0, None),           # not in mapping.SIDE
+    ("unknown", "", None, None),
+])
+def test_book_tier_is_mapping_ladder_tier(structure, regime, dte, delta):
+    rec = dict(structure=structure, market_regime=regime, dte=dte, delta=delta)
+    want, _partial, _why = mapping.ladder_tier(
+        structure, regime, dte if dte is not None else _NAN, delta)
+    assert book.book_tier(rec) == want
+
+
+def test_a_financed_combo_is_tiered_off_its_core_not_its_label():
+    """A "3-leg combo (debit)" label lands on the Tier-C residual; its core
+    vertical has a real tier, and that is the one the record gets."""
+    label = "3-leg combo (debit)"
+    rec = dict(structure=label, core_structure="bull_call_spread",
+               market_regime="RANGE + L-VOL", dte=45.0, delta=0.40)
+    assert book.book_tier(rec) == mapping.ladder_tier(
+        "bull_call_spread", "RANGE + L-VOL", 45.0, 0.40)[0] == "A"
+    assert book.book_tier(dict(rec, core_structure=None)) == mapping.ladder_tier(
+        label, "RANGE + L-VOL", 45.0, 0.40)[0] == "C"
+
+
+def test_the_loader_takes_its_tier_from_mapping(paths, monkeypatch):
+    """Every loaded record's tier is whatever mapping.ladder_tier returns —
+    a sentinel proves no other encoding sits between them."""
+    seen = []
+
+    def fake(structure, market_regime, dte_proxy=_NAN, short_leg_delta=None):
+        seen.append(structure)
+        return "SENTINEL", False, "monkeypatched"
+
+    monkeypatch.setattr(mapping, "ladder_tier", fake)
+    row = _row(ticker="TTT", structure="long_call")
+    _stamp_calibrating(row, book.DEBIT_PROD)
+    _write_csv(paths["results"], [row])
+    _write_csv(paths["proxy"], [])
+    recs, _ = _load(paths)
+    assert recs and all(r["tier"] == "SENTINEL" for r in recs)
+    assert seen == [r["structure"] for r in recs]
+
+
+def test_the_retired_port_is_gone():
+    assert not hasattr(book, "ladder_tier")

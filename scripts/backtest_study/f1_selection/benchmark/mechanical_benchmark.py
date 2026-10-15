@@ -45,6 +45,14 @@ the pair is then AWAITING FETCH, never silently built on the next-nearest
 strike. While any pair awaits a fetch, no outcome prints: the cached subset is
 selected by what the book traded, so it is not the registered population.
 
+FLOORS BY ARM (Resolved at build 2026-10-13). Floors 1 and 2 gate every arm,
+and a floor-2 FAIL kills the study. Floor 4a (no M1/M2 pair awaiting) gates
+the same-ticker arms; M2L also needs its own pairs fetched. Floors 3 and 4b
+gate only ARM U, the criteria graded on it (C3, C4, C5) and the study-level
+verdict. Same-ticker arms read while ARM U is not built print
+`SAME-TICKER READ — ARM U NOT BUILT` and per-arm C0-C2 + CONTRARY, never a
+study-level token, since each of those also claims something about ARM U.
+
 The fetch plan is `fetch_targets()`, imported by
 `scripts/collector/fetch_mechanical_legs.py`. No code here fetches.
 
@@ -122,7 +130,8 @@ PAIRS_CSV = OUT_DIR / "mechanical_benchmark-pairs.csv"
 STRUCTURE = canonical_spread_names("call debit spread").replace(" ", "_")
 #: The grid walk looks this many listing steps either side of a target.
 GRID_REACH = 8
-#: A U ticker's underlying is read from at most this many cached contracts.
+#: A ticker's underlying is the median `Price~` of this many cached calls
+#: (`UniverseSpot`); the walk probes until it has them or runs out.
 SPOT_CONTRACTS = 5
 
 log = logging.getLogger("mechanical_benchmark")
@@ -348,8 +357,109 @@ def nearest_delta(chain: NTF.Chain, evidence: set[str], ticker: str,
         stem = NTF.contract_stem(ticker, expiry, k, "Call")
         if stem in evidence or chain.cached(ticker, expiry, k, "Call"):
             continue
-        return Sel("await", kstar, "delta_neighbour_not_cached", (k,))
+        return Sel("await", kstar, "delta_neighbour_not_cached",
+                   delta_fetch(chain, evidence, ticker, expiry, target, spot,
+                               kstar, known, walk, asof))
     return Sel("built", kstar)
+
+
+# ── fetch ORDER for the M2/M2L walks (Resolved at build 2026-10-13) ─────────
+# These only choose which open strikes an awaiting pair names in `fetch`.
+# None of them reads into built, await or drop, or into the chosen strike.
+
+#: An awaiting delta walk names this many open strikes nearest its estimate.
+DELTA_FETCH_WIDTH = 2
+#: When known deltas straddle the target and at most this many open strikes
+#: lie between them, all of them are named: the proof needs every one.
+BRACKET_FILL = 10
+#: An awaiting M2/M2L short leg names at most this many open strikes in walk
+#: order, up to the first on the standard listing grid.
+LISTED_BATCH = 8
+
+
+def _open(chain: NTF.Chain, evidence: set[str], ticker: str, expiry: date,
+          k: float) -> bool:
+    """Uncached and not skip-listed on evidence: a probe the walk would make."""
+    return (NTF.contract_stem(ticker, expiry, k, "Call") not in evidence
+            and not chain.cached(ticker, expiry, k, "Call"))
+
+
+def delta_fetch(chain: NTF.Chain, evidence: set[str], ticker: str, expiry: date,
+                target: float, spot: float, kstar: float, known: dict,
+                walk: list[float], asof: date) -> tuple:
+    """FETCH ORDER ONLY: the strikes an awaiting `nearest_delta` walk names.
+
+    The open strikes are the uncached, un-evidenced ones on the walk before
+    its first known strike `k2`; every one is a probe the old walk, stepping
+    from `k*`, would make. When the deltas of `k*` and `k2` straddle the
+    target and few open strikes lie between them, all are named. Otherwise
+    the `DELTA_FETCH_WIDTH` nearest the estimated target strike are named,
+    standard-grid strikes first (they are the ones likely listed). The
+    estimate is a secant on `k*` and `k2` when they straddle, else
+    Black-Scholes from `k*`'s own delta and IV. With neither, the old choice:
+    the open strike next to `k*`.
+    """
+    open_, k2 = [], None
+    for k in walk:
+        if k in known:
+            k2 = k
+            break
+        if _open(chain, evidence, ticker, expiry, k):
+            open_.append(k)
+    d0 = known[kstar]
+    straddle = k2 is not None and (d0 - target) * (known[k2] - target) < 0
+    if straddle and len(open_) <= BRACKET_FILL:
+        return tuple(open_)
+    est = None
+    if straddle:
+        est = kstar + (target - d0) / (known[k2] - d0) * (k2 - kstar)
+    else:
+        row = row_on(chain, call_leg(ticker, expiry, kstar), asof)
+        iv = to_float(row.get("IV")) if row else None
+        days = (expiry - asof).days
+        if iv and iv > 0 and days > 0:
+            nd = statistics.NormalDist()
+            sig_t = iv / 100.0 * math.sqrt(days / 365.0)
+
+            def clip(d):
+                return min(max(d, 1e-4), 1 - 1e-4)
+            est = kstar * math.exp((nd.inv_cdf(clip(d0)) - nd.inv_cdf(clip(target))) * sig_t)
+    if est is None:
+        return (open_[0],)
+    std = _strike_step(spot)
+    pool = [k for k in open_ if _on_grid(k, std)] or open_
+    return tuple(sorted(pool, key=lambda k: (abs(k - est), k))[:DELTA_FETCH_WIDTH])
+
+
+def _on_grid(k: float, step: float) -> bool:
+    return abs(k / step - round(k / step)) < 1e-6
+
+
+def listed_fetch(chain: NTF.Chain, evidence: set[str], ticker: str, expiry: date,
+                 target: float, spot: float, asof: date, sel: Sel) -> Sel:
+    """FETCH ORDER ONLY: an awaiting `nearest_listed` Sel for an M2/M2L short
+    leg names the open strikes in its own walk order, from the one it awaits
+    up to the first on the standard grid (at most `LISTED_BATCH`). It stops
+    early at a cached strike listed by `asof`, where the walk would stop.
+    Off-grid probes are mostly unlisted, so batching them saves a round each.
+    """
+    if sel.status != "await":
+        return sel
+    cached = cached_calls(chain, ticker, expiry)
+    std = _strike_step(spot)
+    walk = grid_around(target, grid_step(spot, cached), cached)
+    out = []
+    for k in walk[walk.index(sel.fetch[0]):]:
+        if NTF.contract_stem(ticker, expiry, k, "Call") in evidence:
+            continue
+        if chain.cached(ticker, expiry, k, "Call"):
+            if listed_by(chain, call_leg(ticker, expiry, k), asof):
+                break
+            continue
+        out.append(k)
+        if _on_grid(k, std) or len(out) >= LISTED_BATCH:
+            break
+    return dataclasses.replace(sel, fetch=tuple(out))
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -442,6 +552,8 @@ def select_m2(chain, evidence, ticker: str, expiry: date, spot: float | None,
         return _combine(ticker, expiry, lo)
     hi = nearest_listed(chain, evidence, ticker, expiry, lo.strike * SHORT_MULT,
                         spot, asof)
+    hi = listed_fetch(chain, evidence, ticker, expiry, lo.strike * SHORT_MULT,
+                      spot, asof, hi)
     w = _combine(ticker, expiry, hi)
     if w is not None:
         return w
@@ -534,10 +646,22 @@ def universe(day: str, dirs=UNIVERSE_DIRS) -> list[tuple[str, str]] | None:
 
 
 class UniverseSpot:
-    """A universe ticker's underlying on a day, read off its cached contracts.
+    """A ticker's underlying on a day, read off its cached calls.
 
-    Nearest-expiry cached calls first, at most `SPOT_CONTRACTS` of them. None
-    when nothing cached for the ticker carries a row on that day.
+    The median `Price~` of the first `SPOT_CONTRACTS` cached calls with a
+    positive `Price~` on `day`, in a fixed probe order: the pick expiry's
+    strikes middle-out, then every other cached expiry on or after `day`,
+    nearest first, strikes ascending. Only `day`'s own row is read (gate G2).
+    None only when no cached call for the ticker carries one on that day.
+
+    Until 2026-10-15 the walk stopped after `SPOT_CONTRACTS * 4` probes. When
+    the pick's expiry was not yet listed on the signal date, every probe went
+    to its unlisted strikes and the call returned None, although other
+    expiries were priced that day (SPY 2025-03-03: 654 contracts at 583.77).
+    The probe order is unchanged, so a spot the old walk read off five
+    contracts is the same; one it read off fewer now reads up to five.
+    A ticker and day with nothing priced is remembered, so the full walk runs
+    once per (ticker, day), not once per expiry asked.
     """
 
     def __init__(self, chain: NTF.Chain):
@@ -547,25 +671,41 @@ class UniverseSpot:
             for k, cps in strikes.items():
                 if "C" in cps:
                     self.by_ticker[tk].append((exp, k))
+        for pool in self.by_ticker.values():
+            pool.sort()
+        self._empty: set[tuple[str, date]] = set()
+        self._memo: dict[tuple[str, date, date], float | None] = {}
+
+    def _order(self, ticker: str, day: date, expiry: date):
+        """`(expiry, strike)` in probe order (see the class doc)."""
+        pool = [p for p in self.by_ticker.get(ticker, ()) if p[0] >= day]
+        at = [p for p in pool if p[0] == expiry]           # strike-ascending
+        mid = len(at) // 2
+        for i in sorted(range(len(at)), key=lambda i: (abs(i - mid), i)):
+            yield at[i]
+        for p in pool:
+            if p[0] != expiry:
+                yield p
 
     def __call__(self, ticker: str, day: date, expiry: date) -> float | None:
-        pool = sorted((e, k) for e, k in self.by_ticker.get(ticker, ()) if e >= day)
-        at = [p for p in pool if p[0] == expiry]
-        if at:  # the middle of that expiry's strikes first
-            at = sorted(at, key=lambda p: p[1])
-            mid = len(at) // 2
-            at = sorted(at, key=lambda p: abs(at.index(p) - mid))
-        rest = [p for p in pool if p[0] != expiry]
-        legs = [call_leg(ticker, e, k) for e, k in (at + rest)[:SPOT_CONTRACTS * 4]]
+        key = (ticker, day, expiry)
+        if key in self._memo:
+            return self._memo[key]
+        if (ticker, day) in self._empty:
+            return None
         got = []
-        for leg in legs:
-            row = row_on(self.chain, leg, day)
+        for e, k in self._order(ticker, day, expiry):
+            row = row_on(self.chain, call_leg(ticker, e, k), day)
             v = to_float(row.get("Price~")) if row else None
             if v is not None and v > 0:
                 got.append(v)
-            if len(got) >= SPOT_CONTRACTS:
-                break
-        return statistics.median(got) if got else None
+                if len(got) >= SPOT_CONTRACTS:
+                    break
+        if not got:
+            self._empty.add((ticker, day))
+        out = statistics.median(got) if got else None
+        self._memo[key] = out
+        return out
 
 
 def ohlc_close(ticker: str, day: date) -> float | None:
@@ -666,6 +806,27 @@ def build_era(era_name: str | None, chain: NTF.Chain, evidence: set[str],
     return EraBuild(era_name or era.CURRENT, slots, m, u_slot, u, uni, seal)
 
 
+def plan_m1_fetch(chain, evidence: set[str], ticker: str, exp: date,
+                  est: float) -> tuple:
+    """FETCH PLANNING ONLY, for a wrap whose underlying is not cached on the
+    signal date: per M1 leg, the grid strike nearest `est` x mult that the
+    skip-list holds no evidence against, when it is not cached. Never chooses
+    or prices a wrap; the wrap awaits whatever this returns.
+
+    The evidence skip is the one `nearest_listed` applies. Without it an
+    evidenced strike was re-named on every run and re-requested forever
+    (SPY 2025-04-25 613C, 2026-10-14)."""
+    cached = cached_calls(chain, ticker, exp)
+    step = grid_step(est, cached)
+    fetch = []
+    for tgt in (est * LONG_MULT, est * SHORT_MULT):
+        k = next((c for c in grid_around(tgt, step, cached)
+                  if NTF.contract_stem(ticker, exp, c, "Call") not in evidence), None)
+        if k is not None and not chain.cached(ticker, exp, k, "Call"):
+            fetch.append((ticker, exp, k))
+    return tuple(fetch)
+
+
 def u_wrap(chain, evidence, sim_cfg, spot_u, ticker: str, s: Slot, exp: date,
            price: bool) -> Wrap:
     spot = spot_u(ticker, s.signal, exp)
@@ -673,14 +834,8 @@ def u_wrap(chain, evidence, sim_cfg, spot_u, ticker: str, s: Slot, exp: date,
         est = ohlc_close(ticker, s.signal)
         if est is None:
             return Wrap("await", "no_underlying_known")
-        cached = cached_calls(chain, ticker, exp)
-        step = grid_step(est, cached)
-        fetch = []
-        for tgt in (est * LONG_MULT, est * SHORT_MULT):
-            k = grid_around(tgt, step, cached)[0]
-            if not chain.cached(ticker, exp, k, "Call"):
-                fetch.append((ticker, exp, k))
-        return Wrap("await", "no_spot_cached", fetch=tuple(fetch))
+        return Wrap("await", "no_spot_cached",
+                    fetch=plan_m1_fetch(chain, evidence, ticker, exp, est))
     w = select_m1(chain, evidence, ticker, exp, spot, s.signal)
     if price:
         w = finish(w, chain, sim_cfg, ticker, s.signal, s.entry_day, exp)
@@ -852,7 +1007,7 @@ def g5_mirror(records_t: list[dict], chain, sim_cfg) -> tuple[int, list[str]]:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Outcomes — only after the census passes
+# Outcomes — only after the census passes (per arm, see FLOORS BY ARM)
 # ════════════════════════════════════════════════════════════════════════════
 
 def profile_for(rec_like: dict, basis: str) -> dict:
@@ -1028,28 +1183,41 @@ def print_census(b: EraBuild, c: dict) -> None:
     print(f"     median universe size {u['universe_size']}")
 
 
-def floors(c: dict, n_fetch: int) -> tuple[str, list[str]]:
-    """`(state, lines)`. state: PASS | AWAITING | FAIL (FAIL is definitive:
-    even if every awaiting pair priced, a floor could not be met)."""
-    lines, state = [], "PASS"
+#: Resolved at build (2026-10-13): the same-ticker arms are read without
+#: ARM U. Floors 1, 2 and 4a gate them; floors 3 and 4b gate only ARM U
+#: and every criterion graded on it (C3, C4, C5) and the study-level verdict.
+SAME_TICKER_ARMS = ARMS_M
+SAME_TICKER_READ = "SAME-TICKER READ — ARM U NOT BUILT"
+GATES_ALL = "[gates every arm]"
+GATES_SAME = "[gates M1 M2 M2L]"
+GATES_U = "[gates ARM U and the study verdict]"
+
+
+def _worse(a: str, b: str) -> str:
+    order = ("PASS", "AWAITING", "FAIL")
+    return max(a, b, key=order.index)
+
+
+def floors(c: dict, n_fetch: int) -> tuple[str, str, list[str]]:
+    """`(same, u, lines)`, each state PASS | AWAITING | FAIL (FAIL is
+    definitive: even if every awaiting pair priced, a floor could not be met).
+    `same` gates the same-ticker arms (floors 1, 2, 4a). `u` gates ARM U and
+    the study-level verdict: it is `same` worsened by floors 3 and 4b."""
+    lines = []
     m1 = c["arms"]["M1"]
-    awaiting = m1["status"]["await"] + c["arms"]["M2"]["status"]["await"] + \
-        c["u"]["wraps"].get("await", 0)
+    m_await = m1["status"]["await"] + c["arms"]["M2"]["status"]["await"]
+    same = u_only = "PASS"
 
     def mark(now_ok, bound_ok):
-        nonlocal state
         if not bound_ok:
-            state = "FAIL"
-            return "FAIL"
-        if not now_ok:
-            if state != "FAIL":
-                state = "AWAITING"
-            return "PENDING"
-        return "pass"
+            return "FAIL", "FAIL"
+        return ("AWAITING", "PENDING") if not now_ok else ("PASS", "pass")
 
-    f1 = mark(m1["f1_now"] >= FLOOR1_MIN_DATES, m1["f1_bound"] >= FLOOR1_MIN_DATES)
+    st1, f1 = mark(m1["f1_now"] >= FLOOR1_MIN_DATES, m1["f1_bound"] >= FLOOR1_MIN_DATES)
+    same = _worse(same, st1)
     lines.append(f"  1  dates with >= 1 priced M1 pair (headline)     now {m1['f1_now']:>4}  "
-                 f"if fetched <= {m1['f1_bound']:>4}  need {FLOOR1_MIN_DATES}  {f1}")
+                 f"if fetched <= {m1['f1_bound']:>4}  need {FLOOR1_MIN_DATES}  {f1}  "
+                 f"{GATES_ALL}")
     lines.append(f"     declared secondary: dates whose every deployed pick is paired "
                  f"{m1['f1_full_now']}; dates with >= {FLOOR1_PAIRS_LITERAL} pairs "
                  f"(literal, k={K_DEPLOY}) <= {m1['f1_literal']}")
@@ -1057,34 +1225,54 @@ def floors(c: dict, n_fetch: int) -> tuple[str, list[str]]:
     f2s = "  ".join(f"{t} {dr}/{n}" for t, (dr, n) in sorted(m1["f2"].items()))
     if gap is None:
         f2 = "PENDING"
-        state = "FAIL" if state == "FAIL" else "AWAITING"
+        same = _worse(same, "AWAITING")
     elif m1["status"]["await"]:
         f2 = "PENDING (provisional gap; awaiting pairs undecided)"
-        state = "FAIL" if state == "FAIL" else "AWAITING"
+        same = _worse(same, "AWAITING")
     else:
         f2 = "pass" if gap <= FLOOR2_MAX_TIER_GAP else "FAIL"
         if f2 == "FAIL":
-            state = "FAIL"
+            same = "FAIL"
     lines.append(f"  2  M1 in-scope dropped share by tier  {f2s}  gap "
-                 f"{'n/a' if gap is None else f'{gap:.3f}'}  max {FLOOR2_MAX_TIER_GAP}  {f2}")
+                 f"{'n/a' if gap is None else f'{gap:.3f}'}  max {FLOOR2_MAX_TIER_GAP}  {f2}  "
+                 f"{GATES_ALL}")
     u = c["u"]
     need = 1 - U_REDRAW_CAP
     now, bound = u["median_share"], u["median_share_bound"]
-    f3 = mark(now is not None and now >= need, bound is not None and bound >= need)
+    st3, f3 = mark(now is not None and now >= need, bound is not None and bound >= need)
+    u_only = _worse(u_only, st3)
     lines.append(f"  3  median priceable share of the day's universe  now "
                  f"{'n/a' if now is None else f'{now:.3f}'}  if fetched <= "
-                 f"{'n/a' if bound is None else f'{bound:.3f}'}  need {need:.2f}  {f3}")
-    lines.append(f"  4  contracts still to fetch {n_fetch} (one feed request each); "
-                 f"M1/M2 pairs and U wraps awaiting {awaiting}  "
-                 f"{'pass' if n_fetch == 0 else 'NEEDS OPERATOR-RUN FETCH'}")
+                 f"{'n/a' if bound is None else f'{bound:.3f}'}  need {need:.2f}  {f3}  "
+                 f"{GATES_U}")
+    if m_await:
+        same = _worse(same, "AWAITING")
+    lines.append(f"  4a M1/M2 pairs awaiting a fetch {m_await}  "
+                 f"{'pass' if not m_await else 'NEEDS OPERATOR-RUN FETCH'}  {GATES_SAME}")
     if n_fetch:
-        state = "FAIL" if state == "FAIL" else "AWAITING"
+        u_only = _worse(u_only, "AWAITING")
+    lines.append(f"  4b contracts still to fetch, every arm {n_fetch} (one feed request "
+                 f"each); U wraps awaiting {u['wraps'].get('await', 0)}  "
+                 f"{'pass' if n_fetch == 0 else 'NEEDS OPERATOR-RUN FETCH'}  {GATES_U}")
     bands = m1["bands"]
     lines.append("  5  M1 pairs by band  " + "  ".join(
         f"{band_label(bd)} {bands.get(band_label(bd), 0)}"
         f"{'' if bands.get(band_label(bd), 0) >= FLOOR5_MIN_BAND_PAIRS else ' (not read)'}"
-        for bd in BANDS))
-    return state, lines
+        for bd in BANDS) + "  (no floor)")
+    return same, _worse(same, u_only), lines
+
+
+def study_word(same: str, u: str) -> str | None:
+    """The census verdict word, or None when every floor passes and the full
+    outcome path runs. Floors 1 and 2 kill the whole study; floors 3 and 4b
+    hold back only ARM U, so the same-ticker arms are read without it."""
+    if same == "FAIL":
+        return "NOT BUILT"
+    if same == "AWAITING":
+        return "NOT BUILT — AWAITING SCRAPE"
+    if u != "PASS":
+        return SAME_TICKER_READ
+    return None
 
 
 def print_grade(name: str, g: dict, gross_note: str) -> None:
@@ -1105,6 +1293,37 @@ def print_grade(name: str, g: dict, gross_note: str) -> None:
           + f"  C4 {'Y' if g['c4'] else 'n'}"
           + (f"  PF diff {pfd[0]:+.2f} [{pfd[1]:+.2f}, {pfd[2]:+.2f}]"
              if pfd[0] is not None else ""))
+
+
+def awaits(b: EraBuild, arm: str) -> bool:
+    """True while any of the arm's pairs awaits a fetch: its built pairs are
+    then the cached subset, not the registered population."""
+    return any(w.status == "await" for w in b.m[arm])
+
+
+def arm_criteria(g: dict) -> str:
+    """One arm's C0-C2 and CONTRARY condition, the per-arm read
+    `programme_gate`'s PG-M consumes."""
+    yn = lambda v: "Y" if v else "n"     # noqa: E731
+    return (f"C0 {yn(g.get('c0'))}  C1 {yn(g.get('c1'))}  C2 {yn(g.get('c2'))}  "
+            f"clears C0-C2 {yn(g.get('c0') and g.get('c1') and g.get('c2'))}  "
+            f"CONTRARY {yn(g.get('contrary'))}")
+
+
+def print_same_ticker_verdict(g: dict) -> None:
+    """The verdict block while ARM U is not built: per-arm criteria only.
+    No study-level token prints, because each of them reads ARM U too."""
+    hdr(f"VERDICT (headline basis): {SAME_TICKER_READ}")
+    for a in ("M1", "M2"):
+        print(f"  ARM {a:<3} {arm_criteria(g[a])}")
+    print("  ARM U is not built, so no study-level verdict prints: every one of them")
+    print("  also says something about ARM U. C3, C4 and C5 are graded on ARM U and")
+    print("  are not read.")
+    hit = [a for a in ("M1", "M2") if g[a].get("contrary")]
+    if hit:
+        print(f"  CONTRARY condition met on ARM {', ARM '.join(hit)}: surface to the "
+              f"operator before any further study runs.")
+    print("  M2L is a declared secondary and carries no verdict.")
 
 
 def write_pairs(rows_by_arm: dict) -> None:
@@ -1135,7 +1354,8 @@ def main(argv=None) -> int:
   (accepted by default 2026-10-09). NOTHING SHIPS FROM THIS STUDY.
   Both books GROSS of costs (cost_sensitivity has not landed). No annualised
   figure, Sharpe or time-to-recover is printed (G6); every count is computed
-  by this run (G7). Outcomes print only after the census passes all floors.""")
+  by this run (G7). Same-ticker outcomes (M1, M2, M2L) print once floors 1,
+  2 and 4a pass; ARM U and the study verdict also need floors 3 and 4b.""")
 
     chain = NTF.Chain()
     evidence = NTF.unlisted_evidence()
@@ -1167,12 +1387,12 @@ def main(argv=None) -> int:
     no_uni = sorted({d for c in cens for d in c["u"]["dates_no_universe"]})
 
     hdr("CENSUS FLOORS (registration §Dependencies)")
-    states = []
+    states = {}
     for b, c in zip(builds, cens):
         n_era = len([t for t in targets if t["category"].endswith(f":{b.era}")])
-        st, lines = floors(c, n_era)
-        states.append(st)
-        print(f"  era {b.era}: {st}")
+        same, full, lines = floors(c, n_era)
+        states[b.era] = (same, full)
+        print(f"  era {b.era}: same-ticker arms (M1 M2 M2L) {same}  ·  ARM U {full}")
         for ln in lines:
             print(ln)
     by_cat = Counter(t["category"] for t in targets)
@@ -1182,9 +1402,8 @@ def main(argv=None) -> int:
           f"{len(no_und)}")
     print(f"  signal dates with no universe file: {len(no_uni)}")
 
-    primary = states[0]
-    if primary != "PASS":
-        word = "NOT BUILT" if primary == "FAIL" else "NOT BUILT — AWAITING SCRAPE"
+    word = study_word(*states[builds[0].era])
+    if word and word != SAME_TICKER_READ:
         hdr(f"VERDICT: {word}")
         print("  The census is the recorded result. No outcome column was read.")
         print("  Operator-run steps, in order (each resumable; none runs from here):")
@@ -1237,14 +1456,28 @@ def main(argv=None) -> int:
                  else "DECLARED SECONDARY — each side under its own §5 row")
         hdr(f"OUTCOMES, {title}. GROSS of costs.")
         for b in builds:
-            rows = {a: pair_rows(b, a, basis) for a in ARMS_M}
-            urows, pools, unusable = u_rows(b, basis)
-            g = {a: grade(rows[a]) for a in ARMS_M}
-            g["U"] = grade(urows)
+            same, full = states[b.era]
+            read_m = same == "PASS"
+            read_u = full == "PASS" and word is None
+            arms = [a for a in ARMS_M if read_m and not awaits(b, a)]
+            rows = {a: pair_rows(b, a, basis) for a in arms}
+            g = {a: grade(rows[a]) for a in arms}
             print(f"\n  era {b.era}  (ARM CEN table above)")
-            for a in ARMS_M + ("U",):
-                print_grade(a, g[a], "GROSS")
-            if g["U"].get("c0"):
+            if not read_m:
+                print(f"  same-ticker floors {same}: no outcome printed for this era")
+            for a in ARMS_M:
+                if a in arms:
+                    print_grade(a, g[a], "GROSS")
+                elif read_m:
+                    print(f"  {a:<5} not graded: pairs await a fetch")
+            urows = []
+            if read_u:
+                urows, pools, unusable = u_rows(b, basis)
+                g["U"] = grade(urows)
+                print_grade("U", g["U"], "GROSS")
+            else:
+                print(f"  U     not graded: ARM U floors {full} (floors 3 and 4b)")
+            if g.get("U", {}).get("c0"):
                 p5, p95, _ = u_band(urows, pools)
                 mt = g["U"]["mean_T"]
                 g["U"]["c3"] = mt > p95
@@ -1258,7 +1491,7 @@ def main(argv=None) -> int:
                       f"draws (seed {U_SEED}): [{p5:+.3f}, {p95:+.3f}]  picks "
                       f"{mt:+.3f}  C3 {'Y' if g['U']['c3'] else 'n'}  unusable dates "
                       f"{len(unusable)}")
-            for a in ("M1", "U"):
+            for a in [x for x in ("M1", "U") if x in g]:
                 cuts = P.window_cuts(rows[a] if a != "U" else urows)
                 for name, rs in cuts.items():
                     if name == "ALL":
@@ -1272,13 +1505,17 @@ def main(argv=None) -> int:
                     print_grade(f"{a}bear"[:5], grade(bear), "GROSS")
             results[(basis, b.era)] = g
             if basis == "headline" and b is builds[0]:
-                write_pairs({**rows, "U": urows})
+                write_pairs({**rows, **({"U": urows} if read_u else {})})
 
     g0 = results[("headline", builds[0].era)]
+    if word == SAME_TICKER_READ:
+        print_same_ticker_verdict(g0)
+        print(f"  pairs written to {PAIRS_CSV.relative_to(ROOT)} (no ARM U rows)")
+        return 0
     c5 = False
     if len(builds) > 1:
         gv = results[("headline", builds[1].era)]
-        c5 = all(g0[a].get("c1") and gv[a].get("c1")
+        c5 = all(g0[a].get("c1") and gv.get(a, {}).get("c1")
                  and (g0[a]["gain"] > 0) == (gv[a]["gain"] > 0) for a in ("U",))
     word = verdict(g0["M1"], g0["M2"], g0["U"], c5)
     hdr(f"VERDICT (headline basis): {word}")

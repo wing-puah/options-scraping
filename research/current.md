@@ -8,6 +8,34 @@ labels in [`arm-index.md`](arm-index.md), house style in
 
 ## State of play
 
+**2026-10-15: where the programme stands.** The gate reads `WAIT` until
+`dip_buy` grades, with a backstop of 2027-10-13
+([plan](next-steps.md#plan-20261013)).
+
+| Step | State |
+|---|---|
+| P0, the kill rule | registered 2026-10-13 as `programme_gate` |
+| P1, same-ticker read | `ARM M1` `CONTRARY`, corrected 2026-10-15 ([entry](#2026-10-15--mechanical_benchmark-p1-corrected-the-contrary-survives-the-spot-fix-and-the-tier-port)) |
+| P2, SPY read | `DOES-NOT-BEAT`, post hoc ([entry](#2026-10-15--spy_benchmark-the-picks-do-not-beat-a-spy-call-spread-gross)) |
+| P3, the tier port | done 2026-10-13 |
+
+Two follow-ups are filed in [`next-steps.md`](next-steps.md) under *Waiting
+on the operator*, items 16 and 17:
+
+- The cache backup never prunes. Each push is a full archive of about 530MB,
+  and the per-batch pushes filled the operator's Drive on 2026-10-13/14.
+- The spot reads calls only. Adding puts would cut `ARM M1`'s
+  `no_spot_at_signal` drops from 8 to 6; it is not adopted.
+
+**2026-10-14: the SPY-only benchmark is registered post hoc and built; it awaits a 149-contract fetch**
+([entry](#2026-10-14--spy-only-benchmark-registered-post-hoc)).
+
+**2026-10-14: a mechanical ATM/+5% call spread on the same tickers beat the picks, gross; `mechanical_benchmark` `ARM M1` meets `CONTRARY`, and `programme_gate` reads `WAIT`**
+([entry](#2026-10-14--mechanical_benchmark-the-mechanical-spread-beats-the-picks-on-their-own-tickers)).
+
+**2026-10-13: the keep-or-retire rule for the flow layer is registered before any P1 result; `programme_gate` reads `WAIT`**
+([entry](#2026-10-13--programme_gate-registered-before-any-p1-result)).
+
 **2026-10-13: the SOTA paper's 18.3% rests on one seed and a checkpoint picked on its test window; it adds no evidence for this book**
 ([entry](#2026-10-13--external-read-sota-paper-adds-no-evidence-for-this-book)).
 
@@ -249,6 +277,388 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-15 — spy_benchmark: the picks do not beat a SPY call spread, gross
+
+**Across the same dates, the deployed picks did not beat a SPY ATM/+5% call
+spread, gross of costs.** [`spy_benchmark`](arm-index.md#spy_benchmark)
+prints `DOES-NOT-BEAT`. The point estimate is negative, but its CI spans zero,
+so there is no evidence the picks add value over the index. It is not
+`CONTRARY`. Nothing ships.
+
+_Registration: [`spy_benchmark.md`](pre-registrations/f1_selection/benchmark/spy_benchmark.md),
+accepted by default 2026-10-14, post hoc · era v4, exports of 2026-10-06,
+post-P3 tiers · run 2026-10-15 at git `c8b1f4e`, working tree dirty · report:
+`backtests/study_output/spy_benchmark-20261015.txt` · recorded in
+[study-results](study-results/f1_selection/benchmark/spy_benchmark.md)._
+
+**In production.** Nothing changes. The study is not a
+[`programme_gate`](pre-registrations/f4_deployment/programme_gate.md) input;
+its result is recorded beside the gate, which still reads `WAIT`.
+
+**Evidence.** Gain is the picks' paired [meanR](glossary.md#meanr) minus the
+SPY wrap's, with a date-clustered
+[CI95](glossary.md#ci95-date-clustered-bootstrap). The headline is
+`SB-UNIT = pick` on `DEBIT_PROD`, both sides gross.
+
+| Cut | Pairs | Dates | Gain in R | CI95 | C0 | C1 | C2 | `CONTRARY` | Prints |
+|---|---|---|---|---|---|---|---|---|---|
+| Headline, `SB-UNIT = pick` | 381 | 190 | `-0.031` | `[-0.134, +0.074]` | Y | n | n | n | `DOES-NOT-BEAT` |
+| `SB-UNIT = date` | 190 | 190 | `-0.030` | `[-0.144, +0.081]` | Y | n | n | n | `DOES-NOT-BEAT` |
+| Declared secondary, own §5 row, per pick | 381 | 190 | `-0.019` | `[-0.134, +0.095]` | Y | n | n | n | `DOES-NOT-BEAT` |
+| Declared secondary, own §5 row, per date | 190 | 190 | `-0.024` | `[-0.157, +0.099]` | Y | n | n | n | `DOES-NOT-BEAT` |
+
+| Headline | meanR, picks | meanR, SPY | [PF](glossary.md#pf-profit-factor), picks | PF, SPY | Tier A gain | Tier B gain |
+|---|---|---|---|---|---|---|
+| `ARM SPY` | `+0.093` | `+0.124` | 1.28 | 1.53 | `-0.067` | `-0.015` |
+
+**The census.** The population is 563 deployed picks on 243 dates. Every
+v4 SPY leg is fetched: the run plans 0 more contracts.
+
+| Object | Count |
+|---|---|
+| SPY wraps built | 388 |
+| Dropped, `dte_ge_180` | 111 |
+| Dropped, `expiry_not_listed_at_signal` | 59 |
+| Dropped, `no_spot_at_signal` | 3 |
+| Dropped, `no_listed_strike` or `dte_lt_7` | 1 each |
+| Pairs after pricing | 381 on 190 dates |
+| Floor 2 tier gap after pricing | 0.078 (max 0.1), pass |
+
+**Build rulings, all made before any SPY outcome printed.** Each is in the
+registration.
+
+- **Ruling B.** A wrap whose expiry SPY had not yet listed on the signal date
+  drops as `expiry_not_listed_at_signal`, instead of awaiting a fetch that
+  cannot build it. It was amended the same day to need at least 5 cached
+  contracts at that expiry, all first trading after the signal date.
+- **The inherited no-spot drop.** When no cached SPY contract has a row on
+  the signal date, the pair drops as `ARM M1`'s do. Three pairs drop this
+  way, all on Sunday 2024-07-28.
+- **The 613C fetch-planning fix.** The fetch planner now skips a strike the
+  unlisted skip-list has evidence against. Without it, SPY 2025-04-25 613C
+  was requested again on every run. It changes what is fetched, never what
+  is built.
+
+**What it means.**
+
+- The picks did not show value over buying the index spread on the same
+  dates. They did not clearly lose to it either.
+- It is gross of costs, and post hoc: it was proposed after
+  `cost_sensitivity`, `direction_hit` and the P1 read were seen.
+- Ticker choice against a random name, `mechanical_benchmark`'s `ARM U`,
+  stays untested.
+
+**Next.** P2 is done in [`next-steps.md`](next-steps.md#plan-20261013). The
+v3 SPY legs stay unfetched; they are optional.
+
+---
+
+## 2026-10-15 — mechanical_benchmark P1 corrected: the CONTRARY survives the spot fix and the tier port
+
+**The P1 result stands: `ARM M1` still meets `CONTRARY` after two fixes.**
+On the book's own tickers and expiries, the mechanical ATM/+5% call spread
+still beats the picks, gross. Nothing ships, and `programme_gate` still reads
+`WAIT`.
+
+_Era v4 · exports of 2026-10-06 · run 2026-10-15 at git `c8b1f4e`, working
+tree dirty · report:
+`backtests/study_output/mechanical_benchmark-p1corr-20261015.txt`, pairs in
+`mechanical_benchmark-pairs-p1corr-20261015.csv` · recorded in
+[study-results](study-results/f1_selection/benchmark/mechanical_benchmark.md)._
+The original P1 record, `mechanical_benchmark-p1-20261014.txt`, stays as
+written; this correction sits beside it.
+
+**In production.** Nothing changes.
+
+**Why it was re-run.**
+
+- **The spot fix.** `UniverseSpot` gave up after 20 probes. A pick whose
+  expiry was not yet listed then dropped as `no_spot_at_signal`, even when
+  other expiries priced that day. The
+  [2026-10-15 build ruling](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md)
+  fixes the code; the rule is unchanged.
+- **P3, the tier port.** It moved 34 v4 Tier B rows to VETO, out of the
+  deployed set.
+- About 30 more `ARM M1` contracts were fetched before the run.
+
+**Evidence.** The run prints `SAME-TICKER READ — ARM U NOT BUILT`. Headline
+basis: `DEBIT_PROD` on both sides, gross.
+[meanR](glossary.md#meanr) and [CI95](glossary.md#ci95-date-clustered-bootstrap)
+are as in the 2026-10-14 entry.
+
+| Object | Run | Pairs | Dates | Gain in R | CI95 | C0 | C1 | C2 | `CONTRARY` |
+|---|---|---|---|---|---|---|---|---|---|
+| `ARM M1` (PRIMARY) | P1, 2026-10-14 | 405 | 208 | `-0.099` | `[-0.183, -0.023]` | Y | n | n | Y |
+| `ARM M1` (PRIMARY) | corrected | 386 | 201 | `-0.101` | `[-0.187, -0.021]` | Y | n | n | Y |
+| `ARM M2` (SECONDARY) | P1, 2026-10-14 | 345 | 191 | `-0.138` | `[-0.350, +0.032]` | Y | n | n | n |
+| `ARM M2` (SECONDARY) | corrected | 329 | 184 | `-0.122` | `[-0.333, +0.048]` | Y | n | n | n |
+
+| Corrected run | meanR, picks | meanR, mechanic | [PF](glossary.md#pf-profit-factor), picks | PF, mechanic | [LOO](glossary.md#loo--leave-one-date-out) share positive |
+|---|---|---|---|---|---|
+| `ARM M1` | `+0.130` | `+0.231` | 1.42 | 1.84 | 0.00 |
+| `ARM M2` | `+0.164` | `+0.286` | 1.56 | 1.69 | 0.00 |
+
+**The census change, by cause.** Each arm cell is built / awaiting /
+dropped. The middle column came from a scratch toggle, not a recorded run.
+
+| Object | P1, 2026-10-14 | After P3 only | Corrected run |
+|---|---|---|---|
+| Deployed picks | 582 on 249 dates | — | 563 on 243 dates |
+| `ARM M1` | 405 / 0 / 177 | 386 / 0 / 177 | 386 / 0 / 177 |
+| `ARM M2` | 345 / 0 / 237 | 329 / 0 / 234 | 329 / 0 / 234 |
+
+- **P3 carries the whole change in pairs.**
+- **The spot fix built nothing.** It brought 27 `ARM M1` slots back from
+  `no_spot_at_signal`. Fifteen of them awaited the fetch and then dropped;
+  the other 12 dropped at once.
+
+| Drop reason | P1, 2026-10-14 | Corrected run |
+|---|---|---|
+| `ARM M1` `no_spot_at_signal` | 35 | 8 |
+| `ARM M1` `no_listed_strike` | 17 | 44 |
+| `ARM M2` `no_spot_at_signal` | 35 | 8 |
+| `ARM M2` `no_target_delta` | 31 | 58 |
+
+**Caveats.** These cuts print beside the headline and carry no verdict.
+
+| Object | Gain in R | CI95 |
+|---|---|---|
+| `ARM M1`, Tier A only | `-0.002` | not printed |
+| `ARM M1`, Tier B only | `-0.150` | not printed |
+| `ARM M1` ex 2026 Feb–Apr | `-0.068` | `[-0.146, +0.004]` |
+| `ARM M1` ex 2025 Mar–Apr | `-0.123` | `[-0.212, -0.044]` |
+| `ARM M1`, each side under its own §5 row | `-0.078` | `[-0.173, +0.012]` |
+
+The gap still sits almost entirely in Tier B, as on 2026-10-14.
+
+**The `programme_gate` read, 2026-10-15: `WAIT`, "P1 negative, `dip_buy`
+open".**
+
+| Input | Reads | Why |
+|---|---|---|
+| `PG-M` | `CONTRARY` | `ARM M1` still meets the `CONTRARY` condition |
+| `PG-D` | `STILL-OPEN` | `dip_buy` has no verdict of record |
+| Gate | `WAIT` | Row 4, unchanged; the backstop is still 2027-10-13 |
+
+Both `PG-ARMS` settings give the same read, since `ARM M1` is in each.
+
+**Next.** In [`next-steps.md`](next-steps.md#plan-20261013), P1 and the gate
+read cite this run. Item 15's fetch sizes now come from it.
+
+---
+
+## 2026-10-14 — SPY-only benchmark registered (post hoc)
+
+**`spy_benchmark` is registered and built, and it prints `NOT BUILT —
+AWAITING SCRAPE`.** It asks whether the deployed picks beat a SPY call spread
+bought on the same dates. No outcome exists yet. Nothing ships.
+
+_Registration: [`spy_benchmark.md`](pre-registrations/f1_selection/benchmark/spy_benchmark.md),
+accepted by default 2026-10-14 · era v4, exports of 2026-10-06, post-P3 tiers
+· report: `backtests/study_output/spy_benchmark-latest.txt`._
+
+**In production.** Nothing changes. The study ships no rule, and it is not a
+[`programme_gate`](pre-registrations/f4_deployment/programme_gate.md) input:
+its result is recorded beside the gate.
+
+**It is post hoc.** It was proposed after `cost_sensitivity`, `direction_hit`
+and the P1 same-ticker read were seen. Those reads make a negative result more
+likely, so it is weaker evidence than a planned test.
+
+**The design.** [`ARM SPY`](arm-index.md#spy_benchmark) is
+`mechanical_benchmark`'s `ARM M1` wrap moved onto SPY. The module imports that
+study's strike choice, pricing, deployed set, seal and criteria.
+
+| Choice | Default | Printed beside it |
+|---|---|---|
+| Expiry | the pick's own expiry, as `ARM M1` | — |
+| `SB-UNIT`, a date with several picks | one row per pick; SPY repeats; date-clustered CI | one row per date: mean pick R against the top-ranked pick's SPY wrap |
+| Exit profile | `DEBIT_PROD` on both sides, gross | each side under its own [§5](../docs/deployment-rules.md#s5) row |
+| Era | v4 only | v3 with `--v3`, once its legs are fetched |
+
+**The census.** It runs on an unpriced build, so no SPY wrap was priced.
+
+| Object | Count |
+|---|---|
+| Deployed picks, post-P3 | 563 on 243 dates |
+| Picks on SPY itself | 2 |
+| SPY wraps built from the cache | 239 |
+| Awaiting a fetch | 212 |
+| Dropped by scope (DTE ≥ 180 or < 7) | 112 |
+| SPY contracts to fetch, v4 | 149 |
+| SPY contracts to fetch, v3, optional | 56 |
+
+The fetch plan reads SPY's close from the mech-regime table when the stock
+bars stop short. That only names strikes; the choice still reads SPY's cached
+contracts.
+
+**Next.** P2 in [`next-steps.md`](next-steps.md#plan-20261013) waits on the
+operator's approval of the 149-contract v4 fetch.
+
+---
+
+## 2026-10-14 — mechanical_benchmark: the mechanical spread beats the picks on their own tickers
+
+_Corrected 2026-10-15: the `CONTRARY` survives a re-run after the spot fix and P3 ([entry](#2026-10-15--mechanical_benchmark-p1-corrected-the-contrary-survives-the-spot-fix-and-the-tier-port))._
+
+**On v4, a fixed ATM/+5% call spread on the same ticker and expiry beat the
+picks, gross of costs.** [`mechanical_benchmark`](arm-index.md#mechanical_benchmark)'s
+`ARM M1` meets the `CONTRARY` condition. The model's choice of structure,
+strike, expiry and timing added no value on these tickers, and on `ARM M1` it
+subtracted. Nothing ships.
+
+_Era v4 · exports of 2026-10-06 · run 2026-10-14 at git `4536515` plus the
+two uncommitted 2026-10-13 build rulings · report:
+`backtests/study_output/mechanical_benchmark-p1-20261014.txt`, pairs in
+`mechanical_benchmark-pairs-p1-20261014.csv` · recorded in
+[study-results](study-results/f1_selection/benchmark/mechanical_benchmark.md)._
+
+**In production.** Nothing changes. The study ships no rule under any outcome,
+and [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md)
+reads `WAIT` (below).
+
+**The operator reads this first.** The
+[registration](pre-registrations/f1_selection/benchmark/mechanical_benchmark.md#verdicts-worded-now)
+says a `CONTRARY` is surfaced to the operator before any further study runs.
+The report prints the same line. P2 and the P5 suite re-run wait on that.
+
+**Evidence.** The run prints `SAME-TICKER READ — ARM U NOT BUILT`. Headline
+basis: `DEBIT_PROD` on both sides, gross. Gain is the picks' paired
+[meanR](glossary.md#meanr) minus the counterpart's, with a date-clustered
+[CI95](glossary.md#ci95-date-clustered-bootstrap).
+
+| Object | Pairs | Dates | Gain in R | CI95 | C0 | C1 | C2 | `CONTRARY` |
+|---|---|---|---|---|---|---|---|---|
+| `mechanical_benchmark` `ARM M1` (PRIMARY) | 405 | 208 | `-0.099` | `[-0.183, -0.023]` | Y | n | n | Y |
+| `mechanical_benchmark` `ARM M2` (SECONDARY) | 345 | 191 | `-0.138` | `[-0.350, +0.032]` | Y | n | n | n |
+
+| Object | meanR, picks | meanR, mechanic | [PF](glossary.md#pf-profit-factor), picks | PF, mechanic | [LOO](glossary.md#loo--leave-one-date-out) share positive |
+|---|---|---|---|---|---|
+| `ARM M1` | `+0.143` | `+0.242` | 1.47 | 1.89 | 0.00 |
+| `ARM M2` | `+0.176` | `+0.314` | 1.60 | 1.77 | 0.00 |
+
+The census, printed beside the outcome as the registration requires. The
+population is 582 deployed picks on 249 dates.
+
+| Object | Built | Dropped | Largest drop reason | Floor 2 tier gap |
+|---|---|---|---|---|
+| `ARM M1` | 405 | 177 | `dte_ge_180` 111 | 0.019 (max 0.1), pass |
+| `ARM M2` | 345 | 237 | `dte_ge_180` 111 | — |
+
+**What it means.**
+
+- **The wrap did not earn its keep.** On the book's own tickers and expiries,
+  a rule with no model made more R per pair than the picks' own structures.
+- **It is gross of costs.** Both sides are priced the same way from the
+  stored marks. Costs are `cost_sensitivity`'s question.
+- **It does not test ticker choice.** Both sides trade the ticker the model
+  chose. `ARM U`, the random-ticker null, answers that, and it is not built.
+
+**Caveats.** These cuts print beside the headline and carry no verdict.
+
+| Object | Gain in R | CI95 |
+|---|---|---|
+| `ARM M1`, Tier A only | `-0.002` | not printed |
+| `ARM M1`, Tier B only | `-0.143` | not printed |
+| `ARM M1` ex 2026 Feb–Apr | `-0.068` | `[-0.145, +0.002]` |
+| `ARM M1` ex 2025 Mar–Apr | `-0.120` | `[-0.205, -0.043]` |
+| `ARM M1`, each side under its own §5 row | `-0.078` | `[-0.167, +0.008]` |
+
+- The gap sits almost entirely in Tier B.
+- Dropping the 2026 Feb–Apr window, or replaying each side under its own
+  [§5](../docs/deployment-rules.md#s5) row, brings the CI's upper end to zero
+  or just past it.
+
+**What was not run.**
+
+- v3 was not fetched (`--no-v3`), so v3 prints no outcome.
+- `ARM M2L`, a declared secondary, still has pairs awaiting a fetch.
+- `ARM U` is not built, so no study-level verdict prints.
+
+**How the fetch ran.** About 64 batches over 2026-10-13/14, with one final
+Drive backup pushed. The fetch order changed mid-fetch, under the 2026-10-13
+ruling. That ruling changes the order only: a check on one cache built the
+same pairs under both orders.
+
+**After P3.** P3 moves 87 v4 rows to VETO. `mechanical_benchmark` reads the
+book's tier directly, so its deployed set and its A/B tier-gain lines will
+move on the next suite run. This record is the pre-P3 run.
+
+**The `programme_gate` read, 2026-10-14: `WAIT`, "P1 negative, `dip_buy`
+open".** The gate's registration says each read is recorded here and in the
+P0 row of [next-steps](next-steps.md#plan-20261013).
+
+| Input | Reads | Why |
+|---|---|---|
+| `PG-M` | `CONTRARY` | `ARM M1` meets the `CONTRARY` condition |
+| `PG-D` | `STILL-OPEN` | [`dip_buy`](study-results/f1_selection/regime/dip_buy.md) has no verdict of record |
+| Gate | `WAIT` | Row 4: `PG-M` is `CONTRARY` and `PG-D` is `STILL-OPEN` |
+
+- **The parameters do not change it.** `PG-M` reads `CONTRARY` under both
+  `PG-ARMS` settings, since `ARM M1` is in each. No arm clears C1, so
+  `BEATS` is out either way. Both arms clear C0, so `PG-UNPOWERED` never
+  applies.
+- **Nothing retires until `dip_buy` grades.** That needs about seven months
+  of forward dates after the seal lifts.
+- **The backstop is 2027-10-13.** Under the default, a `dip_buy` still
+  unread then counts as not positive, and row 4 becomes `RETIRE`. A
+  prompt-version bump that freezes `dip_buy` brings it forward.
+
+**Next.** In [`next-steps.md`](next-steps.md#plan-20261013), P1 is done and
+item 15 is resolved for `ARM M1` and `ARM M2` on v4. The v3 and `ARM M2L`
+legs and `ARM U` stay unfetched. P2 is the operator's choice.
+
+---
+
+## 2026-10-13 — programme_gate registered before any P1 result
+
+**The kill rule is registered, and it reads `WAIT`.** If the picks do not beat
+`mechanical_benchmark`'s same-ticker arms and `dip_buy` grades `NULL` or
+`CONTRARY`, the flow-selection layer retires. If either read is positive, it
+stays. Nothing ships.
+
+_Registration: [`programme_gate.md`](pre-registrations/f4_deployment/programme_gate.md),
+accepted by default 2026-10-13 · inputs: no `mechanical_benchmark` outcome
+printed (`NOT BUILT — AWAITING SCRAPE`), `dip_buy` `STILL-OPEN`._
+
+**In production.** Nothing changes. `RETIRE` would let the operator consider
+a mechanical dip rule at $500, or stopping. Either needs its own registration.
+
+**The gate.** The first matching row wins.
+
+| `PG-M`, P1 on v4 | `PG-D`, `dip_buy` | Gate |
+|---|---|---|
+| `BEATS` | any | `KEEP` |
+| any | `SUPPORTED` | `KEEP` |
+| `CONTRARY` or `DOES NOT BEAT` | `NULL` or `CONTRARY` | `RETIRE` |
+| `CONTRARY` or `DOES NOT BEAT` | `STILL-OPEN` | `WAIT` |
+| `NOT READ` | not `SUPPORTED` | `WAIT` |
+
+`BEATS` means `ARM M1` or `ARM M2` clears
+[`mechanical_benchmark`](arm-index.md#mechanical_benchmark)'s C0, C1 and C2,
+with neither arm `CONTRARY`.
+
+**Contested choices, printed both ways.**
+
+| Parameter | Default | Other setting |
+|---|---|---|
+| `PG-ARMS` | `M1 or M2`, as that study's `STRUCTURE-ONLY` reads it | `M1 only` |
+| `PG-UNPOWERED` | An `UNDERPOWERED` or `NOT BUILT` P1 counts as not beating | It leaves P1 unread |
+| `PG-BACKSTOP` | On 2027-10-13 a missing read counts as not positive | The operator decides |
+
+P2, the ticker-choice read, is not an input. The operator's rule names only
+the same-ticker arms.
+
+**Unresolved.** P1 cannot print per-arm grades yet. The study waits for every
+census floor, including `ARM U`'s, so a same-ticker fetch alone still prints
+`NOT BUILT — AWAITING SCRAPE`. Default: P1 adds a same-ticker path, ruled in
+`mechanical_benchmark.md` before its run.
+
+**Next.** P0 is done. P1 waits on the operator's yes and that build change
+([next-steps](next-steps.md#plan-20261013)).
 
 ---
 

@@ -136,7 +136,9 @@ def _model_vol(regime: str) -> str | None:
 def ladder_tier(structure: str, market_regime: str) -> str:
     """VETO / A / B / C per docs/deployment-rules.md, keyed on the MODEL regime.
 
-    Mirrors `book.ladder_tier()` with ONE documented difference: short-leg
+    A pre-2026-10-13 copy of the study book's retired port, NOT
+    `mapping.ladder_tier()`: it lacks the §1.3 credit veto. It also has ONE
+    documented difference from that port: short-leg
     |delta| and DTE are not columns on an analysis row, so the Tier-B bull_put
     geometry clause cannot be evaluated and every bull_put falls to C. That
     biases the tier mix — but IDENTICALLY in both eras, which is all a

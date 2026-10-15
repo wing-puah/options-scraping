@@ -448,12 +448,38 @@ STUDIES: dict[str, Study] = {
         question="Do the deployed picks beat a mechanical bull call spread on the same dates: "
                  "ATM/+5% on the same ticker and expiry (M1), a delta-matched one (M2), and the "
                  "same wrap on a random ticker from the day's flow universe (U)?",
-        verdict="2026-10-09 first run (v4, exports 2026-10-06; v3 as the stability read): "
-                "`VERDICT: NOT BUILT — AWAITING SCRAPE`. The census is the result and no outcome "
-                "was read. `fetch plan: 40299 unique uncached call contracts`; the same-ticker "
-                "arms need `M1:current=399` and `M2:current=311`, ARM U needs `U:current=32106` plus "
-                "stock bars for 1978 universe tickers, and floor 3 reads `median priceable share "
-                "of the day's universe  now 0.018`.",
+        verdict="2026-10-15 P1 correction (v4, exports 2026-10-06, git c8b1f4e; after the "
+                "UniverseSpot probe-cap fix and the P3 tier port; v3 not fetched): `VERDICT "
+                "(headline basis): SAME-TICKER READ — ARM U NOT BUILT`. `ARM M1  C0 Y  C1 n  C2 n  "
+                "clears C0-C2 n  CONTRARY Y` on `pairs  386 dates  201  meanR T +0.130 C +0.231  "
+                "gain -0.101 [-0.187, -0.021]`; `ARM M2  C0 Y  C1 n  C2 n  clears C0-C2 n  "
+                "CONTRARY n` on `gain -0.122 [-0.333, +0.048]`. The M1 CONTRARY survives the "
+                "correction: the mechanical ATM/+5% spread beat the picks on their own tickers "
+                "and expiries, gross of costs. It does not test ticker choice: `U     not graded: "
+                "ARM U floors AWAITING (floors 3 and 4b)`, and M2L still awaits a fetch. "
+                "programme_gate still reads WAIT (P1 negative, dip_buy open). Nothing ships. "
+                "The original P1 run of 2026-10-14 (405 pairs, gain -0.099 [-0.183, -0.023]) "
+                "stays on record beside it. First run 2026-10-09: `VERDICT: NOT BUILT — "
+                "AWAITING SCRAPE`.",
+        attention="2026-10-14, still standing after the 2026-10-15 correction: `CONTRARY "
+                  "condition met on ARM M1: surface to the operator before any further study "
+                  "runs.` Read the P1 record and both current.md entries.",
+    ),
+    "spy_benchmark": Study(
+        family="selection", state="null",
+        question="Do the deployed picks beat a SPY call spread on the same dates: the ARM M1 "
+                 "wrap (ATM/+5%, the pick's own expiry, same entry day, same exit profile) on "
+                 "SPY instead of the pick's ticker? P2 of the 2026-10-13 plan; post hoc, and "
+                 "not a programme_gate input.",
+        verdict="2026-10-15 run (v4, exports 2026-10-06, post-P3 tiers, git c8b1f4e): "
+                "`VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 "
+                "dates  190  meanR T +0.093 C +0.124  gain -0.031 [-0.134, +0.074]`, `C0 Y  C1 n  "
+                "C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line and the declared "
+                "secondary also print `DOES-NOT-BEAT`. Across the same dates the picks did not "
+                "beat a SPY call spread, gross; the CI spans zero, so it is not CONTRARY either. "
+                "Post hoc: `Not a programme_gate input: recorded beside the gate, never changing "
+                "it.` Nothing ships. Registered 2026-10-14; first run that day printed `NOT BUILT "
+                "— AWAITING SCRAPE`.",
     ),
 
     # ② management

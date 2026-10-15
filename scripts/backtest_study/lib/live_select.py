@@ -1,14 +1,16 @@
 """The SHIPPED selector, run under history — support module for `account_sim --live-select`.
 
 RESEARCH TIER importing PRODUCTION. That is the allowed direction and the whole
-point: `account_sim` re-implements the deployment ladder in
-`scripts/backtest_study/lib/book.py::ladder_tier`, while the function that actually
-decides what gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (the
+point: `account_sim`'s frozen selector orders the book by its own tier rank
+(`lib/protocol.py::ladder_rank`), while the function that actually decides what
+gets deployed is `scripts/journal/s06_recommend.py` — `rank()` (the
 deterministic ladder, encoded once in `scripts/journal/lib/mapping.ladder_tier`)
-followed by `judge()` (the one model call, demote-only). The two ladders have
-already drifted apart. This module runs the shipped pair over the historical
-book so the drift is a measured number rather than an argument, and so the
-simulated decision is the live decision.
+followed by `judge()` (the one model call, demote-only). Since 2026-10-13 the
+book's tier comes from that same function (`book.py::book_tier` is an adapter),
+so the remaining drift is the §3 entry check and the §1.4 hedge carve-out. This
+module runs the shipped pair over the historical book so the drift is a
+measured number rather than an argument, and so the simulated decision is the
+live decision.
 
 Nothing here is a second copy of production. `s06_recommend.py` gains no
 sim-specific branch: everything the arm needs was already injectable
@@ -78,7 +80,7 @@ if str(ROOT) not in sys.path:
 from scripts.backtest_study.lib import protocol as P  # noqa: E402
 from scripts.backtest_study.f2_management.bear_giveback import hdr, sub  # noqa: E402
 from scripts.backtest_study.lib.book import (  # noqa: E402
-    DEFAULT_PROXY_CSV, DEFAULT_RESULTS_CSV, ladder_tier as book_ladder_tier,
+    DEFAULT_PROXY_CSV, DEFAULT_RESULTS_CSV, book_tier,
 )
 from scripts.journal.lib import analysis as janalysis  # noqa: E402
 from scripts.journal import s06_recommend as recommend  # noqa: E402
@@ -532,18 +534,20 @@ def unpriceable_reason(pair_key: tuple, structure: str, evals: dict,
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Ladder divergence — mapping.ladder_tier() vs book.ladder_tier()
+# Ladder divergence — the book's tier vs the tier the card would print
 # ════════════════════════════════════════════════════════════════════════════
+#
+# Both sides call `mapping.ladder_tier()` since 2026-10-13 (`book.book_tier` is
+# an adapter onto it), so a §1-§3 rule can no longer diverge. What still can:
+# the card's view of §3 when the delta is withheld, and the §1.4 hedge-only
+# carve-out that `rank()` applies on top of the tier.
 
-CAUSE_CREDIT_VETO = "§1.3 credit veto (RANGE + L-VOL)"
 CAUSE_HEDGE = "§1.4 hedge carve-out (bear debit is never a selection play)"
 CAUSE_DELTA = "§3 delta/DTE availability"
 CAUSE_OTHER = "other"
 
 
 def divergence_cause(structure: str, map_tier: str, map_reason: str) -> str:
-    if map_tier == "VETO" and "credit play in RANGE" in map_reason:
-        return CAUSE_CREDIT_VETO
     if structure in recommend._HEDGE_ONLY_STRUCTURES:
         return CAUSE_HEDGE
     if structure == "bull_put_spread":
@@ -552,13 +556,12 @@ def divergence_cause(structure: str, map_tier: str, map_reason: str) -> str:
 
 
 def ladder_divergence(recs, *, entry_check: str) -> list[dict]:
-    """One row per record whose two ladders disagree, itemised by cause.
+    """One row per record whose book tier and card tier disagree, by cause.
 
-    `mapping.ladder_tier()` is `docs/deployment-rules.md` §1-§3 as production
-    encodes it; `book.ladder_tier()` is the research port that has since fallen
-    behind it. Under `analysis_only` the delta is withheld from the production
-    side too, which is what the card alone would have had — so the §3 bucket
-    grows and the §1.3 bucket does not move.
+    The book tier is `mapping.ladder_tier()` with the row's measured delta.
+    The card tier is the same function with the delta the entry check allows:
+    under `analysis_only` it is withheld, which is what the card alone would
+    have had, so bull_put rows move on the §3 DTE proxy.
     """
     rows = []
     for r in recs:
@@ -567,7 +570,7 @@ def ladder_divergence(recs, *, entry_check: str) -> list[dict]:
         dte = r["dte"] if r.get("dte") is not None else float("nan")
         delta = r.get("delta") if entry_check == "ibkr_verified" else None
         map_tier, partial, reason = mapping.ladder_tier(structure, regime, dte, delta)
-        bt = book_ladder_tier(r)
+        bt = book_tier(r)
         hedge_only = structure in recommend._HEDGE_ONLY_STRUCTURES
         if bt == map_tier and not (hedge_only and bt in ("A", "B")):
             continue
@@ -576,40 +579,6 @@ def ladder_divergence(recs, *, entry_check: str) -> list[dict]:
                          partial=partial, reason=reason,
                          cause=divergence_cause(structure, map_tier, reason)))
     return rows
-
-
-def credit_veto_population(results_csv=None, proxy_csv=None) -> dict:
-    """The §1.3 population counted on the RAW exports, per file.
-
-    Counted here rather than off `load_book` because the claim this checks — "23
-    export rows, 8 in BacktestResults and 15 in BacktestProxy" — is about the
-    exports themselves, before the book drops duplicates, `bs_options_hist` rows
-    and rows that fail the exact-replay gate. A count taken after those drops
-    would appear to refute the claim by measuring something else.
-    """
-    out = {"by_file": {}, "by_structure": Counter(), "total": 0}
-    for label, path in (("BacktestResults", results_csv or DEFAULT_RESULTS_CSV),
-                        ("BacktestProxy", proxy_csv or DEFAULT_PROXY_CSV)):
-        path = Path(path)
-        n = 0
-        if path.exists():
-            with path.open(newline="") as fh:
-                for row in csv.DictReader(fh):
-                    structure = str(row.get("structure", "")).strip()
-                    regime = str(row.get("market_regime") or "")
-                    map_tier, _, reason = mapping.ladder_tier(
-                        structure, regime, float("nan"), None)
-                    if map_tier != "VETO" or "credit play in RANGE" not in reason:
-                        continue
-                    stub = dict(structure=structure, market_regime=regime,
-                                delta=None, dte=None)
-                    if book_ladder_tier(stub) == "VETO":
-                        continue
-                    n += 1
-                    out["by_structure"][structure] += 1
-        out["by_file"][label] = n
-        out["total"] += n
-    return out
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -624,7 +593,7 @@ def print_preamble(st, entry_check: str, use_llm: bool, cache: JudgmentCache | N
     hdr("LIVE SELECT — the SHIPPED selector (recommend.rank + judge) under history")
     judgment_line = ("cached judge() pass, model " + JUDGMENT_MODEL if use_llm
                      else "NOT RUN (--live-select-no-llm) — deterministic rank() only")
-    print(f"""  This arm replaces account_sim's own ladder (book.py::ladder_tier) with the
+    print(f"""  This arm replaces account_sim's own ordering (protocol.ladder_rank) with the
   function that actually decides what gets deployed: scripts/journal/s06_recommend.py's
   rank() — which encodes docs/deployment-rules.md §1-§3 exactly once, via
   scripts/journal/lib/mapping.ladder_tier — followed by judge(), the single
@@ -845,10 +814,11 @@ def _structure_of(plays: pd.DataFrame, d: str, ticker: str) -> str:
 
 
 def print_ladder_divergence(recs, entry_check: str) -> dict:
-    hdr("LADDER DIVERGENCE — the research ladder against the shipped one")
-    print("""  book.py::ladder_tier is a 2026-07 port of the deployment ladder; production
-  encodes the same rules once, in scripts/journal/lib/mapping.ladder_tier. The port
-  has since fallen behind. Every disagreement below is a row the simulation and
+    hdr("LADDER DIVERGENCE — the book's tier against the card's")
+    print("""  Both tiers come from scripts/journal/lib/mapping.ladder_tier, the one encoding
+  of the deployment ladder (book.py's own port was retired 2026-10-13). They can
+  still differ on the delta the entry check allows (§3) and on the §1.4 hedge-only
+  carve-out rank() applies. Every disagreement below is a row the simulation and
   the live card would treat differently — itemised by cause, not asserted.""")
 
     rows = ladder_divergence(recs, entry_check=entry_check)
@@ -865,17 +835,7 @@ def print_ladder_divergence(recs, entry_check: str) -> dict:
         print("  by source:    " + _counter_line(Counter(r["source"] for r in rows)))
         print("  by structure: " + _counter_line(Counter(r["structure"] for r in rows)))
 
-    sub("§1.3 credit veto, counted on the RAW exports")
-    pop = credit_veto_population()
-    print("""  The clause the port is missing: a CREDIT play in a RANGE + L-VOL market is a
-  §1 veto in production and a Tier-B deploy candidate in the port. Counted on the
-  export rows themselves, before the book drops duplicates, bs_options_hist rows,
-  and rows that fail the exact-replay gate.""")
-    for label, n in pop["by_file"].items():
-        print(f"  {n:>4}  {label}")
-    print(f"  {pop['total']:>4}  TOTAL   by structure: "
-          + _counter_line(pop["by_structure"]))
-    return dict(rows=rows, credit_veto=pop)
+    return dict(rows=rows)
 
 
 def print_judgment(rankers, cache: JudgmentCache | None, use_llm: bool) -> dict:

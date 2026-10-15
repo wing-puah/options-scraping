@@ -274,13 +274,15 @@ def test_g6_fires_on_a_ticker_rank_never_cleared():
 
 # ── ladder divergence ────────────────────────────────────────────────────────
 
-def test_the_missing_credit_veto_is_attributed_to_1_3():
+def test_the_credit_veto_is_no_longer_a_divergence():
+    """Until 2026-10-13 the book's own port lacked §1.3 and this row diverged
+    B -> VETO. The book now tiers through mapping.ladder_tier, so both sides
+    veto it and nothing is reported."""
     rec = make_rec(structure="bull_put_spread", market_regime="RANGE + L-VOL",
                    delta=-0.15, dte=45.0)
-    rows = LS.ladder_divergence([rec], entry_check="ibkr_verified")
-    assert len(rows) == 1
-    assert rows[0]["cause"] == LS.CAUSE_CREDIT_VETO
-    assert (rows[0]["book_tier"], rows[0]["map_tier"]) == ("B", "VETO")
+    assert LS.book_tier(rec) == "VETO"
+    assert LS.ladder_divergence([rec], entry_check="ibkr_verified") == []
+    assert LS.ladder_divergence([rec], entry_check="analysis_only") == []
 
 
 def test_an_agreeing_row_is_not_reported_as_a_divergence():

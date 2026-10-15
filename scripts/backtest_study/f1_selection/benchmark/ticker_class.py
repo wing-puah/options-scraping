@@ -142,9 +142,8 @@ BUILD_READINGS = [
     "containing straddle, strangle, iron_condor, butterfly or calendar = neutral; anything else = "
     "'other' (printed, never graded).",
     "Tier: scripts/journal/lib/mapping.py::ladder_tier(structure, market_regime, dte, "
-    "short_leg_delta=row delta), as narrow_to_fit.tier_of does. The loader's own `tier` is a port "
-    "(book.ladder_tier) without the credit RANGE+L-VOL veto, so it is NOT that function's output; "
-    "agreement is printed.",
+    "short_leg_delta=row delta), as narrow_to_fit.tier_of does. The loader's own `tier` comes from "
+    "the same function since 2026-10-13 (book.book_tier); agreement is printed.",
     "Gross R = stored R + cost_total / (|entry| x 100 x contracts), split on a non-blank "
     "cost_total, never on cost_basis.",
     "Diff CIs (meanR and hit rate): numpy date-clustered bootstrap over the UNION of both "
@@ -799,7 +798,7 @@ def main(argv=None) -> int:
         r["Rprod"] = prod_replay_R(r["_rec"])
     n_prod_fail = sum(1 for r in rows if r["Rprod"] is None)
     tier_agree = sum(1 for r in rows if r["tier"] == r["tier_book"])
-    print(f"  tier: mapping.ladder_tier agrees with the loader's port on {tier_agree} of {len(rows)} rows; "
+    print(f"  tier: mapping.ladder_tier agrees with the loader's tier on {tier_agree} of {len(rows)} rows; "
           f"DEBIT_PROD/CREDIT_PROD replay failures {n_prod_fail}")
 
     ins = [r for r in rows if r["date"] < IN_SAMPLE_BEFORE]

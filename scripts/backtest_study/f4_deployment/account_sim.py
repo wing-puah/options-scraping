@@ -64,8 +64,9 @@ overwrite the frozen book's. The runner runs both arms in one
 `--live-select` is an arm of a different kind: it changes WHO CHOOSES. Selection
 runs through the shipped decision function (`scripts/journal/recommend.py` —
 `rank()` then `judge()`), which encodes the deployment ladder once via
-`scripts/journal/lib/mapping.ladder_tier`, instead of this study's own port of it
-in `book.py`. Everything else — ledger, caps, sizing, frozen exit replay — is
+`scripts/journal/lib/mapping.ladder_tier`, instead of this study's own tier-order
+walk (`protocol.ladder_rank`; the tier itself comes from the same function via
+`book.py::book_tier` since 2026-10-13). Everything else — ledger, caps, sizing, frozen exit replay — is
 unchanged. It files its own report and positions CSV, evaluates no
 pre-registered criterion (A1-A6 were registered against the frozen selector's
 candidate set and do not transfer), and is never run as a sensitivity of the
@@ -1295,8 +1296,8 @@ POSITIONS_CSV_COLUMNS = [
     # mae, regime, mech_cell all present on every record)
     "max_loss_per_contract", "delta", "dte", "score_total", "mfe", "mae",
     # REGIME, both readings. `market_regime` is the model's MARKET read and is
-    # the field `book.ladder_tier` keys the tier off (via `model_dir`/
-    # `model_vol`); `regime` is the per-play TICKER regime and never feeds the
+    # the field `book.book_tier` keys the tier off (it is passed to
+    # `mapping.ladder_tier`); `regime` is the per-play TICKER regime and never feeds the
     # tier — they are separate by invariant, so both are carried. The mech_*
     # trio is the mechanical SPY/VIX label, as-of the signal date, which
     # selects the exit profile (BEAR_HE) rather than the tier.

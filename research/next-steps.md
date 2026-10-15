@@ -22,53 +22,71 @@ studies until P1 and P2 are read.
 
 | Step | Who | What | Blocks |
 |---|---|---|---|
-| P0 | Operator | Write the kill rule below into a registration before any result | P1 read |
-| P1 | Claude, after a yes | `mechanical_benchmark` same-ticker fetch and run | P2 choice |
-| P2 | Operator | Choose ARM U, a SPY-only benchmark, or stop | the verdict |
-| P3 | Claude | Retire the study book's tier port (item 8) | the next suite re-run |
+| P0 | DONE 2026-10-13 | Kill rule registered as [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md), before any result | nothing |
+| P1 | DONE 2026-10-14, corrected 2026-10-15 | `mechanical_benchmark` same-ticker read: `ARM M1` meets `CONTRARY` on the corrected run; the gate reads `WAIT` | the operator reads the `CONTRARY` |
+| P2 | DONE 2026-10-15 | `spy_benchmark` prints `DOES-NOT-BEAT`, post hoc; recorded beside the gate | nothing |
+| P3 | Claude | DONE 2026-10-13 — the study book's tier port is retired (item 8) | nothing; P5 carries the moved tiers |
 | P4 | Both | Keep the daily loop running at the card's sizes | forward grades |
 | P5 | Claude | Suite re-run once sealed dates price | `dip_buy` read |
-| P6 | Claude, when asked | Housekeeping: item 7, item 11 | nothing |
+| P6 | Claude, when asked | Housekeeping: item 7, item 11; backup pruning, operator item 16 | nothing |
 
-**P0 — the kill rule.** Drafted here; it is not doctrine until registered.
-It goes under `f4_deployment/` as `programme_gate.md`, accepted by default.
+**P0 — the kill rule. DONE 2026-10-13.** Registered as
+[`programme_gate`](pre-registrations/f4_deployment/programme_gate.md),
+accepted by default before any P1 result existed. It reads `WAIT` today
+([entry](current.md#2026-10-13--programme_gate-registered-before-any-p1-result)).
 
 - If the picks do not beat the mechanical spread in P1, and `dip_buy` grades
   `NULL` or `CONTRARY`, retire the flow-selection layer.
 - Retiring it means trading a mechanical dip rule at $500, or stopping.
 - If either read is positive, keep the pipeline and keep both forward grades
   running.
+- P1 alone cannot retire anything: the gate waits for `dip_buy`. The backstop
+  is 2027-10-13.
 
-**P1 — `mechanical_benchmark`, same-ticker arms.** Item 15 holds the commands.
-The arms are M1 and M2, 710 contracts on v4.
+**Gate read, 2026-10-15: still `WAIT`, "P1 negative, `dip_buy` open".**
+On the corrected P1 run, `PG-M` reads `CONTRARY` because `ARM M1` still
+meets the `CONTRARY` condition. `PG-D` is `STILL-OPEN`, so row 4 of the gate
+applies. Nothing retires until `dip_buy` grades, or until the 2027-10-13
+backstop ([entry](current.md#2026-10-15--mechanical_benchmark-p1-corrected-the-contrary-survives-the-spot-fix-and-the-tier-port)). The first read, on 2026-10-14, gave the same answer
+([entry](current.md#2026-10-14--mechanical_benchmark-the-mechanical-spread-beats-the-picks-on-their-own-tickers)).
 
-1. Plug in to AC power and run `caffeinate -dims`. Check that no other
-   Barchart writer is running.
-2. Print the count with `fetch_mechanical_legs.py --arms M1,M2 --no-v3
-   --dry-run`. Ask the operator before fetching.
-3. Fetch in batches with `--limit`. Run `backup_research_caches.py push`
-   after each batch.
-4. Re-run the study. A fetch can expose a nearer strike, so repeat steps 2–4
-   until nothing awaits a fetch.
-5. Write the record, the `current.md` entry and the catalog verdict.
+**P1 — `mechanical_benchmark`, same-ticker arms. DONE 2026-10-14, corrected
+2026-10-15.** The same-ticker path was ruled in `mechanical_benchmark.md` on
+2026-10-13, before the run. The v4 fetch ran in about 64 batches over
+2026-10-13/14, and the first run prints `SAME-TICKER READ — ARM U NOT BUILT`
+([entry](current.md#2026-10-14--mechanical_benchmark-the-mechanical-spread-beats-the-picks-on-their-own-tickers)).
+The run of record is now the 2026-10-15 correction, after the spot fix and
+P3. It prints the same verdict, and `ARM M1` still meets `CONTRARY`
+([entry](current.md#2026-10-15--mechanical_benchmark-p1-corrected-the-contrary-survives-the-spot-fix-and-the-tier-port)).
 
-The same-ticker arms test strike, expiry and timing on the book's own
-tickers. They do not test ticker choice. Only ARM U does.
+- `ARM M1` meets the `CONTRARY` condition: the ATM/+5% call spread on the same
+  ticker and expiry beat the picks, gross of costs. `ARM M2` clears neither
+  C1 nor `CONTRARY`.
+- **The registration requires the `CONTRARY` to reach the operator before any
+  further study runs.** P2 and P5 wait on that.
+- The same-ticker arms test strike, expiry and timing on the book's own
+  tickers. They do not test ticker choice. Only ARM U does.
+- Not fetched: the v3 legs, `ARM M2L`'s legs and `ARM U`. Item 15 holds the
+  commands.
 
-**P2 — the ticker-choice read.** Three options, recommended first.
+**P2 — the ticker-choice read. DONE 2026-10-15.** The operator chose the
+SPY-only benchmark, registered post hoc as
+[`spy_benchmark`](pre-registrations/f1_selection/benchmark/spy_benchmark.md)
+([entry](current.md#2026-10-14--spy-only-benchmark-registered-post-hoc)).
+After the v4 fetch it prints `DOES-NOT-BEAT`
+([entry](current.md#2026-10-15--spy_benchmark-the-picks-do-not-beat-a-spy-call-spread-gross)).
 
-| Option | Cost | What it answers |
-|---|---|---|
-| SPY-only benchmark, a new registration | a few hundred SPY contracts | do the picks beat a SPY call spread on the same dates? |
-| ARM U as registered | about 39,000 contracts and 1,978 tickers of bars | do the picks beat random tickers? |
-| Stop at P1 | none | ticker choice stays untested |
+- Across the same dates the picks did not beat a SPY call spread, gross. The
+  CI spans zero, so it is not `CONTRARY`.
+- It is not a `programme_gate` input, and it does not change the gate.
+- `ARM U` as registered stays unfetched. Ticker choice against a random name
+  is still untested.
+- The v3 SPY legs are optional and not fetched:
+  `python3 scripts/collector/fetch_mechanical_legs.py --arms SPY --limit N`.
 
-The SPY-only arm is a new study, so its registration must say it was
-proposed after `cost_sensitivity` and `direction_hit` were read.
-
-**P3 — the tier port.** Swap `book.py::ladder_tier` for
-`mapping.ladder_tier()`. It moves every study that reads `rec["tier"]`, so
-do it before P5, not after.
+**P3 — the tier port. DONE 2026-10-13.** The study book now takes its tier
+from `mapping.ladder_tier()`; item 8 has the counts. P5 is the first suite
+re-run on the new tiers.
 
 **P4 — the daily loop.** Run `make analyze`, the backtest and the journal as
 usual. Size by the card: Tier A on a dip date at the $1,000 stop, everything
@@ -102,16 +120,16 @@ No rule changes on it.
 | `bear_fast_exit` | `BLEED-CUT`; loses less, still loses after cost |
 | `ruin_bound` | $500 safe with the F2 refusal; $1,000 has no cell in bounds |
 | `cost_sensitivity` | `VANISHES` on both tiers |
-| `mechanical_benchmark` | not run; waits on a fetch, item 15 |
+| `mechanical_benchmark` | same-ticker read 2026-10-14: `ARM M1` `CONTRARY`; ARM U not built, item 15 |
 | `regime_map` | two Tier A cells replicate, both falling-market dates; forward `STILL-OPEN` |
 | `direction_hit` | `NULL`; nothing at entry predicts the underlying's direction |
 
 **To do next, in order.**
 
-1. **Operator: decide item 15**, the `mechanical_benchmark` fetch. The
-   same-ticker arm needs about 710 contracts. The random-ticker arm, which
-   answers the question, needs about 39,000 plus 1,978 tickers of history.
-   Default: nothing is fetched.
+1. **DONE 2026-10-14 for the same-ticker arms — item 15.** The v4 M1 and M2
+   legs were fetched and the study read; see P1 above. The random-ticker
+   arm still needs about 39,000 contracts plus 1,978 tickers of history.
+   Default: it is not fetched.
 2. **Operator, optional: the seal start.** It is 2026-09-23, not the draft's
    2026-08-11, because earlier runs had read the earlier dates. Default: it
    stands.
@@ -136,13 +154,28 @@ No rule changes on it.
    ([entry](current.md#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
    The refresh is a Barchart scrape (`fetch_underlying_ohlc.py`). Default: not
    run until the operator asks.
-8. **Claude: retire the study book's own tier port.**
-   `scripts/backtest_study/lib/book.py::ladder_tier` lacks the §1.3 and §1.4
-   vetoes, so bear debits and RANGE + L-VOL credits land in Tier C. The
-   deploy card's §7 tables carry this, and say so. CLAUDE.md names
-   `mapping.ladder_tier()` the one encoding. Swapping it in moves every
-   study that reads `rec["tier"]`, so it needs a suite re-run. Found
-   2026-10-12.
+8. **DONE 2026-10-13 — the study book's tier port is retired.**
+   `lib/book.py::book_tier` now calls `mapping.ladder_tier()`, the one
+   encoding. The only rule that moved a row is the §1.3 credit veto: credit
+   plays in a RANGE + L-VOL market now read VETO.
+
+   | Era | Rows | B → VETO | C → VETO | Unchanged |
+   |---|--:|--:|--:|--:|
+   | v4 | 1,850 | 34 | 53 | 1,763 |
+   | v3 | 795 | 3 | 10 | 782 |
+
+   The movers are `bull_put_spread` rows, plus two v4 `short_put` rows.
+   - **§1.4 is not in `ladder_tier()`.** Bear debits stay Tier C in the book.
+     `s06_recommend.rank()` applies the hedge-only rule on top of the tier.
+   - **Four v4 credits stay Tier C.** Three `iron_condor` rows and one credit
+     `butterfly` sit in RANGE + L-VOL, but `mapping.SIDE` does not list those
+     structures as credit. That gap is production's; no rule was changed here.
+   - **Still owed.** Every study that reads `rec["tier"]` moves on the P5
+     re-run. The §7 tables in `docs/deployment-rules.md` still describe the
+     old port; regenerate them on that run.
+   - **Three other ports remain.** `v4_bridge.ladder_tier`,
+     `regime_gap_reread.ladder_tier` and `bear_position_study.ladder_tier`
+     each carry their own copy. None feeds the book.
 9. **DONE 2026-10-12 — `index_vrp` prints `NO-TAIL-LINK`.** Short index
    vol is closed for this book
    ([entry](current.md#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)).
@@ -376,25 +409,41 @@ Decisions owed. None of these is a study.
     before any forward date had a row
     ([entry](current.md#2026-10-09--narrow_to_fit-a-20-net-floor-changes-no-verdict)).
 
-15. **OPEN — `mechanical_benchmark` waits on a fetch the operator must
-    approve.** It was accepted by default and built on 2026-10-09, and prints
-    `NOT BUILT — AWAITING SCRAPE` with no outcome read until its counterpart
-    legs are cached
+15. **RESOLVED 2026-10-14 for `ARM M1` and `ARM M2` on v4; the rest stays
+    OPEN.** The v4 same-ticker legs were fetched, and the run of record prints
+    `SAME-TICKER READ — ARM U NOT BUILT`, with `ARM M1` meeting `CONTRARY`
+    ([entry](current.md#2026-10-14--mechanical_benchmark-the-mechanical-spread-beats-the-picks-on-their-own-tickers)).
+    The registration requires that `CONTRARY` to reach the operator before any
+    further study runs. Built 2026-10-09
     ([entry](current.md#2026-10-09--mechanical_benchmark--not-built-yet-awaiting-a-scrape-nothing-ships)).
-    The sizes come from `fetch_mechanical_legs.py --dry-run`:
+    Corrected 2026-10-15; P1 now cites that run
+    ([entry](current.md#2026-10-15--mechanical_benchmark-p1-corrected-the-contrary-survives-the-spot-fix-and-the-tier-port)). Still unfetched, with sizes from its fetch plan:
 
     | Step | Volume | Command |
     |---|---|---|
-    | Same-ticker arms (M1, M2), v4 | 710 contracts | `python3 scripts/collector/fetch_mechanical_legs.py --arms M1,M2 --no-v3 --limit N` |
-    | Universe stock bars for ARM U | 1,978 tickers | `python3 scripts/collector/fetch_underlying_ohlc.py --tickers $(python3 scripts/collector/fetch_mechanical_legs.py --list-underlying)` |
-    | ARM U legs, v4 and v3 | about 39,000 contracts, more after the bars land | `python3 scripts/collector/fetch_mechanical_legs.py --arms U --limit N` |
-    | Missing universe files | 4 dates | `python3 -m scripts.analysis_pipeline --skip-llm --date <D>` |
+    | v3 same-ticker legs (M1, M2) | `M1:v3=130`, `M2:v3=322` | `python3 scripts/collector/fetch_mechanical_legs.py --arms M1,M2 --limit N` |
+    | `ARM M2L` legs, a declared secondary | `M2L:current=163`, `M2L:v3=70` | `python3 scripts/collector/fetch_mechanical_legs.py --arms M2L --limit N` |
+    | Universe stock bars for ARM U | 1961 tickers | `python3 scripts/collector/fetch_underlying_ohlc.py --tickers $(python3 scripts/collector/fetch_mechanical_legs.py --list-underlying)` |
+    | ARM U legs, v4 and v3 | `U:current=31909`, `U:v3=7139`, more after the bars land | `python3 scripts/collector/fetch_mechanical_legs.py --arms U --limit N` |
+    | Missing universe files | 2 dates | `python3 -m scripts.analysis_pipeline --skip-llm --date <D>` |
 
     Push the cache after each batch (`backup_research_caches.py push`) and
     re-run the study. A fetch can expose a nearer strike, so expect more than
-    one round. ARM U is the expensive arm and the one that answers the
-    question. If its scrape is refused, the study records `NOT BUILT` and the
-    question goes back to robustness-review N2.
+    one round. For P2 the operator chose the SPY-only benchmark, not the
+    ARM U scrape ([P2](#plan-20261013)).
+
+16. **OPEN — the cache backup never prunes.** Each
+    `backup_research_caches.py push` uploads a full archive of about 530MB,
+    and nothing deletes the older snapshots. The per-batch pushes of
+    2026-10-13/14 filled the operator's Drive. Default: no code change until
+    the operator picks how many snapshots to keep. The fix is a prune step
+    in the script. Filed 2026-10-15.
+17. **DECIDED 2026-10-15 — the spot stays calls-only; not adopted.**
+    `mechanical_benchmark`'s spot is the median `Price~` of cached calls.
+    Adding puts would cut `ARM M1`'s `no_spot_at_signal` drops from 8 to 6
+    on v4. Default: calls only, as in the run of record. Adopting puts would
+    change which pairs exist after outcomes have printed, so it would need
+    its own build ruling and a re-run.
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14

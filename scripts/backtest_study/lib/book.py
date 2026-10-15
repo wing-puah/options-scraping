@@ -144,6 +144,9 @@ from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
     KINDS as _CALIB_KINDS, bounded, calib as _calib_full, classify as _classify,
     unreachable_reasons,
 )
+# Research importing production, the sanctioned direction: the tier comes from
+# the ONE encoding of docs/deployment-rules.md §1-§3. See `book_tier`.
+from scripts.journal.lib import mapping  # noqa: E402
 
 # Resolved for the era this PROCESS was asked for (`STUDY_ERA`, default
 # `current`). Import-time resolution is correct because the runner sets the env
@@ -200,23 +203,30 @@ def model_vol(regime_str):
     return None
 
 
-def ladder_tier(rec: dict) -> str:
-    """VETO / A / B / C per docs/deployment-rules.md. Verbatim port of
-    `ladder_tier()` from scripts/backtest_study/f1_selection/bear/bear_position_study.py — keyed off the
-    MODEL regime (market_regime free text), not the mechanical regime."""
-    st, mr = rec["structure"], rec.get("market_regime") or ""
-    mdir, mvol = model_direction(mr), model_vol(mr)
-    if st == "bear_call_spread":
-        return "VETO"
-    if mdir == "BEAR" and mvol == "H-VOL":
-        return "VETO"
-    if st == "bull_call_spread":
-        return "A" if (mdir == "RANGE" or mvol == "E-VOL") else "B"
-    if st == "bull_put_spread":
-        d, dte = rec["delta"], rec["dte"]
-        if d is not None and dte is not None and 0.08 <= abs(d) <= 0.20 and dte <= 59:
-            return "B"
-    return "C"
+def book_tier(rec: dict) -> str:
+    """VETO / A / B / C for a book record, from `mapping.ladder_tier()`.
+
+    An ADAPTER, not an encoding. `scripts/journal/lib/mapping.py::ladder_tier`
+    is the one encoding of docs/deployment-rules.md §1-§3 (CLAUDE.md
+    Invariants); this only reshapes a record into its arguments. The record's
+    `delta` goes in as the verified short-leg delta, and a missing `dte` goes
+    in as NaN so it can never pass §3. The model regime (`market_regime`) is
+    the key, never the mechanical one. A record carrying `core_structure` (a
+    financed multi-leg position) is tiered off that core, as
+    `s02_reconcile.py` does, never off its "3-leg combo" label. No book record
+    carries one today: the backtest classifier emits single structures.
+
+    Until 2026-10-13 this module carried its own port, which lacked the §1.3
+    credit veto: 87 v4 and 13 v3 book rows sat in Tier B or C instead of VETO.
+    §1.4 (bear debits are hedge-only) is applied by `s06_recommend.rank()`,
+    not by `ladder_tier()`, so bear debits stay Tier C here, as before.
+    """
+    dte = rec.get("dte")
+    tier, _partial, _reason = mapping.ladder_tier(
+        rec.get("core_structure") or rec["structure"], rec.get("market_regime") or "",
+        dte_proxy=dte if dte is not None else float("nan"),
+        short_leg_delta=rec.get("delta"))
+    return tier
 
 
 def _calib(t: Trade, prod: dict) -> tuple[bool, bool]:
@@ -395,7 +405,7 @@ def _build_record(t: Trade, source: str, calibrated: bool, ac_lookup: dict,
         post13c=post13c,
         t=t,
     )
-    rec["tier"] = ladder_tier(rec)
+    rec["tier"] = book_tier(rec)
     return rec
 
 

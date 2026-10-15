@@ -822,8 +822,11 @@ journal's real stop fills going forward.
 
 ### Credit RANGE+L-VOL veto conformance (to be tested, operator ruling owed)
 
-Research `lib/book.py::ladder_tier` lacks production's veto. Book-wide the
+Research `lib/book.py::ladder_tier` lacked production's veto. Book-wide the
 veto is net positive. This is a conformance item, not a drawdown fix.
+The port was retired 2026-10-13: the book now tiers through
+`mapping.ladder_tier()`, so the next suite re-run carries the veto
+([item 8](next-steps.md#plan-20261013)).
 
 | DD1 cell | Effect of the veto |
 |---|---|

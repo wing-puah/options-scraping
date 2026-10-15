@@ -551,6 +551,8 @@ in the family folders concluded.
 - `lib/book.py` — pooled real+proxy book loader with dedup + the exact-replay calibration gate
   (bs-tier rows excluded by default). Era-scoped: resolves its three exports from `lib/era.py`,
   enforces the era, and applies the date floor. `diag` carries `era`, `n_dates`, `date_range`.
+  Each record's `tier` comes from `mapping.ladder_tier()` through the adapter `book_tier`;
+  the loader's own port was retired 2026-10-13.
   `--validate` passes `min_dates=0` — the diagnostic's job is to describe whatever book is
   there, including one too thin to study.
 - `lib/replay_basis.py` — the one classifier for "does a stored row reproduce under a
@@ -778,15 +780,18 @@ Other arms:
   (`account_sim-positions-structure-latest.csv`).
 - `--live-select` — an arm of a different kind: it changes WHO CHOOSES. Selection runs through
   the SHIPPED decision function — `scripts/journal/s06_recommend.py`'s `rank()` then `judge()` —
-  instead of book.py's port of the ladder, so the simulated decision is the live decision and
-  the drift between them is a measured number. Ledger, caps, sizing, and the frozen exit
-  replay are unchanged (`live_select.py`; a `ranker` hook on `simulate()` that is None on
-  every other path). Own report (`account_sim-live-select-latest.txt`) and CSV; treated as a
-  SINGLE-arm run (never files under account_sim's stem, never drags the compounding arm
-  along). G2–G4 stay pinned to the frozen basis; G5 is RE-RUN with the shipped selector in
-  the loop; G6 (nothing reaches the ledger that rank() did not clear) runs on the arm. It
-  evaluates NO pre-registered criterion — A1–A6 were registered against the frozen selector's
-  candidate set and do not transfer.
+  instead of account_sim's own tier-order walk, so the simulated decision is the live
+  decision and the drift between them is a measured number. Ledger, caps, sizing, and the
+  frozen exit replay are unchanged (`live_select.py`; a `ranker` hook on `simulate()` that is
+  None on every other path).
+  - Both sides read the tier from `mapping.ladder_tier()` since 2026-10-13, so the drift is
+    the §3 entry check and the §1.4 hedge carve-out.
+  - Own report (`account_sim-live-select-latest.txt`) and CSV; treated as a SINGLE-arm run
+    (never files under account_sim's stem, never drags the compounding arm along).
+  - G2–G4 stay pinned to the frozen basis; G5 is RE-RUN with the shipped selector in the
+    loop; G6 (nothing reaches the ledger that rank() did not clear) runs on the arm. It
+    evaluates NO pre-registered criterion — A1–A6 were registered against the frozen
+    selector's candidate set and do not transfer.
   - `--live-select-entry-check {ibkr_verified,analysis_only}` — deployment-rules §3 reads the
     short-leg delta in IBKR at order entry and the analysis row does not carry it, so the
     default joins the book row's measured delta; the other supplies nothing. Both counts
