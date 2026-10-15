@@ -30,6 +30,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 log = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
+# Retries per Drive request on 5xx/429 and connection errors, with exponential
+# backoff (googleapiclient's built-in retry). Without it one transient 502 from
+# Drive killed an enrich_oi run after its full Barchart scrape (2026-10-15).
+_RETRIES = 5
 # Full Drive scope (not drive.file): drive.file only exposes files THIS OAuth client
 # created, so folders/files added via the web UI or copy-paste are invisible to it.
 # Full scope lets the pipeline read + re-upload such folders (e.g. hand-copied date
@@ -169,7 +173,7 @@ class DriveClient:
             f"name = '{date_str}' and '{self._root}' in parents "
             f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
         )
-        files = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        files = self._svc.files().list(q=q, fields="files(id)").execute(num_retries=_RETRIES).get("files", [])
         if files:
             folder_id = files[0]["id"]
             log.info("Found existing date folder '%s'", date_str)
@@ -182,7 +186,7 @@ class DriveClient:
                 "parents": [self._root],
             },
             fields="id",
-        ).execute()["id"]
+        ).execute(num_retries=_RETRIES)["id"]
         log.info("Created date folder '%s'", date_str)
         return folder_id
 
@@ -190,7 +194,7 @@ class DriveClient:
         """Return file ID if name exists in folder_id, else None."""
         log.debug("Checking whether '%s' exists in Drive", name)
         q = f"name = '{name}' and '{folder_id}' in parents and trashed = false"
-        files = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        files = self._svc.files().list(q=q, fields="files(id)").execute(num_retries=_RETRIES).get("files", [])
         if files:
             log.debug("'%s' exists in Drive", name)
             return files[0]["id"]
@@ -210,19 +214,19 @@ class DriveClient:
             str(local_path), mimetype=mimetype, resumable=True)
         q = f"name = '{name}' and '{folder_id}' in parents and trashed = false"
         existing = self._svc.files().list(
-            q=q, fields="files(id)").execute().get("files", [])
+            q=q, fields="files(id)").execute(num_retries=_RETRIES).get("files", [])
         if existing:
             log.info("Replacing existing file '%s'", name)
             file_id = self._svc.files().update(
                 fileId=existing[0]["id"], media_body=media, fields="id"
-            ).execute()["id"]
+            ).execute(num_retries=_RETRIES)["id"]
         else:
             log.info("Creating new file '%s' in Drive", name)
             file_id = self._svc.files().create(
                 body={"name": name, "parents": [folder_id]},
                 media_body=media,
                 fields="id",
-            ).execute()["id"]
+            ).execute(num_retries=_RETRIES)["id"]
         log.info("Upload complete: '%s'", name)
         return file_id
 
@@ -235,7 +239,7 @@ class DriveClient:
         dl = MediaIoBaseDownload(buf, req)
         done = False
         while not done:
-            _, done = dl.next_chunk()
+            _, done = dl.next_chunk(num_retries=_RETRIES)
         content = buf.getvalue().decode("utf-8", errors="replace")
         log.info("Downloaded Drive file %s — %d bytes", label, len(content))
         return content
@@ -248,7 +252,7 @@ class DriveClient:
         """
         log.debug("Trashing Drive file")
         self._svc.files().update(fileId=file_id, body={
-            "trashed": True}).execute()
+            "trashed": True}).execute(num_retries=_RETRIES)
 
     def list_files(self, prefix: str) -> list[dict]:
         """
@@ -302,7 +306,7 @@ class DriveClient:
             f"name = '{date_str}' and '{self._root}' in parents "
             f"and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
         )
-        files = self._svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        files = self._svc.files().list(q=q, fields="files(id)").execute(num_retries=_RETRIES).get("files", [])
         return files[0]["id"] if files else None
 
     # Backwards-compatible private alias for existing internal callers.
@@ -322,7 +326,7 @@ class DriveClient:
         out: list[dict] = []
         page_token = None
         while True:
-            resp = self._svc.files().list(**params, pageToken=page_token).execute()
+            resp = self._svc.files().list(**params, pageToken=page_token).execute(num_retries=_RETRIES)
             out.extend(resp.get("files", []))
             page_token = resp.get("nextPageToken")
             if not page_token:
@@ -401,7 +405,7 @@ class DriveClient:
         q = f"'{folder_id}' in parents and name contains '{prefix}-' and trashed = false"
         files = self._svc.files().list(
             q=q, fields="files(id, name, createdTime)", orderBy="name"
-        ).execute().get("files", [])
+        ).execute(num_retries=_RETRIES).get("files", [])
         files = snapshot_files(files, prefix, date_str)
         log.info("Found %d snapshot(s) for prefix '%s' on %s", len(files), prefix, date_str)
         return files
@@ -420,7 +424,7 @@ class DriveClient:
         )
         files = self._svc.files().list(
             q=q, fields="files(id, name, createdTime)", orderBy="name desc"
-        ).execute().get("files", [])
+        ).execute(num_retries=_RETRIES).get("files", [])
         if not files:
             log.warning("No files found for prefix '%s' on date '%s'", prefix, date_str)
             return None, None
