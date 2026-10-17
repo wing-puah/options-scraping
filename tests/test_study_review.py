@@ -238,6 +238,68 @@ def test_load_pre_registration_flat_file_is_not_resolved(tmp_path, monkeypatch):
     assert "No pre-registration" in str(exc_info.value)
 
 
+
+_BRIEFED = (
+    "## foo_study — a title\n\n"
+    "<!-- brief:start -->\n"
+    "## In brief\n\n"
+    "> Latest outcome: `CANDIDATE` — 2026-10-01.\n\n"
+    "**The question**\n\nPlain words.\n"
+    "<!-- brief:end -->\n\n"
+    "_Registered 2026-09-01._\n\n"
+    "Criterion 1: something measurable.\n"
+)
+
+
+def test_load_pre_registration_strips_the_readers_brief(tmp_path, monkeypatch):
+    # The brief carries the latest outcome; the graders are blind to outcomes.
+    pre_reg_dir = tmp_path / "pre-registrations"
+    (pre_reg_dir / "f1_selection").mkdir(parents=True)
+    (pre_reg_dir / "f1_selection" / "foo_study.md").write_text(_BRIEFED)
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    heading, body = load_pre_registration("foo_study", None)
+    assert heading == "foo_study — a title"
+    assert body.startswith("_Registered 2026-09-01._")
+    assert "Criterion 1: something measurable." in body
+    for leaked in ("Latest outcome", "CANDIDATE", "In brief", "Plain words", "brief:"):
+        assert leaked not in body
+
+
+def test_load_pre_registration_strips_the_brief_from_an_override_path(tmp_path):
+    override_path = tmp_path / "elsewhere.md"
+    override_path.write_text(_BRIEFED)
+    _, body = load_pre_registration("foo_study", str(override_path))
+    assert "Latest outcome" not in body
+
+
+@pytest.mark.parametrize("broken", [
+    _BRIEFED.replace("<!-- brief:end -->", ""),
+    _BRIEFED.replace("<!-- brief:start -->", ""),
+    _BRIEFED + "\n<!-- brief:start -->\nLatest outcome: `NULL`\n",
+])
+def test_load_pre_registration_refuses_an_unbalanced_brief_marker(tmp_path, monkeypatch, broken):
+    pre_reg_dir = tmp_path / "pre-registrations"
+    (pre_reg_dir / "f1_selection").mkdir(parents=True)
+    (pre_reg_dir / "f1_selection" / "foo_study.md").write_text(broken)
+    monkeypatch.setattr(core.config, "PRE_REG_DIR", pre_reg_dir)
+
+    with pytest.raises(SystemExit) as exc_info:
+        load_pre_registration("foo_study", None)
+    assert "unbalanced brief marker" in str(exc_info.value)
+
+
+def test_every_real_registration_keeps_its_outcome_inside_the_brief():
+    # The repo's own files: each registration has exactly one brief, and the
+    # text the graders receive names no latest outcome.
+    files = sorted(p for p in core.config.PRE_REG_DIR.glob("*/**/*.md") if p.stem != "README")
+    assert files
+    for path in files:
+        raw = path.read_text()
+        assert raw.count(core.BRIEF_START) == 1 and raw.count(core.BRIEF_END) == 1, path
+        _, body = load_pre_registration(path.stem, str(path))
+        assert "Latest outcome" not in body, path
+
 # ─────────────────────────────── prompt builders ────────────────────────────
 
 def _report_path():

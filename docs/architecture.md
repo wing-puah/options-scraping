@@ -1020,19 +1020,25 @@ rescaled" (2026-09-05).
 Outputs `<name>-review-{analyst-a,analyst-b,validator}-latest.md` + `<name>-digest-latest.md`.
 
 The analysts and the validator are ISOLATED — no filesystem, no tools — so they grade only
-what the prompt inlines. Three artifacts go in: the pre-registration
-(`research/pre-registrations/<family>/<name>.md`, read whole), the ERRATA file
-(`research/<name>-errata.md`, `_` also tried as `-`) when one exists, and the report, in that
-order. The errata is inlined as AUTHORITY, not commentary: a registration is immutable, so a
-defect found in it after commit — a self-contradictory clause, a degenerate arm, an operator's
-ratification of a population — is recorded there instead of being edited in, and a grader
-shown only the registration is blind to the document that decides those clauses. That gap was
-real: the 2026-08-31 `hedge_portfolio` grading had all three graders disclose they could not
-see the errata and grade the report's own quoted RATIFICATION text instead. The block says
-explicitly that the errata never RELAXES a commitment — anything it does not resolve is still
-graded against the registration as written. `--errata <path>` overrides discovery; `--no-errata`
-skips it (only to reproduce a pre-errata grading run); a missing errata is the normal case and
-warns on stderr, while an EMPTY one is fatal, so a run cannot look like it graded against one.
+what the prompt inlines. Three artifacts go in, in this order:
+
+- the pre-registration (`research/pre-registrations/<family>/<name>.md`), read whole except
+  the reader's brief at its top, which `strip_brief` cuts because it carries the latest outcome;
+- the ERRATA file (`research/<name>-errata.md`, `_` also tried as `-`) when one exists;
+- the report.
+
+The errata is inlined as AUTHORITY, not commentary. A registration is immutable, so a defect
+found in it after commit is recorded there instead of being edited in. Examples are a
+self-contradictory clause, a degenerate arm, or an operator's ratification of a population. A
+grader shown only the registration is blind to the document that decides those clauses. That
+gap was real: in the 2026-08-31 `hedge_portfolio` grading, all three graders said they could
+not see the errata. They graded the report's own quoted RATIFICATION text instead.
+
+The block says explicitly that the errata never RELAXES a commitment. Anything it does not
+resolve is still graded against the registration as written. `--errata <path>` overrides
+discovery; `--no-errata` skips it (only to reproduce a pre-errata grading run). A missing
+errata is the normal case and warns on stderr. An EMPTY one is fatal, so a run cannot look
+like it graded against one.
 
 **`scripts/study_results.py`** — the per-ERA record: reads a `<name>-latest.txt` and appends
 a section to `research/study-results/<family>/<name>.md`, tracked and append-only, keyed on

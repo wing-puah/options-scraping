@@ -2,8 +2,8 @@
 
 Each study has one pre-registration file: the question, frozen inputs,
 criteria, and gates committed to **before** the study was built or run.
-To understand a study quickly, read its plain-language brief in
-[`../study-briefs/`](../study-briefs/); the registration here stays binding.
+Each file opens with a plain-language brief: read it to understand the
+study in five minutes. The registration below the brief stays binding.
 
 **The rule.** A pre-registration's commitments are immutable — no gate, bar,
 arm definition, or verdict changes meaning after it is written.
@@ -20,7 +20,8 @@ NOT live in [`../current.md`](../current.md) (a rolling log pruned into
 `scripts/backtest_study/` and [`../study-results/`](../study-results/): a
 study's registration lives in the same `fN_*` folder as its module.
 `python -m scripts.study_review <study>` globs `<family>/<study>.md` and
-hands the whole file to the two independent analyst agents plus validator,
+hands the file, with its brief cut out, to the two independent analyst
+agents plus validator,
 who grade the study's run against what was committed here — see
 [`../replication-protocol.md`](../replication-protocol.md).
 
@@ -45,9 +46,10 @@ drafter's recommended defaults were accepted unreviewed.
 **Latest outcome** is the verdict the study last printed, quoted verbatim, with
 its date and a link to the record. The record is the study's file in
 [`../study-results/`](../study-results/); a commitment's is
-[`../current.md`](../current.md). Outcomes live here and never in a
-registration, because `study_review` hands the whole registration to blind
-graders. `graded` means a grading exists; it may predate the latest run.
+[`../current.md`](../current.md). The same line opens the file's brief.
+Nowhere else in a file may an outcome appear, because blind graders read
+everything outside the brief. When a study re-runs, update both copies.
+`graded` means a grading exists; it may predate the latest run.
 
 ## How a registration is structured
 
@@ -57,7 +59,9 @@ Every file follows one template:
   fragment only when there is a real one. `scripts/study_review/` extracts
   this line as the document's label, so never demote it or put anything
   above it.
-- **First body line** reads `_Registered YYYY-MM-DD._` — the original
+- **The brief** comes next, between `<!-- brief:start -->` and
+  `<!-- brief:end -->` (see [The brief](#the-brief)).
+- **First line after the brief** reads `_Registered YYYY-MM-DD._` — the original
   commitment date, and the only date the file carries. A `draft` file's
   first body line reads `_Registered ____-__-__ (DRAFT — not registered;
   becomes immutable in substance when the operator accepts it)._` instead,
@@ -90,6 +94,56 @@ Every file follows one template:
 
 The unifying property: the same kind of content always has the same name and
 relative position, not that every file has every section.
+
+## The brief
+
+Every registration opens with a brief, a plain-language summary of the
+question, the arms, how the study is judged, the possible verdicts and what
+could ship. Adopted 2026-10-17, and moved into the registration files on
+2026-10-18. A registration has two jobs that pull against each other. Blind
+graders need every commitment and the date it was fixed. A reader needs the
+design in plain words.
+
+**The graders never see it.** `scripts/study_review/core.py::strip_brief`
+cuts everything from `<!-- brief:start -->` to `<!-- brief:end -->` before
+grading. An unbalanced marker refuses the grading rather than leak.
+`tests/test_study_review.py` checks every file here: one brief each, and no
+outcome in the graded text.
+
+Rules for writing one:
+
+- **The registration wins.** Where the brief and the registration differ, the
+  registration is right and the brief is fixed.
+- **The only result** in a brief is its Latest outcome line, copied from the
+  index below.
+- **Every threshold, label and token matches the registration exactly.** A
+  rule too intricate to summarise gets one line and a link to its section,
+  never a loose paraphrase.
+- **A second reader fact-checks** each brief against its registration before
+  it is committed.
+- **Writing** follows [`../writing-guide.md`](../writing-guide.md), with
+  ASD-STE100 Issue 9 as inspiration: sentences of 25 words or fewer, active
+  voice, one topic per paragraph, vertical lists for parallel items, one term
+  per thing. `scripts/check_prose.py` skips this folder, so check by hand.
+
+Layout, inside the markers:
+
+1. `## In brief`, then a blockquote: the registration wins, the brief is cut
+   before grading, and the Latest outcome with its date and record link.
+2. **The question**: two to four sentences.
+3. **What it compares**: a table of arms, giving label, what it does, kind.
+4. **How it is judged**: measure, population, gates as a list, the bar as a
+   numbered list.
+5. **Possible verdicts**: a table of token and meaning.
+6. **What could ship**: one short paragraph.
+7. **What this study cannot tell you**: three to five bullets.
+8. A `---` rule, so the eye sees where the registration starts.
+
+The section labels are bold lines, not headings. A heading here would share an
+anchor with a registration section and renumber links into it. A commitment
+rather than a study (`holdout_seal`, `programme_gate`) replaces items 3–5 with
+what it commits to and what each outcome triggers. The reference brief is in
+[`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md).
 
 ## Terminology legend
 
