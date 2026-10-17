@@ -59,3 +59,29 @@ def test_tier_assignment_and_summary():
     assert s.loc["B", "mean_pct"] == -20.0 and s.loc["B", "win_rate"] == 0.0
     assert s.loc["untiered", "n"] == 1
     assert "C" not in s.index
+
+
+def test_quartile_stats_splits_wins_and_losses():
+    s = cb.quartile_stats(pd.Series([-300.0, -100.0, 0.0, 100.0, 200.0, 300.0, np.nan]))
+    assert s["n"] == 6 and s["win_rate"] == 0.5
+    assert s["win_q"][1] == 200.0          # median of the wins only
+    assert s["loss_q"][1] == -100.0        # 0 counts as a loss
+    empty = cb.quartile_stats(pd.Series([50.0]))
+    assert np.isnan(empty["loss_q"][1])
+
+
+def test_tier_groups_splits_tier_b_by_structure():
+    df = pd.DataFrame({"tier": ["A", "B", "B", "C"],
+                       "structure": ["bull_call_spread", "bull_call_spread",
+                                     "bull_put_spread", "bear_put_spread"]})
+    assert list(cb.tier_groups(df)["tier_group"]) == ["A", "B·call", "B·put", "C"]
+
+
+def test_tier_quartiles_drops_sealed_dates(tmp_path):
+    from scripts.backtest_study.lib import era
+    if era.SEAL_LIFTED:
+        pytest.skip("seal lifted")
+    df = _df()
+    df["signal_date"] = pd.to_datetime([era.SEAL_START] * 4)   # every row sealed
+    assert cb.build_tier_quartiles(df, tmp_path) is None
+    assert not (tmp_path / "backtest_tier_quartiles.png").exists()

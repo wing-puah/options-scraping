@@ -27,6 +27,11 @@ The exports carry no tier column, so it is computed per row by
 scripts/journal/lib/mapping.py::ladder_tier() (the only encoding of the tier
 rules) from structure, market_regime, dte_entry and delta.
 
+Also writes backtest_tier_quartiles.png: win and loss quartiles of realized $
+by tier (Tier B split into bull call / bull put), by year and market label.
+It drops sealed signal dates first (scripts/backtest_study/lib/era.py,
+research/pre-registrations/f4_deployment/holdout_seal.md).
+
     Repeat --csv to combine multiple BacktestResults-shaped CSVs (e.g. the
     real backtest plus the proxy backtest) into one dataset; each row is
     tagged with a `source` column (the CSV's stem).
@@ -375,6 +380,125 @@ def build_tier(df: pd.DataFrame, out: Path) -> Path | None:
     out.mkdir(parents=True, exist_ok=True)
     path = out / "backtest_tier.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def quartile_stats(r: pd.Series) -> dict:
+    """Win/loss split of realized $: n, win share, and P25/P50/P75 of the
+    wins (> 0) and of the losses (<= 0) taken separately. A side with no
+    rows gets NaN quartiles."""
+    r = pd.to_numeric(r, errors="coerce").dropna()
+    w, l = r[r > 0], r[r <= 0]
+    def q(s):
+        return [s.quantile(p) for p in (.25, .5, .75)] if len(s) else [np.nan] * 3
+    return {"n": len(r), "win_rate": (len(w) / len(r)) if len(r) else np.nan,
+            "win_q": q(w), "loss_q": q(l)}
+
+
+def tier_groups(df: pd.DataFrame) -> pd.DataFrame:
+    """Tier with Tier B split by structure: 'B·call' / 'B·put'. Tier B holds
+    two structures under different rules (§2 vs §3), so one B figure mixes
+    them. Expects a `tier` column."""
+    g = df["tier"].astype(str).copy()
+    b = g.eq("B")
+    g[b & df["structure"].eq("bull_call_spread")] = "B·call"
+    g[b & df["structure"].eq("bull_put_spread")] = "B·put"
+    out = df.copy()
+    out["tier_group"] = g
+    return out
+
+
+GROUP_COLORS = {"A": "#2e7d32", "B·call": "#1f4e79", "B·put": "#8e6bbf",
+                "C": "#e08a1e", "VETO": "#888888",
+                "A day": "#2e7d32", "B day": "#1f4e79"}
+
+
+def _quartile_panel(ax, frame: pd.DataFrame, xkey: str, xlevels: list,
+                    hues: list[str], title: str) -> None:
+    """Grouped boxes: one slot per `xkey` level, one coloured box per hue
+    (`frame.hue`) inside it. Above zero the box spans the wins' P25-P75,
+    below zero the losses' P25-P75; a black tick marks each median. Win
+    share and n sit above the win box."""
+    width = 0.8 / max(len(hues), 1)
+    for i, lv in enumerate(xlevels):
+        for j, h in enumerate(hues):
+            r = frame[(frame[xkey] == lv) & (frame["hue"] == h)]["realized_abs"]
+            s = quartile_stats(r)
+            if not s["n"]:
+                continue
+            x = i - 0.4 + width * (j + 0.5)
+            for side in ("win_q", "loss_q"):
+                lo, med, hi = s[side]
+                if np.isnan(med):
+                    continue
+                ax.bar(x, hi - lo, bottom=lo, width=width * 0.9,
+                       color=GROUP_COLORS.get(h, "#555"),
+                       alpha=0.85 if side == "win_q" else 0.45)
+                ax.hlines(med, x - width * 0.45, x + width * 0.45, color="black", lw=1.4)
+            top = s["win_q"][2] if not np.isnan(s["win_q"][2]) else 0
+            ax.annotate(f"{s['win_rate']:.0%}\nn={s['n']}", (x, top),
+                        textcoords="offset points", xytext=(0, 3),
+                        ha="center", fontsize=7)
+    ax.margins(y=0.1)  # room for the labels above the tallest box
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_xticks(range(len(xlevels)))
+    ax.set_xticklabels([str(v) for v in xlevels], fontsize=11)
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+    handles = [matplotlib.patches.Patch(color=GROUP_COLORS.get(h, "#555"), label=h)
+               for h in hues]
+    ax.legend(handles=handles, fontsize=9, loc="upper left", bbox_to_anchor=(1.005, 1))
+    ax.set_title(title, fontweight="bold", fontsize=11)
+    ax.grid(axis="y", color=GRID)
+
+
+def build_tier_quartiles(df: pd.DataFrame, out: Path) -> Path | None:
+    """Win/loss quartiles of realized $ by tier, instead of means.
+
+    Sealed signal dates (lib/era.py, holdout_seal) are DROPPED first: this
+    chart prints per-tier outcomes, the figure the seal reserves for its
+    single unseal read. Colour is the tier (Tier B split by structure); the
+    x-axis is the year, except panel B's, which is the market label.
+    Panels: A all rows; B all rows by market label; C closed real rows;
+    D bull call spreads only, closed real, Tier A day (RANGE/E-VOL) vs
+    Tier B day — the split the tier rule itself makes."""
+    import matplotlib.patches  # noqa: F401  (legend swatches)
+    from scripts.backtest_study.lib import era  # seal dates: one encoding
+    if df.empty:
+        return None
+    df, held = era.drop_sealed_frame(df.assign(
+        signal_date=df["signal_date"].dt.strftime("%Y-%m-%d")))
+    df = df.assign(signal_date=pd.to_datetime(df["signal_date"]))
+    df = df.dropna(subset=["realized_abs"])
+    if df.empty:
+        return None
+    df = tier_groups(add_tier(df) if "tier" not in df.columns else df)
+    df["year"] = df["signal_date"].dt.year
+    df["hue"] = df["tier_group"]
+    real = ~df["source"].astype(str).str.contains("Proxy") if "source" in df else True
+    closed = df.get("exit_reason", pd.Series("", index=df.index)).ne("cap_open")
+    cr = df[real & closed]
+    hues = [t for t in ["A", "B·call", "B·put", "C", "VETO"] if t in set(df["tier_group"])]
+    years = sorted(df["year"].unique())
+    labels = [m for m in ["BULL", "RANGE", "BEAR"] if m in set(df.get("mkt_label", []))]
+    bcs = cr[cr["structure"].eq("bull_call_spread") & cr["tier_group"].isin(["A", "B·call"])]
+    bcs = bcs.assign(hue=bcs["tier_group"].map({"A": "A day", "B·call": "B day"}))
+
+    fig, axes = plt.subplots(4, 1, figsize=(16, 24))
+    fig.suptitle(f"Win/loss quartiles of realized $ by tier — {range_label(df)}\n"
+                 f"{era.seal_line(held)}\nBox above \\$0 = wins P25–P75, below \\$0 = "
+                 f"losses P25–P75 (paler); black = median; label = win share and n",
+                 fontsize=12, fontweight="bold")
+    _quartile_panel(axes[0], df, "year", years, hues, "A · All rows, by year")
+    _quartile_panel(axes[1], df, "mkt_label", labels, hues, "B · All rows, by market label")
+    _quartile_panel(axes[2], cr, "year", years, hues, "C · Closed real rows only, by year")
+    _quartile_panel(axes[3], bcs, "year", years, ["A day", "B day"],
+                    "D · Bull call spreads only, closed real: "
+                    "A day = RANGE or E-VOL regime, B day = any other")
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "backtest_tier_quartiles.png"
+    fig.savefig(path, dpi=110, bbox_inches="tight")
     plt.close(fig)
     return path
 
@@ -2143,6 +2267,9 @@ def main():
     tier_png = build_tier(df, Path(args.out))
     if tier_png:
         print(f"Wrote {tier_png}")
+    quart_png = build_tier_quartiles(df, Path(args.out))
+    if quart_png:
+        print(f"Wrote {quart_png}")
 
 
 if __name__ == "__main__":
