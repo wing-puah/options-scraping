@@ -1245,6 +1245,17 @@ as `<stem>-conflict-<stamp>.csv` for a person to reconcile. The same rule guards
 files: one that holds text outside its markers is preserved as `-unreadable-<stamp>.md` rather
 than rewritten.
 
+**How a fork is reconciled (done once, 2026-10-17).** `open_book.csv` forked on 2026-09-22: CI
+and the laptop both appended from the same base for three weeks, and every local run uploaded a
+fresh conflict copy. The repair took Drive's series as the base, since CI had run every day,
+and appended the laptop's rows whose `as_of_date` Drive did not hold, in date order. Appending
+whole days keeps `generation` valid: it is numbered within one `as_of_date` and position, and a
+later day is always a new row.
+
+The pre-merge local copy was kept in `journal/drive/`, and the conflict copies were trashed
+once the merged file pushed as `local_ahead` and read back as `same`. Resolve a fork by day,
+never by row, and never on a guess about which machine was right.
+
 **`--quiet`.** Prints no report and no card — for a run whose log other people can read. The
 artefacts are still written and uploaded; only stdout is suppressed. It REFUSES to run without
 `JOURNAL_DRIVE_FOLDER_ID`, checked before any network call, because a silent run with nowhere to
