@@ -432,12 +432,12 @@ Decisions owed. None of these is a study.
     one round. For P2 the operator chose the SPY-only benchmark, not the
     ARM U scrape ([P2](#plan-20261013)).
 
-16. **OPEN — the cache backup never prunes.** Each
-    `backup_research_caches.py push` uploads a full archive of about 530MB,
-    and nothing deletes the older snapshots. The per-batch pushes of
-    2026-10-13/14 filled the operator's Drive. Default: no code change until
-    the operator picks how many snapshots to keep. The fix is a prune step
-    in the script. Filed 2026-10-15.
+16. **DONE 2026-10-17 — the cache backup now prunes.** `push` trashes
+    every snapshot beyond the newest three after a successful upload
+    (`--keep N`, `--no-prune`); `prune` runs the same step on its own.
+    Trash, not delete, so a mistake is recoverable for about 30 days. The
+    first prune trashed the three 2026-10-14 per-batch snapshots and freed
+    1.6GB. Filed 2026-10-15, when those pushes filled the operator's Drive.
 17. **DECIDED 2026-10-15 — the spot stays calls-only; not adopted.**
     `mechanical_benchmark`'s spot is the median `Price~` of cached calls.
     Adding puts would cut `ARM M1`'s `no_spot_at_signal` drops from 8 to 6

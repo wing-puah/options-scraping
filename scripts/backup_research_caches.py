@@ -19,6 +19,12 @@ running local checkout's cache may well be NEWER. Run `pull` on a fresh
 checkout before any study run that needs real bars or priceable
 counterparts; run `push` by hand after a scrape that grew the caches.
 
+Every snapshot is a full copy (~550MB), so `push` PRUNES after a successful
+upload: snapshots beyond the newest `--keep` (default DEFAULT_KEEP) are moved
+to Drive's trash, never hard-deleted, so a mistaken prune is recoverable for
+about 30 days. The one just uploaded is by construction the newest and is
+never a candidate. `--no-prune` skips the step; `prune` runs it on its own.
+
 Research tier — hand-run, never scheduled, never imported by production or
 by scripts/backtest_study/.
 
@@ -30,6 +36,10 @@ the guard rather than invent one.
 Usage:
   python3 scripts/backup_research_caches.py push
   python3 scripts/backup_research_caches.py push --dry-run
+  python3 scripts/backup_research_caches.py push --keep 5     # prune to the newest 5 after upload
+  python3 scripts/backup_research_caches.py push --no-prune
+  python3 scripts/backup_research_caches.py prune              # trash all but the newest DEFAULT_KEEP
+  python3 scripts/backup_research_caches.py prune --keep 2 --dry-run
   python3 scripts/backup_research_caches.py pull                 # newest snapshot, additive
   python3 scripts/backup_research_caches.py pull --stamp 20260819-1200
   python3 scripts/backup_research_caches.py pull --force          # overwrite existing files too
@@ -65,6 +75,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKUP_FOLDER_NAME = "research-cache-backups"
 ARCHIVE_PREFIX = "research-caches-"
 _ARCHIVE_RE = re.compile(r"^research-caches-(\d{8}-\d{4})\.tar\.gz$")
+DEFAULT_KEEP = 3  # snapshots retained after a push; ~1.7GB of Drive at ~550MB each
 
 
 def _human(n: int) -> str:
@@ -163,6 +174,43 @@ def select_snapshot(files: list[dict], stamp: str | None) -> dict | None:
     return max(dated, key=lambda sf: sf[0])[1]
 
 
+# ── Pruning ───────────────────────────────────────────────────────────────────
+
+def select_prunable(files: list[dict], keep: int) -> list[dict]:
+    """The snapshots to trash so that only the newest `keep` remain, oldest first.
+
+    Only names matching the archive pattern are candidates — anything else in
+    the folder is left alone. `keep` must be at least 1: a prune that empties
+    the folder is never what anyone meant.
+    """
+    if keep < 1:
+        raise ValueError(f"--keep must be at least 1, got {keep}")
+    dated = sorted(
+        ((parse_stamp(f["name"]), f) for f in files if parse_stamp(f["name"])),
+        key=lambda sf: sf[0], reverse=True,
+    )
+    return [f for _, f in dated[keep:]][::-1]
+
+
+def prune_snapshots(client: DriveClient, folder_id: str, keep: int,
+                    dry_run: bool = False) -> list[dict]:
+    """Trash every snapshot beyond the newest `keep`; returns what was (or
+    would be) trashed. Trash, not delete: recoverable from Drive for ~30 days."""
+    files = client.list_folder(folder_id)
+    victims = select_prunable(files, keep)
+    if not victims:
+        print(f"Prune: {len(files)} snapshot(s) on Drive, keep {keep} — nothing to trash.")
+        return []
+    freed = sum(int(f.get("size") or 0) for f in victims)
+    for f in victims:
+        if not dry_run:
+            client.trash(f["id"])
+        print(f"  {'would trash' if dry_run else 'trashed'}  {f['name']}  ({_human(int(f.get('size') or 0))})")
+    verb = "would free" if dry_run else "freed"
+    print(f"Prune: kept newest {keep}, {verb} {_human(freed)} (trash, recoverable ~30 days)")
+    return victims
+
+
 # ── Extraction (path-traversal guarded) ──────────────────────────────────────
 
 def _safe_member_target(name: str, root: Path) -> Path | None:
@@ -248,6 +296,8 @@ def cmd_push(args, root: Path = ROOT, client: DriveClient | None = None) -> int:
         folder_id = client.get_or_create_date_folder(BACKUP_FOLDER_NAME)
         file_id = client.upload(tmp_path, name, folder_id)
         print(f"Uploaded '{name}' to Drive (file id {file_id})")
+        if not getattr(args, "no_prune", False):
+            prune_snapshots(client, folder_id, getattr(args, "keep", DEFAULT_KEEP))
         return 0
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -274,6 +324,16 @@ def cmd_pull(args, root: Path = ROOT, client: DriveClient | None = None) -> int:
     print(f"Files skipped (already exist): {len(result['skipped'])}")
     if args.force:
         print(f"Files overwritten: {len(result['overwritten'])}")
+    return 0
+
+
+def cmd_prune(args, client: DriveClient | None = None) -> int:
+    client = client or get_drive_client()
+    folder_id = client.find_date_folder(BACKUP_FOLDER_NAME)
+    if folder_id is None:
+        print(f"No '{BACKUP_FOLDER_NAME}' folder on Drive yet — nothing to prune.")
+        return 0
+    prune_snapshots(client, folder_id, args.keep, dry_run=args.dry_run)
     return 0
 
 
@@ -308,12 +368,22 @@ def main(argv=None) -> int:
     p_push = sub.add_parser("push", help="archive local backtests/ caches and upload to Drive")
     p_push.add_argument("--dry-run", action="store_true",
                         help="build the archive locally, print everything, upload nothing")
+    p_push.add_argument("--keep", type=int, default=DEFAULT_KEEP, metavar="N",
+                        help=f"after uploading, trash snapshots beyond the newest N (default {DEFAULT_KEEP})")
+    p_push.add_argument("--no-prune", action="store_true",
+                        help="upload only; leave every older snapshot in place")
 
     p_pull = sub.add_parser("pull", help="download and extract a snapshot (additive by default)")
     p_pull.add_argument("--stamp", metavar="YYYYMMDD-HHMM",
                         help="pull this specific snapshot instead of the newest")
     p_pull.add_argument("--force", action="store_true",
                         help="overwrite existing local files too (full restore)")
+
+    p_prune = sub.add_parser("prune", help="trash snapshots beyond the newest N (recoverable ~30 days)")
+    p_prune.add_argument("--keep", type=int, default=DEFAULT_KEEP, metavar="N",
+                         help=f"snapshots to retain (default {DEFAULT_KEEP}; must be at least 1)")
+    p_prune.add_argument("--dry-run", action="store_true",
+                         help="print what would be trashed, trash nothing")
 
     sub.add_parser("list", help="print available snapshots with sizes and stamps")
 
@@ -324,6 +394,8 @@ def main(argv=None) -> int:
         return cmd_push(args)
     if args.command == "pull":
         return cmd_pull(args)
+    if args.command == "prune":
+        return cmd_prune(args)
     if args.command == "list":
         return cmd_list(args)
     return 2

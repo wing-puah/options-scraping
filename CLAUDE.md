@@ -97,7 +97,9 @@ python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --red
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
 python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
 python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
-python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches
+python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches;
+                                                          # then trashes snapshots beyond the newest 3 (--keep N / --no-prune)
+python3 scripts/backup_research_caches.py prune --dry-run # the prune step alone (trash, recoverable ~30 days)
 python3 scripts/backup_research_caches.py pull            # rehydrate them on a fresh checkout BEFORE any study/backtest run
                                                           # (additive — never clobbers newer local files; --force = full restore)
 

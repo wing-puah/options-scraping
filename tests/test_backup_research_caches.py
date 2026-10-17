@@ -306,3 +306,147 @@ def test_cmd_list_no_backup_folder_yet(capsys):
     rc = brc.cmd_list(argparse.Namespace(), client=client)
     assert rc == 0
     assert "No 'research-cache-backups' folder" in capsys.readouterr().out
+
+
+# ── prune ─────────────────────────────────────────────────────────────────────
+
+class _TrashingStub(_StubClient):
+    """_StubClient that also records trash() calls."""
+
+    def __init__(self, folder_id, files=None):
+        super().__init__(folder_id, files)
+        self.trashed: list[str] = []
+
+    def trash(self, file_id: str) -> None:
+        self.trashed.append(file_id)
+
+
+def _snap(stamp: str, size: int = 100) -> dict:
+    return {"id": f"id-{stamp}", "name": f"research-caches-{stamp}.tar.gz", "size": str(size)}
+
+
+def _svc_with_snapshots(*stamps: str) -> MagicMock:
+    """A googleapiclient service mock for a push: the backup folder and the
+    uploaded name do not exist yet (so get_or_create creates, upload creates),
+    while list_folder() afterwards shows `stamps` already on Drive.
+
+    upload() also calls files().update() when replacing a same-named file, so
+    trash() calls are told apart by their body (see _trashed_ids)."""
+    svc = MagicMock()
+
+    def _list(**params):
+        q = params.get("q", "")
+        files = [_snap(s) for s in stamps] if "name =" not in q else []
+        resp = MagicMock()
+        resp.execute.return_value = {"files": files}
+        return resp
+
+    svc.files.return_value.list.side_effect = _list
+    svc.files.return_value.create.return_value.execute.side_effect = [
+        {"id": "folder-id"}, {"id": "file-id"},
+    ]
+    return svc
+
+
+def _trashed_ids(svc: MagicMock) -> list[str]:
+    return [c.kwargs["fileId"] for c in svc.files.return_value.update.call_args_list
+            if c.kwargs.get("body") == {"trashed": True}]
+
+
+def test_select_prunable_keeps_newest_and_returns_oldest_first():
+    files = [_snap("20260301-0000"), _snap("20260101-0000"), _snap("20260201-0000"),
+             _snap("20260401-0000")]
+    victims = brc.select_prunable(files, keep=2)
+    assert [f["name"] for f in victims] == [
+        "research-caches-20260101-0000.tar.gz",
+        "research-caches-20260201-0000.tar.gz",
+    ]
+
+
+def test_select_prunable_ignores_non_archive_names():
+    files = [_snap("20260101-0000"), _snap("20260201-0000"),
+             {"id": "x", "name": "notes.txt", "size": "1"}]
+    victims = brc.select_prunable(files, keep=1)
+    assert [f["name"] for f in victims] == ["research-caches-20260101-0000.tar.gz"]
+
+
+def test_select_prunable_nothing_when_keep_covers_all():
+    files = [_snap("20260101-0000"), _snap("20260201-0000")]
+    assert brc.select_prunable(files, keep=2) == []
+    assert brc.select_prunable(files, keep=5) == []
+    assert brc.select_prunable([], keep=1) == []
+
+
+def test_select_prunable_refuses_keep_below_one():
+    with pytest.raises(ValueError):
+        brc.select_prunable([_snap("20260101-0000")], keep=0)
+
+
+def test_cmd_prune_trashes_beyond_keep(capsys):
+    client = _TrashingStub("folder-id", files=[
+        _snap("20260101-0000", 1000), _snap("20260201-0000", 1000),
+        _snap("20260301-0000", 1000), _snap("20260401-0000", 1000),
+    ])
+    rc = brc.cmd_prune(argparse.Namespace(keep=3, dry_run=False), client=client)
+    assert rc == 0
+    assert client.trashed == ["id-20260101-0000"]
+    out = capsys.readouterr().out
+    assert "trashed  research-caches-20260101-0000.tar.gz" in out
+    assert "kept newest 3" in out
+
+
+def test_cmd_prune_dry_run_trashes_nothing(capsys):
+    client = _TrashingStub("folder-id", files=[
+        _snap("20260101-0000"), _snap("20260201-0000"),
+    ])
+    rc = brc.cmd_prune(argparse.Namespace(keep=1, dry_run=True), client=client)
+    assert rc == 0
+    assert client.trashed == []
+    assert "would trash" in capsys.readouterr().out
+
+
+def test_cmd_prune_no_backup_folder_yet(capsys):
+    client = _TrashingStub(None)
+    rc = brc.cmd_prune(argparse.Namespace(keep=3, dry_run=False), client=client)
+    assert rc == 0
+    assert client.trashed == []
+    assert "nothing to prune" in capsys.readouterr().out
+
+
+@patch("lib.drive_client.MediaFileUpload")
+def test_push_prunes_after_upload(mock_media, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(brc, "PROTECTED_PREFIXES", ("backtests/option_history_cache",))
+    _touch(tmp_path / "backtests/option_history_cache/AAPL.csv")
+
+    svc = _svc_with_snapshots(
+        "20260101-0000", "20260201-0000", "20260301-0000", "20260401-0000", "20260501-0000")
+    client = DriveClient(svc, "root-id")
+
+    rc = brc.cmd_push(argparse.Namespace(dry_run=False, keep=3, no_prune=False),
+                      root=tmp_path, client=client)
+    assert rc == 0
+    assert sorted(_trashed_ids(svc)) == ["id-20260101-0000", "id-20260201-0000"]
+    assert "kept newest 3" in capsys.readouterr().out
+
+
+@patch("lib.drive_client.MediaFileUpload")
+def test_push_no_prune_leaves_old_snapshots(mock_media, monkeypatch, tmp_path):
+    monkeypatch.setattr(brc, "PROTECTED_PREFIXES", ("backtests/option_history_cache",))
+    _touch(tmp_path / "backtests/option_history_cache/AAPL.csv")
+
+    svc = _svc_with_snapshots("20260101-0000", "20260201-0000", "20260301-0000", "20260401-0000")
+    client = DriveClient(svc, "root-id")
+
+    rc = brc.cmd_push(argparse.Namespace(dry_run=False, keep=3, no_prune=True),
+                      root=tmp_path, client=client)
+    assert rc == 0
+    assert _trashed_ids(svc) == []
+
+
+def test_cli_prune_defaults_and_keep_floor(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(brc, "setup_logging", lambda: None)
+    monkeypatch.setattr(brc, "cmd_prune", lambda args, client=None: seen.setdefault("args", args) and 0)
+    assert brc.main(["prune"]) == 0
+    assert seen["args"].keep == brc.DEFAULT_KEEP
+    assert seen["args"].dry_run is False
