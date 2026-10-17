@@ -459,10 +459,7 @@ as "a property of the ledger, not a tuning choice". Both the framing and the
 resolution were wrong: WHICH value the collapse lands on is a choice, and the
 modal one is LOOKAHEAD — it replays block 0's TEST dates under a `d` selected
 using blocks 1..n's fits, whose TRAIN sets contain dates at or after those very
-test dates, so the stitched book would not be out of sample. It is not cosmetic
-either: on the v4 primary population one grid value throttles sessions and
-changes the book while the other never fires, so the collapse decides the whole
-ARM D cell.
+test dates, so the stitched book would not be out of sample.
 
 **What "affected" means for ARM D, fixed here.** ARM D is a SIZING rule. It has
 no overlay and no exit reason of its own: it never changes an already-open row's

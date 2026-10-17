@@ -2,6 +2,8 @@
 
 Each study has one pre-registration file: the question, frozen inputs,
 criteria, and gates committed to **before** the study was built or run.
+To understand a study quickly, read its plain-language brief in
+[`../study-briefs/`](../study-briefs/); the registration here stays binding.
 
 **The rule.** A pre-registration's commitments are immutable — no gate, bar,
 arm definition, or verdict changes meaning after it is written.
@@ -157,7 +159,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`staged_exit.md`](f2_management/staged_exit.md) | Does a day-X ±Y% staged exit beat the shipped exit? | graded | 41 `UNDERPOWERED`, 1 `CANDIDATE` — 2026-09-28 · [record](../study-results/f2_management/staged_exit.md) |
 | [`rollback_triggers.md`](f2_management/rollback_triggers.md) | Have the shipped rules' rollback triggers fired? Census inside host studies. | run (via host studies) | `LVOL STAYS GATED`; `BEAR_HE UNDERPOWERED` — 2026-10-06 · [log](../current.md) |
 | [`exit_from_text.md`](f2_management/exit_from_text.md) | Do the levels in the play text make better exits than the shipped rule? | run | 302 `UNDERPOWERED`, 26 `CONTRARY`, 21 `NULL`, 1 `CANDIDATE` — 2026-09-28 · [record](../study-results/f2_management/exit_from_text.md) |
-| [`exit_drawdown.md`](f2_management/exit_drawdown.md) | Do walk-forward exit rules cut the account's mark-to-market drawdown? | graded | `ARM W UNDERPOWERED`; `ARM O/vol NULL`; `ARM D SECONDARY-NULL` — 2026-09-28 · [record](../study-results/f2_management/exit_drawdown.md) |
+| [`exit_drawdown.md`](f2_management/exit_drawdown.md) | Do walk-forward exit rules cut the account's mark-to-market drawdown? | graded | `ARM U` `REACTIVE-AGAIN` (both variants); `ARM O/vol NULL`; `ARM D SECONDARY-NULL`; others `UNDERPOWERED` — 2026-09-28 · [record](../study-results/f2_management/exit_drawdown.md) |
 | [`cost_sensitivity.md`](f2_management/cost_sensitivity.md) | At what cost per leg does the Tier A/B edge vanish? | run · accepted by default | Tier A `VANISHES`; Tier B `VANISHES` — 2026-10-09 · [record](../study-results/f2_management/cost_sensitivity.md) |
 | [`bear_fast_exit.md`](f2_management/bear_fast_exit.md) | Is a bear debit closed within a few sessions, or at a small profit, positive after costs? | run · accepted by default | `BLEED-CUT (C7 PENDING)` — 2026-10-10 · [record](../study-results/f2_management/bear_fast_exit.md) |
 
