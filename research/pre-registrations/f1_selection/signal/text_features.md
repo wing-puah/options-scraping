@@ -1,210 +1,85 @@
 ## text_features — does the model's own TEXT separate outcome within structure × tier?
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome: `ARM A` `invalidation_level` and `trigger_level` `CANDIDATE`, each in `bear_put_spread`/C (T3 vs T1) and listed under PROMPT-ROBUSTNESS FINDINGS; ENTRY-GATE CANDIDATES none; the other 26 verdict lines 17 `NULL` and 9 `UNDERPOWERED` — 2026-09-28 · [record](../../../study-results/f1_selection/signal/text_features.md).
-> Nothing else in this brief is a result.
-
-**The question**
-
-Does the model's own text separate outcome within structure × tier? The prompt emits about 10 plays a day. Most of the content is text, and none of it was ever measured. Two questions:
-
-1. **Separation:** does any deterministic text feature, or any blind taxonomy label, separate mean R within structure × tier?
-2. **Gate value:** used as a veto or a one-step tier demotion, does any such feature raise mean R and profit factor under a top-3/day replay against the shipped `ladder_rank`?
-
-**What it compares**
-
-Each feature is read alone. No arm builds a composite or fits anything. Numeric columns already closed (`score_total`, cpir, `oi_confirm`, `iv_pct`, `days_to_earnings` and similar) are not re-tested.
-
-| Object | What it does | Kind |
-|---|---|---|
-| [text_features ARM A](../../../arm-index.md#text_features) | Six deterministic features plus `hallucination_rate`, read within structure × tier | arm |
-| `text_features ARM B` | Five blind taxonomy labels, read the same way | arm |
-| `text_features ARM C` | Each `CANDIDATE` from A or B applied as a veto or a one-step demotion, replayed top-3/day, paired by date | arm |
-
-**ARM A features.** The list is closed.
-
-- `invalidation_type`: the graded cut is binary, `price_only` against `mixed`. The 5-level split prints descriptively, with no criterion.
-- `invalidation_level`, with `invalidation_inside_strikes`.
-- `trigger_conditional`, with `trigger_level`.
-- `numeric_specificity`, `thesis_len` (with `alt_len` beside it) and `alt_ratio`.
-- `hallucination_rate`: the share of `[FLOW]` figures cited in the text that are absent from that date's raw flow markdown.
-
-Continuous features are cut at terciles on the full era book, frozen before any outcome is read. `hallucination_rate` falls back to `> 0` against `== 0` when its tercile edges coincide.
-
-`evidence_n` is a redundancy control and never a candidate. Evidence and tag counts, earnings mentions and hedge language are excluded as redundant with closed columns.
-
-**ARM B labels.** A cheap headless model sees only the text fields, with date and ticker stripped. The levels are frozen.
-
-| Label | Levels |
-|---|---|
-| `thesis_type` | flow-follow, mean-reversion, catalyst, hedge, vol |
-| `evidence_quality` | 1, 2, 3 |
-| `confidence_language` | hedged, neutral, assertive |
-| `one_sided` | token, substantive |
-| `invalidation_concreteness` | 1, 2, 3 |
-
-Contrast shapes: `thesis_type` is tested one-vs-rest per level. The two ordinal labels are tested 3 against 1. `confidence_language` is `assertive` against `hedged`, and `one_sided` is `substantive` against `token`. Every test joins the arm's BH family.
-
-**ARM C.** The "bad level" is the contrast group with the lower pooled mean R on the era book. It fixes only the gate's direction. A row whose level is unmeasured is left alone.
-
-**How it is judged**
-
-**Population.** The primary era is v4 (`current`). v3 is secondary, same thresholds, never pooled, and carries nothing. Only real and `strike_expiry_tweak` rows enter, because bs rows are excluded. Every claim is conditioned on about 52% priceability, and the report says so.
-
-**Measure.** Mean R, date-clustered, `BOOT_N = 10000`, α = .05. A/B contrasts use a joint-date resample over the union of the two groups' dates. ARM C uses the paired-by-date CI. PF must also clear the mean-R criterion. R is quoted, never dollars, in ARM C.
-
-**Gates.** Floors run first and block everything.
-
-- **ARM A/B:** at least 25 affected dates and at least 60 rows on each level of a contrast, not on the pair.
-- **ARM C:** at least 25 dates on which the gate changes the picked set.
-- A cell under a floor is `UNDERPOWERED`, printed with its n.
-
-**Bar.** A feature is a `CANDIDATE` only on all of these.
-
-1. The date-clustered CI excludes zero.
-2. Every leave-one-date-out fold has the effect's sign (`min_gain`).
-3. It survives `protocol.window_cuts` and an ex-BOTH cut added by hand.
-4. The effect has the same sign in every calendar year present.
-5. It is right-signed on both pricing tiers, real and tweak.
-6. At least 25 affected dates and 60 rows on the evaluated set.
-
-Clauses 2 to 4 are read in the direction the effect points. Both stated hypotheses are negative-signed, so a negative point estimate needs negative folds and years. A point estimate of exactly zero fails all four.
-
-Benjamini–Hochberg at q = 0.10 also controls clause 1, per arm and never pooled. A feature clearing its raw CI but failing BH is `NULL`. When an export carries no 2026 dates, the 2026 cuts are a no-op. Each cut prints its n beside `ALL`.
-
-**Possible verdicts**
-
-| Token | What it means |
-|---|---|
-| `UNDERPOWERED` | A floor was not met. Nothing is read |
-| `NULL` | Powered, and the conjunction or BH did not clear |
-| `CANDIDATE` | The whole conjunction clears. Not a ship |
-| `NO PRE-REGISTERED VERDICT MATCHES` | The catch-all, including a result contrary to the hypothesis. Resolved by hand in `research/current.md` |
-
-Each `CANDIDATE` goes into one of two lists. PROMPT-ROBUSTNESS FINDINGS hold text that predicts failure independent of the numeric columns, and feed `prompt_eval`'s `draft` mode. ENTRY-GATE CANDIDATES hold an ARM C gate that raises mean R and PF under the k = 3 replay.
-
-**What could ship**
-
-Nothing ships from a research-tier study. An ENTRY-GATE CANDIDATE becomes a written `docs/deployment-rules.md` proposal, queued for independent-window confirmation. A PROMPT-ROBUSTNESS FINDING becomes input to `prompt_eval`.
-
-**What this study cannot tell you**
-
-- Whether text works as a composite score. No arm combines features.
-- Anything about exits. The shipped profiles replay through the frozen harness.
-- Anything pooled across structure. `thesis_len` and `alt_ratio` are never read pooled.
-- Whether a label is free of recall. The labeller may recognise a ticker or period despite stripping.
-- Anything from v3 on its own.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-09-02._
 
-## Question
+## The question
 
-The prompt emits ~10 plays/day, most of whose content is TEXT (`regime`,
-`signal`, `play`/thesis, `trigger`, `invalidation`), none of it ever measured.
-Two questions, one study: (1) **separation** — does any deterministic text
-feature, or any blind taxonomy label, separate mean R WITHIN structure × tier?
-(2) **gate value** — used as a VETO or a tier demotion, does any such feature
-raise mean R and profit factor under a `top_k_per_day(k=3)` replay against the
-shipped `ladder_rank`?
+The prompt emits about 10 plays a day. Most of their content is TEXT (`regime`, `signal`, `play`/thesis, `trigger`, `invalidation`). None of it was ever measured. This study asks two questions.
 
-## What this is NOT
+1. **Separation.** Does any deterministic text feature, or any blind taxonomy label, separate mean R WITHIN structure × tier?
+2. **Gate value.** Used as a VETO or a tier demotion, does any such feature raise mean R and profit factor under a `top_k_per_day(k=3)` replay against the shipped `ladder_rank`?
 
-- **Not a new scorer**, and **not a re-opening of the ML/selection search.** No
-  arm builds a composite, weights features or fits anything — each feature is
-  read alone. That search closed 2026-08-11 NULL across 15 cells and re-opens on
-  **new COLUMNS only, never new models.**
-- **Not a re-test of any numeric column.** `score_total`, `score_flow`,
-  `score_catalyst`, `cpir`, `oi_confirm`, `iv_pct`, `days_to_earnings` are
-  closed; features restating one of them are EXCLUDED by name below.
-- **Not an exit study** — shipped profiles throughout, replayed by the FROZEN
-  `harness.replay`; exit questions from the same text are `exit_from_text` (f2).
-  Nothing here reaches `docs/deployment-rules.md` without an operator decision.
+Every feature is observable at entry. The text fields are a NEW COLUMN FAMILY: they sit in the analysis export, are never joined to the priced book, and have no numeric counterpart in the closed sweep. Two sub-families qualify: **deterministic text features** (regex only) and **blind taxonomy labels** (a cheap headless model shown ONLY the text fields, never an outcome).
 
-## Admissibility
+The 2026-08-11 clause fixes HOW a new column is tested: **within structure from the first look**. Three columns once looked predictive pooled and vanished within structure. Every arm here is within structure and within tier.
 
-The text fields are a **NEW COLUMN FAMILY**: in the analysis export, never
-joined to the priced book, no numeric counterpart in the closed sweep. Two
-sub-families qualify — **deterministic text features** (regex-only) and **blind
-taxonomy labels** (a cheap headless model shown ONLY the text fields, never an
-outcome). Every feature is **observable at entry**. The 2026-08-11 clause also
-fixes HOW a new column is tested — **within structure from the first look**,
-because three columns were caught looking predictive pooled and vanishing within
-structure. Every arm here is within structure and within tier.
+## What this study is not
+
+- **It is not a new scorer.** It does not re-open the ML/selection search. No arm builds a composite, weights features or fits anything. Each feature is read alone. That search closed 2026-08-11 `NULL` across 15 cells. It re-opens on **new COLUMNS only, never new models.**
+- **It does not re-test any numeric column.** `score_total`, `score_flow`, `score_catalyst`, `cpir`, `oi_confirm`, `iv_pct` and `days_to_earnings` are closed. Features that restate one of them are EXCLUDED by name below.
+- **It is not an exit study.** Shipped profiles are used throughout, replayed by the FROZEN `harness.replay`. Exit questions from the same text belong to `exit_from_text` (f2).
+- **It cannot tell you** whether text works as a composite score, because no arm combines features. It says nothing about exits. It reads nothing pooled across structure: `thesis_len` and `alt_ratio` are never read pooled. It cannot show that a label is free of recall. Nothing from v3 stands on its own.
+- Nothing here reaches `docs/deployment-rules.md` without an operator decision.
 
 ## Population and basis, fixed here
 
-One era carries the study; the other is reported and carries nothing.
-- **PRIMARY: era `current` (v4)** — chosen over v3 because the v4 text IS
-  current-prompt behaviour and is what `prompt_eval` will modify; a finding
-  about v3 text is a finding about a dead prompt.
-- **SECONDARY: `--era v3`**, identical thresholds, reported separately, **never
-  pooled**. `load_book(include_bs=False)`: **real + strike_expiry_tweak only**;
-  bs rows excluded (the 2026-08-11 defect). **On v4 that exclusion is a NO-OP** —
-  the v4 proxy export carries ZERO `bs_options_hist` rows (tweak 564 /
-  underlying_trend 473 / unevaluable 107, measured 2026-09-02). It still binds
-  on v3 (295 bs rows) and is left in force.
-- **Priceability, measured 2026-09-02 (a census, not a target; a later run
-  prints its own).** v4 corpus = **1,022 priced rows / 148 dates** (2024-01-10 →
-  2025-11-17), 1,016 joined to AnalysisClaude; **969 analysis rows unpriced**
-  (`excluded_by_book` 611 — mostly underlying_trend / unevaluable proxy rows —
-  `not_backtested` 194, `market_row` 164). v3 = 795 priced / 118 dates, 820
-  unpriced (`bs_only` 295, `not_backtested` 280, market 140, excluded 105).
-  **Every text-feature claim on priced rows is conditioned on ~52%
-  priceability**, and the report says so on every table.
-- **The unpriced share BY FEATURE is itself reported** — does vaguer text
-  co-occur with unpriceable plays? A PROMPT-ROBUSTNESS read in its own right,
-  and the only place an unpriced row carries a number; no criterion is
-  evaluated on unpriced rows.
-- **The v4 2026 no-op, stated up front.** The v4 results export carries ZERO
-  2026 signal dates (it ends 2025-11-17), so on the PRIMARY era
-  `ex_2026_feb_apr` ≡ `ALL`, ex-BOTH ≡ `ex_2025_mar_apr`, and "positive in every
-  calendar year" reduces to 2024 ∧ 2025. Every cut prints its `n` beside `ALL`'s
-  so a reader sees a no-op rather than a passed test; any v4 conjunction pass
-  citing year stability inherits this until 2026 dates land.
+| Fixed | Value |
+|---|---|
+| PRIMARY era | `current` (v4). The v4 text IS current-prompt behaviour and is what `prompt_eval` will modify |
+| SECONDARY era | `--era v3`, identical thresholds, reported separately, **never pooled**, carries nothing |
+| Book | `load_book(include_bs=False)`: **real + strike_expiry_tweak only**. bs rows are excluded (the 2026-08-11 defect). On v4 the exclusion is a NO-OP, because the v4 proxy export carries ZERO `bs_options_hist` rows (measured 2026-09-02). It still binds on v3 and stays in force |
+| Priceability | **Every text-feature claim on priced rows is conditioned on ~52% priceability.** The report says so on every table |
+| Unpriced share | The unpriced share BY FEATURE is reported. It asks whether vaguer text co-occurs with unpriceable plays. It is a PROMPT-ROBUSTNESS read in its own right. It is the only place an unpriced row carries a number. No criterion is evaluated on unpriced rows |
+| Missing values | A row missing a feature, or with no cached markdown for its date, is NOT EVALUABLE on it. It is never imputed. Coverage prints |
+
+**The v4 2026 no-op, stated up front.** The v4 results export carries ZERO 2026 signal dates (it ends 2025-11-17). On the PRIMARY era this has three effects:
+
+- `ex_2026_feb_apr` ≡ `ALL`.
+- ex-BOTH ≡ `ex_2025_mar_apr`.
+- "Positive in every calendar year" reduces to 2024 ∧ 2025.
+
+Every cut prints its `n` beside `ALL`'s, so a reader sees a no-op rather than a passed test. Any v4 conjunction pass that cites year stability inherits this until 2026 dates land.
+
+## Plan-time observations, disclosed
+
+Measured 2026-09-02, before any arm ran. Each is a census, not a target. A later run prints its own. No number here is a result.
+
+- **v4 corpus:** 1,022 priced rows over 148 dates (2024-01-10 to 2025-11-17). 1,016 of them join to AnalysisClaude. 969 analysis rows are unpriced: `excluded_by_book` 611 (mostly underlying_trend / unevaluable proxy rows), `not_backtested` 194, `market_row` 164.
+- **v4 proxy export tiers:** tweak 564, underlying_trend 473, unevaluable 107.
+- **v3 corpus:** 795 priced rows over 118 dates. 820 are unpriced: `bs_only` 295, `not_backtested` 280, market 140, excluded 105.
+- **`invalidation_type` census (v4):** price+flow 1515, price-only 143, price+flow+macro 131, flow-only 4, none 3. The 5-level split is 91% `mixed` in BOTH eras, because the prompt's house style is "a price level OR a flow reversal".
+- **Coverage on priced rows:** 95–100% for all six features (`invalidation_level` 98.8%, `invalidation_inside_strikes` 95.0%).
+- **Pre-run expectation:** a 7-feature × structure × tier grid on 148 v4 dates will UNDERPOWER most cells. That is a legitimate outcome, not a failure.
 
 ## Features, frozen here
 
-**Deterministic (six, regex-only).** No seventh is added after a number is seen.
-1. `invalidation_type` — **PRIMARY cut is BINARY: `price_only` (~8%) vs `mixed`
-   (all else).** The 5-level split is near-degenerate — 91% `mixed` in BOTH
-   eras, the prompt's house style being "a price level OR a flow reversal" (v4
-   census 2026-09-02: price+flow 1515, price-only 143, price+flow+macro 131,
-   flow-only 4, none 3) — so it prints DESCRIPTIVELY, **no criterion on it**.
-2. `invalidation_level` — the parsed numeric level, plus
-   `invalidation_inside_strikes` (level sits between the structure's strikes).
-3. `trigger_conditional` — the trigger withholds entry ("no entry before",
-   "only if", "holds X on a closing basis"), plus `trigger_level`.
-4. `numeric_specificity` — count of committed `$`/strike/DTE tokens.
-5. `thesis_len` — thesis length in words (`alt_len` prints beside it).
-6. `alt_ratio` — `alt_len` ÷ `thesis_len`, scale-free.
+The feature list is closed. No seventh deterministic feature is added after a number is seen.
 
-**Plus one measured quantity**: `hallucination_rate` from
-`text_corpus.citation_check` — the share of `[FLOW]` figures (strike / DTE /
-premium) cited in the text that are ABSENT from that date's raw flow markdown.
-**Coverage on priced rows, measured 2026-09-02: 95-100% for all six features**
-(`invalidation_level` 98.8%, `invalidation_inside_strikes` 95.0%); a row missing
-a feature, or with no cached markdown for its date, is NOT EVALUABLE on it,
-never imputed, and coverage prints.
+**ARM A — deterministic features (six, regex only), plus one measured quantity.**
 
-**Redundancy control, not a candidate.** `evidence_n` counts `[TAG]` items only
-— the 95 UNTAGGED continuation lines in the v4 signal cells attach to the item
-above, not counted as evidence. Reported for ONE purpose, to show it adds
-nothing over `score_total`; never promotable to a candidate.
+1. `invalidation_type`. The PRIMARY cut is BINARY: `price_only` (~8%) vs `mixed` (all else). The 5-level split prints DESCRIPTIVELY, with **no criterion on it**.
+2. `invalidation_level`: the parsed numeric level. It comes with `invalidation_inside_strikes` (the level sits between the structure's strikes).
+3. `trigger_conditional`: the trigger withholds entry ("no entry before", "only if", "holds X on a closing basis"). It comes with `trigger_level`.
+4. `numeric_specificity`: the count of committed `$`/strike/DTE tokens.
+5. `thesis_len`: thesis length in words. `alt_len` prints beside it.
+6. `alt_ratio`: `alt_len` ÷ `thesis_len`, scale-free.
+7. `hallucination_rate`, from `text_corpus.citation_check`: the share of `[FLOW]` figures (strike / DTE / premium) cited in the text that are ABSENT from that date's raw flow markdown. Its coverage follows which dates have a cached markdown, so it is reported, never assumed.
 
-**EXCLUDED as redundant with closed numeric columns**, named so the exclusion is
-auditable: evidence-item / tag COUNTS (≈ `score_flow`/`score_total`, null);
-earnings mentions (≈ `days_to_earnings`/`score_catalyst`, null); hedge language
-(≈ the structured `flow_intent` bracket).
+**Redundancy control, not a candidate.** `evidence_n` counts `[TAG]` items only. The 95 UNTAGGED continuation lines in the v4 signal cells attach to the item above and are not counted as evidence. It is reported for ONE purpose: to show it adds nothing over `score_total`. It is never promotable to a candidate.
 
-**Blind taxonomy labels (five), with their level sets frozen:**
+**EXCLUDED as redundant with closed numeric columns**, named so the exclusion is auditable:
 
-| label | levels |
+- Evidence-item and tag COUNTS (≈ `score_flow`/`score_total`, null).
+- Earnings mentions (≈ `days_to_earnings`/`score_catalyst`, null).
+- Hedge language (≈ the structured `flow_intent` bracket).
+
+**ARM B — blind taxonomy labels (five), with level sets frozen.**
+
+| Label | Levels |
 |---|---|
 | `thesis_type` | flow-follow · mean-reversion · catalyst · hedge · vol |
 | `evidence_quality` | 1 · 2 · 3 |
@@ -212,241 +87,99 @@ earnings mentions (≈ `days_to_earnings`/`score_catalyst`, null); hedge languag
 | `one_sided` | token · substantive (is the alt reading real?) |
 | `invalidation_concreteness` | 1 · 2 · 3 |
 
-- **Labeller**: a cheap headless model (`claude -p --model
-  claude-haiku-4-5-20251001`) shown **ONLY the text fields** — no outcome, no
-  price, no structure result, no date, no ticker. **Cache**:
-  `backtests/text_labels_cache/<sha256(text fields)>.json`, keyed on those
-  fields ALONE, so a cache hit cannot carry an outcome.
-- **Leakage guard, test-enforced**:
-  `tests/test_text_features.py::test_label_input_carries_no_outcome_key` asserts
-  the input holds no outcome/pricing key and the cache key is a function of the
-  text fields only; the run fails if it fails.
+- **Labeller.** A cheap headless model (`claude -p` with `--model claude-haiku-4-5-20251001`) sees **ONLY the text fields**: no outcome, no price, no structure result, no date, no ticker.
+- **Cache.** `backtests/text_labels_cache/<sha256(text fields)>.json`, keyed on those fields ALONE. A cache hit therefore cannot carry an outcome.
+- **Leakage guard, test-enforced.** `tests/test_text_features.py::test_label_input_carries_no_outcome_key` asserts that the input holds no outcome or pricing key and that the cache key is a function of the text fields only. The run fails if it fails.
+- **Labeller batch size is 10, not 25** (a build note appended 2026-09-02 after the first labelling pass and BEFORE any ARM B number was read). A batch of 25 silently lost 620 of 1,804 payloads, because the labeller truncates a 25-object JSON array. A dropped item is an UNLABELLED row (NOT EVALUABLE in ARM B), never a wrong label. Batch size changes nothing a label MEANS: same prompt, same frozen level sets, same `sha256(text payload)` cache key. Every report prints the batch size it used together with its ARM B label coverage.
+- **Defaults.** Wording correction (2026-09-02, before any result): `--labels` and `--citations` default to `cached`, not `run`, so that `backtest_study run --all` can never spend model credits or touch Drive by accident. The registered runs pass `--labels run --citations run` explicitly.
 
-## Arms
+## What it compares
 
-- **ARM A — deterministic features.** The six features plus
-  `hallucination_rate`, read WITHIN structure × tier. Continuous features are
-  cut at terciles computed on the FULL era book and FROZEN before any outcome is
-  read; the NaN filter is `v == v` on the raw value, applied before the cut,
-  excluded count printed. **ARM B — blind labels**: the five labels, same
-  within-structure × tier treatment, level sets as tabled above.
-- **ARM C — gate arms.** Each feature reaching CANDIDATE in A or B, applied as
-  (i) a VETO or (ii) a one-step TIER DEMOTION, replayed through
-  `protocol.top_k_per_day(rank_fn=ladder_rank, k=3)` against the unmodified
-  shipped ladder, **paired by date**. No other selection knob moves — tier
-  membership, structure universe, entry side, sizing, exits stay shipped; no
-  gate arm without a CANDIDATE in A or B.
+| Arm | What it does | Kind |
+|---|---|---|
+| [text_features ARM A](../../../arm-index.md#text_features) | The six deterministic features plus `hallucination_rate`, read WITHIN structure × tier | arm |
+| `text_features ARM B` | The five blind labels, read the same way | arm |
+| `text_features ARM C` | Each `CANDIDATE` from A or B applied as (i) a VETO or (ii) a one-step TIER DEMOTION, replayed top-3/day, paired by date | arm |
 
-## Metrics
+### ARM A and ARM B — within structure × tier
 
-- **Mean R**, date-clustered: `protocol.boot_ci_by_date` (A/B),
-  `boot_ci_paired_by_date` (C), `BOOT_N = 10000`, α = .05. **PF**: `protocol.pf`
-  with `pf_ci_by_date` / `pf_paired_by_date`.
-- **Rule, binding**: **a PF claim must ALSO clear the mean-R criterion** (PF
-  alone is gameable by fewer, larger wins). MFE / MAE give-back prints
-  DESCRIPTIVELY, **NOT A CRITERION**. **R is quoted, never dollars** in ARM C.
+- **Terciles.** Continuous features are cut at terciles computed on the FULL era book and FROZEN before any outcome is read.
+- **NaN filter.** It is `v == v` on the raw value, applied before the cut. The excluded count prints.
+- **Wording correction (2026-09-02, before any result): `hallucination_rate` falls back to a declared binary cut when its terciles are degenerate.** Its distribution is a spike at zero, so the tercile edges can coincide. Then "top vs bottom tercile" is undefined and the cut is `> 0` vs `== 0`, printed as `DEGENERATE tercile edges` on the frozen-edges table. Every other continuous feature is cut at terciles as registered.
+- **ARM B contrast shapes.** The registration froze the level SETS only. Wording correction (2026-09-02, before any label was read): `thesis_type` is tested ONE-VS-REST for each of its five levels. The two ordinal labels (`evidence_quality`, `invalidation_concreteness`) are tested 3 vs 1. The remaining labels are tested on their two levels (`assertive` vs `hedged`, `substantive` vs `token`). Every such test enters the same per-arm BH family.
 
+### ARM C — gate arms
 
-## Power floors, declared per arm
+Each feature that reaches `CANDIDATE` in A or B is applied as (i) a VETO or (ii) a one-step TIER DEMOTION. It is replayed through `protocol.top_k_per_day(rank_fn=ladder_rank, k=3)` against the unmodified shipped ladder, **paired by date**.
 
-- **ARM A / B cells (feature level × structure × tier):** ≥ **25 affected DATES**
-  and ≥ **60 rows**; a cell under either floor is **UNDERPOWERED**, printed with
-  its n, no criterion evaluated on it. **ARM C:** ≥ **25 dates on which the gate
-  CHANGES the picked set** — a date where the veto/demotion is inert is not
-  affected.
-- Floors run FIRST and block everything. Stated before any count: a 7-feature ×
-  structure × tier grid on 148 v4 dates will UNDERPOWER most cells — a
-  legitimate outcome, not a failure.
+- No other selection knob moves. Tier membership, structure universe, entry side, sizing and exits stay shipped.
+- There is no gate arm without a `CANDIDATE` in A or B.
+- **Bad level.** Wording correction (2026-09-02, before any result): the "bad level" is whichever of the contrast's two groups has the lower POOLED mean R on the era book. The report prints both group means beside the gate. This choice fixes only the gate's direction. It never decides whether the gate clears anything. Under the same correction, a row whose level is `None` is NOT EVALUABLE and is left alone. A gate cannot fire on a value that was never measured.
 
-## Bar for CANDIDATE
+## How it is judged
 
-A feature is a CANDIDATE only on the full conjunction — failing any one is
-failing:
+**Mean R**, date-clustered: `BOOT_N = 10000`, α = .05. **PF**: `protocol.pf` with `pf_ci_by_date` / `pf_paired_by_date`.
 
-1. mean-R separation (A/B) or paired ΔR (C) with **date-clustered bootstrap CI
-   excluding zero** (`BOOT_N = 10000`, α = .05);
-2. **every** LOO fold positive (`protocol.loo_by_date`, read `min_gain`);
-3. survives `protocol.window_cuts` **AND the ex-BOTH cut added BY HAND** —
-   `window_cuts()` drops one window at a time; on v4 both collapse to the 2026
-   no-op above and the report says so;
-4. **positive in every calendar year present** in the cell's population
-   (`protocol.sign_stable`);
-5. right-signed on **BOTH pricing tiers** (real and tweak);
-6. ≥ 25 affected dates and ≥ 60 rows, re-checked on the evaluated set.
+- **ARM A/B CI.** Wording correction (2026-09-02, before any result): the separation CI is a joint-date resample over the union of the two groups' dates (`text_features.boot_ci_diff_by_date`), not `boot_ci_by_date`. That function is a one-sample CI of a mean, and criterion 1 needs a CI of a two-group difference. Within-date pairing is rejected: inside one structure × tier cell the two groups share 0–45 dates against 28–126 in the union. Each drawn date contributes its rows to whichever pool they belong to. This is the same joint-resampling shape as `protocol.pf_paired_by_date`. `protocol.boot_ci_by_date` still prints each group's own mean CI beside the difference.
+- **ARM C CI.** It uses `protocol.boot_ci_paired_by_date`, as registered. `boot_ci_paired_by_date` needs both statistics on the SAME row, which A/B contrasts cannot supply.
+- **PF rule, binding.** A PF claim must ALSO clear the mean-R criterion, because PF alone is gameable by fewer, larger wins.
+- **MFE / MAE.** Give-back prints DESCRIPTIVELY. It is NOT A CRITERION.
+- **Units.** R is quoted, never dollars, in ARM C.
 
-**Multiple comparisons.** The feature list is closed above. Within an arm,
-criterion 1 is additionally controlled by **Benjamini–Hochberg at q = 0.10**; a
-feature clearing its raw CI but failing BH is NULL, not CANDIDATE. BH is applied
-per arm, never pooled across A, B, C.
+## Gates
 
-## Verdict grammar
+Floors run FIRST and block everything. A cell under a floor is `UNDERPOWERED`, printed with its n. No criterion is evaluated on it.
 
-Per feature, exactly one of:
-- **UNDERPOWERED** — a floor was not met; census published, nothing read.
-- **NULL** — powered, conjunction (or BH) not cleared; recorded.
-- **CANDIDATE** — the whole conjunction clears; NOT a ship.
+- **ARM A / B cells (feature level × structure × tier):** Wording correction (2026-09-02, before any result): at least **25 affected DATES** and at least **60 rows**. The floor binds on EACH LEVEL, not on the pair. The code requires at least 60 rows AND at least 25 dates on EACH SIDE of a contrast, and prints both as `level_a/level_b`. A looser reading (60 rows and 25 dates across the two groups combined) let a 181-vs-1 comparison "clear" the floor, so it is rejected. `tests/test_text_features.py::test_floor_binds_on_each_LEVEL_not_on_the_pair` pins the stricter reading.
+- **ARM C:** at least **25 dates on which the gate CHANGES the picked set**. A date where the veto or demotion is inert is not affected.
 
-Each CANDIDATE is filed into exactly one of two named output lists:
-- **PROMPT-ROBUSTNESS FINDINGS** — text predicts failure independent of the
-  numeric columns (vaguer invalidation → worse; hallucinated citations → worse);
-  feeds `prompt_eval`'s `draft` mode, nothing more.
-- **ENTRY-GATE CANDIDATES** — an ARM C gate raising mean R **and** PF under the
-  k=3 replay; feeds a `docs/deployment-rules.md` PROPOSAL.
+## Bar for a candidate
 
-**Catch-all, so no result falls outside the grammar**: any outcome neither
-UNDERPOWERED nor NULL nor CANDIDATE — including a result CONTRARY to the stated
-hypothesis, and any cell the code cannot classify — prints as **NO
-PRE-REGISTERED VERDICT MATCHES** with its numbers, resolved by hand in
-`research/current.md`.
+A feature is a `CANDIDATE` only on the full conjunction. Failing any one clause is failing.
 
-## What ships if MET
+1. **Separation (A/B) or paired ΔR (C):** the date-clustered bootstrap CI excludes zero (`BOOT_N = 10000`, α = .05).
+2. **Every LOO fold has the effect's sign.** `protocol.loo_by_date`; "read `min_gain`". For a two-group A/B contrast, Wording correction (2026-09-02, before any result): `text_features.loo_diff_by_date` is the same-shaped local helper and returns the identical `(mean_gain, share_positive, min_gain, n_folds)` tuple. `protocol.loo_by_date(rows, value_fn, baseline_fn)` takes both statistics from the SAME rows, which two disjoint row sets cannot supply. ARM C uses `protocol.loo_by_date` unchanged.
+3. **It survives `protocol.window_cuts` AND the ex-BOTH cut added BY HAND.** `window_cuts()` drops one window at a time. On v4 both collapse to the 2026 no-op above, and the report says so.
+4. **The effect has the same sign in every calendar year present** in the cell's population (`protocol.sign_stable`).
+5. **It is right-signed on BOTH pricing tiers** (real and tweak).
+6. **At least 25 affected dates and at least 60 rows**, re-checked on the evaluated set.
 
-**Nothing automatically. Nothing ships from a research-tier study.** An
-ENTRY-GATE CANDIDATE becomes a written `docs/deployment-rules.md` proposal,
-queued for an independent-window confirmation; the operator decides. A
-PROMPT-ROBUSTNESS FINDING becomes input to `prompt_eval`; a prompt only reaches
-a v5 bump through that harness plus an operator decision.
+**Direction.** Wording correction (2026-09-02, before any result): the registration words clause 2 as "every LOO fold positive" and clause 4 as "positive in every calendar year". Clauses 2, 3 and 4 are read in the direction the effect points. Both stated hypotheses are NEGATIVE-signed (vaguer invalidation → worse, hallucinated citations → worse). A negative point estimate therefore needs every fold NEGATIVE, every year NEGATIVE, every window cut and both pricing tiers keeping that sign. A point estimate of exactly zero fails all four. This is the stability test the registration describes, not a weaker one.
+
+**Multiple comparisons.** The feature list is closed above. Within an arm, clause 1 is also controlled by **Benjamini–Hochberg at q = 0.10**. A feature that clears its raw CI but fails BH is `NULL`, not `CANDIDATE`. BH is applied per arm, never pooled across A, B, C.
+
+## Possible verdicts
+
+Each feature gets exactly one token.
+
+| Token | When |
+|---|---|
+| `UNDERPOWERED` | A floor was not met. The census is published and nothing is read |
+| `NULL` | Powered, and the conjunction (or BH) did not clear. Recorded |
+| `CANDIDATE` | The whole conjunction clears. NOT a ship |
+| `NO PRE-REGISTERED VERDICT MATCHES` | The catch-all: any outcome that is none of the three above, including a result CONTRARY to the stated hypothesis and any cell the code cannot classify. It prints with its numbers and is resolved by hand in `research/current.md` |
+
+Each `CANDIDATE` is filed into exactly one of two named output lists.
+
+- **PROMPT-ROBUSTNESS FINDINGS.** Text predicts failure independent of the numeric columns (vaguer invalidation → worse; hallucinated citations → worse). It feeds `prompt_eval`'s `draft` mode, nothing more.
+- **ENTRY-GATE CANDIDATES.** An ARM C gate raises mean R **and** PF under the k=3 replay. It feeds a `docs/deployment-rules.md` PROPOSAL.
 
 ## Known confounds, declared now
 
-- **Text length ∝ structure complexity** — hence every ARM A/B test is WITHIN
-  structure; `thesis_len` / `alt_ratio` are never read pooled.
-- **Regime words ≈ the regime label already in the ladder** — the thesis
-  restates what the ladder conditions on, so every within-structure test ALSO
-  conditions on tier and a "finding" cannot be the ladder read back.
-- **The labeller's own lookahead.** Labels describe TEXT, never outcomes — but
-  the model may recognise a ticker or period and label from recall.
-  **Mitigation, binding: date and ticker are STRIPPED from the labeller input**,
-  the cache key being that stripped text. It reduces the risk, not eliminates
-  it; every label-derived CANDIDATE carries the caveat.
-- **`hallucination_rate` coverage is not random** — it follows which dates have
-  a cached markdown, so it is reported, never assumed.
+- **Text length ∝ structure complexity.** Hence every ARM A/B test is WITHIN structure, and `thesis_len` / `alt_ratio` are never read pooled.
+- **Regime words ≈ the regime label already in the ladder.** The thesis restates what the ladder conditions on. So every within-structure test ALSO conditions on tier, and a "finding" cannot be the ladder read back.
+- **The labeller's own lookahead.** Labels describe TEXT, never outcomes. But the model may recognise a ticker or period and label from recall. **Mitigation, binding: date and ticker are STRIPPED from the labeller input**, and the cache key is that stripped text. This reduces the risk and does not eliminate it. Every label-derived `CANDIDATE` carries the caveat.
+- **`hallucination_rate` coverage is not random.** It follows which dates have a cached markdown, so it is reported, never assumed.
 
 ## Anti-tuning
 
-Six deterministic features, one measured rate, one control, five labels with
-frozen level sets; `invalidation_type` cut binary; terciles cut on the full book
-before any outcome is read; k = 3; BH q = 0.10; floors 25 dates / 60 rows. Exit
-profiles, sizing, structure universe, tier membership and entry side are NOT
-swept. No threshold moves and no feature is added after any number is seen.
-**Every cell is reported regardless of outcome.** No annualised figure, Sharpe
-or time-to-recover anywhere.
+- The registered set is final: six deterministic features, one measured rate, one control, five labels with frozen level sets.
+- `invalidation_type` is cut binary. Terciles are cut on the full book before any outcome is read. k = 3. BH q = 0.10. Floors are 25 dates / 60 rows.
+- Exit profiles, sizing, structure universe, tier membership and entry side are NOT swept.
+- No threshold moves and no feature is added after any number is seen.
+- **Every cell is reported regardless of outcome.**
+- No annualised figure, Sharpe or time-to-recover appears anywhere.
 
-## Build notes
+## What could ship
 
-*Not part of the registration — implementation record.*
-
-- Module `scripts/backtest_study/f1_selection/signal/text_features.py`; run
-  `python -m scripts.backtest_study run text_features` (`--era v3` secondary);
-  report `backtests/study_output/text_features-latest.txt`. Corpus + features
-  from `lib/text_corpus.py`; `book` helpers IMPORTED, never forked;
-  `lib/harness.py` untouched. `tests/test_text_features.py` covers the features,
-  the leakage guard above and the conjunction-bar logic.
-- A `scripts/study_map/catalog.py` entry with a hand-written VERDICT is REQUIRED
-  — no entry fails the test suite — plus a `research/study-map.md` prose mention
-  (test-enforced).
-- Every report prints `debit_calib`, `n_credit_ungated`, the credit-ungated
-  caveat, the era header, priceability and `citation_check` coverage; PF never
-  prints without mean R. Labelling cost is an ESTIMATE: ~1,000 priced rows ×
-  ~$0.01 ≈ **$10-20**, once, cached.
-
----
-
-## Wording corrections (appended 2026-09-02, at build time, before any result was read)
-
-*The commitments above do not change. Each note below records a place where the
-registration's wording named a `protocol` helper that cannot express the thing
-the arm asks for, or left a mechanical choice unspecified that the code had to
-make. Nothing here loosens a gate, moves a floor, adds a feature, or changes a
-verdict word. Written while `text_features.py` was being built and BEFORE the
-first run printed a number.*
-
-1. **The ARM A/B separation CI is a joint-date resample over the union of the
-   two groups' dates, not `boot_ci_by_date`.** §Metrics names
-   `protocol.boot_ci_by_date` for A/B, but that function is a ONE-SAMPLE CI of a
-   mean and criterion 1 needs a CI of a TWO-GROUP DIFFERENCE; `protocol` exposes
-   no unpaired two-group mean-difference CI, and `boot_ci_paired_by_date`
-   requires both statistics to live on the SAME row. Within-date pairing was
-   measured and rejected on the data, not on preference: inside one structure ×
-   tier cell the two contrast groups share 0–45 dates against 28–126 in the
-   union, so pairing would discard most of the evidence and fail the power floor
-   for a reason unrelated to any effect. `text_features.boot_ci_diff_by_date`
-   therefore resamples DATES over the union, each drawn date contributing its
-   rows to whichever pool they belong to — the identical joint-resampling shape
-   `protocol.pf_paired_by_date` already uses to compare two books, and
-   date-clustered in the same unit. `protocol.boot_ci_by_date` still prints each
-   group's own mean CI beside the difference. ARM C is unaffected and uses
-   `protocol.boot_ci_paired_by_date` exactly as registered.
-
-2. **Criterion 2's LOO for a two-group contrast uses the same-shaped local
-   helper.** `protocol.loo_by_date(rows, value_fn, baseline_fn)` computes both
-   statistics from the SAME rows, which an ARM A/B contrast (two disjoint row
-   sets) cannot supply. `text_features.loo_diff_by_date` is the two-group
-   analogue and returns the identical
-   `(mean_gain, share_positive, min_gain, n_folds)` tuple, so the registration's
-   "read `min_gain`" instruction reads unchanged. ARM C uses
-   `protocol.loo_by_date` itself, unchanged.
-
-3. **Criteria 2, 3 and 4 are read in the DIRECTION the effect points.** The
-   registration words criterion 2 as "every LOO fold positive" and criterion 4
-   as "positive in every calendar year". Both of this study's stated hypotheses
-   are NEGATIVE-signed (vaguer invalidation → worse, hallucinated citations →
-   worse), so the code applies the mirror of each test to a negative point
-   estimate: every fold NEGATIVE, every year NEGATIVE, every window cut and both
-   pricing tiers keeping that sign. A cell whose point estimate is exactly zero
-   fails all four. This is the stability test the registration describes, not a
-   weaker one; the literal wording would have excluded the direction the study
-   was written to look for.
-
-4. **`hallucination_rate` falls back to a declared binary cut when its terciles
-   are degenerate.** Its distribution is a spike at zero, so the tercile edges
-   can coincide and "top vs bottom tercile" becomes undefined. Where that
-   happens the cut is `> 0` vs `== 0`, printed as `DEGENERATE tercile edges` on
-   the frozen-edges table so a reader sees which cut was used. Every other
-   continuous feature is cut at terciles on the full era book as registered.
-
-5. **ARM C's "bad level" is fixed as the lower-mean-R contrast group, on the era
-   book, and printed.** §Arms says the gate is applied as "a VETO (eligible_fn
-   excludes the bad level)" without naming which level is bad. The code takes
-   whichever of the contrast's two groups has the lower POOLED mean R on the era
-   book, prints both group means beside the gate, and never lets that choice
-   decide whether the gate clears anything — it fixes only the gate's direction.
-   A row whose level is `None` is NOT EVALUABLE and is left alone: a gate cannot
-   fire on a value that was never measured.
-
-6. **ARM B's contrast shapes.** The five level SETS are frozen above; the
-   registration does not say how a 5-level nominal label becomes a two-group
-   contrast. Fixed here, before any label was read: `thesis_type` is tested
-   ONE-VS-REST for each of its five levels; the two ordinal labels
-   (`evidence_quality`, `invalidation_concreteness`) are tested 3 vs 1; and the
-   two remaining labels are tested on their two levels
-   (`assertive` vs `hedged`, `substantive` vs `token`). Every such test enters
-   the same per-arm BH family.
-
-7. **`--labels` and `--citations` default to `cached`, not `run`.** So that
-   `backtest_study run --all` can never spend model credits or touch Drive by
-   accident. The registered runs pass `--labels run --citations run`
-   explicitly, and both steps are resumable and cached, so a later bare
-   `run text_features` reproduces the same report from cache.
-
-8. **The labeller's batch size is 10, not 25** (a build note, appended
-   2026-09-02 after the first labelling pass and BEFORE any ARM B number was
-   read). 25 rows per `claude -p` call was tried first and silently LOST 620 of
-   1,804 payloads — v3 220/795, v4 400/1009 — because the labeller truncates a
-   25-object JSON array on a ~39k-character prompt. A dropped item is an
-   UNLABELLED row (NOT EVALUABLE in ARM B), never a wrong label, so this cost
-   coverage rather than correctness; at batch 10 the identical prompt returns
-   complete batches. Batch size changes nothing a label MEANS — same prompt,
-   same frozen level sets, same `sha256(text payload)` cache key — and every
-   report prints the batch size it used together with its ARM B label coverage.
-
-9. **The ARM A/B floor binds on EACH LEVEL, not on the pair.** §Power floors
-   declares the floor on "ARM A / B cells (**feature level** × structure ×
-   tier): ≥ 25 affected DATES and ≥ 60 rows", so the unit is one LEVEL of one
-   feature inside one structure × tier — the code requires ≥ 60 rows AND ≥ 25
-   dates on EACH SIDE of a contrast, and prints both as `level_a/level_b`. The
-   looser reading (60 rows and 25 dates across the two groups combined) was
-   written first and produced a 181-vs-1 comparison that "cleared" the floor;
-   it is a bug against the registration's own wording, not a judgement call,
-   and `tests/test_text_features.py::test_floor_binds_on_each_LEVEL_not_on_the_pair`
-   pins the stricter reading. Nothing was read from the looser pass.
+**Nothing automatically. Nothing ships from a research-tier study.** An ENTRY-GATE CANDIDATE becomes a written `docs/deployment-rules.md` proposal, queued for an independent-window confirmation. The operator decides. A PROMPT-ROBUSTNESS FINDING becomes input to `prompt_eval`. A prompt reaches a v5 bump only through that harness plus an operator decision.

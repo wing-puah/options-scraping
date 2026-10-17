@@ -1,107 +1,8 @@
 ## ticker_class_regime — does the index-vs-single-stock gap depend on market regime?
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
-> This study is a DRAFT. It is not registered and has not run. The operator has not accepted it, and it may still change.
+<!-- outcome:start -->
 > Latest outcome: not run.
-> Nothing else in this brief is a result.
-
-**The question**
-
-[`ticker_class`](ticker_class.md) found no reliability gap between index ETFs and single stocks on the pooled in-sample book. A pooled `NULL` can hide a gap that flips sign by regime. Does the index-minus-single-stock gap depend on the market's trend or volatility regime, on forward dates only?
-
-The first draft was hashed on 2026-10-07, before an exploratory in-sample regime read. The operator then asked for more splits and stronger robustness. Every later change is listed in the draft under [Changes after the exploratory read](#changes-after-the-exploratory-read).
-
-**What it compares**
-
-The groups are the frozen `ticker_class` table, checked by the same sha256 (`6ce7373e…`). G1 is the index group. S is G5 ∪ G6 ∪ G7. The gap is G1 meanR minus S meanR within a cell, net of cost. Both sides share the same play direction.
-
-The regime comes from the loader's mechanical axes, not the model's text. Trend is `mech_direction`: BULL, RANGE or BEAR. "Non-BULL" pools RANGE and BEAR. Vol is `mech_vol`: L-VOL, or "H/E-VOL", which pools H-VOL and E-VOL.
-
-The graded family is closed at seven contrasts. Each has a fixed error budget (α); the budgets sum to 0.05.
-
-| Object | What it measures | α |
-|---|---|---|
-| ticker_class_regime C1 | Gap, bear plays, BULL trend | 0.005 |
-| ticker_class_regime C2 | Gap, bear plays, non-BULL trend | 0.005 |
-| ticker_class_regime C3 | Gap, bear plays, L-VOL | 0.005 |
-| ticker_class_regime C4 | Gap, bear plays, H/E-VOL | 0.005 |
-| ticker_class_regime C5 | Gap, bull plays, BULL trend and L-VOL | 0.005 |
-| ticker_class_regime I1 | C1 minus C2: does the gap depend on trend? | 0.0125 |
-| ticker_class_regime I2 | C3 minus C4: does the gap depend on volatility? | 0.0125 |
-
-Four objects print and are never graded:
-
-- `P1`: the gap in every cell of the 3 × 3 trend × vol grid.
-- `P2`: the gap against G5, G6 and G7 separately.
-- `P3`: the original draft's contrast, BEAR_HE minus LVOL, on bear plays.
-- `P4`: neutral plays per cell.
-
-A lead seen there needs a new registration.
-
-**How it is judged**
-
-**Population.** Forward signal dates after 2026-10-07 that have backtest rows. Dates on or before 2026-10-07 are never graded. All graded rows come from one prompt era. Rows with no `mech_direction` or `mech_vol` are dropped and counted.
-
-**Tests.**
-
-- `C1`–`C5`: a permutation test. G1/S labels shuffle among positions of the same play direction, within the same calendar week and cell. The p-value is two-sided, with 10,000 shuffles and seed 20261007. A date-clustered bootstrap CI at level 1 − α prints beside it.
-- `I1`, `I2`: a circular-shift permutation test of the regime-label series, for every shift at least 10 signal dates from zero.
-
-**Gates.**
-
-- `GR0`: each side has ≥ 30 dates and ≥ 60 positions. An interaction needs this on all four sides. Failure reads `STILL-OPEN`.
-- `GR1`: ≤ 25% of each side's positions are open at the data end. Failure reads `STILL-OPEN`.
-- `GR2`: the group-table hash matches `ticker_class`'s. Failure exits 1.
-- `GR3`: every graded row is from one era. Failure exits 3.
-- `GR4`: an interaction needs ≥ 160 admissible circular shifts. Failure leaves that interaction `STILL-OPEN`.
-- `GR5`: a contrast that has not passed `GR0` and `GR1` by 2028-04-07 reads `UNDERPOWERED`, final.
-
-Before a contrast passes `GR0` and `GR1`, runs print its census only. Each contrast is graded once, at the first run where it passes. No later run re-grades it.
-
-**Bar at discovery.** A contrast clears discovery only when all four hold.
-
-1. The permutation p is ≤ its α, and the bootstrap CI at level 1 − α excludes 0.
-2. The absolute gap, or interaction, is ≥ 0.10 R.
-3. Every evaluable check in the robustness battery keeps the sign.
-4. No PBO veto.
-
-The battery has eleven checks, `RB1` to `RB11`. A check is evaluable when each side has ≥ 15 positions. At least six must be evaluable, or the contrast reads `NOT ROBUST-TESTABLE`. See [Robustness battery](#robustness-battery) for the list.
-
-The PBO diagnostic is a CSCV over discovery-window months, choosing the best of `C1`–`C5`. It needs ≥ 8 months. A PBO above 0.50 vetoes every discovery verdict graded at that run.
-
-**Confirmation.** A contrast that clears discovery is `PROVISIONAL`. It must repeat on new dates, until `GR0` and `GR1` pass again on those dates alone. The gap needs the same sign and a one-sided permutation p ≤ 0.05, and `RB1`, `RB4` and `RB5` must hold. Two years after discovery, a contrast still without power reads `UNCONFIRMED`, final.
-
-**Possible verdicts**
-
-| Token | What it means |
-|---|---|
-| `REGIME-DEPENDENT (trend)` or `(vol)` | `I1` or `I2` is confirmed |
-| `INDEX-BETTER-IN-<cell>` or `INDEX-WORSE-IN-<cell>` | `C1`–`C5` confirmed, by sign |
-| `PROVISIONAL` | Discovery cleared; confirmation pending |
-| `FAILED-CONFIRMATION` | Confirmation powered and failed |
-| `UNCONFIRMED` | Confirmation sunset reached without power |
-| `NULL` | Discovery graded and did not clear. No evidence, never proof the gap is regime-free |
-| `NOT ROBUST-TESTABLE` | Discovery significant and large, but fewer than six checks evaluable |
-| `STILL-OPEN` | Not yet powered, before the sunset |
-| `UNDERPOWERED` | `GR5` |
-
-**What could ship**
-
-Nothing ships. Only a confirmed verdict files "to be tested" in `research/deployment-evidence.md`. A `PROVISIONAL` result files nothing.
-
-**What this study cannot tell you**
-
-- Anything about in-sample dates. The exploratory in-sample read is never pooled with forward rows or cited as support.
-- Whether `ticker_class`'s verdicts were right. They stand and are not re-graded.
-- Anything from the model's own regime text, except as one robustness check (`RB9`).
-- Anything soon. The draft estimates 5 to 20 months for a cell's G1 side to reach 60 positions, and its sunset is 2028-04-07.
-- Whether a regime filter or exit rule would work. It changes no production code.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered ____-__-__ (DRAFT — not registered; becomes immutable in substance when the operator accepts it)._
 
@@ -111,45 +12,26 @@ robustness. Every change made after the read is listed under
 [Changes after the exploratory read](#changes-after-the-exploratory-read), with which ones the
 read suggested.
 
-## Question
+## The question
 
 [`ticker_class`](ticker_class.md) found no reliability gap between index ETFs and single
 stocks on the pooled in-sample book. A pooled NULL can hide a gap that flips sign by regime.
 Does the index-minus-single-stock gap depend on the market's trend or volatility regime, on
 forward dates only?
 
-## What this is NOT
+## What this study is not
 
-- Not a re-grade of `ticker_class`. Its verdicts stand. This study reads none of its
+- It does not re-grade `ticker_class`. Its verdicts stand. This study reads none of its
   in-sample dates.
-- Not a regime filter or exit rule. A confirmed verdict files "to be tested" and changes no
-  production code.
-- Not a test of the model's own regime text. The graded regime is the deterministic
-  [mech_cell](../../../glossary.md#mech_cell) axes. The model's text appears only as a robustness check.
-- Not a search. The graded family is closed below at seven contrasts. Everything else is
-  printed and never graded.
-
-## How overfitting is held down
-
-Testing many splits finds something by chance unless the design pays for each one. Six
-guards do that. Each is defined in full further down.
-
-| Guard | What it stops |
-|---|---|
-| A closed family of seven graded contrasts, fixed now | Adding splits after seeing results |
-| A fixed share of the error budget for each contrast (Bonferroni, total 0.05) | Chance hits across many splits, whenever each one is graded |
-| Permutation p-values that keep the data's time structure | Overconfident p-values from correlated dates |
-| A veto-only robustness battery | A result that lives in one ticker, month, cost basis or metric |
-| A minimum effect of 0.10 R | Significant but trivial gaps |
-| A separate confirmation window | A discovery-window fluke being reported as a finding |
-
-The robustness checks can only veto. Adding more of them makes a positive verdict harder,
-never easier.
-
-## The trial ledger
-
-This study adds seven graded trials to the selection ledger that `ticker_class` opened. The
-printed grid adds none, because nothing in it can produce a verdict.
+- It is not a regime filter or exit rule. A confirmed verdict files "to be tested" and
+  changes no production code.
+- It does not test the model's own regime text. The graded regime is the deterministic
+  [mech_cell](../../../glossary.md#mech_cell) axes. The model's text appears only as a
+  robustness check (RB9).
+- It is not a search. The graded family is closed at seven contrasts. Everything else is
+  printed and never graded. A lead seen in P1–P4 needs a new registration.
+- The exploratory in-sample read is never pooled with
+  forward rows and never cited as support for a forward verdict.
 
 ## Definitions
 
@@ -168,10 +50,10 @@ printed grid adds none, because nothing in it can produce a verdict.
 ## Population and basis, fixed here
 
 - **Forward dates.** Signal dates after 2026-10-07 that have backtest rows.
+- **No in-sample reads.** Dates on or before 2026-10-07 are never graded here.
 - **One prompt era.** All graded rows come from one era. If the prompt version bumps before
   a contrast is graded, its count restarts at the new era's first date. Earlier forward rows
   are printed, never pooled.
-- **No in-sample reads.** Dates on or before 2026-10-07 are never graded here.
 
 ## Plan-time observations, disclosed
 
@@ -191,11 +73,14 @@ S accrues faster than G1 in every cell, so G1 is the binding side. Index bear pl
 mostly in BULL + L-VOL: 112 of 189 in-sample positions. Every other cell of the 3 × 3 grid
 has under 20 G1 bear positions in-sample, so the grid is printed, not graded.
 
-## Arms
+## What it compares
+
+The study adds seven graded trials to the selection ledger that `ticker_class` opened. The
+printed grid adds none, because nothing in it can produce a verdict.
 
 ### Graded family
 
-| Object | Object type | Error budget (α) |
+| Object | What it measures | Error budget (α) |
 |---|---|---|
 | C1 | Gap, bear plays, BULL trend | 0.005 |
 | C2 | Gap, bear plays, non-BULL trend | 0.005 |
@@ -205,8 +90,9 @@ has under 20 G1 bear positions in-sample, so the grid is printed, not graded.
 | I1 | C1 minus C2: does the gap depend on trend? | 0.0125 |
 | I2 | C3 minus C4: does the gap depend on volatility? | 0.0125 |
 
-The budgets sum to 0.05. A fixed budget per contrast keeps the family-wise error at or below
-0.05 even though contrasts reach power at different times and are graded separately.
+The budgets sum to 0.05 (Bonferroni, total 0.05). A fixed budget per contrast keeps the
+family-wise error at or below 0.05 even though contrasts reach power at different times and
+are graded separately.
 
 ### Printed, never graded
 
@@ -217,43 +103,46 @@ The budgets sum to 0.05. A fixed budget per contrast keeps the family-wise error
 | P3 | The original draft's contrast: BEAR_HE minus LVOL, bear plays |
 | P4 | Neutral plays per cell |
 
-A lead seen in P1–P4 needs a new registration.
+## How it is judged
 
-## Tests
+**Cell gaps (C1–C5).** The test is a permutation test.
 
-- **Cell gaps (C1–C5).** The test is a permutation test.
-  - The G1/S labels are shuffled among positions of the same play direction, within the
-    same calendar week and the same cell.
-  - Shuffling within a week keeps each week's market move on both sides.
-  - The p-value is two-sided, (1 + shuffles at least as extreme) / (1 + 10,000), with
-    seed 20261007.
-  - A date-clustered bootstrap CI at level 1 − α (for example 99.5% for C1) is printed
-    beside it.
-- **Interactions (I1, I2).** The test is a circular-shift permutation test.
-  - The date series of regime labels is shifted by k signal dates, for every k at least 10
-    dates away from zero, and the interaction is recomputed each time.
-  - The p-value is (1 + shifts at least as extreme) / (1 + shifts). With 160 shifts its
-    floor is about 0.006.
-  - Shifting keeps the regime's own run lengths and autocorrelation. Shuffling it would
-    destroy them.
-  - A joint date-clustered bootstrap CI is printed beside it.
+- The G1/S labels are shuffled among positions of the same play direction, within the same
+  calendar week and the same cell.
+- Shuffling within a week keeps each week's market move on both sides.
+- The p-value is two-sided: (1 + shuffles at least as extreme) / (1 + 10,000), with seed
+  20261007.
+- A date-clustered bootstrap CI at level 1 − α (for example 99.5% for C1) is printed beside
+  it.
+
+**Interactions (I1, I2).** The test is a circular-shift permutation test.
+
+- The date series of regime labels is shifted by k signal dates, for every k at least 10
+  dates away from zero, and the interaction is recomputed each time.
+- The p-value is (1 + shifts at least as extreme) / (1 + shifts). With 160 shifts its floor
+  is about 0.006.
+- Shifting keeps the regime's own run lengths and autocorrelation. Shuffling it would
+  destroy them.
+- A joint date-clustered bootstrap CI is printed beside it.
 
 ## Gates
 
-| Gate | Rule | On failure |
-|---|---|---|
-| GR0 power | Each side of the contrast has 30 or more dates and 60 or more positions. An interaction needs this on all four sides. | census only; `STILL-OPEN` |
-| GR1 settled | 25% or fewer of each side's positions are open at the data end | `STILL-OPEN` |
-| GR2 map | The group-table hash matches `ticker_class`'s | exit 1 |
-| GR3 era | Every graded row is from one era, named in the header | exit 3 |
-| GR4 shifts | An interaction has at least 160 admissible circular shifts, so its p can fall below its α of 0.0125 | that interaction `STILL-OPEN` |
-| GR5 sunset | A contrast has not passed GR0 and GR1 by 2028-04-07 | `UNDERPOWERED`, final |
+- **GR0 power.** Each side of the contrast has 30 or more dates and 60 or more positions. An
+  interaction needs this on all four sides. On failure: census only; `STILL-OPEN`.
+- **GR1 settled.** 25% or fewer of each side's positions are open at the data end. On
+  failure: `STILL-OPEN`.
+- **GR2 map.** The group-table hash matches `ticker_class`'s. On failure: exit 1.
+- **GR3 era.** Every graded row is from one era, named in the header. On failure: exit 3.
+- **GR4 shifts.** An interaction has at least 160 admissible circular shifts, so its p can
+  fall below its α of 0.0125. On failure: that interaction is `STILL-OPEN`.
+- **GR5 sunset.** A contrast has not passed GR0 and GR1 by 2028-04-07. On failure:
+  `UNDERPOWERED`, final.
 
 Before a contrast passes GR0 and GR1, runs print its census only. No outcome statistic of
 that contrast is printed. Each contrast is graded once, at the first run where it passes.
 Its discovery window is every forward date up to that run. No later run re-grades it.
 
-## Bar at discovery
+## Bar for a candidate
 
 A contrast clears discovery only when all four hold:
 
@@ -265,9 +154,11 @@ A contrast clears discovery only when all four hold:
 
 ### Robustness battery
 
+The checks can only veto. Adding more of them makes a positive verdict harder, never easier.
 A check is evaluable when each side of its subset has 15 or more positions. A check that is
 not evaluable is printed as `n/a` and does not veto. At least six checks must be evaluable,
-or the contrast reads `NOT ROBUST-TESTABLE` instead of clearing.
+or the contrast reads `NOT ROBUST-TESTABLE` instead of clearing. For an interaction, each
+check is applied to the interaction itself.
 
 | Check | The sign must hold when… |
 |---|---|
@@ -283,8 +174,6 @@ or the contrast reads `NOT ROBUST-TESTABLE` instead of clearing.
 | RB10 | the exit-free number [E](../../../glossary.md#e) is used instead of R |
 | RB11 | the five dates contributing most to the gap are removed |
 
-For an interaction, each check is applied to the interaction itself.
-
 ### PBO diagnostic
 
 When a contrast is graded, a CSCV over discovery-window months picks the best of the five
@@ -292,7 +181,7 @@ cell gaps C1–C5. It needs at least 8 months: the earliest months are trimmed t
 8 and S is 8. Below 8 months it prints `n/a`. A PBO above 0.50 vetoes every discovery verdict
 graded at that run.
 
-## Confirmation
+### Confirmation
 
 A contrast that clears discovery is `PROVISIONAL`. It must then repeat on new dates.
 
@@ -330,7 +219,7 @@ correction.
   support for a forward verdict.
 - An outcome not named above goes to the nearest verdict with a printed qualification.
 
-## Ship criteria
+## What could ship
 
 Nothing ships from this study. Only a confirmed verdict files "to be tested" in
 `research/deployment-evidence.md`. A `PROVISIONAL` result files nothing.
@@ -347,11 +236,3 @@ The first draft was hashed at 2026-10-07 20:11 +08 (sha256 `682be3c0…`) before
 | 2026-10-07 | C5 (bull plays, BULL + L-VOL) added | The read: in-sample bull lead +0.256 on 41 positions |
 | 2026-10-07 | The draft's BEAR_HE vs LVOL contrast moved to printed (P3). I2 replaces it on the plain vol axis, which accrues faster. | Accrual census, counts only |
 | 2026-10-07 | α budgets, permutation tests, robustness battery, effect floor, confirmation window added | Operator, asking for robustness against overfitting |
-
-## Build notes
-
-- Add it as a forward mode on `scripts/backtest_study/f1_selection/benchmark/ticker_class.py`, or as a
-  sibling module that imports its group table, `prepare` and bootstrap helpers. Never copy them.
-- Tests must check that each permutation test holds its α on synthetic null data, and that a
-  planted effect clears. That is a test of the code, not of the data.
-- It needs a catalog entry, an arm-index section, and its README row updated at acceptance.

@@ -1023,7 +1023,7 @@ The analysts and the validator are ISOLATED — no filesystem, no tools — so t
 what the prompt inlines. Three artifacts go in, in this order:
 
 - the pre-registration (`research/pre-registrations/<family>/<name>.md`), read whole except
-  the reader's brief at its top, which `strip_brief` cuts because it carries the latest outcome;
+  the outcome block at its top, which `strip_outcome` cuts so the graders never see a result;
 - the ERRATA file (`research/<name>-errata.md`, `_` also tried as `-`) when one exists;
 - the report.
 

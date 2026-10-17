@@ -2,8 +2,8 @@
 
 Each study has one pre-registration file: the question, frozen inputs,
 criteria, and gates committed to **before** the study was built or run.
-Each file opens with a plain-language brief: read it to understand the
-study in five minutes. The registration below the brief stays binding.
+Each file is written to be read top to bottom by a person, and opens with
+the study's latest outcome.
 
 **The rule.** A pre-registration's commitments are immutable — no gate, bar,
 arm definition, or verdict changes meaning after it is written.
@@ -20,7 +20,7 @@ NOT live in [`../current.md`](../current.md) (a rolling log pruned into
 `scripts/backtest_study/` and [`../study-results/`](../study-results/): a
 study's registration lives in the same `fN_*` folder as its module.
 `python -m scripts.study_review <study>` globs `<family>/<study>.md` and
-hands the file, with its brief cut out, to the two independent analyst
+hands the file, with its outcome block cut out, to the two independent analyst
 agents plus validator,
 who grade the study's run against what was committed here — see
 [`../replication-protocol.md`](../replication-protocol.md).
@@ -46,9 +46,10 @@ drafter's recommended defaults were accepted unreviewed.
 **Latest outcome** is the verdict the study last printed, quoted verbatim, with
 its date and a link to the record. The record is the study's file in
 [`../study-results/`](../study-results/); a commitment's is
-[`../current.md`](../current.md). The same line opens the file's brief.
-Nowhere else in a file may an outcome appear, because blind graders read
-everything outside the brief. When a study re-runs, update both copies.
+[`../current.md`](../current.md). The same line opens the file, inside its
+outcome block. Nowhere else in a file may an outcome appear, because blind
+graders read everything outside that block. When a study re-runs, update both
+copies.
 `graded` means a grading exists; it may predate the latest run.
 
 ## How a registration is structured
@@ -59,91 +60,68 @@ Every file follows one template:
   fragment only when there is a real one. `scripts/study_review/` extracts
   this line as the document's label, so never demote it or put anything
   above it.
-- **The brief** comes next, between `<!-- brief:start -->` and
-  `<!-- brief:end -->` (see [The brief](#the-brief)).
-- **First line after the brief** reads `_Registered YYYY-MM-DD._` — the original
+- **The outcome block** comes next: the Latest outcome line, between
+  `<!-- outcome:start -->` and `<!-- outcome:end -->`. `strip_outcome` in
+  `scripts/study_review/core.py` cuts it before grading, and an unbalanced
+  marker refuses the grading. `tests/test_study_review.py` checks every file:
+  one block each, and no outcome in the graded text.
+- **First line after the outcome block** reads `_Registered YYYY-MM-DD._` — the original
   commitment date, and the only date the file carries. A `draft` file's
   first body line reads `_Registered ____-__-__ (DRAFT — not registered;
   becomes immutable in substance when the operator accepts it)._` instead,
   with the file's own `**STATUS: DRAFT.**` sentence sitting directly below
   it. Acceptance fills in the date and drops the parenthetical, and the line
   then reads like every other registration's.
-- **Sections**, each a `## ` heading at the same level as line 1 (see
-  [`f1_selection/bear/bear_arm.md`](f1_selection/bear/bear_arm.md) for the reference
-  shape), come in this canonical order, and a section is omitted — never left
-  as an empty stub — when a study has nothing for it: Question · What this is
-  NOT · Definitions · Dependencies · Population and basis, fixed here ·
-  Plan-time observations, disclosed · Arms · Unit and metric · Gates · Bar
-  for a candidate · Verdicts, worded now · Anti-tuning · Ship criteria ·
-  Build notes. Build notes is the one section that is NOT part of the
-  registration — it is implementation, not commitment. Definitions pins a
-  term the study's Arms or Population depend on (`### ` sub-headings split
-  more than one); Dependencies states what must land, be built, or be read —
-  a census, a config knob, another study's prerequisite — before this one can
-  run. `### ` sub-headings are free inside any section: one per ARM, per gate
-  group, per defined term. Qualifiers that used to live in headings ("in
-  order", "frozen at two") now sit in the section's first sentence instead. A
-  COMMITMENT rather than a study — one with no arms and no module, e.g.
-  `holdout_seal` — may replace the section list with its own (it says so at
-  the top), but still keeps Verdicts before Anti-tuning before Ship criteria
-  before Build notes.
-- **Wording** is plain English. The files were re-edited for readability on
-  2026-08-31, holding every number, ARM label, gate id, verdict token and
-  quotation verbatim — a mechanical diff enforced it. What a registration
-  commits did not change, only how it reads.
+- **Sections**, each a `## ` heading at the same level as line 1, come in
+  this order. A section is omitted, never left as an empty stub, when a study
+  has nothing for it:
+  1. The question
+  2. What this study is not
+  3. Definitions
+  4. Dependencies
+  5. Population and basis, fixed here
+  6. Plan-time observations, disclosed
+  7. What it compares (the arms: a table first, then one `###` per arm)
+  8. How it is judged
+  9. Gates
+  10. Bar for a candidate
+  11. Verdicts, worded now
+  12. Anti-tuning
+  13. What could ship
+
+  A COMMITMENT rather than a study (`holdout_seal`, `programme_gate`,
+  `rollback_triggers`, `v4_bridge`) keeps its own section list in plain
+  words, still ending Verdicts → Anti-tuning → What could ship. Keep freezing
+  words in headings ("fixed here", "worded now", "in order"): they tell the
+  graders what is frozen.
+- **No Build notes.** Implementation lives in the study module and in git. A
+  build ruling that changes what a gate refuses, what an arm does or how a
+  clause is read sits beside the text it amends, tagged
+  `Resolved at build (date)`.
 
 The unifying property: the same kind of content always has the same name and
 relative position, not that every file has every section.
 
-## The brief
+## Writing a registration
 
-Every registration opens with a brief, a plain-language summary of the
-question, the arms, how the study is judged, the possible verdicts and what
-could ship. Adopted 2026-10-17, and moved into the registration files on
-2026-10-18. A registration has two jobs that pull against each other. Blind
-graders need every commitment and the date it was fixed. A reader needs the
-design in plain words.
-
-**The graders never see it.** `scripts/study_review/core.py::strip_brief`
-cuts everything from `<!-- brief:start -->` to `<!-- brief:end -->` before
-grading. An unbalanced marker refuses the grading rather than leak.
-`tests/test_study_review.py` checks every file here: one brief each, and no
-outcome in the graded text.
-
-Rules for writing one:
-
-- **The registration wins.** Where the brief and the registration differ, the
-  registration is right and the brief is fixed.
-- **The only result** in a brief is its Latest outcome line, copied from the
-  index below.
-- **Every threshold, label and token matches the registration exactly.** A
-  rule too intricate to summarise gets one line and a link to its section,
-  never a loose paraphrase.
-- **A second reader fact-checks** each brief against its registration before
-  it is committed.
-- **Writing** follows [`../writing-guide.md`](../writing-guide.md), with
-  ASD-STE100 Issue 9 as inspiration: sentences of 25 words or fewer, active
-  voice, one topic per paragraph, vertical lists for parallel items, one term
-  per thing. `scripts/check_prose.py` skips this folder, so check by hand.
-
-Layout, inside the markers:
-
-1. `## In brief`, then a blockquote: the registration wins, the brief is cut
-   before grading, and the Latest outcome with its date and record link.
-2. **The question**: two to four sentences.
-3. **What it compares**: a table of arms, giving label, what it does, kind.
-4. **How it is judged**: measure, population, gates as a list, the bar as a
-   numbered list.
-5. **Possible verdicts**: a table of token and meaning.
-6. **What could ship**: one short paragraph.
-7. **What this study cannot tell you**: three to five bullets.
-8. A `---` rule, so the eye sees where the registration starts.
-
-The section labels are bold lines, not headings. A heading here would share an
-anchor with a registration section and renumber links into it. A commitment
-rather than a study (`holdout_seal`, `programme_gate`) replaces items 3–5 with
-what it commits to and what each outcome triggers. The reference brief is in
+Adopted 2026-10-18, when all 41 files were rewritten to read top to bottom
+and the separate plain-language briefs were retired. The reference file is
 [`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md).
+
+- **Plain words, exact commitments.** Follow
+  [`../writing-guide.md`](../writing-guide.md), with ASD-STE100 Issue 9 as
+  inspiration: sentences of 25 words or fewer where possible, active voice,
+  condition first, one term per thing, tables for arms and verdicts, vertical
+  lists for gates and bar clauses. `scripts/check_prose.py` skips this
+  folder, so check by hand.
+- **Every number, label, gate id, verdict token and quotation is exact.**
+- **Dates stay on rules.** Each `Resolved at build (date)` tag, plan-time
+  observation, pre-run expectation and dated wording correction stays beside
+  the rule it belongs to.
+- **Nothing added.** No unit, scope or summary statement the commitments do
+  not make, and no "same as X's" cross-reference that is not registered.
+- **A second reader fact-checks** any rewrite of a registered file, clause by
+  clause against the committed text, before it is committed.
 
 ## Terminology legend
 

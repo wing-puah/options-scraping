@@ -1,93 +1,8 @@
 ## programme_gate — keep or retire the flow-selection layer
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome: `WAIT` (row 4: `PG-M` `CONTRARY`, `PG-D` `STILL-OPEN`) — 2026-10-15 · [log](../../current.md).
-> Nothing else in this brief is a result.
-
-**The question**
-
-This is a commitment, not a study. It has no module, report or arms.
-
-It asks which verdicts of two registered studies decide whether the flow-selection layer stays. That layer is the analysis pipeline plus the deploy card's ladder: the picks the model emits, tiered by `ladder_tier()` and deployed top-3 per day. The gate fixes the rule before either input is read.
-
-**What it commits to**
-
-The gate reads two inputs. Neither study changes its own grading for this gate.
-
-| Input | Source | What counts |
-|---|---|---|
-| `PG-M` | [`mechanical_benchmark`](../f1_selection/benchmark/mechanical_benchmark.md), [`ARM M1` and `ARM M2`](../../arm-index.md#mechanical_benchmark), v4 | Per-arm criteria C0, C1, C2 and the `CONTRARY` condition, on the headline basis (`DEBIT_PROD` on both sides, gross of costs) |
-| `PG-D` | [`dip_buy`](../f1_selection/regime/dip_buy.md), [`DB1`](../../arm-index.md#dip_buy), v4 forward dates | Its verdict of record: the first run that prints anything but `STILL-OPEN` |
-
-The criteria, used verbatim:
-
-- C0: at least 25 dates and 40 matched pairs.
-- C1: paired within-date mean R gain, with a 95% date-clustered CI excluding zero.
-- C2: every leave-one-date-out fold positive.
-- `CONTRARY` condition: an arm's paired gain is negative with a CI excluding zero.
-
-`PG-M` reads one of six tokens. `CONTRARY` wins over `BEATS`.
-
-| `PG-M` reads | When |
-|---|---|
-| `BEATS` | An admitted arm clears C0, C1 and C2, and no arm meets the `CONTRARY` condition |
-| `CONTRARY` | `ARM M1` or `ARM M2` meets the `CONTRARY` condition |
-| `DOES NOT BEAT` | At least one arm clears C0, no admitted arm clears C0–C2, and neither is `CONTRARY` |
-| `UNDERPOWERED` | Neither arm clears C0 |
-| `NOT BUILT` | The census fails a floor even at its upper value |
-| `NOT READ` | No run has printed per-arm grades yet |
-
-`PG-D` counts `SUPPORTED` as positive, `NULL` and `CONTRARY` as negative, and `STILL-OPEN` as no read yet.
-
-Three parameters are contested. Each prints under both settings, and only the default is the verdict.
-
-| Parameter | Default | Printed beside it |
-|---|---|---|
-| `PG-ARMS` | `M1 or M2`: either arm clearing C0–C2 counts | `M1 only` |
-| `PG-UNPOWERED` | `burden on the picks`: `UNDERPOWERED` or `NOT BUILT` counts as `DOES NOT BEAT` | `hold`: leaves `PG-M` as `NOT READ` |
-| `PG-BACKSTOP` | `2027-10-13, not positive`: an input with no read counts as not positive | `2027-10-13, operator`: the gate reads `BACKSTOP` |
-
-**Not inputs.** `mechanical_benchmark` `ARM U` and any SPY-only benchmark (P2), that study's own verdict token, v3 results, and the [`holdout_seal`](holdout_seal.md) read. A P2 result is recorded beside the gate and never changes it.
-
-**What each outcome triggers**
-
-The gate reads the table top to bottom. The first matching row is the outcome.
-
-| # | `PG-M` | `PG-D` | Gate reads |
-|---|---|---|---|
-| 1 | `BEATS` | any | `KEEP` |
-| 2 | any | `SUPPORTED` | `KEEP` |
-| 3 | `CONTRARY` or `DOES NOT BEAT` | `NULL` or `CONTRARY` | `RETIRE` |
-| 4 | `CONTRARY` or `DOES NOT BEAT` | `STILL-OPEN` | `WAIT`, recorded as "P1 negative, `dip_buy` open" |
-| 5 | `NOT READ` | `NULL`, `CONTRARY` or `STILL-OPEN` | `WAIT` |
-
-At the backstop under the default, rows 4 and 5 become `RETIRE`. A prompt-version bump that freezes `dip_buy` at `STILL-OPEN` brings the backstop forward to the bump date.
-
-| Token | What it triggers |
-|---|---|
-| `KEEP` | The pipeline and daily loop run unchanged. Both reads keep running; neither re-opens the gate |
-| `RETIRE` | The operator picks one way out: a mechanical dip rule at $500, or no new positions from the pipeline. Either needs its own registration and rollback trigger first |
-| `WAIT` | Nothing changes. The record says which input is missing |
-| `BACKSTOP` | Only under `PG-BACKSTOP = operator`. The operator decides, with both inputs stated |
-
-**Timing.** The P1 read alone cannot retire. Row 4 waits for `dip_buy`, which needs about 142 forward signal dates once the seal lifts. `KEEP` can arrive first. The verdict of record is the first read that is not `WAIT`.
-
-**What could ship**
-
-Nothing ships. `RETIRE` lets the operator consider a mechanical dip rule at $500 or stopping, and money does not move without a new registration.
-
-**What this commitment cannot tell you**
-
-- Whether the model's ticker choice adds value. P2 is not an input.
-- Whether any deployment rule should change. It changes none.
-- Anything about the dip sizing rollback. The [sizing policy](../../../docs/deployment-rules.md#s2-sizing) reverts on its own when `dip_buy` reads `NULL` or `CONTRARY`.
-- Anything while an input is unread. As of 2026-10-15 the gate reads `WAIT`: `PG-M` is `CONTRARY` and `PG-D` is open.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-10-13._
 
@@ -97,43 +12,48 @@ registration, never an edit).** The rule's substance is the operator's, from
 [next-steps P0](../../next-steps.md#plan-20261013). Every contested choice
 below is a parameter, and the gate's record prints its outcome both ways.
 
-**What this file says, in one paragraph.** Two reads decide whether the
-flow-selection layer stays. If the picks do not beat the mechanical spread in
-`mechanical_benchmark`'s same-ticker arms, and `dip_buy` grades `NULL` or
-`CONTRARY`, the gate reads `RETIRE`. If either read is positive, it reads
-`KEEP`. While `dip_buy` is `STILL-OPEN`, the gate reads `WAIT`, and the P1
-read alone cannot retire anything. The gate changes no deployment rule.
-Acting on it is a separate operator decision.
+## The question
+
+Which verdicts of two registered studies decide whether the flow-selection
+layer stays?
+
+This is a COMMITMENT, not a study. It has no module, no report and no arms of
+its own. It fixes, before either input is read, which verdicts count.
+
+The flow-selection layer is the analysis pipeline plus the deploy card's
+ladder: the picks the model emits, tiered by `ladder_tier()` and deployed
+top-3/day ([§2](../../../docs/deployment-rules.md#s2)).
+
+In one paragraph:
+
+- If the picks do not beat the mechanical spread in `mechanical_benchmark`'s
+  same-ticker arms, and `dip_buy` grades `NULL` or `CONTRARY`, the gate reads
+  `RETIRE`.
+- If either read is positive, it reads `KEEP`.
+- While `dip_buy` is `STILL-OPEN`, the gate reads `WAIT`. The P1 read alone
+  cannot retire anything.
+- The gate changes no deployment rule. Acting on it is a separate operator
+  decision.
 
 **Registered before any input exists.** On 2026-10-13 no
 `mechanical_benchmark` outcome has been printed: its only run reads
 `NOT BUILT — AWAITING SCRAPE`, and the same-ticker legs are not fetched.
 `dip_buy` reads `STILL-OPEN` behind the holdout seal.
 
-## What this is
+This file follows the [`holdout_seal`](holdout_seal.md) shape: its own section
+list, with Verdicts and Anti-tuning in the usual order.
 
-A COMMITMENT, not a study. It has no module, no report and no arms of its
-own. It fixes, before either input is read, which verdicts of two registered
-studies decide whether the flow-selection layer keeps running.
-
-The flow-selection layer is the analysis pipeline plus the deploy card's
-ladder: the picks the model emits, tiered by `ladder_tier()` and deployed
-top-3/day ([§2](../../../docs/deployment-rules.md#s2)).
-
-It follows the [`holdout_seal`](holdout_seal.md) shape: its own section list,
-with Verdicts, Anti-tuning, Ship criteria and Build notes in the usual order.
-
-## What this is NOT
+## What this is not
 
 - **Not a deployment rule.** `RETIRE` changes nothing in
   [`docs/deployment-rules.md`](../../../docs/deployment-rules.md), the deploy
-  card or the journal. The operator decides whether to act, and any new rule
-  needs its own registration.
+  card or the journal. The operator decides whether to act. Any new rule needs
+  its own registration.
 - **Not a new grade of either input.** Both studies grade themselves under
   their own registrations. This file only says which of their verdicts count
   here. It adds no criterion, cut or statistic to either.
 - **Not a ticker-choice test.** P2 (`mechanical_benchmark` `ARM U`, or a
-  SPY-only benchmark) is not an input. See [Inputs](#inputs).
+  SPY-only benchmark) is not an input.
 - **Not the dip sizing rollback.** The
   [sizing policy](../../../docs/deployment-rules.md#s2-sizing) already reverts
   to uniform $500 when `dip_buy` reads `NULL` or `CONTRARY`. That rollback
@@ -159,9 +79,9 @@ The read uses `mechanical_benchmark`'s per-arm criteria verbatim:
 - **the `CONTRARY` condition** — an arm's paired gain negative with a CI
   excluding zero.
 
-Every one is read on the headline basis (`DEBIT_PROD` on both sides, gross
-of costs). The declared secondaries, `ARM M2L` and the own-profile replay,
-carry no verdict there and none here.
+Every one is read on the headline basis (`DEBIT_PROD` on both sides, gross of
+costs). The declared secondaries, `ARM M2L` and the own-profile replay, carry
+no verdict there and none here.
 
 | `PG-M` reads | When |
 |---|---|
@@ -173,8 +93,8 @@ carry no verdict there and none here.
 | `NOT READ` | No run has printed per-arm grades yet, for example `NOT BUILT — AWAITING SCRAPE` |
 
 `CONTRARY` wins over `BEATS`, as `mechanical_benchmark` ranks it first.
-"Clears C0–C2" is the same per-arm bar that study's `STRUCTURE-ONLY` uses
-for "the model wraps a trade better than a fixed rule".
+"Clears C0–C2" is the same per-arm bar that study's `STRUCTURE-ONLY` uses for
+"the model wraps a trade better than a fixed rule".
 
 **Parameter `PG-ARMS`: which arms are admitted to `BEATS`.**
 
@@ -183,11 +103,9 @@ for "the model wraps a trade better than a fixed rule".
 | `M1 or M2` | Either arm clearing C0–C2 counts | **Yes** |
 | `M1 only` | Only the primary arm counts | Printed beside it |
 
-Why the default: `mechanical_benchmark` itself reads "`ARM M1` or `ARM M2`
-clears C0–C2" as a beat in `STRUCTURE-ONLY`. Admitting only M1 would read its
-labels more strictly than it does. This promotes nothing: `ARM M2` stays
-SECONDARY there. The cost is two chances to clear, which tilts the gate
-toward `KEEP`, the status quo.
+This promotes nothing: `ARM M2` stays SECONDARY in `mechanical_benchmark`.
+The default gives two chances to clear, which tilts the gate toward `KEEP`,
+the status quo.
 
 **Parameter `PG-UNPOWERED`: what an `UNDERPOWERED` or `NOT BUILT` P1 read
 means.**
@@ -197,9 +115,8 @@ means.**
 | `burden on the picks` | Counts as `DOES NOT BEAT` | **Yes** |
 | `hold` | Leaves `PG-M` without a read, as `NOT READ` | Printed beside it |
 
-Why the default: the operator's words are "do not beat", not "lose to". The
-layer has to show it earns its keep, so a read that cannot show a beat is not
-one. A `NOT BUILT` from a liquidity-confounded census is the weakest case,
+The operator's words are "do not beat", not "lose to". The layer has to show
+it earns its keep, so a read that cannot show a beat is not one. A `NOT BUILT` from a liquidity-confounded census is the weakest case,
 and the record says which of the two it was.
 
 ### PG-D — does the dip rule hold forward?
@@ -220,16 +137,24 @@ The verdict of record is the first `dip_buy` run that prints anything but
 
 - **P2**, the ticker-choice read: `mechanical_benchmark` `ARM U`, or a
   SPY-only benchmark registered later. The operator's rule names only the
-  same-ticker arms, so P2 stays out by default. A P2 result is recorded beside
-  the gate and never changes its outcome. Making it an input would need a new
-  registration written before P2 prints.
+  same-ticker arms. A P2 result is recorded beside the gate and never changes
+  its outcome. Making it an input would need a new registration written before
+  P2 prints.
 - **`mechanical_benchmark`'s study-level verdict token.** With `ARM U` unread,
-  `STRUCTURE-ONLY` would also claim that `ARM U` does not clear. The gate
-  reads the per-arm criteria instead.
+  `STRUCTURE-ONLY` would also claim that `ARM U` does not clear. The gate reads
+  the per-arm criteria instead.
 - **v3.** `mechanical_benchmark`'s C5 and `dip_buy`'s in-sample tables are
   context, not inputs.
-- **The [`holdout_seal`](holdout_seal.md) read.** It grades the ladder's
-  tiers on the sealed window, not the layer against a mechanic.
+- **The [`holdout_seal`](holdout_seal.md) read.** It grades the ladder's tiers
+  on the sealed window, not the layer against a mechanic.
+
+Until `mechanical_benchmark` prints per-arm grades, `PG-M` is `NOT READ`.
+
+Build note (not part of the registration): as built on 2026-10-09,
+`mechanical_benchmark` printed per-arm grades only when every census floor
+passed, including floor 3 and the fetch count for `ARM U`. A same-ticker-only
+fetch would still read `NOT BUILT — AWAITING SCRAPE`, so the P1 step needed a
+same-ticker path first, as a `Resolved at build` ruling in that study's file.
 
 ## The gate
 
@@ -262,12 +187,11 @@ steady rally the dip arm may never fill, so row 4 could wait forever.
 | `2027-10-13, not positive` | An input with no read counts as not positive. Row 4 becomes `RETIRE`; row 5 becomes `RETIRE` too | **Yes** |
 | `2027-10-13, operator` | The gate reads `BACKSTOP` and the operator decides | Printed beside it |
 
-Why the default: the keep clause needs a positive read, and a year with none
-is not one. 2027-10-13 is one year after registration. That gives `dip_buy`
-about five months of slack past its expected wait, and leaves room for the
-seal to lift. A prompt-version bump that freezes `dip_buy` at `STILL-OPEN`
-brings the backstop forward to the bump date, since no later v4 date can
-grade it.
+The keep clause needs a positive read, and a year with none is not one.
+2027-10-13 is one year after registration. That gives `dip_buy` about five
+months of slack past its expected wait, and leaves room for the seal to lift.
+A prompt-version bump that freezes `dip_buy` at `STILL-OPEN` brings the
+backstop forward to the bump date, since no later v4 date can grade it.
 
 ## What each outcome means
 
@@ -301,39 +225,21 @@ grade it.
 read once to a final outcome. A later look, under either setting, is a new
 registration.
 
-Every read prints under both settings of each parameter. Only the defaults
-are the verdict; the other settings are printed beside it.
+Every read prints under both settings of each parameter. Only the defaults are
+the verdict; the other settings are printed beside it.
 
 ## Anti-tuning
 
 - The inputs, their labels and the gate table are fixed now, before either
   input has an outcome. None may change after one prints.
-- No third input is added because the first two look bad or good. P2 stays
-  out unless a new registration says otherwise before P2 prints.
+- No third input is added because the first two look bad or good. P2 stays out
+  unless a new registration says otherwise before P2 prints.
 - The backstop date may not move once either input has a read.
 - `mechanical_benchmark`'s geometry, arms and floors are its own. This gate
   never asks for a different geometry, basis or arm.
 
-## Ship criteria
+## What could ship
 
 None. No rule ships from this commitment. `RETIRE` lets the operator consider
 a mechanical dip rule at $500 or stopping. Either needs its own registration
 before money moves.
-
-## Build notes
-
-Not part of the commitment. Implementation only.
-
-- No module, no report and no `scripts/study_map/catalog.py` entry, as with
-  `holdout_seal`. The test suite requires the catalog to match the study
-  runner's list exactly, so an entry without a module would fail it.
-- The gate is read by hand from the two studies' recorded runs. Each read goes
-  into `research/current.md` and the P0 row of
-  [next-steps](../../next-steps.md#plan-20261013).
-- **P1 needs a build change before `PG-M` can be read.** As built on
-  2026-10-09, `mechanical_benchmark` prints per-arm grades only when every
-  census floor passes. That includes floor 3 and the fetch count for `ARM U`.
-  A same-ticker-only fetch therefore still prints `NOT BUILT — AWAITING
-  SCRAPE`. The P1 step must add a same-ticker path first. It would be a
-  `Resolved at build` ruling in that study's file, written before the run.
-  Until then `PG-M` is `NOT READ`.

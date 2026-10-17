@@ -1,425 +1,166 @@
 ## exit_from_text — do the model's own trigger / invalidation / horizon lines beat the shipped exits?
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome: no `CANDIDATE` cell; 301 cells `UNDERPOWERED`, 17 `NULL` and 18 `CONTRARY`; the pooled `ALL` rows are not a criterion (v4 era) — 2026-09-28 · [record](../../study-results/f2_management/exit_from_text.md).
-> Nothing else in this brief is a result.
-
-**The question**
-
-Every emitted play states an entry trigger, an invalidation and a horizon. The backtest ignores all three. Does honouring them beat the shipped profiles?
-
-The study is an f2 management study. Signal, entry day, structure, sizing and candidate set are frozen. Each arm changes one thing about an open position, or (E2) whether it opens. Nothing ships.
-
-The text columns are a new column family. Each parsed level is observable at entry, because it is printed on the card the operator reads.
-
-**What it compares**
-
-Three arms, frozen. No fourth arm is added. Labels are `exit_from_text E1`, `E2` and `E3` ([index](../../arm-index.md#exit_from_text)).
-
-| Object | What it does | Kind |
-|---|---|---|
-| `exit_from_text E1` | Exits at the first close of the underlying beyond the parsed invalidation level, in the direction the structure implies. Buffer grid {0%, 1%, 2%} | exit arm |
-| `exit_from_text E2` | Enters the play only if its price-level trigger was met within N ∈ {1, 3} sessions of the signal date. Rows not met are not entered | selection effect |
-| `exit_from_text E3` | Replaces PROD's `time_exit_dte_fraction 0.75` with the emitted `horizon`, a DTE bucket of 14, 60, 180 or 720 | exit arm |
-
-**E1 details.**
-
-- A 0% buffer is the null arm. A buffer of 1% or more is the expected shape.
-- Direction comes from the structure side. Long-delta structures exit on a close below the level. Short-delta structures exit on a close above it.
-- Credit straddles and strangles use breakeven levels, never a strike.
-- The rule fires ahead of the PROD stops, as the earlier of the two. A tie leaves the outcome unchanged.
-- Long-vol debit straddles and strangles go to the bucket `long_vol_no_stop_side`.
-- `iron_condor`, `butterfly` and `calendar` go to the bucket `no_structure_side`.
-- Rows with no parseable level are their own bucket, counted and never imputed.
-
-**E2 details.** Only price-level triggers are testable. Conditional triggers that do not parse are their own bucket. E2 is quoted on R for the entered subset, with the excluded share beside every number. It can never be called an exit improvement.
-
-**E3 details.** The horizon maps to a calendar-day count, once. A survival control runs before any monotone claim, because horizon is coupled to hold length. It recomputes the horizon table within `days_held` terciles and prints the horizon by hold-length census.
-
-**How it is judged**
-
-**Measure.** Paired [ΔR](../../glossary.md#r) against the shipped book, by date, with a date-clustered bootstrap (`BOOT_N = 10000`, α = .05). Paired [PF](../../glossary.md#pf) prints, but a PF claim must also clear the mean-R criterion. R is quoted, never dollars.
-
-**Population.** The v4 era is PRIMARY. The v3 era is SECONDARY, run with `--era v3`, and the two are never pooled. The loader uses `include_bs=False`. Cells are per structure, per `mech_cell` and their cross. A pooled `ALL` row prints for orientation and is NOT A CRITERION.
-
-**Power floor.** A cell needs at least 60 affected rows and 25 affected dates. "Affected" means base and variant differ on the `(exit_reason, days_held, round(pnl, 10))` triple under the frozen replay. A cell below either floor prints `UNDERPOWERED` with its census and no criterion.
-
-**Calibration.** Rows that do not reproduce their stored exit are excluded and counted, not failed. `superseded`, `hard` and `deferred_fill` rows leave the variant arms.
-
-**Bar for a candidate.** A cell must clear all seven clauses.
-
-1. Paired ΔR against the shipped book, with the date-clustered CI excluding zero.
-2. Every leave-one-date-out ([LOO](../../glossary.md#loo)) fold positive, and the LOO median fold gain above zero among affected dates.
-3. The cell survives `protocol.window_cuts` and the ex-BOTH cut added by hand.
-4. Positive in every calendar year present.
-5. Right-signed on both pricing tiers, `real` and tweak.
-6. At least 60 affected rows and 25 affected dates, re-checked on the evaluated set.
-7. No perturbation flip across the buffer grid. E3's analogue is the survival control. E2's analogue is the N grid: a cell positive at one N and flipped at the other fails.
-
-**The strike split.** Level equals a strike is split from level differs from every strike. A candidate must be carried by the second cell. A gain that lives only in the first is an Attempt 9 restatement.
-
-Worst-decile cells print descriptively and are NOT A CRITERION.
-
-**Possible verdicts**
-
-One token per cell.
-
-| Token | What it means |
-|---|---|
-| `UNDERPOWERED` | A floor was not met. Census only, nothing read |
-| `NULL` | Powered, but the conjunction did not clear |
-| `CANDIDATE` | The whole conjunction clears. It is not a ship |
-| `CONTRARY` | Powered, CI excludes zero, and the sign is opposite to the arm's hypothesis |
-| `SURVIVAL-ARTIFACT` | E3 only. The raw table is monotone but dies under the survival control |
-| `NO PRE-REGISTERED VERDICT MATCHES` | The catch-all, resolved by hand in `research/current.md` |
-
-The unparseable buckets for invalidation and trigger print their shares as prompt-robustness findings, whatever else happens.
-
-**What could ship**
-
-Nothing ships automatically. A `CANDIDATE` becomes a written proposal.
-
-- A `structure_exit` or `regime_exit` cell in `config/backtest.yml`, keyed on the structure and `mech_cell` where it was found.
-- A matching line in [§5](../../../docs/deployment-rules.md#s5).
-- Its own rollback trigger, plus an independent-window confirmation first.
-
-The operator decides. E2 can never ship as an exit rule. If it clears, it is an intake proposal and is labelled one.
-
-**What this study cannot tell you**
-
-- Whether a trailing stop helps. Drawdown-from-peak trailing failed three times and is not retested.
-- Whether text-derived rules help rows that did not price. Every arm is conditioned on priceability.
-- Anything about E2 as an exit. It changes which rows enter.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-09-02._
 
-An f2 MANAGEMENT study. Signal, entry day, structure, sizing and candidate set
-are frozen; each arm changes one thing about an open position, or (E2) whether
-it is opened.
+## The question
 
-## Question
+Every emitted play states an entry TRIGGER, an INVALIDATION and a HORIZON. The backtest ignores all three. Does honouring them beat the shipped profiles?
 
-Every emitted play states an entry TRIGGER, an INVALIDATION and a HORIZON; the
-backtest ignores all three. Does honouring them beat the shipped profiles?
-**E1** invalidation-as-stop, **E2** trigger-as-entry-filter, **E3**
-horizon-as-time-exit — defined under Arms.
+This is an f2 MANAGEMENT study. Signal, entry day, structure, sizing and candidate set are frozen. Each arm changes one thing about an open position, or (E2) whether it is opened. Nothing ships.
 
-## What this is NOT
+The trigger, invalidation and horizon text is a NEW COLUMN FAMILY. It sits in the analysis export. It is never joined to the priced book, and the closed sweep has no numeric counterpart. Each parsed level is observable at entry, because it is printed on the card the operator reads.
 
-- **Not a re-run of Attempt 9.** Attempt 9 (2026-07-04, NOT validated) tested an
-  underlying-breach stop on 12 credit rows keyed on the SHORT STRIKE. E1 keys on
-  the model's own stated invalidation LEVEL, on the era book, through the frozen
-  harness; where the two coincide the study says so (Confounds — the
-  `level == a strike` split is a requirement, not a diagnostic).
-- **Not a new trail.** No arm re-arms on a peak; drawdown-from-peak trailing
-  failed three times (Attempts 1, 2, 10) and is not retested. **Not a selection
-  study**, except where E2's effect is measured as one and labelled one.
-- **Not a re-pricing.** Every arm replays STORED daily grids through the FROZEN
-  `lib/harness.py` — **import only, no fork, no copy, no edit.** Nothing ships.
+## What this study is not
 
-## Admissibility
-
-The trigger / invalidation / horizon text is a **NEW COLUMN FAMILY**: in the
-analysis export, never joined to the priced book, no numeric counterpart in the
-closed sweep. Each parsed level is **observable at entry** — printed on the card
-the operator reads.
+- **Not a re-run of Attempt 9.** Attempt 9 (2026-07-04, NOT validated) tested an underlying-breach stop on 12 credit rows keyed on the SHORT STRIKE. E1 keys on the model's own stated invalidation LEVEL, on the era book, through the frozen harness. Where the two coincide, the study says so. The `level == a strike` split is a requirement, not a diagnostic (see "The strike split").
+- **Not a new trail.** No arm re-arms on a peak. Drawdown-from-peak trailing failed three times (Attempts 1, 2, 10) and is not retested.
+- **Not a selection study**, except where E2's effect is measured as one and labelled one.
+- **Not a re-pricing.** Every arm replays STORED daily grids through the FROZEN `lib/harness.py`. It is import only: no fork, no copy, no edit.
 
 ## Population and basis, fixed here
 
-- **PRIMARY: `current` (v4)** — the prompt whose text this is. **SECONDARY:
-  `--era v3`**, identical thresholds, reported separately, **never pooled**.
-- `load_book(include_bs=False)` — real + strike_expiry_tweak tiers only. **On
-  v4 that exclusion is a NO-OP**: the v4 proxy export carries ZERO
-  `bs_options_hist` rows (tweak 564 / underlying_trend 473 / unevaluable 107,
-  measured 2026-09-02). It still binds on v3 (295 bs rows) and stays in force.
-- **Priceability, measured 2026-09-02 (a census, not a target; a later run
-  prints its own).** v4 = **1,022 priced rows / 148 dates** (2024-01-10 →
-  2025-11-17), 1,016 joined to AnalysisClaude, 969 analysis rows unpriced
-  (`excluded_by_book` 611, `not_backtested` 194, `market_row` 164); v3 = 795 /
-  118, 820 unpriced. **Every arm is conditioned on ~52% priceability** — an exit
-  rule replays only on a row that priced — and the report says so per table.
-- Underlying closes from `lib/underlying.py::load_bars`. Wherever a cut uses
-  bars the **SRC_OHLC / SRC_TILDE split is PRINTED and never pooled silently** —
-  a tilde close is a different measurement from a real bar.
-- **Cells: per STRUCTURE and per `mech_cell`.** Attempts 12 and 13b are explicit
-  that exit behaviour is REGIME-CONDITIONAL (E-VOL/RANGE/BEAR let winners run,
-  L-VOL/BULL do not), so a pooled read is not interpretable; a pooled headline
-  may print for orientation only and is **NOT A CRITERION**.
-- **Rows with no parseable invalidation level are their OWN BUCKET** — counted,
-  reported as a **prompt-robustness finding**, never dropped, never imputed;
-  same for unparseable triggers (E2). Measured 2026-09-02 the bucket is small on
-  priced rows (`invalidation_level` coverage **98.8%**,
-  `invalidation_inside_strikes` **95.0%**), so E1's population is nearly the
-  whole priced book and the bucket is a robustness read, not a power problem.
-- **The v4 2026 no-op.** The v4 results export carries ZERO 2026 signal dates
-  (it ends 2025-11-17), so `ex_2026_feb_apr` ≡ `ALL`, ex-BOTH ≡
-  `ex_2025_mar_apr`, and "positive in every calendar year" reduces to 2024 ∧
-  2025 on the PRIMARY era. Every cut prints its `n` beside `ALL`'s so a reader
-  sees a no-op, not a passed test.
+| Fixed | Value |
+|---|---|
+| Era | PRIMARY `current` (v4), the prompt whose text this is. SECONDARY `--era v3`, identical thresholds, reported separately. **Never pooled** |
+| Book | `load_book(include_bs=False)`: real and `strike_expiry_tweak` tiers only. On v4 that exclusion is a NO-OP (zero `bs_options_hist` rows). It still binds on v3 |
+| Conditioning | Every arm is conditioned on priceability: an exit rule replays only on a row that priced. The report says so per table |
+| Closes | Underlying closes from `lib/underlying.py::load_bars` |
+| Bars | Wherever a cut uses bars, the SRC_OHLC / SRC_TILDE split is PRINTED and never pooled silently. SRC_TILDE closes are not real bars |
+| Cells | Per STRUCTURE and per `mech_cell` (see "Power floor") |
+| Calibration | Rows that do not reproduce their stored exit are EXCLUDED and counted, not failed (see "Calibration gate") |
+| Unparseable invalidation | Rows with no parseable invalidation level are their OWN BUCKET: counted, reported as a prompt-robustness finding, never dropped, never imputed |
+| Unparseable trigger | Same treatment for unparseable triggers (E2) |
 
-## Arms
+Exit behaviour is REGIME-CONDITIONAL (Attempts 12 and 13b: E-VOL/RANGE/BEAR let winners run, L-VOL/BULL do not). A pooled read is therefore not interpretable. A pooled headline may print for orientation only and is **NOT A CRITERION**.
 
-Three arms, frozen; no fourth is added.
+**The v4 2026 no-op.** The v4 results export carries ZERO 2026 signal dates. So `ex_2026_feb_apr` is identical to `ALL`, ex-BOTH is identical to `ex_2025_mar_apr`, and "positive in every calendar year" reduces to 2024 and 2025 on the PRIMARY era. Every cut prints its `n` beside `ALL`'s, so a reader sees a no-op, not a passed test.
+
+## Plan-time observations, disclosed
+
+Measured 2026-09-02, before any arm ran. They are a census, not a target. A later run prints its own. No number here is a result.
+
+- v4 holds **1,022 priced rows / 148 dates** (2024-01-10 to 2025-11-17). Of these, 1,016 join to AnalysisClaude. 969 analysis rows are unpriced (`excluded_by_book` 611, `not_backtested` 194, `market_row` 164).
+- v3 holds 795 / 118, 820 unpriced (priced rows / dates, then unpriced rows).
+- The v4 proxy export carries tweak 564 / underlying_trend 473 / unevaluable 107, measured 2026-09-02. v3 carries 295 bs rows.
+- On v4 priced rows, `invalidation_level` coverage is **98.8%** and `invalidation_inside_strikes` coverage is **95.0%**. E1's population is nearly the whole priced book. The unparseable bucket is a robustness read, not a power problem.
+- Pre-run expectation: every arm is conditioned on about 52% priceability. A 3-arm × structure × `mech_cell` × grid design on 148 v4 dates and 1,022 priced rows will UNDERPOWER most cells. That is expected, not a failure.
+
+## What it compares
+
+Three arms, frozen. No fourth arm is added. Labels: [`exit_from_text E1`, `E2` and `E3`](../../arm-index.md#exit_from_text).
+
+| Arm | What it does | Kind |
+|---|---|---|
+| `exit_from_text E1` | Exits at the first close of the underlying beyond the parsed invalidation level, in the direction the structure implies. Buffer grid {0%, 1%, 2%} | exit arm |
+| `exit_from_text E2` | Enters the play only if its price-level trigger was met within N ∈ {1, 3} sessions of the signal date. Rows not met are NOT ENTERED | selection effect |
+| `exit_from_text E3` | Replaces PROD's `time_exit_dte_fraction 0.75` with the emitted `horizon`, a DTE bucket of 14, 60, 180 or 720 | exit arm |
+
 ### E1 — invalidation-as-stop
 
-- **Rule:** exit at the close of the first session whose UNDERLYING close is
-  beyond the parsed invalidation level, in the direction the STRUCTURE SIDE
-  implies (long-delta exits on a close BELOW, short-delta ABOVE); direction is
-  inferred from the structure, never from the outcome.
-- **Buffer grid, frozen at {0%, 1%, 2%}.** Attempt 9's transferable observation:
-  a 0% level clips marginal touches (XOM, 109.72 vs a 110 level), so 0% is the
-  null arm and ≥1% the expected shape — declared here, not after.
-- **Straddles and strangles use BREAKEVEN levels, never a strike** (Attempt 9: a
-  strike basis fires day 1 when the short strike ≈ ATM); an uncomputable
-  breakeven goes to the unparseable bucket, not a fallback.
-- **The rule fires AHEAD of the PROD stops**, as it would ship; PROD's other
-  exits stay live behind it.
-- **The whipsaw caveat is registered, not discovered.** Attempt 9's July-2024
-  cluster showed an underlying stop does NOT rescue gap/whipsaw losers — it exits
-  them where the mark stop does; a positive E1 cell whose gain concentrates in
-  one correlated event is reported as such, criterion 2 being the guard.
+- **Rule.** Exit at the close of the first session whose UNDERLYING close is beyond the parsed invalidation level, in the direction the STRUCTURE SIDE implies. Long-delta structures exit on a close BELOW the level. Short-delta structures exit on a close ABOVE it. Direction is inferred from the structure, never from the outcome.
+- **Buffer grid, frozen at {0%, 1%, 2%}.** A 0% level clips marginal touches (Attempt 9: XOM, 109.72 against a 110 level). So 0% is the null arm and 1% or more is the expected shape. This is declared here, not after the run.
+- **Straddles and strangles use BREAKEVEN levels, never a strike.** A strike basis fires on day 1 when the short strike is near ATM (Attempt 9). An uncomputable breakeven goes to the unparseable bucket, not to a fallback.
+- **LONG-VOL (debit) straddles and strangles** (Wording correction (2026-09-02, at build time):) go to the bucket `long_vol_no_stop_side`, counted and reported with the other buckets. Beyond a breakeven is where a debit straddle WINS, so a breakeven stop would fire on the profit side and would not be an invalidation. Credit (short-vol) straddles and strangles take the breakeven basis unchanged.
+- **`iron_condor`, `butterfly` and `calendar`** (Wording correction (2026-09-02, at build time):) go to the bucket `no_structure_side`. They have no delta direction and the straddle/strangle rule does not name them. They are never given a direction by guess.
+- **Order against PROD.** The rule "fires AHEAD of the PROD stops", as it would ship. PROD's other exits stay live behind it. Wording correction (2026-09-02, at build time): the variant is the EARLIER of the two. If the text stop fires on the SAME session as the shipped exit, the outcome is unchanged, because pnl and `days_held` are identical. Counting a label-only change as AFFECTED would zero-inflate the affected set.
+- **Whipsaw caveat, registered now.** Attempt 9's July-2024 cluster showed an underlying stop does NOT rescue gap and whipsaw losers. It exits them where the mark stop does. A positive E1 cell whose gain concentrates in one correlated event is reported as such. Clause 2 of the bar is the guard.
 
 ### E2 — trigger-as-entry-filter
 
-- **Only PRICE-LEVEL triggers are testable** — in scope only if the trigger
-  parses to a numeric price level with a direction. **Rule:** the entry counts
-  only if the level was met within **N ∈ {1, 3} sessions** of the signal date on
-  the OHLC cache; rows not met are **NOT ENTERED**.
-- **This is a SELECTION effect and is quoted as one.** The estimand is mean R on
-  the ENTERED subset vs the full population, **the excluded share printing beside
-  every number**; no E2 result may be called an exit improvement.
-- **Conditional-but-unparseable triggers are their own bucket** — reported with
-  their n, never folded into either side. No trigger arm changes an exit rule;
-  PROD exits run untouched on the entered set.
+- **Scope.** Only PRICE-LEVEL triggers are testable: the trigger must parse to a numeric price level with a direction.
+- **Rule.** The entry counts only if the level was met within **N ∈ {1, 3} sessions** of the signal date on the OHLC cache. Rows not met are **NOT ENTERED**.
+- **This is a SELECTION effect and is quoted as one.** The estimand is mean R on the ENTERED subset against the full population. The excluded share prints beside every number. No E2 result may be called an exit improvement.
+- **Cell estimator** (Wording correction (2026-09-02, at build time):) E2 changes WHICH rows a date contributes, so there is no within-row pair. Each cell pairs the entered book's date mean against the full population's date mean, on the dates where both exist. The headline numbers print unchanged beside it: mean R entered against the full population, with the excluded share in rows and dates.
+- **Conditional-but-unparseable triggers** are their own bucket. They are reported with their n and never folded into either side.
+- No trigger arm changes an exit rule. PROD exits run untouched on the entered set.
 
 ### E3 — horizon-as-time-exit
 
-- **Rule:** replace PROD's `time_exit_dte_fraction 0.75` with the emitted
-  `horizon`. **On v4 `horizon` is NUMERIC** — DTE buckets 14 / 60 / 180 / 720 —
-  so E3 keys off that number directly, no text mapping, nothing to tune; the
-  rest is the shipped profile. Where an era's `horizon` is not numeric the arm
-  does not run on it and says so.
-- **SURVIVAL CONTROL, RUN BEFORE ANY MONOTONE CLAIM.** `horizon` is
-  mechanically coupled to hold length — a long-horizon play is only observed
-  holding long. The 2026-08-19 `macro_event_study` ARM X lesson binds: a
-  monotone table whose bucketing variable is coupled to hold length is a
-  COMPOSITION read until proven otherwise. The control: (i) recompute the
-  horizon table WITHIN `days_held` terciles (boundaries computed on the arm
-  population, disclosed), (ii) print the horizon × hold-length census.
-  **Non-monotone within the control, or flat inside every hold-length tercile →
-  SURVIVAL-ARTIFACT, no follow-up queued.**
+- **Rule.** Replace PROD's `time_exit_dte_fraction 0.75` with the emitted `horizon`. On v4, `horizon` is NUMERIC: DTE buckets 14 / 60 / 180 / 720. E3 keys off that number directly, with no text mapping and nothing to tune. The rest is the shipped profile. Where an era's `horizon` is not numeric, the arm does not run on it and says so.
+- **Calendar days** (Wording correction (2026-09-02, at build time):) The horizon maps to a CALENDAR-DAY count, once, and is frozen. The frozen engine's time exit compares `(day - signal_date).days >= int(dte_entry * tef)`, in calendar days. The registration first said the horizon is mapped to a "session count" once. A session mapping is unreachable without forking the engine, which this registration forbids (see "What this study is not"). `exit_from_text.horizon_tef` passes `tef = (H + 0.5) / dte_entry`, which makes the engine's `int()` land on exactly H calendar days. The buckets are unchanged.
+- **SURVIVAL CONTROL, RUN BEFORE ANY MONOTONE CLAIM.** `horizon` is mechanically coupled to hold length: a long-horizon play is only observed holding long. The 2026-08-19 `macro_event_study` ARM X lesson binds. A monotone table whose bucketing variable is coupled to hold length is a COMPOSITION read until proven otherwise. The control has two parts:
+  1. Recompute the horizon table WITHIN `days_held` terciles. The boundaries are computed on the arm population and disclosed.
+  2. Print the horizon × hold-length census.
+- If the table is non-monotone within the control, or flat inside every hold-length tercile, the cell is `SURVIVAL-ARTIFACT`. No follow-up is queued.
 
-## Metrics
+## How it is judged
 
-- **Paired ΔR vs PROD**, within row, aggregated by date:
-  `protocol.boot_ci_paired_by_date`, `BOOT_N = 10000`, α = .05. **Paired PF**:
-  `protocol.pf_paired_by_date` (`pf` / `pf_ci_by_date` for levels).
-- **Rule, binding: a PF claim must ALSO clear the mean-R criterion** — PF alone
-  is gameable by fewer, larger wins.
-- **MFE give-back** — realized R vs the post-exit path maximum over the rest of
-  the row's grid — prints for every arm, DESCRIPTIVE except where a cell's exits
-  are majority continuation sales, which is called out in the write-up.
-- **R is quoted, never dollars** — E2 changes the entered population and E1/E3
-  change hold length, so dollar totals are not comparable across arms.
+**Estimand.** Paired [ΔR](../../glossary.md#r) against the shipped book, within row, aggregated by date. The test is `protocol.boot_ci_paired_by_date`, `BOOT_N = 10000`, α = .05. R is quoted, never dollars: E2 changes the entered population and E1/E3 change hold length, so dollar totals are not comparable across arms.
 
-## Power floors
+**PF.** Paired [PF](../../glossary.md#pf) prints via `protocol.pf_paired_by_date` (`pf` / `pf_ci_by_date` for levels). A PF claim must ALSO clear the mean-R criterion, because PF alone is gameable by fewer, larger wins. PF never prints without mean R beside it.
 
-Declared before any count, checked FIRST, blocking everything else.
-- **Per cell (arm × structure × mech_cell × grid value): ≥ 60 AFFECTED ROWS and
-  ≥ 25 AFFECTED DATES.** "Affected" is `lib/triggers.py::is_affected` — base and
-  variant produce different `(exit_reason, days_held, round(pnl, 10))` under the
-  frozen replay; a date where the arm changes nothing is not affected. For E2,
-  "affected" means the entered set differs from the full population that date.
-  A cell under either floor is **UNDERPOWERED**: printed with its n, no
-  criterion evaluated, nothing refuted.
-- Said plainly now: a 3-arm × structure × mech_cell × grid design on 148 v4
-  dates / 1,022 priced rows will UNDERPOWER most cells — expected, not a
-  failure.
+**MFE give-back.** Realized R against the post-exit path maximum over the rest of the row's grid prints for every arm. It is DESCRIPTIVE. Where a cell's exits are majority continuation sales, the write-up calls that out.
 
-## Bar for CANDIDATE
+**Cells** (Wording correction (2026-09-02, at build time):) A cell is arm × structure × `mech_cell` × grid value. The report prints the two marginals (per structure, per `mech_cell`) AND the cross, each with the floor applied to it. The floor text names the full cross "(arm x structure x mech_cell x grid value)", while the population text says "per STRUCTURE and per `mech_cell`"; all three cuts are printed. It also prints the pooled `ALL` row, marked NOT A CRITERION. Nothing is narrowed, and no cut is added after a number is seen.
 
-The full conjunction, all of it — failing any one is failing:
-1. paired ΔR vs the SHIPPED book with **date-clustered bootstrap CI excluding
-   zero** (`BOOT_N = 10000`, α = .05);
-2. **every** LOO fold positive (`protocol.loo_by_date`, read `min_gain`) **AND**
-   the LOO **median fold gain > 0 AMONG AFFECTED DATES** — the 2026-07-22
-   corrected gate, since a zero-inflated delta makes a pooled median untrippable;
-3. survives `protocol.window_cuts` **AND the ex-BOTH cut added BY HAND**; on v4
-   both collapse to the 2026 no-op above and the report says so;
-4. **positive in every calendar year present** in the cell's population
-   (`protocol.sign_stable`);
-5. right-signed on **BOTH pricing tiers** (real and tweak);
-6. ≥ 60 affected rows and ≥ 25 affected dates, re-checked on the evaluated set;
-7. **no perturbation flip across the buffer grid** — an E1 cell positive at one
-   buffer and sign-flipped at an adjacent one in {0%, 1%, 2%} is a knob artifact
-   and fails; E3's analogue is the survival control, which a cell must survive
-   whatever its ΔR.
+**Calibration gate.** Rows that do not reproduce their stored exit are excluded and counted.
 
-Worst-decile cells print **DESCRIPTIVELY**, **NOT A CRITERION** (the 2026-08-13
-nine-date decile wall).
+- Wording correction (2026-09-02, at build time): the gate admits `near` alongside `exact` and `boundary_tie`. A `near` row reproduces its stored exit reason and day with a pnl difference inside `replay_basis.NEAR_MISS_TOL`.
+- `superseded` and `hard` rows are dropped from the variant arms and counted in the printed census. Unlike `exit_mechanism_study.calibrate`, which fails the run, they do not. Every arm re-replays, so a non-reproducing row would add a delta measured against a baseline production never ran.
+- `Resolved at build (2026-09-28)`, operator ruling: since the 2026-09-24 re-price, a stored row is net of `cost_total` and stops at `path_data_end`. The comparison adds the row's cost back and replays the path cut at `path_data_end` (`lib/replay_basis.py`). So an `open_at_data_end` row matches as the `cap_open` outcome it is. A row with blank `cost_basis` is compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`) is its own `deferred_fill` class, kept as an outcome and never compared. The gate's bar is unchanged. `deferred_fill` rows leave the variant arms with `superseded` ones, counted in the census.
 
-## Verdict grammar
+## Gates
 
-Per cell, exactly one of:
-- **UNDERPOWERED** — a floor was not met; census published, nothing read.
-- **NULL** — powered, conjunction not cleared; recorded. **CANDIDATE** — the
-  whole conjunction clears; NOT a ship.
-- **CONTRARY** — powered, CI excludes zero, sign OPPOSITE to the arm's hypothesis
-  (the text-derived exit is reliably WORSE than PROD). A real finding — the
-  emitted invalidation/horizon is actively misleading — recorded as such and fed
-  to `text_features`' PROMPT-ROBUSTNESS list.
-- **SURVIVAL-ARTIFACT** (E3 only) — the raw table is monotone but dies under the
-  survival control; no follow-up queued, per the 2026-08-19 precedent.
-- **NO PRE-REGISTERED VERDICT MATCHES** — the catch-all, printed with its numbers
-  and resolved by hand in `research/current.md`.
+- **Power floor, declared before any count, checked FIRST, blocking everything else.** Per cell (arm × structure × `mech_cell` × grid value): **≥ 60 AFFECTED ROWS and ≥ 25 AFFECTED DATES**.
+  - "Affected" is `lib/triggers.py::is_affected`. Base and variant produce different `(exit_reason, days_held, round(pnl, 10))` under the frozen replay. A date where the arm changes nothing is not affected.
+  - For E2, "affected" means the entered set differs from the full population on that date.
+  - A cell under either floor is **UNDERPOWERED**. It prints with its n, no criterion is evaluated, and nothing is refuted.
 
-Separately and always: the **unparseable buckets** (invalidation, trigger) are
-reported with their shares as PROMPT-ROBUSTNESS FINDINGS whatever else happens.
+## Bar for a candidate
 
-## What ships if MET
+A cell must clear the full conjunction. Failing any one clause is failing.
 
-**Nothing automatically.** A CANDIDATE becomes a written proposal:
-- a `structure_exit` / `regime_exit` cell in `config/backtest.yml` keyed on the
-  structure and `mech_cell` it was found in — never a global override;
-- a matching line in `docs/deployment-rules.md` §5;
-- **its own rollback trigger** against `lib/triggers.py` (affected rows /
-  affected dates / floor / MET | UNDERPOWERED), so the rule is evaluated forward
-  rather than assumed, plus an independent-window confirmation first.
+1. **Paired ΔR** against the SHIPPED book, with the date-clustered bootstrap CI **excluding zero** (`BOOT_N = 10000`, α = .05).
+2. **Leave-one-date-out.** **Every** [LOO](../../glossary.md#loo) fold is positive (`protocol.loo_by_date`, read `min_gain`), **AND** the LOO **median fold gain is > 0 AMONG AFFECTED DATES**. This is the 2026-07-22 corrected gate: a zero-inflated delta makes a pooled median untrippable.
+3. **Window cuts.** The cell survives `protocol.window_cuts` **AND the ex-BOTH cut added BY HAND**. On v4 both collapse to the 2026 no-op above, and the report says so.
+4. **Calendar years.** **Positive in every calendar year present** in the cell's population (`protocol.sign_stable`).
+5. **Pricing tiers.** Right-signed on **BOTH pricing tiers**, real and tweak.
+6. **Power, re-checked.** ≥ 60 affected rows and ≥ 25 affected dates, re-checked on the evaluated set.
+7. **No perturbation flip.** An E1 cell positive at one buffer and sign-flipped at an adjacent one in {0%, 1%, 2%} is a knob artifact and fails. E3's analogue is the survival control, which a cell must survive whatever its ΔR. (Wording correction (2026-09-02, at build time):) E2's analogue is the frozen N grid {1, 3}: a cell positive at one N and sign-flipped at the other is a knob artifact and fails. This can only make an E2 cell harder to pass.
 
-The operator decides. E2 can never ship as an exit rule; if it clears it is an
-INTAKE proposal, labelled one.
+### The strike split
 
-## Known confounds, declared now
+The invalidation level often IS the short strike. Where it is, E1 partly re-tests Attempt 9 rather than the model's judgement. The binding split is `level == a strike` against `level ≠ any strike`. The tolerance is fixed in the module before the run. **The result must be carried by the SECOND cell.** A CANDIDATE whose gain lives only in the first cell is an Attempt-9 restatement, not a text finding.
 
-- **The invalidation level often IS the short strike** — where it is, E1 partly
-  re-tests Attempt 9 rather than the model's judgement. **Pre-declared binding
-  split: `level == a strike` vs `level ≠ any strike` (tolerance fixed in the
-  module before the run); the result must be carried by the SECOND cell.** A
-  CANDIDATE whose gain lives only in the first cell is an Attempt-9 restatement,
-  not a text finding.
-- **E3 is coupled to hold length** — handled by the survival control above,
-  which runs BEFORE any monotone claim. **E2 changes the population**, so its
-  comparison is never like-for-like; the excluded share prints and the effect is
-  named a selection effect.
-- **Concentration.** Attempt 9's headline was >100% explained by one correlated
-  pair; LOO (criterion 2) is the guard, and any cell whose gain concentrates in
-  one event is called out even when it passes. **SRC_TILDE closes are not real
-  bars** — the split prints, never pooled.
+### Edge cases and descriptive prints
+
+- **Concentration.** Attempt 9's headline was more than 100% explained by one correlated pair. LOO (clause 2) is the guard. Any cell whose gain concentrates in one event is called out even when it passes.
+- **Worst-decile cells** print **DESCRIPTIVELY** and are **NOT A CRITERION** (the 2026-08-13 nine-date decile wall).
+- **E2 is never like-for-like.** It changes the population, so its excluded share prints and its effect is named a selection effect.
+
+## Possible verdicts
+
+One token per cell.
+
+| Token | When |
+|---|---|
+| `UNDERPOWERED` | A floor was not met. Census published, nothing read |
+| `NULL` | Powered, conjunction not cleared. Recorded |
+| `CANDIDATE` | The whole conjunction clears. NOT a ship |
+| `CONTRARY` | Powered, CI excludes zero, and the sign is OPPOSITE to the arm's hypothesis (the text-derived exit is reliably WORSE than PROD). A real finding: the emitted invalidation or horizon is actively misleading. It is recorded as such and fed to `text_features`' PROMPT-ROBUSTNESS list |
+| `SURVIVAL-ARTIFACT` | E3 only. The raw table is monotone but dies under the survival control. No follow-up queued, per the 2026-08-19 precedent |
+| `NO PRE-REGISTERED VERDICT MATCHES` | The catch-all. Printed with its numbers and resolved by hand in `research/current.md` |
+
+Separately and always, the **unparseable buckets** (invalidation, trigger) are reported with their shares as PROMPT-ROBUSTNESS FINDINGS, whatever else happens.
 
 ## Anti-tuning
 
-Three arms; buffers at three values; N at two; `horizon` read as the emitted
-number; cells cut by structure × `mech_cell` and fixed before any outcome is
-read. Exit profiles other than the arms' own rule, the sizing formula, the
-structure universe, the entry side and the candidate population are NOT swept.
-No threshold moves and no cell is added after any number is seen. **Every cell
-is reported regardless of outcome.** No annualised figure, Sharpe or
-time-to-recover anywhere.
+- Three arms. Buffers at three values. N at two values. `horizon` read as the emitted number. Cells cut by structure × `mech_cell`, fixed before any outcome is read.
+- Exit profiles other than the arms' own rule, the sizing formula, the structure universe, the entry side and the candidate population are NOT swept.
+- No threshold moves and no cell is added after any number is seen.
+- **Every cell is reported regardless of outcome.**
+- No annualised figure, Sharpe or time-to-recover anywhere.
 
-## Build notes
+## What could ship
 
-*Not part of the registration — implementation record.*
-- Module `scripts/backtest_study/f2_management/exit_from_text.py`; run
-  `python -m scripts.backtest_study run exit_from_text` (`--era v3` secondary);
-  report `backtests/study_output/exit_from_text-latest.txt`. `lib/harness.py` is
-  **NOT touched and NOT copied** — every arm composes around the frozen
-  `replay`, the `next_day_move` / `staged_exit` ARM E pattern. Text from
-  `lib/text_corpus.py`; closes from `lib/underlying.py`.
-- `tests/test_exit_from_text.py` must cover E1 parity on a synthetic path against
-  the harness exit vocabulary, the parser edge cases (including the straddle
-  breakeven path) and the unparseable buckets.
-- A `scripts/study_map/catalog.py` entry with a hand-written VERDICT is REQUIRED
-  — no entry fails the test suite — plus a `research/study-map.md` prose mention
-  (test-enforced).
-- Every report prints `debit_calib`, `n_credit_ungated`, the credit-ungated
-  caveat, the era header, priceability, the SRC split and the unparseable
-  shares; PF never prints without mean R beside it.
+**Nothing ships automatically.** A `CANDIDATE` becomes a written proposal:
 
----
+- a `structure_exit` / `regime_exit` cell in `config/backtest.yml`, keyed on the structure and `mech_cell` it was found in, never a global override;
+- a matching line in [`docs/deployment-rules.md` §5](../../../docs/deployment-rules.md#s5);
+- **its own rollback trigger** against `lib/triggers.py` (affected rows / affected dates / floor / MET | UNDERPOWERED), so the rule is evaluated forward rather than assumed, plus an independent-window confirmation first.
 
-## Wording corrections — appended 2026-09-02 at build time
-
-*Not amendments. Nothing below moves a threshold, adds a cell, changes an arm's
-definition or touches a verdict rule. Each entry records a place where the
-registration's WORDING could not be implemented literally against the frozen
-harness or the frozen corpus, and states exactly what the module does instead.
-Appended at the end, dated, as the record of what the run actually ran.*
-
-1. **E3's horizon is mapped to a CALENDAR-DAY count, not a "session count".**
-   The registration says the horizon is "mapped to a session count once and
-   frozen". `lib/harness.py`'s time exit compares
-   `(day - signal_date).days >= int(dte_entry * tef)` — calendar days — so a
-   session mapping is unreachable without forking the engine, which §Build
-   notes forbids. `exit_from_text.horizon_tef` passes
-   `tef = (H + 0.5) / dte_entry`, which makes the frozen engine's `int()` land
-   on exactly H calendar days. The horizon buckets themselves are unchanged
-   and still mapped once.
-
-2. **A text stop that fires on the SAME session as the shipped exit leaves the
-   outcome unchanged.** §E1 says the rule "fires AHEAD of the PROD stops"; the
-   variant is implemented as the EARLIER of the two, so a tie is not a change.
-   On a tie the pnl and `days_held` are identical by construction and only the
-   exit LABEL would move; counting a label-only change as AFFECTED would
-   zero-inflate the affected set, which is the exact failure criterion 2's
-   affected-dates median exists to defend against.
-
-3. **LONG-VOL (debit) straddles and strangles are an unusable bucket, not a
-   breakeven stop.** §E1 routes straddles and strangles to breakeven levels.
-   Beyond a breakeven is where a DEBIT straddle WINS, so a breakeven-beyond
-   stop would fire on the profit side and would not be an invalidation at all.
-   Those rows go to the bucket `long_vol_no_stop_side`, counted and reported
-   with the other buckets. Credit (short-vol) straddles and strangles take the
-   registered breakeven basis unchanged.
-
-4. **`iron_condor` / `butterfly` / `calendar` are their own bucket.** They are
-   neither delta-directional (so §E1's structure-side rule gives no direction)
-   nor named by the straddle/strangle bullet. They are reported as
-   `no_structure_side` rather than being given a direction by guess.
-
-5. **E2's criterion-7 analogue is the N grid.** Criterion 7 is written for E1's
-   buffer grid and names the survival control as E3's analogue; E2 is not
-   given one. The module uses the frozen N grid {1, 3} the same way: a cell
-   positive at one N and sign-flipped at the other is a knob artifact and
-   fails. This can only make an E2 cell harder to pass.
-
-6. **E2's cell estimator is paired BY DATE on date means.** §Metrics fixes the
-   paired-by-date bootstrap for arms that change an exit within a row; E2
-   changes WHICH rows a date contributes, so there is no within-row pair. Each
-   cell pairs the entered book's date mean against the full population's date
-   mean on the dates where both exist. The registered headline numbers — mean
-   R entered vs the full population, with the excluded share in rows and dates
-   — print unchanged beside it, and no E2 result is described as an exit
-   improvement.
-
-7. **The calibration gate admits `near` alongside `exact` and `boundary_tie`,
-   and EXCLUDES rather than aborts.** A `near` row reproduces its stored exit
-   reason and day with a pnl difference inside `replay_basis.NEAR_MISS_TOL`,
-   which is a reproduction. `superseded` and `hard` rows are dropped from the
-   variant arms and counted in the printed census, rather than failing the run
-   the way `exit_mechanism_study.calibrate` does: every arm here re-replays,
-   so a non-reproducing row would contribute a delta measured against a
-   baseline production never ran, which is a finding about the replay and not
-   about the text.
-   Resolved at build (2026-09-28), operator ruling: since the 2026-09-24
-   re-price a stored row is net of `cost_total` and stops at `path_data_end`.
-   The comparison adds the row's cost back and replays the path cut at
-   `path_data_end` (`lib/replay_basis.py`), so an `open_at_data_end` row
-   matches as the `cap_open` outcome it is; a row with blank `cost_basis` is
-   compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`)
-   is its own `deferred_fill` class, kept as an outcome and never compared.
-   The gate's bar is unchanged.
-   `deferred_fill` rows leave the variant arms with `superseded` ones,
-   counted in the census.
-
-8. **Cells are reported at three cuts, not one.** §Population says "per
-   STRUCTURE and per `mech_cell`" while §Power floors names the full cross
-   "(arm x structure x mech_cell x grid value)". The report prints the two
-   marginals AND the cross, each with the floor applied to it, plus the pooled
-   `ALL` row marked NOT A CRITERION. Nothing is narrowed and no cut was added
-   after a number was seen.
+The operator decides. E2 can never ship as an exit rule. If it clears, it is an INTAKE proposal, labelled one.

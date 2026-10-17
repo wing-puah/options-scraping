@@ -1,107 +1,8 @@
 ## index_bear_hedge — do the book's index bear plays pay for themselves as crash insurance?
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome: forward `STILL-OPEN`, 0 episodes graded — 2026-10-09. In-sample description only, no verdict: the sleeve cut drawdown in 5 of 5 v4 episodes, net −$43,947 · [record](../../study-results/f5_hedging/index_bear_hedge.md).
-> Nothing else in this brief is a result.
-
-**The question**
-
-Do the book's SPY, QQQ and IWM bear spreads work as crash insurance? An index bear spread pays only in a sell-off, so the study grades it as insurance rather than as a standalone trade.
-
-Three parts:
-
-1. **Protection.** In sell-off episodes, do the spreads reduce the deployed book's drawdown?
-2. **Carry.** Between episodes, what do they cost?
-3. **Net.** Over the whole span, does protection outweigh carry, and at what episode frequency would it break even?
-
-Only sell-offs that start after 2026-10-09 are graded. The in-sample v4 and v3 episodes print as a description with no verdict word.
-
-**What it compares**
-
-Exactly one arm is graded, so no configuration is chosen from many and no PBO runs. There is no sizing grid.
-
-| Arm | Book | Sleeve | Kind |
-|---|---|---|---|
-| [`index_bear_hedge B`](../../arm-index.md#index_bear_hedge) | deployed book | none | base |
-| `H` | deployed book | index bears, one risk unit per signal date | graded |
-| `H-raw` | deployed book | index bears at recorded size | printed, never graded; read as `RB3` |
-| `H-stock` | deployed book | single-stock bears (groups G5, G6, G7), one unit per date | printed, never graded; read as `RB5` |
-
-The deployed book is `top_k_per_day(ladder_rank, k=3, A|B)` with any index bear dropped and no fourth row promoted. An index bear is a bear position in group G1 (SPY, QQQ, IWM, DIA).
-
-**How it is judged**
-
-**Episodes.** The primary sell-off, `E-DD5`, is built from SPY closes alone.
-
-- A trigger day has SPY at least 5% below its trailing 63-day high.
-- The window runs from that high (the peak) to the lowest close (the trough). The trough search ends when `dd` recovers above −0.02, or 42 sessions after the last trigger day, whichever is first. An episode the data has not closed is listed and never read.
-- Episodes less than 10 trading days apart merge.
-- Sessions in no window and not within 10 trading days after a trough count as outside. The 10-day buffer counts on neither side.
-
-`E-DD8`, `E-VIX25` and `E-20D5` are sensitivity definitions. They never carry a verdict.
-
-**Measures.** Curves are mark-to-market dollars, net of costs, under the shipped exits.
-
-- `M1`, protection: `ΔDD_e`, the sleeve's change in worst in-window drawdown. Positive means it helped.
-- `M2`, carry: the sleeve's dollars over outside sessions.
-- `M3`, net: the sleeve's total dollars over the span, and the break-even frequency `f*`.
-
-**Gates.** A failed gate refuses the run.
-
-- `G-ERA`: one era per run.
-- `G-MTM`: the curve reconciliation passes at the shipped tolerance.
-- `G-HASH`: the episode-definition and group-table hashes match.
-- `G-CENSUS`: the census prints before any outcome column is read.
-- `G-OPEN`: at most 25% of the sleeve's in-window positions are still open at `path_data_end`, per episode. A failing episode is NOT EVALUABLE.
-
-**Power floor.** An episode is evaluable with ≥ 3 sleeve positions open into the window, a pass on `G-OPEN` and ≥ 5 sessions. The verdict needs ≥ 5 evaluable forward `E-DD5` episodes, counted per era and never pooled.
-
-**Robustness battery.** A check can block a protective verdict and none can create one.
-
-- `RB1`: `E-DD8` and `E-20D5` keep the sign of `ΣΔDD_e`.
-- `RB2`: leave-one-episode-out keeps the sign of `ΣΔDD_e` and of NET.
-- `RB3`: `H-raw` keeps the sign.
-- `RB4`: real-priced rows only keep the sign, when ≥ 3 episodes stay evaluable.
-- `RB5`: `H-stock` does not protect at least as well. If it does, `EARNS ITS KEEP` and `PROTECTS, COSTS MORE THAN IT SAVES` gain the suffix "— bear protection, not index-specific".
-
-A calendar-shift permutation read gives `p`. See [Overfitting](#overfitting).
-
-**Possible verdicts**
-
-The first match wins. n counts evaluable forward `E-DD5` episodes.
-
-| Token | What it means |
-|---|---|
-| `STILL-OPEN` | n < 5 before the sunset of 2029-10-09 |
-| `UNDERPOWERED` | n < 5 after the sunset |
-| `EARNS ITS KEEP` | `ΔDD_e > 0` in all n episodes; `p ≤ 0.05`; NET > 0; `H` is `unharmed` against `B` on full-span MTM; `RB1`–`RB4` hold |
-| `PROTECTS, COSTS MORE THAN IT SAVES` | `ΔDD_e > 0` in ≥ n − 1 episodes and NET ≤ 0; prints `f*` against the observed rate |
-| `DOES NOT PROTECT` | `ΔDD_e ≤ 0` in ≥ 2 episodes, or median `ΔDD_e ≤ 0` |
-| `INDETERMINATE` | Anything else; prints the criterion vector |
-
-Two declared lines print beside it. `FORWARD VERDICT` is the headline, with a floor of 5 forward episodes. `FORWARD EARLY READ` has a floor of 2, is never a verdict, and prints `PROTECTING`, `NOT PROTECTING` or `STILL-OPEN`.
-
-The v3 replication runs the same rule, labelled "same-episode replication". It can block `EARNS ITS KEEP` and never upgrade v4.
-
-The holdout seal applies: this registration is not a named reader, so both lines print `STILL-OPEN` with zero episodes graded until the seal lifts.
-
-**What could ship**
-
-Nothing ships. `EARNS ITS KEEP` files an entry in `research/deployment-evidence.md` under "to be tested". `PROTECTS, COSTS MORE THAN IT SAVES` files `f*` as the price of the insurance. No verdict removes the [§4 sleeve](../../../docs/deployment-rules.md#s4).
-
-**What this study cannot tell you**
-
-- Whether any one index bear is worth taking. The sleeve is every index bear emitted, with no selection or pick rule.
-- When to hedge. Episode windows are drawn after the fact and can never become an entry trigger.
-- Anything from the in-sample episodes. They print a description and no verdict word, in either era.
-- Whether v3 is an independent check. It covers the same market episodes as v4.
-- Whether the §4 sleeve should stay or go. A verdict files evidence only.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-10-09. Drafted 2026-10-07._
 
@@ -111,42 +12,43 @@ by the main session: only future sell-offs are graded. Every open decision is an
 the text it amends, tagged _Resolved at build (2026-10-09)_. Every default was fixed before any
 outcome column was read.
 
-**What this file now says.** The study grades index bear spreads as crash insurance on
-sell-off episodes that start after 2026-10-09. The five in-sample v4 episodes are printed as a
-description and never graded. Under the holdout seal (`f4_deployment/holdout_seal.md`) this
-registration is not a sealed reader, so the forward read stays STILL-OPEN until the seal lifts.
-Module: `scripts/backtest_study/f5_hedging/index_bear_hedge.py`.
+_Resolved at build (2026-10-09):_ accepted by default under the 2026-10-09 policy, so the study
+was built and run that day. Its report files under the stem `index_bear_hedge`. Module:
+`scripts/backtest_study/f5_hedging/index_bear_hedge.py`.
 
-## Question
+## The question
 
-[`ticker_class`](../f1_selection/benchmark/ticker_class.md) graded index ETFs on standalone R and found
-no reliability edge. The 2026-10-07 root-cause note in `research/current.md` explains the
-late index-bear loss as the market: no sell-off happened from 2026-04-08 to 2026-08-10. A bear
-spread that pays only in a sell-off is insurance, so it should be graded as insurance.
-
-Graded as a hedge, do the book's index bear plays earn their keep? That has three parts:
+Graded as a hedge, do the book's index bear plays earn their keep? Three parts:
 
 1. **Protection.** In sell-off episodes, do they reduce the deployed book's drawdown?
 2. **Carry.** Between episodes, what do they cost?
 3. **Net.** Over the whole span, does protection outweigh carry? At what episode frequency
    would it break even?
 
-## What this is NOT
+Only sell-off episodes that start after 2026-10-09 are graded. The five in-sample v4 episodes
+print as a description and are never graded. Under the holdout seal
+(`f4_deployment/holdout_seal.md`) this registration is not a sealed reader. So the forward read
+stays STILL-OPEN until the seal lifts.
+
+Why as insurance: [`ticker_class`](../f1_selection/benchmark/ticker_class.md) found no
+standalone edge for index ETFs. The 2026-10-07 note in `research/current.md` blames the late
+index-bear loss on a market with no sell-off from 2026-04-08 to 2026-08-10.
+
+## What this study is not
 
 - **Not bear selection.** [`bear_arm`](../../arm-index.md#bear_arm) B1 and
-  [`hedge_sizing`](hedge_sizing.md) D1 are closed: bear debit has no standalone selection edge
-  (`research/lessons.md`). No arm here screens which index bear to take. The sleeve is every
-  index bear the analysis emitted.
-- **Not a pick rule.** `hedge_sizing` D4 is closed. Several index bears on one date are
-  scaled to one risk unit, never ranked against each other.
+  [`hedge_sizing`](hedge_sizing.md) D1 are closed (`research/lessons.md`). No arm here screens
+  which index bear to take. The sleeve is every index bear the analysis emitted.
+- **Not a pick rule.** `hedge_sizing` D4 is closed. Several index bears on one date are scaled
+  to one risk unit, never ranked against each other.
 - **Not a timing study.** The episode windows come from the SPY/VIX path after the fact. They
-  mark when insurance should have paid. They are not an entry trigger and can never become
-  one. [`hedge_timing`](hedge_timing.md)'s triggers and `hedge_sizing` D5's regime gates are
-  not re-tested.
+  mark when insurance should have paid. They are not an entry trigger and can never become one.
+  [`hedge_timing`](hedge_timing.md)'s triggers and `hedge_sizing` D5's regime gates are not
+  re-tested.
 - **Not a re-run of `hedge_sizing` D2/D3.** Those grade all-ticker bears on signal-date
-  buckets, with the tail taken from the book's own worst dates. This study keeps index bears
-  only, uses market-defined episodes, works on the [MTM](../../glossary.md#mark-to-market-basis) curve, and
-  splits cost inside and outside episodes. Those four gaps are what it adds.
+  buckets, with the tail from the book's own worst dates. This study adds four things: index
+  bears only, market-defined episodes, the [MTM](../../glossary.md#mark-to-market-basis) curve,
+  and cost split inside and outside episodes.
 - **Not a removal test for the §4 sleeve.** The bear sleeve in
   [deployment-rules §4](../../../docs/deployment-rules.md#s4) is operator policy. No verdict
   here removes it. A verdict files evidence only.
@@ -154,57 +56,74 @@ Graded as a hedge, do the book's index bear plays earn their keep? That has thre
 
 ## Definitions
 
-- **Index bear.** A position whose ticker is in group G1 of the frozen `ticker_class` group
-  table (SPY, QQQ, IWM, DIA; sha256 GT3) and whose direction is bear under
-  `ticker_class.direction()`. In the census every such position is a `bear_put_spread` except
-  two v3 `long_put`s. DIA appears in neither book.
-- **Sell-off episode (PRIMARY, E-DD5).** Built from `backtests/mech_regime/spy_vix_daily_full.csv`
-  alone. The definition was fixed on 2026-10-07 before any count was taken:
-  - `dd_t = spy_close_t / max(spy_close over the trailing 63 trading days, incl. t) − 1`.
-  - A trigger day has `dd_t ≤ −0.05`.
-  - The episode runs from the 63-day high that the first trigger day measures against (the
-    **peak**) to the minimum close (the **trough**). The trough is taken before `dd` first
-    returns above −0.02, or within 42 trading days after the last trigger day, whichever
-    comes first.
-  - Episodes less than 10 trading days apart are merged.
-  - The **window** is [peak, trough]. _Resolved at build (2026-10-09), OD6:_ (a), [peak, trough].
-    Insurance is judged on the way down; the bounce is not credited.
-  - **Outside** is every session in no window and not within 10 trading days after a trough.
-    That 10-day **buffer** counts on neither side.
-- **Readings fixed at the census** (_the census agent hit these ambiguities; the readings are
-  adopted here_):
-  - The peak is measured from the first trigger day of the run; on ties the latest date wins.
-  - The rolling high needs a full 63 rows, so `dd` is undefined before 2023-08.
-  - The merge gap is counted in trading days of the SPY calendar. A merged episode keeps the
-    earliest peak and the lowest close.
-  - _Resolved at build (2026-10-09):_ the trough is the lowest close from the first trigger day
-    to the search end; ties go to the earliest date. The next episode is searched from the
-    recovery day. An episode the data has not closed is listed and never read.
-- **Secondary definitions, for sensitivity only.** These never yield a verdict on their own:
-  - **E-DD8:** E-DD5 with a −0.08 trigger.
-  - **E-VIX25:** a run of VIX closes ≥ 25, extended back to the start of the VIX ≥ 20
-    stretch, at most 21 rows.
-  - **E-20D5:** a 20-trading-day SPY return ≤ −0.05, taken as the union of the 20-day spans.
-  - _Resolved at build (2026-10-09):_ the E-VIX25 extension reaches back at most 21 rows from
-    the first VIX ≥ 25 close. Both E-VIX25 and E-20D5 use the window's last day as the trough for
-    the buffer. The 10-session merge rule applies to all four definitions.
-  - _Resolved at build (2026-10-09), G-HASH:_ the four definitions are stored as one dict,
-    `EPISODE_DEFS`, in the module. Its sha256 over canonical JSON is `6320a5e3ddc2…` (full
-    value in `EPISODE_DEFS_SHA256`). The build reproduces every episode and count in
-    [Plan-time observations](#plan-time-observations-disclosed).
-- **Deployed book.** `top_k_per_day(ladder_rank, k=3, A|B)` as `hedge_criteria` builds it,
-  minus any index bear. Index bears sit on the sleeve side only, so they are never counted
-  twice.
-  - _Resolved at build (2026-10-09), OD1:_ (a), the deployed A/B top-3 ladder, because it is
-    what the operator holds.
-  - _Resolved at build (2026-10-09):_ `hedge_criteria` does not build this book;
-    `protocol.top_k_per_day` does. The top three are picked from the whole book, then any
-    index bear among them is dropped. No fourth row is promoted into its place.
-- **Sleeve.** Every index bear in the book. Each one's MTM dollars are scaled by
-  `1 / n_indexbear(signal_date)`, so each signal date carries at most one risk unit.
-  _Resolved at build (2026-10-09), OD2:_ (a), one risk unit per signal date; (b), recorded
-  size, runs as RB3. The scaling is applied by building one `book_curves` call per distinct
-  `n` and summing the scaled levels on one session axis.
+### Index bear
+
+A position whose ticker is in group G1 of the frozen `ticker_class` group table (SPY, QQQ, IWM,
+DIA; sha256 GT3), and whose direction is bear under `ticker_class.direction()`. In the census
+every such position is a `bear_put_spread` except two v3 `long_put`s. DIA appears in neither
+book.
+
+### Sell-off episode (PRIMARY, E-DD5)
+
+Built from `backtests/mech_regime/spy_vix_daily_full.csv` alone. The definition was fixed on
+2026-10-07 before any count was taken.
+
+- `dd_t = spy_close_t / max(spy_close over the trailing 63 trading days, incl. t) − 1`.
+- A trigger day has `dd_t ≤ −0.05`.
+- The episode runs from the **peak** to the **trough**. The peak is the 63-day high that the
+  first trigger day measures against. The trough is the minimum close, taken before `dd` first
+  returns above −0.02, or within 42 trading days after the last trigger day, whichever comes
+  first.
+- Episodes less than 10 trading days apart are merged.
+- The **window** is [peak, trough]. _Resolved at build (2026-10-09), OD6:_ (a), [peak, trough].
+  Insurance is judged on the way down; the bounce is not credited.
+- **Outside** is every session in no window and not within 10 trading days after a trough. That
+  10-day **buffer** counts on neither side.
+
+Readings fixed at the census (the census agent hit these ambiguities; the readings are adopted
+here):
+
+- The peak is measured from the first trigger day of the run. On ties the latest date wins.
+- The rolling high needs a full 63 rows, so `dd` is undefined before 2023-08.
+- The merge gap is counted in trading days of the SPY calendar. A merged episode keeps the
+  earliest peak and the lowest close.
+- _Resolved at build (2026-10-09):_ the trough is the lowest close from the first trigger day to
+  the search end; ties go to the earliest date. The next episode is searched from the recovery
+  day. An episode the data has not closed is listed and never read.
+
+### Secondary definitions, for sensitivity only
+
+These never yield a verdict on their own.
+
+- **E-DD8:** E-DD5 with a −0.08 trigger.
+- **E-VIX25:** a run of VIX closes ≥ 25, extended back to the start of the VIX ≥ 20 stretch, at
+  most 21 rows.
+- **E-20D5:** a 20-trading-day SPY return ≤ −0.05, taken as the union of the 20-day spans.
+- _Resolved at build (2026-10-09):_ the E-VIX25 extension reaches back at most 21 rows from the
+  first VIX ≥ 25 close. Both E-VIX25 and E-20D5 use the window's last day as the trough for the
+  buffer. The 10-session merge rule applies to all four definitions.
+- _Resolved at build (2026-10-09), G-HASH:_ the four definitions are stored as one dict,
+  `EPISODE_DEFS`, in the module. Its sha256 over canonical JSON is `6320a5e3ddc2…` (full value
+  in `EPISODE_DEFS_SHA256`). The build reproduces every episode and count in
+  [Plan-time observations](#plan-time-observations-disclosed).
+
+### Deployed book
+
+`top_k_per_day(ladder_rank, k=3, A|B)` as `hedge_criteria` builds it, minus any index bear.
+Index bears sit on the sleeve side only, so they are never counted twice.
+
+- _Resolved at build (2026-10-09), OD1:_ "the book" being hedged is (a), the deployed A/B top-3
+  ladder, because it is what the operator holds.
+- _Resolved at build (2026-10-09):_ `hedge_criteria` does not build this book;
+  `protocol.top_k_per_day` does. The top three are picked from the whole book, then any index
+  bear among them is dropped. No fourth row is promoted into its place.
+
+### Sleeve
+
+Every index bear in the book. Each one's MTM dollars are scaled by `1 / n_indexbear(signal_date)`,
+so each signal date carries at most one risk unit. _Resolved at build (2026-10-09), OD2:_ (a),
+one risk unit per signal date; (b), recorded size, runs as RB3. The scaling builds one
+`book_curves` call per distinct `n` and sums the scaled levels on one session axis.
 
 ## Dependencies
 
@@ -216,22 +135,22 @@ Graded as a hedge, do the book's index bear plays earn their keep? That has thre
 - `lib/hedge_criteria.py`: the `unharmed` rule and `max_drawdown`, imported and never
   re-implemented. Its signal-date bucketing is NOT used; MTM sessions replace it, per
   next-steps §2.10.
-- `scripts/backtest_study/f1_selection/benchmark/ticker_class.py`: `group_of` and `direction`, imported.
-  The group-table hash is checked at load.
-- _Resolved at build (2026-10-09):_ positions are built by
-  `hedge_portfolio.book_positions`, at each row's own contract count and stored exit. A row
-  with no `days_held` has no exit window and is left out and counted. `fill_trusted` is not
-  filtered, because the registration names no such filter; the count is printed.
+- `scripts/backtest_study/f1_selection/benchmark/ticker_class.py`: `group_of` and `direction`,
+  imported. The group-table hash is checked at load.
+- _Resolved at build (2026-10-09):_ positions are built by `hedge_portfolio.book_positions`, at
+  each row's own contract count and stored exit. A row with no `days_held` has no exit window;
+  it is left out and counted. `fill_trusted` is not filtered, because the registration names no
+  such filter; the count is printed.
 - _Resolved at build (2026-10-09), holdout seal:_ the book comes from `load_book` with no
-  `sealed_read`, so no signal date from 2026-09-23 on is read. The module repeats the guard
-  on the returned rows.
+  `sealed_read`, so no signal date from 2026-09-23 on is read. The module repeats the guard on
+  the returned rows.
 
 ## Population and basis, fixed here
 
-- **Era.** v4 is PRIMARY. v3 is a separately labelled replication (see
-  [Plan-time observations](#plan-time-observations-disclosed) for why it is not independent).
-  Eras are never pooled. _Resolved at build (2026-10-09), OD4:_ both eras are in-sample, so
-  both print a description only. v3 runs with `STUDY_ERA=v3`.
+- **Era.** v4 is PRIMARY. v3 is a separately labelled replication; it is not independent (see
+  [Plan-time observations](#plan-time-observations-disclosed)). Eras are never pooled.
+  _Resolved at build (2026-10-09), OD4:_ both eras are in-sample, so both print a description
+  only. v3 runs with `STUDY_ERA=v3`.
 - **Outcome basis.** MTM dollars, net of costs, under the shipped PROD exits as the loader
   carries them. No `be_after` variant.
 - **Curve.** One daily MTM dollar series for the deployed book (B) and one for the sleeve (S).
@@ -274,40 +193,38 @@ Every figure here is a descriptor. None is an outcome.
 | 2026-01/03 | 12 | 26 | 260 |
 | Outside (501 of 679 sessions) | 145 | — | — |
 
-These counts come from a replica of `load_book`'s row selection that read no outcome column,
-so they are close to the loader's counts but not identical. The build prints the loader's own
-census.
+These counts come from a replica of `load_book`'s row selection that read no outcome column.
+They are close to, not identical to, the loader's own census, which the build prints.
 
 **Sleeve shape.**
 
 - Index plays are bear-heavy in calm months too. The v4 index-bear share is ≥ 0.83 in 21 of 33
   months, so the sleeve is close to always on rather than timed.
-- Structure, median DTE (≈ 59) and median risk (≈ $1,100) barely differ between inside and
-  outside the windows.
+- Structure, median DTE (≈ 59) and median risk (≈ $1,100) barely differ inside and outside the
+  windows.
 
 **What the census means for power.**
 
 1. **The power unit is episodes, and v4 has five.** No magnitude can be estimated from five.
-   The strongest possible in-sample read is a sign: 5 of 5 episodes protected has a one-sided
-   sign-test p of 0.031, while 4 of 5 has 0.19. The book can therefore reach a verdict only
-   if every episode agrees, and even then only PROVISIONALLY.
+   The strongest in-sample read is a sign: a one-sided sign-test p of 0.031 for 5 of 5
+   protected. 4 of 5 gives 0.19. So the book can reach a verdict only if every episode agrees, and
+   even then only PROVISIONALLY.
 2. **One episode is far larger than the rest.** 2025-02/04 fell 19% with VIX at 52; no other
-   reached 11%. Per `lessons.md`, one window can carry a whole effect. Leave-one-episode-out
-   is therefore a veto (RB2).
-3. **v3 is not an independent replication.** The v4 tab was back-filled over 2024–2026, so v4
-   and v3 cover the same four market episodes. v3 can show that a v4 result does not depend
-   on which plays the prompt version emitted. It cannot show that the result holds in other
-   markets. v3's index bears are also concentrated: 50 of its 56 in-window positions fall in
-   two episodes.
-4. **Hindsight in the analysis.** Both eras were generated by an LLM over dates that may fall
-   inside its training data. If the index-bear share rises inside episodes, that may be recall
-   rather than reading the tape. Forward episodes are the only evidence free of this. This is
-   why the in-sample verdict ceiling is PROVISIONAL (see [Forward confirmation](#forward-confirmation)).
+   reached 11%. Per `lessons.md`, one window can carry a whole effect. So leave-one-episode-out
+   is a veto (RB2).
+3. **v3 is not an independent replication.** The v4 tab was back-filled over 2024–2026, so both
+   eras cover the same four market episodes. The v3 read can show a v4 result does not depend on
+   the prompt version's plays. It cannot show the result holds in other markets. Its index bears are also concentrated: 50 of its 56 in-window positions fall in two
+   episodes.
+4. **Hindsight in the analysis.** An LLM generated both eras, over dates that may fall inside
+   its training data. If the index-bear share rises inside episodes, that may be recall rather
+   than reading the tape. Forward episodes are the only evidence free of this. This is why the
+   in-sample verdict ceiling is PROVISIONAL (see [Forward confirmation](#forward-confirmation)).
 5. **Modal expectation, written down now.** UNDERPOWERED or PROTECTS-BUT-COSTS-MORE. The four
    calm months alone carry a large loss, and five episodes are unlikely to agree unanimously.
    An all-NULL result changes nothing about the §4 sleeve.
 
-## Arms
+## What it compares
 
 | Arm | Book | Sleeve | Role |
 |---|---|---|---|
@@ -316,18 +233,20 @@ census.
 | H-raw | deployed book | index bears at recorded size | printed, never graded (OD2) |
 | H-stock | deployed book | stock bears, one unit per date | printed, never graded: is any protection index-specific? |
 
-Exactly one arm is graded, so no configuration is selected from many and the primary needs no
-PBO. If the operator adds a sizing grid (OD3), the grid is selected from and CSCV applies (see
-[Overfitting](#overfitting)). _Resolved at build (2026-10-09), OD3:_ (a), no grid. Five
-episodes cannot select a size, so no PBO runs.
+Exactly one arm is graded. So no configuration is selected from many, and the primary needs no
+PBO. A sizing grid (OD3) would be selected from, and CSCV would apply (see
+[Overfitting](#overfitting)). _Resolved at build (2026-10-09), OD3:_ (a), no grid. Five episodes
+cannot select a size, so no PBO runs.
 
-_Resolved at build (2026-10-09):_ H-stock's "stock bears" are bear positions in the
-single-stock groups G5, G6 and G7 of the `ticker_class` table, one unit per signal date.
+_Resolved at build (2026-10-09):_ H-stock's "stock bears" are bear positions in the single-stock
+groups G5, G6 and G7 of the `ticker_class` table, one unit per signal date.
 
-## Unit and metric
+## How it is judged
 
-**M1, protection per episode.** For each episode window, take the worst drawdown within the
-window on each curve, measured from the window's own running high:
+### M1, protection per episode
+
+For each episode window, take the worst drawdown within the window on each curve, from the
+window's own running high:
 `DD_e(X) = min_t (L_X(t) − max_{s∈[peak,t]} L_X(s))`.
 Then `ΔDD_e = DD_e(H) − DD_e(B)`, in dollars. A positive value means the sleeve reduced the
 drawdown. The study also prints the sleeve's own MTM dollars inside the window (`G_e`).
@@ -335,98 +254,114 @@ _Resolved at build (2026-10-09):_ the drawdown is taken on per-session changes f
 window's first session, which equals the level formula for a contiguous window. `G_e` is the
 sleeve's level change across the window.
 
-**M2, carry outside episodes.** The sum of the sleeve's MTM dollars over the outside sessions
-(`C`), and the same figure per 100 outside sessions. Buffer sessions are printed separately
-and counted on neither side. _Resolved at build (2026-10-09):_ a session the SPY file cannot
-label is "unclassified" and counted on neither side. That covers sessions before the drawdown
-is defined, after the file ends, and after the peak of an episode the data has not closed.
+### M2, carry outside episodes
 
-**M3, net.**
+The sum of the sleeve's MTM dollars over the outside sessions (`C`), and the same figure per 100
+outside sessions. Buffer sessions print separately and count on neither side.
+_Resolved at build (2026-10-09):_ a session the SPY file cannot label is "unclassified" and
+counts on neither side. That covers sessions before the drawdown is defined, after the file
+ends, and after the peak of an episode the data has not closed.
+
+### M3, net
 
 - `NET = ΣG_e + C + buffer`, which equals the sleeve's total MTM dollars over the span.
 - The full-span drawdown of H against B uses `hedge_criteria.unharmed` on MTM maxDD and the
   worst day.
 - **Break-even frequency** `f* = −(C per outside session) / mean(G_e)`, in episodes per 252
   sessions. It is set beside the observed E-DD5 rate in the SPY/VIX file (6 episodes in about
-  3.3 years). It is only meaningful when `mean(G_e) > 0`; otherwise it prints "no break-even".
+  3.3 years). It is meaningful only when `mean(G_e) > 0`; otherwise it prints "no break-even".
 - _Resolved at build (2026-10-09), OD5:_ yes, base rate only. The 2023 episode is out of scope
   for every read. `--fetch-base-rate` writes a longer SPY history to
-  `backtests/mech_regime/spy_base_rate_daily.csv`, and its E-DD5 rate prints beside the file
-  rate as a declared secondary. The file rate stays the headline. Neither touches an outcome.
+  `backtests/mech_regime/spy_base_rate_daily.csv`. Its E-DD5 rate prints beside the file rate as
+  a declared secondary. The file rate stays the headline. Neither touches an outcome.
 - _Resolved at build (2026-10-09):_ NET is printed as windows + C + buffer + unclassified, so
   the four parts add to the sleeve's total over the span.
 
-**Diagnostics, printed and never graded:**
+### Diagnostics, printed and never graded
 
 - the MTM Ulcer index of B and H;
-- `corr(S, B)` on sessions outside episodes, since a positive value means re-wrap (`lessons.md`);
+- `corr(S, B)` on sessions outside episodes, since a positive value means re-wrap
+  (`lessons.md`);
 - M1–M3 under each secondary definition.
+
+### Power floor
+
+- An episode is **evaluable** when it has ≥ 3 sleeve positions open into the window, passes
+  G-OPEN, and has ≥ 5 sessions.
+- The primary verdict needs **≥ 5 evaluable E-DD5 episodes** in the era. Below that, the verdict
+  is UNDERPOWERED.
+- The floor counts episodes, not positions. It may not be met by loosening the definition or by
+  pooling eras. v4 has exactly 5 candidates, so one non-evaluable episode makes it UNDERPOWERED.
+- _Resolved at build (2026-10-09), OD4:_ (b), grade forward only. The floor of 5 counts forward
+  episodes, those with a peak after 2026-10-09. The in-sample episodes print as a description
+  with their full criterion vector and no verdict word. Below the floor the forward verdict
+  reads STILL-OPEN until the sunset and UNDERPOWERED after it.
 
 ## Gates
 
 A failed gate refuses the run (non-zero exit). It does not produce a verdict.
 
-| Gate | Condition |
-|---|---|
-| G-ERA | One era, named in the header; `era.py` refuses a mismatch |
-| G-MTM | `book_curves` G-MTM reconciliation passes at the shipped tolerance, never widened |
-| G-HASH | The episode-definition hash and the GT3 group-table hash match the values recorded at acceptance |
-| G-CENSUS | The episode and position census prints before any outcome column is read |
-| G-OPEN | ≤ 25% of the sleeve's in-window positions are still open at `path_data_end`, per episode; a failing episode is NOT EVALUABLE |
-
-_Resolved at build (2026-10-09), OD7:_ keep 25%. "In-window positions" are the sleeve positions
-open into the window by scheduled span. "Still open" means the row's `path_status` is
-`open_at_data_end`. Both are descriptors, so G-OPEN is settled in the census.
+- **G-ERA.** One era, named in the header; `era.py` refuses a mismatch.
+- **G-MTM.** The `book_curves` G-MTM reconciliation passes at the shipped tolerance, never
+  widened.
+- **G-HASH.** The episode-definition hash and the GT3 group-table hash match the values recorded
+  at acceptance.
+- **G-CENSUS.** The episode and position census prints before any outcome column is read.
+- **G-OPEN.** ≤ 25% of the sleeve's in-window positions are still open at `path_data_end`, per
+  episode. A failing episode is NOT EVALUABLE.
+  _Resolved at build (2026-10-09), OD7:_ OD7 asked if 25% suits 2026-01/03, with DTE ≈ 59 and
+  data running to 2026-09. Keep 25%. "In-window positions" are the sleeve
+  positions open into the window by scheduled span. "Still open" means the row's `path_status`
+  is `open_at_data_end`. Both are descriptors, so G-OPEN is settled in the census.
 
 _Resolved at build (2026-10-09):_ G-MTM fails with exit 4 and G-HASH with exit 5. Both are
 failures, not designed refusals.
 
-## Power floor
-
-- An episode is **evaluable** when it has ≥ 3 sleeve positions open into the window, passes
-  G-OPEN, and has ≥ 5 sessions.
-- The primary verdict needs **≥ 5 evaluable E-DD5 episodes** in the era. Below that, the
-  verdict is UNDERPOWERED.
-- The floor counts episodes, not positions. It may not be met by loosening the definition or
-  by pooling eras. v4 has exactly 5 candidates, so one non-evaluable episode makes it
-  UNDERPOWERED.
-- _Resolved at build (2026-10-09), OD4:_ (b), grade forward only. The floor of 5 counts
-  forward episodes, those with a peak after 2026-10-09. The in-sample episodes are printed
-  as a description with their full criterion vector and no verdict word. Below the floor the
-  forward verdict reads STILL-OPEN until the sunset and UNDERPOWERED after it.
-
 ## Overfitting
 
-- **Permutation read (calendar shift).** The statistic is `T = Σ_e ΔDD_e`. The null shifts
-  the whole set of episode windows circularly across the era's session span. Lengths and gaps
-  are kept, every shift moves at least 21 sessions, all shifts are enumerated, and the
-  windows are re-evaluated on the same curves. The one-sided p-value is the rank of the true
-  T. This asks whether the sleeve helps more in real sell-offs than in random windows of the
-  same shape. Shifted windows can overlap real episodes, which makes the test conservative.
-  _(Adapted from the circular-shift test in `ticker_class_regime`.)_
-- _Resolved at build (2026-10-09), permutation:_ T sums over evaluable episodes only. The
-  span is the session axis of the read, and a window that wraps past the end continues from
-  the start. `p = (1 + #{T_k ≥ T}) / (1 + number of shifts)`.
-- **Robustness battery, veto only.** A check can block a protective verdict. None can create
-  one.
-  - **RB1:** primary on E-DD8 and E-20D5 keeps the sign of `ΣΔDD_e`.
-  - **RB2:** leave-one-episode-out keeps the sign of `ΣΔDD_e` and of NET for every left-out
-    episode. _Resolved at build (2026-10-09):_ NET without an episode is NET minus that
-    episode's `G_e`.
-  - **RB3:** H-raw keeps the sign of `ΣΔDD_e`.
-  - **RB4:** real-priced rows only (no tweak rows) keep the sign, when ≥ 3 episodes are still
-    evaluable. _Resolved at build (2026-10-09):_ the filter applies to the book and the sleeve
-    alike, and evaluability is recounted on the filtered sleeve.
-  - **RB5:** H-stock does not protect at least as well. If it does, the verdict is re-worded
-    "bear protection, not index-specific".
-- **PBO/CSCV** applies only if OD3 adds a sizing grid. The blocks would be episodes plus the
-  inter-episode stretches between them. A PBO above 0.50 vetoes any recommended size.
-  _Resolved at build (2026-10-09), OD3:_ no grid, so no PBO runs.
+### Permutation read (calendar shift)
 
-## Verdicts, worded now
+- The statistic is `T = Σ_e ΔDD_e`.
+- The null shifts the whole set of episode windows circularly across the era's session span.
+- Lengths and gaps are kept, every shift moves at least 21 sessions, and all shifts are
+  enumerated.
+- The windows are re-evaluated on the same curves. The one-sided p-value is the rank of the
+  true T.
 
-The verdicts are checked in order, and the first match wins. n is the number of evaluable
-E-DD5 episodes.
+Shifted windows can overlap real episodes, which makes the test conservative. (Adapted
+from the circular-shift test in `ticker_class_regime`.)
+
+_Resolved at build (2026-10-09), permutation:_ T sums over evaluable episodes only. The span is
+the session axis of the read. A window that wraps past the end continues from the start.
+`p = (1 + #{T_k ≥ T}) / (1 + number of shifts)`.
+
+### Robustness battery, veto only
+
+A check can block a protective verdict. None can create one.
+
+- **RB1:** primary on E-DD8 and E-20D5 keeps the sign of `ΣΔDD_e`.
+- **RB2:** leave-one-episode-out keeps the sign of `ΣΔDD_e` and of NET for every left-out
+  episode. _Resolved at build (2026-10-09):_ NET without an episode is NET minus that episode's
+  `G_e`.
+- **RB3:** H-raw keeps the sign of `ΣΔDD_e`.
+- **RB4:** real-priced rows only (no tweak rows) keep the sign, when ≥ 3 episodes are still
+  evaluable. _Resolved at build (2026-10-09):_ the filter applies to the book and the sleeve
+  alike, and evaluability is recounted on the filtered sleeve.
+- **RB5:** H-stock does not protect at least as well. If it does, the verdict is re-worded
+  "bear protection, not index-specific".
+
+### PBO/CSCV
+
+PBO/CSCV applies only if OD3 adds a sizing grid. The blocks would be episodes plus the
+inter-episode stretches between them. A PBO above 0.50 vetoes any recommended size.
+_Resolved at build (2026-10-09), OD3:_ no grid, so no PBO runs.
+
+## Possible verdicts
+
+### Verdicts, worded now
+
+The verdicts are checked in order, and the first match wins. n is the number of evaluable E-DD5
+episodes.
 
 | Verdict | Condition |
 |---|---|
@@ -438,16 +373,15 @@ E-DD5 episodes.
 
 - If RB5 fires, the first two verdicts gain the suffix "— bear protection, not
   index-specific".
-- **v3 replication.** The same rule runs on v3 and is labelled "same-episode replication". It
-  can contradict v4 and block "EARNS ITS KEEP". It can never upgrade v4 on its own.
+- **v3 replication.** The same rule runs on v3, labelled "same-episode replication". It can
+  contradict v4 and block "EARNS ITS KEEP". It can never upgrade v4 on its own.
 
-_Resolved at build (2026-10-09), OD4:_ this table grades forward episodes only, with n the
-number of evaluable forward episodes. Forward episodes are free of the hindsight risk in
-observation 4, so the first verdict drops "(PROVISIONAL)" and reads EARNS ITS KEEP. Below the
-floor the first row reads STILL-OPEN before the sunset and UNDERPOWERED after it. On the
-in-sample episodes the study prints the criterion vector and no verdict word, on either era.
+_Resolved at build (2026-10-09), OD4:_ this table grades forward episodes only, with n the number
+of evaluable forward episodes. Forward episodes are free of the hindsight risk in observation 4, so the first verdict drops "(PROVISIONAL)" and reads EARNS ITS KEEP. Below the floor the first
+row reads STILL-OPEN before the sunset and UNDERPOWERED after it. On the in-sample episodes the
+study prints the criterion vector and no verdict word, on either era.
 
-## Forward confirmation
+### Forward confirmation
 
 - **What is graded.** Every E-DD5 episode whose peak falls after the acceptance date is graded
   once its buffer closes (trough + 10 sessions), on the then-current era. The study appends a
@@ -456,31 +390,40 @@ in-sample episodes the study prints the criterion vector and no verdict word, on
   with `ΔDD_e > 0`, and forward carry per outside session no worse than `f*` implies at the
   observed rate.
 - **Disconfirmation.** Any forward episode with `ΔDD_e ≤ 0` sends it back to INDETERMINATE.
-- **Sunset.** 3 years from acceptance. At roughly 1.8 episodes a year, two episodes take
-  about 1–2 years. That wait is the honest cost of this sample size.
+- **Sunset.** 3 years from acceptance. At roughly 1.8 episodes a year, two episodes take about
+  1–2 years.
 
-_Resolved at build (2026-10-09), OD4:_ with no in-sample verdict there is nothing PROVISIONAL
-to confirm, and the two clauses above disagree on how many forward episodes a result needs.
-The choice is contested, so both print as declared lines:
+_Resolved at build (2026-10-09), OD4:_ with no in-sample verdict there is nothing PROVISIONAL to
+confirm. The two clauses above also disagree on how many forward episodes a result needs. The
+choice is contested, so both print as declared lines:
 
 | Line | Floor | Rule | Role |
 |---|---|---|---|
 | `FORWARD VERDICT` | 5 forward episodes | the [verdict table](#verdicts-worded-now) on forward episodes | headline, fixed now |
 | `FORWARD EARLY READ` | 2 forward episodes | the confirmation and disconfirmation clauses above | declared secondary; never a verdict |
 
-- The early read prints PROTECTING when every forward `ΔDD_e > 0` and forward carry per
-  outside session is no worse than the break-even carry. That carry is the observed file rate
-  per session times the in-sample mean `G_e`, negated.
+- The early read prints PROTECTING when every forward `ΔDD_e > 0` and forward carry per outside
+  session is no worse than the break-even carry. That carry is the observed file rate per
+  session times the in-sample mean `G_e`, negated.
 - Any forward `ΔDD_e ≤ 0` prints the token `NOT PROTECTING`. Otherwise it prints `STILL-OPEN`.
 - The sunset is 2029-10-09.
 
-_Resolved at build (2026-10-09), holdout seal:_ this registration was accepted on
-2026-10-09, so it cannot join `era.SEALED_READERS`. Its forward window reads nothing until
-`era.SEAL_LIFTED` is set, and until then both lines print STILL-OPEN with zero episodes
-graded. The SPY file is market data and is read in full; the episode census is never scored
-against a play.
+_Resolved at build (2026-10-09), holdout seal:_ this registration was accepted on 2026-10-09, so
+it cannot join `era.SEALED_READERS`. Its forward window reads nothing until `era.SEAL_LIFTED` is
+set. Until then both lines print STILL-OPEN with zero episodes graded. The SPY file is market
+data and is read in full; the episode census is never scored against a play.
 
-## Ship criteria
+## Anti-tuning
+
+- Every default was fixed before any outcome column was read.
+- The episode definitions were fixed on 2026-10-07 before any count was taken. G-HASH pins them.
+- Exactly one arm is graded; there is no sizing grid.
+- A revisit after a result is a NEW registration, never an edit.
+
+All seven open decisions, OD1–OD7, were resolved at build on 2026-10-09. Each answer sits
+beside the text it amends.
+
+## What could ship
 
 Nothing ships from this study.
 
@@ -488,30 +431,3 @@ Nothing ships from this study.
   be tested": index bear spreads as the §4 sleeve's preferred vehicle.
 - **PROTECTS, COSTS MORE** files `f*` as the price of the insurance.
 - **No verdict removes the §4 sleeve.**
-
-## Open decisions
-
-All seven were resolved at build on 2026-10-09. Each answer sits beside the text it amends;
-this table only says where.
-
-| # | Decision | Options | Answer, and where it sits |
-|---|---|---|---|
-| OD1 | What is "the book" being hedged? | (a) deployed A/B top-3 ladder; (b) every priced row | (a), in [Definitions](#definitions) |
-| OD2 | Sleeve sizing | (a) one risk unit per signal date; (b) recorded size, which makes the sleeve as large as the book | (a), with (b) as RB3, in [Definitions](#definitions) |
-| OD3 | Sizing grid f ∈ {¼, ½, 1}? | (a) no grid; (b) grid, with CSCV | (a), in [Arms](#arms) and [Overfitting](#overfitting) |
-| OD4 | Is the 5-episode floor right, given v4 has exactly 5? | (a) keep 5 and accept that an UNDERPOWERED result is likely; (b) grade forward only and print the in-sample read as exploratory | (b), decided by the main session; in [Power floor](#power-floor), [Verdicts](#verdicts-worded-now) and [Forward confirmation](#forward-confirmation) |
-| OD5 | Is the 2023 episode out of scope? | No book covers it. Fetch older SPY/VIX only to estimate the base rate for `f*`? | Yes, base rate only, in [Unit and metric](#unit-and-metric) |
-| OD6 | Primary window | (a) [peak, trough]; (b) [peak, trough + buffer], which credits the bounce | (a), in [Definitions](#definitions) |
-| OD7 | Is G-OPEN at 25% per episode right for 2026-01/03, with DTE ≈ 59 and data running to 2026-09? | Likely fine; check at build | Keep 25%, in [Gates](#gates) |
-
-## Build notes
-
-- Module: `scripts/backtest_study/f5_hedging/index_bear_hedge.py`.
-- On acceptance it also needs a catalog entry, an `arm-index.md` section and a row in the
-  pre-registrations README. All three are shared files: check `git status` before editing.
-- Do not run the study until the operator has accepted this registration, because a run
-  overwrites `-latest.txt` and `site/`.
-- _Resolved at build (2026-10-09):_ accepted by default under the 2026-10-09 policy, so the
-  study was built and run that day. Its report files under the stem `index_bear_hedge`.
-  `tests/test_index_bear_hedge.py` pins the episode census, the hashes, the curve scaling and
-  the verdict grammar on synthetic data.

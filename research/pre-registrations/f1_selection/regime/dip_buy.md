@@ -1,88 +1,8 @@
 ## dip_buy — do Tier A/B positions do better when SPY closes below its 50-day SMA?
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome: forward `STILL-OPEN` — 2026-10-12 · [record](../../../study-results/f1_selection/regime/dip_buy.md).
-> Nothing else in this brief is a result.
-
-**The question**
-
-Do non-vetoed Tier A/B positions earn a higher [meanR](../../../glossary.md#meanr) when SPY closed below its 50-day SMA on the signal date? An exploratory read on 2026-10-12 found one rule that ranked high in both eras: Tier A/B positions taken on a [dip date](../../../glossary.md#dip-date).
-
-The rule was picked after the fact from 28 candidates. The in-sample book therefore cannot confirm it. Only forward dates carry a verdict.
-
-**What it compares**
-
-The registration was accepted by default on 2026-10-12. Contested choices are parameters printed both ways. None of them is graded.
-
-| Object | What it does | Kind |
-|---|---|---|
-| `dip_buy DB1` | Tier A+B meanR on dip dates minus meanR on above dates, forward dates only | arm, graded |
-| `dip_buy DB-TB` | The `score_total` tie-break within tier, printed descending and ascending | descriptive cut |
-| `dip_buy DB-CPIR` | `DB1` inside cpir above 0.92 and inside cpir at or below 0.92 | descriptive cut |
-| `dip_buy DB-DEP` | Ladder top-3 per day against dip-gated top-3 per day, under both tie-break orders | descriptive cut |
-| `dip_buy DB-NULL` | Random non-veto bull_call_spreads on the same dates, as many per date as the book picked | control |
-
-Definitions behind the labels:
-
-- A dip date has SPY's close strictly below its 50-day SMA, as of the last trading day on or before the signal date. The label is `MechLabeler.below_sma`.
-- A date the table does not reach, or with no 50-day runway, is dropped and counted.
-- The tier comes from `mapping.ladder_tier`. VETO rows are dropped. Nothing here changes which plays are tiered A or B.
-- The 0.92 cpir split is the median finite cpir over v4 Tier A/B in-sample positions on the 2026-10-06 exports. It is a constant and never re-estimated.
-- The `DB-DEP` dip-gated book takes no position on an above date. `DB-NULL` uses 10,000 draws and seed 42, and prints the book's percentile in that null.
-
-**How it is judged**
-
-**Measure.** meanR(dip arm) − meanR(above arm), pooled over positions. The outcome is the stored [R](../../../glossary.md#r), net of the row's `cost_total`.
-
-**Population.** The loader uses its defaults: real and `strike_expiry_tweak` rows, no bs rows, proxy calibration on. Rows with no stored R, or with `fill_trusted` False, are dropped and counted.
-
-- **Forward (graded):** every v4 signal date on or after `era.SEAL_START`, read from `lib/era.py` at run time.
-- **In-sample (context only):** every date before `era.SEAL_START`, v4 and v3 printed separately. No in-sample figure carries a verdict.
-- **Still sealed:** forward dates are readable only after `era.SEAL_LIFTED` is set. Until then the forward arms are empty.
-- **Era:** a prompt-version bump freezes the grade at the last v4 date. Dates from two prompt versions are never pooled.
-
-**Interval.** The 95% [CI](../../../glossary.md#ci) is date-clustered. The two arms resample their own signal dates independently, 10,000 draws, seed 20260811. Each arm's meanR and [PF](../../../glossary.md#pf) print with their own CI. PF is never graded.
-
-**Gates.** The floors apply to each arm of `dip_buy DB1`, on forward dates.
-
-- 30 signal dates per arm.
-- 60 positions per arm.
-
-The report also prints how many forward dates exist and how many priced sealed dates remain before the seal lifts.
-
-**Bar.** The verdict needs all of these.
-
-1. Both arms are past their floors.
-2. The CI of the difference excludes 0.
-3. The sign of the difference decides `SUPPORTED` or `CONTRARY`.
-
-The verdict of record is the first run that prints a token other than `STILL-OPEN`. Later runs are descriptive.
-
-**Possible verdicts**
-
-| Token | What it means |
-|---|---|
-| `SUPPORTED` | Both arms past their floor, CI excludes 0, difference positive |
-| `CONTRARY` | Both arms past their floor, CI excludes 0, difference negative |
-| `NULL` | Both arms past their floor, CI spans 0 |
-| `STILL-OPEN` | Either arm short of its floor, or the forward dates still sealed |
-
-**What could ship**
-
-Nothing ships from this study. A forward `SUPPORTED` lets the operator consider a deployment-rules change, such as fewer positions on above dates. That change needs its own registration and rollback trigger. A forward `NULL` or `CONTRARY` closes the lead. `STILL-OPEN` changes nothing.
-
-**What this study cannot tell you**
-
-- Anything from the in-sample dates. They are post hoc context and carry no verdict.
-- Whether any other moving average, distance below the SMA, VIX cut or tier subset helps. None is graded.
-- Anything about exits. Exits are the stored ones.
-- When the answer arrives. The registration expects a wait of about 142 forward signal dates for the dip arm at the in-sample dip rate of 21%.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-10-12._
 
@@ -91,21 +11,21 @@ defaults; the operator may revisit (a revisit after a result is a NEW
 registration, never an edit).** Contested choices are parameters printed both
 ways; none of them is graded.
 
-**What this file says, in one paragraph.** The 2026-10-12 exploratory read
-found one rule that ranked high in both eras: Tier A/B positions taken on a
-[dip date](../../../glossary.md#dip-date). It was picked after the fact from 28
-candidates, so the in-sample book cannot confirm it. This file grades it on
-one population only: signal dates on or after the holdout seal's start, read
-from `lib/era.py`, once the seal lifts. Everything in-sample is printed as
-context and labelled post hoc.
-
-## Question
+## The question
 
 Among non-vetoed Tier A/B positions, is the realized
-[meanR](../../../glossary.md#meanr) higher on dip dates than on above dates?
+[meanR](../../../glossary.md#meanr) higher on
+[dip dates](../../../glossary.md#dip-date) than on above dates?
 
-The exploratory read behind it is the 2026-10-12 entry in
-[`current.md`](../../../current.md). Its three findings, in short:
+The 2026-10-12 exploratory read found one rule that ranked high in both eras:
+Tier A/B positions taken on a dip date. It was picked after the fact from 28
+candidates, so the in-sample book cannot confirm it. This file grades it on one
+population only: signal dates on or after the holdout seal's start, read from
+`lib/era.py`, once the seal lifts. Everything in-sample is printed as context
+and labelled post hoc.
+
+The exploratory read is the 2026-10-12 entry in
+[`current.md`](../../../current.md). Its three findings:
 
 - The v4 book was mostly a bull tape. SPY closed above its 50-day SMA on about
   four in five v4 signal dates and about one in three v3 dates.
@@ -115,7 +35,7 @@ The exploratory read behind it is the 2026-10-12 entry in
   ([`pbo_ledger`](../../../arm-index.md#pbo_ledger)), the dip rule was the one
   that ranked high in both eras. PBO was 0.48 on v4 and 0.33 on v3.
 
-## What this is NOT
+## What this study is not
 
 - **Not an in-sample test.** The rule was chosen by looking at these dates.
   No in-sample figure carries a verdict, whatever it prints.
@@ -128,29 +48,27 @@ The exploratory read behind it is the 2026-10-12 entry in
 - **Not a named sealed reader.** The [holdout seal](../../f4_deployment/holdout_seal.md)
   closed its reader list on 2026-10-09. This study waits for the unseal like
   any other forward read accepted after that date.
+- **It cannot grade any other cut.** No other moving average, distance below
+  the SMA, VIX cut or tier subset is graded.
 
 ## Definitions
 
-### Dip date
+**Dip date.** A signal date on which SPY's close, as of the last trading day on
+or before it, is strictly below its 50-day simple moving average.
 
-A signal date on which SPY's close, as of the last trading day on or before
-it, is strictly below its 50-day simple moving average.
+- Source: `lib/mech_regime.py::MechLabeler.below_sma`, reading
+  `backtests/mech_regime/spy_vix_daily_full.csv`. That is the table and the SMA
+  behind the shipped `mech_cell`.
+- `mech_cell` itself is not used. It does not encode this flag: its BEAR
+  direction needs SPY below the SMA and a negative 20-day return, and its cells
+  mix in VIX. The flag was added to `compute_mech_table` on 2026-10-12 as one
+  more output of the same SMA. No threshold moved.
+- A date the table does not reach, or with no 50-day runway, is dropped and
+  counted. A run whose table ends before the last forward date prints that
+  count. Refresh with `make mech-regime` before reading it.
 
-- **Source.** `lib/mech_regime.py::MechLabeler.below_sma`, reading
-  `backtests/mech_regime/spy_vix_daily_full.csv`. That is the table and the
-  SMA behind the shipped `mech_cell`.
-- **Why not `mech_cell` itself.** `mech_cell` does not encode this flag. Its
-  BEAR direction needs SPY below the SMA and a negative 20-day return, and
-  its cells mix in VIX. The flag was added to `compute_mech_table` on
-  2026-10-12 as one more output of the same SMA. No threshold moved.
-- **Unlabelled.** A date the table does not reach, or with no 50-day runway,
-  is dropped and counted. A run whose table ends before the last forward date
-  prints that count; refresh with `make mech-regime` before reading it.
-
-### Tier
-
-`mapping.ladder_tier(structure, market_regime, dte, short_leg_delta=delta)`.
-VETO rows are dropped. Tier A/B rows form the graded population; the
+**Tier.** `mapping.ladder_tier(structure, market_regime, dte, short_leg_delta=delta)`.
+VETO rows are dropped. Tier A/B rows form the graded population. The
 bull_call_spread null below draws from every non-veto row.
 
 ## Population and basis, fixed here
@@ -158,25 +76,24 @@ bull_call_spread null below draws from every non-veto row.
 - **Loader.** `load_book()` at its defaults: real and `strike_expiry_tweak`
   rows, bs excluded, proxy calibration on. Rows with no stored R, or with
   `fill_trusted` False, are dropped and counted.
-- **Outcome.** The stored `realized_pnl_pct`
-  ([R](../../../glossary.md#r)), net of the row's `cost_total`.
-- **In-sample (context only).** Every signal date before `era.SEAL_START`,
-  on v4 and on v3, each printed separately.
-- **Forward (graded).** Every v4 signal date on or after `era.SEAL_START`.
-  The date is read from `lib/era.py` at run time, never copied. Today it is
+- **Outcome.** The stored `realized_pnl_pct` ([R](../../../glossary.md#r)),
+  net of the row's `cost_total`.
+- **In-sample (context only).** Every signal date before `era.SEAL_START`, on v4
+  and on v3, each printed separately.
+- **Forward (graded).** Every v4 signal date on or after `era.SEAL_START`. The
+  date is read from `lib/era.py` at run time, never copied. Today it is
   2026-09-23.
-- **When forward dates become readable.** Only after `era.SEAL_LIFTED` is
-  set by the seal's own unseal read. Until then `load_book` withholds them,
-  the forward arms are empty and the verdict is `STILL-OPEN`.
+- **When forward dates become readable.** Only after `era.SEAL_LIFTED` is set by
+  the seal's own unseal read. Until then `load_book` withholds them, the forward
+  arms are empty and the verdict is `STILL-OPEN`.
 - **Era.** A prompt-version bump freezes the grade at the last v4 date. Dates
   from two prompt versions are never pooled.
 
 ## Plan-time observations, disclosed
 
 Every figure below was seen before this file was written. They are why the
-hypothesis exists, and they are why none of them can grade it. Source: the
-first `dip_buy` run on the 2026-10-06 exports, which reproduces the
-exploratory read.
+hypothesis exists, and they are why none of them can grade it. Source: the first
+`dip_buy` run on the 2026-10-06 exports, which reproduces the exploratory read.
 
 | Era, Tier A+B | Dip arm | Above arm | Difference, CI95 |
 |---|---|---|---|
@@ -188,10 +105,10 @@ exploratory read.
 | Tier A | +0.306 [+0.062, +0.537] | −0.186 [−0.721, +0.382] |
 | Tier B | −0.119 [−0.678, +0.272] | +0.422 [+0.109, +0.672] |
 
-The pooled direction agrees across eras. The tier splits do not, which is
-one more reason the graded object is the pooled A+B contrast.
+The pooled direction agrees across eras. The tier splits do not, which is one more reason the graded
+object is the pooled A+B contrast.
 
-## Arms
+## What it compares
 
 | Object | Object type | What it is | Graded |
 |---|---|---|---|
@@ -203,16 +120,16 @@ one more reason the graded object is the pooled A+B contrast.
 
 ### DB-TB, the tie-break
 
-Production ranks within a tier by `score_total`. The exploratory read found
-that the descending order picks worse spreads on v4, so the order is
-contested. `DB-DEP` and the top-3 contrast print under both orders. A row
-with no score sorts after the scored rows of its tier either way.
+Production ranks within a tier by `score_total`. The exploratory read found that
+the descending order picks worse spreads on v4, so the order is contested.
+`DB-DEP` and the top-3 contrast print under both orders. A row with no score
+sorts after the scored rows of its tier either way.
 
 ### DB-CPIR, the cpir split
 
 The median is fixed now at **0.92**: the median finite cpir over v4 Tier A/B
 in-sample positions on the 2026-10-06 exports (694 positions, 353 at or below
-it). It is a constant in the module and never re-estimated. The v3 median on
+it). It is a constant in the module and is never re-estimated. The v3 median on
 the same rule was 0.94.
 
 ### DB-DEP and DB-NULL, the deployment arm
@@ -222,15 +139,15 @@ the same rule was 0.94.
 - **Printed.** Positions, dates, total R, meanR with its CI, and the per-date
   meanR (the mean of each date's mean).
 - **Null.** On the same dates, as many random non-veto bull_call_spreads per
-  date as the book picked, 10,000 draws, seed 42. The book's percentile in
-  that null is printed.
+  date as the book picked, 10,000 draws, seed 42. The book's percentile in that
+  null is printed.
 
-## Unit and metric
+## How it is judged
 
 - **Statistic.** meanR(dip arm) − meanR(above arm), pooled over positions.
 - **CI.** 95%, date-clustered: each arm's signal dates are resampled
-  independently with replacement in the same draw, 10,000 draws, seed
-  20260811. The arms hold disjoint dates, because the label is per date.
+  independently with replacement in the same draw, 10,000 draws, seed 20260811.
+  The arms hold disjoint dates, because the label is per date.
 - **Beside it.** Each arm's meanR and [PF](../../../glossary.md#pf), each with
   its own date-clustered [CI](../../../glossary.md#ci). PF is printed, never
   graded.
@@ -244,21 +161,19 @@ The floors apply to each arm of `DB1`, on forward dates.
 | Signal dates per arm | 30 |
 | Positions per arm | 60 |
 
-**Why these.** 30 dates and 60 positions per side is the floor
-`ticker_class` registered for the same kind of contrast. In-sample, the v4 dip
-arm held 46 dates and its difference CI was still about ±0.24 wide. At 30
-dates expect about ±0.3. A forward `SUPPORTED` therefore needs a difference
-near the in-sample Tier A figure, not the pooled +0.096. The floor is the
-minimum for a verdict, not a promise of power.
-
-**Expected wait.** SPY was below its SMA on 21% of v4 in-sample signal dates.
-At that rate the dip arm needs about 142 forward signal dates, roughly seven
-months of trading days, before its options expire. In a v3-like tape (65%)
-it needs about 47. In a steady rally it may never fill. The seal must also
-lift first, at 40 priced sealed dates. The report prints both counts on
-every run.
-
-The era refusals of `lib/era.py` (exit 2 and 3) are designed refusals.
+- The floor is the minimum for a verdict, not a promise of power. It is the
+  floor `ticker_class` registered for the same kind of contrast.
+- Expected width, stated now: in-sample, the v4 dip arm held 46 dates and its
+  difference CI was about ±0.24 wide. At 30 dates expect about ±0.3. A forward
+  `SUPPORTED` therefore needs a difference near the in-sample Tier A figure, not
+  the pooled +0.096.
+- Expected wait, stated now: SPY was below its SMA on 21% of v4 in-sample signal
+  dates. At that rate the dip arm needs about 142 forward signal dates, roughly
+  seven months of trading days, before its options expire. In a v3-like tape
+  (65%) it needs about 47. In a steady rally it may never fill. The seal must
+  also lift first, at 40 priced sealed dates. The report prints both counts on
+  every run.
+- The era refusals of `lib/era.py` (exit 2 and 3) are designed refusals.
 
 ## Verdicts, worded now
 
@@ -271,8 +186,8 @@ The era refusals of `lib/era.py` (exit 2 and 3) are designed refusals.
 
 **The verdict of record is the first run that prints a token other than
 `STILL-OPEN`,** as recorded in
-[`study-results`](../../../study-results/f1_selection/regime/dip_buy.md). The CI is a
-fixed-sample interval, so later runs are descriptive and never replace it.
+[`study-results`](../../../study-results/f1_selection/regime/dip_buy.md). The CI
+is a fixed-sample interval, so later runs are descriptive and never replace it.
 
 ## Anti-tuning
 
@@ -283,7 +198,7 @@ fixed-sample interval, so later runs are descriptive and never replace it.
 - The in-sample tables are printed as they fall. None is removed for looking
   bad, and none is promoted for looking good.
 
-## Ship criteria
+## What could ship
 
 Nothing ships from this study.
 
@@ -292,15 +207,3 @@ Nothing ships from this study.
   its own registration and rollback trigger.
 - A forward `NULL` or `CONTRARY` closes the lead.
 - `STILL-OPEN` changes nothing.
-
-## Build notes
-
-Not part of the registration.
-
-- Module: `scripts/backtest_study/f1_selection/regime/dip_buy.py`. Run with
-  `python -m scripts.backtest_study run dip_buy`. The report is
-  `backtests/study_output/dip_buy-latest.txt`.
-- The v3 context is loaded in the same process with `load_book(era="v3")`.
-  A `--era v3` run prints v3 alone and grades nothing.
-- Tests: `tests/test_dip_buy.py` pins the dip label, the gating, the
-  tie-break and the verdict grammar on synthetic data.

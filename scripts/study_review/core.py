@@ -151,29 +151,29 @@ def _study_from_report_path(report_path: Path) -> str:
     return stem[:-len("-latest")] if stem.endswith("-latest") else stem
 
 
-# A registration file opens with a plain-language brief for human readers,
-# between these two markers. The brief carries the study's latest OUTCOME, and
-# the graders are blind to outcomes, so it is cut out before anything reaches
-# them. An unbalanced marker refuses: a half-cut brief would leak.
-BRIEF_START = "<!-- brief:start -->"
-BRIEF_END = "<!-- brief:end -->"
-_BRIEF_BLOCK = re.compile(
-    r"\n*" + re.escape(BRIEF_START) + r".*?" + re.escape(BRIEF_END) + r"\n*", re.DOTALL)
+# A registration opens with the study's latest OUTCOME line, between these two
+# markers, so a reader sees the result first. The graders are blind to outcomes,
+# so the block is cut out before anything reaches them. An unbalanced marker
+# refuses: a half-cut block would leak.
+OUTCOME_START = "<!-- outcome:start -->"
+OUTCOME_END = "<!-- outcome:end -->"
+_OUTCOME_BLOCK = re.compile(
+    r"\n*" + re.escape(OUTCOME_START) + r".*?" + re.escape(OUTCOME_END) + r"\n*", re.DOTALL)
 
 
-def strip_brief(text: str, path: Path) -> str:
-    """Remove the reader's brief block from a registration's text.
+def strip_outcome(text: str, path: Path) -> str:
+    """Remove the reader's outcome block from a registration's text.
 
     Refuses (SystemExit) when either marker survives the cut — a missing end
-    marker, a stray start marker, or two briefs nested — because the leftover
+    marker, a stray start marker, or two blocks nested — because the leftover
     text would carry outcome lines into a blind grading.
     """
-    stripped = _BRIEF_BLOCK.sub("\n\n", text)
-    if BRIEF_START in stripped or BRIEF_END in stripped:
+    stripped = _OUTCOME_BLOCK.sub("\n\n", text)
+    if OUTCOME_START in stripped or OUTCOME_END in stripped:
         raise SystemExit(
-            f"Pre-registration {path} has an unbalanced brief marker "
-            f"({BRIEF_START} / {BRIEF_END}). Fix the file: grading would leak "
-            "the brief's outcome lines to the blind graders.")
+            f"Pre-registration {path} has an unbalanced outcome marker "
+            f"({OUTCOME_START} / {OUTCOME_END}). Fix the file: grading would leak "
+            "the outcome to the blind graders.")
     return stripped
 
 
@@ -192,8 +192,8 @@ def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
     `body` is EVERYTHING after it. A study that re-registers appends a new dated
     section to the same file rather than overwriting, so a changed plan stays
     visible to the graders instead of being quietly replaced — which is why the
-    whole file goes to them, not just the newest section — minus the reader's
-    brief at the top (`strip_brief`), which carries the latest outcome.
+    whole file goes to them, not just the newest section — minus the outcome
+    block at the top (`strip_outcome`).
 
     `override` is an explicit path, for grading against a pre-registration that
     is not the study's own file (a renamed study, or an archived copy).
@@ -229,7 +229,7 @@ def load_pre_registration(study: str, override: str | None) -> tuple[str, str]:
             raise _not_found(str(config.PRE_REG_DIR / config.PRE_REG_PATTERN.format(study=study)))
         path = matches[0]
 
-    text = strip_brief(path.read_text(), path).strip()
+    text = strip_outcome(path.read_text(), path).strip()
     if not text:
         raise SystemExit(f"Pre-registration {path} is empty — nothing to grade the run against.")
 

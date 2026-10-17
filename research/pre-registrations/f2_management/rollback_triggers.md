@@ -1,175 +1,71 @@
 ## rollback_triggers — power census and first evaluation
 
-<!-- brief:start -->
-## In brief
-
-> Plain-language brief for readers. The registration below is the binding text; where the two differ, the registration wins. `study_review` cuts this brief out before grading, so the blind graders never see it.
+<!-- outcome:start -->
 > Latest outcome, read on the 2026-09-19 book except where dated: `LVOL tef-null` `STAYS GATED`; `BEAR_HE trail` `UNDERPOWERED`; bear-debit `be_after` all three revert clauses fire (`REVERT CONDITION FIRED`; the stop was already reverted 2026-08-24); credit `sl-none` `NOT FIRED`, not settled (read 2026-10-06) · [log](../../current.md#rollback-triggers) · [evidence](../../deployment-evidence.md#open-pre-registered-rollback-triggers).
-> Nothing else in this brief is a result.
-
-**The question**
-
-Four shipped or gated rules carry a pre-registered rollback trigger. Until 2026-08-24 the triggers existed only as prose. Nothing in the repo computed "affected dates", so no trigger had ever been evaluated.
-
-This registration adds a census for each trigger. It also fixes how the first evaluation is read. Silence is not "not met": a trigger with no recorded census has not been checked.
-
-**What it commits to**
-
-This is a commitment, not a comparison of arms. It adds additive census blocks to three host studies, all built on `scripts/backtest_study/lib/triggers.py`.
-
-- `exit_switch_mech_study`, STEP 3(f)
-- `bear_arm`, the `be_after` census
-- `exit_mechanism_study --side credit`, the Attempt-13 comparator census
-
-The four trigger texts are quoted in the registration and are the immutable commitment. The registration only pins the terms they left loose.
-
-| Term | Pinned meaning |
-|---|---|
-| Population | Era-resolved current exports, `real` and `strike_expiry_tweak` rows, `include_bs=False` everywhere |
-| Affected row | Base and variant configs give different `(exit_reason, days_held, round(pnl_pct, 4))` under the frozen harness replay |
-| Affected date | A signal date with at least one affected row |
-| Arming (trigger 3) | The stored mark path peaks at `round(pnl_of(mark), 10) ≥ +0.50` |
-| Fresh window (trigger 4) | `bull_put` rows signal-dated after 2026-07-13, the Attempt-13 ship date. Floor 15 rows |
-
-**Census first.** Every run prints the census: affected rows, affected dates, the floor, and `MET` or `UNDERPOWERED`. A trigger below its floor gets no reading. The census is its recorded result.
-
-**How each trigger is read**
-
-Each trigger has its own floor and revert rule.
-
-| Trigger | Floor | Revert condition |
-|---|---|---|
-| `BEAR_HE` trail (shipped 2026-07-22) | ≥ 25 affected BEAR + H/E dates of new data | Total gain vs PROD ≤ 0, or affected-date median gain < 0 |
-| `LVOL` tef-null (not shipped, still gated) | ≥ 25 affected dates | Not a revert. It ships only if the median among affected dates > 0, total > 0, both halves positive and no perturbation flip |
-| Bear-debit `be_after: 0.50` (shipped 2026-08-11) | ≥ 60 new bear-debit rows that arm the breakeven stop | Total gain vs PROD ≤ 0, or mean R delta on affected rows < 0, or any single year of the pooled book flips negative |
-| Credit `sl-none` (Attempt 13) | ≥ 15 fresh `bull_put` rows | `sl-none` loses to `sl-1×` on the window |
-
-Where a floor is met, the estimators are:
-
-- Triggers 1 and 2: the per-affected-date summed `pnl_pct` delta (variant minus PROD), as median and total.
-- Trigger 3: total dollar gain vs PROD on arming rows, mean-R delta on affected rows, and per-year mean-R delta sign on the pooled bear-debit book.
-- Trigger 4: dollars and mean R, `sl-none` against `sl-1×`, on the fresh window.
-
-**What each outcome triggers**
-
-Two triggers have special status, decided before any number was read.
-
-**Trigger 3 is a correlated-window re-read.** The v4 arming rows are new plays, but they sit on the same historical signal dates (2024-01 to 2025-08) as the v3 book that fitted the rule. The evaluation runs now because the floor is met. It counts as a within-window replication, not out-of-sample confirmation.
-
-- A revert condition that fires counts, and the operator acts on it after it is surfaced.
-- A pass promotes nothing. It is logged as "held on correlated re-read". Promotion to cleared waits for genuinely new dates.
-
-**Trigger 4 is census and comparator only.** The v4 credit book has 73 rows, 70 of them `bull_put`. Of those, 58 of 70 are 2024-dated, so the book is not the fresh window. The `sl 1x (pre-Attempt-13)` grid line and the census print. No tuning read is taken, and the credit-knob thread stays parked.
-
-For triggers 1 and 2, a floor that is not met means no reading. They wait for new data.
-
-**What could ship**
-
-Nothing ships. The registration changes no rule. Its outputs are a recorded census per trigger and, for trigger 3 only, a revert or hold decision. That decision goes to the operator before any config change.
-
-**What this study cannot tell you**
-
-- Whether a rule is out-of-sample safe. Trigger 3's reading is a within-window replication.
-- Whether `sl-none` beats `sl-1×` on credit spreads in general. Trigger 4 has no tuning read.
-- Anything for a trigger whose floor is unmet. Only the census counts.
-
----
-<!-- brief:end -->
+<!-- outcome:end -->
 
 _Registered 2026-08-24._
 
-Registered before any run on the 2026-08-24 17:09 export refresh. Modules —
-additive census blocks, all built on `scripts/backtest_study/lib/triggers.py`:
+Registered before any run on the 2026-08-24 17:09 export refresh. This is a commitment, not a comparison of arms. It adds additive census blocks, all built on `scripts/backtest_study/lib/triggers.py`, to three host studies:
 
 - `exit_switch_mech_study` (STEP 3(f));
 - `bear_arm` (be_after census);
 - `exit_mechanism_study --side credit` (Attempt-13 comparator census).
 
-## Question
+## The question
 
-The four shipped-rule forward triggers have existed only as prose — nothing in
-the repo computed "affected dates", so they have never been evaluated
-(`deployment-evidence.md` §"Open pre-registered rollback triggers": *"Never
-read silence as 'not met' — check the numbers"*). This registration adds the
-census and commits to how the FIRST evaluation is read.
+The four shipped-rule forward triggers have existed only as prose. Nothing in the repo computed "affected dates", so they have never been evaluated (`deployment-evidence.md` §"Open pre-registered rollback triggers": *"Never read silence as 'not met' — check the numbers"*).
+
+This registration adds the census. It also commits to how the FIRST evaluation is read.
+
+## What this registration is not
+
+It ships no rule. It does not tell whether a rule is safe out of sample: trigger 3's reading is a within-window replication. It takes no tuning read on credit spreads (trigger 4). A trigger whose floor is unmet gets no reading, only the census.
 
 ## Population and basis, fixed here
 
-The census runs on one book, and every term the trigger texts left loose is
-pinned here.
+The census runs on one book. Every term the trigger texts left loose is pinned here.
 
-- **Population**: the era-resolved current exports, real + strike_expiry_tweak
-  proxy rows, `include_bs=False` everywhere (the 2026-08-11 standing defect).
-- **"Affected"** (one definition, `lib/triggers.py::is_affected`): a row is
-  affected by a rule iff base and variant configs produce different outcome
-  triples `(exit_reason, days_held, round(pnl_pct, 4))` under the frozen
-  harness replay — the same triple the calibration gate compares. An affected
-  DATE is a signal date with ≥1 affected row.
-- **"Arming"** (trigger 3): peak of the stored mark path
-  `round(pnl_of(mark), 10) ≥ +0.50`, the trigger's literal wording.
-- **"Fresh window"** (trigger 4): bull_put rows signal-dated AFTER 2026-07-13
-  (the Attempt-13 ship date). Floor 15 rows.
-- **Census-first rule**: every run prints the census (n affected rows, n
-  affected dates, the floor, MET / UNDERPOWERED). A trigger whose floor is
-  not met gets NO reading — the census itself is the recorded result.
-- **Estimators where a floor is met**:
-  - triggers 1 and 2 — per-affected-date summed pnl_pct delta (variant −
-    PROD), median and total over affected dates;
-  - trigger 3 — total $ gain vs PROD on arming rows, mean-R delta on affected
-    rows, per-year mean-R delta sign on the pooled bear-debit book;
-  - trigger 4 — $ and mean-R comparison sl-none vs sl-1× on the fresh window.
+- **Population**: the era-resolved current exports, real + strike_expiry_tweak proxy rows, `include_bs=False` everywhere (the 2026-08-11 standing defect).
+- **"Affected"** (one definition, `lib/triggers.py::is_affected`): a row is affected by a rule iff base and variant configs produce different outcome triples `(exit_reason, days_held, round(pnl_pct, 4))` under the frozen harness replay. This is the same triple the calibration gate compares.
+- **Affected DATE**: a signal date with ≥1 affected row.
+- **"Arming"** (trigger 3): peak of the stored mark path `round(pnl_of(mark), 10) ≥ +0.50`, the trigger's literal wording.
+- **"Fresh window"** (trigger 4): bull_put rows signal-dated AFTER 2026-07-13 (the Attempt-13 ship date). Floor 15 rows.
+
+## How it is judged
+
+**Census-first rule.** Every run prints the census: n affected rows, n affected dates, the floor, and MET / UNDERPOWERED. A trigger whose floor is not met gets NO reading. The census itself is the recorded result.
+
+**Estimators where a floor is met:**
+
+- Triggers 1 and 2: per-affected-date summed pnl_pct delta (variant − PROD), median and total over affected dates.
+- Trigger 3: total $ gain vs PROD on arming rows, mean-R delta on affected rows, and per-year mean-R delta sign on the pooled bear-debit book.
+- Trigger 4: $ and mean-R comparison sl-none vs sl-1× on the fresh window.
 
 ## Gates
 
-The four triggers are quoted verbatim below. Each text comes from its original
-registration and is the immutable commitment; this file only pins what those
-texts left unspecified.
+The four triggers are quoted verbatim below. Each text comes from its original registration and is the immutable commitment. This file only pins what those texts left unspecified.
 
-1. **BEAR_HE trail** (config/backtest.yml `regime_exit` comment, shipped
-   2026-07-22): "ROLLBACK TRIGGER (pre-registered, evaluate at ≥25 affected
-   BEAR+H/E dates of NEW data): revert to PROD if the BEAR_HE cell's total
-   gain vs PROD is ≤ 0, OR if the affected-date median gain is < 0. Passing
-   instead promotes it from exception to gated-and-cleared."
-2. **LVOL tef-null** (same comment block): "NOT shipped — still gated" behind
-   the corrected gate (research log 2026-07-22 addendum c): "median>0 among
-   AFFECTED dates, ≥25 affected, total>0, both halves+, no perturbation flip
-   → then ship trail .50/.50 in mech BEAR+H/E + tef-null in mech L-VOL."
-3. **Bear-debit `be_after: 0.50`** (config/backtest.yml `structure_exit`
-   comment, shipped 2026-08-11): "ROLLBACK TRIGGER (pre-registered, evaluate
-   at >=60 NEW bear-debit rows that actually arm the breakeven stop, i.e. reach peak
-   P&L >= +0.50): revert `enabled` to false if the total gain vs PROD on
-   those rows is <= 0, OR if the mean R delta on the affected rows is < 0,
-   OR if any single year of the pooled book flips negative."
-4. **Credit sl-none** (Attempt 13, research log 2026-07-13): "Rollback
-   trigger: sl-none loses to sl-1× on the next ≥15-row fresh bull_put
-   window."
+1. **BEAR_HE trail** (config/backtest.yml `regime_exit` comment, shipped 2026-07-22): "ROLLBACK TRIGGER (pre-registered, evaluate at ≥25 affected BEAR+H/E dates of NEW data): revert to PROD if the BEAR_HE cell's total gain vs PROD is ≤ 0, OR if the affected-date median gain is < 0. Passing instead promotes it from exception to gated-and-cleared."
+2. **LVOL tef-null** (same comment block): "NOT shipped — still gated" behind the corrected gate (research log 2026-07-22 addendum c): "median>0 among AFFECTED dates, ≥25 affected, total>0, both halves+, no perturbation flip → then ship trail .50/.50 in mech BEAR+H/E + tef-null in mech L-VOL."
+3. **Bear-debit `be_after: 0.50`** (config/backtest.yml `structure_exit` comment, shipped 2026-08-11): "ROLLBACK TRIGGER (pre-registered, evaluate at >=60 NEW bear-debit rows that actually arm the breakeven stop, i.e. reach peak P&L >= +0.50): revert `enabled` to false if the total gain vs PROD on those rows is <= 0, OR if the mean R delta on the affected rows is < 0, OR if any single year of the pooled book flips negative."
+4. **Credit sl-none** (Attempt 13, research log 2026-07-13): "Rollback trigger: sl-none loses to sl-1× on the next ≥15-row fresh bull_put window."
 
 ## Verdicts, worded now
 
-- **Trigger 3 status: CORRELATED-WINDOW RE-READ.** The v4 book's arming rows
-  are new plays from a new prompt version, but they sit on the SAME historical
-  signal dates (2024-01→2025-08) as the v3 book the rule was fitted on. The
-  evaluation runs now, because the ≥60 floor is met on the fresh export — but
-  it is recorded as a within-window replication, NOT out-of-sample
-  confirmation. Action follows only if the evidence is decisive. A revert
-  condition firing here (a shipped rule failing even in-window) counts, and is
-  acted on after surfacing to the operator. A PASS promotes nothing: it is
-  logged as "held on correlated re-read", and promotion to cleared still waits
-  for genuinely new dates.
-- **Trigger 4 scope: CENSUS + COMPARATOR ONLY.** The v4 credit book (73 rows,
-  70 bull_put — first book to calibrate exactly against shipped CREDIT_PROD)
-  is 58/70 2024-dated, not the fresh window §2.7 parked the credit-knob
-  thread on. The `sl 1x (pre-Attempt-13)` grid line and the census are
-  printed; NO tuning read is taken and the thread stays parked.
-
 These are decisions taken before reading any number (operator, 2026-08-24).
 
-## Ship criteria
+- **Trigger 3 status: CORRELATED-WINDOW RE-READ.** The v4 book's arming rows are new plays from a new prompt version. They sit on the SAME historical signal dates (2024-01→2025-08) as the v3 book the rule was fitted on. The evaluation runs now, because the ≥60 floor is met on the fresh export. It is recorded as a within-window replication, NOT out-of-sample confirmation.
+  - Action follows only if the evidence is decisive.
+  - A revert condition firing here (a shipped rule failing even in-window) counts. It is acted on after surfacing to the operator.
+  - A PASS promotes nothing. It is logged as "held on correlated re-read". Promotion to cleared still waits for genuinely new dates.
+- **Trigger 4 scope: CENSUS + COMPARATOR ONLY.** The v4 credit book (73 rows, 70 bull_put — first book to calibrate exactly against shipped CREDIT_PROD) is 58/70 2024-dated. It is not the fresh window §2.7 parked the credit-knob thread on. The `sl 1x (pre-Attempt-13)` grid line and the census are printed. NO tuning read is taken and the thread stays parked.
+
+## What could ship
 
 None — this registration ships no rule. Its outcomes are:
 
 - a recorded census per trigger;
-- for trigger 3 only, a revert/hold decision under the correlated-re-read
-  reading above, surfaced to the operator before any config change.
+- for trigger 3 only, a revert/hold decision under the correlated-re-read reading above, surfaced to the operator before any config change.
 
 All other trigger evaluations wait for their floors on new data.
