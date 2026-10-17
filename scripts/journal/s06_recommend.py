@@ -478,6 +478,7 @@ def judge(candidates: list[Candidate], context: str, invoke=None) -> dict:
     result: dict = {
         "ran": False, "warnings": [], "dropped_tickers": [],
         "raw": None, "hedge_pick": None, "hedge_pick_note": "",
+        "invalid_verdicts": [],
     }
 
     if not survivor_tickers:
@@ -516,6 +517,15 @@ def judge(candidates: list[Candidate], context: str, invoke=None) -> dict:
             if not isinstance(v, dict):
                 continue
             t = str(v.get("ticker", "")).strip().upper()
+            if t in survivor_tickers:
+                v, why = prompt.validate_verdict(v)
+                if v is None:
+                    # Off-enum verdict: no annotation for this ticker, and the
+                    # card is untouched. Never coerced into a guess.
+                    result["invalid_verdicts"].append(t)
+                    result["warnings"].append(
+                        f"model verdict for {t!r} invalid ({why}) -- ignored")
+                    continue
             if t not in survivor_tickers:
                 result["dropped_tickers"].append(t)
                 result["warnings"].append(
@@ -559,6 +569,12 @@ def judge(candidates: list[Candidate], context: str, invoke=None) -> dict:
             result["warnings"].append(
                 f"model picked hedge ticker {hedge_pick!r}, which is not a hedge-sleeve "
                 "survivor -- ignored")
+
+    if result["invalid_verdicts"] and not verdicts_by_ticker and not result["hedge_pick"]:
+        # Every verdict the model gave was unusable and no hedge pick landed:
+        # nothing was applied, so report the pass as failed (existing
+        # judge_status vocabulary).
+        result["ran"] = False
 
     return result
 

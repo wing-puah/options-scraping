@@ -127,6 +127,38 @@ def _extract_json(text: str) -> dict:
     return json.loads(s[start:end + 1])
 
 
+TRIGGER_FIRED_VALUES = frozenset({"yes", "no", "unknown"})
+ALT_MORE_LIKELY_VALUES = frozenset({"yes", "no"})
+
+
+def validate_verdict(v: object) -> tuple[dict | None, str]:
+    """Check ONE per-ticker verdict against the contract's enums.
+
+    Returns ``(clean, "")`` with enum fields lower-cased and stripped, or
+    ``(None, reason)`` when the verdict is unusable. An ABSENT or null field is
+    tolerated (it just leaves that annotation blank); a PRESENT field outside the
+    enum, or a non-string note, invalidates the whole verdict so nothing
+    half-trusted reaches the card.
+    """
+    if not isinstance(v, dict):
+        return None, "verdict is not an object"
+    clean = dict(v)
+    for field, allowed in (("trigger_fired", TRIGGER_FIRED_VALUES),
+                           ("alt_more_likely", ALT_MORE_LIKELY_VALUES)):
+        raw = v.get(field)
+        if raw is None:
+            clean[field] = None
+            continue
+        norm = raw.strip().lower() if isinstance(raw, str) else None
+        if norm not in allowed:
+            return None, f"{field}={raw!r} not in {sorted(allowed)}"
+        clean[field] = norm
+    for field in ("trigger_note", "alt_note"):
+        if v.get(field) is not None and not isinstance(v[field], str):
+            return None, f"{field} is not a string"
+    return clean, ""
+
+
 def parse_response(text: str) -> dict:
     """Extract and shape-validate the model's JSON.
 
@@ -140,5 +172,7 @@ def parse_response(text: str) -> dict:
     if not isinstance(data["candidates"], list) or not isinstance(data["hedge"], list):
         raise ValueError("'candidates' and 'hedge' must be JSON arrays")
     data.setdefault("hedge_pick", None)
+    if data["hedge_pick"] is not None and not isinstance(data["hedge_pick"], str):
+        raise ValueError("'hedge_pick' must be a ticker string or null")
     data.setdefault("hedge_pick_note", "")
     return data

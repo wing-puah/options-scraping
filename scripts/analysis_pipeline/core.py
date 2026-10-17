@@ -31,6 +31,7 @@ import csv
 import hashlib
 import json
 import logging
+import math
 import subprocess
 import sys
 import tempfile
@@ -137,6 +138,38 @@ def _validate_play(play: dict, index: int) -> None:
         if value not in allowed:
             raise ValueError(
                 f"{label}: {field}={play.get(field)!r} not in {sorted(allowed)}")
+    # `trigger`/`invalidation` carry the entry and exit conditions; a blank one is
+    # an unusable play. (`regime`/`signal` stay presence-only — blank by design.)
+    for field in ("trigger", "invalidation"):
+        value = play.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{label}: {field} must be a non-blank string")
+    score = play.get("score")
+    if not isinstance(score, dict):
+        raise ValueError(f"{label}: score must be an object")
+    vol = score.get("vol")
+    cap = (config.SCORE_VOL_CAP_VOLATILITY
+           if str(play["flow_intent"]).strip().upper() == "VOLATILITY"
+           else config.SCORE_VOL_CAP)
+    if isinstance(vol, bool) or not isinstance(vol, int) or not 0 <= vol <= cap:
+        raise ValueError(f"{label}: score.vol={vol!r} must be an integer in 0..{cap}")
+    key_level = play.get("key_level")
+    if (isinstance(key_level, bool) or not isinstance(key_level, (int, float))
+            or not math.isfinite(key_level)):
+        raise ValueError(f"{label}: key_level={key_level!r} must be a finite number")
+
+
+def _validate_themes(themes: object) -> None:
+    """Raise ValueError on a malformed `themes` list (contract: objects whose
+    `breadth` is an integer). A missing `breadth` is tolerated; a wrong type is not."""
+    if not isinstance(themes, list):
+        raise ValueError("analysis 'themes' must be a list")
+    for i, t in enumerate(themes):
+        if not isinstance(t, dict):
+            raise ValueError(f"themes[{i}] is not an object")
+        b = t.get("breadth")
+        if "breadth" in t and (isinstance(b, bool) or not isinstance(b, int)):
+            raise ValueError(f"themes[{i}]: breadth={b!r} must be an integer")
 
 
 def _parse_and_validate(text: str) -> dict:
@@ -153,6 +186,7 @@ def _parse_and_validate(text: str) -> dict:
     for key in ("regime", "signals", "themes", "plays"):
         if key not in analysis:
             raise ValueError(f"analysis missing '{key}' key")
+    _validate_themes(analysis["themes"])
     plays = analysis["plays"]
     if not isinstance(plays, list):
         raise ValueError("analysis 'plays' must be a list")

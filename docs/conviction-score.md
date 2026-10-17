@@ -89,7 +89,7 @@ rows the same way (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_pct`), and
 | `Ext$`  | Total extrinsic (time-value) premium — the "real options bet" share of `Total$`. Big `Total$` with small `Ext$` = financing/stock-substitute flow (deep-ITM puts on GLD/BABA-style names). |
 | `Fin%`  | Share of premium from \|delta\| ≥ 0.85 trades — the stock-substitute fraction of the headline number. High `Fin%` = read the name as positioning/financing, not conviction. |
 | `ΔNot$` | Signed delta-adjusted notional (Σ delta × contracts × 100 × spot) — share-equivalent dollar exposure; the conviction-size axis for deep-ITM flow. |
-| `Hzn`   | Dominant DTE bucket by extrinsic premium: `event` 0–14, `tact` 15–60, `med` 60–180, `strat` 180+ (e.g. `tact 64%`). An `event`-dominated name is gamma/event flow — it can decay to nothing by tomorrow. |
+| `Hzn`   | Dominant DTE bucket by extrinsic premium: `event` ≤14, `tact` 15–60, `med` 61–180, `strat` >180 (e.g. `tact 64%`), per `_helpers.py::_DTE_BUCKETS`. An `event`-dominated name is gamma/event flow — it can decay to nothing by tomorrow. |
 | `OTM$`  | OTM-probability-weighted extrinsic premium (Σ extrinsic × (1−\|delta\|)) — the input to the `otm` score component. High `OTM$` relative to `Ext$` = bet concentrated in OTM contracts. |
 
 The `Ctts` (contracts) and `$/ct` (premium per contract) columns expose
@@ -199,6 +199,11 @@ row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
 | 3–5   | watch       |
 | 6–8   | candidate   |
 | 9+    | high-conv   |
+
+The labels name an attention rank, not a probability. No study has checked that
+a `high-conv` name wins more often than a `watch` name. The `Fin%` 0.60 floor
+comes from one backtest window (March 2025, above). Read a label
+as "look at this first", never as a confidence level.
 
 `Score`/`ScoreLabel` also land on the `AnalysisClaude`/`AnalysisTickerSpecific`
 sheet rows, as `ConvictionScore`/`ConvictionScoreLabel`

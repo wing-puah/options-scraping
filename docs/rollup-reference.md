@@ -10,6 +10,49 @@ Each compiled flow CSV has one row per executed trade. The rollup collapses all
 trades for a ticker into a single row of aggregated signals — the input to both
 the LLM analysis and the conviction scorer.
 
+## When each column is observed
+
+The rollup is a read of trade date D taken after D's close. No column is an
+intraday read of the moment the analysis runs.
+
+| Input | Observed at | Written by |
+|---|---|---|
+| Trade identity: Symbol, Type, Strike, Expires, Trade, Size, Side, Premium | The trade print on D | `scrape_flow.py`, hourly |
+| Volume, Open Int, Price~, IV, Delta on a trade row | The newest hourly snapshot that still listed the trade | `compile_flow.py` keeps the last copy, after close |
+| `oi_change`, `eod_iv`, `eod_delta` and the other `eod_*` greeks | End of session D (OI is D versus D-1) | `enrich_oi.py`, chained after Compile Flow the same evening |
+| `IVpct`, `PxVec`, `Earn` | As of D | `enrich-oi.yml`, same job |
+| Counterpart settlement IV (for `IVspr`, `IVskew`) | Settlement on D | `fetch_counterpart_iv.py`, its own workflow |
+
+An analysis run before enrichment finishes sees the enrichment columns blank.
+That is safe: it is missing data, not data from the future.
+
+## What a missing input does
+
+`lib/flow_summary/_helpers.py::_to_float` returns `0.0` for a blank cell, not
+`None`. Several columns therefore read a missing input as a real zero. The
+table says what each column does, so a reader knows when a value is complete.
+
+| Column | Missing input | What the column shows |
+|---|---|---|
+| `wIV%`, `wDTE` | IV or DTE cell blank | The trade still adds its premium to the weight, at 0. The average is pulled toward 0, with no marker. |
+| `Hzn` | DTE cell blank | DTE reads as 0, so the trade's extrinsic lands in `event`. |
+| `ΔNot$`, `Fin%` | Delta or spot blank | The trade adds 0 to `ΔNot$` and never counts as financing. |
+| `Ext$` | Price~ or Strike blank | Extrinsic = full premium. Overstates time value for an ITM trade. |
+| `OTM$` | Delta blank | The trade adds nothing. A missing delta is never credited as OTM. |
+| `C/P` | No put premium | `∞` |
+| `OIConf%` | No contract's OI moved | `—` (None). There is no minimum count; `oi_n` carries the sample size. |
+| `CPIR`, `OIFC`, `OIFP` | No enriched contract | `—`. A contract with no EOD delta uses the intraday delta. |
+| `CPIRA` | Contract IV blank | The IV weight is 1.0, the same as 100% IV. |
+| `IVspr`, `IVskew` | No matched pair, or a band empty | `—`, with no reason given. |
+| `PxVec`, `Earn` | No price history, or no known earnings date | `—`, with no reason given. |
+| `IVpct` | No value as of D | Blank, and `iv_pct_status` says why (`stale_fallback`, `out_of_window`, `empty_series`, `fetch_error`). The only rollup input with a reason column. |
+
+How often a flow row has a blank IV, DTE or delta has not been measured. Making
+these columns return a reason instead of a zero changes the analysis prompt's
+input, so it is a prompt version bump. It is filed as
+[robustness-review A6](../research/robustness-review.md#analysis), not done
+here.
+
 ---
 
 ## Premium columns
@@ -33,7 +76,7 @@ the LLM analysis and the conviction scorer.
 |--------|------------|
 | `Trades` | Count of raw flow rows for this ticker |
 | `Ctts` | Σ Size (number of option contracts) |
-| `$/ct` | Total$ / Ctts — premium per contract; high = expensive/high-IV/deep-ITM options |
+| `$/ct` | Total$ / Ctts — dollars of premium per contract; high = expensive/high-IV/deep-ITM options |
 
 ---
 
@@ -69,7 +112,7 @@ Any non-zero BTO/STO/ToOpen feeds the `open` (+1) conviction score component.
 
 | Column | Computation | Notes |
 |--------|------------|-------|
-| `wDTE` | Premium-weighted average DTE | |
+| `wDTE` | Premium-weighted average DTE | Days. A blank DTE counts as 0 (see [missing inputs](#what-a-missing-input-does)). |
 | `Hzn` | Dominant DTE bucket by **extrinsic** premium | Extrinsic, not raw premium, so financing/ITM trades don't skew the horizon. Buckets: `event` ≤14, `tact` ≤60, `med` ≤180, `strat` >180. Example: `tact 64%` = 64% of extrinsic premium falls in the tactical bucket. |
 
 ---
@@ -78,7 +121,7 @@ Any non-zero BTO/STO/ToOpen feeds the `open` (+1) conviction score component.
 
 | Column | Computation | Notes |
 |--------|------------|-------|
-| `wIV%` | Premium-weighted average IV (all trades) | |
+| `wIV%` | Premium-weighted average IV (all trades) | IV points (35.0 = 35%), from each trade's snapshot IV. A blank IV counts as 0. |
 | `IVspr` | OI-weighted mean of (IV_call − IV_put) across **matched pairs** (same strike + expiry), 10–60 DTE, on **settlement IV** | Cremers/Weinbaum (2010) put-call-parity deviation. Positive → bullish; positive predictor of returns (Lin, Lu & Driessen 2013). `—` when no matched pair exists. |
 | `IVskew` | `IV(OTM put) − IV(ATM call)`, closest-moneyness contract each, 10–60 DTE, on **settlement IV** | Xing/Zhang/Zhao (2010). OTM-put band `K/S ∈ [0.80, 0.95]` (closest to 0.95); ATM-call band `K/S ∈ [0.95, 1.05]` (closest to 1.0). Steeper positive → downside demand; negative predictor of returns. `—` when either band is empty. |
 
@@ -128,7 +171,7 @@ row-expansion time (same mechanism as `oi_confirm_pct`/`iv_pct`).
 
 ---
 
-## OI enrichment columns *(populated D+1 after enrich_oi.py)*
+## OI enrichment columns *(populated the evening of D by enrich_oi.py)*
 
 These columns are only non-blank when the compiled file has been enriched.
 The per-ticker values are aggregated from `oi_change` (D-day OI change per
@@ -147,7 +190,7 @@ contract feeds the factors.
 
 | Column | Computation | Notes |
 |--------|------------|-------|
-| `OIConf%` | `count(oi_change > 0) / count(enriched contracts)` | Share of this ticker's contracts where OI *increased* on trade day — the open-confirmation rate. Stored as a **decimal fraction** (0.45 = 45%; 1.0 = all flow confirmed as opening, 0.0 = all closing/rolling) so a Sheets cell can be percentage-formatted directly. Rendered ×100 in the prepared markdown. |
+| `OIConf%` | `count(oi_change > 0) / count(oi_change ≠ 0)` | Share of contracts whose OI moved that opened. Flat contracts are left out: unchanged OI is ambiguous, not a failed confirmation. **Decimal fraction** (0.45 = 45%), rendered ×100 in the markdown. `oi_n` is the denominator. |
 | `OIFC` / `OIFP` | `Σ max(ΔOI,0) × price × P(OTM)` over call / put contracts | Open Interest Factor for calls / puts (ref 03). The monetary-size × OTM-probability-weighted open-interest factor that CPIR is built from. |
 | `CPIR` | `OIFC / (OIFC + OIFP)` | Call-Put Information Ratio (ref 03). > 0.5 = call-skewed informed opening = bullish; < 0.5 = put-skewed. In `[0, 1]` by construction. `—` when no opening flow on either side. |
 | `CPIRA` | `OIFCA / (OIFCA + OIFPA)`, factors × IV | IV-augmented CPIR (ref 03 OIFCA/OIFPA variant) — each contribution additionally weighted by the contract's implied volatility. |

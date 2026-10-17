@@ -682,7 +682,97 @@ the validator's output: a table of A vs B vs resolved
 answer, written into the `current.md` entry as a "Disagreement log" even
 when it found none (absence must never read as "we didn't check").
 
-## 11. See also
+## 11. Words with more than one meaning
+
+These words mean different things in different parts of the repo. When one of
+them could be misread, write the qualified name in the left column of its
+table instead of the bare word. Each meaning keeps its own definition where it
+already lives.
+
+### tier
+
+| Write | Means | Defined in |
+|---|---|---|
+| production tier / research tier | Which half of the code: scheduled and live, or studies only | `CLAUDE.md` |
+| ladder tier (A/B/C/VETO) | Whether a play may be deployed | [Tier ladder](#tier-ladder-abcveto) |
+| pricing tier | How a backtest leg was priced: real history, `snap_priced`, or (retired) Black-Scholes | `docs/backtest-reference.md` |
+| proxy fallback step | Which step of the proxy fallback chain gave a verdict | `docs/backtest-reference.md` |
+| MODEL tier | A sensitivity pricing mode, never pooled | [MODEL tier](#model-tier) |
+
+### regime
+
+| Write | Means | Defined in |
+|---|---|---|
+| market regime | The `MARKET` row's `regime`: trend, vol and sentiment for the day | `config/prompts/analysis-framework.md` Step 1 |
+| play regime | A play row's own `regime`, for its ticker. May be blank, never copied from the market row | `CLAUDE.md` invariants |
+| mechanical regime (`mech_cell`) | A label computed from prices by fixed rules, no model involved | [mech_cell](#mech_cell) |
+
+### score, conviction, confidence
+
+Four numbers share these words, and two of them sit on the same sheet row.
+
+| Write | Means | Range | Calibrated? |
+|---|---|---|---|
+| `score_total` | Sum of the model's `vol` points and the computed `price` and `catalyst` points | 0–50 (0–55 VOLATILITY) on v4; 0–100 on v3 | No. A tie-break within a ladder tier only ([ladder_rank](#ladder_rank)) |
+| conviction score (`ConvictionScore`) | A quant pre-score of how much attention a ticker deserves | 0–12, to 15 with persistence | No. The labels are an attention rank (`docs/conviction-score.md`) |
+| hedge pressure | Market-level put demand on hedge ETFs against call demand | 0–100 | No |
+| match confidence (`EXACT`/`STRUCTURE`/`CORE`/`OVERLAY`) | How well a broker fill matches an emitted play | labels | Not a probability |
+
+The analysis framework heads `score_total` "Step 5 — Confidence". That heading
+is prompt text, so it stays until the next version bump. Outside the prompt,
+call it `score_total`, not confidence. A *confidence interval* and a
+[confidence sequence](#confidence-sequence) are statistics and unrelated to all
+four.
+
+### signal
+
+| Write | Means |
+|---|---|
+| evidence tag | A `[FLOW]`, `[PRICE]`, `[MACRO]`, `[VEGA]` or `[CAT]` tag from framework Step 2 |
+| market signals | The `MARKET` row's `signals` field |
+| play signal | A play row's own `signal` text, for its ticker |
+| price read (`PxVec`) | The computed price-trend vector in `docs/rollup-reference.md` |
+
+### horizon
+
+| Write | Means | Values |
+|---|---|---|
+| `Hzn` bucket | Where a ticker's extrinsic premium sits by DTE | `event` ≤14, `tact` 15–60, `med` 61–180, `strat` >180 days |
+| play `horizon` | The DTE bucket a play's cited flow falls in, as a number | 14, 60, 180, 720 |
+| `wDTE` | Premium-weighted average DTE | days |
+
+A play's `horizon` is set by the expiry of the flow it cites, not chosen as a
+forecast horizon. The framework only asks that the thesis fit it. The model-facing
+legend (`config/prompts/conviction-score-legend.md`) writes the buckets as
+`15–60` and `60–180`, so day 60 appears in both. The code puts day 60 in
+`tact`. The legend is a prompt input, so it is corrected at the next version
+bump, not now.
+
+### hedge
+
+| Write | Means |
+|---|---|
+| `flow_intent` HEDGE | The model's label for protection flow on a ticker |
+| hedge pressure | The 0–100 market read above |
+| hedge programme | The research studies under `f5_hedging/` |
+| hedge candidate | A play the deploy card's judge may pick as the day's hedge |
+
+### open
+
+| Write | Means |
+|---|---|
+| opening flag (`BTO`, `STO`, `ToOpen`) | Barchart's marker that a trade opened a position |
+| OpenBook | The journal tab of positions currently held |
+| `cap_open` | A backtest row whose path ran out before it closed |
+
+### survivorship (liquidity selection)
+A backtest row exists only for a play whose legs could be priced from real
+history. A play that could not be priced writes no `BacktestResults` row and
+goes to `BacktestProxy` instead. If unpriceable plays differ from priced ones,
+every headline is measured on a selected subsample. This is open as
+[robustness-review N6](robustness-review.md#beyond-the-queue), join attrition.
+
+## 12. See also
 
 - [`docs/backtest-reference.md`](../docs/backtest-reference.md) — raw column
   definitions for `BacktestResults`/`BacktestProxy` (`realized_pnl_pct`,

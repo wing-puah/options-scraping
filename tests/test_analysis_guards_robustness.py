@@ -380,3 +380,90 @@ def test_skip_llm_manifest_carries_no_attempt_info(stub_pipeline, monkeypatch, t
 
     entry = json.loads((out / "manifest.jsonl").read_text().strip().splitlines()[0])
     assert "analysis_attempt" not in entry
+
+
+# ── Tightened contract checks (invalidation/trigger, score.vol, key_level, themes) ──
+
+def _rejects(play, match):
+    with pytest.raises(ValueError, match=match):
+        core._parse_and_validate(json.dumps(_analysis(plays=[play])))
+
+
+def _accepts(play):
+    return core._parse_and_validate(json.dumps(_analysis(plays=[play])))
+
+
+@pytest.mark.parametrize("field", ["trigger", "invalidation"])
+@pytest.mark.parametrize("bad", ["", "   \t", None, 5])
+def test_blank_or_non_string_trigger_invalidation_rejected(field, bad):
+    _rejects(_play(**{field: bad}), field)
+
+
+@pytest.mark.parametrize("field", ["trigger", "invalidation"])
+def test_non_blank_trigger_invalidation_accepted(field):
+    _accepts(_play(**{field: " x "}))
+
+
+def test_blank_regime_and_signal_still_accepted():
+    _accepts(_play(regime="   ", signal=""))
+
+
+@pytest.mark.parametrize("intent,cap", [("DIRECTIONAL", 15), ("HEDGE", 15),
+                                        ("SYNTHETIC STOCK", 15), ("VOLATILITY", 25)])
+def test_score_vol_at_cap_passes_and_cap_plus_one_fails(intent, cap):
+    _accepts(_play(flow_intent=intent, score={"vol": cap}))
+    _accepts(_play(flow_intent=intent, score={"vol": 0}))
+    _rejects(_play(flow_intent=intent, score={"vol": cap + 1}), "score.vol")
+    _rejects(_play(flow_intent=intent, score={"vol": -1}), "score.vol")
+
+
+@pytest.mark.parametrize("bad", [True, 8.5, "8", None])
+def test_score_vol_must_be_int(bad):
+    _rejects(_play(score={"vol": bad}), "score.vol")
+
+
+@pytest.mark.parametrize("bad", [None, "x", [1]])
+def test_score_must_be_object(bad):
+    _rejects(_play(score=bad), "score")
+
+
+def test_score_vol_caps_match_contract_text():
+    import re
+    from analysis_pipeline import config
+    m = re.search(r"Max (\d+) for DIRECTIONAL.*?, (\d+) for VOLATILITY",
+                  config.ANALYSIS_PROMPT_CONTRACT)
+    assert (int(m.group(1)), int(m.group(2))) == (
+        config.SCORE_VOL_CAP, config.SCORE_VOL_CAP_VOLATILITY)
+
+
+@pytest.mark.parametrize("good", [118, 118.5, 0, -3.2])
+def test_key_level_numeric_accepted(good):
+    _accepts(_play(key_level=good))
+
+
+@pytest.mark.parametrize("bad", [True, None, "118", "", float("nan"), float("inf")])
+def test_key_level_non_numeric_rejected(bad):
+    _rejects(_play(key_level=bad), "key_level")
+
+
+def test_themes_breadth_int_accepted_and_missing_tolerated():
+    a = _analysis()
+    a["themes"] = [{"theme": "AI", "tickers": ["NVDA"], "breadth": 3, "read": "r"},
+                   {"theme": "no breadth"}]
+    core._parse_and_validate(json.dumps(a))
+
+
+@pytest.mark.parametrize("bad", ["3", 3.5, True, None])
+def test_themes_breadth_non_int_rejected(bad):
+    a = _analysis()
+    a["themes"] = [{"theme": "AI", "breadth": bad}]
+    with pytest.raises(ValueError, match="breadth"):
+        core._parse_and_validate(json.dumps(a))
+
+
+def test_themes_must_be_list_of_objects():
+    for bad in ("none", ["AI semis"]):
+        a = _analysis()
+        a["themes"] = bad
+        with pytest.raises(ValueError, match="themes"):
+            core._parse_and_validate(json.dumps(a))

@@ -742,3 +742,94 @@ def test_render_shows_size_class_and_is_unchanged_without_it():
     card = render([a], [], None, date=DATE, dip=m.NO_DATA)
     assert "NO_DATA" in card and "no size class claimed" in card
     assert m.SIZE_FULL not in card
+
+
+# --------------------------------------------------------------------------
+# Verdict enum validation: an invalid verdict is ignored, never promotes
+# --------------------------------------------------------------------------
+def _judge_with(verdict_overrides, ticker="AAA"):
+    import json
+    ac_df = _ac_df("RANGE + E-VOL", [_row(ticker, "Bull call spread 100/110, ~50 DTE",
+                                          trigger="SPY closes above 450")])
+    candidates, _ = rank(ac_df, DATE, _empty_book(), None)
+    before = [(c.ticker, c.tier, c.deploy) for c in candidates]
+    verdict = {"ticker": ticker, "trigger_fired": "yes", "trigger_note": "ok",
+               "alt_more_likely": "no", "alt_note": ""}
+    verdict.update(verdict_overrides)
+
+    def stub_invoke(_prompt):
+        return json.dumps({"candidates": [verdict], "hedge": [],
+                           "hedge_pick": None, "hedge_pick_note": ""})
+
+    result = judge(candidates, "ctx", invoke=stub_invoke)
+    assert [(c.ticker, c.tier, c.deploy) for c in candidates] == before
+    return candidates[0], result
+
+
+@pytest.mark.parametrize("tf", ["yes", "no", "unknown", " YES "])
+def test_valid_trigger_fired_values_apply(tf):
+    c, result = _judge_with({"trigger_fired": tf})
+    assert result["ran"] is True and not result["invalid_verdicts"]
+    assert c.trigger_verdict == tf.strip().lower()
+
+
+@pytest.mark.parametrize("field,bad", [("trigger_fired", "maybe"),
+                                       ("trigger_fired", True),
+                                       ("alt_more_likely", "unknown"),
+                                       ("alt_more_likely", 1),
+                                       ("alt_note", ["x"])])
+def test_invalid_verdict_is_ignored_and_pass_reported_failed(field, bad):
+    c, result = _judge_with({field: bad})
+    assert c.trigger_verdict is None and c.alt_verdict is None
+    assert c.demoted is False
+    assert result["invalid_verdicts"] == ["AAA"]
+    assert any("invalid" in w for w in result["warnings"])
+    assert result["ran"] is False  # -> judge_status "failed" in __main__
+
+
+def test_invalid_verdict_does_not_block_a_valid_sibling():
+    import json
+    ac_df = _ac_df("RANGE + E-VOL", [
+        _row("AAA", "Bull call spread 100/110, ~50 DTE"),
+        _row("BBB", "Bull call spread 100/110, ~50 DTE")])
+    candidates, _ = rank(ac_df, DATE, _empty_book(), None)
+
+    def stub_invoke(_prompt):
+        return json.dumps({"candidates": [
+            {"ticker": "AAA", "trigger_fired": "bogus", "alt_more_likely": "no"},
+            {"ticker": "BBB", "trigger_fired": "no", "alt_more_likely": "no"}],
+            "hedge": [], "hedge_pick": None, "hedge_pick_note": ""})
+
+    result = judge(candidates, "ctx", invoke=stub_invoke)
+    by = {c.ticker: c for c in candidates}
+    assert by["AAA"].trigger_verdict is None
+    assert by["BBB"].trigger_verdict == "no" and by["BBB"].demoted
+    assert result["ran"] is True and result["invalid_verdicts"] == ["AAA"]
+
+
+def test_parse_response_rejects_non_string_hedge_pick():
+    import json
+    from journal.lib import prompt as jp
+    ok = {"candidates": [], "hedge": [], "hedge_pick": "SPY"}
+    assert jp.parse_response(json.dumps(ok))["hedge_pick"] == "SPY"
+    with pytest.raises(ValueError, match="hedge_pick"):
+        jp.parse_response(json.dumps({**ok, "hedge_pick": ["SPY"]}))
+
+
+def test_all_verdicts_invalid_but_hedge_pick_applied_is_not_failed():
+    # "failed" must mean nothing was applied; a valid hedge pick is something.
+    import json
+    ac_df = _ac_df("RANGE + E-VOL", [
+        _row("AAA", "Bull call spread 100/110, ~50 DTE"),
+        _row("H1", "Bear put spread 100/90, ~50 DTE", delta=-0.10)])
+    candidates, _ = rank(ac_df, DATE, _empty_book(), None)
+
+    def stub_invoke(_prompt):
+        return json.dumps({"candidates": [
+            {"ticker": "AAA", "trigger_fired": "bogus", "alt_more_likely": "no"}],
+            "hedge": [], "hedge_pick": "H1", "hedge_pick_note": "cheapest"})
+
+    result = judge(candidates, "ctx", invoke=stub_invoke)
+    assert result["invalid_verdicts"] == ["AAA"]
+    assert result["hedge_pick"] == "H1"
+    assert result["ran"] is True

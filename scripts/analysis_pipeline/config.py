@@ -198,6 +198,12 @@ ROLLUP_METRIC_COLS = {
 # 0–55 for VOLATILITY intent) — a DIFFERENT scale from v3's 0–100, deliberately
 # not comparable. Coverage minimums are MIN_STOCK_PLAYS / MIN_ETF_PLAYS above —
 # keep the prose below in sync with them.
+# Caps on the model-emitted `score.vol`, mirroring the contract text below
+# ("Max 15 for DIRECTIONAL/HEDGE/SYNTHETIC STOCK, 25 for VOLATILITY"). core.py's
+# validator reads these; keep them in sync with that sentence.
+SCORE_VOL_CAP = 15
+SCORE_VOL_CAP_VOLATILITY = 25
+
 ANALYSIS_PROMPT_CONTRACT = """
 ## Output
 
