@@ -76,6 +76,13 @@ backfill-mech-cell: mech-regime
 
 # Repair an analysis tab whose header drifted behind config.ROW_COLUMNS (appends
 # are positional, so a short header mislabels every column after the gap).
+# ── daily production loop (laptop half) ───────────────────────────────────────
+# mech-regime -> bounded backtest + proxy -> journal -> deploy card -> cache backup.
+# START bounds the backtest (default today-45d); DRY=1 prints the plan only.
+.PHONY: daily-loop
+daily-loop:
+	DRY=$(DRY) START=$(START) ./scripts/daily_loop.sh $(ARGS)
+
 # ── pipeline health ─────────────────────────────────────────────────────────────
 .PHONY: check-pipeline
 check-pipeline:
@@ -523,6 +530,7 @@ help:
 	@echo ""
 	@echo "  make baseline      append today's baseline row"
 	@echo ""
+	@echo "  make daily-loop    mech-regime, bounded backtest+proxy, journal, deploy card, backup (START=YYYY-MM-DD DRY=1 ARGS=\"--skip-backup|--skip-backtest\")"
 	@echo "  make journal       fetch today's IBKR fills (Flex) → reconcile vs analysis → report + Sheets"
 	@echo "  make journal-dry   same, but write nothing (shows the rows it would append)"
 	@echo "  make journal ARGS=\"--offline\"  read portfolio/input/ only, no network"
