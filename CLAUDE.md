@@ -93,6 +93,10 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested p
 # BOTH are idempotent: a play already on the destination tab is SKIPPED. --redo re-simulates
 # it and DELETES the existing rows first; it needs a date bound (--date, or --start/--end).
 python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --redo
+# --dry-run makes NO Barchart call (backtest and proxy): reads the tabs, prints per play cached vs
+# to-scrape, writes nothing. Plays already on BacktestProxy are SKIPPED by default (no play has ever
+# gone proxy -> real); --retry-proxied re-fetches them. --redo still touches BacktestResults only.
+# An unbounded run that would scrape >500 contracts WARNS: bound it with --start.
 
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
 python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
@@ -118,6 +122,12 @@ python3 -m scripts.study_charts.account_sim           # render a study result; n
 make clean-list                       # every clean target, its size, how to rebuild it
 make clean-dry                        # preview; make clean ARGS="--yes" to skip prompts
 make clean ARGS="--caches --yes"      # also drop the refetchable network caches
+
+# Daily production loop, laptop half: mech-regime -> bounded backtest+proxy (START default today-45d)
+# -> journal -> recommend -> cache backup. One writer (exit 3 if another runs), caffeinated,
+# one log per run in backtests/run_logs/. DRY=1 previews; ARGS="--skip-backtest|--skip-backup".
+make daily-loop
+make daily-loop START=2026-09-23 ARGS="--skip-backup"
 
 # Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
 python3 -m scripts.journal                    # Flex fetch → reconcile → risk → report → write

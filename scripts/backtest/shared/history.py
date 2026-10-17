@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import re
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -137,61 +138,75 @@ def underlying_mismatch(details: dict, siblings: dict) -> str | None:
 
 # ─── Barchart historical option prices ─────────────────────────────────────────
 
-async def fetch_option_histories(
-    contracts: list[dict], headless: bool, timeout_ms: int = 15000,
+#: Per-contract fetch-plan statuses (`FetchPlan.status`).
+PLAN_CACHED = "cached"          # a cache file covers the window: no network call
+PLAN_STALE = "stale"            # a cache file exists but is too shallow: refetched
+PLAN_MISSING = "missing"        # no cache file: scraped
+PLAN_UNLISTED = "unlisted"      # in the negative cache: priced as no-data, no call
+PLAN_UNCACHED = "uncached"      # --cache-only and no cache file: priced as no-data
+
+#: Statuses that cost a Barchart fetch.
+PLAN_SCRAPES = frozenset({PLAN_STALE, PLAN_MISSING})
+
+
+@dataclass
+class FetchPlan:
+    """What `fetch_option_histories` WOULD do, decided from disk alone.
+
+    Building one reads the cache directory and the negative cache, and never
+    opens a browser. `scripts.backtest --dry-run` prints it instead of fetching;
+    a real run hands it straight back to `fetch_option_histories(plan=...)` so
+    the cache is read once.
+    """
+    series_map: dict = field(default_factory=dict)
+    details_map: dict = field(default_factory=dict)
+    to_scrape: list = field(default_factory=list)
+    status: dict = field(default_factory=dict)          # {contract_key: PLAN_*}
+    known_unlisted: dict = field(default_factory=dict)
+    unlisted_path: Path | None = None
+
+    def count(self, *statuses: str) -> int:
+        return sum(1 for s in self.status.values() if s in statuses)
+
+
+def plan_option_histories(
+    contracts: list[dict],
     needed_dates: dict[tuple, date] | None = None,
     cache_only: bool = False,
     retry_unlisted: bool | None = None,
-) -> tuple[dict[tuple, list], dict[tuple, dict]]:
-    """Scrape (and cache) per-contract Barchart price history.
+) -> FetchPlan:
+    """Partition ``contracts`` into cached / to-scrape / skipped, from disk only.
 
-    contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
-    needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
-      row is more than 5 days after the needed date, the cache is stale and re-scraped.
-    retry_unlisted: ignore the negative cache (`shared/unlisted.py`) and probe
-      known-unlisted contracts again; None reads BACKTEST_RETRY_UNLISTED.
-      A contract skipped as known-unlisted is priced exactly like a failed
-      fetch (`series_map[key] = []`) — it just costs no network call.
-    Returns (series_map, details_map):
-      series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
-      details_map: {contract_key: {date: row_dict}}      — for building entry rows
+    Arguments mean what they mean on :func:`fetch_option_histories`. The
+    returned maps hold every contract whose cache is usable as-is; a stale or
+    missing one is queued in ``to_scrape``; a known-unlisted one is priced as
+    no-data (``series_map[key] = []``), exactly like a failed fetch.
     """
     _STALENESS_DAYS = 5
     HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
-    email = os.getenv("BARCHART_EMAIL", "")
-    password = os.getenv("BARCHART_PASSWORD", "")
-    cookies_path = Path(os.getenv(
-        "COOKIES_PATH", str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
-
-    series_map: dict[tuple, list] = {}
-    details_map: dict[tuple, dict] = {}
-    to_scrape: list[dict] = []
-
-    unlisted_path = HISTORY_CACHE / unlisted.FILENAME
-    known_unlisted = {} if cache_only else unlisted.load(unlisted_path)
+    plan = FetchPlan(unlisted_path=HISTORY_CACHE / unlisted.FILENAME)
+    plan.known_unlisted = {} if cache_only else unlisted.load(plan.unlisted_path)
     retry = unlisted.retry_requested(retry_unlisted)
-    n_skipped_unlisted = 0
+    series_map, details_map = plan.series_map, plan.details_map
 
-    def _queue(c: dict) -> None:
-        nonlocal n_skipped_unlisted
-        if not retry and unlisted.should_skip(known_unlisted.get(unlisted.contract_id(c))):
+    def _queue(c: dict, status: str) -> None:
+        if not retry and unlisted.should_skip(plan.known_unlisted.get(unlisted.contract_id(c))):
             # Exactly what a failed fetch leaves behind, minus the network call.
             series_map[c["key"]] = []
             details_map.pop(c["key"], None)
-            n_skipped_unlisted += 1
+            plan.status[c["key"]] = PLAN_UNLISTED
             return
-        to_scrape.append(c)
-
-    def _load_cache(c: dict, text: str) -> None:
-        series_map[c["key"]] = barchart_options.parse_history_series(text)
-        details_map[c["key"]] = barchart_options.parse_history_details(text)
+        plan.status[c["key"]] = status
+        plan.to_scrape.append(c)
 
     for c in contracts:
         cache = barchart_options.cache_path(
             HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
         if cache.exists():
             text = cache.read_text(encoding="utf-8")
-            _load_cache(c, text)
+            series_map[c["key"]] = barchart_options.parse_history_series(text)
+            details_map[c["key"]] = barchart_options.parse_history_details(text)
+            plan.status[c["key"]] = PLAN_CACHED
             if cache_only:
                 continue
             # Re-scrape if cache doesn't reach back to the earliest signal date.
@@ -219,11 +234,53 @@ async def fetch_option_histories(
                     # The maps are still popped, so a failed refetch prices as
                     # no-data exactly as before: shallow history is dropped
                     # from THIS run, not from the disk.
-                    _queue(c)
+                    _queue(c, PLAN_STALE)
         elif not cache_only:
-            _queue(c)
+            _queue(c, PLAN_MISSING)
         else:
+            plan.status[c["key"]] = PLAN_UNCACHED
             log.debug("--cache-only: no cache for %s, skipping", c["key"])
+    return plan
+
+
+async def fetch_option_histories(
+    contracts: list[dict], headless: bool, timeout_ms: int = 15000,
+    needed_dates: dict[tuple, date] | None = None,
+    cache_only: bool = False,
+    retry_unlisted: bool | None = None,
+    plan: FetchPlan | None = None,
+) -> tuple[dict[tuple, list], dict[tuple, dict]]:
+    """Scrape (and cache) per-contract Barchart price history.
+
+    contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
+    needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
+      row is more than 5 days after the needed date, the cache is stale and re-scraped.
+    retry_unlisted: ignore the negative cache (`shared/unlisted.py`) and probe
+      known-unlisted contracts again; None reads BACKTEST_RETRY_UNLISTED.
+      A contract skipped as known-unlisted is priced exactly like a failed
+      fetch (`series_map[key] = []`) — it just costs no network call.
+    plan: a :func:`plan_option_histories` result for these same arguments, so a
+      caller that already planned (to print or warn) does not read the cache
+      twice. None = plan here.
+    Returns (series_map, details_map):
+      series_map:  {contract_key: [(date, price), ...]}  — for _price_asof exit lookups
+      details_map: {contract_key: {date: row_dict}}      — for building entry rows
+    """
+    if plan is None:
+        plan = plan_option_histories(contracts, needed_dates, cache_only, retry_unlisted)
+    email = os.getenv("BARCHART_EMAIL", "")
+    password = os.getenv("BARCHART_PASSWORD", "")
+    cookies_path = Path(os.getenv(
+        "COOKIES_PATH", str(RESULTS_PATH.parent / "cookies" / "barchart_session.json")))
+
+    series_map, details_map = plan.series_map, plan.details_map
+    to_scrape = plan.to_scrape
+    known_unlisted, unlisted_path = plan.known_unlisted, plan.unlisted_path
+    n_skipped_unlisted = plan.count(PLAN_UNLISTED)
+
+    def _load_cache(c: dict, text: str) -> None:
+        series_map[c["key"]] = barchart_options.parse_history_series(text)
+        details_map[c["key"]] = barchart_options.parse_history_details(text)
 
     log.info("Barchart history: %d cached, %d to scrape",
              len(series_map) - n_skipped_unlisted, len(to_scrape))

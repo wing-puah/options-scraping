@@ -232,3 +232,158 @@ def test_redo_deletes_nothing_on_a_dry_run(tmp_path, monkeypatch):
                                      "--analysis-csv", str(rows_csv),
                                      "--date", "2026-06-25", "--redo", "--dry-run"])
     core.main()
+
+
+# ── The proxy tab: plays that could not be priced before (2026-10-17) ──────────
+# An unbounded run re-fetched every play that had ever gone to the proxy: a fetch
+# that returns no rows writes no cache file, so its contracts were scraped again
+# each run (2,204 plays / 3,632 fetches against 193 / 251 bounded).
+
+def _two_tabs(results_rows, proxy_rows):
+    def _rows(tab):
+        if tab == "BacktestResults":
+            return results_rows
+        if tab == "BacktestProxy":
+            return proxy_rows
+        raise AssertionError(f"read unexpected tab {tab!r}")
+    return _rows
+
+
+def _pargs(redo=False, retry_proxied=False):
+    return SimpleNamespace(redo=redo, dry_run=False, retry_proxied=retry_proxied)
+
+
+_PROXIED = {"signal_date": "6/25/2026", "ticker": "AMD", "play": "Long call 150"}
+_RESULT = {"signal_date": "6/25/2026", "ticker": "NVDA", "play": "Long call 250"}
+
+
+def test_proxied_plays_are_dropped_by_default(monkeypatch, caplog):
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_RESULT], [_PROXIED]))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150"), _cand(ticker="TSLA")]
+
+    with caplog.at_level("INFO", logger="backtest"):
+        remaining, redo_keys = core._drop_already_backtested(candidates, _cfg(), _pargs())
+
+    assert [c["ticker"] for c in remaining] == ["TSLA"]
+    assert redo_keys == set()
+    # Logged separately from the results-tab count.
+    assert "SKIPPING 1 play(s) already on 'BacktestResults'" in caplog.text
+    assert "SKIPPING 1 play(s) already on 'BacktestProxy'" in caplog.text
+
+
+def test_proxy_tab_name_comes_from_config(monkeypatch):
+    seen = []
+
+    def _rows(tab):
+        seen.append(tab)
+        return []
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows", _rows)
+    cfg = {**_cfg(), "proxy": {"sheet_tab": "v4_BacktestProxy"}}
+
+    core._drop_already_backtested([_cand()], cfg, _pargs())
+
+    assert seen == ["BacktestResults", "v4_BacktestProxy"]
+
+
+def test_retry_proxied_keeps_them(monkeypatch):
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_RESULT], [_PROXIED]))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150")]
+
+    remaining, _ = core._drop_already_backtested(candidates, _cfg(),
+                                                 _pargs(retry_proxied=True))
+
+    # The results-tab guard still applies; only the proxy drop is lifted.
+    assert [c["ticker"] for c in remaining] == ["AMD"]
+
+
+def test_redo_still_replaces_only_results_tab_rows(monkeypatch):
+    """--redo is unchanged: it marks only BacktestResults rows for deletion. A
+    play on BOTH tabs (a cross-tab duplicate) is still re-simulated, because it
+    is the results tab's row; a proxy-only play stays dropped unless
+    --retry-proxied."""
+    both = {**_RESULT}
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_RESULT], [_PROXIED, both]))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150")]
+
+    remaining, redo_keys = core._drop_already_backtested(candidates, _cfg(),
+                                                         _pargs(redo=True))
+    assert [c["ticker"] for c in remaining] == ["NVDA"]
+    assert redo_keys == {identity.identity_key(date(2026, 6, 25), "NVDA", "Long call 250")}
+
+    remaining, redo_keys = core._drop_already_backtested(
+        candidates, _cfg(), _pargs(redo=True, retry_proxied=True))
+    assert [c["ticker"] for c in remaining] == ["NVDA", "AMD"]
+    assert redo_keys == {identity.identity_key(date(2026, 6, 25), "NVDA", "Long call 250")}
+
+
+def test_retry_proxied_flag_reaches_the_guard(tmp_path, monkeypatch):
+    cfg_path = _write_cfg(tmp_path, monkeypatch)
+    rows_csv = tmp_path / "rows.csv"
+    rows_csv.write_text("date,ticker,regime,signal,play,horizon\n"
+                        "2026-06-25,AMD,BULL,sweep,Long call 150,swing\n")
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows", _two_tabs([], [_PROXIED]))
+    reached = []
+    monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: reached.append(len(c)))
+    monkeypatch.setattr(core, "build_matched_plays", lambda *a, **k: ([], {}, {}, {}))
+    monkeypatch.setattr(core, "_run_simulations", lambda *a, **k: [])
+    monkeypatch.setattr(core, "_write_results", lambda *a, **k: None)
+
+    monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
+                                     "--analysis-csv", str(rows_csv)])
+    with pytest.raises(SystemExit) as e:
+        core.main()                      # dropped by default → nothing to simulate
+    assert e.value.code == 0 and reached == []
+
+    monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
+                                     "--analysis-csv", str(rows_csv), "--retry-proxied"])
+    core.main()
+    assert reached == [1]
+
+
+# ── --dry-run makes no Barchart call (2026-10-17) ──────────────────────────────
+
+def test_dry_run_makes_no_barchart_call(tmp_path, monkeypatch, capsys):
+    """A ~2,200-play preview used to start a ~3,600-fetch scrape and then discard
+    it. Any browser session, scrape or write here fails the test."""
+    from scripts.backtest.shared import history
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(history, "HISTORY_CACHE", cache)
+    cfg_path = _write_cfg(tmp_path, monkeypatch)
+    rows_csv = tmp_path / "rows.csv"
+    rows_csv.write_text(
+        "date,ticker,regime,signal,play,horizon\n"
+        "2026-06-25,NVDA,BULL,sweep,Long call 250 exp 2026-07-17,swing\n"
+        "2026-06-25,AMD,BULL,sweep,Long call 150 exp 2026-07-17,swing\n")
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows", lambda tab: [])
+
+    def _boom(*a, **k):
+        raise AssertionError("network or write on a --dry-run")
+    for target, name in [(core, "fetch_option_histories"), (history, "_scrape"),
+                         (history, "BarchartSession"), (history, "_open_session"),
+                         (core, "_write_results"), (core, "_run_simulations")]:
+        monkeypatch.setattr(target, name, _boom)
+    monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: None)
+
+    # One of the two contracts is cached; the other would be scraped.
+    plays, contracts, needed, _ = core.build_matched_plays(
+        [{"signal_date": date(2026, 6, 25), "date": "2026-06-25", "ticker": t,
+          "play": f"Long call {k} exp 2026-07-17", "regime": "BULL", "horizon": "swing"}
+         for t, k in (("NVDA", 250), ("AMD", 150))], 0.02)
+    assert len(contracts) == 2, "fixture plays must classify"
+    nvda = next(c for c in contracts.values() if c["symbol"] == "NVDA")
+    path = history.barchart_options.cache_path(
+        cache, "NVDA", nvda["expiration"], nvda["strike"], nvda["opt_type"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("Time,Open,High,Low,Last,Change,%Chg,Volume,Open Int\n"
+                    "06/24/2026,10,10,10,10,0,0%,1,1\n")
+
+    monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
+                                     "--analysis-csv", str(rows_csv), "--dry-run"])
+    core.main()
+
+    out = capsys.readouterr().out
+    assert "DRY RUN" in out
+    assert "2 distinct — 1 cached, 1 would be scraped" in out

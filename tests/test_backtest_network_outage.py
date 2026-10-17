@@ -34,6 +34,8 @@ def test_core_maps_a_network_outage_to_its_exit_code_without_writing(
     monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: None)
     monkeypatch.setattr(core, "build_matched_plays", lambda *a, **k: (
         [], {"k": {"key": "k"}}, {}, {}))
+    # The fake contract has no symbol/expiry, so the disk-only plan is stubbed too.
+    monkeypatch.setattr(core, "plan_option_histories", lambda *a, **k: history.FetchPlan())
     monkeypatch.setattr(core, "fetch_option_histories", _boom)
     wrote = []
     monkeypatch.setattr(core, "_run_simulations", lambda *a, **k: wrote.append("sim"))

@@ -729,3 +729,23 @@ def test_evaluate_leaves_cost_basis_blank_when_costs_are_off(cache_dir):
 
     assert row["cost_basis"] == ""
     assert row["pct_stale_days"] != ""
+
+
+def test_dry_run_never_probes_barchart(monkeypatch, cache_dir):
+    """A preview must cost nothing (2026-10-17). Without --cache-only a dry run
+    used to probe up to 36 nearby contracts per unpriced leg and then write
+    nothing. The uncached candidate below is exactly the play that probes on a
+    real run."""
+    calls = []
+
+    def _no_network(*a, **k):
+        calls.append(a)
+        raise AssertionError("probed Barchart on a --dry-run")
+    monkeypatch.setattr(proxy, "_probe_pool", _no_network)
+    monkeypatch.setattr(proxy, "fetch_option_histories", _no_network)
+
+    out = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--dry-run"],
+                    _frozen_candidate(), set())
+
+    assert calls == []
+    assert out["deleted"] is None

@@ -482,10 +482,22 @@ after a classifier/pricing fix to refresh rows produced by the old code.
 python3 -m scripts.backtest.proxy --config config/backtest.yml                  # all dates
 python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21
 python3 -m scripts.backtest.proxy --config config/backtest.yml --start … --end …
-python3 -m scripts.backtest.proxy --config config/backtest.yml --dry-run        # no sheet/CSV write
+python3 -m scripts.backtest.proxy --config config/backtest.yml --dry-run        # no sheet/CSV write, no probe
 python3 -m scripts.backtest.proxy --config config/backtest.yml --cache-only    # no Barchart scraping
 python3 -m scripts.backtest.proxy --config config/backtest.yml --date 2026-04-21 --redo  # re-evaluate + replace
 ```
+
+**The real backtest skips proxied plays (2026-10-17).** `scripts.backtest` drops a
+candidate already on `BacktestProxy`, as well as one already on `BacktestResults`.
+A proxied play could not be priced, and a retry almost always proxies again. Its
+contracts have no cache file, so every unbounded run used to scrape them again.
+`--retry-proxied` keeps them as candidates, for when Barchart has since listed a
+contract. `--redo` still deletes and replaces `BacktestResults` rows only.
+
+**Dry runs make no Barchart call.** `scripts.backtest --dry-run` prints, per play,
+how many contracts are cached and how many would be scraped, then stops. The proxy's
+`--dry-run` evaluates on cached history and never probes. An unbounded run that
+would scrape more than 500 contracts logs a warning suggesting `--start`.
 
 | Column | Definition |
 |--------|-----------|

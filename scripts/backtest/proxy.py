@@ -385,6 +385,7 @@ def _best_donor(anchor_leg: Leg, pool: list[dict], signal_date: date, cfg: dict,
 #: `no_history`, which on such a row read as a failure (2026-09-24).
 SNAP_PRICED = "snap_priced"
 
+
 def _anchor_contract(play):
     """The play's anchor contract ``(ticker, opt_type, strike, exp)`` for cache
     inspection — the declared anchor, else the first leg, else the first
@@ -738,7 +739,9 @@ def main() -> None:
     parser.add_argument("--date", help="Single analysis date YYYY-MM-DD (sets --start/--end)")
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
-    parser.add_argument("--dry-run", action="store_true", help="Do not write sheet/CSV")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Do not write sheet/CSV, and never probe Barchart: evaluate "
+                             "on cached history only")
     parser.add_argument("--cache-only", action="store_true",
                         help="Cache-only contract discovery; never scrape Barchart")
     parser.add_argument("--redo", action="store_true",
@@ -778,7 +781,14 @@ def main() -> None:
     else:
         start = date.fromisoformat(args.start) if args.start else None
         end = date.fromisoformat(args.end) if args.end else None
-    allow_probe = proxy_cfg.get("probe_barchart", True) and not args.cache_only
+    # A dry run never probes Barchart (2026-10-17): it used to scrape up to 36
+    # nearby contracts per unpriced leg and then write nothing. It evaluates on
+    # the cache alone, so a play a real run would snap via a probe previews as
+    # whatever the cache already supports.
+    allow_probe = (proxy_cfg.get("probe_barchart", True)
+                   and not args.cache_only and not args.dry_run)
+    if args.dry_run:
+        log.info("--dry-run: no Barchart probes; plays are evaluated on cached history only")
 
     if analysis_csv:
         log.info("analysis source: csv %s", analysis_csv)
@@ -868,7 +878,7 @@ def main() -> None:
     doomed = redo_keys | stale_keys
     delete_old = None
     if doomed and proxy_tab and not args.dry_run:
-        def delete_old():
+        def delete_old():  # noqa: F811 — conditional definition over the None default
             n = sheets_client.delete_rows_where(
                 proxy_tab,
                 lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),

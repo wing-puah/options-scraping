@@ -20,7 +20,9 @@ from .plays import build_matched_plays
 from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 from .shared.analysis_io import load_analysis as _load_analysis
 from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
-from .shared.history import EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories
+from .shared.history import (EXIT_NETWORK_OUTAGE, PLAN_MISSING, PLAN_SCRAPES, PLAN_STALE,
+                             PLAN_UNCACHED, PLAN_UNLISTED,
+                             NetworkOutage, fetch_option_histories, plan_option_histories)
 from .shared.identity import find_untested, identity_key, keys_from_tab
 from .shared.results_io import write_results
 from .simulate import validate_pricing_config
@@ -189,6 +191,51 @@ def _regime_prefix(regime: str) -> str:
 # rather than appending beside them, which is the same contract `proxy.py`'s
 # `--redo` already has. The identity key is shared with the proxy
 # (`shared/identity.py`) so both writers agree on what a duplicate is.
+#
+# A play already on the PROXY tab is dropped too, by default (2026-10-17). A
+# play lands on `BacktestProxy` because this module could not price it: its
+# contracts returned no history. A fetch that returns no rows writes no cache
+# file, and only a 404 reaches the `_unlisted.jsonl` negative cache, so such a
+# play stayed a candidate on every unbounded run and re-scraped every contract
+# it had — 2,204 plays / 3,632 fetches on 2026-10-17 against 193 / 251 for the
+# same run bounded with --start. It reprices to a proxy row again almost always,
+# so retrying it by default costs a scrape per run for nothing. `--retry-proxied`
+# is the opt-in for when Barchart has since listed the contract. The proxy tab
+# is READ here through `keys_from_tab`, never through `proxy.py`: the proxy
+# reads BacktestResults as an input, and that dependency stays one-way. Nothing
+# on the proxy tab is ever deleted from here; `--redo` still deletes and
+# replaces rows on the results tab only.
+
+def _proxy_tab(cfg: dict) -> str | None:
+    """The proxy's destination tab, resolved the way `proxy.py::main` resolves
+    it (`proxy.sheet_tab`, default `BacktestProxy`; null = local-only proxy)."""
+    return (cfg.get("proxy") or {}).get("sheet_tab", "BacktestProxy")
+
+
+def _drop_already_proxied(candidates: list[dict], cfg: dict, args,
+                          on_results: set) -> list[dict]:
+    """Drop candidates already on the proxy tab, unless `--retry-proxied`.
+
+    A key that is ALSO on the results tab is never dropped here: that play is
+    the results tab's business (skipped by the guard, or replaced by --redo).
+    """
+    proxy_tab = _proxy_tab(cfg)
+    if getattr(args, "retry_proxied", False):
+        log.info("--retry-proxied: plays already on '%s' stay candidates", proxy_tab)
+        return candidates
+    if not proxy_tab:
+        log.info("proxy.sheet_tab is null — no proxy tab to read; proxied plays are "
+                 "not dropped")
+        return candidates
+    proxied = keys_from_tab(proxy_tab) - on_results
+    remaining = find_untested(candidates, proxied)
+    dropped = len(candidates) - len(remaining)
+    (log.warning if dropped else log.info)(
+        "SKIPPING %d play(s) already on '%s' (could not be priced before; a retry "
+        "almost always proxies again). Pass --retry-proxied to re-fetch them.",
+        dropped, proxy_tab)
+    return remaining
+
 
 def _drop_already_backtested(candidates: list[dict], cfg: dict,
                              args) -> tuple[list[dict], set]:
@@ -212,7 +259,7 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
         log.warning("--redo: %d play(s) already on '%s' will be re-simulated and their "
                     "existing rows DELETED before the new ones are appended",
                     len(redo_keys), sheet_tab)
-        return candidates, redo_keys
+        return _drop_already_proxied(candidates, cfg, args, existing), redo_keys
 
     remaining = find_untested(candidates, existing)
     dropped = len(candidates) - len(remaining)
@@ -222,7 +269,7 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
                     "the P&L. Pass --redo to replace them instead.", dropped, sheet_tab)
     log.info("%d/%d candidate plays are not yet on '%s'",
              len(remaining), len(candidates), sheet_tab)
-    return remaining, set()
+    return _drop_already_proxied(remaining, cfg, args, existing), set()
 
 
 # ─── Output ────────────────────────────────────────────────────────────────────
@@ -291,7 +338,8 @@ def _print_summary(results) -> None:
         caps = [_capital_at_risk(r) for r in rz_abs]
         total_pnl = abs_arr.sum()
         total_cap = sum(c for c in caps if c is not None)
-        cap_str = f"  on ${total_cap:,.0f} risked  (dollar-wtd return: {total_pnl/total_cap*100:+.1f}%)" if total_cap else ""
+        cap_str = (f"  on ${total_cap:,.0f} risked  "
+                   f"(dollar-wtd return: {total_pnl/total_cap*100:+.1f}%)") if total_cap else ""
         print(f"  Total P&L:  ${total_pnl:+,.0f}{cap_str}")
         print(f"  Avg/Median $: ${abs_arr.mean():+,.0f} / ${float(np.median(abs_arr)):+,.0f}")
         i_max, i_min = abs_arr.argmax(), abs_arr.argmin()
@@ -327,6 +375,45 @@ def _print_summary(results) -> None:
     print("\nWorst 5 plays by realized P&L ($):")
     for r in worst:
         print(_play_line(r))
+
+
+# ─── --dry-run ─────────────────────────────────────────────────────────────────
+
+#: An unbounded run (no --date/--start/--end) that would scrape more contracts
+#: than this logs a WARNING suggesting --start. It is not refused.
+UNBOUNDED_SCRAPE_WARN = 500
+
+
+def _print_dry_run(plays, plan, redo_keys: set) -> None:
+    """Per play, what a real run would do, and the contract totals.
+
+    Reads only ``plan`` (built from disk by `plan_option_histories`): no
+    Barchart call. Plays Pass 1 refused were already logged as SKIP lines.
+    """
+    from .helpers import _contract_key
+    print(f"\n{'='*64}")
+    print(f"DRY RUN  ({len(plays)} classified plays — nothing fetched, nothing written)")
+    print(f"{'='*64}")
+    for p in plays:
+        keys = [_contract_key(t, o, k, e.isoformat()) for (t, o, k, e) in p.contracts]
+        st = [plan.status.get(k) for k in keys]
+        n_scrape = sum(s in PLAN_SCRAPES for s in st)
+        n_dead = sum(s in (PLAN_UNLISTED, PLAN_UNCACHED) for s in st)
+        n_cached = len(st) - n_scrape - n_dead
+        verb = "scrape+simulate" if n_scrape else "simulate"
+        if n_dead == len(st) and st:
+            verb = "unpriceable (no history)"
+        redo = " [replaces existing row]" if identity_key(
+            p.c["signal_date"], p.c["ticker"], p.c.get("play", "")) in redo_keys else ""
+        print(f"  {p.c['date']} {p.c['ticker']:6} {p.structure:22} {verb:24} "
+              f"contracts: {n_cached} cached, {n_scrape} to scrape, {n_dead} no-data{redo}")
+    n_scrape = len(plan.to_scrape)
+    print(f"\nContracts: {len(plan.status)} distinct — "
+          f"{len(plan.status) - n_scrape - plan.count(PLAN_UNLISTED, PLAN_UNCACHED)} cached, "
+          f"{n_scrape} would be scraped "
+          f"({plan.count(PLAN_MISSING)} missing, {plan.count(PLAN_STALE)} stale), "
+          f"{plan.count(PLAN_UNLISTED)} known-unlisted, "
+          f"{plan.count(PLAN_UNCACHED)} uncached under --cache-only")
 
 
 # ─── Pass 3: simulate ────────────────────────────────────────────────────────────
@@ -372,7 +459,10 @@ def main() -> None:
     parser.add_argument("--date", help="Single analysis date YYYY-MM-DD (sets --start and --end)")
     parser.add_argument("--start", help="Earliest analysis date (YYYY-MM-DD)")
     parser.add_argument("--end", help="Latest analysis date (YYYY-MM-DD)")
-    parser.add_argument("--dry-run", action="store_true", help="Do not write output files")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Preview: read the tabs, print per play what would happen and "
+                             "how many contracts are cached vs would be scraped, then stop. "
+                             "Makes NO Barchart call and writes nothing.")
     parser.add_argument("--cache-only", action="store_true",
                         help="Use cached Barchart history only; skip retrieval even if cache is stale or missing")
     parser.add_argument("--redo", action="store_true",
@@ -381,6 +471,11 @@ def main() -> None:
                              "--date or --start/--end). Without it such plays are skipped: "
                              "the tab appends, and a re-priced row can disagree with the "
                              "first about the exit, the basis and the P&L.")
+    parser.add_argument("--retry-proxied", action="store_true",
+                        help="Keep plays already on the proxy tab (BacktestProxy) as "
+                             "candidates and re-fetch their contracts. Without it they "
+                             "are skipped: they could not be priced before, and a retry "
+                             "almost always proxies again at the cost of a scrape.")
     parser.add_argument("--retry-unlisted", action="store_true",
                         help="Probe contracts recorded as unlisted on Barchart "
                              "(backtests/option_history_cache/_unlisted.jsonl) instead of "
@@ -432,7 +527,8 @@ def main() -> None:
     candidates, redo_keys = _drop_already_backtested(candidates, cfg, args)
     if not candidates:
         log.warning("Nothing to simulate: every candidate play in '%s' is already on the "
-                    "results tab. Pass --redo to replace those rows.", source)
+                    "results tab or the proxy tab. Pass --redo to replace results rows, "
+                    "--retry-proxied to re-fetch proxied plays.", source)
         sys.exit(0)
 
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.
@@ -450,7 +546,24 @@ def main() -> None:
     plays, contracts, needed_dates, skipped = build_matched_plays(
         candidates, spread_pct, tf_s_override, structure_veto)
 
-    # Pass 2 — fetch/cache Barchart history for all identified contracts.
+    # Pass 2 — fetch/cache Barchart history for all identified contracts. The
+    # plan is built from disk alone; it is what --dry-run prints, and the real
+    # fetch is handed it so the cache is read once.
+    retry_unlisted = args.retry_unlisted or None
+    plan = plan_option_histories(list(contracts.values()), needed_dates,
+                                 cache_only=args.cache_only, retry_unlisted=retry_unlisted)
+    n_scrape = len(plan.to_scrape)
+    if n_scrape > UNBOUNDED_SCRAPE_WARN and not (args.date or args.start or args.end):
+        log.warning("Unbounded run would scrape %d contract(s) from Barchart. Bound it with "
+                    "--start YYYY-MM-DD (the dates since the last run) unless a full "
+                    "re-scrape is intended.", n_scrape)
+    if args.dry_run:
+        # A preview must cost nothing: no browser, no Barchart call, no write.
+        # It used to fetch every contract and then discard the result
+        # (~3,600 scrapes for one preview, 2026-10-17).
+        _print_dry_run(plays, plan, redo_keys)
+        return
+
     barchart_series: dict[tuple, list] = {}
     barchart_details: dict[tuple, dict] = {}
     if contracts:
@@ -460,7 +573,7 @@ def main() -> None:
         try:
             barchart_series, barchart_details = asyncio.run(fetch_option_histories(
                 list(contracts.values()), headless, history_timeout_ms, needed_dates,
-                cache_only=args.cache_only, retry_unlisted=args.retry_unlisted or None))
+                cache_only=args.cache_only, retry_unlisted=retry_unlisted, plan=plan))
         except NetworkOutage as e:
             # The only fetch of the run, and it precedes every write (the local
             # CSV, the --redo delete, append_rows): nothing has been written.
@@ -482,7 +595,7 @@ def main() -> None:
     sheet_tab = (cfg.get("output") or {}).get("sheet_tab")
     delete_old = None
     if redo_keys and sheet_tab and not args.dry_run:
-        def delete_old():
+        def delete_old():  # noqa: F811 — conditional definition over the None default
             sheets_client.delete_rows_where(
                 sheet_tab,
                 lambda r: identity_key(r.get("signal_date", ""), r.get("ticker", ""),
