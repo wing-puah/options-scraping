@@ -228,12 +228,8 @@ validation window; it may never gate deployment.
   (`scripts/backtest_study/lib/book.py`) is a port of the same
   dedup/calibration as `exit_switch_mech_study.py` "so setup differences can't
   explain answer differences".
-- **Era.** Registered and first run on the **v3** book (2026-08-11, Phase 5
-  NULL RESULT). The same code has since been re-read on era **v4**
-  (2026-08-22, 2026-08-24 — the gap widened against the models, `M3` paired R
-  gain −0.103). The criteria above name CIs, cuts and sign stability rather
+- **Era.** Registered and first run on the **v3** book (2026-08-11). The same
+  code has since been re-read on era **v4** (2026-08-22, 2026-08-24). The
+  criteria above name CIs, cuts and sign stability rather
   than figures, so they are era-agnostic; a grading run must nevertheless say
   which era it graded, and reproducing the original verdict needs `--era v3`.
-- **Re-open condition, recorded in `study_map/catalog.py`:** "Re-open on new
-  COLUMNS only, never on new models; the ladder is at the ceiling of this
-  feature set."

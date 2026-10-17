@@ -1,6 +1,6 @@
 ## exit_from_text — do the model's own trigger / invalidation / horizon lines beat the shipped exits?
 
-_REGISTERED 2026-09-02; status: DRAFT — becomes immutable on first run._
+_Registered 2026-09-02._
 
 An f2 MANAGEMENT study. Signal, entry day, structure, sizing and candidate set
 are frozen; each arm changes one thing about an open position, or (E2) whether

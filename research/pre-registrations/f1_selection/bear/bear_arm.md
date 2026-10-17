@@ -15,8 +15,7 @@ The same document registered the ML combination search
 ([`ml_combination.md`](../signal/ml_combination.md)) and, later the same day, the DEPLOY
 arm ([`../f5_hedging/hedge_sizing.md`](../../f5_hedging/hedge_sizing.md)) —
 which asks the deployment questions B1/B2 skipped and is a **different
-estimand**, not a second bite: "B1 asked an *absolute level* question — is
-there a bear subset with mean E ≥ 0 — and the answer is no in 496 subsets."
+estimand**, not a second bite.
 
 ## Question
 
@@ -121,17 +120,11 @@ frozen `exit_mechanism_study` grid**, keyed to bear rows.
 
 *Not part of the registration — implementation and operational record.*
 
-- **Outcome of the 2026-08-11 run:** B1 NOT MET (496 combinations evaluated,
-  132 with n ≥ 40, 0 survivors of the full rule); B2 MET — `be_after: 0.50`
-  keyed to bear debit spreads shipped.
-- **B2's shipped config was later REVERTED.** `bear_arm` hosts the additive
-  rollback-trigger census block registered in
-  [`../f2_management/rollback_triggers.md`](../../f2_management/rollback_triggers.md);
-  on 2026-08-24 that trigger reached its floor and FIRED, and
-  `structure_exit.enabled` went back to false (commit `1e36dba`). Any later
-  reading of B2 is a reading of a reverted rule.
+- **Rollback census.** `bear_arm` hosts the additive rollback-trigger census
+  block registered in
+  [`../f2_management/rollback_triggers.md`](../../f2_management/rollback_triggers.md).
 - **Era.** Registered and first run on the **v3** book (2026-08-11); re-read
-  on era **v4** (B1 unchanged at 0 survivors). The criteria name CIs, cuts and
+  on era **v4**. The criteria name CIs, cuts and
   sign stability rather than figures, so they are era-agnostic; a grading run
   must say which era it graded, and reproducing the original verdict needs
   `--era v3`.

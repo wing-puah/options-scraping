@@ -280,6 +280,21 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-17 — results moved out of pre-registrations
+
+**Three run results left `trigger_entry`'s registration and are kept here.**
+`study_review` hands the whole registration to two blind graders, so a
+registration must not carry its own study's outcome. These lines were written
+into the file with the first run's commit (`4fc17ac`, 2026-09-04). No other
+record held them. Source:
+[`trigger_entry.md`](pre-registrations/f1_selection/signal/trigger_entry.md),
+"Wording corrections".
+
+- Correction 2, G-SYNTH: "on v4 all 840 of them reproduce."
+- Correction 4, pricing tiers: "On the v4 PRIMARY run every ARM T cell carries
+  both tiers, so this makes no difference to any number recorded here".
+- Correction 5, `first_cross` vs `trigger_met`: "0 disagreements on both eras."
+
 ## 2026-10-15 — spy_benchmark: the picks do not beat a SPY call spread, gross
 
 **Across the same dates, the deployed picks did not beat a SPY ATM/+5% call

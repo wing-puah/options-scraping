@@ -413,12 +413,9 @@ whole-book figure.
 | After the ACK (now) | The account-level drawdown, its improvement and the improvement's CI bounds in dollars by default; `--arm-p-share` prints them as a share of starting capital instead |
 | 2026-09-05 build until the ACK | The ALTERNATIVE reading as the default: those three figures printed as a SHARE OF STARTING CAPITAL, behind a banner naming the open item, with `--arm-p-dollars` (since removed) printing the dollar levels. The CI there is the improvement's block-bootstrap CI |
 
-No graded run displayed either presentation: every ARM P cell on the 2026-09-05
-runs of both eras was UNDERPOWERED and printed its census only, so the graded
-artefacts are unchanged by the ACK. Clause 1 is evaluated on the improvement
-RATIO, which is scale-free, so the verdict is identical either way — this settled
-the PRESENTATION only, and the ack is recorded here rather than added later by
-report prose.
+Clause 1 is evaluated on the improvement RATIO, which is scale-free, so the
+verdict is identical either way — this settled the PRESENTATION only, and the ack
+is recorded here rather than added later by report prose.
 
 ### ARM D — drawdown throttle (SECONDARY; sizing, not exit)
 
@@ -598,9 +595,7 @@ implementation here is how a study and its host come to certify different things
 **The printing requirement is this reading's addition, not the registered
 gate's.** The first build delegated that half to a separate `--selftest-gates`
 invocation "outside this process" and printed no G2–G5 result at all, so the
-report ASSERTED a gate whose outcome it did not carry; the two analysts then
-split on it, one grading G-CAL MET on the narrower printed claim and one
-declining to grade it at all.
+report ASSERTED a gate whose outcome it did not carry.
 
 **G-MTM — the curve and the ledger agree.** The mark-to-market value at exit must
 equal the overlay's own dollars for that position, within `TOL_DOLLARS`.

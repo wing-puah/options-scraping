@@ -287,5 +287,3 @@ Not part of the registration. Implementation only.
 - Fetch planning off `backtests/mech_regime/spy_vix_daily_full.csv`, for a
   signal date with no SPY row cached, was removed on 2026-10-15. Such a pair
   now drops as `no_spot_at_signal`, so nothing is planned for it.
-- First run 2026-10-14: `NOT BUILT — AWAITING SCRAPE`, 149 v4 contracts to
-  fetch. No SPY wrap was priced.

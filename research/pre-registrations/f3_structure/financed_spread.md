@@ -96,11 +96,10 @@ cells, not eight — F0 is one cell, printed as `F0 own` in the G0 table.
 
 ### F4 — diagonal financing
 
-Registered 2026-08-19, after the F0–F3 run and before F4 was built or run. The
-2026-08-19 run returned NULL on all seven same-expiry strike-offset cells and
-closed them. The operator's intended financing is a DIFFERENT structure the
-original arms never priced, registered here as a new commitment (the
-macro_event_study precedent): a SHORT-DATED, DELTA-TARGETED naked short leg —
+Registered 2026-08-19, after the F0–F3 run and before F4 was built or run.
+The operator's intended financing is a DIFFERENT structure the original arms
+never priced, registered here as a new commitment (the macro_event_study
+precedent): a SHORT-DATED, DELTA-TARGETED naked short leg —
 premium sold "not to be reached", expiring while the debit thesis is still
 developing. Nothing in this arm reopens F0–F3 on these dates.
 

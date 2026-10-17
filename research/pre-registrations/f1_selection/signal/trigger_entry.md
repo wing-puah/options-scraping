@@ -1,6 +1,6 @@
 ## trigger_entry — does entering only ON the stated trigger beat entering unconditionally?
 
-_REGISTERED 2026-09-04; status: DRAFT — becomes immutable on first run._
+_Registered 2026-09-04._
 
 An f1 SELECTION study. The exit profiles, the sizing formula, the structure
 universe and the candidate set are frozen; the ONE thing that moves is WHETHER
@@ -380,7 +380,7 @@ of what the run actually ran.*
    through the imported helper. A row whose day-0 mark is absent or a degenerate
    `0.00` has nothing to reproduce in the first place; it is excluded, counted
    with its reason, and never counted as a pass. G-SYNTH's assertion is
-   evaluated on the rows that do build, and on v4 all 840 of them reproduce.
+   evaluated on the rows that do build.
 
 3. **The G2 abort prints `emission_timing`'s own gate label.** Construction
    failures raise inside the IMPORTED `emission_timing.synth_trade`, whose
@@ -391,23 +391,20 @@ of what the run actually ran.*
 4. **Criterion 5 is evaluated on the pricing tiers PRESENT in a cell.** The
    registration says "right-signed on BOTH pricing tiers". A cell containing
    rows from only one tier is graded on that tier — the same rule
-   `exit_from_text.evaluate_cell` applies. On the v4 PRIMARY run every ARM T
-   cell carries both tiers, so this makes no difference to any number recorded
-   here; it is stated so a thinner future cut cannot be read as having cleared a
-   test it never ran.
+   `exit_from_text.evaluate_cell` applies. It is stated so a thinner future cut
+   cannot be read as having cleared a test it never ran.
 
 5. **`first_cross` is asserted equal to `trigger_met` at run time.** §Arms says
    the crossing is "inclusive, per `trigger_met`". Rather than trust that,
    G2 evaluates BOTH on every in-scope row × every N and FAILS THE RUN on a
    single disagreement, so there is one definition of "met" and it is
-   `exit_from_text`'s. 0 disagreements on both eras.
+   `exit_from_text`'s.
 
 6. **2026-09-04 (after the first run) — verdict label renamed `PRICED-AWAY` →
    `LATE-ENTRY`; definition unchanged.** The operator read "priced-away" as
    ambiguous between "the edge was arbitraged out" and "the entry is late".
    The registered condition (ΔR ≤ 0 with the census reproducing) is the second
    reading, so the label now says it: the signal works, the confirmed entry is
-   late. No gate, bar, arm, or verdict CONDITION changed; the study-results
-   record keeps the first run's sections verbatim under the old word, and the
-   re-run appends new sections under the new one.
+   late. No gate, bar, arm, or verdict CONDITION changed; study-results
+   sections recorded before the rename keep the old word.
 

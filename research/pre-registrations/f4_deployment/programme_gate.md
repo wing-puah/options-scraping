@@ -248,4 +248,3 @@ Not part of the commitment. Implementation only.
   SCRAPE`. The P1 step must add a same-ticker path first. It would be a
   `Resolved at build` ruling in that study's file, written before the run.
   Until then `PG-M` is `NOT READ`.
-- Done 2026-10-13: that study now prints `SAME-TICKER READ — ARM U NOT BUILT` with the per-arm criteria ([ruling](../f1_selection/benchmark/mechanical_benchmark.md#dependencies)).

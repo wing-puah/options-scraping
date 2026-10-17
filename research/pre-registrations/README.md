@@ -37,6 +37,16 @@ values:
 - `graded` — a `study_review` A/B replication grading + digest exists
 - `retracted` — a registered claim withdrawn before/without adoption (say why)
 
+`accepted by default` after a status means the operator deferred and the
+drafter's recommended defaults were accepted unreviewed.
+
+**Latest outcome** is the verdict the study last printed, quoted verbatim, with
+its date and a link to the record. The record is the study's file in
+[`../study-results/`](../study-results/); a commitment's is
+[`../current.md`](../current.md). Outcomes live here and never in a
+registration, because `study_review` hands the whole registration to blind
+graders. `graded` means a grading exists; it may predate the latest run.
+
 ## How a registration is structured
 
 Every file follows one template:
@@ -120,64 +130,68 @@ controls, cells and descriptive cuts under the same letters.
 
 ## ① Selection — `f1_selection/`
 
-| File | Study | Status |
-|---|---|---|
-| [`f1_selection/bear/bear_arm.md`](f1_selection/bear/bear_arm.md) | `bear_arm` — B1/B2 carried over from `ml-plan.md` §Kickoff addendum (2026-08-11); B2's shipped exit was later reverted by its rollback trigger | run |
-| [`f1_selection/regime/macro_event_study.md`](f1_selection/regime/macro_event_study.md) | `macro_event_study` | graded |
-| [`f1_selection/signal/ml_combination.md`](f1_selection/signal/ml_combination.md) | `ml_combination` — ground rules + Phases 0–5 carried over from `ml-plan.md` (2026-08-11) | run |
-| [`f1_selection/benchmark/v4_bridge.md`](f1_selection/benchmark/v4_bridge.md) | `v4_bridge` | run |
-| [`f1_selection/signal/emission_timing.md`](f1_selection/signal/emission_timing.md) | `emission_timing` | graded |
-| [`f1_selection/benchmark/mechanical_benchmark.md`](f1_selection/benchmark/mechanical_benchmark.md) | `mechanical_benchmark` — does the book selection, or a same-date mechanical bull call spread, carry the edge? Accepted by default 2026-10-09 and built; the first run is `NOT BUILT — AWAITING SCRAPE`, with the fetch plan printed. | accepted by default 2026-10-09 |
-| [`f1_selection/benchmark/spy_benchmark.md`](f1_selection/benchmark/spy_benchmark.md) | `spy_benchmark` — do the deployed picks beat a SPY call spread on the same dates? Post hoc: proposed after `cost_sensitivity`, `direction_hit` and P1 were seen. Not a `programme_gate` input. Built; the census prints `NOT BUILT — AWAITING SCRAPE`. | accepted by default 2026-10-14 |
-| [`f1_selection/benchmark/ticker_class.md`](f1_selection/benchmark/ticker_class.md) | `ticker_class` — do index ETFs carry more reliable edge than single-stock groups, direction held fixed? | registered |
-| [`f1_selection/regime/dip_buy.md`](f1_selection/regime/dip_buy.md) | `dip_buy` — do Tier A/B positions do better when SPY closed below its 50-day SMA? Picked post hoc from 28 rules on 2026-10-12, so graded on forward dates from the seal's start only. Accepted by default 2026-10-12; first run `STILL-OPEN` behind the holdout seal. | run |
-| [`f1_selection/regime/adaptive_ladder.md`](f1_selection/regime/adaptive_ladder.md) | `adaptive_ladder` — does re-choosing among six fixed selection rules from trailing known results beat the shipped ladder, walk-forward? Accepted by default 2026-10-12; first run `ADAPTS` on in-sample dates with a hindsight menu, forward `STILL-OPEN`. | run |
-| [`f1_selection/regime/regime_map.md`](f1_selection/regime/regime_map.md) | `regime_map` — in which market conditions does each ladder tier make or lose money, and does it replicate on v3? A descriptive map, BH across cells. Accepted by default 2026-10-12, saved before the first run; two Tier A cells replicate, forward `STILL-OPEN`. | run |
-| [`f1_selection/signal/direction_hit.md`](f1_selection/signal/direction_hit.md) | `direction_hit` — does anything known at entry predict the underlying moving the play's way? Univariate screen plus one walk-forward logistic model. Accepted by default 2026-10-12, saved before the first run; `NULL`. | run |
-| [`f1_selection/benchmark/ticker_class_regime.md`](f1_selection/benchmark/ticker_class_regime.md) | `ticker_class_regime` — does the index-vs-single-stock gap depend on trend or volatility regime? Seven graded contrasts, forward dates only, with a confirmation window. | draft |
+| File | Question | Status | Latest outcome |
+|---|---|---|---|
+| [`bear/bear_arm.md`](f1_selection/bear/bear_arm.md) | Does any subset of bear positions keep an edge (B1), and is the shipped exit mis-tuned for bears (B2)? | run | `B1 KEEP-CONDITIONED: NOT met` — 2026-09-28; B2's exit shipped, then its rollback trigger reverted it on 2026-08-24 · [record](../study-results/f1_selection/bear/bear_arm.md) |
+| [`benchmark/v4_bridge.md`](f1_selection/benchmark/v4_bridge.md) | Does trimming the analysis prompt change what kinds of plays the model emits, compared with v3? | run | `LADDER UNVALIDATED ON v4` — 2026-09-28 · [record](../study-results/f1_selection/benchmark/v4_bridge.md) |
+| [`benchmark/mechanical_benchmark.md`](f1_selection/benchmark/mechanical_benchmark.md) | Does the book's selection, or a same-date mechanical bull call spread, carry the edge? | run · accepted by default | `ARM U NOT BUILT`; `ARM M1 CONTRARY` — 2026-10-15 · [record](../study-results/f1_selection/benchmark/mechanical_benchmark.md) |
+| [`benchmark/spy_benchmark.md`](f1_selection/benchmark/spy_benchmark.md) | Do the deployed picks beat a SPY call spread on the same dates? Proposed post hoc. | run · accepted by default | `DOES-NOT-BEAT` — 2026-10-15 · [record](../study-results/f1_selection/benchmark/spy_benchmark.md) |
+| [`benchmark/ticker_class.md`](f1_selection/benchmark/ticker_class.md) | Do index ETFs carry a more reliable edge than single stocks, with direction held fixed? | run | `P1 NULL` — 2026-10-07 · [record](../study-results/f1_selection/benchmark/ticker_class.md) |
+| [`benchmark/ticker_class_regime.md`](f1_selection/benchmark/ticker_class_regime.md) | Does the index-versus-single-stock gap depend on the trend or volatility regime? Forward dates only. | draft | not run |
+| [`regime/macro_event_study.md`](f1_selection/regime/macro_event_study.md) | Do macro events show up in entry IV, in P&L, or in exit timing? | graded | `DE-QUEUED`; `X-C1 SURVIVAL-ARTIFACT` — 2026-09-19 · [study map](../study-map.md) |
+| [`regime/dip_buy.md`](f1_selection/regime/dip_buy.md) | Do Tier A/B positions do better when SPY closed below its 50-day SMA? Picked post hoc, so graded forward only. | run · accepted by default | forward `STILL-OPEN` — 2026-10-12 · [record](../study-results/f1_selection/regime/dip_buy.md) |
+| [`regime/adaptive_ladder.md`](f1_selection/regime/adaptive_ladder.md) | Does re-choosing among six fixed selection rules from trailing results beat the shipped ladder? | run · accepted by default | forward `STILL-OPEN` (in-sample `ADAPTS`) — 2026-10-12 · [record](../study-results/f1_selection/regime/adaptive_ladder.md) |
+| [`regime/regime_map.md`](f1_selection/regime/regime_map.md) | In which market conditions does each ladder tier make or lose money? Descriptive. | run · accepted by default | 2 `POSITIVE`, 1 `NEGATIVE`, 45 `NULL`; forward `STILL-OPEN` — 2026-10-12 · [record](../study-results/f1_selection/regime/regime_map.md) |
+| [`signal/ml_combination.md`](f1_selection/signal/ml_combination.md) | Does any learned combination of structure, regime, geometry and enrichment columns beat the shipped score-free ladder? | run | `NULL RESULT` — 2026-09-28 · [record](../study-results/f1_selection/signal/ml_combination.md) |
+| [`signal/emission_timing.md`](f1_selection/signal/emission_timing.md) | Does entering later than the signal date, or on a repeat signal, change the result? | graded | `ARM P NULL`; `ARM L LAG-TOLERANT` — 2026-09-28 · [record](../study-results/f1_selection/signal/emission_timing.md) |
+| [`signal/direction_hit.md`](f1_selection/signal/direction_hit.md) | Does anything known at entry predict the underlying moving the play's way? | run · accepted by default | `NULL`; forward `STILL-OPEN` — 2026-10-12 · [record](../study-results/f1_selection/signal/direction_hit.md) |
+| [`signal/prompt_eval.md`](f1_selection/signal/prompt_eval.md) | Does a candidate analysis prompt beat the production prompt on the same dates? | run (variance floor only) | no candidate scored — 2026-09-04 · [record](../study-results/f1_selection/signal/prompt_eval.md) |
+| [`signal/text_features.md`](f1_selection/signal/text_features.md) | Do features of the play text (trigger, invalidation) predict outcome? | run | 17 `NULL`, 9 `UNDERPOWERED`, 5 `CANDIDATE` — 2026-09-28 · [record](../study-results/f1_selection/signal/text_features.md) |
+| [`signal/trigger_entry.md`](f1_selection/signal/trigger_entry.md) | Does entering only after the play's trigger fires, at that session's close, help? | run | `LATE-ENTRY` at N=1, 3, 5 — 2026-09-28 · [record](../study-results/f1_selection/signal/trigger_entry.md) |
 
 ## ② Management — `f2_management/`
 
-| File | Study | Status |
-|---|---|---|
-| [`f2_management/cost_sensitivity.md`](f2_management/cost_sensitivity.md) | `cost_sensitivity` — at what cost per leg does the Tier A/B edge vanish? Accepted by default 2026-10-09; `VANISHES` on both tiers. | graded |
-| [`f2_management/bear_fast_exit.md`](f2_management/bear_fast_exit.md) | `bear_fast_exit` — is a bear debit closed within a few sessions, or at a small profit, positive net of trading costs? Accepted by default 2026-10-09. The first run prints `BLEED-CUT (C7 PENDING)` on `TS 1`; C7 waits on the holdout seal. | run |
-| [`f2_management/volume_signal.md`](f2_management/volume_signal.md) | `volume_signal` | run |
-| [`f2_management/staged_exit.md`](f2_management/staged_exit.md) | `staged_exit` | graded |
-| [`f2_management/rollback_triggers.md`](f2_management/rollback_triggers.md) | rollback-trigger census — additive blocks in `exit_switch_mech_study` / `bear_arm` / `exit_mechanism_study --side credit` | run (via host studies) |
-| [`f2_management/exit_drawdown.md`](f2_management/exit_drawdown.md) | `exit_drawdown` — registered, built, run and **graded 2026-09-05** (era v4 headline + the disclosed `all` cut in one report; SECONDARY era v3 run and recorded the same day). Walk-forward exit hypotheses judged on the ACCOUNT-level mark-to-market drawdown curve (`lib/mtm_curve.py`) rather than on per-row R — see the file's own "What this is NOT" table for the eleven exit families it must not re-find. Five arms, labelled W (out-of-sample selection of the shipped pt/sl/tef knobs, with its own `PROD-ROBUST` token), U (underlying ATR stop on debit verticals), O (flow-unwind off the traded contract's OI path), P (partial scale-out), and D (a drawdown sizing throttle, labelled SECONDARY and unshippable from this family). Every threshold is fitted on TRAIN dates and applied to TEST dates; burn-in dates are excluded from the headline. **Result: UNDERPOWERED on every PRIMARY cell — the modal outcome the registration named in advance — with `PROD-ROBUST` NOT claimed; on the no-verdict `all` cut the only two powered cells are NULL (`ARM O/vol`) and SECONDARY-NULL (`ARM D/throttle`).** The dated wording corrections recorded while the module was built were folded into the registration on 2026-09-08 — each tagged `Resolved at build` beside the text it amends, with a label-to-section table in its "Build notes", so `study_review` grades against that one file (the two repairs the two-analyst grading forced reopened the MODULE, never the registration). Nothing ships — a candidate would still need an independent window. | graded |
+| File | Question | Status | Latest outcome |
+|---|---|---|---|
+| [`volume_signal.md`](f2_management/volume_signal.md) | Does underlying share volume condition exits, paths or selection within a structure? | run | `NULL` (volume column closed) — 2026-09-28 · [record](../study-results/f2_management/volume_signal.md) |
+| [`staged_exit.md`](f2_management/staged_exit.md) | Does a day-X ±Y% staged exit beat the shipped exit? | graded | 41 `UNDERPOWERED`, 1 `CANDIDATE` — 2026-09-28 · [record](../study-results/f2_management/staged_exit.md) |
+| [`rollback_triggers.md`](f2_management/rollback_triggers.md) | Have the shipped rules' rollback triggers fired? Census inside host studies. | run (via host studies) | `LVOL STAYS GATED`; `BEAR_HE UNDERPOWERED` — 2026-10-06 · [log](../current.md) |
+| [`exit_from_text.md`](f2_management/exit_from_text.md) | Do the levels in the play text make better exits than the shipped rule? | run | 302 `UNDERPOWERED`, 26 `CONTRARY`, 21 `NULL`, 1 `CANDIDATE` — 2026-09-28 · [record](../study-results/f2_management/exit_from_text.md) |
+| [`exit_drawdown.md`](f2_management/exit_drawdown.md) | Do walk-forward exit rules cut the account's mark-to-market drawdown? | graded | `ARM W UNDERPOWERED`; `ARM O/vol NULL`; `ARM D SECONDARY-NULL` — 2026-09-28 · [record](../study-results/f2_management/exit_drawdown.md) |
+| [`cost_sensitivity.md`](f2_management/cost_sensitivity.md) | At what cost per leg does the Tier A/B edge vanish? | run · accepted by default | Tier A `VANISHES`; Tier B `VANISHES` — 2026-10-09 · [record](../study-results/f2_management/cost_sensitivity.md) |
+| [`bear_fast_exit.md`](f2_management/bear_fast_exit.md) | Is a bear debit closed within a few sessions, or at a small profit, positive after costs? | run · accepted by default | `BLEED-CUT (C7 PENDING)` — 2026-10-10 · [record](../study-results/f2_management/bear_fast_exit.md) |
 
 ## ③ Structure — `f3_structure/`
 
-| File | Study | Status |
-|---|---|---|
-| [`f3_structure/financed_spread.md`](f3_structure/financed_spread.md) | `financed_spread` | graded |
-| [`f3_structure/index_vrp.md`](f3_structure/index_vrp.md) | `index_vrp` — does a monthly short SPY iron condor lose in the same windows and on the same days as the deployed ladder book? Accepted by default 2026-10-12, saved before the first run; `NO-TAIL-LINK`. | run |
-| [`f3_structure/earnings_vol.md`](f3_structure/earnings_vol.md) | `earnings_vol` — does a long straddle or a double calendar across earnings pay, without re-wrapping the book? Accepted by default 2026-10-12, before its fetch; first run 2026-10-13, `NULL` on both arms. | run |
+| File | Question | Status | Latest outcome |
+|---|---|---|---|
+| [`financed_spread.md`](f3_structure/financed_spread.md) | Does financing a debit spread with a sold leg improve it? | graded | all 13 cells `NULL` — 2026-09-28 · [record](../study-results/f3_structure/financed_spread.md) |
+| [`ladder_overlay.md`](f3_structure/ladder_overlay.md) | Does selling and rolling shorter-dated calls against a bull call spread beat the shipped exits, and would a naked put beat both? | graded | all cells `NULL` — 2026-09-28 · [record](../study-results/f3_structure/ladder_overlay.md) |
+| [`index_vrp.md`](f3_structure/index_vrp.md) | Does a monthly short SPY iron condor lose in the same windows as the ladder book? | run · accepted by default | `NO-TAIL-LINK` — 2026-10-12 · [record](../study-results/f3_structure/index_vrp.md) |
+| [`earnings_vol.md`](f3_structure/earnings_vol.md) | Does a long straddle or a calendar across earnings pay? | run · accepted by default | `ARM S NULL`; `ARM K NULL` — 2026-10-13 · [record](../study-results/f3_structure/earnings_vol.md) |
 
 ## ④ Deployment — `f4_deployment/`
 
-| File | Study | Status |
-|---|---|---|
-| [`f4_deployment/holdout_seal.md`](f4_deployment/holdout_seal.md) | `holdout_seal` — a COMMITMENT, not a study: seals every signal date on or after 2026-09-23 from research-tier outcome reads until 40 have priced, then one Tier A/B read. Named readers: `refuse_floor_forward`, `ticker_class` forward P1, `narrow_to_fit` forward read, each from 2026-10-08. Enforced by `lib/era.py`. | accepted by default 2026-10-09 |
-| [`f4_deployment/programme_gate.md`](f4_deployment/programme_gate.md) | `programme_gate` — a COMMITMENT, not a study: retire the flow-selection layer if the picks do not beat `mechanical_benchmark`'s same-ticker arms and `dip_buy` grades `NULL` or `CONTRARY`; keep it if either read is positive. Registered before any input had an outcome; backstop 2027-10-13. Changes no rule. | accepted by default 2026-10-13 |
-| [`f4_deployment/account_sim.md`](f4_deployment/account_sim.md) | `account_sim` | graded |
-| [`f4_deployment/ruin_bound.md`](f4_deployment/ruin_bound.md) | `ruin_bound` — which cap cell and guardrail earns the most while P(ruin) and the p95/p99 drawdown stay under bounds fixed first? A re-simulating block bootstrap plus stress overlays, at $500 (headline) and $1,000 (declared secondary). Accepted by default 2026-10-09 on the drafter's defaults; first run the same day: `SAFEST ELIGIBLE CELL: N250-F2 G-none` at $500, `NO CELL MEETS THE BOUNDS` at $1,000. | registered |
-| [`f4_deployment/narrow_to_fit.md`](f4_deployment/narrow_to_fit.md) | `narrow_to_fit` — when a pick's one contract is over budget, does narrowing the spread to fit beat refusing it? Splits `account_sim`'s F2 gain into affordability and selection, and adds the operator's $1,000 stop. Registered 2026-10-01 with a $1,000 headline budget; the narrowed cells wait on a substitute-leg scrape, the cached cells do not. | registered |
-| [`f4_deployment/refuse_floor_forward.md`](f4_deployment/refuse_floor_forward.md) | `refuse_floor_forward` — a standing forward grade of `account_sim`'s F2 and `narrow_to_fit`'s `(R, F3, $500)` on signal dates from 2026-10-08 onward, through a confidence sequence valid under repeated looks. Registered 2026-10-07. | registered |
-| [`f4_deployment/selection_order.md`](f4_deployment/selection_order.md) | `selection_order` | run |
-| [`f4_deployment/portfolio_delta.md`](f4_deployment/portfolio_delta.md) | `portfolio_delta` | graded |
-| [`f4_deployment/concurrency_correlation.md`](f4_deployment/concurrency_correlation.md) | `concurrency_correlation` — **module NOT yet written** (registered 2026-08-22; the plan exists before the code on purpose — see the file's own "dead ends" table for the v3 cuts it must not re-find) | registered |
+| File | Question | Status | Latest outcome |
+|---|---|---|---|
+| [`account_sim.md`](f4_deployment/account_sim.md) | Is the ladder feasible on a $25,000 account under the exposure caps? | graded | `NOT FEASIBLE` (no capital rung passes A1 and A2) — 2026-09-28 · [record](../study-results/f4_deployment/account_sim.md) |
+| [`selection_order.md`](f4_deployment/selection_order.md) | Does the order picks are taken within a day matter? | run | `ORDERING-IS-NOISE` — 2026-09-28 · [record](../study-results/f4_deployment/selection_order.md) |
+| [`portfolio_delta.md`](f4_deployment/portfolio_delta.md) | Do new positions do worse when the book already carries high net delta, and can ceilings or targets steer it? | graded | `DELTA-DOSE-RESPONSE`; no arm clears the whole bar — 2026-09-28 · [record](../study-results/f4_deployment/portfolio_delta.md) |
+| [`concurrency_correlation.md`](f4_deployment/concurrency_correlation.md) | Does the number of open positions, or their similarity, degrade a new position's outcome? | run | `NOISE` — 2026-09-28 · [record](../study-results/f4_deployment/concurrency_correlation.md) |
+| [`narrow_to_fit.md`](f4_deployment/narrow_to_fit.md) | When one contract is over budget, does narrowing the spread beat refusing it? | run | $1,000 headline: N4 and N5 `NOT MET`; $500 secondary `NARROW-FEASIBLE` — 2026-10-10 · [record](../study-results/f4_deployment/narrow_to_fit.md) |
+| [`refuse_floor_forward.md`](f4_deployment/refuse_floor_forward.md) | Standing forward grade of F2 and `(R, F3, $500)` from 2026-10-08, by confidence sequence. | run | both cells `STILL-OPEN` — 2026-10-10 · [record](../study-results/f4_deployment/refuse_floor_forward.md) |
+| [`ruin_bound.md`](f4_deployment/ruin_bound.md) | Which cap cell earns most while ruin risk and drawdown stay under fixed bounds? | run · accepted by default | $500: `SAFEST ELIGIBLE CELL: N250-F2 G-none`; $1,000: `NO CELL MEETS THE BOUNDS` — 2026-10-10 · [record](../study-results/f4_deployment/ruin_bound.md) |
+| [`holdout_seal.md`](f4_deployment/holdout_seal.md) | Commitment: seal signal dates from 2026-09-23 until 40 have priced, then one Tier A/B read. | registered · accepted by default | sealed; 15 of 40 priced (census printed by the daily run) — 2026-10-17 · [log](../current.md) |
+| [`programme_gate.md`](f4_deployment/programme_gate.md) | Commitment: keep or retire the flow-selection layer on `mechanical_benchmark` and `dip_buy`. Backstop 2027-10-13. | registered · accepted by default | `WAIT` — 2026-10-15 · [log](../current.md) |
 
 ## ⑤ Hedging — `f5_hedging/`
 
-| File | Study | Status |
-|---|---|---|
-| [`f5_hedging/hedge_sizing.md`](f5_hedging/hedge_sizing.md) | `hedge_sizing` — original D-rules carried over from `ml-plan.md` §addendum 2 + the 2026-08-24 v4 re-read (card-line decision rules; sleeve itself operator-policy, exempt) | graded |
-| [`f5_hedging/hedge_structure.md`](f5_hedging/hedge_structure.md) | `hedge_structure` | run |
-| [`f5_hedging/hedge_portfolio.md`](f5_hedging/hedge_portfolio.md) | `hedge_portfolio` — registered 2026-08-29, built, run and graded 2026-08-31 (era v4). The operator's queued max-drawdown question, specific to their own practice: when the open book is concentrated in one correlated cluster, does a long put on that cluster's proxy cut the book's MARK-TO-MARKET drawdown versus the same book unhedged? The registration's population clause was originally self-contradictory; the operator ratified `all` (996 rows / 145 dates), consolidated into this file's own §Population and basis on 2026-09-02. Result: the mechanism question is UNDERPOWERED (all nine cells), ARM M is MEASUREMENT-ONLY (the close-bucketed curve understates this book's max drawdown by 40.2%). Nothing ships; the question stays open. | graded |
-| [`f5_hedging/index_bear_hedge.md`](f5_hedging/index_bear_hedge.md) | `index_bear_hedge` — accepted by default, built and run 2026-10-09. Grades SPY, QQQ and IWM bear spreads as crash insurance on sell-offs after acceptance only (OD4). Forward verdict STILL-OPEN behind the holdout seal. | registered |
-| [`f5_hedging/hedge_timing.md`](f5_hedging/hedge_timing.md) | `hedge_timing` — registered 2026-08-28, run and graded same day (era v4 + v3 replication). Does a mechanical trigger — chop, SPY gap-up, a 4–5-day down-run — pick a day the bear hedge beats the same day's ladder-eligible long? GAP-UP came back CONTRARY (hedge worse than the long, both money arms) — §4 prohibition drafted and HELD; chop and the broad decline NULL; the strict streak UNDERPOWERED as fixed in advance (2 book dates). | graded |
-
+| File | Question | Status | Latest outcome |
+|---|---|---|---|
+| [`hedge_sizing.md`](f5_hedging/hedge_sizing.md) | Is a bear hedge sleeve deployable (D1–D4), and do the §4 card lines still stand on v4? | graded | D1–D4 all `NOT MET` — 2026-09-28 · [record](../study-results/f5_hedging/hedge_sizing.md) |
+| [`hedge_structure.md`](f5_hedging/hedge_structure.md) | Does the calendar hedge survive a fixed pick rule, a fixed universe and a strict fill definition? | run | `H0 FILL NOT MET`; `H2 NOT EVALUABLE` — 2026-09-28 · [record](../study-results/f5_hedging/hedge_structure.md) |
+| [`hedge_timing.md`](f5_hedging/hedge_timing.md) | Does a mechanical trigger (chop, SPY gap-up, down-run) pick a day the hedge beats the long? | graded | `H3-GAP CONTRARY`; all other arms `NULL` — 2026-09-28 · [record](../study-results/f5_hedging/hedge_timing.md) |
+| [`hedge_portfolio.md`](f5_hedging/hedge_portfolio.md) | When the book is concentrated in one cluster, does a put on its proxy cut drawdown? | graded | mechanism `UNDERPOWERED`; `ARM M MEASUREMENT-ONLY` — 2026-09-28 · [record](../study-results/f5_hedging/hedge_portfolio.md) |
+| [`index_bear_hedge.md`](f5_hedging/index_bear_hedge.md) | Do SPY, QQQ and IWM bear spreads work as crash insurance on later sell-offs? | run · accepted by default | forward `STILL-OPEN` — 2026-10-09 · [record](../study-results/f5_hedging/index_bear_hedge.md) |
 
 `vol_sleeve` and `hedge_concentration` were deleted as modules on 2026-09-07 and their registrations and records on 2026-09-08 (held in git at `44bbfb2`); the DELETED rows in [`../study-map.md`](../study-map.md#hedging) are the record. `bear_deploy`, `calendar_hedge` and `hedge_exposure` were renamed `hedge_sizing`, `hedge_structure` and `hedge_portfolio` on 2026-09-08; each file's second line says so.

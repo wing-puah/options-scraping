@@ -12,10 +12,8 @@ was fixed before any outcome column was read.
 the study module, and decides whether anything else prints. On the cache as it
 stood on 2026-10-09 it does not pass: the M1 legs are a few hundred contracts
 away, and `ARM U` needs tens of thousands, plus stock bars for most of the
-flow universe. So the recorded result is `NOT BUILT — AWAITING SCRAPE`, with
-the fetch plan printed. No outcome has been read. A ruling of 2026-10-13
-splits the floors by arm, so the same-ticker arms can be read before `ARM U`
-is built (see [Dependencies](#dependencies)).
+flow universe. A ruling of 2026-10-13 splits the floors by arm, so the
+same-ticker arms can be read before `ARM U` is built (see [Dependencies](#dependencies)).
 
 ## Question
 
@@ -156,13 +154,6 @@ Three rules bind both arms:
   - **The fix.** The walk keeps the same order and runs until five calls
     are priced or none are left. A spot the old walk read off five
     contracts is unchanged. G2 still passes.
-  - **Found after P1 was recorded.** The P1 run of 2026-10-14 graded a
-    population this bug had trimmed. P1 will be re-run and recorded as a
-    correction beside the original.
-
-  | v4 `ARM M1` drops | P1, 2026-10-14 | After the fix |
-  |---|---|---|
-  | `no_spot_at_signal` | 35 | 8 |
 - **No degenerate pair.** If the two chosen strikes collide, or the resulting
   width is zero, the pair is dropped and counted, never silently widened.
 - **A dropped pair is dropped on BOTH sides.** Every comparison is paired. A

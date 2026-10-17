@@ -1,6 +1,6 @@
 ## text_features — does the model's own TEXT separate outcome within structure × tier?
 
-_REGISTERED 2026-09-02; status: DRAFT — becomes immutable on first run._
+_Registered 2026-09-02._
 
 ## Question
 

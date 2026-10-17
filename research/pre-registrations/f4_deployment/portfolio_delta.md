@@ -200,10 +200,10 @@ case resolves to **NOISE with a printed QUALIFICATION block naming the arms**,
 rather than a fifth label. No criterion or threshold moves as a result.
 
 **Amendment 2026-08-27 (grammar completion — no criterion, threshold, or arm
-definition moves).** The 2026-08-27 run produced the first arm to clear the FULL
-§Bar conjunction on both populations, and the mapping above resolved it to the
-NOISE catch-all — printing a headline ("no arm exceeds ARM N's 95th percentile")
-that the same report's checklist line contradicts. That combination was already
+definition moves).** The mapping above resolves an arm that clears the FULL
+§Bar conjunction to the NOISE catch-all — printing a headline ("no arm exceeds
+ARM N's 95th percentile") that the same report's checklist line contradicts.
+That combination was already
 worded in §Bar ("Even a full pass is a CANDIDATE queued for an independent
 window — nothing ships from this study under any outcome"); this amendment only
 wires that existing wording into the verdict grammar **as its own label**:
@@ -222,10 +222,8 @@ unchanged.**
 
 **Also recorded:** the disclosed per-date net-delta figures (median 0.33, max
 1.17) were measured on THAT DAY'S PICKS at 1 contract; the study's G-INVENTORY
-census measures the OPEN BOOK at session open under production sizing (median
-+1.70, max +2.49 on the primary population). Different quantities by definition,
-both printed with their definitions; the long-only fact (0 net-short sessions)
-holds under both.
+census measures the OPEN BOOK at session open under production sizing.
+Different quantities by definition, both printed with their definitions.
 
 ## Anti-tuning
 
