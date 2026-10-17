@@ -1,0 +1,98 @@
+# bear_fast_exit — brief
+
+> This is a plain-language brief, not the registration. The binding text is [the registration](../../pre-registrations/f2_management/bear_fast_exit.md); where the two differ, the registration wins.
+> Latest outcome: headline line `BLEED-CUT (C7 PENDING)` on `TS 1`, and the secondary line (plus 0.25 of the spread) `BLEED-CUT (C7 PENDING)` on `TS 1`; no arm `PAYS` — 2026-10-10 · [record](../../study-results/f2_management/bear_fast_exit.md).
+> Nothing else here is a result.
+
+## The question
+
+Is there a bear-debit exit, fixed at order entry, that holds only a few sessions or takes a small profit, and is positive net of trading costs?
+
+The operator said on 2026-09-22 that bear debit spreads still work when closed very quickly. The study tests that claim in two parts.
+
+1. **Level.** Under a fast exit, is bear-debit [net R](../../glossary.md#net-r) above zero, with a date-clustered [CI](../../glossary.md#ci) excluding zero?
+2. **Delta.** Is the fast exit better than the shipped bear-debit exit, paired by row, net of costs?
+
+A fast exit that passes only the delta question cuts a loss. It does not make bear debits work.
+
+## What it compares
+
+Eight arms in three families, frozen. Labels are `bear_fast_exit ARM TP`, `ARM TS` and `ARM OP` ([index](../../arm-index.md#bear_fast_exit)).
+
+| Object | What it does | Kind |
+|---|---|---|
+| `bear_fast_exit ARM TP` | Replaces `pt` with 0.10, 0.20 or 0.30. Stop, `tef` and the BEAR_HE trail are unchanged | exit arm |
+| `bear_fast_exit ARM TS` | Exits at the close of session N if still open, N ∈ {1, 2, 3, 5}. Session 1 is the entry-day close | exit arm |
+| `bear_fast_exit ARM OP` | The operator's inferred rule: profit target 0.25, or the close of session 5, whichever comes first | exit arm |
+
+The baseline is the shipped bear-debit exit ([§5](../../../docs/deployment-rules.md#s5)), never a clean profile. It is not an arm.
+
+- Signal date mech `BEAR_HE`: `pt` 0.90, `sl` 0.75, `tef` 0.75, trail 0.50 armed at +0.50.
+- Any other date: `pt` 0.90, `sl` 0.75, `tef` 0.75, no trail.
+
+The module builds each profile with production's own merge from `config/backtest.yml` at run time. No arm is conditioned on regime, mech cell, DTE, `|delta|` or the day-0 move.
+
+Marks are daily closes. A session-1 exit is the entry-day close. An intraday exit at a better price cannot be replayed.
+
+## How it is judged
+
+**Measure.** Net R: the arm's replayed R minus that arm's own round-trip cost in R. Gross R prints beside it and grades nothing. The unit is the signal date, and every CI uses 10,000 bootstrap draws at α = 0.05.
+
+**Cost lines.** Each line prints its own verdict. Only the headline line is the study's verdict.
+
+| Line | Cost |
+|---|---|
+| Headline | $0.65 per contract per leg per side, no slippage |
+| Secondary | $0.65 plus 25% of the quoted spread per leg per side |
+
+An expired leg is charges at entry only. Missing or degenerate quotes follow the [`cost_sensitivity`](../../pre-registrations/f2_management/cost_sensitivity.md) `ARM Q` fallback ladder. A position with no usable quote is UNCOSTABLE and excluded.
+
+**Population.** `bear_put_spread` and `long_put` rows with a debit entry, read through `load_book(include_bs=False)` on `real` and `strike_expiry_tweak` rows. Rows with `fill_trusted` False are excluded. The v4 era is PRIMARY and v3 is the replication era. They are never pooled. The date count is not fixed. Sealed dates are excluded while [`holdout_seal`](../../pre-registrations/f4_deployment/holdout_seal.md) stands, which is from 2026-09-23.
+
+**Gates.** Each gate exits non-zero on failure, except G4.
+
+- `G0` power: at least 25 affected dates and 60 affected rows per arm and era, or the arm prints `UNDERPOWERED`.
+- `G1` leak guard: every non-bear row comes back unchanged.
+- `G2` baseline is production: `ARM TP` at `pt` 0.90 and `ARM TS` beyond the path must each reproduce the baseline exactly.
+- `G3` export is post-re-price: on v4 every row in scope carries a `cost_total` value. It does not apply to v3.
+- `G4` quote provenance: prints, does not refuse. If more than 25% of an era's charged legs use fallback 2 or are UNCOSTABLE, the era prints `UNCOSTABLE` and grades nothing. It grades the secondary line only.
+- `G5`: no annualised figure, Sharpe or time-to-recover.
+- `G6`: every count is computed by the run.
+
+**Bar.** Failing any criterion of a question fails that question.
+
+1. `C1`: net meanR > 0 on v4, CI excluding zero.
+2. `C2`: the same on v3.
+3. `C3`: paired net ΔR > 0 on v4, CI excluding zero.
+4. `C4`: the same on v3.
+5. `C5`: every leave-one-date-out ([LOO](../../glossary.md#loo)) fold keeps the sign.
+6. `C6`: the sign holds ex-Mar–Apr-2025, ex-Feb–Apr-2026 and ex-both, in every calendar year present, and in both pricing tiers.
+7. `C7` FORWARD: on sealed or post-registration dates, read once, the same sign as on v4, on at least 15 dates and 30 rows. Below the floor C7 is `PENDING`.
+
+C5 and C6 apply to every question an arm passes. C7 stays `PENDING` while the seal stands.
+
+## Possible verdicts
+
+| Token | What it means |
+|---|---|
+| `PAYS` | An arm clears C1–C7. The operator is asked to sign a new §5 row for bear debits |
+| `BLEED-CUT` | An arm clears C3–C7 but fails C1 or C2. The exit loses less than the shipped one and still loses |
+| `NULL` | No arm clears C3 and C4. The shipped exit stands |
+| `UNDERPOWERED` | G0 stops every arm. Census only |
+| `UNCOSTABLE` | G4 fires on v4. The quote census is the result |
+
+A `PAYS` or `BLEED-CUT` prints as `PAYS (C7 PENDING)` or `BLEED-CUT (C7 PENDING)`. An arm that clears C3 and C4 but fails C5 or C6 earns no `BLEED-CUT`. Its verdict is `NULL`, and the report names the arm.
+
+## What could ship
+
+Only a `PAYS` verdict can ship. It ships as a §5 row for bear debits that the operator signs, with a rollback trigger registered before it ships. §1.4 is not changed by any verdict.
+
+`BLEED-CUT` ships nothing. It sends the question about the §4 hedge sleeve's exit to the operator, with the conflict stated. A fast exit removes the protection the sleeve is held for, and only `hedge_portfolio` can price that.
+
+## What this study cannot tell you
+
+- Whether bear debits should be selected differently. It is not a selection study.
+- What a fast exit does to hedge protection on drawdown days.
+- Anything about intraday exits.
+- Anything from the 10 `long_put` rows alone. The result is about bear put spreads.
+- Anything confirmed by the existing book. The arms were computed on both eras before registration, so C7 is the only clause that confirms.
