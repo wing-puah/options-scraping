@@ -183,10 +183,10 @@ No rule changes on it.
     ([entry](current.md#2026-10-13--earnings_vol-neither-earnings-structure-pays-and-the-calendars-edge-is-the-spread)).
     The leg planner and fetcher is `scripts/collector/study_legs/fetch_earnings_legs.py`,
     with its own manifest in `backtests/sweep_cache/`.
-11. **Claude, when asked: regroup `scripts/collector/`.** It holds 18 entries,
-    past the seven-plus-or-minus-two rule. GitHub Actions and the docs call
-    several of them by path, so the move must fix every workflow and
-    reference in one commit. Filed 2026-10-12 at the operator's choice.
+11. **Done 2026-10-18: `scripts/collector/` regrouped** (commit 3bca8e7). Its
+    18 entries now sit in `daily/` (the scheduled scrapes), `history/` (the
+    price caches) and `study_legs/` (each study's legs). Every workflow and
+    reference was fixed in the same commit.
 
 **Where things stand.**
 
