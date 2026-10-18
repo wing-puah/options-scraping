@@ -494,7 +494,7 @@ contracts have no cache file, so every unbounded run used to scrape them again.
 `--retry-proxied` keeps them as candidates, for when Barchart has since listed a
 contract. `--redo` still deletes and replaces `BacktestResults` rows only.
 
-**Dry runs make no Barchart call.** `scripts.backtest --dry-run` prints, per play,
+**Dry runs never call Barchart.** `scripts.backtest --dry-run` prints, per play,
 how many contracts are cached and how many would be scraped, then stops. The proxy's
 `--dry-run` evaluates on cached history and never probes. An unbounded run that
 would scrape more than 500 contracts logs a warning suggesting `--start`.
