@@ -1,32 +1,49 @@
 name: Flow Pacemaker
 
-# MANUAL FALLBACK for when GitHub's cron scheduler stops starting scrape.yml.
+# Paces one trading day's flow scrapes from a single run, because GitHub's cron
+# scheduler cannot be trusted to start scrape.yml every hour.
 #
 # Background (2026-08-28): scheduled runs drifted 3-12h late and the hourly flow
 # crons were dropped entirely — 08-27 compiled to 501 rows (a single snapshot)
-# against the usual 1200-1800. workflow_dispatch runs are NOT deprioritised the
-# way schedule runs are, so this workflow is started BY HAND once and then paces
-# itself: each job sleeps to the next scrape time and runs the scraper in-process,
-# instead of asking the scheduler to start a fresh job every hour.
+# against the usual 1200-1800. So instead of asking the scheduler to start a fresh
+# job every hour, ONE run is started per day and paces itself: each job sleeps to
+# the next scrape time and runs the scraper in-process.
 #
-# The window starts at 15:00 UTC — 23:00 Singapore, the hour the pacemaker is
-# dispatched by hand — and runs hourly to 21:00 UTC, which is the 16:00 ET close
-# in EST and close +1h in EDT (same both-DST-regimes cover as scrape.yml's
-# '30 13-21' cron). The unusual scrape then fires at 22:00 UTC, always >=1h after
-# the close has settled.
+# HOW IT STARTS (2026-10-18). A daily cron at 10:00 UTC (18:00 SGT), Mon-Fri, plus
+# workflow_dispatch by hand. The cron may be late or dropped like any GitHub cron;
+# a manual dispatch still works and is safe at ANY hour, because:
+#   - the `gate` job refuses a day that is not an NYSE session (weekend or
+#     holiday, judged by the ET date via .github/scripts/pacemaker_gate.py), so a
+#     run started on a Sunday ends in a minute instead of idling 12h;
+#   - the gate refuses when an EARLIER pacemaker run from today is still running
+#     or succeeded, so cron + a hand dispatch never pace the day twice
+#     (`force` overrides, e.g. to re-run a failed half);
+#   - the gate, not the scrape legs, does the long wait: it sleeps to 10 minutes
+#     before the first scrape time, so each leg's 6h budget starts near its first
+#     scrape. Before this, a leg dispatched more than ~6h early was killed while
+#     still asleep and scraped nothing.
+# A start later than a scrape time fires that scrape immediately (pace_scrapes.sh);
+# compile_flow.py dedupes snapshots, so a late start costs coverage, not data.
 #
-# Two chained jobs are now MANDATORY, not merely prudent. A GitHub-hosted job is
+# The window starts at 15:00 UTC — 23:00 Singapore — and runs hourly to 21:00 UTC,
+# which is the 16:00 ET close in EST and close +1h in EDT (same both-DST-regimes
+# cover as scrape.yml's '30 13-21' cron). The unusual scrape then fires at 22:00
+# UTC, always >=1h after the close has settled.
+#
+# Two chained scrape jobs are MANDATORY, not merely prudent. A GitHub-hosted job is
 # hard-killed at 6h and the full 15:00->22:05 window is ~7h, so no single job can
 # hold it; split at 19:00 each half spans ~3h. Job B carries `if: always()` so a
 # crash in A still leaves the close scrape covered; worst case you lose half the
 # snapshots, not the night.
 #
-# This does NOT replace scrape.yml's crons — it is additive and dispatch-only.
-# Compile is deliberately NOT included: compile-flow.yml takes a `date` input and
+# This does NOT replace scrape.yml's crons — it is additive. Compile is
+# deliberately NOT included: compile-flow.yml takes a `date` input and
 # gc_flow.py --last 3 sweeps the 3 most recent compiled dates, so a missed compile
 # self-heals on the next daily pass.
 
 on:
+  schedule:
+    - cron: '0 10 * * 1-5'
   workflow_dispatch:
     inputs:
       early_times:
@@ -44,9 +61,90 @@ on:
         required: false
         default: '2200'
         type: string
+      force:
+        description: 'Run even if an earlier pacemaker run today is running or succeeded'
+        required: false
+        default: false
+        type: boolean
+
+# A schedule event carries no inputs, so it gets the dispatch defaults here. A
+# dispatch keeps whatever was typed, INCLUDING a deliberately blank field.
+env:
+  EARLY_TIMES: ${{ github.event_name == 'schedule' && '1500 1600 1700 1800' || inputs.early_times }}
+  LATE_TIMES: ${{ github.event_name == 'schedule' && '1900 2000 2100' || inputs.late_times }}
+  UNUSUAL_TIMES: ${{ github.event_name == 'schedule' && '2200' || inputs.unusual_time }}
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    # Long on purpose: this job holds the pre-window wait (see header).
+    timeout-minutes: 350
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      open: ${{ steps.dupe.outputs.open }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Is today an NYSE session?
+        id: session
+        run: python .github/scripts/pacemaker_gate.py
+
+      - name: Has an earlier run already got today?
+        id: dupe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SESSION_OPEN: ${{ steps.session.outputs.open }}
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          if [ "$SESSION_OPEN" != "true" ]; then
+            echo "::notice::${{ steps.session.outputs.reason }} — nothing to scrape."
+            echo "open=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$FORCE" = "true" ]; then
+            echo "open=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Only defer to an OLDER run (lower id), so two runs started together
+          # never both stand down. Matched on the UTC date: the cron and any
+          # sensible dispatch land 04:00-24:00 UTC, where it equals the ET date. A
+          # dispatch after 00:00 UTC can miss that night's earlier run and pace
+          # again; its scrapes fire at once and compile_flow.py dedupes them.
+          today=$(date -u +%F)
+          prior=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow flow-pacemaker.yml \
+            --limit 30 --json databaseId,createdAt,status,conclusion \
+            --jq "[.[] | select(.databaseId < $GITHUB_RUN_ID)
+                       | select(.createdAt | startswith(\"$today\"))
+                       | select(.status != \"completed\" or .conclusion == \"success\")
+                       | .databaseId] | join(\" \")")
+          if [ -n "$prior" ]; then
+            echo "::notice::Pacemaker run(s) $prior already cover $today — standing down (dispatch with force to override)."
+            echo "open=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "open=true" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until 10 minutes before the first scrape
+        if: steps.dupe.outputs.open == 'true'
+        run: |
+          first=$(echo "$EARLY_TIMES $LATE_TIMES $UNUSUAL_TIMES" | awk '{print $1}')
+          [ -z "$first" ] && { echo "No scrape times given."; exit 0; }
+          m=$(( 10#${first:0:2} * 60 + 10#${first:2:2} - 10 ))
+          until=$(printf '%02d%02d' $(( m / 60 )) $(( m % 60 )))
+          echo "First scrape $first UTC; waiting to $until UTC (now $(date -u +%H%M))."
+          while [ "$((10#$(date -u +%H%M)))" -lt "$((10#$until))" ]; do sleep 30; done
+
   early:
+    needs: gate
+    if: needs.gate.outputs.open == 'true'
     # 350, not 240: a job dispatched an hour early spends that hour asleep, and a
     # timeout below the 6h hard kill would cut the last scrape of the leg rather
     # than the runner doing it. 350 lets the leg use its whole GitHub budget.
@@ -77,7 +175,7 @@ jobs:
 
       - name: Pace the early flow scrapes
         env:
-          TIMES: ${{ inputs.early_times }}
+          TIMES: ${{ env.EARLY_TIMES }}
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
@@ -87,7 +185,7 @@ jobs:
         run: bash .github/scripts/pace_scrapes.sh
 
   late:
-    needs: early
+    needs: [gate, early]
     # Run even if the early half crashed or was cancelled — the 22:00 unusual
     # scrape is the single most valuable capture of the day.
     #
@@ -97,7 +195,7 @@ jobs:
     # in a workflow can delay a job's start, so the fix is operational: if `early`
     # fails early, re-dispatch with early_times blank and let the fresh `late` leg
     # start its clock later.
-    if: always()
+    if: always() && needs.gate.outputs.open == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 350
 
@@ -123,8 +221,8 @@ jobs:
 
       - name: Pace the late flow scrapes and the close scrape
         env:
-          TIMES: ${{ inputs.late_times }}
-          UNUSUAL_TIME: ${{ inputs.unusual_time }}
+          TIMES: ${{ env.LATE_TIMES }}
+          UNUSUAL_TIME: ${{ env.UNUSUAL_TIMES }}
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
