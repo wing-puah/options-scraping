@@ -82,7 +82,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -150,7 +150,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -212,7 +212,7 @@ jobs:
         # No exit-code capture: this script has no degrade path, so this is the
         # last runner — if it also hits the refusal (or anything else), the job
         # fails exactly as this workflow always has.
-        run: python scripts/collector/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/daily/fetch_counterpart_iv.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

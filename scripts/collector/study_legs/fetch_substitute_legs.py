@@ -52,9 +52,9 @@ scrape. Needs BARCHART_EMAIL/BARCHART_PASSWORD. Research-tier, run by hand.
 Run `python3 scripts/backup_research_caches.py push` after it.
 
 Usage:
-  python3 scripts/collector/fetch_substitute_legs.py --dry-run
-  python3 scripts/collector/fetch_substitute_legs.py --limit 200
-  python3 scripts/collector/fetch_substitute_legs.py --scope between --dry-run
+  python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run
+  python3 scripts/collector/study_legs/fetch_substitute_legs.py --limit 200
+  python3 scripts/collector/study_legs/fetch_substitute_legs.py --scope between --dry-run
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 

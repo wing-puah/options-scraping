@@ -14,7 +14,7 @@ from scripts.backtest.helpers import _weekday_grid
 from scripts.backtest_study.f2_management import next_day_move as ndm
 from scripts.backtest_study.lib import underlying as und
 from scripts.backtest_study.lib.harness import Trade
-from scripts.collector import fetch_underlying_ohlc as foh
+from scripts.collector.history import fetch_underlying_ohlc as foh
 
 SIGNAL = date(2024, 3, 4)      # Monday
 EXPIRY = date(2024, 3, 15)     # Friday

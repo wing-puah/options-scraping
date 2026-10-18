@@ -132,7 +132,7 @@ Three things must land before a full run. Until they have, the study prints
 - `scripts/backtest_study/lib/ladder_targets.py` — the one owner of "which
   contracts does a campaign owe a core", imported by both the collector and the
   campaign engine.
-- `scripts/collector/fetch_ladder_legs.py` — resumable collector, manifest
+- `scripts/collector/study_legs/fetch_ladder_legs.py` — resumable collector, manifest
   `backtests/sweep_cache/ladder_manifest.csv`, categories `ladder_call_t0`,
   `ladder_call_roll`, `ladder_put_short`, `ladder_put_core`. Its `--dry-run`
   census is pasted into Anti-tuning BEFORE the first fetch.
@@ -496,7 +496,7 @@ outcome is seen.
   added or removed after any outcome is seen.
 
 _Collector dry-run census, pasted 2026-09-10 before the first fetch
-(`python3 scripts/collector/fetch_ladder_legs.py --dry-run`, era v4, 447
+(`python3 scripts/collector/study_legs/fetch_ladder_legs.py --dry-run`, era v4, 447
 bull_call_spread cores, 44 with no eligible expiry at any slot):_
 
 | category | targets | cached | missing |

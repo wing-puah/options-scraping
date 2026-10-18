@@ -24,12 +24,12 @@ serves the backtest (historical D) and a live run (latest D). The rollup
 `scripts/analysis_pipeline/fetch.py` loads it at analysis time.
 
 Usage:
-  python3 scripts/collector/fetch_counterpart_iv.py                        # latest compiled date
-  python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26
-  python3 scripts/collector/fetch_counterpart_iv.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/collector/fetch_counterpart_iv.py --backfill             # every compiled date
-  python3 scripts/collector/fetch_counterpart_iv.py --backfill --dry-run   # report scope, no scrape
-  python3 scripts/collector/fetch_counterpart_iv.py --date 2026-06-26 --force   # re-fetch from scratch
+  python3 scripts/collector/daily/fetch_counterpart_iv.py                        # latest compiled date
+  python3 scripts/collector/daily/fetch_counterpart_iv.py --date 2026-06-26
+  python3 scripts/collector/daily/fetch_counterpart_iv.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/daily/fetch_counterpart_iv.py --backfill             # every compiled date
+  python3 scripts/collector/daily/fetch_counterpart_iv.py --backfill --dry-run   # report scope, no scrape
+  python3 scripts/collector/daily/fetch_counterpart_iv.py --date 2026-06-26 --force   # re-fetch from scratch
 """
 import argparse
 import asyncio
@@ -43,10 +43,10 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / ".env")
+load_dotenv(Path(__file__).parents[3] / ".env")
 
+sys.path.insert(0, str(Path(__file__).parents[3]))
 sys.path.insert(0, str(Path(__file__).parents[2]))
-sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options
 from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.parsing import to_float
@@ -64,7 +64,7 @@ from compile_flow import FLOW_PREFIXES, compiled_name
 log = logging.getLogger("fetch_counterpart_iv")
 
 CHECKPOINT_EVERY = 50
-_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[3] / "cookies" / "barchart_session.json")
 
 
 def _fmt(v) -> str:

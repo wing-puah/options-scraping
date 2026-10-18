@@ -89,9 +89,9 @@ caps fetch attempts. Research-tier, run by hand, under `caffeinate`; run
 `scripts/backup_research_caches.py push` afterwards.
 
 Usage:
-  python3 scripts/collector/fetch_earnings_legs.py                                  # dry run
-  caffeinate -i python3 scripts/collector/fetch_earnings_legs.py --phase front --execute
-  caffeinate -i python3 scripts/collector/fetch_earnings_legs.py --phase back --execute
+  python3 scripts/collector/study_legs/fetch_earnings_legs.py                                  # dry run
+  caffeinate -i python3 scripts/collector/study_legs/fetch_earnings_legs.py --phase front --execute
+  caffeinate -i python3 scripts/collector/study_legs/fetch_earnings_legs.py --phase back --execute
 """
 from __future__ import annotations
 
@@ -110,7 +110,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, Iterable
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from lib.barchart.options import cache_path  # noqa: E402
@@ -820,7 +820,7 @@ def main() -> None:
         print("\ndry run: nothing fetched, manifest untouched. --execute to fetch.")
         return
 
-    from scripts.collector.fetch_sweep_legs import (
+    from scripts.collector.study_legs.fetch_sweep_legs import (
         _key, load_manifest, merge_manifest, print_summary, run_fetch, sync_cache_status,
         write_manifest)
     rows_m = merge_manifest(load_manifest(MANIFEST_PATH), targets)

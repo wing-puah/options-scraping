@@ -9,17 +9,17 @@ model defaulted every trend play to a debit spread (TF). Rich IV is exactly wher
 debit spread underperforms and where TF-S / credit should take over.
 
 The source is Barchart's **options-overview history** (scraped by
-`scripts/collector/fetch_iv_percentile.py` via `BarchartSession.fetch_options_overview_history` →
+`scripts/collector/daily/fetch_iv_percentile.py` via `BarchartSession.fetch_options_overview_history` →
 parsed by `lib/barchart/iv_history.py`): a daily series that already carries Barchart's
 **IV rank** and **IV percentile** per historical date. So there is NO percentile to
 compute here — we read the value AS OF the trade date and APPEND it, along with the IV
 level and IV rank, as columns onto every row of that ticker in the compiled flow file
-(the same enrich-in-place pattern as `scripts/collector/enrich_oi.py`; NOT a separate cache tab).
+(the same enrich-in-place pattern as `scripts/collector/daily/enrich_oi.py`; NOT a separate cache tab).
 `scripts/analysis_pipeline/fetch.py` then reads `iv_pct` straight back off those rows.
 
 This module is pure: the enrichment column names, the as-of-date series pick (with a
 staleness fallback), and the flow-row → `{SYMBOL: iv_pct}` reader for the consumer.
-Scrape + Drive I/O live in `scripts/collector/fetch_iv_percentile.py` (producer) and
+Scrape + Drive I/O live in `scripts/collector/daily/fetch_iv_percentile.py` (producer) and
 `scripts/analysis_pipeline/fetch.py` (consumer).
 """
 from __future__ import annotations

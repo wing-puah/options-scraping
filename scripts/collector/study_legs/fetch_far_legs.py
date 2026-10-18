@@ -56,9 +56,9 @@ Needs BARCHART_EMAIL/BARCHART_PASSWORD for an actual fetch. Research-tier,
 run by hand — not scheduled, not imported by production.
 
 Usage:
-  python3 scripts/collector/fetch_far_legs.py --dry-run
-  python3 scripts/collector/fetch_far_legs.py --limit 200
-  python3 scripts/collector/fetch_far_legs.py --limit 200 --retry-failed
+  python3 scripts/collector/study_legs/fetch_far_legs.py --dry-run
+  python3 scripts/collector/study_legs/fetch_far_legs.py --limit 200
+  python3 scripts/collector/study_legs/fetch_far_legs.py --limit 200 --retry-failed
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
@@ -82,7 +82,7 @@ from scripts.backtest_study.lib.book import load_book  # noqa: E402
 from scripts.backtest_study.lib.sleeve_synth import (  # noqa: E402
     _strike_index, call_expiries, paired_strikes,
 )
-from scripts.collector.fetch_sweep_legs import (  # noqa: E402
+from scripts.collector.study_legs.fetch_sweep_legs import (  # noqa: E402
     load_manifest, merge_manifest, print_summary, run_fetch, sync_cache_status,
     write_manifest,
 )

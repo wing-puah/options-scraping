@@ -6,19 +6,19 @@ PY   := $(VENV)/bin/python3
 .PHONY: scrape
 scrape:
 ifeq ($(strip $(ARGS)),)
-	$(PY) scripts/collector/scrape_flow.py --mode flow
-	$(PY) scripts/collector/scrape_flow.py --mode unusual
+	$(PY) scripts/collector/daily/scrape_flow.py --mode flow
+	$(PY) scripts/collector/daily/scrape_flow.py --mode unusual
 else
-	$(PY) scripts/collector/scrape_flow.py $(ARGS)
+	$(PY) scripts/collector/daily/scrape_flow.py $(ARGS)
 endif
 
 .PHONY: scrape-flow
 scrape-flow:
-	$(PY) scripts/collector/scrape_flow.py --mode flow $(ARGS)
+	$(PY) scripts/collector/daily/scrape_flow.py --mode flow $(ARGS)
 
 .PHONY: scrape-unusual
 scrape-unusual:
-	$(PY) scripts/collector/scrape_flow.py --mode unusual $(ARGS)
+	$(PY) scripts/collector/daily/scrape_flow.py --mode unusual $(ARGS)
 
 # ── compile & gc ───────────────────────────────────────────────────────────────
 .PHONY: compile
@@ -32,18 +32,18 @@ gc:
 # ── enrich ─────────────────────────────────────────────────────────────────────
 .PHONY: enrich
 enrich:
-	$(PY) scripts/collector/enrich_oi.py $(ARGS)
+	$(PY) scripts/collector/daily/enrich_oi.py $(ARGS)
 
 # ── counterpart iv ───────────────────────────────────────────────────────────────
 .PHONY: counterpart-iv
 counterpart-iv:
-	$(PY) scripts/collector/fetch_counterpart_iv.py $(ARGS)
+	$(PY) scripts/collector/daily/fetch_counterpart_iv.py $(ARGS)
 
 
 # ── iv percentile ────────────────────────────────────────────────────────────────
 .PHONY: iv-percentile
 iv-percentile:
-	$(PY) scripts/collector/fetch_iv_percentile.py $(ARGS)
+	$(PY) scripts/collector/daily/fetch_iv_percentile.py $(ARGS)
 
 # ── both iv enrichments, one after another ──────────────────────────────────────
 .PHONY: iv-all
@@ -52,7 +52,7 @@ iv-all: counterpart-iv iv-percentile
 # ── price catalyst ────────────────────────────────────────────────────────────────
 .PHONY: price-catalyst
 price-catalyst:
-	$(PY) scripts/collector/fetch_price_catalyst.py $(ARGS)
+	$(PY) scripts/collector/daily/fetch_price_catalyst.py $(ARGS)
 
 # ── all enrichments: oi + counterpart-iv + iv-percentile + price-catalyst ────────
 .PHONY: enrich-all
@@ -65,7 +65,7 @@ enrich-all: enrich counterpart-iv iv-percentile price-catalyst
 # Python stays offline and pure, the freshness step lives here in make.
 .PHONY: mech-regime
 mech-regime:
-	$(PY) scripts/collector/fetch_mech_regime.py --download
+	$(PY) scripts/collector/daily/fetch_mech_regime.py --download
 
 # Fill `mech_cell` on rows written before the column shipped, or while the table
 # was stale (NO_DATA). Pure function of the date, so it is safe to re-run; also

@@ -414,7 +414,7 @@ Attempt-13 credit stop removal, which was later tested on a fresh 51-row
 window and held. DECISION PENDING.
 
 **Spun-off TODO (independent of the above):** add a staleness guard to
-`scripts/collector/scrape_flow.py` historical mode — reject a downloaded
+`scripts/collector/daily/scrape_flow.py` historical mode — reject a downloaded
 flow CSV whose rows don't correspond to the requested `historicalDate`
 (cheap check: fallback payload is recognisable by its fixed 500-row count
 plus a first-row symbol/price that repeats across dates; a stricter check
@@ -573,7 +573,7 @@ the code too. CI could not have run it.
 
 **What shipped**
 
-- `scripts/collector/fetch_mech_regime.py` — tracked, collector convention.
+- `scripts/collector/daily/fetch_mech_regime.py` — tracked, collector convention.
   Default direction = yfinance → local CSV → Drive; `--download` = Drive →
   local. Two directions kept separate and neither implicit.
 - Drive layout: single file `spy-vix-daily.csv` at the ROOT, not under a

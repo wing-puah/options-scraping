@@ -77,10 +77,10 @@ Needs BARCHART_EMAIL/BARCHART_PASSWORD for an actual fetch. Research-tier,
 run by hand — not scheduled, not imported by production.
 
 Usage:
-  python3 scripts/collector/fetch_ladder_legs.py --dry-run
-  python3 scripts/collector/fetch_ladder_legs.py --category ladder_call_t0,ladder_call_roll
-  python3 scripts/collector/fetch_ladder_legs.py --limit 200 --retry-failed
-  python3 scripts/collector/fetch_ladder_legs.py --era v3 --dry-run
+  python3 scripts/collector/study_legs/fetch_ladder_legs.py --dry-run
+  python3 scripts/collector/study_legs/fetch_ladder_legs.py --category ladder_call_t0,ladder_call_roll
+  python3 scripts/collector/study_legs/fetch_ladder_legs.py --limit 200 --retry-failed
+  python3 scripts/collector/study_legs/fetch_ladder_legs.py --era v3 --dry-run
 """
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
@@ -105,7 +105,7 @@ from scripts.backtest_study.f3_structure.financed_spread import (  # noqa: E402
 from scripts.backtest_study.lib import ladder_targets as LT  # noqa: E402
 from scripts.backtest_study.lib.book import load_book  # noqa: E402
 from scripts.backtest_study.lib.sleeve_synth import _strike_index  # noqa: E402
-from scripts.collector.fetch_financing_legs import (  # noqa: E402
+from scripts.collector.study_legs.fetch_financing_legs import (  # noqa: E402
     load_manifest, merge_manifest, print_summary, run_fetch, split_cached,
     sync_cache_status, wanted_rows, write_manifest,
 )

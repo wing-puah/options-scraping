@@ -46,7 +46,7 @@ lib/                        ← shared modules, imported by scripts, never run d
   counterpart_iv.py         — pure logic for the IV-spread counterpart fetch: which missing legs
                               to fetch (`needed_counterparts`), the per-date sidecar schema/name,
                               and the `build_iv_lookup` the rollup folds in. Shared by
-                              scripts/collector/fetch_counterpart_iv.py (producer) and
+                              scripts/collector/daily/fetch_counterpart_iv.py (producer) and
                               lib/flow_summary/core.py (consumer) so keys + IV units agree
   price_catalyst.py         — pure logic for the price/earnings-catalyst enrichment grounding
                               the two pipeline-computed Step-5 score components: column
@@ -68,7 +68,7 @@ lib/                        ← shared modules, imported by scripts, never run d
                               `RetryingHTTPClient` absorbs Google's transient 5xx/429
 
 scripts/                    ← entry points, each maps to a workflow step
-  collector/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
+  collector/daily/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one
                               deduped CSV per type (trade-identity dedup) →
                               {prefix}-{YYYYMMDD}-compiled.csv in Drive. NOTE: a compile re-run
@@ -93,7 +93,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               every later column). Repairs only when drifted columns are empty
                               or are schema columns in the wrong position; else aborts that tab
                               untouched. --dry-run first
-  collector/enrich_oi.py    — for every distinct contract in a day's compiled flow file, scrape
+  collector/daily/enrich_oi.py    — for every distinct contract in a day's compiled flow file, scrape
                               the per-contract price-history (fetch_history_fast) and APPEND:
                               `oi_d`, `oi_prev` (last trading day before D), `oi_change`
                               (open-confirmation signal), `vol_d`, EOD-settlement greeks
@@ -104,7 +104,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               contracts + on exit (incl. interrupt). Resume is per-contract via
                               the marker (empty results marked attempted); --force clears.
                               D vs D-1, so the newest compiled date is enriched the same evening
-  collector/fetch_iv_percentile.py
+  collector/daily/fetch_iv_percentile.py
                             — for every distinct TICKER in a compiled flow file, scrape a small
                               window of its Barchart IV history around D and APPEND the
                               lib/iv_history.py columns (above). Same enrich-in-place /
@@ -114,7 +114,7 @@ scripts/                    ← entry points, each maps to a workflow step
                               than DEPTH_EXHAUSTED_SHARE of a date's pending tickers. Needs
                               BARCHART_EMAIL/PASSWORD. One-shot backfill: `make
                               fetch-iv-percentile-all`
-  collector/fetch_counterpart_iv.py
+  collector/daily/fetch_counterpart_iv.py
                             — the paper-faithful IV spread needs a matched call+put at the same
                               (strike, expiration); traded flow almost never carries both legs.
                               For each single-sided in-window (10–60 DTE) (strike, expiry),
@@ -126,26 +126,26 @@ scripts/                    ← entry points, each maps to a workflow step
                               IV in [3, 200] pts, OI > 0, price ≥ $0.125 when known; sub-$5
                               underlyings skipped at selection. Idempotent via `fetched_on`;
                               --force clears. Date-keyed so backtest and live share one path
-  collector/fetch_price_catalyst.py
+  collector/daily/fetch_price_catalyst.py
                             — per TICKER, scrape underlying price history + earnings feed, pick
                               as-of-D cells (no look-ahead; yfinance forward-earnings fallback
                               only near-live) and APPEND the price/earnings columns. Same
                               checkpoint/resume/--force pattern (marker:
                               `price_catalyst_enriched_on`). Feeds score_price/score_catalyst.
                               `make price-catalyst` wraps it
-  collector/fetch_underlying_ohlc.py
+  collector/history/fetch_underlying_ohlc.py
                             — underlying stock OHLC cache for studies that need real bars →
                               backtests/underlying_ohlc_cache/. Date flags select TICKERS and
                               drive the coverage gate; they do not window the feed.
                               Split-adjusted tickers land in rescaled_tickers.txt (a basis
                               warning — % moves stay valid, $ moves are withheld)
-  collector/fetch_counterpart_history.py
+  collector/history/fetch_counterpart_history.py
                             — fetches the opposite-type same-strike mirror of every book entry
                               leg into the SAME backtests/option_history_cache/ under the SAME
                               filename convention, so the existing pricing path reads them with
                               no code change (makes VOL structures priceable). Resumable
                               (--limit N)
-  collector/fetch_substitute_legs.py
+  collector/study_legs/fetch_substitute_legs.py
                             — narrow_to_fit's F3 substitute strikes. Targets come from
                               narrow_to_fit.substitute_targets; fetches go through
                               backtest/shared/history.fetch_option_histories. The cache is
@@ -840,7 +840,7 @@ leg through the imported `entry_day_fill` / `carried_entry_fill` under
   It is never stepped over.
 - `seeded_from_log` skip-list entries are not evidence.
 
-**The scrape.** `scripts/collector/fetch_substitute_legs.py` imports
+**The scrape.** `scripts/collector/study_legs/fetch_substitute_legs.py` imports
 `substitute_targets`. That census picks targets with a Black-Scholes estimate
 and never prices with it.
 
@@ -1002,7 +1002,7 @@ inverts G4's and G5's comparisons) so a healthy build prints `GATES: FAILED`. It
 the checker; a run of it that PASSES means the gates are broken. Never cite one as evidence a
 host simulation is sound.
 
-Finally, **`scripts/collector/fetch_underlying_ohlc.py --recheck-rescaled`** — OFFLINE, no
+Finally, **`scripts/collector/history/fetch_underlying_ohlc.py --recheck-rescaled`** — OFFLINE, no
 network call, standalone (it refuses every selection/fetch flag). It re-derives the
 split-adjustment flag for every `backtests/underlying_ohlc_cache/<T>.csv` already on disk, via
 the same `split_check` a live fetch uses, and is the ONLY path allowed to rewrite
@@ -1697,10 +1697,10 @@ python3 scripts/build_baseline.py --backfill --dry-run
 
 # Enrichments — all share: bare = latest date · --date · --backfill (idempotent) ·
 # --dry-run · --force (clear columns/sidecar and re-scrape)
-python3 scripts/collector/fetch_iv_percentile.py      # one-shot backfill: make iv-percentile ARGS="--backfill"
-python3 scripts/collector/enrich_oi.py                # latest compiled date (D vs D-1)
-python3 scripts/collector/fetch_counterpart_iv.py
-python3 scripts/collector/fetch_price_catalyst.py     # make price-catalyst
+python3 scripts/collector/daily/fetch_iv_percentile.py      # one-shot backfill: make iv-percentile ARGS="--backfill"
+python3 scripts/collector/daily/enrich_oi.py                # latest compiled date (D vs D-1)
+python3 scripts/collector/daily/fetch_counterpart_iv.py
+python3 scripts/collector/daily/fetch_price_catalyst.py     # make price-catalyst
 
 # Full analysis pipeline
 python3 -m scripts.analysis_pipeline                      # latest date, claude → AnalysisClaude
@@ -1721,8 +1721,8 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir backtests/pr
 python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir <dir> --skip-llm  # prompt snapshot only
 
 # Scrape historical data to Google Drive
-python3 scripts/collector/scrape_flow.py --date 2026-04-21
-python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/daily/scrape_flow.py --date 2026-04-21
+python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
 # Backtest (idempotent: a play already on the results tab is SKIPPED — see the guard below)
 python3 -m scripts.backtest --config config/backtest.yml
@@ -1745,10 +1745,10 @@ python3 -m scripts.backtest.proxy --config config/backtest-local.yml \
     --analysis-csv backtests/prompt_eval/run1/2026-04-21-rows.csv
 
 # Research-tier caches
-python3 scripts/collector/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run
-python3 scripts/collector/fetch_counterpart_history.py --dry-run
-python3 scripts/collector/fetch_counterpart_history.py --limit 200   # resumable
-python3 scripts/collector/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
+python3 scripts/collector/history/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run
+python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
+python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # resumable
+python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list

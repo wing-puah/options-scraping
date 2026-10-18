@@ -178,7 +178,7 @@ analysing model may have seen in training, not a finding.
 
 **What would unblock it.** [`next-steps.md`](../../../research/next-steps.md) §2.3 for the
 calendar, blocked on new dates and sized at roughly 320 deployed dates. The far
-call the calendar reads is fetched by `scripts/collector/fetch_far_legs.py`
+call the calendar reads is fetched by `scripts/collector/study_legs/fetch_far_legs.py`
 (2026-09-08); the post-fetch read waits on the R2 stop filed in
 [`next-steps.md`](../../../research/next-steps.md) §2.11
 ([outcome](../../../research/archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). For the

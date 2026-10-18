@@ -82,7 +82,7 @@ After the v4 fetch it prints `DOES-NOT-BEAT`
 - `ARM U` as registered stays unfetched. Ticker choice against a random name
   is still untested.
 - The v3 SPY legs are optional and not fetched:
-  `python3 scripts/collector/fetch_mechanical_legs.py --arms SPY --limit N`.
+  `python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms SPY --limit N`.
 
 **P3 — the tier port. DONE 2026-10-13.** The study book now takes its tier
 from `mapping.ladder_tier()`; item 8 has the counts. P5 is the first suite
@@ -181,7 +181,7 @@ No rule changes on it.
    ([entry](current.md#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)).
 10. **DONE 2026-10-13 — `earnings_vol` prints `NULL` on both arms**
     ([entry](current.md#2026-10-13--earnings_vol-neither-earnings-structure-pays-and-the-calendars-edge-is-the-spread)).
-    The leg planner and fetcher is `scripts/collector/fetch_earnings_legs.py`,
+    The leg planner and fetcher is `scripts/collector/study_legs/fetch_earnings_legs.py`,
     with its own manifest in `backtests/sweep_cache/`.
 11. **Claude, when asked: regroup `scripts/collector/`.** It holds 18 entries,
     past the seven-plus-or-minus-two rule. GitHub Actions and the docs call
@@ -421,10 +421,10 @@ Decisions owed. None of these is a study.
 
     | Step | Volume | Command |
     |---|---|---|
-    | v3 same-ticker legs (M1, M2) | `M1:v3=130`, `M2:v3=322` | `python3 scripts/collector/fetch_mechanical_legs.py --arms M1,M2 --limit N` |
-    | `ARM M2L` legs, a declared secondary | `M2L:current=163`, `M2L:v3=70` | `python3 scripts/collector/fetch_mechanical_legs.py --arms M2L --limit N` |
-    | Universe stock bars for ARM U | 1961 tickers | `python3 scripts/collector/fetch_underlying_ohlc.py --tickers $(python3 scripts/collector/fetch_mechanical_legs.py --list-underlying)` |
-    | ARM U legs, v4 and v3 | `U:current=31909`, `U:v3=7139`, more after the bars land | `python3 scripts/collector/fetch_mechanical_legs.py --arms U --limit N` |
+    | v3 same-ticker legs (M1, M2) | `M1:v3=130`, `M2:v3=322` | `python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms M1,M2 --limit N` |
+    | `ARM M2L` legs, a declared secondary | `M2L:current=163`, `M2L:v3=70` | `python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms M2L --limit N` |
+    | Universe stock bars for ARM U | 1961 tickers | `python3 scripts/collector/history/fetch_underlying_ohlc.py --tickers $(python3 scripts/collector/study_legs/fetch_mechanical_legs.py --list-underlying)` |
+    | ARM U legs, v4 and v3 | `U:current=31909`, `U:v3=7139`, more after the bars land | `python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms U --limit N` |
     | Missing universe files | 2 dates | `python3 -m scripts.analysis_pipeline --skip-llm --date <D>` |
 
     Push the cache after each batch (`backup_research_caches.py push`) and
@@ -1019,7 +1019,7 @@ plan was deleted once executed; the programme's four questions are
 
 | Item | What it is | Why it is open |
 |---|---|---|
-| Far-call fetch (Q2) — COLLECTOR BUILT AND RUN 2026-09-08; the read is blocked | `scripts/collector/fetch_far_legs.py`: for every (date, ticker, near expiry) the book entered, the call at the paired ATM strike on the ticker's first later cached expiry; imports `fetch_sweep_legs.py`'s manifest and scrape loop, own manifest `backtests/sweep_cache/far_legs_manifest.csv`. | Pre-run note and outcome in `current.md` ([note](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-seventh--far-call-fetch-for-hedge_structure-q2-pre-run-note-then-the-fetch-r2-fails-on-the-new-export-before-any-of-it), [outcome](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The first run fetched almost nothing because the scraper re-issued the page's three-month default range; fixed in `session.py` and re-run. `hedge_structure` cannot print H0 on this export because R2 fails on five post-fold rows (§2.11); re-run the study once that is decided. |
+| Far-call fetch (Q2) — COLLECTOR BUILT AND RUN 2026-09-08; the read is blocked | `scripts/collector/study_legs/fetch_far_legs.py`: for every (date, ticker, near expiry) the book entered, the call at the paired ATM strike on the ticker's first later cached expiry; imports `fetch_sweep_legs.py`'s manifest and scrape loop, own manifest `backtests/sweep_cache/far_legs_manifest.csv`. | Pre-run note and outcome in `current.md` ([note](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-seventh--far-call-fetch-for-hedge_structure-q2-pre-run-note-then-the-fetch-r2-fails-on-the-new-export-before-any-of-it), [outcome](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-eighth--far-call-fetch-run-twice-the-scraper-was-re-issuing-the-pages-three-month-default-range-fixed-178-lost-cache-files-restored-hedge_structure-stays-blocked-at-r2)). The first run fetched almost nothing because the scraper re-issued the page's three-month default range; fixed in `session.py` and re-run. `hedge_structure` cannot print H0 on this export because R2 fails on five post-fold rows (§2.11); re-run the study once that is decided. |
 | Two sleeve-sizing bodies outside the library — CLOSED 2026-09-08 | `account_sim` and `portfolio_delta` each picked one position a day in its own sorted copy. | Both call `lib/hedge_criteria.sleeve_pick` now, and both printed identically before and after on the 2026-09-08 export ([record](archive/20-hedge-programme-reorg-queues-cde-and-cache-loss.md#2026-09-08-sixth--the-two-sleeve-sizing-bodies-in-account_sim--portfolio_delta-are-folded-onto-libhedge_criteriasleeve_pick-identical-print)). |
 
 <a id="s2-13"></a>

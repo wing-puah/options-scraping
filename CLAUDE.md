@@ -63,17 +63,18 @@ source .venv/bin/activate       # required before any script
 pytest                          # all tests; pytest tests/test_drive_client.py for one file
 python3 scripts/auth_drive.py   # one-time Drive OAuth2
 
-# Data collection (live scrape runs 2×/day via GitHub Actions)
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow    # or --mode unusual
-python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
+# Data collection (GitHub Actions: flow-pacemaker.yml paces each NYSE session's scrapes,
+# self-started 10:00 UTC Mon-Fri; scrape.yml's hourly crons are the backup)
+SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode flow    # or --mode unusual
+python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
 python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file;
                                                       # also thins unusual snapshots to the richest one
 python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
-python3 scripts/collector/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
-python3 scripts/collector/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
-python3 scripts/collector/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
-python3 scripts/collector/fetch_price_catalyst.py     # price/earnings-catalyst columns
+python3 scripts/collector/daily/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
+python3 scripts/collector/daily/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
+python3 scripts/collector/daily/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
+python3 scripts/collector/daily/fetch_price_catalyst.py     # price/earnings-catalyst columns
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
 python3 scripts/check_pipeline.py                     # WATCHDOG: did every collection stage run?
@@ -99,8 +100,8 @@ python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --red
 # An unbounded run that would scrape >500 contracts WARNS: bound it with --start.
 
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
-python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
-python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
+python3 scripts/collector/history/fetch_underlying_ohlc.py        # stock OHLC per book ticker
+python3 scripts/collector/history/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
 python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches;
                                                           # then trashes snapshots beyond the newest 3 (--keep N / --no-prune)
 python3 scripts/backup_research_caches.py prune --dry-run # the prune step alone (trash, recoverable ~30 days)
@@ -257,7 +258,7 @@ Journal / production tier (`scripts/journal/`):
 
 ```
 Barchart.com
-    │ (scrape_flow.py — 2×/day via GitHub Actions)
+    │ (scrape_flow.py — hourly in session, paced by GitHub Actions)
     ▼
 Google Drive (OAuth2 personal account)      {GOOGLE_DRIVE_FOLDER_ID}/{YYYY-MM-DD}/{prefix}-{YYYYMMDD}-{HHMM}.csv
     │ scripts/analysis_pipeline/fetch.py → markdown to LLM
@@ -292,10 +293,15 @@ lib/                        ← shared modules, imported by scripts, never run d
                               _ensure_tab(min_cols=) sizes new tabs to their schema
 
 scripts/                    ← entry points, each maps to a workflow step
-  collector/                — scrape_flow, enrich_oi, fetch_iv_percentile, fetch_counterpart_iv,
-                              fetch_price_catalyst, fetch_mech_regime, fetch_underlying_ohlc,
-                              fetch_counterpart_history, fetch_sweep_legs, fetch_financing_legs,
-                              fetch_far_legs (hedge_structure's far call; imports fetch_sweep_legs' loop)
+  collector/                — every Barchart/yfinance fetcher, grouped by who runs it:
+    daily/                  — SCHEDULED production collection: scrape_flow, enrich_oi,
+                              fetch_iv_percentile, fetch_counterpart_iv, fetch_price_catalyst,
+                              fetch_mech_regime (workflows, Makefile and daily_loop.sh call these)
+    history/                — research price caches: fetch_underlying_ohlc,
+                              fetch_counterpart_history, backfill_chain + its launchd supervisor
+    study_legs/             — legs one study needs priced: fetch_sweep/far/financing/ladder/
+                              earnings/mechanical/substitute_legs (far imports sweep's loop,
+                              ladder imports financing's)
   compile_flow.py / gc_flow.py / build_baseline.py / backfill_mech_cell.py / align_tab_headers.py
   analysis_pipeline/        — fetch → headless engine → Sheets; the sole entry point for
                               producing an analysis; config.py = ALL user-tunable settings

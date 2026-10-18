@@ -28,7 +28,7 @@ pricing and no campaign mechanics:
     the multi-tranche net-mark algebra, the cost model, the `[MODEL]` tier and
     the G1b identity. Never edited here.
   * `lib/ladder_targets.py` is the ONE owner of "which contracts does a campaign
-    owe a core", shared with `scripts/collector/fetch_ladder_legs.py`.
+    owe a core", shared with `scripts/collector/study_legs/fetch_ladder_legs.py`.
   * `financed_spread` supplies the population/report idiom by import —
     `profile_for`, `replay_at`, `paired_rows`, `ex_both_cut`, `n_dates`,
     `powered`, `sleeve_daily`, `cell_corr`, `size_contracts`, the near-expiry
@@ -40,7 +40,7 @@ pricing and no campaign mechanics:
 AWAITING SCRAPE
 ---------------
 Every ladder and naked-put cell needs contracts at expiries the BOOK never
-traded. `scripts/collector/fetch_ladder_legs.py` fetches them into
+traded. `scripts/collector/study_legs/fetch_ladder_legs.py` fetches them into
 `backtests/sweep_cache/ladder_manifest.csv`'s four categories. While that
 manifest still holds PENDING rows for a category a cell needs, that cell carries
 the verdict AWAITING SCRAPE: no criterion is evaluated on it and nothing about
@@ -1023,7 +1023,7 @@ def report_cell_table(cells: tuple[Cell, ...]) -> None:
 
 def report_scrape(census: dict, awaiting: set[str]) -> None:
     hdr("SCRAPE COVERAGE — what the ladder manifest still owes")
-    print(f"""  `scripts/collector/fetch_ladder_legs.py` derives every contract a campaign
+    print(f"""  `scripts/collector/study_legs/fetch_ladder_legs.py` derives every contract a campaign
   owes a core through `lib/ladder_targets.py` — the SAME module this study reads
   — and records the ones not already cached in
   `backtests/sweep_cache/ladder_manifest.csv`. Already-cached targets never enter
@@ -1062,8 +1062,8 @@ def report_scrape(census: dict, awaiting: set[str]) -> None:
   scrape ends, not after. What is refused is the CONCLUSION, not the run. To
   fetch (resumable, research tier, run by hand — this module never scrapes):
 
-      python3 scripts/collector/fetch_ladder_legs.py --dry-run
-      python3 scripts/collector/fetch_ladder_legs.py --limit 200""")
+      python3 scripts/collector/study_legs/fetch_ladder_legs.py --dry-run
+      python3 scripts/collector/study_legs/fetch_ladder_legs.py --limit 200""")
     else:
         print("\n  no category has pending rows — every cell's contracts are cached.")
 

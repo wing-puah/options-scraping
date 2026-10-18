@@ -57,7 +57,7 @@ silently skipped. The skip-list counts as evidence only for entries that
 passed the evidence gate; `seeded_from_log` entries are ignored.
 
 The same module owns the scrape census (`substitute_targets`), which
-`scripts/collector/fetch_substitute_legs.py` imports. Its Black-Scholes
+`scripts/collector/study_legs/fetch_substitute_legs.py` imports. Its Black-Scholes
 target estimate chooses WHAT TO FETCH and never prices anything.
 
 Usage:
@@ -722,7 +722,7 @@ def data_end(t: Trade) -> date | None:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# The scrape census — imported by scripts/collector/fetch_substitute_legs.py
+# The scrape census — imported by scripts/collector/study_legs/fetch_substitute_legs.py
 # ════════════════════════════════════════════════════════════════════════════
 
 def estimated_target(rec: dict, budget: float, grid: list[float],
@@ -1319,7 +1319,7 @@ def main(argv=None) -> int:
         if gn5:
             verdicts[key] = "AWAITING SCRAPE"
             print("  GN5 fires: census only, nothing graded. The fix is the scrape "
-                  "(scripts/collector/fetch_substitute_legs.py), never a lower gate.")
+                  "(scripts/collector/study_legs/fetch_substitute_legs.py), never a lower gate.")
         elif not f3_gates_ok:
             verdicts[key] = "NOT GRADED — " + ", ".join(
                 g for g, ok in (("GN1", gn1), ("GN2", gn2), ("GN3", gn3),

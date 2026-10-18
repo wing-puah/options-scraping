@@ -362,7 +362,7 @@ in one number, and the reason win rate alone must never be the deploy criterion.
 ## 2026-08-12 — day-0 underlying move: ARM C does NOT clear, no rule ships; the sensitivity is STRUCTURAL
 
 Study: `scripts/backtest_study/next_day_move.py` (new, tracked), on new data
-infrastructure (`scripts/collector/fetch_underlying_ohlc.py`,
+infrastructure (`scripts/collector/history/fetch_underlying_ohlc.py`,
 `scripts/backtest_study/underlying.py`, `tests/test_underlying_ohlc.py`).
 Report not retained on disk — the figures in this section are the record.
 Inputs, quoted from

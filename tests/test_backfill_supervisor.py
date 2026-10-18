@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts/collector/backfill_supervisor.sh"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts/collector/history/backfill_supervisor.sh"
 
 STUB = """#!/bin/bash
 # stub for backfill_chain: prints the scripted pass from $STUB_DIR/next

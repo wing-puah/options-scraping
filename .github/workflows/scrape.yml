@@ -9,7 +9,7 @@ name: Options Scraper
 # runner. scrape_flow.py has NO degrade path (unlike the journal), so all
 # three attempts run the identical command; the LAST one just fails as this
 # workflow always has if it also hits the refusal — see each job's `if:`.
-# scripts/collector/scrape_flow.py exits BARCHART_AUTH_EXIT_CODE (5, shared
+# scripts/collector/daily/scrape_flow.py exits BARCHART_AUTH_EXIT_CODE (5, shared
 # with every other Barchart-touching entry point via lib/barchart/session.py)
 # on an unhandled BarchartAuthError, which is what the "Evaluate" step below
 # keys on to tell a retryable refusal apart from a real failure — the latter
@@ -73,7 +73,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
+          python scripts/collector/daily/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
           rc=$?
           set -e
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -140,7 +140,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
+          python scripts/collector/daily/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
           rc=$?
           set -e
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -204,7 +204,7 @@ jobs:
         # No exit-code capture: scrape_flow.py has no degrade path, so this is
         # the last runner — if it also hits the refusal (or anything else),
         # the job fails exactly as this workflow always has.
-        run: python scripts/collector/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
+        run: python scripts/collector/daily/scrape_flow.py --mode ${{ inputs.mode || (github.event.schedule == '0 22 * * 1-5' && 'unusual' || 'flow') }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

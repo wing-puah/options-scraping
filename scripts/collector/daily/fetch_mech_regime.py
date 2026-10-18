@@ -30,14 +30,14 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from dotenv import load_dotenv
 
 from lib.drive_client import get_drive_client
 from lib.logger import setup_logging
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 
 log = logging.getLogger("fetch_mech_regime")

@@ -16,7 +16,7 @@ import numpy as np
 
 from scripts.backtest_study.f3_structure import earnings_vol as V
 from scripts.backtest_study.lib import era
-from scripts.collector import fetch_earnings_legs as FEL
+from scripts.collector.study_legs import fetch_earnings_legs as FEL
 
 
 def _sessions(start=date(2025, 1, 6), n=80):

@@ -27,7 +27,7 @@ sleep_until() {
 scrape() {
   local mode="$1" label="$2"
   echo "--- $(date -u +%H:%M) UTC — scraping --mode $mode ---"
-  if python scripts/collector/scrape_flow.py --mode "$mode"; then
+  if python scripts/collector/daily/scrape_flow.py --mode "$mode"; then
     echo "--- $(date -u +%H:%M) UTC — $mode scrape OK ---"
   else
     echo "::warning::$mode scrape for $label UTC failed; continuing"

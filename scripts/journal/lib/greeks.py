@@ -8,7 +8,7 @@ identity) but it carries NO greeks at all — Flex is a settlement/activity expo
 not a market-data feed. This module is what fills that gap for the OPEN BOOK: for
 every open position it looks up the matching Barchart option-history row as of the
 trade date and reads the settlement greeks off it, the same per-contract feed
-`scripts/collector/fetch_counterpart_iv.py` already scrapes for a different reason
+`scripts/collector/daily/fetch_counterpart_iv.py` already scrapes for a different reason
 (the IV spread rather than the open book).
 
 THE INVARIANT THIS MODULE EXISTS TO HONOUR (see the "missing greek" section of
@@ -40,7 +40,7 @@ must not run in a unit test. Every network call in `enrich()` funnels through on
 async `session.fetch_history_fast(url, timeout_ms)` call, and `session` is an
 injectable keyword — tests pass a small fake object with that one async method
 (the same convention `tests/test_counterpart_history.py` uses for
-`scripts/collector/fetch_counterpart_history.py`) and drive it with
+`scripts/collector/history/fetch_counterpart_history.py`) and drive it with
 `asyncio.run(...)`, so the test suite never opens a browser or hits the network.
 """
 
@@ -116,7 +116,7 @@ def _as_of_row(details: dict[date, dict], as_of: date) -> tuple[dict | None, int
 async def _fetch_cached(session, path: Path | None, url: str, timeout_ms: int) -> str | None:
     """Read `path` if it already exists, else fetch `url` and (if given) persist it.
 
-    Same cache-first shape `scripts/collector/fetch_counterpart_history.py` and
+    Same cache-first shape `scripts/collector/history/fetch_counterpart_history.py` and
     `fetch_underlying_ohlc.py` use: a re-run of the same trade date should not
     re-hit Barchart for a contract already on disk. `path=None` (the caller's
     `cache_dir=None`, the common case for a one-off daily run) simply disables

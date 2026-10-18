@@ -14,7 +14,7 @@ published numbers must keep reproducing. The widening lives here, in new code.
 THE FALLBACK CHAIN
 ------------------
 1. `backtests/underlying_ohlc_cache/{TICKER}.csv` — real stock bars from
-   `scripts/collector/fetch_underlying_ohlc.py`. Open, high, low, close.
+   `scripts/collector/history/fetch_underlying_ohlc.py`. Open, high, low, close.
 2. `Price~` from up to `_MAX_TILDE_FILES` of the ticker's cached OPTION files —
    close only (`o`/`h`/`l` are None). This is what recovers the long-only rows,
    and it is per-TICKER rather than per-leg, so it does not care which legs a

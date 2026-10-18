@@ -42,7 +42,7 @@ a bare run fetches what it fetched before; name it to fetch it.
 ARM U also needs each universe ticker's underlying before it can name a
 strike. `--list-underlying` prints the tickers with no cached contract and no
 stock bars; fetch their bars first with
-`scripts/collector/fetch_underlying_ohlc.py --tickers <list>`.
+`scripts/collector/history/fetch_underlying_ohlc.py --tickers <list>`.
 
 HOW IT FETCHES
 --------------
@@ -59,10 +59,10 @@ after the operator approves the count `--dry-run` prints (census floor 4).
 Run `python3 scripts/backup_research_caches.py push` after it.
 
 Usage:
-  python3 scripts/collector/fetch_mechanical_legs.py --dry-run
-  python3 scripts/collector/fetch_mechanical_legs.py --arms M1,M2 --limit 200
-  python3 scripts/collector/fetch_mechanical_legs.py --list-underlying
-  python3 scripts/collector/fetch_mechanical_legs.py --arms SPY --no-v3 --dry-run
+  python3 scripts/collector/study_legs/fetch_mechanical_legs.py --dry-run
+  python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms M1,M2 --limit 200
+  python3 scripts/collector/study_legs/fetch_mechanical_legs.py --list-underlying
+  python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms SPY --no-v3 --dry-run
 """
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 

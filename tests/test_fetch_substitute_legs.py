@@ -1,4 +1,4 @@
-"""`scripts/collector/fetch_substitute_legs.py` — the narrow_to_fit F3 scrape.
+"""`scripts/collector/study_legs/fetch_substitute_legs.py` — the narrow_to_fit F3 scrape.
 
 No network: the Barchart session is a stand-in, the cache is a temp
 directory, and the book is replaced by hand-built records. Pinned here:
@@ -26,7 +26,7 @@ from scripts.backtest.shared import history  # noqa: E402
 from scripts.backtest.shared import unlisted  # noqa: E402
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF  # noqa: E402
 from scripts.backtest_study.lib.harness import Trade  # noqa: E402
-from scripts.collector import fetch_substitute_legs as FSL  # noqa: E402
+from scripts.collector.study_legs import fetch_substitute_legs as FSL  # noqa: E402
 
 EXP = date(2025, 2, 21)
 SIGNAL = date(2025, 1, 6)

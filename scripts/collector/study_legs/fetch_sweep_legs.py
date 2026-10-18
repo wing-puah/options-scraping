@@ -62,9 +62,9 @@ Needs BARCHART_EMAIL/BARCHART_PASSWORD for an actual fetch. Research-tier,
 run by hand — not scheduled, not imported by production.
 
 Usage:
-  python3 scripts/collector/fetch_sweep_legs.py --dry-run
-  python3 scripts/collector/fetch_sweep_legs.py --limit 200
-  python3 scripts/collector/fetch_sweep_legs.py --limit 200 --retry-failed
+  python3 scripts/collector/study_legs/fetch_sweep_legs.py --dry-run
+  python3 scripts/collector/study_legs/fetch_sweep_legs.py --limit 200
+  python3 scripts/collector/study_legs/fetch_sweep_legs.py --limit 200 --retry-failed
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 

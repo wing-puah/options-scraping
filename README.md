@@ -150,8 +150,8 @@ python3 scripts/auth_drive.py
 
 ```bash
 # Watch the browser (headless=false for debugging)
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode unusual
+SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode flow
+SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode unusual
 ```
 
 ### 4. GitHub Actions (free cloud hosting)
@@ -201,13 +201,13 @@ python3 scripts/gc_flow.py --all --dry-run
 python3 scripts/build_baseline.py --backfill
 
 # Enrichments (each writes back to the compiled file, except counterpart IV → sidecar)
-python3 scripts/collector/enrich_oi.py --backfill
-python3 scripts/collector/fetch_iv_percentile.py
-python3 scripts/collector/fetch_counterpart_iv.py
-python3 scripts/collector/fetch_price_catalyst.py
+python3 scripts/collector/daily/enrich_oi.py --backfill
+python3 scripts/collector/daily/fetch_iv_percentile.py
+python3 scripts/collector/daily/fetch_counterpart_iv.py
+python3 scripts/collector/daily/fetch_price_catalyst.py
 
 # Regime table (PRODUCTION input — lib/mech_regime.py labels mech_cell from it)
-python3 scripts/collector/fetch_mech_regime.py
+python3 scripts/collector/daily/fetch_mech_regime.py
 
 # Schema maintenance
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
@@ -233,9 +233,9 @@ Not part of the daily pipeline — these back the studies that need real bars or
 opposite leg. Both are resumable and write under `backtests/`.
 
 ```bash
-python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
-python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N)
-python3 scripts/collector/fetch_sweep_legs.py             # the legs hedge_structure --arm S needs
+python3 scripts/collector/history/fetch_underlying_ohlc.py        # stock OHLC per book ticker
+python3 scripts/collector/history/fetch_counterpart_history.py    # opposite-leg option history (--limit N)
+python3 scripts/collector/study_legs/fetch_sweep_legs.py             # the legs hedge_structure --arm S needs
 ```
 
 `backtests/option_history_cache/` is ~337MB of scraped option history with no git history to
@@ -252,8 +252,8 @@ MFE/MAE. There is no separate signal filter — the stored analysis is the filte
 ### 1. Collect historical data
 
 ```bash
-python3 scripts/collector/scrape_flow.py --date 2026-04-21
-python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+python3 scripts/collector/daily/scrape_flow.py --date 2026-04-21
+python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 ```
 
 Raw CSVs land in Google Drive under `{YYYY-MM-DD}/`.

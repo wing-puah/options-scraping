@@ -32,7 +32,7 @@ REUSE (cite, don't copy)
   - ``lib.barchart.options.parse_history_details`` — used to count usable
     bars and pull first/last date, exactly as
     ``fetch_counterpart_history.py._scrape`` does.
-  - ``scripts.collector.fetch_counterpart_history.MIN_USABLE_BARS`` — a
+  - ``scripts.collector.history.fetch_counterpart_history.MIN_USABLE_BARS`` — a
     contract that never traded returns a valid CSV with a header and no
     rows; writing that would satisfy "this exists" forever while pricing
     nothing. Imported, not re-defined, so the two collectors can never
@@ -129,9 +129,9 @@ the total pending set that cap would leave for a later run. Run
 hand-run by design, never auto-invoked by a collector).
 
 Usage:
-  python3 scripts/collector/backfill_chain.py --symbols SPY,QQQ \\
+  python3 scripts/collector/history/backfill_chain.py --symbols SPY,QQQ \\
       --from 2021-12-01 --to 2026-09-18
-  python3 scripts/collector/backfill_chain.py --symbols SPY --from 2024-01-01 \\
+  python3 scripts/collector/history/backfill_chain.py --symbols SPY --from 2024-01-01 \\
       --to 2024-06-01 --execute --max-contracts 50
 """
 from __future__ import annotations
@@ -152,7 +152,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
@@ -162,7 +162,7 @@ from lib.barchart.options import (  # noqa: E402
 )
 from lib.logger import safe_err, setup_logging  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
-from scripts.collector.fetch_counterpart_history import MIN_USABLE_BARS  # noqa: E402
+from scripts.collector.history.fetch_counterpart_history import MIN_USABLE_BARS  # noqa: E402
 
 log = logging.getLogger("backfill_chain")
 

@@ -50,11 +50,11 @@ Needs BARCHART_EMAIL/PASSWORD. Nothing here touches Drive or Sheets, and
 nothing here is scheduled — this is research-tier, run by hand.
 
 Usage:
-  python3 scripts/collector/fetch_counterpart_history.py --dry-run
-  python3 scripts/collector/fetch_counterpart_history.py --limit 200
-  python3 scripts/collector/fetch_counterpart_history.py --date 2026-04-07
-  python3 scripts/collector/fetch_counterpart_history.py --tickers NVDA,SPY
-  python3 scripts/collector/fetch_counterpart_history.py --force
+  python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
+  python3 scripts/collector/history/fetch_counterpart_history.py --limit 200
+  python3 scripts/collector/history/fetch_counterpart_history.py --date 2026-04-07
+  python3 scripts/collector/history/fetch_counterpart_history.py --tickers NVDA,SPY
+  python3 scripts/collector/history/fetch_counterpart_history.py --force
 """
 import argparse
 import asyncio
@@ -69,7 +69,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 

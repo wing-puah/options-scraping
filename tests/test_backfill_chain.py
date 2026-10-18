@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/backfill_chain.py`.
+"""Unit tests for `scripts/collector/history/backfill_chain.py`.
 
 Covers the pure plan logic (Friday/holiday expiries incl. the 2026-09-22
 review's NYSE-calendar corrections, the DTE-windowed strike band, the
@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from lib.barchart.options import cache_path
-from scripts.collector import backfill_chain as bc
+from scripts.collector.history import backfill_chain as bc
 
 HEADER = ("Time,Open,High,Low,Latest,Change,%Change,Volume,Open Int,IV,Delta,"
           "Gamma,Theta,Vega,Rho,Theo,Price~,Bid,Ask")

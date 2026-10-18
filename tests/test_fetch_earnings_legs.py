@@ -1,7 +1,7 @@
 """earnings_vol fetch planner: events -> contracts, on synthetic data. No network."""
 from datetime import date, timedelta
 
-from scripts.collector import fetch_earnings_legs as fe
+from scripts.collector.study_legs import fetch_earnings_legs as fe
 
 
 def _sessions(start=date(2026, 1, 5), n=120, holidays=()):

@@ -1,4 +1,4 @@
-"""Tests for scripts/collector/fetch_iv_percentile.py's BarchartAuthError handling.
+"""Tests for scripts/collector/daily/fetch_iv_percentile.py's BarchartAuthError handling.
 
 Two things are pinned here, both added 2026-09-22 alongside the CI fresh-runner
 retry (journal.yml / scrape.yml / enrich-oi.yml / fetch-counterpart-iv.yml):

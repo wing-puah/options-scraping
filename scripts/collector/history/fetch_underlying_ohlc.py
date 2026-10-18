@@ -61,11 +61,11 @@ drop those rows from $-denominated cells only. See
 Needs BARCHART_EMAIL/PASSWORD. Nothing here touches Drive or Sheets.
 
 Usage:
-  python3 scripts/collector/fetch_underlying_ohlc.py                    # every book date
-  python3 scripts/collector/fetch_underlying_ohlc.py --date 2026-04-07
-  python3 scripts/collector/fetch_underlying_ohlc.py --start 2026-01-02 --end 2026-04-07
-  python3 scripts/collector/fetch_underlying_ohlc.py --tickers NVDA,SPY --dry-run
-  python3 scripts/collector/fetch_underlying_ohlc.py --force            # re-fetch everything
+  python3 scripts/collector/history/fetch_underlying_ohlc.py                    # every book date
+  python3 scripts/collector/history/fetch_underlying_ohlc.py --date 2026-04-07
+  python3 scripts/collector/history/fetch_underlying_ohlc.py --start 2026-01-02 --end 2026-04-07
+  python3 scripts/collector/history/fetch_underlying_ohlc.py --tickers NVDA,SPY --dry-run
+  python3 scripts/collector/history/fetch_underlying_ohlc.py --force            # re-fetch everything
 """
 import argparse
 import asyncio
@@ -79,7 +79,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
@@ -314,7 +314,7 @@ def write_rescaled(rescaled: dict[str, tuple[float, int]], checked: set[str] = f
              "# Scraped bars are split-adjusted; cached Price~ is not. RATIOS off these",
              "# bars are valid (a constant factor cancels); absolute dollars and any",
              "# cross-series comparison are not. This is a basis warning, not a quarantine.",
-             f"# written {date.today().isoformat()} by scripts/collector/fetch_underlying_ohlc.py"]
+             f"# written {date.today().isoformat()} by scripts/collector/history/fetch_underlying_ohlc.py"]
     if merged_prior:
         lines.append("# merged with prior entries not re-checked this run")
     for sym, (med, n) in sorted(merged.items()):

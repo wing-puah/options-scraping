@@ -60,7 +60,7 @@ share is reported per shape BEFORE any dR is read: a shape that flips half its
 rows to the credit profile has changed the exit rule as well as the wrapper.
 
 F4 needs contracts at an expiry the book never traded, so it depends on a
-scrape (`scripts/collector/fetch_financing_legs.py`, categories `fin_diag_call`
+scrape (`scripts/collector/study_legs/fetch_financing_legs.py`, categories `fin_diag_call`
 / `fin_diag_put`). Until those are cached the F4 section prints its coverage
 census and the cells carry the verdict AWAITING SCRAPE — never a crash, never a
 silently absent arm, and never a conclusion drawn from an unscraped cell.
@@ -448,7 +448,7 @@ def near_expiry_for(entry_day: date, dte_at_entry: int,
     one end of a window from the signal and the other from the fill would make
     the window's width depend on the entry lag.
 
-    Shared with `scripts/collector/fetch_financing_legs.py`, which imports this
+    Shared with `scripts/collector/study_legs/fetch_financing_legs.py`, which imports this
     function so the scrape targets and the study's construction can never
     disagree about which expiry a row is owed.
     """
@@ -1067,7 +1067,7 @@ def report_f4(built: dict, awaiting: bool) -> None:
   {DIAG_DELTA_TOL:.2f} excludes the row (`target_unreachable`). Single tranche, never rolled.
 
   Those contracts sit at an expiry the BOOK never traded, so they are absent
-  from the option-history cache until `scripts/collector/fetch_financing_legs.py`
+  from the option-history cache until `scripts/collector/study_legs/fetch_financing_legs.py`
   has fetched its `fin_diag_call` / `fin_diag_put` categories.
 
   MANAGEMENT (amendment 2) crosses each |Delta| target with three rules on the
@@ -1104,8 +1104,8 @@ def report_f4(built: dict, awaiting: bool) -> None:
   CI, no criterion, and NOT a null. To fetch the legs (resumable, research
   tier, run by hand — this module never scrapes):
 
-      python3 scripts/collector/fetch_financing_legs.py --dry-run
-      python3 scripts/collector/fetch_financing_legs.py --limit 200""")
+      python3 scripts/collector/study_legs/fetch_financing_legs.py --dry-run
+      python3 scripts/collector/study_legs/fetch_financing_legs.py --limit 200""")
         return
 
     sub("what closed the financing leg — the management census")

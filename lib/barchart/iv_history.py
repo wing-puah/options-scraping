@@ -12,7 +12,7 @@ read the value as of the trade date.
 
 This module holds the pure pieces: the page URL and the feed-row parser. The
 authenticated fetch (Playwright feed interception) lives on
-``BarchartSession.fetch_options_overview_history``; ``scripts/collector/fetch_iv_percentile.py``
+``BarchartSession.fetch_options_overview_history``; ``scripts/collector/daily/fetch_iv_percentile.py``
 picks the as-of-trade-date values from the parsed series (:mod:`lib.iv_history`) and
 appends ``iv``/``iv_rank``/``iv_pct`` as columns onto the compiled flow file, which
 ``scripts/analysis_pipeline/fetch.py`` reads back per ticker.

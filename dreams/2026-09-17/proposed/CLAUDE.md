@@ -64,15 +64,15 @@ pytest                          # all tests; pytest tests/test_drive_client.py f
 python3 scripts/auth_drive.py   # one-time Drive OAuth2
 
 # Data collection (live scrape runs 2×/day via GitHub Actions)
-SCRAPE_HEADLESS=false python3 scripts/collector/scrape_flow.py --mode flow    # or --mode unusual
-python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
+SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode flow    # or --mode unusual
+python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
 python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file
 python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
-python3 scripts/collector/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
-python3 scripts/collector/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
-python3 scripts/collector/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
-python3 scripts/collector/fetch_price_catalyst.py     # price/earnings-catalyst columns
+python3 scripts/collector/daily/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
+python3 scripts/collector/daily/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
+python3 scripts/collector/daily/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
+python3 scripts/collector/daily/fetch_price_catalyst.py     # price/earnings-catalyst columns
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
 python3 scripts/check_pipeline.py                     # WATCHDOG: did every collection stage run?
@@ -94,8 +94,8 @@ python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested p
 python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --redo
 
 # Research-tier caches (feed studies that need real bars / priceable counterparts)
-python3 scripts/collector/fetch_underlying_ohlc.py        # stock OHLC per book ticker
-python3 scripts/collector/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
+python3 scripts/collector/history/fetch_underlying_ohlc.py        # stock OHLC per book ticker
+python3 scripts/collector/history/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
 python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches
 python3 scripts/backup_research_caches.py pull            # rehydrate them on a fresh checkout BEFORE any study/backtest run
                                                           # (additive — never clobbers newer local files; --force = full restore)

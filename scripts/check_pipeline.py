@@ -62,8 +62,8 @@ load_dotenv(ROOT / ".env")
 
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
-# The enrichment-coverage helpers live beside the enrichers, in scripts/collector/.
-sys.path.insert(0, str(ROOT / "scripts" / "collector"))
+# The enrichment-coverage helpers live beside the enrichers, in scripts/collector/daily/.
+sys.path.insert(0, str(ROOT / "scripts" / "collector" / "daily"))
 
 log = logging.getLogger("check_pipeline")
 

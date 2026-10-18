@@ -190,7 +190,7 @@ counts of files on disk; no clause is evaluated against them.
 
 - `backtests/underlying_ohlc_cache/` holds bars for an ESTIMATED **105
   tickers**; book coverage is printed by G-COV. Gaps are filled BEFORE the run by
-  `scripts/collector/fetch_underlying_ohlc.py --tickers … --skip-existing`,
+  `scripts/collector/history/fetch_underlying_ohlc.py --tickers … --skip-existing`,
   never imputed.
 - `backtests/option_history_cache/` carries per-session `Open Int` and `Volume`;
   the usable-OI-path share is an ESTIMATE of "most", NOT quantified; G-COV

@@ -3,7 +3,7 @@
 # interrupted there is a way to pick up from where it left without me running anything").
 #
 # Run it on a timer: a launchd user agent every 30 min (operator-installed), or a loop in a
-# terminal: `while true; do scripts/collector/backfill_supervisor.sh; sleep 1800; done`. Each tick:
+# terminal: `while true; do scripts/collector/history/backfill_supervisor.sh; sleep 1800; done`. Each tick:
 #   - DONE or HALT marker present      -> exit (nothing to do / needs the operator)
 #   - collector already running        -> exit (its own flock would refuse a second run anyway)
 #   - inside a cooldown window         -> exit
@@ -46,13 +46,13 @@ halt() { echo "$1" > "$STATE/HALT"; notify "HALTED: $1. Remove $STATE/HALT to re
 
 [ -f "$STATE/HALT" ] && exit 0
 [ -f "$STATE/DONE" ] && [ "$(cat "$STATE/DONE")" = "$SYMBOLS $FROM $TO" ] && exit 0
-[ -z "${BACKFILL_SKIP_PGREP:-}" ] && pgrep -f "python.*scripts/collector/backfill_chain.py" >/dev/null && exit 0
+[ -z "${BACKFILL_SKIP_PGREP:-}" ] && pgrep -f "python.*scripts/collector/history/backfill_chain.py" >/dev/null && exit 0
 [ "$(date +%s)" -lt "$(getn cooldown_until)" ] && exit 0
 
 cd "$ROOT" || exit 1
 run_log="$LOGDIR/run-$(date +%Y%m%d-%H%M%S).log"
 say "start pass: $SYMBOLS $FROM..$TO -> $run_log"
-$CAFFEINATE "$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" \
+$CAFFEINATE "$PY" scripts/collector/history/backfill_chain.py --symbols "$SYMBOLS" \
     --from "$FROM" --to "$TO" --execute > "$run_log" 2>&1
 rc=$?
 done_line=$(grep -E "backfill_chain.main\]  done:" "$run_log" | tail -1)
@@ -73,7 +73,7 @@ backup() {
 
 if grep -q "Nothing to fetch" "$run_log"; then
     [ "$since" -gt 0 ] && backup
-    counts=$("$PY" scripts/collector/backfill_chain.py --symbols "$SYMBOLS" --from "$FROM" \
+    counts=$("$PY" scripts/collector/history/backfill_chain.py --symbols "$SYMBOLS" --from "$FROM" \
              --to "$TO" 2>&1 | grep -iE "partial|pending" | tail -3 | tr '\n' ' ')
     echo "$SYMBOLS $FROM $TO" > "$STATE/DONE"
     rm -f "$STATE/blocked_count" "$STATE/broken_count" "$STATE/cooldown_until" "$STATE/last_stop_key" "$STATE/stuck_count"

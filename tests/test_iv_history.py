@@ -2,7 +2,7 @@
 - lib/barchart/iv_history.parse_iv_history (feed-row parsing, fuzzy field mapping)
 - lib/iv_history: enrichment columns, as-of-date cell pick + its provenance status,
   flow-row iv_pct / iv_pct_status readers
-- scripts/collector/fetch_iv_percentile._fetch_series (fetch_error vs empty_series) and
+- scripts/collector/daily/fetch_iv_percentile._fetch_series (fetch_error vs empty_series) and
   its depth-exhaustion threshold, driven by fake sessions.
 Pure functions, no network, no credentials."""
 import asyncio

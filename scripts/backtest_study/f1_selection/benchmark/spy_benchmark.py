@@ -31,7 +31,7 @@ NO OUTCOME WHILE ANYTHING AWAITS. The census runs first on an UNPRICED build.
 While any SPY pair awaits a fetch the run prints NOT BUILT — AWAITING SCRAPE
 and the fetch count, and nothing is priced or replayed.
 
-Fetch: `python3 scripts/collector/fetch_mechanical_legs.py --arms SPY --no-v3
+Fetch: `python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms SPY --no-v3
 --dry-run`. No code here fetches.
 
 Usage:
@@ -74,7 +74,7 @@ NOT_BUILT = "NOT BUILT"
 
 OUT_DIR = MB.OUT_DIR
 PAIRS_CSV = OUT_DIR / "spy_benchmark-pairs.csv"
-FETCH_CMD = "python3 scripts/collector/fetch_mechanical_legs.py --arms SPY"
+FETCH_CMD = "python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms SPY"
 
 log = logging.getLogger("spy_benchmark")
 hdr = MB.hdr

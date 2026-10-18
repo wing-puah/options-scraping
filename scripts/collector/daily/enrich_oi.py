@@ -40,12 +40,12 @@ compile_flow.py for a date regenerates the compiled file from raw snapshots and
 DROPS these columns — the next --backfill re-enriches it from scratch.
 
 Usage:
-  python3 scripts/collector/enrich_oi.py                         # latest enrichable date
-  python3 scripts/collector/enrich_oi.py --date 2026-06-09
-  python3 scripts/collector/enrich_oi.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/collector/enrich_oi.py --backfill              # every enrichable date
-  python3 scripts/collector/enrich_oi.py --backfill --dry-run    # report, no scrape/upload
-  python3 scripts/collector/enrich_oi.py --date 2026-06-09 --force   # re-scrape from scratch
+  python3 scripts/collector/daily/enrich_oi.py                         # latest enrichable date
+  python3 scripts/collector/daily/enrich_oi.py --date 2026-06-09
+  python3 scripts/collector/daily/enrich_oi.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/daily/enrich_oi.py --backfill              # every enrichable date
+  python3 scripts/collector/daily/enrich_oi.py --backfill --dry-run    # report, no scrape/upload
+  python3 scripts/collector/daily/enrich_oi.py --date 2026-06-09 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -59,10 +59,10 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / ".env")
+load_dotenv(Path(__file__).parents[3] / ".env")
 
+sys.path.insert(0, str(Path(__file__).parents[3]))
 sys.path.insert(0, str(Path(__file__).parents[2]))
-sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options
 from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.csv_utils import normalize_flow_rows, parse_csv
@@ -87,7 +87,7 @@ ALL_COLUMNS = ENRICH_COLUMNS + [MARKER_COLUMN]
 # much scraping an interruption can cost.
 CHECKPOINT_EVERY = 50
 
-_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[3] / "cookies" / "barchart_session.json")
 
 
 # ─── Drive helpers ──────────────────────────────────────────────────────────────

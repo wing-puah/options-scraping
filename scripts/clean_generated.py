@@ -227,14 +227,14 @@ TARGETS: tuple[Target, ...] = (
         name="ohlc-cache",
         globs=("backtests/underlying_ohlc_cache/*",),
         what="cached underlying stock OHLC bars",
-        regen="python3 scripts/collector/fetch_underlying_ohlc.py",
+        regen="python3 scripts/collector/history/fetch_underlying_ohlc.py",
         expensive=True,
     ),
     Target(
         name="sweep-cache",
         globs=("backtests/sweep_cache/*",),
         what="sweep-leg manifest + the hedge_structure RESUME CHECKPOINT",
-        regen="python3 scripts/collector/fetch_sweep_legs.py  (an interrupted sweep restarts from zero)",
+        regen="python3 scripts/collector/study_legs/fetch_sweep_legs.py  (an interrupted sweep restarts from zero)",
         expensive=True,
     ),
     Target(

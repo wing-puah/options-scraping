@@ -28,7 +28,7 @@ ordering (level > nearness > trend ≈ follow-through), not the exact decimals.
 Shape mirrors `lib/iv_history.py`: enrichment column constants, an
 `as_of_*_cells` picker, and a `*_from_flow_rows` read-back reader. The
 enrichment columns are appended to the compiled flow file by a (separate,
-not-yet-written) `scripts/collector/fetch_price_catalyst.py`, which must write
+not-yet-written) `scripts/collector/daily/fetch_price_catalyst.py`, which must write
 `next_earnings`/`last_earnings` as ISO `YYYY-MM-DD` strings and the price
 columns as plain decimal strings for `price_catalyst_from_flow_rows` to read
 back.

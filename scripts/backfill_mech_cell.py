@@ -25,7 +25,7 @@ user formulas and every other column are left alone, and the header gains the
 column if the tab predates it.
 
 The SPY/VIX table is NOT fetched here — refresh it first with `make mech-regime`
-(or `python scripts/collector/fetch_mech_regime.py --download`), same contract as
+(or `python scripts/collector/daily/fetch_mech_regime.py --download`), same contract as
 `make backtest` / `make analyze`. A table that stops short of a row's date leaves
 that row NO_DATA rather than labelling it off a stale close.
 

@@ -94,7 +94,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -120,7 +120,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -145,7 +145,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -228,7 +228,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -246,7 +246,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -264,7 +264,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python scripts/collector/daily/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -341,7 +341,7 @@ jobs:
         # No exit-code capture: none of these scripts has a degrade path, so
         # this is the last runner — if it also hits the refusal (or anything
         # else), the job fails exactly as this workflow always has.
-        run: python scripts/collector/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/daily/enrich_oi.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
@@ -351,7 +351,7 @@ jobs:
 
       - name: Enrich compiled flow with per-ticker IV percentile (latest date only, final attempt 3/3)
         if: ${{ always() }}
-        run: python scripts/collector/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/daily/fetch_iv_percentile.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
@@ -361,7 +361,7 @@ jobs:
 
       - name: Enrich compiled flow with price/earnings catalyst (latest date only, final attempt 3/3)
         if: ${{ always() }}
-        run: python scripts/collector/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+        run: python scripts/collector/daily/fetch_price_catalyst.py ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
         env:
           BARCHART_EMAIL: ${{ secrets.BARCHART_EMAIL }}
           BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}

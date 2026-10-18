@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/fetch_financing_legs.py`.
+"""Unit tests for `scripts/collector/study_legs/fetch_financing_legs.py`.
 
 Covers the pre-registered target-derivation rule (`financed_spread.md`
 §Anti-tuning): for every (ticker, expiry) row-group the pooled book entered a
@@ -21,8 +21,8 @@ import pytest
 
 from lib.barchart.options import cache_path
 from scripts.backtest.legs import Leg
-from scripts.collector import fetch_financing_legs as ffl
-from scripts.collector import fetch_sweep_legs as fsl
+from scripts.collector.study_legs import fetch_financing_legs as ffl
+from scripts.collector.study_legs import fetch_sweep_legs as fsl
 
 E1 = date(2024, 6, 21)   # near expiry
 E2 = date(2024, 7, 19)   # a later expiry (unused by financing targets, kept

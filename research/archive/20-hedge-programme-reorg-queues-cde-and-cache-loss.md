@@ -311,7 +311,7 @@ runner-up, and on a day whose pick has no max loss.
 
 ## 2026-09-08 (seventh) — far-call fetch for `hedge_structure` Q2: pre-run note, then the fetch; R2 fails on the new export before any of it
 
-**A new collector, `scripts/collector/fetch_far_legs.py`, fetches the one
+**A new collector, `scripts/collector/study_legs/fetch_far_legs.py`, fetches the one
 contract `hedge_structure`'s calendar reads and the cache does not hold: the
 call at K* on the ticker's first later cached expiry.** No rule changes and
 nothing ships. This note is written BEFORE the fetch runs, so the numbers it

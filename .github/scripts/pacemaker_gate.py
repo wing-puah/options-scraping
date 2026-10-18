@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.collector.backfill_chain import _nyse_holidays  # noqa: E402
+from scripts.collector.history.backfill_chain import _nyse_holidays  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 

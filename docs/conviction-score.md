@@ -120,7 +120,7 @@ compute both measures across the *entire daily option chain*. The traded flow
 (Barchart's ~100 largest trades/symbol) rarely carries both legs of a matched
 pair, so on flow alone `IVspr` is ~98% empty. The missing counterpart legs are
 therefore **backfilled** from Barchart per-contract price-history — the
-settlement IV as of the trade date D (`scripts/collector/fetch_counterpart_iv.py` → per-date sidecar
+settlement IV as of the trade date D (`scripts/collector/daily/fetch_counterpart_iv.py` → per-date sidecar
 → `lib/counterpart_iv.build_iv_lookup` → the rollup), which lifts matched-pair
 coverage materially. It remains a *reconstruction* of the paper's chain-level
 statistic, not the validated statistic itself, and where no sidecar exists it
@@ -148,7 +148,7 @@ so it deliberately stays out of the agnostic score.
 
 `IVpct` is **Barchart's options-overview IV percentile** for the name — the share
 of the prior-1-year days whose IV closed below that day's IV. It is scraped per
-historical date from Barchart (`scripts/collector/fetch_iv_percentile.py` →
+historical date from Barchart (`scripts/collector/daily/fetch_iv_percentile.py` →
 `lib/barchart/iv_history.py` → appended as `iv`/`iv_rank`/`iv_pct` columns onto the
 compiled flow file, enrich-in-place like OI) and read back as-of the trade date off
 those rows, so no percentile is computed on our side. Stored as a decimal fraction
@@ -180,7 +180,7 @@ anchored in the actual chart/calendar rather than its own recall:
 | `PxVec`  | **Signed price-trend vector**, −1..+1: sign is direction (**+** bullish / **−** bearish / **≈0** range-bound) and `|value|` is trend strength. A single collapse of the four non-key price sub-signals `score_price` weights (nearness to the 50d high/low, price-vs-SMA20, SMA20-vs-SMA50, 5d follow-through), renormalised over whichever are present. The **same** value is reused by `score_price` — the rollup read and the score never disagree. `—` when the name has no enriched price history. |
 | `Earn`   | **Days to next earnings** as of the trade date (from the Barchart corporate-actions feed, no look-ahead). When the play's `horizon` window spans it, that earnings event grounds `score_catalyst`. `—` when no upcoming earnings date is known. |
 
-Both come from `scripts/collector/fetch_price_catalyst.py` (Barchart underlying
+Both come from `scripts/collector/daily/fetch_price_catalyst.py` (Barchart underlying
 price history + corporate actions → `lib/price_catalyst.py` pickers → columns on
 the compiled flow file), read back as-of the trade date — same enrich-in-place /
 read-off-the-row pattern as `IVpct`. Neither is a conviction-score component nor

@@ -36,7 +36,7 @@ fi
 
 CMDS=(); NAMES=()
 add() { NAMES+=("$1"); CMDS+=("$2"); }
-add "mech-regime refresh" "python3 scripts/collector/fetch_mech_regime.py"
+add "mech-regime refresh" "python3 scripts/collector/daily/fetch_mech_regime.py"
 if [ "$SKIP_BACKTEST" = 0 ]; then
   add "backtest (bounded)" "python3 -m scripts.backtest --config config/backtest.yml --start $START"
   add "proxy (bounded)" "python3 -m scripts.backtest.proxy --config config/backtest.yml --start $START"

@@ -59,7 +59,7 @@ jobs:
       - name: Pull the SPY/VIX mech-regime table from Drive
         # Same contract as `make mech-regime`: the label source is fetched
         # explicitly, never implicitly inside the labelling code.
-        run: python scripts/collector/fetch_mech_regime.py --download
+        run: python scripts/collector/daily/fetch_mech_regime.py --download
         env:
           GOOGLE_OAUTH_TOKEN_JSON_CONTENT: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON_CONTENT }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}

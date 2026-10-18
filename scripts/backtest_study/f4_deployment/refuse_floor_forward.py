@@ -578,7 +578,7 @@ def main(argv=None) -> int:
           f"unpriced {unpriced} ({share:.0%}; bar {GN5_MAX_UNPRICED:.0%}) -> "
           f"{'FIRES — F3 prints AWAITING SCRAPE on this look' if gn5 else 'clear'}")
     if gn5:
-        print("  The fix is `scripts/collector/fetch_substitute_legs.py --scope between`,"
+        print("  The fix is `scripts/collector/study_legs/fetch_substitute_legs.py --scope between`,"
               " never a lower bar.")
     cf = sims[("PRIMARY", HEAD_NET_CAP, "F3_FL")].census
     share_fl = cf["narrow_unpriced"] / cf["narrow_offered"] if cf["narrow_offered"] else 0.0

@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/fetch_far_legs.py`.
+"""Unit tests for `scripts/collector/study_legs/fetch_far_legs.py`.
 
 The far-call target rule: K* is the near-expiry paired strike nearest spot,
 the far expiry is the ticker's FIRST cached expiry after the near one, and the
@@ -14,8 +14,8 @@ Everything is synthetic; no network, no real cache.
 from datetime import date
 
 from scripts.backtest.legs import Leg
-from scripts.collector import fetch_far_legs as ffl
-from scripts.collector import fetch_sweep_legs as fsl
+from scripts.collector.study_legs import fetch_far_legs as ffl
+from scripts.collector.study_legs import fetch_sweep_legs as fsl
 
 E1 = date(2024, 6, 21)   # near expiry
 E2 = date(2024, 7, 19)   # the ticker's first later expiry

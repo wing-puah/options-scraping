@@ -16,8 +16,8 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
   The census is the recorded result. No outcome column was read.
   Operator-run steps, in order (each resumable; none runs from here):
     0. universe files for 4 dates: python3 -m scripts.analysis_pipeline --skip-llm --date <D> (no LLM, no Sheets write)
-    1. stock bars for 1978 universe tickers: python3 scripts/collector/fetch_underlying_ohlc.py --tickers <list from python3 scripts/collector/fetch_…
-    2. option legs: python3 scripts/collector/fetch_mechanical_legs.py --dry-run   (then --limit N)
+    1. stock bars for 1978 universe tickers: python3 scripts/collector/history/fetch_underlying_ohlc.py --tickers <list from python3 scripts/collector/fetch_…
+    2. option legs: python3 scripts/collector/study_legs/fetch_mechanical_legs.py --dry-run   (then --limit N)
     3. python3 scripts/backup_research_caches.py push
     4. re-run this study; a fetch can expose nearer strikes, so steps 2-4 repeat until nothing awaits
 ```

@@ -1,4 +1,4 @@
-"""Tests for scripts/collector/fetch_price_catalyst.py's yfinance next-earnings fallback
+"""Tests for scripts/collector/daily/fetch_price_catalyst.py's yfinance next-earnings fallback
 gating (_is_near_live) and lookup (_fetch_next_earnings_yfinance), and the
 etfs-flow corporate-actions skip in _scrape_and_fill. Pure/mocked, no network."""
 import asyncio

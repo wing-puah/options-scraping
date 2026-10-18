@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/fetch_ladder_legs.py`.
+"""Unit tests for `scripts/collector/study_legs/fetch_ladder_legs.py`.
 
 Covers the pre-registered target-derivation flow (`ladder_overlay.md` /
 `research/pre-registrations/f3_structure/ladder_overlay.md`'s §E and the
@@ -20,8 +20,8 @@ from scripts.backtest_study.f3_structure import bear_rewrap as BR
 from scripts.backtest_study.f3_structure import financed_spread as FS
 from scripts.backtest_study.lib import ladder_targets as LT
 from scripts.backtest_study.lib.underlying import Bar
-from scripts.collector import fetch_ladder_legs as fll
-from scripts.collector import fetch_financing_legs as ffl
+from scripts.collector.study_legs import fetch_ladder_legs as fll
+from scripts.collector.study_legs import fetch_financing_legs as ffl
 
 E0 = date(2024, 6, 3)
 CORE_EXP = date(2025, 6, 20)   # far out, so core_expiries/eligible windows stay open

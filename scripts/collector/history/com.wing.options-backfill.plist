@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Operator-installed. Runs backfill_supervisor.sh every 30 min; the supervisor exits at once
      if a pass is already running, cooling down, DONE or HALTed.
-     Install:   cp scripts/collector/com.wing.options-backfill.plist ~/Library/LaunchAgents/ &&
+     Install:   cp scripts/collector/history/com.wing.options-backfill.plist ~/Library/LaunchAgents/ &&
                 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wing.options-backfill.plist
      Remove:    launchctl bootout gui/$(id -u)/com.wing.options-backfill &&
                 rm ~/Library/LaunchAgents/com.wing.options-backfill.plist -->
@@ -12,7 +12,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/wing/claude_playground/options-trading/scripts/collector/backfill_supervisor.sh</string>
+    <string>/Users/wing/claude_playground/options-trading/scripts/collector/history/backfill_supervisor.sh</string>
   </array>
   <key>StartInterval</key><integer>1800</integer>
   <key>RunAtLoad</key><true/>

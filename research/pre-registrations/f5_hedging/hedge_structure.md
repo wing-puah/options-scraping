@@ -137,7 +137,7 @@ separate invocation and report file.
 S6 is included ONLY if the leg scrape reaches ≥60% four-leg group coverage.
 Otherwise S6 is NOT EVALUABLE, with the coverage number printed.
 
-Missing legs are scraped FIRST by `scripts/collector/fetch_sweep_legs.py`
+Missing legs are scraped FIRST by `scripts/collector/study_legs/fetch_sweep_legs.py`
 (resumable: one cache file per contract, `--limit` chunks, skip-existing,
 manifest CSV) into the same cache under the same naming. Synthesis results are
 checkpointed to `backtests/sweep_cache/synth_results.csv` so an interrupted

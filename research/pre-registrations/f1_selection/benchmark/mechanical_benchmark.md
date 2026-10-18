@@ -315,12 +315,12 @@ it feeds the join-attrition question
 ### Fetching
 
 **No study code fetches.** Any backfill runs through
-`scripts/collector/fetch_counterpart_history.py` as a separate, operator-run
+`scripts/collector/history/fetch_counterpart_history.py` as a separate, operator-run
 step, and the option cache is pushed to Drive afterwards.
 
 _Resolved at build (2026-10-09):_ that collector fetches the other leg of a
 book row, a different target set. The backfill runs through a new collector,
-`scripts/collector/fetch_mechanical_legs.py`. It imports the study's own fetch
+`scripts/collector/study_legs/fetch_mechanical_legs.py`. It imports the study's own fetch
 plan and fetches through the backtest's loop, as `fetch_substitute_legs.py`
 does. It is still operator-run, and the cache is still pushed afterwards.
 

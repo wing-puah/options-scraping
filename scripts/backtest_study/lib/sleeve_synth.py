@@ -15,8 +15,8 @@ copy of the entry rule has not drifted from the first, so the second copy has
 to keep existing and it has to be THIS one, unchanged. A retirement that left
 `synthesize` inside a deleted module would leave R4 with one side.
 
-`scripts/collector/fetch_sweep_legs.py` and
-`scripts/collector/fetch_financing_legs.py` read `_strike_index` /
+`scripts/collector/study_legs/fetch_sweep_legs.py` and
+`scripts/collector/study_legs/fetch_financing_legs.py` read `_strike_index` /
 `paired_strikes` from here for the same reason: one encoding of the option
 cache's filename convention, not two.
 

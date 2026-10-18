@@ -448,7 +448,7 @@ exit code 0 after 3.4s
 **Provenance.** ARM S run 2026-08-13, git 470b95f
 (dirty), 08-11 exports, grown option cache (**19,382 contracts** after the
 sweep-leg scrape: 1,418 of 1,452 manifest targets fetched;
-`scripts/collector/fetch_sweep_legs.py`, resumable, manifest in
+`scripts/collector/study_legs/fetch_sweep_legs.py`, resumable, manifest in
 `backtests/sweep_cache/legs_manifest.csv`). Nothing ships. The two-analyst
 replication was NOT run on this report (uniform power stops leave nothing to
 grade); it can be requested.

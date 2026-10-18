@@ -111,7 +111,7 @@ def _load_rows(client, prefix: str, date_str: str | None) -> list[dict]:
 def _load_counterpart_iv(client, date_str: str | None) -> dict[str, list[dict]]:
     """Load the per-date counterpart-IV sidecar → ``build_iv_lookup`` dict ({} on miss).
 
-    The sidecar (``scripts/collector/fetch_counterpart_iv.py``) holds settlement IV for counterpart legs
+    The sidecar (``scripts/collector/daily/fetch_counterpart_iv.py``) holds settlement IV for counterpart legs
     that didn't trade, so the matched-pair ``iv_spread`` / skew reads see the fuller
     chain. Keyed to the resolved date (latest folder when ``date_str`` is None), so
     live and backtest read the same file. Any failure degrades gracefully to
@@ -139,7 +139,7 @@ def _load_counterpart_iv(client, date_str: str | None) -> dict[str, list[dict]]:
 def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
     """``{UPPER_SYMBOL: iv_pct}`` read off the enriched flow rows' ``iv_pct`` column.
 
-    The column is written by ``scripts/collector/fetch_iv_percentile.py`` (scrapes Barchart's
+    The column is written by ``scripts/collector/daily/fetch_iv_percentile.py`` (scrapes Barchart's
     options-overview history per ticker, appends iv/iv_rank/iv_pct to the compiled flow
     file), so fetch does no scraping or tab lookup — it just reads the as-of-date value
     already on the row. Degrades to ``{}`` on any failure or when a name wasn't
@@ -156,7 +156,7 @@ def _load_iv_pct(flow_rows: list[dict]) -> dict[str, float]:
 def _load_iv_pct_status(flow_rows: list[dict]) -> dict[str, str]:
     """``{UPPER_SYMBOL: iv_pct_status}`` — the provenance marker beside ``iv_pct``.
 
-    Written by the same enricher (``scripts/collector/fetch_iv_percentile.py``) and read
+    Written by the same enricher (``scripts/collector/daily/fetch_iv_percentile.py``) and read
     off the row the same way as :func:`_load_iv_pct`. It rides through the rollup CSV
     onto the analysis row (``ROW_COLUMNS``) so a later study can tell a blank IVpct that
     means "no read" from one that means "Barchart's ~2yr window no longer reaches this
@@ -180,7 +180,7 @@ def _load_price_read(flow_rows: list[dict], date_str: str | None) -> dict[str, d
     vector (∈ [-1, +1], + bullish / − bearish / ≈0 range-bound, ``|value|`` =
     strength); ``days_to_earnings`` (:func:`lib.price_catalyst.catalyst_read`) is
     days to the next earnings as of the trade date. Columns are written by
-    ``scripts/collector/fetch_price_catalyst.py`` — same read-off-the-row pattern
+    ``scripts/collector/daily/fetch_price_catalyst.py`` — same read-off-the-row pattern
     as :func:`_load_iv_pct`, no scraping. ``days_to_earnings`` needs the trade date,
     so it stays ``None`` when ``date_str`` is unknown; the vector never does.
     Degrades to ``{}`` on any failure or unenriched rows.
@@ -200,7 +200,7 @@ def _load_price_read(flow_rows: list[dict], date_str: str | None) -> dict[str, d
 
 def load_flow_rows_for_scoring(date_str: str | None) -> list[dict]:
     """Re-download the compiled stocks-flow + etfs-flow rows for `date_str` (or the
-    latest date when None), already carrying scripts/collector/fetch_price_catalyst.py's
+    latest date when None), already carrying scripts/collector/daily/fetch_price_catalyst.py's
     price/earnings enrichment columns. A small independent Drive read — mirrors
     how _load_counterpart_iv/_load_iv_pct re-derive their own inputs rather than
     threading a bigger object through fetch_data's return value."""

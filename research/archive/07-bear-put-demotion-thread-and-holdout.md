@@ -385,7 +385,7 @@ does not block enriching the other 20.
 ### Sequence
 
 1. **Scrape the 6 + 04-08** (user is running this):
-   `python3 scripts/collector/scrape_flow.py --start 2026-03-30 --end 2026-04-08 --skip-existing`
+   `python3 scripts/collector/daily/scrape_flow.py --start 2026-03-30 --end 2026-04-08 --skip-existing`
 2. `compile_flow.py` on the newly scraped dates.
 3. Enrichment chain, batched by stage over the gap lists above —
    `enrich_oi`, `fetch_iv_percentile`, `fetch_counterpart_iv`,

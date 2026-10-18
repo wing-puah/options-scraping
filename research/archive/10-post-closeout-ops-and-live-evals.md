@@ -31,7 +31,7 @@ the rules have stopped churning and the doc is stable enough to freeze.
 1. **Stale command.** The card told the operator to run
    `python3 backtests/mech_regime/fetch_spy_vix.py --full`. That path is
    untracked scratch — the tracked fetcher has been
-   `scripts/collector/fetch_mech_regime.py` since the mech-regime move, and
+   `scripts/collector/daily/fetch_mech_regime.py` since the mech-regime move, and
    `make analyze` already depends on the `mech-regime` target. Now just
    `make analyze`.
 2. **Hand-computed regime label.** The card still spelled out "SPY < 50-day SMA
@@ -49,7 +49,7 @@ the rules have stopped churning and the doc is stable enough to freeze.
 
 The `## Exit management` heading is **preserved verbatim** — six places link to
 `deployment-rules.md §"Exit management"` (`docs/backtest-reference.md`,
-`scripts/backfill_mech_cell.py`, `scripts/collector/fetch_mech_regime.py`,
+`scripts/backfill_mech_cell.py`, `scripts/collector/daily/fetch_mech_regime.py`,
 `scripts/analysis_pipeline/config.py`, `scripts/analysis_pipeline/core.py`,
 `.github/workflows/backfill-mech-cell.yml`), and keeping the heading is cheaper
 than updating six references.

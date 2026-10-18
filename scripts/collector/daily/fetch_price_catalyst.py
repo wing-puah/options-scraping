@@ -56,12 +56,12 @@ re-run regenerates the compiled file and DROPS these columns; the next
 --backfill re-enriches. Needs BARCHART_EMAIL/PASSWORD.
 
 Usage:
-  python3 scripts/collector/fetch_price_catalyst.py                       # latest compiled date
-  python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10
-  python3 scripts/collector/fetch_price_catalyst.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/collector/fetch_price_catalyst.py --backfill            # every compiled date
-  python3 scripts/collector/fetch_price_catalyst.py --backfill --dry-run  # report, no scrape/upload
-  python3 scripts/collector/fetch_price_catalyst.py --date 2026-06-10 --force   # re-scrape from scratch
+  python3 scripts/collector/daily/fetch_price_catalyst.py                       # latest compiled date
+  python3 scripts/collector/daily/fetch_price_catalyst.py --date 2026-06-10
+  python3 scripts/collector/daily/fetch_price_catalyst.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/daily/fetch_price_catalyst.py --backfill            # every compiled date
+  python3 scripts/collector/daily/fetch_price_catalyst.py --backfill --dry-run  # report, no scrape/upload
+  python3 scripts/collector/daily/fetch_price_catalyst.py --date 2026-06-10 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -73,10 +73,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / ".env")
+load_dotenv(Path(__file__).parents[3] / ".env")
 
+sys.path.insert(0, str(Path(__file__).parents[3]))
 sys.path.insert(0, str(Path(__file__).parents[2]))
-sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import options as barchart_options, underlying as barchart_underlying
 from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.barchart.corporate_actions import parse_corporate_actions
@@ -101,7 +101,7 @@ ALL_COLUMNS = PRICE_CATALYST_ENRICH_COLUMNS + [PRICE_CATALYST_MARKER_COLUMN]
 # scraping an interruption can cost.
 CHECKPOINT_EVERY = 50
 
-_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[3] / "cookies" / "barchart_session.json")
 
 
 # ─── Ticker identification + row state ───────────────────────────────────────────

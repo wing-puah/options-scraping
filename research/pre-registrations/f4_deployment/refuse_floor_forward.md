@@ -113,7 +113,7 @@ It needs all three:
 
 F3 needs substitute-leg histories that the cache does not hold for a new date.
 
-- **Before an F3 look**, `scripts/collector/fetch_substitute_legs.py --scope
+- **Before an F3 look**, `scripts/collector/study_legs/fetch_substitute_legs.py --scope
   between` is run on the current exports. It fetches only uncached strikes.
 - **Coverage, per look.** `narrow_to_fit`'s GN5 rule applies to the forward F3
   cell. If more than 10% of the over-budget PRIMARY picks end

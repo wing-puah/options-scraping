@@ -7,7 +7,7 @@ import pytest
 _ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_ROOT))                          # lib.*
 sys.path.insert(0, str(_ROOT / "scripts"))              # compile_flow, backtest.*, etc.
-sys.path.insert(0, str(_ROOT / "scripts" / "collector"))  # scrape_flow, enrich_oi, fetch_*
+sys.path.insert(0, str(_ROOT / "scripts" / "collector" / "daily"))  # scrape_flow, enrich_oi, fetch_* (bare-name imports)
 
 # Env vars the production code reads as a FALLBACK when a caller passes nothing,
 # and which the operator's real `.env` supplies. `scripts/journal/__main__.py`

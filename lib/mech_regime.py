@@ -20,7 +20,7 @@ that the two label sources win on opposite jobs.
 Pure module: reads a CSV of `date,spy_close,vix_close`, no network — it is
 called per-row inside the backtest, so fetching stays OUT of it. The table is
 refreshed nightly into Drive by the Compile Flow workflow
-(`scripts/collector/fetch_mech_regime.py`); pull the current copy with
+(`scripts/collector/daily/fetch_mech_regime.py`); pull the current copy with
 `make mech-regime`, which `make backtest` / `make analyze` depend on.
 
 Rows with no SPY close are dropped, so an in-progress trading day (VIX printed,

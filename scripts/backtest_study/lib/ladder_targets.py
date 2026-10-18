@@ -5,7 +5,7 @@ WHY THIS EXISTS
 `ladder_overlay` (`research/pre-registrations/f3_structure/ladder_overlay.md`)
 tests a rolled short-call ladder (plus a naked-put alternative) wrapped around
 a book `bull_call_spread` core. Both the PRE-SCRAPE collector
-(`scripts/collector/fetch_ladder_legs.py`) and the POST-SCRAPE campaign engine
+(`scripts/collector/study_legs/fetch_ladder_legs.py`) and the POST-SCRAPE campaign engine
 (`scripts/backtest_study/lib/overlay_campaign.py`) need to agree, contract for
 contract, on which strikes/expiries a roll slot is owed — this module is that
 single encoding, imported by both. A scrape target and a campaign target that
@@ -136,7 +136,7 @@ def ticker_ladder(ticker: str) -> list[float]:
     option types — the ticker's OWN observed strike ladder, never an invented
     increment.
 
-    Same rule as `scripts/collector/fetch_financing_legs.py::ticker_ladder`,
+    Same rule as `scripts/collector/study_legs/fetch_financing_legs.py::ticker_ladder`,
     mirrored rather than imported: that one takes a pre-built `idx` covering
     EVERY ticker at once (built for a ~40k-row scan), while this one scans the
     cache for a single ticker on demand — different signature, same

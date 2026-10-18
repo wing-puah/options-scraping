@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/fetch_counterpart_history.py`.
+"""Unit tests for `scripts/collector/history/fetch_counterpart_history.py`.
 
 Covers the pure selection logic — which legs are read out of the book, what
 their mirrors are, and when the coverage gate re-fetches — plus the two guards
@@ -17,7 +17,7 @@ from datetime import date, timedelta
 import pytest
 
 from lib.barchart.options import cache_path
-from scripts.collector import fetch_counterpart_history as fch
+from scripts.collector.history import fetch_counterpart_history as fch
 
 HEADER = ("Time,Open,High,Low,Latest,Change,%Change,Volume,Open Int,IV,Delta,"
           "Gamma,Theta,Vega,Rho,Theo,Price~,Bid,Ask")

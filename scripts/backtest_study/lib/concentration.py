@@ -161,7 +161,7 @@ def trading_sessions() -> frozenset[date]:
             raise SessionCalendarMissing(
                 f"no bars for {SESSION_CALENDAR_TICKER} in {und.OHLC_CACHE} — "
                 f"run `python3 scripts/backup_research_caches.py pull` (or "
-                f"`scripts/collector/fetch_underlying_ohlc.py`) before this study.")
+                f"`scripts/collector/history/fetch_underlying_ohlc.py`) before this study.")
         _SESSIONS_CACHE = frozenset(bars)
     return _SESSIONS_CACHE
 

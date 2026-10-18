@@ -6,12 +6,12 @@ Historical mode (--date / --start + --end): scrapes all four data types for past
 
 Usage:
   # Live — run during/after market hours
-  python3 scripts/collector/scrape_flow.py --mode flow
-  python3 scripts/collector/scrape_flow.py --mode unusual
+  python3 scripts/collector/daily/scrape_flow.py --mode flow
+  python3 scripts/collector/daily/scrape_flow.py --mode unusual
 
   # Historical — backfill a date or date range
-  python3 scripts/collector/scrape_flow.py --date 2026-04-21
-  python3 scripts/collector/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
+  python3 scripts/collector/daily/scrape_flow.py --date 2026-04-21
+  python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 """
 import argparse
 import asyncio
@@ -25,9 +25,9 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / ".env")
+load_dotenv(Path(__file__).parents[3] / ".env")
 
-_ROOT = Path(__file__).parents[2]
+_ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(_ROOT))
 
 from lib.logger import setup_logging

@@ -40,12 +40,12 @@ later compile_flow re-run regenerates the compiled file and DROPS these columns;
 next --backfill re-enriches. Needs BARCHART_EMAIL/PASSWORD.
 
 Usage:
-  python3 scripts/collector/fetch_iv_percentile.py                       # latest compiled date
-  python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10
-  python3 scripts/collector/fetch_iv_percentile.py --start 2026-06-01 --end 2026-06-10
-  python3 scripts/collector/fetch_iv_percentile.py --backfill            # every compiled date
-  python3 scripts/collector/fetch_iv_percentile.py --backfill --dry-run  # report, no scrape/upload
-  python3 scripts/collector/fetch_iv_percentile.py --date 2026-06-10 --force   # re-scrape from scratch
+  python3 scripts/collector/daily/fetch_iv_percentile.py                       # latest compiled date
+  python3 scripts/collector/daily/fetch_iv_percentile.py --date 2026-06-10
+  python3 scripts/collector/daily/fetch_iv_percentile.py --start 2026-06-01 --end 2026-06-10
+  python3 scripts/collector/daily/fetch_iv_percentile.py --backfill            # every compiled date
+  python3 scripts/collector/daily/fetch_iv_percentile.py --backfill --dry-run  # report, no scrape/upload
+  python3 scripts/collector/daily/fetch_iv_percentile.py --date 2026-06-10 --force   # re-scrape from scratch
 """
 import argparse
 import asyncio
@@ -57,10 +57,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parents[2] / ".env")
+load_dotenv(Path(__file__).parents[3] / ".env")
 
+sys.path.insert(0, str(Path(__file__).parents[3]))
 sys.path.insert(0, str(Path(__file__).parents[2]))
-sys.path.insert(0, str(Path(__file__).parents[1]))
 from lib.barchart import BARCHART_AUTH_EXIT_CODE, BarchartAuthError, BarchartSession
 from lib.barchart.iv_history import parse_iv_history
 from lib.csv_utils import parse_csv
@@ -100,7 +100,7 @@ WINDOW_DAYS = 12
 # backfill dates later.
 DEPTH_EXHAUSTED_SHARE = 0.33
 
-_DEFAULT_COOKIES = str(Path(__file__).parents[2] / "cookies" / "barchart_session.json")
+_DEFAULT_COOKIES = str(Path(__file__).parents[3] / "cookies" / "barchart_session.json")
 
 
 # ─── Ticker identification + row state ───────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""Unit tests for `scripts/collector/fetch_sweep_legs.py`.
+"""Unit tests for `scripts/collector/study_legs/fetch_sweep_legs.py`.
 
 Covers the pure target-derivation rules (which put_calendar / put_diagonal /
 condor_wing contracts a synthetic cache/book pair implies are missing,
@@ -17,7 +17,7 @@ import pytest
 
 from lib.barchart.options import cache_path
 from scripts.backtest.legs import Leg
-from scripts.collector import fetch_sweep_legs as fsl
+from scripts.collector.study_legs import fetch_sweep_legs as fsl
 
 E1 = date(2024, 6, 21)   # near expiry
 E2 = date(2024, 7, 19)   # far expiry

@@ -18,7 +18,7 @@ from scripts.backtest_study.f3_structure import bear_rewrap as BR
 from scripts.backtest_study.f3_structure import financed_spread as FS
 from scripts.backtest_study.lib import ladder_targets as LT
 from scripts.backtest_study.lib.underlying import Bar
-from scripts.collector import fetch_financing_legs as ffl
+from scripts.collector.study_legs import fetch_financing_legs as ffl
 
 
 @pytest.fixture(autouse=True)

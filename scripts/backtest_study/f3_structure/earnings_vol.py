@@ -16,7 +16,7 @@ the close of session E (the first session whose open reflects the report):
 
 The entry close (rebased onto the option chain's unadjusted basis), the
 candidate strike ladder, both expiries, E and the entry day come from the SAME
-pure planner the fetch used (`scripts/collector/fetch_earnings_legs.py::
+pure planner the fetch used (`scripts/collector/study_legs/fetch_earnings_legs.py::
 plan_ticker`), and the ATM from its `resolve_atm`: the ladder candidate nearest
 the entry close whose front call and put both have an entry-day row, passing
 over a failed / unlisted / unquoted candidate and dropping the event
@@ -65,7 +65,7 @@ from scripts.backtest.shared import unlisted as UL  # noqa: E402
 from scripts.backtest_study.f3_structure import index_vrp as IV  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
 from scripts.backtest_study.lib import pbo as pbo_mod  # noqa: E402
-from scripts.collector import fetch_earnings_legs as FEL  # noqa: E402
+from scripts.collector.study_legs import fetch_earnings_legs as FEL  # noqa: E402
 
 REGISTRATION = "research/pre-registrations/f3_structure/earnings_vol.md"
 ACCEPTED = "2026-10-12"
