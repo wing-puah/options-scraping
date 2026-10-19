@@ -83,6 +83,13 @@ backfill-mech-cell: mech-regime
 daily-loop:
 	DRY=$(DRY) START=$(START) ./scripts/daily_loop.sh $(ARGS)
 
+# ── flow pacemaker (laptop twin of .github/workflows/flow-pacemaker.yml) ──────
+# One run paces today's hourly flow scrapes + the close scrape, then compiles the
+# day. Start it before 23:00 SGT and leave the terminal open. DRY=1 prints the plan.
+.PHONY: pacemaker
+pacemaker:
+	./scripts/pacemaker.sh $(if $(filter 1,$(DRY)),--dry-run) $(ARGS)
+
 # ── pipeline health ─────────────────────────────────────────────────────────────
 .PHONY: check-pipeline
 check-pipeline:
@@ -531,6 +538,7 @@ help:
 	@echo "  make baseline      append today's baseline row"
 	@echo ""
 	@echo "  make daily-loop    mech-regime, bounded backtest+proxy, journal, deploy card, backup (START=YYYY-MM-DD DRY=1 ARGS=\"--skip-backup|--skip-backtest\")"
+	@echo "  make pacemaker     pace today's flow scrapes + close scrape on this laptop, then compile (DRY=1 ARGS=\"--force|--skip-compile\")"
 	@echo "  make journal       fetch today's IBKR fills (Flex) → reconcile vs analysis → report + Sheets"
 	@echo "  make journal-dry   same, but write nothing (shows the rows it would append)"
 	@echo "  make journal ARGS=\"--offline\"  read portfolio/input/ only, no network"

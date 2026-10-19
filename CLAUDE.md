@@ -65,6 +65,8 @@ python3 scripts/auth_drive.py   # one-time Drive OAuth2
 
 # Data collection (GitHub Actions: flow-pacemaker.yml paces each NYSE session's scrapes,
 # self-started 10:00 UTC Mon-Fri; scrape.yml's hourly crons are the backup)
+make pacemaker                                        # LAPTOP twin when Actions is down: paces today's
+                                                      # scrapes + close scrape, then compiles (DRY=1 to preview)
 SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode flow    # or --mode unusual
 python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
 python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
