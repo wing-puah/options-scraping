@@ -28,7 +28,7 @@ studies until P1 and P2 are read.
 | P3 | Claude | DONE 2026-10-13 — the study book's tier port is retired (item 8) | nothing; P5 carries the moved tiers |
 | P4 | Both | Keep the daily loop running at the card's sizes | forward grades |
 | P5 | Claude | Suite re-run once sealed dates price | `dip_buy` read |
-| P6 | Claude, when asked | Housekeeping: item 7, item 11; backup pruning, operator item 16 | nothing |
+| P6 | Claude, when asked | Housekeeping: backup pruning, operator item 16. Items 7 and 11 DONE (2026-10-20, 2026-10-18) | nothing |
 
 **P0 — the kill rule. DONE 2026-10-13.** Registered as
 [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md),
@@ -148,12 +148,11 @@ No rule changes on it.
    and the two replicated `regime_map` cells
    ([entry](current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)).
    Run the suite once new dates price.
-7. **Optional: refresh the stock-bar cache and re-run `direction_hit`.**
-   The cache ends in August 2026, so 265 v4 rows have no bar at the signal
-   or the exit
-   ([entry](current.md#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
-   The refresh is a Barchart scrape (`fetch_underlying_ohlc.py`). Default: not
-   run until the operator asks.
+7. **DONE 2026-10-20 — stock bars refreshed, `direction_hit` re-run.**
+   The 265 rows without a bar now have one, and the verdict is still `NULL`
+   ([entry](current.md#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
+   The bar cache is not in the Drive backup; a fresh checkout refetches it
+   with `fetch_underlying_ohlc.py --backfill`.
 8. **DONE 2026-10-13 — the study book's tier port is retired.**
    `lib/book.py::book_tier` now calls `mapping.ladder_tier()`, the one
    encoding. The only rule that moved a row is the §1.3 credit veto: credit

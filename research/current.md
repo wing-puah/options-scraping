@@ -27,6 +27,12 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-10-20: `direction_hit` still prints `NULL` on refreshed stock bars; the seal stands at 17 of 40 priced dates**
+([entry](#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
+
+**2026-10-20: analysis rows now record their prompt digests and model (robustness A3)**
+([entry](#2026-10-20--analysis-rows-now-name-the-prompt-and-model-that-wrote-them)).
+
 **2026-10-20: the research mirror fills substitutions inside production's entry window; `bear_rewrap`'s `long_diag` keeps 91 of 275 rows and no verdict moves**
 ([entry](#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves)).
 
@@ -280,6 +286,108 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-20 — direction_hit re-run on fresh stock bars: still NULL
+
+**`direction_hit` still prints `NULL` after the stock-bar refresh.** The
+265 v4 rows that had no bar now carry one, and the model still ranks hits
+no better than chance. Nothing ships.
+
+_Registration: [`direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md) ·
+era v4, exports 2026-10-20 07:29, with v3 beside it · report:
+`backtests/study_output/direction_hit-latest.txt` · recorded in
+[study-results](study-results/f1_selection/signal/direction_hit.md)._
+
+| Population | Rows with a hit |
+|---|---|
+| v4 directional | 1,793 |
+| v3 directional | 779 |
+| stock bars | refreshed 2026-10-20, through 2026-10-19 |
+
+**In production.** Nothing changes.
+
+**Why it was re-run.** The [2026-10-12 run](#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)
+read bars that ended in August 2026, so 265 v4 rows were dropped for having
+no bar at the signal or the exit. This was [next-steps item 7](next-steps.md#pick-up).
+
+**The refresh.** `fetch_underlying_ohlc.py --backfill` fetched all 184 book
+tickers, 0 failed. The cache is not in the Drive backup, so a fresh checkout
+has to fetch it whole.
+
+| Split check | Tickers |
+|---|---|
+| bars on an adjusted basis (`rescaled_tickers.txt`) | 14, was 6 |
+| no cached option price to compare against (GLD, IWM) | 2 |
+
+A rescaled ticker's rows stay in. The study measures ratios, which a
+constant adjustment factor does not change.
+
+| Object | Run | v4 rows with a hit | [AUC](glossary.md#auc), CI95 | [Brier skill](glossary.md#brier-skill), CI95 | [PBO](arm-index.md#pbo_ledger) |
+|---|---|---|---|---|---|
+| [`direction_hit`](arm-index.md#direction_hit) model, all directional | 2026-10-12 | 1,528 | 0.525 [0.484, 0.563] | −0.077 [−0.123, −0.032] | 0.085 |
+| Same | 2026-10-20 | 1,793 | 0.526 [0.492, 0.562] | −0.069 [−0.108, −0.030] | 0.120 |
+| Tier A/B, secondary | 2026-10-12 | — | 0.519 [0.468, 0.576] | −0.128 [−0.203, −0.051] | — |
+| Tier A/B, secondary | 2026-10-20 | — | 0.505 [0.458, 0.555] | −0.129 [−0.195, −0.065] | — |
+
+- **The extra rows change nothing.** The AUC CI still spans 0.5, and every
+  Brier skill is still below zero.
+- **The book did not grow in-sample.** The 1,850-row v4 book is the same;
+  the seal withholds the 122 rows dated from 2026-09-23. The new rows are
+  old rows that now have bars.
+- **The same two screen features pass BH**, index ETF (`F14`) and sector
+  (`F17`). The 2026-10-12 entry explains why neither is a usable signal.
+
+**Seal census, same exports.** 17 of 40 sealed dates are priced, so the
+[holdout seal](pre-registrations/f4_deployment/holdout_seal.md) stays shut.
+The P5 suite re-run and the §7 table refresh still wait on it.
+
+**Next.** Item 7 in [`next-steps.md`](next-steps.md#pick-up) closes. The
+forward read stays `STILL-OPEN` behind the seal.
+
+---
+
+## 2026-10-20 — analysis rows now name the prompt and model that wrote them
+
+**Every new `AnalysisClaude` row records the framework digest, the method
+digest and the model.** Robustness item A3 closes
+([review](robustness-review.md)). Nothing in the analysis changes.
+
+**In production.** The tab gains three columns, appended at the end:
+`framework_sha256`, `method_sha256` and `model`. The live header was
+realigned from 26 to 29 columns with `align_tab_headers.py`; no data moved.
+Rows written before today leave the three cells blank, which means "not
+recorded".
+
+**What each column holds.**
+
+| Column | Value |
+|---|---|
+| `framework_sha256` | first 12 hex chars of the sha256 of `config/prompts/analysis-framework.md` |
+| `method_sha256` | the same for the engine's method file |
+| `model` | the model id the `claude` CLI reports serving, else the requested name |
+
+- **The digests match the manifest.** They are the values `--output-dir`
+  already wrote to `manifest.jsonl`, so a local run and a tab row can be
+  compared directly.
+- **`model` is the served id.** An alias such as `opus` does not name a
+  version. The CLI's result event lists the models it billed, and the
+  pipeline takes the one with the most output tokens.
+- **The values are the same on every row of a run**, MARKET included.
+
+**Why it matters.** Before today a prompt edit or a model change left no
+trace on the rows. Two populations could share a tab, and only the date
+would tell them apart.
+
+**Order of deployment.** The header is extended now. The laptop's `main`
+checkout writes 26 cells under the 29-cell header, leaving the new columns
+blank. That is harmless, and it is the only order that works: this branch
+also carries A2, which refuses an append under a header that differs from
+the rows.
+
+**Next.** Nothing new in the queue. A study can now split rows by prompt
+digest instead of by date.
 
 ---
 
