@@ -379,7 +379,8 @@ scripts/                    ← entry points, each maps to a workflow step
 
 **Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or
 `JOURNAL_COLUMNS` means the tab HEADER must gain it too (append-at-end), or new rows write an
-unlabelled trailing column. `align_tab_headers.py --dry-run` checks.
+unlabelled trailing column. `align_tab_headers.py --dry-run` checks, and since 2026-10-20
+`append_rows` REFUSES a tab whose live header differs from the rows' keys (`HeaderMismatch`).
 
 **Prompt versions / `vN_` tabs.** Any change to the analysis prompt or its inputs is a version
 bump: live tabs are renamed in place (`v3_AnalysisClaude`, …) and the pipeline recreates empty

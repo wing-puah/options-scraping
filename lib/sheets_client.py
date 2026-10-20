@@ -344,6 +344,40 @@ def _sanitize(v):
     return v
 
 
+class HeaderMismatch(ValueError):
+    """A tab's live header does not match the keys of the rows about to be
+    appended (robustness review A2)."""
+
+
+def _check_header(tab: str, header: list, keys: list[str]) -> None:
+    """Refuse an append whose rows would land under the wrong labels.
+
+    `append_rows` writes POSITIONALLY: cell i of every row goes under header
+    cell i, whatever either is called. Until 2026-10-20 the live header was
+    read only to decide whether to write one, so a tab whose header had
+    drifted from the writer's schema (a column added to `ROW_COLUMNS` or
+    `JOURNAL_COLUMNS` and not yet appended to the tab, a renamed or reordered
+    column) took every new row silently mislabelled. Four production writers
+    rely on this function; none of them checked. The fix is
+    `scripts/align_tab_headers.py` (append-at-end), never a write that guesses.
+    """
+    header = [str(h) for h in header]
+    if header == list(keys):
+        return
+    width = max(len(header), len(keys))
+    for i in range(width):
+        h = header[i] if i < len(header) else "<missing>"
+        k = keys[i] if i < len(keys) else "<no such key>"
+        if h != k:
+            break
+    raise HeaderMismatch(
+        f"tab '{tab}': live header ({len(header)} cols) does not match the rows' "
+        f"keys ({len(keys)} cols); first difference at column {i + 1}: header "
+        f"{h!r} vs key {k!r}. Nothing was appended — rows write positionally and "
+        f"would be mislabelled. Run `python3 scripts/align_tab_headers.py "
+        f"--dry-run` and fix the tab header (append-at-end), then re-run.")
+
+
 def append_rows(tab: str, rows: list[dict], raw: bool = False,
                 spreadsheet_id: str | None = None) -> None:
     """Append dict rows (header written on first use). raw=True stores values
@@ -360,8 +394,11 @@ def append_rows(tab: str, rows: list[dict], raw: bool = False,
     ws = _ensure_tab(ss, tab, min_cols=len(rows[0]))
     # NB: get_all_values() returns [[]] (truthy!) for a fresh tab — test the
     # first row's cells, not the outer list, or the header is silently skipped.
-    if not ws.row_values(1):
+    header = ws.row_values(1)
+    if not header:
         ws.append_row(list(rows[0].keys()))
+    else:
+        _check_header(tab, header, list(rows[0].keys()))
     option = "RAW" if raw else "USER_ENTERED"
     ws.append_rows([[_sanitize(v) for v in r.values()] for r in rows], value_input_option=option)
     log.info("Appended %d row(s) to tab '%s'", len(rows), tab)
