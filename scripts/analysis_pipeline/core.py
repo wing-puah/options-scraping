@@ -223,6 +223,8 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> tuple[dict, str]
     if wrapper.get("is_error"):
         raise RuntimeError(f"claude reported error: {wrapper.get('result')}")
     raw_text = wrapper.get("result", "")
+    global _last_served_model
+    _last_served_model = _served_model(wrapper)
     return _parse_and_validate(raw_text), raw_text
 
 
@@ -237,6 +239,28 @@ _RUNNERS = {"claude": _invoke_claude}
 # run_engine is stubbed out, so a reader must treat that as "unknown", not
 # load-bearing.
 _last_attempt: int | None = None
+
+# The model id the engine reports having served the accepted analysis, set by
+# the runner (``_invoke_claude`` reads it off the result event's
+# ``modelUsage``). Reset to None at the start of every run_engine() call, so a
+# stubbed runner or a CLI that does not report it leaves None — never a stale
+# id from an earlier date. main() then falls back to the requested model name.
+_last_served_model: str | None = None
+
+
+def _served_model(wrapper: dict) -> str | None:
+    """The main model in a ``claude -p`` result event's ``modelUsage``.
+
+    The CLI can bill side calls to a smaller model in the same session, so the
+    entry with the most output tokens is taken as the one that wrote the answer.
+    """
+    usage = wrapper.get("modelUsage")
+    if not isinstance(usage, dict) or not usage:
+        return None
+    def _out(k):
+        v = usage[k]
+        return (v.get("outputTokens") or 0) if isinstance(v, dict) else 0
+    return max(usage, key=_out)
 
 
 def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
@@ -254,7 +278,8 @@ def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
     enum — see ``_parse_and_validate`` — so a badly-shaped response gets a
     fresh attempt exactly like an unparseable one).
     """
-    global _last_attempt
+    global _last_attempt, _last_served_model
+    _last_served_model = None
     invoke = _RUNNERS[engine]
     cfg = config.ENGINES.get(engine)
     last_err: Exception | None = None
@@ -266,6 +291,7 @@ def run_engine(engine: str, prompt: str, model: str | None) -> tuple[dict, str]:
                 effective_model = cfg.fallback_model
             log.info("%s analyze attempt %d/%d (model=%s)",
                      engine, attempt, config.MAX_ATTEMPTS, effective_model or "engine default")
+            _last_served_model = None
             try:
                 result = invoke(prompt, effective_model, neutral_cwd)
                 _last_attempt = attempt
@@ -393,7 +419,8 @@ def _mech_cell(date_str: str) -> str:
 def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_end: str,
                      rollup_metrics: dict[str, dict] | None = None,
                      play_scores: dict[str, dict] | None = None,
-                     mech_cell: str = "") -> list[dict]:
+                     mech_cell: str = "",
+                     provenance: dict | None = None) -> list[dict]:
     """Expand one analysis JSON into the per-ticker rows (schema = config.ROW_COLUMNS).
 
     INVARIANT — do not regress (fixed June 2026):
@@ -419,6 +446,7 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
 
     created_datetime = datetime.now().isoformat(timespec="seconds")
     rollup_metrics = rollup_metrics or {}
+    prov = provenance or {}
 
     def _row(ticker, regime, signal, play, trigger, invalidation,
              horizon="", metrics=None, scores=None):
@@ -453,6 +481,10 @@ def analysis_to_rows(analysis: dict, date_str: str, window_start: str, window_en
             # rolling-window retention (`out_of_window`) is separable from a genuine
             # one — they imply different Step-4 structure choices.
             m.get("iv_pct_status", ""),
+            # Run provenance (A3): prompt digests + served model. Run-level, so
+            # the same on every row including MARKET.
+            prov.get("framework_sha256", ""), prov.get("method_sha256", ""),
+            prov.get("model", ""),
         ]))
 
     rows = [_row("MARKET", market_regime, market_signal, "", "", "")]
@@ -889,7 +921,12 @@ def main(argv: list[str] | None = None) -> None:
         rows = analysis_to_rows(analysis, d, window_start, window_end,
                                 rollup_metrics=_load_rollup_metrics(audit_path),
                                 play_scores=play_scores,
-                                mech_cell=_mech_cell(d))
+                                mech_cell=_mech_cell(d),
+                                provenance={
+                                    "framework_sha256": _file_digest(framework_file),
+                                    "method_sha256": _file_digest(method_file),
+                                    "model": _last_served_model or model or "engine default",
+                                })
         if args.output_dir:
             # Hard fork: local artefacts, and NEVER the Sheets append below —
             # unconditionally, not merely when --dry-run happens to be set,

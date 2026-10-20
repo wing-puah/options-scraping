@@ -379,7 +379,8 @@ scripts/                    ← entry points, each maps to a workflow step
 
 **Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or
 `JOURNAL_COLUMNS` means the tab HEADER must gain it too (append-at-end), or new rows write an
-unlabelled trailing column. `align_tab_headers.py --dry-run` checks.
+unlabelled trailing column. `align_tab_headers.py --dry-run` checks, and since 2026-10-20
+`append_rows` REFUSES a tab whose live header differs from the rows' keys (`HeaderMismatch`).
 
 **Prompt versions / `vN_` tabs.** Any change to the analysis prompt or its inputs is a version
 bump: live tabs are renamed in place (`v3_AnalysisClaude`, …) and the pipeline recreates empty
@@ -387,8 +388,9 @@ ones — a rename, NOT a new spreadsheet; ids and tab names in code stay unchang
 two prompt versions are never pooled.
 
 - **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped, so `score_total` runs
-  0–50 (0–55 for VOLATILITY) — NOT comparable to v3's 0–100. `ROW_COLUMNS` is 26 since
-  `iv_pct_status` was appended (append-at-end, not a version bump).
+  0–50 (0–55 for VOLATILITY) — NOT comparable to v3's 0–100. `ROW_COLUMNS` is 29 since
+  `framework_sha256`/`method_sha256`/`model` were appended 2026-10-20 (row provenance,
+  append-at-end, not a version bump; blank on rows written before).
 - **v3 is frozen** as the evidence base for every shipped rule in
   `docs/deployment-rules.md`. Pass `--tab v3_AnalysisClaude` to run against it; a bare
   backtest reads the (empty) v4 tab.

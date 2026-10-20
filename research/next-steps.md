@@ -28,7 +28,7 @@ studies until P1 and P2 are read.
 | P3 | Claude | DONE 2026-10-13 — the study book's tier port is retired (item 8) | nothing; P5 carries the moved tiers |
 | P4 | Both | Keep the daily loop running at the card's sizes | forward grades |
 | P5 | Claude | Suite re-run once sealed dates price | `dip_buy` read |
-| P6 | Claude, when asked | Housekeeping: item 7, item 11; backup pruning, operator item 16 | nothing |
+| P6 | Claude, when asked | Housekeeping: backup pruning, operator item 16. Items 7 and 11 DONE (2026-10-20, 2026-10-18) | nothing |
 
 **P0 — the kill rule. DONE 2026-10-13.** Registered as
 [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md),
@@ -148,12 +148,11 @@ No rule changes on it.
    and the two replicated `regime_map` cells
    ([entry](current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)).
    Run the suite once new dates price.
-7. **Optional: refresh the stock-bar cache and re-run `direction_hit`.**
-   The cache ends in August 2026, so 265 v4 rows have no bar at the signal
-   or the exit
-   ([entry](current.md#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
-   The refresh is a Barchart scrape (`fetch_underlying_ohlc.py`). Default: not
-   run until the operator asks.
+7. **DONE 2026-10-20 — stock bars refreshed, `direction_hit` re-run.**
+   The 265 rows without a bar now have one, and the verdict is still `NULL`
+   ([entry](current.md#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
+   The bar cache is not in the Drive backup; a fresh checkout refetches it
+   with `fetch_underlying_ohlc.py --backfill`.
 8. **DONE 2026-10-13 — the study book's tier port is retired.**
    `lib/book.py::book_tier` now calls `mapping.ladder_tier()`, the one
    encoding. The only rule that moved a row is the §1.3 credit veto: credit
@@ -847,6 +846,7 @@ has grown since. One line each, with the entry that holds the story.
 | Research mirrors do not follow the junk-quote rule | RESOLVED, all four import production's functions | 2026-09-28 | below |
 | The book loader misreads the re-priced rows | RESOLVED by the three loader rulings | 2026-09-28 | [entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again) |
 | Proxy `skip_reason` said `no_history` for snap-priced rows | RESOLVED for new rows; older rows keep the label | 2026-09-24 | [entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads) |
+| The mirror's substitutions ignored the entry window | RESOLVED; one study's count moves, no verdict | 2026-10-20 | [entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves) |
 | Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
@@ -1002,13 +1002,16 @@ dates from 2026-09-23, takes Option 2 for `v4_bridge`, and keeps the rollback
 triggers sealed
 ([entry](current.md#2026-10-09--holdout_seal-accepted-by-default-sealed-from-2026-09-23)).
 
-**`bear_rewrap` does not apply the entry window.** Production refuses a play
-as `stale_leg_at_entry` when a leg has no quote by the 5th trading day after
-the signal (operator ruling 2026-10-01). A re-priced stored row follows
-production, because the mirror reads its stored `dte_entry`. A substitution
-does not: `entry_date_for` picks the first day every leg has a row, with no
-5-day bound. `financed_spread`, `ladder_overlay` and `overlay_campaign` inherit
-the gap. Fix by importing `simulate.fresh_entry_date`, never by copying it.
+**RESOLVED 2026-10-20 — `bear_rewrap` applies the entry window.**
+`entry_date_for` imports `simulate.fresh_entry_date` and `entry_window_end`;
+every caller passes the record's signal date. `financed_spread`,
+`ladder_overlay` and `hedge_structure` print the same cells; `bear_rewrap`'s
+`long_diag` keeps 91 of 275 substitutions and no verdict moves
+([entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves)).
+The gap was: production refuses a play as `stale_leg_at_entry` when a leg has
+no quote by the 5th trading day after the signal (operator ruling
+2026-10-01), and the mirror's substitutions took the first common day with no
+bound.
 
 <a id="s2-12"></a>
 ### 2.12 Hedge programme follow-ups — both picked up 2026-09-08; one read still blocked

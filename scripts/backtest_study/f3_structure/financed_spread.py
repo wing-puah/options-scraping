@@ -803,7 +803,7 @@ def build(pop: list[tuple[dict, str]], shapes: tuple[str, ...]) -> dict:
             continue
 
         base_t: Trade = rec["t"]
-        ed_base = BR.entry_date_for(base_t.legs, base_t.grid)
+        ed_base = BR.entry_date_for(base_t.legs, base_t.grid, base_t.signal_date)
         base_prof, _ = profile_for(rec, base_t.entry_net)
         base_out = replay_at(base_t, base_prof, base_t.contracts)
         base_g = GK.entry_greeks(base_t.legs, ed_base) if ed_base else {}
@@ -848,7 +848,7 @@ def build(pop: list[tuple[dict, str]], shapes: tuple[str, ...]) -> dict:
                 if legs is None:
                     census[cell]["skip_no_cached_ladder"] += 1
                     continue
-            ed = BR.entry_date_for(legs, base_t.grid)
+            ed = BR.entry_date_for(legs, base_t.grid, base_t.signal_date)
             if ed is None:
                 census[cell]["skip_no_common_entry_day"] += 1
                 continue

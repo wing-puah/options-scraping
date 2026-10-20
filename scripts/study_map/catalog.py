@@ -842,7 +842,12 @@ STUDIES: dict[str, Study] = {
         family="structure", state="null",
         question="A bear SPREAD sells the lower put, giving away the vol expansion that makes "
                  "a bear position pay. What if the short leg goes?",
-        verdict="The two naive re-wraps are dead and the DIAGONAL is a candidate that keeps "
+        verdict="2026-10-20: the mirror now fills a substitution inside production's entry window "
+                "(`research/current.md` 2026-10-20). `long_diag` falls from 275 to 91 priced rows and "
+                "reads `[FAIL] CI excludes zero          dR +0.018 CI [-0.097, +0.125]`, 2 of 5 "
+                "criteria; `wider` reads `dR +0.028 CI [-0.016, +0.072]`, 3 of 5. The gate still "
+                "reconstructs 686 of 686. No verdict moves. Earlier reads follow. "
+                "The two naive re-wraps are dead and the DIAGONAL is a candidate that keeps "
                 "failing the year. On the 2026-09-19 suite run (sha 8e9b6a7), whose report is "
                 "identical to the 09-19 17:28 one bar its timestamp: `bear debit rows: 483  "
                 "(Counter({'tweak': 260, 'real': 223}))`, `reconstructed                483  "

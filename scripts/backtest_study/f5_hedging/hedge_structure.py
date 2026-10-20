@@ -557,7 +557,7 @@ def _fill_facts(signal_date: date, legs: list[Leg]) -> tuple[date | None, int | 
     grid = _weekday_grid(signal_date, end)
     if not grid:
         return None, None, False
-    ed = BR.entry_date_for(legs, grid)
+    ed = BR.entry_date_for(legs, grid, signal_date)
     if ed is None:
         return None, None, False
     return ed, (ed - signal_date).days, ed == grid[0]

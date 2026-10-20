@@ -217,7 +217,7 @@ def core_of(rec: dict) -> CoreSpec | None:
     lo_leg, hi_leg = longs[0], shorts[0]
     if lo_leg.opt_type != "Call" or hi_leg.opt_type != "Call" or lo_leg.strike >= hi_leg.strike:
         return None
-    entry_day = BR.entry_date_for(legs, list(t.grid))
+    entry_day = BR.entry_date_for(legs, list(t.grid), getattr(t, "signal_date", None))
     if entry_day is None:
         return None
     bar = load_bars(lo_leg.ticker).get(entry_day)

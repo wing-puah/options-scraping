@@ -469,3 +469,53 @@ def test_the_recorded_day_and_the_derived_day_can_disagree(cache):
     # The row was priced 2026-09-19, before the side rule preceded the Open.
     assert BR.net_entry([LONG, SHORT], D2, True, True, False) == pytest.approx(0.47)
     assert BR.net_entry([LONG, SHORT], D1, True, True, False) == pytest.approx(0.97)
+
+
+# ── the entry window (operator ruling 2026-10-01; mirrored 2026-10-20) ────────
+#
+# `entry_date_for` used to take the first day every leg had a bar, however late.
+# It now obeys production's window through `simulate.fresh_entry_date` and
+# `simulate.entry_window_end`, imported. Signal here is Wed 2025-04-09, so the
+# grid starts Thu 04-10 and the window ends Wed 04-16 (5 trading days).
+
+_SIG = date(2025, 4, 9)
+_GRID = [date(2025, 4, 10), date(2025, 4, 11), date(2025, 4, 14), date(2025, 4, 15),
+         date(2025, 4, 16), date(2025, 4, 17), date(2025, 4, 21), date(2025, 4, 22)]
+
+
+def test_the_entry_window_is_imported_from_production_not_restated():
+    assert BR.fresh_entry_date is SIM.fresh_entry_date
+    assert BR.entry_window_end is SIM.entry_window_end
+
+
+def test_a_common_day_past_the_window_is_no_fill(cache):
+    late = {d: _row(1.0, bid="0.9", ask="1.1") for d in _GRID[5:]}   # from 04-17
+    cache(LONG, dict(late))
+    cache(SHORT, dict(late))
+    assert BR.entry_date_for([LONG, SHORT], _GRID, _SIG) is None
+
+
+def test_a_late_leg_inside_the_window_moves_the_fill(cache):
+    cache(LONG, {d: _row(1.0, bid="0.9", ask="1.1") for d in _GRID})
+    cache(SHORT, {d: _row(0.5, bid="0.4", ask="0.6") for d in _GRID[2:]})  # first bar 04-14
+    assert BR.entry_date_for([LONG, SHORT], _GRID, _SIG) == date(2025, 4, 14)
+
+
+def test_a_stale_leg_is_no_fill_even_with_a_common_day_later(cache):
+    """The short leg was quoted before the signal and not again until after the
+    window; production refuses the play as `stale_leg_at_entry`. A common day
+    on 04-21 must not rescue it."""
+    cache(LONG, {d: _row(1.0, bid="0.9", ask="1.1") for d in _GRID})
+    cache(SHORT, {date(2025, 4, 7): _row(0.5, bid="0.4", ask="0.6"),
+                  date(2025, 4, 21): _row(0.3, bid="0.2", ask="0.4")})
+    assert BR.entry_date_for([LONG, SHORT], _GRID, _SIG) is None
+
+
+def test_the_default_signal_is_the_weekday_before_the_grid(cache):
+    """Callers that pass no signal get the same window: the grid starts the
+    weekday after the signal, and the window counts weekdays."""
+    cache(LONG, {d: _row(1.0, bid="0.9", ask="1.1") for d in _GRID})
+    cache(SHORT, {d: _row(0.5, bid="0.4", ask="0.6") for d in _GRID[4:]})   # first bar 04-16
+    assert BR.entry_date_for([LONG, SHORT], _GRID) == date(2025, 4, 16)
+    assert BR.entry_date_for([LONG, SHORT], _GRID, _SIG) == date(2025, 4, 16)
+    assert BR._weekday_before(date(2025, 4, 14)) == date(2025, 4, 11)   # Mon -> Fri

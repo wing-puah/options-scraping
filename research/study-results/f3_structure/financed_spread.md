@@ -164,3 +164,31 @@ VERDICTS
   CANDIDATE is not a ship. Nothing ships from a research-tier study.
 ```
 
+
+## era v4 · inputs e0297c0 · sha 1a7ebd2 — recorded 2026-10-20
+<!-- key era=v4 sha=1a7ebd2 inputs=e0297c0 -->
+
+population  1,093 results · 2,131 proxy · 3,534 analysis  (inputs dated 2026-10-20 05:13)
+run         2026-10-20 06:33:22 · git 1a7ebd2 (claude/awesome-cori-bhcchi, working tree dirty) · exit 0 · 867.1s
+command     python -m scripts.backtest_study.f3_structure.financed_spread
+missing     backtests/mech_regime/spy_vix_daily_full.csv
+excerpt     verdict
+
+```
+VERDICTS
+  F0 own           NULL
+  F1 off1          NULL
+  F1 off2          NULL
+  F2 off1          NULL
+  F2 off2          NULL
+  F3 off1          NULL
+  F3 off2          NULL
+  F4-d10 pt50      NULL
+  F4-d10 $100      NULL
+  F4-d10 hold      NULL
+  F4-d20 pt50      NULL
+  F4-d20 $100      NULL
+  F4-d20 hold      NULL
+  CANDIDATE is not a ship. Nothing ships from a research-tier study.
+```
+
