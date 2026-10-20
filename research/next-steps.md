@@ -491,8 +491,8 @@ One line each. Do not re-open; follow the link for the detail.
 <a id="s2"></a>
 ## 2. Open queue
 
-The numbers are stable labels, not a ranking. Pick-up order is roughly §2.2,
-§2.5, §2.10, §2.9, then the parked items as dates arrive.
+The numbers are stable labels, not a ranking. Pick-up order is roughly §2.14,
+§2.2, §2.5, §2.10, §2.9, then the parked items as dates arrive.
 
 <a id="s2-0"></a>
 ### 2.0 `concurrency_correlation` — CLOSED, nothing ships
@@ -1038,6 +1038,57 @@ and the thread re-opens only on genuinely new dates (§0)
 ([write-up](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-16--ladder_overlay--nothing-ships-no-ladder-or-naked-put-cell-beats-the-plain-spread-on-v4-or-v3),
 [record](study-results/f3_structure/ladder_overlay.md),
 [registration](pre-registrations/f3_structure/ladder_overlay.md)).
+
+<a id="s2-14"></a>
+### 2.14 Operator trades vs the card vs the mechanical spread — OPEN, first read 2026-10-20
+
+**First read: the overlays lose more than the card trades make.** Too few
+trades overlap the card's priced plays to say whether the operator's changes
+beat the card or the mechanical spread. The operator asked for this read on
+2026-10-20 and does not follow the card closely.
+
+The inputs are the journal's `_history/` archives on Drive, restored into the
+gitignored `journal/` folder. Dollar figures stay out of this tracked file,
+because they reveal position sizes; re-run the script to see them.
+
+| Bucket, closed 2026-07-01 to 2026-10-16 | Positions | Result |
+|---|---|---|
+| Traded off a card play | 26 | net gain, 81% win rate |
+| The operator's own ideas | 28 | net gain |
+| Short-call overlays | 16 | net loss larger than either gain |
+| Opened before 2026-07-01 | 14 | net loss |
+
+| Paired read, R on debit | Positions | Result |
+|---|---|---|
+| Operator minus card, net | 5 | −0.065, CI95 [−0.60, +0.37] |
+| Operator, card, mechanic (PLTR, QQQ) | 2 | +0.30, −0.02, +0.59 |
+
+**Why the overlap is thin.**
+
+- The mechanical arm is a call spread, so it pairs only bullish Tier A/B
+  picks. Most card-linked trades are bear hedges.
+- Many card plays sit on `BacktestProxy` with a skip reason and no R.
+- Card dates on or after the seal (2026-09-23) are excluded.
+
+**How to re-run.** The draft is `scripts/journal/draft_compare_card.py`. It
+is untested and not wired into the CLI.
+
+1. `JOURNAL_DRIVE_FOLDER_ID` is not set in the cloud environment. On
+   2026-10-20 the folder was found by searching Drive for `_history` and
+   taking its parent. Then call `drive_sync.pull_archives()`.
+2. Run `python3 -m scripts.backtest_study run mechanical_benchmark` for the
+   pairs CSV.
+3. Run the draft from the repo root.
+
+**Next, in order.**
+
+1. Break down the overlay losses: which positions, which strikes, and
+   whether the short call was sold before a rally.
+2. Price the proxied card plays so more trades pair.
+3. Add a put-side mechanical arm for bear hedges, or state why not.
+4. Turn the draft into a tested `scripts.journal` command whose output
+   stays in `journal/`.
+5. Re-read as sealed dates unseal, never before.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
