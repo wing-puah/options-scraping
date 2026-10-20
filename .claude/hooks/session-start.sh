@@ -42,6 +42,16 @@ if [ -d backtests/to_evaluate ] && [ -d backtests/option_history_cache ]; then
   exit 0
 fi
 
+# The token variable must hold the AUTHORIZED-USER token (credentials/drive_token.json,
+# with refresh_token), not the OAuth client file (top-level "installed" key). The two
+# are easy to swap and the library's error does not say which one it got.
+if .venv/bin/python3 -c 'import json,os,sys; sys.exit("installed" not in json.loads(os.environ["GOOGLE_OAUTH_TOKEN_JSON_CONTENT"]))' 2>/dev/null; then
+  echo "session-start: GOOGLE_OAUTH_TOKEN_JSON_CONTENT holds the OAuth CLIENT file" \
+       "(an \"installed\" block), not the token. Set it to the contents of" \
+       "credentials/drive_token.json; skipping the research-cache pull."
+  exit 0
+fi
+
 # A failed pull must not block the session; it says so and moves on.
 if ! .venv/bin/python3 scripts/backup_research_caches.py pull; then
   echo "session-start: research-cache pull FAILED; run" \
