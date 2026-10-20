@@ -82,7 +82,7 @@ def _grid(n, start=E0):
 
 @pytest.fixture()
 def _fixed_entry(monkeypatch):
-    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid: E0)
+    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid, *a: E0)
     monkeypatch.setattr(LT, "load_bars", lambda ticker: {E0: Bar(c=105.0)})
     return E0
 
@@ -129,7 +129,7 @@ def test_ladder_target_records_counts_population_and_targeted(_fixed_entry):
 
 
 def test_ladder_target_records_counts_skip_no_core(monkeypatch, _isolate):
-    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid: None)   # no common entry day
+    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid, *a: None)   # no common entry day
     recs = [_rec(_bull_legs(), _grid(400))]
     out, census = fll.ladder_target_records(recs)
     assert out == []
