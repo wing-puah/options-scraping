@@ -76,7 +76,8 @@ from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: 
 from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest.simulate import (  # noqa: E402
     _entry_side_mark, _is_junk_quote, _zero_bid_mark,
-    carried_entry_fill, entry_day_fill, junk_day_mark, open_print_allowed,
+    carried_entry_fill, entry_day_fill, entry_window_end, fresh_entry_date,
+    junk_day_mark, open_print_allowed,
 )
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
     BEAR_DEBIT, cell_stats, fmt_row, hdr, prod_profile_for, sub,
@@ -445,16 +446,51 @@ def cached_expiries(ticker: str, strike: float, opt_type: str) -> list[date]:
 
 # ── pricing (mirrors simulate.py, on the barchart source only) ───────────────
 
-def entry_date_for(legs: list[Leg], grid: list[date]) -> date | None:
-    """The first grid day on which EVERY leg has a cached row.
+def _weekday_before(day: date) -> date:
+    """The last weekday strictly before `day`."""
+    d = day - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def entry_date_for(legs: list[Leg], grid: list[date],
+                   signal_date: date | None = None) -> date | None:
+    """The first grid day on which EVERY leg has a cached row, inside
+    production's entry window.
 
     Production prices all legs on one entry day (the anchor's `_entry_date`,
     the first trading day after the signal under `entry_timing: next_open`).
     Requiring all legs present keeps a substitution from being filled on a
     different day from the baseline it is compared against.
+
+    Since 2026-10-20 the day also obeys production's entry-window rule
+    (operator ruling 2026-10-01), IMPORTED as `simulate.fresh_entry_date` and
+    `simulate.entry_window_end`, never restated: a leg with no quote by the
+    5th trading day after the signal but one before it is STALE and there is
+    no fill (production refuses `stale_leg_at_entry`); a leg first quoted
+    later inside the window moves the fill to that day; a common day past the
+    window end is no fill either. Before this the first common day was taken
+    however late it fell, so a substitution could be "filled" weeks after the
+    signal it is compared against (`research/next-steps.md` §2.11).
+
+    `signal_date` defaults to the weekday before `grid[0]`. That is exact:
+    `_weekday_grid` starts the weekday AFTER the signal and the window counts
+    weekdays, so every signal between the two gives the same window end.
     """
+    if not grid:
+        return None
+    if signal_date is None:
+        signal_date = _weekday_before(grid[0])
+    rows = [leg_details(leg) for leg in legs]
+    earliest, stale = fresh_entry_date([list(r) for r in rows], signal_date, grid[0])
+    if earliest is None:
+        return None
+    end = entry_window_end(signal_date)
     for day in grid:
-        if all(day in leg_details(leg) for leg in legs):
+        if day > end:
+            break
+        if day >= earliest and all(day in r for r in rows):
             return day
     return None
 
@@ -692,7 +728,7 @@ def synth_trade(rec: dict, legs: list[Leg], structure: str) -> Trade | None:
     side = priced_with_side(base.row)
     open_side = priced_with_open_side(base.row)
     junk = priced_with_junk(base.row)
-    ed = entry_date_for(legs, grid)
+    ed = entry_date_for(legs, grid, base.signal_date)
     if ed is None:
         return None
     net = net_entry(legs, ed, b5, side, open_side, junk, base.signal_date)
@@ -740,7 +776,7 @@ def reconstructs(rec: dict) -> tuple[bool, str]:
     # The day production recorded, not one re-derived from a cache that has
     # grown since (`recorded_entry_date`). Falls back to the derived day only
     # when the row carries no usable `dte_entry`.
-    ed = recorded_entry_date(base) or entry_date_for(legs, base.grid)
+    ed = recorded_entry_date(base) or entry_date_for(legs, base.grid, base.signal_date)
     if ed is None:
         return False, "no_common_entry_day"
     # Mirror EVERY basis the row was priced on: B5 governs its marks, the

@@ -169,7 +169,7 @@ def synth_trade(signal_date: date, ticker: str, legs: list[Leg],
     if not grid:
         return None, "empty_grid"
 
-    ed = entry_date_for(legs, grid)
+    ed = entry_date_for(legs, grid, signal_date)
     if ed is None:
         return None, "no_common_entry_day"
     if (ed - signal_date).days > U.MAX_ENTRY_LAG_DAYS:
