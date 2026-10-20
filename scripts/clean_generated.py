@@ -11,8 +11,8 @@ Two tiers:
 
   DEFAULT   local scratch. Rebuilt by re-running a script — no network, minutes
             at most. This is what `make clean` deletes.
-  --caches  network-backed caches and Drive pulls (`audit/`, the OHLC cache, the
-            sweep checkpoint, the regime table). Rebuilding them means refetching,
+  --caches  network-backed caches and Drive pulls (`audit/`, the sweep
+            checkpoint, the regime table). Rebuilding them means refetching,
             so they are opt-in and a bare run never touches them.
 
 `backtests/study_output/` is deliberately NOT a target here: it has its own
@@ -93,12 +93,19 @@ ROOT = Path(__file__).resolve().parents[1]
 #                     disposable, but a snapshot for a past date cannot be
 #                     refetched — which is why the test suite copied its fixture
 #                     into tests/fixtures/ rather than rely on this surviving.
+#   backtests/underlying_ohlc_cache/  stock OHLC bars per book ticker. Was a
+#                     --caches target until 2026-10-20. The feed serves only the
+#                     newest 1000 daily bars, CURRENTLY adjusted, so a refetch
+#                     loses the oldest book dates as the window rolls and rewrites
+#                     the adjustment basis `rescaled_tickers.txt` was checked on.
+#                     Protecting it also puts it in backup_research_caches.py.
 PROTECTED_PREFIXES = (
     ".git",
     ".venv",
     "backtests/live_loop",
     "backtests/option_history_cache",
     "backtests/to_evaluate",
+    "backtests/underlying_ohlc_cache",
     "config",
     "cookies",
     "credentials",
@@ -221,13 +228,6 @@ TARGETS: tuple[Target, ...] = (
         globs=("audit/*.csv",),
         what="per-date analysis rollup CSVs; feed backtest scoring context",
         regen="python3 -m scripts.analysis_pipeline --skip-llm --date <date>  (per date, reads Drive)",
-        expensive=True,
-    ),
-    Target(
-        name="ohlc-cache",
-        globs=("backtests/underlying_ohlc_cache/*",),
-        what="cached underlying stock OHLC bars",
-        regen="python3 scripts/collector/history/fetch_underlying_ohlc.py",
         expensive=True,
     ),
     Target(

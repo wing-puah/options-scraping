@@ -195,7 +195,8 @@ Research tier (`backtest_study/`, `study_*`):
   there fails the test suite. Last-run excerpts are quoted verbatim, never paraphrased.
 - **`backtests/` is NOT uniformly disposable**, despite the `.gitignore` comment saying so.
   `to_evaluate/` (hand-exported study inputs), `option_history_cache/` (~337MB of scraped
-  option history), `live_loop/` (point-in-time broker snapshots), the `v1_*`/`v2_*` frozen
+  option history), `live_loop/` (point-in-time broker snapshots), `underlying_ohlc_cache/` (stock bars from a
+  rolling 1000-bar feed), the `v1_*`/`v2_*` frozen
   evidence exports and the hand-written `*.md` date lists have NO git history to recover from.
   `scripts/clean_generated.py` encodes which paths are safe — extend its table rather than
   writing a new `rm -rf`, and never widen a glob without re-reading its PROTECTED_PREFIXES.

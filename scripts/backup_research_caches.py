@@ -6,11 +6,12 @@ WHY: CLAUDE.md's "backtests/ is NOT uniformly disposable" sharp edge lists
 exactly what this backs up — `option_history_cache/` (~337MB / ~20k scraped
 option-history files, the real short-leg prices every study depends on),
 `to_evaluate/` (the Sheets CSV exports; `make export-tabs` re-pulls the tabs
-that still exist, but not a deleted one nor the hand-written date lists), and
+that still exist, but not a deleted one nor the hand-written date lists),
 `live_loop/` (point-in-time broker snapshots that cannot be refetched for a
-past date). None of it has git history, none of it lives anywhere but the
-local checkout, and Barchart's lookback window means a lapsed local copy may
-not even be re-scrapable later. This script is the backup: `push` archives
+past date), and `underlying_ohlc_cache/` (stock bars from a feed that serves
+only the newest 1000 bars, currently adjusted). None of it has git history,
+none of it lives anywhere but the local checkout, and Barchart's lookback
+window means a lapsed local copy may not even be re-scrapable later. This script is the backup: `push` archives
 whichever of those trees exist locally into one dated `.tar.gz` and uploads
 it to Drive; `pull` downloads the newest (or a named) snapshot and extracts
 it ADDITIVELY — it never overwrites a file that already exists locally,
