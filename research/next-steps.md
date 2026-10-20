@@ -847,6 +847,7 @@ has grown since. One line each, with the entry that holds the story.
 | Research mirrors do not follow the junk-quote rule | RESOLVED, all four import production's functions | 2026-09-28 | below |
 | The book loader misreads the re-priced rows | RESOLVED by the three loader rulings | 2026-09-28 | [entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again) |
 | Proxy `skip_reason` said `no_history` for snap-priced rows | RESOLVED for new rows; older rows keep the label | 2026-09-24 | [entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads) |
+| The mirror's substitutions ignored the entry window | RESOLVED; one study's count moves, no verdict | 2026-10-20 | [entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves) |
 | Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
@@ -1002,13 +1003,16 @@ dates from 2026-09-23, takes Option 2 for `v4_bridge`, and keeps the rollback
 triggers sealed
 ([entry](current.md#2026-10-09--holdout_seal-accepted-by-default-sealed-from-2026-09-23)).
 
-**`bear_rewrap` does not apply the entry window.** Production refuses a play
-as `stale_leg_at_entry` when a leg has no quote by the 5th trading day after
-the signal (operator ruling 2026-10-01). A re-priced stored row follows
-production, because the mirror reads its stored `dte_entry`. A substitution
-does not: `entry_date_for` picks the first day every leg has a row, with no
-5-day bound. `financed_spread`, `ladder_overlay` and `overlay_campaign` inherit
-the gap. Fix by importing `simulate.fresh_entry_date`, never by copying it.
+**RESOLVED 2026-10-20 — `bear_rewrap` applies the entry window.**
+`entry_date_for` imports `simulate.fresh_entry_date` and `entry_window_end`;
+every caller passes the record's signal date. `financed_spread`,
+`ladder_overlay` and `hedge_structure` print the same cells; `bear_rewrap`'s
+`long_diag` keeps 91 of 275 substitutions and no verdict moves
+([entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves)).
+The gap was: production refuses a play as `stale_leg_at_entry` when a leg has
+no quote by the 5th trading day after the signal (operator ruling
+2026-10-01), and the mirror's substitutions took the first common day with no
+bound.
 
 <a id="s2-12"></a>
 ### 2.12 Hedge programme follow-ups — both picked up 2026-09-08; one read still blocked

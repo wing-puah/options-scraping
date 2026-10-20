@@ -156,6 +156,7 @@ scrape session (`scripts/backtest/shared/history.py` once lost 178 cache files).
 - **Entry day.** `bear_rewrap.entry_date_for(rec["t"].legs, rec["t"].grid)`,
   the baseline row's own fill day. Every cell for a given core fills on the
   SAME day. A core with no common entry day is excluded and counted.
+  - _Resolved at build (2026-10-20)._ `bear_rewrap.entry_date_for` now obeys production's entry window (`simulate.fresh_entry_date`, operator ruling 2026-10-01): a stale leg is no fill, a late leg inside the window moves the fill, a common day past the window is no fill. The report is unchanged.
 - **Grid and horizon.** The harness `Trade.grid`: weekday days from the signal
   date to `min(core expiry, 120-day` [path cap](../../glossary.md#path-cap)`)`.
   A core longer than 120 days is TRUNCATED at the cap, not extended.

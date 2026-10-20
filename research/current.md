@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-10-20: the research mirror fills substitutions inside production's entry window; `bear_rewrap`'s `long_diag` keeps 91 of 275 rows and no verdict moves**
+([entry](#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves)).
+
 **2026-10-14: the SPY-only benchmark is registered post hoc and built; it awaits a 149-contract fetch**
 ([entry](#2026-10-14--spy-only-benchmark-registered-post-hoc)).
 
@@ -279,6 +282,78 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-10-20 — bear_rewrap: substitutions obey the entry window; only long_diag's count moves
+
+**The research mirror now fills a substitution inside production's entry
+window, and no verdict moves.** Until today `bear_rewrap.entry_date_for` took
+the first day every leg had a cached bar, however late, so a substitution
+could be filled weeks after the signal it is compared against. It now imports
+production's rule (`simulate.fresh_entry_date`, operator ruling 2026-10-01).
+A leg quoted before the signal but not by the 5th trading day after it is no
+fill. A leg first quoted later inside the window moves the fill to that day,
+and a common day past the window is no fill. The gap was filed in
+[§2.11](next-steps.md#s2-11); it closes.
+
+_Era v4 · exports 2026-10-20 05:13 · the population in the table below ·
+reports `backtests/study_output/<study>-latest.txt` · recorded in
+[study-results](study-results/f3_structure/bear_rewrap.md)._
+
+| Export | Rows | Withheld by the seal |
+|---|---|---|
+| `BacktestResults` | 1,093 | 73 |
+| `BacktestProxy` | 2,131 | 49 |
+
+**In production.** Nothing changes. Production has applied the window since
+2026-10-01; this brings the mirror to it.
+
+**What moved.** Each study ran twice on the same exports, before and after the
+change, with nothing else different.
+
+| Study | Count | Before | After |
+|---|---|---|---|
+| [`bear_rewrap`](arm-index.md#bear_rewrap) `long_diag` | priced substitutions | 275 | 91 |
+| `bear_rewrap` `long_diag` | unpriceable | 294 | 478 |
+| `bear_rewrap` `wider` | priced substitutions | 304 | 278 |
+| `bear_rewrap` `wider` | unpriceable | 134 | 160 |
+| `bear_rewrap` `long_put` | priced substitutions | 185 unpriceable | unchanged |
+| `bear_rewrap` reconstruction gate | rows reproduced | 686 of 686 | 686 of 686 |
+| [`financed_spread`](pre-registrations/f3_structure/financed_spread.md) | cells built, every shape | 230 to 496 | unchanged |
+| `financed_spread` | `entry_day_mismatch`, per shape | 33 to 181 | 13 to 21 |
+| `financed_spread` | `no_common_entry_day`, per shape | 43 to 1,012 | 140 to 1,032 |
+| [`ladder_overlay`](pre-registrations/f3_structure/ladder_overlay.md) | whole report | — | identical |
+| [`hedge_structure`](pre-registrations/f5_hedging/hedge_structure.md) | whole report | — | identical, re-priced from an empty checkpoint |
+
+**The `long_diag` candidate loses most of its rows.** The far-dated long leg
+of a diagonal is the leg most often first cached late, so the window refuses
+the fill. The criteria it met before rested on those fills.
+
+| Object | Before | After |
+|---|---|---|
+| `bear_rewrap` `wider`, dR [CI] | +0.006 [−0.046, +0.058] | +0.028 [−0.016, +0.072] |
+| `bear_rewrap` `wider`, criteria met | 0 of 5 | 3 of 5 |
+| `bear_rewrap` `long_diag`, dR [CI] | +0.079 [−0.015, +0.171] | +0.018 [−0.097, +0.125] |
+| `bear_rewrap` `long_diag`, criteria met | 4 of 5 | 2 of 5 |
+| [`bear_rewrap` ARM P](arm-index.md#bear_rewrap-arm-p), `long_diag` | P1 not met, P2 met | P1 not met, P2 not met |
+
+Neither substitution clears the CI criterion on either run, so the study's
+standing verdict holds: the naive re-wraps are dead and the diagonal is a
+candidate that keeps failing. It now fails on fewer rows.
+
+**Caveats.**
+
+- A cached contract's first bar is the first day the scraper saw it, not the
+  first day the market quoted it. "No quote in the window" can be a cache gap.
+  Production reads the same cache, so the mirror now shares its blind spot
+  rather than a different one.
+- `financed_spread` builds the same cells because a variant that filled late
+  already failed `entry_day_mismatch` against its baseline. The window
+  relabels that exclusion as `no_common_entry_day`.
+- `hedge_structure` already bounds the entry lag at 5 calendar days
+  (`sleeve_synth`, `entry_lag_too_long`), so only the stale-leg half of the
+  rule can bind there.
+
+**Next.** [§2.11](next-steps.md#s2-11) loses one open item. No new item.
 
 ## 2026-10-17 — results moved out of pre-registrations
 

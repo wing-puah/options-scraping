@@ -29,6 +29,7 @@ This is a STRUCTURE question (f3), the `bear_rewrap` shape: same signal, same da
 - **Era.** PRIMARY is `--era v3`: `load_book(include_bs=False)`, proxy calibration gate ON, the 795-row / 118-date basis. SECONDARY is `current`. It is reported and carries nothing (34 backfill dates; most cells will power-stop). Eras are never pooled.
 - **Rows.** Two-leg single-expiry debit verticals only.
 - **Entry day.** The baseline row's own entry day (`entry_date_for`): the first grid day on which ALL legs, financing legs included, are cached. Baseline and financed variant fill on the SAME day, or the row is excluded and counted.
+  - _Resolved at build (2026-10-20)._ `bear_rewrap.entry_date_for` now obeys production's entry window (`simulate.fresh_entry_date`, operator ruling 2026-10-01): a stale leg is no fill, a late leg inside the window moves the fill, a common day past the window is no fill. Every cell builds the same rows: a variant that filled late already failed `entry_day_mismatch`, and is now counted under `no_common_entry_day` instead.
 
 ### Plan-time observations, disclosed
 
