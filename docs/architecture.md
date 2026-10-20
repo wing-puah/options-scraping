@@ -1908,6 +1908,13 @@ date would pass it and must not reach the tab either.
   date. `--framework-file` / `--method-file` override the prompt inputs (a path that does
   not exist exits 2 rather than falling back to the shipped file). `--skip-llm
   --output-dir` writes the prompt + manifest only — a cheap prompt snapshot for a date.
+- **Every analysis row names its own prompt and model** (robustness A3, 2026-10-20). The
+  last three `ROW_COLUMNS` are `framework_sha256` and `method_sha256` (the same 12-char
+  sha256 prefixes the manifest records) and `model`: the id the CLI reports having served,
+  read off the result event's `modelUsage` (the entry with the most output tokens), else
+  the requested name. Run-level, so identical on every row of a run, MARKET included. Rows
+  written before 2026-10-20 leave all three blank — that means "not recorded", never
+  "the current prompt".
 - **A derived backtest config with `sheet_tab: null` never writes Sheets** — the local CSV
   is still written (unlike `--dry-run`, which suppresses that too), and `output.local_csv`
   / `proxy.local_csv` may be any path, including one inside a run directory. Reading is

@@ -117,6 +117,26 @@ def test_manifest_records_the_run_inputs(stub_pipeline, prompt_files, tmp_path):
     assert "--output-dir" in e["argv"]
 
 
+def test_rows_carry_the_same_provenance_as_the_manifest(stub_pipeline, prompt_files,
+                                                         tmp_path):
+    """A3: every row, MARKET included, names the prompt digests and the model —
+    the same digests the manifest records, so a row is traceable without one."""
+    fw, me = prompt_files
+    out = tmp_path / "run"
+    core.main(["--date", "2026-06-01", "--output-dir", str(out),
+               "--framework-file", str(fw), "--method-file", str(me)])
+
+    e = _manifest(out)[0]
+    with (out / "2026-06-01-rows.csv").open(newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert [r["ticker"] for r in rows] == ["MARKET", "NVDA"]
+    for r in rows:
+        assert r["framework_sha256"] == e["framework_sha256"]
+        assert r["method_sha256"] == e["method_sha256"]
+        # The stub engine reports no served model, so the requested one stands.
+        assert r["model"] == "opus"
+
+
 def test_audit_csv_is_redirected_into_the_output_dir(monkeypatch, stub_pipeline, tmp_path):
     seen = {}
 
