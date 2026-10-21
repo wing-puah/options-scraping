@@ -1613,124 +1613,130 @@ def build_playbook(df: pd.DataFrame, out: Path) -> Path:
     return path
 
 
-def build_spaghetti(df: pd.DataFrame, out: Path) -> Path | None:
-    """Spaghetti charts: individual P&L % paths, grouped four ways.
+def build_path_bands(df: pd.DataFrame, out: Path) -> Path | None:
+    """Path bands: how the daily $ P&L path spreads out, one panel per group.
 
-    Each panel draws every trade's raw daily path as a thin transparent line,
-    then overlays the group mean as a bold line. Four groupings:
-      A · Exit reason  — most diagnostic for exit-rule tuning
-      B · Regime       — validates the panic=good / chop=bad thesis
-      C · Win vs loss  — clearest signal: do winners look different early?
-      D · Structure    — bear_put vs bull_call (only groups with ≥5 trades shown)
+    Replaced the old spaghetti chart (every path as a thin line, 2026-10-21):
+    at 3,000+ trades the lines became one smear. Each panel here shows ONE
+    group: the median path (bold), the 25-75% band (dark) and the 10-90% band
+    (light) across the paths that reach that day, with the pooled median of
+    the whole row in grey for reference. The caption gives how many paths
+    reach day 10 and day 30. Four rows of groupings:
+      A · Exit reason   B · Regime   C · Win vs loss   D · Structure (n >= 5)
     """
-    paths = df["dollar_pnl_path"].tolist()
-    if not any(paths):
+    rows = [p for p in df["dollar_pnl_path"].tolist() if p]
+    # Paths are not cut at the exit day, so a group's count barely falls by
+    # day 30. The caption therefore says "paths reaching day N", not "open".
+    if not rows:
         return None
 
     dollar_fmt = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:+,.0f}")
-    HORIZON = 45  # trading days shown on x-axis
+    HORIZON = 45
+    MIN_OPEN = 5  # stop drawing a band once fewer than this many trades are open
 
-    def _draw(ax, groups, title, letter):
-        """groups: list of (label, color, mask_series)"""
-        ax.axhline(0, color="#999", lw=0.8)
-        pooled_vals = []   # every drawn point within HORIZON, across groups
-        mean_bounds = []   # every group-mean line's values — never clipped out
-        drawn_paths = []   # trades actually plotted in this panel
-        for label, color, mask in groups:
-            subset_paths = [p for p, m in zip(df["dollar_pnl_path"], mask) if m and p]
-            if not subset_paths:
-                continue
-            drawn_paths.extend(subset_paths)
-            # individual paths
-            for p in subset_paths:
-                y = p[:HORIZON]
-                pooled_vals.extend(y)
-                ax.plot(range(1, len(y) + 1), y,
-                        color=color, lw=0.6, alpha=0.12)
-            # group mean
-            mean_len = min(HORIZON, max(len(p) for p in subset_paths))
-            mean_y = [np.nanmean([p[i] for p in subset_paths if len(p) > i])
-                      for i in range(mean_len)]
-            mean_bounds.extend(mean_y)
-            ax.plot(range(1, mean_len + 1), mean_y,
-                    color=color, lw=2.2, label=f"{label} (n={len(subset_paths)})")
-        ax.set_title(f"{letter} · {title}", fontweight="bold")
-        ax.set_xlabel("Trading days since entry")
-        ax.set_ylabel("P&L ($)")
-        ax.yaxis.set_major_formatter(dollar_fmt)
-        ax.set_xlim(1, HORIZON)
-        ax.legend(fontsize=8)
-        ax.grid(color=GRID)
+    def _bands(paths):
+        days, q10, q25, q50, q75, q90, n_open = [], [], [], [], [], [], []
+        for i in range(HORIZON):
+            vals = [p[i] for p in paths if len(p) > i and p[i] is not None
+                    and not np.isnan(p[i])]
+            n_open.append(len(vals))
+            if len(vals) < MIN_OPEN:
+                break
+            a, b, c, d, e = np.percentile(vals, [10, 25, 50, 75, 90])
+            days.append(i + 1)
+            q10.append(a); q25.append(b); q50.append(c); q75.append(d); q90.append(e)
+        return days, q10, q25, q50, q75, q90, n_open
 
-        # Display-only y-axis trim: a few $ outlier paths otherwise stretch
-        # the axis so the bulk of the spaghetti renders as a thin band.
-        # Wider quantiles than the strip/histogram trims, and always widened
-        # to cover every group-mean line — a mean line must never be
-        # clipped out of view.
-        trim = _trim_limits(pooled_vals, lo_q=0.002, hi_q=0.998) if pooled_vals else None
-        if trim:
-            lo, hi, _, _ = trim
-            if mean_bounds:
-                lo = min(lo, min(mean_bounds))
-                hi = max(hi, max(mean_bounds))
-            ax.set_ylim(lo, hi)
-            n_exceed = sum(1 for p in drawn_paths
-                           if min(p[:HORIZON]) < lo or max(p[:HORIZON]) > hi)
-            if n_exceed:
-                ax.text(0.99, 0.02,
-                        f"{n_exceed} trades' path leaves window (0.2–99.8 pct trim)",
-                        transform=ax.transAxes, ha="right", fontsize=6.5, color="#888")
-
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    fig.suptitle(
-        f"Path spaghetti — {len(df)} trades  "
-        f"(thin = individual, bold = group mean)",
-        fontsize=15, fontweight="bold", y=0.995,
-    )
-
-    # ---- A: by exit reason -----------------------------------------------
-    exit_cfg = [
-        ("profit_target", C_BULL,  df["exit_reason"] == "profit_target"),
-        ("time_exit",     C_LINE,  df["exit_reason"] == "time_exit"),
-        ("stop_loss",     C_RANGE, df["exit_reason"] == "stop_loss"),
-        ("dollar_stop",   "#8B0000", df["exit_reason"] == "dollar_stop"),
-        ("cap_open",      C_MED,   df["exit_reason"].isin(["cap_open", "expired"])),
-    ]
-    _draw(axes[0, 0], exit_cfg, "Exit reason", "A")
-
-    # ---- B: by regime ----------------------------------------------------
-    regime_cfg = [
-        ("BULL",  C_BULL,  df["regime_label"] == "BULL"),
-        ("BEAR",  C_RANGE, df["regime_label"] == "BEAR"),
-        ("RANGE", C_MED,   df["regime_label"] == "RANGE"),
-    ]
-    _draw(axes[0, 1], regime_cfg, "Regime", "B")
-
-    # ---- C: win vs loss --------------------------------------------------
-    win_mask  = df["realized_pnl"] > 0
-    wl_cfg = [
-        ("Win",  C_BULL,  win_mask),
-        ("Loss", C_RANGE, ~win_mask),
-    ]
-    _draw(axes[1, 0], wl_cfg, "Win vs loss", "C")
-
-    # ---- D: structure (only groups with ≥5 trades) -----------------------
+    win_mask = df["realized_pnl"] > 0
     struct_colors = {
         "bull_call_spread": C_BULL,
         "bear_put_spread":  C_RANGE,
         "bull_put_spread":  "#6a1b9a",
         "bear_call_spread": "#00838f",
     }
-    struct_cfg = [
-        (s, c, df["structure"] == s)
-        for s, c in struct_colors.items()
-        if (df["structure"] == s).sum() >= 5
+    groupings = [
+        ("A · Exit reason", [
+            ("profit_target", C_BULL,    df["exit_reason"] == "profit_target"),
+            ("time_exit",     C_LINE,    df["exit_reason"] == "time_exit"),
+            ("stop_loss",     C_RANGE,   df["exit_reason"] == "stop_loss"),
+            ("dollar_stop",   "#8B0000", df["exit_reason"] == "dollar_stop"),
+            ("still open / expired", C_MED,
+             df["exit_reason"].isin(["cap_open", "expired"])),
+        ]),
+        ("B · Regime", [
+            ("BULL",  C_BULL,  df["regime_label"] == "BULL"),
+            ("BEAR",  C_RANGE, df["regime_label"] == "BEAR"),
+            ("RANGE", C_MED,   df["regime_label"] == "RANGE"),
+        ]),
+        ("C · Win vs loss", [
+            ("Win",  C_BULL,  win_mask),
+            ("Loss", C_RANGE, ~win_mask),
+        ]),
+        ("D · Structure", [
+            (s, c, df["structure"] == s) for s, c in struct_colors.items()
+            if (df["structure"] == s).sum() >= 5
+        ]),
     ]
-    _draw(axes[1, 1], struct_cfg, "Structure", "D")
 
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    # Precompute every group's bands so all panels share one y-range.
+    prepared, all_vals = [], []
+    for title, groups in groupings:
+        row_paths = [p for p, m in zip(df["dollar_pnl_path"],
+                                       pd.concat([g[2] for g in groups], axis=1).any(axis=1))
+                     if m and p] if groups else []
+        pooled = _bands(row_paths) if row_paths else None
+        items = []
+        for label, color, mask in groups:
+            paths = [p for p, m in zip(df["dollar_pnl_path"], mask) if m and p]
+            if len(paths) < MIN_OPEN:
+                continue
+            b = _bands(paths)
+            all_vals.extend(b[1]); all_vals.extend(b[5])
+            items.append((label, color, len(paths), b))
+        prepared.append((title, items, pooled))
+
+    ncols = max(len(items) for _, items, _ in prepared) or 1
+    fig, axes = plt.subplots(len(prepared), ncols, figsize=(3.6 * ncols, 3.1 * len(prepared)),
+                             sharex=True, sharey=True, squeeze=False)
+    lo, hi = (min(all_vals), max(all_vals)) if all_vals else (-1, 1)
+    pad = (hi - lo) * 0.06
+    fig.suptitle(
+        f"How trade P&L paths spread out — {len(rows)} trades with a daily path\n"
+        "bold = median · dark band = middle 50% · light band = middle 80% · "
+        "grey = median of the whole row · day N counts paths that reach day N",
+        fontsize=12, fontweight="bold", y=0.995,
+    )
+    for r, (title, items, pooled) in enumerate(prepared):
+        for c in range(ncols):
+            ax = axes[r, c]
+            if c >= len(items):
+                ax.axis("off")
+                continue
+            label, color, n, (days, q10, q25, q50, q75, q90, n_open) = items[c]
+            ax.axhline(0, color="#999", lw=0.8)
+            if pooled and pooled[0]:
+                ax.plot(pooled[0], pooled[3], color="#9e9e9e", lw=1.2, ls="--")
+            ax.fill_between(days, q10, q90, color=color, alpha=0.15, lw=0)
+            ax.fill_between(days, q25, q75, color=color, alpha=0.35, lw=0)
+            ax.plot(days, q50, color=color, lw=2.2)
+            def _open_at(d):
+                return n_open[d - 1] if len(n_open) >= d else 0
+            ax.set_title(f"{label}", fontsize=10, fontweight="bold", color=color)
+            ax.text(0.02, 0.03,
+                    f"n={n} · paths reaching day 10: {_open_at(10)} · day 30: {_open_at(30)}",
+                    transform=ax.transAxes, fontsize=7, color="#555")
+            if c == 0:
+                ax.set_ylabel(f"{title}\nP&L ($)", fontsize=9, fontweight="bold")
+            if r == len(prepared) - 1:
+                ax.set_xlabel("Trading days since entry", fontsize=8)
+            ax.yaxis.set_major_formatter(dollar_fmt)
+            ax.tick_params(labelsize=7)
+            ax.set_xlim(1, HORIZON)
+            ax.set_ylim(lo - pad, hi + pad)
+            ax.grid(color=GRID)
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out.mkdir(parents=True, exist_ok=True)
-    path = out / "backtest_spaghetti.png"
+    path = out / "backtest_path_bands.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -2249,9 +2255,9 @@ def main():
     print(f"Wrote {build(df, Path(args.out))}")
     print(f"Wrote {build_ev(df, Path(args.out))}")
     print(f"Wrote {build_playbook(df, Path(args.out))}")
-    spaghetti_png = build_spaghetti(df, Path(args.out))
-    if spaghetti_png:
-        print(f"Wrote {spaghetti_png}")
+    bands_png = build_path_bands(df, Path(args.out))
+    if bands_png:
+        print(f"Wrote {bands_png}")
     paths_png = build_paths(df, Path(args.out), exit_cfg=exit_cfg)
     if paths_png:
         print(f"Wrote {paths_png}")
