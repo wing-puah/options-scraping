@@ -274,6 +274,11 @@ scripts/                    ← entry points, each maps to a workflow step
                               split-adjusted underlying OHLC cache. `shared/history.py` refuses a
                               fetched history whose `Price~` is >25% off its same-expiry siblings
                               (`underlying_mismatch`) — nothing written, nothing unlinked.
+                              Its plan checks BOTH ends of a cached file: the start against
+                              the earliest signal date, and the END against `needed_ends`
+                              (`plays.build_needed_ends`: path end capped at the last
+                              completed weekday). A file >3 sessions short of its end is
+                              refetched unless its mtime is on/after that end (final).
                               `shared/unlisted.py` is the NEGATIVE cache beside it:
                               `option_history_cache/_unlisted.jsonl` (see §Cleaning).
                               THE PATH MAY NOT OUTLIVE THE PRICE DATA (2026-09-23). No exit rule
@@ -1731,7 +1736,8 @@ python3 -m scripts.analysis_pipeline --date 2026-04-21 --output-dir <dir> --skip
 python3 scripts/collector/daily/scrape_flow.py --date 2026-04-21
 python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
-# Backtest (idempotent: a play already on the results tab is SKIPPED — see the guard below)
+# Backtest (idempotent: a play already on the results tab is SKIPPED — see the guard below;
+# an open_at_data_end row is re-priced in place unless --no-reprice-open)
 python3 -m scripts.backtest --config config/backtest.yml
 python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21
 python3 -m scripts.backtest --config config/backtest.yml --dry-run           # no sheet/CSV write
@@ -1857,6 +1863,7 @@ Both writers now check, and both key on the **same** row identity:
 | a play already on `BacktestProxy` | dropped before evaluation — `scripts.backtest.proxy` |
 | every candidate is a duplicate | logged, exit 0 |
 | `--redo` | re-simulates them and **deletes** the existing rows before appending; needs `--date` or `--start`/`--end` |
+| a play stored `open_at_data_end` | re-priced in place, on both tabs (below); `--no-reprice-open` skips it |
 | `output.sheet_tab: null` | not checked, and no Sheets read at all — the local CSV is rewritten, not appended |
 
 The check sits **before the Barchart fetch**, which is the expensive step, for the same
@@ -1875,12 +1882,35 @@ by mode:
 |---|---|
 | `--redo` | deleted, inside the date bound only; each deletion is logged |
 | `--redo --dry-run` | logged as "would delete"; nothing deleted |
-| plain run | warned, never deleted |
+| plain run with a date bound | deleted, inside the bound (re-pricing is on by default) |
+| plain run, unbounded or `--no-reprice-open` | warned, never deleted |
 | `sheet_tab: null` | warned; the local CSV is not edited |
 
 So re-price a date in this order: `scripts.backtest --redo`, then `scripts.backtest.proxy
 --redo` on the same bound. The check reads `BacktestResults` as an input, as the proxy
 already does, so the dependency still runs proxy → results.
+
+**Open rows are the one exception to "backtested once".** Added 2026-10-21. A row stored
+`path_status = open_at_data_end` ran out of price data before any exit fired. Before this,
+the guard skipped it forever, and the cache never refetched its file, because the plan only
+checked a file's start. Now both writers re-price such a row in place:
+
+- **Candidates.** `identity.open_keys` picks the open rows; `core._split_already_backtested`
+  and the proxy keep them as candidates. `core.py` re-prices only `BacktestResults` rows.
+  The proxy re-prices only its own tab's rows.
+- **Fresh data.** `plan_option_histories(needed_ends=...)` queues a file that stops short of
+  its path end as `stale`. It is refetched only while the file predates that end; a fetch on
+  or after the end is final. The proxy runs the same plan on the contracts its legs snap to
+  (`proxy._refresh_forward`). A failed refetch keeps the file and its bars.
+- **Replace only on change.** `identity.split_repriced` keeps a re-priced row only when
+  `reprice_changed` holds: priced, and a later `path_data_end` or a new `path_status` or
+  `exit_reason`. Only those keys are deleted, in the `--redo` order: local CSV, delete,
+  append. An unchanged or unpriced re-price writes nothing and keeps the old row.
+- **Preview.** `--dry-run` on either CLI prints `re-price open: N (stale-forward caches: M)`.
+
+`path_data_end` reads only the option-history cache. The underlying OHLC cache does not feed
+it, so it needs no forward check. Tests: `tests/test_backtest_dup_guard.py`,
+`tests/test_backtest_proxy.py`, `tests/test_backtest_history_cache.py`.
 
 **The identity key lives in `scripts/backtest/shared/identity.py` and there is exactly one
 copy.** It is `(analysis date, TICKER, 60-char play prefix)`: the date is parsed on both

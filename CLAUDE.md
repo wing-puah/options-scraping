@@ -437,7 +437,12 @@ two prompt versions are never pooled.
   same normalisation `backtest_study/lib/book.py::norm_play` joins on, so the writers'
   notion of row identity and the studies' are the same one. `core.py` must never import
   `proxy.py` — the proxy reads `BacktestResults` as an INPUT, so that dependency runs one
-  way only.
+  way only. **The one exception: a row stored `path_status = open_at_data_end`** (its data ran
+  out before an exit fired) is re-priced in place by default on both CLIs. It is replaced only
+  when the new row has a later `path_data_end` or a new `path_status`/`exit_reason`, and only
+  replaced keys are deleted (CSV → delete → append). `--no-reprice-open` restores the skip.
+  `shared/history.py` refetches a cached file that stops short of its path end, until a fetch
+  dated on or after that end makes it final; it never unlinks a cache file.
 
 - **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
   is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous

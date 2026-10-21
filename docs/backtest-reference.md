@@ -260,6 +260,24 @@ rather than `expired`, because the path did not reach expiry.
 `path_data_end` is the ISO date of that last real quote. Blank on a `no_data`
 row and on every row written earlier.
 
+### Open rows are re-priced in place
+
+Added 2026-10-21. **An `open_at_data_end` row is not final.** Both writers
+re-price it on every run whose date bound covers it, and replace it only when
+the new row says something new. `--no-reprice-open` turns this off on either
+CLI.
+
+| Re-price outcome | What is written |
+|---|---|
+| later `path_data_end`, or a different `path_status` / `exit_reason` | old row deleted, new row appended |
+| the same `path_data_end`, status and exit | nothing |
+| the play is now skipped, refused or unpriced | nothing; the old row stays |
+
+More data only arrives if the cache refetches. A cached option history that
+stops more than 3 weekday sessions short of the path end is refetched, unless
+the file was written on or after that end. Such a file is final. See
+`docs/architecture.md` §The already-backtested guard.
+
 **What does not change.** The marked path, `daily_price_csv`, MFE/MAE and
 `pnl_at_cap_pct` are still measured over the whole grid, so a play that exits
 before the data ends is identical to what the engine produced before. That
