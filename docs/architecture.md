@@ -1981,6 +1981,13 @@ date would pass it and must not reach the tab either.
   date. `--framework-file` / `--method-file` override the prompt inputs (a path that does
   not exist exits 2 rather than falling back to the shipped file). `--skip-llm
   --output-dir` writes the prompt + manifest only — a cheap prompt snapshot for a date.
+- **Every analysis row names its own prompt and model** (robustness A3, 2026-10-20). The
+  last three `ROW_COLUMNS` are `framework_sha256` and `method_sha256` (the same 12-char
+  sha256 prefixes the manifest records) and `model`: the id the CLI reports having served,
+  read off the result event's `modelUsage` (the entry with the most output tokens), else
+  the requested name. Run-level, so identical on every row of a run, MARKET included. Rows
+  written before 2026-10-20 leave all three blank — that means "not recorded", never
+  "the current prompt".
 - **A derived backtest config with `sheet_tab: null` never writes Sheets** — the local CSV
   is still written (unlike `--dry-run`, which suppresses that too), and `output.local_csv`
   / `proxy.local_csv` may be any path, including one inside a run directory. Reading is
@@ -2013,7 +2020,7 @@ a test enforces it.
 
 Two tiers: the default (local recompute — logs, `site/`, chart PNGs, stamped backtest
 exports, bytecode, `portfolio/output/`) and `--caches` (needs the network to restore —
-`audit/`, the OHLC cache, the sweep checkpoint, the regime table).
+`audit/`, the sweep checkpoint, the regime table).
 
 Four guards stand between a glob and an `unlink`. The first three run on EVERY candidate
 on every run, dry or not, and a violation is a hard error that deletes nothing — not a
@@ -2031,11 +2038,17 @@ path quietly filtered out, because a glob matching a protected path is a bug in 
    `backtests/` has no git history and a provenance line in the tuning log is the only
    thing marking an export as evidence. `--force` turns this off; nothing turns off 1–3.
 
-**`backtests/` is not uniformly disposable**, whatever its `.gitignore` comment says. Held
-out of the cleaner entirely, at no flag: `option_history_cache/` (~337MB of scraped option
-history, hours to refetch), `to_evaluate/` (hand-exported Sheets CSVs that every study
-loader reads by filename — an input, not a cache), and `live_loop/` (point-in-time IBKR
-snapshots that cannot be refetched for a past date). The frozen `v1_*`/`v2_*` evidence
+**`backtests/` is not uniformly disposable**, whatever its `.gitignore` comment says. Four
+trees are held out of the cleaner entirely, at no flag:
+
+| Tree | Why it cannot be rebuilt |
+|---|---|
+| `option_history_cache/` | ~337MB of scraped option history, hours to refetch |
+| `to_evaluate/` | hand-exported Sheets CSVs every study loader reads by filename — an input |
+| `live_loop/` | point-in-time IBKR snapshots; a past date cannot be refetched |
+| `underlying_ohlc_cache/` | the stock feed serves only the newest 1000 bars, currently adjusted; a refetch drops old book dates and rewrites the basis `rescaled_tickers.txt` was checked on (protected since 2026-10-20) |
+
+The frozen `v1_*`/`v2_*` evidence
 exports and the hand-written date-list `*.md`s are not matched by any glob, and the pin
 scan is the backstop if one ever is.
 

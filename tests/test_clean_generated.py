@@ -93,6 +93,7 @@ def test_journal_pages_are_excluded_from_the_site_target(tmp_path):
     "backtests/option_history_cache/AAPL/2026-01-02.json",
     "backtests/to_evaluate/v3_export.csv",
     "backtests/live_loop/ibkr_snapshot_2026-08-12.json",
+    "backtests/underlying_ohlc_cache/AAPL.csv",
 ])
 def test_irreplaceable_backtest_subtrees_are_protected_not_merely_expensive(rel):
     # No flag deletes these: the scraped option history (the user's standing
@@ -156,6 +157,7 @@ def test_untracked_sibling_of_a_tracked_file_is_allowed(tmp_path):
     "backtests/option_history_cache/AAPL/2026-01-02.json",
     "backtests/to_evaluate/v3_export.csv",
     "backtests/live_loop/ibkr_snapshot_2026-08-12.json",
+    "backtests/underlying_ohlc_cache/AAPL.csv",
 ])
 def test_protected_trees_are_refused(tmp_path, rel):
     # These are gitignored, so guard 2 sees nothing — this list is their only

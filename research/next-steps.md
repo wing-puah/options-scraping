@@ -28,7 +28,7 @@ studies until P1 and P2 are read.
 | P3 | Claude | DONE 2026-10-13 — the study book's tier port is retired (item 8) | nothing; P5 carries the moved tiers |
 | P4 | Both | Keep the daily loop running at the card's sizes | forward grades |
 | P5 | Claude | Suite re-run once sealed dates price | `dip_buy` read |
-| P6 | Claude, when asked | Housekeeping: item 7, item 11; backup pruning, operator item 16 | nothing |
+| P6 | Claude, when asked | Housekeeping: backup pruning, operator item 16. Items 7 and 11 DONE (2026-10-20, 2026-10-18) | nothing |
 
 **P0 — the kill rule. DONE 2026-10-13.** Registered as
 [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md),
@@ -148,12 +148,11 @@ No rule changes on it.
    and the two replicated `regime_map` cells
    ([entry](current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)).
    Run the suite once new dates price.
-7. **Optional: refresh the stock-bar cache and re-run `direction_hit`.**
-   The cache ends in August 2026, so 265 v4 rows have no bar at the signal
-   or the exit
-   ([entry](current.md#2026-10-12--direction_hit-nothing-known-at-entry-predicts-the-underlyings-direction)).
-   The refresh is a Barchart scrape (`fetch_underlying_ohlc.py`). Default: not
-   run until the operator asks.
+7. **DONE 2026-10-20 — stock bars refreshed, `direction_hit` re-run.**
+   The 265 rows without a bar now have one, and the verdict is still `NULL`
+   ([entry](current.md#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
+   The bar cache is not in the Drive backup; a fresh checkout refetches it
+   with `fetch_underlying_ohlc.py --backfill`.
 8. **DONE 2026-10-13 — the study book's tier port is retired.**
    `lib/book.py::book_tier` now calls `mapping.ladder_tier()`, the one
    encoding. The only rule that moved a row is the §1.3 credit veto: credit
@@ -492,8 +491,8 @@ One line each. Do not re-open; follow the link for the detail.
 <a id="s2"></a>
 ## 2. Open queue
 
-The numbers are stable labels, not a ranking. Pick-up order is roughly §2.2,
-§2.5, §2.10, §2.9, then the parked items as dates arrive.
+The numbers are stable labels, not a ranking. Pick-up order is roughly §2.14,
+§2.2, §2.5, §2.10, §2.9, then the parked items as dates arrive.
 
 <a id="s2-0"></a>
 ### 2.0 `concurrency_correlation` — CLOSED, nothing ships
@@ -848,6 +847,7 @@ has grown since. One line each, with the entry that holds the story.
 | The book loader misreads the re-priced rows | RESOLVED by the three loader rulings | 2026-09-28 | [entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again) |
 | Open rows still inside their path window were graded on an interim mark | RESOLVED: the loader excludes them as pending | 2026-10-21 | [entry](current.md#2026-10-21--pending-open-rows-leave-the-outcome-book) |
 | Proxy `skip_reason` said `no_history` for snap-priced rows | RESOLVED for new rows; older rows keep the label | 2026-09-24 | [entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads) |
+| The mirror's substitutions ignored the entry window | RESOLVED; one study's count moves, no verdict | 2026-10-20 | [entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves) |
 | Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
 The rest of this section is the detail that lives nowhere else.
@@ -1003,13 +1003,16 @@ dates from 2026-09-23, takes Option 2 for `v4_bridge`, and keeps the rollback
 triggers sealed
 ([entry](current.md#2026-10-09--holdout_seal-accepted-by-default-sealed-from-2026-09-23)).
 
-**`bear_rewrap` does not apply the entry window.** Production refuses a play
-as `stale_leg_at_entry` when a leg has no quote by the 5th trading day after
-the signal (operator ruling 2026-10-01). A re-priced stored row follows
-production, because the mirror reads its stored `dte_entry`. A substitution
-does not: `entry_date_for` picks the first day every leg has a row, with no
-5-day bound. `financed_spread`, `ladder_overlay` and `overlay_campaign` inherit
-the gap. Fix by importing `simulate.fresh_entry_date`, never by copying it.
+**RESOLVED 2026-10-20 — `bear_rewrap` applies the entry window.**
+`entry_date_for` imports `simulate.fresh_entry_date` and `entry_window_end`;
+every caller passes the record's signal date. `financed_spread`,
+`ladder_overlay` and `hedge_structure` print the same cells; `bear_rewrap`'s
+`long_diag` keeps 91 of 275 substitutions and no verdict moves
+([entry](current.md#2026-10-20--bear_rewrap-substitutions-obey-the-entry-window-only-long_diags-count-moves)).
+The gap was: production refuses a play as `stale_leg_at_entry` when a leg has
+no quote by the 5th trading day after the signal (operator ruling
+2026-10-01), and the mirror's substitutions took the first common day with no
+bound.
 
 <a id="s2-12"></a>
 ### 2.12 Hedge programme follow-ups — both picked up 2026-09-08; one read still blocked
@@ -1036,6 +1039,57 @@ and the thread re-opens only on genuinely new dates (§0)
 ([write-up](archive/21-ladder-overlay-closed-the-journal-walk-forward-and-the-pricer-mirror.md#2026-09-16--ladder_overlay--nothing-ships-no-ladder-or-naked-put-cell-beats-the-plain-spread-on-v4-or-v3),
 [record](study-results/f3_structure/ladder_overlay.md),
 [registration](pre-registrations/f3_structure/ladder_overlay.md)).
+
+<a id="s2-14"></a>
+### 2.14 Operator trades vs the card vs the mechanical spread — OPEN, first read 2026-10-20
+
+**First read: the overlays lose more than the card trades make.** Too few
+trades overlap the card's priced plays to say whether the operator's changes
+beat the card or the mechanical spread. The operator asked for this read on
+2026-10-20 and does not follow the card closely.
+
+The inputs are the journal's `_history/` archives on Drive, restored into the
+gitignored `journal/` folder. Dollar figures stay out of this tracked file,
+because they reveal position sizes; re-run the script to see them.
+
+| Bucket, closed 2026-07-01 to 2026-10-16 | Positions | Result |
+|---|---|---|
+| Traded off a card play | 26 | net gain, 81% win rate |
+| The operator's own ideas | 28 | net gain |
+| Short-call overlays | 16 | net loss larger than either gain |
+| Opened before 2026-07-01 | 14 | net loss |
+
+| Paired read, R on debit | Positions | Result |
+|---|---|---|
+| Operator minus card, net | 5 | −0.065, CI95 [−0.60, +0.37] |
+| Operator, card, mechanic (PLTR, QQQ) | 2 | +0.30, −0.02, +0.59 |
+
+**Why the overlap is thin.**
+
+- The mechanical arm is a call spread, so it pairs only bullish Tier A/B
+  picks. Most card-linked trades are bear hedges.
+- Many card plays sit on `BacktestProxy` with a skip reason and no R.
+- Card dates on or after the seal (2026-09-23) are excluded.
+
+**How to re-run.** The draft is `scripts/journal/draft_compare_card.py`. It
+is untested and not wired into the CLI.
+
+1. `JOURNAL_DRIVE_FOLDER_ID` is not set in the cloud environment. On
+   2026-10-20 the folder was found by searching Drive for `_history` and
+   taking its parent. Then call `drive_sync.pull_archives()`.
+2. Run `python3 -m scripts.backtest_study run mechanical_benchmark` for the
+   pairs CSV.
+3. Run the draft from the repo root.
+
+**Next, in order.**
+
+1. Break down the overlay losses: which positions, which strikes, and
+   whether the short call was sold before a rally.
+2. Price the proxied card plays so more trades pair.
+3. Add a put-side mechanical arm for bear hedges, or state why not.
+4. Turn the draft into a tested `scripts.journal` command whose output
+   stays in `journal/`.
+5. Re-read as sealed dates unseal, never before.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

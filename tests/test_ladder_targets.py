@@ -228,7 +228,7 @@ def test_cached_strikes_put_dispatches_to_cached_puts(_isolate):
 
 @pytest.fixture()
 def _fixed_entry(monkeypatch):
-    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid: E0)
+    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid, *a: E0)
     return E0
 
 
@@ -277,7 +277,7 @@ def test_core_of_none_when_geometry_is_not_a_bull_vertical(_fixed_entry, monkeyp
 
 
 def test_core_of_none_when_no_common_entry_day(monkeypatch):
-    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid: None)
+    monkeypatch.setattr(LT.BR, "entry_date_for", lambda legs, grid, *a: None)
     monkeypatch.setattr(LT, "load_bars", lambda ticker: _fake_bars(105.0))
     assert LT.core_of(_rec(_bull_legs(), _grid())) is None
 

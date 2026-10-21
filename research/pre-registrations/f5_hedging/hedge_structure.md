@@ -51,6 +51,8 @@ baselines.
 - Nothing in `harness.py`, `vol_sleeve.py`, `bear_rewrap.py`,
   `config/backtest.yml` or `docs/deployment-rules.md` is edited.
 
+_Resolved at build (2026-10-20)._ `bear_rewrap.entry_date_for` now obeys production's entry window (`simulate.fresh_entry_date`, operator ruling 2026-10-01): a stale leg is no fill, a late leg inside the window moves the fill, a common day past the window is no fill. `sleeve_synth` already bounds the entry lag at 5 calendar days, so only the stale-leg half can bind. Re-priced from an empty checkpoint, the report is unchanged.
+
 _Resolved at build (2026-09-24)._ `bear_rewrap.py` has been edited since this
 was written, only to follow production's pricer. The edits are the B5
 zero-bid mark, the side-aware and `open_side` entry fills, and the junk-quote

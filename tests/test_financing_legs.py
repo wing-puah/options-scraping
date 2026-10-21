@@ -490,7 +490,7 @@ def _bear_legs(ticker="AAA", exp=None, lo=90.0, hi=100.0):
 def _fixed_entry_day(monkeypatch):
     """Pin the entry session to E0 so the window tests read the RULE and not
     the option cache's coverage."""
-    monkeypatch.setattr(ffl.BR, "entry_date_for", lambda legs, grid: E0)
+    monkeypatch.setattr(ffl.BR, "entry_date_for", lambda legs, grid, *a: E0)
     return E0
 
 

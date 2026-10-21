@@ -140,6 +140,15 @@ ROW_COLUMNS = [
     # lets a study exclude or split on that. Appended at the END (append-at-end
     # convention) → header extension only, no row shift.
     "iv_pct_status",
+    # Provenance of the row (robustness review A3): which prompt and which model
+    # produced it. `framework_sha256` / `method_sha256` are the same 12-hex-char
+    # sha256 prefixes `--output-dir` writes to manifest.jsonl; `model` is the model
+    # the engine reports having SERVED (its result event's `modelUsage`), falling
+    # back to the requested name when the CLI does not say. Run-level, so the same
+    # on every row of a run including MARKET. Without these, two prompt versions or
+    # two models on one tab are indistinguishable after the fact. Appended at the
+    # END (append-at-end convention) → header extension only, no row shift.
+    "framework_sha256", "method_sha256", "model",
 ]
 
 # Production SPY/VIX table backing `mech_cell`. Untracked + local-only (gitignored

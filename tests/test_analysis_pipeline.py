@@ -12,7 +12,7 @@ from analysis_pipeline import (
     _strip_output_section,
     analysis_to_rows,
 )
-from analysis_pipeline.core import _warn_if_below_targets
+from analysis_pipeline.core import _served_model, _warn_if_below_targets
 
 
 def _ns(**kw):
@@ -228,3 +228,42 @@ def test_engine_registry_covers_claude():
 def test_engine_method_files_exist():
     for cfg in ENGINES.values():
         assert cfg.method_file.exists(), cfg.method_file
+
+
+def test_analysis_to_rows_provenance_on_every_row_including_market():
+    analysis = {"regime": "BULL", "plays": [{"ticker": "SPY", "structure": "x"}]}
+    prov = {"framework_sha256": "aaaaaaaaaaaa", "method_sha256": "bbbbbbbbbbbb",
+            "model": "claude-opus-x"}
+    rows = analysis_to_rows(analysis, "2026-04-21", "2026-04-15", "2026-04-21",
+                            provenance=prov)
+    assert [r["ticker"] for r in rows] == ["MARKET", "SPY"]
+    for r in rows:
+        assert list(r.keys()) == ROW_COLUMNS
+        assert {k: r[k] for k in prov} == prov
+    # Append-at-end: the three columns are the last three, after iv_pct_status.
+    assert ROW_COLUMNS[-4:] == ["iv_pct_status", "framework_sha256", "method_sha256", "model"]
+
+
+def test_analysis_to_rows_provenance_blank_when_not_given():
+    rows = analysis_to_rows({"regime": "BULL", "plays": []}, "2026-04-21",
+                            "2026-04-15", "2026-04-21")
+    assert rows[0]["framework_sha256"] == rows[0]["method_sha256"] == rows[0]["model"] == ""
+
+
+def test_served_model_takes_the_model_that_wrote_the_answer():
+    wrapper = {"modelUsage": {
+        "claude-haiku-small": {"outputTokens": 40},
+        "claude-opus-big": {"outputTokens": 9000},
+    }}
+    assert _served_model(wrapper) == "claude-opus-big"
+    assert _served_model({}) is None
+    assert _served_model({"modelUsage": {}}) is None
+
+
+def test_run_engine_never_leaves_a_stale_served_model(monkeypatch):
+    """A runner that reports nothing must leave None, not an earlier date's id."""
+    from analysis_pipeline import core
+    monkeypatch.setattr(core, "_last_served_model", "claude-stale-id")
+    monkeypatch.setitem(core._RUNNERS, "claude", lambda p, m, cwd: ({"regime": "BULL"}, "{}"))
+    core.run_engine("claude", "prompt", "opus")
+    assert core._last_served_model is None

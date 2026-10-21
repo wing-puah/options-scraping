@@ -292,7 +292,7 @@ def diag_target_records(records: list[dict] | None = None,
         census["rows"] += 1
         legs = rec["t"].legs
         ticker, exp = legs[0].ticker.upper(), legs[0].expiration
-        entry_day = BR.entry_date_for(legs, rec["t"].grid)
+        entry_day = BR.entry_date_for(legs, rec["t"].grid, getattr(rec["t"], "signal_date", None))
         if entry_day is None:
             census["no_entry_day"] += 1
             continue

@@ -332,10 +332,11 @@ def test_mech_cell_is_appended_after_the_pre_existing_schema():
     """Sheets append is positional — a new column must go at the very END or every
     existing tab row misaligns. `mech_cell` was the last column when it landed; later
     append-at-end columns sit after it, so what this pins is that nothing was ever
-    INSERTED ahead of it."""
+    INSERTED ahead of it. Pinned by absolute index (25th column), not by distance
+    from the end, so a later append-at-end column does not break it."""
     from scripts.analysis_pipeline.config import ROW_COLUMNS
-    assert ROW_COLUMNS.index("mech_cell") == len(ROW_COLUMNS) - 2
-    assert ROW_COLUMNS[-1] == "iv_pct_status"
+    assert ROW_COLUMNS.index("mech_cell") == 24
+    assert ROW_COLUMNS.index("iv_pct_status") == 25
 
 
 def test_mech_cell_is_on_every_row_including_market():
