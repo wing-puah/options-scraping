@@ -23,8 +23,9 @@ from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
 from .shared.history import (EXIT_NETWORK_OUTAGE, PLAN_MISSING, PLAN_SCRAPES, PLAN_STALE,
                              PLAN_UNCACHED, PLAN_UNLISTED,
                              NetworkOutage, fetch_option_histories, plan_option_histories)
-from .shared.identity import (find_untested, identity_key, keys_from_tab, open_keys,
-                              rows_from_tab, split_repriced)
+from .helpers import _contract_key
+from .shared.identity import (cache_changed_keys, find_untested, identity_key, keys_from_tab,
+                              open_keys, rows_from_tab, split_repriced, watch_keys)
 from .shared.results_io import write_results
 from .simulate import validate_pricing_config
 
@@ -238,6 +239,11 @@ def _drop_already_proxied(candidates: list[dict], cfg: dict, args,
     return remaining
 
 
+def _play_key(p) -> tuple:
+    """The identity key of a built play."""
+    return identity_key(p.c["signal_date"], p.c["ticker"], p.c.get("play", ""))
+
+
 def _drop_already_backtested(candidates: list[dict], cfg: dict,
                              args) -> tuple[list[dict], set]:
     """Split candidates into (to simulate, keys to delete first).
@@ -251,13 +257,20 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
 
 def _split_already_backtested(candidates: list[dict], cfg: dict,
                               args) -> tuple[list[dict], set, dict]:
-    """Split candidates into (to simulate, keys to delete first, open rows to
+    """Split candidates into (to simulate, keys to delete first, stored rows to
     re-price as ``{key: stored row}``).
 
-    A play already on the tab is skipped, EXCEPT one stored
-    `open_at_data_end`: its data ran out before an exit fired, so it stays a
-    candidate and is re-priced in place (`--no-reprice-open` restores the
-    skip). Whether its new row replaces the old is decided after simulating
+    A play already on the tab is skipped, with two exceptions that stay
+    candidates and are re-priced in place:
+
+    * a row stored `open_at_data_end` — its data ran out before an exit fired
+      (`--no-reprice-open` restores the skip);
+    * any other PRICED row (`identity.watch_keys`) — WATCHED: `main` re-prices
+      it only if one of its leg cache files was rewritten after the row was
+      written (`identity.cache_changed_keys`, checked after this run's fetch),
+      and never fetches for it (`--no-reprice-stale` restores the skip).
+
+    Whether a new row replaces the old is decided after simulating
     (`identity.split_repriced`).
 
     Skipped entirely when `output.sheet_tab` is null. That is local-only mode,
@@ -282,19 +295,26 @@ def _split_already_backtested(candidates: list[dict], cfg: dict,
         return _drop_already_proxied(candidates, cfg, args, existing), redo_keys, {}
 
     reprice_rows: dict = {}
+    cand_keys = {identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                 for c in candidates}
     if not getattr(args, "no_reprice_open", False):
-        cand_keys = {identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
-                     for c in candidates}
-        reprice_rows = {k: rows[k] for k in open_keys(rows) if k in cand_keys}
+        reprice_rows.update({k: rows[k] for k in open_keys(rows) if k in cand_keys})
+    n_open = len(reprice_rows)
+    if not getattr(args, "no_reprice_stale", False):
+        reprice_rows.update({k: rows[k] for k in watch_keys(rows) if k in cand_keys})
     remaining = find_untested(candidates, existing - set(reprice_rows))
     dropped = len(candidates) - len(remaining)
     if dropped:
         log.warning("SKIPPING %d play(s) already on '%s'. Re-simulating APPENDS a second "
                     "row that may disagree with the first about the exit, the basis and "
                     "the P&L. Pass --redo to replace them instead.", dropped, sheet_tab)
-    if reprice_rows:
+    if n_open:
         log.info("RE-PRICING %d open_at_data_end play(s) already on '%s' in place "
-                 "(--no-reprice-open to skip them)", len(reprice_rows), sheet_tab)
+                 "(--no-reprice-open to skip them)", n_open, sheet_tab)
+    if len(reprice_rows) > n_open:
+        log.info("WATCHING %d finished play(s) already on '%s' for a changed price "
+                 "cache (--no-reprice-stale to skip them)", len(reprice_rows) - n_open,
+                 sheet_tab)
     log.info("%d/%d candidate plays are not yet on '%s'",
              len(remaining) - len(reprice_rows), len(candidates), sheet_tab)
     return (_drop_already_proxied(remaining, cfg, args, existing), set(), reprice_rows)
@@ -412,7 +432,8 @@ def _print_summary(results) -> None:
 UNBOUNDED_SCRAPE_WARN = 500
 
 
-def _print_dry_run(plays, plan, redo_keys: set, reprice_keys: set = frozenset()) -> None:
+def _print_dry_run(plays, plan, redo_keys: set, reprice_keys: set = frozenset(),
+                   stale_keys: set = frozenset()) -> None:
     """Per play, what a real run would do, and the contract totals.
 
     Reads only ``plan`` (built from disk by `plan_option_histories`): no
@@ -433,7 +454,8 @@ def _print_dry_run(plays, plan, redo_keys: set, reprice_keys: set = frozenset())
             verb = "unpriceable (no history)"
         k = identity_key(p.c["signal_date"], p.c["ticker"], p.c.get("play", ""))
         redo = (" [replaces existing row]" if k in redo_keys
-                else " [re-prices open row]" if k in reprice_keys else "")
+                else " [re-prices open row]" if k in reprice_keys
+                else " [re-prices: cache changed]" if k in stale_keys else "")
         print(f"  {p.c['date']} {p.c['ticker']:6} {p.structure:22} {verb:24} "
               f"contracts: {n_cached} cached, {n_scrape} to scrape, {n_dead} no-data{redo}")
     n_scrape = len(plan.to_scrape)
@@ -446,6 +468,7 @@ def _print_dry_run(plays, plan, redo_keys: set, reprice_keys: set = frozenset())
     n_reprice = sum(1 for p in plays if identity_key(
         p.c["signal_date"], p.c["ticker"], p.c.get("play", "")) in reprice_keys)
     print(f"re-price open: {n_reprice} (stale-forward caches: {len(plan.stale_forward)})")
+    print(f"re-price cache-changed: {len(stale_keys)} (no fetch)")
 
 
 # ─── Pass 3: simulate ────────────────────────────────────────────────────────────
@@ -513,6 +536,12 @@ def main() -> None:
                              "(backtests/option_history_cache/_unlisted.jsonl) instead of "
                              "skipping them — an operator-requested re-check; "
                              "BACKTEST_RETRY_UNLISTED=1 does the same")
+    parser.add_argument("--no-reprice-stale", action="store_true",
+                        help="Skip finished plays whose leg cache file(s) were rewritten "
+                             "after their row was written. By default they are "
+                             "re-simulated from the cache as it stands (never fetched) "
+                             "and the row is replaced only when a simulated column "
+                             "changed (identity.SIMULATED_COLUMNS).")
     parser.add_argument("--no-reprice-open", action="store_true",
                         help="Skip plays whose stored row is open_at_data_end like any "
                              "other already-backtested play. By default they are "
@@ -588,12 +617,23 @@ def main() -> None:
     # plan is built from disk alone; it is what --dry-run prints, and the real
     # fetch is handed it so the cache is read once.
     retry_unlisted = args.retry_unlisted or None
+    # WATCHED rows (finished, already on the tab) never cost a fetch: they
+    # add no start or forward demand, and a contract only they use is held
+    # off the scrape queue. They are re-priced only if their cache changed.
+    watch = {k: r for k, r in reprice_rows.items() if k not in open_keys(reprice_rows)}
+    fetch_plays = [p for p in plays if _play_key(p) not in watch]
+    fetch_contracts = {_contract_key(t, o, k, e.isoformat())
+                       for p in fetch_plays for (t, o, k, e) in p.contracts}
+    if watch:
+        needed_dates = {k: v for k, v in needed_dates.items() if k in fetch_contracts}
     # needed_ends adds the FORWARD check: a cached file that stops short of
     # its play's path end is refetched (shared/history.py::is_forward_stale).
-    needed_ends = build_needed_ends(plays, sim_cfg.get("path_cap_days", 120))
+    needed_ends = build_needed_ends(fetch_plays, sim_cfg.get("path_cap_days", 120))
     plan = plan_option_histories(list(contracts.values()), needed_dates,
                                  cache_only=args.cache_only, retry_unlisted=retry_unlisted,
                                  needed_ends=needed_ends)
+    if watch:
+        plan.hold(set(contracts) - fetch_contracts)
     n_scrape = len(plan.to_scrape)
     if n_scrape > UNBOUNDED_SCRAPE_WARN and not (args.date or args.start or args.end):
         log.warning("Unbounded run would scrape %d contract(s) from Barchart. Bound it with "
@@ -603,7 +643,15 @@ def main() -> None:
         # A preview must cost nothing: no browser, no Barchart call, no write.
         # It used to fetch every contract and then discard the result
         # (~3,600 scrapes for one preview, 2026-10-17).
-        _print_dry_run(plays, plan, redo_keys, set(reprice_rows))
+        # Changed now, or about to be: a watched row sharing a contract this
+        # run would refetch is re-priced after the fetch.
+        refetch = {c["key"] for c in plan.to_scrape}
+        stale = cache_changed_keys(watch) | {
+            _play_key(p) for p in plays if _play_key(p) in watch and any(
+                _contract_key(t, o, k, e.isoformat()) in refetch
+                for (t, o, k, e) in p.contracts)}
+        _print_dry_run([p for p in plays if _play_key(p) not in watch or _play_key(p) in stale],
+                       plan, redo_keys, set(reprice_rows) - set(watch), stale)
         return
 
     barchart_series: dict[tuple, list] = {}
@@ -624,6 +672,16 @@ def main() -> None:
                       "— nothing was written; re-run when online", e.n_failed, e.n_total)
             sys.exit(EXIT_NETWORK_OUTAGE)
 
+    # A watched row is re-priced only when a leg file is now newer than the
+    # row — judged AFTER the fetch, so a file this run just refreshed for an
+    # open row moves every finished row that shares it in the same run.
+    if watch:
+        stale = cache_changed_keys(watch)
+        plays = [p for p in plays if _play_key(p) not in watch or _play_key(p) in stale]
+        reprice_rows = {k: r for k, r in reprice_rows.items() if k not in watch or k in stale}
+        log.info("re-price cache-changed: %d of %d watched row(s) have a leg cache newer "
+                 "than the row (re-simulated, no fetch)", len(stale), len(watch))
+
     # Pass 3 — resolve entry + simulate each Play polymorphically.
     results = _run_simulations(plays, barchart_series, barchart_details,
                                market_regime, sim_cfg, spread_pct, skipped)
@@ -639,7 +697,7 @@ def main() -> None:
         n_back = sum(1 for r in results if identity_key(
             r.get("signal_date", ""), r.get("ticker", ""), r.get("play", "")) in reprice_rows)
         results, replace_keys = split_repriced(results, reprice_rows)
-        log.info("re-price open: %d of %d replaced, %d unchanged (nothing written), "
+        log.info("re-price: %d of %d replaced, %d unchanged (nothing written), "
                  "%d not priced now (old row kept)", len(replace_keys), len(reprice_rows),
                  n_back - len(replace_keys), len(reprice_rows) - n_back)
 

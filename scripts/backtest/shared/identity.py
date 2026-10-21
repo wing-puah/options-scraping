@@ -30,13 +30,16 @@ from __future__ import annotations
 
 import csv
 import logging
-from datetime import date
+import math
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from lib import sheets_client
+from lib.barchart.options import cache_path
 
-from ..config import RESULTS_PATH
+from ..config import HISTORY_CACHE, RESULTS_PATH
 from ..helpers import _parse_analysis_date
+from ..legs import parse_legs
 
 log = logging.getLogger("backtest")
 
@@ -108,10 +111,11 @@ def keys_from_csv(path) -> set:
 
 # ─── Re-pricing open rows ──────────────────────────────────────────────────────
 # A row whose price data ran out before any exit fired is stored
-# `path_status = open_at_data_end`. It is the ONE exception to "a play is
-# backtested once per tab": both writers re-price it in place, and replace the
-# stored row only when the re-price says something new (`reprice_changed`).
-# Both writers import these, so they agree on what "open" and "changed" mean.
+# `path_status = open_at_data_end`. It is one of the TWO exceptions to "a play
+# is backtested once per tab" (the other: a row whose cache changed, below):
+# both writers re-price it in place, and replace the stored row only when the
+# re-price says something new (`reprice_changed`). Both writers import these,
+# so they agree on what "open", "stale" and "changed" mean.
 
 OPEN_AT_DATA_END = "open_at_data_end"
 
@@ -122,25 +126,133 @@ def open_keys(rows: dict) -> set:
             if str(r.get("path_status", "")).strip() == OPEN_AT_DATA_END}
 
 
+#: The columns a simulation writes, on BOTH tabs. A re-priced row replaces the
+#: stored one only when one of these differs. Left out on purpose: the identity
+#: (`signal_date`, `ticker`, `play`), the bookkeeping `created_datetime`, and
+#: what is copied off the analysis row rather than priced (`structure`,
+#: `regime`, `market_regime`, `horizon`, the rollup and `score_*` columns, the
+#: proxy's `skip_reason`/`proxy_detail`/`legs_original`). A column a writer does
+#: not produce (`proxy_method` on BacktestResults) is simply not compared.
+SIMULATED_COLUMNS = (
+    "legs", "entry_leg_detail", "contracts", "dte_entry", "iv_entry_pct", "delta",
+    "entry_underlying", "entry_option_price", "entry_premium_total", "entry_source",
+    "realized_pnl_pct", "realized_pnl_abs", "days_held", "exit_reason",
+    "mfe_pct", "mfe_abs", "mfe_day", "mae_pct", "mae_abs", "mae_day",
+    "pnl_at_cap_pct", "pct_real_days", "daily_price_csv", "daily_source_csv",
+    "daily_pnl_csv", "max_loss_per_contract", "pnl_on_risk_pct", "exit_basis",
+    "pct_stale_days", "cost_total", "cost_basis", "exit_fill",
+    "path_status", "path_data_end", "proxy_method",
+)
+
+
+def _same_cell(a, b) -> bool:
+    """One stored cell against one simulated value. Sheets hands numbers back
+    as numbers and blanks as ``""``; a simulation may hold ``None``. Numbers
+    compare as numbers, dates as dates, everything else as stripped text."""
+    sa = "" if a is None else str(a).strip()
+    sb = "" if b is None else str(b).strip()
+    if sa == sb:
+        return True
+    try:
+        fa, fb = float(sa.replace(",", "")), float(sb.replace(",", ""))
+    except ValueError:
+        da, db = _parse_analysis_date(sa), _parse_analysis_date(sb)
+        return da is not None and da == db
+    return math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-9)
+
+
+def changed_columns(new: dict, old: dict) -> list[str]:
+    """The :data:`SIMULATED_COLUMNS` the new row produces that differ from the
+    stored row."""
+    return [c for c in SIMULATED_COLUMNS if c in new and not _same_cell(new[c], old.get(c))]
+
+
 def reprice_changed(new: dict, old: dict) -> bool:
     """Should a re-priced row replace the stored one?
 
     Only a PRICED re-price can (``realized_pnl_pct`` set): a re-price that now
-    prices nothing keeps the old row. Then it must say something new — a later
-    ``path_data_end``, or a different ``path_status`` or ``exit_reason``.
-    Anything else would delete and append the same row, so it is dropped and
-    the run stays idempotent.
+    prices nothing keeps the old row. A re-price whose ``path_data_end`` is
+    EARLIER than the stored one is a regression (a refetch that came back
+    shorter) and keeps the old row too. Otherwise it replaces the stored row
+    when any :data:`SIMULATED_COLUMNS` cell differs — a later data end, a new
+    exit, or only different marks. An identical re-price would delete and
+    append the same row, so it is dropped and the run stays idempotent.
     """
     if new.get("realized_pnl_pct") in (None, ""):
         return False
     new_end = _parse_analysis_date(new.get("path_data_end", ""))
     old_end = _parse_analysis_date(old.get("path_data_end", ""))
-    if new_end is not None and (old_end is None or new_end > old_end):
-        return True
-    for col in ("path_status", "exit_reason"):
-        if str(new.get(col, "") or "").strip() != str(old.get(col, "") or "").strip():
-            return True
-    return False
+    if new_end is not None and old_end is not None and new_end < old_end:
+        return False
+    return bool(changed_columns(new, old))
+
+
+# ─── Re-pricing rows whose price cache changed (2026-10-21) ───────────────────
+# A finished row is priced from cache files that other plays share. When a
+# later run refetches one of those files (a forward refresh for an open row,
+# say), the finished row still carries the marks of the old, shorter file, and
+# every study that rebuilds it from the cache disagrees with it. Such a row is
+# re-simulated from the cache as it stands, with no fetch, and replaced only
+# when `reprice_changed` says so.
+
+def parse_created(raw) -> datetime | None:
+    """A row's ``created_datetime`` (written as local-time ISO; Sheets hands it
+    back as ``YYYY-MM-DD HH:MM:SS``). ``None`` when blank or unparseable."""
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        pass
+    for fmt in ("%m/%d/%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def leg_cache_files(row: dict, cache_dir: Path | None = None) -> list[Path]:
+    """The cache files a stored row's ``legs`` were priced from."""
+    legs = parse_legs(row.get("legs", "")) or []
+    return [cache_path(cache_dir or HISTORY_CACHE, lg.ticker, lg.expiration, lg.strike,
+                       lg.opt_type) for lg in legs]
+
+
+def watch_keys(rows: dict) -> set:
+    """Keys of stored rows a cache change could move: PRICED rows that are not
+    ``open_at_data_end`` (open rows are re-priced anyway)."""
+    return {k for k, r in rows.items()
+            if r.get("realized_pnl_pct") not in (None, "")
+            and str(r.get("path_status", "")).strip() != OPEN_AT_DATA_END}
+
+
+def cache_changed_keys(rows: dict, cache_dir: Path | None = None) -> set:
+    """Keys of ``{key: row}`` whose leg cache file(s) were rewritten AFTER the
+    row was written: a file mtime at least one second past ``created_datetime``
+    (which is truncated to the second). Both are local wall-clock time.
+
+    The mtime is the only signature available: a row records no hash of the
+    files it read. A restore that resets mtimes (`backup_research_caches.py
+    pull` keeps the archived ones) would make every row a candidate; that
+    costs one re-simulation per row and writes nothing where nothing changed.
+    A row with no parseable ``created_datetime`` is never a candidate.
+    """
+    out = set()
+    for k, r in rows.items():
+        created = parse_created(r.get("created_datetime"))
+        if created is None:
+            continue
+        cutoff = (created + timedelta(seconds=1)).timestamp()
+        for f in leg_cache_files(r, cache_dir):
+            try:
+                if f.stat().st_mtime >= cutoff:
+                    out.add(k)
+                    break
+            except FileNotFoundError:
+                continue
+    return out
 
 
 def split_repriced(results: list[dict], reprice_rows: dict) -> tuple[list[dict], set]:
@@ -157,6 +269,8 @@ def split_repriced(results: list[dict], reprice_rows: dict) -> tuple[list[dict],
         if k not in reprice_rows:
             kept.append(r)
         elif reprice_changed(r, reprice_rows[k]):
+            log.info("re-price replaces %s %s %s: %s", k[0], k[1], k[2][:30],
+                     ", ".join(changed_columns(r, reprice_rows[k])))
             kept.append(r)
             replace.add(k)
     return kept, replace

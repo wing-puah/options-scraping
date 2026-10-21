@@ -1749,7 +1749,8 @@ python3 scripts/collector/daily/scrape_flow.py --date 2026-04-21
 python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing
 
 # Backtest (idempotent: a play already on the results tab is SKIPPED — see the guard below;
-# an open_at_data_end row is re-priced in place unless --no-reprice-open)
+# an open_at_data_end row is re-priced in place unless --no-reprice-open; a finished row
+# whose leg cache changed is re-priced, without a fetch, unless --no-reprice-stale)
 python3 -m scripts.backtest --config config/backtest.yml
 python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21
 python3 -m scripts.backtest --config config/backtest.yml --dry-run           # no sheet/CSV write
@@ -1876,6 +1877,7 @@ Both writers now check, and both key on the **same** row identity:
 | every candidate is a duplicate | logged, exit 0 |
 | `--redo` | re-simulates them and **deletes** the existing rows before appending; needs `--date` or `--start`/`--end` |
 | a play stored `open_at_data_end` | re-priced in place, on both tabs (below); `--no-reprice-open` skips it |
+| a finished play whose leg cache changed | re-priced in place, no fetch (below); `--no-reprice-stale` skips it |
 | `output.sheet_tab: null` | not checked, and no Sheets read at all — the local CSV is rewritten, not appended |
 
 The check sits **before the Barchart fetch**, which is the expensive step, for the same
@@ -1902,7 +1904,7 @@ So re-price a date in this order: `scripts.backtest --redo`, then `scripts.backt
 --redo` on the same bound. The check reads `BacktestResults` as an input, as the proxy
 already does, so the dependency still runs proxy → results.
 
-**Open rows are the one exception to "backtested once".** Added 2026-10-21. A row stored
+**Open rows are the first exception to "backtested once".** Added 2026-10-21. A row stored
 `path_status = open_at_data_end` ran out of price data before any exit fired. Before this,
 the guard skipped it forever, and the cache never refetched its file, because the plan only
 checked a file's start. Now both writers re-price such a row in place:
@@ -1915,10 +1917,28 @@ checked a file's start. Now both writers re-price such a row in place:
   or after the end is final. The proxy runs the same plan on the contracts its legs snap to
   (`proxy._refresh_forward`). A failed refetch keeps the file and its bars.
 - **Replace only on change.** `identity.split_repriced` keeps a re-priced row only when
-  `reprice_changed` holds: priced, and a later `path_data_end` or a new `path_status` or
-  `exit_reason`. Only those keys are deleted, in the `--redo` order: local CSV, delete,
-  append. An unchanged or unpriced re-price writes nothing and keeps the old row.
+  `reprice_changed` holds: priced, no earlier `path_data_end`, and some
+  `identity.SIMULATED_COLUMNS` cell differs. Only those keys are deleted, in the `--redo`
+  order: local CSV, delete, append. An unchanged or unpriced re-price writes nothing.
 - **Preview.** `--dry-run` on either CLI prints `re-price open: N (stale-forward caches: M)`.
+
+**Finished rows whose cache changed are the second exception.** Added 2026-10-21. Plays
+share cache files. A forward refresh for an open row rewrote four files that five finished
+rows had been priced from, and `mechanical_benchmark`'s G5 mirror then disagreed with them.
+
+- **Watched.** `identity.watch_keys` = priced rows that are not open. They stay candidates
+  but add no start or forward demand; `FetchPlan.hold` keeps a contract only they use off
+  the scrape queue. They are never fetched for, and the proxy evaluates them with no probe.
+- **Changed.** `identity.cache_changed_keys`: a leg file (from the row's `legs`) whose mtime
+  is at least one second past `created_datetime`, both local time. It is judged after the
+  run's fetches, so a file this run refreshed moves the rows sharing it in the same run.
+- **Replaced** by the same `reprice_changed` rule. `SIMULATED_COLUMNS` leaves out the
+  identity, `created_datetime`, and columns copied off the analysis row.
+- **Proxy stamp.** The proxy stamps `created_datetime` after its probes, so a row is not
+  older than the files it read.
+- **Restores.** `backup_research_caches.py pull` keeps archived mtimes. A restore that did
+  not would make every row a candidate: one re-simulation each, writes only where changed.
+- **Preview.** `--dry-run` prints `re-price cache-changed: N`. `--no-reprice-stale` opts out.
 
 `path_data_end` reads only the option-history cache. The underlying OHLC cache does not feed
 it, so it needs no forward check. Tests: `tests/test_backtest_dup_guard.py`,

@@ -437,12 +437,16 @@ two prompt versions are never pooled.
   same normalisation `backtest_study/lib/book.py::norm_play` joins on, so the writers'
   notion of row identity and the studies' are the same one. `core.py` must never import
   `proxy.py` — the proxy reads `BacktestResults` as an INPUT, so that dependency runs one
-  way only. **The one exception: a row stored `path_status = open_at_data_end`** (its data ran
-  out before an exit fired) is re-priced in place by default on both CLIs. It is replaced only
-  when the new row has a later `path_data_end` or a new `path_status`/`exit_reason`, and only
-  replaced keys are deleted (CSV → delete → append). `--no-reprice-open` restores the skip.
-  `shared/history.py` refetches a cached file that stops short of its path end, until a fetch
-  dated on or after that end makes it final; it never unlinks a cache file.
+  way only. **Two exceptions are re-priced in place by default on both CLIs.** A row stored
+  `path_status = open_at_data_end` (its data ran out before an exit fired); `--no-reprice-open`
+  skips it. And a finished row whose leg cache file is newer than its `created_datetime`
+  (another play's refresh rewrote a shared file), re-simulated with NO fetch;
+  `--no-reprice-stale` skips it. Either is replaced only when a column in
+  `identity.SIMULATED_COLUMNS` changed and the data end did not shrink; only replaced keys are
+  deleted (CSV → delete → append). `shared/history.py` refetches a cached file that stops short
+  of its path end, until a fetch dated on or after that end makes it final; it never unlinks a
+  cache file. A cache file's mtime is its fetch time, so `backup_research_caches.py pull` keeps
+  the archived mtimes.
 
 - **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
   is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous

@@ -68,11 +68,13 @@ from .shared.identity import (
     find_untested as _find_untested,
     identity_key as _identity_key,
     keys_from_csv as _keys_from_csv,
+    cache_changed_keys,
     keys_from_tab,
     open_keys,
     rows_from_csv,
     rows_from_tab,
     split_repriced,
+    watch_keys,
 )
 from .shared.results_io import write_results
 from .simulate import _simulate, validate_pricing_config
@@ -827,6 +829,11 @@ def main() -> None:
                              "(backtests/option_history_cache/_unlisted.jsonl) instead of "
                              "skipping them — an operator-requested re-check; "
                              "BACKTEST_RETRY_UNLISTED=1 does the same")
+    parser.add_argument("--no-reprice-stale", action="store_true",
+                        help="Skip finished proxy rows whose leg cache file(s) were "
+                             "rewritten after the row was written. By default they are "
+                             "re-evaluated from the cache as it stands (no probe, no "
+                             "fetch) and replaced only when a simulated column changed.")
     parser.add_argument("--no-reprice-open", action="store_true",
                         help="Skip proxy rows stored open_at_data_end like any other "
                              "existing row, and never delete cross-tab duplicates on a "
@@ -906,6 +913,7 @@ def main() -> None:
         existing_rows = rows_from_csv(proxy_cfg.get("local_csv") or "backtests/proxy_results.csv")
     existing = set(existing_rows)
     reprice = not args.no_reprice_open and not args.redo
+    reprice_stale = not args.no_reprice_stale and not args.redo
     bounded = bool(args.date or args.start or args.end)
     # A proxy row whose play is now on the results tab is a cross-tab duplicate
     # (see _cross_tab_duplicates). --redo deletes it from the proxy TAB; a plain
@@ -913,6 +921,7 @@ def main() -> None:
     cross_tab = _cross_tab_duplicates(existing, tested, start, end)
     stale_keys: set = set()
     reprice_rows: dict = {}
+    watch: dict = {}
     if args.redo:
         redo_keys = {k for k in (_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
                                  for c in untested) if k in existing}
@@ -946,18 +955,24 @@ def main() -> None:
                         "with re-pricing on) to delete the proxy copies",
                         len(cross_tab), proxy_tab, tested_source)
             _log_cross_tab(cross_tab, proxy_tab, tested_source, "Duplicate")
+        untested_keys = {_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                         for c in untested}
         if reprice:
-            untested_keys = {_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
-                             for c in untested}
             reprice_rows = {k: existing_rows[k] for k in open_keys(existing_rows)
                             if k in untested_keys}
+        if reprice_stale:
+            # WATCHED: finished priced rows, re-evaluated (no probe) only when a
+            # leg cache file is newer than the row — judged after this run's
+            # fetches, below.
+            watch = {k: existing_rows[k] for k in watch_keys(existing_rows)
+                     if k in untested_keys}
         untested = [c for c in untested
-                    if _identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
-                    not in existing or _identity_key(c["signal_date"], c["ticker"],
-                                                     c.get("play", "")) in reprice_rows]
+                    if (k := _identity_key(c["signal_date"], c["ticker"], c.get("play", "")))
+                    not in existing or k in reprice_rows or k in watch]
         log.info("%d untested plays remain after dropping ones already in '%s' "
-                 "(%d of them open rows to re-price; --no-reprice-open skips them)",
-                 len(untested), proxy_tab, len(reprice_rows))
+                 "(%d open rows to re-price, --no-reprice-open skips them; %d finished "
+                 "rows watched for a changed cache, --no-reprice-stale skips them)",
+                 len(untested), proxy_tab, len(reprice_rows), len(watch))
 
     created = datetime.now().isoformat(timespec="seconds")
     structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
@@ -974,8 +989,24 @@ def main() -> None:
                  in reprice_rows],
                 proxy_cfg, sim_cfg, fetch=not (args.dry_run or args.cache_only))
         print(f"re-price open: {len(reprice_rows)} (stale-forward caches: {n_stale_fwd})")
+
+        def _key(c):
+            return _identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+
         rows = [_evaluate(*pr, c, proxy_cfg, sim_cfg, spread_pct, created, allow_probe)
-                for pr, c in built]
+                for pr, c in built if _key(c) not in watch]
+        # Judged AFTER every fetch above (forward refresh, probes), so a file
+        # this run rewrote moves the finished rows that share it in this run.
+        changed = cache_changed_keys(watch) if watch else set()
+        print(f"re-price cache-changed: {len(changed)} of {len(watch)} watched (no fetch)")
+        rows += [_evaluate(*pr, c, proxy_cfg, sim_cfg, spread_pct, created, False)
+                 for pr, c in built if _key(c) in changed]
+        reprice_rows.update({k: watch[k] for k in changed})
+        # Stamp the rows AFTER the probes: a row written before the files it
+        # read would look cache-changed on every later run.
+        created = datetime.now().isoformat(timespec="seconds")
+        for r in rows:
+            r["created_datetime"] = created
     except NetworkOutage as e:
         # Every probe fetch happens inside this comprehension; every write
         # (local CSV, --redo delete, append) comes after it. Nothing written.
@@ -990,7 +1021,7 @@ def main() -> None:
     replace_keys: set = set()
     if reprice_rows:
         rows, replace_keys = split_repriced(rows, reprice_rows)
-        log.info("re-price open: %d of %d proxy row(s) replaced; the rest unchanged or "
+        log.info("re-price: %d of %d proxy row(s) replaced; the rest unchanged or "
                  "not priced now (old rows kept, nothing written)",
                  len(replace_keys), len(reprice_rows))
     doomed = redo_keys | stale_keys | replace_keys

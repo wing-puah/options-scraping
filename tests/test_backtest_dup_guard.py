@@ -403,7 +403,7 @@ def test_dry_run_makes_no_barchart_call(tmp_path, monkeypatch, capsys):
 
 _OPEN = {"signal_date": "6/25/2026", "ticker": "NVDA", "play": "Long call 250",
          "path_status": "open_at_data_end", "path_data_end": "2026-07-10",
-         "exit_reason": "cap_open"}
+         "exit_reason": "cap_open", "realized_pnl_pct": 0.1}
 _DONE = {"signal_date": "6/25/2026", "ticker": "AMD", "play": "Long call 150",
          "path_status": "complete", "path_data_end": "2026-07-02",
          "exit_reason": "profit_target"}
@@ -563,3 +563,155 @@ def test_build_needed_ends_takes_the_latest_path_end_capped_at_the_last_session(
     from backtest.helpers import _contract_key
     assert ends[_contract_key("NVDA", "Call", 250.0, exp.isoformat())] == exp
     assert ends[_contract_key("SPY", "Put", 500.0, "2027-01-15")] == date(2026, 10, 20)
+
+
+# ── Finished rows whose price cache changed are re-priced (2026-10-21) ─────────
+# A finished row is priced from cache files other plays share. When a later run
+# refetches one (a forward refresh for an open row), the finished row still
+# carries the old file's marks. It is re-simulated from the cache, never
+# fetched for, and replaced only when a simulated column changed.
+
+import os  # noqa: E402
+
+_LEGS = "NVDA:2026-08-21:250:C +1\nNVDA:2026-08-21:270:C -1"
+_FINISHED = {"signal_date": "6/25/2026", "ticker": "NVDA", "play": "Long call 250",
+             "legs": _LEGS, "path_status": "complete", "path_data_end": "2026-07-10",
+             "exit_reason": "profit_target", "realized_pnl_pct": 0.5, "mfe_abs": 120,
+             "daily_price_csv": "1.0,1.5", "created_datetime": "2026-09-24 13:06:02"}
+
+
+def _touch_legs(cache, row, when: str):
+    """Write the row's leg cache files with mtime ``when`` (local time)."""
+    from datetime import datetime as _dt
+    ts = _dt.fromisoformat(when).timestamp()
+    for f in identity.leg_cache_files(row, cache):
+        f.write_text("x")
+        os.utime(f, (ts, ts))
+
+
+@pytest.mark.parametrize("when, stale", [
+    ("2026-10-21 14:01:29", True),      # rewritten after the row
+    ("2026-09-24 13:06:02", False),     # same second as the row: not later
+    ("2026-09-23 11:00:00", False),     # older than the row
+])
+def test_cache_changed_keys_compares_leg_mtime_to_created(tmp_path, when, stale):
+    k = identity.identity_key("6/25/2026", "NVDA", "Long call 250")
+    _touch_legs(tmp_path, _FINISHED, when)
+    assert (identity.cache_changed_keys({k: _FINISHED}, tmp_path) == {k}) is stale
+
+
+def test_cache_changed_keys_ignores_missing_files_and_blank_created(tmp_path):
+    k = identity.identity_key("6/25/2026", "NVDA", "Long call 250")
+    assert identity.cache_changed_keys({k: _FINISHED}, tmp_path) == set()
+    _touch_legs(tmp_path, _FINISHED, "2026-10-21 14:01:29")
+    blank = {**_FINISHED, "created_datetime": ""}
+    assert identity.cache_changed_keys({k: blank}, tmp_path) == set()
+
+
+def test_watch_keys_are_priced_rows_that_are_not_open():
+    rows = {1: _FINISHED, 2: {**_FINISHED, "path_status": "open_at_data_end"},
+            3: {**_FINISHED, "realized_pnl_pct": ""}}
+    assert identity.watch_keys(rows) == {1}
+
+
+@pytest.mark.parametrize("new, kept", [
+    ({**_FINISHED, "realized_pnl_pct": "0.5", "mfe_abs": 120.0}, False),  # same, reformatted
+    ({**_FINISHED, "mfe_abs": 180}, True),                               # marks moved
+    ({**_FINISHED, "daily_price_csv": "1.0,1.5,1.7"}, True),
+    ({**_FINISHED, "mfe_abs": 180, "path_data_end": "2026-07-01"}, False),  # shorter: regression
+    ({**_FINISHED, "created_datetime": "2026-10-21 15:00:00"}, False),   # bookkeeping only
+    ({**_FINISHED, "regime": "BEAR"}, False),                            # analysis copy, not priced
+])
+def test_reprice_changed_on_a_finished_row(new, kept):
+    assert identity.reprice_changed(new, _FINISHED) is kept
+
+
+def _stale_main(tmp_path, monkeypatch, cache_when, sim_row, extra_argv=()):
+    """Drive core.main() over one FINISHED row with real mtime checks and a
+    stubbed plan/fetch/simulation; returns (write calls, plays simulated,
+    contracts held off the scrape queue)."""
+    from backtest.shared.history import FetchPlan
+    cfg_path = _write_cfg(tmp_path, monkeypatch)
+    rows_csv = tmp_path / "rows.csv"
+    rows_csv.write_text("date,ticker,regime,signal,play,horizon\n"
+                        "2026-06-25,NVDA,BULL,sweep,Long call 250,swing\n")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    monkeypatch.setattr(identity, "HISTORY_CACHE", cache)
+    if cache_when:
+        _touch_legs(cache, _FINISHED, cache_when)
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows", _two_tabs([_FINISHED], []))
+
+    calls, simulated, held = [], [], []
+    monkeypatch.setattr(core.sheets_client, "delete_rows_where",
+                        lambda tab, fn: calls.append(("delete", fn(_FINISHED))))
+    from scripts.backtest.shared import results_io
+    monkeypatch.setattr(results_io, "ROOT", tmp_path)
+    monkeypatch.setattr(results_io, "RESULTS_PATH", tmp_path / "backtests")
+    monkeypatch.setattr(results_io.sheets_client, "append_rows",
+                        lambda tab, rows: calls.append(("append", len(rows))))
+    monkeypatch.setattr(core, "_print_summary", lambda results: None)
+    monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: None)
+    exp = date(2026, 8, 21)
+    contracts = {("NVDA", "Call", 250.0, exp.isoformat()): None,
+                 ("NVDA", "Call", 270.0, exp.isoformat()): None}
+
+    def fake_build(cands, *a, **k):
+        plays = [SimpleNamespace(c=c, contracts=[("NVDA", "Call", 250.0, exp),
+                                                 ("NVDA", "Call", 270.0, exp)])
+                 for c in cands]
+        return plays, {k_: {"key": k_} for k_ in contracts}, {}, {}
+
+    class _Plan(FetchPlan):
+        def hold(self, keys):
+            held.extend(keys)
+            return super().hold(keys)
+
+    def fake_plan(contracts_, needed_dates, **kw):
+        assert needed_dates == {} and kw["needed_ends"] == {}   # a watched row adds no demand
+        return _Plan(to_scrape=list(contracts_))                 # as if both were missing
+
+    async def fake_fetch(*a, plan=None, **k):
+        assert plan.to_scrape == []                              # held: no fetch
+        return {}, {}
+
+    monkeypatch.setattr(core, "build_matched_plays", fake_build)
+    monkeypatch.setattr(core, "plan_option_histories", fake_plan)
+    monkeypatch.setattr(core, "fetch_option_histories", fake_fetch)
+    monkeypatch.setattr(core, "_run_simulations",
+                        lambda plays, *a, **k: (simulated.extend(p.c["ticker"] for p in plays)
+                                                or [dict(sim_row)] if plays else []))
+    monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
+                                     "--analysis-csv", str(rows_csv), *extra_argv])
+    try:
+        core.main()
+    except SystemExit as e:
+        assert e.code == 0
+    return calls, simulated, held
+
+
+def test_cache_newer_than_row_and_changed_result_replaces_it(tmp_path, monkeypatch):
+    calls, simulated, held = _stale_main(tmp_path, monkeypatch, "2026-10-21 14:01:29",
+                                         {**_FINISHED, "mfe_abs": 180})
+    assert simulated == ["NVDA"] and len(held) == 2
+    assert calls == [("delete", True), ("append", 1)]
+
+
+def test_cache_newer_than_row_and_unchanged_result_writes_nothing(tmp_path, monkeypatch):
+    calls, simulated, _ = _stale_main(tmp_path, monkeypatch, "2026-10-21 14:01:29",
+                                      dict(_FINISHED))
+    assert simulated == ["NVDA"]
+    assert not any(c[0] in ("delete", "append") for c in calls)
+
+
+def test_cache_older_than_row_is_not_resimulated(tmp_path, monkeypatch):
+    calls, simulated, _ = _stale_main(tmp_path, monkeypatch, "2026-09-23 11:00:00",
+                                      {**_FINISHED, "mfe_abs": 180})
+    assert simulated == [] and calls == []
+
+
+def test_no_reprice_stale_skips_finished_rows(tmp_path, monkeypatch):
+    calls, simulated, _ = _stale_main(tmp_path, monkeypatch, "2026-10-21 14:01:29",
+                                      {**_FINISHED, "mfe_abs": 180},
+                                      extra_argv=["--no-reprice-stale"])
+    assert simulated == [] and calls == []

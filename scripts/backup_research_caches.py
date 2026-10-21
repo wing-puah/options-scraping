@@ -50,6 +50,7 @@ from __future__ import annotations
 import argparse
 import io
 import logging
+import os
 import re
 import sys
 import tarfile
@@ -266,6 +267,12 @@ def extract_additive(archive_bytes: bytes, root: Path, force: bool) -> dict[str,
             if extracted is None:
                 continue
             target.write_bytes(extracted.read())
+            # Keep the archived mtime. The backtest reads a cache file's mtime
+            # as its fetch time (forward finality in shared/history.py, the
+            # cache-changed re-price in shared/identity.py); a restore stamped
+            # "now" would make every file look freshly fetched.
+            if member.mtime:
+                os.utime(target, (member.mtime, member.mtime))
             (overwritten if exists else added).append(member.name)
     return {"added": added, "skipped": skipped, "overwritten": overwritten}
 

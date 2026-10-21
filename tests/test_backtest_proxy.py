@@ -760,7 +760,8 @@ def test_dry_run_never_probes_barchart(monkeypatch, cache_dir):
 def _open_proxy_row(cand, **kw):
     return {"signal_date": cand["signal_date"].isoformat(), "ticker": cand["ticker"],
             "play": cand["play"], "path_status": "open_at_data_end",
-            "path_data_end": "2026-06-10", "exit_reason": "cap_open", **kw}
+            "path_data_end": "2026-06-10", "exit_reason": "cap_open",
+            "realized_pnl_pct": 0.1, **kw}
 
 
 def _stub_evaluate(monkeypatch, cand, **row_kw):
@@ -893,3 +894,54 @@ def test_refresh_forward_plans_the_snapped_contracts(monkeypatch, cache_dir):
     assert n == 1
     assert len(seen["keys"]) == 1 and seen["keys"][0][0] == "NVDA"
     assert list(seen["ends"].values()) == [EXP]
+
+
+# ── Finished proxy rows whose price cache changed (2026-10-21) ─────────────────
+
+def _finished_proxy_row(cand, **kw):
+    return {**_open_proxy_row(cand), "path_status": "complete", "exit_reason": "expired",
+            "legs": "NVDA:2026-06-20:250:C +1", "mfe_abs": 120,
+            "created_datetime": "2026-09-24 13:06:54", **kw}
+
+
+def _stale_proxy(monkeypatch, cache_dir, when, **sim_kw):
+    import os
+    from datetime import datetime as _dt
+    from backtest.shared import identity
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    stored = _finished_proxy_row(cand)
+    monkeypatch.setattr(identity, "HISTORY_CACHE", cache_dir)
+    f = bo.cache_path(cache_dir, "NVDA", date(2026, 6, 20), 250.0, "Call")
+    f.write_text("x")
+    ts = _dt.fromisoformat(when).timestamp()
+    os.utime(f, (ts, ts))
+    probes = []
+
+    def fake_eval(play, reason, c, cfg, sim_cfg, spread, created, allow_probe):
+        probes.append(allow_probe)
+        return {**stored, **sim_kw}
+
+    monkeypatch.setattr(proxy, "_evaluate", fake_eval)
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat()], cand, {key: stored})
+    return calls, probes, key
+
+
+def test_proxy_cache_newer_and_changed_replaces_without_a_probe(monkeypatch, cache_dir):
+    calls, probes, key = _stale_proxy(monkeypatch, cache_dir, "2026-10-21 14:17:08",
+                                      mfe_abs=180)
+    assert probes == [False]
+    assert len(calls["written"]) == 1 and calls["deleted"] is not None
+    assert calls["written"][0]["created_datetime"] != "2026-09-24 13:06:54"  # re-stamped
+
+
+def test_proxy_cache_newer_and_unchanged_writes_nothing(monkeypatch, cache_dir):
+    calls, probes, _ = _stale_proxy(monkeypatch, cache_dir, "2026-10-21 14:17:08")
+    assert probes == [False]
+    assert calls["written"] == [] and calls["deleted"] is None
+
+
+def test_proxy_cache_older_is_not_reevaluated(monkeypatch, cache_dir):
+    calls, probes, _ = _stale_proxy(monkeypatch, cache_dir, "2026-09-20 10:00:00",
+                                    mfe_abs=180)
+    assert probes == [] and calls["written"] == [] and calls["deleted"] is None

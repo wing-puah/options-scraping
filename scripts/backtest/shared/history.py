@@ -234,6 +234,23 @@ class FetchPlan:
     def count(self, *statuses: str) -> int:
         return sum(1 for s in self.status.values() if s in statuses)
 
+    def hold(self, keys) -> int:
+        """Take ``keys`` off the scrape queue: they are priced from whatever the
+        cache holds, exactly as under ``--cache-only`` (a missing file is
+        no-data). Used for contracts only a cache-changed re-price needs, which
+        must never cost a fetch. Returns how many were held."""
+        keys = set(keys)
+        held = [c for c in self.to_scrape if c["key"] in keys]
+        self.to_scrape = [c for c in self.to_scrape if c["key"] not in keys]
+        for c in held:
+            self.stale_forward.discard(c["key"])
+            if c["key"] not in self.series_map:
+                self.series_map[c["key"]] = []
+                self.status[c["key"]] = PLAN_UNCACHED
+            else:
+                self.status[c["key"]] = PLAN_CACHED
+        return len(held)
+
 
 def plan_option_histories(
     contracts: list[dict],

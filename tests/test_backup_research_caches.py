@@ -450,3 +450,18 @@ def test_cli_prune_defaults_and_keep_floor(monkeypatch):
     assert brc.main(["prune"]) == 0
     assert seen["args"].keep == brc.DEFAULT_KEEP
     assert seen["args"].dry_run is False
+
+
+def test_extract_keeps_the_archived_mtime(tmp_path):
+    """A restored cache file keeps its fetch time: the backtest reads a cache
+    file's mtime as when it was fetched (forward finality, cache-changed
+    re-price), so a pull must not stamp every file 'now'."""
+    import tarfile as _tar
+    buf = io.BytesIO()
+    with _tar.open(fileobj=buf, mode="w:gz") as tar:
+        info = _tar.TarInfo("backtests/option_history_cache/AAPL.csv")
+        info.size, info.mtime = 4, 1_758_000_000
+        tar.addfile(info, io.BytesIO(b"aapl"))
+    brc.extract_additive(buf.getvalue(), tmp_path, force=False)
+    f = tmp_path / "backtests/option_history_cache/AAPL.csv"
+    assert int(f.stat().st_mtime) == 1_758_000_000
