@@ -571,6 +571,22 @@ of `mech_cell`'s BEAR test, without the 20-day return. The label comes from
 [`dip_buy`](pre-registrations/f1_selection/regime/dip_buy.md); the opposite is an
 "above" date.
 
+<a id="regime-flip"></a>
+### regime flip
+the first mech BEAR session on a ticker after 20 sessions with no BEAR label.
+BEAR is `lib/mech_regime.py::compute_mech_table`'s rule on that ticker's own
+closes: below its 50-day SMA with a negative 20-day return. Most flips fade
+within days, which is why
+[`regime_confirm`](pre-registrations/f1_selection/regime/regime_confirm.md)
+asks whether a flip that persists predicts more.
+
+<a id="real-shift"></a>
+### real shift
+an event followed, within 60 sessions of its decision close, by a close 10% or
+more below that decision close. It is the outcome of
+[`regime_confirm`](pre-registrations/f1_selection/regime/regime_confirm.md),
+measured on the index's own path, not on any position.
+
 <a id="slot-r"></a>
 ### slot R
 R per budget slot on one signal date: the summed R of the date's picks

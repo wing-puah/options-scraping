@@ -1043,6 +1043,34 @@ Every label below is local to this study. `B` and `H` are not `hedge_sizing`'s c
 
 ### Queued — pre-registered, no module yet
 
+#### `regime_confirm`
+
+_Drafted in [`pre-registrations/f1_selection/regime/regime_confirm.md`](pre-registrations/f1_selection/regime/regime_confirm.md) · no module_
+
+Draft, 2026-10-21, not yet accepted. The study asks whether a mech BEAR
+[flip](glossary.md#regime-flip) that persists, with other stress signs
+agreeing, is followed by a [real shift](glossary.md#real-shift) more often
+than every flip is. The unit is a market event, not a position.
+
+- `RC0` (control) — Every flip, acting at the flip session.
+- `RC1` (arm) — The candidate rule: a BEAR streak of 3 and 2 or more of
+  `C-200`, `C-CR`, `C-IWM`, `C-VIX`. Co-primary on `RC-H2`.
+- `RC-200` (arm) — A streak of 3 and the flip ticker below its own 200-day
+  SMA. Co-primary on `RC-H1`.
+- `RC-P` `RC-C` (arm) — Secondary: the streak alone, and the conditions
+  alone at the flip. Under BH, no verdict.
+- `RC-10` `RC-TS` (descriptive cut) — A streak of 10, and a VIX/VIX3M split.
+  Printed only.
+- `C-200` `C-CR` `C-IWM` `C-VIX` (axis) — The four conditions, read at the
+  decision close.
+- `RC-IS` `RC-H1` `RC-H2` `RC-FWD` (population scope) — SPY since its
+  start (spent), ^GSPC before SPY existed (holdout), QQQ and IWM (correlated
+  replication), and flips after registration.
+- `RC-G0` `RC-G1` `RC-G2` (gate) — Data and label cross-check, causality,
+  and the floor of 20 events in 12 clusters.
+- `RETRO-SUPPORTED` `RETRO-NULL` `RETRO-CONTRARY` (prose) — The
+  retrospective verdict words over the two co-primaries.
+
 #### `concurrency_correlation`
 
 _Registered in [`pre-registrations/f4_deployment/concurrency_correlation.md`](pre-registrations/f4_deployment/concurrency_correlation.md)_
