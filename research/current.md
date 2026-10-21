@@ -353,6 +353,9 @@ rows and keeps 16 closed-window `cap_open` rows.
   the new plays added others. Floor 4a now counts 15 `ARM M1`/`ARM M2` pairs
   awaiting a fetch, where it counted 0. No arm prints a grade until they are
   fetched. The fetch plan lists 6 `M1` and 25 `M2` current-era contracts.
+- **After the fetch, still `NOT BUILT`.** Five fetch rounds took `ARM M1` to 0
+  awaiting, `ARM M2` to 2 and `ARM M2L` to 9, with no network errors. Floor 4a
+  still counts 2 `ARM M2` pairs, so no arm is graded. One more round may close it.
 - **The 2026-10-15 `CONTRARY` stands.** This run neither confirms nor
   reverses it. It cannot be re-read on the new exports until the operator runs
   the fetch.

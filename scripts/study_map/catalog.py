@@ -468,6 +468,8 @@ STUDIES: dict[str, Study] = {
                 "re-price and the new 10-19/10-20 plays): `VERDICT: NOT BUILT — AWAITING "
                 "SCRAPE`. `4a  M1/M2 pairs awaiting a fetch 15  NEEDS OPERATOR-RUN FETCH`, so no "
                 "arm is graded and `ARM M1` `CONTRARY` cannot be re-read until the fetch runs. "
+                "After a 5-round fetch of the current-era same-ticker legs the verdict is the "
+                "same token, with `4a  M1/M2 pairs awaiting a fetch 2  NEEDS OPERATOR-RUN FETCH`. "
                 "programme_gate reads WAIT (PG-M NOT READ, dip_buy open). Nothing ships. "
                 "Before it, the 2026-10-15 P1 correction (v4, exports 2026-10-06, git c8b1f4e; after the "
                 "UniverseSpot probe-cap fix and the P3 tier port; v3 not fetched): `VERDICT "
