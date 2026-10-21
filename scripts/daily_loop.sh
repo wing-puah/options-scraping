@@ -6,7 +6,7 @@
 #
 # Steps: 1 mech-regime refresh (before the card, else dip-date sizing prints
 # NO_DATA) | 1b regime watch (report only, NON-FATAL) | 2 backtest, BOUNDED by
-# --start | 3 proxy, same bound | 4 journal | 5 deploy card | 6 research-cache
+# --start | 3 proxy, same bound | 3b dashboard (NON-FATAL) | 4 journal | 5 deploy card | 6 research-cache
 # backup to Drive.
 # Exit: 3 = another writer is running; otherwise the failing step's code.
 set -euo pipefail
@@ -45,6 +45,8 @@ if [ "$SKIP_BACKTEST" = 0 ]; then
   add "backtest (bounded)" "python3 -m scripts.backtest --config config/backtest.yml --start $START"
   add "proxy (bounded)" "python3 -m scripts.backtest.proxy --config config/backtest.yml --start $START"
 fi
+# Reads local files only; a page that fails to build must never stop the loop.
+addnf "dashboard" "python3 scripts/dashboard.py"
 add "journal" "python3 -m scripts.journal"
 add "deploy card" "python3 -m scripts.journal recommend"
 [ "$SKIP_BACKUP" = 0 ] && add "cache backup" "python3 scripts/backup_research_caches.py push"

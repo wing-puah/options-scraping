@@ -235,6 +235,16 @@ study-map:
 study-map-open:
 	$(PY) -m scripts.study_map --open
 
+# One plain-English page for the whole project (data freshness, regime, backtested
+# book, keep-or-kill rule, studies, what waits on you). Local files only, never
+# journal/ or portfolio/. Writes site/dashboard.html.
+.PHONY: dashboard dashboard-open
+dashboard:
+	$(PY) scripts/dashboard.py $(ARGS)
+
+dashboard-open: dashboard
+	@open site/dashboard.html 2>/dev/null || echo "built site/dashboard.html"
+
 # Per-study last-run status, no HTML — the check the map's data feeds but
 # never itself gates on.
 .PHONY: study-check
@@ -519,6 +529,7 @@ help:
 	@echo ""
 	@echo "  make study-map      MAP: rebuild site/study-map.html (what each study asks + its last run)"
 	@echo "  make study-map-open   rebuild it and open it in a browser"
+	@echo "  make dashboard        plain-English project dashboard -> site/dashboard.html (dashboard-open to view)"
 	@echo "  make study-check    per-study last-run status, no HTML"
 	@echo ""
 	@echo "  make study-chart    CHART: render account_sim's result → study_output fragment + site/account-sim-charts.html"
