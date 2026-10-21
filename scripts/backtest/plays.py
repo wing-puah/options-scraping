@@ -25,6 +25,7 @@ from .helpers import _contract_key, _to_float, _short_strike
 from .legs import (legs_from_structure, iron_condor_legs, merge_legs,
                    straddle_legs, strangle_legs, butterfly_legs, condor_legs,
                    calendar_legs, diagonal_legs)
+from .shared.history import needed_end, path_end
 from .simulate import ENTRY_REFUSALS, _simulate, _iron_condor_strikes
 
 log = logging.getLogger("backtest")
@@ -478,3 +479,27 @@ def build_matched_plays(candidates, spread_pct, tf_s_override=None, structure_ve
             _register(contracts, needed_dates, ticker, opt_type, strike, exp, sig)
         plays.append(play)
     return plays, contracts, needed_dates, skipped
+
+
+def build_needed_ends(plays, path_cap_days: int = 120, today=None) -> dict:
+    """``{contract_key: date}`` — how far each contract's cached history must
+    reach for the plays that use it: the latest path end among those plays
+    (``signal + min(nearest DTE, path_cap_days)``, as `simulate._simulate`
+    computes it), capped at the last completed session.
+
+    Feeds the FORWARD check in `shared/history.py::plan_option_histories`. A
+    file scraped while its contract still traded stops on its fetch day; without
+    this check every play on it stays `open_at_data_end` forever.
+    """
+    ends: dict = {}
+    for p in plays:
+        sig = p.c["signal_date"]
+        exps = [e for (_, _, _, e) in p.contracts]
+        if not exps:
+            continue
+        end = needed_end(path_end(sig, exps, path_cap_days), today)
+        for (ticker, opt_type, strike, exp) in p.contracts:
+            key = _contract_key(ticker, opt_type, strike, exp.isoformat())
+            if key not in ends or end > ends[key]:
+                ends[key] = end
+    return ends

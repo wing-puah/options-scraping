@@ -58,7 +58,7 @@ def test_proxy_maps_a_network_outage_to_its_exit_code_without_writing(
             "signal_date": date(2026, 6, 1), "date": "2026-06-01", "regime": "BULL"}
     monkeypatch.setattr(proxy, "load_analysis", lambda tab, s, e: ([cand], {}))
     monkeypatch.setattr(proxy, "_load_tested_keys", lambda tab: set())
-    monkeypatch.setattr(proxy, "_load_proxy_keys", lambda tab: set())
+    monkeypatch.setattr(proxy, "_load_proxy_rows", lambda tab: {})
     monkeypatch.setattr(proxy, "_evaluate", _boom)
     wrote = []
     monkeypatch.setattr(proxy, "write_results", lambda *a, **k: wrote.append(1))

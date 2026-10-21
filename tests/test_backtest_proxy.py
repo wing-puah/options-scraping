@@ -495,7 +495,10 @@ def _run_main(monkeypatch, argv, cand, existing_keys, tested_keys=frozenset()):
     calls = {"deleted": None, "written": None}
     monkeypatch.setattr(proxy, "load_analysis", lambda tab, s, e: ([cand], {}))
     monkeypatch.setattr(proxy, "_load_tested_keys", lambda tab: set(tested_keys))
-    monkeypatch.setattr(proxy, "_load_proxy_keys", lambda tab: existing_keys)
+    # existing_keys: a set of keys (rows with no path_status) or {key: row}.
+    existing_rows = (dict(existing_keys) if isinstance(existing_keys, dict)
+                     else {k: {} for k in existing_keys})
+    monkeypatch.setattr(proxy, "_load_proxy_rows", lambda tab: existing_rows)
 
     def fake_delete(tab, match_fn):
         calls["deleted"] = (tab, match_fn)
@@ -604,7 +607,8 @@ def test_plain_run_warns_on_cross_tab_duplicate_but_never_deletes(monkeypatch, c
     key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
 
     with caplog.at_level(logging.WARNING, logger="backtest"):
-        calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--cache-only"],
+        calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--cache-only",
+                                        "--no-reprice-open"],
                           cand, {key}, tested_keys={key})
 
     assert calls["deleted"] is None
@@ -749,3 +753,143 @@ def test_dry_run_never_probes_barchart(monkeypatch, cache_dir):
 
     assert calls == []
     assert out["deleted"] is None
+
+
+# ── 10c. open proxy rows are re-priced in place (2026-10-21) ─────────────────────
+
+def _open_proxy_row(cand, **kw):
+    return {"signal_date": cand["signal_date"].isoformat(), "ticker": cand["ticker"],
+            "play": cand["play"], "path_status": "open_at_data_end",
+            "path_data_end": "2026-06-10", "exit_reason": "cap_open", **kw}
+
+
+def _stub_evaluate(monkeypatch, cand, **row_kw):
+    """Replace the fallback chain with a fixed re-priced row; record refreshes."""
+    seen = {"evaluated": 0, "refresh": []}
+
+    def fake_eval(play, reason, c, *a, **k):
+        seen["evaluated"] += 1
+        return {**_open_proxy_row(c), "realized_pnl_pct": 0.1, **row_kw}
+
+    def fake_refresh(built, cfg, sim_cfg, fetch):
+        seen["refresh"].append((len(built), fetch))
+        return 1
+
+    monkeypatch.setattr(proxy, "_evaluate", fake_eval)
+    monkeypatch.setattr(proxy, "_refresh_forward", fake_refresh)
+    return seen
+
+
+def test_open_proxy_row_is_repriced_and_replaced_when_it_changed(monkeypatch, cache_dir,
+                                                                 capsys):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    seen = _stub_evaluate(monkeypatch, cand, path_data_end="2026-06-20",
+                          path_status="complete", exit_reason="expired")
+
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat()], cand,
+                      {key: _open_proxy_row(cand)})
+
+    assert seen["evaluated"] == 1 and seen["refresh"] == [(1, True)]
+    assert len(calls["written"]) == 1
+    _tab, match_fn = calls["deleted"]
+    assert match_fn({"signal_date": SIGNAL.isoformat(), "ticker": "NVDA", "play": cand["play"]})
+    assert "re-price open: 1 (stale-forward caches: 1)" in capsys.readouterr().out
+
+
+def test_unchanged_proxy_reprice_writes_and_deletes_nothing(monkeypatch, cache_dir):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    _stub_evaluate(monkeypatch, cand)                      # same path_data_end
+
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat()], cand,
+                      {key: _open_proxy_row(cand)})
+
+    assert calls["deleted"] is None and not calls["written"]
+
+
+def test_proxy_reprice_that_prices_nothing_keeps_the_old_row(monkeypatch, cache_dir):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    _stub_evaluate(monkeypatch, cand, realized_pnl_pct="", path_data_end="2026-06-20",
+                   proxy_method="unevaluable")
+
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat()], cand,
+                      {key: _open_proxy_row(cand)})
+
+    assert calls["deleted"] is None and not calls["written"]
+
+
+def test_proxy_no_reprice_open_skips_open_rows(monkeypatch, cache_dir):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    seen = _stub_evaluate(monkeypatch, cand, path_data_end="2026-06-20")
+
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--no-reprice-open"],
+                      cand, {key: _open_proxy_row(cand)})
+
+    assert seen["evaluated"] == 0 and seen["refresh"] == []
+    assert calls["deleted"] is None and not calls["written"]
+
+
+def test_proxy_dry_run_counts_but_never_fetches_or_deletes(monkeypatch, cache_dir):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    seen = _stub_evaluate(monkeypatch, cand, path_data_end="2026-06-20")
+
+    calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--dry-run"],
+                      cand, {key: _open_proxy_row(cand)})
+
+    assert seen["refresh"] == [(1, False)]
+    assert calls["deleted"] is None
+
+
+def test_bounded_reprice_run_deletes_cross_tab_duplicates(monkeypatch, cache_dir, caplog):
+    """A play the real backtest now prices belongs on one tab: with re-pricing
+    on, a date-bounded plain run deletes the proxy copy."""
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+
+    with caplog.at_level(logging.WARNING, logger="backtest"):
+        calls = _run_main(monkeypatch, ["--date", SIGNAL.isoformat(), "--cache-only"],
+                          cand, {key}, tested_keys={key})
+
+    _tab, match_fn = calls["deleted"]
+    assert match_fn({"signal_date": SIGNAL.isoformat(), "ticker": "NVDA", "play": cand["play"]})
+    assert "Deleting" in caplog.text
+
+
+def test_unbounded_reprice_run_only_warns_on_cross_tab_duplicates(monkeypatch, cache_dir):
+    cand = _frozen_candidate()
+    key = bt._identity_key(SIGNAL, "NVDA", cand["play"])
+    calls = _run_main(monkeypatch, ["--cache-only"], cand, {key}, tested_keys={key})
+    assert calls["deleted"] is None
+
+
+def test_refresh_forward_plans_the_snapped_contracts(monkeypatch, cache_dir):
+    """The refresh snaps each leg from the cache (no probe) and hands the
+    snapped contracts to the shared plan with their path end."""
+    c = _long_call_candidate()
+    play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
+    _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
+        ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+    ])
+    seen = {}
+
+    def fake_plan(contracts, needed_dates, **kw):
+        seen["keys"] = [x["key"] for x in contracts]
+        seen["ends"] = kw["needed_ends"]
+        from backtest.shared.history import FetchPlan
+        return FetchPlan(stale_forward={contracts[0]["key"]})
+
+    def no_fetch(*a, **k):
+        raise AssertionError("fetched with fetch=False")
+    monkeypatch.setattr(proxy, "plan_option_histories", fake_plan)
+    monkeypatch.setattr(proxy, "fetch_option_histories", no_fetch)
+
+    n = proxy._refresh_forward([(play, c)], _CFG, _SIM_CFG, fetch=False)
+
+    assert n == 1
+    assert len(seen["keys"]) == 1 and seen["keys"][0][0] == "NVDA"
+    assert list(seen["ends"].values()) == [EXP]

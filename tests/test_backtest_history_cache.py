@@ -1149,3 +1149,114 @@ def test_a_dead_browser_is_not_counted_as_a_network_failure():
                                       "TimeoutError: Page.goto: Timeout 15000ms exceeded")
     assert not history.is_network_failure(bs.HISTORY_HTTP_ERROR, _OFFLINE)
     assert not history.is_network_failure(bs.HISTORY_NAV_ERROR, None)
+
+
+# ── Forward staleness (2026-10-21) ─────────────────────────────────────────────
+# A file scraped while its contract still traded stops on its fetch day. The
+# start check never looked at the END, so every play on such a file stayed
+# `open_at_data_end` forever. `needed_ends` adds the forward check; a file
+# fetched after its window closed is final.
+
+import os  # noqa: E402
+from datetime import datetime  # noqa: E402
+
+FWD_EXP = date(2026, 8, 21)
+FWD_KEY = ("FWD", FWD_EXP, 100.0, "Call")
+_FWD_CONTRACT = [{"key": FWD_KEY, "symbol": "FWD", "opt_type": "Call",
+                  "strike": 100.0, "expiration": FWD_EXP}]
+
+
+def _fwd_file(cache_dir, last_bar: str, fetched: date):
+    """A file whose bars run 2026-06-01 → ``last_bar``, with its mtime set to
+    ``fetched`` (the date the plan reads as the fetch day)."""
+    p = bo.cache_path(cache_dir, "FWD", FWD_EXP, 100.0, "Call")
+    rows = "".join(
+        f"{d},1.00,1.10,0.95,1.05,0.05,5.00%,100,500,0.30,0.40,0.01,-0.02,0.05,"
+        f"0.01,1.04,100,1.00,1.10\n" for d in ("2026-06-01", last_bar))
+    p.write_text(_HEADER + rows, encoding="utf-8")
+    ts = datetime(fetched.year, fetched.month, fetched.day, 12).timestamp()
+    os.utime(p, (ts, ts))
+    return p
+
+
+def test_forward_shallow_file_fetched_before_its_window_closed_is_stale(cache_dir):
+    p = _fwd_file(cache_dir, "2026-07-10", fetched=date(2026, 7, 10))
+    plan = history.plan_option_histories(_FWD_CONTRACT, needed_ends={FWD_KEY: FWD_EXP})
+
+    assert plan.status[FWD_KEY] == history.PLAN_STALE
+    assert plan.stale_forward == {FWD_KEY}
+    assert [c["key"] for c in plan.to_scrape] == [FWD_KEY]
+    # Its bars stay in the maps (a failed refetch prices on them) and the file
+    # stays on disk.
+    assert plan.series_map[FWD_KEY]
+    assert p.exists()
+
+
+def test_file_fetched_after_its_window_closed_is_final(cache_dir):
+    """The contract stopped trading on 07-10 and was fetched after expiry:
+    Barchart has nothing more, so it is never refetched again."""
+    _fwd_file(cache_dir, "2026-07-10", fetched=date(2026, 8, 24))
+    plan = history.plan_option_histories(_FWD_CONTRACT, needed_ends={FWD_KEY: FWD_EXP})
+
+    assert plan.status[FWD_KEY] == history.PLAN_CACHED
+    assert plan.stale_forward == set() and plan.to_scrape == []
+
+
+def test_file_within_the_session_tolerance_is_cached(cache_dir):
+    _fwd_file(cache_dir, "2026-08-18", fetched=date(2026, 8, 18))   # 3 sessions short
+    plan = history.plan_option_histories(_FWD_CONTRACT, needed_ends={FWD_KEY: FWD_EXP})
+    assert plan.status[FWD_KEY] == history.PLAN_CACHED
+
+
+def test_no_needed_ends_means_no_forward_check(cache_dir):
+    _fwd_file(cache_dir, "2026-07-10", fetched=date(2026, 7, 10))
+    plan = history.plan_option_histories(_FWD_CONTRACT)
+    assert plan.status[FWD_KEY] == history.PLAN_CACHED
+
+
+def test_a_failed_forward_refetch_keeps_the_file_and_its_bars(cache_dir, monkeypatch):
+    p = _fwd_file(cache_dir, "2026-07-10", fetched=date(2026, 7, 10))
+    before = p.read_text(encoding="utf-8")
+    monkeypatch.setenv("BARCHART_EMAIL", "x@example.com")
+    monkeypatch.setenv("BARCHART_PASSWORD", "pw")
+    monkeypatch.setattr(history, "BarchartSession", _fake_session(lambda: ""))
+    monkeypatch.setattr(history, "FETCH_PAUSE_S", 0)
+
+    series_map, details_map = asyncio.run(history.fetch_option_histories(
+        _FWD_CONTRACT, headless=True, needed_ends={FWD_KEY: FWD_EXP}))
+
+    assert p.exists() and p.read_text(encoding="utf-8") == before
+    assert [d for d, _ in series_map[FWD_KEY]][-1] == date(2026, 7, 10)
+    assert details_map[FWD_KEY]
+
+
+def test_a_forward_refetch_replaces_the_file(cache_dir, monkeypatch):
+    p = _fwd_file(cache_dir, "2026-07-10", fetched=date(2026, 7, 10))
+    full = _HEADER + "".join(
+        f"{d},1.00,1.10,0.95,1.05,0.05,5.00%,100,500,0.30,0.40,0.01,-0.02,0.05,"
+        f"0.01,1.04,100,1.00,1.10\n" for d in ("2026-06-01", "2026-07-10", "2026-08-21"))
+    monkeypatch.setenv("BARCHART_EMAIL", "x@example.com")
+    monkeypatch.setenv("BARCHART_PASSWORD", "pw")
+    monkeypatch.setattr(history, "BarchartSession", _fake_session(lambda: full))
+    monkeypatch.setattr(history, "FETCH_PAUSE_S", 0)
+
+    series_map, _ = asyncio.run(history.fetch_option_histories(
+        _FWD_CONTRACT, headless=True, needed_ends={FWD_KEY: FWD_EXP}))
+
+    assert p.read_text(encoding="utf-8") == full
+    assert [d for d, _ in series_map[FWD_KEY]][-1] == date(2026, 8, 21)
+    # Refetched today, after the window closed: final from now on.
+    plan = history.plan_option_histories(_FWD_CONTRACT, needed_ends={FWD_KEY: FWD_EXP})
+    assert plan.status[FWD_KEY] == history.PLAN_CACHED
+
+
+def test_session_helpers():
+    # Monday → the Friday before; mid-week → yesterday.
+    assert history.last_completed_session(date(2026, 10, 19)) == date(2026, 10, 16)
+    assert history.last_completed_session(date(2026, 10, 21)) == date(2026, 10, 20)
+    assert history.weekday_sessions_between(date(2026, 10, 16), date(2026, 10, 19)) == 1
+    assert history.needed_end(date(2027, 1, 15), date(2026, 10, 21)) == date(2026, 10, 20)
+    assert history.path_end(date(2026, 6, 1), [date(2026, 8, 21), date(2026, 12, 18)],
+                            120) == date(2026, 8, 21)
+    assert history.is_forward_stale(None, date(2026, 7, 1), date(2026, 8, 21))
+    assert not history.is_forward_stale(None, date(2026, 8, 21), date(2026, 8, 21))

@@ -61,13 +61,18 @@ from .legs import Leg, format_legs, merge_legs
 from .plays import _choose_anchor
 from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
-from .shared.history import EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories
+from .shared.history import (EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories,
+                             needed_end, path_end, plan_option_histories)
 from .shared import unlisted
 from .shared.identity import (
     find_untested as _find_untested,
     identity_key as _identity_key,
     keys_from_csv as _keys_from_csv,
     keys_from_tab,
+    open_keys,
+    rows_from_csv,
+    rows_from_tab,
+    split_repriced,
 )
 from .shared.results_io import write_results
 from .simulate import _simulate, validate_pricing_config
@@ -584,6 +589,72 @@ def _note_refusal(row: dict, play) -> dict:
     return row
 
 
+def _pool_and_step(c: dict, play) -> tuple[list[dict], float]:
+    """The cache pool for the candidate's ticker and its strike step."""
+    pool = _cache_contracts(c["ticker"])
+    step = _infer_strike_step([p["strike"] for p in pool]) or _strike_step(
+        play.legs[0].strike if play.legs else 100.0)
+    return pool, step
+
+
+def _refresh_forward(built: list, cfg: dict, sim_cfg: dict, fetch: bool) -> int:
+    """Refetch the cache files re-priced plays snap to, where a file stops
+    short of its play's path end. Returns how many are stale-forward.
+
+    ``built`` is ``[(play, candidate)]`` for the open rows being re-priced.
+    Each leg is snapped exactly as method 1 snaps it, from the cache only (no
+    probe): the snap depends on the file's START, so a forward refetch does not
+    move it. The plan is `shared/history.py`'s, so the same finality rule
+    holds — a file fetched after its window closed is never refetched, and a
+    failed fetch keeps the file. ``fetch=False`` (a dry run, `--cache-only`)
+    only counts.
+    """
+    path_cap = sim_cfg.get("path_cap_days", 120)
+    contracts: dict = {}
+    ends: dict = {}
+    for play, c in built:
+        if play is None or not play.legs:
+            continue
+        pool, step = _pool_and_step(c, play)
+        snapped, group_exp = [], {}
+        for leg in play.legs:
+            new_leg, _tweak, _details, pool = _snap_leg(
+                leg, pool, c["signal_date"], cfg, sim_cfg, step, False,
+                require_exp=group_exp.get(leg.expiration))
+            if new_leg is None:
+                snapped = []
+                break
+            group_exp.setdefault(leg.expiration, new_leg.expiration)
+            snapped.append(new_leg)
+        if not snapped:
+            continue
+        end = needed_end(path_end(c["signal_date"], [lg.expiration for lg in snapped],
+                                  path_cap))
+        for lg in snapped:
+            key = _contract_key(lg.ticker, lg.opt_type, lg.strike, lg.expiration.isoformat())
+            contracts[key] = {"key": key, "symbol": lg.ticker, "opt_type": lg.opt_type,
+                              "strike": lg.strike, "expiration": lg.expiration}
+            ends[key] = max(end, ends.get(key, end))
+    if not contracts:
+        return 0
+    plan = plan_option_histories(list(contracts.values()), None, needed_ends=ends)
+    n = len(plan.stale_forward)
+    if n and fetch:
+        headless = os.getenv("SCRAPE_HEADLESS", "true").lower() == "true"
+        timeout_ms = int(sim_cfg.get("history_timeout_ms", 15000))
+        log.info("Refetching %d stale-forward contract(s) for re-priced open rows", n)
+        try:
+            asyncio.run(fetch_option_histories(list(contracts.values()), headless,
+                                               timeout_ms, None, plan=plan,
+                                               needed_ends=ends))
+        except NetworkOutage:
+            raise                       # main() aborts before any write
+        except Exception:
+            log.exception("Forward refetch failed; re-pricing on the cache as it is")
+        _details_cache.clear()          # freshly-scraped files must be re-read
+    return n
+
+
 def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
               allow_probe) -> dict:
     """Run the fallback chain for one candidate and return its ``BacktestProxy`` row."""
@@ -600,9 +671,7 @@ def _evaluate(play, reason, c, cfg, sim_cfg, spread_pct, created_datetime,
     row["skip_reason"] = _skip_reason(play, None)
     play.refusal = {}
 
-    pool = _cache_contracts(c["ticker"])
-    step = _infer_strike_step([p["strike"] for p in pool]) or _strike_step(
-        play.legs[0].strike if play.legs else 100.0)
+    pool, step = _pool_and_step(c, play)
 
     # No model-priced tier (module docstring): directional plays that cannot be
     # tweak-priced fall to method 3's direction-only verdict, neutral ones to
@@ -660,10 +729,15 @@ def _load_tested_keys(source_tab: str) -> set:
     return keys_from_tab(source_tab)
 
 
+def _load_proxy_rows(proxy_tab: str) -> dict:
+    """``{identity key: row}`` already in ``BacktestProxy``. The keys are
+    dropped so re-runs append nothing; the rows say which are open."""
+    return rows_from_tab(proxy_tab)
+
+
 def _load_proxy_keys(proxy_tab: str) -> set:
-    """Identity keys already in ``BacktestProxy`` — dropped so re-runs append
-    nothing."""
-    return keys_from_tab(proxy_tab)
+    """Identity keys already in ``BacktestProxy``."""
+    return set(_load_proxy_rows(proxy_tab))
 
 
 def _in_bound(key: tuple, start: date | None, end: date | None) -> bool:
@@ -753,6 +827,12 @@ def main() -> None:
                              "(backtests/option_history_cache/_unlisted.jsonl) instead of "
                              "skipping them — an operator-requested re-check; "
                              "BACKTEST_RETRY_UNLISTED=1 does the same")
+    parser.add_argument("--no-reprice-open", action="store_true",
+                        help="Skip proxy rows stored open_at_data_end like any other "
+                             "existing row, and never delete cross-tab duplicates on a "
+                             "plain run. By default open rows are re-priced and replaced "
+                             "only when the new row reaches a later path_data_end or "
+                             "changes its path_status/exit_reason.")
     args = parser.parse_args()
     if args.redo and not (args.date or args.start or args.end):
         parser.error("--redo requires --date or --start/--end to bound the re-evaluation")
@@ -821,14 +901,18 @@ def main() -> None:
     # local proxy CSV (absent on the first run) instead of the BacktestProxy tab.
     proxy_tab = proxy_cfg.get("sheet_tab", "BacktestProxy")
     if proxy_tab:
-        existing = _load_proxy_keys(proxy_tab)
+        existing_rows = _load_proxy_rows(proxy_tab)
     else:
-        existing = _keys_from_csv(proxy_cfg.get("local_csv") or "backtests/proxy_results.csv")
+        existing_rows = rows_from_csv(proxy_cfg.get("local_csv") or "backtests/proxy_results.csv")
+    existing = set(existing_rows)
+    reprice = not args.no_reprice_open and not args.redo
+    bounded = bool(args.date or args.start or args.end)
     # A proxy row whose play is now on the results tab is a cross-tab duplicate
     # (see _cross_tab_duplicates). --redo deletes it from the proxy TAB; a plain
     # run, a dry run and a local-only run (no sheet_tab) only report it.
     cross_tab = _cross_tab_duplicates(existing, tested, start, end)
     stale_keys: set = set()
+    reprice_rows: dict = {}
     if args.redo:
         redo_keys = {k for k in (_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
                                  for c in untested) if k in existing}
@@ -846,24 +930,52 @@ def main() -> None:
             _log_cross_tab(cross_tab, "local proxy CSV", tested_source, "Duplicate")
     else:
         redo_keys = set()
-        if cross_tab:
+        if cross_tab and reprice and bounded and proxy_tab:
+            # A play the real backtest now prices (often a re-priced open row)
+            # belongs on ONE tab. Re-pricing is a repair pass, so a bounded run
+            # deletes the proxy copy; an unbounded one only warns.
+            stale_keys = cross_tab
+            log.warning("%d '%s' row(s) in this date range are now on '%s' and will be "
+                        "deleted (--no-reprice-open to keep them)",
+                        len(cross_tab), proxy_tab, tested_source)
+            _log_cross_tab(cross_tab, proxy_tab, tested_source,
+                           "Would delete (dry run)" if args.dry_run else "Deleting")
+        elif cross_tab:
             log.warning("%d '%s' row(s) in this date range are ALSO on '%s' — a play "
-                        "belongs on one tab; re-run with --redo to delete the proxy copies",
+                        "belongs on one tab; re-run with --redo (or a date-bounded run "
+                        "with re-pricing on) to delete the proxy copies",
                         len(cross_tab), proxy_tab, tested_source)
             _log_cross_tab(cross_tab, proxy_tab, tested_source, "Duplicate")
+        if reprice:
+            untested_keys = {_identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                             for c in untested}
+            reprice_rows = {k: existing_rows[k] for k in open_keys(existing_rows)
+                            if k in untested_keys}
         untested = [c for c in untested
-                    if _identity_key(c["signal_date"], c["ticker"], c.get("play", "")) not in existing]
-        log.info("%d untested plays remain after dropping ones already in '%s'",
-                 len(untested), proxy_tab)
+                    if _identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                    not in existing or _identity_key(c["signal_date"], c["ticker"],
+                                                     c.get("play", "")) in reprice_rows]
+        log.info("%d untested plays remain after dropping ones already in '%s' "
+                 "(%d of them open rows to re-price; --no-reprice-open skips them)",
+                 len(untested), proxy_tab, len(reprice_rows))
 
     created = datetime.now().isoformat(timespec="seconds")
     structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
     # NB: pass the proxy: sub-config — the snap bounds (max_strike_steps /
     # max_expiry_deviation_days) are read off this dict, not the full cfg.
     try:
-        rows = [_evaluate(*classify_and_build(c, spread_pct, None, structure_veto), c,
-                          proxy_cfg, sim_cfg, spread_pct, created, allow_probe)
-                for c in untested]
+        built = [(classify_and_build(c, spread_pct, None, structure_veto), c)
+                 for c in untested]
+        n_stale_fwd = 0
+        if reprice_rows:
+            n_stale_fwd = _refresh_forward(
+                [(pr[0], c) for pr, c in built
+                 if _identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                 in reprice_rows],
+                proxy_cfg, sim_cfg, fetch=not (args.dry_run or args.cache_only))
+        print(f"re-price open: {len(reprice_rows)} (stale-forward caches: {n_stale_fwd})")
+        rows = [_evaluate(*pr, c, proxy_cfg, sim_cfg, spread_pct, created, allow_probe)
+                for pr, c in built]
     except NetworkOutage as e:
         # Every probe fetch happens inside this comprehension; every write
         # (local CSV, --redo delete, append) comes after it. Nothing written.
@@ -875,7 +987,13 @@ def main() -> None:
     # duplicates. Both sets are empty on a plain run.
     # Runs after the local CSV is written and before the append (see
     # results_io.write_results), so a Sheets failure never loses the run.
-    doomed = redo_keys | stale_keys
+    replace_keys: set = set()
+    if reprice_rows:
+        rows, replace_keys = split_repriced(rows, reprice_rows)
+        log.info("re-price open: %d of %d proxy row(s) replaced; the rest unchanged or "
+                 "not priced now (old rows kept, nothing written)",
+                 len(replace_keys), len(reprice_rows))
+    doomed = redo_keys | stale_keys | replace_keys
     delete_old = None
     if doomed and proxy_tab and not args.dry_run:
         def delete_old():  # noqa: F811 — conditional definition over the None default
@@ -883,8 +1001,9 @@ def main() -> None:
                 proxy_tab,
                 lambda r: _identity_key(r.get("signal_date", ""), r.get("ticker", ""),
                                         r.get("play", "")) in doomed)
-            log.info("--redo: deleted %d row(s) from '%s' (%d to replace, %d now on '%s')",
-                     n, proxy_tab, len(redo_keys), len(stale_keys), tested_source)
+            log.info("deleted %d row(s) from '%s' (%d to replace, %d now on '%s')",
+                     n, proxy_tab, len(redo_keys | replace_keys), len(stale_keys),
+                     tested_source)
 
     _write_proxy(rows, proxy_cfg, args.dry_run, before_sheet=delete_old)
 

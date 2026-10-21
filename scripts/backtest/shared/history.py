@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from lib.barchart import options as barchart_options
@@ -140,13 +140,75 @@ def underlying_mismatch(details: dict, siblings: dict) -> str | None:
 
 #: Per-contract fetch-plan statuses (`FetchPlan.status`).
 PLAN_CACHED = "cached"          # a cache file covers the window: no network call
-PLAN_STALE = "stale"            # a cache file exists but is too shallow: refetched
+PLAN_STALE = "stale"            # a cache file exists but is too shallow (either end): refetched
 PLAN_MISSING = "missing"        # no cache file: scraped
 PLAN_UNLISTED = "unlisted"      # in the negative cache: priced as no-data, no call
 PLAN_UNCACHED = "uncached"      # --cache-only and no cache file: priced as no-data
 
 #: Statuses that cost a Barchart fetch.
 PLAN_SCRAPES = frozenset({PLAN_STALE, PLAN_MISSING})
+
+#: A cached file whose latest bar sits more than this many weekday sessions
+#: before the date the path needs (`needed_ends`) is FORWARD-stale.
+FORWARD_TOLERANCE_SESSIONS = 3
+
+
+# ─── Forward staleness: does a cached file reach the end of its window? ────────
+# A file scraped while a contract was still trading stops on its fetch day. The
+# plays that use it then price `open_at_data_end` forever, because the start
+# check below never looks at the end. These helpers decide how far a file must
+# reach. Sessions are counted in WEEKDAYS: the repo has no shared NYSE holiday
+# calendar (backfill_chain.py carries a private approximation), and the
+# 3-session tolerance absorbs a holiday.
+
+def last_completed_session(today: date | None = None) -> date:
+    """The latest weekday strictly before ``today``. Today's session is never
+    counted complete: a mid-session run must not demand today's bar."""
+    d = (today or date.today()) - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def weekday_sessions_between(a: date, b: date) -> int:
+    """Weekdays ``d`` with ``a < d <= b`` (0 when ``b <= a``)."""
+    n, d = 0, a
+    while d < b:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            n += 1
+    return n
+
+
+def path_end(signal_date: date, expirations, path_cap_days: int) -> date:
+    """The last calendar day a play's path can reach: the same
+    ``signal + min(nearest DTE, path_cap)`` that ``simulate._simulate`` uses."""
+    nearest_dte = min((e - signal_date).days for e in expirations)
+    return signal_date + timedelta(days=min(nearest_dte, path_cap_days))
+
+
+def needed_end(play_end: date, today: date | None = None) -> date:
+    """How far a contract's cache must reach: the play's path end, capped at
+    the last completed session."""
+    return min(play_end, last_completed_session(today))
+
+
+def is_forward_stale(latest_bar: date | None, fetched_on: date, end: date) -> bool:
+    """True when a cached file should be refetched to reach ``end``.
+
+    Stale only while BOTH hold: the latest bar is more than
+    ``FORWARD_TOLERANCE_SESSIONS`` sessions short of ``end``, and the file was
+    fetched BEFORE ``end`` (its window was still open). A file fetched on or
+    after ``end`` is FINAL: Barchart had every bar it will ever have, so a
+    contract that simply stopped trading is never refetched again. Strictly
+    before, not on-or-before: a same-day refetch of a sparse contract would
+    repeat on every run of that day and return the same bars.
+    """
+    if fetched_on >= end:
+        return False
+    if latest_bar is None:
+        return True
+    return weekday_sessions_between(latest_bar, end) > FORWARD_TOLERANCE_SESSIONS
 
 
 @dataclass
@@ -162,6 +224,10 @@ class FetchPlan:
     details_map: dict = field(default_factory=dict)
     to_scrape: list = field(default_factory=list)
     status: dict = field(default_factory=dict)          # {contract_key: PLAN_*}
+    #: Keys queued (PLAN_STALE) ONLY because their file stops short of the
+    #: window's end. Their cached bars stay in the maps, so a failed refetch
+    #: prices on what the file already holds.
+    stale_forward: set = field(default_factory=set)
     known_unlisted: dict = field(default_factory=dict)
     unlisted_path: Path | None = None
 
@@ -174,6 +240,7 @@ def plan_option_histories(
     needed_dates: dict[tuple, date] | None = None,
     cache_only: bool = False,
     retry_unlisted: bool | None = None,
+    needed_ends: dict[tuple, date] | None = None,
 ) -> FetchPlan:
     """Partition ``contracts`` into cached / to-scrape / skipped, from disk only.
 
@@ -181,6 +248,12 @@ def plan_option_histories(
     returned maps hold every contract whose cache is usable as-is; a stale or
     missing one is queued in ``to_scrape``; a known-unlisted one is priced as
     no-data (``series_map[key] = []``), exactly like a failed fetch.
+
+    ``needed_ends`` ({contract_key: date}) adds the FORWARD check
+    (:func:`is_forward_stale`, judged on the file's mtime date). A
+    forward-stale file is queued as ``PLAN_STALE`` and listed in
+    ``plan.stale_forward``; unlike a start-shallow file its bars stay in the
+    maps. Nothing is ever unlinked.
     """
     _STALENESS_DAYS = 5
     HISTORY_CACHE.mkdir(parents=True, exist_ok=True)
@@ -189,8 +262,11 @@ def plan_option_histories(
     retry = unlisted.retry_requested(retry_unlisted)
     series_map, details_map = plan.series_map, plan.details_map
 
-    def _queue(c: dict, status: str) -> None:
+    def _queue(c: dict, status: str, forward_only: bool = False) -> None:
         if not retry and unlisted.should_skip(plan.known_unlisted.get(unlisted.contract_id(c))):
+            if forward_only:
+                # The file is still good for what it holds; skip only the call.
+                return
             # Exactly what a failed fetch leaves behind, minus the network call.
             series_map[c["key"]] = []
             details_map.pop(c["key"], None)
@@ -235,6 +311,19 @@ def plan_option_histories(
                     # no-data exactly as before: shallow history is dropped
                     # from THIS run, not from the disk.
                     _queue(c, PLAN_STALE)
+                    continue
+            end = needed_ends.get(c["key"]) if needed_ends else None
+            if end is not None:
+                series = series_map.get(c["key"], [])
+                latest = max((d for d, _ in series), default=None)
+                fetched_on = date.fromtimestamp(cache.stat().st_mtime)
+                if is_forward_stale(latest, fetched_on, end):
+                    log.info("Cache for %s latest=%s, needed through %s, fetched %s "
+                             "— refetching", c["key"], latest, end, fetched_on)
+                    plan.stale_forward.add(c["key"])
+                    _queue(c, PLAN_STALE, forward_only=True)
+                    if plan.status[c["key"]] != PLAN_STALE:
+                        plan.stale_forward.discard(c["key"])
         elif not cache_only:
             _queue(c, PLAN_MISSING)
         else:
@@ -249,12 +338,15 @@ async def fetch_option_histories(
     cache_only: bool = False,
     retry_unlisted: bool | None = None,
     plan: FetchPlan | None = None,
+    needed_ends: dict[tuple, date] | None = None,
 ) -> tuple[dict[tuple, list], dict[tuple, dict]]:
     """Scrape (and cache) per-contract Barchart price history.
 
     contracts: list of {key, symbol, opt_type, strike, expiration(date)}.
     needed_dates: {contract_key: earliest_signal_date} — if a cached file's earliest
       row is more than 5 days after the needed date, the cache is stale and re-scraped.
+    needed_ends: {contract_key: last date the path needs} — the forward check
+      (see :func:`plan_option_histories`).
     retry_unlisted: ignore the negative cache (`shared/unlisted.py`) and probe
       known-unlisted contracts again; None reads BACKTEST_RETRY_UNLISTED.
       A contract skipped as known-unlisted is priced exactly like a failed
@@ -267,7 +359,8 @@ async def fetch_option_histories(
       details_map: {contract_key: {date: row_dict}}      — for building entry rows
     """
     if plan is None:
-        plan = plan_option_histories(contracts, needed_dates, cache_only, retry_unlisted)
+        plan = plan_option_histories(contracts, needed_dates, cache_only, retry_unlisted,
+                                     needed_ends=needed_ends)
     email = os.getenv("BARCHART_EMAIL", "")
     password = os.getenv("BARCHART_PASSWORD", "")
     cookies_path = Path(os.getenv(
@@ -282,8 +375,8 @@ async def fetch_option_histories(
         series_map[c["key"]] = barchart_options.parse_history_series(text)
         details_map[c["key"]] = barchart_options.parse_history_details(text)
 
-    log.info("Barchart history: %d cached, %d to scrape",
-             len(series_map) - n_skipped_unlisted, len(to_scrape))
+    log.info("Barchart history: %d cached, %d to scrape (%d stale-forward)",
+             plan.count(PLAN_CACHED), len(to_scrape), len(plan.stale_forward))
     if n_skipped_unlisted:
         log.info("%d contracts skipped as known-unlisted (%s; --retry-unlisted to "
                  "re-probe)", n_skipped_unlisted, unlisted_path.name)
@@ -401,7 +494,9 @@ async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms
                 raise NetworkOutage(n_net, n_fetches)
             i += 1
             if not csv_text:
-                series_map[c["key"]] = []
+                # setdefault: a forward-stale contract keeps the bars its file
+                # already holds; a missing or start-stale one has none (popped).
+                series_map.setdefault(c["key"], [])
                 continue
             cid = unlisted.contract_id(c)
             if cid in known_unlisted or cid in changes:
@@ -418,7 +513,7 @@ async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms
             if bad:
                 log.error("REJECTED Barchart history for %s: %s — not cached",
                           c["key"], bad)
-                series_map[c["key"]] = []
+                series_map.setdefault(c["key"], [])
                 continue
             # Stage then os.replace, the same way export_tabs.py installs a
             # pulled tab: a cache file is never half-written, and an existing

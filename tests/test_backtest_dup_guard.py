@@ -348,7 +348,10 @@ def test_retry_proxied_flag_reaches_the_guard(tmp_path, monkeypatch):
 def test_dry_run_makes_no_barchart_call(tmp_path, monkeypatch, capsys):
     """A ~2,200-play preview used to start a ~3,600-fetch scrape and then discard
     it. Any browser session, scrape or write here fails the test."""
-    from scripts.backtest.shared import history
+    # `backtest.shared.history`, the module core.py imported — NOT
+    # `scripts.backtest.shared.history`, a second copy whose HISTORY_CACHE core
+    # never reads (this test used to plan against the real cache).
+    from backtest.shared import history
     cache = tmp_path / "cache"
     monkeypatch.setattr(history, "HISTORY_CACHE", cache)
     cfg_path = _write_cfg(tmp_path, monkeypatch)
@@ -377,8 +380,12 @@ def test_dry_run_makes_no_barchart_call(tmp_path, monkeypatch, capsys):
     path = history.barchart_options.cache_path(
         cache, "NVDA", nvda["expiration"], nvda["strike"], nvda["opt_type"])
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("Time,Open,High,Low,Last,Change,%Chg,Volume,Open Int\n"
-                    "06/24/2026,10,10,10,10,0,0%,1,1\n")
+    # Reaches back past the signal date (start check) and was fetched today,
+    # after the contract expired (forward check: final).
+    path.write_text('Time,Open,High,Low,Latest,Change,%Change,Volume,"Open Int",IV,Delta,'
+                    "Gamma,Theta,Vega,Rho,Theo,Price~,Bid,Ask\n"
+                    "2026-06-24,10,10,10,10,0,0%,1,1,0.3,0.5,0.01,-0.02,0.05,0.01,"
+                    "10,250,9.9,10.1\n")
 
     monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
                                      "--analysis-csv", str(rows_csv), "--dry-run"])
@@ -387,3 +394,172 @@ def test_dry_run_makes_no_barchart_call(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "DRY RUN" in out
     assert "2 distinct — 1 cached, 1 would be scraped" in out
+
+
+# ── Open rows are re-priced in place (2026-10-21) ──────────────────────────────
+# A row stored `open_at_data_end` ran out of price data before an exit fired.
+# It is the one exception to "backtested once": it stays a candidate, and its
+# new row replaces the old only when it says something new.
+
+_OPEN = {"signal_date": "6/25/2026", "ticker": "NVDA", "play": "Long call 250",
+         "path_status": "open_at_data_end", "path_data_end": "2026-07-10",
+         "exit_reason": "cap_open"}
+_DONE = {"signal_date": "6/25/2026", "ticker": "AMD", "play": "Long call 150",
+         "path_status": "complete", "path_data_end": "2026-07-02",
+         "exit_reason": "profit_target"}
+
+
+def _rargs(**kw):
+    return SimpleNamespace(**{"redo": False, "dry_run": False, "retry_proxied": False,
+                              "no_reprice_open": False, **kw})
+
+
+def test_open_row_is_a_reprice_candidate_and_a_complete_row_is_skipped(monkeypatch):
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_OPEN, _DONE], []))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150")]
+
+    remaining, redo_keys, reprice = core._split_already_backtested(
+        candidates, _cfg(), _rargs())
+
+    assert [c["ticker"] for c in remaining] == ["NVDA"]
+    assert redo_keys == set()
+    assert set(reprice) == {identity.identity_key(date(2026, 6, 25), "NVDA", "Long call 250")}
+
+
+def test_no_reprice_open_restores_the_skip(monkeypatch):
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_OPEN, _DONE], []))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150")]
+
+    remaining, _, reprice = core._split_already_backtested(
+        candidates, _cfg(), _rargs(no_reprice_open=True))
+
+    assert remaining == [] and reprice == {}
+
+
+def test_redo_is_unchanged_by_repricing(monkeypatch):
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_OPEN, _DONE], []))
+    candidates = [_cand(), _cand(ticker="AMD", play="Long call 150")]
+
+    remaining, redo_keys, reprice = core._split_already_backtested(
+        candidates, _cfg(), _rargs(redo=True))
+
+    assert len(remaining) == 2 and len(redo_keys) == 2 and reprice == {}
+
+
+def _new_row(**kw):
+    return {"signal_date": "2026-06-25", "ticker": "NVDA", "play": "Long call 250",
+            "realized_pnl_pct": 0.1, "path_status": "open_at_data_end",
+            "path_data_end": "2026-07-10", "exit_reason": "cap_open", **kw}
+
+
+@pytest.mark.parametrize("new, kept", [
+    (_new_row(), False),                                         # nothing new
+    (_new_row(path_data_end="2026-08-21"), True),                # data reaches further
+    (_new_row(path_status="complete", exit_reason="profit_target"), True),
+    (_new_row(path_data_end="2026-08-21", realized_pnl_pct=""), False),  # not priced now
+])
+def test_reprice_changed(new, kept):
+    assert identity.reprice_changed(new, _OPEN) is kept
+
+
+def test_split_repriced_passes_new_plays_through():
+    k = identity.identity_key(date(2026, 6, 25), "NVDA", "Long call 250")
+    fresh = {"signal_date": "2026-06-26", "ticker": "TSLA", "play": "x", "realized_pnl_pct": 0}
+    kept, replace = identity.split_repriced(
+        [fresh, _new_row(path_data_end="2026-08-21")], {k: _OPEN})
+    assert len(kept) == 2 and replace == {k}
+    kept, replace = identity.split_repriced([fresh, _new_row()], {k: _OPEN})
+    assert kept == [fresh] and replace == set()
+
+
+def _reprice_main(tmp_path, monkeypatch, sim_results, extra_argv=()):
+    """Drive core.main() over two open rows (NVDA, TSLA) with a stubbed
+    simulation; returns the ordered write calls."""
+    cfg_path = _write_cfg(tmp_path, monkeypatch)
+    rows_csv = tmp_path / "rows.csv"
+    rows_csv.write_text(
+        "date,ticker,regime,signal,play,horizon\n"
+        "2026-06-25,NVDA,BULL,sweep,Long call 250,swing\n"
+        "2026-06-25,TSLA,BULL,sweep,Long call 300,swing\n")
+    tsla_open = {**_OPEN, "ticker": "TSLA", "play": "Long call 300"}
+    monkeypatch.setattr(identity.sheets_client, "get_all_rows",
+                        _two_tabs([_OPEN, tsla_open], []))
+
+    calls = []
+    monkeypatch.setattr(core.sheets_client, "delete_rows_where",
+                        lambda tab, fn: calls.append(
+                            ("delete", sorted(r["ticker"] for r in (_OPEN, tsla_open)
+                                              if fn(r)))))
+    from scripts.backtest.shared import results_io
+    monkeypatch.setattr(results_io, "ROOT", tmp_path)
+    monkeypatch.setattr(results_io, "RESULTS_PATH", tmp_path / "backtests")
+    real_writer = results_io.csv.DictWriter
+
+    class _RecordingWriter(real_writer):
+        def writeheader(self):
+            calls.append(("csv",))
+            return super().writeheader()
+
+    monkeypatch.setattr(results_io.csv, "DictWriter", _RecordingWriter)
+    monkeypatch.setattr(results_io.sheets_client, "append_rows",
+                        lambda tab, rows: calls.append(
+                            ("append", sorted(r["ticker"] for r in rows))))
+    monkeypatch.setattr(core, "_print_summary", lambda results: None)
+    monkeypatch.setattr(core, "_attach_rollup_metrics", lambda c: None)
+    seen = []
+    monkeypatch.setattr(core, "build_matched_plays",
+                        lambda cands, *a, **k: (seen.extend(c["ticker"] for c in cands)
+                                                or [], {}, {}, {}))
+    monkeypatch.setattr(core, "_run_simulations", lambda *a, **k: list(sim_results))
+    monkeypatch.setattr("sys.argv", ["backtest", "--config", str(cfg_path),
+                                     "--analysis-csv", str(rows_csv), *extra_argv])
+    try:
+        core.main()
+    except SystemExit as e:
+        assert e.code == 0
+    return calls, seen
+
+
+def test_reprice_writes_csv_then_deletes_only_replaced_keys_then_appends(
+        tmp_path, monkeypatch):
+    sims = [_new_row(path_data_end="2026-08-21", path_status="complete",
+                     exit_reason="expired"),                       # NVDA: changed
+            _new_row(ticker="TSLA", play="Long call 300")]         # TSLA: unchanged
+    calls, seen = _reprice_main(tmp_path, monkeypatch, sims)
+    assert sorted(seen) == ["NVDA", "TSLA"]
+    assert calls == [("csv",), ("delete", ["NVDA"]), ("append", ["NVDA"])]
+
+
+def test_unchanged_reprice_deletes_and_appends_nothing(tmp_path, monkeypatch):
+    calls, _ = _reprice_main(tmp_path, monkeypatch,
+                             [_new_row(), _new_row(ticker="TSLA", play="Long call 300")])
+    assert not any(c[0] in ("delete", "append") for c in calls)
+
+
+def test_reprice_that_now_prices_nothing_keeps_the_old_row(tmp_path, monkeypatch):
+    calls, _ = _reprice_main(tmp_path, monkeypatch, [])
+    assert not any(c[0] in ("delete", "append") for c in calls)
+
+
+def test_no_reprice_open_flag_skips_open_rows(tmp_path, monkeypatch):
+    calls, seen = _reprice_main(tmp_path, monkeypatch, [_new_row(path_data_end="2026-08-21")],
+                                extra_argv=["--no-reprice-open"])
+    assert seen == [] and calls == []
+
+
+def test_build_needed_ends_takes_the_latest_path_end_capped_at_the_last_session():
+    from backtest.plays import build_needed_ends
+    exp = date(2026, 8, 21)
+    p1 = SimpleNamespace(c={"signal_date": date(2026, 6, 1)},
+                         contracts=[("NVDA", "Call", 250.0, exp)])
+    p2 = SimpleNamespace(c={"signal_date": date(2026, 3, 2)},          # cap: 2026-06-30
+                         contracts=[("NVDA", "Call", 250.0, exp)])
+    p3 = SimpleNamespace(c={"signal_date": date(2026, 10, 1)},
+                         contracts=[("SPY", "Put", 500.0, date(2027, 1, 15))])
+    ends = build_needed_ends([p1, p2, p3], 120, today=date(2026, 10, 21))
+    from backtest.helpers import _contract_key
+    assert ends[_contract_key("NVDA", "Call", 250.0, exp.isoformat())] == exp
+    assert ends[_contract_key("SPY", "Put", 500.0, "2027-01-15")] == date(2026, 10, 20)

@@ -16,14 +16,15 @@ load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 from lib import sheets_client
 from lib.logger import setup_logging
 
-from .plays import build_matched_plays
+from .plays import build_matched_plays, build_needed_ends
 from .plays import _choose_anchor  # noqa: F401 — re-exported for tests
 from .shared.analysis_io import load_analysis as _load_analysis
 from .shared.analysis_io import load_analysis_csv as _load_analysis_csv
 from .shared.history import (EXIT_NETWORK_OUTAGE, PLAN_MISSING, PLAN_SCRAPES, PLAN_STALE,
                              PLAN_UNCACHED, PLAN_UNLISTED,
                              NetworkOutage, fetch_option_histories, plan_option_histories)
-from .shared.identity import find_untested, identity_key, keys_from_tab
+from .shared.identity import (find_untested, identity_key, keys_from_tab, open_keys,
+                              rows_from_tab, split_repriced)
 from .shared.results_io import write_results
 from .simulate import validate_pricing_config
 
@@ -241,6 +242,24 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
                              args) -> tuple[list[dict], set]:
     """Split candidates into (to simulate, keys to delete first).
 
+    The two-value view of :func:`_split_already_backtested`; open rows being
+    re-priced stay in the first value.
+    """
+    remaining, redo_keys, _ = _split_already_backtested(candidates, cfg, args)
+    return remaining, redo_keys
+
+
+def _split_already_backtested(candidates: list[dict], cfg: dict,
+                              args) -> tuple[list[dict], set, dict]:
+    """Split candidates into (to simulate, keys to delete first, open rows to
+    re-price as ``{key: stored row}``).
+
+    A play already on the tab is skipped, EXCEPT one stored
+    `open_at_data_end`: its data ran out before an exit fired, so it stays a
+    candidate and is re-priced in place (`--no-reprice-open` restores the
+    skip). Whether its new row replaces the old is decided after simulating
+    (`identity.split_repriced`).
+
     Skipped entirely when `output.sheet_tab` is null. That is local-only mode,
     where the only destination is `output.local_csv` — which this CLI REWRITES
     each run rather than appending to, so it cannot accumulate a duplicate and
@@ -250,26 +269,35 @@ def _drop_already_backtested(candidates: list[dict], cfg: dict,
     if not sheet_tab:
         log.info("output.sheet_tab is null (local-only run) — the already-backtested "
                  "check is skipped; the local CSV is rewritten, not appended")
-        return candidates, set()
+        return candidates, set(), {}
 
-    existing = keys_from_tab(sheet_tab)
+    rows = rows_from_tab(sheet_tab)
+    existing = set(rows)
     if args.redo:
         redo_keys = {k for k in (identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
                                  for c in candidates) if k in existing}
         log.warning("--redo: %d play(s) already on '%s' will be re-simulated and their "
                     "existing rows DELETED before the new ones are appended",
                     len(redo_keys), sheet_tab)
-        return _drop_already_proxied(candidates, cfg, args, existing), redo_keys
+        return _drop_already_proxied(candidates, cfg, args, existing), redo_keys, {}
 
-    remaining = find_untested(candidates, existing)
+    reprice_rows: dict = {}
+    if not getattr(args, "no_reprice_open", False):
+        cand_keys = {identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+                     for c in candidates}
+        reprice_rows = {k: rows[k] for k in open_keys(rows) if k in cand_keys}
+    remaining = find_untested(candidates, existing - set(reprice_rows))
     dropped = len(candidates) - len(remaining)
     if dropped:
         log.warning("SKIPPING %d play(s) already on '%s'. Re-simulating APPENDS a second "
                     "row that may disagree with the first about the exit, the basis and "
                     "the P&L. Pass --redo to replace them instead.", dropped, sheet_tab)
+    if reprice_rows:
+        log.info("RE-PRICING %d open_at_data_end play(s) already on '%s' in place "
+                 "(--no-reprice-open to skip them)", len(reprice_rows), sheet_tab)
     log.info("%d/%d candidate plays are not yet on '%s'",
-             len(remaining), len(candidates), sheet_tab)
-    return _drop_already_proxied(remaining, cfg, args, existing), set()
+             len(remaining) - len(reprice_rows), len(candidates), sheet_tab)
+    return (_drop_already_proxied(remaining, cfg, args, existing), set(), reprice_rows)
 
 
 # ─── Output ────────────────────────────────────────────────────────────────────
@@ -384,7 +412,7 @@ def _print_summary(results) -> None:
 UNBOUNDED_SCRAPE_WARN = 500
 
 
-def _print_dry_run(plays, plan, redo_keys: set) -> None:
+def _print_dry_run(plays, plan, redo_keys: set, reprice_keys: set = frozenset()) -> None:
     """Per play, what a real run would do, and the contract totals.
 
     Reads only ``plan`` (built from disk by `plan_option_histories`): no
@@ -403,8 +431,9 @@ def _print_dry_run(plays, plan, redo_keys: set) -> None:
         verb = "scrape+simulate" if n_scrape else "simulate"
         if n_dead == len(st) and st:
             verb = "unpriceable (no history)"
-        redo = " [replaces existing row]" if identity_key(
-            p.c["signal_date"], p.c["ticker"], p.c.get("play", "")) in redo_keys else ""
+        k = identity_key(p.c["signal_date"], p.c["ticker"], p.c.get("play", ""))
+        redo = (" [replaces existing row]" if k in redo_keys
+                else " [re-prices open row]" if k in reprice_keys else "")
         print(f"  {p.c['date']} {p.c['ticker']:6} {p.structure:22} {verb:24} "
               f"contracts: {n_cached} cached, {n_scrape} to scrape, {n_dead} no-data{redo}")
     n_scrape = len(plan.to_scrape)
@@ -414,6 +443,9 @@ def _print_dry_run(plays, plan, redo_keys: set) -> None:
           f"({plan.count(PLAN_MISSING)} missing, {plan.count(PLAN_STALE)} stale), "
           f"{plan.count(PLAN_UNLISTED)} known-unlisted, "
           f"{plan.count(PLAN_UNCACHED)} uncached under --cache-only")
+    n_reprice = sum(1 for p in plays if identity_key(
+        p.c["signal_date"], p.c["ticker"], p.c.get("play", "")) in reprice_keys)
+    print(f"re-price open: {n_reprice} (stale-forward caches: {len(plan.stale_forward)})")
 
 
 # ─── Pass 3: simulate ────────────────────────────────────────────────────────────
@@ -481,6 +513,12 @@ def main() -> None:
                              "(backtests/option_history_cache/_unlisted.jsonl) instead of "
                              "skipping them — an operator-requested re-check; "
                              "BACKTEST_RETRY_UNLISTED=1 does the same")
+    parser.add_argument("--no-reprice-open", action="store_true",
+                        help="Skip plays whose stored row is open_at_data_end like any "
+                             "other already-backtested play. By default they are "
+                             "re-priced, and the row is replaced only when the new "
+                             "one reaches a later path_data_end or changes its "
+                             "path_status/exit_reason.")
     args = parser.parse_args()
     # Same bound proxy.py's --redo carries: an unbounded --redo would delete and
     # rewrite the whole tab, which is a re-backtest of the book and not a repair.
@@ -524,7 +562,7 @@ def main() -> None:
     # Checked BEFORE the Barchart fetch and before any classification: a play
     # already on the results tab costs nothing to skip here, and everything to
     # discover after it has been appended a second time.
-    candidates, redo_keys = _drop_already_backtested(candidates, cfg, args)
+    candidates, redo_keys, reprice_rows = _split_already_backtested(candidates, cfg, args)
     if not candidates:
         log.warning("Nothing to simulate: every candidate play in '%s' is already on the "
                     "results tab or the proxy tab. Pass --redo to replace results rows, "
@@ -550,8 +588,12 @@ def main() -> None:
     # plan is built from disk alone; it is what --dry-run prints, and the real
     # fetch is handed it so the cache is read once.
     retry_unlisted = args.retry_unlisted or None
+    # needed_ends adds the FORWARD check: a cached file that stops short of
+    # its play's path end is refetched (shared/history.py::is_forward_stale).
+    needed_ends = build_needed_ends(plays, sim_cfg.get("path_cap_days", 120))
     plan = plan_option_histories(list(contracts.values()), needed_dates,
-                                 cache_only=args.cache_only, retry_unlisted=retry_unlisted)
+                                 cache_only=args.cache_only, retry_unlisted=retry_unlisted,
+                                 needed_ends=needed_ends)
     n_scrape = len(plan.to_scrape)
     if n_scrape > UNBOUNDED_SCRAPE_WARN and not (args.date or args.start or args.end):
         log.warning("Unbounded run would scrape %d contract(s) from Barchart. Bound it with "
@@ -561,7 +603,7 @@ def main() -> None:
         # A preview must cost nothing: no browser, no Barchart call, no write.
         # It used to fetch every contract and then discard the result
         # (~3,600 scrapes for one preview, 2026-10-17).
-        _print_dry_run(plays, plan, redo_keys)
+        _print_dry_run(plays, plan, redo_keys, set(reprice_rows))
         return
 
     barchart_series: dict[tuple, list] = {}
@@ -573,7 +615,8 @@ def main() -> None:
         try:
             barchart_series, barchart_details = asyncio.run(fetch_option_histories(
                 list(contracts.values()), headless, history_timeout_ms, needed_dates,
-                cache_only=args.cache_only, retry_unlisted=retry_unlisted, plan=plan))
+                cache_only=args.cache_only, retry_unlisted=retry_unlisted, plan=plan,
+                needed_ends=needed_ends))
         except NetworkOutage as e:
             # The only fetch of the run, and it precedes every write (the local
             # CSV, the --redo delete, append_rows): nothing has been written.
@@ -588,17 +631,30 @@ def main() -> None:
     log.info("Simulated %d plays (skipped: %s)", len(results),
              ", ".join(f"{n} {k}" for k, n in skipped.items()))
 
+    # Re-priced open rows: keep a new row only when it says something new, and
+    # delete only the keys it replaces. An unchanged re-price writes nothing;
+    # a re-price that now prices nothing leaves the old row alone.
+    replace_keys: set = set()
+    if reprice_rows:
+        n_back = sum(1 for r in results if identity_key(
+            r.get("signal_date", ""), r.get("ticker", ""), r.get("play", "")) in reprice_rows)
+        results, replace_keys = split_repriced(results, reprice_rows)
+        log.info("re-price open: %d of %d replaced, %d unchanged (nothing written), "
+                 "%d not priced now (old row kept)", len(replace_keys), len(reprice_rows),
+                 n_back - len(replace_keys), len(reprice_rows) - n_back)
+
     # Local CSV, then delete, then append — in that order. Delete-before-append
     # keeps the new rows from ever landing beside the old ones (the failure
     # --redo exists to prevent); CSV-before-delete keeps a Sheets failure from
     # losing the simulated run.
     sheet_tab = (cfg.get("output") or {}).get("sheet_tab")
     delete_old = None
-    if redo_keys and sheet_tab and not args.dry_run:
+    doomed = redo_keys | replace_keys
+    if doomed and sheet_tab and not args.dry_run:
         def delete_old():  # noqa: F811 — conditional definition over the None default
             sheets_client.delete_rows_where(
                 sheet_tab,
                 lambda r: identity_key(r.get("signal_date", ""), r.get("ticker", ""),
-                                       r.get("play", "")) in redo_keys)
+                                       r.get("play", "")) in doomed)
 
     _write_results(results, cfg, args.dry_run, before_sheet=delete_old)
