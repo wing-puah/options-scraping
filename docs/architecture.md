@@ -75,7 +75,8 @@ scripts/                    ← entry points, each maps to a workflow step
   collector/daily/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
   regime_watch.py           — `make regime-watch [ARGS="--as-of D --json"]`: yfinance SPY/IWM/HYG/IEF/^VIX/^VIX3M +
                               the frozen mech label -> checklist table + status; appends one deduped row per date
-                              to backtests/regime_watch/history.csv. Non-fatal step 1b of daily_loop.sh
+                              to backtests/regime_watch/history.csv. Non-fatal step 1b of daily_loop.sh.
+                              `--backfill N` replays the last N sessions causally into that file
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one
                               deduped CSV per type (trade-identity dedup) →
                               {prefix}-{YYYYMMDD}-compiled.csv in Drive. NOTE: a compile re-run

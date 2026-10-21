@@ -78,7 +78,7 @@ python3 scripts/collector/daily/fetch_iv_percentile.py      # per-ticker Barchar
 python3 scripts/collector/daily/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
 python3 scripts/collector/daily/fetch_price_catalyst.py     # price/earnings-catalyst columns
 python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
-python3 scripts/regime_watch.py                    # daily REGIME-WATCH report (unvalidated; changes nothing); --as-of D, --json
+python3 scripts/regime_watch.py                    # daily REGIME-WATCH report (unvalidated; changes nothing); --as-of D, --json, --backfill N
 python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
 python3 scripts/check_pipeline.py                     # WATCHDOG: did every collection stage run?
                                                       # exit!=0 = the GitHub failure email; --as-of to replay

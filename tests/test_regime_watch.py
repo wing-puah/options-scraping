@@ -175,3 +175,15 @@ def test_history_dedupes_on_date_and_sorts(tmp_path):
     assert n == 2 and [r["date"] for r in rows] == ["2025-06-27", "2025-06-30"]
     assert rows[1]["status"] == "WATCH"
     assert list(rows[0].keys()) == rw.HISTORY_COLUMNS
+
+
+def test_backfill_replays_each_session_causally(tmp_path):
+    from scripts import regime_watch as script
+    vix = flat(258, 15.0) + [25.0, 25.0]          # VIX crosses 20 on the last two sessions
+    fr = frames(vix=vix)
+    tab = table(["BULL"] * 260)
+    p = tmp_path / "h.csv"
+    assert script.backfill(fr, tab, 4, str(p)) == 4
+    rows = list(csv.DictReader(open(p)))
+    assert [r["c5_vix_ge_20"] for r in rows] == ["False", "False", "True", "True"]
+    assert rows[0]["date"] == rw.evaluate(fr, tab, as_of=rows[0]["date"])["date"]

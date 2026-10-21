@@ -3,6 +3,7 @@
     python3 scripts/regime_watch.py                    # latest finished session
     python3 scripts/regime_watch.py --as-of 2025-04-08 # causal replay
     python3 scripts/regime_watch.py --json             # same content as JSON
+    python3 scripts/regime_watch.py --backfill 250     # replay the last 250 sessions into history
     make regime-watch ARGS="--as-of 2025-04-08"
 
 Fetches ~300 sessions of SPY, IWM, HYG, IEF, ^VIX, ^VIX3M from yfinance, takes
@@ -33,12 +34,12 @@ OPTIONAL = ("^VIX3M",)
 LOOKBACK_DAYS = 480  # ~330 sessions: 200-SMA plus runway
 
 
-def fetch(as_of: str | None) -> dict:
+def fetch(as_of: str | None, extra_days: int = 0) -> dict:
     import pandas as pd
     import yfinance as yf
 
     end = pd.Timestamp(as_of) if as_of else pd.Timestamp(date.today())
-    start = (end - pd.Timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    start = (end - pd.Timedelta(days=LOOKBACK_DAYS + extra_days)).strftime("%Y-%m-%d")
     end_pad = (end + pd.Timedelta(days=1)).strftime("%Y-%m-%d")  # end is exclusive
     frames = {}
     for t in REQUIRED + OPTIONAL:
@@ -83,6 +84,18 @@ def render(r: dict) -> str:
     return "\n".join(lines)
 
 
+def backfill(frames: dict, table: list[dict], sessions: int, history: str) -> int:
+    """Replay the last `sessions` SPY sessions one as-of at a time into history.
+
+    evaluate() cuts every series to the as-of date, so each row is what a run on
+    that day would have printed (the mech table is causal the same way)."""
+    spy = regime_watch.drop_partial(frames["SPY"])
+    days = [d.strftime("%Y-%m-%d") for d in spy.index[-sessions:]]
+    for d in days:
+        regime_watch.upsert_history(history, regime_watch.evaluate(frames, table, as_of=d))
+    return len(days)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -90,6 +103,8 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="print JSON instead of the table")
     ap.add_argument("--no-history", action="store_true", help="do not append to the history CSV")
     ap.add_argument("--history", default=str(HISTORY))
+    ap.add_argument("--backfill", type=int, metavar="N",
+                    help="replay the last N sessions into the history CSV, then exit")
     ap.add_argument("--mech-csv", default=str(MECH_CSV))
     args = ap.parse_args()
 
@@ -98,8 +113,12 @@ def main() -> int:
               file=sys.stderr)
         return 1
     try:
-        frames = fetch(args.as_of)
+        frames = fetch(args.as_of, extra_days=int((args.backfill or 0) * 1.5))
         table = mech_regime.compute_mech_table(args.mech_csv)
+        if args.backfill:
+            n = backfill(frames, table, args.backfill, args.history)
+            print(f"regime_watch: {n} sessions replayed into {args.history}")
+            return 0
         r = regime_watch.evaluate(frames, table, as_of=args.as_of)
     except Exception as e:
         print(f"regime_watch: {e}", file=sys.stderr)
