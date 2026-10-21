@@ -1,0 +1,324 @@
+<title>Flow Edge Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~960px) — verdict up top, then families, evidence charts, the kill rule, shipped rules, and the full filterable study ledger */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --fg:#161a21; --muted:#5a6271; --line:#dde1e7; --accent:#2c56c9;
+  --ship:#0f7a63; --ship-bg:#e1f3ee; --pos:#2c56c9; --pos-bg:#e5ecfb;
+  --null:#646b78; --null-bg:#eceef1; --con:#b8392f; --con-bg:#fae7e5;
+  --open:#9a6410; --open-bg:#fbf0dc; --del:#8b8f98; --del-bg:#f0f1f3;
+  --v3:#2c56c9; --v4:#d0612c;
+  --display:"Spectral",Georgia,"Times New Roman",serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151a; --surface:#1a1e25; --fg:#e8eaee; --muted:#9aa2b0; --line:#2b313b; --accent:#7f9df0;
+  --ship:#4fc7a6; --ship-bg:#123329; --pos:#8ea9f2; --pos-bg:#1c2846;
+  --null:#a5abb6; --null-bg:#252a33; --con:#f08a80; --con-bg:#3a1d1a;
+  --open:#e7b55c; --open-bg:#372a12; --del:#7d838f; --del-bg:#20242b;
+  --v3:#7f9df0; --v4:#ee8a57; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151a; --surface:#1a1e25; --fg:#e8eaee; --muted:#9aa2b0; --line:#2b313b; --accent:#7f9df0;
+  --ship:#4fc7a6; --ship-bg:#123329; --pos:#8ea9f2; --pos-bg:#1c2846;
+  --null:#a5abb6; --null-bg:#252a33; --con:#f08a80; --con-bg:#3a1d1a;
+  --open:#e7b55c; --open-bg:#372a12; --del:#7d838f; --del-bg:#20242b;
+  --v3:#7f9df0; --v4:#ee8a57; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2{font-family:var(--display);font-weight:600;text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem)}
+h2{font-size:1.6rem}
+p{margin:0;max-width:66ch}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:1.08rem;color:var(--muted)}
+section{display:flex;flex-direction:column;gap:18px}
+.sec-head{display:flex;flex-direction:column;gap:8px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+header{display:flex;flex-direction:column;gap:14px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile .big{font:600 2rem/1.1 var(--display);font-variant-numeric:tabular-nums lining-nums}
+.tile .cap{font-size:.88rem;color:var(--muted)}
+.tile.warn{border-color:var(--open)}
+.tile.warn .big{color:var(--open)}
+.tile.bad .big{color:var(--con)}
+.stackbar{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;margin-top:4px}
+.stackbar span{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.families{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.fam{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.fam .tag{font:500 .72rem/1 var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.fam h3{margin:0;font:600 1.05rem/1.3 var(--body)}
+.fam p{font-size:.9rem;color:var(--muted)}
+.fam .res{font-size:.85rem;font-weight:500;margin-top:auto;padding-top:6px;border-top:1px solid var(--line)}
+.pill{display:inline-block;font:500 .72rem/1 var(--mono);padding:4px 7px;border-radius:4px;white-space:nowrap;letter-spacing:.02em}
+.c-shipped{color:var(--ship);background:var(--ship-bg)} .c-positive{color:var(--pos);background:var(--pos-bg)}
+.c-null{color:var(--null);background:var(--null-bg)} .c-contrary{color:var(--con);background:var(--con-bg)}
+.c-open{color:var(--open);background:var(--open-bg)} .c-reference{color:var(--null);background:var(--null-bg)}
+.c-deleted{color:var(--del);background:var(--del-bg);text-decoration:line-through}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.chart h3{margin:0;font:600 .95rem/1.3 var(--body)}
+.chart .note{font-size:.82rem;color:var(--muted)}
+.scroll{overflow-x:auto}
+svg text{font-family:var(--body);fill:var(--muted);font-size:11px}
+svg .lbl{fill:var(--fg);font-size:12px}
+svg .val{fill:var(--fg);font-family:var(--mono);font-size:10.5px}
+.gate{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:stretch}
+.step{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);display:flex;flex-direction:column;gap:6px;min-width:0}
+.step.taken{border-color:var(--open);background:var(--open-bg)}
+.step.now{border:2px solid var(--open)}
+.step .k{font:500 .72rem/1 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.step b{font-size:1rem}
+.step span{font-size:.88rem;color:var(--muted)}
+.outcomes{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.rules{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.rule{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:8px 18px;padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
+.rule h3{margin:0;font:600 .98rem/1.4 var(--body)}
+.rule p{font-size:.92rem}
+.rule .ev{color:var(--muted);font-size:.85rem;margin-top:4px}
+@media (max-width:620px){.rule{grid-template-columns:minmax(0,1fr)}}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .label{font-size:.8rem;color:var(--muted);margin-right:2px}
+.chip{font:500 .8rem/1 var(--body);padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:720px}
+th{text-align:left;font:500 .72rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.name{font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+td.key{font-family:var(--mono);font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.tablebox{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.count{font-size:.85rem;color:var(--muted)}
+ul.open{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:8px;max-width:70ch}
+footer{font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Options flow research · as of 2026-10-21</div>
+  <h1>Has the flow layer earned its keep?</h1>
+  <p class="lede">An LLM reads Barchart options flow and proposes about ten plays a day. A ladder keeps the top one to three, the backtest prices them, and 48 pre-registered studies have tested what carries edge. Short answer: the vetoes and the exit rules do. The model's own skill at picking trades has not shown edge on v4, and the keep-or-kill call is still waiting on one forward read.</p>
+</header>
+
+<section aria-labelledby="s-verdict">
+  <div class="sec-head"><div class="eyebrow">Where it stands</div><h2 id="s-verdict">The bottom line</h2></div>
+  <div class="verdict">
+    <div class="tile warn"><div class="eyebrow">Kill rule</div><div class="big">WAIT</div><div class="cap">The mechanical comparison awaits a re-read, and <span class="mono">dip_buy</span> is still open (3 of 30 dip days). Backstop: 2027-10-13.</div></div>
+    <div class="tile bad"><div class="eyebrow">Picks vs simple rule</div><div class="big num">−0.101 R</div><div class="cap">A same-ticker bull call spread beat the picks. CI [−0.187, −0.021]. Read 2026-10-15; the re-read waits on 1 contract pair.</div></div>
+    <div class="tile bad"><div class="eyebrow">Tier A/B after costs</div><div class="big">VANISHES</div><div class="cap">Both net intervals include zero. A +0.108, B +0.088.</div></div>
+    <div class="tile"><div class="eyebrow">Studies on record</div><div class="big num" id="studyCount">48</div><div class="stackbar" id="stackbar" aria-hidden="true"></div><div class="legend" id="stackLegend"></div></div>
+  </div>
+</section>
+
+<section aria-labelledby="s-fam">
+  <div class="sec-head"><div class="eyebrow">Five stages</div><h2 id="s-fam">Pick it, manage it, wrap it, fund it, protect it</h2>
+  <p>The studies are grouped by which part of a trade's life they question. Each card gives that stage's headline finding.</p></div>
+  <div class="families" id="families"></div>
+</section>
+
+<section aria-labelledby="s-evid">
+  <div class="sec-head"><div class="eyebrow">The evidence</div><h2 id="s-evid">Why the answer is "not yet" on v4</h2>
+  <p>R is profit per trade in units of the risk taken. On v3 (the frozen evidence era, before costs) the tiers sort trades cleanly. On v4 (the current era, after commissions) most of the gap between them is gone. v4 is mostly a bull tape: 78% of its dates sit above SPY's 50-day average. So the ladder there acts mostly as a bet on the market going up.</p></div>
+  <div class="charts">
+    <div class="chart">
+      <h3>Mean R per trade by tier</h3>
+      <div class="legend"><span><i style="background:var(--v3)"></i>v3, gross</span><span><i style="background:var(--v4)"></i>v4, net of commission</span></div>
+      <div class="scroll"><svg id="tierChart" viewBox="0 0 440 270" width="100%" role="img" aria-label="Mean R by tier. v3: A +0.40, B +0.30, C −0.10, Veto −0.39. v4: A +0.12, B +0.12, C −0.06, Veto −0.35."></svg></div>
+      <div class="note">v4 rows: A 213, B 563, C 1,064, Veto 10. v3 rows: A 131, B 166, C 408, Veto 90.</div>
+    </div>
+    <div class="chart">
+      <h3>Key tests, effect and 95% interval (v4)</h3>
+      <div class="legend"><span><i style="background:var(--ship)"></i>clears zero, positive</span><span><i style="background:var(--null)"></i>includes zero</span><span><i style="background:var(--con)"></i>clears zero, negative</span></div>
+      <div class="scroll"><svg id="forest" viewBox="0 0 440 270" width="100%" role="img" aria-label="Forest plot of six key test effects with 95 percent intervals."></svg></div>
+      <div class="note">Only Tier A on dip dates clears zero on the positive side, and it is in-sample. Its forward read (<span class="mono">dip_buy</span>) is sealed until enough new dates price.</div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="s-gate">
+  <div class="sec-head"><div class="eyebrow">Programme P0–P6</div><h2 id="s-gate">The keep-or-kill rule</h2>
+  <p>Registered on 2026-10-13 as <span class="mono">programme_gate</span>. The first row that matches wins. The highlighted steps show the path taken so far.</p></div>
+  <div class="gate">
+    <div class="step taken"><div class="k">PG-M · mechanical benchmark</div><b>NOT READ</b><span>Read CONTRARY on 2026-10-15: picks lost to a same-ticker bull call spread. The 2026-10-21 re-read on the re-priced book waits on 1 contract pair. Either way the gate stays WAIT.</span></div>
+    <div class="step taken"><div class="k">PG-D · dip_buy forward</div><b>STILL-OPEN</b><span>Sealed from 2026-09-23. 3 of the 20 sessions since were dip days; it needs 30 dip days, about seven more months.</span></div>
+  </div>
+  <div class="outcomes">
+    <div class="step"><div class="k">If dip_buy SUPPORTED</div><b>KEEP</b><span>The flow layer stays, scoped to dip dates.</span></div>
+    <div class="step taken now"><div class="k">Now</div><b>WAIT</b><span>Keep running the daily loop at card sizes (P4).</span></div>
+    <div class="step"><div class="k">If dip_buy NULL or CONTRARY</div><b>RETIRE</b><span>Trade a mechanical dip rule at $500, or stop.</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="s-ship">
+  <div class="sec-head"><div class="eyebrow">docs/deployment-rules.md</div><h2 id="s-ship">What actually ships</h2>
+  <p>These are the rules on the operator card, with the evidence behind each. They were derived on v3 and are not yet validated on v4.</p></div>
+  <div class="rules">
+    <div class="rule"><h3>Vetoes</h3><div><p>Bear call spreads; any play in a model BEAR + high-vol regime; credit spreads in RANGE + low-vol; bear puts or long puts as a pick.</p><div class="ev">The strongest part of the ladder. Vetoed rows lost about $21k pooled. Bear: 0 of 496 subsets made money.</div></div><span class="pill c-shipped">Cleared</span></div>
+    <div class="rule"><h3>Tiers A / B / C</h3><div><p>A = bull call spread in RANGE or E-VOL. B = other bull call spreads, plus bull put spreads inside the delta and DTE band. C = everything else. Top 3 per day.</p><div class="ev">On v3, A vs C p = .0001, but A vs B was never separated (p = .98). On v4, the edge vanishes after costs.</div></div><span class="pill c-open">Unvalidated on v4</span></div>
+    <div class="rule"><h3>Exits</h3><div><p>Debit trades: take profit at 90%, stop at −75%, time exit at 75% of DTE, no trail. Credit bull puts: take profit at 65%, no stop.</p><div class="ev"><span class="mono">exit_mechanism_study</span>: every grid alternative lost to this profile. The be_after breakeven stop shipped and was reverted.</div></div><span class="pill c-shipped">Cleared</span></div>
+    <div class="rule"><h3>BEAR_HE trail</h3><div><p>Debit trades on mechanical BEAR + high or elevated vol: arm at +50%, then trail by 50 points.</p><div class="ev">Meets 5 of 6 criteria and adds about $4.4k in the study. It is a pre-gate exception, not a cleared rule.</div></div><span class="pill c-open">Gated</span></div>
+    <div class="rule"><h3>Sizing</h3><div><p>Tier A on a dip date (SPY below its 50-day average): normal size with a $1,000 stop. Everything else: $500 max risk. Skip a trade if one contract costs more than $500.</p><div class="ev">Tier A on dip dates: v4 +0.332, v3 +0.383. <span class="mono">ruin_bound</span>: P(ruin) is 0.0% at $500, against 17.8–25.8% for the alternatives. If dip_buy comes back null, sizing reverts to a flat $500.</div></div><span class="pill c-positive">In-sample policy</span></div>
+    <div class="rule"><h3>Hedge sleeve</h3><div><p>Optional bear spread, at most half a position. No cheap far-OTM puts. Never open one because the day gapped up.</p><div class="ev">The sleeve loses money on balance. A gap-up trigger tested CONTRARY (−0.51 R).</div></div><span class="pill c-null">Optional</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="s-ledger">
+  <div class="sec-head"><div class="eyebrow">Full record</div><h2 id="s-ledger">Every study and its verdict</h2>
+  <p>Filter by stage or by verdict class. Verdict labels are quoted as the repo prints them.</p></div>
+  <div class="filters" id="famFilters"><span class="label">Stage</span></div>
+  <div class="filters" id="clsFilters"><span class="label">Verdict</span></div>
+  <div class="count" id="rowCount" aria-live="polite"></div>
+  <div class="tablebox"><table>
+    <thead><tr><th>Study</th><th>Stage</th><th>Question</th><th>Era</th><th>Verdict</th><th>Key number</th></tr></thead>
+    <tbody id="ledger"></tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="s-open">
+  <div class="sec-head"><div class="eyebrow">Still open</div><h2 id="s-open">What would change the picture</h2></div>
+  <ul class="open">
+    <li><b>dip_buy forward read.</b> This decides KEEP or RETIRE. It needs 30 dip days priced after 2026-09-23; 3 have happened so far, so about seven more months.</li>
+    <li><b>Other forward reads.</b> <span class="mono">adaptive_ladder</span>, <span class="mono">regime_map</span>, <span class="mono">refuse_floor_forward</span>, <span class="mono">index_bear_hedge</span> and <span class="mono">regime_confirm</span> are still waiting. The last two need real sell-offs or BEAR flips after 2026-10-09 and 2026-10-21.</li>
+    <li><b>Ticker choice was never tested.</b> ARM U ("random ticker from the day's flow") was never built. So nothing yet says whether the model picks good tickers.</li>
+    <li><b>Account size.</b> The study is NOT FEASIBLE at $25k because drawdown reaches 35% against a 25% limit. The capital question is with the operator.</li>
+    <li><b>Next steps.</b> P4 keeps the daily loop running at card sizes. Open trades are now re-priced daily until they finish. P5 re-runs the study suite once the sealed dates have priced.</li>
+  </ul>
+</section>
+
+<footer>Sources: research/study-map.md, research/current.md, research/deployment-evidence.md, docs/deployment-rules.md, scripts/study_map/catalog.py. Populations: v4 has 1,850 priced rows over 280 signal dates; v3 has 795 rows over 118 dates. Unless marked, figures are v4 and net of commission. Updated 2026-10-21: open trades re-priced, unfinished trades left out of outcome studies.</footer>
+</div>
+
+<script>
+const FAM={f1:"Selection",f2:"Management",f3:"Structure",f4:"Deployment",f5:"Hedging"};
+const CLS={shipped:"Shipped",positive:"Positive / replicated",open:"Open",null:"Null",contrary:"Contrary / fails",reference:"Reference",deleted:"Deleted"};
+const S=[
+["regime_gap_reread","f1","Baseline snapshot of the pooled book","v3/v4","reference","reference","iv_spread vs MAE ρ −0.077, n=446"],
+["mech_regime_recut","f1","Does a deterministic regime label beat the model's free-text regime?","v3/v4","SHIPPED (mech_cell); OR-VETO REJECTED","shipped","vetoed subset net +0.017, n=127"],
+["bear_position_study","f1","Is bear_put a selection problem or an exit problem?","v3/v4","NULL; DEMOTE fires","null","−0.256 [−0.369, −0.135], n=438"],
+["bear_arm","f1","Is any bear subset non-negative? Is the bear exit mis-tuned?","v3/v4","B1 NO · B2 NOT met","null","0 of 496 subsets"],
+["ml_combination","f1","Does a learned combination beat the score-free ladder out of sample?","v3/v4","NULL RESULT","null","0 of 15 cells"],
+["v4_bridge","f1","Does the v3 ladder still apply to what v4 emits?","v4","LADDER UNVALIDATED ON v4","open","4 of 5 composition tests shifted"],
+["text_features","f1","Does the model's written reasoning separate outcomes?","v4","NULL / UNDERPOWERED","null","all 3 arms"],
+["prompt_eval","f1","Does a candidate prompt beat the shipped one?","—","open, no candidate scored","open","harness built 2026-09-02"],
+["macro_event_study","f1","Do macro events show up in entry IV, outcomes or exits?","v4","SURVIVAL-ARTIFACT","open","203 affected dates"],
+["trigger_entry","f1","Enter only once the stated trigger is crossed?","v4","LATE-ENTRY","contrary","[−0.080, −0.003]"],
+["emission_timing","f1","Do repeat emissions underperform? Does lag decay the edge?","v4","NULL / LAG-TOLERANT","null","2 CANDIDATE cells printed"],
+["direction_hit","f1","Does anything at entry predict the underlying's direction?","v4","NULL","null","AUC 0.525 [0.484, 0.563]"],
+["ticker_class","f1","Are index ETFs more reliable than single stocks?","v3/v4","NULL","null","PBO 0.367"],
+["dip_buy","f1","Is Tier A/B better on dip dates (SPY below its 50-day average)?","v3/v4","STILL-OPEN (sealed)","open","v4 +0.091 [−0.187, +0.334]"],
+["adaptive_ladder","f1","Does a walk-forward rule switcher beat the ladder?","v3/v4","ADAPTS in-sample; forward STILL-OPEN","open","+0.029 [+0.001, +0.064]"],
+["regime_map","f1","Where does each tier make or lose money?","v3/v4","2 cells REPLICATED","positive","Tier A dip +0.332 [+0.133, +0.522]"],
+["regime_confirm","f1","When SPY flips to BEAR, does waiting for 3 days plus stress signs pick out real sell-offs?","1950–2026","RETRO-NULL; forward STILL-OPEN","null","QQQ/IWM +0.131 [−0.034, +0.327]"],
+["mechanical_benchmark","f1","Do the picks beat a mechanical same-ticker bull call spread?","v4","CONTRARY (ARM M1, 10-15); re-read awaits fetch","contrary","−0.101 [−0.187, −0.021]"],
+["spy_benchmark","f1","Do the picks beat an SPY call spread?","v4","DOES-NOT-BEAT","null","−0.031 [−0.134, +0.074]"],
+["exit_mechanism_study","f2","Which exit rule wins on real rows?","v3/v4","SHIPPED","shipped","pt .90 / sl .75 / tef .75"],
+["combined_exit_study","f2","A bigger exit grid","v3","DELETED, nothing shipped","deleted","retired 2026-08-14"],
+["underlying_exit_study","f2","Stop on the underlying instead of the mark (credit trades)","v2","DELETED, null","deleted","retired 2026-08-14"],
+["exit_switch_mech_study","f2","Switch the exit rule by mechanical regime","v3/v4","BEAR_HE trail SHIPPED, STAYS GATED","shipped","+$4.4k in study, 8 of 25 dates"],
+["exit_switch_structure_study","f2","Is BEAR_HE just a stand-in for book composition?","v4","reference; STAYS GATED","reference","47% of effect retained"],
+["bear_giveback","f2","Breakeven stop after a bear trade goes green","v4","NULL (be_after reverted)","null","all intervals include zero"],
+["next_day_move","f2","Cut positions the day-0 move doesn't confirm","v4","NULL","null","+0.033 at −0.5σ, n=108"],
+["volume_signal","f2","Does share volume tell exits anything?","v4","PATH-VOL-PROXY NULL","null","r = +0.0025"],
+["cost_sensitivity","f2","Does the Tier A/B edge survive costs?","v4","VANISHES","null","A net +0.108 [−0.016, +0.237]"],
+["exit_from_text","f2","Do the model's own invalidation and horizon beat mechanical exits?","v4","open; first CANDIDATE","open","dR +0.071 [+0.011, +0.128]"],
+["staged_exit","f2","Act at a fixed session X: exit, tighten or trail","v4","NULL in substance","null","42 of 96 cells underpowered"],
+["bear_fast_exit","f2","Does a fast bear exit pay after costs?","v4","BLEED-CUT (C7 PENDING)","open","no arm net-positive"],
+["exit_drawdown","f2","An exit rule that cuts account drawdown without look-ahead","v4","UNDERPOWERED","null","7 primary cells"],
+["bear_rewrap","f3","Drop the short leg and trade it as a diagonal?","v4","4 of 5, fails year clause","open","+0.159 overall; 2026 −0.069"],
+["financed_spread","f3","Finance a debit vertical with a sold credit","v4","RE-WRAP","null","corr +0.180 over 83 dates"],
+["ladder_overlay","f3","Sell a call against the spread, or sell a naked put","v3/v4","NULL, closed","null","17 cells, 9 gates"],
+["index_vrp","f3","Does a short SPY condor lose on the book's worst days?","v4","NO-TAIL-LINK","null","worst 5% −7.66 [−54.9, +44.3]"],
+["earnings_vol","f3","Long straddle or double calendar across earnings","v4","NULL","null","calendar +0.073 [−0.024, +0.170]"],
+["vol_sleeve","f3","Synthetic straddle, strangle or calendar sleeve","v4","DELETED (merged)","deleted","retired 2026-09-07"],
+["account_sim","f4","Does a $25,000 account still produce a book?","v4","NOT FEASIBLE AT $25,000","contrary","maxDD 35.0% vs 25% bar"],
+["narrow_to_fit","f4","Narrow an over-budget spread instead of refusing it","v4","NULL; $500 NARROW-FEASIBLE","null","20% net floor changes nothing"],
+["ruin_bound","f4","Which cap setting keeps ruin and p95 drawdown in bounds?","v4","N250-F2 at $500; none at $1,000","positive","P(ruin) 0.0% vs 17.8–25.8%"],
+["pbo_ledger","f4","How likely is the best sizing config just luck?","v4","reference","reference","PBO 78.4% → 47.0% with F3"],
+["refuse_floor_forward","f4","Do the F2 refuse floor and $500 keep R positive going forward?","v4","STILL-OPEN","open","registered 2026-10-07"],
+["selection_order","f4","Does a different entry order spend the delta budget better?","v4","ORDERING-IS-NOISE","null","thread closed"],
+["concurrency_correlation","f4","Does a pile of open positions hurt outcomes?","v4","RESTATEMENT","null","same as portfolio_delta"],
+["portfolio_delta","f4","Is net-delta level a lever?","v4","NOISE","null","+0.052 [−0.033, +0.141]"],
+["hedge_sizing","f5","Is a bear position worth holding as a hedge?","v3/v4","hedge case NOT MET","null","D2–D4 NOT MET"],
+["hedge_structure","f5","Does the calendar hedge survive strict fills?","v4","H0 FILL NOT MET","open","33.3% fillable vs 60% gate"],
+["hedge_timing","f5","Is there a mechanical trigger for when to hedge?","v4","0 survivors; H3-GAP CONTRARY","contrary","gap-up −0.510 [−0.820, −0.190]"],
+["hedge_portfolio","f5","Does a concentration put cut mark-to-market drawdown?","v4","UNDERPOWERED","null","1,325 rows / 207 dates"],
+["hedge_concentration","f5","Does book concentration predict drawdown?","v4","DELETED; PRECONDITION-NULL","deleted","ρ +0.000 [−0.220, +0.223]"],
+["index_bear_hedge","f5","SPY/QQQ/IWM bear spreads as crash insurance","v3/v4","STILL-OPEN (forward)","open","5/5 sell-offs cut; net −$43.9k"]
+];
+const FAMCARDS=[
+["f1","Pick it","Can anything at entry tell good plays from bad?","Nearly all null. Only the vetoes and Tier A on dip dates hold up."],
+["f2","Manage it","Which exits, stops and trails make money?","The shipped rules came from here: the debit exit profile and the BEAR_HE trail."],
+["f3","Wrap it","Does a different structure around the idea do better?","Null or not shipped. The diagonal rewrap fails in 2026."],
+["f4","Fund it","Can a real account carry the book?","The edge survives but drawdown doesn't. Hence the $500 risk cap."],
+["f5","Protect it","Can hedges cut sell-off losses cheaply?","They cut every sell-off but cost more between them: net −$43.9k."]
+];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const ORDER=["shipped","positive","open","null","contrary","reference","deleted"];
+const VAR={shipped:"--ship",positive:"--pos",open:"--open",null:"--null",contrary:"--con",reference:"--line",deleted:"--del"};
+function el(t,a={},h=""){const e=document.createElement(t);for(const k in a)e.setAttribute(k,a[k]);if(h)e.innerHTML=h;return e;}
+function counts(rows){const c={};rows.forEach(r=>c[r[5]]=(c[r[5]]||0)+1);return c;}
+
+const all=counts(S);
+document.getElementById("studyCount").textContent=S.length;
+const sb=document.getElementById("stackbar"),sl=document.getElementById("stackLegend");
+ORDER.forEach(k=>{if(!all[k])return;const s=el("span");s.style.flex=all[k];s.style.background=`var(${VAR[k]})`;sb.appendChild(s);
+  sl.appendChild(el("span",{},`<i style="background:var(${VAR[k]})"></i>${CLS[k]} ${all[k]}`));});
+
+const famBox=document.getElementById("families");
+FAMCARDS.forEach(([f,verb,q,res])=>{const rows=S.filter(r=>r[1]===f);const c=counts(rows);
+  const bar=ORDER.filter(k=>c[k]).map(k=>`<span style="flex:${c[k]};background:var(${VAR[k]})"></span>`).join("");
+  famBox.appendChild(el("div",{class:"fam"},`<div class="tag">${f} · ${FAM[f]} · ${rows.length}</div><h3>${verb}</h3><p>${q}</p><div class="stackbar" aria-hidden="true">${bar}</div><div class="res">${res}</div>`));});
+
+const NS="http://www.w3.org/2000/svg";
+function s(t,a,txt){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e;}
+function fmt(v){return (v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(2);}
+
+function drawTiers(){const svg=document.getElementById("tierChart");svg.innerHTML="";
+  const L=44,R=430,T=14,B=236,min=-0.45,max=0.45,y=v=>T+(max-v)/(max-min)*(B-T);
+  [-0.4,-0.2,0,0.2,0.4].forEach(v=>{svg.appendChild(s("line",{x1:L,x2:R,y1:y(v),y2:y(v),stroke:v===0?css("--muted"):css("--line"),"stroke-width":v===0?1:0.75}));
+    svg.appendChild(s("text",{x:L-8,y:y(v)+4,"text-anchor":"end"},v.toFixed(1)));});
+  const tiers=[["Tier A",0.400,0.119],["Tier B",0.303,0.115],["Tier C",-0.098,-0.058],["Veto",-0.394,-0.345]];
+  const gw=(R-L)/4,bw=26;
+  tiers.forEach((t,i)=>{const cx=L+gw*i+gw/2;
+    [[t[1],"--v3",-bw/2-2],[t[2],"--v4",bw/2+2]].forEach(([v,c,dx])=>{const top=Math.min(y(v),y(0)),h=Math.abs(y(v)-y(0));
+      svg.appendChild(s("rect",{x:cx+dx-bw/2,y:top,width:bw,height:Math.max(h,1),rx:3,fill:css(c)}));
+      svg.appendChild(s("text",{class:"val",x:cx+dx,y:v>=0?top-5:top+h+13,"text-anchor":"middle"},fmt(v)));});
+    svg.appendChild(s("text",{class:"lbl",x:cx,y:B+24,"text-anchor":"middle"},t[0]));});
+}
+function drawForest(){const svg=document.getElementById("forest");svg.innerHTML="";
+  const rows=[["Tier A, net of cost",0.108,-0.016,0.237],["Tier B, net of cost",0.088,-0.026,0.193],["Picks vs SPY spread",-0.031,-0.134,0.074],["Picks vs same-ticker rule",-0.101,-0.187,-0.021],["Tier A on dip dates",0.332,0.133,0.522],["dip_buy A/B, in-sample",0.091,-0.187,0.334]];
+  const L=160,R=430,T=12,rh=36,min=-0.3,max=0.6,x=v=>L+(v-min)/(max-min)*(R-L),B=T+rh*rows.length;
+  [-0.2,0,0.2,0.4,0.6].forEach(v=>{svg.appendChild(s("line",{x1:x(v),x2:x(v),y1:T,y2:B,stroke:v===0?css("--muted"):css("--line"),"stroke-width":v===0?1:0.75,"stroke-dasharray":v===0?"":"2 3"}));
+    svg.appendChild(s("text",{x:x(v),y:B+16,"text-anchor":"middle"},v.toFixed(1)));});
+  rows.forEach((r,i)=>{const cy=T+rh*i+rh/2,c=r[2]>0?css("--ship"):r[3]<0?css("--con"):css("--null");
+    svg.appendChild(s("text",{class:"lbl",x:0,y:cy+4},r[0]));
+    svg.appendChild(s("line",{x1:x(r[2]),x2:x(r[3]),y1:cy,y2:cy,stroke:c,"stroke-width":3,"stroke-linecap":"round"}));
+    svg.appendChild(s("circle",{cx:x(r[1]),cy,r:5,fill:c,stroke:css("--surface"),"stroke-width":2}));
+    svg.appendChild(s("text",{class:"val",x:x(r[1]),y:cy-9,"text-anchor":"middle"},fmt(r[1])));});
+  svg.setAttribute("viewBox",`0 0 440 ${B+24}`);
+}
+function drawAll(){drawTiers();drawForest();}
+drawAll();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",drawAll);
+new MutationObserver(drawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+let fam="all",cls="all";
+function chip(box,val,label,get,set){const b=el("button",{class:"chip",type:"button",id:`chip-${box.id}-${val}`,"aria-pressed":String(get()===val)},label);
+  b.addEventListener("click",()=>{set(val);box.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed",String(c===b)));render();});box.appendChild(b);}
+const ff=document.getElementById("famFilters"),cf=document.getElementById("clsFilters");
+chip(ff,"all","All",()=>fam,v=>fam=v);Object.keys(FAM).forEach(k=>chip(ff,k,`${k} ${FAM[k]}`,()=>fam,v=>fam=v));
+chip(cf,"all","All",()=>cls,v=>cls=v);ORDER.forEach(k=>chip(cf,k,CLS[k],()=>cls,v=>cls=v));
+function render(){const tb=document.getElementById("ledger");tb.innerHTML="";
+  const rows=S.filter(r=>(fam==="all"||r[1]===fam)&&(cls==="all"||r[5]===cls));
+  rows.forEach(r=>tb.appendChild(el("tr",{},`<td class="name">${r[0]}</td><td>${r[1]} ${FAM[r[1]]}</td><td>${r[2]}</td><td class="mono" style="font-size:.8rem">${r[3]}</td><td><span class="pill c-${r[5]}">${r[4]}</span></td><td class="key">${r[6]}</td>`)));
+  document.getElementById("rowCount").textContent=`${rows.length} of ${S.length} studies`;}
+render();
+</script>

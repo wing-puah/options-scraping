@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""One plain-English project dashboard -> site/dashboard.html.
+"""One plain-English project dashboard -> site/dashboard.html, plus the Flow Edge Ledger.
 
 Reads LOCAL research/backtest/pipeline files only. No network, and nothing from
 journal/ or portfolio/ (account ids, positions, P&L). Every gatherer returns a
 plain dict and degrades to {"ok": False, "why": ...} when its file is missing,
 so one absent file turns one card into "no data" and never stops the page.
 
-The output starts with <title> and has no <html>/<head>/<body>, so the same file
-can be published as an Artifact (the host wraps it); browsers render it as is.
+The ledger (research/flow-edge-ledger.html) is HAND-MAINTAINED: its figures are
+edited when a study result moves. This script only wraps it as a full page at
+site/flow-edge-ledger.html and links it from the dashboard.
 
     python3 scripts/dashboard.py [--today YYYY-MM-DD] [--out PATH] [--quiet]
 """
@@ -42,6 +43,24 @@ BENCH_MD = PREREG / "f1_selection" / "benchmark" / "mechanical_benchmark.md"
 DIP_PY = ROOT / "scripts" / "backtest_study" / "f1_selection" / "regime" / "dip_buy.py"
 NEXT_MD = ROOT / "research" / "next-steps.md"
 OUT = ROOT / "site" / "dashboard.html"
+LEDGER_SRC = ROOT / "research" / "flow-edge-ledger.html"
+LEDGER_NAME = "flow-edge-ledger.html"
+
+
+def document(fragment: str) -> str:
+    """Wrap a page fragment (<title>, <style>, body content) as a full HTML document."""
+    return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"></head>\n<body>\n'
+            + fragment + "\n</body></html>\n")
+
+
+def write_ledger(out_dir: Path, src: Path = LEDGER_SRC) -> Path | None:
+    """Copy the hand-maintained ledger beside the dashboard. None when the source is missing."""
+    if not src.exists():
+        return None
+    dest = out_dir / LEDGER_NAME
+    dest.write_text(document(src.read_text(encoding="utf-8")), encoding="utf-8")
+    return dest
 
 
 def nodata(why: str) -> dict:
@@ -419,7 +438,9 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
         bits.append(f"{len(wait['items']) + wait['extra']} item(s) are waiting on you.")
     cls = "con" if bad else "ship"
     out.append(f'<header><p class="eyebrow">Project dashboard</p><h1>As of {e(today)}</h1>'
-               f'<p class="lede">{e(" ".join(bits))}</p></header>')
+               f'<p class="lede">{e(" ".join(bits))}</p>'
+               f'<p class="sub">Study-by-study evidence: <a href="{LEDGER_NAME}">Flow Edge Ledger</a> '
+               f'(hand-maintained, research/{LEDGER_NAME}).</p></header>')
 
     # 2 data flowing
     s = ['<section><h2>Is the data flowing?</h2><p class="q">Each row is the newest date a stage has. '
@@ -585,7 +606,6 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
 
 
 HEAD = """<title>Project Dashboard</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@500;600&display=swap" rel="stylesheet">
@@ -594,6 +614,7 @@ HEAD = """<title>Project Dashboard</title>
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12151a;--surface:#1a1e25;--fg:#e8eaee;--muted:#9aa2b0;--line:#2b313b;--accent:#7f9df0;--ship:#4fc7a6;--ship-bg:#123329;--pos:#8ea9f2;--pos-bg:#1c2846;--null:#a5abb6;--null-bg:#252a33;--con:#f08a80;--con-bg:#3a1d1a;--open:#e7b55c;--open-bg:#372a12;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#12151a;--surface:#1a1e25;--fg:#e8eaee;--muted:#9aa2b0;--line:#2b313b;--accent:#7f9df0;--ship:#4fc7a6;--ship-bg:#123329;--pos:#8ea9f2;--pos-bg:#1c2846;--null:#a5abb6;--null-bg:#252a33;--con:#f08a80;--con-bg:#3a1d1a;--open:#e7b55c;--open-bg:#372a12;color-scheme:dark}
 *{box-sizing:border-box}
+a{color:var(--accent)}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px;overflow-wrap:anywhere}
 .wrap,body>*{max-width:1040px;margin-inline:auto}
 h1,h2,h3{font-family:Spectral,Georgia,"Times New Roman",serif;font-weight:600;line-height:1.2;margin:0}
@@ -665,9 +686,11 @@ def main(argv=None) -> int:
     page, d = build(a.today)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(page, encoding="utf-8")
+    out.write_text(document(page), encoding="utf-8")
+    ledger = write_ledger(out.parent)
     if not a.quiet:
         print(f"dashboard -> {out} ({len(page):,} bytes), as of {a.today}")
+        print(f"ledger    -> {ledger or f'not written: {LEDGER_SRC} is missing'}")
         for i in d["flow"]["items"]:
             print(f"  {i['label']:<22} {i['date'] or 'none':<11} {i['state']}  {i.get('note', '')}")
         if d["flow"]["pending_known"]:

@@ -105,3 +105,21 @@ def test_forward_dip_days_counts_below_sma(tmp_path):
     from scripts import dashboard as dash
     assert dash.forward_dip_days(p) == {"days": 2, "dips": 1}
     assert dash.forward_dip_days(tmp_path / "missing.csv") is None
+
+
+def test_ledger_copied_as_full_page(tmp_path):
+    src = tmp_path / "ledger.html"
+    src.write_text("<title>Flow Edge Ledger</title><p>hi</p>")
+    out = d.write_ledger(tmp_path, src)
+    page = out.read_text()
+    assert out.name == d.LEDGER_NAME
+    assert page.startswith("<!doctype html>") and "<title>Flow Edge Ledger</title>" in page
+    assert d.write_ledger(tmp_path, tmp_path / "missing.html") is None
+
+
+def test_main_writes_both_pages_and_links_the_ledger(tmp_path):
+    assert d.LEDGER_SRC.exists()
+    assert d.main(["--out", str(tmp_path / "dashboard.html"), "--quiet"]) == 0
+    page = (tmp_path / "dashboard.html").read_text()
+    assert page.startswith("<!doctype html>") and f'href="{d.LEDGER_NAME}"' in page
+    assert (tmp_path / d.LEDGER_NAME).exists()
