@@ -50,12 +50,25 @@ def test_loop_log_end_states(tmp_path):
 def test_regime_state(tmp_path):
     p = tmp_path / "h.csv"
     write_csv(p, [{"date": f"2026-10-{i:02d}", "status": "CLEAR", "n_confirm": "0", "bear_streak": "0",
-                   **{k: "False" for k, _ in d.CHECKS}} for i in range(1, 4)]
+                   **{k: "False" for k, *_ in d.CHECKS}} for i in range(1, 4)]
               + [{"date": "2026-10-20", "status": "WATCH", "n_confirm": "2", "bear_streak": "0",
-                  **{k: "True" for k, _ in d.CHECKS}}])
+                  **{k: "True" for k, *_ in d.CHECKS}}])
     r = d.regime_state(p)
-    assert r["status"] == "WATCH" and all(met for _, met in r["checks"])
+    assert r["status"] == "WATCH" and all(c["met"] for c in r["checks"])
     assert [s for _, s in r["strip"]] == ["CLEAR"] * 3 + ["WATCH"]
+    assert r["status_run"] == {"n": 1, "since": "2026-10-20", "at_start": False}
+    assert all(c["run"]["n"] == 1 for c in r["checks"])
+
+
+def test_run_length_and_reasons():
+    rows = [{"date": f"2026-10-{i:02d}", "x": v} for i, v in enumerate(["True", "False", "True", "True"], 1)]
+    assert d.run_length(rows, lambda r: d.truthy(r["x"])) == {"n": 2, "since": "2026-10-03", "at_start": False}
+    assert d.run_length(rows[2:], lambda r: d.truthy(r["x"]))["at_start"] is True
+    assert "at least 2 sessions" in d.run_words({"n": 2, "since": "x", "at_start": True}, "Met", "2026-10-03")
+    row = {"spy_close": "90", "spy_sma200": "100", "credit_chg20": "-0.0126", "vix_close": "21.5"}
+    assert "10.0% below" in d.check_reason("c2_spy_below_200", row)
+    assert "-1.3%" in d.check_reason("c3_credit_weak", row)
+    assert "21.50" in d.check_reason("c5_vix_ge_20", row)
 
 
 def test_book_state_splits_open_and_forward(tmp_path):
@@ -122,4 +135,17 @@ def test_main_writes_both_pages_and_links_the_ledger(tmp_path):
     assert d.main(["--out", str(tmp_path / "dashboard.html"), "--quiet"]) == 0
     page = (tmp_path / "dashboard.html").read_text()
     assert page.startswith("<!doctype html>") and f'href="{d.LEDGER_NAME}"' in page
-    assert (tmp_path / d.LEDGER_NAME).exists()
+    ledger = (tmp_path / d.LEDGER_NAME).read_text()
+    assert 'class="dnav"' in ledger and 'href="dashboard.html"' in ledger   # a way back
+    assert 'href="charts-feasibility.html"' not in page                      # no chart pages in tmp
+
+
+def test_embeds_wrap_existing_pages_under_the_bar(tmp_path):
+    (tmp_path / "account-sim-charts.html").write_text('<title>x</title><p>chart & "body"</p>')
+    pages = d.site_pages(tmp_path)
+    assert "charts-feasibility.html" in pages and "charts-regime.html" not in pages
+    [w] = d.write_embeds(tmp_path, pages)
+    html = w.read_text()
+    assert w.name == "charts-feasibility.html" and 'aria-current="page">Backtest charts' in html
+    assert 'srcdoc="&lt;title&gt;x&lt;/title&gt;&lt;p&gt;chart &amp; &quot;body&quot;' in html
+    assert 'class="tabs"' not in html                                        # one page, no tab row

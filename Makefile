@@ -237,8 +237,9 @@ study-map-open:
 
 # One plain-English page for the whole project (data freshness, regime, backtested
 # book, keep-or-kill rule, studies, what waits on you). Local files only, never
-# journal/ or portfolio/. Writes site/dashboard.html, plus site/flow-edge-ledger.html copied
-# from the hand-maintained research/flow-edge-ledger.html (linked from the dashboard).
+# journal/ or portfolio/. Writes site/dashboard.html, site/flow-edge-ledger.html copied
+# from the hand-maintained research/flow-edge-ledger.html, and wrapper pages that show the
+# study charts and study map under the same sticky navigation bar (NAV in the script).
 # Builds both, then opens the dashboard (the daily loop calls the script directly, so it never opens).
 .PHONY: dashboard
 dashboard:

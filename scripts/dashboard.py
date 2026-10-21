@@ -8,7 +8,13 @@ so one absent file turns one card into "no data" and never stops the page.
 
 The ledger (research/flow-edge-ledger.html) is HAND-MAINTAINED: its figures are
 edited when a study result moves. This script only wraps it as a full page at
-site/flow-edge-ledger.html and links it from the dashboard.
+site/flow-edge-ledger.html.
+
+Every page carries one sticky navigation bar, built from NAV. A page another
+script generates (a study chart, the study map) is copied into a frame on a
+wrapper page under the same bar, so this script never edits that page itself.
+To add a page to the bar, add a line to NAV (an EMBEDS entry for a generated
+page).
 
     python3 scripts/dashboard.py [--today YYYY-MM-DD] [--out PATH] [--quiet]
 """
@@ -47,20 +53,108 @@ LEDGER_SRC = ROOT / "research" / "flow-edge-ledger.html"
 LEDGER_NAME = "flow-edge-ledger.html"
 
 
-def document(fragment: str) -> str:
-    """Wrap a page fragment (<title>, <style>, body content) as a full HTML document."""
+# Pages shown inside the dashboard: (wrapper file, source page in site/, tab label, group).
+# The source pages are written by other scripts; a missing one simply has no tab.
+EMBEDS = [
+    ("charts-feasibility.html", "account-sim-charts.html", "$25k account", "charts"),
+    ("charts-regime.html", "account-sim-regime.html", "By market regime", "charts"),
+    ("charts-compounding.html", "account-sim-compounding.html", "Compounding", "charts"),
+    ("charts-digest.html", "account-sim-digest.html", "Plain-English digest", "charts"),
+    ("study-map-view.html", "study-map.html", "Study map", "map"),
+]
+# The navigation bar: (key, label, href). The charts and map entries point at
+# the first EMBEDS page of their group.
+NAV = [
+    ("dashboard", "Dashboard", "dashboard.html"),
+    ("charts", "Backtest charts", "charts-feasibility.html"),
+    ("ledger", "Flow Edge Ledger", LEDGER_NAME),
+    ("map", "Study map", "study-map-view.html"),
+]
+NAV_H = 52
+
+NAV_CSS = f"""<style>
+.dnav{{--n-bg:#ffffffee;--n-fg:#161a21;--n-mu:#5a6271;--n-line:#dde1e7;--n-acc:#2c56c9;--n-acc-bg:#e5ecfb;
+position:fixed;top:0;left:0;right:0;z-index:1000;max-width:none!important;margin:0!important;height:{NAV_H}px;background:var(--n-bg);
+-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--n-line);
+font:500 14px/1 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}}
+@media (prefers-color-scheme: dark){{:root:not([data-theme="light"]) .dnav{{--n-bg:#12151aee;--n-fg:#e8eaee;
+--n-mu:#9aa2b0;--n-line:#2b313b;--n-acc:#7f9df0;--n-acc-bg:#1c2846}}}}
+:root[data-theme="dark"] .dnav{{--n-bg:#12151aee;--n-fg:#e8eaee;--n-mu:#9aa2b0;--n-line:#2b313b;--n-acc:#7f9df0;--n-acc-bg:#1c2846}}
+.dnav .in{{max-width:1040px;height:100%;margin:0 auto;display:flex;align-items:center;gap:4px;
+padding:0 max(16px,env(safe-area-inset-left,0px));overflow-x:auto;scrollbar-width:none}}
+.dnav .brand{{color:var(--n-fg);font-weight:600;margin-right:12px;white-space:nowrap}}
+.dnav a{{color:var(--n-mu);text-decoration:none;padding:8px 12px;border-radius:8px;white-space:nowrap}}
+.dnav a:hover{{color:var(--n-fg)}}
+.dnav a[aria-current=page]{{color:var(--n-acc);background:var(--n-acc-bg)}}
+.dnav-space{{height:{NAV_H}px}}
+html{{scroll-padding-top:{NAV_H + 12}px}}
+</style>"""
+
+
+def site_pages(out_dir: Path, ledger_src: Path = LEDGER_SRC) -> set[str]:
+    """The NAV targets that this build will write into out_dir."""
+    have = {"dashboard.html"} | {w for w, src, _, _ in EMBEDS if (out_dir / src).exists()}
+    return have | ({LEDGER_NAME} if ledger_src.exists() else set())
+
+
+def nav_html(active: str, pages: set[str] | None = None) -> str:
+    """The bar. With pages, an entry whose page is not being written is left out."""
+    links = []
+    for key, label, href in NAV:
+        if pages is not None and href not in pages:
+            continue
+        cur = ' aria-current="page"' if key == active else ""
+        links.append(f'<a href="{href}"{cur}>{html.escape(label)}</a>')
+    return (f'{NAV_CSS}<nav class="dnav" aria-label="Pages"><div class="in">'
+            f'<span class="brand">Options flow</span>{"".join(links)}</div></nav>'
+            '<div class="dnav-space"></div>')
+
+
+def document(fragment: str, active: str = "", pages: set[str] | None = None) -> str:
+    """Wrap a page fragment (<title>, <style>, body content) as a full HTML document under the bar."""
     return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"></head>\n<body>\n'
-            + fragment + "\n</body></html>\n")
+            + nav_html(active, pages) + "\n" + fragment + "\n</body></html>\n")
 
 
-def write_ledger(out_dir: Path, src: Path = LEDGER_SRC) -> Path | None:
+def write_ledger(out_dir: Path, src: Path = LEDGER_SRC, pages: set[str] | None = None) -> Path | None:
     """Copy the hand-maintained ledger beside the dashboard. None when the source is missing."""
     if not src.exists():
         return None
     dest = out_dir / LEDGER_NAME
-    dest.write_text(document(src.read_text(encoding="utf-8")), encoding="utf-8")
+    dest.write_text(document(src.read_text(encoding="utf-8"), "ledger", pages), encoding="utf-8")
     return dest
+
+
+def write_embeds(out_dir: Path, pages: set[str] | None = None) -> list[Path]:
+    """One wrapper page per EMBEDS source that exists: the bar, a tab row, and the page in a frame.
+
+    The page is copied into the frame (srcdoc) rather than linked, so the wrapper
+    works wherever it is opened. Relative links inside it still resolve against
+    site/. Re-run after a study chart is rebuilt to pick up the new copy."""
+    have = [x for x in EMBEDS if (out_dir / x[1]).exists()]
+    out = []
+    for wrapper, src, label, group in have:
+        tabs = [x for x in have if x[3] == group]
+        row = "" if len(tabs) < 2 else '<div class="tabs">' + "".join(
+            f'<a href="{w}"{" aria-current=page" if w == wrapper else ""}>{html.escape(lb)}</a>'
+            for w, _, lb, _ in tabs) + "</div>"
+        frag = (f"<title>{html.escape(label)}</title><style>"
+                "html,body{margin:0;height:100%}body{display:flex;flex-direction:column;background:#f4f5f7}"
+                "@media (prefers-color-scheme: dark){body{background:#12151a}}"
+                ".tabs{display:flex;gap:4px;padding:8px max(16px,env(safe-area-inset-left,0px));overflow-x:auto;"
+                "border-bottom:1px solid #dde1e7;font:500 13px/1 'IBM Plex Sans',system-ui,sans-serif}"
+                ".tabs a{color:#5a6271;text-decoration:none;padding:7px 11px;border-radius:7px;white-space:nowrap}"
+                ".tabs a[aria-current=page]{color:#2c56c9;background:#e5ecfb}"
+                "@media (prefers-color-scheme: dark){.tabs{border-color:#2b313b}.tabs a{color:#9aa2b0}"
+                ".tabs a[aria-current=page]{color:#7f9df0;background:#1c2846}}"
+                "iframe{flex:1;width:100%;border:0;display:block}</style>"
+                f'{row}<iframe srcdoc="{html.escape((out_dir / src).read_text(encoding="utf-8"), quote=True)}" '
+                f'title="{html.escape(label)}"></iframe>')
+        p = out_dir / wrapper
+        p.write_text(document(frag, group, pages), encoding="utf-8")
+        out.append(p)
+    return out
 
 
 def nodata(why: str) -> dict:
@@ -215,11 +309,16 @@ def pipeline_state(today: str, root_paths: dict | None = None) -> dict:
 
 # ── 3. regime ─────────────────────────────────────────────────────────────────
 CHECKS = [
-    ("c1_persistence", "The market label has been bearish for 3 sessions in a row"),
-    ("c2_spy_below_200", "SPY is below its 200-day average"),
-    ("c3_credit_weak", "Credit is weakening (junk bonds lag Treasuries over 20 days)"),
-    ("c4_iwm_below_200", "Small companies (IWM) are below their 200-day average"),
-    ("c5_vix_ge_20", "The fear index (VIX) is at 20 or higher"),
+    ("c1_persistence", "Bearish for 3 sessions in a row",
+     "The market label (from SPY and VIX) has read BEAR for at least 3 sessions running."),
+    ("c2_spy_below_200", "SPY below its 200-day average",
+     "The S&P 500 fund closed under its average of the last 200 sessions."),
+    ("c3_credit_weak", "Credit weakening",
+     "Junk bonds (HYG) lost more than 1% against Treasuries (IEF) over 20 sessions."),
+    ("c4_iwm_below_200", "Small companies below their 200-day average",
+     "The small-company fund (IWM) closed under its 200-session average."),
+    ("c5_vix_ge_20", "Fear index at 20 or higher",
+     "The VIX, which tracks expected market swings, closed at 20 or above."),
 ]
 STATUS_WORDS = {
     "CLEAR": "No bear signal. Nothing to do.",
@@ -228,15 +327,67 @@ STATUS_WORDS = {
 }
 
 
+def run_length(rows: list[dict], pred) -> dict:
+    """How many history rows, ending at the newest, pred has held (or failed) for.
+
+    Counts rows, which are sessions only while the history has no gaps. at_start
+    means the run reaches the first row, so the true run may be longer."""
+    if not rows:
+        return {"n": 0, "since": None, "at_start": False}
+    want = pred(rows[-1])
+    n = 0
+    for r in reversed(rows):
+        if pred(r) != want:
+            break
+        n += 1
+    return {"n": n, "since": as_date(rows[-n].get("date")), "at_start": n == len(rows)}
+
+
+def pct(x: float | None, signed: bool = True) -> str:
+    return "n/a" if x is None else f"{x * 100:{'+' if signed else ''}.1f}%"
+
+
+def check_reason(key: str, r: dict) -> str:
+    """The figures behind one check on one history row, in words."""
+    f = {k: num(r.get(k)) for k in ("bear_streak", "spy_close", "spy_sma200", "credit_chg20",
+                                    "iwm_close", "iwm_sma200", "vix_close")}
+    if key == "c1_persistence":
+        n = int(f["bear_streak"] or 0)
+        return (f"Bearish sessions in a row: {n} (needs 3). Today's label: "
+                f"{r.get('mech_direction') or '?'} direction, {r.get('mech_vol') or '?'} volatility.")
+    if key in ("c2_spy_below_200", "c4_iwm_below_200"):
+        c, m = (f["spy_close"], f["spy_sma200"]) if key == "c2_spy_below_200" else (f["iwm_close"], f["iwm_sma200"])
+        if c is None or m is None:
+            return "Not enough price history."
+        gap = c / m - 1
+        side = "below" if gap < 0 else "above"
+        return f"Close {c:,.2f} vs average {m:,.2f}: {pct(abs(gap), False)} {side}."
+    if key == "c3_credit_weak":
+        x = f["credit_chg20"]
+        return "No credit figure." if x is None else f"Junk bonds vs Treasuries over 20 sessions: {pct(x)} (weak below -1.0%)."
+    if key == "c5_vix_ge_20":
+        v = f["vix_close"]
+        return "No VIX close." if v is None else f"VIX closed at {v:.2f} (the line is 20)."
+    return ""
+
+
 def regime_state(path: Path = WATCH_CSV) -> dict:
     rows = read_rows(path)
     if not rows:
         return nodata("no regime-watch history yet")
+    rows = [r for r in rows if as_date(r.get("date"))]
     last = rows[-1]
-    return {"ok": True, "date": as_date(last.get("date")), "status": (last.get("status") or "?").upper(),
-            "checks": [(txt, truthy(last.get(k))) for k, txt in CHECKS],
+    status = (last.get("status") or "?").upper()
+    checks = []
+    for key, title, explain in CHECKS:
+        met = truthy(last.get(key))
+        checks.append({"key": key, "title": title, "explain": explain, "met": met,
+                       "reason": check_reason(key, last), "run": run_length(rows, lambda r, k=key: truthy(r.get(k)))})
+    return {"ok": True, "date": as_date(last.get("date")), "status": status, "checks": checks,
             "n_confirm": last.get("n_confirm"), "streak": last.get("bear_streak"),
-            "strip": [((as_date(r.get("date")) or "?"), (r.get("status") or "?").upper()) for r in rows[-30:]]}
+            "status_run": run_length(rows, lambda r: (r.get("status") or "").upper()),
+            "first": as_date(rows[0].get("date")), "n_rows": len(rows),
+            "strip": [((as_date(r.get("date")) or "?"), (r.get("status") or "?").upper()) for r in rows[-60:]]}
 
 
 # ── 4. book ───────────────────────────────────────────────────────────────────
@@ -249,7 +400,9 @@ def book_state(results: Path = RESULTS_CSV, proxy: Path = PROXY_CSV) -> dict:
         for r in rs or []:
             d, pnl = as_date(r.get("signal_date")), num(r.get("realized_pnl_abs"))
             if d and pnl is not None:
-                rows.append((d, pnl, (r.get("path_status") or "").strip(), src))
+                rows.append((d, pnl, (r.get("path_status") or "").strip(), src,
+                             (r.get("structure") or "").strip() or "unknown",
+                             (r.get("exit_reason") or "").strip() or "unknown"))
     if not rows:
         return nodata("no priced rows in the exports")
     rows.sort(key=lambda t: t[0])
@@ -270,7 +423,18 @@ def book_state(results: Path = RESULTS_CSV, proxy: Path = PROXY_CSV) -> dict:
             tot += by[d]
             out.append((d, tot))
         return out
-    return {"ok": True, "n": len(rows), "n_real": n_real, "n_proxy": len(rows) - n_real,
+
+    def group(sel, idx):
+        g: dict[str, list[float]] = {}
+        for t in sel:
+            g.setdefault(t[idx], []).append(t[1])
+        return sorted(((k, len(v), sum(v), sum(1 for x in v if x > 0) / len(v)) for k, v in g.items()),
+                      key=lambda x: -x[1])
+    months: dict[str, float] = {}
+    for t in fin:
+        months[t[0][:7]] = months.get(t[0][:7], 0.0) + t[1]
+    return {"ok": True, "n": len(rows), "n_real": n_real,
+            "by_month": sorted(months.items()), "by_structure": group(fin, 4), "by_exit": group(fin, 5), "n_proxy": len(rows) - n_real,
             "n_fin": len(fin), "n_open": len(opn), "n_carried": len(car),
             "win_rate": wins / len(fin) if fin else None,
             "pnl_fin": sum(t[1] for t in fin), "pnl_open": sum(t[1] for t in opn + car),
@@ -415,13 +579,80 @@ def line_chart(curves: list[tuple[str, list, str]], fwd_start: str) -> str:
         g.append(f'<text x="{min(max(X(d), L+22), W-R-22):.1f}" y="{H-8}" text-anchor="middle" class="tick">{d}</text>')
     if ds[0] < fwd_start <= ds[-1]:
         g.append(f'<line x1="{X(fwd_start):.1f}" x2="{X(fwd_start):.1f}" y1="{T}" y2="{H-B}" class="fwd"/>'
-                 f'<text x="{X(fwd_start)+4:.1f}" y="{T+10}" class="tick">forward period starts</text>')
+                 f'<text x="{X(fwd_start)-4:.1f}" y="{T+10}" text-anchor="end" class="tick">forward period starts</text>')
     for name, c, cls in curves:
         if len(c) > 1:
             d_ = " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in c)
             g.append(f'<polyline points="{d_}" class="ln {cls}"><title>{e(name)}</title></polyline>')
     return (f'<div class="chart"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Cumulative net profit and loss '
             f'by signal date" style="min-width:560px;width:100%;height:auto">{"".join(g)}</svg></div>')
+
+
+STRUCT_WORDS = {
+    "bear_put_spread": "Bear put spread (bets down)", "bull_call_spread": "Bull call spread (bets up)",
+    "bull_put_spread": "Bull put spread (sold, bets not down)", "bear_call_spread": "Bear call spread (sold, bets not up)",
+    "straddle": "Straddle (bets on a big move)", "strangle": "Strangle (bets on a big move)",
+    "long_call": "Long call (bets up)", "long_put": "Long put (bets down)", "short_put": "Short put (sold)",
+}
+EXIT_WORDS = {
+    "profit_target": "Hit the profit target", "stop_loss": "Hit the percent stop", "dollar_stop": "Hit the dollar stop",
+    "time_exit": "Closed for time", "trailing_stop": "Trailing stop", "expired": "Held to expiry",
+    "cap_open": "Still open at the holding limit (marked)", "be_stop": "Breakeven stop",
+}
+
+
+def run_words(run: dict, word: str, first: str | None) -> str:
+    """'Met for 4 sessions, since 2026-10-14' — 'at least' when the run reaches the history start."""
+    if not run.get("n"):
+        return ""
+    n = run["n"]
+    lead = f"{word} for " if word else "For "
+    if run.get("at_start"):
+        return f"{lead}at least {n} sessions (the whole history, since {first})"
+    return f"{lead}{n} session{'s' if n != 1 else ''}, since {run['since']}"
+
+
+def month_bars(months: list[tuple[str, float]]) -> str:
+    if not months:
+        return '<p class="nodata">No finished trades.</p>'
+    W, H, L, T, B = 760, 220, 64, 12, 30
+    vals = [v for _, v in months] + [0.0]
+    lo, hi = min(vals), max(vals)
+    pad = (hi - lo) * 0.08 or 1.0
+    lo, hi = lo - pad, hi + pad
+
+    def Y(v):
+        return T + (hi - v) / (hi - lo) * (H - T - B)
+    bw = (W - L - 8) / len(months)
+    g = [f'<line x1="{L}" x2="{W-4}" y1="{Y(0):.1f}" y2="{Y(0):.1f}" class="zero"/>',
+         f'<text x="{L-6}" y="{Y(hi - pad)+4:.1f}" text-anchor="end" class="tick">{money(hi - pad).replace("+", "")}</text>',
+         f'<text x="{L-6}" y="{Y(lo + pad)+4:.1f}" text-anchor="end" class="tick">{money(lo + pad).replace("+", "")}</text>']
+    every = max(1, round(len(months) / 8))
+    for i, (m, v) in enumerate(months):
+        x = L + i * bw + bw * 0.15
+        y0, y1 = sorted((Y(0), Y(v)))
+        g.append(f'<rect x="{x:.1f}" y="{y0:.1f}" width="{bw*0.7:.1f}" height="{max(1, y1-y0):.1f}" '
+                 f'class="{"pos" if v >= 0 else "neg"}"><title>{e(m)}: {money(v)}</title></rect>')
+        if i % every == 0:
+            g.append(f'<text x="{x + bw*0.35:.1f}" y="{H-10}" text-anchor="middle" class="tick">{e(m)}</text>')
+    return (f'<div class="chart"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Net profit and loss by month" '
+            f'style="min-width:560px;width:100%;height:auto">{"".join(g)}</svg></div>')
+
+
+def hbars(groups: list[tuple[str, int, float, float]], words: dict) -> str:
+    if not groups:
+        return '<p class="nodata">No finished trades.</p>'
+    top = max(abs(g[2]) for g in groups) or 1.0
+    out = ['<div class="hb">']
+    for k, n, pnl, win in groups:
+        w = abs(pnl) / top * 50
+        side = f"left:50%;width:{w:.1f}%" if pnl >= 0 else f"left:{50 - w:.1f}%;width:{w:.1f}%"
+        out.append(f'<div class="row"><span class="lb">{e(words.get(k, k.replace("_", " ")))}'
+                   f'<span class="sub"> {n} trades · {win*100:.0f}% won</span></span>'
+                   f'<span class="track"><b class="{"pos" if pnl >= 0 else "neg"}" style="{side}"></b></span>'
+                   f'<span class="amt mono">{money(pnl)}</span></div>')
+    out.append("</div>")
+    return "".join(out)
 
 
 def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: dict, wait: dict) -> str:
@@ -439,23 +670,24 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
     cls = "con" if bad else "ship"
     out.append(f'<header><p class="eyebrow">Project dashboard</p><h1>As of {e(today)}</h1>'
                f'<p class="lede">{e(" ".join(bits))}</p>'
-               f'<p class="sub">Study-by-study evidence: <a href="{LEDGER_NAME}">Flow Edge Ledger</a> '
-               f'(hand-maintained, research/{LEDGER_NAME}).</p></header>')
+               '<p class="sub jump"><a href="#flow">Data</a> · <a href="#regime">Regime</a> · '
+               '<a href="#book">Backtest</a> · <a href="#gate">Flow layer</a> · <a href="#studies">Studies</a> · '
+               '<a href="#waiting">Waiting on you</a></p></header>')
 
     # 2 data flowing
-    s = ['<section><h2>Is the data flowing?</h2><p class="q">Each row is the newest date a stage has. '
-         'Age counts weekdays behind today.</p>']
+    s = ['<section id="flow"><h2>Is the data flowing?</h2><p class="q">Each card is one stage of the pipeline: '
+         'the newest date it holds, and how many weekdays that is behind today.</p>']
     if flow["ok"]:
-        s.append('<ul class="rows">')
+        s.append('<div class="cards">')
         for i in flow["items"]:
             c, t = PILL[i["state"]]
-            when = i["date"] or "none"
-            meta = " · ".join(x for x in ([f'{i["age"]} weekday(s) ago'] if i.get("age") is not None else [])
-                              + ([i["note"]] if i.get("note") else []))
-            s.append(f'<li><div><strong>{e(i["label"])}</strong><span class="sub">{e(i["explain"])}</span></div>'
-                     f'<div class="r"><span class="mono">{e(when)}</span>{pill(c, t)}'
-                     f'<span class="sub">{e(meta)}</span></div></li>')
-        s.append("</ul>")
+            age = "" if i.get("age") is None else "today" if i["age"] == 0 else \
+                f'{i["age"]} weekday{"s" if i["age"] != 1 else ""} ago'
+            s.append(f'<div class="card {c}"><div class="top"><span class="k">{e(i["label"])}</span>{pill(c, t)}</div>'
+                     f'<span class="v">{e(i["date"] or "none")}</span>'
+                     f'<span class="sub">{e(" · ".join(x for x in (age, i.get("note") or "") if x))}</span>'
+                     f'<p class="sub ex">{e(i["explain"])}</p></div>')
+        s.append("</div>")
         if flow["pending_known"]:
             pend = flow["pending"]
             if pend:
@@ -469,27 +701,39 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
     out.append("".join(s))
 
     # 3 regime
-    s = ['<section><h2>What is the market regime today?</h2>'
+    s = ['<section id="regime"><h2>What is the market regime today?</h2>'
          '<p class="q">A daily checklist for whether a bear move is real. It describes the market. '
          'It changes no trade and its limits are not validated.</p>']
     if reg["ok"]:
         rc = REGIME_CLS.get(reg["status"], "null")
-        s.append(f'<p class="big">{pill(rc, reg["status"])} <span class="sub">as of {e(reg["date"] or "?")}</span></p>'
-                 f'<p>{e(STATUS_WORDS.get(reg["status"], ""))}</p><ul class="checks">')
-        for txt, met in reg["checks"]:
-            s.append(f'<li>{pill("con" if met else "null", "Met" if met else "Not met")} {e(txt)}</li>')
-        s.append('</ul><p class="sub">Last 30 sessions (oldest left):</p><div class="strip">')
+        s.append(f'<div class="card hero {rc}"><div class="top"><span class="k">Status as of {e(reg["date"] or "?")}</span></div>'
+                 f'<span class="v">{pill(rc, reg["status"])} {e(run_words(reg["status_run"], "", reg["first"]))}</span>'
+                 f'<p class="ex">{e(STATUS_WORDS.get(reg["status"], ""))} '
+                 f'{e(str(reg["n_confirm"]))} of the 4 market checks are met; '
+                 f'the market has read bearish {e(str(reg["streak"]))} session(s) in a row.</p></div>')
+        s.append('<div class="cards">')
+        for c in reg["checks"]:
+            cc = "con" if c["met"] else "null"
+            s.append(f'<div class="card {cc}"><div class="top"><span class="k">{e(c["title"])}</span>'
+                     f'{pill(cc, "Met" if c["met"] else "Not met")}</div>'
+                     f'<span class="dur">{e(run_words(c["run"], "Met" if c["met"] else "Not met", reg["first"]))}</span>'
+                     f'<p class="why">{e(c["reason"])}</p><p class="sub ex">{e(c["explain"])}</p></div>')
+        s.append('</div>')
+        s.append(f'<p class="sub">The last {len(reg["strip"])} sessions, oldest on the left. Hover a block for its date.</p>'
+                 '<div class="strip">')
         for d, st in reg["strip"]:
             s.append(f'<i class="{REGIME_CLS.get(st, "null")}" title="{e(d)} {e(st)}"></i>')
         s.append('</div><p class="sub legend"><i class="ship"></i> clear <i class="open"></i> watch '
-                 '<i class="con"></i> confirmed</p>')
+                 f'<i class="con"></i> confirmed</p><p class="sub">History holds {reg["n_rows"]} sessions from '
+                 f'{e(reg["first"] or "?")}. Older days were replayed with <span class="mono">regime_watch.py '
+                 '--backfill</span>, using only data up to each day.</p>')
     else:
         s.append(nocard(reg.get("why", "")))
     s.append("</section>")
     out.append("".join(s))
 
     # 4 book
-    s = ['<section><h2>How is the backtested book doing?</h2><p class="q">Simulated trades from every '
+    s = ['<section id="book"><h2>How is the backtested book doing?</h2><p class="q">Simulated trades from every '
          'analysed play. Real prices where they exist, a stand-in "proxy" where a play could not be priced '
          'directly. Profit and loss is net of costs.</p>']
     if book["ok"]:
@@ -504,6 +748,7 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
                  f'<div class="tile"><span class="k">Net, finished trades</span><span class="v">'
                  f'{money(book["pnl_fin"])}</span><span class="sub">{money(book["pnl_open"])} more on the unfinished, '
                  'which is a paper mark only</span></div></div>')
+        s.append('<h3>Running total by signal date</h3>')
         s.append(line_chart([("Finished trades only", book["curve_fin"], "a"),
                              ("Including unfinished trades (not final)", book["curve_all"], "b")], FORWARD_START))
         s.append('<p class="sub legend"><span class="key a"></span> finished trades only '
@@ -511,13 +756,21 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
         s.append(f'<p><strong>Since {FORWARD_START} (the forward period):</strong> {book["fwd_n"]} simulated trades, '
                  f'{book["fwd_fin"]} finished. Net so far {money(book["fwd_pnl"])}; finished trades alone '
                  f'{money(book["fwd_pnl_fin"])}. Most of these are still open, so read the number as a first look.</p>')
+        s.append('<h3>Net by month</h3><p class="sub">Finished trades, grouped by the month of the signal.</p>')
+        s.append(month_bars(book["by_month"]))
+        s.append('<div class="two"><div><h3>By trade type</h3><p class="sub">Finished trades. Bar = net profit or loss.</p>')
+        s.append(hbars(book["by_structure"], STRUCT_WORDS))
+        s.append('</div><div><h3>How trades ended</h3><p class="sub">Finished trades, by the rule that closed them.</p>')
+        s.append(hbars(book["by_exit"], EXIT_WORDS))
+        s.append('</div></div><p class="sub">More charts, including the $25k account simulation, are under '
+                 '<strong>Backtest charts</strong> in the bar at the top.</p>')
     else:
         s.append(nocard(book.get("why", "")))
     s.append("</section>")
     out.append("".join(s))
 
     # 5 flow layer
-    s = ['<section><h2>Is the flow layer earning its keep?</h2><p class="q">The "flow layer" is the model\'s daily '
+    s = ['<section id="gate"><h2>Is the flow layer earning its keep?</h2><p class="q">The "flow layer" is the model\'s daily '
          'stock picks plus the ranking that decides what to deploy. A rule written in advance says when to keep or '
          'drop it.</p>']
     if gate["ok"]:
@@ -550,7 +803,7 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
     out.append("".join(s))
 
     # 6 studies
-    s = ['<section><h2>What have the studies found?</h2><p class="q">Each study asks one question of the backtest '
+    s = ['<section id="studies"><h2>What have the studies found?</h2><p class="q">Each study asks one question of the backtest '
          'book. Most come back empty, which is a useful answer.</p>']
     if studies["ok"]:
         order = ["shipped", "null", "open", "reference"]
@@ -577,7 +830,7 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
     out.append("".join(s))
 
     # 7 waiting
-    s = ['<section><h2>What is waiting on you?</h2>']
+    s = ['<section id="waiting"><h2>What is waiting on you?</h2>']
     if wait["ok"]:
         s.append('<p class="q">Read from the operator list and the plan table in research/next-steps.md. This is a text match, so check the file if one looks wrong.</p>')
         if wait["items"]:
@@ -662,6 +915,27 @@ details{margin-top:8px} summary{cursor:pointer;color:var(--accent);padding:4px 0
 .nodata{color:var(--muted);font-style:italic;margin:6px 0}
 footer{padding-top:20px;font-size:14px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.bar b{transition:width .4s ease}}
+.jump{margin-top:10px} .jump a{text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px;margin:0 0 14px}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--null);border-radius:10px;
+padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.card.ship{border-left-color:var(--ship)} .card.open{border-left-color:var(--open)} .card.con{border-left-color:var(--con)}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.card .k{font-size:14px;font-weight:600} .card .v{font:500 20px "IBM Plex Mono",ui-monospace,monospace}
+.card .ex{margin:4px 0 0;font-size:13px} .card .dur{font-size:14px;font-weight:500}
+.card .why{margin:0;font-size:14px;font-variant-numeric:tabular-nums}
+.card.hero{margin-bottom:12px} .card.hero .v{font-size:18px;font-family:inherit}
+.card.hero .v .pill{font-size:15px;padding:3px 12px}
+.chart rect.pos{fill:var(--ship)} .chart rect.neg{fill:var(--con)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.hb{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.hb .row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center}
+.hb .lb{font-size:14px} .hb .lb .sub{font-size:12px}
+.hb .track{position:relative;height:14px;background:var(--null-bg);border-radius:4px}
+.hb .track::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;border-left:1px solid var(--muted)}
+.hb .track b{position:absolute;top:0;bottom:0;border-radius:3px}
+.hb b.pos{background:var(--ship)} .hb b.neg{background:var(--con)}
+.hb .amt{font-size:13px;min-width:72px;text-align:right}
 </style>
 """
 
@@ -686,11 +960,14 @@ def main(argv=None) -> int:
     page, d = build(a.today)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(document(page), encoding="utf-8")
-    ledger = write_ledger(out.parent)
+    pages = site_pages(out.parent)
+    out.write_text(document(page, "dashboard", pages), encoding="utf-8")
+    ledger = write_ledger(out.parent, pages=pages)
+    embeds = write_embeds(out.parent, pages)
     if not a.quiet:
         print(f"dashboard -> {out} ({len(page):,} bytes), as of {a.today}")
         print(f"ledger    -> {ledger or f'not written: {LEDGER_SRC} is missing'}")
+        print(f"embedded  -> {', '.join(x.name for x in embeds) or 'none (no study chart pages in site/ yet)'}")
         for i in d["flow"]["items"]:
             print(f"  {i['label']:<22} {i['date'] or 'none':<11} {i['state']}  {i.get('note', '')}")
         if d["flow"]["pending_known"]:
