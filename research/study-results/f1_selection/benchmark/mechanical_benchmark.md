@@ -104,3 +104,23 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
     4. re-run this study; a fetch can expose nearer strikes, so steps 2-4 repeat until nothing awaits
 ```
 
+
+## era v4 · inputs 75061b4 · sha 2820565 — recorded 2026-10-21
+<!-- key era=v4 sha=2820565 inputs=75061b4 -->
+
+population  1,103 results · 2,142 proxy · 3,546 analysis · 852 spy_vix_daily_full  (inputs dated 2026-10-21 14:30 … 2026-10-21 16:32)
+run         2026-10-21 16:43:01 · git 2820565 (main, working tree clean) · exit 0 · 84.8s
+command     python -m scripts.backtest_study.f1_selection.benchmark.mechanical_benchmark
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  The census is the recorded result. No outcome column was read.
+  Operator-run steps, in order (each resumable; none runs from here):
+    0. universe files for 2 dates: python3 -m scripts.analysis_pipeline --skip-llm --date <D> (no LLM, no Sheets write)
+    1. stock bars for 70 universe tickers: python3 scripts/collector/history/fetch_underlying_ohlc.py --tickers <list from python3 scripts/collector/…
+    2. option legs: python3 scripts/collector/study_legs/fetch_mechanical_legs.py --dry-run   (then --limit N)
+    3. python3 scripts/backup_research_caches.py push
+    4. re-run this study; a fetch can expose nearer strikes, so steps 2-4 repeat until nothing awaits
+```
+

@@ -1,7 +1,7 @@
 ## mechanical_benchmark — do the picks beat a mechanical bull call spread on the same dates?
 
 <!-- outcome:start -->
-> Latest outcome: `NOT BUILT — AWAITING SCRAPE`. After a 5-round fetch (`ARM M1` 0 awaiting, `ARM M2` 2, `ARM M2L` 9), 2 `ARM M2` pairs still await, so floor 4a is open and no arm is graded. The 2026-10-15 `ARM M1` `CONTRARY` is not withdrawn; it cannot be re-read yet — 2026-10-21 · [record](../../../study-results/f1_selection/benchmark/mechanical_benchmark.md).
+> Latest outcome: `NOT BUILT — AWAITING SCRAPE`. After 8 fetch rounds and the cache-changed re-price, 1 same-ticker pair still awaits, so floor 4a is open and no arm is graded. The 2026-10-15 `ARM M1` `CONTRARY` is not withdrawn; it cannot be re-read yet — 2026-10-21 · [record](../../../study-results/f1_selection/benchmark/mechanical_benchmark.md).
 <!-- outcome:end -->
 
 _Registered 2026-10-09._

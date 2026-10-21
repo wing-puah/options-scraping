@@ -356,6 +356,14 @@ rows and keeps 16 closed-window `cap_open` rows.
 - **After the fetch, still `NOT BUILT`.** Five fetch rounds took `ARM M1` to 0
   awaiting, `ARM M2` to 2 and `ARM M2L` to 9, with no network errors. Floor 4a
   still counts 2 `ARM M2` pairs, so no arm is graded. One more round may close it.
+- **A G5 failure in between was stale marks, now fixed.** The open-row re-price
+  refetched four cache files that five finished picks shared. Their rows kept
+  the old marks, so the G5 mirror failed on 5 of 440 picks. Rows whose cache
+  changed now re-price in place: 11 `BacktestResults` and 2 `BacktestProxy` rows
+  were replaced. Only marks moved; no `exit_reason` or realized P&L changed. G5
+  run directly now passes, 0 of 441 differ.
+- **Three more rounds, still `NOT BUILT`.** Floor 4a counts 1 pair. Each round
+  names new strikes and most return empty feeds, so the walk closes slowly.
 - **The 2026-10-15 `CONTRARY` stands.** This run neither confirms nor
   reverses it. It cannot be re-read on the new exports until the operator runs
   the fetch.
