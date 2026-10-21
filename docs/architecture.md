@@ -62,6 +62,10 @@ lib/                        ← shared modules, imported by scripts, never run d
                               so backtest and live match can never disagree about a play's name
   mech_regime.py            — mechanical market-regime label (`mech_cell`), a pure function of
                               signal date + the frozen SPY/VIX table
+  regime_watch.py           — pure logic for `scripts/regime_watch.py`, a daily REPORT (no tier, sizing or
+                              exit reads it): BEAR streak from the mech table + SPY/IWM vs 200d SMA, HYG/IEF
+                              20d, VIX >= 20 -> CONFIRMED / WATCH / CLEAR. Thresholds UNVALIDATED (exploratory
+                              2026-10-21; pre-registration pending). Causal for `--as-of`; drops partial bars
   drive_client.py           — DriveClient, StorageClient protocol, file naming helpers
   sheets_client.py          — read/write Google Sheets tabs; `_get_spreadsheet(id)` targets the
                               journal workbook, `_ensure_tab(min_cols=)` sizes new tabs,
@@ -69,6 +73,9 @@ lib/                        ← shared modules, imported by scripts, never run d
 
 scripts/                    ← entry points, each maps to a workflow step
   collector/daily/scrape_flow.py — scrape barchart → Drive; live (--mode) or historical (--date/--start)
+  regime_watch.py           — `make regime-watch [ARGS="--as-of D --json"]`: yfinance SPY/IWM/HYG/IEF/^VIX/^VIX3M +
+                              the frozen mech label -> checklist table + status; appends one deduped row per date
+                              to backtests/regime_watch/history.csv. Non-fatal step 1b of daily_loop.sh
   compile_flow.py           — compile a day's hourly etfs-flow + stocks-flow snapshots into one
                               deduped CSV per type (trade-identity dedup) →
                               {prefix}-{YYYYMMDD}-compiled.csv in Drive. NOTE: a compile re-run

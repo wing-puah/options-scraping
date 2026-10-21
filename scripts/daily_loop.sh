@@ -5,8 +5,9 @@
 #   make daily-loop [START=2026-09-23] [DRY=1] [ARGS="--skip-backup"]
 #
 # Steps: 1 mech-regime refresh (before the card, else dip-date sizing prints
-# NO_DATA) | 2 backtest, BOUNDED by --start | 3 proxy, same bound | 4 journal
-# | 5 deploy card | 6 research-cache backup to Drive.
+# NO_DATA) | 1b regime watch (report only, NON-FATAL) | 2 backtest, BOUNDED by
+# --start | 3 proxy, same bound | 4 journal | 5 deploy card | 6 research-cache
+# backup to Drive.
 # Exit: 3 = another writer is running; otherwise the failing step's code.
 set -euo pipefail
 
@@ -23,7 +24,7 @@ while [ $# -gt 0 ]; do
     --skip-backup) SKIP_BACKUP=1 ;;
     --start) shift; START="${1:?--start needs YYYY-MM-DD}" ;;
     --start=*) START="${1#--start=}" ;;
-    -h|--help) sed -n '2,10p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
   shift
@@ -34,9 +35,12 @@ if [ -z "$START" ]; then
 fi
 [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "bad START: $START" >&2; exit 2; }
 
-CMDS=(); NAMES=()
-add() { NAMES+=("$1"); CMDS+=("$2"); }
+CMDS=(); NAMES=(); NONFATAL=()
+add() { NAMES+=("$1"); CMDS+=("$2"); NONFATAL+=(0); }
+addnf() { NAMES+=("$1 (non-fatal)"); CMDS+=("$2"); NONFATAL+=(1); }
 add "mech-regime refresh" "python3 scripts/collector/daily/fetch_mech_regime.py"
+# Report only: a yfinance failure must never stop the loop.
+addnf "regime watch" "python3 scripts/regime_watch.py"
 if [ "$SKIP_BACKTEST" = 0 ]; then
   add "backtest (bounded)" "python3 -m scripts.backtest --config config/backtest.yml --start $START"
   add "proxy (bounded)" "python3 -m scripts.backtest.proxy --config config/backtest.yml --start $START"
@@ -80,7 +84,9 @@ for i in "${!CMDS[@]}"; do
   n=$((i+1)); t0=$SECONDS
   echo "=== STEP $n/${#CMDS[@]} ${NAMES[$i]} @ $(date +%T): ${CMDS[$i]}"
   set +e; eval "${CMDS[$i]}"; rc=$?; set -e
-  if [ "$rc" -ne 0 ]; then
+  if [ "$rc" -ne 0 ] && [ "${NONFATAL[$i]}" = 1 ]; then
+    echo "!!! STEP $n FAILED (${NAMES[$i]}) exit code $rc; non-fatal, continuing." >&2
+  elif [ "$rc" -ne 0 ]; then
     echo "!!! STEP $n FAILED (${NAMES[$i]}) exit code $rc after $((SECONDS-t0))s; stopping." >&2
     exit "$rc"
   fi

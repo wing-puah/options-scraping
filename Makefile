@@ -67,6 +67,14 @@ enrich-all: enrich counterpart-iv iv-percentile price-catalyst
 mech-regime:
 	$(PY) scripts/collector/daily/fetch_mech_regime.py --download
 
+# ── regime watch ───────────────────────────────────────────────────────────────
+# A daily REPORT on whether a SPY BEAR flip is holding (streak, 200d SMAs, credit,
+# VIX). Changes no tier, sizing or exit; thresholds UNVALIDATED. Needs the network
+# (yfinance) and the mech table. ARGS="--as-of YYYY-MM-DD" replays a past date, --json.
+.PHONY: regime-watch
+regime-watch:
+	$(PY) scripts/regime_watch.py $(ARGS)
+
 # Fill `mech_cell` on rows written before the column shipped, or while the table
 # was stale (NO_DATA). Pure function of the date, so it is safe to re-run; also
 # runs nightly after Compile Flow (.github/workflows/backfill-mech-cell.yml).
