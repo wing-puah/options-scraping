@@ -1,7 +1,7 @@
 ## dip_buy — do Tier A/B positions do better when SPY closes below its 50-day SMA?
 
 <!-- outcome:start -->
-> Latest outcome: forward `STILL-OPEN` — 2026-10-12 · [record](../../../study-results/f1_selection/regime/dip_buy.md).
+> Latest outcome: forward `STILL-OPEN` — 2026-10-21 · [record](../../../study-results/f1_selection/regime/dip_buy.md).
 <!-- outcome:end -->
 
 _Registered 2026-10-12._

@@ -399,8 +399,10 @@ STUDIES: dict[str, Study] = {
         question="Among non-vetoed Tier A/B positions, is meanR higher when SPY closed below its "
                  "50-day SMA on the signal date than when it closed above? Picked post hoc from "
                  "28 rules, so only signal dates from the holdout seal's start are graded.",
-        verdict="Accepted by default and first run 2026-10-12 (v4 exports of 2026-10-06, v3 "
-                "beside it): `>>> dip_buy PRIMARY (forward, Tier A+B, below - above): "
+        verdict="Re-run 2026-10-21 (v4 exports of 2026-10-21): still `>>> dip_buy PRIMARY "
+                "(forward, Tier A+B, below - above): STILL-OPEN <<<`; 27 rows on 11 forward "
+                "dates are sealed and neither arm has a date. First run 2026-10-12 (v4 exports "
+                "of 2026-10-06, v3 beside it): `>>> dip_buy PRIMARY (forward, Tier A+B, below - above): "
                 "STILL-OPEN <<<`, because the forward dates are sealed and neither arm has a "
                 "date. In-sample context, post hoc: v4 `below - above = +0.096  CI95 [-0.164, "
                 "+0.322]`, v3 `below - above = +0.199  CI95 [-0.050, +0.428]`. Nothing ships.",
@@ -462,7 +464,12 @@ STUDIES: dict[str, Study] = {
         question="Do the deployed picks beat a mechanical bull call spread on the same dates: "
                  "ATM/+5% on the same ticker and expiry (M1), a delta-matched one (M2), and the "
                  "same wrap on a random ticker from the day's flow universe (U)?",
-        verdict="2026-10-15 P1 correction (v4, exports 2026-10-06, git c8b1f4e; after the "
+        verdict="2026-10-21 run (v4, exports 2026-10-21, git d55d1cb; after the in-place "
+                "re-price and the new 10-19/10-20 plays): `VERDICT: NOT BUILT — AWAITING "
+                "SCRAPE`. `4a  M1/M2 pairs awaiting a fetch 15  NEEDS OPERATOR-RUN FETCH`, so no "
+                "arm is graded and `ARM M1` `CONTRARY` cannot be re-read until the fetch runs. "
+                "programme_gate reads WAIT (PG-M NOT READ, dip_buy open). Nothing ships. "
+                "Before it, the 2026-10-15 P1 correction (v4, exports 2026-10-06, git c8b1f4e; after the "
                 "UniverseSpot probe-cap fix and the P3 tier port; v3 not fetched): `VERDICT "
                 "(headline basis): SAME-TICKER READ — ARM U NOT BUILT`. `ARM M1  C0 Y  C1 n  C2 n  "
                 "clears C0-C2 n  CONTRARY Y` on `pairs  386 dates  201  meanR T +0.130 C +0.231  "
@@ -471,7 +478,7 @@ STUDIES: dict[str, Study] = {
                 "correction: the mechanical ATM/+5% spread beat the picks on their own tickers "
                 "and expiries, gross of costs. It does not test ticker choice: `U     not graded: "
                 "ARM U floors AWAITING (floors 3 and 4b)`, and M2L still awaits a fetch. "
-                "programme_gate still reads WAIT (P1 negative, dip_buy open). Nothing ships. "
+                "programme_gate then read WAIT (P1 negative, dip_buy open). Nothing ships. "
                 "The original P1 run of 2026-10-14 (405 pairs, gain -0.099 [-0.183, -0.023]) "
                 "stays on record beside it. First run 2026-10-09: `VERDICT: NOT BUILT — "
                 "AWAITING SCRAPE`.",

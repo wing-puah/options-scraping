@@ -1,7 +1,7 @@
 ## programme_gate — keep or retire the flow-selection layer
 
 <!-- outcome:start -->
-> Latest outcome: `WAIT` (row 4: `PG-M` `CONTRARY`, `PG-D` `STILL-OPEN`) — 2026-10-15 · [log](../../current.md).
+> Latest outcome: `WAIT` (row 5: `PG-M` `NOT READ`, `PG-D` `STILL-OPEN`) — 2026-10-21 · [log](../../current.md#2026-10-21--pending-open-rows-leave-the-outcome-book).
 <!-- outcome:end -->
 
 _Registered 2026-10-13._

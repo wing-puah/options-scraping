@@ -1,7 +1,7 @@
 ## mechanical_benchmark — do the picks beat a mechanical bull call spread on the same dates?
 
 <!-- outcome:start -->
-> Latest outcome: `SAME-TICKER READ — ARM U NOT BUILT`. `mechanical_benchmark ARM M1` meets `CONTRARY`; `ARM M2` does not. C1 and C2 fail on both. `ARM U` is not built, so no study-level verdict prints. v3 is not graded: its pairs await a fetch — 2026-10-15 · [record](../../../study-results/f1_selection/benchmark/mechanical_benchmark.md).
+> Latest outcome: `NOT BUILT — AWAITING SCRAPE`. The 2026-10-21 re-price and new plays left 15 `ARM M1`/`ARM M2` pairs awaiting a fetch, so no arm is graded. The 2026-10-15 `ARM M1` `CONTRARY` is not withdrawn; it cannot be re-read until the fetch runs — 2026-10-21 · [record](../../../study-results/f1_selection/benchmark/mechanical_benchmark.md).
 <!-- outcome:end -->
 
 _Registered 2026-10-09._

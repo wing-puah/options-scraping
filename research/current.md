@@ -331,6 +331,37 @@ These are the pre-reprice exports. The re-price running now will finish
 some pending rows and move their data end, so the next export's counts
 will differ.
 
+### What moved on the refreshed exports (2026-10-21 14:48)
+
+**The flow layer's keep-or-retire picture did not move, but `PG-M` is now
+unread.** The gate still reads `WAIT`. Nothing ships.
+
+The exports now hold 1,103 results, 2,142 proxy and 3,546 analysis rows. The
+re-price and the 10-19/10-20 plays finished. The loader excludes 188 pending
+rows and keeps 16 closed-window `cap_open` rows.
+
+| Input | Before (2026-10-15 / 10-12) | Now (2026-10-21) |
+|---|---|---|
+| `dip_buy` forward | `STILL-OPEN`, 0 of 30 dates per arm | `STILL-OPEN`, 0 of 30 dates per arm; 27 rows on 11 signal dates sealed |
+| `dip_buy` SPY census | 2 days since 2026-09-23, 0 below | 20 days, 3 below the 50-day SMA |
+| `dip_buy` v4 Tier A+B, below - above (post hoc) | `+0.096  CI95 [-0.164, +0.322]`, n 112 / 630 | `+0.091  CI95 [-0.187, +0.334]`, n 105 / 598 |
+| `dip_buy` v4 Tier A, below - above (post hoc) | `+0.306  CI95 [+0.062, +0.537]` | `+0.280  CI95 [+0.007, +0.538]` |
+| `mechanical_benchmark` | `SAME-TICKER READ`, `ARM M1` `CONTRARY` | `NOT BUILT — AWAITING SCRAPE` |
+| `programme_gate` | `WAIT`, row 4 (`PG-M` `CONTRARY`) | `WAIT`, row 5 (`PG-M` `NOT READ`) |
+
+- **Why `mechanical_benchmark` lost its read.** The re-price replaced rows and
+  the new plays added others. Floor 4a now counts 15 `ARM M1`/`ARM M2` pairs
+  awaiting a fetch, where it counted 0. No arm prints a grade until they are
+  fetched. The fetch plan lists 6 `M1` and 25 `M2` current-era contracts.
+- **The 2026-10-15 `CONTRARY` stands.** This run neither confirms nor
+  reverses it. It cannot be re-read on the new exports until the operator runs
+  the fetch.
+- **The gate.** `PG-M` is `NOT READ`, `PG-D` is `STILL-OPEN`, so row 5 reads
+  `WAIT`. Under `PG-UNPOWERED` set to `burden on the picks`, a `NOT BUILT`
+  would count as `DOES NOT BEAT` and row 4 would read `WAIT` too. The outcome
+  is the same. `dip_buy` needs about 138 more forward signal dates for its
+  below arm, and the seal has not lifted.
+
 ### The rulings as built
 
 | Ruling | What the code does now | Where |
