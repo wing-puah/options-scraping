@@ -4,12 +4,13 @@
 > Latest outcome: not run.
 <!-- outcome:end -->
 
-_Registered ____-__-__ (DRAFT — not registered; becomes immutable in substance when the operator accepts it)._
+_Registered 2026-10-21._
 
-**STATUS: DRAFT.** Drafted 2026-10-21, after an exploratory pass on SPY 1993–2026 in the main
-session. That pass chose the candidate rule, so it is spent as evidence: SPY 1993–2026 is no
-longer clean in-sample evidence for these thresholds. Open decisions for the operator are
-listed under [Open decisions](#open-decisions-for-the-operator), each with the drafter's default.
+**STATUS: ACCEPTED BY DEFAULT 2026-10-21 on the drafter's recommended defaults; the operator may
+revisit (a revisit after a result is a NEW registration, never an edit).** Drafted 2026-10-21,
+after an exploratory pass on SPY 1993–2026 in the main session. That pass chose the candidate
+rule, so it is spent as evidence: SPY 1993–2026 is no longer clean in-sample evidence for these
+thresholds.
 
 ## The question
 
@@ -43,10 +44,12 @@ Neither change follows from the verdict by itself.
 - **Not a new label for the mech table.** BEAR is read from
   `lib/mech_regime.py::compute_mech_table`, never re-implemented. No threshold in that module
   moves. The shipped `mech_cell` and its exit conditioning are untouched.
-- **Not a validation of `scripts/regime_watch.py`.** That script is being built on 2026-10-21 as
-  a REPORT that prints whether today is a flip or a confirmed shift. This registration does not
-  validate it until a verdict lands. It must never feed `mapping.ladder_tier()`, a veto, a size
-  class or an exit, whatever this study prints.
+- **Not a validation of `scripts/regime_watch.py`.** That script was built in commit `6744f34`
+  as a REPORT that prints whether today is a flip or a confirmed shift. This registration does
+  not validate it until a verdict lands. It must never feed `mapping.ladder_tier()`, a veto, a
+  size class or an exit, whatever this study prints.
+- **`regime_watch`'s `CONFIRMED` is not `RC1`.** It is a trailing BEAR streak with no
+  20-quiet-session requirement, and it adds a `WATCH` state that this study does not grade.
 - **Not a timing study for the book.** It does not ask whether hedges opened on confirmed dates
   make money. That needs option prices and is a separate registration.
 - **Not a sweep.** One streak length, one condition set and one outcome are graded.
@@ -59,8 +62,8 @@ Neither change follows from the verdict by itself.
 so it cannot precede a flip. The coined term is in the
 [glossary](../../../glossary.md#regime-flip).
 
-**Streak.** The count of consecutive BEAR sessions starting at the flip, the flip included. A
-streak of 3 means the flip session and the next two sessions are all BEAR.
+**Streak.** The count of consecutive BEAR sessions starting at the flip. The flip session counts
+as day 1. A streak of 3 means the flip session and the next two sessions are all BEAR.
 
 **Decision date.** The session on which a rule acts, using closes on or before it:
 
@@ -79,13 +82,22 @@ is the price a trader acting on the rule would get. See the
 | Code | Condition | Source series | First date usable |
 |---|---|---|---|
 | `C-200` | SPY close below its 200-day SMA | SPY | 1993-11 (200-day runway) |
-| `C-CR` | HYG/IEF ratio's 20-session change below −1% | HYG, IEF | 2007-05 |
+| `C-CR` | HYG/IEF ratio's 20-session change below −1%, on Adj Close | HYG, IEF | 2007-05 |
 | `C-IWM` | IWM close below its 200-day SMA | IWM | 2001-03 |
 | `C-VIX` | VIX close at or above 20 | ^VIX | 1990-01 |
 
-A condition whose series does not reach the decision date counts as **not met**. The count of
-such events is printed per condition. The alternative is under
-[Open decisions](#open-decisions-for-the-operator).
+**Price basis.** `C-CR` uses the HYG/IEF ratio of Adj Close (dividend-adjusted), matching
+`lib/regime_watch.py::_credit_change`. Unadjusted HYG drifts down by its distributions, so an
+unadjusted ratio would read as credit weakness that is not there. Every other series uses
+unadjusted Close.
+
+**Missing data.** A condition whose series does not reach the decision date counts as **not
+met**. The event stays in the arm's base; it is not dropped. The count of such events is printed
+per condition.
+
+**Market-wide on every ticker.** The four conditions read the series in the table above,
+whatever the flip ticker. On a QQQ or IWM flip, `C-200` still reads SPY's close and SPY's
+200-day SMA.
 
 **Own 200-day condition.** For `RC-200` below, the flip ticker's own close is below its own
 200-day SMA. On SPY flips it equals `C-200`.
@@ -96,7 +108,8 @@ such events is printed per condition. The alternative is under
   `spy_close` column carries the flip ticker's closes. Its frozen constants (50, 20) are the
   flip rule. Direction does not read VIX, so the VIX column may be blank.
 - yfinance daily closes, `auto_adjust=False`, matching the convention in
-  `scripts/collector/daily/fetch_mech_regime.py`: ^GSPC, SPY, QQQ, IWM, ^VIX, HYG, IEF.
+  `scripts/collector/daily/fetch_mech_regime.py`: ^GSPC, SPY, QQQ, IWM, ^VIX, ^VIX3M, HYG, IEF.
+  Close and Adj Close are both kept; only `C-CR` reads Adj Close.
 - The repo's mech table (`backtests/mech_regime/spy_vix_daily_full.csv`) only reaches back to
   2023. It is used as a cross-check: on every date both cover, the study's SPY BEAR label must
   match the table's. A mismatch refuses the run (`RC-G0`).
@@ -108,7 +121,7 @@ such events is printed per condition. The alternative is under
 | `RC-IS` | SPY | 1993-01-29 to 2026-10-21 | Spent. Printed as context, labelled post hoc, never graded |
 | `RC-H1` | ^GSPC | 1950-01-03 to 1992-12-31 | Holdout, never read. Graded for `RC-P` and `RC-200` |
 | `RC-H2` | QQQ and IWM, pooled | 1999-03-10 and 2000-05-26 to 2026-10-21 | Replication, correlated with `RC-IS`. Graded for `RC1` |
-| `RC-FWD` | SPY, QQQ, IWM | After the registration date | Standing forward census and grade |
+| `RC-FWD` | SPY, QQQ, IWM | After 2026-10-21 | Standing forward census and grade |
 
 - **`RC-IS` is spent.** The exploration chose the conditions and the streak length on it. No
   figure from it carries a verdict.
@@ -120,7 +133,7 @@ such events is printed per condition. The alternative is under
   the exploration saw, and their sell-offs are the same market's. A pass there shows the rule is
   not SPY-specific; it does not show the rule is out of sample. That is why `RC-H2` alone cannot
   earn `SUPPORTED`.
-- **`RC-FWD`** holds flips whose flip date is after the registration date. The SPY flip of
+- **`RC-FWD`** holds flips whose flip date is after 2026-10-21. The SPY flip of
   2026-10-19 falls before it and after the exploration, so it is excluded from every graded
   scope and printed as a case.
 - **Censoring.** An event with fewer than 60 sessions of closes after its decision date is
@@ -164,9 +177,9 @@ computed on any scope. Its purpose is the power floor.
 | `RC-H2` IWM | 77 | 41 | 11 | 17 |
 
 The census found 98 SPY flips, where the exploration found 97, and a streak-of-3 share of 52%,
-where the exploration found 44% "still BEAR after 3 days". The registered definitions above are
-the drafter's; the exploration's exact counting was not recorded. See
-[Open decisions](#open-decisions-for-the-operator).
+where the exploration found 44% "still BEAR after 3 days". The exploration's exact counting was
+not recorded. The study's own counting, as defined above, is the one of record. The
+exploration's figures are context only.
 
 ## What it compares
 
@@ -278,16 +291,6 @@ first forward run that prints a token other than `STILL-OPEN`. Later runs are de
 - `RC-IS` figures are printed beside every graded scope, labelled post hoc. None is dropped for
   looking bad.
 - A rule suggested by a result here is a new registration on new dates.
-
-## Open decisions for the operator
-
-| Decision | Drafter's default | Alternative | Changes the result? |
-|---|---|---|---|
-| Streak counting | Flip session counts as day 1 of 3 | Still BEAR 3 sessions after the flip | Yes: shifts which events count and the lag cost |
-| Missing condition | Counts as not met | Event leaves the arm | Yes on `RC-H2` before 2007, where `C-CR` is missing |
-| `RC-H2` conditions | Market-wide, as defined | Swap `C-200` for the ticker's own 200-day | Small; it changes `RC1` on QQQ and IWM flips |
-| Outcome anchor | Each rule's own decision close | The flip close for every rule | Yes: the flip anchor ignores the lag cost |
-| Co-primary on `RC-H1` | `RC-200` | `RC-P` | Yes: picks which half the clean holdout tests |
 
 ## What could ship
 
