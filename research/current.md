@@ -280,6 +280,39 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-21 — regime_confirm: a BEAR flip that persists is not a proven sell-off signal
+
+**Waiting for a mech BEAR flip to hold, with other stress signs agreeing, did
+not reliably pick out the flips that became a 10% fall.** Nothing ships.
+`regime_watch` keeps printing, but on this result it should not call a flip
+"confirmed". The thresholds in `lib/regime_watch.py` stay as they are.
+
+Population: yfinance daily closes to 2026-10-20, no book export. Run
+2026-10-21, git `a323040`. Record:
+[`regime_confirm.md`](study-results/f1_selection/regime/regime_confirm.md).
+
+A [real shift](glossary.md#real-shift) is a close at least 10% below the
+decision close within 60 sessions. `RC0` acts on every
+[flip](glossary.md#regime-flip). The two graded rules
+([`regime_confirm`](arm-index.md#regime_confirm)) are below.
+
+| Rule | Data | Events (clusters) | Real-shift rate | Every flip | Difference, 95% CI | Token |
+|---|---|---|---|---|---|---|
+| `RC1`: 3 BEAR sessions and 2 of 4 stress signs | QQQ + IWM | 35 (23) | 34.3% | 21.2% | +0.131 [−0.034, +0.327] | `NULL` |
+| `RC-200`: 3 BEAR sessions and below the 200-day SMA | ^GSPC 1950–1992 | 22 (19) | 13.6% | 9.3% | +0.043 [−0.074, +0.182] | `NULL` |
+
+- **Retrospective verdict: `RETRO-NULL`.** Both rules point the right way,
+  but neither interval clears zero. Both rules passed their floors.
+- **The clean holdout is the weak one.** Before 1993 the 200-day break added
+  about four points to a 9% base rate.
+- **No secondary survives BH.** The stress signs alone at the flip
+  (`RC-C` on QQQ + IWM) printed `SUPPORTED` before correction, at BH q 0.12.
+- **Forward: `STILL-OPEN`.** No flip after 2026-10-21 yet. The SPY flip of
+  2026-10-19 lasted one session and is printed as a case only.
+
+Next: nothing joins [`next-steps.md`](next-steps.md). A forward re-run needs
+`-- --refresh`, because the close cache does not refetch on its own.
+
 ## 2026-10-17 — results moved out of pre-registrations
 
 **Three run results left `trigger_entry`'s registration and are kept here.**

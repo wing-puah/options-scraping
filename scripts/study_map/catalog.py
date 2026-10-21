@@ -431,12 +431,18 @@ STUDIES: dict[str, Study] = {
                 "door. Forward `{'STILL-OPEN': 2}`. Nothing ships.",
     ),
     "regime_confirm": Study(
-        family="selection", state="open",
+        family="selection", state="null",
         question="When SPY, QQQ, IWM or ^GSPC first turns mech BEAR after 20 quiet sessions, does "
                  "waiting for a 3-session BEAR streak, with 2 of 4 stress conditions agreeing "
                  "(RC1) or the index below its own 200-day SMA (RC-200), pick out the flips "
                  "followed by a 10% fall within 60 sessions more often than every flip does?",
-        verdict="Registered 2026-10-21, accepted by default; not yet run.",
+        verdict="Accepted by default and first run 2026-10-21 (yfinance closes to 2026-10-20; "
+                "no book export): `>>> regime_confirm RC1 on RC-H2 (QQQ+IWM, co-primary): NULL "
+                "<<<` on `rate 34.3% vs RC0 21.2%  diff +0.131 [-0.034, +0.327]`, and `>>> "
+                "regime_confirm RC-200 on RC-H1 (^GSPC 1950-1992, co-primary): NULL <<<` on `rate "
+                "13.6% vs RC0 9.3%  diff +0.043 [-0.074, +0.182]`, so `>>> regime_confirm "
+                "RETROSPECTIVE: RETRO-NULL <<<`. No secondary clears BH. `>>> regime_confirm "
+                "FORWARD (RC1 on RC-FWD, flips after 2026-10-21): STILL-OPEN <<<`. Nothing ships.",
     ),
     "direction_hit": Study(
         family="selection", state="null",

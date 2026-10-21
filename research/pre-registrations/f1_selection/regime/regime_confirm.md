@@ -1,7 +1,7 @@
 ## regime_confirm — does a confirmed mech BEAR flip predict a real sell-off better than the flip alone?
 
 <!-- outcome:start -->
-> Latest outcome: not run.
+> Latest outcome: `RETRO-NULL` (`RC1` on QQQ+IWM `NULL`, `RC-200` on ^GSPC 1950–1992 `NULL`); forward `STILL-OPEN` — yfinance closes to 2026-10-20, run 2026-10-21 · [record](../../../study-results/f1_selection/regime/regime_confirm.md).
 <!-- outcome:end -->
 
 _Registered 2026-10-21._
