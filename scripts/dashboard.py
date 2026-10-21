@@ -274,13 +274,32 @@ def gate_state() -> dict:
         floor = int(m[1]) if m else None
     except OSError:
         pass
-    n_dates = None
     pr = backtested_dates(RESULTS_CSV, PROXY_CSV)
-    book = book_state()
-    if book["ok"]:
-        n_dates = len({d_ for d_, _ in book["curve_all"] if d_ >= FORWARD_START})
+    fwd = forward_dip_days()
     return {"ok": g["ok"] or d["ok"] or b["ok"], "gate": g, "dip": d, "bench": b,
-            "verdict": verdict, "floor": floor, "fwd_dates": n_dates, "have_exports": pr is not None}
+            "verdict": verdict, "floor": floor, "fwd": fwd, "have_exports": pr is not None}
+
+
+def forward_dip_days(path: Path | None = None) -> dict | None:
+    """Sessions since FORWARD_START, and how many closed below SPY's 50-day SMA.
+
+    The dip test's binding floor is its BELOW arm, so the count that matters is
+    dip sessions, not all sessions. Same label as dip_buy (close < 50-day SMA).
+    """
+    path = path or MECH_CSV
+    try:
+        rows = list(csv.DictReader(open(path, encoding="utf-8")))
+    except OSError:
+        return None
+    closes = [(r["date"], float(r["spy_close"])) for r in rows if r.get("spy_close")]
+    days = dips = 0
+    for i, (d_, c) in enumerate(closes):
+        if d_ < FORWARD_START or i < 49:
+            continue
+        sma = sum(x for _, x in closes[i - 49:i + 1]) / 50
+        days += 1
+        dips += c < sma
+    return {"days": days, "dips": dips}
 
 
 # ── 6. studies ────────────────────────────────────────────────────────────────
@@ -496,11 +515,13 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
             b = gate[key]
             s.append(f'<h3>{e(title)}</h3><p class="sub">{e(what)}</p>')
             s.append(f'<blockquote>{e(b["text"])}</blockquote>' if b["ok"] else nocard(b["why"]))
-        if gate["floor"] and gate["fwd_dates"] is not None:
-            frac = min(1.0, gate["fwd_dates"] / gate["floor"])
+        if gate["floor"] and gate["fwd"]:
+            f = gate["fwd"]
+            frac = min(1.0, f["dips"] / gate["floor"])
             s.append(f'<h3>How much forward evidence is in</h3><p>The dip test needs at least {gate["floor"]} '
-                     f'forward signal days in each group. The book has priced <strong>{gate["fwd_dates"]}</strong> '
-                     f'day(s) since {FORWARD_START} in total, before splitting into groups.</p>'
+                     f'forward dip days (SPY closing below its 50-day average). Since {FORWARD_START} there have '
+                     f'been <strong>{f["dips"]}</strong> dip day(s) out of {f["days"]} sessions. The study itself '
+                     f'counts only dip days whose trades have finished, so its own count can be lower.</p>'
                      f'<div class="bar"><b style="width:{frac*100:.0f}%"></b></div>')
     else:
         s.append(nocard("the three outcome files were not found"))
@@ -658,7 +679,7 @@ def main(argv=None) -> int:
             print(f"  book: {b['n']} rows ({b['n_real']} real, {b['n_proxy']} proxy), {b['n_fin']} finished, "
                   f"{b['n_open']} open, {b['n_carried']} carried, win {b['win_rate']*100:.0f}%, "
                   f"forward {b['fwd_n']} rows")
-        print(f"  gate: {d['gate'].get('verdict')}, forward dates {d['gate'].get('fwd_dates')}/{d['gate'].get('floor')}")
+        print(f"  gate: {d['gate'].get('verdict')}, forward dip days {(d['gate'].get('fwd') or {}).get('dips')}/{d['gate'].get('floor')}")
         if d["studies"]["ok"]:
             print(f"  studies: {d['studies']['counts']}")
         if d["wait"]["ok"]:

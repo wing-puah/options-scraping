@@ -92,3 +92,16 @@ def test_render_survives_all_missing():
     bad = {"ok": False, "why": "gone"}
     page = d.render("2026-10-21", {"ok": False, "why": "gone"}, bad, bad, {"ok": False}, bad, bad)
     assert page.count("No data") >= 5
+
+
+def test_forward_dip_days_counts_below_sma(tmp_path):
+    p = tmp_path / "mech.csv"
+    rows = ["date,spy_close,vix_close"]
+    for i in range(60):
+        rows.append(f"2026-{7 + i // 28:02d}-{i % 28 + 1:02d},100,15")
+    rows.append("2026-09-24,90,20")   # below the flat 100 average
+    rows.append("2026-09-25,110,20")  # above
+    p.write_text("\n".join(rows) + "\n")
+    from scripts import dashboard as dash
+    assert dash.forward_dip_days(p) == {"days": 2, "dips": 1}
+    assert dash.forward_dip_days(tmp_path / "missing.csv") is None
