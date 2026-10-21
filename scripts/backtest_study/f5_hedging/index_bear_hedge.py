@@ -834,7 +834,11 @@ def main(argv=None) -> int:
     long_rate = print_base_rate()
 
     # ── the book ──────────────────────────────────────────────────────────
-    recs, diag = load_book(include_bs=False)
+    # Pending rows KEPT (include_pending=True). This study's registration
+    # grades `open_at_data_end` rows itself (G-OPEN counts them).
+    # The 2026-10-21 loader default would change what its gate reads.
+    # See lib/book.py, PENDING ROWS.
+    recs, diag = load_book(include_bs=False, include_pending=True)
     recs, seal = _apply_seal(recs)
     era_name = diag.get("era")
     n_nodh = sum(1 for r in recs if r.get("days_held") is None)

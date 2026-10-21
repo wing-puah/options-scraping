@@ -846,6 +846,7 @@ has grown since. One line each, with the entry that holds the story.
 | Junk quotes set the cost, the daily mark and the entry fill | RESOLVED, `ad701d7`; both tabs re-priced | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 | Research mirrors do not follow the junk-quote rule | RESOLVED, all four import production's functions | 2026-09-28 | below |
 | The book loader misreads the re-priced rows | RESOLVED by the three loader rulings | 2026-09-28 | [entry](current.md#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again) |
+| Open rows still inside their path window were graded on an interim mark | RESOLVED: the loader excludes them as pending | 2026-10-21 | [entry](current.md#2026-10-21--pending-open-rows-leave-the-outcome-book) |
 | Proxy `skip_reason` said `no_history` for snap-priced rows | RESOLVED for new rows; older rows keep the label | 2026-09-24 | [entry](current.md#2026-09-27--suite-re-run--ten-studies-stop-and-the-other-22-read-a-book-the-loader-misreads) |
 | Wide quotes just inside the junk line still dominate cost | RESOLVED by the width line | 2026-09-24 | [entry](current.md#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread) |
 
@@ -865,7 +866,7 @@ rulings are owed before the suite can run.
 | Ruling | Rows it touches | Default |
 |---|---|---|
 | Add the row's cost back before comparing, as `lib/mtm_curve.py` does | 559 real, 469 proxy | not changed |
-| Exclude `open_at_data_end` rows from outcome studies, or treat them as outcomes | 148 real, 44 proxy | admitted as outcomes |
+| Exclude `open_at_data_end` rows from outcome studies, or treat them as outcomes | 148 real, 44 proxy | admitted as outcomes; from 2026-10-21 a row still inside its window is excluded as pending ([entry](current.md#2026-10-21--pending-open-rows-leave-the-outcome-book)) |
 | Count a deferred exit fill as a superseded basis | 16 real, 12 proxy | HARD |
 
 `carried` rows (51 real, 44 proxy) fail with the open rows, on the same

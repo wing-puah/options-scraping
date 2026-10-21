@@ -196,7 +196,10 @@ def test_load_book_keeps_open_and_deferred_rows_and_counts_them(paths, capsys):
     real_open = _open_at_data_end_row()
     deferred = _stamp(_row(_winner(), ticker="BBB"), cost_total=2.60)
     deferred.update(ticker="BBB", exit_fill="deferred_2", days_held="7",
-                    proxy_method="strike_expiry_tweak")
+                    proxy_method="strike_expiry_tweak",
+                    # the export's data reaches the open row's window end, so
+                    # that row's window is CLOSED and it stays an outcome
+                    path_status="complete", path_data_end=GRID[-1].isoformat())
     _write(results, [real_open])
     _write(proxy, [deferred])
     recs, diag = book.load_book(results, proxy, None, check_era=False)
@@ -209,3 +212,109 @@ def test_load_book_keeps_open_and_deferred_rows_and_counts_them(paths, capsys):
     assert diag["path_outcomes"]["open_at_data_end"] == 1
     assert diag["path_outcomes"]["deferred_fill"] == 1
     assert "1 open_at_data_end" in capsys.readouterr().err
+    assert diag["pending"]["n"] == 0
+    assert diag["pending"]["n_closed_window_open"] == 1
+
+
+# ── ruling 2026-10-21: a row still inside its path window is PENDING ────────
+
+def _complete_row(ticker, data_end_idx):
+    """A finished row whose data reaches grid day `data_end_idx`: it sets the
+    export's as-of and is never itself pending."""
+    row = _stamp(_row(_winner()), cost_total=2.60)
+    row.update(ticker=ticker, path_status="complete",
+               path_data_end=GRID[data_end_idx - 1].isoformat())
+    return row
+
+
+def test_window_end_is_productions_path_end():
+    from scripts.backtest.shared.history import path_end
+    t = Trade(_open_at_data_end_row())
+    assert book.window_end(t) == path_end(SIGNAL, [EXPIRY], 120) == EXPIRY
+
+
+def test_is_pending_only_for_open_rows_with_a_session_left():
+    t_open = Trade(_open_at_data_end_row())
+    assert book.is_pending(t_open, GRID[DATA_END_IDX - 1]) is True
+    assert book.is_pending(t_open, EXPIRY) is False          # window closed
+    assert book.is_pending(t_open, EXPIRY - timedelta(days=1)) is True
+    t_done = Trade(_complete_row("CCC", 20))
+    assert book.is_pending(t_done, SIGNAL) is False         # never pending
+
+
+def test_a_window_ending_on_a_weekend_is_closed_by_the_friday_before():
+    sat = date(2024, 5, 4)
+    row = _open_at_data_end_row()
+    row["legs"] = f"AAA:{sat.isoformat()}:100:C +1"
+    t = Trade(row)                    # same weekday grid: Saturday adds no day
+    assert book.window_end(t) == sat
+    assert book.is_pending(t, EXPIRY) is False                # Friday 2024-05-03
+
+
+def test_load_book_excludes_a_pending_open_row_and_says_so(paths, capsys):
+    results, proxy = paths
+    pending = _open_at_data_end_row()                 # data end day 10
+    done = _complete_row("CCC", 20)                   # as-of = day 20 < window end
+    _write(results, [pending, done])
+    _write(proxy, [])
+    recs, diag = book.load_book(results, proxy, None, check_era=False)
+    assert [r["ticker"] for r in recs] == ["CCC"]
+    assert recs[0]["pending"] is False
+    assert diag["pending"]["as_of"] == GRID[19].isoformat()
+    assert diag["pending"]["n"] == 1
+    assert diag["pending"]["by_source"]["real"] == 1
+    assert diag["pending"]["n_closed_window_open"] == 0
+    assert diag["path_outcomes"]["open_at_data_end"] == 0
+    err = capsys.readouterr().err
+    assert "pending: 1 open_at_data_end rows" in err and "excluded" in err
+
+
+def test_load_book_admits_a_closed_window_open_row(paths, capsys):
+    results, proxy = paths
+    closed = _open_at_data_end_row()
+    done = _complete_row("CCC", len(GRID))            # as-of = the window end
+    _write(results, [closed, done])
+    _write(proxy, [])
+    recs, diag = book.load_book(results, proxy, None, check_era=False)
+    by_t = {r["ticker"]: r for r in recs}
+    assert set(by_t) == {"AAA", "CCC"}
+    assert by_t["AAA"]["exit_reason"] == "cap_open"
+    assert by_t["AAA"]["calibrated"] is True
+    assert len(by_t["AAA"]["t"].grid) == DATA_END_IDX
+    assert diag["pending"]["n"] == 0
+    assert diag["pending"]["n_closed_window_open"] == 1
+    assert "1 closed-window open rows kept" in capsys.readouterr().err
+
+
+def test_a_complete_row_is_untouched_by_the_pending_rule(paths):
+    results, proxy = paths
+    done = _complete_row("CCC", 20)
+    _write(results, [done])
+    _write(proxy, [])
+    recs, diag = book.load_book(results, proxy, None, check_era=False)
+    assert len(recs) == 1 and recs[0]["pending"] is False
+    assert recs[0]["exit_reason"] == "profit_target"
+    assert diag["pending"]["n"] == 0
+
+
+def test_include_pending_keeps_and_flags_the_pending_row(paths, capsys):
+    results, proxy = paths
+    _write(results, [_open_at_data_end_row(), _complete_row("CCC", 20)])
+    _write(proxy, [])
+    recs, diag = book.load_book(results, proxy, None, check_era=False,
+                                include_pending=True)
+    flags = {r["ticker"]: r["pending"] for r in recs}
+    assert flags == {"AAA": True, "CCC": False}
+    assert diag["pending"]["n"] == 1 and diag["pending"]["kept"] is True
+    assert "kept (include_pending)" in capsys.readouterr().err
+
+
+def test_a_pending_proxy_row_is_counted_under_its_source(paths):
+    results, proxy = paths
+    prox = _open_at_data_end_row()
+    prox.update(ticker="DDD", proxy_method="strike_expiry_tweak")
+    _write(results, [_complete_row("CCC", 20)])
+    _write(proxy, [prox])
+    recs, diag = book.load_book(results, proxy, None, check_era=False)
+    assert [r["ticker"] for r in recs] == ["CCC"]
+    assert diag["pending"]["by_source"] == {"real": 0, "tweak": 1}

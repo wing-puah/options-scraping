@@ -85,6 +85,24 @@ row:
   rows, and `load_book` prints that line to stderr so every study report that
   loads the book shows how much of its outcome is marks rather than closes.
 
+  PENDING ROWS (operator ruling, Resolved at build 2026-10-21). Since
+  `308be6a` the daily loop re-prices `open_at_data_end` rows in place as data
+  arrives, so an open row is one of two different things. A row whose path
+  window has NOT closed is PENDING: a trade still running, marked on an interim
+  day. `load_book` EXCLUDES it by default; it becomes an outcome on its own once
+  a later re-price finishes it. A row whose window HAS closed (the data simply
+  stopped, e.g. the contract stopped quoting) stays ADMITTED as the `cap_open`
+  outcome at its last mark, as ruled on 2026-09-28; dropping it would drop
+  illiquid losers. The window end is `path_end()` from
+  `scripts/backtest/shared/history.py` — `signal + min(nearest leg DTE, path
+  cap)`, the rule `simulate._simulate` and `plays.build_needed_ends` use. The
+  as-of it is compared with is the export's own data end: the latest
+  `path_data_end` across both exports (`export_as_of`). A window is closed when
+  no weekday session falls after the as-of and on or before its end
+  (`is_pending`). `diag["pending"]` and one stderr line give the counts.
+  `include_pending=True` keeps pending rows (each record carries `pending`), for
+  a study whose registration handles open rows itself.
+
   CREDIT — there is no single credit PROD that calibrates the accumulated
   sheet. Attempt 13 (2026-07-13) removed the credit stop (sl 1x -> None);
   `CREDIT_PROD` below is the POST-Attempt-13 profile, but `BacktestResults`
@@ -128,6 +146,7 @@ import csv
 import re
 import sys
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -137,7 +156,12 @@ sys.path.insert(0, str(ROOT))
 
 from lib.mech_regime import MechLabeler  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
-from scripts.backtest_study.lib.harness import Trade, _to_float  # noqa: E402
+from scripts.backtest_study.lib.harness import PATH_CAP_DAYS, Trade, _to_float  # noqa: E402
+# The window-end rule is REUSED from production, never re-derived: the same
+# function `plays.build_needed_ends` and the forward cache check call.
+from scripts.backtest.shared.history import (  # noqa: E402
+    path_end, weekday_sessions_between,
+)
 from scripts.backtest_study.lib import basis_audit  # noqa: E402
 from scripts.backtest_study.lib import prefill_audit  # noqa: E402
 from scripts.backtest_study.lib.replay_basis import (  # noqa: E402
@@ -436,6 +460,42 @@ def format_path_outcomes(po: Counter, n: int) -> str:
             f"{po['no_two_sided']} no_two_sided")
 
 
+# --- pending rows: still inside their path window (ruling 2026-10-21) --------
+
+def window_end(t: Trade):
+    """The last calendar day the row's path can reach: production's
+    `path_end` over the row's own legs and the harness path cap."""
+    return path_end(t.signal_date, [leg.expiration for leg in t.legs], PATH_CAP_DAYS)
+
+
+def export_as_of(trades: list[Trade]):
+    """The export's data end: the latest `path_data_end` any row carries, else
+    the latest signal date. A property of the data, not of the file's mtime."""
+    ends = [str(t.row.get("path_data_end") or "").strip()[:10] for t in trades]
+    ends = [e for e in ends if e]
+    if ends:
+        return date.fromisoformat(max(ends))
+    return max((t.signal_date for t in trades), default=None)
+
+
+def is_pending(t: Trade, as_of) -> bool:
+    """True for an `open_at_data_end` row whose window has not closed: a
+    weekday session still falls after `as_of` and on or before its end."""
+    if (t.row.get("path_status") or "").strip() != "open_at_data_end":
+        return False
+    if as_of is None:
+        return False
+    return weekday_sessions_between(as_of, window_end(t)) > 0
+
+
+def format_pending(pending: dict) -> str:
+    verb = "kept (include_pending)" if pending["kept"] else "excluded"
+    return (f"pending: {pending['n']} open_at_data_end rows still inside their path "
+            f"window at the export as-of {pending['as_of']} {verb}; "
+            f"{pending['n_closed_window_open']} closed-window open rows kept as "
+            f"cap_open outcomes")
+
+
 # --- main loader ---------------------------------------------------------------
 
 def load_book(results_csv: str | Path | None = None,
@@ -447,7 +507,8 @@ def load_book(results_csv: str | Path | None = None,
              era: str | None = None,
              check_era: bool = True,
              min_dates: int | None = None,
-             sealed_read: str | None = None) -> tuple[list[dict], dict]:
+             sealed_read: str | None = None,
+             include_pending: bool = False) -> tuple[list[dict], dict]:
     """Load the pooled real+proxy book across ALL structures.
 
     Returns (records, diag). `diag["counts_by_source"]` reflects the FULL
@@ -479,6 +540,11 @@ def load_book(results_csv: str | Path | None = None,
     stderr line say how many. A named reader sees the sealed dates from its own
     first date on. An unknown name raises. See
     `research/pre-registrations/f4_deployment/holdout_seal.md`.
+
+    `include_pending=False` drops every PENDING row (an `open_at_data_end` row
+    still inside its path window at the export as-of; see the module docstring)
+    and prints the count to stderr. `True` keeps them, each record flagged
+    `pending=True`, for a study whose registration grades open rows itself.
     """
     era = era or era_mod.requested_era()
     era_mod.seal_floor(sealed_read)  # an unknown reader name raises before any read
@@ -560,6 +626,21 @@ def load_book(results_csv: str | Path | None = None,
     mech_labeler, mech_warning = _load_mech_labeler(book_last_date)
     diag["mech_table_warning"] = mech_warning
 
+    # Pending rows: one as-of over BOTH exports, before any source filter.
+    as_of = export_as_of(real_trades + [t for t, _ in prox_trades])
+    pending_src: Counter = Counter()
+    closed_open_src: Counter = Counter()
+    pending_ids: set[int] = set()
+    for t, src in [(t, "real") for t in real_trades] + prox_trades:
+        if is_pending(t, as_of):
+            pending_src[src] += 1
+            pending_ids.add(id(t))
+        elif (t.row.get("path_status") or "").strip() == "open_at_data_end":
+            closed_open_src[src] += 1
+    if not include_pending:
+        real_trades = [t for t in real_trades if id(t) not in pending_ids]
+        prox_trades = [(t, s) for t, s in prox_trades if id(t) not in pending_ids]
+
     records: list[dict] = []
 
     for t in real_trades:
@@ -599,6 +680,17 @@ def load_book(results_csv: str | Path | None = None,
     allowed = set(sources) if sources is not None else (
         {"real", "tweak", "bs"} if include_bs else {"real", "tweak"})
     records = [r for r in records if r["source"] in allowed]
+    for r in records:
+        r["pending"] = id(r["t"]) in pending_ids
+
+    diag["pending"] = {
+        "as_of": as_of.isoformat() if as_of else None,
+        "kept": include_pending,
+        "n": sum(pending_src[s] for s in allowed),
+        "by_source": {s: pending_src[s] for s in sorted(allowed)},
+        "n_closed_window_open": sum(closed_open_src[s] for s in allowed),
+    }
+    print(format_pending(diag["pending"]), file=sys.stderr)
 
     # The holdout seal, applied to the returned book. Census line only.
     records, diag["seal"] = era_mod.drop_sealed(records, "date", sealed_read)

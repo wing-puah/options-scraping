@@ -102,6 +102,7 @@ Three arms, frozen. No fourth arm is added. Labels: [`exit_from_text E1`, `E2` a
 - Wording correction (2026-09-02, at build time): the gate admits `near` alongside `exact` and `boundary_tie`. A `near` row reproduces its stored exit reason and day with a pnl difference inside `replay_basis.NEAR_MISS_TOL`.
 - `superseded` and `hard` rows are dropped from the variant arms and counted in the printed census. Unlike `exit_mechanism_study.calibrate`, which fails the run, they do not. Every arm re-replays, so a non-reproducing row would add a delta measured against a baseline production never ran.
 - `Resolved at build (2026-09-28)`, operator ruling: since the 2026-09-24 re-price, a stored row is net of `cost_total` and stops at `path_data_end`. The comparison adds the row's cost back and replays the path cut at `path_data_end` (`lib/replay_basis.py`). So an `open_at_data_end` row matches as the `cap_open` outcome it is. A row with blank `cost_basis` is compared as before. A deferred exit fill (`exit_fill` = `deferred_<n>`) is its own `deferred_fill` class, kept as an outcome and never compared. The gate's bar is unchanged. `deferred_fill` rows leave the variant arms with `superseded` ones, counted in the census.
+- `Resolved at build (2026-10-21)`, operator ruling: a pending row is no longer in the book. It is an `open_at_data_end` row still inside its path window at the export's data end (`lib/book.py::is_pending`). A row whose window has closed still matches as `cap_open`. The gate's bar is unchanged.
 
 ## Gates
 

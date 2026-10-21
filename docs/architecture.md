@@ -579,6 +579,18 @@ in the family folders concluded.
     compared. `no_two_sided` rows are compared as normal.
   `load_book` prints the returned book's `open_at_data_end`, `carried`, deferred and
   `no_two_sided` counts to stderr, so every report that loads the book carries them.
+  Resolved at build (2026-10-21), operator ruling on open rows:
+  - An `open_at_data_end` row still inside its path window is PENDING, and
+    `load_book` drops it by default (`book.is_pending`). It prints a `pending:` line to
+    stderr, and `diag["pending"]` holds the counts.
+  - The window end is production's `shared/history.py::path_end`: signal plus
+    min(nearest leg DTE, path cap). The as-of is the latest `path_data_end` across both
+    exports. A window is closed when no weekday session falls after the as-of and on or
+    before its end.
+  - A closed-window open row stays a `cap_open` outcome at its last mark, as before.
+  - `include_pending=True` keeps pending rows, flagged `pending` on each record.
+    `adaptive_ladder`, `refuse_floor_forward` and `index_bear_hedge` pass it, because
+    their registrations grade open rows themselves.
 - `lib/underlying.py` — daily stock bars (real OHLC → `Price~` close-only fallback; the all-legs
   widening harness.py must not get). `lib/underlying_features.py` — as-of-entry price-STATE
   columns (rv20/rv_parkinson/semivar_dn/atr14_pct/eff_ratio/vrp/beta; the OHLC-only two carry

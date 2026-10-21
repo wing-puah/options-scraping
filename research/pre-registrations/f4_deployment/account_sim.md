@@ -126,6 +126,10 @@ Four gates. A failure exits non-zero.
   - A deferred exit fill (`exit_fill` = `deferred_<n>`) is its own
     `deferred_fill` class. It is kept as an outcome and never compared.
   - The gate's bar is unchanged.
+  - Resolved at build (2026-10-21), operator ruling: a pending row is no
+    longer in the book. It is an `open_at_data_end` row still inside its path
+    window at the export's data end (`lib/book.py::is_pending`). A row whose
+    window has closed still matches as `cap_open`. The gate's bar is unchanged.
 - **G3 — ledger self-check.** At every session,
   `cash + Σreserved == 25,000 + Σrealized-to-date`.
 - **G4 — selection identity.** The unconstrained pick set equals

@@ -544,7 +544,11 @@ def main() -> int:
     print(f"forward: signal dates >= {seal_start} (lib/era.py SEAL_START); seal lifted: "
           f"{era_mod.SEAL_LIFTED or 'no'}")
 
-    recs, diag = load_book()
+    # Pending rows KEPT (include_pending=True). This study's registration
+    # grades `open_at_data_end` rows itself (never known, counted at the stored mark).
+    # The 2026-10-21 loader default would change what its gate reads.
+    # See lib/book.py, PENDING ROWS.
+    recs, diag = load_book(include_pending=True)
     rows, counts = prepare(recs, labeler)
     print(f"\nera {diag['era']}: {len(rows)} non-veto labelled rows; dropped/flagged {dict(counts)}")
     graded_era = diag["era"] == FORWARD_ERA
@@ -567,7 +571,7 @@ def main() -> int:
         print(f"REPLICATION, {REPLICATION_ERA} — descriptive, not graded; R gross of costs")
         print("=" * 78)
         try:
-            recs3, diag3 = load_book(era=REPLICATION_ERA)
+            recs3, diag3 = load_book(era=REPLICATION_ERA, include_pending=True)
         except SystemExit as exc:
             print(f"{REPLICATION_ERA} not loaded: era refusal, exit {exc.code}")
         else:

@@ -470,7 +470,12 @@ def main(argv=None) -> int:
 
     # A named reader of the holdout seal: it sees its forward dates, while the
     # sealed gap before FIRST_FORWARD_DATE stays withheld (holdout_seal.md).
-    recs, diag = load_book(include_bs=False, sealed_read="refuse_floor_forward")
+    # Pending rows KEPT (include_pending=True). This study's registration
+    # grades `open_at_data_end` rows itself (the complete prefix stops before an open position).
+    # The 2026-10-21 loader default would change what its gate reads.
+    # See lib/book.py, PENDING ROWS.
+    recs, diag = load_book(include_bs=False, sealed_read="refuse_floor_forward",
+                           include_pending=True)
     print(f"  era {diag.get('era')}  book {len(recs)} rows  {diag.get('n_dates')} "
           f"dates  {diag.get('date_range')}")
     fwd = [r for r in recs if r["date"] >= FIRST_FORWARD_DATE]

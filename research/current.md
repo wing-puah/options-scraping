@@ -280,6 +280,95 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-21 — pending open rows leave the outcome book
+
+**A trade still inside its path window is no longer graded as an outcome.**
+The study loader drops it and says how many it dropped. Nothing ships:
+production, the backtest and the tabs are unchanged.
+
+Operator ruling, 2026-10-21, made by the main session on the operator's
+delegation. Population: the pre-reprice v4 exports in
+`backtests/to_evaluate/`, exported 2026-10-21 13:34, before the in-place
+re-price finished. Their latest `path_data_end` is 2026-10-16.
+
+### The rule
+
+- An `open_at_data_end` row whose path window has NOT closed is **pending**.
+  Outcome studies exclude it.
+- An `open_at_data_end` row whose window HAS closed stays a
+  [`cap_open`](glossary.md#cap_open) outcome at its last mark, as ruled on
+  [2026-09-28](#2026-09-28--loader-rulings-and-suite-re-run--the-book-reads-again).
+  Its data simply stopped, often because the contract stopped quoting.
+  Dropping it would drop illiquid losers.
+
+Why: a trade still inside its window is graded on an interim mark. Since
+`308be6a` the daily loop re-prices these rows in place, so each one becomes
+an outcome on its own once it finishes.
+
+### How the window is decided
+
+- **Window end.** `signal + min(nearest leg DTE, path cap)`. The loader calls
+  production's own `path_end()` in `scripts/backtest/shared/history.py`. That
+  is the function `plays.build_needed_ends` uses, and the same end
+  `simulate._simulate` computes. The [path cap](glossary.md#path-cap) is 120
+  days.
+- **As-of.** The latest `path_data_end` across both exports, called the
+  export's data end. It is a property of the data. A file's mtime changes on
+  a copy, and the latest signal date can trail the data.
+- **Closed.** No weekday session falls after the as-of and on or before the
+  window end. A window ending on a Saturday is closed by the Friday before.
+
+### What it does to the current exports
+
+Counts are rows in each file, before the loader's own filters.
+
+| Export | `open_at_data_end` | Pending, excluded | Window closed, kept |
+|---|---|---|---|
+| `BacktestResults` | 210 | 163 | 47 |
+| `BacktestProxy` | 84 | 65 | 19 |
+
+These are the pre-reprice exports. The re-price running now will finish
+some pending rows and move their data end, so the next export's counts
+will differ.
+
+### The rulings as built
+
+| Ruling | What the code does now | Where |
+|---|---|---|
+| Pending rows leave the book | `load_book` drops them by default and prints a `pending:` line to stderr. `diag["pending"]` holds the counts by source and the as-of. | `lib/book.py::is_pending`, `load_book` |
+| Closed-window open rows stay | Admitted as `cap_open` on the Trade cut at `path_data_end`, unchanged since 2026-09-28. | `lib/book.py`, `replay_basis.bounded` |
+| One window rule | The window end comes from production's `path_end()`, never a second copy. | `lib/book.py::window_end` |
+| Studies that grade open rows themselves keep them | `adaptive_ladder`, `refuse_floor_forward` and `index_bear_hedge` pass `include_pending=True`. Each record carries `pending`. | the three study modules |
+
+### What is unresolved
+
+- **Three registered studies keep pending rows.** Their registrations say
+  what to do with an open row, and the new default would change what their
+  gates read.
+  - [`adaptive_ladder`](arm-index.md#adaptive_ladder) counts an open row at
+    its stored mark and never treats it as known.
+  - [`refuse_floor_forward`](arm-index.md#refuse_floor_forward) stops its
+    complete prefix before the first date holding an open position.
+  - `index_bear_hedge`'s G-OPEN gate counts open rows in the sleeve.
+
+  None of the three registrations was tagged. Bringing `adaptive_ladder`
+  under the ruling needs an operator decision.
+- **Four registrations were tagged.** `account_sim`, `hedge_timing`,
+  `exit_from_text` and `volume_signal` each carry the 2026-09-28 calibration
+  clause. Each gained a `Resolved at build (2026-10-21)` line: pending rows
+  leave the book, and the gate's bar is unchanged.
+- **Recent dates keep their fast exits.** On a date inside the window, the
+  rows that already hit a stop or target stay, while their still-open
+  siblings leave. A study pooling recent dates leans toward quick exits until
+  the re-price finishes those rows. `refuse_floor_forward`'s complete prefix
+  guards against this; the default loader does not.
+- **`ticker_class_regime` is a draft.** Its GR1 counts open rows and now sees
+  only closed-window ones. Its author should say which it means before it is
+  accepted.
+
+Next: the item in [`next-steps.md` §2.11](next-steps.md#s2-11)
+is marked resolved.
+
 ## 2026-10-21 — regime_confirm: a BEAR flip that persists is not a proven sell-off signal
 
 **Waiting for a mech BEAR flip to hold, with other stress signs agreeing, did
