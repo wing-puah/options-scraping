@@ -95,6 +95,10 @@ unadjusted Close.
 met**. The event stays in the arm's base; it is not dropped. The count of such events is printed
 per condition.
 
+_Resolved at build (2026-10-21):_ a condition reads its series' last close on or before the
+decision date. It is missing only when no such close exists, or when the series is too short for
+its 200-day SMA or its 20-session change.
+
 **Market-wide on every ticker.** The four conditions read the series in the table above,
 whatever the flip ticker. On a QQQ or IWM flip, `C-200` still reads SPY's close and SPY's
 200-day SMA.
@@ -138,6 +142,8 @@ whatever the flip ticker. On a QQQ or IWM flip, `C-200` still reads SPY's close 
   scope and printed as a case.
 - **Censoring.** An event with fewer than 60 sessions of closes after its decision date is
   excluded from that rule's rate and counted. Forward events are graded once their window closes.
+  _Resolved at build (2026-10-21):_ a flip still BEAR at the data end, with fewer than k
+  sessions so far, is not yet an event of a rule that waits for k. It is counted as pending.
 
 ## Plan-time observations, disclosed
 
@@ -219,6 +225,11 @@ They ask whether the wait alone, or the conditions alone, carry the effect. If `
   ties a QQQ flip to the IWM flip of the same sell-off.
 - **CI.** 95% percentile bootstrap, resampling clusters with replacement, both rates from the same
   draw, 10,000 draws, seed 20260811.
+
+_Resolved at build (2026-10-21):_ "60 SPY sessions" is counted on the ^GSPC session calendar.
+It is the same NYSE calendar as SPY's from 1993, and the only one before. For each arm-versus-`RC0`
+comparison, the arm's and `RC0`'s events are chained together, so one draw resamples both. The
+`RC-G2` cluster count is the number of those joint clusters that hold an arm event.
 - **Printed beside it**, for every arm and scope, from each event's decision close:
 
 | Secondary outcome | Definition |
@@ -232,11 +243,16 @@ They ask whether the wait alone, or the conditions alone, carry the effect. If `
 
 Medians carry a cluster-bootstrap CI on the same draws. Secondaries carry no verdict.
 
+_Resolved at build (2026-10-21):_ recall counts a real-shift flip as caught when the arm acts on
+that flip, whatever the arm's own outcome from its later decision close.
+
 ## Gates
 
 - **`RC-G0`, data.** Every series loads with `auto_adjust=False` and no gap over 5 sessions in
   its graded span. The SPY BEAR labels match the repo's mech table on every shared date. Either
-  failure refuses the run (exit 2).
+  failure refuses the run (exit 2). _Resolved at build (2026-10-21):_ a gap is the count of
+  ^GSPC sessions missing between two consecutive closes; for ^GSPC itself, the weekdays between
+  them. It is checked over each series' whole fetched span.
 - **`RC-G1`, causality.** Every condition and label for a decision date uses closes on or before
   it. Every outcome uses closes strictly after it. The module asserts both per event.
 - **`RC-G2`, floors.** An arm in a scope needs **20 uncensored events in 12 or more clusters**,
@@ -276,7 +292,9 @@ Medians carry a cluster-bootstrap CI on the same draws. Secondaries carry no ver
 intersection-union test, so each is tested at 5% with no correction. The secondary arms (`RC-P`
 on both scopes, `RC-C`, `RC-200` on `RC-H2`) form one family under
 [BH](../../../glossary.md#bh) at q < 0.05. They are printed, and none carries
-a verdict.
+a verdict. _Resolved at build (2026-10-21):_ each p-value is two-sided, from the same bootstrap
+draws: twice the smaller share of draws at or below 0 and at or above 0. A member below its floor
+enters the family at p = 1, so the family size stays 4.
 
 **The verdict of record** is the first run that prints a retrospective token, and separately the
 first forward run that prints a token other than `STILL-OPEN`. Later runs are descriptive.

@@ -8,6 +8,7 @@
     dip_buy.py              do Tier A/B positions do better after SPY closes below its 50-day SMA?
     adaptive_ladder.py      does re-choosing the selection rule from trailing results beat the ladder?
     regime_map.py           each ladder tier against each market label: where does it make or lose money?
+    regime_confirm.py       does a mech BEAR flip that persists, with stress signs agreeing, predict a 10% fall?
 
 `mech_regime_recut` and `regime_gap_reread` do their work at MODULE level, which
 is why the runner reads docstrings with `ast` instead of importing.

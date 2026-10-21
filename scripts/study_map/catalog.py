@@ -430,6 +430,14 @@ STUDIES: dict[str, Study] = {
                 "POSITIVE, A x RM-SMA=below POSITIVE <<<`, both the dip_buy lead from another "
                 "door. Forward `{'STILL-OPEN': 2}`. Nothing ships.",
     ),
+    "regime_confirm": Study(
+        family="selection", state="open",
+        question="When SPY, QQQ, IWM or ^GSPC first turns mech BEAR after 20 quiet sessions, does "
+                 "waiting for a 3-session BEAR streak, with 2 of 4 stress conditions agreeing "
+                 "(RC1) or the index below its own 200-day SMA (RC-200), pick out the flips "
+                 "followed by a 10% fall within 60 sessions more often than every flip does?",
+        verdict="Registered 2026-10-21, accepted by default; not yet run.",
+    ),
     "direction_hit": Study(
         family="selection", state="null",
         question="Does anything known at entry (17 fixed features: market labels, SPY and VIX, "

@@ -12,8 +12,9 @@ Two tiers:
   DEFAULT   local scratch. Rebuilt by re-running a script — no network, minutes
             at most. This is what `make clean` deletes.
   --caches  network-backed caches and Drive pulls (`audit/`, the OHLC cache, the
-            sweep checkpoint, the regime table). Rebuilding them means refetching,
-            so they are opt-in and a bare run never touches them.
+            sweep checkpoint, the regime table, the regime_confirm closes).
+            Rebuilding them means refetching, so they are opt-in and a bare
+            run never touches them.
 
 `backtests/study_output/` is deliberately NOT a target here: it has its own
 cleaner, `scripts/clean_study_output.py`, whose pin scan protects reports that
@@ -242,6 +243,13 @@ TARGETS: tuple[Target, ...] = (
         globs=("backtests/mech_regime/*.csv",),
         what="local copy of the SPY/VIX regime table (copy of record is on Drive)",
         regen="make mech-regime",
+        expensive=True,
+    ),
+    Target(
+        name="regime-confirm",
+        globs=("backtests/regime_confirm/*.csv",),
+        what="regime_confirm yfinance closes (^GSPC from 1950, SPY, QQQ, IWM, HYG, IEF, ^VIX, ^VIX3M)",
+        regen="python3 -m scripts.backtest_study.f1_selection.regime.regime_confirm --refresh",
         expensive=True,
     ),
 )

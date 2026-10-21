@@ -381,7 +381,7 @@ zero, with [BH](glossary.md#bh) across the era's whole map.
 
 #### `regime_confirm`
 
-_Registered in [`pre-registrations/f1_selection/regime/regime_confirm.md`](pre-registrations/f1_selection/regime/regime_confirm.md) · no module yet_
+_Registered in [`pre-registrations/f1_selection/regime/regime_confirm.md`](pre-registrations/f1_selection/regime/regime_confirm.md) · module `f1_selection/regime/regime_confirm.py`_
 
 Accepted by default 2026-10-21. The study asks whether a mech BEAR
 [flip](glossary.md#regime-flip) that persists, with other stress signs
