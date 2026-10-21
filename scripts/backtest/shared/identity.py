@@ -172,11 +172,16 @@ def reprice_changed(new: dict, old: dict) -> bool:
 
     Only a PRICED re-price can (``realized_pnl_pct`` set): a re-price that now
     prices nothing keeps the old row. A re-price whose ``path_data_end`` is
-    EARLIER than the stored one is a regression (a refetch that came back
-    shorter) and keeps the old row too. Otherwise it replaces the stored row
-    when any :data:`SIMULATED_COLUMNS` cell differs — a later data end, a new
-    exit, or only different marks. An identical re-price would delete and
-    append the same row, so it is dropped and the run stays idempotent.
+    EARLIER than the stored one is a regression and keeps the old row too.
+
+    * An OPEN stored row (``open_at_data_end``) is replaced when the re-price
+      says something new about the path: a later ``path_data_end``, or a new
+      ``path_status`` or ``exit_reason`` (the 308be6a rule, unchanged).
+    * A FINISHED stored row (a cache-changed re-price) is replaced when any
+      :data:`SIMULATED_COLUMNS` cell differs — a new exit, or only marks.
+
+    An identical re-price would delete and append the same row, so it is
+    dropped and the run stays idempotent.
     """
     if new.get("realized_pnl_pct") in (None, ""):
         return False
@@ -184,7 +189,11 @@ def reprice_changed(new: dict, old: dict) -> bool:
     old_end = _parse_analysis_date(old.get("path_data_end", ""))
     if new_end is not None and old_end is not None and new_end < old_end:
         return False
-    return bool(changed_columns(new, old))
+    if str(old.get("path_status", "")).strip() != OPEN_AT_DATA_END:
+        return bool(changed_columns(new, old))
+    if new_end is not None and (old_end is None or new_end > old_end):
+        return True
+    return any(not _same_cell(new.get(c), old.get(c)) for c in ("path_status", "exit_reason"))
 
 
 # ─── Re-pricing rows whose price cache changed (2026-10-21) ───────────────────
@@ -218,6 +227,28 @@ def leg_cache_files(row: dict, cache_dir: Path | None = None) -> list[Path]:
     legs = parse_legs(row.get("legs", "")) or []
     return [cache_path(cache_dir or HISTORY_CACHE, lg.ticker, lg.expiration, lg.strike,
                        lg.opt_type) for lg in legs]
+
+
+def _leg_set(text) -> set:
+    return {(lg.ticker, lg.expiration, round(lg.strike, 4), lg.opt_type, lg.qty)
+            for lg in (parse_legs(text or "") or [])}
+
+
+def same_legs(new: dict, old: dict) -> bool:
+    """Do two rows hold the same position (the ``legs`` column, parsed)?"""
+    return _leg_set(new.get("legs")) == _leg_set(old.get("legs"))
+
+
+def pin_stored_expiry(candidate: dict, row: dict) -> None:
+    """Pin a candidate's expiry to its stored row's, when the row has one.
+
+    A play whose text names no expiry takes the nearest CACHED one
+    (`classify._resolve_expiry`), so a file added since the row was written can
+    rebuild it on another contract. A cache-changed re-price must re-price the
+    stored position, so the expiry is pinned (``candidate["expiry_pin"]``)."""
+    exps = {lg.expiration for lg in (parse_legs(row.get("legs", "")) or [])}
+    if len(exps) == 1:
+        candidate["expiry_pin"] = exps.pop()
 
 
 def watch_keys(rows: dict) -> set:
@@ -255,19 +286,29 @@ def cache_changed_keys(rows: dict, cache_dir: Path | None = None) -> set:
     return out
 
 
-def split_repriced(results: list[dict], reprice_rows: dict) -> tuple[list[dict], set]:
+def split_repriced(results: list[dict], reprice_rows: dict,
+                   same_legs_keys=frozenset()) -> tuple[list[dict], set]:
     """``(results to write, keys to delete first)``.
 
     A result whose key is in ``reprice_rows`` is kept only when
     :func:`reprice_changed` says so, and only then is its key deleted. Every
     other result passes through untouched. A re-priced play with NO result
-    (skipped, refused) is simply absent: its old row is never deleted.
+    (skipped, refused) is simply absent: its old row is never deleted. A key in
+    ``same_legs_keys`` (a cache-changed re-price) is also kept only when it
+    rebuilt the stored legs (:func:`same_legs`).
     """
     kept, replace = [], set()
     for r in results:
         k = _row_key(r)
         if k not in reprice_rows:
             kept.append(r)
+        elif k in same_legs_keys and not same_legs(r, reprice_rows[k]):
+            # A cache-changed re-price must price the STORED position. One that
+            # rebuilt on other legs is a re-classification: `--redo` decides it.
+            log.warning("re-price keeps %s %s %s: rebuilt on other legs (%s vs stored "
+                        "%s); --redo to replace it", k[0], k[1], k[2][:30],
+                        str(r.get("legs", "")).replace("\n", " / "),
+                        str(reprice_rows[k].get("legs", "")).replace("\n", " / "))
         elif reprice_changed(r, reprice_rows[k]):
             log.info("re-price replaces %s %s %s: %s", k[0], k[1], k[2][:30],
                      ", ".join(changed_columns(r, reprice_rows[k])))

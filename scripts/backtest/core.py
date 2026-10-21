@@ -25,7 +25,8 @@ from .shared.history import (EXIT_NETWORK_OUTAGE, PLAN_MISSING, PLAN_SCRAPES, PL
                              NetworkOutage, fetch_option_histories, plan_option_histories)
 from .helpers import _contract_key
 from .shared.identity import (cache_changed_keys, find_untested, identity_key, keys_from_tab,
-                              open_keys, rows_from_tab, split_repriced, watch_keys)
+                              open_keys, pin_stored_expiry, rows_from_tab, split_repriced,
+                              watch_keys)
 from .shared.results_io import write_results
 from .simulate import validate_pricing_config
 
@@ -598,6 +599,14 @@ def main() -> None:
                     "--retry-proxied to re-fetch proxied plays.", source)
         sys.exit(0)
 
+    # A WATCHED row (finished, on the tab) is re-priced on its STORED position:
+    # pin its expiry so a cache file added since cannot rebuild it elsewhere.
+    watch = {k: r for k, r in reprice_rows.items() if k not in open_keys(reprice_rows)}
+    for c in candidates:
+        k = identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+        if k in watch:
+            pin_stored_expiry(c, watch[k])
+
     # Join per-ticker flow-rollup context (OIConfirmPct/CPIR/IVSpread/IVPct) onto each play.
     _attach_rollup_metrics(candidates)
     # The TF-S structure override gates on the market regime (positive-gamma grind),
@@ -620,7 +629,6 @@ def main() -> None:
     # WATCHED rows (finished, already on the tab) never cost a fetch: they
     # add no start or forward demand, and a contract only they use is held
     # off the scrape queue. They are re-priced only if their cache changed.
-    watch = {k: r for k, r in reprice_rows.items() if k not in open_keys(reprice_rows)}
     fetch_plays = [p for p in plays if _play_key(p) not in watch]
     fetch_contracts = {_contract_key(t, o, k, e.isoformat())
                        for p in fetch_plays for (t, o, k, e) in p.contracts}
@@ -675,6 +683,7 @@ def main() -> None:
     # A watched row is re-priced only when a leg file is now newer than the
     # row — judged AFTER the fetch, so a file this run just refreshed for an
     # open row moves every finished row that shares it in the same run.
+    stale: set = set()
     if watch:
         stale = cache_changed_keys(watch)
         plays = [p for p in plays if _play_key(p) not in watch or _play_key(p) in stale]
@@ -696,7 +705,7 @@ def main() -> None:
     if reprice_rows:
         n_back = sum(1 for r in results if identity_key(
             r.get("signal_date", ""), r.get("ticker", ""), r.get("play", "")) in reprice_rows)
-        results, replace_keys = split_repriced(results, reprice_rows)
+        results, replace_keys = split_repriced(results, reprice_rows, same_legs_keys=stale)
         log.info("re-price: %d of %d replaced, %d unchanged (nothing written), "
                  "%d not priced now (old row kept)", len(replace_keys), len(reprice_rows),
                  n_back - len(replace_keys), len(reprice_rows) - n_back)

@@ -448,6 +448,12 @@ def _resolve_expiry(
                 exp, dte, candidate["ticker"], horizon_dte,
             )
             exp = None
+    if exp is None and candidate.get("expiry_pin"):
+        # A re-price of a row already on a results tab rebuilds THAT row's
+        # position (shared/identity.py::pin_stored_expiry). The cache scan below
+        # can move as files are added, which would quietly re-price a different
+        # contract under the same identity.
+        exp = candidate["expiry_pin"]
     if exp is None:
         exp = _nearest_cached_expiry(
             cache_dir, candidate["ticker"], opt_type, K,

@@ -440,9 +440,9 @@ two prompt versions are never pooled.
   way only. **Two exceptions are re-priced in place by default on both CLIs.** A row stored
   `path_status = open_at_data_end` (its data ran out before an exit fired); `--no-reprice-open`
   skips it. And a finished row whose leg cache file is newer than its `created_datetime`
-  (another play's refresh rewrote a shared file), re-simulated with NO fetch;
-  `--no-reprice-stale` skips it. Either is replaced only when a column in
-  `identity.SIMULATED_COLUMNS` changed and the data end did not shrink; only replaced keys are
+  (another play's refresh rewrote a shared file), re-simulated on its stored legs with NO fetch;
+  `--no-reprice-stale` skips it. An open row is replaced on a later data end or a new
+  status/exit; a finished one when any `identity.SIMULATED_COLUMNS` cell changed; only replaced keys are
   deleted (CSV → delete → append). `shared/history.py` refetches a cached file that stops short
   of its path end, until a fetch dated on or after that end makes it final; it never unlinks a
   cache file. A cache file's mtime is its fetch time, so `backup_research_caches.py pull` keeps

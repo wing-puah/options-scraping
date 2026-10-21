@@ -715,3 +715,25 @@ def test_no_reprice_stale_skips_finished_rows(tmp_path, monkeypatch):
                                       {**_FINISHED, "mfe_abs": 180},
                                       extra_argv=["--no-reprice-stale"])
     assert simulated == [] and calls == []
+
+
+def test_cache_changed_reprice_on_other_legs_keeps_the_stored_row(tmp_path, monkeypatch):
+    moved = {**_FINISHED, "mfe_abs": 180,
+             "legs": "NVDA:2026-08-07:250:C +1\nNVDA:2026-08-07:270:C -1"}
+    calls, simulated, _ = _stale_main(tmp_path, monkeypatch, "2026-10-21 14:01:29", moved)
+    assert simulated == ["NVDA"]
+    assert not any(c[0] in ("delete", "append") for c in calls)
+
+
+def test_pin_stored_expiry_beats_the_cache_scan(tmp_path):
+    from backtest.classify import _resolve_expiry
+    c = {"ticker": "NVDA", "play": "bull call spread 250/270", "horizon": "swing",
+         "signal_date": date(2026, 6, 25)}
+    identity.pin_stored_expiry(c, _FINISHED)
+    assert c["expiry_pin"] == date(2026, 8, 21)
+    exp, skip = _resolve_expiry(c, "Call", 250.0, tmp_path)   # empty cache: no scan hit
+    assert exp == date(2026, 8, 21) and skip is None
+    calendar = {**_FINISHED, "legs": "NVDA:2026-08-21:250:C -1\nNVDA:2026-09-18:250:C +1"}
+    c2 = {}
+    identity.pin_stored_expiry(c2, calendar)                  # two expiries: no pin
+    assert "expiry_pin" not in c2

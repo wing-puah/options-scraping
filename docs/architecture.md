@@ -1917,9 +1917,9 @@ checked a file's start. Now both writers re-price such a row in place:
   or after the end is final. The proxy runs the same plan on the contracts its legs snap to
   (`proxy._refresh_forward`). A failed refetch keeps the file and its bars.
 - **Replace only on change.** `identity.split_repriced` keeps a re-priced row only when
-  `reprice_changed` holds: priced, no earlier `path_data_end`, and some
-  `identity.SIMULATED_COLUMNS` cell differs. Only those keys are deleted, in the `--redo`
-  order: local CSV, delete, append. An unchanged or unpriced re-price writes nothing.
+  `reprice_changed` holds: priced, no earlier `path_data_end`, and a later
+  `path_data_end` or a new `path_status`/`exit_reason`. Only those keys are deleted, in the
+  `--redo` order: local CSV, delete, append. An unchanged or unpriced re-price writes nothing.
 - **Preview.** `--dry-run` on either CLI prints `re-price open: N (stale-forward caches: M)`.
 
 **Finished rows whose cache changed are the second exception.** Added 2026-10-21. Plays
@@ -1932,12 +1932,16 @@ rows had been priced from, and `mechanical_benchmark`'s G5 mirror then disagreed
 - **Changed.** `identity.cache_changed_keys`: a leg file (from the row's `legs`) whose mtime
   is at least one second past `created_datetime`, both local time. It is judged after the
   run's fetches, so a file this run refreshed moves the rows sharing it in the same run.
-- **Replaced** by the same `reprice_changed` rule. `SIMULATED_COLUMNS` leaves out the
-  identity, `created_datetime`, and columns copied off the analysis row.
+- **Same position.** `identity.pin_stored_expiry` pins the stored expiry, because a play
+  naming none takes the nearest CACHED one and a new file can move it. A re-price that
+  still rebuilds other legs keeps the stored row (`same_legs`); `--redo` decides those.
+- **Replaced** when `reprice_changed` finds any `identity.SIMULATED_COLUMNS` cell changed
+  (marks included). That list leaves out the identity, `created_datetime`, and columns
+  copied off the analysis row.
 - **Proxy stamp.** The proxy stamps `created_datetime` after its probes, so a row is not
   older than the files it read.
 - **Restores.** `backup_research_caches.py pull` keeps archived mtimes. A restore that did
-  not would make every row a candidate: one re-simulation each, writes only where changed.
+  not would turn every row into a candidate: one re-simulation each, writes only where changed.
 - **Preview.** `--dry-run` prints `re-price cache-changed: N`. `--no-reprice-stale` opts out.
 
 `path_data_end` reads only the option-history cache. The underlying OHLC cache does not feed

@@ -71,6 +71,7 @@ from .shared.identity import (
     cache_changed_keys,
     keys_from_tab,
     open_keys,
+    pin_stored_expiry,
     rows_from_csv,
     rows_from_tab,
     split_repriced,
@@ -978,6 +979,12 @@ def main() -> None:
     structure_veto = (cfg.get("entry") or {}).get("structure_veto") or ()
     # NB: pass the proxy: sub-config — the snap bounds (max_strike_steps /
     # max_expiry_deviation_days) are read off this dict, not the full cfg.
+    for c in untested:
+        # A watched row re-prices its STORED position (identity.pin_stored_expiry).
+        k = _identity_key(c["signal_date"], c["ticker"], c.get("play", ""))
+        if k in watch:
+            pin_stored_expiry(c, watch[k])
+    changed: set = set()
     try:
         built = [(classify_and_build(c, spread_pct, None, structure_veto), c)
                  for c in untested]
@@ -997,7 +1004,7 @@ def main() -> None:
                 for pr, c in built if _key(c) not in watch]
         # Judged AFTER every fetch above (forward refresh, probes), so a file
         # this run rewrote moves the finished rows that share it in this run.
-        changed = cache_changed_keys(watch) if watch else set()
+        changed = cache_changed_keys(watch) if watch else changed
         print(f"re-price cache-changed: {len(changed)} of {len(watch)} watched (no fetch)")
         rows += [_evaluate(*pr, c, proxy_cfg, sim_cfg, spread_pct, created, False)
                  for pr, c in built if _key(c) in changed]
@@ -1020,7 +1027,7 @@ def main() -> None:
     # results_io.write_results), so a Sheets failure never loses the run.
     replace_keys: set = set()
     if reprice_rows:
-        rows, replace_keys = split_repriced(rows, reprice_rows)
+        rows, replace_keys = split_repriced(rows, reprice_rows, same_legs_keys=changed)
         log.info("re-price: %d of %d proxy row(s) replaced; the rest unchanged or "
                  "not priced now (old rows kept, nothing written)",
                  len(replace_keys), len(reprice_rows))
