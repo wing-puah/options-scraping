@@ -239,15 +239,11 @@ study-map-open:
 # book, keep-or-kill rule, studies, what waits on you). Local files only, never
 # journal/ or portfolio/. Writes site/dashboard.html, plus site/flow-edge-ledger.html copied
 # from the hand-maintained research/flow-edge-ledger.html (linked from the dashboard).
-.PHONY: dashboard dashboard-open ledger-open
+# Builds both, then opens the dashboard (the daily loop calls the script directly, so it never opens).
+.PHONY: dashboard
 dashboard:
 	$(PY) scripts/dashboard.py $(ARGS)
-
-dashboard-open: dashboard
 	@open site/dashboard.html 2>/dev/null || echo "built site/dashboard.html"
-
-ledger-open: dashboard
-	@open site/flow-edge-ledger.html 2>/dev/null || echo "built site/flow-edge-ledger.html"
 
 # Per-study last-run status, no HTML — the check the map's data feeds but
 # never itself gates on.
@@ -533,7 +529,7 @@ help:
 	@echo ""
 	@echo "  make study-map      MAP: rebuild site/study-map.html (what each study asks + its last run)"
 	@echo "  make study-map-open   rebuild it and open it in a browser"
-	@echo "  make dashboard        plain-English project dashboard -> site/dashboard.html (dashboard-open / ledger-open to view)"
+	@echo "  make dashboard        plain-English project dashboard -> site/dashboard.html (builds + opens it)"
 	@echo "  make study-check    per-study last-run status, no HTML"
 	@echo ""
 	@echo "  make study-chart    CHART: render account_sim's result → study_output fragment + site/account-sim-charts.html"
