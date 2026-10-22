@@ -151,13 +151,13 @@ def test_method1_snaps_to_nearest_cached_strike_and_prices_from_barchart(cache_d
     assert play.legs == [bt.Leg(1, "NVDA", EXP, 250.0, "Call")]
 
     # No cache for the exact 250C; a 255C (1 strike-step away at the inferred/
-    # fallback step of 5.0) has history covering the signal window. The fixture
-    # writes Open = bid, so under the default entry_timing (next_open) the fill
-    # is the day-after-signal Open of 9.8.
+    # fallback step of 5.0) has history covering the signal window. Under the
+    # default entry_timing (next_open) the fill is the day-after-signal CLOSING
+    # mid of 10.0, never its Open (the fixture writes Open = bid = 9.8).
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),    # signal-day mark 8.5
-        ("2026-06-02", 250.0, "45.0", "0.55", 9.8, 10.2),   # entry Open 9.8
-        ("2026-06-03", 250.0, "45.0", "0.55", 15.5, 16.5),  # exit mark 16.0 (+63%)
+        ("2026-06-02", 250.0, "45.0", "0.55", 9.8, 10.2),   # entry mid 10.0
+        ("2026-06-03", 250.0, "45.0", "0.55", 15.5, 16.5),  # exit mark 16.0 (+60%)
     ])
 
     pool = bt._cache_contracts("NVDA")
@@ -171,15 +171,15 @@ def test_method1_snaps_to_nearest_cached_strike_and_prices_from_barchart(cache_d
     assert proxy_method == "strike_expiry_tweak"
     assert "→" in detail
     assert "255" in used_legs
-    assert result["entry_option_price"] == pytest.approx(9.8)
-    assert result["entry_source"] == "barchart_open"
+    assert result["entry_option_price"] == pytest.approx(10.0)
+    assert result["entry_source"] == "barchart_close_mid"
     assert result["exit_reason"] == "profit_target"
-    assert result["realized_pnl_pct"] == pytest.approx(0.6327, abs=0.001)
+    assert result["realized_pnl_pct"] == pytest.approx(0.6, abs=0.001)
 
 
 def test_method1_signal_eod_timing_reproduces_legacy_entry(cache_dir):
-    # entry_timing: signal_eod must reproduce the old basis — the signal day's
-    # EOD mark (mid bid/ask), never the next day's Open.
+    # entry_timing: signal_eod fills at the signal day's closing mid, never the
+    # next day's quote.
     c = _long_call_candidate()
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
@@ -195,7 +195,7 @@ def test_method1_signal_eod_timing_reproduces_legacy_entry(cache_dir):
     assert outcome is not None
     _method, _detail, result, _used = outcome
     assert result["entry_option_price"] == pytest.approx(8.5)
-    assert result["entry_source"] == "barchart"
+    assert result["entry_source"] == "barchart_close_mid"
     assert result["exit_reason"] == "profit_target"
     assert result["realized_pnl_pct"] == pytest.approx(0.8824, abs=0.001)
 
@@ -233,7 +233,7 @@ def test_method1_keeps_vertical_legs_on_one_snapped_expiry(cache_dir):
     far = date(2026, 6, 26)
     _write_history(cache_dir, "NVDA", far, 250.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
-        ("2026-06-02", 255.0, "45.0", "0.60", 15.0, 17.0),
+        ("2026-06-02", 255.0, "45.0", "0.60", 15.5, 16.5),
     ])
     _write_history(cache_dir, "NVDA", EXP, 260.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.30", 5.0, 6.0),
@@ -241,7 +241,7 @@ def test_method1_keeps_vertical_legs_on_one_snapped_expiry(cache_dir):
     ])
     _write_history(cache_dir, "NVDA", far, 260.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.32", 4.0, 5.0),
-        ("2026-06-02", 255.0, "45.0", "0.37", 6.0, 8.0),
+        ("2026-06-02", 255.0, "45.0", "0.37", 6.8, 7.2),
     ])
 
     pool = bt._cache_contracts("NVDA")
@@ -406,7 +406,7 @@ def test_evaluate_relabels_no_history_when_the_snap_prices_a_neighbour(cache_dir
                        "2026-07-06T10:00:00", False)
 
     assert row["proxy_method"] == "strike_expiry_tweak"
-    assert row["entry_source"] == "barchart_open"
+    assert row["entry_source"] == "barchart_close_mid"
     assert row["skip_reason"] == proxy.SNAP_PRICED == "snap_priced"
     assert "→" in row["proxy_detail"]
 
@@ -474,7 +474,7 @@ def test_evaluate_row_schema_and_decimal_percentages(cache_dir):
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
-        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.5, 16.5),
     ])
 
     row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
@@ -646,7 +646,7 @@ def test_evaluate_stamps_exit_basis_on_a_priced_tier(cache_dir):
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
-        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.5, 16.5),
     ])
 
     row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
@@ -725,7 +725,7 @@ def test_evaluate_leaves_cost_basis_blank_when_costs_are_off(cache_dir):
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
-        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.5, 16.5),
     ])
 
     row = bt._evaluate(play, None, c, _CFG, _SIM_CFG, _SPREAD_PCT,
@@ -874,7 +874,7 @@ def test_refresh_forward_plans_the_snapped_contracts(monkeypatch, cache_dir):
     play, _reason = bt.classify_and_build(c, _SPREAD_PCT)
     _write_history(cache_dir, "NVDA", EXP, 255.0, "Call", [
         ("2026-06-01", 250.0, "45.0", "0.55", 8.0, 9.0),
-        ("2026-06-02", 250.0, "45.0", "0.55", 15.0, 17.0),
+        ("2026-06-02", 250.0, "45.0", "0.55", 15.5, 16.5),
     ])
     seen = {}
 

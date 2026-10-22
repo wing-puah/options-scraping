@@ -169,28 +169,38 @@ def test_a_bidless_junk_day_with_no_trade_is_capped_by_the_b5_mark():
 # ── entry ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("row,qty,expected", [
-    (_row(2.545, bid="0.09", ask="5.00"), +1, (None, "junk_entry_quote")),
-    (_row(2.545, bid="0.09", ask="5.00"), -1, (0.09, "barchart_side")),
+    # Bought into a wide two-sided junk quote: its mid (ruling 2026-10-23, option C).
+    (_row(2.545, bid="0.09", ask="5.00"), +1, (2.545, "barchart_close_mid_wide")),
+    (_row(2.545, bid="0.09", ask="5.00"), -1, (0.09, "barchart_close_side")),
     (_row(2.40, bid="0.00", ask="4.80", latest="0.07", volume="103"), -1,
-     (0.0, "barchart_side")),                         # no bid: nothing received
+     (0.0, "barchart_close_side")),                   # no bid: nothing received
+    # Traded that day: until 2026-10-23 this filled at the 0.09 Open print.
     (_row(2.40, bid="0.00", ask="4.80", latest="0.07", volume="103", open_="0.09"),
-     +1, (0.09, "barchart_open")),
+     +1, (None, "junk_entry_quote")),
     (_row(0.065, bid="0.05", ask="0.08", open_="0.06"), +1, None),   # not junk
 ])
 def test_junk_entry_fill(row, qty, expected):
-    assert sim._junk_entry_fill(row, qty) == expected
+    got = sim._junk_entry_fill(row, qty)
+    if expected is None or expected[0] is None:
+        assert got == expected
+    else:
+        assert got[1] == expected[1] and got[0] == pytest.approx(expected[0])
 
 
-def test_a_carried_junk_row_never_fills_at_its_old_open():
+def test_a_junk_row_never_fills_at_its_open_or_latest():
     row = _row(2.40, bid="0.00", ask="4.80", latest="0.07", volume="103", open_="0.09")
-    assert sim._junk_entry_fill(row, +1, open_print=False) == (0.07, "barchart_last")
+    for qty in (+1, -1):
+        price, _ = sim._junk_entry_fill(row, qty)
+        assert price not in (0.07, 0.09)
 
 
-def test_a_bought_leg_into_a_junk_ask_is_refused_not_filled():
+def test_a_bought_leg_into_a_bidless_junk_quote_is_refused_not_filled():
+    """A bought leg on a junk quote with NO bid is refused. One with a bid
+    fills at its mid since 2026-10-23 (option C, tested above)."""
     refusal = {}
     legs = [bt.Leg(1, "HYG", EXP, 74.0, "Put")]
-    rows = {D[2]: _row(2.545, bid="0.09", ask="5.00", open_="0.10")}
-    series = {KEY: [(D[2], 2.545)]}
+    rows = {D[2]: _row(2.40, bid="0.00", ask="4.80", open_="0.10")}
+    series = {KEY: [(D[2], 2.40)]}
     entry_row = {"Strike": 74.0, "DTE": 45, "IV": "9", "Price~": "77",
                  "Expires": EXP.isoformat(), "_entry_date": ENTRY}
     cfg = {"profit_target": None, "stop_loss": None, "contracts": 1,

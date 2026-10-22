@@ -573,6 +573,25 @@ def _legs(*specs):
             for (q, t, e, k, ot) in specs]
 
 
+def _close_quotes(barchart_series):
+    """A zero-width closing quote (bid = ask = mark) behind every series mark.
+
+    Since 2026-10-23 an entry fills only off the entry day's closing bid/ask
+    (`simulate.entry_day_fill`), never off a bare series mark. The path tests
+    below were written to test exits, not entry pricing; this gives each mark
+    the quote that makes its closing mid equal the mark, so they keep testing
+    what they were written for."""
+    return {key: {d: {"Bid": str(m), "Ask": str(m), "_mark": m} for d, m in snaps}
+            for key, snaps in barchart_series.items()}
+
+
+def _sim_eod(cand, legs, entry_row, contract_index, barchart_series, sim_cfg, **kw):
+    """`bt._simulate` with `_close_quotes` as the details map, unless given."""
+    kw.setdefault("barchart_details", _close_quotes(barchart_series))
+    return bt._simulate(cand, legs, entry_row, contract_index, barchart_series,
+                        sim_cfg, **kw)
+
+
 def test_simulate_barchart_entry_and_real_exit():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": "BULL + L-VOL"}
@@ -586,11 +605,11 @@ def test_simulate_barchart_entry_and_real_exit():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["reappearance"]}
 
-    res = bt._simulate(cand, legs, entry_row, contract_index, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, contract_index, barchart_series, sim_cfg,
+                   structure="long_call")
 
     assert res["entry_option_price"] == 8.0
-    assert res["entry_source"] == "barchart"
+    assert res["entry_source"] == "barchart_close_mid"
     assert res["legs"] == "NVDA:2026-07-17:250:C +1"
     # Per-leg raw breakdown is line-aligned with legs and validates the net.
     assert res["entry_leg_detail"].startswith("NVDA:2026-07-17:250:C +1  px=8")
@@ -611,8 +630,8 @@ def test_simulate_barchart_takes_precedence_over_reappearance():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "exit_sources": ["barchart", "reappearance"], "contracts": 1}
 
-    res = bt._simulate(cand, legs, entry_row, contract_index, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, contract_index, barchart_series, sim_cfg,
+                   structure="long_call")
 
     # Barchart's 16.0 (+100%) must win over reappearance's 12.8 (+60%).
     assert res["realized_pnl_pct"] == 1.0
@@ -633,8 +652,8 @@ def test_simulate_carries_last_real_mark_when_no_new_quote():
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "path_cap_days": 10, "exit_sources": ["barchart", "reappearance"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
 
     tags = res["daily_source_csv"].split(",")
     assert "bs" not in tags
@@ -729,13 +748,17 @@ def _next_open_entry_row(entry_date=date(2026, 6, 2)):
             "Delta": "0.50", "_entry_date": entry_date}
 
 
-def test_simulate_next_open_entry_prefers_open_price():
+def test_simulate_next_open_entry_fills_at_the_closing_mid_not_the_open():
+    # Operator ruling 2026-10-23: the entry day under next_open is the next
+    # trading day, and every leg fills at that day's CLOSING bid/ask mid. The
+    # 8.6 Open print is the contract's first trade at an unknown time.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4),
                                  (date(2026, 6, 4), 12.9)]}
-    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}}}
+    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "Bid": "8.5",
+                                                     "Ask": "8.7", "_mark": 8.6}}}
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
 
@@ -743,51 +766,58 @@ def test_simulate_next_open_entry_prefers_open_price():
                        structure="long_call",
                        barchart_details=barchart_details)
 
-    assert res["entry_option_price"] == pytest.approx(8.6)
-    assert res["entry_source"] == "barchart_open"
+    assert res["entry_option_price"] == pytest.approx(8.6)        # (8.5 + 8.7) / 2
+    assert res["entry_source"] == "barchart_close_mid"
     # (12.9 − 8.6) / 8.6 = +50% on 6/4 → profit target.
     assert res["exit_reason"] == "profit_target"
     assert res["realized_pnl_pct"] == pytest.approx(0.5)
 
 
-def test_simulate_next_open_blank_open_falls_back_to_entry_day_mark():
+def test_simulate_next_open_row_without_a_quote_is_not_an_entry_fill():
+    # A row with an Open and a Latest-derived `_mark` but no Bid/Ask has no
+    # closing quote: nothing fills, so the play is refused, not priced off the
+    # Open or the Latest.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4)]}
-    # Zero-volume entry day: Open blank → that day's EOD mark, NOT the signal day's.
-    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "", "_mark": 8.4}}}
+    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "Latest": "8.4",
+                                                     "_mark": 8.4}}}
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
+    refusal = {}
 
     res = bt._simulate(cand, legs, _next_open_entry_row(), {}, barchart_series, sim_cfg,
-                       structure="long_call",
-                       barchart_details=barchart_details)
+                       structure="long_call", barchart_details=barchart_details,
+                       refusal=refusal)
 
-    assert res["entry_option_price"] == pytest.approx(8.4)
-    assert res["entry_source"] == "barchart"
+    assert res == {}
+    assert refusal["reason"] == "no_real_entry_price"
 
 
-def test_simulate_next_open_signal_eod_timing_ignores_open():
+def test_simulate_signal_eod_timing_fills_at_the_signal_days_close():
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1), "play": "long call",
             "market_regime": ""}
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     barchart_series = {_NO_KEY: [(date(2026, 6, 1), 8.0), (date(2026, 6, 2), 8.4)]}
-    barchart_details = {_NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}}}
+    barchart_details = {_NO_KEY: {
+        date(2026, 6, 1): {"Open": "7.5", "Bid": "7.9", "Ask": "8.1", "_mark": 8.0},
+        date(2026, 6, 2): {"Open": "8.6", "Bid": "8.3", "Ask": "8.5", "_mark": 8.4}}}
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"],
                "entry_timing": "signal_eod"}
 
     res = bt._simulate(cand, legs, _next_open_entry_row(date(2026, 6, 1)), {},
-                       barchart_series, sim_cfg, structure="long_call", barchart_details=barchart_details)
+                       barchart_series, sim_cfg, structure="long_call",
+                       barchart_details=barchart_details)
 
     assert res["entry_option_price"] == pytest.approx(8.0)
-    assert res["entry_source"] == "barchart"
+    assert res["entry_source"] == "barchart_close_mid"
 
 
-def test_simulate_next_open_spread_legs_share_entry_day():
-    # Long 250C fills at the entry day's Open; the 270C short has no Open that day
-    # (blank → its EOD mark). Both legs are on the SAME day; tags stay per-leg.
+def test_simulate_next_open_spread_legs_share_one_closing_clock():
+    # Both legs fill at the entry day's closing mid, whatever their Open prints
+    # say; the tags stay per leg.
     cand = {"ticker": "NVDA", "signal_date": date(2026, 6, 1),
             "play": "bull call spread", "market_regime": ""}
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"),
@@ -798,8 +828,10 @@ def test_simulate_next_open_spread_legs_share_entry_day():
         key_short: [(date(2026, 6, 1), 2.8), (date(2026, 6, 2), 3.0)],
     }
     barchart_details = {
-        _NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "_mark": 8.4}},
-        key_short: {date(2026, 6, 2): {"Open": "", "_mark": 3.0}},
+        _NO_KEY: {date(2026, 6, 2): {"Open": "8.6", "Bid": "8.3", "Ask": "8.5",
+                                     "_mark": 8.4}},
+        key_short: {date(2026, 6, 2): {"Open": "", "Bid": "2.9", "Ask": "3.1",
+                                       "_mark": 3.0}},
     }
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
@@ -808,8 +840,8 @@ def test_simulate_next_open_spread_legs_share_entry_day():
                        structure="bull_call_spread",
                        barchart_details=barchart_details)
 
-    assert res["entry_option_price"] == pytest.approx(8.6 - 3.0)
-    assert res["entry_source"] == "barchart_open+barchart"
+    assert res["entry_option_price"] == pytest.approx(8.4 - 3.0)
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_mid"
 
 
 def test_simulate_rejects_degenerate_spread():
@@ -841,12 +873,12 @@ def test_simulate_spread_prices_short_leg_from_barchart():
     }
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bull_call_spread")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bull_call_spread")
 
     # Entry priced from Barchart EOD for both legs (long 10, short 4) → debit 6.
     assert res["entry_option_price"] == 6.0
-    assert res["entry_source"] == "barchart+barchart"
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_mid"
     # Exit both legs real Barchart: 16 - 6 = 10 vs debit 6 → +66.7%.
     assert abs(res["realized_pnl_pct"] - 0.6667) < 0.0001
     assert res["exit_reason"] == "profit_target"
@@ -868,8 +900,8 @@ def test_simulate_spread_short_leg_without_history_is_refused():
                "entry_sources": ["barchart"]}
     refusal = {}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bull_call_spread", refusal=refusal)
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bull_call_spread", refusal=refusal)
 
     assert res == {}
     assert refusal["reason"] == "no_real_entry_price"
@@ -893,8 +925,8 @@ def test_simulate_daily_path_realized_exit_and_excursions():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
 
     assert res["realized_pnl_pct"] == 0.6            # frozen at the first +50% day
     assert res["exit_reason"] == "profit_target"
@@ -991,8 +1023,8 @@ def test_simulate_path_cap_open_when_dte_exceeds_cap():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
 
     assert res["exit_reason"] == "cap_open"
     assert res["realized_pnl_pct"] == 0.0  # flat path, decimal 0 = 0%
@@ -1017,8 +1049,8 @@ def test_simulate_path_expired_when_dte_within_cap():
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0,
                "contracts": 1, "exit_sources": ["barchart"], "path_cap_days": 120}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
 
     assert res["exit_reason"] == "expired"
     assert res["path_status"] == "complete"
@@ -1038,8 +1070,8 @@ def test_simulate_no_data_when_no_exit_available():
     # Entry priced from a real Barchart mark; the only exit source is
     # reappearance and the contract never recurs → path has no priced marks →
     # "no_data". Nothing is modelled to fill the gap.
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
     assert res["exit_reason"] == "no_data"
 
 
@@ -1099,8 +1131,8 @@ def test_simulate_short_put_profit_when_option_decays():
                "contracts": 1, "entry_sources": ["reappearance"],
                "exit_sources": ["reappearance"]}
 
-    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
-                       structure="short_put")
+    res = _sim_eod(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                   structure="short_put")
 
     assert res["entry_option_price"] == -5.0   # signed: net credit received
     assert res["entry_source"] == "real"
@@ -1119,8 +1151,8 @@ def test_simulate_short_put_loss_when_option_appreciates():
                "contracts": 1, "entry_sources": ["reappearance"],
                "exit_sources": ["reappearance"]}
 
-    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
-                       structure="short_put")
+    res = _sim_eod(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                   structure="short_put")
 
     assert abs(res["realized_pnl_pct"] - (-1.4)) < 0.001  # (−12 − (−5)) / 5 = -140%
     assert res["exit_reason"] == "stop_loss"
@@ -1142,12 +1174,12 @@ def test_simulate_bull_put_spread_credit():
     }
     sim_cfg = {"exit_days": [3], "profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bull_put_spread")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bull_put_spread")
 
     # Entry credit: −sold (4) + hedge (1.5), both from Barchart = −2.5 (signed)
     assert res["entry_option_price"] == -2.5
-    assert res["entry_source"] == "barchart+barchart"
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_mid"
     # Exit net: −1.5 + 0.5 = −1.0  →  P&L = (−1.0 − (−2.5)) / 2.5 = 60%
     assert abs(res["realized_pnl_pct"] - 0.6) < 0.001
     assert res["exit_reason"] == "profit_target"
@@ -1174,11 +1206,11 @@ def test_simulate_iron_condor_profit_in_range():
                "contracts": 1, "spread_width_pct": 0.02,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="iron_condor", anchor_idx=1)
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="iron_condor", anchor_idx=1)
 
     assert res["structure"] == "iron_condor"
-    assert res["entry_source"] == "barchart+barchart+barchart+barchart"
+    assert res["entry_source"] == "+".join(["barchart_close_mid"] * 4)
     assert res["entry_option_price"] == pytest.approx(-2.0)   # signed: net credit
     assert res["realized_pnl_pct"] > 0                        # premium decays → profit
     assert res["exit_reason"] == "profit_target"
@@ -1308,8 +1340,8 @@ def test_simulate_debit_spread_impossible_mark_clamped_to_max_loss():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 1.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bear_put_spread")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bear_put_spread")
 
     assert res["entry_option_price"] == pytest.approx(0.055, abs=1e-9)
     assert res["realized_pnl_pct"] == pytest.approx(-1.0)   # clamped: max loss = debit
@@ -1336,8 +1368,8 @@ def test_simulate_credit_spread_impossible_mark_clamped_to_max_gain():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bear_call_spread")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bear_call_spread")
 
     assert res["entry_option_price"] == pytest.approx(-0.5, abs=1e-9)
     # Clamped to 0 → P&L = (0 − (−0.5)) / 0.5 = 100% (max gain, not phantom beyond).
@@ -1362,8 +1394,8 @@ def test_simulate_ratio_spread_not_clamped():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="explicit_legs")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="explicit_legs")
 
     # mae reflects the real (unclamped) net: (−10 − 4) / 4 = −3.5 (−350%).
     assert res["entry_option_price"] == pytest.approx(4.0)
@@ -1388,8 +1420,8 @@ def test_simulate_ratio_spread_nets_by_quantity():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="explicit_legs")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="explicit_legs")
 
     # Entry net: +1·10 − 2·3 = 4 (debit).
     assert res["entry_option_price"] == 4.0
@@ -1412,8 +1444,8 @@ def test_simulate_calendar_path_bounded_by_near_leg():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="explicit_legs", anchor_idx=1)
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="explicit_legs", anchor_idx=1)
 
     # The path stops at the NEAR leg's expiry (~18 days), not the far leg's.
     n_days = len([t for t in res["daily_price_csv"].split(",")])
@@ -1450,8 +1482,8 @@ def test_simulate_merges_same_contract_into_single_leg():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="explicit_legs")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="explicit_legs")
 
     assert res["legs"] == "NVDA:2026-07-17:250:C +1"
     assert res["entry_option_price"] == 8.0  # single +1 leg, not +2−1 double-counted
@@ -1479,8 +1511,8 @@ def test_simulate_explicit_four_leg_prices_per_leg_not_uniform_bs():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
-                       structure="explicit_legs", anchor_idx=1)
+    res = _sim_eod(cand, legs, entry_row, {}, series, sim_cfg,
+                   structure="explicit_legs", anchor_idx=1)
 
     # Real per-leg: the anchor is its flow Trade, the rest are Barchart — never all-bs.
     assert "bs" not in res["entry_source"]
@@ -1510,8 +1542,8 @@ def test_simulate_explicit_five_leg_nets_by_quantity():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
-                       structure="explicit_legs")
+    res = _sim_eod(cand, legs, entry_row, {}, series, sim_cfg,
+                   structure="explicit_legs")
 
     assert res["entry_option_price"] == pytest.approx(15.0)  # 5+4+3+2+1
 
@@ -1539,8 +1571,8 @@ def test_simulate_butterfly_impossible_mark_clamped_to_wing_width():
     sim_cfg = {"profit_target": 5.0, "stop_loss": 5.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, series, sim_cfg,
-                       structure="explicit_legs")
+    res = _sim_eod(cand, legs, entry_row, {}, series, sim_cfg,
+                   structure="explicit_legs")
 
     assert res["entry_option_price"] == pytest.approx(5.0)
     # Clamped to 10 → MFE = (10 − 5)/5 = 100%, not the phantom (18 − 5)/5 = 260%.
@@ -1665,8 +1697,8 @@ def test_simulate_unbounded_credit_falls_back_to_one_contract(caplog):
                "portfolio_value": 50000, "risk_per_trade_pct": 0.02}
 
     with caplog.at_level(logging.WARNING, logger="backtest"):
-        res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
-                           structure="short_call")
+        res = _sim_eod(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                       structure="short_call")
 
     assert res["contracts"] == 1
     assert res["max_loss_per_contract"] == ""
@@ -1704,8 +1736,8 @@ def test_simulate_credit_exit_uses_credit_profile_not_debit():
         },
     }
 
-    res = bt._simulate(cand, legs, entry_row, contract_index, {}, sim_cfg,
-                       structure="short_put")
+    res = _sim_eod(cand, legs, entry_row, contract_index, {}, sim_cfg,
+                   structure="short_put")
 
     assert res["exit_reason"] == "profit_target"
     assert res["days_held"] == 3
@@ -1722,8 +1754,8 @@ def test_pnl_on_risk_pct_debit_matches_realized_pnl_pct():
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
                "exit_sources": ["barchart"]}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="long_call")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="long_call")
 
     assert res["max_loss_per_contract"] == 1000.0   # entry premium (10) × 100
     # Debit: same premium is both the P&L denominator and the risk denominator.
@@ -1745,8 +1777,8 @@ def test_pnl_on_risk_pct_credit_spread_scales_by_structural_risk():
     }
     sim_cfg = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1}
 
-    res = bt._simulate(cand, legs, entry_row, {}, barchart_series, sim_cfg,
-                       structure="bull_put_spread")
+    res = _sim_eod(cand, legs, entry_row, {}, barchart_series, sim_cfg,
+                   structure="bull_put_spread")
 
     # entry credit -2.5, floor -10 → max_loss_per_contract = 7.5 × 100 = 750.
     assert res["max_loss_per_contract"] == 750.0

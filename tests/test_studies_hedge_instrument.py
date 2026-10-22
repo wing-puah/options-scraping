@@ -185,12 +185,14 @@ def test_no_usable_price_anywhere_returns_none_not_a_fabricated_fill(caches):
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.NO_MARK)
 
 
-def test_latest_is_the_fallback_when_there_is_no_two_sided_quote(caches):
+def test_a_latest_is_never_an_entry_fill(caches):
+    """Since 2026-10-23 production fills only off the closing bid/ask: a
+    `0 x 0` quote with a 3.25 Latest is no fill (operator ruling)."""
     opt, ohlc = caches
     _std_bars(ohlc)
     _put(opt, "PRX", E45, 100.0,
          [_opt_row(SESSION.isoformat(), bid="0", ask="0", latest="3.25")])
-    assert HI.select_put("PRX", SESSION).entry_mark == pytest.approx(3.25)
+    assert HI.select_put("PRX", SESSION) is None
 
 
 def test_no_spot_means_no_pick(caches):
@@ -455,32 +457,39 @@ def test_the_committed_windows_are_what_the_preregistration_fixed():
 
 
 # ── production's junk-quote rule (operator ruling, 2026-09-28) ───────────────
-# `hedge_instrument` imports `simulate.entry_day_fill` / `carried_entry_fill` /
-# `junk_day_mark` rather than restating them, so G-FILL's "fillable" and the
+# `hedge_instrument` imports `simulate.entry_day_fill` / `junk_day_mark`
+# rather than restating them, so G-FILL's "fillable" and the
 # daily mark are production's. `4 x 6` is junk: its 2.00 width is past twice
-# the legacy Cboe width at a 4.00 bid (0.40 x 2).
+# the legacy Cboe width at a 4.00 bid (0.40 x 2). Since 2026-10-23 (option C)
+# a bought put on such a quote fills at its 5.00 mid; only a bid-less quote
+# is refused.
 
-def test_a_junk_entry_quote_that_did_not_trade_is_refused(caches):
+def test_a_bidless_junk_entry_quote_is_refused(caches):
+    # The Latest keeps the row in the cache (a row needs a mark to load); it
+    # never fills the leg.
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0,
+         [_opt_row(SESSION.isoformat(), bid="0", ask="6", latest="5.40")])
     assert HI.select_put_verbose("PRX", SESSION, HI.RULE_BAND) == (None, HI.JUNK_REFUSED)
     cov = HI.fill_coverage([(SESSION, "PRX")], HI.RULE_BAND)
     assert (cov.filled, cov.n, cov.by_reason) == (0, 1, {HI.JUNK_REFUSED: 1})
 
 
-def test_a_junk_entry_quote_that_traded_fills_at_its_print_not_the_mid(caches):
+def test_a_wide_junk_entry_quote_fills_at_its_mid_not_its_latest(caches):
+    """Until 2026-10-23 it filled at its 5.40 Latest. A Latest is no entry
+    fill now; the wide but two-sided quote fills at its 5.00 mid."""
     opt, ohlc = caches
     _std_bars(ohlc)
     _put(opt, "PRX", E45, 100.0,
          [_opt_row(SESSION.isoformat(), bid="4", ask="6", latest="5.40")])
-    assert HI.select_put("PRX", SESSION).entry_mark == pytest.approx(5.40)
+    assert HI.select_put("PRX", SESSION).entry_mark == pytest.approx(5.0)
 
 
 def test_a_refused_contract_falls_through_to_a_clean_one(caches):
     opt, ohlc = caches
     _std_bars(ohlc)
-    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="4", ask="6")])
+    _put(opt, "PRX", E45, 100.0, [_opt_row(SESSION.isoformat(), bid="0", ask="6")])
     _put(opt, "PRX", E45, 98.0, [_opt_row(SESSION.isoformat(), bid="4.8", ask="5.2")])
     pick = HI.select_put("PRX", SESSION, HI.RULE_BAND)
     assert (pick.strike, pick.entry_mark) == (98.0, pytest.approx(5.0))

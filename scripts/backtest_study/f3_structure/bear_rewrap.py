@@ -76,7 +76,8 @@ from scripts.backtest.helpers import _defined_risk_bounds, _price_asof  # noqa: 
 from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest.simulate import (  # noqa: E402
     _entry_side_mark, _is_junk_quote, _zero_bid_mark,
-    carried_entry_fill, entry_day_fill, entry_window_end, fresh_entry_date,
+    common_entry_day, entry_close_days, entry_day_fill, entry_window_end,
+    fresh_entry_date,
     junk_day_mark, open_print_allowed,
 )
 from scripts.backtest_study.f2_management.bear_giveback import (  # noqa: E402
@@ -474,6 +475,10 @@ def entry_date_for(legs: list[Leg], grid: list[date],
     however late it fell, so a substitution could be "filled" weeks after the
     signal it is compared against (`research/next-steps.md` §2.11).
 
+    Since 2026-10-23 "has a row" means production's test, IMPORTED: a closing
+    quote `simulate.entry_day_fill` can judge (`entry_close_days`), and the
+    first such common day is `simulate.common_entry_day`.
+
     `signal_date` defaults to the weekday before `grid[0]`. That is exact:
     `_weekday_grid` starts the weekday AFTER the signal and the window counts
     weekdays, so every signal between the two gives the same window end.
@@ -486,13 +491,9 @@ def entry_date_for(legs: list[Leg], grid: list[date],
     earliest, stale = fresh_entry_date([list(r) for r in rows], signal_date, grid[0])
     if earliest is None:
         return None
-    end = entry_window_end(signal_date)
-    for day in grid:
-        if day > end:
-            break
-        if day >= earliest and all(day in r for r in rows):
-            return day
-    return None
+    day = common_entry_day([entry_close_days(_priced_rows(leg), leg.qty) for leg in legs],
+                           earliest, entry_window_end(signal_date))
+    return day if day in grid else None
 
 
 def recorded_entry_date(base: Trade) -> date | None:
@@ -541,24 +542,20 @@ def _junk_basis_entry(leg: Leg, day: date,
                       signal_date: date | None = None) -> float | None:
     """`entry_price_of` on the JUNK basis — production's entry choice, IMPORTED.
 
-    `simulate.entry_day_fill` on the entry day's own row (a junk quote by
-    `_junk_entry_fill` with the Open print, else the Open, else the mark),
-    only when `open_print_allowed`; otherwise, or with no row that day,
-    `simulate.carried_entry_fill` on the newest snap on or before the day
-    (junk fill WITHOUT its Open print, else the snap's mark) — the two calls
-    `_simulate._entry_price_leg` / `_price_leg` make, in that order. None when
-    production refuses (`junk_entry_quote`) or has no price. Rows are read as
-    production loads them (`_priced_rows`).
+    `simulate.entry_day_fill` on the entry day's own row, read as production
+    loads it (`_priced_rows`). Since 2026-10-23 that is the CLOSING quote for
+    every leg: the mid of a two-sided quote (junk or not, for a bought leg), a
+    junk sold leg at its bid (0 with none), a bought leg with no bid refused. No Open print, no Latest, and no snap
+    carried from an earlier day, so a leg with no row on `day` has no price.
+    None when production refuses (`junk_entry_quote`) or has no price.
+    `signal_date` is unused since then; it is kept for the callers.
+
+    Rows production wrote before 2026-10-23 were filled at Open prints and
+    carried snaps, so they do not reconstruct on this basis until the tabs
+    are re-priced (`research/next-steps.md` §2.15).
     """
-    rows = _priced_rows(leg)
-    fill = entry_day_fill(rows.get(day), leg.qty, open_print=_open_ok(day, signal_date))
-    if fill is not None:
-        return fill[0]                  # None is the junk_entry_quote refusal
-    snaps = [d for d in sorted(rows) if d <= day and d <= leg.expiration]
-    if not snaps:
-        return None
-    snap = rows[snaps[-1]]
-    return carried_entry_fill(snap, snap["_mark"], leg.qty)[0]
+    fill = entry_day_fill(_priced_rows(leg).get(day), leg.qty)
+    return None if fill is None else fill[0]   # None is the junk refusal
 
 
 def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
@@ -606,13 +603,12 @@ def entry_price_of(leg: Leg, day: date, b5: bool | None = None,
     Production's `_entry_price_leg` has that order until 2026-09-24. `open_side`
     is only meaningful with `side`; the later rule implies the earlier one.
 
-    On the JUNK basis (`priced_with_junk`, 2026-09-24) `_junk_entry_fill` —
-    IMPORTED — prices any junk entry quote ahead of everything else, on the
-    entry day's own row (with its Open print) or on the carried snap (without).
-    A BOUGHT leg into a junk quote that did not trade is REFUSED, and this
-    returns None exactly where production refuses `junk_entry_quote`. It implies
-    the three entry bases before it, so `side=False` or `open_side=False` turns
-    it off too.
+    On the JUNK basis (`priced_with_junk`, 2026-09-24) the fill is
+    production's CURRENT entry rule, IMPORTED (`_junk_basis_entry`): since
+    2026-10-23 every leg fills off the entry day's own closing quote, and a
+    bought leg into a junk quote with NO bid is REFUSED — this returns None
+    exactly where production refuses `junk_entry_quote`. It implies the three entry bases
+    before it, so `side=False` or `open_side=False` turns it off too.
     """
     use_side = _resolve_side(side)
     use_open_side = use_side and _resolve_open_side(open_side)

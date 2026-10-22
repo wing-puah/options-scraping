@@ -1092,11 +1092,43 @@ is untested and not wired into the CLI.
 5. Re-read as sealed dates unseal, never before.
 
 <a id="s2-15"></a>
-### 2.15 Spread entries mix times of day — OPEN, proposal awaits the operator
+### 2.15 Spread entries mix times of day — RESOLVED 2026-10-23, re-price pending
 
-**The backtest prices each leg of a spread on its own, so one entry can
-pair a morning trade with an end-of-day bid.** Production is unchanged. The
-rule below re-prices stored rows, so it waits for an operator ruling.
+**Resolved by the operator rulings of 2026-10-23: every leg of an entry fills
+at the entry day's closing quote.** The code is built and tested. No stored
+row is re-priced yet.
+
+#### The ruling as built
+
+- A clean two-sided closing quote fills at its bid/ask mid. No `Open` print
+  and no `Latest` reaches an entry fill.
+- A junk closing quote fills a sold leg at its bid, 0 with none.
+- A bought leg on a junk quote with a bid fills at its mid, tagged
+  `barchart_close_mid_wide`. With no bid it refuses the play
+  (`junk_entry_quote`).
+- A leg with no closing quote moves the entry to the first day in the window
+  on which every leg has one. Otherwise the play is refused
+  (`no_common_entry_day`).
+- Part 1 below, the bounds gate, is built as `entry_outside_bounds`. Parts 2
+  and 3 are superseded: the fill is the close, so the gap is zero.
+
+Detail: [`docs/backtest-reference.md`](../docs/backtest-reference.md#one-clock-at-entry-2026-10-23)
+and the [entry](current.md#2026-10-23--every-leg-of-an-entry-now-fills-at-the-same-close).
+
+**The junk choice: option C.** A traded `Open` print used to fill a bought
+leg on a junk quote. With the print gone, the build first refused it, which
+dropped about a fifth of the v4 rows. The operator chose C.
+
+| Choice | Results rows priced, their P&L | Proxy rows priced, their P&L |
+|---|---|---|
+| A. Refuse | 0 of 225 | 0 of 188 |
+| B. Wait for a later day all legs price | 115, −$26,888 | 91, −$14,546 |
+| C. Mid when a bid exists (chosen) | 209, −$58,579 | 177, −$83,867 |
+
+Choice A would have flattered the book by dropping about $42,000 of losses
+per tab.
+
+The original finding, kept for its census:
 
 `structure_sweep` found it on 2026-10-22: iron butterflies netted credits
 of 0.8 to 0.998 of the wing width. The audit is in the
@@ -1175,7 +1207,7 @@ What the table says:
 | v4 results | 2,063 | 66 | 56 | 0.064 | 0.026 |
 | v4 proxy | 1,691 | 75 | 62 | 0.060 | 0.027 |
 
-#### The proposed rule
+#### The proposed rule (replaced by the ruling)
 
 Three parts, smallest first. Each prints both ways on the next re-price, so
 the operator can take any of them alone.
@@ -1230,10 +1262,9 @@ refusals at entry, except `narrow_to_fit`'s polarity check.
 largest ARM B row is META 2026-04-08: a 20-wide fly sold for 19.96, 250
 contracts, R +28.3.
 
-**Next.** The operator rules on parts 1 to 3. The build changes
-`simulate.entry_day_fill` and adds the gate beside
-`_refuse_debit_priced_to_credit`; then `--redo` both v4 tabs. v3 stays
-frozen.
+**Next.** `--redo` both v4 tabs; v3 stays frozen. Until that re-price, `bear_rewrap`'s G-REPRO and
+`narrow_to_fit`'s GN3 fail on stored rows, because the mirrors already
+import the new fill.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

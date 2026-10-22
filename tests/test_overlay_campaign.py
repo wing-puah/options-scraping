@@ -54,13 +54,16 @@ class FakeCore:
 
 
 def _rows(marks: dict, iv="30.0", bid=None, ask=None):
-    """`{date: row}` in `parse_history_details`' shape. `Open` is 0 so
-    `entry_price_of` falls through to the mark and the arithmetic stays readable."""
+    """`{date: row}` in `parse_history_details`' shape. Without an explicit
+    quote each mark carries a zero-width closing quote (bid = ask = mark), so
+    the entry fill (the closing mid since 2026-10-23) equals the mark."""
     out = {}
     for d, m in marks.items():
         row = {"_mark": m, "Open": "0", "IV": iv}
         if bid is not None:
             row["Bid"], row["Ask"] = str(bid), str(ask)
+        elif m is not None and m >= 0:
+            row["Bid"], row["Ask"] = str(m), str(m)
         out[d] = row
     return out
 
@@ -689,7 +692,7 @@ def test_slippage_is_charged_per_side_off_the_quoted_spread(cache):
 
 def test_a_side_with_no_two_sided_quote_is_charged_nothing_and_says_so(cache):
     grid = _days(6)
-    cache(Leg(-1, TK, NEAR, 120.0, "Call"), {grid[0]: 0.8})         # no Bid/Ask
+    cache(Leg(-1, TK, NEAR, 120.0, "Call"), {grid[0]: 0.8}, bid="", ask="")  # no Bid/Ask
     tranche = _tranche(120.0, NEAR, grid[0], 0.8, close_day=grid[3], close_cost=0.3,
                        reason=OC.BREACH_BUYBACK)
     costs = OC.costs_of([tranche], contracts=1, commission_per_contract=0.0,

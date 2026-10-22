@@ -289,6 +289,88 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-23 — every leg of an entry now fills at the same close
+
+**Every leg of an entry now fills at the entry day's closing bid/ask, and the
+v4 book loses more on it, most of all on the proxy tab.** The code is built and tested; no stored row is re-priced yet.
+The operator ruled twice on 2026-10-23. A spread is one combo order at mid,
+so its legs share one clock. A bought leg on a wide but two-sided quote fills
+at that mid too ("option C"). This resolves
+[next-steps §2.15](next-steps.md#s2-15).
+
+_Offline re-simulation of the v4 exports of 2026-10-21 16:32, old code
+against new on the option cache as it stood, with no fetch. Results: all
+1,103 rows. Proxy: the 904 `strike_expiry_tweak` rows. The old code
+reproduces every stored entry price._
+
+### The rule
+
+| A leg's closing quote | Fill |
+|---|---|
+| Two-sided, not junk | The mid of Bid and Ask, `barchart_close_mid` |
+| Junk, leg sold | The bid, 0 with none, `barchart_close_side` |
+| Junk with a bid, leg bought | The mid, `barchart_close_mid_wide` |
+| Junk with no bid, leg bought | Refused, `junk_entry_quote` |
+| None that day | The entry waits for a day every leg quotes |
+
+No `Open` print, no `Latest` and no earlier day's snap fills a leg. A bounded
+structure that nets outside its payoff range is refused
+(`entry_outside_bounds`). Daily marks and exits do not change. The rule
+lives in `simulate.entry_day_fill`, and the research mirrors import it.
+Detail: [`docs/backtest-reference.md`](../docs/backtest-reference.md#one-clock-at-entry-2026-10-23).
+
+### What it does to the stored rows
+
+| Export | Rows | Entry changed | Newly refused | Entry day moved | Net P&L, old | Net P&L, new |
+|---|---|---|---|---|---|---|
+| v4 results | 1,103 | 1,070 | 16 | 2 | −$15,725 | −$30,954 |
+| v4 proxy | 904 | 880 | 11 | 0 | −$30,260 | −$111,492 |
+
+| Export, old `entry_source` | Rows | Entry changed | Newly refused | P&L, old | P&L, new |
+|---|---|---|---|---|---|
+| Results, all Open | 1,056 | 1,037 | 10 | −$4,763 | −$14,710 |
+| Results, Open + side | 35 | 29 | 6 | −$11,100 | −$15,632 |
+| Results, other | 12 | 4 | 0 | +$137 | −$612 |
+| Proxy, all Open | 858 | 843 | 7 | −$9,032 | −$96,077 |
+| Proxy, Open + side | 42 | 37 | 4 | −$27,611 | −$21,798 |
+| Proxy, other | 4 | 0 | 0 | +$6,383 | +$6,383 |
+
+- **The new prices drive the move.** Re-pricing alone moves results by
+  −$19,307 and proxy by −$84,752. The refused rows held little either way.
+- **The wide-mid legs carry most of it.**
+
+  | Export | `barchart_close_mid_wide` legs | On rows | Those rows, old P&L | New P&L |
+  |---|---|---|---|---|
+  | v4 results | 215 | 209 | −$37,841 | −$58,579 |
+  | v4 proxy | 178 | 177 | −$38,222 | −$83,867 |
+
+- **The refusals:** results 11 `junk_entry_quote`, 4
+  `credit_priced_to_debit` and 1 `entry_outside_bounds`. Proxy has 6, 3
+  and 2. Each junk refusal is a bought leg with no bid on its fill day.
+- The two motivating rows: VST 2025-01-22 now enters at 10.08, its close,
+  not 29.10. SMH 2026-06-04 enters at 21.10 instead of 4.25. Its +$6,277
+  becomes −$1,518.
+
+### Why not refuse the wide quotes
+
+The first build refused every bought leg on a junk quote. That dropped 225
+results rows and 188 proxy rows. Those rows had lost $41,919 and $41,741
+under the old prints, so **refusing would have flattered the book by about
+$42,000 per tab**. It removes losers, which is survivorship, not a better
+price.
+
+| Choice | Results rows priced, their P&L | Proxy rows priced, their P&L |
+|---|---|---|
+| A. Refuse | 0 of 225 | 0 of 188 |
+| B. Wait for a later day all legs price | 115, −$26,888 | 91, −$14,546 |
+| C. Mid when a bid exists (ruled) | 209, −$58,579 | 177, −$83,867 |
+
+**Next.** [next-steps §2.15](next-steps.md#s2-15) is resolved, and both v4
+tabs wait for a `--redo`. Until then `bear_rewrap`'s G-REPRO and
+`narrow_to_fit`'s GN3 fail on stored rows.
+
+---
+
 ## 2026-10-22 — spread entries mix times of day, a few rows carry large P&L
 
 **About 1% to 2% of v4 spread rows enter at a price the same day's close

@@ -68,7 +68,11 @@ class FakeCore:
 
 
 def _rows(marks: dict, iv="30.0"):
-    return {d: {"_mark": m, "Open": "0", "IV": iv} for d, m in marks.items()}
+    """Each mark carries a zero-width closing quote (bid = ask = mark): since
+    2026-10-23 an entry fills only at the closing bid/ask mid."""
+    return {d: {"_mark": m, "Open": "0", "IV": iv,
+                **({"Bid": str(m), "Ask": str(m)} if m is not None and m >= 0 else {})}
+            for d, m in marks.items()}
 
 
 @pytest.fixture()

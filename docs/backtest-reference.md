@@ -17,7 +17,7 @@ samples whatever holding horizons it wants from that path.
 
 | Column | Definition |
 |--------|-----------|
-| **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). The entry fill is taken on the FIRST trading day AFTER this date under `simulation.entry_timing: next_open` (the default — the analysis is produced after the close), or on this date's EOD mark under `signal_eod`. |
+| **signal_date** | Analysis date the play was proposed (ISO `YYYY-MM-DD`). Entry fills at the close of the first trading day after it (`entry_timing: next_open`, the default), or at its own close (`signal_eod`). See [One clock at entry](#one-clock-at-entry-2026-10-23). |
 | **ticker** | Underlying symbol. |
 | **structure** | Resolved trade structure label: `long_call`, `long_put`, `bull_call_spread`, `bear_put_spread`, `bull_put_spread`, `bear_call_spread`, `short_put`, `short_call`, `iron_condor`, or `explicit_legs` (the play named its legs directly). Kept as a grouping label; the authoritative position is `legs`. |
 | **legs** | The full position as one or more signed legs, one per line, in the form `<TICKER>:<YYYY-MM-DD>:<STRIKE>:<C\|P> <signed_qty>` — e.g. `NVDA:2026-07-17:250:C +1` / `NVDA:2026-07-17:270:C -1`. The signed quantity is **last** so the cell never starts with `+`/`-` (Google Sheets would coerce a leading sign into a formula); parsing also accepts the legacy quantity-first form. `qty` is the per-unit ratio (sign = long/short); a separate `contracts` column holds the risk-sized number of units. Each leg carries **its own expiration**, so calendar / diagonal / ratio spreads are representable. The position is fully generic in leg count — any structure (single leg, vertical, ratio, butterfly, condor, box, iron condor, …) is just a list of signed legs. To backtest a hand-authored structure, write its legs (one per line) in the play cell; it is recognised as `explicit_legs`, bypasses the freeform classifier, and same-contract legs are merged (e.g. `+2` / `-1` → `+1`). Replaces the old `k_long` / `k_short` / `expiration` / `opt_type` columns. |
@@ -34,7 +34,7 @@ samples whatever holding horizons it wants from that path.
 |--------|-----------|
 | **entry_option_price** | **Signed** net per share, in option points: `Σ qty·price` over the legs. **Positive = net debit (paid), negative = net credit (received).** Its **absolute value** is the denominator for every P&L figure; `daily_price_csv` marks carry the same signed convention. |
 | **entry_premium_total** | `abs(entry_option_price) × 100 × contracts` — dollar cost/credit of the position. |
-| **entry_source** | Each leg's entry pricing, joined with `+` in leg order: `barchart_open` (Open print), `barchart` (EOD mark), `barchart_side` (junk quote, sold at the bid), `barchart_last` (junk quote, traded Latest), `real` (flow print). `bs` only before 2026-09-23. |
+| **entry_source** | Each leg's entry fill, joined with `+` in leg order. Since 2026-10-23: `barchart_close_mid` (closing mid), `barchart_close_mid_wide` (bought, wide junk, at mid) or `barchart_close_side` (junk, sold at bid or 0). Older: `barchart_open`, `barchart`, `barchart_side`, `barchart_last`, `real`, `bs`. |
 | **market_regime** | The market-level regime for that date (from the MARKET row), truncated at the first em-dash — e.g. `BULL TREND`. |
 | **regime** | The play's ticker-specific regime label carried from the analysis row (not the market read). |
 | **play** | The play text (truncated to 300 chars). |
@@ -342,8 +342,8 @@ score block — see the two rows below.
   RECEIVED. An entry that falls through to the quote-derived mark is now priced on
   the side the leg trades: **bid (0) when sold, ask when bought**
   (`simulate._entry_side_mark`, `entry_source` tag `barchart_side`). Since
-  2026-09-22 the rule also precedes an entry-day `Open` print. A two-sided quote
-  is untouched, and still fills at the Open.
+  2026-10-23 every entry reads the closing quote only; see
+  [One clock at entry](#one-clock-at-entry-2026-10-23).
 - **A junk quote is never a price (2026-09-24).** A quote is JUNK when
   `bid <= 0`, or `ask − bid > mid`, or `ask − bid > 2 × W(bid)`.
   `simulate._is_junk_quote` is the one test. W is the legacy Cboe maximum
@@ -366,9 +366,9 @@ score block — see the two rows below.
   | Same, no trade | The last good mark, carried and tagged `barchart_stale` |
   | Same, no bid | As above, but capped at the B5 mark: `ask/2`, or 0 |
   | Entry, sold leg, no bid | 0 — nothing is bid |
-  | Entry, traded | The day's Open print, else its Latest |
-  | Entry, sold leg, a bid | The bid |
-  | Entry, bought leg, no trade | Refused: `junk_entry_quote` |
+  | Entry, sold leg, a bid | The closing bid |
+  | Entry, bought leg, a bid | The closing mid, tag `barchart_close_mid_wide` (since 2026-10-23) |
+  | Entry, bought leg, no bid | Refused: `junk_entry_quote`, traded or not |
 
   The cap keeps B5's intent. A bid-less contract is worth about nothing, so it
   is never carried at an older, higher mark. A junk ask of 4.80 caps nothing.
@@ -409,16 +409,18 @@ What happens when a real price is missing:
 | A path day, a leg has no new quote | The last real mark is carried; past `max_price_carry_days` it is tagged `barchart_stale` |
 | Config lists `bs`, `risk_free_rate`, `uniform_bs_min_legs` or `proxy.bs_fallback: true` | The run refuses to start |
 
-Six entry refusals are written as `skip_reason` on the proxy row and tallied by
+Eight entry refusals are written as `skip_reason` on the proxy row and tallied by
 the real backtest. They are checked in this order.
 
 | Reason | Fires when |
 |---|---|
 | `stale_leg_at_entry` | A leg's real quotes all precede the signal, and none arrives in the entry window (2026-10-01) |
-| `no_real_entry_price` | A leg has no real price on the entry day |
-| `junk_entry_quote` | A bought leg's entry quote is junk and the contract did not trade (2026-09-24) |
+| `no_real_entry_price` | A leg has no closing quote in the entry window |
+| `no_common_entry_day` | Every leg has a closing quote in the window, but never all on the same day (2026-10-23) |
+| `junk_entry_quote` | A bought leg's closing quote is junk with no bid (2026-09-24; narrowed 2026-10-23) |
 | `debit_priced_to_credit` | A debit structure (`bull_call_spread`, `bear_put_spread`, long single legs) nets a credit |
 | `credit_priced_to_debit` | A credit structure (`bull_put_spread`, `bear_call_spread`, short single legs) nets a debit |
+| `entry_outside_bounds` | A bounded structure nets outside its payoff range at expiry, `helpers._defined_risk_bounds` (2026-10-23) |
 | `non_monotonic_entry_quote` | Two same-expiry legs are priced against strike order |
 
 A credit priced to a debit used to be let through. That was not conservative.
@@ -430,8 +432,7 @@ The strike-order check compares legs of one type and one expiry. A put never
 costs more than a higher-strike put, and a call never costs more than a
 lower-strike call. A leg filled at the touch on a one-sided quote is not judged.
 
-Per-leg greeks come from each leg's own history row. The row is the entry day's,
-or the row the leg's carried entry mark came from. Barchart's all-zero sentinel
+Per-leg greeks come from each leg's own history row: the entry day's row. Barchart's all-zero sentinel
 rows count as missing. The net `delta` is blank if any leg's delta is missing.
 
 `entry_underlying` is the median of the legs' `Price~`. It is never the
@@ -478,6 +479,50 @@ writers price through it. The window length is
 Before 2026-10-01 such a leg filled at its last old mark. A leg with no mark
 at all by the entry day was refused `no_real_entry_price`, even when its first
 quote came a day later.
+
+### One clock at entry (2026-10-23)
+
+**Every leg of an entry fills at the same day's closing quote.** The operator
+ruled it on 2026-10-23: a spread is entered as one combo order at mid, so its
+legs share one clock. Daily history has no common opening quote. A leg's
+`Open` is its own first trade and its `Latest` its own last, at unknown times.
+The close is the one snapshot every leg shares.
+
+| A leg's closing quote | Fill | `entry_source` |
+|---|---|---|
+| Two-sided and not junk | The mid of Bid and Ask | `barchart_close_mid` |
+| Junk, leg sold | The closing bid, 0 with no bid | `barchart_close_side` |
+| Junk with a bid, leg bought | The mid of Bid and Ask | `barchart_close_mid_wide` |
+| Junk with no bid, leg bought | Refused: `junk_entry_quote` | |
+| No Bid or Ask, or crossed | No fill that day | |
+
+The mid is computed from Bid and Ask. It is never the history row's `_mark`,
+which falls through to `Latest` when a side is missing. A bought leg never pays
+the ask. A wide quote with a bid fills it at the mid, because the operator
+fills a spread as one combo order at mid (ruling of 2026-10-23). The
+`barchart_close_mid_wide` tag keeps those legs identifiable.
+
+The entry day is the first day, from the anchor's `_entry_date` to the window
+end, on which every leg has a closing quote of its own. No leg borrows an
+earlier day's snap. If each leg quotes in the window but never on one day, the
+play is refused `no_common_entry_day`.
+
+| `entry_timing` | Entry day starts at |
+|---|---|
+| `next_open` (default) | The first trading day after the signal; filled at its close |
+| `signal_eod` | The signal day; filled at its close |
+
+The key keeps its name. Under either value no `Open` print fills a leg.
+
+A bounded structure whose net entry lies outside its payoff range at expiry
+is refused `entry_outside_bounds`. Daily marks were already clamped to the
+same range (`helpers._defined_risk_bounds`). The gate generalises the two
+polarity gates.
+
+Daily marks and exits are unchanged: they were already end-of-day. The rule
+lives in `simulate.entry_day_fill` and `simulate.common_entry_day`. The
+research mirrors (`bear_rewrap`, `narrow_to_fit`, `hedge_instrument`,
+`structure_sweep` through `bear_rewrap`) import both.
 
 ## BacktestProxy — untested plays, proxy-evaluated
 

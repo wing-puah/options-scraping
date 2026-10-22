@@ -49,49 +49,37 @@ class _FakeCache:
         return self.rows.get(leg.strike)
 
 
-def test_open_fill_counts_only_open_legs_on_a_one_sided_quote():
+def test_every_open_fill_with_a_row_is_claimed():
+    """Since 2026-10-23 production fills every leg off the entry day's closing
+    quote (`entry_day_fill`), so a stored Open-print leg is never what it does
+    today: one-sided, two-sided, wide or traded, each is claimed."""
     day = date(2025, 4, 10)
-    one_sided = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}},
-                 72.0: {day: {"Bid": "0.00", "Ask": "2.68", "Open": "0.45", "_mark": 1.34}}}
-    assert RT.open_fill_legs(_row(), _FakeCache(one_sided)) == (1, 0)
-
-    two_sided = {76.0: one_sided[76.0],
-                 72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}}
-    assert RT.open_fill_legs(_row(), _FakeCache(two_sided)) == (0, 0)
+    clean = {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}
+    cases = [
+        {76.0: {day: clean},
+         72.0: {day: {"Bid": "0.00", "Ask": "2.68", "Open": "0.45", "_mark": 1.34}}},
+        {76.0: {day: clean},
+         72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}},
+        {76.0: {day: {"Bid": "0.20", "Ask": "1.90", "Open": "0.97", "_mark": 1.05,
+                      "Volume": "0"}},
+         72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}},
+        {76.0: {day: {"Bid": "0.00", "Ask": "1.90", "Open": "0.97", "_mark": 0.95,
+                      "Volume": "5", "Latest": "0.98"}},
+         72.0: {day: clean}},
+    ]
+    for rows in cases:
+        assert RT.open_fill_legs(_row(), _FakeCache(rows)) == (2, 0)
 
 
 def test_open_fill_reports_a_leg_it_cannot_check():
     """No cached row on the fill day is UNDETERMINABLE, never a miss."""
     day = date(2025, 4, 10)
     partial = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}}}
-    assert RT.open_fill_legs(_row(), _FakeCache(partial)) == (0, 1)
-
-
-def test_open_fill_follows_the_junk_rule_not_the_one_sided_test():
-    """2026-09-28: the set is what production's `entry_day_fill` would not fill
-    at the Open. A wide two-sided quote on an untraded BOUGHT leg is refused
-    (junk by width), which the old one-sided test never claimed; a bid-less
-    quote on a contract that TRADED still fills at the Open, which it did."""
-    day = date(2025, 4, 10)
-    wide = {76.0: {day: {"Bid": "0.20", "Ask": "1.90", "Open": "0.97", "_mark": 1.05,
-                         "Volume": "0"}},
-            72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}}
-    assert RT.open_fill_legs(_row(), _FakeCache(wide)) == (1, 0)
-
-    traded = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}},
-              72.0: {day: {"Bid": "0.00", "Ask": "2.68", "Open": "0.45", "_mark": 1.34,
-                           "Volume": "12", "Latest": "0.44"}}}
-    # The sold 72P has no bid: `_junk_entry_fill` fills it at 0 ahead of any
-    # print, so it is still claimed even though it traded.
-    assert RT.open_fill_legs(_row(), _FakeCache(traded)) == (1, 0)
-    bought_traded = {76.0: {day: {"Bid": "0.00", "Ask": "1.90", "Open": "0.97",
-                                  "_mark": 0.95, "Volume": "5", "Latest": "0.98"}},
-                     72.0: traded[76.0]}
-    assert RT.open_fill_legs(_row(), _FakeCache(bought_traded)) == (0, 0)
+    assert RT.open_fill_legs(_row(), _FakeCache(partial)) == (1, 1)
 
 
 def test_a_same_day_entry_open_fill_is_claimed():
-    """`open_print_allowed`: an entry on the signal day never fills at the Open."""
+    """An entry on the signal day never filled at the Open either."""
     day = date(2025, 4, 9)
     same_day = _row(dte_entry=str((EXP - day).days))
     rows = {76.0: {day: {"Bid": "0.90", "Ask": "1.04", "Open": "0.97", "_mark": 0.97}},
@@ -104,7 +92,8 @@ def test_a_leg_not_filled_at_the_open_is_not_an_open_fill():
     detail = _row()["entry_leg_detail"].replace("[barchart_open]\nHYG", "[barchart]\nHYG")
     rows = {76.0: {day: {"Bid": "0.00", "Ask": "1.04", "Open": "0.97", "_mark": 0.52}},
             72.0: {day: {"Bid": "0.40", "Ask": "0.50", "Open": "0.45", "_mark": 0.45}}}
-    assert RT.open_fill_legs(_row(entry_leg_detail=detail), _FakeCache(rows)) == (0, 0)
+    # Only the leg stored as `[barchart_open]` (the 72P) is counted.
+    assert RT.open_fill_legs(_row(entry_leg_detail=detail), _FakeCache(rows)) == (1, 0)
 
 
 def test_redo_plan_is_date_bounded_results_first():

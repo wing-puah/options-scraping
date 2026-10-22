@@ -37,11 +37,20 @@ def _grid(n=10, start=ENTRY):
     return [start + timedelta(days=i) for i in range(n)]
 
 
+def _q(m):
+    """A zero-width closing quote at the mark (bid = ask = m): since
+    2026-10-23 an entry fills at the closing bid/ask mid, so this keeps the
+    entry credit equal to the entry-day mark. A 0 mark is a `0 x 0` quote,
+    which fills a sold leg at 0 and marks at 0; no mark, no quote."""
+    return {"Bid": str(m), "Ask": str(m)} if m is not None and m >= 0 else {}
+
+
 def _bars(marks: dict, iv="30.0"):
     """`{date: row}` in the shape `parse_history_details` returns. `Open` is
-    left at 0 so `entry_price_of` falls back to the mark, which keeps the
-    entry credit equal to the entry-day mark and the arithmetic readable."""
-    return {d: {"_mark": m, "Open": "0", "IV": iv} for d, m in marks.items()}
+    left at 0, and every mark carries a zero-width closing quote (`_q`), so
+    the entry credit equals the entry-day mark and the arithmetic stays
+    readable."""
+    return {d: {"_mark": m, "Open": "0", "IV": iv, **_q(m)} for d, m in marks.items()}
 
 
 @pytest.fixture()
@@ -268,20 +277,18 @@ def test_the_frozen_trigger_values_are_the_operators_stated_practice():
     assert (FS.PT50_FRAC, FS.PROFIT_DOLLARS, FS.LOSS_MULT) == (0.50, 100.0, 2.0)
 
 
-# ── entry pricing mirrors production's THIRD branch (2026-09-04) ────────────
+# ── entry pricing follows production: no carried snap (2026-10-23) ──────────
 
-def test_entry_price_carries_the_prior_mark_forward_when_the_entry_day_has_neither_open_nor_mark(cache):
-    """`_simulate._entry_price_leg` falls through to `_price_leg` → `_price_asof`
-    when the entry-day row has no positive Open and no mark (an illiquid leg
-    with bid 0). The study's reconstruction must do the same, or a row that
-    production priced fails `reconstructs` as `entry_unpriced` for no reason
-    but the mirror being incomplete (UTHR 2025-12-17, hedge_structure R2)."""
+def test_entry_price_never_carries_the_prior_mark_forward(cache):
+    """Until 2026-10-23 production fell through to the prior day's mark when
+    the entry-day row had no usable price, and the mirror followed it (UTHR
+    2025-12-17, hedge_structure R2). Production now fills only off the entry
+    day's own closing quote, so the mirror returns None here too."""
     day0, day1 = ENTRY, ENTRY + timedelta(days=1)
     cache(SHORT, {day0: 2.875, day1: None})
-    # The entry-day row exists (so `entry_date_for` accepts the day) but
-    # carries no usable price of its own.
     assert BR.leg_details(SHORT)[day1]["_mark"] is None
-    assert BR.entry_price_of(SHORT, day1) == pytest.approx(2.875)
+    assert BR.entry_price_of(SHORT, day1) is None
+    assert BR.entry_price_of(SHORT, day0) == pytest.approx(2.875)
 
 
 def test_entry_price_is_none_when_no_mark_exists_on_or_before_the_entry_day(cache):

@@ -95,10 +95,12 @@ def _entry_side_mark(row, qty) -> float | None:
 
     An entry fill happens on the side the leg actually trades, so:
 
-    SCOPE. It governs EVERY barchart entry fill whose quote is one-sided: the
-    quote-derived mark (the branch `_zero_bid_mark` used to own) and, since
-    2026-09-22, the entry-day `Open` print too, which it now PRECEDES (see
-    `_entry_price_leg`). Before 2026-09-22 the Open print won ahead of it. Rules:
+    SCOPE. Since 2026-09-24 every one-sided quote with an ask is junk
+    (`_is_junk_quote`), so this is reached only through `_junk_entry_fill`, and
+    only for a SOLD leg: a bought leg into a bid-less quote is refused there,
+    never filled at the ask. The bought branch below is kept for the research mirrors'
+    legacy bases. Since 2026-10-23 the quote is always the entry day's CLOSING
+    quote (`entry_day_fill`). Rules:
 
       quote is two-sided (bid > 0)        → None   (mid / the source chain below,
                                                     UNCHANGED — this rule does not
@@ -224,102 +226,136 @@ def _traded_price(row) -> float | None:
     return None
 
 
-def _junk_entry_fill(row, qty, open_print: bool = True):
-    """The ENTRY fill for a leg whose entry quote is junk, or None when the
-    quote is not junk (the existing entry chain then decides unchanged).
+def _junk_entry_fill(row, qty):
+    """The ENTRY fill for a leg whose closing quote is junk, or None when the
+    quote is not junk (the closing mid then decides, `entry_day_fill`).
 
     Returns ``(price, tag)``, or ``(None, JUNK_ENTRY_REFUSAL)`` when no real
-    price exists. In order:
+    price exists. Every branch reads the CLOSING quote (operator ruling
+    2026-10-23):
 
-      1. SOLD leg, no bid        → 0.0 (`_entry_side_mark`: nothing is bid,
-                                   nothing is received; precedes any print)
-      2. the contract TRADED     → the day's Open print (when ``open_print`` and
-                                   Open > 0), else its Latest
-      3. SOLD leg, bid > 0       → the bid (a real bid, however wide the ask)
-      4. BOUGHT leg              → refused. The ask of a junk quote is not a
-                                   price anyone paid: `bid 0.09 / ask 5.00` on
-                                   a 0.11 option must never fill at 5.00.
+      1. SOLD leg, no bid      → 0.0 (`_entry_side_mark`: nothing is bid,
+                                 nothing is received)
+      2. SOLD leg, bid > 0     → the bid (a real bid, however wide the ask)
+      3. BOUGHT leg, bid > 0   → the closing MID, tagged `barchart_close_mid_wide`
+                                 (operator ruling 2026-10-23, "option C": the
+                                 spread is one combo order at mid, so a wide
+                                 but two-sided leg fills at mid like any other)
+      4. BOUGHT leg, no bid    → refused. Nothing is bid, and the ask of a
+                                 bid-less quote is not a price anyone paid.
 
-    ``open_print`` is False when ``row`` is not the entry day's own row (a
-    carried snap): an old session's Open is not an entry-day fill.
+    Until 2026-10-23 a contract that TRADED that day filled at its Open print,
+    else its Latest, and every other bought leg was refused. Both prints are
+    gone: an Open is the contract's first trade at an unknown time and a Latest
+    its last, so neither shares a clock with the other legs' closing quotes.
     """
     if not _is_junk_quote(row):
         return None
     if qty < 0:
         side = _entry_side_mark(row, qty)
         if side is not None:
-            return side, "barchart_side"
-    if _traded_price(row) is not None:
-        op = _to_float(row.get("Open"))
-        if open_print and op and op > 0:
-            return op, "barchart_open"
-        return _traded_price(row), "barchart_last"
-    if qty < 0:
+            return side, CLOSE_SIDE_TAG
         bid, _ = _bid_ask(row)
-        return bid, "barchart_side"
+        return bid, CLOSE_SIDE_TAG
+    mid = _close_mid(row)
+    if mid is not None:
+        return mid, CLOSE_MID_WIDE_TAG
     return None, JUNK_ENTRY_REFUSAL
 
 
 # ─── Shared pricing rules (production AND the research re-pricers) ────────────
 # The entry-price choice and the junk-quote daily mark, as pure functions of the
 # quote rows. `_simulate` calls them, and `backtest_study/f3_structure/
-# bear_rewrap.py` IMPORTS them, so the re-pricer cannot drift from production
-# (it had: it took the Open print on a same-day entry, 2026-09-24). Change one
-# here and both follow; never restate them in a mirror.
+# bear_rewrap.py`, `f4_deployment/narrow_to_fit.py` and `lib/hedge_instrument.py`
+# IMPORT them, so a re-pricer cannot drift from production (bear_rewrap had: it
+# took the Open print on a same-day entry, 2026-09-24). Change one here and all
+# follow; never restate them in a mirror.
+
+#: `entry_source` tag of a leg filled at its closing bid/ask MID (2026-10-23).
+CLOSE_MID_TAG = "barchart_close_mid"
+
+#: `entry_source` tag of a BOUGHT leg whose closing quote is junk but
+#: two-sided (bid > 0), filled at its mid (operator ruling 2026-10-23, option C).
+CLOSE_MID_WIDE_TAG = "barchart_close_mid_wide"
+
+#: `entry_source` tag of a leg filled on the SIDE it trades off its closing
+#: quote: a sold leg into a junk quote at its bid, 0 when there is no bid.
+CLOSE_SIDE_TAG = "barchart_close_side"
+
 
 def open_print_allowed(entry_date, signal_date, entry_timing: str = "next_open") -> bool:
-    """May the entry fill at the entry day's ``Open`` print?
+    """Would an ``Open`` print on ``entry_date`` be free of lookahead?
 
-    Only under ``entry_timing: next_open`` and only when the entry day is AFTER
-    the signal day. A SAME-DAY entry (`_entry_row_from_history` falls back to the
-    signal day when no later bar exists yet) fills at the EOD mark: that day's
-    Open printed before the EOD-built signal existed, so filling at it would be
-    lookahead.
+    Production NO LONGER fills at an Open print (operator ruling 2026-10-23,
+    `entry_day_fill`); this survives for the research mirrors' LEGACY bases
+    (`bear_rewrap.entry_price_of` reconstructing rows written before
+    2026-09-24), which reproduce what production did then.
+
+    True only under ``entry_timing: next_open`` and only when the entry day is
+    AFTER the signal day: a same-day entry's Open printed before the EOD-built
+    signal existed.
     """
     return entry_timing == "next_open" and entry_date > signal_date
 
 
-def entry_day_fill(row, qty, *, open_print: bool):
-    """One leg's ENTRY fill off the entry day's OWN history row.
+def _close_mid(row) -> float | None:
+    """The true mid of the row's CLOSING quote, or None when the quote is not
+    two-sided (0 < bid <= ask). Never `Latest`: `lib/barchart/options._mark`
+    falls through to the last trade when a side is missing, and that print has
+    no known time."""
+    bid, ask = _bid_ask(row)
+    if bid is None or ask is None or bid <= 0 or ask < bid:
+        return None
+    return (bid + ask) / 2
+
+
+def entry_day_fill(row, qty):
+    """One leg's ENTRY fill off the entry day's OWN closing quote (operator
+    ruling 2026-10-23: one clock for every leg of an entry).
 
     ``(price, tag)``, ``(None, JUNK_ENTRY_REFUSAL)`` when a bought leg meets a
-    junk quote with no trade, or None to FALL THROUGH to the carried mark
-    (`carried_entry_fill`). None whenever ``open_print`` is False
-    (`open_print_allowed`) or there is no row: the carried path then finds the
-    same day's row as its snap and fills it at the EOD mark. In order:
+    junk quote, or None when the row carries no usable closing quote (no row,
+    no Ask column, or a crossed quote) — the leg has no price THAT day. In
+    order:
 
-      1. a JUNK quote             → `_junk_entry_fill` (with the Open print)
-      2. a positive Open print    → the Open (`barchart_open`)
-      3. a positive `_mark`       → the EOD mark (`barchart`)
+      1. a JUNK quote        → `_junk_entry_fill`: sold at the bid or 0
+                               (`barchart_close_side`); bought at the mid when
+                               a bid exists (`barchart_close_mid_wide`), else
+                               refused
+      2. a two-sided quote   → its mid (`_close_mid`), tag `barchart_close_mid`
+
+    A one-sided quote with an ask is always junk (`_is_junk_quote`), so step 1
+    owns it. No Open print and no Latest print reaches an entry fill. There is
+    no carried fill either: a leg with no row of its own on the entry day is
+    not priced off an earlier day, and `_simulate` moves the entry to a day on
+    which every leg has a row (`common_entry_day`).
     """
-    if not open_print or row is None:
+    if row is None:
         return None
-    fill = _junk_entry_fill(row, qty, open_print=True)
+    fill = _junk_entry_fill(row, qty)
     if fill is not None:
         return fill
-    op = _to_float(row.get("Open"))
-    if op and op > 0:
-        return op, "barchart_open"
-    mk = row.get("_mark")
-    if mk and mk > 0:
-        return mk, "barchart"
+    mid = _close_mid(row)
+    if mid is not None:
+        return mid, CLOSE_MID_TAG
     return None
 
 
-def carried_entry_fill(row, mark, qty):
-    """One leg's ENTRY fill off the snap the barchart source carried to the
-    entry day (on or before it), when `entry_day_fill` fell through.
+def entry_close_days(rows, qty) -> set:
+    """The days on which a leg has a closing quote `entry_day_fill` can judge:
+    a price, or the junk refusal. ``rows`` is the contract's ``{date: row}``."""
+    return {d for d, r in (rows or {}).items() if entry_day_fill(r, qty) is not None}
 
-    ``row`` is the quote the day is judged by and ``mark`` the snap's series
-    mark. ``(price, tag)``: `_junk_entry_fill` on that row WITHOUT its Open
-    print (an old session's Open is not an entry fill) when the quote is junk,
-    else ``(mark, "barchart")``. The tag is ``"barchart"`` exactly when the
-    plain mark was used, which is the only case `_price_leg` may re-tag stale.
-    """
-    fill = _junk_entry_fill(row, qty, open_print=False)
-    if fill is not None:
-        return fill
-    return mark, "barchart"
+
+def common_entry_day(leg_days, start, end=None):
+    """The first day in ``[start, end]`` on which EVERY leg has a closing
+    quote, or None. ``leg_days`` holds one collection of days per leg
+    (`entry_close_days`); ``end`` None means no upper bound."""
+    if not leg_days:
+        return None
+    shared = set(leg_days[0]).intersection(*leg_days[1:])
+    days = sorted(d for d in shared if d >= start and (end is None or d <= end))
+    return days[0] if days else None
 
 
 def last_good_mark(series, details, before, expiration=None):
@@ -504,6 +540,18 @@ DEBIT_CREDIT_REFUSAL = "debit_priced_to_credit"
 #: `skip_reason` / refusal code for a credit structure whose entry priced positive.
 CREDIT_DEBIT_REFUSAL = "credit_priced_to_debit"
 
+#: `skip_reason` / refusal code for a bounded structure whose net entry lies
+#: outside the range its expiry payoff can take (`helpers._defined_risk_bounds`):
+#: a debit vertical above its width, a fly sold for more than its wings.
+#: 2026-10-23; it generalises the two polarity gates above.
+OUTSIDE_BOUNDS_REFUSAL = "entry_outside_bounds"
+
+#: `skip_reason` / refusal code for a position whose legs each have a closing
+#: quote inside the entry window, but never all on the same day. The entry is
+#: filled off ONE day's closing quotes (operator ruling 2026-10-23), so no day
+#: means no fill.
+NO_COMMON_ENTRY_DAY = "no_common_entry_day"
+
 #: `skip_reason` / refusal code for an entry whose same-expiry legs are priced
 #: against strike order (a put above a higher-strike put, a call above a
 #: lower-strike call).
@@ -526,8 +574,9 @@ STALE_LEG_REFUSAL = "stale_leg_at_entry"
 STALE_ENTRY_MAX_TRADING_DAYS = 5
 
 #: Every refusal code `_simulate` can record, in check order.
-ENTRY_REFUSALS = (STALE_LEG_REFUSAL, NO_REAL_ENTRY_PRICE, JUNK_ENTRY_REFUSAL,
-                  DEBIT_CREDIT_REFUSAL, CREDIT_DEBIT_REFUSAL, NON_MONOTONIC_REFUSAL)
+ENTRY_REFUSALS = (STALE_LEG_REFUSAL, NO_REAL_ENTRY_PRICE, NO_COMMON_ENTRY_DAY,
+                  JUNK_ENTRY_REFUSAL, DEBIT_CREDIT_REFUSAL, CREDIT_DEBIT_REFUSAL,
+                  OUTSIDE_BOUNDS_REFUSAL, NON_MONOTONIC_REFUSAL)
 
 
 def entry_window_end(signal_date, max_trading_days: int = STALE_ENTRY_MAX_TRADING_DAYS):
@@ -616,6 +665,16 @@ def _refuse_credit_priced_to_debit(structure: str, entry_net: float) -> bool:
     return entry_net > 0 and structure in CREDIT_STRUCTURES
 
 
+def _entry_outside_bounds(bounds, entry_net: float) -> bool:
+    """True when a bounded structure's net entry lies outside ``bounds``, the
+    ``(v_min, v_max)`` of `helpers._defined_risk_bounds` (2026-10-23). The daily
+    marks are clamped to the same range; an entry outside it is a bad quote,
+    not a fill. None bounds (single legs, calendars, ratios) never refuse."""
+    if bounds is None:
+        return False
+    return entry_net < bounds[0] - 1e-9 or entry_net > bounds[1] + 1e-9
+
+
 def _monotonicity_violation(legs: list, prices: list, tags: list) -> str | None:
     """Detail string when two same-expiry, same-type legs are priced against
     strike order at entry; None when every pair is ordered (2026-09-23).
@@ -625,13 +684,14 @@ def _monotonicity_violation(legs: list, prices: list, tags: list) -> str | None:
     quote no market can hold, so the entry built on it is refused as a bad
     quote. Equal prices pass (both legs at 0 is common far out of the money).
 
-    A leg filled at the touch because its quote was one-sided (`barchart_side`)
-    is skipped: that price is the side it trades on, not the contract's value,
-    and a sold leg at a 0 bid beside a bought leg at its ask is a real market.
+    A leg filled at the touch (`barchart_close_side`, or `barchart_side` on
+    rows written before 2026-10-23) is skipped: that price is the side it
+    trades on, not the contract's value, and a sold leg at a 0 bid beside a
+    bought leg at its ask is a real market.
     """
     groups: dict[tuple, list] = {}
     for leg, p, tag in zip(legs, prices, tags):
-        if tag and tag.startswith("barchart_side"):
+        if tag and tag.startswith(("barchart_side", CLOSE_SIDE_TAG)):
             continue
         groups.setdefault((leg.expiration, leg.opt_type), []).append((leg.strike, p))
     for (exp, opt_type), pts in groups.items():
@@ -1223,11 +1283,15 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     Returns a result dict, or {} if the position cannot be priced.
     barchart_series / contract_index map contract_key -> sorted [(date, price)].
-    barchart_details maps contract_key -> {date: full_row} (incl. 'Open'); when
-    provided and sim_cfg['entry_timing'] is "next_open", entry legs are priced at
-    the entry_row's '_entry_date' (the first trading day after the signal) using
-    that day's Open, falling back to that day's EOD mark. When absent, entry is
-    the legacy signal-day EOD mark.
+    barchart_details maps contract_key -> {date: full_row}. Under
+    ``entry_sources: [barchart]`` every leg is filled off ONE day's CLOSING
+    quote (`entry_day_fill`, operator ruling 2026-10-23): the first day, from
+    the entry_row's '_entry_date' to the end of the entry window, on which every
+    leg has a closing quote of its own. No Open print, no Latest, and no mark
+    carried from an earlier day. Without barchart_details no leg has a closing
+    quote and the position is refused. Only an ``entry_sources`` list without
+    ``barchart`` (tests of the reappearance source) prices the entry through
+    `_price_leg`.
 
     ``refusal`` is an optional dict the caller owns: when the position is refused
     for a REASON worth recording (rather than merely unpriceable), it is filled
@@ -1273,7 +1337,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return junk_day_mark(row, q_day, barchart_series.get(key),
                              (barchart_details or {}).get(key, {}), leg.expiration)
 
-    def _price_leg(leg, day, d, sources=None, entry_qty=None):
+    def _price_leg(leg, day, d, sources=None):
         """``(price, source_tag, quoted_spread, one_sided, snap)``.
 
         ``snap`` is the session the mark actually came FROM. It equals ``day`` on
@@ -1293,13 +1357,9 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         what the slippage term is charged against. Barchart marks are tagged
         `barchart_stale` once carried forward past `max_carry_days`.
 
-        ``entry_qty`` is the leg's SIGNED quantity when this call is pricing an
-        ENTRY, and None on every daily mark. It switches the one-sided-quote rule
-        from the liquidation mark (`_zero_bid_mark`) to the side-aware fill
-        (`_entry_side_mark`): a leg being sold into a 0-bid market is filled at
-        0, not at half the ask. This branch is the one the HYG 2025-04-09 row
-        came through — no bar on the fill day, so the entry fell back to a
-        CARRIED snap and was re-marked by the liquidation rule.
+        It prices DAILY marks only. A barchart ENTRY is never priced here since
+        2026-10-23: it is filled off the entry day's own closing quote
+        (`entry_day_fill`), never off a snap carried from an earlier day.
         """
         if sources is None:
             sources = exit_sources
@@ -1321,15 +1381,7 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                 spread = _leg_spread(row)
                 one_sided = _zero_bid_mark(row) is not None
                 tag = "barchart"
-                if entry_qty is not None:
-                    # `carried_entry_fill`: a junk quote fills by `_junk_entry_fill`
-                    # (a refusal comes back as (None, JUNK_ENTRY_REFUSAL)) and is
-                    # returned as is; the plain mark comes back tagged `barchart`
-                    # and takes the stale re-tag below, as before.
-                    fp, ftag = carried_entry_fill(row, p, entry_qty)
-                    if ftag != "barchart":
-                        return fp, ftag, spread, one_sided, q_day
-                elif _is_junk_quote(row):
+                if _is_junk_quote(row):
                     marked = _junk_day_mark(key, leg, row, q_day)
                     if marked is None:
                         continue
@@ -1348,47 +1400,40 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
                     return p, "real", None, False, snap
         return None, None, None, False, None
 
-    # Step 1 — entry price for each leg, every leg on the SAME entry day (the
-    # anchor's _entry_date: the next trading day under entry_timing "next_open",
-    # else the signal day). Under next_open a leg is filled at that day's Open,
-    # unless that day's quote is junk (then `_junk_entry_fill`, 2026-09-24),
-    # falling back to that day's EOD mark when Open is blank (zero-volume day);
-    # without barchart_details (or for a leg with no row on the entry day) pricing
-    # carries forward the most recent EOD mark on-or-before the entry day.
-    entry_timing = sim_cfg.get("entry_timing", "next_open")
+    # Step 1 — entry price for each leg, every leg on the SAME entry day and off
+    # the SAME clock: that day's CLOSING quote (operator ruling 2026-10-23,
+    # `entry_day_fill`). The operator enters a spread as one combo order at mid,
+    # and the only snapshot every leg's daily history shares is the close; each
+    # leg's Open is its own first trade and its Latest its own last, at times
+    # nobody recorded. The day starts at the anchor's `_entry_date` (the next
+    # trading day under entry_timing "next_open", else the signal day) and moves
+    # to the first day in the entry window on which EVERY leg has a closing
+    # quote (`common_entry_day`); no leg borrows an earlier day's snap.
     entry_date = (entry_row.get("_entry_date") or signal_date) if barchart_details \
         else signal_date
     entry_d = (entry_date - signal_date).days
-    # The Open print only AFTER the signal day (`open_print_allowed`).
-    use_open = open_print_allowed(entry_date, signal_date, entry_timing)
+    # The closing-quote rule owns every barchart entry. Only an entry_sources
+    # list without `barchart` (the reappearance source, used by tests) still
+    # prices the entry through `_price_leg`; reappearance is not consulted at
+    # entry when barchart is listed, because a flow-scrape trade has its own
+    # clock too.
+    close_entry = "barchart" in entry_sources
 
     def _entry_price_leg(leg):
-        """``(price, source_tag, quoted_spread)`` for one leg on the entry day."""
-        if use_open and "barchart" in entry_sources:
-            row = (barchart_details.get(_key(leg)) or {}).get(entry_date)
-            if row is not None:
-                # `entry_day_fill`: a JUNK entry-day quote (2026-09-24) is filled
-                # by `_junk_entry_fill`, AHEAD of the Open print: a SOLD leg into
-                # no bid receives 0 (the 2026-09-22 one-sided rule, which every
-                # zero-bid quote now reaches through this test); otherwise the
-                # day's trade print when the contract traded; otherwise a sold
-                # leg at its bid and a bought leg REFUSED — a junk ask is never
-                # a fill. A clean two-sided quote, or a row with no quote data,
-                # still fills at the Open print, else the day's mark. The junk
-                # leg's spread is `JUNK_SPREAD`, so it is charged commission
-                # only.
-                fill = entry_day_fill(row, leg.qty, open_print=True)
-                if fill is not None:
-                    return fill[0], fill[1], _leg_spread(row)
-        # The entry does not use `one_sided` — `_junk_entry_fill` has already
-        # priced the leg on the side it trades, above and in `_price_leg`.
-        return _price_leg(leg, entry_date, entry_d, sources=entry_sources,
-                          entry_qty=leg.qty)[:3]
+        """``(price, source_tag, quoted_spread)`` for one leg on the entry day.
+        A refusal comes back as ``(None, JUNK_ENTRY_REFUSAL, ...)``."""
+        if close_entry:
+            row = _detail_row(_key(leg), entry_date)
+            fill = entry_day_fill(row, leg.qty)
+            if fill is None:
+                return None, None, None
+            return fill[0], fill[1], _leg_spread(row)
+        return _price_leg(leg, entry_date, entry_d, sources=entry_sources)[:3]
 
     def _entry_quote_days(leg):
         """The days this leg has a real quote under `entry_sources`, up to its
-        expiry: a mark in its series, or a Barchart history row (a junk row may
-        carry no mark, and the entry fill still reads it)."""
+        expiry: a mark in its series, or a Barchart history row. Read by the
+        stale-leg test only; the entry day itself is chosen on closing quotes."""
         key, days = _key(leg), set()
         for src in entry_sources:
             if src == "barchart":
@@ -1400,9 +1445,9 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
 
     def _leg_greek_row(leg):
         """``(day, row)`` — the history row this leg's entry greeks are read from:
-        its own row ON the entry day, else the row its carried entry mark came
-        from (the most recent on or before the entry day). ``(None, None)`` when
-        the leg has no history row at all (e.g. priced by `reappearance`)."""
+        its own row ON the entry day (always, on a barchart entry), else the row
+        its carried mark came from on the reappearance-only path. ``(None,
+        None)`` when the leg has no history row at all."""
         rows = (barchart_details or {}).get(_key(leg)) or {}
         if entry_date in rows:
             return entry_date, rows[entry_date]
@@ -1421,14 +1466,16 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
     def _cp(leg):
         return "C" if leg.opt_type == "Call" else "P"
 
+    def _name(leg):
+        return f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:{_cp(leg)}"
+
     # The entry window (operator ruling 2026-10-01, `fresh_entry_date`): every
     # leg needs a real quote on the signal day or within the next
-    # `stale_entry_max_trading_days` trading days. A leg that first quotes later
-    # than the anchor's day moves the whole entry to that day; a leg whose
-    # quotes all precede the signal refuses the position. Without this, such a
-    # leg filled off its last pre-signal mark (GLD 2026-09-18: a 08-14 mark).
-    # A pricing property of the data, so read off the base config.
+    # `stale_entry_max_trading_days` trading days. A leg whose quotes all
+    # precede the signal refuses the position (GLD 2026-09-18 filled a leg off
+    # a 08-14 mark). A pricing property of the data, so read off the base config.
     max_wait = sim_cfg.get("stale_entry_max_trading_days", STALE_ENTRY_MAX_TRADING_DAYS)
+    new_entry = entry_date
     if max_wait is not None:
         fresh_day, stale_i = fresh_entry_date(
             [_entry_quote_days(leg) for leg in legs], signal_date, entry_date, max_wait)
@@ -1436,35 +1483,53 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
             leg = legs[stale_i]
             last = max(d for d in _entry_quote_days(leg) if d < signal_date)
             return _refuse(STALE_LEG_REFUSAL,
-                           f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:"
-                           f"{_cp(leg)} last real quote {last}, none from signal "
+                           f"{_name(leg)} last real quote {last}, none from signal "
                            f"{signal_date} to {entry_window_end(signal_date, max_wait)}")
-        if fresh_day > entry_date:
-            log.info("entry window: %s %s enters %s, not %s, waiting for a leg's "
-                     "first quote after the signal", signal_date, ticker,
-                     fresh_day, entry_date)
-            dte_entry -= (fresh_day - entry_date).days
-            entry_date = fresh_day
-            entry_d = (entry_date - signal_date).days
-            use_open = open_print_allowed(entry_date, signal_date, entry_timing)
+        new_entry = fresh_day
+    if close_entry:
+        # One clock: the first day in the window on which EVERY leg has its own
+        # closing quote. With the window gate off (null) the search runs to the
+        # nearest expiry.
+        window_end = (entry_window_end(signal_date, max_wait) if max_wait is not None
+                      else min(leg.expiration for leg in legs))
+        close_days = [entry_close_days((barchart_details or {}).get(_key(leg)), leg.qty)
+                      for leg in legs]
+        new_entry = common_entry_day(close_days, entry_date, window_end)
+        if new_entry is None:
+            in_window = [sorted(d for d in days if entry_date <= d <= window_end)
+                         for days in close_days]
+            for leg, days in zip(legs, in_window):
+                if not days:
+                    return _refuse(NO_REAL_ENTRY_PRICE,
+                                   f"{_name(leg)} has no closing quote from "
+                                   f"{entry_date} to {window_end}")
+            seen = "; ".join(f"{_name(leg)} {','.join(d.isoformat() for d in days)}"
+                             for leg, days in zip(legs, in_window))
+            return _refuse(NO_COMMON_ENTRY_DAY,
+                           f"no day from {entry_date} to {window_end} on which "
+                           f"every leg has a closing quote ({seen})")
+    if new_entry > entry_date:
+        log.info("entry window: %s %s enters %s, not %s, waiting for every leg "
+                 "to quote on one day", signal_date, ticker, new_entry, entry_date)
+        dte_entry -= (new_entry - entry_date).days
+        entry_date = new_entry
+        entry_d = (entry_date - signal_date).days
 
     entry_prices, entry_tags = [], []
     entry_spread_units, entry_spread_complete, entry_spread_junk = 0.0, True, False
     for leg in legs:
         p, tag, spread = _entry_price_leg(leg)
         if p is None and tag == JUNK_ENTRY_REFUSAL:
-            # Bought into a junk quote on a day the contract did not trade:
-            # the only price on offer is a junk ask, which is not a fill.
+            # Bought into a junk closing quote with no bid: the only price on
+            # offer is the ask of a dead market, which is not a fill.
             return _refuse(JUNK_ENTRY_REFUSAL,
-                           f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:"
-                           f"{_cp(leg)} bought into a junk quote with no trade on "
-                           f"or before {entry_date}")
+                           f"{_name(leg)} bought into a junk closing quote with "
+                           f"no bid on {entry_date}")
         if p is None:
             # No real price for this leg on the entry day. There is no model
             # tier to fall back to, so the position is not priceable.
             return _refuse(NO_REAL_ENTRY_PRICE,
-                           f"{leg.ticker}:{leg.expiration.isoformat()}:{leg.strike:g}:"
-                           f"{_cp(leg)} has no real price on or before {entry_date}")
+                           f"{_name(leg)} has no real price on or before {entry_date}")
         entry_prices.append(p)
         entry_tags.append(tag)
         if spread == JUNK_SPREAD:
@@ -1479,9 +1544,10 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return {}
 
     # A polarity-fixed structure that priced to the wrong side is NOT PRICEABLE,
-    # and neither is an entry whose legs are quoted against strike order. All
-    # three are refused here, before `_effective_sim_cfg` and `_exit_basis`, so
-    # such a row can never take the wrong sizing/exit profile or basis label.
+    # and neither is a bounded structure whose net entry lies outside its payoff
+    # range, nor an entry whose legs are quoted against strike order. All four
+    # are refused here, before `_effective_sim_cfg` and `_exit_basis`, so such a
+    # row can never take the wrong sizing/exit profile or basis label.
     fills = " ".join(f"{lg.qty:+d}@{p:g}" for lg, p in zip(legs, entry_prices))
     if _refuse_debit_priced_to_credit(structure, entry_net):
         return _refuse(DEBIT_CREDIT_REFUSAL,
@@ -1491,6 +1557,11 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
         return _refuse(CREDIT_DEBIT_REFUSAL,
                        f"{structure} priced to a net DEBIT of {entry_net:.4f} at "
                        f"entry ({fills})")
+    _v_clamp = _defined_risk_bounds(legs)
+    if _entry_outside_bounds(_v_clamp, entry_net):
+        return _refuse(OUTSIDE_BOUNDS_REFUSAL,
+                       f"{structure} net entry {entry_net:.4f} outside its payoff "
+                       f"range [{_v_clamp[0]:g}, {_v_clamp[1]:g}] ({fills})")
     bad_order = _monotonicity_violation(legs, entry_prices, entry_tags)
     if bad_order:
         return _refuse(NON_MONOTONIC_REFUSAL, f"{structure} {bad_order} ({fills})")
@@ -1526,8 +1597,6 @@ def _simulate(candidate, legs, entry_row, contract_index, barchart_series, sim_c
             f" S={'' if leg_s is None else f'{leg_s:g}'}{at} [{tag}]")
 
     S_entry = _entry_underlying(ticker, leg_underlyings, signal_date)
-
-    _v_clamp = _defined_risk_bounds(legs)
 
     # Steps 2-4 — for each trading day, price each leg and net by qty.
     nearest_dte = min((leg.expiration - signal_date).days for leg in legs)

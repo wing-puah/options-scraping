@@ -31,10 +31,11 @@ analysis:
 # ── Entry matching ─────────────────────────────────────────────────────────────
 # Each play is matched to the real flow contract it refers to (same symbol +
 # direction, largest premium). Entry prices for all legs are sourced from
-# Barchart history (entry_sources below) on ONE shared entry day — the next
-# trading day's Open under entry_timing: next_open (default), else the signal
-# day's EOD mark — so every leg is on the same pricing basis. Plays with any
-# leg missing Barchart history are skipped.
+# Barchart history (entry_sources below) on ONE shared entry day, at that day's
+# CLOSING bid/ask — the next trading day's close under entry_timing: next_open
+# (default), else the signal day's close — so every leg is on one clock
+# (operator ruling 2026-10-23). Plays with any leg missing Barchart history are
+# skipped.
 entry:
   # Require the matched flow trade to be on a given side: Ask | Bid | Mid | any.
   # "Ask" = buyer-initiated (directional conviction). "any" matches the headline
@@ -95,7 +96,7 @@ simulation:
   #                              nothing and the row's `cost_basis` says which side
   #                              was unpriced — never a guessed spread. A leg the
   #                              ENTRY already filled at the touch because its quote
-  #                              was one-sided (`barchart_side`, 2026-09-19) is one
+  #                              was junk (`barchart_close_side`; `barchart_side` before 2026-10-23) is one
   #                              of those: its spread is dropped so slippage is not
   #                              charged twice on a fill that is already adverse.
   #                              That side-aware entry is a PRICE, not a cost — it
@@ -390,23 +391,23 @@ simulation:
   # null = off (the old leg filled at its last pre-signal mark).
   stale_entry_max_trading_days: 5
 
-  # Entry TIMING — which day/quote the fill is taken at:
-  #   next_open  — the NEXT trading day's Open (the analysis is produced after the
-  #                close, so the realistic fill is the next open). A leg whose Open
-  #                is blank that day (zero-volume contract) falls back to that
-  #                day's EOD mark; a play whose contract has no data after the
-  #                signal date within the staleness window falls back to the
-  #                signal day's EOD mark instead of being dropped. entry_source
-  #                tags the basis per leg (barchart_open vs barchart).
-  #                A leg whose entry-day quote is
-  #                ONE-SIDED (no bid) is filled on the side it trades — the
-  #                BID, i.e. 0, when sold, the ASK when bought — and tagged
-  #                `barchart_side` (2026-09-19). Not configurable: it is what a
-  #                fill IS. Since 2026-09-22 it also PRECEDES the Open print; a
-  #                two-sided quote prices exactly as before (Open first). See
-  #                `simulate.py::_entry_side_mark`, whose docstring also says why
-  #                the daily-mark rule (`_zero_bid_mark`, B5) stays different.
-  #   signal_eod — the signal day's end-of-day mark (legacy; reproduces old runs).
+  # Entry TIMING — which DAY the fill starts from. Every leg fills at that day's
+  # CLOSING quote (operator ruling 2026-10-23, `simulate.entry_day_fill`): the
+  # bid/ask mid when the quote is two-sided and not junk (`barchart_close_mid`);
+  # on a junk quote a SOLD leg fills at its bid, 0 with no bid
+  # (`barchart_close_side`); a BOUGHT leg fills at the mid when the quote has a
+  # bid (`barchart_close_mid_wide`, ruling 2026-10-23) and refuses the play
+  # when it has none (`junk_entry_quote`). No Open print, no Latest and no snap carried from an
+  # earlier day ever fills a leg: a leg with no closing quote moves the whole
+  # entry to the first day in the window on which every leg has one
+  # (`no_common_entry_day` if none). Not configurable: it is what a combo fill
+  # at mid IS.
+  #   next_open  — start at the NEXT trading day (the analysis is produced after
+  #                the close), filled at its close. The name is historical: it
+  #                filled at that day's Open print until 2026-10-23. A play whose
+  #                anchor has no bar after the signal within the staleness window
+  #                starts at the signal day instead.
+  #   signal_eod — start at the signal day, filled at its close (legacy).
   entry_timing: next_open
 
   # Exit pricing — tried in this order, first available wins (per trading day):

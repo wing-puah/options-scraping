@@ -32,8 +32,8 @@ F3, Definitions §Narrow-to-fit steps 1-7 (`Narrower.__call__`):
      vertical, the sold leg of a credit vertical (operator ruling 2);
   2. walk the OTHER leg inward one strike at a time from the proposed strike;
   3. take the widest strike whose one-contract max loss, priced from the
-     entry-day fill (`simulate.entry_day_fill` / `carried_entry_fill` under
-     `open_print_allowed`, IMPORTED), is at or under the budget;
+     entry day's closing-quote fill (`simulate.entry_day_fill`, IMPORTED), is
+     at or under the budget;
   4. size it with `account_sim.risk_contracts` (inside `simulate`);
   5. `narrow_no_fit` when no listed strike between the legs fits;
   6. `narrow_tier_break` when the narrowed legs change the pick's tier under
@@ -90,9 +90,9 @@ from scripts.backtest.legs import Leg  # noqa: E402
 from scripts.backtest.proxy import _infer_strike_step, _strike_step  # noqa: E402
 from scripts.backtest.shared import unlisted as UL  # noqa: E402
 from scripts.backtest.simulate import (  # noqa: E402
-    _is_junk_quote, _real_greek, _refuse_credit_priced_to_debit,
-    _refuse_debit_priced_to_credit, _simulate, _snap_asof, carried_entry_fill,
-    entry_day_fill, fresh_entry_date, last_good_mark, open_print_allowed,
+    _real_greek, _refuse_credit_priced_to_debit,
+    _refuse_debit_priced_to_credit, _simulate, _snap_asof,
+    entry_day_fill, fresh_entry_date, last_good_mark,
 )
 from scripts.backtest_study.f3_structure.bear_rewrap import recorded_entry_date  # noqa: E402
 from scripts.backtest_study.f4_deployment import account_sim as AS  # noqa: E402
@@ -136,8 +136,6 @@ N2_BAR = 0.25
 N3_WINDOW_DEPTH = 0.10
 #: N5 — a calendar year is graded when it holds at least this many narrowed picks.
 N5_MIN_YEAR_N = 10
-#: The entry timing every v4 row was priced under (config/backtest.yml).
-ENTRY_TIMING = "next_open"
 
 BACKTEST_CONFIG = ROOT / "config" / "backtest.yml"
 UNLISTED_PATH = HISTORY_CACHE / UL.FILENAME
@@ -324,13 +322,13 @@ def entry_fill(chain: Chain, leg: Leg, entry_day: date,
                signal_date: date) -> tuple[float | None, str]:
     """One leg's ENTRY fill on the recorded entry day, production's choice.
 
-    `(price, tag)`; price None means no usable fill (tag says why). The order
-    is `_simulate._entry_price_leg` then `_price_leg(entry_qty=...)`: the entry
-    day's own row through `entry_day_fill` when `open_print_allowed`, else the
-    newest snap on or before the day through `carried_entry_fill`. Both are
-    IMPORTED. A leg whose first real quote after the signal lands after the
-    entry day, or whose quotes all precede the signal, is not filled on that
-    day — production would move or refuse the entry (`fresh_entry_date`).
+    `(price, tag)`; price None means no usable fill (tag says why). Since
+    2026-10-23 production fills every leg off the entry day's own CLOSING quote
+    through `entry_day_fill`, IMPORTED: no Open print, no Latest, and no snap
+    carried from an earlier day. A leg whose first real quote after the signal
+    lands after the entry day, or whose quotes all precede the signal, is not
+    filled on that day — production would move or refuse the entry
+    (`fresh_entry_date`, `common_entry_day`).
     """
     series, details = chain.history(leg)
     if not series and not details:
@@ -342,23 +340,10 @@ def entry_fill(chain: Chain, leg: Leg, entry_day: date,
         return None, "stale_leg_at_entry"
     if day != entry_day:
         return None, "first_quote_after_entry"
-    if open_print_allowed(entry_day, signal_date, ENTRY_TIMING):
-        row = details.get(entry_day)
-        if row is not None:
-            fill = entry_day_fill(row, leg.qty, open_print=True)
-            if fill is not None:
-                return (fill[0], fill[1]) if fill[0] is not None else (None, fill[1])
-    key = ("k",)
-    p, snap = _snap_asof({key: series}, key, entry_day, leg.expiration)
-    if p is None:
+    fill = entry_day_fill(details.get(entry_day), leg.qty)
+    if fill is None:
         return None, "no_price"
-    row = details.get(snap)
-    if snap != entry_day and entry_day <= leg.expiration:
-        today = details.get(entry_day)
-        if today is not None and _is_junk_quote(today):
-            row = today
-    fp, tag = carried_entry_fill(row, p, leg.qty)
-    return (fp, tag) if fp is not None else (None, tag)
+    return fill
 
 
 def max_loss_of(legs: list[Leg], net: float) -> float | None:

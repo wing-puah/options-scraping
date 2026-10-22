@@ -27,11 +27,12 @@ WHAT COUNTS AS FILLABLE
 -----------------------
 PRODUCTION's entry rule, imported from `scripts/backtest/simulate.py` and never
 restated (operator ruling, Resolved at build 2026-09-28). A put is bought at the
-session's close, so it is a SAME-DAY entry and `open_print_allowed` keeps the
-Open print out; `carried_entry_fill` then fills it off the session's own row:
-the EOD mark on a clean quote, the day's trade print on a junk quote
-(`_is_junk_quote`) when the contract traded, and REFUSED on a junk quote that
-did not trade, because a junk ask is never a fill. A contract with no row on
+session's close, and `entry_day_fill` fills it off the session's own closing
+quote (operator rulings 2026-10-23): the bid/ask mid on any two-sided quote,
+junk (`_is_junk_quote`) or not, and REFUSED on a quote with no bid, because
+the ask of a bid-less market is never a fill.
+Until 2026-10-23 a junk quote on a day the contract traded filled at its
+Latest; production no longer takes that print. A contract with no row on
 the session, or a refused one, is NOT fillable, and this module returns
 **None** rather than a fabricated fill. Per the pre-registration those
 sessions are carried by the study at f=0 and counted AGAINST the fill gate,
@@ -99,8 +100,7 @@ if str(ROOT) not in sys.path:
 from lib.barchart.options import cache_path, parse_history_details  # noqa: E402
 from scripts.backtest.config import HISTORY_CACHE  # noqa: E402
 from scripts.backtest.simulate import (  # noqa: E402
-    _is_junk_quote, carried_entry_fill, entry_day_fill, junk_day_mark,
-    open_print_allowed,
+    _is_junk_quote, entry_day_fill, junk_day_mark,
 )
 from scripts.backtest.helpers import _weekday_grid  # noqa: E402
 from scripts.backtest.legs import Leg  # noqa: E402
@@ -202,16 +202,15 @@ def _contract_marks(ticker: str, expiry: date, strike: float
 def entry_fill(ticker: str, expiry: date, strike: float, session: date
                ) -> float | None:
     """The price production would pay for ONE long put bought at `session`'s
-    close, or None when it would not fill (no row that day, or a junk quote
-    with no trade). Production's two calls, in its order: `entry_day_fill`
-    (which the same-day `open_print_allowed` turns off), then
-    `carried_entry_fill` on the session's own row."""
+    close, or None when it would not fill (no row that day, or no two-sided
+    closing quote with a bid). Production's call: `entry_day_fill` on the
+    session's own row."""
     row = _contract_rows(ticker, expiry, strike).get(session)
     if row is None:
         return None
-    fill = entry_day_fill(row, +1, open_print=open_print_allowed(session, session))
+    fill = entry_day_fill(row, +1)
     if fill is None:
-        fill = carried_entry_fill(row, row["_mark"], +1)
+        return None
     price = fill[0]
     return price if price is not None and price > 0 else None
 

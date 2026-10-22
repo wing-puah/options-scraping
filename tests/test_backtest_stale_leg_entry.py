@@ -60,10 +60,13 @@ def test_window_end_counts_weekdays_from_the_signal_day():
     assert sim.STALE_ENTRY_MAX_TRADING_DAYS == 5
 
 
-def test_a_quote_on_day_0_enters_on_the_anchor_day():
-    res = _run([DAY[0]])
-    assert res
-    assert res["dte_entry"] == (EXP - ENTRY).days     # entry did not move
+def test_a_quote_on_day_0_only_does_not_fill_a_next_day_entry():
+    """Until 2026-10-23 the anchor's day-1 entry carried the short leg's day-0
+    mark forward. An entry now fills only off one day's closing quotes, from the
+    anchor's day on, so a leg that quotes only on the signal day has no fill."""
+    refusal = {}
+    assert _run([DAY[0]], refusal=refusal) == {}
+    assert refusal["reason"] == sim.NO_REAL_ENTRY_PRICE
 
 
 def test_a_quote_on_the_entry_day_is_unchanged():
@@ -106,9 +109,16 @@ def test_a_leg_with_no_quote_at_all_keeps_its_old_refusal():
     assert refusal["reason"] == sim.NO_REAL_ENTRY_PRICE
 
 
-def test_null_turns_the_gate_off():
-    res = _run([date(2026, 5, 20)], cfg_extra={"stale_entry_max_trading_days": None})
-    assert res and res["dte_entry"] == (EXP - ENTRY).days
+def test_null_turns_the_gate_off_but_never_borrows_an_old_snap():
+    """With the window off, a pre-signal quote is no longer refused as stale,
+    but it is no fill either: no leg borrows an earlier day's snap (2026-10-23)."""
+    off = {"stale_entry_max_trading_days": None}
+    refusal = {}
+    assert _run([date(2026, 5, 20)], cfg_extra=off, refusal=refusal) == {}
+    assert refusal["reason"] == sim.NO_REAL_ENTRY_PRICE
+    # …and the search for a common day is no longer bounded by the window.
+    res = _run([date(2026, 5, 20), DAY[6]], cfg_extra=off)
+    assert res and res["dte_entry"] == (EXP - DAY[6]).days
 
 
 def test_the_refusal_is_tallied_and_listed_first():

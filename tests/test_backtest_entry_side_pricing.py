@@ -10,12 +10,13 @@ entry went to −0.37, `_exit_basis` keyed it CREDIT, and it booked +100%.
 Two separate claims are pinned here:
 
   entry  a leg whose entry-day quote is ONE-SIDED is priced on the side it
-         trades — bid (0) when sold — even when the day printed an `Open`
-         (since 2026-09-22). Since 2026-09-24 a one-sided quote is a JUNK
-         quote (tests/test_backtest_junk_quotes.py): a BOUGHT leg no longer
-         pays the ask; it fills at the day's trade or is refused. A clean
-         two-sided quote, and a row with no quote data at all, price exactly
-         as they did before, Open print first.
+         trades — bid (0) when sold. Since 2026-09-24 a one-sided quote is a
+         JUNK quote (tests/test_backtest_junk_quotes.py): a BOUGHT leg into
+         one is refused. Since 2026-10-23 every leg fills off the entry day's
+         CLOSING quote (operator ruling: one clock for every leg), so an
+         `Open` print or a `Latest` never fills a leg, a two-sided quote fills
+         at its mid, and a row with no quote data is no fill at all
+         (tests/test_backtest_entry_close_clock.py has the rule's own tests).
   gate   a structure whose NAME fixes it as a debit, priced to a net credit, is
          refused rather than written, and the refusal is recorded.
 
@@ -121,37 +122,38 @@ def test_entry_side_mark_and_zero_bid_mark_disagree_by_sign():
     assert sim._entry_side_mark(row, +1) == 2.68
 
 
-# ── (a)/(b) the entry path, on a carried quote with no bar on the fill day ───────
+# ── (a)/(b) the HYG shape: a leg with no bar on the fill day ──────────────────
 #
-# This is the HYG shape exactly: the leg has no row on the entry day, so entry
-# pricing falls through to `_price_leg`'s carry-forward and the quote it re-marks
-# is an older snap.
+# Until 2026-10-23 such a leg fell through to `_price_leg`'s carry-forward and
+# was filled off an older snap. It now waits: the entry moves to the first day
+# on which every leg has a closing quote of its own.
 
-def _carried_quote_case(short_qty_first=True, bid="0.00", ask="2.68"):
+def _carried_quote_case(bid="0.00", ask="2.68"):
     long_rows = {ENTRY: _row(0.97, bid="0.90", ask="1.04", open_="0.97")}
-    # The carried snap sits ON the signal day: a pre-signal one would now move
-    # the entry to 06-03 under the entry window (`fresh_entry_date`, 2026-10-01).
     short_rows = {SIGNAL: _row(0.45, bid=bid, ask=ask)}
     details = {LONG_KEY: long_rows, SHORT_KEY: short_rows}
+    long_rows[date(2026, 6, 3)] = _row(1.0, bid="0.90", ask="1.10")
+    short_rows[date(2026, 6, 3)] = _row(0.0, bid="0.00", ask="2.68")
     for rows in (long_rows, short_rows):
-        for d in (date(2026, 6, 3), date(2026, 6, 4)):
-            rows.setdefault(d, _row(1.0, bid="0.90", ask="1.10"))
+        rows.setdefault(date(2026, 6, 4), _row(1.0, bid="0.90", ask="1.10"))
     return details
 
 
 def test_short_leg_with_a_zero_bid_contributes_nothing_at_entry():
     details = _carried_quote_case()
     res = _run(_legs(("+1", 76), ("-1", 72)), details)
-    # Long 0.97 at its Open print, short 0.00 at a bid of 0 → a 0.97 DEBIT.
-    # Before the fix the short leg came in at ask/2 = 1.34 and the spread priced
-    # to a −0.37 CREDIT.
-    assert _entry_net(res) == pytest.approx(0.97)
+    # The short 72P has no row on 06-02, so the entry waits for 06-03: long at
+    # its 1.00 closing mid, short sold into a 0 bid for 0 → a 1.00 DEBIT.
+    # Before 2026-09-19 the short leg came in at ask/2 = 1.34 and the spread
+    # priced to a CREDIT.
+    assert _entry_net(res) == pytest.approx(1.00)
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_side"
+    assert res["dte_entry"] == (EXP - date(2026, 6, 3)).days
     assert res["exit_basis"] != "CREDIT"
 
 
-def _bought_zero_bid_carried(**long_kw):
-    # Carried from the signal day, as in `_carried_quote_case`.
-    details = {LONG_KEY: {SIGNAL: _row(0.45, bid="0.00", ask="2.68", **long_kw)},
+def _bought_junk_on_entry_day(**long_kw):
+    details = {LONG_KEY: {ENTRY: _row(0.45, bid="0.00", ask="2.68", **long_kw)},
                SHORT_KEY: {ENTRY: _row(0.30, bid="0.25", ask="0.35", open_="0.30")}}
     for d in (date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.0, bid="0.90", ask="1.10")
@@ -159,25 +161,26 @@ def _bought_zero_bid_carried(**long_kw):
     return details
 
 
-def test_long_leg_on_a_junk_quote_with_no_trade_is_refused():
-    """Until 2026-09-24 a bought leg into `bid 0 / ask 2.68` paid the ask. A
-    bid-less quote is JUNK, and its ask is not a price anyone paid — with no
-    trade that day there is no real entry price, so the play is refused."""
+def test_long_leg_on_a_junk_quote_is_refused():
+    """A bid-less quote is JUNK, and its ask is not a price anyone paid. The
+    entry day has a closing quote for both legs, so the junk ask refuses the
+    play there; the clean quotes on 06-03 do not rescue it."""
     refusal = {}
-    res = _run(_legs(("+1", 76), ("-1", 72)), _bought_zero_bid_carried(),
+    res = _run(_legs(("+1", 76), ("-1", 72)), _bought_junk_on_entry_day(),
                refusal=refusal)
     assert res == {}
     assert refusal["reason"] == sim.JUNK_ENTRY_REFUSAL == "junk_entry_quote"
 
 
-def test_long_leg_on_a_junk_quote_that_traded_fills_at_the_trade():
-    """The same carried junk quote on a day the contract TRADED at 0.45: the
-    fill is that Latest (never the carried day's Open), the short leg its own
-    two-sided Open."""
+def test_long_leg_on_a_junk_quote_that_traded_is_still_refused():
+    """Until 2026-10-23 the same junk quote on a day the contract TRADED filled
+    at that day's Latest. A Latest is a print at an unknown time, so it no
+    longer fills a leg."""
+    refusal = {}
     res = _run(_legs(("+1", 76), ("-1", 72)),
-               _bought_zero_bid_carried(latest="0.45", volume="12"))
-    assert _entry_net(res) == pytest.approx(0.15)
-    assert res["entry_source"] == "barchart_last+barchart_open"
+               _bought_junk_on_entry_day(latest="0.45", volume="12"), refusal=refusal)
+    assert res == {}
+    assert refusal["reason"] == "junk_entry_quote"
 
 
 # ── (c)/(d) everything else at entry is byte-for-byte what it was ───────────────
@@ -194,16 +197,17 @@ def test_two_sided_entry_quote_is_unchanged():
 
 
 def test_a_row_with_no_quote_columns_is_not_treated_as_a_zero_bid():
-    """An older cache file carries no Bid/Ask at all. That is NO QUOTE DATA, and
-    the existing fallback (the row's own mark) must still decide — a short leg
-    here must NOT be handed a fabricated 0."""
+    """An older cache file carries no Bid/Ask at all. That is NO QUOTE DATA: a
+    short leg here is never handed a fabricated 0. Since 2026-10-23 it is no
+    fill either — the row's mark may be a Latest — so the play is refused."""
     details = {LONG_KEY: {date(2026, 5, 27): _row(1.10)},
                SHORT_KEY: {date(2026, 5, 27): _row(0.50)}}
     for d in (ENTRY, date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.10)
         details[SHORT_KEY][d] = _row(0.50)
-    res = _run(_legs(("+1", 76), ("-1", 72)), details)
-    assert _entry_net(res) == pytest.approx(0.60)     # 1.10 − 0.50, the marks
+    refusal = {}
+    assert _run(_legs(("+1", 76), ("-1", 72)), details, refusal=refusal) == {}
+    assert refusal["reason"] == sim.NO_REAL_ENTRY_PRICE
 
 
 def _open_print_case(long_quote, short_quote):
@@ -217,72 +221,79 @@ def _open_print_case(long_quote, short_quote):
 
 
 def test_a_sold_leg_with_a_zero_bid_is_not_filled_at_its_open_print():
-    """next-steps §0 item 9, decided 2026-09-22. The short leg printed 0.45 at the
-    open, but the day's own quote is `0 × 2.68`: nothing is bid, so nothing is
-    received. The side rule now PRECEDES the Open print. Before, this entry was
-    0.97 − 0.45 = 0.52 — the shape of the 49 stored `Open`-fill rows."""
-    details = _open_print_case(dict(bid="0.90", ask="1.04"),
+    """The short leg printed 0.45 at the open, but the day's closing quote is
+    `0 × 2.68`: nothing is bid, so nothing is received. The long leg fills at
+    its closing mid, not its 0.97 Open print."""
+    details = _open_print_case(dict(bid="0.80", ask="0.90"),
                                dict(bid="0.00", ask="2.68"))
     res = _run(_legs(("+1", 76), ("-1", 72)), details)
-    assert _entry_net(res) == pytest.approx(0.97)     # long at its Open, short at 0
-    assert res["entry_source"] == "barchart_open+barchart_side"
+    assert _entry_net(res) == pytest.approx(0.85)     # long at its mid, short at 0
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_side"
 
 
-def test_a_bought_leg_with_a_zero_bid_fills_at_the_open_only_if_it_traded():
-    """2026-09-24: a bought leg on a junk quote no longer pays the ask. With
-    volume that day it fills at the Open print; without, it is refused."""
-    traded = _open_print_case(dict(bid="0.00", ask="1.20", volume="7", latest="0.95"),
-                              dict(bid="0.40", ask="0.50"))
-    res = _run(_legs(("+1", 76), ("-1", 72)), traded)
-    assert _entry_net(res) == pytest.approx(0.97 - 0.45)   # both Open prints
-    assert res["entry_source"] == "barchart_open+barchart_open"
-
-    refusal = {}
-    untraded = _open_print_case(dict(bid="0.00", ask="1.20"),
-                                dict(bid="0.40", ask="0.50"))
-    assert _run(_legs(("+1", 76), ("-1", 72)), untraded, refusal=refusal) == {}
-    assert refusal["reason"] == "junk_entry_quote"
+def test_a_bought_leg_with_a_zero_bid_is_refused_traded_or_not():
+    """A bought leg on a junk quote never pays the ask. Until 2026-10-23 it
+    filled at its Open print when the contract traded; now it is refused
+    either way."""
+    for extra in (dict(volume="7", latest="0.95"), {}):
+        refusal = {}
+        details = _open_print_case(dict(bid="0.00", ask="1.20", **extra),
+                                   dict(bid="0.40", ask="0.50"))
+        assert _run(_legs(("+1", 76), ("-1", 72)), details, refusal=refusal) == {}
+        assert refusal["reason"] == "junk_entry_quote"
 
 
 def test_a_junk_ask_is_never_an_entry_fill():
-    """The HYG 74P shape: `bid 0.09 / ask 5.00` on an option that trades near
-    1. A bought leg fills at its traded Open, never the ask or the mid; the
-    leg-side is charged commission only and the row says `no_spread_entry`."""
+    """The HYG 74P shape: `bid 0.09 / ask 5.00`. A bought leg is never filled
+    at the ask, its Open or its Latest. Since 2026-10-23 (option C) a junk
+    quote with a bid fills a bought leg at its closing mid, tagged
+    `barchart_close_mid_wide`; the leg-side is charged commission only."""
     details = _open_print_case(dict(bid="0.09", ask="5.00", volume="28", latest="0.99"),
                                dict(bid="0.40", ask="0.50"))
     res = _run(_legs(("+1", 76), ("-1", 72)), details,
                cfg=_cfg(commission_per_contract=0.65, slippage_frac_of_spread=0.25))
-    # The bought 76P fills at its 0.97 Open print, not the 5.00 ask or 2.545 mid.
-    assert _entry_net(res) == pytest.approx(0.97 - 0.45)
-    assert res["entry_source"] == "barchart_open+barchart_open"
+    assert _entry_net(res) == pytest.approx(2.545 - 0.45)
+    assert res["entry_source"] == "barchart_close_mid_wide+barchart_close_mid"
     assert res["cost_basis"].startswith("no_spread_entry")
 
 
-def test_an_open_print_still_wins_over_a_two_sided_quote():
-    """The extension claims ONLY a one-sided quote. A two-sided quote on the
-    entry day keeps the Open fill — this is not touch pricing."""
+def test_a_junk_sold_leg_is_charged_commission_only():
+    """A sold leg into a junk quote fills at its closing bid; that leg-side is
+    charged commission only and the row says `no_spread_entry`."""
     details = _open_print_case(dict(bid="0.90", ask="1.04"),
+                               dict(bid="0.09", ask="5.00", volume="28", latest="0.45"))
+    res = _run(_legs(("+1", 76), ("-1", 72)), details,
+               cfg=_cfg(commission_per_contract=0.65, slippage_frac_of_spread=0.25))
+    assert _entry_net(res) == pytest.approx(0.97 - 0.09)
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_side"
+    assert res["cost_basis"].startswith("no_spread_entry")
+
+
+def test_the_closing_mid_wins_over_an_open_print():
+    """Until 2026-10-23 a two-sided quote kept the Open fill. Now both legs fill
+    at their closing mid: 0.85 − 0.45, not the prints' 0.97 − 0.45."""
+    details = _open_print_case(dict(bid="0.80", ask="0.90"),
                                dict(bid="0.40", ask="0.50"))
     res = _run(_legs(("+1", 76), ("-1", 72)), details)
-    assert _entry_net(res) == pytest.approx(0.52)     # 0.97 − 0.45, both prints
-    assert res["entry_source"] == "barchart_open+barchart_open"
+    assert _entry_net(res) == pytest.approx(0.40)
+    assert res["entry_source"] == "barchart_close_mid+barchart_close_mid"
 
 
-def test_an_open_print_still_wins_when_the_row_has_no_quote_data():
-    """No Bid/Ask columns is NO QUOTE DATA, not a zero bid: the Open print fills."""
+def test_a_row_with_only_an_open_print_moves_the_entry_to_the_next_quote():
+    """No Bid/Ask columns on the entry day is no closing quote, so the Open
+    print does not fill. Both legs quote on 06-03, so the entry moves there."""
     details = _open_print_case({}, {})
     res = _run(_legs(("+1", 76), ("-1", 72)), details)
-    assert _entry_net(res) == pytest.approx(0.52)
-    assert "barchart_side" not in res["entry_source"]
+    assert _entry_net(res) == pytest.approx(1.0 - 0.4)
+    assert res["dte_entry"] == (EXP - date(2026, 6, 3)).days
+    assert "barchart_open" not in res["entry_source"]
 
 
-def test_the_side_rule_over_the_open_can_still_reach_the_debit_credit_gate():
-    """A bought leg on a junk `0 × 0` quote that traded fills at its 0.30 Open;
-    with the short leg's two-sided 0.45 Open above it, the debit spread prices
-    to a credit and is refused rather than written."""
-    details = _open_print_case(dict(bid="0.00", ask="0.00", volume="3", latest="0.30"),
+def test_closing_quotes_can_still_reach_the_debit_credit_gate():
+    """A bought 76P quoted below the sold 72P at the close prices the debit
+    spread to a credit, which is refused rather than written."""
+    details = _open_print_case(dict(bid="0.20", ask="0.30"),
                                dict(bid="0.40", ask="0.50"))
-    details[LONG_KEY][ENTRY]["Open"] = "0.30"
     refusal = {}
     assert _run(_legs(("+1", 76), ("-1", 72)), details, refusal=refusal) == {}
     assert refusal["reason"] == "debit_priced_to_credit"
@@ -319,7 +330,7 @@ def _inverted_case():
     SMH 2024-07-17 / IWM 2024-03-25 shape. Side-aware pricing does not touch it;
     the gate is what catches it."""
     details = {LONG_KEY: {ENTRY: _row(0.97, bid="0.90", ask="1.04", open_="0.97")},
-               SHORT_KEY: {ENTRY: _row(1.34, bid="1.30", ask="1.40", open_="1.34")}}
+               SHORT_KEY: {ENTRY: _row(1.34, bid="1.29", ask="1.39", open_="1.34")}}
     for d in (date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.0, bid="0.90", ask="1.10")
         details[SHORT_KEY][d] = _row(1.3, bid="1.25", ask="1.35")
@@ -338,19 +349,20 @@ def test_the_refused_row_can_never_be_labelled_credit():
     """The gate runs BEFORE `_effective_sim_cfg` / `_exit_basis`, so no refused
     position can take the credit sizing profile or carry a CREDIT basis."""
     assert _run(_legs(("+1", 76), ("-1", 72)), _inverted_case()) == {}
-    # The same quotes under a CREDIT label are refused too (2026-09-23): the 72P
-    # is priced above the 76P, which is a bad quote whatever the position is
-    # called. The polarity gates pass (a credit that priced to a credit), so the
-    # strike-order check is what catches it.
+    # The same quotes under a CREDIT label are refused too: the 72P is priced
+    # above the 76P, which is a bad quote whatever the position is called. The
+    # polarity gates pass (a credit that priced to a credit). Long 76P / short
+    # 72P is worth 0 to 4 at expiry, so the −0.37 net is outside that range and
+    # the bounds gate (2026-10-23) catches it ahead of the strike-order check.
     refusal = {}
     res = _run(_legs(("+1", 76), ("-1", 72)), _inverted_case(),
                structure="bull_put_spread", refusal=refusal)
     assert res == {}
-    assert refusal["reason"] == sim.NON_MONOTONIC_REFUSAL
+    assert refusal["reason"] == sim.OUTSIDE_BOUNDS_REFUSAL
 
 
 def test_a_debit_structure_priced_to_a_debit_is_untouched():
-    details = {LONG_KEY: {ENTRY: _row(1.34, bid="1.30", ask="1.40", open_="1.34")},
+    details = {LONG_KEY: {ENTRY: _row(1.34, bid="1.29", ask="1.39", open_="1.34")},
                SHORT_KEY: {ENTRY: _row(0.97, bid="0.90", ask="1.04", open_="0.97")}}
     for d in (date(2026, 6, 3), date(2026, 6, 4)):
         details[LONG_KEY][d] = _row(1.3, bid="1.25", ask="1.35")
@@ -410,21 +422,30 @@ def test_weekday_grid_assumption_holds():
 
 # ── (g) the mirror: a CREDIT structure priced to a net DEBIT (2026-09-23) ───────
 
-def _tlt_case():
+def _tlt_case(long_bid="0.68", long_ask="0.81"):
     """TLT 2025-04-04, bull_put_spread 90/85, reduced to its shape: the bought 85P
-    fills at a stale Open print (1.61) far above its own two-sided quote
-    (0.68/0.81), the sold 90P at a fair 1.26. The entry nets a +0.35 DEBIT, which
-    `_size_contracts` used to divide the risk budget by — 38 contracts."""
+    printed a stale Open of 1.61 far above its own two-sided quote (0.68/0.81),
+    the sold 90P quoted around a fair 1.26. Filled at the Open print, the entry
+    netted a +0.35 DEBIT, which `_size_contracts` divided the risk budget by —
+    38 contracts."""
     long_k = ("IWM", "Put", 85.0, "2026-07-17")
     short_k = ("IWM", "Put", 90.0, "2026-07-17")
-    details = {long_k: {ENTRY: _row(0.745, bid="0.68", ask="0.81", open_="1.61")},
+    details = {long_k: {ENTRY: _row(0.745, bid=long_bid, ask=long_ask, open_="1.61")},
                short_k: {ENTRY: _row(1.26, bid="1.20", ask="1.32", open_="1.26")}}
     legs = [bt.Leg(1, "IWM", EXP, 85.0, "Put"), bt.Leg(-1, "IWM", EXP, 90.0, "Put")]
     return legs, details
 
 
-def test_a_credit_structure_priced_to_a_debit_is_refused():
+def test_the_tlt_shape_prices_to_a_credit_at_the_closing_mid():
+    """At the close both legs fill at their mids, so the stale 1.61 Open never
+    reaches the fill and the spread nets the credit its quotes say."""
     legs, details = _tlt_case()
+    res = _run(legs, details, structure="bull_put_spread")
+    assert _entry_net(res) == pytest.approx(0.745 - 1.26)
+
+
+def test_a_credit_structure_priced_to_a_debit_is_refused():
+    legs, details = _tlt_case(long_bid="1.55", long_ask="1.67")   # mid 1.61
     refusal = {}
     res = _run(legs, details, structure="bull_put_spread", refusal=refusal)
     assert res == {}
@@ -482,6 +503,8 @@ def test_monotonicity_predicate_calls_and_ties():
     assert sim._monotonicity_violation(C, [0.0, 0.0], ["barchart", "barchart"]) is None
     # A one-sided touch fill is an execution price, not a value: not judged.
     assert sim._monotonicity_violation(C, [5.0, 6.0], ["barchart", "barchart_side"]) is None
+    assert sim._monotonicity_violation(
+        C, [5.0, 6.0], ["barchart_close_mid", "barchart_close_side"]) is None
     # Different expiries are never compared.
     D = [bt.Leg(1, "X", EXP, 100.0, "Call"),
          bt.Leg(-1, "X", EXP + timedelta(days=28), 110.0, "Call")]

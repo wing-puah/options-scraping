@@ -51,6 +51,13 @@ def _row(mark, bid=None, ask=None, open_=""):
     return row
 
 
+def _q(mark):
+    """A row with a zero-width closing quote at ``mark`` (bid = ask = mark).
+    Since 2026-10-23 an entry fills only off the entry day's closing bid/ask
+    mid (`simulate.entry_day_fill`); this keeps a test's entry at ``mark``."""
+    return _row(mark, bid=mark, ask=mark)
+
+
 def _cfg(**kw):
     base = {"profit_target": 0.5, "stop_loss": 1.0, "contracts": 1,
             "entry_sources": ["barchart"], "exit_sources": ["barchart"]}
@@ -86,8 +93,8 @@ def _late_fill_case(cfg=None):
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     series = {KEY: [(SIGNAL, 20.0), (date(2026, 6, 4), 10.0),
                     (date(2026, 6, 5), 12.0), (date(2026, 6, 8), 16.0)]}
-    details = {KEY: {SIGNAL: _row(20.0), date(2026, 6, 4): _row(10.0),
-                     date(2026, 6, 5): _row(12.0), date(2026, 6, 8): _row(16.0)}}
+    details = {KEY: {SIGNAL: _q(20.0), date(2026, 6, 4): _q(10.0),
+                     date(2026, 6, 5): _q(12.0), date(2026, 6, 8): _q(16.0)}}
     return _run(legs, series, details, cfg or _cfg(path_cap_days=7))
 
 
@@ -138,7 +145,7 @@ def test_b2_same_day_fill_grid_is_unchanged():
     produce exactly the grid it always did, with no pre_entry token."""
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     series = {KEY: [(SIGNAL, 8.0), (date(2026, 6, 2), 10.0), (date(2026, 6, 3), 11.0)]}
-    details = {KEY: {date(2026, 6, 2): _row(10.0), date(2026, 6, 3): _row(11.0)}}
+    details = {KEY: {date(2026, 6, 2): _q(10.0), date(2026, 6, 3): _q(11.0)}}
     res = _run(legs, series, details, _cfg(path_cap_days=2),
                entry_date=date(2026, 6, 2))
 
@@ -149,7 +156,7 @@ def test_b2_same_day_fill_grid_is_unchanged():
 def test_b2_entry_row_carries_the_grid_origin():
     """`_entry_row_from_history` is where `_entry_date` comes from; a fill 3 days
     after the signal must be reported as such."""
-    details = {KEY: {SIGNAL: _row(20.0), date(2026, 6, 4): _row(10.0)}}
+    details = {KEY: {SIGNAL: _q(20.0), date(2026, 6, 4): _q(10.0)}}
     row = bt._entry_row_from_history(details, KEY, SIGNAL, 250.0, EXP, timing="next_open")
     assert row["_entry_date"] == date(2026, 6, 4)
     assert row["DTE"] == (EXP - date(2026, 6, 4)).days
@@ -169,7 +176,7 @@ def test_b2_frozen_harness_mark_count_invariant_holds_for_a_late_fill():
 
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     series = {KEY: [(SIGNAL, 20.0), (date(2026, 6, 4), 10.0)]}
-    details = {KEY: {SIGNAL: _row(20.0), date(2026, 6, 4): _row(10.0)}}
+    details = {KEY: {SIGNAL: _q(20.0), date(2026, 6, 4): _q(10.0)}}
     # No path_cap_days override: the full 46-day path, the same 120-day cap
     # `harness.PATH_CAP_DAYS` uses.
     res = _run(legs, series, details,
@@ -262,20 +269,24 @@ def test_b1_commission_is_charged_per_leg_per_contract_on_both_sides():
 
 
 def test_b1_no_quote_means_no_slippage_and_the_row_says_so():
-    """No details map at all → no bid/ask on either side. Slippage falls back to
-    zero rather than guessing a spread, and `cost_basis` names both sides."""
+    """An exit day with no bid/ask (a mark with no detail row). Slippage falls
+    back to zero on that side rather than guessing a spread, and `cost_basis`
+    names it. The entry always has a closing quote since 2026-10-23, so only
+    the exit side can lack one here."""
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     series = {KEY: [(SIGNAL, 10.0), (date(2026, 6, 2), 10.0), (date(2026, 6, 3), 15.0)]}
+    details = {KEY: {SIGNAL: _row(10.0, bid=9.9, ask=10.1)}}
     res = sim._simulate(
         _cand(), legs, _entry_row(SIGNAL), {}, series,
         _cfg(path_cap_days=2, commission_per_contract=0.65,
              slippage_frac_of_spread=0.25),
-        structure="long_call")
+        structure="long_call", barchart_details=details)
 
     assert res["exit_reason"] == "profit_target"
-    assert res["cost_basis"] == "no_spread_entry_exit"
-    assert res["cost_total"] == pytest.approx(1.30)         # commission only
-    assert res["realized_pnl_abs"] == pytest.approx(0.5 * 10 * 100 - 1.30)
+    assert res["cost_basis"] == "no_spread_exit"
+    entry_slip = 0.25 * 0.20 * 100
+    assert res["cost_total"] == pytest.approx(1.30 + entry_slip)
+    assert res["realized_pnl_abs"] == pytest.approx(0.5 * 10 * 100 - 1.30 - entry_slip)
 
 
 # ── B3 — a contract that stops being quoted ────────────────────────────────────
@@ -627,7 +638,7 @@ def test_path_open_at_data_end_is_marked_at_the_last_real_quote():
     legs = _legs(("+1", "NVDA", "2026-07-17", 250, "Call"))
     quoted = _weekdays(date(2026, 6, 2), date(2026, 6, 5))
     series = {KEY: [(d, 10.0) for d in quoted]}
-    details = {KEY: {d: _row(10.0) for d in quoted}}
+    details = {KEY: {d: _q(10.0) for d in quoted}}
     cfg = _cfg(path_cap_days=30, profit_target=None, stop_loss=None,
                time_exit_dte_fraction=0.5)          # DTE 45 → time exit on day 22
 
@@ -664,8 +675,8 @@ def _two_leg_case(short_quotes, cap_days, **cfg_kw):
                    date(2026, 6, 10): 13.0}
     series = {KEY: sorted(long_quotes.items()),
               SHORT_KEY: sorted(short_quotes.items())}
-    details = {KEY: {d: _row(p) for d, p in long_quotes.items()},
-               SHORT_KEY: {d: _row(p) for d, p in short_quotes.items()}}
+    details = {KEY: {d: _q(p) for d, p in long_quotes.items()},
+               SHORT_KEY: {d: _q(p) for d, p in short_quotes.items()}}
     return _run(legs, series, details,
                 _cfg(path_cap_days=cap_days, **cfg_kw),
                 entry_date=date(2026, 6, 2), structure="bull_call_spread")

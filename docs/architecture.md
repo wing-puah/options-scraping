@@ -228,11 +228,9 @@ scripts/                    ← entry points, each maps to a workflow step
                               `_entry_side_mark`): a leg whose entry-day quote has no bid is
                               filled on the side it trades — BID (0) when sold, ASK when
                               bought — because B5's sign-independent `ask/2` handed a leg
-                              being SOLD half the ask as premium RECEIVED. Since 2026-09-22 it
-                              also PRECEDES an entry-day `Open` print (next-steps §0 item 9); a
-                              two-sided or quote-less row still fills at the Open, and a
-                              two-sided quote is never re-priced to the touch. `entry_source` gains
-                              `barchart_side`. Then a GATE: a structure whose canonical name
+                              being SOLD half the ask as premium RECEIVED. (Since 2026-10-23 the
+                              junk rule below owns that case, on the CLOSING quote.) Then a
+                              GATE: a structure whose canonical name
                               fixes it as a DEBIT (`classify.DEBIT_STRUCTURES`, off
                               `lib/structure_names.canonical_debit_spreads()`) that prices to
                               `entry_net < 0` is NOT PRICEABLE — refused before
@@ -253,9 +251,10 @@ scripts/                    ← entry points, each maps to a workflow step
                               `no_spread_<side>`). A junk day marks at its Latest when the
                               contract traded (`barchart_last`), else carries the last good mark
                               (`barchart_stale`), capped by `_zero_bid_mark` when there is no bid.
-                              At entry `_junk_entry_fill` sells into no bid at 0, fills a traded
-                              contract at its print, sells at a real bid, and refuses a bought
-                              leg with no trade (`junk_entry_quote`, the fifth refusal).
+                              At entry `_junk_entry_fill` sells into no bid at 0, sells at a real
+                              bid, fills a bought leg at its mid when it has a bid
+                              (`barchart_close_mid_wide`, 2026-10-23) and refuses one with no
+                              bid (`junk_entry_quote`).
                               ENTRY WINDOW (operator ruling 2026-10-01): every leg needs a real
                               quote from the signal day to the 5th trading day after it
                               (`simulation.stale_entry_max_trading_days`, default
@@ -267,9 +266,22 @@ scripts/                    ← entry points, each maps to a workflow step
                               filled a leg off a 08-14 mark). The rule is the pure function
                               `simulate.fresh_entry_date`, called once in `_simulate`, so the
                               real backtest, the proxy and `reprice_targets` share it.
-                              `bear_rewrap._junk_basis_entry` carries its own snap and does
-                              NOT apply it. Detail: `docs/backtest-reference.md`. Every
-                              zero-bid quote is junk, so a bought leg no longer pays the ask.
+                              ONE CLOCK (operator ruling 2026-10-23): every leg fills at the
+                              entry day's CLOSING quote, `simulate.entry_day_fill` — the bid/ask
+                              mid when two-sided and clean (`barchart_close_mid`), the junk rule
+                              above otherwise (`barchart_close_side`, `barchart_close_mid_wide`).
+                              No `Open` print, no
+                              `Latest`, no snap carried from an earlier day (`carried_entry_fill`
+                              is gone). The entry day is the first day from the anchor's
+                              `_entry_date` to the window end on which EVERY leg has a closing
+                              quote (`common_entry_day`), else `no_common_entry_day`.
+                              `entry_timing` still picks the starting day (`next_open` = the next
+                              trading day's close, `signal_eod` = the signal day's close). A
+                              bounded structure netting outside `helpers._defined_risk_bounds`
+                              is refused `entry_outside_bounds`. Eight refusals in all.
+                              `bear_rewrap`, `narrow_to_fit` and `hedge_instrument` import
+                              `entry_day_fill` (and `bear_rewrap.entry_date_for` the day
+                              picker). Detail: `docs/backtest-reference.md`.
                               `_zero_bid_mark` and `_entry_side_mark` keep their bodies because
                               `backtest_study/f3_structure/bear_rewrap.py` imports both.
                               Per-leg entry greeks (`delta`, `iv`, `entry_leg_detail`) are
@@ -857,8 +869,8 @@ triple, on `account_sim.simulate` in process.
   no default census block gains a row.
 
 **F3 pricing.** The strike choice reads the entry day only. It fills each
-leg through the imported `entry_day_fill` / `carried_entry_fill` under
-`open_print_allowed`.
+leg off that day's closing quote through the imported `entry_day_fill`
+(2026-10-23); a leg with no row that day is not filled.
 
 - The narrowed path is built by production's own `_simulate` over the cache,
   loaded the way `fetch_option_histories` loads it.
