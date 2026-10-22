@@ -1091,6 +1091,150 @@ is untested and not wired into the CLI.
    stays in `journal/`.
 5. Re-read as sealed dates unseal, never before.
 
+<a id="s2-15"></a>
+### 2.15 Spread entries mix times of day — OPEN, proposal awaits the operator
+
+**The backtest prices each leg of a spread on its own, so one entry can
+pair a morning trade with an end-of-day bid.** Production is unchanged. The
+rule below re-prices stored rows, so it waits for an operator ruling.
+
+`structure_sweep` found it on 2026-10-22: iron butterflies netted credits
+of 0.8 to 0.998 of the wing width. The audit is in the
+[entry](current.md#2026-10-22--spread-entries-mix-times-of-day-a-few-rows-carry-large-pl).
+
+#### How a leg is priced today
+
+`simulate.entry_day_fill` takes, for each leg on its own:
+
+1. a junk quote: a sold leg at its bid (0 with no bid); a bought leg at its
+   Open print if it traded that day, else the play is refused;
+2. otherwise the leg's `Open` column;
+3. otherwise the end-of-day mark.
+
+Three things go wrong.
+
+- **Mixed clocks.** An Open print is that contract's first trade of the
+  day, whenever it came. The junk rule's bid is the closing quote. SMH
+  2026-06-04 bought the 600P at its 74.95 Open and sold the 565P at its
+  70.70 closing bid, after SMH fell 9%.
+- **Stale Open.** On a day with no volume, the Barchart history row repeats
+  the last trade in `Open`. Step 2 takes it without the volume test step 1
+  applies. VST 2025-01-22 bought the 150P at 33.00, its last trade; that
+  day's quote was 13.40 × 14.45.
+- **Crash days.** Both legs at Open prints on a day the stock moved hard
+  (APP 2025-04-04, SMCI 2024-02-16). This is real if the prints were close
+  in time, and the data cannot show whether they were.
+
+Daily marks are clamped to `helpers._defined_risk_bounds`; the entry is
+not. The polarity gates cover only the zero end of that range.
+
+#### The census
+
+_The v4 exports are of 2026-10-21 16:32. The v3 exports are of 2026-08-15 19:03. Rows with
+a bounded payoff only: verticals, flies and condors. P&L is
+`realized_pnl_abs` summed over the same rows. Script and row-level CSVs:
+the session notes folder `entry-fill-bounds-audit/`._
+
+- **Outside bounds**: the net entry is outside the payoff range at expiry.
+- **Near a bound**: inside the range but within 10% of either end.
+- **Gap**: the entry day's closing mark differs from the fill by more than
+  a quarter of the payoff range. The closing mark is the first value of
+  `daily_price_csv`.
+- **Day-0 jump**: (closing mark − fill) × contracts × 100, the P&L the gap
+  books before any market move.
+
+| Export | Leg prices | Rows | Outside | Near | Gap | Gap rate | Gap rows P&L | Day-0 jump | All rows P&L |
+|---|---|---|---|---|---|---|---|---|---|
+| v4 results | all Open | 1,009 | 0 | 18 | 5 | 0.5% | −$4,662 | −$3,949 | +$6,523 |
+| v4 results | Open + side | 35 | 0 | 0 | 5 | 14.3% | +$4,354 | +$3,691 | −$10,120 |
+| v4 proxy | all Open | 824 | 0 | 12 | 6 | 0.7% | −$863 | −$183 | −$2,088 |
+| v4 proxy | Open + side | 42 | 0 | 1 | 9 | 21.4% | −$11,168 | −$10,692 | −$27,612 |
+| v3 results | all Open | 396 | 4 | 13 | 2 | 0.5% | +$1,892 | +$2,350 | +$25,143 |
+| v3 proxy | all Open | 395 | 5 | 7 | 13 | 3.3% | +$696 | −$370 | −$2,073 |
+
+Rows priced another way are left out: 15 on v4, and 295 Black-Scholes rows
+on v3 proxy, none flagged.
+
+What the table says:
+
+- **A flagged row's P&L is mostly its day-0 jump.** Across the 25 v4 gap
+  rows the jump sums to −$11,134 against −$12,338 realized.
+- **Mixing an Open print with a closing bid is the risk.** Those rows are
+  4% of the v4 book and hold 14 of its 25 gaps.
+- **Near a bound is not by itself a pricing fault.** Of 31 v4 rows near a
+  bound, 2 also gap. The rest are cheap far-out spreads the closing mark
+  agrees with.
+- **No v4 row is outside its bounds**, but no gate stops one. Of the 9 v3
+  rows, today's polarity gates refuse 3; the other 6 are debits above the
+  width.
+- **Stale Opens are common.** About 3% to 4% of v4 Open-print legs filled
+  on a day the contract did not trade (table below).
+
+| Export | Open-print legs | No volume that day | Rows with one | Median gap, those rows | Median gap, the rest |
+|---|---|---|---|---|---|
+| v4 results | 2,063 | 66 | 56 | 0.064 | 0.026 |
+| v4 proxy | 1,691 | 75 | 62 | 0.060 | 0.027 |
+
+#### The proposed rule
+
+Three parts, smallest first. Each prints both ways on the next re-price, so
+the operator can take any of them alone.
+
+1. **Bounds gate.** Refuse an entry whose net lies outside
+   `_defined_risk_bounds(legs)`, as `entry_outside_bounds`. It generalises
+   the two polarity gates and touches no v4 row.
+2. **One clock per entry.** Fill every leg at its Open print only when
+   every leg traded that day and no leg's quote is junk. Otherwise fill
+   every leg off the entry day's closing quote: mid when clean, the junk
+   rules when not. This removes the mixed clocks and the stale Opens.
+3. **Gap backstop.** When the fill still differs from the entry day's
+   closing mark by more than a quarter of the payoff range, take the
+   closing mark as the fill and tag it `barchart_close_repriced`.
+
+The quarter is a judgement call; the table shows how the flag count moves
+with it. Re-pricing is preferred to refusing, because refusing would drop
+exactly the crash days.
+
+| Gap threshold | v4 results rows | v4 proxy rows |
+|---|---|---|
+| a tenth of the range | 87 | 98 |
+| 0.15 | 38 | 44 |
+| a quarter (proposed) | 10 | 15 |
+| 0.35 | 6 | 3 |
+
+**How much part 3 moves**, first order, with contracts held fixed and
+costs ignored. The results move is small because its gap rows cancel.
+
+| Export | P&L now | After part 3 | Largest rows |
+|---|---|---|---|
+| v4 results | −$3,460 | about −$3,200 | SMH 2026-06-04 +$6,277 ([R](glossary.md#r) 4.9), LLY 2025-07-16 +$2,099, SMCI 2024-02-15 −$2,692 |
+| v4 proxy | −$29,845 | about −$18,970 | MSTR 2024-06-06 −$5,171 |
+
+#### Studies that share these functions
+
+`bear_rewrap.net_entry` calls production's `entry_day_fill` and
+`carried_entry_fill` leg by leg. It is the choke point for most research
+re-pricers. None of them applies the polarity, strike-order or bounds
+refusals at entry, except `narrow_to_fit`'s polarity check.
+
+| Study | How it prices an entry | If the rule ships |
+|---|---|---|
+| `structure_sweep` | `BR.net_entry`, every arm multi-leg | ARM B iron fly likely shrinks, unchecked row by row: its credit > 0.8 of width bucket (n 32, mean R +1.785, median −0.765) carries the arm. Verdict already NULL |
+| `bear_rewrap` | `net_entry`, put debits and substitutions | G-REPRO fails on re-priced rows until the mirror follows production |
+| `financed_spread`, `ladder_overlay`, `sleeve_synth` | through `BR.net_entry` | numbers move with the mirror; size unknown until re-run |
+| `narrow_to_fit` | own `entry_fill`, leg by leg, then `_simulate` | GN3 fails until it follows; the $500 NARROW-FEASIBLE cell is the fragile one |
+| `reprice_targets` | `entry_day_fill` per leg | needs a row-level test to pick re-price targets |
+| `earnings_vol`, `index_vrp`, `hedge_instrument` | one closing row for every leg, or a single leg | unaffected |
+
+`structure_sweep` sizes a credit on width minus credit, uncapped. Its
+largest ARM B row is META 2026-04-08: a 20-wide fly sold for 19.96, 250
+contracts, R +28.3.
+
+**Next.** The operator rules on parts 1 to 3. The build changes
+`simulate.entry_day_fill` and adds the gate beside
+`_refuse_debit_priced_to_credit`; then `--redo` both v4 tabs. v3 stays
+frozen.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

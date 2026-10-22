@@ -289,6 +289,64 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-22 — spread entries mix times of day, a few rows carry large P&L
+
+**About 1% to 2% of v4 spread rows enter at a price the same day's close
+disagrees with by more than a quarter of the payoff range.** On those rows
+the realized P&L is mostly that gap. Nothing ships: production is
+unchanged, and a three-part fix is filed for the operator in
+[next-steps §2.15](next-steps.md#s2-15).
+
+_Era v4, exports of 2026-10-21 16:32. Only rows with a bounded payoff
+count; the table gives the row counts. The v3 frozen exports were run for
+comparison._
+
+**What happens.** The backtest prices each leg of a spread on its own.
+
+- A clean leg fills at its `Open` column, the contract's first trade of the
+  day at whatever time it came.
+- A junk sold leg fills at the closing bid (rule of
+  [2026-09-24](#2026-09-24-earlier--backtest-pricing--a-junk-quote-is-no-longer-a-price-a-mark-or-a-spread),
+  built on the side-aware fill of
+  [2026-09-19](#2026-09-19--backtest-entry-pricing--a-sold-leg-with-no-bid-fills-at-0-and-a-debit-that-prices-to-a-credit-is-refused)).
+  One spread can pair a morning print with a closing bid.
+- On a day with no volume, Barchart repeats the last trade in `Open`, and
+  the clean-leg path takes it without a volume test.
+
+SMH 2026-06-04 shows the first case. The 600P was bought at its 74.95 Open,
+and the 565P sold at its 70.70 closing bid after SMH fell 9%.
+
+| Row | Fill | Closing mark | Width | Contracts | Realized |
+|---|---|---|---|---|---|
+| SMH 2026-06-04 bear put 600/565 | 4.25 debit | 25.20 | 35 | 3 | +$6,277, [R](glossary.md#r) 4.9 |
+| VST 2025-01-22 bear put 150/110, stale Open | 29.10 debit | 10.08 | 40 | 1 | −$1,905 |
+
+**Evidence.**
+
+| Export | Rows | Gap > a quarter | Of them, Open print beside a closing bid | Gap rows P&L | All rows P&L |
+|---|---|---|---|---|---|
+| v4 results | 1,056 | 10 | 5 | −$307 | −$3,460 |
+| v4 proxy | 869 | 15 | 9 | −$12,031 | −$29,845 |
+
+- Rows that pair an Open print with a closing bid are 4% of the v4 book
+  and hold 14 of its 25 gaps.
+- No v4 row lies outside its payoff range. On v3, 9 rows do, and today's
+  gates would refuse 3 of them.
+- A row near a bound is usually a cheap far-out spread the close agrees
+  with, not a bad fill.
+
+**Studies.** `structure_sweep`, `bear_rewrap`, `narrow_to_fit` and the
+studies that call `bear_rewrap.net_entry` share the per-leg fill. The
+`structure_sweep` iron-butterfly arm leans on credits above 0.8 of the
+wing width, the shape this fault can produce. Its rows were not checked
+one by one.
+
+**Next.** New item [next-steps §2.15](next-steps.md#s2-15): a bounds gate,
+one clock per entry, and a gap backstop, each printed both ways on the next
+re-price.
+
+---
+
 ## 2026-10-22 — the 2026 book, described: break-even before one strangle, no cut proven better
 
 **Finding.** The 366 closed 2026 plays on v4 BacktestResults lost $18.7k net.
