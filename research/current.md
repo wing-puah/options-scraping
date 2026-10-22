@@ -289,6 +289,148 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-22 — the 2026 book, described: break-even before one strangle, no cut proven better
+
+**Finding.** The 366 closed 2026 plays on v4 BacktestResults lost $18.7k net.
+One CAR short strangle lost $17.9k of that. Without it the book is flat.
+No strategy cut beats the book with a 95% interval clear of zero.
+
+This is a descriptive pass, not a study. Nothing was registered. About 30
+cuts were read, so one or two intervals clear of zero is chance-sized.
+
+Population: `analysis - BacktestResults.csv` exported 2026-10-21, signal dates
+2026-01-06 to 2026-10-20, 111 sessions. All rows are `commission_only`. The 87
+2026 rows on `v3_BacktestResults` predate the cost model and are not pooled.
+
+**This pass read sealed rows.** It read the bare export, not `load_book()`, so
+the [holdout seal](glossary.md#sealed-window) did not apply.
+
+| Sealed rows read (signal ≥ 2026-09-23) | Count |
+|---|---|
+| rows | 83 |
+| signal dates | 17 |
+| closed rows | 12, net −$15,695 |
+
+The seal's census stays a count. Every table below includes those rows. The
+seal's own first read is still unspent, but its rows are no longer unseen by
+the drafter, and `structure_sweep` discloses that.
+
+| Book | n | Win rate | Net | Avg / trade (95% CI) | Profit factor |
+|---|---|---|---|---|---|
+| closed | 366 | 48% | −$18,690 | −$51 (−219, +93) | 0.90 |
+| closed, CAR strangle removed | 365 | 48% | −$823 | about −$2 | 0.99 |
+| open, marked at data end | 130 | 39% | −$8,764 | −$67 (−133, +1) | 0.63 |
+
+Average win $1,018, average loss $1,020. Closed max drawdown −$26.8k,
+in exit order. Median hold 21 days. Commissions were $2,239.
+
+| Cut (closed) | n | Net | Avg (95% CI) | PF |
+|---|---|---|---|---|
+| bear direction | 150 | +$6,670 | +$44 (−151, +261) | 1.09 |
+| bull direction | 209 | −$16,100 | −$77 (−216, +59) | 0.84 |
+| [tier](glossary.md#tier) A | 44 | +$8,566 | +$195 (−139, +515) | 1.47 |
+| tier B | 91 | −$20,032 | −$220 (−425, −20) | 0.61 |
+| tier C | 201 | −$8,850 | −$44 (−323, +179) | 0.92 |
+| VETO | 30 | +$1,625 | +$54 (−286, +384) | 1.15 |
+| `score_total` ≤ 25 | 177 | +$20,174 | +$114 (−167, +350) | 1.23 |
+| `score_total` > 30 | 132 | −$39,852 | about −$300, CI below 0 | 0.55 |
+
+Tiers come from `ladder_tier()` with no short-leg delta. Tier B is the only
+ladder tier whose interval is clear of zero, and it is clear on the losing side.
+
+Two leads are worth a registration, not a rule:
+
+- Higher `score_total` lost more. Both buckets above 30 sit below zero.
+- The vetoed plays made money in 2026 (n = 30).
+
+The exit rule earned about 10 points of premium per trade over holding to the
+path end: −0.7% against −10.9%. Profit targets took 97% where holding gave 62%.
+The dollar stop cost the other way: −80% against −60% held.
+
+### Market cuts: the regime labels read contrary; VIX and SPY at entry do not
+
+Same closed book, CAR strangle removed (n = 359 bull or bear plays). Intervals
+below resample whole sessions, because plays on one date share one tape.
+
+| Cut | n | Net | Avg (95% CI, by session) |
+|---|---|---|---|
+| play agrees with its ticker's `regime` | 201 | −$45,329 | −$226 (−377, −76) |
+| play against it, or label neutral | 158 | +$35,900 | +$227 (+52, +412) |
+| bull play, analysis market BULL | 108 | −$30,320 | −$281 (−491, −80) |
+| bear play, analysis market BULL | 48 | +$21,514 | +$448 (+43, +898) |
+| bull play, analysis market RANGE | 95 | +$14,699 | +$155 (−39, +330) |
+
+Agreeing with the label loses in both halves of the year. Only July–October is
+clear of zero on its own (−$365, CI −576 to −162). The open marks agree.
+
+VIX level, VIX 5-day change, SPY 20-day return and SPY versus its 50-day mean
+show no rank correlation with return on risk (all |ρ| ≤ 0.12, p ≥ 0.09). SPY's
+move over the hold does: ρ +0.36 for bull plays, −0.43 for bear. That move is
+not known at entry, so the book is a direction bet on SPY.
+
+The ticker `regime` is free text. "Agrees" means it starts with the play's
+direction word; 73 labels start with neither. This is post hoc, about 40 cuts
+in, and needs a registration before it can mean anything.
+
+### `price_vector` (PxVec): trading with the ticker's trend lost
+
+`price_vector` is joined from AnalysisClaude on the shared identity key (495 of
+496 rows match). "Aligned" is PxVec times the play's sign: + means the play
+follows the ticker's own price trend. Same 358-row closed book.
+
+| Aligned PxVec | n | Net | Avg (95% CI, by session) | PF |
+|---|---|---|---|---|
+| −1 to −0.6, strongly against trend | 48 | +$28,268 | +$589 (+124, +1,052) | 2.93 |
+| −0.6 to −0.2 | 45 | +$11,067 | +$246 (+4, +510) | 1.72 |
+| −0.2 to +0.2 | 41 | +$8,928 | +$218 (−142, +616) | 1.56 |
+| +0.2 to +0.6 | 81 | −$15,925 | −$197 (−418, +50) | 0.66 |
+| +0.6 to +1, strongly with trend | 143 | −$42,458 | −$297 (−470, −115) | 0.49 |
+
+The order is monotone across all five buckets. Spearman ρ with return on risk
+is −0.20 (p < 0.001). It is strongest on bull plays (ρ −0.29) and weak on bear
+plays (ρ +0.13, p 0.12). Both halves of the year keep the order; only
+July–October is clear of zero alone. The open marks agree.
+
+Most plays (224 of 358) follow the trend. This is likely the mechanical form of
+the regime-label result above, since the labels quote PxVec. Same caveat: post
+hoc, unregistered.
+
+### The 2026 tape: an index uptrend, then a flat band
+
+SPY rose 12.6% from January to 20 October, with a March low of 632. From May
+it held a 747–779 band. The mechanical labels read 115 BULL, 43 RANGE and 43
+BEAR sessions. So the range is mostly at the ticker level and in the second half.
+
+VIX closed above the next 20 sessions' SPY realized vol on 96% of days, by 5.5
+points on average. That gap is not a tradable premium on its own:
+[`index_vrp`](#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)
+found none in SPY straddles settled at expiry. A neutral structure on the
+flagged single names is untested.
+
+### `structure_sweep` S1, interim: `WIDE-NET-NULL`
+
+Registered the same day
+([registration](pre-registrations/f3_structure/structure_sweep.md)). S1 only;
+S2 waits on a fetch of about 5,000 contracts.
+
+| Arm | n / dates | Paired dR (95% CI, by date) | Holm p |
+|---|---|---|---|
+| `ARM F` flipped | 331 / 90 | +0.011 (−0.115, +0.140) | 1.000 |
+| `ARM C` short condor | 36 / 30 | +0.259 (+0.047, +0.440) | 0.125 |
+| `ARM B` short iron fly | 65 / 43 | +1.044 (+0.027, +2.451) | 0.239 |
+| `ARM K` call calendar | 70 / 46 | +0.181 (−0.118, +0.448) | 1.000 |
+| `ARM D` long straddle | 105 / 57 | −0.073 (−0.253, +0.105) | 1.000 |
+| `ARM G` long strangle | 88 / 53 | −0.037 (−0.270, +0.219) | 1.000 |
+
+- **Run 1 was wrong and is kept aside.** Its pickers had no tolerance, so a
+  sparse cache gave a "0.16-delta" leg at 0.93. The tolerances came after it.
+- **`ARM B` is a fill artifact.** Its median R is −0.09. The mean comes from
+  flies whose four legs filled at separate `Open` prints and netted nearly the
+  full wing. That is production's entry rule, so stored rows may carry it too.
+- **`ARM C` is the one lead.** It needs S2 to replicate.
+
+---
+
 ## 2026-10-21 — pending open rows leave the outcome book
 
 **A trade still inside its path window is no longer graded as an outcome.**

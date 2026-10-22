@@ -989,6 +989,20 @@ STUDIES: dict[str, Study] = {
                 "bid-ask spread. The straddle: `n 271  mean +0.019  CI95 [-0.085, +0.123]`. Both "
                 "pass G1. PBO 0.262 over the 8 printed configs. Nothing ships.",
     ),
+    "structure_sweep": Study(
+        family="structure", state="open",
+        question="Holding the analysis's ticker, signal date and expiry fixed, would a "
+                 "different option structure (flipped, type-swapped, iron condor, iron "
+                 "butterfly, straddle, strangle or calendar) have made money on the same "
+                 "2026 plays?",
+        verdict="Registered and accepted by default 2026-10-22, built the same day. The "
+                "first run has not been reviewed, so no verdict is on record. Eight "
+                "structures are tried against the play re-priced as a control, with a Holm "
+                "correction across seven graded arms and a PBO read. A sample S2 replicates "
+                "any S1 finding on rows an arm could not price, and S2 needs the follow-up "
+                "leg fetch before it can print. Nothing ships whatever it prints; a "
+                "`CANDIDATE` only earns a forward registration.",
+    ),
 
     # ④ deployment
     "account_sim": Study(

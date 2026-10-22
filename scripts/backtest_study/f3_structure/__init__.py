@@ -18,6 +18,9 @@ the book's own exposure again.
                         calendar's +0.073 mean misses its season-clustered CI and
                         turns CONTRARY at the natural fill. Neither moves with the
                         book. Nothing ships.
+    structure_sweep.py  registered 2026-10-22, accepted by default — eight structures
+                        on the same 2026 plays, Holm across seven graded arms, and
+                        a second sample that awaits a fetch. Not yet graded.
 
 `hedge_structure.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
 with the rest of the hedge programme. So was the DELETED `vol_sleeve.py`, whose

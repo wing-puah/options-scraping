@@ -204,6 +204,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`ladder_overlay.md`](f3_structure/ladder_overlay.md) | Does selling and rolling shorter-dated calls against a bull call spread beat the shipped exits, and would a naked put beat both? | graded | all cells `NULL`; selling at entry loses (CI clear of zero) — 2026-09-28 · [record](../study-results/f3_structure/ladder_overlay.md) |
 | [`index_vrp.md`](f3_structure/index_vrp.md) | Does a monthly short SPY iron condor lose in the same windows as the ladder book? | run · accepted by default | `NO-TAIL-LINK` — 2026-10-12 · [record](../study-results/f3_structure/index_vrp.md) |
 | [`earnings_vol.md`](f3_structure/earnings_vol.md) | Does a long straddle or a calendar across earnings pay? | run · accepted by default | `ARM S NULL`; `ARM K NULL` (natural-fill secondary `CONTRARY`); forward `STILL-OPEN` — 2026-10-13 · [record](../study-results/f3_structure/earnings_vol.md) |
+| [`structure_sweep.md`](f3_structure/structure_sweep.md) | Would another option structure on the same 2026 plays have done better? | registered · accepted by default | not yet run — 2026-10-22 |
 
 ## ④ Deployment — `f4_deployment/`
 

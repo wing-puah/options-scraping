@@ -44,8 +44,9 @@ under.
 
 ## Collisions, up front
 
-- **`P`** — **six** arms: `emission_timing`, `macro_event_study`,
-  `bear_giveback`, `bear_rewrap`, `hedge_portfolio`, `exit_drawdown` — plus
+- **`P`** — **seven** arms: `emission_timing`, `macro_event_study`,
+  `bear_giveback`, `bear_rewrap`, `hedge_portfolio`, `exit_drawdown`,
+  `structure_sweep` (the re-priced play, a control) — plus
   `P1`/`P2` sub-parts in `bear_rewrap` (the arm's own two halves) and
   `hedge_structure` (an unrelated `P1`, the hedge sleeve itself).
 - **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
@@ -121,7 +122,7 @@ _Registered in [`pre-registrations/f1_selection/signal/emission_timing.md`](pre-
   the signal lose the edge?
 - `ARM P` (arm) <a id="emission_timing-arm-p"></a> — Persistence — does a
   re-emitted play (2nd/3rd/4th+ of a ticker+structure) perform worse than
-  the first emission? One of `ARM P`'s six owners repo-wide (see
+  the first emission? One of `ARM P`'s seven owners repo-wide (see
   Collisions, above).
 
 #### `mechanical_benchmark`
@@ -226,7 +227,7 @@ _Registered in [`pre-registrations/f1_selection/regime/macro_event_study.md`](pr
 - `ARM I` (arm) — Entry IV behaviour (H1 PRIMARY) — `vrp` on sessions near
   a scheduled event vs control.
 - `ARM P` (arm) <a id="macro_event_study-arm-p"></a> — Outcomes (H2) — mean
-  R and E by entry-proximity bucket, within structure. One of `ARM P`'s six
+  R and E by entry-proximity bucket, within structure. One of `ARM P`'s seven
   owners repo-wide.
 - `ARM V` (arm) — Market context (H3) — VIX level and 1-day change by
   event-relative session.
@@ -465,7 +466,7 @@ _Module `f2_management/bear_giveback.py`_
 
 - `ARM P` (arm) <a id="bear_giveback-arm-p"></a> — Production baseline —
   the `be_after` threshold measured against the SHIPPED production exit.
-  One of `ARM P`'s six owners repo-wide.
+  One of `ARM P`'s seven owners repo-wide.
 - `ARM S` (arm) — Deployment reference stats — n / win rate / profit
   factor / mean R by cut. COLLIDES with `hedge_structure`'s own `ARM S`
   (its structure sweep) — unrelated.
@@ -577,7 +578,7 @@ _Module `f3_structure/bear_rewrap.py`_
 
 - `ARM P` (arm) <a id="bear_rewrap-arm-p"></a> — Portfolio contribution —
   P1 worst-decile, P2 correlation. The merge this arm validated is what
-  `financed_spread` and `account_sim` cite. One of `ARM P`'s six owners
+  `financed_spread` and `account_sim` cite. One of `ARM P`'s seven owners
   repo-wide.
   - `P1` `P2` (sub-arm) — `ARM P`'s own two halves (worst-decile,
     correlation), graded together with their parent, never alone. Not to be
@@ -723,6 +724,48 @@ Every label is local to this study. `G1` is not `account_sim`'s.
   prints a token.
 - PBO (descriptive cut) — 2 arms × 2 fills × 2 exits, context only.
 - `EDGE` `RE-WRAP` `CONTRARY` `NULL` (prose) — The verdict words.
+
+#### `structure_sweep`
+
+_Registered in [`pre-registrations/f3_structure/structure_sweep.md`](pre-registrations/f3_structure/structure_sweep.md) · module `f3_structure/structure_sweep.py`_
+
+Accepted by default 2026-10-22, before the study was built or run. Every arm
+trades the same 2026 `real` rows; only the wrapper changes. Every label is
+local to this study. `ARM P` is one of seven owners of that label, and `ARM F` is not
+`financed_spread`'s `F` cells.
+
+- `ARM P` (control) — The play's own legs, re-priced by this study's path.
+  Paired differences use it, never the stored P&L.
+- `ARM F` (arm) — The same legs with every quantity negated.
+- `ARM T` (arm) — A vertical with calls swapped for puts, or puts for calls,
+  at the same strikes and direction. Verticals only.
+- `ARM C` (arm) — Short [iron condor](glossary.md#iron-condor), shorts at
+  |delta| 0.16, wings 3% of spot out.
+- `ARM B` (arm) — Short iron butterfly, shorts at the strike nearest spot,
+  wings 3% of spot out.
+- `ARM D` (arm) — Long ATM straddle, at `ARM B`'s strike.
+- `ARM G` (arm) — Long strangle, at `ARM C`'s short strikes.
+- `ARM K` (arm) — Long ATM call calendar: sell the play's expiry, buy the
+  nearest cached expiry at least 14 days later.
+- `ARM S` (descriptive cut) — Short strangle. No defined max loss, so it is
+  printed and never graded.
+- `S1` `S2` (population scope) — S1 is the primary sample, priced from
+  cache files fetched by the split instant. S2 is the replication: rows an
+  arm could not price in S1, priced on the full cache. The split instant is
+  in the registration.
+- `G-REPRO` (gate) — Refuses with exit 3 if more than 10% of rows fail
+  `ARM P`'s reproduction of the stored P&L.
+- `G-THIN` (gate) — An arm with fewer than 30 rows or 15 signal dates in S1
+  prints `THIN` and leaves the Holm family.
+- Paired difference (criterion) — Mean of R(arm) minus R(`ARM P`), CI95
+  clustered by date, Holm across the seven graded arms at 0.05.
+- PBO (descriptive cut) — Over the date by arm matrix of mean R, on S1.
+  A `CANDIDATE` needs it below 0.5.
+- Cuts by `price_vector`, H1 against H2, mechanical direction, `tweak` rows
+  and v3 (descriptive cut) — Printed, never graded.
+- `CANDIDATE` `S1-ONLY` `LOSES-TO-PLAY` `NULL` `THIN` (prose) — The per-arm
+  verdict words.
+- `CANDIDATE-FOUND` `WIDE-NET-NULL` (prose) — The study token.
 
 ### ④ Deployment — can I run it
 
@@ -988,7 +1031,7 @@ role, different study.
 - `ARM P` (arm) <a id="hedge_portfolio-arm-p"></a> — The prose-free
   counterpart on exactly `ARM CS`'s session set. Written `**ARM P**` in
   `lib/hedge_instrument.py`, so the emphasis markers travel with the
-  token: `P**` is this same arm. One of `ARM P`'s six owners repo-wide.
+  token: `P**` is this same arm. One of `ARM P`'s seven owners repo-wide.
 - `ARM N` (arm) — Random-admission null, 200 seeds, matched on episode COUNT,
   episode LENGTHS and PROXY mix. An arm must beat its 95th percentile, not
   merely beat the unhedged book. COLLIDES with `portfolio_delta`'s and
@@ -1195,7 +1238,7 @@ is a `hedge_structure` table header.
 
 `tests/test_arm_index.py` fails if any `ARM <label>` token appears in a study
 module or a pre-registration without a mention here — so a newly registered
-arm cannot be added without landing in this index — and pins the six `ARM P`
+arm cannot be added without landing in this index — and pins the seven `ARM P`
 owners. It also refuses any label bullet whose object-type tag is missing or
 falls outside the closed list under [Object types](#object-types).
 

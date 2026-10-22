@@ -158,6 +158,9 @@ scripts/                    ← entry points, each maps to a workflow step
                               narrow_to_fit.substitute_targets; fetches go through
                               backtest/shared/history.fetch_option_histories. The cache is
                               the resume state. --dry-run, --limit N, --scope
+  collector/study_legs/fetch_structure_sweep_legs.py
+                            — structure_sweep's S2 legs (C/B/D/G/S/K/T strikes + wings), found by a
+                              probe walk, not a guessed grid. DRY-RUN by default; --live, --limit N
   analysis_pipeline/        — full pipeline (run via `python3 -m scripts.analysis_pipeline`):
                               fetch → headless engine call (isolated session) → expand to
                               per-ticker rows → append to the engine's tab.
@@ -1776,6 +1779,7 @@ python3 scripts/collector/history/fetch_underlying_ohlc.py     # every book tick
 python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
 python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # resumable
 python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
+python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py        # structure_sweep S2: dry-run; --live --limit N fetches
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list
