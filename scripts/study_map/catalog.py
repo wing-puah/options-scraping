@@ -394,6 +394,35 @@ STUDIES: dict[str, Study] = {
                 "N=5)`, selection fragile. The v3 replication (same path) reads NULL on P1, S1 and "
                 "S3 under `PBO 0.845`, and S2 UNDERPOWERED. Forward read STILL-OPEN. Nothing ships.",
     ),
+    "baseline_read": Study(
+        family="selection", state="null",
+        question="Do the flow baseline's mechanical hedging metrics (index put premium share, ETF "
+                 "put share, put-dominance breadth), each read as its trailing 60-session "
+                 "percentile from the day's own scrape, forecast SPY over the next 21 sessions in "
+                 "return or in drawdown depth? The mechanical twin of market_read.",
+        verdict="2026-10-23 first run (BaselineDaily, 599 pre-seal dates in 31 blocks, 590 with an "
+                "index put-share percentile, 10,000 block draws): `>>> baseline_read P1 (index put "
+                "share, top quintile of 60-session window vs rest, 21d SPY return): NULL <<<`, "
+                "`>>> baseline_read P2 (same cut, 21d drawdown depth): NULL <<<`, `>>> baseline_read "
+                "READ (P1+P2, Holm m=2): NO-FORECAST <<<`, `>>> baseline_read SECONDARY (ETF put "
+                "share S1/S2, breadth S3/S4, Holm m=4): S1 NULL S2 NULL S3 NULL S4 NULL <<<`, `>>> "
+                "baseline_read FORWARD (signal dates from 2026-09-23, read after the seal lifts): "
+                "STILL-OPEN <<<`. The graded lines: `P1 M1 ret21  +0.52 [-1.00, +1.90] ±1.45  HEAVY "
+                "149d/28b  REST 441d/31b  p=0.4606` and `P2 M1 dd21   +0.71 [-0.38, +2.08] ±1.23`. "
+                "Heavy-hedging dates earned slightly MORE over the next 21 sessions and fell slightly "
+                "deeper, both inside the interval. The memory of hedging preceding falls is the "
+                "concurrent tape, printed only: `CONC ret_prev5: HEAVY -1.29 [-1.77, -0.84] ±0.47 "
+                "REST +0.85 [+0.58, +1.12] ±0.27  diff -2.13 [-2.80, -1.56] ±0.62` — SPY had already "
+                "fallen over the five sessions before a heavy date. Inside mech BULL the heavy dates "
+                "drew down LESS (`P2 M1 dd21  -0.32 [-0.93, +0.30]`), inside mech non-BULL more "
+                "(`+0.98 [-0.06, +2.02]`), both NULL. Two printed window cuts print "
+                "`HEDGE-CONTRARIAN` on secondaries; printed only, they re-grade nothing. Planted "
+                "power passes at 1.000 on a 3-point shift. Nothing ships; the sizing rule stays on "
+                "the mechanical dip flag.",
+        attention="The operator remembers heavy hedging preceding market falls. On these dates the "
+                  "hedging came AFTER the fall began and forecast nothing; keep sizing on the "
+                  "mechanical dip flag, not on the day's put flow.",
+    ),
     "market_read": Study(
         family="selection", state="null",
         question="Does the model's MARKET regime label (BULL/BEAR/RANGE, parsed from the label's "

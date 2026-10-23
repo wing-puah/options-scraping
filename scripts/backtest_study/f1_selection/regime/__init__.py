@@ -10,6 +10,7 @@
     regime_map.py           each ladder tier against each market label: where does it make or lose money?
     regime_confirm.py       does a mech BEAR flip that persists, with stress signs agreeing, predict a 10% fall?
     market_read.py          does the model's MARKET regime label forecast SPY, beyond the mechanical label?
+    baseline_read.py        do the flow baseline's mechanical hedging metrics forecast SPY return or drawdown?
 
 `mech_regime_recut` and `regime_gap_reread` do their work at MODULE level, which
 is why the runner reads docstrings with `ast` instead of importing.

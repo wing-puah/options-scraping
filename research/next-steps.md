@@ -1300,6 +1300,17 @@ tokeniser. Then an operator ruling: adopt the head parse in `ladder_tier()`
 updated), or leave it and record that the veto reads prose. Nothing is changed
 here.
 
+### 2.17 The study runner's input fingerprint omits BaselineDaily — OPEN, filed 2026-10-23
+
+`baseline_read` reads the `BaselineDaily` export and the SPY table, nothing else. The runner's
+input fingerprint covers the results, proxy and analysis exports and the SPY table. A fresh
+`BaselineDaily` export on its own therefore opens no new record section in `study-results`, and
+the runner labels the run with the current book era although the inputs are unversioned.
+
+What to do: let a study declare its own inputs for the fingerprint, and let the header say
+`unversioned` when none of them carries an era. Until then, re-record by hand after a
+`BaselineDaily` re-export. Nothing changed.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

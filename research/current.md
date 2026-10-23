@@ -33,6 +33,9 @@ on the operator*, items 16 and 17:
 **2026-10-23: among the ten most-traded names, `ticker_pattern` flags GLD on v4, within simulation error of its bar and gone on real-priced rows; v3 reads `NULL`**
 ([entry](#2026-10-23--the-market-regime-label-does-not-forecast-spy-the-ten-names-show-one-fragile-flag)).
 
+**2026-10-23: heavy hedging in the day's flow does not forecast SPY either; `baseline_read` prints `NO-FORECAST`, and the heavy dates arrive after SPY has already fallen**
+([entry](#2026-10-23--heavy-hedging-in-the-flow-does-not-forecast-spy-it-arrives-after-the-fall-has-begun)).
+
 **2026-10-20: `direction_hit` still prints `NULL` on refreshed stock bars; the seal stands at 17 of 40 priced dates**
 ([entry](#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
 
@@ -294,6 +297,118 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-10-23 — heavy hedging in the flow does not forecast SPY; it arrives after the fall has begun
+
+**Finding.** The operator remembers heavy hedging in the flow coming before
+market falls. [`baseline_read`](arm-index.md#baseline_read) tested the
+mechanical form of that memory and prints `NO-FORECAST`. Heavy index put
+flow, read as the top fifth of its own trailing 60-session window, was
+followed by a slightly higher SPY return and a slightly deeper drawdown over
+21 sessions. Both sit inside their intervals. Nothing ships.
+
+The memory is real, but it runs the other way. Over the five sessions before
+a heavy-hedging date SPY had already fallen, against a rise before the rest.
+The hedging shows up with the fall, not ahead of it.
+
+**What it read.** The `BaselineDaily` tab, built by `lib/baseline.py` from
+each day's own scrape with no model involved. Three metrics, each as a
+trailing percentile: index put premium share (SPY, QQQ, IWM), the ETF
+section's put share, and the share of the top fifty stocks whose put premium
+beats their call premium. A `HEAVY` date sits at or above the 0.80 point of
+its own window; every contrast is `HEAVY` minus `REST`.
+
+| Population | Count |
+|---|---|
+| Baseline rows exported 2026-10-23 | 681, from 2024-01-04 to 2026-10-22 |
+| In-sample signal dates, pre-seal, closed windows | 599 in 31 blocks |
+| Dates with an index put-share percentile | 590 |
+| `HEAVY` dates / blocks on the index put share | 149 / 28 |
+| Rows built after the fact, lag over 7 days | 584 of 681 |
+
+```
+>>> baseline_read P1 (index put share, top quintile of 60-session window vs rest, 21d SPY return): NULL <<<
+>>> baseline_read P2 (same cut, 21d drawdown depth): NULL <<<
+>>> baseline_read READ (P1+P2, Holm m=2): NO-FORECAST <<<
+>>> baseline_read SECONDARY (ETF put share S1/S2, breadth S3/S4, Holm m=4): S1 NULL S2 NULL S3 NULL S4 NULL <<<
+>>> baseline_read FORWARD (signal dates from 2026-09-23, read after the seal lifts): STILL-OPEN <<<
+```
+
+| Contrast | Heavy minus rest, pp | 95% CI | Word |
+|---|---|---|---|
+| P1, 21-session return, index put share | +0.52 | −1.00 to +1.90 | `NULL` |
+| P2, 21-session drawdown depth, index put share | +0.71 | −0.38 to +2.08 | `NULL` |
+| S1, return, ETF put share | +1.07 | −0.56 to +2.54 | `NULL` |
+| S2, drawdown, ETF put share | +0.64 | −0.41 to +2.03 | `NULL` |
+| S3, return, breadth | +0.74 | −0.29 to +1.79 | `NULL` |
+| S4, drawdown, breadth | +0.08 | −0.52 to +0.74 | `NULL` |
+
+Intervals are 95% block bootstraps on shared draws, where a block is 21
+sessions of the SPY calendar. Holm runs over the two primaries and over the
+four secondaries. Planted power passes: a 3-point shift on the heavy dates is
+detected in every one of 200 simulations. The design-power table detects a
+2-point warning-side shift in every simulation. A 1-point one is detected in
+78 of 100.
+
+**Why the memory feels true.** Printed only, never graded.
+
+| Tape around a heavy index-hedging date | `HEAVY` | `REST` | Difference | 95% CI |
+|---|---|---|---|---|
+| Same-day SPY move, pp | −0.61 | +0.29 | −0.90 | −1.23 to −0.66 |
+| Prior five sessions, pp | −1.29 | +0.85 | −2.13 | −2.80 to −1.56 |
+| Mechanical label on the date, `BULL` / `RANGE` / `BEAR` | 56 / 20 / 73 | 339 / 41 / 61 | — | — |
+
+Heavy put flow arrives on down days inside down weeks, and 93 of the 149
+heavy dates carry a mechanical `RANGE` or `BEAR` label. The hedging is a
+response to a fall already under way. By the time it is heavy, the next 21
+sessions look like any other.
+
+**Hedging near highs and hedging in a fall.** The framework's hedge-pressure
+qualifier means hedging while the indexes sit near highs. Inside the
+mechanical `BULL` stratum, heavy hedging was followed by a shallower drawdown.
+Inside the non-`BULL` stratum it was followed by a deeper one. Both intervals
+span zero. The first half matches the printed twin in `market_read`, where
+hedge-pressure-labelled dates drew down less.
+
+| Stratum, index put share | P1 return, pp | P2 drawdown, pp |
+|---|---|---|
+| Mech `BULL`, 56 heavy vs 339 rest | +0.81 [−0.15, +1.70] | −0.32 [−0.93, +0.30] |
+| Mech non-`BULL`, 93 heavy vs 102 rest | −0.52 [−1.57, +0.91] | +0.98 [−0.06, +2.02] |
+
+**Printed cuts.** The dose-response by percentile fifth is not monotone: the
+lightest and the heaviest fifths both earned the most, and the heaviest fifth
+drew down the deepest. Spearman rho between percentile and either outcome
+stays within ±0.10 for every metric. The level twin, the nine-cell
+threshold-by-window grid, both halves by time, the 42-session block and the
+next-close start all print `NULL` with the same signs.
+
+Two window cuts print `HEDGE-CONTRARIAN` on a secondary: heavy ETF put flow
+excluding March–April 2025, and heavy breadth excluding February–April 2026,
+each followed by a higher return. Printed only; they re-grade nothing. The
+`LIVE`-only cut holds 4 blocks and reads `UNDERPOWERED`. The mean put share
+shows no step at the `LIVE` boundary, so the two collection modes look alike.
+
+**Sizing.** Nothing changes. The shipped
+[sizing rule](../docs/deployment-rules.md#s2-sizing) keys on the mechanical
+[dip flag](glossary.md#dip-date); the day's put flow adds no forecast on these
+dates. The two studies together say the same thing from both sides: neither
+the model's label nor the flow metric behind it forecasts SPY.
+
+**Provenance.** Registration
+`research/pre-registrations/f1_selection/regime/baseline_read.md`, written
+before the first run; module
+`scripts/backtest_study/f1_selection/regime/baseline_read.py`; report
+`backtests/study_output/baseline_read-latest.txt`; record
+[`study-results/f1_selection/regime/baseline_read.md`](study-results/f1_selection/regime/baseline_read.md).
+`study_review`: both analysts agree on every criterion, no verdict
+disagreements, no number mismatches; one disclosure violation on an incomplete
+header quote. The runner labels the run era v4 and its fingerprint omits the
+baseline export ([`next-steps.md`](next-steps.md) §2.17). The report's line
+`SPY sessions spanned (readable)` counts readable rows; the registration's 703
+is the spanned-session count.
+
+**Next steps.** The forward read opens when the seal lifts and needs 20 heavy
+dates in 6 blocks. No second study follows from a `NO-FORECAST`.
 
 ## 2026-10-23 — the market regime label does not forecast SPY; the ten names show one fragile flag
 

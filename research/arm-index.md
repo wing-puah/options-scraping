@@ -388,6 +388,48 @@ from trailing results known before each rebalance.
 - `ADAPTS` `HURTS` `NULL` `STILL-OPEN` (prose) — The verdict words, on
   adapter minus `M0` in [slot R](glossary.md#slot-r) per date.
 
+#### `baseline_read`
+
+_Registered in [`pre-registrations/f1_selection/regime/baseline_read.md`](pre-registrations/f1_selection/regime/baseline_read.md) · module `f1_selection/regime/baseline_read.py`_
+
+Registered 2026-10-23. The study asks whether the flow baseline's mechanical
+hedging metrics, computed from each day's own scrape, forecast SPY over the
+next 21 sessions. It is the mechanical twin of `market_read`, which tested the
+model's label. The unit is a 21-session block of the SPY calendar; every CI is
+a block bootstrap on shared draws. Every contrast is `HEAVY` minus `REST`.
+
+- `M1` (descriptive cut) — Index put premium share: SPY, QQQ and IWM put
+  premium over their put plus call premium. The graded metric.
+- `M2` (descriptive cut) — ETF-section put share by premium. Secondary.
+- `M3` (descriptive cut) — Put-dominance breadth: the share of the top fifty
+  stocks whose put premium exceeds call premium. Secondary.
+- `M4` (descriptive cut) — Single-stock put share. Printed only.
+- `M5` (descriptive cut) — Index put premium in dollars. Printed only.
+- `HEAVY` (cell) — A date whose metric sits at or above the 0.80 point of its
+  trailing 60-session percentile. `REST` is every other date with a percentile.
+  Unrelated to any other study's cells.
+- `P1` (arm) — Primary: mean 21-session forward SPY log return on `M1`.
+  `HEDGE-WARNS` when the CI sits wholly below zero, `HEDGE-CONTRARIAN` when
+  wholly above. Holm with `P2`, m = 2.
+- `P2` (arm) — Primary: mean 21-session drawdown depth on `M1`. The signs
+  flip: `HEDGE-WARNS` when the CI sits wholly above zero. `P1` and `P2`
+  combine into the `READ` word: `WARNS`, `CONTRARIAN`, `MIXED`,
+  `NO-FORECAST` or `UNDERPOWERED`.
+- `S1` (arm) — Secondary: forward return on `M2`. Holm over `S1` to `S4`,
+  m = 4. Same words as `P1`, no combined word.
+- `S2` (arm) — Secondary: drawdown depth on `M2`. Same words as `P2`.
+- `S3` (arm) — Secondary: forward return on `M3`.
+- `S4` (arm) — Secondary: drawdown depth on `M3`.
+- `GE` (gate) — Inputs present and the baseline header exact; the SPY table
+  closes every window.
+- `GC` (gate) — At least 300 in-sample dates.
+- `GF` (gate) — Per-arm floors of 20 dates and 12 blocks for `P1` and `P2`.
+- `GP` (gate) — Planted power: a 3-point shift must be detected in at least
+  80% of 200 sims.
+- `FORWARD` (population scope) — `P1` and `P2` on signal dates from the seal
+  start, read only once the holdout seal lifts. The first run that prints a
+  token other than `STILL-OPEN` is the verdict of record.
+
 #### `market_read`
 
 _Registered in [`pre-registrations/f1_selection/regime/market_read.md`](pre-registrations/f1_selection/regime/market_read.md) · module `f1_selection/regime/market_read.py`_
