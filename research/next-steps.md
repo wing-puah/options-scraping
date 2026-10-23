@@ -1266,6 +1266,40 @@ contracts, R +28.3.
 `narrow_to_fit`'s GN3 fail on stored rows, because the mirrors already
 import the new fill.
 
+### 2.16 The regime label is read by substring in four places — OPEN, filed 2026-10-23
+
+**Finding.** Four places read the [market regime](glossary.md#regime) string
+by substring over its whole text. The label's head and its prose disagree on
+BEAR, because RANGE labels mention BEAR in their prose.
+
+- Production: `scripts/journal/lib/mapping.py::ladder_tier` tests
+  `"BEAR" in reg`, `"RANGE" in reg` and the vol tokens the same way.
+- Studies: `lib/book.py::model_direction`, and its copies in
+  `exit_switch_mech_study.py` and `mech_regime_recut.py`, scan the whole
+  string in the order BULL, BEAR, RANGE.
+
+| MARKET rows | Head says BEAR | Whole string says BEAR |
+|---|---|---|
+| v4, pre-seal dates | 13 | 22 |
+| v4, all rows | 13 | 24 |
+| v3, all rows | 29 | 34 |
+
+Counted 2026-10-23 at the registration of
+[`market_read`](pre-registrations/f1_selection/regime/market_read.md), which
+parses the head only.
+
+**Why it matters.** `ladder_tier` fires the BEAR + H-VOL veto and the RANGE +
+L-VOL credit veto on these substrings. A RANGE label whose prose mentions BEAR
+and H-VOL can veto a play. The study-side copies cut by model direction the
+same way. How many tiers flip under a head parse is not measured; the planning
+read estimated three v3 dates moving from VETO to A, unverified.
+
+**What to do.** Measure the tier flips on both eras with the registered
+tokeniser. Then an operator ruling: adopt the head parse in `ladder_tier()`
+(a production change, with the stored rows re-tiered and the pinned tests
+updated), or leave it and record that the veto reads prose. Nothing is changed
+here.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

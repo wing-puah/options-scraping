@@ -394,6 +394,55 @@ STUDIES: dict[str, Study] = {
                 "N=5)`, selection fragile. The v3 replication (same path) reads NULL on P1, S1 and "
                 "S3 under `PBO 0.845`, and S2 UNDERPOWERED. Forward read STILL-OPEN. Nothing ships.",
     ),
+    "market_read": Study(
+        family="selection", state="null",
+        question="Does the model's MARKET regime label (BULL/BEAR/RANGE, parsed from the label's "
+                 "head) forecast SPY over the next 21 sessions, and does it add anything beyond the "
+                 "mechanical label computed from the same closes? Block bootstrap on 21-session SPY "
+                 "blocks; the backfill/recall split is a graded secondary.",
+        verdict="2026-10-23 first run (v4, 280 pre-seal dates in 33 blocks, 10,000 block draws): "
+                "`>>> market_read P1 (model BULL - non-BULL, 21d fwd SPY, v4 pre-seal): NULL <<<`, "
+                "`>>> market_read P2 (P1 within mech direction): NULL <<<`, `>>> market_read READ "
+                "(P1+P2): NO-FORECAST <<<`, `>>> market_read P3 (sizing, E-VOL, 21d drawdown, Holm "
+                "m=2): NULL <<<`, `>>> market_read P4 (recall, RETRO - LIVE): STILL-OPEN <<<`, "
+                "`>>> market_read FORWARD (P1, P2, dates after registration): STILL-OPEN <<<`. The "
+                "point estimates run the WRONG way: `P1     -1.00 [-2.26, +0.39] ±1.32  BULL "
+                "157d/32b  nonBULL 123d/30b  p=0.1570` — SPY rose about one point LESS over the 21 "
+                "sessions after a model-BULL date than after the rest — and the mechanical label on "
+                "the same closes reads the same (`P1m    -0.75 [-2.66, +1.27] ±1.97`), paired "
+                "difference `-0.25 [-1.25, +0.78]`. The printed cut excluding Feb–Apr 2026 is "
+                "CONTRARY (`-1.20 [-2.28, -0.05]`); printed only, it re-grades nothing. P3 `+1.08 "
+                "[-0.13, +3.08]`: E-VOL dates fell about one point deeper, CI spans 0, Holm adj p "
+                "0.2016. P4 cannot be read yet: LIVE is 28 dates in 2 blocks and holds no BEAR, "
+                "while 251 of the 280 labels were written after the fact in Aug–Sep 2026. v3 "
+                "replication: P1 UNDERPOWERED (BULL arm 11 blocks against a floor of 12), P2 NULL, "
+                "P3 NULL. Nothing ships; the shipped sizing rule keys on the mechanical dip flag, "
+                "not on this label.",
+        attention="The operator sizes on this label. On v4 it does not forecast SPY and the shipped "
+                  "sizing rule never read it; decide whether to keep reading the label for sizing.",
+    ),
+    "ticker_pattern": Study(
+        family="selection", state="open",
+        question="Among the ten most-traded names (IWM, SMH, TLT, QQQ, GLD; NVDA, TSLA, META, MU, "
+                 "AMD), is there ANY per-name effect once week, direction and side are held "
+                 "fixed? One omnibus permutation test first; per-name contrasts graded only if it "
+                 "passes, Holm over ten, split-half replication, with a CSCV veto.",
+        verdict="2026-10-23 first run (v4, exports dated 2026-10-21, BEFORE the one-clock "
+                "re-price): `>>> ticker_pattern P1 (omnibus, ten names, v4): TICKER-EFFECT <<<`, "
+                "`>>> ticker_pattern P2 (per-name, Holm m=10, split-half): FLAGGED GLD <<<`, "
+                "`>>> ticker_pattern PBO (CSCV, pick-the-best-name): 0.274 <<<`, "
+                "`P1 p = 0.0383 (T 0.817); selection fragile`. Read the flag at its size: GLD's "
+                "Holm-adjusted p is 0.047 against a bar of 0.05, with Monte Carlo error of about "
+                "0.005; on real-priced rows only, P1 reads p = 0.356 (GLD is 27 real rows and 66 "
+                "tweak-proxy rows); GLD's effect size spans zero (+0.281, CI [-0.074, +0.606]); "
+                "61 of its 64 graded rows were written after the fact, during gold's 2024-26 "
+                "rally. TLT is negative in both eras but fails Holm. The v3 replication (same ten "
+                "names) reads NULL under the PBO veto (0.533, p = 0.072). The registration names "
+                "the post-re-price export as the read of record, so step 3 (a second registration "
+                "on the next ten names) waits on the queued `--redo`. Nothing ships.",
+        attention="GLD FLAGGED on a pre-re-price read; after the one-clock --redo re-run, decide "
+                  "whether step 3 (the next ten names) is written.",
+    ),
     "dip_buy": Study(
         family="selection", state="open",
         question="Among non-vetoed Tier A/B positions, is meanR higher when SPY closed below its "

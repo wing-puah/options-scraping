@@ -27,6 +27,12 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-10-23: the model's MARKET regime label does not forecast SPY; `market_read` prints `NO-FORECAST`, and 251 of its 301 labels were written after the fact**
+([entry](#2026-10-23--the-market-regime-label-does-not-forecast-spy-the-ten-names-show-one-fragile-flag)).
+
+**2026-10-23: among the ten most-traded names, `ticker_pattern` flags GLD on v4, within simulation error of its bar and gone on real-priced rows; v3 reads `NULL`**
+([entry](#2026-10-23--the-market-regime-label-does-not-forecast-spy-the-ten-names-show-one-fragile-flag)).
+
 **2026-10-20: `direction_hit` still prints `NULL` on refreshed stock bars; the seal stands at 17 of 40 priced dates**
 ([entry](#2026-10-20--direction_hit-re-run-on-fresh-stock-bars-still-null)).
 
@@ -288,6 +294,179 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-10-23 — the market regime label does not forecast SPY; the ten names show one fragile flag
+
+**Finding.** Two studies were registered and run today, on v4 with a v3
+replication. Nothing ships.
+
+[`market_read`](arm-index.md#market_read) asks whether the model's MARKET
+[regime](glossary.md#regime) label forecasts SPY over the next 21 sessions.
+On v4 it does not. It also adds nothing beyond the
+[mechanical label](glossary.md#mech_cell) computed from the same closes. The
+study prints `READ NO-FORECAST`.
+
+[`ticker_pattern`](arm-index.md#ticker_pattern) asks whether the ten
+most-traded names carry an effect of their own once the week, the play's
+direction and its side are held fixed. On v4 the omnibus test clears 5% and
+flags GLD. The flag sits within simulation error of its bar, disappears on
+real-priced rows, spans zero in effect size and rests on backfilled dates. v3
+reads `NULL`.
+
+The operator asked for push-back on unreliable evidence. The largest item is
+not a verdict but a census: most of the regime labels in the book were not
+forecasts when they were written.
+
+### The regime labels were mostly written after the fact
+
+Only the labels written within a day of their date were forecasts. The rest
+were produced in August and September 2026 for dates back to January 2024, by
+a model whose training data may cover those months.
+
+| MARKET rows, by lag from date to `created_datetime` | v4 | v3 |
+|---|---|---|
+| LIVE, 0 or 1 day | 47 (28 before the seal) | 23 |
+| NEAR, 2 to 7 days | 3 | 1 |
+| RETRO, more than 7 days | 251 | 116 |
+| BEAR labels in the LIVE bin | 0 | 0 |
+| BEAR labels in the RETRO bin | 13 | 30 |
+
+Every BEAR label ever written is retrospective. The live sample has only ever
+said BULL or RANGE, on a bull tape. The repo acknowledged this risk in
+`ticker_class` and had never tested it. `market_read` registers the test as
+its recall contrast, which prints `STILL-OPEN` today because LIVE holds 28
+pre-seal dates in two bootstrap blocks. It reaches its floor around April 2027
+at the earliest.
+
+Two more items on the label itself:
+
+- The label is free text with 49 distinct heads on v4. The loader and the
+  production tier rule read it by whole-string substring, which finds BEAR on
+  22 pre-seal dates where the head says 13. Filed as
+  [next-steps §2.16](next-steps.md#216-the-regime-label-is-read-by-substring-in-four-places--open-filed-2026-10-23).
+- On v3, both dates that carry two MARKET rows disagree on direction, BEAR
+  against RANGE. The same tape, analysed twice, got opposite regimes.
+
+### `market_read` on v4: neither label forecasts the next 21 sessions
+
+Figures are percentage points of 21-session forward SPY log return, or of
+drawdown depth for P3. Intervals are 95% block bootstraps on shared draws. A
+block is 21 sessions of the SPY calendar, and v4 has 33 of them.
+
+| Contrast | Estimate | [CI](glossary.md#ci) | Arms (dates / blocks) |
+|---|---|---|---|
+| P1, model BULL minus non-BULL | −1.00 | [−2.26, +0.39] | 157/32 vs 123/30 |
+| P1m, mechanical BULL minus non-BULL, same dates | −0.75 | [−2.66, +1.27] | 184/29 vs 96/21 |
+| P1 minus P1m, paired | −0.25 | [−1.25, +0.78] | shared draws |
+| P2, P1 inside mechanical-direction strata | −0.72 | [−1.69, +0.33] | BULL stratum weight 0.81 |
+| P3, drawdown depth, model E-VOL minus other | +1.08 | [−0.13, +3.08] | 68/22 vs 212/33 |
+| P4, recall, RETRO minus LIVE on P2 | +0.11 | [−0.99, +1.35] | floors not met |
+
+```
+>>> market_read P1 (model BULL - non-BULL, 21d fwd SPY, v4 pre-seal): NULL <<<
+>>> market_read P2 (P1 within mech direction): NULL <<<
+>>> market_read READ (P1+P2): NO-FORECAST <<<
+>>> market_read P3 (sizing, E-VOL, 21d drawdown, Holm m=2): NULL <<<
+>>> market_read P4 (recall, RETRO - LIVE): STILL-OPEN <<<
+>>> market_read FORWARD (P1, P2, dates after registration): STILL-OPEN <<<
+```
+
+The point estimates run the wrong way. SPY rose about one point less after a
+model-BULL date than after the rest, and the mechanical label reads the same.
+The printed cut excluding February to April 2026 is `CONTRARY`, with its
+interval below zero; it is printed only and re-grades nothing. P3 says E-VOL
+dates fell about one point deeper, but the interval spans zero and the
+Holm-adjusted p is 0.20. On v3, P1 is `UNDERPOWERED` because its BULL arm
+covers 11 blocks against a floor of 12; P2 and P3 read `NULL`.
+
+**Sizing.** The operator sizes trades on this label. The shipped
+[sizing rule](../docs/deployment-rules.md#s2-sizing) never read it: it keys on
+the mechanical [dip flag](glossary.md#dip-date). On this evidence the label
+carries no measured information about SPY's next month, in direction or in
+drawdown. The mechanical cell is causal, on every row, and reads the same
+closes.
+
+### `ticker_pattern`: one omnibus pass, one flag that does not hold its weight
+
+```
+>>> ticker_pattern P1 (omnibus, ten names, v4): TICKER-EFFECT <<<
+>>> ticker_pattern P2 (per-name, Holm m=10, split-half): FLAGGED GLD <<<
+>>> ticker_pattern PBO (CSCV, pick-the-best-name): 0.274 <<<
+```
+
+| Gate or check, v4 | Value |
+|---|---|
+| P1 permutation p (T 0.817) | 0.0383, "selection fragile" |
+| GP0 names at the floor | 10 of 10, bar 8 |
+| GP1 informative share | 0.823 |
+| GP2 planted +0.50 R detected | 0.975 |
+| PBO, pick the best name | 0.274 (fragile band) |
+| PBO on monthly meanR, diagnostic | 0.674 |
+| GLD Holm-adjusted p | 0.047 against a bar of 0.05 |
+| GLD effect size, θ | +0.281, CI [−0.074, +0.606] |
+
+| P1 on a different cut, v4 | p |
+|---|---|
+| strata by date and direction | 0.0585 |
+| strata by month, direction and side | 0.0022 |
+| without March to April 2025 | 0.0306 |
+| without February to April 2026 | 0.0602 |
+| real-priced rows only | 0.356 |
+| complete rows only | 0.0474 |
+
+Why the GLD flag is weak:
+
+- Its Holm-adjusted p is within Monte Carlo error of the bar; another seed
+  could unflag it. The seed is fixed, so the record stands.
+- On real-priced rows the omnibus reads p = 0.356, and GLD is 27 real rows
+  against 66 tweak-proxy rows, which price a substituted contract.
+- Its effect-size interval includes zero.
+- 61 of its 64 graded rows are RETRO. Gold's 2024 to 2026 rally is the plain
+  explanation, and holding week, direction and side fixed cannot remove one
+  underlying's own move.
+- v3 reads `NULL` (omnibus p 0.072, PBO veto 0.533). TLT is negative in both
+  eras but fails Holm; it is printed, not flagged.
+- The exports predate the one-clock re-price. The registration names the
+  post-re-price export as the read of record, so step 3 waits on that run.
+
+The ten names, described (v4, outcome rows, never graded):
+
+| Name | n | real / proxy | Main direction | Credit | Win | [meanR](glossary.md#meanr) | Median R | LIVE / RETRO |
+|---|---|---|---|---|---|---|---|---|
+| IWM | 132 | 75 / 57 | bear 85% | 5% | 36% | −0.151 | −0.758 | 3 / 106 |
+| SMH | 91 | 54 / 37 | bear 65% | 22% | 56% | +0.215 | +0.644 | 6 / 74 |
+| TLT | 73 | 36 / 37 | bull 52% | 12% | 33% | −0.350 | −0.640 | 2 / 58 |
+| QQQ | 50 | 34 / 16 | bear 62% | 14% | 52% | +0.091 | +0.292 | 3 / 39 |
+| GLD | 93 | 27 / 66 | bull 88% | 56% | 78% | +0.252 | +0.673 | 3 / 61 |
+| NVDA | 135 | 87 / 48 | bull 73% | 16% | 52% | +0.073 | +0.031 | 4 / 92 |
+| TSLA | 81 | 47 / 34 | bull 51% | 27% | 44% | −0.107 | −0.175 | 0 / 59 |
+| META | 62 | 39 / 23 | bull 74% | 29% | 45% | −0.199 | −0.155 | 3 / 47 |
+| MU | 63 | 36 / 27 | bull 78% | 62% | 46% | +0.029 | −0.195 | 9 / 47 |
+| AMD | 50 | 24 / 26 | bull 76% | 46% | 44% | −0.299 | −0.421 | 4 / 42 |
+
+Read the table as description. The design-power print says a `NULL` here
+would still leave room for a single-name shift of about 0.4 R, and the
+`TICKER-EFFECT` it did print is carried by the proxy rows.
+
+**Step 3, "analyse more".** The registered rule opens a second registration
+when the omnibus passes and a name is flagged, on the read of record. That read
+is the post-re-price run, not this one. If GLD stays flagged there, the next
+ten names get their own registration and GLD gets a closed cut list. If it
+drops, step 3 closes on these dates.
+
+**Provenance.** Registrations
+[`market_read.md`](pre-registrations/f1_selection/regime/market_read.md) and
+[`ticker_pattern.md`](pre-registrations/f1_selection/benchmark/ticker_pattern.md),
+both dated today, written before either study ran. Reports
+`backtests/study_output/market_read-latest.txt` and
+`ticker_pattern-latest.txt` (v4), with the v3 runs beside them as
+`-v3-20261023.txt`. Records under `study-results/`. Exports dated 2026-10-21.
+Working tree, uncommitted at the time of writing.
+
+**Next steps.** [§2.16](next-steps.md#216-the-regime-label-is-read-by-substring-in-four-places--open-filed-2026-10-23)
+is filed. `ticker_pattern` owes a re-run on the post-re-price export.
+`market_read`'s recall and forward contrasts open as live dates accrue and the
+[sealed window](glossary.md#sealed-window) lifts.
 
 ## 2026-10-23 — every leg of an entry now fills at the same close
 

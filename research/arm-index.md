@@ -309,6 +309,39 @@ fixed ticker group, `G1`–`G7`, hashed before any outcome was read.
 - `STILL-OPEN` `FORWARD-CONFIRMED` `FORWARD-REFUTED` (prose) — The forward
   read of `P1` on signal dates after 2026-10-07.
 
+#### `ticker_pattern`
+
+_Registered in [`pre-registrations/f1_selection/benchmark/ticker_pattern.md`](pre-registrations/f1_selection/benchmark/ticker_pattern.md) · module `f1_selection/benchmark/ticker_pattern.py`_
+
+Registered 2026-10-23. The study asks whether the ten most-traded names carry
+an effect of their own once the week, the play's direction and its side are
+held fixed. The unit is a stratified rank score, and one omnibus test comes
+before any per-name read.
+
+- `P1` (arm) — PRIMARY: the omnibus van Elteren statistic over the ten names,
+  permuted within (ISO week, direction, side) strata. Unrelated to every other
+  study's `P1`.
+- `P2` (arm) — Per-name contrasts from the same draws, Holm over ten, graded
+  only when `P1` reads TICKER-EFFECT. A name is FLAGGED on six clauses,
+  including the same sign in both halves and on real rows.
+- `PBO` (gate) — CSCV on "pick the best name"; above 0.50 it vetoes `P1` and
+  `P2`. `PBO-D` (descriptive cut) repeats it on monthly meanR, printed.
+- `S-DATE` `S-MONTH` (descriptive cut) — `P1` on (date, direction) and on
+  (month, direction, side) strata. Qualifiers only.
+- `X-2025` `X-2026` (descriptive cut) — `P1` without March–April 2025 and
+  without February–April 2026. Qualifiers only.
+- `R-REAL` `R-COMPLETE` (population scope) — `P1` on real rows only and on
+  `complete` rows only. Printed.
+- `DP` (descriptive cut) — The design-power table on synthetic outcomes over
+  the real strata. Printed.
+- `D0` (descriptive cut) — The per-name descriptive table. Printed, never
+  graded.
+- `GE` (gate) — The era resolves and the header names it; exits as the loader
+  does.
+- `GP0` `GP1` `GP2` (gate) — Power: eight names at the floor (four on v3), 60%
+  of graded rows informative, and a planted +0.50 R detected in 80% of
+  simulations. A failure prints UNDERPOWERED.
+
 #### `dip_buy`
 
 _Registered in [`pre-registrations/f1_selection/regime/dip_buy.md`](pre-registrations/f1_selection/regime/dip_buy.md) · module `f1_selection/regime/dip_buy.py`_
@@ -354,6 +387,33 @@ from trailing results known before each rebalance.
   hindsight. An upper bound, never a candidate.
 - `ADAPTS` `HURTS` `NULL` `STILL-OPEN` (prose) — The verdict words, on
   adapter minus `M0` in [slot R](glossary.md#slot-r) per date.
+
+#### `market_read`
+
+_Registered in [`pre-registrations/f1_selection/regime/market_read.md`](pre-registrations/f1_selection/regime/market_read.md) · module `f1_selection/regime/market_read.py`_
+
+Registered 2026-10-23. The study asks whether the model's MARKET regime label
+forecasts SPY over the next 21 sessions, and whether it adds anything beyond
+the mechanical label computed from the same closes. The unit is a 21-session
+block of the SPY calendar; every CI is a block bootstrap on shared draws.
+
+- `P1` (arm) — Co-primary: mean 21-session forward SPY log return, model BULL
+  dates minus model non-BULL dates. Unrelated to every other study's `P1`.
+- `P1m` (control) — The same contrast on the mechanical direction, same dates.
+  Printed beside `P1` with their paired difference.
+- `P2` (arm) — Co-primary, incremental: `P1` inside mechanical-direction
+  strata with fixed pooled-share weights. `P1` and `P2` combine into the `READ`
+  word: `MODEL-ADDS`, `MECH-COVERS`, `INCREMENTAL-ONLY`, `NO-FORECAST`,
+  `CONTRARY` or `UNDERPOWERED`.
+- `P3` (arm) — Sizing, secondary: mean 21-session drawdown depth, model `E-VOL`
+  minus not `E-VOL`, inside mechanical vol strata. `SUPPORTED` means the token
+  warned. Holm with `P4`, m = 2.
+- `P4` (arm) — Recall, secondary: `P2` on backfilled (`RETRO`) labels minus
+  `P2` on live labels, with the mechanical gap printed as the tape gauge.
+  Prints `STILL-OPEN` until `LIVE` holds 8 blocks and 60 dates.
+- `FORWARD` (population scope) — `P1` and `P2` on signal dates after
+  2026-10-23, read only once the holdout seal lifts. The first run that prints
+  a token other than `STILL-OPEN` is the verdict of record.
 
 #### `regime_map`
 
