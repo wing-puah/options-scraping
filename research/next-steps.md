@@ -1311,25 +1311,36 @@ What to do: let a study declare its own inputs for the fingerprint, and let the 
 `unversioned` when none of them carries an era. Until then, re-record by hand after a
 `BaselineDaily` re-export. Nothing changed.
 
-### 2.18 `mechanical_baseline` — OPEN, registered 2026-10-26, module not built
+### 2.18 `mechanical_baseline` — OPEN, built 2026-10-26, waits for the `ARM U` scrape
 
-The [registration](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) is accepted.
-It is the replacement candidate for the analysis picks.
+The [registration](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) is accepted
+and the module is built (`dc9defa`). Its first run prints `NOT BUILT — AWAITING SCRAPE`: 31
+primary trades need 42 contracts. It is the replacement candidate for the analysis picks.
 
-What to do, in order:
+**Resume here when the `ARM U` scrape is done.** That scrape is `mechanical_benchmark`'s
+random-ticker fetch, `fetch_mechanical_legs.py`, started 2026-10-26 with about 5.6 days to run.
 
-1. Build `scripts/backtest_study/f1_selection/benchmark/mechanical_baseline.py`, importing
-   `mechanical_benchmark`'s expiry, spot and strike functions and production's pricing. Its first
-   stage is the census.
-2. Build `scripts/collector/study_legs/fetch_mechanical_baseline_legs.py`. Run it only after the
-   `ARM U` loop finishes: 42 contracts for the primary, about 3,000 for every parameter cell.
-   Push the cache afterwards.
-3. Run the retrospective. `ARM RND` waits for `mechanical_benchmark`'s floors 3 and 4b.
-4. The forward read collects weekly from 2026-10-27; its floor is 30 dates.
+1. Check it has stopped: `pgrep -fl fetch_mechanical_legs` prints nothing, and
+   `backtests/run_logs/armu-r1-loop-20261022.log` shows the last chunk.
+2. Re-run `mechanical_benchmark` first. `ARM RND` reads its floors 3 and 4b.
+3. Fetch: `python3 scripts/collector/study_legs/fetch_mechanical_baseline_legs.py --dry-run`,
+   then without `--dry-run`. It plans 42 primary contracts and 1,874 for every cell, and exits 3
+   while another cache writer runs.
+4. Push the cache: `python3 scripts/backup_research_caches.py push`.
+5. Run: `python3 -m scripts.backtest_study run mechanical_baseline` (about 21 minutes). The graded
+   path has run only on synthetic tests, so expect to debug it on this first real run.
+6. Record the result in [`current.md`](current.md) and grade it with `study_review`.
 
-Open for the operator: [§0](../docs/deployment-rules.md#s0) still says entries fill at the next
-open, while the 2026-10-23 one-clock ruling fills at the entry day's close. The registration
-follows the ruling.
+The forward read sits behind the [holdout seal](pre-registrations/f4_deployment/holdout_seal.md).
+This study is not a named reader, so it prints `STILL-OPEN` until the unseal.
+
+Open for the operator:
+
+- [§0](../docs/deployment-rules.md#s0) still says entries fill at the next open, while the
+  2026-10-23 one-clock ruling fills at the entry day's close. The registration follows the ruling.
+- `research/study-results/f4_deployment/refuse_floor_forward-looks.jsonl` gained one look record
+  at `2664ebd` from a run no session claimed. It is left uncommitted until the operator confirms
+  where it came from.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
