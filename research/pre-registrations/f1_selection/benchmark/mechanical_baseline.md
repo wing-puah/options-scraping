@@ -1,7 +1,7 @@
 ## mechanical_baseline — does a fixed SPY call spread, bought every week, make money on its own?
 
 <!-- outcome:start -->
-> Latest outcome: not yet built.
+> Latest outcome: `NOT BUILT — AWAITING SCRAPE` on the first run, 2026-10-26. 31 primary trades await a fetch (42 contracts), so no arm is graded.
 <!-- outcome:end -->
 
 _Registered 2026-10-26, before any module exists or any outcome of this rule is printed._
@@ -111,6 +111,15 @@ Contested, and printed both ways:
   [regime_map](../../../current.md#2026-10-12--regime_map-tier-a-on-falling-market-dates-is-the-one-cell-both-eras-agree-on)),
   which is a pick result, not a SPY result. `dip_buy`'s forward grade is still open.
 
+_Resolved at build (2026-10-26):_ the session calendar is the SPY close table
+`backtests/mech_regime/spy_base_rate_daily.csv`, extended past its end by
+`spy_vix_daily_full.csv`. A week's first session is its first date there.
+
+_Resolved at build (2026-10-26):_ the dip flag is `dip_buy.dip_label` read on the same two
+tables, `spy_base_rate_daily.csv` first. The shipped table starts on 2023-06-01,
+so on its own it would leave most of `window B` unlabelled. A weekly date with no
+label is not traded, and it is counted.
+
 ### Direction
 
 Long only. No regime label decides direction.
@@ -150,6 +159,10 @@ the horizon at which `ARM M1` and `spy_benchmark` measured the spread, and the o
 - Contested: 45 DTE is printed as a parameter. The book's real evidence sits mostly at or below 60
   DTE ([long-dated caveat](../../../deployment-evidence.md#caveats-on-the-ladder-as-a-whole)).
 
+_Resolved at build (2026-10-26):_ "nearest" has no DTE band, as the census assumed. The
+expiry must fall after the entry day. The entry day is the session after D, so the
+choice is known on D.
+
 ### Sizing
 
 The graded unit is [R](../../../glossary.md#r) of one contract. R is size-free, so the verdicts
@@ -173,6 +186,16 @@ dip classes.
 Disclosed now: at SPY's 2026 price, one ATM/+5% spread can cost more than $500, so `S-500-F2`
 may refuse most trades. `S-500-F3` narrows the spread, which production sizing forbids ("do not
 narrow the spread to fit"). It prints as research only.
+
+_Resolved at build (2026-10-26):_ `S-STOP` is production's own contract count,
+`simulate._size_contracts`: $1,000 over one contract's loss at the 75% stop,
+at least one. The $1,000 dollar stop then caps the loss.
+
+_Resolved at build (2026-10-26):_ the account layer runs `account_sim.simulate` with the
+rule's own exit profile. `S-500-F3` uses `narrow_to_fit`'s narrower unchanged,
+including its tier-break refusal. Every rule trade enters the walk as Tier A,
+because the rule has no tier. `account_sim` books gross, so each position's
+commission is subtracted after the walk.
 
 ### Exits
 
@@ -212,6 +235,16 @@ session's open. The 2026-10-23 one-clock ruling is newer, and this study follows
 - If D has no SPY spot, the week is dropped and counted.
 - Every drop is printed by year.
 
+_Resolved at build (2026-10-26):_ a QQQ or IWM date with no spot is dropped too, as for
+SPY. No strike is estimated from stock bars.
+
+_Resolved at build (2026-10-26):_ the await gate counts both windows of the primary cell,
+because C4 grades it on `window B`. Nothing is priced before the gate passes, so
+no outcome exists to print. While it holds, the run prints the census and stops.
+
+_Resolved at build (2026-10-26):_ a built trade with no D+1 quote is not awaiting. It
+enters within production's window, or production refuses it and it is dropped.
+
 ## Comparators
 
 ### `ARM H` — SPY held as shares
@@ -226,6 +259,23 @@ own read is that it does not.
 - **Secondary.** The trade-level version of the 2026-10-12 read: regress each trade's R on SPY's
   move over the same hold. The intercept is R at zero move. It prints with no verdict, because a
   call spread's value at zero move is mostly decay.
+
+_Resolved at build (2026-10-26):_ the account is every built `window A` trade at one
+contract, with no cap. A cap refusal would change which trades are graded. The
+account layer's `S-1` keeps the caps.
+
+_Resolved at build (2026-10-26):_ the month blocks are runs of three consecutive months.
+A primary trade is open for up to about 49 days, which can touch three calendar
+months. One-month blocks would treat overlapping trades as independent.
+
+_Resolved at build (2026-10-26):_ the regression uses raw returns, as the text says, with
+no risk-free rate. No dividend series is on disk, so SPY's return is the price
+return of the unadjusted close. That leaves out about 0.1% a month. The alpha
+moves by beta times that, and beta is small for a one-lot account.
+
+_Resolved at build (2026-10-26):_ the account return is mark-to-market on
+`mtm_curve.book_curves`, net of each position's commission at its exit. The
+months run from January 2024 to the last full month with a SPY close.
 
 ### `ARM RND` — a random flow-universe ticker, same wrap
 
@@ -243,6 +293,14 @@ legs and draws unchanged.
 - `ARM RND` is graded only once `mechanical_benchmark`'s floors 3 and 4b pass. Until then it
   prints `NOT BUILT — AWAITING SCRAPE`.
 
+_Resolved at build (2026-10-26):_ the entry day is matched on `ARM X`'s recorded fill
+day. The census, which prices nothing, matches on the planned day, the session
+after D. A pair's `ARM X` figure is the mean of its universe's matching trades.
+
+_Resolved at build (2026-10-26):_ a parameter cell's `ARM RND` and `ARM BK` pair on the
+daily trades of that cell's universe and target DTE. Cells that differ only in
+cadence therefore print the same two pairings.
+
 ### `ARM BK` — the v4 book
 
 The question is whether the rule beats the book it would replace.
@@ -255,6 +313,10 @@ The question is whether the rule beats the book it would replace.
 - **Era v3** prints as the replication, on the frozen `v3_` exports, the same way.
 
 The book is net and recent; `ARM X` uses the same cost model, so the pair is like for like.
+
+_Resolved at build (2026-10-26):_ a book date whose `ARM X` trade awaits a fetch is not a
+drop. While any does, `ARM BK` prints `NOT BUILT — AWAITING SCRAPE`. The v3
+replication pairs on its own book dates, with no window cut.
 
 ## Population and windows
 
@@ -286,12 +348,22 @@ All CIs are [date-clustered bootstrap CI95s](../../../glossary.md#ci95-date-clus
    the same sign as the full-sample mean. For `ARM H` the fold is a month.
 4. **C3 STRESS WINDOWS.** The mean keeps its sign with the Mar–Apr 2025 and the Feb–Apr 2026
    sell-offs each removed ([window-dominance re-cuts](../../../glossary.md#window-dominance-re-cuts)).
+
+   _Resolved at build (2026-10-26):_ for a negative mean, C2 needs every fold
+   negative.
 5. **C4 WINDOW B.** For `ARM X` vs zero only: `window B`'s mean net R is not negative with a CI95
    excluding zero.
+
+   _Resolved at build (2026-10-26):_ C4 fails only when `window B`'s CI95 lies wholly
+   below zero.
 6. **C5 OVERFITTING.** [PBO by CSCV](#references) (`lib/pbo.py`, S = 16) across the twelve
    trade-level cells in [Parameters printed both ways](#parameters-printed-both-ways). It prints
    for every run. The primary was chosen before any cell was seen, so PBO does not grade it. A PBO
    of 0.5 or more forbids promoting any non-primary cell in a later registration.
+
+   _Resolved at build (2026-10-26):_ the rows are the ISO weeks of `window A`. Each
+   cell's metric is its mean net R per trade, and a week it did not trade is
+   empty. The head is padded with empty weeks so 16 blocks divide it.
 
 ## Verdicts, worded now
 
@@ -325,6 +397,11 @@ met listed) when C1 holds but a later criterion fails.
 `BOOK-BETTER` takes precedence, because it argues against the planned retirement. `ARM RND` does
 not enter the study-level token; it is graded later and answers a narrower question about SPY.
 
+_Resolved at build (2026-10-26):_ the study-level token is withheld while `ARM BK` is
+`NOT BUILT — AWAITING SCRAPE`. `BOOK-BETTER` and "not `TRAILS-BOOK`" both need
+it read. When `ARM X` is `UNDERPOWERED` or `UNWORDED`, no study-level token
+prints.
+
 ## Parameters printed both ways
 
 Every cell prints the four comparisons, with no verdict except the primary. Twelve trade-level
@@ -354,6 +431,15 @@ The forward read is the grade of record for anything that would trade.
   it clears zero above; `FORWARD-FAILS` when it clears zero below.
 - Forward trades are priced from the cache like any other. Paper or live is an operator decision.
 
+_Resolved at build (2026-10-26):_ the forward dates fall inside the
+[holdout seal](../../f4_deployment/holdout_seal.md), and this study is not a
+named reader. No forward date is read until the seal is lifted. Until then the
+read prints `STILL-OPEN`.
+
+_Resolved at build (2026-10-26):_ the sequence uses `refuse_floor_forward`'s constants,
+imported: alpha 0.0125 and t* 150. It enters the running intersection at the
+30th date. A closed trade is one that exited before the data end.
+
 ## Dependencies and the fetch
 
 **No study code fetches.** A missing leg is fetched by an operator-run collector,
@@ -363,6 +449,11 @@ loop. The option cache is pushed to Drive after it.
 
 It does not run while `mechanical_benchmark`'s `ARM U` loop runs. That loop writes into the same
 cache, and two writers is how duplicates were made before.
+
+_Resolved at build (2026-10-26):_ a real fetch refuses to start while another cache
+writer runs: a backtest, the journal, or any `fetch_*_legs.py` collector. The
+check is the `pgrep` pattern `scripts/daily_loop.sh` uses. `--dry-run` writes
+nothing and is not refused.
 
 ### Plan-time census, disclosed
 

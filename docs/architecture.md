@@ -161,6 +161,12 @@ scripts/                    ← entry points, each maps to a workflow step
   collector/study_legs/fetch_structure_sweep_legs.py
                             — structure_sweep's S2 legs (C/B/D/G/S/K/T strikes + wings), found by a
                               probe walk, not a guessed grid. DRY-RUN by default; --live, --limit N
+  collector/study_legs/fetch_mechanical_baseline_legs.py
+                            — mechanical_baseline's rule legs. Targets come from
+                              mechanical_baseline.plan; fetches go through
+                              backtest/shared/history.fetch_option_histories. --dry-run (offline),
+                              --limit N, --scope primary|all. A real fetch exits 3 while another
+                              cache writer runs
   analysis_pipeline/        — full pipeline (run via `python3 -m scripts.analysis_pipeline`):
                               fetch → headless engine call (isolated session) → expand to
                               per-ticker rows → append to the engine's tab.
@@ -919,6 +925,25 @@ stops before the first date still holding a position open at the data end.
 tracked file, with each sequence's dates and values. Gate FW4 reads the
 previous line and re-checks its interval. Never edit or truncate the file:
 it is the record of every look.
+
+### mechanical_baseline
+
+Accepted by the operator 2026-10-26. It grades a fixed weekly SPY call
+spread against zero, SPY's drift, a random flow ticker and the v4 book. Module
+`f1_selection/benchmark/mechanical_baseline.py`; the registration is the spec.
+
+**The await gate.** Stage 1 is a census of every cell, counts only. While any
+primary trade awaits a fetch, the run prints `NOT BUILT — AWAITING SCRAPE` and
+stops. `RuleBook.price` raises until `open_outcomes` finds no primary trade
+waiting, so no outcome can be computed early.
+
+- Strikes, spot and listing are `mechanical_benchmark`'s, read on the signal
+  date. Pricing is production's `_simulate` through `mechanical_benchmark.finish`.
+- Exits are production's merge through `structure_sweep.exit_profile`, replayed
+  on the frozen harness. Commission is `structure_sweep.commission_dollars`.
+- `ARM RND` reuses `mechanical_benchmark`'s `ARM U` build. The account layer is
+  `account_sim.simulate` with `narrow_to_fit`'s narrower.
+- The fetch plan is `fetch_targets()`; the collector imports `plan()`.
 
 ### ruin_bound
 
@@ -1792,6 +1817,7 @@ python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
 python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # resumable
 python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
 python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py        # structure_sweep S2: dry-run; --live --limit N fetches
+python3 scripts/collector/study_legs/fetch_mechanical_baseline_legs.py --dry-run   # mechanical_baseline; --limit N, --scope all
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list

@@ -164,7 +164,7 @@ same dates and tickers.
 
 #### `mechanical_baseline`
 
-_Registered in [`pre-registrations/f1_selection/benchmark/mechanical_baseline.md`](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) · module `f1_selection/benchmark/mechanical_baseline.py` (not built)_
+_Registered in [`pre-registrations/f1_selection/benchmark/mechanical_baseline.md`](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) · module `f1_selection/benchmark/mechanical_baseline.py`_
 
 Accepted by the operator 2026-10-26. It asks whether a fixed SPY call spread,
 bought weekly, makes money on its own, and whether it beats SPY's drift, a
@@ -184,10 +184,11 @@ picks.
 - `S-1` `S-STOP` `S-500-F2` `S-500-F3` (sub-arm) — Account-level sizing
   variants: one lot, the $1,000 stop, $500 with skip, $500 with narrowing.
   Printed only; no verdict reads them.
-- `window A` `window B` (cut) — 2024-01-10 → 2026-09-22 (PRIMARY) and
-  2022-03-01 → 2024-01-09 (replication, holds the 2022 bear market).
-- `REPLACEMENT-CANDIDATE` `DRIFT-REPLACEMENT` `NO-REPLACEMENT` `BOOK-BETTER`
-  (prose) — The study-level verdict words.
+- `window A` `window B` (population scope) — 2024-01-10 → 2026-09-22
+  (PRIMARY) and 2022-03-01 → 2024-01-09 (replication, holds the 2022 bear
+  market).
+- `REPLACEMENT-CANDIDATE` `DRIFT-REPLACEMENT` `NO-REPLACEMENT` `BOOK-BETTER` (prose) — The
+  study-level verdict words.
 
 #### `spy_benchmark`
 

@@ -568,6 +568,17 @@ STUDIES: dict[str, Study] = {
                   "condition met on ARM M1: surface to the operator before any further study "
                   "runs.` Read the P1 record and both current.md entries.",
     ),
+    "mechanical_baseline": Study(
+        family="selection", state="open",
+        question="Does a fixed rule with no model and no flow data make money on its own: one SPY "
+                 "ATM/+5% call vertical bought on the first session of each week, at the monthly "
+                 "expiry nearest 65 DTE, under the shipped debit exits? Graded against zero, against "
+                 "SPY's own drift (ARM H), a random flow ticker (ARM RND) and the v4 book (ARM BK).",
+        verdict="Registered and accepted by the operator 2026-10-26; module built the same day. "
+                "Not graded: `VERDICT: NOT BUILT — AWAITING SCRAPE`. Primary trades await an "
+                "operator-run fetch (`fetch_mechanical_baseline_legs.py`), so no outcome was "
+                "computed for any arm. Nothing ships from the retrospective.",
+    ),
     "spy_benchmark": Study(
         family="selection", state="null",
         question="Do the deployed picks beat a SPY call spread on the same dates: the ARM M1 "
