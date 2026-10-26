@@ -162,6 +162,33 @@ same dates and tickers.
   `ARM M2`, and no study-level verdict, since each of those also reads
   `ARM U`. It is what `programme_gate`'s `PG-M` reads.
 
+#### `mechanical_baseline`
+
+_Registered in [`pre-registrations/f1_selection/benchmark/mechanical_baseline.md`](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) · module `f1_selection/benchmark/mechanical_baseline.py` (not built)_
+
+Accepted by the operator 2026-10-26. It asks whether a fixed SPY call spread,
+bought weekly, makes money on its own, and whether it beats SPY's drift, a
+random ticker and the v4 book. It is the candidate to replace the analysis
+picks.
+
+- `ARM X` (arm) — The rule: one SPY ATM/+5% call vertical on the first
+  session of each ISO week, monthly expiry nearest 65 DTE, `DEBIT_PROD` exits.
+  PRIMARY, graded against zero. COLLIDES with no other `ARM X` in this index.
+- `ARM H` (control) — SPY held as shares. Graded by monthly Jensen alpha of
+  `ARM X`'s account return on SPY's return.
+- `ARM RND` (control) — `mechanical_benchmark`'s `ARM U` legs and draws,
+  reused unchanged, paired only where date, entry day and monthly expiry
+  match `ARM X`'s daily-cadence trade.
+- `ARM BK` (control) — The v4 deployed picks, paired per book date with
+  `ARM X`'s daily-cadence trade; v3 as the replication.
+- `S-1` `S-STOP` `S-500-F2` `S-500-F3` (sub-arm) — Account-level sizing
+  variants: one lot, the $1,000 stop, $500 with skip, $500 with narrowing.
+  Printed only; no verdict reads them.
+- `window A` `window B` (cut) — 2024-01-10 → 2026-09-22 (PRIMARY) and
+  2022-03-01 → 2024-01-09 (replication, holds the 2022 bear market).
+- `REPLACEMENT-CANDIDATE` `DRIFT-REPLACEMENT` `NO-REPLACEMENT` `BOOK-BETTER`
+  (prose) — The study-level verdict words.
+
 #### `spy_benchmark`
 
 _Registered in [`pre-registrations/f1_selection/benchmark/spy_benchmark.md`](pre-registrations/f1_selection/benchmark/spy_benchmark.md) · module `f1_selection/benchmark/spy_benchmark.py`_

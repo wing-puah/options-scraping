@@ -298,6 +298,45 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-26 — mechanical_baseline registered: a weekly SPY call spread as the replacement candidate
+
+**`mechanical_baseline` is registered, and no module exists yet.** It asks whether a fixed SPY
+ATM/+5% call spread, bought weekly, makes money on its own. It also asks whether that spread beats
+SPY's drift, a random ticker and the v4 book. Nothing ships.
+
+_Registration: [`mechanical_baseline.md`](pre-registrations/f1_selection/benchmark/mechanical_baseline.md),
+accepted by the operator 2026-10-26 · census counted offline from the option cache index the same
+day, while `mechanical_benchmark`'s `ARM U` fetch loop was running._
+
+**In production.** Nothing changes. It is not a
+[`programme_gate`](pre-registrations/f4_deployment/programme_gate.md) input. The gate still reads
+`WAIT`, and retiring the analysis before it fires stays an operator decision.
+
+**Why.** On 2026-10-23 the operator chose to go fully mechanical.
+[`mechanical_benchmark` ARM M1](arm-index.md#mechanical_benchmark) and `spy_benchmark` showed the
+mechanical spread at least matching the picks. Both were relative and gross, and both ran on the
+picks' dates. This study tests the spread on its own schedule, net of commission.
+
+**The design.** [`ARM X`](arm-index.md#mechanical_baseline) is the rule. It is graded against
+zero, against SPY shares by monthly Jensen alpha (`ARM H`), against `ARM U`'s random tickers
+(`ARM RND`), and against the v4 book (`ARM BK`). Universe, cadence and target DTE are parameters
+printed both ways; PBO runs across the twelve cells.
+
+**The census.** The primary is nearly cached.
+
+| Object | Count |
+|---|---|
+| Weekly SPY trades built, `window A` (2024-01-10 → 2026-09-22) | 116 of 141 |
+| Weekly SPY trades built, `window B` (2022-03-01 → 2024-01-09) | 90 of 97 |
+| Contracts to fetch, primary | 42 |
+| Contracts to fetch, every parameter cell | about 3,000 |
+| `ARM U` slot dates sharing the rule's date and expiry, daily cadence | 147 |
+
+**Next.** A new item in [`next-steps.md`](next-steps.md): build the module, then run the 42-contract
+fetch after the `ARM U` loop finishes. The forward read starts 2026-10-27.
+
+---
+
 ## 2026-10-23 — heavy hedging in the flow does not forecast SPY; it arrives after the fall has begun
 
 **Finding.** The operator remembers heavy hedging in the flow coming before

@@ -1311,6 +1311,26 @@ What to do: let a study declare its own inputs for the fingerprint, and let the 
 `unversioned` when none of them carries an era. Until then, re-record by hand after a
 `BaselineDaily` re-export. Nothing changed.
 
+### 2.18 `mechanical_baseline` — OPEN, registered 2026-10-26, module not built
+
+The [registration](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) is accepted.
+It is the replacement candidate for the analysis picks.
+
+What to do, in order:
+
+1. Build `scripts/backtest_study/f1_selection/benchmark/mechanical_baseline.py`, importing
+   `mechanical_benchmark`'s expiry, spot and strike functions and production's pricing. Its first
+   stage is the census.
+2. Build `scripts/collector/study_legs/fetch_mechanical_baseline_legs.py`. Run it only after the
+   `ARM U` loop finishes: 42 contracts for the primary, about 3,000 for every parameter cell.
+   Push the cache afterwards.
+3. Run the retrospective. `ARM RND` waits for `mechanical_benchmark`'s floors 3 and 4b.
+4. The forward read collects weekly from 2026-10-27; its floor is 30 dates.
+
+Open for the operator: [§0](../docs/deployment-rules.md#s0) still says entries fill at the next
+open, while the 2026-10-23 one-clock ruling fills at the entry day's close. The registration
+follows the ruling.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 
