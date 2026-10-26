@@ -471,11 +471,19 @@ def delete_rows_where(tab: str, match_fn) -> int:
         else:
             runs.append([idx, idx])
     if runs:
-        ss.batch_update({"requests": [
+        requests = [
             {"deleteDimension": {"range": {
                 "sheetId": ws.id, "dimension": "ROWS",
                 "startIndex": lo - 1, "endIndex": hi}}}
-            for lo, hi in reversed(runs)]})
+            for lo, hi in reversed(runs)]
+        # Sheets refuses a batch that would leave no non-frozen row ("not possible
+        # to delete all non-frozen rows") — a whole-tab --redo of BacktestProxy hit
+        # it on 2026-10-25. Grow the grid by one blank row first, in the SAME batch,
+        # so the request stays atomic; appending at the end shifts no index below.
+        if ws.row_count - len(doomed) <= ws.frozen_row_count:
+            requests.insert(0, {"appendDimension": {
+                "sheetId": ws.id, "dimension": "ROWS", "length": 1}})
+        ss.batch_update({"requests": requests})
     if doomed:
         log.info("Deleted %d row(s) from tab '%s'", len(doomed), tab)
     return len(doomed)

@@ -11,8 +11,11 @@ from lib import sheets_client
 class _Ws:
     id = 7
 
-    def __init__(self, rows):
+    frozen_row_count = 1
+
+    def __init__(self, rows, row_count=None):
         self._rows = rows
+        self.row_count = len(rows) + 1 if row_count is None else row_count
 
     def get_all_records(self):
         return self._rows
@@ -29,10 +32,10 @@ class _Ss:
         self.bodies.append(body)
 
 
-def _run(monkeypatch, rows, match):
+def _run(monkeypatch, rows, match, row_count=None):
     ss = _Ss()
     monkeypatch.setattr(sheets_client, "_get_spreadsheet", lambda: ss)
-    monkeypatch.setattr(sheets_client, "_ensure_tab", lambda s, tab: _Ws(rows))
+    monkeypatch.setattr(sheets_client, "_ensure_tab", lambda s, tab: _Ws(rows, row_count))
     n = sheets_client.delete_rows_where("T", match)
     return n, ss.bodies
 
@@ -43,6 +46,7 @@ def test_one_batch_with_contiguous_rows_merged_bottom_up(monkeypatch):
 
     assert n == 6
     assert len(bodies) == 1
+    assert all("deleteDimension" in q for q in bodies[0]["requests"])
     ranges = [(q["deleteDimension"]["range"]["startIndex"],
                q["deleteDimension"]["range"]["endIndex"]) for q in bodies[0]["requests"]]
     # sheet rows 9 | 5-7 | 2-3, as 0-based half-open ranges, bottom-up
@@ -53,3 +57,20 @@ def test_one_batch_with_contiguous_rows_merged_bottom_up(monkeypatch):
 def test_no_match_writes_nothing(monkeypatch):
     n, bodies = _run(monkeypatch, [{"k": "y"}], lambda r: r["k"] == "x")
     assert n == 0 and bodies == []
+
+
+def test_deleting_every_row_grows_the_grid_first_in_the_same_batch(monkeypatch):
+    # Sheets refuses a batch that leaves no non-frozen row (BacktestProxy, 2026-10-25)
+    n, bodies = _run(monkeypatch, [{"k": "x"}] * 3, lambda r: True)
+
+    assert n == 3 and len(bodies) == 1
+    reqs = bodies[0]["requests"]
+    assert reqs[0] == {"appendDimension": {"sheetId": 7, "dimension": "ROWS", "length": 1}}
+    assert [(q["deleteDimension"]["range"]["startIndex"],
+             q["deleteDimension"]["range"]["endIndex"]) for q in reqs[1:]] == [(1, 4)]
+
+
+def test_spare_grid_rows_need_no_growth(monkeypatch):
+    n, bodies = _run(monkeypatch, [{"k": "x"}] * 3, lambda r: True, row_count=10)
+    assert n == 3
+    assert all("deleteDimension" in q for q in bodies[0]["requests"])
