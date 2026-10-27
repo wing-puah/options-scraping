@@ -23,3 +23,21 @@ VERDICT
   run time 620s
 ```
 
+
+## era v4 · inputs 61bda3a · sha 2664ebd — recorded 2026-10-26
+<!-- key era=v4 sha=2664ebd inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:48:18 · git 2664ebd (main, working tree dirty) · exit 0 · 4642.6s
+command     python -m scripts.backtest_study.f4_deployment.ruin_bound
+excerpt     verdict
+
+```
+VERDICT
+  HEADLINE ($500 budget and stop): >>> SAFEST ELIGIBLE CELL: N250-F2 G-none <<<
+  DECLARED SECONDARY ($1,000 budget and stop): NO CELL MEETS THE BOUNDS
+  A reading for the operator. The tracked cap in config/account-sim.yml
+  is unchanged whatever these lines say.
+  run time 4,640s
+```
+

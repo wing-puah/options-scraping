@@ -19,3 +19,22 @@ VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT
   pairs written to backtests/study_output/spy_benchmark-pairs.csv
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:31:35 · git 3dae88d (main, working tree dirty) · exit 0 · 35.0s
+command     python -m scripts.backtest_study.f1_selection.benchmark.spy_benchmark
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  The census is the recorded result. No outcome was computed: no SPY
+  wrap was priced or replayed.
+  Operator-run steps, in order (none runs from here):
+    1. python3 scripts/collector/study_legs/fetch_mechanical_legs.py --arms SPY --no-v3 --dry-run   (approve the count, then --limit N)
+    2. python3 scripts/backup_research_caches.py push
+    3. re-run this study; a fetch can expose nearer strikes, so steps 1-3 repeat until nothing awaits
+```
+

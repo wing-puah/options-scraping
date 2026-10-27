@@ -143,3 +143,23 @@ excerpt     tail
   ARM R population note: 1607 of 1795 book rows carry a day-0 move; the rest are counted in the coverage table above.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:37:52 · git 3dae88d (main, working tree dirty) · exit 0 · 71.3s
+command     python -m scripts.backtest_study.f2_management.next_day_move
+excerpt     tail
+
+```
+  inside apply_day0_cut, not by pre-filtering the row list. Pre-filtering would
+  make this vacuous — the rule could not touch a row it was never handed. Here
+  it could, and must not.
+  cut when wrong sign                         bear rows changed  340   non-bear changed    0   OK
+  cut when worse than -0.5 sigma              bear rows changed  140   non-bear changed    0   OK
+  cut when inside the flat band (+0.5 sigma)  bear rows changed  505   non-bear changed    0   OK
+  0 in the non-bear column is the only acceptable number.
+  ARM R population note: 1658 of 1806 book rows carry a day-0 move; the rest are counted in the coverage table above.
+```
+

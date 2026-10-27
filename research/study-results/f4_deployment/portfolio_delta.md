@@ -142,3 +142,21 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   >>> DELTA-DOSE-RESPONSE — ARM D shows a monotone, n-sufficient relationship between open-book delta at session open and the outcome of positions op…
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:43:22 · git 3dae88d (main, working tree dirty) · exit 0 · 203.7s
+command     python -m scripts.backtest_study.f4_deployment.portfolio_delta
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G-INVENTORY): B ceiling 1.00, B ceiling 1.50, B ceiling 2.00, B ceiling inf, H* target 1.50, H* target 2.00
+  arms clearing the whole bar:  none
+  ARM D readable bands: [0.5,1.0), [1.0,2.0), [2.0,inf)   shape: not monotone / not readable
+  census: long-only book: True   negative-delta picks 0 of 541   per-date net/equity range [+0.00, +2.50]
+  >>> NOISE — no arm exceeds ARM N's 95th percentile and ARM D's bands do not separate within their cells. Recorded; thread closed for these dates. <…
+```
+

@@ -38,3 +38,23 @@ excerpt     matched
   N5  -> MET
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:14:57 · git 3dae88d (main, working tree dirty) · exit 0 · 252.6s
+command     python -m scripts.backtest_study.f4_deployment.narrow_to_fit
+excerpt     tail
+
+```
+  cells scored by this run: 36 (7 registered cells + 2 floored F3 lines, x 2 cap cells x 2 populations, F3 only where GN5 lets it grade)
+CLOSE
+  headline (R, F3, $1,000): AWAITING SCRAPE
+  declared secondary (R, F3, $1,000) + 20% net floor: AWAITING SCRAPE
+  secondary (R, F3, $500): AWAITING SCRAPE
+  declared secondary (R, F3, $500) + 20% net floor: AWAITING SCRAPE
+  gates: G2-G5 PASS  GN1 PASS  GN2 PASS  GN3 PASS  GN4 PASS
+  Nothing in this report is a shippable rule.
+```
+

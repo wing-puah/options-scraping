@@ -149,3 +149,21 @@ VERDICT (pre-registered rules, pre-registrations/f5_hedging/hedge_sizing.md)
   D5 gated sleeve (POST-HOC): no gate survives
 ```
 
+
+## era v4 · inputs 61bda3a · sha a360724 — recorded 2026-10-26
+<!-- key era=v4 sha=a360724 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:22:49 · git a360724 (main, working tree dirty) · exit 0 · 161.4s
+command     python -m scripts.backtest_study.f5_hedging.hedge_sizing
+excerpt     verdict
+
+```
+VERDICT (pre-registered rules, pre-registrations/f5_hedging/hedge_sizing.md)
+  D1 joint selection x exit : NOT MET
+  D2 hedge is real          : NOT MET
+  D3 always-on sizing       : NOT MET at any size
+  D4 conditional pick       : adopted — dte short first
+  D5 gated sleeve (POST-HOC): no gate survives
+```
+

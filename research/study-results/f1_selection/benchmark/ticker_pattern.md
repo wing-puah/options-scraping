@@ -45,3 +45,24 @@ VERDICT
   Nothing ships from this study.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:33:02 · git 3dae88d (main, working tree dirty) · exit 0 · 49.1s
+command     python -m scripts.backtest_study.f1_selection.benchmark.ticker_pattern
+excerpt     verdict
+
+```
+VERDICT
+>>> ticker_pattern P1 (omnibus, ten names, v4): NULL <<<
+>>> ticker_pattern P2 (per-name, Holm m=10, split-half): none graded <<<
+>>> ticker_pattern PBO (CSCV, pick-the-best-name): 0.314 <<<
+  P1 p = 0.1243 (T 0.647); p = 0.1243 > 0.05
+  gates: GP0 10/10 names at the floor (bar 8) pass; GP1 share 0.821 pass; GP2 power 0.825 pass
+  PBO reading: 0.25-0.50: selection fragile
+  step 3: closes on these dates
+  Nothing ships from this study.
+```
+

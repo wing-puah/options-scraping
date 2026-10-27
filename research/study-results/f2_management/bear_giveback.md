@@ -143,3 +143,23 @@ excerpt     tail
   BEAR + E-VOL                   n=   8  win   75%  PF  5.05  meanR +0.481  $     4,803  MFE  +1.06  MAE  -0.35  gb  0.33  cap  +0.46
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:17:36 · git 3dae88d (main, working tree dirty) · exit 0 · 43.7s
+command     python -m scripts.backtest_study.f2_management.bear_giveback
+excerpt     tail
+
+```
+--- the deploy-time cell: bull_call_spread by model regime x vol ------------
+  RANGE + E-VOL                  n=  64  win   41%  PF  0.85  meanR +0.028  $    -5,044  MFE  +0.84  MAE  -0.61  gb  0.73  cap  +0.03
+  RANGE + L-VOL                  n=  83  win   53%  PF  1.54  meanR +0.169  $    17,167  MFE  +1.22  MAE  -0.57  gb  0.47  cap  +0.14
+  RANGE + C-VOL                  n=  16  win   50%  PF  0.97  meanR +0.067  $      -216  MFE  +0.74  MAE  -0.65  gb  0.88  cap  +0.09
+  BULL + E-VOL                   n=   9  win   11%  PF  0.22  meanR -0.431  $    -4,836  MFE  +0.34  MAE  -0.78  gb  2.32  cap  -1.29
+  BULL + L-VOL                   n= 332  win   47%  PF  1.11  meanR +0.078  $    16,368  MFE  +0.83  MAE  -0.61  gb  0.74  cap  +0.09
+  BULL + C-VOL                   n=  52  win   65%  PF  2.92  meanR +0.415  $    28,272  MFE  +1.29  MAE  -0.49  gb  0.38  cap  +0.32
+  BEAR + E-VOL                   n=   8  win   75%  PF  7.03  meanR +0.600  $     6,911  MFE  +0.96  MAE  -0.55  gb  0.57  cap  +0.63
+```
+

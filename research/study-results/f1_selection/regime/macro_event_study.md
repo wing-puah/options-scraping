@@ -236,3 +236,23 @@ excerpt     tail
 G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design. iv units: decimal fractions throughout (G3).
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:09:32 · git 3dae88d (main, working tree dirty) · exit 0 · 1012.7s
+command     python -m scripts.backtest_study.f1_selection.regime.macro_event_study
+excerpt     tail
+
+```
+    first event MID    in hold:  203 rows / 121 dates  mean R +0.058
+    first event LATE   in hold:  107 rows /  84 dates  mean R +0.066
+  MID   (19-36d): 555 rows
+    first event EARLY  in hold:  507 rows / 220 dates  mean R -0.101
+    first event MID    in hold:   48 rows /  28 dates  mean R -0.340
+  LONG  (> 36d): 556 rows
+    first event EARLY  in hold:  556 rows / 221 dates  mean R -0.066
+G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design. iv units: decimal fractions throughout (G3).
+```
+

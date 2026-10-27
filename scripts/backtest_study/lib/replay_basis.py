@@ -48,7 +48,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.backtest_study.lib.harness import Trade, _pct, _to_float, replay  # noqa: E402
+from scripts.backtest_study.lib.harness import (  # noqa: E402
+    MAX_LOSS_ABS, Trade, _pct, _to_float, replay)
 
 NEAR_MISS_TOL = 0.0001
 
@@ -59,6 +60,13 @@ NEAR_MISS_TOL = 0.0001
 # entry denom — ≥ ~1e-6 even on a $100 spread. 1e-9 clears the first by 20x
 # and the second by 1000x, so the nudge can only ever un-fire an exact tie.
 TIE_EPS = 1e-9
+
+# The same tie on the dollar stop, in dollars. `round(pl, 10)` moves the
+# replay's dollars by at most 5e-11 x denom x 100 x contracts — under 1e-4 for
+# any book row (denom $100, 100 contracts). The smallest GENUINE gap is one
+# 4-decimal mark tick: $0.01 per contract. 1e-3 clears the first by 10x and
+# sits 10x inside the second.
+TIE_DOLLARS = 1e-3
 
 _REASON_REQUIRES = {
     "profit_target": ("pt",),
@@ -219,6 +227,30 @@ def _boundary_tie(t: Trade, prod: dict, replay_fn) -> bool:
     return False
 
 
+def _dollar_stop_tie(t: Trade, want: tuple, got: tuple) -> bool:
+    """Is the mismatch a rounding tie on the dollar stop? The frozen harness has
+    no dollar knob to nudge, so this checks the tie directly: production booked
+    `dollar_stop` on a day whose loss is exactly MAX_LOSS_ABS (within
+    TIE_DOLLARS), and the replay exits that same day at the same pnl under
+    another rule because `round(pl, 10)` lifted the loss a hair above the line.
+
+    First seen 2026-10-26, GOOG bear_put_spread 2026-03-25 after the one-clock
+    re-price: entry 11.60, day-10 mark 1.60, loss exactly −$1,000.00; the
+    replay's rounded pnl gives −$999.99999998 and fires stop_loss instead.
+    Only the label differs, so the row is benign. A replay that exits on a
+    different day or pnl stays HARD.
+    """
+    if want[0] != "dollar_stop" or got[1] != want[1]:
+        return False
+    marks = bounded(t).marks
+    mark = marks[want[1] - 1] if 0 < want[1] <= len(marks) else None
+    if mark is None:
+        return False
+    pl = t.pnl_of(mark)
+    return (abs(t.dollars(pl) + MAX_LOSS_ABS) <= TIE_DOLLARS
+            and reproduces_pnl(t, pl))
+
+
 KINDS = ("exact", "near", "superseded", "boundary_tie", "deferred_fill", "hard")
 
 
@@ -235,7 +267,10 @@ def classify(t: Trade, prod: dict, unreachable: set[str], replay_fn=replay):
     boundary_tie — the flat replay fires a pt/sl threshold on a day whose pnl
       is a 1-ulp rounding tie with it, while production's unrounded pnl
       survived the boundary; the stored outcome reproduces in full once the
-      threshold is nudged TIE_EPS (see `_boundary_tie`). Benign, but excluded
+      threshold is nudged TIE_EPS (see `_boundary_tie`). Or the mirror case on
+      the dollar stop: production's loss sat exactly on MAX_LOSS_ABS and the
+      replay's rounded pnl missed it, same day, same pnl (`_dollar_stop_tie`,
+      added 2026-10-27). Benign, but excluded
       from calibrated-row dollar reconciliation the way superseded rows are —
       its flat replay still books a different (reason, day).
     deferred_fill — `exit_fill` is `deferred_<n>`: production filled the exit
@@ -271,6 +306,6 @@ def classify(t: Trade, prod: dict, unreachable: set[str], replay_fn=replay):
         return "near", want, got
     if want[0] in unreachable:
         return "superseded", want, got
-    if _boundary_tie(t, prod, replay_fn):
+    if _boundary_tie(t, prod, replay_fn) or _dollar_stop_tie(t, want, got):
         return "boundary_tie", want, got
     return "hard", want, got

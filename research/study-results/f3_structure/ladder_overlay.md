@@ -109,3 +109,29 @@ VERDICTS
 per-row per-cell results: 1789 rows -> backtests/study_output/ladder_overlay-rows.csv
 ```
 
+
+## era v4 · inputs 61bda3a · sha a360724 — recorded 2026-10-26
+<!-- key era=v4 sha=a360724 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:33:12 · git a360724 (main, working tree dirty) · exit 0 · 2219.4s
+command     python -m scripts.backtest_study.f3_structure.ladder_overlay
+excerpt     verdict
+
+```
+VERDICTS
+  L-BASE          NULL
+  L-F4            NULL
+  L-T0            NULL
+  L-GAP           NULL
+  L-RUN           NULL
+  L-T0-TEF        NULL
+  L-GAP-TEF       NULL
+  L-RUN-TEF       NULL
+  N-CORE          NULL
+  N-ROLL          NULL
+  CANDIDATE is not a ship. Nothing ships from a research-tier study, and a
+  RE-WRAP or BREACH-DOMINATED cell closes its own thread for these dates.
+per-row per-cell results: 2700 rows -> backtests/study_output/ladder_overlay-rows.csv
+```
+

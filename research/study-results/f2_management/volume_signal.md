@@ -115,3 +115,19 @@ VERDICT (grammar pre-registered; operationalizations coded before first run)
 G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 2664ebd — recorded 2026-10-26
+<!-- key era=v4 sha=2664ebd inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:55:24 · git 2664ebd (main, working tree dirty) · exit 0 · 225.7s
+command     python -m scripts.backtest_study.f2_management.volume_signal
+excerpt     verdict
+
+```
+VERDICT (grammar pre-registered; operationalizations coded before first run)
+  components: H1a readable=True r_sep=-0.0589  exit_ok=False  amihud_collapse=True  mfe/mae mirrored=False
+  VERDICT: LIQUIDITY-PROXY — the separation is amihud, not flow information.
+G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
+```
+

@@ -23,3 +23,23 @@ VERDICTS
   REFUSED (designed, exit 4): nothing to grade until the exports hold a signal date on or after 2026-10-08.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 2664ebd — recorded 2026-10-26
+<!-- key era=v4 sha=2664ebd inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:46:57 · git 2664ebd (main, working tree clean) · exit 0 · 72.5s
+command     python -m scripts.backtest_study.f4_deployment.refuse_floor_forward
+excerpt     tail
+
+```
+  b264cfd holdout_seal: accept by default, seal from 2026-09-23, build the guard
+CLOSE
+  (R, F2, $500): STILL-OPEN
+  (R, F3, $500): STILL-OPEN
+  declared secondary (R, F3, $500) + 20% net floor: STILL-OPEN
+  gates: G2-G5 PASS  FW2 PASS  FW4 PASS  GN5 clear
+  look logged to research/study-results/f4_deployment/refuse_floor_forward-looks.jsonl
+  Nothing in this report is a shippable rule.
+```
+

@@ -149,3 +149,23 @@ excerpt     PBO (v3)
   degradation slope -0.363; P(OOS meanR of the IS pick < 0) 0.887
   READING: PBO 0.845 > 0.50: no group-level verdict ships; every graded contrast reads NULL
 ```
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:32:16 · git 3dae88d (main, working tree dirty) · exit 0 · 40.7s
+command     python -m scripts.backtest_study.f1_selection.benchmark.ticker_class
+excerpt     verdict
+
+```
+VERDICTS
+  P1  NULL (PBO 0.841 > 0.50: no group-level verdict ships)
+  S1  NULL vs G5 (PBO 0.841 > 0.50: no group-level verdict ships)
+  S2  NULL vs G6 (PBO 0.841 > 0.50: no group-level verdict ships)
+  S3  NULL vs G7 (PBO 0.841 > 0.50: no group-level verdict ships)
+  S4  UNDERPOWERED vs G2
+  PBO 0.841 (graded N=5)  |  bear-stratum diagnostic PBO 0.617
+  Nothing ships from this study. INDEX-MORE-RELIABLE or CONTRARY files a 'to be tested' entry in research/deployment-evidence.md.
+```
+

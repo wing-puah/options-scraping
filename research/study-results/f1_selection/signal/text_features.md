@@ -129,3 +129,56 @@ VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO 
     - invalidation_level [T3 vs T1] in bear_put_spread/C (ARM A (deterministic text features), dR=+0.2644)
 ```
 
+
+## era v4 · inputs 61bda3a · sha dc9defa — recorded 2026-10-26
+<!-- key era=v4 sha=dc9defa inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:08:29 · git dc9defa (main, working tree dirty) · exit 0 · 554.8s
+command     python -m scripts.backtest_study.f1_selection.signal.text_features
+excerpt     verdict  (40 of 59 block lines; 19 not quoted)
+tally       NULL 18, UNDERPOWERED 10, CANDIDATE 1, NOT EVALUABLE 1  (30 of 59 lines carried a token)
+
+```
+VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO PRE-REGISTERED VERDICT MATCHES)
+  ARM A (deterministic text features):
+    invalidation_type            UNDERPOWERED   cells=17 powered=0
+    invalidation_inside_strikes  UNDERPOWERED   cells=12 powered=0
+    trigger_conditional          NULL           cells=17 powered=1
+    invalidation_level           NULL           cells=17 powered=3
+    trigger_level                NULL           cells=17 powered=3
+    numeric_specificity          NULL           cells=17 powered=3
+    thesis_len                   NULL           cells=17 powered=2
+    alt_ratio                    NULL           cells=17 powered=2
+    hallucination_rate           UNDERPOWERED   cells=17 powered=0
+  ARM B (blind taxonomy labels):
+    thesis_type                  NULL           cells=80 powered=3
+    evidence_quality             UNDERPOWERED   cells=16 powered=0
+    confidence_language          NULL           cells=15 powered=1
+    one_sided                    UNDERPOWERED   cells=16 powered=0
+    invalidation_concreteness    UNDERPOWERED   cells=16 powered=0
+  ARM C (gate arms):
+    invalidation_type            NULL           arms=2 powered=2
+    invalidation_inside_strikes  UNDERPOWERED   arms=2 powered=0
+    trigger_conditional          NULL           arms=2 powered=1
+    invalidation_level           NULL           arms=2 powered=2
+    trigger_level                NULL           arms=2 powered=2
+    numeric_specificity          NULL           arms=2 powered=2
+    thesis_len                   NULL           arms=2 powered=2
+    alt_ratio                    NULL           arms=2 powered=2
+    hallucination_rate           NULL           arms=2 powered=2
+    thesis_type                  NULL           arms=10 powered=8
+    evidence_quality             UNDERPOWERED   arms=2 powered=0
+    confidence_language          NULL           arms=2 powered=2
+    one_sided                    UNDERPOWERED   arms=2 powered=0
+    invalidation_concreteness    UNDERPOWERED   arms=2 powered=0
+--- PROMPT-ROBUSTNESS FINDINGS ----------------------------------------------
+  (text predicts failure independent of the numeric columns; feeds `prompt_eval`'s
+  `draft` mode, nothing more — NOT a ship)
+    none
+--- ENTRY-GATE CANDIDATES ---------------------------------------------------
+  (an ARM C gate raising mean R AND PF under the k=3 replay; would feed a written
+  `docs/deployment-rules.md` PROPOSAL for the operator — NOT a ship, and queued behind an
+  independent-window confirmation)
+```
+

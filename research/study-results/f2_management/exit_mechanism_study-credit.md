@@ -102,3 +102,23 @@ excerpt     tail
          +2062  2025-03-06 TSLA  short_put          dollar_stop($-1337 d2) → underlying_stop($+725 d1)
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:37:25 · git 3dae88d (main, working tree dirty) · exit 0 · 4.8s
+command     python -m scripts.backtest_study.f2_management.exit_mechanism_study --side credit
+excerpt     tail
+
+```
+    per-month Δ vs prod: 2024-02:+328  2024-03:-2177  2024-04:-6694  2024-06:-378  2024-07:-2666  2024-08:-1017  2024-09:+594  2024-10:+555  2024-11:…
+    biggest movers (115 rows changed):
+         -9560  2025-08-01 UNH   short_put          expired($+9485 d35) → underlying_stop($-75 d1)
+         -7390  2024-04-15 TSLA  short_put          profit_target($+7390 d59) → underlying_stop($+0 d1)
+         -1888  2026-07-08 SMH   iron_condor        profit_target($+1432 d53) → underlying_stop($-455 d15)
+         +1176  2024-02-15 SMCI  bull_put_spread    dollar_stop($-1235 d3) → underlying_stop($-59 d1)
+         +1221  2026-07-13 META  bull_put_spread    dollar_stop($-1722 d13) → underlying_stop($-500 d8)
+         +2062  2025-03-06 TSLA  short_put          dollar_stop($-2362 d2) → underlying_stop($-300 d1)
+```
+

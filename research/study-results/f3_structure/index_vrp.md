@@ -31,3 +31,30 @@ VERDICT
   Nothing ships.
 ```
 
+
+## era v4 · inputs 61bda3a · sha dc9defa — recorded 2026-10-26
+<!-- key era=v4 sha=dc9defa inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:16:36 · git dc9defa (main, working tree dirty) · exit 0 · 280.3s
+command     python -m scripts.backtest_study.f3_structure.index_vrp
+excerpt     verdict
+
+```
+VERDICT
+  M1 premium (context) SPY: NO-PREMIUM
+  M1 premium (context) GLD: NO-PREMIUM
+  book loses in 3 covered window(s) ['W2', 'W3', 'W4']; sleeve loses in 2 of them
+  T1 -6.19 CI95 [-60.82, +46.40]; T4 max DD book 57.8% vs book+sleeve 55.6%
+  >>> index_vrp NO-TAIL-LINK (SPY condor d0.16, mid fill, v4 deployed book) <<<
+  secondary, GLD condor d0.16 mid vs deployed: NO-TAIL-LINK
+  secondary, SPY condor d0.16 natural vs deployed: NO-TAIL-LINK
+  secondary, SPY condor d0.30 mid vs deployed (contested delta): NO-TAIL-LINK
+  secondary, SPY condor d0.16 mid vs stored book: NO-TAIL-LINK
+  secondary, SPY condor d0.16 mid vs deployed at yml net 2.50 (NOT REGISTERED): NO-TAIL-LINK
+  secondary, SPY condor d0.16 mid vs v3 deployed (replication): NO-TAIL-LINK
+  secondary, graded read at T1 block 5: NO-TAIL-LINK
+  secondary, graded read at T1 block 20: NO-TAIL-LINK
+  Nothing ships.
+```
+

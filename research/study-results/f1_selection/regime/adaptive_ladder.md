@@ -22,3 +22,21 @@ VERDICT
   Nothing ships from this study. An ADAPTS lets the operator consider a deployment-rules change.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:01:44 · git 3dae88d (main, working tree dirty) · exit 0 · 97.0s
+command     python -m scripts.backtest_study.f1_selection.regime.adaptive_ladder
+excerpt     verdict
+
+```
+VERDICT
+  >>> adaptive_ladder WALK-FORWARD (in-sample dates, v4, adapter - M0): NULL <<<
+  oracle (hindsight): M5; switches 1; PBO 0.586
+  >>> adaptive_ladder FORWARD (adapter - M0): STILL-OPEN <<<
+  The forward verdict of record is the first run printing a token other than STILL-OPEN.
+  Nothing ships from this study. An ADAPTS lets the operator consider a deployment-rules change.
+```
+

@@ -94,3 +94,16 @@ excerpt     matched
     VERDICT RULE: OR-veto passes this criterion (newly-vetoed subset net-negative or zero)
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:27:20 · git 3dae88d (main, working tree dirty) · exit 0 · 23.1s
+command     python -m scripts.backtest_study.f1_selection.regime.mech_regime_recut
+excerpt     matched
+
+```
+    VERDICT RULE: OR-veto passes this criterion (newly-vetoed subset net-negative or zero)
+```
+

@@ -44,3 +44,43 @@ VERDICT
   (floor 15 dates and 30 rows). A pending C7 ships nothing.
 ```
 
+
+## era v4 · inputs 61bda3a · sha 3dae88d — recorded 2026-10-26
+<!-- key era=v4 sha=3dae88d inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 19:01:34 · git 3dae88d (main, working tree dirty) · exit 0 · 954.1s
+command     python -m scripts.backtest_study.f2_management.bear_fast_exit
+excerpt     verdict
+
+```
+VERDICT
+--- criteria — HEADLINE -----------------------------------------------------
+  arm                     C1  C2  C3  C4 C5 lvl C6 lvl  C5 Δ  C6 Δ       C7
+  TP 0.10                 no  no yes  no     no     no   yes   yes  PENDING
+  TP 0.20                 no  no yes  no     no     no   yes   yes  PENDING
+  TP 0.30                 no  no yes  no     no     no   yes   yes  PENDING
+  TS 1                    no  no yes yes     no     no   yes   yes  PENDING
+  TS 2                    no  no yes  no     no     no   yes   yes  PENDING
+  TS 3                    no  no yes  no     no     no   yes   yes  PENDING
+  TS 5                    no  no yes  no     no     no   yes   yes  PENDING
+  OP 0.25 or session 5    no  no yes  no     no     no   yes   yes  PENDING
+  VERDICT (headline, $0.65/contract, slippage 0): BLEED-CUT (C7 PENDING)
+    TS 1
+--- criteria — SECONDARY ----------------------------------------------------
+  arm                     C1  C2  C3  C4 C5 lvl C6 lvl  C5 Δ  C6 Δ       C7
+  TP 0.10                 no  no yes  no     no     no   yes   yes  PENDING
+  TP 0.20                 no  no yes  no     no     no   yes   yes  PENDING
+  TP 0.30                 no  no yes  no     no     no   yes   yes  PENDING
+  TS 1                    no  no yes yes     no     no   yes   yes  PENDING
+  TS 2                    no  no yes  no     no     no   yes   yes  PENDING
+  TS 3                    no  no yes  no     no     no   yes   yes  PENDING
+  TS 5                    no  no yes  no     no     no   yes   yes  PENDING
+  OP 0.25 or session 5    no  no yes  no     no     no   yes   yes  PENDING
+  VERDICT (secondary, + 0.25 of spread, declared): BLEED-CUT (C7 PENDING)
+    TS 1
+  C7 FORWARD is PENDING: a registration accepted on or after 2026-10-09 is not a
+  sealed reader, so its forward window opens only when the holdout seal lifts
+  (floor 15 dates and 30 rows). A pending C7 ships nothing.
+```
+

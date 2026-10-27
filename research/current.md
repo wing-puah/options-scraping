@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-10-26: on the one-clock book 16 of 54 study reports move their verdict and nothing ships; the GLD flag is gone, and both repro gates pass**
+([entry](#2026-10-26--suite-re-run-on-the-one-clock-book-16-verdicts-moved-nothing-ships)).
+
 **2026-10-23: the model's MARKET regime label does not forecast SPY; `market_read` prints `NO-FORECAST`, and 251 of its 301 labels were written after the fact**
 ([entry](#2026-10-23--the-market-regime-label-does-not-forecast-spy-the-ten-names-show-one-fragile-flag)).
 
@@ -295,6 +298,153 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-10-26 — suite re-run on the one-clock book: 16 verdicts moved, nothing ships
+
+**The suite was re-run on the re-priced v4 book and 16 of 54 reports moved
+their verdict; nothing ships.** Most of the moves are leads that went away:
+the GLD flag, `adaptive_ladder`'s `ADAPTS`, `portfolio_delta`'s
+dose-response, `trigger_entry`'s late-entry penalty and `text_features`'
+two candidates. Four new candidates appeared. Each one needs a forward or
+independent-window read before it means anything.
+
+_Era v4, exports of 2026-10-26 01:06. Rows: 1,053 results and 2,223 proxy.
+They follow the one-clock `--redo` of
+[2026-10-23](#2026-10-23--every-leg-of-an-entry-now-fills-at-the-same-close).
+Reports: `backtests/study_output/<name>-latest.txt`. Fifty sections are
+appended to [study-results](study-results/README.md), uncommitted._
+
+**In production.** Nothing changes. The `bear_arm` rollback census still
+prints `REVERT CONDITION FIRED`, now on the per-year clause alone (2025 at
+−0.0014). Clauses (a) and (b) pass. The operator keeps the bear rule
+(2026-10-27).
+
+**The two gates the re-price was meant to fix both pass.**
+
+| Gate | Result |
+|---|---|
+| [`bear_rewrap`](arm-index.md#bear_rewrap) reproduction gate ("G-REPRO" in next-steps §2.15) | 686 of 686 bear debit rows rebuilt (100.0%) |
+| [`narrow_to_fit`](arm-index.md#narrow_to_fit) GN3 pricing mirror | 477 of 477 candidates reproduced; GN1–GN5 also print |
+
+**What the "old" column means.** It is the last recorded section in
+`study-results/`. For about half the studies that is the 2026-09-28 run. So a
+move here mixes the one-clock fill with the 2026-10-21 open-row rules and four
+weeks of new dates. It is not the one-clock effect alone.
+
+### Verdicts that moved
+
+| Object | Old verdict (record date) | New verdict |
+|---|---|---|
+| [`ticker_pattern`](arm-index.md#ticker_pattern) P1 / P2 | `TICKER-EFFECT`, GLD flagged (10-23) | P1 `NULL` (p 0.124); P2 none graded |
+| [`adaptive_ladder`](arm-index.md#adaptive_ladder) walk-forward | `ADAPTS` (10-12) | `NULL`; adapter − M0 +0.014 [−0.017, +0.047] |
+| [`regime_map`](arm-index.md#regime_map) replicated cells | 2 cells (10-12) | 3 cells; adds B × RM-RVOL=C-VOL |
+| [`spy_benchmark`](arm-index.md#spy_benchmark) | `DOES-NOT-BEAT` (10-15) | `NOT BUILT — AWAITING SCRAPE`, 28 pairs need 26 contracts |
+| [`emission_timing`](arm-index.md#emission_timing) ARM L | `LAG-TOLERANT` (09-28) | `STALE-ENTRY-PENALTY` candidate; L=1 vs L=0 −0.039 [−0.081, −0.007] |
+| [`text_features`](arm-index.md#text_features) ARM A | 2 candidates, bear_put_spread/C (09-28) | none; both cells `NULL` |
+| [`trigger_entry`](arm-index.md#trigger_entry) | `LATE-ENTRY` at N=1, 3, 5 (09-28) | N=1 `CONFOUND-EXPLAINED`; N=3, N=5 `NULL` |
+| [`exit_drawdown`](arm-index.md#exit_drawdown) | 4 `UNDERPOWERED`, 2 `REACTIVE-AGAIN` (09-28) | W/wf and U/b `NULL`; ARM W token `PROD-ROBUST` |
+| [`staged_exit`](arm-index.md#staged_exit) E5 R≥+0.50 | `REACTIVE-AGAIN` (09-28) | `UNDERPOWERED`, 54 rows / 43 dates |
+| `volume_signal` | `NULL` (09-28) | `LIQUIDITY-PROXY`; the split is Amihud illiquidity |
+| [`ladder_overlay`](arm-index.md#ladder_overlay) | 9 cells awaiting scrape (10-20) | all 10 cells `NULL` |
+| [`hedge_sizing`](arm-index.md#hedge_sizing) D4 | `NOT MET` (09-28) | adopted, "dte short first", +0.091 [+0.018, +0.164]; 1 of 10 rankers |
+| [`hedge_structure`](arm-index.md#hedge_structure) H2 | `NOT EVALUABLE` (10-20) | `NOT MET`; worst-decile cell now 12 positions |
+| [`hedge_timing`](arm-index.md#hedge_timing) | 0 survivors (09-28) | 1, `H1-DECLINE` `TIMING-CANDIDATE` (~0.45 by chance) |
+| [`narrow_to_fit`](arm-index.md#narrow_to_fit) F3 cells | `NULL` / `NARROW-FEASIBLE` (10-10) | `AWAITING SCRAPE`; GN5 fires, 23% of over-budget picks unpriced |
+| [`portfolio_delta`](arm-index.md#portfolio_delta) | `DELTA-DOSE-RESPONSE` (09-28) | `NOISE`; ARM D no longer monotone |
+
+- **`ticker_pattern`, the owed re-run.** GLD is no longer flagged. Its
+  permutation p is 0.0065 but the Holm-adjusted p is 0.065, above the bar.
+  Both half-years stay positive and PBO is 0.314. The study closes on these
+  dates.
+### Four studies refused on one row, then held their verdict
+
+`bear_position_study`, `exit_mechanism_study`, `exit_switch_mech_study` and
+`exit_switch_structure_study` first stopped at calibration on one row. After
+the ruling below, all four calibrate and print their old verdicts:
+`DEMOTE TO VETO`, and `STAYS GATED` for both exit switches.
+
+- **The row.** GOOG bear_put_spread 2026-03-25 now enters at 11.60. Its
+  day-10 mark of 1.60 is a loss of exactly $1,000.00, the dollar stop.
+  Production booked `dollar_stop`.
+- **Why the replay missed it.** The frozen harness rounds P&L to 10 decimals,
+  which leaves the loss at $999.99999998. It fires `stop_loss` instead, on the
+  same day at the same P&L.
+- **The ruling (operator, 2026-10-27).** This is a boundary tie, like the
+  profit-target and stop-loss ties `lib/replay_basis.py` already allows.
+  `_dollar_stop_tie` accepts a stored `dollar_stop` within $0.001 of the line,
+  on the same day at the same P&L. One mark tick ($0.01) short stays HARD.
+  Tested in `tests/test_exit_replay_gate.py`.
+- None of the four studies has a registration file; their gate is in code. So
+  the ruling lives in the classifier's docstring and here, not in a
+  `Resolved at build` tag.
+
+| Calibration on 731 debit rows | Exact | Superseded | Boundary tie | Deferred fill | HARD |
+|---|---|---|---|---|---|
+| Before the ruling | 700 | 9 | 1 | 20 | 1 |
+| After | 700 | 9 | 2 | 20 | 0 |
+
+### Gate changes under a verdict that held
+
+| Object | Verdict | What changed |
+|---|---|---|
+| [`account_sim`](arm-index.md#account_sim) | `NOT FEASIBLE AT $25,000` | A5 now MET; G2–G5 pass |
+| `account_sim-compounding` | `NOT FEASIBLE AT $25,000` | A2, A5, A6 now MET; A1, A3 still fail |
+| [`bear_arm`](arm-index.md#bear_arm) | B1 not met | B2 best variant is now the BE ratchet at .20, +0.038 [+0.001, +0.074] |
+| [`bear_fast_exit`](arm-index.md#bear_fast_exit) | `BLEED-CUT` | C6 flips to yes for TP 0.20 and 0.30 |
+| [`bear_rewrap`](arm-index.md#bear_rewrap) ARM W long_put | no single banner | CI now clears 0, +0.043 [+0.001, +0.085]; fails sign-stability by year |
+| [`hedge_portfolio`](arm-index.md#hedge_portfolio) admitted arm | `PRECONDITION-NULL` | criteria 1–3 now pass; criterion 5 still fails |
+
+The other 32 reports kept their verdict. Some numbers moved, for example
+`pbo_ledger`'s +F3 PBO[bar] rising from 23.8% to 61.4%.
+
+### `structure_sweep` S2: `ARM B` is a pricing artifact
+
+[`structure_sweep`](arm-index.md#structure_sweep) was graded and recorded by
+`study_review` (both analysts and the validator agree on `WIDE-NET-NULL`).
+The `ARM C` lead from the interim S1 run did not replicate. Its S2 dR is
+negative, with a CI that excludes 0.
+
+| Arm | S2 n / dates | S2 dR | CI95 |
+|---|---|---|---|
+| `ARM C` short condor | 219 / 73 | −0.755 | [−1.747, −0.162] |
+| `ARM B` short iron fly | 247 / 79 | +2.680 | [+1.495, +4.179] |
+
+`ARM B`'s S2 figure is descriptive only. It comes from flies sold for nearly
+the whole wing.
+
+| ARM B S2, credit as share of wing width | n | Mean R | Median R | Net $ |
+|---|---|---|---|---|
+| ≤ 0.6 | 30 | −0.78 | +0.16 | −35,053 |
+| 0.6–0.8 | 66 | +0.96 | +1.41 | +54,733 |
+| > 0.8 | 157 | +3.92 | +0.08 | +594,951 |
+
+The ten largest wins all collected 95–99% of the wing and exited at the profit
+target. The likely cause is stale closing mids on wide quotes. That is not
+checked leg by leg.
+
+### What is unresolved
+
+- **Two scrapes are queued behind the `ARM U` loop.** They cover
+  `spy_benchmark`'s 26 SPY contracts and `narrow_to_fit`'s 111 substitute
+  legs (GN5). `backtests/run_logs/after_armu_queue.sh` waits for the loop and
+  any other writer to exit, fetches both, pushes the backup, and re-runs
+  `spy_benchmark`, `narrow_to_fit` and `mechanical_benchmark`. The log is
+  `backtests/run_logs/after-armu-20261027.log`.
+- `mechanical_benchmark`'s 101 pairs need no separate fetch. The `ARM U` loop
+  runs the same collector over the same arms.
+- **`bear_arm`'s rollback census.** The operator keeps the bear rule
+  (2026-10-27). The one clause still firing is a near-zero miss in 2025. It is
+  checked again at the next suite re-run.
+- **The new candidates** (`emission_timing` ARM L, `hedge_timing`
+  `H1-DECLINE`, `hedge_sizing` D4, `bear_rewrap` long_put) each sit at a CI
+  edge or among many tries. Each one gets a PBO read and a forward grade
+  before it is taken seriously.
+
+**Next.** The re-price owed by [next-steps §2.15](next-steps.md#s2-15) is
+done. The queued scrapes are not filed in `next-steps.md`; their re-runs get
+an addendum here when they land.
 
 ---
 

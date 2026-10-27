@@ -32,3 +32,18 @@ excerpt     matched
   VERDICT — Stage 2 (ARM C, the mechanism): NOT RUN (Stage 1 PRECONDITION-NULL)
 ```
 
+
+## era v4 · inputs 61bda3a · sha a360724 — recorded 2026-10-26
+<!-- key era=v4 sha=a360724 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:21:38 · git a360724 (main, working tree dirty) · exit 0 · 65.4s
+command     python -m scripts.backtest_study.f5_hedging.hedge_portfolio --admitted
+excerpt     matched
+
+```
+  VERDICT — Stage 1 (ARM K, the precondition): PRECONDITION-NULL
+  VERDICT — Stage 1 (ARM K, the precondition): PRECONDITION-NULL
+  VERDICT — Stage 2 (ARM C, the mechanism): NOT RUN (Stage 1 PRECONDITION-NULL)
+```
+

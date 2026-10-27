@@ -192,6 +192,40 @@ def test_boundary_tie_does_not_rescue_genuine_misses():
     assert _classify(row) == "hard"
 
 
+# ── boundary_tie on the dollar stop: the 2026-03-25 GOOG class (added 2026-10-27)
+
+def _dollar_tie_row(day2_mark=1.60):
+    """The GOOG shape: entry 11.60 × 1 contract, a day-2 mark of 1.60 whose loss
+    is exactly −$1,000.00. Production fires dollar_stop; the replay's
+    `round(pl, 10)` gives −$999.99999998, misses it, and fires stop_loss on the
+    same day at the same pnl. Stored outcome stamped by hand."""
+    marks = [11.60, day2_mark] + [11.60] * (GRID_LEN - 2)
+    row = _row(ticker="DTIE", entry=11.6, marks=marks)
+    row["exit_reason"] = "dollar_stop"
+    row["days_held"] = "2"
+    row["realized_pnl_pct"] = str(round((day2_mark - 11.6) / 11.6, 4))
+    return row
+
+
+def test_classify_dollar_stop_tie():
+    rp = replay(Trade(dict(_dollar_tie_row())), **m.DEBIT_PROD)
+    assert (rp["exit_reason"], rp["days_held"]) == ("stop_loss", 2), \
+        "fixture must reproduce the label-only mismatch"
+    assert _classify(_dollar_tie_row()) == "boundary_tie"
+
+
+def test_dollar_stop_tie_requires_the_same_day():
+    row = _dollar_tie_row()
+    row["days_held"] = "3"
+    assert _classify(row) == "hard"
+
+
+def test_dollar_stop_tie_does_not_rescue_a_stop_one_tick_short():
+    """A loss of $999.99 is one mark tick inside the dollar stop — production
+    could not have fired it, so a stored dollar_stop there is a real mismatch."""
+    assert _classify(_dollar_tie_row(day2_mark=1.6001)) == "hard"
+
+
 # ── the gate itself ──────────────────────────────────────────────────────────
 
 def _write_book(tmp_path, monkeypatch, real_rows, proxy_rows=()):

@@ -155,3 +155,19 @@ excerpt     matched
   VERDICT — ARM M, the measurement, which is not power-gated: MEASUREMENT-ONLY
 ```
 
+
+## era v4 · inputs 61bda3a · sha a360724 — recorded 2026-10-26
+<!-- key era=v4 sha=a360724 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-10-26 21:21:21 · git a360724 (main, working tree dirty) · exit 0 · 17.1s
+command     python -m scripts.backtest_study.f5_hedging.hedge_portfolio
+excerpt     matched
+
+```
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  (MECHANISM-FOUND / NULL / CONTRARY / UNDERPOWERED / NOT EVALUABLE /
+  VERDICT — the mechanism question, over the hedge cells: UNDERPOWERED
+  VERDICT — ARM M, the measurement, which is not power-gated: MEASUREMENT-ONLY
+```
+
