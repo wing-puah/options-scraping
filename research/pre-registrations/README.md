@@ -198,6 +198,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`exit_drawdown.md`](f2_management/exit_drawdown.md) | Do walk-forward exit rules cut the account's mark-to-market drawdown? | graded | `ARM U` `REACTIVE-AGAIN` (both variants); `ARM O/vol NULL`; `ARM D SECONDARY-NULL`; others `UNDERPOWERED` — 2026-09-28 · [record](../study-results/f2_management/exit_drawdown.md) |
 | [`cost_sensitivity.md`](f2_management/cost_sensitivity.md) | At what cost per leg does the Tier A/B edge vanish? | run · accepted by default | Tier A `VANISHES`; Tier B `VANISHES` — 2026-10-09 · [record](../study-results/f2_management/cost_sensitivity.md) |
 | [`bear_fast_exit.md`](f2_management/bear_fast_exit.md) | Is a bear debit closed within a few sessions, or at a small profit, positive after costs? | run · accepted by default | `BLEED-CUT (C7 PENDING)` — 2026-10-10 · [record](../study-results/f2_management/bear_fast_exit.md) |
+| [`exit_mark_clock.md`](f2_management/exit_mark_clock.md) | Does marking a junk-quote leg at its closing mid make better exits than its last trade? | registered | not run |
 
 ## ③ Structure — `f3_structure/`
 

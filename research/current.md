@@ -421,11 +421,81 @@ the whole wing.
 | > 0.8 | 157 | +3.92 | +0.08 | +594,951 |
 
 The ten largest wins all collected 95–99% of the wing and exited at the profit
-target. The likely cause is stale closing mids on wide quotes. That is not
-checked leg by leg.
+target.
+
+**Row check, 2026-10-29: the S2 figure is almost all artifact.** A descriptive
+check read every leg's quotes from the cache. It ran no test and changes no
+verdict. 109 of 260 priced S2 rows are implausible:
+
+| Reason | Rows |
+|---|---|
+| Exit marks break vertical-spread bounds, firing the target | 94 |
+| Entry outside the fly's value range (credit > width, or a debit) | 11 |
+| Entry credit over the no-arbitrage limit (width at 4%) | 4 |
+
+The exit fault is the main one. Each leg is marked on its own print, so the
+fly can show an impossible value. LRCX 2026-04-24 sold a 10-wide fly for 9.90
+on 100 contracts. On exit the long 270C was marked 60.47 against the short
+260C at 57.35, a fly worth −0.98. The target fired for R +88.7. Entry legs all
+had bids, but at bid/ask the median >0.8-bucket credit is only 0.77 of width.
+
+| ARM B, primary | n | Mean R | Median R | Net $ |
+|---|---|---|---|---|
+| S2 as recorded | 253 | +2.59 | +0.20 | +616,584 |
+| S2, implausible rows out | 151 | +0.71 | −0.42 | +98,182 |
+| S1 as recorded | 62 | +0.68 | — | +40,858 |
+| S1, implausible rows out | 46 | +0.15 | −0.26 | +6,626 |
+
+The surviving S2 median is negative. The remaining +$98k is tail rows sized
+on width minus credit. With sizing floored at 0.2 × width it is +$41k. Scripts
+and the row file were scratch work and were not kept.
+
+Two review notes. The four no-lookahead criteria could not be graded: the
+report prints no test outcome, only the split instant and join counts. All 7
+G-REPRO failures are `bear_put_spread` rows; six carry `exit_fill=deferred_*`.
 
 ### What is unresolved
 
+- **Production exits can fire on a mixed-clock mark (checked 2026-10-29).**
+  Production clamps every spread's daily mark to its value range, so the
+  `ARM B` impossible marks cannot occur there: 0 of 1,991 stored v4
+  verticals leave their range. But a leg with a junk quote is marked at its
+  last trade (`barchart_last`) or carried stale. Fired exits land on such a
+  day more often than ordinary held days do:
+
+  | Tab | Held days before exit | Exit day |
+  |---|---|---|
+  | v4 results | 19.4% of 15,695 | 28.7% of 696 |
+  | v4 proxy | 24.2% of 18,541 | 34.0% of 697 |
+
+  On results, 86 profit targets (+$123k) and 88 dollar stops (−$110k) fired on
+  one.
+
+  **Replay, 2026-10-29: a closing-mid exit mark lifts the book, mostly by
+  cancelling dollar stops.** Production's own `_simulate` re-ran every v4 row
+  from the cache. The one change: a junk-quote leg with a bid is marked at its
+  closing mid, not its last trade or a stale mark. Unpatched, the engine
+  reproduced 99.9% of results rows. It reproduced 98.4% of proxy rows.
+
+  | Multi-leg, reproduced | Exits changed | Book net now | Close-mid | Change |
+  |---|---|---|---|---|
+  | v4 results | 137 of 1,035 | −$49,787 | −$22,306 | +$27.5k |
+  | v4 proxy | 199 of 1,006 | −$138,666 | −$99,320 | +$39.3k |
+
+  | Results, by original exit | n | Changed | Net before | Net after |
+  |---|---|---|---|---|
+  | `profit_target` | 347 | 49 | +$70,872 | +$54,473 |
+  | `dollar_stop` | 177 | 50 | −$62,692 | −$32,126 |
+  | `stop_loss` | 167 | 20 | −$17,835 | −$15,387 |
+
+  Net is summed over the changed rows only. Median days held rises by 1.
+
+  This is not yet a clean fix. Exits under the patch still land on a junk-quote
+  day 28% (results) and 34% (proxy) of the time, now at a wide mid. More
+  profit targets end with a negative net, from 2 to 7 across both tabs.
+  The change picks one marking rule after seeing its effect, so it needs a
+  forward grade before it counts as evidence. Adopting it is a pricing ruling,
+  as the entry one-clock ruling was, and the operator's call.
 - **Two scrapes are queued behind the `ARM U` loop.** They cover
   `spy_benchmark`'s 26 SPY contracts and `narrow_to_fit`'s 111 substitute
   legs (GN5). `backtests/run_logs/after_armu_queue.sh` waits for the loop and
