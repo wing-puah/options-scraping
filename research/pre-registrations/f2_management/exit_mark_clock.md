@@ -43,6 +43,8 @@ The question: if every leg with a two-sided quote is marked on its closing mid e
 
 - **Era**: v4, read through `lib/era.py`.
 - **Rows**: multi-leg rows (two or more legs) on the BacktestResults export (PRIMARY) and the BacktestProxy export (SECONDARY), signal-dated AFTER the registration date.
+
+  _Resolved at build (2026-10-29):_ every such date sits inside the holdout seal (`holdout_seal`, from 2026-09-23). This study is not a named reader, and that list is closed. The graded set therefore stays empty, and the verdict `UNDERPOWERED`, until `SEAL_LIFTED` is set. The descriptive in-sample block also omits sealed dates, so its figures differ from the table below.
 - **Exits counted**: every exit reason. A row still `open_at_data_end` in either arm is excluded from the grade until both arms close it.
 - **Single-leg rows**: printed as a descriptive line, never graded.
 - **Config**: `config/backtest.yml` as committed on the registration date.

@@ -44,9 +44,10 @@ under.
 
 ## Collisions, up front
 
-- **`P`** — **seven** arms: `emission_timing`, `macro_event_study`,
+- **`P`** — **eight** arms: `emission_timing`, `macro_event_study`,
   `bear_giveback`, `bear_rewrap`, `hedge_portfolio`, `exit_drawdown`,
-  `structure_sweep` (the re-priced play, a control) — plus
+  `structure_sweep` (the re-priced play, a control) and `exit_mark_clock`
+  (production's junk-day mark, a control) — plus
   `P1`/`P2` sub-parts in `bear_rewrap` (the arm's own two halves) and
   `hedge_structure` (an unrelated `P1`, the hedge sleeve itself).
 - **`D`** — **four** arms (`portfolio_delta`, `next_day_move`, `account_sim`,
@@ -122,7 +123,7 @@ _Registered in [`pre-registrations/f1_selection/signal/emission_timing.md`](pre-
   the signal lose the edge?
 - `ARM P` (arm) <a id="emission_timing-arm-p"></a> — Persistence — does a
   re-emitted play (2nd/3rd/4th+ of a ticker+structure) perform worse than
-  the first emission? One of `ARM P`'s seven owners repo-wide (see
+  the first emission? One of `ARM P`'s eight owners repo-wide (see
   Collisions, above).
 
 #### `mechanical_benchmark`
@@ -596,7 +597,7 @@ _Module `f2_management/bear_giveback.py`_
 
 - `ARM P` (arm) <a id="bear_giveback-arm-p"></a> — Production baseline —
   the `be_after` threshold measured against the SHIPPED production exit.
-  One of `ARM P`'s seven owners repo-wide.
+  One of `ARM P`'s eight owners repo-wide.
 - `ARM S` (arm) — Deployment reference stats — n / win rate / profit
   factor / mean R by cut. COLLIDES with `hedge_structure`'s own `ARM S`
   (its structure sweep) — unrelated.
@@ -646,6 +647,26 @@ _Registered in [`pre-registrations/f2_management/bear_fast_exit.md`](pre-registr
 - `G0` `G1` `G2` `G3` `G4` `G5` `G6` (gate) — G0 power, G1 leak guard, G2 baseline is production, G3
   post-re-price export, G4 quote provenance (secondary cost line only), G5 no
   new statistic, G6 no hardcoded census.
+
+#### `exit_mark_clock`
+
+_Registered in [`pre-registrations/f2_management/exit_mark_clock.md`](pre-registrations/f2_management/exit_mark_clock.md) · module `f2_management/exit_mark_clock.py`_
+
+Registered 2026-10-29. On a junk-quote day, does marking a two-sided leg at
+its closing mid make better exits? Graded only on rows signal-dated after the
+registration date.
+
+- `ARM P` (control) — Production's junk-day mark, unchanged: last trade, else
+  a carried good mark, with the no-bid ceiling. Unrelated to the other studies'
+  `ARM P`.
+- `ARM M` (arm) — The closing mid on a junk day whose quote is two-sided; a
+  no-bid junk day falls through to `ARM P`. Unrelated to `hedge_portfolio`'s
+  `ARM M`.
+- `G-REPRO` `G-THIN` `G-LOOK` (gate) — `ARM P` reproduces 98% of stored graded
+  rows; at least 25 affected dates on the primary tab; no mark reads a later
+  row.
+- `CANDIDATE` `CONTRARY` `NULL` `UNDERPOWERED` (prose) — The verdict words on
+  the per-date delta, primary tab first.
 
 #### `exit_from_text`
 
@@ -708,7 +729,7 @@ _Module `f3_structure/bear_rewrap.py`_
 
 - `ARM P` (arm) <a id="bear_rewrap-arm-p"></a> — Portfolio contribution —
   P1 worst-decile, P2 correlation. The merge this arm validated is what
-  `financed_spread` and `account_sim` cite. One of `ARM P`'s seven owners
+  `financed_spread` and `account_sim` cite. One of `ARM P`'s eight owners
   repo-wide.
   - `P1` `P2` (sub-arm) — `ARM P`'s own two halves (worst-decile,
     correlation), graded together with their parent, never alone. Not to be
@@ -861,7 +882,7 @@ _Registered in [`pre-registrations/f3_structure/structure_sweep.md`](pre-registr
 
 Accepted by default 2026-10-22, before the study was built or run. Every arm
 trades the same 2026 `real` rows; only the wrapper changes. Every label is
-local to this study. `ARM P` is one of seven owners of that label, and `ARM F` is not
+local to this study. `ARM P` is one of eight owners of that label, and `ARM F` is not
 `financed_spread`'s `F` cells.
 
 - `ARM P` (control) — The play's own legs, re-priced by this study's path.
@@ -1161,7 +1182,7 @@ role, different study.
 - `ARM P` (arm) <a id="hedge_portfolio-arm-p"></a> — The prose-free
   counterpart on exactly `ARM CS`'s session set. Written `**ARM P**` in
   `lib/hedge_instrument.py`, so the emphasis markers travel with the
-  token: `P**` is this same arm. One of `ARM P`'s seven owners repo-wide.
+  token: `P**` is this same arm. One of `ARM P`'s eight owners repo-wide.
 - `ARM N` (arm) — Random-admission null, 200 seeds, matched on episode COUNT,
   episode LENGTHS and PROXY mix. An arm must beat its 95th percentile, not
   merely beat the unhedged book. COLLIDES with `portfolio_delta`'s and
@@ -1368,7 +1389,7 @@ is a `hedge_structure` table header.
 
 `tests/test_arm_index.py` fails if any `ARM <label>` token appears in a study
 module or a pre-registration without a mention here — so a newly registered
-arm cannot be added without landing in this index — and pins the seven `ARM P`
+arm cannot be added without landing in this index — and pins the eight `ARM P`
 owners. It also refuses any label bullet whose object-type tag is missing or
 falls outside the closed list under [Object types](#object-types).
 

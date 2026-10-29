@@ -23,6 +23,10 @@ Where the edge actually is. Both shipped exit rules came from here.
     cost_sensitivity.py             VANISHES (both tiers) — the Tier A/B
                                     edge does not clear zero at $0.65 per
                                     contract, nor gross; robustness N1.
+    exit_mark_clock.py              open — closing-mid marks on two-sided
+                                    junk days vs production's; graded only
+                                    after 2026-10-29, so UNDERPOWERED while
+                                    those dates are sealed.
 
 RETIRED means the inputs are gone for good, not that the verdict is void: the
 runner still runs one by explicit name, `run --all` skips it with a notice, and

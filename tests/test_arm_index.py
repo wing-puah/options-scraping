@@ -146,8 +146,9 @@ def test_every_arm_label_is_indexed(source: Path) -> None:
 def test_index_covers_the_known_collisions() -> None:
     """The `ARM P` owners are the reason this file exists — pin them.
 
-    Seven now: `structure_sweep` registered the re-priced play as its
-    `ARM P` (a control) on 2026-10-22. Before it, `hedge_portfolio` registered
+    Eight now: `exit_mark_clock` registered production's junk-day mark as its
+    `ARM P` (a control) on 2026-10-29. Before it, `structure_sweep` registered
+    the re-priced play as its `ARM P` (a control) on 2026-10-22, and before that `hedge_portfolio` registered
     its own `ARM P` (the prose-free
     counterpart to `ARM CS`) on 2026-08-29, and `exit_drawdown` registered
     partial scale-out as its `ARM P` on 2026-09-05. The pin is updated when a
@@ -167,6 +168,7 @@ def test_index_covers_the_known_collisions() -> None:
         "hedge_portfolio",
         "exit_drawdown",
         "structure_sweep",
+        "exit_mark_clock",
     }, f"ARM P owners drifted: {sorted(owners)}"
 
 

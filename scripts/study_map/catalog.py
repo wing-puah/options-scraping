@@ -951,6 +951,17 @@ STUDIES: dict[str, Study] = {
                 "declared 25%-of-spread line prints the same verdict. C7 waits on the holdout "
                 "seal, and a BLEED-CUT ships nothing.",
     ),
+    "exit_mark_clock": Study(
+        family="management", state="open",
+        question="On a junk-quote day, does marking a two-sided leg at its closing mid, "
+                 "instead of its last trade or a carried mark, make exits that earn more "
+                 "on new data?",
+        verdict="Not yet graded. Registered 2026-10-29; only multi-leg rows signal-dated "
+                "after that date are graded, and every such date sits inside the holdout "
+                "seal, so the study prints UNDERPOWERED with the census until the seal "
+                "lifts. The in-sample replay that motivated it is disclosed in the "
+                "registration and is not evidence. Nothing ships.",
+    ),
 
     # ③ structure
     "bear_rewrap": Study(
