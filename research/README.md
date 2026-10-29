@@ -111,9 +111,10 @@ it when you ran studies without reviewing them, not as a step after a review.
 
 **Charting.** `python3 -m scripts.study_charts.account_sim` renders a result as
 one self-contained HTML page, and `make study-chart CHART=regime` or
-`CHART=compounding` draws the other two. `make study-map-open` rebuilds and
-opens `site/study-map.html`, which carries hand-written verdicts and verbatim
-last-run excerpts as two separate kinds of claim. `site/` is generated output
+`CHART=compounding` draws the other two. `make dashboard` rebuilds and opens
+`site/dashboard.html`. Its studies section is the study map. It carries
+hand-written verdicts and verbatim last-run excerpts as two separate kinds of
+claim. `site/` is generated output
 and is gitignored, so a fresh checkout has no pages until something builds them.
 The rules these renderers obey, including reconcile-before-write, the ban on
 statistics the study refuses to print, and why the compounding arm gets its own

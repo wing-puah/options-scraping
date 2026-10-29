@@ -223,24 +223,16 @@ ifneq ($(strip $(RECORD)),)
 	$(PY) -m scripts.study_results
 endif
 
-# ── study map ──────────────────────────────────────────────────────────────────
-# The readable one-pager: what each study asks, what it concluded, and what its
-# last run printed. `make study` and `make study-review` refresh it themselves,
-# so this target is only for a manual rebuild (or after editing catalog.py).
-.PHONY: study-map
-study-map:
-	$(PY) -m scripts.study_map $(ARGS)
-
-.PHONY: study-map-open
-study-map-open:
-	$(PY) -m scripts.study_map --open
-
 # One plain-English page for the whole project (data freshness, regime, backtested
 # book, keep-or-kill rule, studies, what waits on you). Local files only, never
-# journal/ or portfolio/. Writes site/dashboard.html, site/flow-edge-ledger.html copied
-# from the hand-maintained research/flow-edge-ledger.html, and wrapper pages that show the
-# study charts and study map under the same sticky navigation bar (NAV in the script).
-# Builds both, then opens the dashboard (the daily loop calls the script directly, so it never opens).
+# journal/ or portfolio/. Its studies section IS the study map: what each study asks,
+# what it concluded, and what its last run printed (there is no separate study-map page
+# since 2026-10-29). `make study` and `make study-review` rebuild it themselves, so run
+# this after editing catalog.py or to open it. Also writes site/flow-edge-ledger.html,
+# copied from the hand-maintained research/flow-edge-ledger.html, each study's digest
+# page, and wrapper pages that show the study charts under the same sticky navigation
+# bar (NAV in the script). Opens the dashboard at the end (the daily loop calls the
+# script directly, so it never opens).
 .PHONY: dashboard
 dashboard:
 	$(PY) scripts/dashboard.py $(ARGS)
@@ -359,7 +351,7 @@ study-review:
 # Each run writes TWO files: the scratch HTML FRAGMENT under
 # backtests/study_output/ (what the Artifact publisher wants) and the
 # standalone site/*.html page, generated output rebuilt by `make study-docs`,
-# that opens on a double-click the way site/study-map.html does. OPEN=1 adds
+# that opens on a double-click the way site/dashboard.html does. OPEN=1 adds
 # --standalone --open (wraps it as a full page and opens it in a browser);
 # ARGS="--no-site" writes only the scratch one.
 #
@@ -397,21 +389,22 @@ _chart-if:
 	  echo "skipped scripts.study_charts.$(CHART) — $(POS) not present (run the study first)"; \
 	fi
 
-# Every generated site page in one command: the study map, the account_sim
-# readout, the regime breakdown, the compounding arm, and a plain-language
-# digest page for any study that has one
-# (`backtests/study_output/<study>-digest-latest.md` → `site/<study>-digest.html`,
-# hyphenated), skipped when absent. None runs a study — they only read what the
-# last run left behind. site/ is generated output; this is the command that
+# Every generated site page in one command: the account_sim readout, the regime
+# breakdown, the compounding arm, then the dashboard (which carries the study map,
+# wraps those chart pages, and writes a plain-language digest page for any study
+# that has one: `backtests/study_output/<study>-digest-latest.md` →
+# `site/<study>-digest.html`, hyphenated, skipped when absent). The dashboard goes
+# last so its wrappers pick up the fresh charts. None runs a study — they only read
+# what the last run left behind. site/ is generated output; this is the command that
 # rebuilds it. The account_sim and regime pages need
 # account_sim-positions-latest.csv; the compounding page needs its own arm's
 # export — each is skipped (not failed) if its input is not present yet.
 .PHONY: study-docs
 study-docs:
-	$(PY) -m scripts.study_map
 	@$(MAKE) _chart-if CHART=account_sim POS=backtests/study_output/account_sim-positions-latest.csv
 	@$(MAKE) _chart-if CHART=regime POS=backtests/study_output/account_sim-positions-latest.csv
 	@$(MAKE) _chart-if CHART=compounding POS=backtests/study_output/account_sim-positions-compounding-latest.csv
+	$(PY) scripts/dashboard.py --quiet
 
 # ── Daily trade journal (PRODUCTION) ─────────────────────────────────────────
 # Fetches the Flex statement with IBKR_FLEX_TOKEN — no gateway, no login — and
@@ -528,16 +521,14 @@ help:
 	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
 	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
 	@echo ""
-	@echo "  make study-map      MAP: rebuild site/study-map.html (what each study asks + its last run)"
-	@echo "  make study-map-open   rebuild it and open it in a browser"
-	@echo "  make dashboard        plain-English project dashboard -> site/dashboard.html (builds + opens it)"
+	@echo "  make dashboard      DASHBOARD: rebuild site/dashboard.html (incl. every study + its last run) and open it"
 	@echo "  make study-check    per-study last-run status, no HTML"
 	@echo ""
 	@echo "  make study-chart    CHART: render account_sim's result → study_output fragment + site/account-sim-charts.html"
 	@echo "  make study-chart CHART=regime OPEN=1     regime cut, opened in a browser (CHART: account_sim|regime|compounding)"
 	@echo "  make study-chart ARM=structure            chart the --structure-universe arm's export (fragment only)"
 	@echo "  make study-chart ARGS=\"--out /tmp/page.html\"  (also --report, --positions, --capital, --no-site)"
-	@echo "  make study-docs     DOCS: rebuild every generated site page (map + chart pages, skipping any not yet run)"
+	@echo "  make study-docs     DOCS: rebuild every generated site page (chart pages, then the dashboard)"
 	@echo ""
 	@echo "  make check-doc-links   verify cross-links inside README.md/CLAUDE.md/GEMINI.md/docs/**/research/**"
 	@echo "  make check-doc-links ARGS=\"--strict\"  also fail on links into the generated site/ (normally a warning)"

@@ -194,7 +194,7 @@ def page(study: str, md_path: Path) -> str:
 </style>
 
 <div class="wrap digest-page">
-  <p class="digest-back"><a href="study-map.html">← study map</a></p>
+  <p class="digest-back"><a href="dashboard.html#studies">← studies on the dashboard</a></p>
   <p class="digest-src">Rendered from <code>{html.escape(md_path.name, quote=False)}</code> — \
 regenerate with <code>python -m scripts.study_review {html.escape(study, quote=False)}</code>.</p>
 {body_html}

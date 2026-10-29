@@ -1,15 +1,18 @@
-"""Study map — one page that says what every backtest study is for, and what its last run said.
+"""Study map — what every backtest study is for, and what its last run said.
 
-`scripts/backtest_study/` holds twenty studies whose reports are long,
-fixed-width and written for one careful reading. The map is the opposite: a
-single self-contained HTML page, opened straight off disk, that answers "what
-is this file even asking?" at a glance and then — for whichever studies have
-actually been run — appends what the report printed.
+`scripts/backtest_study/` holds dozens of studies whose reports are long,
+fixed-width and written for one careful reading. The map is the opposite: the
+"What have the studies found?" section of the project dashboard
+(`site/dashboard.html`, built by `scripts/dashboard.py`), which answers "what is
+this file even asking?" at a glance and then — for whichever studies have
+actually been run — shows what the report printed. It was a page of its own,
+`site/study-map.html`, until 2026-10-29.
 
-    python -m scripts.study_map            # -> site/study-map.html
+    python -m scripts.study_map            # rebuild site/dashboard.html
     python -m scripts.study_map --open     # ...and open it in a browser
+    python -m scripts.study_map --check    # last-run status per study, no HTML
 
-Two kinds of statement live on that page and they are never mixed:
+Two kinds of statement live in that section and they are never mixed:
 
   * The **standing verdict** is human-written, taken from the write-ups in
     `research/current.md`. It is what the programme concluded.
@@ -22,12 +25,12 @@ Two kinds of statement live on that page and they are never mixed:
     exited non-zero says that instead of a number, and an excerpt that is only
     the tail of the report is labelled as the tail.
 
-The rule that makes the page safe to trust: nothing here may state a
+The rule that makes the section safe to trust: nothing in it may state a
 conclusion the study did not print. Where the two-analyst review pipeline has
 produced a `<name>-digest-latest.md`, its title line is quoted as such and
-attributed; where it has not, the page stays silent rather than inventing a
+attributed; where it has not, the section stays silent rather than inventing a
 plain-language gloss.
 
-The runner regenerates the page after every study run, so it is only ever as
-stale as the last thing you ran.
+The runner rebuilds the dashboard after every study run, so the section is
+only ever as stale as the last thing you ran.
 """

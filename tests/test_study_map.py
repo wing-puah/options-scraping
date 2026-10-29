@@ -1,5 +1,9 @@
 """Tests for scripts/study_map — the readable map of the backtest-study package.
 
+The map is the studies section of `site/dashboard.html` (folded in 2026-10-29);
+`build.build_fragment` is that section's body. The dashboard wiring itself is
+tested in tests/test_dashboard.py.
+
 Three things are worth guarding, and they are different in kind:
 
   * **Drift.** The map's verdicts are hand-written. A new study file that nobody
@@ -569,25 +573,25 @@ def retired_page(tmp_path, monkeypatch):
 
 def test_page_names_every_study_and_family(page):
     for name in catalog.STUDIES:
-        assert f"{name}.py" in page
+        assert page.count(f'data-study="{name}"') == 1
     for fam in catalog.FAMILIES.values():
         assert fam["title"] in page
 
 
-def test_diagram_draws_every_family_with_its_real_count(page):
-    """The lane boxes were once computed and never inserted — nothing else caught it."""
+def test_every_family_heading_carries_its_real_count(page):
+    """The old diagram's lane counts were once computed and never inserted —
+    nothing else caught it. The family headings carry those counts now."""
     for key, fam in catalog.FAMILIES.items():
         n = sum(1 for s in catalog.STUDIES.values() if s.family == key)
-        assert f"{fam['index']} {fam['title'].upper()}" in page
-        assert f"{n} STUDIES" in page
+        head = page[page.index(f'id="studies-{key}"'):]
+        assert f"{fam['index']} {fam['title']}" in head[:400]
+        assert f"· {n} studies" in head[:400]
 
 
-def test_page_carries_both_themes_for_every_token(page):
-    """A colour defined only inside a media/[data-theme] block renders unreadable."""
-    light = set(re.findall(r"^\s*(--[a-z-]+):", page, re.M))
-    dark = set(re.findall(r"^\s*(--[a-z-]+):", page.split('[data-theme="dark"]')[1], re.M))
-    assert dark <= light
-    assert "--ink" in dark and "--paper" in dark
+def test_fragment_is_a_section_body_not_a_page(page):
+    """The dashboard supplies the document, the title and the stylesheet."""
+    for tag in ("<!doctype", "<title>", "<style>", "<html"):
+        assert tag not in page.lower()
 
 
 def test_no_real_study_is_retired_so_the_page_renders_no_retired_card(page):
@@ -598,12 +602,12 @@ def test_no_real_study_is_retired_so_the_page_renders_no_retired_card(page):
     having to stay retired to provide it."""
     assert catalog.retired_studies() == {}
     assert '<span class="pill is-retired">retired</span>' not in page
-    assert 'is-retired"' not in page.split("</style>", 1)[1]
+    assert 'is-retired' not in page
 
 
 def test_page_marks_a_retired_study_with_the_retired_pill_and_card_class(retired_page):
     page, name = retired_page
-    assert 'class="card is-null is-retired"' in page
+    assert f'class="study is-null is-retired" data-study="{name}"' in page
     assert page.count('<span class="pill is-retired">retired</span>') == 1
 
 
@@ -615,8 +619,8 @@ def test_page_shows_the_retirement_reason_as_a_caveat(retired_page):
 def test_non_retired_study_gets_no_retired_pill(page):
     """hedge_sizing is an ordinary, runnable study — its card must not claim
     retirement just because the page also renders retired ones."""
-    idx = page.index('<h3>hedge_sizing.py</h3>')
-    head_end = page.index("</div>", idx)
+    idx = page.index('data-study="hedge_sizing"')
+    head_end = page.index("</summary>", idx)
     assert 'is-retired' not in page[idx:head_end]
 
 
@@ -659,15 +663,15 @@ def test_page_shows_retired_label_when_a_retired_study_has_no_report(tmp_path):
 
     assert out.count('<span class="retired-label">retired</span>') == len(retired)
     for name in retired:
-        card = out[out.index(f'<h3>{name}.py</h3>'):]
-        head_end = card.index("</div>")
+        card = out[out.index(f'data-study="{name}"'):]
+        head_end = card.index("</summary>")
         # "never run" would understate it — it must read as retired instead.
         assert "never run" not in card[:head_end]
 
 
 def test_page_separates_written_verdicts_from_quoted_runs(page):
-    assert "verdicts: hand-written" in page
-    assert "run blocks: quoted" in page
+    assert "Verdicts are hand-written" in page
+    assert "Run blocks are quoted" in page
 
 
 def test_page_escapes_report_text(tmp_path):
@@ -698,32 +702,21 @@ def test_failed_run_carries_the_gate_caveat(tmp_path):
     assert "the gate working" in out
 
 
-def test_write_produces_a_standalone_document(tmp_path):
-    dest = build.write(tmp_path / "study-map.html", out_dir=tmp_path,
-                       log_path=tmp_path / "absent.md")
-    text = dest.read_text()
-    assert text.startswith("<!doctype html>")
-    assert text.rstrip().endswith("</html>")
-    assert "<title>" in text
-
-
-def test_fragment_mode_omits_the_document_wrapper(tmp_path):
-    dest = build.write(tmp_path / "frag.html", out_dir=tmp_path,
-                       log_path=tmp_path / "absent.md", standalone=False)
-    assert not dest.read_text().startswith("<!doctype")
-
-
 def test_refresh_quietly_never_raises(tmp_path, monkeypatch):
-    monkeypatch.setattr(build, "build_fragment",
+    monkeypatch.setattr(build, "rebuild_dashboard",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     assert build.refresh_quietly(tmp_path / "out.html") is None
 
 
-def test_built_page_is_a_document():
-    """`site/` is gitignored, so the page may legitimately not exist yet."""
-    if not build.DEST.exists():
-        pytest.skip("no site/study-map.html — run `make study-map`")
-    assert "<title>" in build.DEST.read_text()
+def test_refresh_quietly_rebuilds_the_dashboard_with_the_map_in_it(tmp_path):
+    """The runner's post-run hook: the study map lives in the dashboard now,
+    so refreshing the map means rebuilding the dashboard."""
+    dest = build.refresh_quietly(tmp_path / "dashboard.html")
+    assert dest == tmp_path / "dashboard.html"
+    text = dest.read_text()
+    assert '<section id="studies">' in text
+    assert 'data-study="' in text
+    assert not (tmp_path / "study-map.html").exists()
 
 
 # ── digest pages ──────────────────────────────────────────────────────────────
@@ -751,6 +744,7 @@ def test_digest_strips_a_whole_file_wrapping_fence(tmp_path):
     out = digest.page(name, md_path)
     assert "<h1>Heading</h1>" in out
     assert "```" not in out
+    assert 'href="dashboard.html#studies"' in out  # the way back
 
 
 def test_digest_page_is_linked_from_its_study_card(tmp_path):

@@ -1,11 +1,13 @@
 # Study map — what each file in `scripts/backtest_study/` is trying to prove
 
-> **There is a rendered version of this page**: [`site/study-map.html`](../site/study-map.html).
-> Open it in a browser. It carries everything below *plus* what each study's
-> last run actually printed, quoted out of `backtests/study_output/`, and the
-> newest sections of [`current.md`](current.md). It rebuilds itself after every
-> `python -m scripts.backtest_study run …` and every `make study-review`; to
-> rebuild by hand, `make study-map` (or `make study-map-open`).
+> **The rendered version is the studies section of the dashboard**:
+> [`site/dashboard.html`](../site/dashboard.html#studies). Open it in a browser.
+> It carries everything below *plus* what each study's last run actually
+> printed, quoted out of `backtests/study_output/`, and the newest sections of
+> [`current.md`](current.md). It rebuilds itself after every
+> `python -m scripts.backtest_study run …` and every `make study-review`. To
+> rebuild by hand, run `make dashboard`. The separate `site/study-map.html` page
+> was folded into the dashboard on 2026-10-29.
 >
 > Its per-study verdicts come from `scripts/study_map/catalog.py`, which is the
 > file to edit when a verdict changes. A study whose entry is missing there

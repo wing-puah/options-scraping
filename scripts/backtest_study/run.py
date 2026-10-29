@@ -71,10 +71,10 @@ safe, by moving the common non-zero exit into the promoted branch above.
 The `--era` flag picks which export set the whole run reads (`STUDY_ERA`), and
 every header names the era it ran on. `lib/era.py` has the why.
 
-It also re-renders `site/study-map.html`, so the readable one-page map of the
-whole package always quotes the newest report. That step is best-effort: the
-report is the valuable output, and a broken map must never turn a good run into
-a failed command.
+It also rebuilds `site/dashboard.html`, whose studies section (the study map)
+always quotes the newest report. That step is best-effort: the report is the
+valuable output, and a broken dashboard must never turn a good run into a
+failed command.
 
 For studies that have one, it also re-renders the HTML chart pages under
 `scripts/study_charts/` (today: `account_sim` only). Unlike the map, a chart
@@ -772,12 +772,13 @@ def main(argv: list[str] | None = None) -> int:
         elif rc == 0:
             _render_charts(name, _merge_args(name, arm_extra), charts)
 
-    # Imported here, not at module scope: the map reads every report in the
-    # output dir, and nothing about running a study should depend on it.
+    # Imported here, not at module scope: the dashboard's studies section reads
+    # every report in the output dir, and nothing about running a study should
+    # depend on it.
     from scripts.study_map.build import refresh_quietly
     mapped = refresh_quietly()
     if mapped:
-        print(f"\n  map refreshed: {mapped.relative_to(ROOT)}  (open it in a browser)")
+        print(f"\n  dashboard refreshed: {mapped.relative_to(ROOT)}  (open it in a browser)")
     # Standalone runs still need a write-up; study_review passes --no-handoff
     # because it runs the graded write-up itself (analyst A/B + validator + digest).
     if not args.no_handoff:

@@ -90,9 +90,10 @@ class Study:
     # the OPERATOR should personally read this study's review artifacts NOW
     # (a card line changed, a candidate was retracted, a decision is pending).
     # Set it during the recording pass that created the need; clear it back to
-    # None once the operator has read/decided. The map's "Reading queue"
-    # renders every flagged study under "read first"; unflagged studies whose
-    # digest exists on disk render as "good to know" with dates only. The flag
+    # None once the operator has read/decided. The dashboard's studies section
+    # lists every flagged study under "Read first"; unflagged studies whose
+    # review files exist on disk go under "Reviewed, nothing pending" with
+    # dates only. The flag
     # is a POINTER to artifacts, never a conclusion of its own.
     attention: str | None = None
 

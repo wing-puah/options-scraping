@@ -10,11 +10,14 @@ The ledger (research/flow-edge-ledger.html) is HAND-MAINTAINED: its figures are
 edited when a study result moves. This script only wraps it as a full page at
 site/flow-edge-ledger.html.
 
+The studies section IS the study map: every study's question, verdict and last
+run, built by scripts/study_map (folded in 2026-10-29; there is no separate
+study-map page any more). Each study's digest page is written beside this one.
+
 Every page carries one sticky navigation bar, built from NAV. A page another
-script generates (a study chart, the study map) is copied into a frame on a
-wrapper page under the same bar, so this script never edits that page itself.
-To add a page to the bar, add a line to NAV (an EMBEDS entry for a generated
-page).
+script generates (a study chart) is copied into a frame on a wrapper page under
+the same bar, so this script never edits that page itself. To add a page to the
+bar, add a line to NAV (an EMBEDS entry for a generated page).
 
     python3 scripts/dashboard.py [--today YYYY-MM-DD] [--out PATH] [--quiet]
 """
@@ -60,15 +63,13 @@ EMBEDS = [
     ("charts-regime.html", "account-sim-regime.html", "By market regime", "charts"),
     ("charts-compounding.html", "account-sim-compounding.html", "Compounding", "charts"),
     ("charts-digest.html", "account-sim-digest.html", "Plain-English digest", "charts"),
-    ("study-map-view.html", "study-map.html", "Study map", "map"),
 ]
-# The navigation bar: (key, label, href). The charts and map entries point at
-# the first EMBEDS page of their group.
+# The navigation bar: (key, label, href). The charts entry points at the first
+# EMBEDS page of its group.
 NAV = [
     ("dashboard", "Dashboard", "dashboard.html"),
     ("charts", "Backtest charts", "charts-feasibility.html"),
     ("ledger", "Flow Edge Ledger", LEDGER_NAME),
-    ("map", "Study map", "study-map-view.html"),
 ]
 NAV_H = 52
 
@@ -487,19 +488,17 @@ def forward_dip_days(path: Path | None = None) -> dict | None:
 
 # ── 6. studies ────────────────────────────────────────────────────────────────
 def studies_state() -> dict:
+    """The tally by state, plus the whole study map as an HTML fragment."""
     try:
-        from scripts.study_map import catalog
+        from scripts.study_map import build, catalog, render
+        body = build.build_fragment()
     except Exception as e:  # noqa: BLE001  catalog is another session's file; never crash on it
-        return nodata(f"study catalog unreadable ({type(e).__name__})")
+        return nodata(f"study map unreadable ({type(e).__name__})")
     counts: dict[str, int] = {}
-    open_list = []
-    for name, s in catalog.STUDIES.items():
+    for s in catalog.STUDIES.values():
         counts[s.state] = counts.get(s.state, 0) + 1
-        if s.state == "open":
-            open_list.append((name, md_plain(s.question)))
-    labels = dict(catalog.STATES)
-    return {"ok": True, "counts": counts, "labels": labels, "open": open_list,
-            "total": sum(counts.values())}
+    return {"ok": True, "counts": counts, "labels": dict(catalog.STATES), "html": body,
+            "flagged": len(render.flagged()), "total": sum(counts.values())}
 
 
 # ── 7. waiting on the operator ────────────────────────────────────────────────
@@ -667,6 +666,8 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
         bits.append(f"The keep-or-kill rule reads {gate['verdict']}.")
     if wait["ok"]:
         bits.append(f"{len(wait['items']) + wait['extra']} item(s) are waiting on you.")
+    if studies.get("flagged"):
+        bits.append(f"{studies['flagged']} study result(s) are flagged for you to read.")
     cls = "con" if bad else "ship"
     out.append(f'<header><p class="eyebrow">Project dashboard</p><h1>As of {e(today)}</h1>'
                f'<p class="lede">{e(" ".join(bits))}</p>'
@@ -820,10 +821,7 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
                      f'{studies["counts"].get(k, 0)} ')
         s.append(f'</p><p>{total} studies in all. "Shipped" means a rule was adopted. "Null" means no effect was '
                  'found. "Open" means it is waiting for more days of data.</p>')
-        s.append(f'<details><summary>The {len(studies["open"])} open studies</summary><ul class="plain">')
-        for n, q in studies["open"]:
-            s.append(f'<li><strong>{e(n)}</strong> <span class="sub">{e(q[:170])}</span></li>')
-        s.append("</ul></details>")
+        s.append(studies["html"])
     else:
         s.append(nocard(studies.get("why", "")))
     s.append("</section>")
@@ -852,7 +850,8 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
                "<li>Book: BacktestResults and BacktestProxy exports, columns realized_pnl_abs and path_status</li>"
                "<li>Flow layer: outcome blocks in research/pre-registrations (programme_gate, dip_buy, "
                "mechanical_benchmark) and MIN_DATES in dip_buy.py</li>"
-               "<li>Studies: scripts/study_map/catalog.py</li>"
+               "<li>Studies: verdicts from scripts/study_map/catalog.py, last runs quoted from "
+               "backtests/study_output/, write-ups from research/current.md</li>"
                "<li>Waiting on you: research/next-steps.md</li></ul>"
                "<p class=\"sub\">Local files only. Nothing from journal/ or portfolio/.</p></footer>")
     return "".join(out)
@@ -936,6 +935,40 @@ padding:12px 14px;display:flex;flex-direction:column;gap:4px}
 .hb .track b{position:absolute;top:0;bottom:0;border-radius:3px}
 .hb b.pos{background:var(--ship)} .hb b.neg{background:var(--con)}
 .hb .amt{font-size:13px;min-width:72px;text-align:right}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.9em}
+h4{font-size:15px;margin:16px 0 2px}
+.thesis{margin:14px 0 8px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);
+border-left:3px solid var(--ship);border-radius:6px}
+.fam{margin-top:28px} .fam h3 .sub{font-family:"IBM Plex Sans",system-ui,sans-serif;font-weight:400}
+.fam>p.sub{margin:2px 0 0}
+ul.queue .why{margin:4px 0 2px;font-size:15px}
+.sname{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-weight:500}
+ul.studies{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--line);border-radius:10px;
+background:var(--surface);overflow:hidden}
+ul.studies>li{border-top:1px solid var(--line);border-left:4px solid var(--null)}
+ul.studies>li:first-child{border-top:0}
+li.study.is-shipped{border-left-color:var(--ship)} li.study.is-open{border-left-color:var(--open)}
+li.study.is-reference{border-left-color:var(--pos)}
+ul.studies details{margin:0}
+ul.studies>li>details>summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;
+padding:10px 14px;color:var(--fg);list-style:none}
+ul.studies>li>details>summary::-webkit-details-marker{display:none}
+ul.studies>li>details>summary::before{content:"\\25B8";color:var(--muted)}
+ul.studies>li>details[open]>summary::before{content:"\\25BE"}
+.sq{flex-basis:100%;font-size:14px;color:var(--muted);padding-left:18px}
+.run-state{font-size:13px;color:var(--muted);margin-left:auto}
+.good{color:var(--ship)} .bad{color:var(--con)} .refused{color:var(--open)} .retired-label{color:var(--null)}
+.pill.is-retired{background:var(--null-bg);color:var(--null)}
+.sbody{padding:0 14px 14px 32px} .sbody p{margin:6px 0}
+details.run{margin-top:8px} details.run>summary{font-size:14px} .kind{color:var(--muted)}
+.meta,.links{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted);margin:6px 0}
+pre.excerpt{margin:6px 0;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:6px;
+font:12.5px/1.45 "IBM Plex Mono",ui-monospace,Menlo,monospace;overflow-x:auto;white-space:pre;overflow-wrap:normal}
+.caveat{font-size:14px;color:var(--muted)} .caveat.is-warning{color:var(--open)}
+.tablewrap{overflow-x:auto}
+table.infra{border-collapse:collapse;width:100%;font-size:14px}
+table.infra td{border-top:1px solid var(--line);padding:6px 8px;vertical-align:top}
+table.infra td.name{white-space:nowrap} table.infra td+td{font-family:inherit}
 </style>
 """
 
@@ -964,10 +997,18 @@ def main(argv=None) -> int:
     out.write_text(document(page, "dashboard", pages), encoding="utf-8")
     ledger = write_ledger(out.parent, pages=pages)
     embeds = write_embeds(out.parent, pages)
+    try:
+        from scripts.study_map.build import write_digests
+        digests = write_digests(out.parent)
+    except Exception as ex:  # noqa: BLE001  a digest page must never stop the dashboard
+        digests, digest_err = [], type(ex).__name__
+    else:
+        digest_err = ""
     if not a.quiet:
         print(f"dashboard -> {out} ({len(page):,} bytes), as of {a.today}")
         print(f"ledger    -> {ledger or f'not written: {LEDGER_SRC} is missing'}")
         print(f"embedded  -> {', '.join(x.name for x in embeds) or 'none (no study chart pages in site/ yet)'}")
+        print(f"digests   -> {len(digests)} page(s)" + (f", failed ({digest_err})" if digest_err else ""))
         for i in d["flow"]["items"]:
             print(f"  {i['label']:<22} {i['date'] or 'none':<11} {i['state']}  {i.get('note', '')}")
         if d["flow"]["pending_known"]:

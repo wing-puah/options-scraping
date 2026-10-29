@@ -119,7 +119,8 @@ python3 -m scripts.backtest_study list                # available studies
 python3 -m scripts.backtest_study run <name>          # → backtests/study_output/<name>-latest.txt
 python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see docs/architecture.md §account_sim
 python3 -m scripts.study_review <name>                # A/B replication grading + digest (--skip-run reuses report)
-make study-map-open                                   # rebuild site/study-map.html + open
+make dashboard                                        # rebuild site/dashboard.html (the study map is
+                                                      # its studies section) + open
 python3 -m scripts.study_charts.account_sim           # render a study result; never computes a new one
 
 # Reset the checkout (both cleaners; see docs/architecture.md §Cleaning)

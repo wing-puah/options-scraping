@@ -1,5 +1,6 @@
 """scripts/dashboard.py gatherers on tiny fixtures. Missing files must degrade, never crash."""
 import csv
+import re
 from pathlib import Path
 
 from scripts import dashboard as d
@@ -138,6 +139,37 @@ def test_main_writes_both_pages_and_links_the_ledger(tmp_path):
     ledger = (tmp_path / d.LEDGER_NAME).read_text()
     assert 'class="dnav"' in ledger and 'href="dashboard.html"' in ledger   # a way back
     assert 'href="charts-feasibility.html"' not in page                      # no chart pages in tmp
+
+
+def test_the_study_map_is_a_section_of_the_dashboard_not_a_tab(tmp_path):
+    """Folded in 2026-10-29: one place to read results, no separate study-map page."""
+    from scripts.study_map import catalog
+    (tmp_path / "study-map.html").write_text("<title>old map</title>")   # a stale copy in site/
+    assert d.main(["--out", str(tmp_path / "dashboard.html"), "--quiet"]) == 0
+    page = (tmp_path / "dashboard.html").read_text()
+    for name in catalog.STUDIES:
+        assert f'data-study="{name}"' in page
+    for key in catalog.FAMILIES:
+        assert f'id="studies-{key}"' in page
+    assert "study-map.html" not in page and "study-map-view" not in page
+    assert not (tmp_path / "study-map-view.html").exists()
+    assert all(key != "map" for key, _, _ in d.NAV)
+
+
+def test_studies_section_degrades_when_the_map_cannot_build(monkeypatch):
+    from scripts.study_map import build
+    monkeypatch.setattr(build, "build_fragment", lambda *a, **k: 1 / 0)
+    st = d.studies_state()
+    assert st["ok"] is False and "ZeroDivisionError" in st["why"]
+
+
+def test_page_carries_both_themes_for_every_token():
+    """A colour defined only in light or only in dark renders unreadable in the other."""
+    light = set(re.findall(r"(--[a-z-]+):", re.search(r":root\{(.*?)\}", d.HEAD)[1]))
+    dark = set(re.findall(r"(--[a-z-]+):", re.search(r':root\[data-theme="dark"\]\{(.*?)\}', d.HEAD)[1]))
+    used = set(re.findall(r"var\((--[a-z-]+)\)", d.HEAD))
+    assert dark == light
+    assert used <= light
 
 
 def test_embeds_wrap_existing_pages_under_the_bar(tmp_path):

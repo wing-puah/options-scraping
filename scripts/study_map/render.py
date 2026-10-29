@@ -1,15 +1,20 @@
-"""Assemble the page.
+"""Assemble the studies section of the project dashboard.
 
-Emits an HTML *fragment* — `<title>`, inline `<style>`, body markup — matching
-what `scripts/study_charts/render.py` produces, so the same bytes can be
-published as an Artifact or, via `wrap_standalone`, opened straight off disk.
+Emits an HTML *fragment* — body markup only, no `<title>` or `<style>` — that
+`scripts/dashboard.py` drops into its "What have the studies found?" section
+and styles with its own stylesheet. The study map used to be a page of its own
+(`site/study-map.html`); it was folded into the dashboard on 2026-10-29 so the
+operator reads results in one place.
 
-Everything on the page comes from one of three places, and the markup keeps
+Everything in the section comes from one of three places, and the markup keeps
 them visually separated because they carry different authority:
 
     catalog.py  hand-written verdicts     — what the programme concluded
     summary.py  quoted report excerpts    — what the last run printed
     tuning.py   quoted current.md headings — what was last written up
+
+The digest pages (`digest.py`) are still pages of their own, linked from the
+section; `ASSETS`, `site_name` and `wrap_standalone` exist for them.
 """
 from __future__ import annotations
 
@@ -23,13 +28,16 @@ from . import catalog, summary, tuning
 ROOT = Path(__file__).resolve().parents[2]
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-TITLE = "Backtest Study Map"
+
+# The dashboard's pill colours, by catalog state.
+STATE_CLS = {"shipped": "ship", "null": "null", "open": "open", "reference": "pos"}
 
 
 def site_name(study: str) -> str:
     """site/ filename for a study's rendered digest page (hyphenated, matching
     the existing account-sim-*.html naming)."""
     return study.replace("_", "-") + "-digest.html"
+
 
 _KIND_NOTE = {
     "verdict": "quoted from the report's own VERDICT block",
@@ -54,69 +62,7 @@ def _rich(text: object) -> str:
     return _CODE.sub(r"<code>\1</code>", _e(text))
 
 
-# ── diagram ───────────────────────────────────────────────────────────────────
-def _svg_box(x: int, y: int, w: int, h: int, title: str, subs: list[str],
-             tag: str = "", accent: bool = False) -> str:
-    cls = "d-box-accent" if accent else "d-box"
-    parts = [f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"/>']
-    ty = y + 20
-    if tag:
-        parts.append(f'<text class="d-tag" x="{x + 12}" y="{ty}">{_e(tag)}</text>')
-        ty += 16
-    parts.append(f'<text class="d-title" x="{x + 12}" y="{ty}">{_e(title)}</text>')
-    for i, sub in enumerate(subs):
-        parts.append(
-            f'<text class="d-sub" x="{x + 12}" y="{ty + 16 + i * 14}">{_e(sub)}</text>')
-    return "".join(parts)
-
-
-def _diagram(counts: dict[str, int]) -> str:
-    fam = catalog.FAMILIES
-    # Short labels, not truncated catalog text — a diagram that clips a word
-    # mid-way reads as a bug rather than as shorthand.
-    lanes = [
-        ("selection", "what to trade", "mostly null", "0/496 subsets"),
-        ("management", "when to get out", "the edge is here", "2 rules shipped"),
-        ("structure", "which wrapper", "one +0.085", "dies out of sample"),
-        ("deployment", "can I run it", "feasibility only", "delta binds first"),
-        ("hedging", "what protects it", "bear is a hedge", "the rest is blocked"),
-    ]
-    xs = [60, 228, 396, 564, 732]
-    boxes = "".join(
-        _svg_box(x, 300, 150, 108,
-                 f"{fam[key]['index']} {fam[key]['title'].upper()}",
-                 [label, "", line1, line2],
-                 tag=f"{counts.get(key, 0)} STUDIES")
-        for x, (key, label, line1, line2) in zip(xs, lanes))
-    drops = "".join(
-        f'<path class="d-line" d="M {x + 75} 276 V 300"/>'
-        f'<path class="d-line" d="M {x + 75} 408 V 432"/>' for x in xs)
-    return f"""    <div class="diagram">
-      <svg viewBox="0 0 900 500" role="img" aria-label="Flow from the analysis engine
-        through the pooled book and the frozen harness into five study families and
-        out to the operator card.">
-        {_svg_box(300, 8, 300, 46, "ANALYSIS ENGINE", ["v3 frozen · v4 live"])}
-        <path class="d-line" d="M 450 54 V 82"/>
-        {_svg_box(190, 82, 520, 68, "THE BOOK", [
-            "real rows + real-priced proxy rows, calibration-gated",
-            "n is the ~118 SIGNAL DATES, not the ~1,100 rows"], tag="BOOK.PY")}
-        <path class="d-line" d="M 450 150 V 178"/>
-        {_svg_box(190, 178, 520, 68, "HARNESS · PROTOCOL", [
-            "frozen replay of stored marks — prices nothing",
-            "purged walk-forward · date-clustered CIs · LOO · window re-cuts"],
-            tag="HARNESS.PY / PROTOCOL.PY")}
-        <path class="d-line" d="M 450 246 V 276"/>
-        <path class="d-line" d="M 135 276 H 807"/>
-        {drops}
-        {boxes}
-        <path class="d-line" d="M 135 432 H 807"/>
-        {_svg_box(300, 432, 300, 52, "docs/deployment-rules.md",
-                  ["the operator card — top 3/day, tiers A/B"], accent=True)}
-      </svg>
-    </div>"""
-
-
-# ── cards ─────────────────────────────────────────────────────────────────────
+# ── study rows ────────────────────────────────────────────────────────────────
 def _run_state(run: summary.RunSummary) -> str:
     if not run.ran:
         if run.retired:
@@ -182,7 +128,7 @@ def _run_block(run: summary.RunSummary) -> str:
                        'asked for, or an era too thin to conclude from). Correct behaviour, '
                        'not a broken run — see <code>scripts/backtest_study/run.py</code>\'s '
                        '"Designed refusals" note.</p>')
-        # Without this, a refused card is a dead end: it says the current era
+        # Without this, a refused row is a dead end: it says the current era
         # cannot answer and gives no route to the era that could. The record is
         # the ONLY place a past era's numbers survive — the reports themselves
         # are gitignored and are overwritten by exactly this kind of re-run.
@@ -218,55 +164,43 @@ def _run_block(run: summary.RunSummary) -> str:
 
     return f"""      <details class="run">
         <summary>what the last run printed <span class="kind">— {_e(kind_note)}</span></summary>
-        <div class="run-body">
-          <div class="meta">{''.join(meta)}</div>
-          <pre class="excerpt">{excerpt}</pre>
-          <div class="links">{''.join(links)}</div>
+        <div class="meta">{''.join(meta)}</div>
+        <pre class="excerpt">{excerpt}</pre>
+        <div class="links">{''.join(links)}</div>
 {chr(10).join(caveats)}
-        </div>
       </details>"""
 
 
-def _card(name: str, study: catalog.Study, run: summary.RunSummary) -> str:
+def _study(name: str, study: catalog.Study, run: summary.RunSummary) -> str:
     state = study.state
-    card_cls = f"card is-{state}" + (" is-retired" if study.retired else "")
+    row_cls = f"study is-{state}" + (" is-retired" if study.retired else "")
     retired_pill = ('<span class="pill is-retired">retired</span>'
                     if study.retired else "")
     retired_note = (f'      <p class="caveat is-warning">{_rich(study.retired)}</p>'
                     if study.retired else "")
-    return f"""    <article class="{card_cls}">
-      <div class="card-head">
-        <h3>{_e(name)}.py</h3>
-        <span class="pill is-{state}">{_e(catalog.STATES[state])}</span>
-        {retired_pill}
-        {_run_state(run)}
-      </div>
-      <div class="qa">
-        <p class="q"><span class="label">Asks</span>{_rich(study.question)}</p>
-        <p class="v"><span class="label">Verdict</span>{_rich(study.verdict)}</p>
-      </div>
+    return f"""  <li class="{row_cls}" data-study="{_e(name)}"><details>
+    <summary><span class="pill {STATE_CLS[state]}">{_e(catalog.STATES[state])}</span>{retired_pill}\
+<span class="sname">{_e(name)}</span>{_run_state(run)}<span class="sq">{_rich(study.question)}</span></summary>
+    <div class="sbody">
+      <p><strong>Verdict.</strong> {_rich(study.verdict)}</p>
 {retired_note}
 {_run_block(run)}
-    </article>"""
+    </div>
+  </details></li>"""
 
 
 def _family(key: str, studies: list[tuple[str, catalog.Study]],
             runs: dict[str, summary.RunSummary]) -> str:
     fam = catalog.FAMILIES[key]
-    cards = "\n".join(_card(n, s, runs[n]) for n, s in studies)
-    return f"""  <section id="{_e(key)}">
-    <div class="family-head">
-      <div class="line">
-        <h2>{_e(fam['index'])} {_e(fam['title'])}</h2>
-        <span class="ask">{_e(fam['question'])}</span>
-        <span class="count">{len(studies)} studies</span>
-      </div>
-      <p class="note">{_rich(fam['note'])}</p>
-    </div>
-    <div class="cards">
-{cards}
-    </div>
-  </section>"""
+    rows = "\n".join(_study(n, s, runs[n]) for n, s in studies)
+    return f"""<div class="fam" id="studies-{_e(key)}">
+<h3>{_e(fam['index'])} {_e(fam['title'])} <span class="sub">— {_e(fam['question'])} \
+· {len(studies)} studies</span></h3>
+<p class="sub">{_rich(fam['note'])}</p>
+<ul class="studies">
+{rows}
+</ul>
+</div>"""
 
 
 # ── reading queue ─────────────────────────────────────────────────────────────
@@ -296,11 +230,16 @@ def _art_links(arts: list[tuple[str, str, float]]) -> str:
     return " · ".join(f'<a href="{_e(href)}">{_e(label)}</a>' for label, href, _ in arts)
 
 
+def flagged() -> list[str]:
+    """Studies whose hand-written `attention` flag asks the operator to read them now."""
+    return [n for n, s in catalog.STUDIES.items() if s.attention]
+
+
 def _queue() -> str:
     """The operator's reading queue.
 
     The split is two sources with different authority, same as the rest of the
-    page: the READ-FIRST flags are hand-written (`catalog.Study.attention` —
+    section: the READ-FIRST flags are hand-written (`catalog.Study.attention` —
     set during the recording pass that created the need, cleared once the
     operator has read/decided); the artifact lists and their dates are read
     mechanically off `backtests/study_output/`. Nothing here summarises a
@@ -313,202 +252,103 @@ def _queue() -> str:
             first.append((name, study, arts))
         elif arts:
             fyi.append((name, study, arts))
-    if not first and not fyi:
-        return ""
     newest = lambda arts: max((m for _, _, m in arts), default=0.0)  # noqa: E731
     day = lambda ts: datetime.fromtimestamp(ts).strftime("%Y-%m-%d")  # noqa: E731
 
     first_html = "\n".join(
-        f"""      <article class="queue-item">
-        <div class="queue-head"><h3>{_e(n)}</h3>
-          <span class="queue-date">{_e(day(newest(a)) if a else "no review artifacts yet")}</span></div>
-        <p class="queue-why">{_rich(s.attention)}</p>
-        <p class="queue-links">{_art_links(a) or "review artifacts not on disk — run study_review"}</p>
-      </article>"""
+        f"""  <li><div><span class="sname">{_e(n)}</span> \
+<span class="sub">{_e(day(newest(a)) if a else "no review files yet")}</span>
+    <p class="why">{_rich(s.attention)}</p>
+    <p class="sub">{_art_links(a) or "review files not on disk — run study_review"}</p></div></li>"""
         for n, s, a in sorted(first, key=lambda t: -newest(t[2])))
+    first_block = (f'<ul class="rows queue">\n{first_html}\n</ul>' if first_html
+                   else "<p>Nothing is flagged for reading.</p>")
     fyi_html = "\n".join(
-        f'        <li><span class="queue-date">{_e(day(newest(a)))}</span> '
-        f"<strong>{_e(n)}</strong> — {_art_links(a)}</li>"
+        f'  <li><span class="sub mono">{_e(day(newest(a)))}</span> '
+        f'<span class="sname">{_e(n)}</span> — {_art_links(a)}</li>'
         for n, _, a in sorted(fyi, key=lambda t: -newest(t[2])))
-    fyi_block = (f"""    <div class="queue-fyi">
-      <h3>Good to know — reviewed, nothing pending</h3>
-      <ul>
+    fyi_block = (f"""<details><summary>Reviewed, nothing pending ({len(fyi)})</summary>
+<ul class="plain">
 {fyi_html}
-      </ul>
-    </div>""" if fyi else "")
+</ul></details>""" if fyi else "")
 
-    return f"""  <section id="queue">
-    <div class="section-head">
-      <h2>Reading queue</h2>
-      <p>What needs the operator's eyes now, and what is merely fresh. The
-        <em>read first</em> flags are hand-written in <code>catalog.py</code> — set when a
-        recording pass changes a card line, retracts a candidate, or leaves a decision
-        pending; cleared once read. Artifact lists and dates are read off
-        <code>backtests/study_output/</code>. The flag says <em>why to open</em> the
-        artifacts, never what they found.</p>
-    </div>
-    <div class="queue-first">
-{first_html if first_html else "      <p>Nothing flagged — no pending operator reading.</p>"}
-    </div>
-{fyi_block}
-  </section>"""
+    return f"""<h3 id="studies-queue">Read first</h3>
+<p class="sub">Flags hand-written in <code>catalog.py</code> when a study's result changed or
+a decision is pending. Each says why to open that study's review files, never what they
+found. A flag is cleared once you have read it.</p>
+{first_block}
+{fyi_block}"""
 
 
-# ── other sections ────────────────────────────────────────────────────────────
-def _scoreboard(runs: dict[str, summary.RunSummary]) -> str:
-    cells = [
-        (str(len(catalog.STUDIES)), "studies", ""),
-        *((str(n), catalog.STATES[state], f" is-{state}")
-          for state, n in catalog.scoreboard().items()),
-        (f"{sum(1 for r in runs.values() if r.ran)}/{len(runs)}", "reports on disk", ""),
-    ]
-    return ('  <div class="scoreboard">\n'
-            + "\n".join(f'    <div class="score{cls}"><span class="n">{_e(n)}</span>'
-                        f'<span class="k">{_e(k)}</span></div>' for n, k, cls in cells)
-            + "\n  </div>")
-
-
+# ── other blocks ──────────────────────────────────────────────────────────────
 def _log(entries: list[tuning.LogEntry], mtime: str) -> str:
     if not entries:
         return ""
     rows = "\n".join(
-        f'      <div class="log-row">'
-        f'<span class="when">{_e(e.date or "undated")}</span>'
-        f'<p class="what">{_e(e.title)}</p>'
-        + (f'<p class="gist">{_rich(e.gist)}</p>' if e.gist else "")
-        + "</div>"
+        f'  <li><span class="sub mono">{_e(e.date or "undated")}</span> <strong>{_e(e.title)}</strong>'
+        + (f'<br><span class="sub">{_rich(e.gist)}</span>' if e.gist else "")
+        + "</li>"
         for e in entries)
-    return f"""  <section id="log">
-    <div class="section-head">
-      <h2>Latest from the tuning log</h2>
-      <p>The newest sections of <code>research/current.md</code>, quoted —
-        headings and first line only. The log is the source of truth; this is a pointer
-        into it, not a second copy. Last edited {_e(mtime or "unknown")}.</p>
-    </div>
-    <div class="log">
+    return f"""<details id="studies-log"><summary>Latest write-ups in research/current.md \
+({len(entries)})</summary>
+<p class="sub">The newest sections, quoted: heading and first line only. The log is the
+source of truth; this only points into it. Last edited {_e(mtime or "unknown")}.</p>
+<ul class="plain">
 {rows}
-    </div>
-  </section>"""
+</ul></details>"""
 
 
-def _infra() -> str:
-    rows = "\n".join(
-        f'          <tr><td class="name">{_e(name)}</td><td><p>{_rich(desc)}</p></td></tr>'
-        for name, desc in catalog.INFRA.items())
-    return f"""  <section id="infra">
-    <div class="section-head">
-      <h2>Infrastructure</h2>
-      <p>Not studies — these carry no verdict, and every verdict rests on them.</p>
-    </div>
-    <div class="table-view">
-      <table>
-        <thead><tr><th>File</th><th>Role</th></tr></thead>
-        <tbody>
-{rows}
-        </tbody>
-      </table>
-    </div>
-  </section>"""
-
-
-def _reading() -> str:
-    items = "\n".join(
-        f"      <li><div><b>{_e(head)}</b><p>{_rich(body)}</p></div></li>"
-        for head, body in catalog.READING)
-    traps = "\n".join(
-        f"      <li><b>{_e(head)}</b><p>{_rich(body)}</p></li>"
-        for head, body in catalog.TRAPS)
-    return f"""  <section id="reading">
-    <div class="section-head">
-      <h2>How to read any one report</h2>
-    </div>
-    <ol class="steps">
-{items}
-    </ol>
-  </section>
-
-  <section id="traps">
-    <div class="section-head">
-      <h2>Traps this log has actually fallen into</h2>
-    </div>
-    <ul class="traps">
+def _about() -> str:
+    steps = "\n".join(f"  <li><strong>{_e(head)}.</strong> {_rich(body)}</li>"
+                      for head, body in catalog.READING)
+    traps = "\n".join(f"  <li><strong>{_e(head)}.</strong> {_rich(body)}</li>"
+                      for head, body in catalog.TRAPS)
+    infra = "\n".join(f'  <tr><td class="name">{_e(name)}</td><td>{_rich(desc)}</td></tr>'
+                      for name, desc in catalog.INFRA.items())
+    return f"""<details id="studies-about"><summary>How to read a study report</summary>
+<ol class="plain">
+{steps}
+</ol>
+<h4>Traps this research has fallen into</h4>
+<ul class="plain">
 {traps}
-    </ul>
-  </section>"""
+</ul>
+<h4>The shared code every study runs on</h4>
+<p class="sub">Not studies: these carry no verdict, and every verdict rests on them.</p>
+<div class="tablewrap"><table class="infra">
+{infra}
+</table></div></details>"""
 
 
-# ── page ──────────────────────────────────────────────────────────────────────
+# ── section ───────────────────────────────────────────────────────────────────
 def build(runs: dict[str, summary.RunSummary],
           log_entries: list[tuning.LogEntry],
-          log_mtime: str,
-          built_at: str | None = None) -> str:
-    """The full page fragment."""
-    built_at = built_at or datetime.now().strftime("%Y-%m-%d %H:%M")
-    css = (ASSETS / "page.css").read_text()
+          log_mtime: str) -> str:
+    """The studies section body, below the dashboard's own heading and tally."""
     families = catalog.by_family()
-    counts = {k: len(v) for k, v in families.items()}
-    sections = "\n\n".join(_family(k, v, runs) for k, v in families.items() if v)
-
-    return f"""<title>{TITLE}</title>
-<style>
-{css}
-</style>
-
-<div class="wrap">
-  <header class="masthead">
-    <p class="eyebrow">scripts/backtest_study · research tier · never scheduled</p>
-    <h1>Study map</h1>
-    <p class="standfirst"><code>scripts/backtest/</code> <strong>prices</strong> the book.
-      <code>scripts/backtest_study/</code> <strong>argues</strong> about it. Nothing here is
-      imported by production, nothing runs on a schedule, and no study writes config — a study
-      ends in a plain-text report that becomes an addendum in <code>current.md</code>, and a
-      human decides whether anything ships.</p>
-    <p class="thesis"><strong>The result of the whole programme, in one sentence:</strong>
-      selection is not tunable from the columns we have; the money is in the exit rules and in
-      position management. Every selection study returns a null. Two exit rules shipped.</p>
-    <p class="built">
-      <span>built {_e(built_at)}</span>
-      <span>verdicts: hand-written, from current.md</span>
-      <span>run blocks: quoted from backtests/study_output/</span>
-    </p>
-  </header>
-
-{_scoreboard(runs)}
-
+    jump = " · ".join(
+        ['<a href="#studies-queue">Read first</a>']
+        + [f'<a href="#studies-{_e(k)}">{_e(catalog.FAMILIES[k]["index"])} '
+           f'{_e(catalog.FAMILIES[k]["title"])}</a>' for k, v in families.items() if v]
+        + ['<a href="#studies-about">How to read a report</a>'])
+    sections = "\n".join(_family(k, v, runs) for k, v in families.items() if v)
+    on_disk = sum(1 for r in runs.values() if r.ran)
+    return f"""<p class="thesis"><strong>The whole programme in one sentence:</strong>
+selection is not tunable from the columns we have; the money is in the exit rules and in
+position management. Every selection study returns a null. Two exit rules shipped.</p>
+<p class="sub prov">Verdicts are hand-written in <code>scripts/study_map/catalog.py</code>
+and change only when someone edits them. Run blocks are quoted from
+<code>backtests/study_output/</code> and are only as fresh as the last run
+({on_disk} of {len(runs)} studies have a report on disk). Click a study to open it.</p>
+<p class="sub jump">{jump}</p>
 {_queue()}
-
-  <section id="shape">
-    <div class="section-head">
-      <h2>The shape of the whole thing</h2>
-      <p>A play is picked, managed, wrapped and funded. The four families are those four
-        decisions, and each one is a question somebody tried to answer with a study.</p>
-    </div>
-{_diagram(counts)}
-  </section>
-
 {_log(log_entries, log_mtime)}
-
 {sections}
-
-{_infra()}
-
-{_reading()}
-
-  <footer>
-    Rendered by <code>python -m scripts.study_map</code>, and re-rendered automatically after
-    every <code>python -m scripts.backtest_study run …</code>. The <em>verdict</em> lines are
-    hand-written in <code>scripts/study_map/catalog.py</code> and change only when someone edits
-    them; the <em>last run</em> blocks are quoted verbatim out of
-    <code>backtests/study_output/</code> and are only as current as the last run. Nothing on this
-    page states a conclusion a study did not print — an excerpt with no verdict block in it is
-    labelled as the tail of the report, and a study nobody has run says so.
-  </footer>
-</div>
-"""
+{_about()}"""
 
 
 def wrap_standalone(fragment: str) -> str:
-    """Wrap the fragment in a minimal document for opening straight off disk."""
+    """Wrap a digest fragment in a minimal document for opening straight off disk."""
     return (
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'

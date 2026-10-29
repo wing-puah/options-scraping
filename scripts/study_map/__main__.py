@@ -1,11 +1,10 @@
-"""CLI: `python -m scripts.study_map [--open] [--fragment] [-o PATH]`."""
+"""CLI: `python -m scripts.study_map [--open] [--check]`."""
 from __future__ import annotations
 
 import argparse
 import subprocess
 import sys
 import webbrowser
-from pathlib import Path
 
 from . import build, catalog, summary
 
@@ -13,12 +12,8 @@ from . import build, catalog, summary
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="python -m scripts.study_map",
-        description="Render site/study-map.html — what every backtest study asks, "
-                    "and what its last run printed.")
-    ap.add_argument("-o", "--out", type=Path, default=build.DEST,
-                    help=f"output path (default: {build.DEST.relative_to(build.ROOT)})")
-    ap.add_argument("--fragment", action="store_true",
-                    help="emit the bare fragment (no doctype/head) for publishing")
+        description="Rebuild site/dashboard.html, whose studies section says what every "
+                    "backtest study asks and what its last run printed.")
     ap.add_argument("--open", action="store_true", help="open it in a browser after writing")
     ap.add_argument("--check", action="store_true",
                     help="print each study's last-run status instead of rendering")
@@ -34,9 +29,7 @@ def main() -> int:
                   f"{when:10s}  {run.status}{kind}")
         return 0
 
-    path = build.write(args.out, standalone=not args.fragment)
-    rel = path.relative_to(build.ROOT) if path.is_relative_to(build.ROOT) else path
-    print(f"wrote {rel}")
+    path = build.rebuild_dashboard(quiet=False)
     if args.open:
         if sys.platform == "darwin":
             subprocess.run(["open", str(path)], check=False)

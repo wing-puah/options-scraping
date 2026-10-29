@@ -523,9 +523,9 @@ in `research/glossary.md`; the replication protocol in
 
 **`scripts/backtest_study/`** — run via `python3 -m scripts.backtest_study {list,run}`. The studies
 themselves sit in five family folders, `f1_selection/` → `f2_management/` → `f3_structure/` →
-`f4_deployment/` → `f5_hedging/` (pick it, manage it, wrap it, fund it, protect it) — the same
-taxonomy `scripts/study_map/catalog.py::FAMILIES` renders onto the study map, and the test
-suite asserts a module's folder equals its catalog `family`. `lib/` holds the shared
+`f4_deployment/` → `f5_hedging/` (pick it, manage it, wrap it, fund it, protect it). That is
+the same taxonomy `scripts/study_map/catalog.py::FAMILIES` renders onto the dashboard's study
+map. The test suite asserts a module's folder equals its catalog `family`. `lib/` holds the shared
 substrate: import-only (except `book.py
 --validate`) and carries no verdict of its own — see `research/study-map.md` for what each study
 in the family folders concluded.
@@ -1123,22 +1123,29 @@ re-run, v3's reports are overwritten and the v3-vs-v4 comparison would have noth
 side. `backtests/study_output/` is gitignored scratch; this is where a result survives. The
 tuning log holds the reasoning, this holds the index.
 
-**`scripts/study_map/`** — renders `site/study-map.html`: what each study asks (`catalog.py`,
-hand-written — a study with no entry FAILS the test suite) + what its last run printed
-(`summary.py`, quoted verbatim from the reports, never paraphrased; an excerpt with no
-VERDICT block is labelled as the report's tail) + the newest current.md sections
-(`tuning.py`). Rebuilt automatically after every study run and review; `make study-map` /
-`make study-map-open` to force. `python3 -m scripts.study_map --check` (or `make
-study-check`) prints per-study last-run status, no HTML.
+**`scripts/study_map/`** — builds the studies section of `site/dashboard.html`. It has had
+no page of its own since 2026-10-29, when `site/study-map.html` was folded into the
+dashboard. The section shows three things:
 
-The page opens with a **Reading queue** for the operator: `catalog.Study.attention` is a
-hand-written one-liner (same authority tier as `verdict`) saying why the operator should
-personally open a study's review artifacts NOW — set during the recording pass that changed
-a card line, retracted a candidate, or left a decision pending; cleared back to `None` once
-the operator has read/decided. Flagged studies render under "read first"; unflagged studies
-whose `study_review` artifacts (digest/validator/analyst memos) exist in
-`backtests/study_output/` render as "good to know" with mtime dates only. The flag points at
-artifacts, never summarises them — the render layer stays conclusion-free.
+- what each study asks and concluded (`catalog.py`, hand-written; a study with no entry
+  FAILS the test suite);
+- what its last run printed (`summary.py`, quoted verbatim, never paraphrased; an excerpt
+  with no VERDICT block is labelled as the report's tail);
+- the newest `current.md` sections (`tuning.py`).
+
+`render.py` emits markup only; `scripts/dashboard.py` supplies the page and the stylesheet.
+The dashboard is rebuilt after every study run and review (`build.refresh_quietly`).
+`make dashboard` forces a rebuild and opens it. `python3 -m scripts.study_map --check` (or
+`make study-check`) prints per-study last-run status, no HTML.
+
+The section opens with a **Reading queue** for the operator. `catalog.Study.attention` is a
+hand-written one-liner, the same authority tier as `verdict`. It says why the operator should
+personally open a study's review artifacts NOW. It is set during the recording pass that
+changed a card line, retracted a candidate, or left a decision pending. It is cleared back to
+`None` once the operator has read or decided. Flagged studies render under "Read first".
+Unflagged studies whose `study_review` artifacts (digest/validator/analyst memos) exist in
+`backtests/study_output/` render under "Reviewed, nothing pending", with mtime dates only.
+The flag points at artifacts, never summarises them — the render layer stays conclusion-free.
 
 **`scripts/study_charts/`** — renders a study's result as self-contained HTML; adds no
 conclusion.
@@ -1832,7 +1839,7 @@ python3 -m scripts.study_review <study>                # auto-inlines research/<
                                                       # exists (`_`->`-` tried); --errata <path> ·
                                                       # --no-errata to override
 python3 -m scripts.study_map --check                  # or: make study-check
-make study-map-open · make study-docs · make study-check
+make dashboard · make study-docs · make study-check
 make study-chart CHART=regime OPEN=1 · make study-chart CHART=compounding OPEN=1 · make study-chart ARM=structure
 python3 -m scripts.study_charts.account_sim [--standalone --open] [--positions <csv>] [--no-site]
 python3 -m scripts.study_charts.regime

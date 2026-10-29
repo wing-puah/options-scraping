@@ -159,4 +159,4 @@ after its report has been overwritten.
 - `scripts/study_results.py` — the recorder (its docstring carries the same history)
 - `scripts/backtest_study/lib/era.py` — how an era is detected and enforced
 - `scripts/study_map/catalog.py` — the hand-written standing verdict per study
-- `research/study-map.md` / `site/study-map.html` — what each study is *for*
+- `research/study-map.md` / the studies section of `site/dashboard.html` — what each study is *for*
