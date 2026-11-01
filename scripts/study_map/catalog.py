@@ -486,6 +486,18 @@ STUDIES: dict[str, Study] = {
                 "date. In-sample context, post hoc: v4 `below - above = +0.096  CI95 [-0.164, "
                 "+0.322]`, v3 `below - above = +0.199  CI95 [-0.050, +0.428]`. Nothing ships.",
     ),
+    "selloff_put_diagonal": Study(
+        family="selection", state="open",
+        question="On a SPY sell-off trigger (E-DD5: 5% below the 63-session high, disarmed on a "
+                 "close back above -2%), does a near ATM put plus a long-dated call diagonal, "
+                 "rolled three times, pay net of commission? Graded against zero, against the "
+                 "same package on calm weeks (ARM C), and for the put's own contribution.",
+        verdict="Accepted by default 2026-11-01; module built the same day. First run: "
+                "`VERDICT: NOT BUILT — AWAITING SCRAPE`, with `149 primary trades await a "
+                "fetch` (`fetch plan: primary 172 unique uncached contracts; every cell 326`). "
+                "G-CENSUS passes: the nine registered trigger days and 154 calm weeks. No "
+                "outcome was computed for any arm. Nothing ships from this study.",
+    ),
     "adaptive_ladder": Study(
         family="selection", state="open",
         question="Does a fixed procedure that re-picks one of six selection rules from trailing "

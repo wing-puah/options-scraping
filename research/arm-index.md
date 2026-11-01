@@ -417,6 +417,36 @@ from trailing results known before each rebalance.
 - `ADAPTS` `HURTS` `NULL` `STILL-OPEN` (prose) — The verdict words, on
   adapter minus `M0` in [slot R](glossary.md#slot-r) per date.
 
+#### `selloff_put_diagonal`
+
+_Registered in [`pre-registrations/f1_selection/regime/selloff_put_diagonal.md`](pre-registrations/f1_selection/regime/selloff_put_diagonal.md) · module `f1_selection/regime/selloff_put_diagonal.py`_
+
+Accepted by default 2026-11-01. It asks whether a SPY package bought on a
+sell-off trigger pays: a near ATM put plus a long-dated call diagonal. The
+trigger is `index_bear_hedge`'s `E-DD5` threshold. The unit is
+[R](glossary.md#r) of the package, net of commission.
+
+- `ARM K` (arm) — The package on every trigger day: the put plus the call
+  diagonal. PRIMARY, graded against zero. COLLIDES with no other `ARM K` in
+  this index.
+- `ARM K-diag` (sub-arm) — The call diagonal alone, on the same trades. Feeds
+  the put contribution, `ARM K` minus `ARM K-diag`.
+- `ARM K-put` (sub-arm) — The put alone, on the same trades. Printed only.
+- `ARM C` (control) — The same package on calm weeks: the first session of an
+  ISO week that is disarmed and within 2% of the 63-session high. The graded
+  comparator. Not `mechanical_benchmark`'s or any other study's `ARM C`.
+- `ARM H` (control) — SPY shares over the same horizon. Printed only.
+  Unrelated to `mechanical_baseline`'s `ARM H` alpha regression.
+- `ARM PD` (sub-arm) — The near put plus a put diagonal, the bearish reading
+  of OD1. Printed only.
+- `G-HASH` `G-CENSUS` `G-SEAL` (gate) — The imported thresholds hash; the nine
+  trigger days and 154 calm weeks reproduce; no in-sample date reaches the
+  seal.
+- `PAYS` `LOSES` `SELLOFF-ENTRY-HELPS` `SELLOFF-ENTRY-HURTS` `PUT-ADDS` `PUT-COSTS` (prose) — The
+  per-object verdict words.
+- `CANDIDATE` `DIAGONAL-ONLY` `NO-EDGE` (prose) — The study-level verdict
+  words, each `(PROVISIONAL)` in-sample.
+
 #### `baseline_read`
 
 _Registered in [`pre-registrations/f1_selection/regime/baseline_read.md`](pre-registrations/f1_selection/regime/baseline_read.md) · module `f1_selection/regime/baseline_read.py`_

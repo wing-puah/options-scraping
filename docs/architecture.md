@@ -167,6 +167,11 @@ scripts/                    ← entry points, each maps to a workflow step
                               backtest/shared/history.fetch_option_histories. --dry-run (offline),
                               --limit N, --scope primary|all. A real fetch exits 3 while another
                               cache writer runs
+  collector/study_legs/fetch_selloff_put_diagonal_legs.py
+                            — selloff_put_diagonal's package legs, calls and puts. Targets
+                              come from selloff_put_diagonal.plan; the writer check and the
+                              fetch loop are fetch_mechanical_baseline_legs'. --dry-run
+                              (offline), --limit N, --scope primary|all
   analysis_pipeline/        — full pipeline (run via `python3 -m scripts.analysis_pipeline`):
                               fetch → headless engine call (isolated session) → expand to
                               per-ticker rows → append to the engine's tab.
@@ -943,6 +948,27 @@ waiting, so no outcome can be computed early.
   on the frozen harness. Commission is `structure_sweep.commission_dollars`.
 - `ARM RND` reuses `mechanical_benchmark`'s `ARM U` build. The account layer is
   `account_sim.simulate` with `narrow_to_fit`'s narrower.
+- The fetch plan is `fetch_targets()`; the collector imports `plan()`.
+
+### selloff_put_diagonal
+
+Accepted by default 2026-11-01. It grades a SPY package bought on a sell-off
+trigger: a near ATM put plus a long-dated call diagonal, rolled three times.
+Module `f1_selection/regime/selloff_put_diagonal.py`; the registration is the
+spec.
+
+**The await gate.** Stage 1 prints the trigger days, the calm weeks and a
+census of every cell, counts only. While any primary trade (`ARM K` or
+`ARM C`, in-sample) awaits a fetch, the run prints `NOT BUILT — AWAITING
+SCRAPE` and stops. `Book.price` raises until `open_outcomes` finds none.
+
+- The trigger is `index_bear_hedge`'s `E-DD5` threshold, imported and
+  hash-checked, run as a real-time armed/disarmed state on the SPY close tables.
+- Strikes use `mechanical_benchmark`'s listing grid, for calls and puts. A long
+  expiry's listing is read off the cache and the skip-list.
+- Pricing is production's shared functions in `simulate.py`: `entry_day_fill`,
+  `common_entry_day`, `junk_day_mark`. The frozen harness replays one
+  single-expiry path, so `walk_package` prices the legs on their event days.
 - The fetch plan is `fetch_targets()`; the collector imports `plan()`.
 
 ### ruin_bound
@@ -1825,6 +1851,7 @@ python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # r
 python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
 python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py        # structure_sweep S2: dry-run; --live --limit N fetches
 python3 scripts/collector/study_legs/fetch_mechanical_baseline_legs.py --dry-run   # mechanical_baseline; --limit N, --scope all
+python3 scripts/collector/study_legs/fetch_selloff_put_diagonal_legs.py --dry-run  # selloff_put_diagonal; --limit N, --scope all
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list

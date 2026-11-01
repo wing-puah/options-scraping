@@ -1399,6 +1399,36 @@ What to do: return `None`, exclude the position from the net totals, and print h
 excluded, as production's `s03_risk.py` does. That changes `account_sim` output, so it needs a
 test and a re-run recorded in `current.md`.
 
+### 2.23 `selloff_put_diagonal` — built, awaiting its leg fetch — OPEN, filed 2026-11-01
+
+The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed.
+It tests a near put plus a long-dated call diagonal opened on a SPY sell-off trigger
+([pre-registration](pre-registrations/f1_selection/regime/selloff_put_diagonal.md)).
+
+| Census item | Count |
+|---|---|
+| Trigger days, in-sample | 9 |
+| Calm weeks | 154 |
+| Primary trades awaiting a fetch | 149 |
+| First-round contracts, primary scope | 172 |
+| First-round contracts, all cells | 326 |
+
+How to resume, after the ARM U loop and `after_armu_queue.sh` have both exited:
+
+1. `python3 scripts/collector/study_legs/fetch_selloff_put_diagonal_legs.py --dry-run`, then
+   without `--dry-run`. It refuses (exit 3) while another cache writer runs.
+2. `python3 scripts/backup_research_caches.py push`.
+3. `python3 -m scripts.backtest_study run selloff_put_diagonal`. Repeat steps 1–3 until nothing
+   awaits, since a fetch can expose a nearer strike.
+
+Three choices are open, and each may change only before the first outcome prints:
+
+- **OD1, diagonal direction.** Call (bullish) is the primary; put is printed.
+- **The long call's expiry.** SPY monthlies list only 6–13 months out, so the ≥270-DTE fallback
+  is the norm. Proposed: restate the primary as the farthest listed monthly in 270–365 DTE.
+- **Open calm weeks.** 7 `ARM C` diagonals close after 2026-10-22. Proposed: grade only calm
+  weeks whose diagonals have closed, or wait until about 2026-12-18.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 
